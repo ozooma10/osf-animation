@@ -285,37 +285,6 @@ namespace OSF::Registry
 		}
 	}
 
-	std::optional<SceneSpec> PackRegistry::BuildSceneSpec(std::string_view a_id, size_t a_actorCount, int32_t a_stage) const
-	{
-		std::shared_lock l{ lock };
-
-		auto it = animations.find(ToLower(a_id));
-		if (it == animations.end()) {
-			REX::WARN("PackRegistry: unknown animation id '{}' ({} registered)", a_id, animations.size());
-			return std::nullopt;
-		}
-		const auto& def = it->second;
-
-		if (def.actors.size() != a_actorCount) {
-			REX::WARN("PackRegistry: '{}' needs {} actor(s), got {}", def.id, def.actors.size(), a_actorCount);
-			return std::nullopt;
-		}
-		const auto stageCount = def.stages.size();
-		if (a_stage < 0 || static_cast<size_t>(a_stage) >= stageCount) {
-			REX::WARN("PackRegistry: '{}' has stages 0..{}, got {}", def.id, stageCount - 1, a_stage);
-			return std::nullopt;
-		}
-
-		SceneSpec spec;
-		const auto& stage = def.stages[static_cast<size_t>(a_stage)];
-		for (size_t a = 0; a < def.actors.size(); a++) {
-			const auto& clip = stage.clips[a];
-			spec.files.push_back(clip.file);
-			spec.placements.push_back(clip.offset.value_or(def.actors[a].offset));
-		}
-		return spec;
-	}
-
 	std::optional<Animation::ScenePlan> PackRegistry::BuildScenePlan(std::string_view a_id, size_t a_actorCount) const
 	{
 		std::shared_lock l{ lock };

@@ -13,46 +13,33 @@ namespace OSF::Animation
 {
 	namespace
 	{
-		// AnimationManager primary vtable (CommonLibSF VTABLE::AnimationManager[0],
-		// RE-confirmed at VA 0x144D4E678 on 1.16.244.0; .242 was 0x144D52588) and the
-		// expected slot-4 implementation, AnimationManager::Update (RE-confirmed .244
-		// RVA 0x221F170; .242 0x2222230).
+		// The two engine hooks. Full provenance (per-version VAs/RVAs) in docs/RE.md;
+		// InstallHooks verifies each vtable slot before patching.
+		// AnimationManager::Update — slot 4, the clock/sampling point.
 		constexpr REL::ID AnimManagerVTableID(467920);
 		constexpr REL::ID AnimManagerUpdateFnID(122232);
 		constexpr size_t UpdateVFuncIdx = 4;
-
-		// BGSModelNode vtable (RE-confirmed VA 0x144B2F298 on 1.16.244.0; .242 was
-		// 0x144B33288) and the expected slot-2 implementation, BGSModelNode::Update
-		// (RE-confirmed .244 RVA 0x64E750; .242 0x64F490, signature
-		// (modelNode, &fadeNode->local, NiUpdateData*)). Pre-orig writes to the
-		// rig local buffer are composed+committed by that same call.
+		// BGSModelNode::Update — slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*).
+		// PRE-orig is the rig-buffer write point (that same call composes + commits).
 		constexpr REL::ID ModelNodeVTableID(400534);
 		constexpr REL::ID ModelNodeUpdateFnID(48634);
 		constexpr size_t ModelNodeUpdateVFuncIdx = 2;
 
-		// Floor for a pinned actor's culling sphere radius (Starfield world units
-		// are METERS — see Camera/CameraService.cpp). Generous enough to enclose
-		// any posed humanoid (lying/reaching) so a degenerate or stale engine
-		// radius can never frustum-cull a participant. Used by the compose-root
-		// pin (Hook_ModelNodeUpdate) when it re-centers worldBound on the render
-		// position.
+		// Floor for a pinned actor's cull-sphere radius (meters): big enough to
+		// enclose any posed humanoid so a stale engine radius can't frustum-cull a
+		// participant. Used by the compose-root pin when re-centering worldBound.
 		constexpr float kPinCullRadius = 2.5f;
 
-		// BSFadeNode near-camera fade flag (empirical RE 2026-06-14; docs/RE.md
-		// "BSFadeNode near-camera fade"). BSFadeNode-specific member (sizeof 0x1C0,
-		// past bgsModelNode @ +0x180). A binary float: 1.0 = drawn, 0.0 =
-		// faded/culled when the 3rd-person camera orbits close to the actor. Held
-		// at 1.0 for pinned participants so scene actors never vanish near the
-		// camera — live-confirmed: forcing it from the slot-2 pin (pre-orig of the
-		// rig sync) holds, so the engine's fade writer runs earlier in the frame.
+		// BSFadeNode near-camera fade flag (+0x1B4, binary float 1.0=drawn/0.0=faded;
+		// RE 2026-06-14, docs/RE.md). The engine fades an actor when the 3rd-person
+		// camera orbits close; held at 1.0 each frame so pinned participants don't
+		// vanish (forcing it pre-orig of the rig sync holds).
 		constexpr std::ptrdiff_t kFadeNodeVisFlagOff = 0x1B4;
 
-		// Turn a pack-authored clip spec into an absolute path. Absolute specs pass
-		// through. A relative spec resolves against Data/ first (the path the author
-		// wrote); if nothing is there, fall back to Data/OSF/Animations/<filename>
-		// so a pack can reference a shared GLB by bare name. The primary Data-relative
-		// path is returned when neither exists, so the caller's load-failure log still
-		// names the path the author actually wrote.
+		// Resolve a pack clip spec to an absolute path: absolute passes through; a
+		// relative spec tries Data/<spec>, then Data/OSF/Animations/<filename> (a bare
+		// shared GLB). Returns the primary Data path if neither exists, so the
+		// load-failure log names what the author wrote.
 		std::filesystem::path ResolveClipPath(const std::filesystem::path& a_spec)
 		{
 			if (a_spec.is_absolute()) {
@@ -93,9 +80,8 @@ namespace OSF::Animation
 		}
 
 		// Validates a play request's shapes (actor count, per-stage file/placement
-		// counts, equipment/voice counts, no null actors). Logs the specific
-		// failure and returns false. The hook-installed precondition is checked
-		// separately by the caller.
+		// counts, no null actors); logs the specific failure. The hook-installed
+		// precondition is checked separately by the caller.
 		bool ValidateScenePlanArgs(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage)
 		{
 			if (a_actors.empty()) {
@@ -893,18 +879,12 @@ namespace OSF::Animation
 					if (g->StampTarget() == a_this) {
 						std::unique_lock gl{ g->lock };
 						g->StampPose(a_this);
-						// Scene actors: pin the compose's root TRANSLATION to the
-						// actor's placement world position (a_parentTransform =
-						// &fadeNode->local, the root input of this very compose;
-						// NiTransform, translate at +0x30). Physics pushes
-						// co-located capsules ~0.3 m apart and instantly wins any
-						// refr-teleport fight (live-observed flicker) — overriding
-						// the compose input pins the RENDERED skeleton without
-						// touching physics. Rotation/scale stay engine-owned
-						// (heading was never contested in any live test).
-						// Scene participants pin to their placement (anchored scenes);
-						// a solo graph pins to its own SetAnchor anchor when rootMode
-						// != kFollow. docs/ANCHORING.md.
+						// Pin the compose root TRANSLATION to the placement world position.
+						// a_parentTransform = &fadeNode->local (this compose's root input;
+						// NiTransform, translate at +0x30). Overriding the compose input pins
+						// the RENDERED skeleton without fighting physics (capsules sit ~0.3 m
+						// off and win any refr-teleport). Scene participant -> its placement
+						// (anchored); solo graph -> its SetAnchor anchor when rootMode != kFollow.
 						RE::NiPoint3 pinWorld{};
 						bool doPin = false;
 						// World heading to re-pin per frame (radians). Only known on
@@ -929,18 +909,12 @@ namespace OSF::Animation
 							root[13] = pinWorld.y;
 							root[14] = pinWorld.z;
 
-							// Pin compose-root ROTATION for the PLAYER only. In 3rd
-							// person the engine rewrites the player actor heading from
-							// the camera yaw every frame (AI-driven does NOT suppress
-							// this on 1.16.244), so the rendered rig spins as the
-							// camera orbits even though translation is pinned. NPCs are
-							// left engine/anim-owned (their root carries anim heading;
-							// over-pinning fights it). Compose root is a NiTransform;
-							// its NiMatrix3 rotate at +0x00 is `NiPoint4 entry[3]` — three
-							// ROWS of 4 floats (4th is padding), STRIDE 4, NOT a tight
-							// 3x3. Indices: row r col c = root[r*4 + c]. Write a Z-up yaw
-							// for the participant's frozen world heading; leave the pad
-							// lanes (root[3],[7],[11]) untouched.
+							// Pin compose-root ROTATION for the PLAYER only: in 3rd person the
+							// engine rewrites the player heading from camera yaw each frame
+							// (AI-driven doesn't suppress it on 1.16.244), so the rig spins as
+							// the camera orbits. NPCs stay anim-owned. Rotation = NiMatrix3 at
+							// +0x00: three ROWS of 4 floats (4th pad), stride 4 -> root[r*4 + c].
+							// Write a Z-up yaw; leave the pad lanes (root[3],[7],[11]) alone.
 							if (hasPinHeading &&
 								refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
 								const float c = std::cos(pinHeading);
@@ -950,33 +924,20 @@ namespace OSF::Animation
 								root[8] = 0.0f; root[9] = 0.0f; root[10] = 1.0f;  // row2
 							}
 
-							// Keep the actor's CULLING SPHERE on the pinned render
-							// position. The override above moves the rendered rig
-							// (compose root), but the engine derives the BSFadeNode
-							// worldBound from the physics capsule (fadeNode->world ≈
-							// capsule — ~0.3 m off and drifting between our per-frame
-							// re-teleports, see LogSceneDiag). Left alone, the cull
-							// sphere desyncs from the rendered mesh and NiCullingProcess
-							// pops the whole actor in/out as the camera orbits — the
-							// "renders in and out as if culled" symptom. a_parentTransform
-							// = &fadeNode->local (NiAVObject::local @ +0x40) → recover the
-							// node and rewrite worldBound (center @ +0x100, radius @
-							// +0x10C). World-space sphere; written pre-orig but after the
-							// scene-graph bound pass, so it is what culling sees this
-							// frame. Provenance: CLSF NiAVObject.h layout; units = m.
+							// Keep the CULL SPHERE on the pinned render position. The engine
+							// derives worldBound from the physics capsule (~0.3 m off), so left
+							// alone NiCullingProcess pops the actor in/out as the camera orbits.
+							// Recover the node from a_parentTransform (= local @ +0x40) and
+							// rewrite worldBound (center +0x100, radius +0x10C). Written pre-orig
+							// but after the bound pass, so culling sees it this frame.
 							auto* fadeNode = reinterpret_cast<RE::NiAVObject*>(
 								reinterpret_cast<std::byte*>(a_parentTransform) - offsetof(RE::NiAVObject, local));
 							fadeNode->worldBound.center = pinWorld;
 							fadeNode->worldBound.radius = std::max(fadeNode->worldBound.radius, kPinCullRadius);
 
-							// Suppress the BSFadeNode near-camera fade for participants:
-							// the engine flips BSFadeNode+0x1B4 (binary float, 1.0 drawn /
-							// 0.0 faded) to 0.0 when the 3rd-person camera orbits close to an
-							// actor, so a scene partner pops out of view as the player turns
-							// the camera. Hold it at 1.0 each frame. Live-confirmed
-							// 2026-06-14: written here pre-orig of the rig sync (inside
-							// BSFadeNode::Update) it holds, so the fade writer runs earlier in
-							// the frame. See kFadeNodeVisFlagOff / docs/RE.md.
+							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0 so pinned
+							// participants don't fade out when the camera orbits close (see
+							// kFadeNodeVisFlagOff / docs/RE.md).
 							*reinterpret_cast<float*>(
 								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff) = 1.0f;
 						}

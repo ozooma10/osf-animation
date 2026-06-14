@@ -20,33 +20,23 @@ namespace OSF::Animation
 				const bool timerExpired = stage.timer > 0.0f && stageElapsed >= stage.timer;
 				const bool loopsExpired = stage.loops > 0 && wrapped && (stageLoops + 1) >= stage.loops;
 				if (timerExpired || loopsExpired) {
+					const char* why = timerExpired ? "timer" : "loop target";
 					if (currentStage + 1 < stages.size()) {
 						ApplyStageLocked(currentStage + 1);
-						stageChanged = true;
-						REX::INFO("Scene: stage {} expired — auto-advanced to stage {}/{}",
-							timerExpired ? "timer" : "loop target", currentStage + 1, stages.size());
+						REX::INFO("Scene: stage {} expired — advanced to stage {}/{}", why, currentStage + 1, stages.size());
 					} else if (loopWhole) {
-						// Whole-sequence loop (PlaySequence): restart at stage 0
-						// instead of ending.
-						ApplyStageLocked(0);
-						stageChanged = true;
-						REX::INFO("Scene: final stage {} expired — looping whole sequence to stage 0",
-							timerExpired ? "timer" : "loop target");
+						ApplyStageLocked(0);  // PlaySequence whole-loop
+						REX::INFO("Scene: final stage {} expired — looping to stage 0", why);
 					} else {
-						// Last timed/loop-counted stage ran out: hold the pose;
-						// the update hook defers the actual StopScene to the
-						// game thread.
-						ended.store(true, std::memory_order_relaxed);
-						stageChanged = true;
-						REX::INFO("Scene: final stage {} expired — holding pose, requesting stop",
-							timerExpired ? "timer" : "loop target");
+						ended.store(true, std::memory_order_relaxed);  // hook defers StopScene
+						REX::INFO("Scene: final stage {} expired — holding pose, requesting stop", why);
 					}
+					stageChanged = true;
 				}
 			}
 
-			// Count loops, then wrap the clock. Skipped on the step that
-			// switched/ended the stage: that wrap belongs to the stage we're
-			// leaving.
+			// Count the loop + wrap the clock. Skipped on a stage switch (that
+			// wrap belongs to the stage we just left).
 			if (!stageChanged) {
 				if (wrapped) {
 					stageLoops++;
@@ -74,8 +64,7 @@ namespace OSF::Animation
 			return false;
 		}
 		ApplyStageLocked(static_cast<uint32_t>(a_stage));
-		// a manual jump revives an ended (but not yet stopped) scene
-		ended.store(false, std::memory_order_relaxed);
+		ended.store(false, std::memory_order_relaxed);  // a manual jump revives an ended scene
 		endQueued.store(false, std::memory_order_relaxed);
 		return true;
 	}
@@ -90,8 +79,7 @@ namespace OSF::Animation
 		const auto& stage = stages[a_stage];
 		duration = stage.duration;
 
-		// element-wise: the compose-root pin reads `placements` without the
-		// scene lock, so the buffer must never reallocate
+		// Element-wise: the pin reads `placements` lock-free, so never reallocate.
 		const size_t n = std::min(placements.size(), stage.placements.size());
 		for (size_t i = 0; i < n; i++) {
 			placements[i] = stage.placements[i];

@@ -188,47 +188,34 @@ namespace OSF::Papyrus
 				static_cast<uint32_t>(a_userMask), static_cast<uint32_t>(a_otherMask));
 		}
 
-		// =====================================================================
-		// COMPATIBILITY-ONLY natives (bound on OSFCompat, not OSF).
-		// The SAF->OSF shim's primitive (non-Scene) Play+Sync path has no Scene,
-		// so it freezes the player explicitly via these locks (a content-neutral
-		// mechanism: input-disable layer + AI-driven + third-person hold). NOT for
-		// idiomatic OSF consumers — see COMPAT_SCRIPT_NAME / OSFCompat.psc.
-		// =====================================================================
+		// COMPATIBILITY-ONLY natives (bound on OSFCompat). The SAF shim's non-Scene
+		// Play+Sync path freezes the player via these standalone locks (content-neutral
+		// mechanism; the core never auto-applies them). See OSFCompat.psc.
 
-		// Standalone player control lock for the primitive (non-Scene) path —
-		// engages OSF's input-disable layer (Movement incl. Jumping, Fighting,
-		// Sneaking, Activation, ...). Call false to release.
+		// Standalone control lock: input-disable layer + AI-driven. false releases.
 		void SetPlayerControlLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
 		{
 			Player::PlayerControlService::GetSingleton().SetStandaloneLock(a_locked);
 		}
 
-		// Standalone camera lock for the primitive (non-Scene) path — forces third
-		// person and bounces the player back if they zoom into first person. Pairs
-		// with SetPlayerControlLock. Call false to release (restores the prior POV).
+		// Standalone camera lock: force/hold third person (bounces on zoom-in).
+		// false restores the prior POV.
 		void SetPlayerCameraLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
 		{
 			Camera::CameraService::GetSingleton().SetStandaloneLock(a_locked);
 		}
 
-		// Framework semver ("major.minor.patch", from the plugin version stamped
-		// at build time). Lets consumers gate on features and report the exact
-		// framework build in their own diagnostics. The string form (not an int)
-		// is deliberate: it can never be misread when the scheme evolves.
+		// Framework semver "major.minor.patch" (string so it can't be misread).
 		RE::BSFixedString GetVersion(OSFVM&, uint32_t, std::monostate)
 		{
 			const auto v = SFSE::GetPluginVersion();
 			return RE::BSFixedString(std::format("{}.{}.{}", v.major(), v.minor(), v.patch()));
 		}
 
-		// Save-safety: a consumer quest calls this from OnPlayerLoadGame so the
-		// framework drops scene/graph state anchored in the now-discarded world.
-		// Also callable from the console for testing (cgf "OSF.NotifyGameLoaded").
-		// WARNING: only call when a save load actually happened. StopAll
-		// deliberately skips actor mutation (the loaded save is authoritative) —
-		// calling it against a LIVE scene leaves participants animation-driven.
-		// Use OSF.StopScene for normal teardown.
+		// Save-safety fallback: drop scene/graph state anchored in the discarded
+		// world. WARNING: only on an actual load — against a LIVE scene it leaves
+		// participants animation-driven (StopAll skips actor restore). Use StopScene
+		// for normal teardown.
 		void NotifyGameLoaded(OSFVM&, uint32_t, std::monostate)
 		{
 			Animation::GraphManager::GetSingleton().StopAll("game loaded");
