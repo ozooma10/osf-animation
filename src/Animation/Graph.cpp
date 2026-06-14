@@ -318,13 +318,6 @@ namespace OSF::Animation
 
 	void Graph::Sample(float a_deltaTime, const void* a_token)
 	{
-		// Solo-graph stall heartbeat: refreshed on EVERY update call (any token,
-		// even dt 0 during a menu pause), so it only goes quiet when this graph's
-		// AnimationManager stops pumping entirely — i.e. the actor unloaded.
-		// GraphManager::WatchdogSweep reaps the graph when this stays stale.
-		lastSampleMs.store(std::chrono::duration_cast<std::chrono::milliseconds>(
-			std::chrono::steady_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
-
 		// Blend ramps run on the sanitized playback dt (owner-token gated),
 		// independent of clip looping/clamping; dt 0 holds the ramp.
 		if (blendPhase != BlendPhase::kNone && blendClock.ShouldAdvance(a_token)) {

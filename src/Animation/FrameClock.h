@@ -15,9 +15,8 @@ namespace OSF::Animation
 	// heuristics based on token repetition are order-dependent under
 	// subdivision. Instead: the first manager ever reported becomes the owner,
 	// and only its reports advance time. Other managers just read the clock.
-	// (If the owner stops updating — e.g. its actor unloads — the clock stalls;
-	// GraphManager::WatchdogSweep detects that via Scene::lastOwnerAdvanceMs
-	// and ends the stalled scene.)
+	// (If the owner stops updating — e.g. its actor unloads — a scene clock
+	// stalls; for a Sync group the owner is re-elected, see SyncGroup below.)
 	struct FrameClock
 	{
 		const void* owner = nullptr;

@@ -481,9 +481,6 @@ namespace OSF::Animation
 		// already reset every actor to the saved state, and our graphs are
 		// anchored in the world that was just discarded. Stale graphs/scenes just
 		// stop existing; the engine's rig refresh owns the pose.
-		for (auto& scene : scenes) {
-			scene->stopped = true;
-		}
 		scenes.clear();
 		graphs.clear();
 		graphCount.store(0, std::memory_order_relaxed);
@@ -718,7 +715,6 @@ namespace OSF::Animation
 		}
 
 		const bool anchored = (*sceneIter)->anchored;
-		(*sceneIter)->stopped = true;
 
 		auto& participants = (*sceneIter)->participants;
 		for (auto& p : participants) {

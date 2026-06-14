@@ -115,23 +115,6 @@ namespace OSF::Animation
 		// detached root.
 		RE::NiPointer<RE::BSFadeNode> lastRoot;
 
-		// Wall-clock ms (steady_clock) of the last Sample call, refreshed every
-		// update regardless of token. The solo-graph stall watchdog
-		// (GraphManager::WatchdogSweep) reads it lock-free to detect a graph
-		// whose AnimationManager stopped pumping (actor unloaded with its cell):
-		// such a graph otherwise freezes in the map forever, pinning the actor +
-		// 3D alive and keeping the per-frame model-node scan busy. It also reaps
-		// fade-out graphs orphaned when a scene is watchdog-stopped on a dead
-		// manager (the fade can never finish without further Sample calls).
-		// Scenes have Scene::lastOwnerAdvanceMs; this is the per-graph equivalent.
-		// 0 = never sampled yet (skipped — give a fresh graph time to start).
-		std::atomic<int64_t> lastSampleMs{ 0 };
-
-		// One-shot latch for the solo watchdog's deferred removal; the removal
-		// task rescinds it if the update stream revived meanwhile (cell streamed
-		// back in). Mirror of Scene::stallStopQueued.
-		std::atomic<bool> stallRemoveQueued{ false };
-
 		// modelNode identity for the stamp hook's lookup (set by Sample's bind,
 		// compared against the BGSModelNode::Update `this`)
 		const RE::BGSModelNode* StampTarget() const { return cachedModelNode; }

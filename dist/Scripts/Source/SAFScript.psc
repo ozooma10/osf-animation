@@ -29,6 +29,17 @@ Function ReleasePlayerLockIfPlayer(Actor akActor) Global
     EndIf
 EndFunction
 
+; SAF "Locked" scenes froze the player. The content-neutral core never auto-locks,
+; so the shim engages the standalone OSFCompat lock when the player participates
+; (released by StopAnimation / UnlockActorAfterAnimation, and by the core on load).
+Function EngagePlayerLockIfPlayer(Actor akActor) Global
+    If akActor != None && akActor == Game.GetPlayer()
+        SAFLog("Engaging player lock -> ControlLock + CameraLock (on)")
+        OSFCompat.SetPlayerControlLock(true)
+        OSFCompat.SetPlayerCameraLock(true)
+    EndIf
+EndFunction
+
 ; --- Readiness ---
 
 Bool Function Ping() Global
@@ -117,7 +128,13 @@ Bool Function PlayScene(Actor akActor1, Actor akActor2, String asAnim1, String a
     String[] files = new String[2]
     files[0] = ResolveAnim(asAnim1)
     files[1] = ResolveAnim(asAnim2)
-    return OSF.StartSceneFiles(actors, files, fSpeed)
+    Bool ok = OSF.StartSceneFiles(actors, files, fSpeed)
+    If ok
+        ; SAF froze the player in player-participant scenes — restore that.
+        EngagePlayerLockIfPlayer(akActor1)
+        EngagePlayerLockIfPlayer(akActor2)
+    EndIf
+    return ok
 EndFunction
 
 Bool Function PlaySceneSeparate(Actor akActor1, Actor akActor2, String asAnim1, String asAnim2, Float fSpeed = 1.0) Global
@@ -156,10 +173,16 @@ Function MatchActorTransform(Actor akTarget, Actor akSource) Global
     SAFLog("MatchActorTransform target=" + akTarget + " source=" + akSource + " (SHIM-GAP, no-op)")
 EndFunction
 
-; No-op: SAF called this BEFORE play, but OSF.SetAnchor needs a LIVE graph (none
-; exists yet). Anchoring is reconstructed in SyncGraphs / StartScene / PlayScene.
+; OSF anchors/pins NPCs via the scene, so positional locking is a no-op for them;
+; but a player participant still needs control/camera frozen (SAF's lock). SAF may
+; pass akActor=None with abIsPlayer=true to mean "the player".
 Function LockActorForAnimation(Actor akActor, Float fX, Float fY, Float fZ, Bool abIsPlayer = false) Global
-    SAFLog("LockActorForAnimation actor=" + akActor + " (" + fX + "," + fY + "," + fZ + ") (no-op; OSF anchors at SyncGraphs/scene start)")
+    Actor target = akActor
+    If target == None && abIsPlayer
+        target = Game.GetPlayer()
+    EndIf
+    SAFLog("LockActorForAnimation actor=" + target + " (" + fX + "," + fY + "," + fZ + ") (OSF anchors NPCs at scene start; player gets the control lock)")
+    EngagePlayerLockIfPlayer(target)
 EndFunction
 
 Function UnlockActorAfterAnimation(Actor akActor, Bool abIsPlayer = false) Global
@@ -200,24 +223,43 @@ Function StopSyncing(Actor akTarget) Global
     ; SHIM-GAP: OSF has no retro-unsync of a single graph from a shared clock.
 EndFunction
 
-; --- Sequences -- map onto OSF staged scenes where possible ---
+; --- Sequences -- map onto OSF.PlaySequence (solo multi-phase) ---
 
-; SHIM-GAP: no OSF native for an ad-hoc staged sequence from a path array; plays
-; path 0 only (phases do NOT auto-advance).
+; Each path is one phase; phases play once then auto-advance, bLoop restarts the
+; whole sequence after the last (OSF.PlaySequence).
 Function StartSequence(Actor akActor, String[] asPaths, Bool bLoop) Global
     Int n = 0
     If asPaths != None
         n = asPaths.Length
     EndIf
-    SAFLog("StartSequence actor=" + akActor + " paths=" + n + " loop=" + bLoop + " (SHIM-GAP, plays path 0 only)")
-    If akActor != None && n > 0
-        OSF.Play(akActor, ResolveAnim(asPaths[0]))
+    SAFLog("StartSequence actor=" + akActor + " paths=" + n + " loop=" + bLoop)
+    If akActor == None || n <= 0
+        return
     EndIf
+    String[] files = new String[n]
+    Int[] loops = new Int[n]
+    Float[] blends = new Float[n]
+    Int i = 0
+    While i < n
+        files[i] = ResolveAnim(asPaths[i])
+        loops[i] = 1       ; play this phase once, then advance
+        blends[i] = 0.3
+        i += 1
+    EndWhile
+    OSF.PlaySequence(akActor, files, loops, blends, bLoop)
 EndFunction
 
+; Manual advance to the next phase (PlaySequence builds a staged scene; jump it).
+; False when not in a sequence or already past the last phase.
 Bool Function AdvanceSequence(Actor akActor, Bool bSmooth) Global
-    SAFLog("AdvanceSequence actor=" + akActor + " -> false (SHIM-GAP)")
-    return false  ; SHIM-GAP: depends on StartSequence's missing sequence model
+    Int cur = OSF.GetSceneStage(akActor)
+    If cur < 0
+        SAFLog("AdvanceSequence actor=" + akActor + " -> false (not in a sequence)")
+        return false
+    EndIf
+    Bool ok = OSF.SetSceneStage(akActor, cur + 1)
+    SAFLog("AdvanceSequence actor=" + akActor + " " + cur + " -> " + (cur + 1) + " = " + ok)
+    return ok
 EndFunction
 
 Bool Function SetSequencePhase(Actor akActor, Int iPhase) Global

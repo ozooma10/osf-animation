@@ -146,10 +146,6 @@ namespace OSF::Animation
 		std::atomic<bool> ended{ false };
 		std::atomic<bool> endQueued{ false };
 
-		// Set (only) by StopSceneLocked / StopAll. Lifecycle latch read by the
-		// deferred game-thread teardown tasks under `lock`.
-		std::atomic<bool> stopped{ false };
-
 		// Advances the shared clock once per frame (frame detected from the
 		// update-token stream), auto-advancing the stage on timer expiry, and
 		// returns the scene time + stage this sample should use. Called by each
