@@ -7,7 +7,7 @@ playback, sync, shared clock, anchoring, the clip/pack registry, and the engine 
 callbacks, the stall watchdog, cosave aftermath — is **carved out** to the separate **OSF Intimacy**
 scene engine (DESIGN.md §8). This file is the always-loaded session brief. Deeper docs:
 architecture & rationale → **DESIGN.md** · launch roadmap → **LAUNCH.md** · RE/address ground
-truth → **docs/RE.md**.
+truth → **docs/RE.md** · the OSF Intimacy scene-engine boundary → **docs/INTIMACY_SEAM.md**.
 
 > **This repo is the result of the "core carve"** (clean-cut, fresh history): the RE-verified
 > native core was **migrated** from the pre-split `OSF Animation` repo, never rewritten. The

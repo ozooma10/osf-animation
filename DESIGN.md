@@ -244,7 +244,9 @@ implements itself via CLSF — **the core stays the only plugin that *hooks* the
 game-update-fragile surface in one place).
 
 **Inter-plugin contract.** OSF Intimacy depends on OSF Animation through the small versioned C ABI
-over SFSE plugin messaging scoped in §6.4, gated by the readiness handshake. Not built for v1.
+over SFSE plugin messaging scoped in §6.4, gated by the readiness handshake. Not built for v1. The
+full seam — two-registry model (a `*.scene.json` scene registry referencing core anim ids), the
+natives available today, and the planned additive primitives — is recorded in **docs/INTIMACY_SEAM.md**.
 
 **Decisions of record:**
 - **"Clean" = migrate, not rewrite.** New OSF Animation repo with fresh history and GPL + NAFSF

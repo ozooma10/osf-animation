@@ -16,6 +16,7 @@ A file's name decides what it is:
 
 | Filename | Meaning |
 |---|---|
+| `*.scene.json` | OSF Intimacy scene definition (references anim ids) — **skipped by the core** |
 | `*.voice.json` | OSF Intimacy voice set — **skipped by the core** |
 | `*.dialogue.json` | OSF Intimacy dialogue manifest — **skipped by the core** |
 | `*.settings.json` / `settings.json` | settings files, never parsed as a pack |
@@ -74,17 +75,15 @@ That is the whole schema the core reads. Tags + gender slots drive matchmaking
 (`StartSceneByTags`); the per-stage `clips` and `offset`s drive anchored playback; `timer`
 and `loops` drive stage auto-advance.
 
-### Content fields (carried for OSF Intimacy, ignored by the core)
+### Scene policy lives in OSF Intimacy, not here
 
-These keys are **valid to include** and are silently ignored by the bare core; OSF
-Intimacy reads them. Documented here so pack authors know what is portable:
-
-- on the pack/def: `sounds` (named pools), `sceneEquipment` (undress/redress ARMO).
-- on an `actors[]` entry: `undress`, `sceneEquip`, `voice`, `voiceSet`.
-- on a `stages[]` entry: `intensity`, `peak`, `cues`.
-
-If you are authoring purely for the core (machinima, dance, vignettes), omit them. If you
-target OSF Intimacy, see its documentation for their semantics.
+This pack is **pure animation** — clips, placement, gender slots, tags, staging. Scene
+**policy** (undress/scene equipment, scheduled voice, intensity/peak, cues) belongs in a
+separate OSF Intimacy **scene file** (`*.scene.json`) that references these animation ids; see
+**docs/INTIMACY_SEAM.md**. The core ignores unknown fields, so a pack that *carries* legacy
+policy keys (`sounds`/`sceneEquipment`, actor `undress`/`sceneEquip`/`voice`/`voiceSet`, stage
+`intensity`/`peak`/`cues`) still loads — but the recommended home is the scene file, and the
+core never reads them.
 
 ### Migrating pre-2.0 packs (actor-major → stage-major)
 
