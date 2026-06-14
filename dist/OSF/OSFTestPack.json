@@ -1,0 +1,76 @@
+{
+  "schema": 2,
+  "name": "OSF Animation Test Pack",
+  "animations": [
+    {
+      "id": "solo",
+      "name": "Stand surrender (baked-in solo test)",
+      "tags": ["test", "solo"],
+      "actors": [
+        {}
+      ],
+      "stages": [
+        { "clips": ["OSF/Animations/OSF_Test/StandSurrender01.glb"] }
+      ]
+    },
+    {
+      "id": "pair",
+      "name": "Stand surrender x2 (baked-in pair test)",
+      "tags": ["test", "paired"],
+      "actors": [
+        {},
+        { "offset": { "y": 1.0, "heading": 180.0 } }
+      ],
+      "stages": [
+        { "clips": [
+          "OSF/Animations/OSF_Test/StandSurrender01.glb",
+          "OSF/Animations/OSF_Test/StandSurrender01.glb"
+        ] }
+      ]
+    },
+
+    {
+      "id": "test.stages",
+      "name": "Timed multi-stage (auto-advance + per-stage placement)",
+      "tags": ["test", "paired", "stages"],
+      "actors": [
+        {},
+        {}
+      ],
+      "stages": [
+        { "timer": 6.0, "clips": [
+          "OSF/Animations/OSF_Test/StandSurrender01.glb",
+          { "file": "OSF/Animations/OSF_Test/StandSurrender01.glb", "offset": { "y": 1.0, "heading": 180.0 } }
+        ] },
+        { "timer": 6.0, "clips": [
+          "OSF/Animations/OSF_Test/StandCover01.glb",
+          { "file": "OSF/Animations/OSF_Test/StandCover01.glb", "offset": { "y": 1.5, "heading": 180.0 } }
+        ] },
+        { "timer": 6.0, "clips": [
+          "OSF/Animations/OSF_Test/StandSurrender01.glb",
+          { "file": "OSF/Animations/OSF_Test/StandSurrender01.glb", "offset": { "y": 2.0, "heading": 180.0 } }
+        ] }
+      ]
+    },
+
+    {
+      "id": "test.loops",
+      "name": "Loop-count advance",
+      "tags": ["test", "paired", "loops"],
+      "actors": [
+        {},
+        { "offset": { "y": 1.0, "heading": 180.0 } }
+      ],
+      "stages": [
+        { "timer": 3.0, "loops": 2, "clips": [
+          "OSF/Animations/OSF_Test/StandSurrender01.glb",
+          "OSF/Animations/OSF_Test/StandSurrender01.glb"
+        ] },
+        { "timer": 3.0, "loops": 2, "clips": [
+          "OSF/Animations/OSF_Test/StandCover01.glb",
+          "OSF/Animations/OSF_Test/StandCover01.glb"
+        ] }
+      ]
+    }
+  ]
+}

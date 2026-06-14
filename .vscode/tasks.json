@@ -1,0 +1,61 @@
+{
+  // Papyrus build tasks for OSF Animation.
+  // Run via "Tasks: Run Task" (Ctrl+Shift+P) or "Run Build Task" (Ctrl+Shift+B).
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Batch-compiles every .psc in dist/Scripts/Source to dist/Scripts/*.pex
+      // (the repo's checked-in artifacts). Does NOT deploy to the MO2 mod — use
+      // "Papyrus: Compile + Deploy" for that.
+      "label": "Papyrus: Compile",
+      "type": "process",
+      "command": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Starfield\\Tools\\Papyrus Compiler\\PapyrusCompiler.exe",
+      "args": [
+        "${workspaceFolder}\\dist\\Scripts\\Source",
+        "-all",
+        "-import=${workspaceFolder}\\dist\\Scripts\\Source;C:\\Modding\\Starfield\\PapyrusSource",
+        "-output=${workspaceFolder}\\dist\\Scripts",
+        "-flags=Starfield_Papyrus_Flags.flg",
+        "-optimize"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": {
+        "owner": "papyrus",
+        "source": "papyrus",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.+\\.psc)\\((\\d+),(\\d+)\\):\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      }
+    },
+    {
+      // Compiles (above), then runs xmake so its after_build copies the fresh
+      // dist/Scripts/*.pex into the MO2 mod folder (XSE_SF_MODS_PATH). This is
+      // the full dev-loop step after editing a .psc.
+      "label": "Papyrus: Compile + Deploy",
+      "type": "shell",
+      "command": "xmake",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Papyrus: Compile"],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
