@@ -59,7 +59,7 @@ Full schema — stages, timers, loop counts, gender slots, alignment offsets:
 2. Play it from the console on two NPCs you're looking at (the OSFTest helper script
    ships with OSF Animation and wraps the array-taking natives for `cgf`):
    `cgf "OSFTest.Defined" "myname.mypack.embrace" <refA> <refB>`
-3. Edit the JSON, then `cgf "OSF.Reload"` (or `OSF.ReloadPacks()` from a script) and
+3. Edit the JSON, then `cgf "OSFTest.Reload"` (or `OSF.ReloadPacks()` from a script) and
    replay — no game restart. Edited GLBs are also re-read (the clip cache clears on
    reload).
 

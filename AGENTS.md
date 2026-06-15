@@ -13,8 +13,9 @@ truth → **docs/RE.md** · the OSF Intimacy scene-engine boundary → **docs/IN
 > native core was **migrated** from the pre-split `OSF Animation` repo, never rewritten. The
 > archived pre-split repo (`OSF Animation Archive`) is the source the OSF Intimacy harvest draws
 > from. **Consumer docs under `docs/` (API.md, PACK_SCHEMA.md, GETTING_STARTED.md, guide/) and
-> TESTSUITE.md still describe the pre-carve full framework — they need a curation pass to match the
-> lean native surface below.**
+> TESTSUITE.md have been curated to the lean content-neutral surface** (LAUNCH.md Phase 3): they
+> reference only the bound natives, route all policy to OSF Intimacy, and document no removed
+> natives. (Spot residual stale lines as found, but the bulk curation pass is done.)
 
 - **Build:** C++23, **xmake only** (no CMake/vcpkg). GPL-3.0 (NAFSF-derived; attribution in
   `src/Animation/Graph.h` + `GraphManager.h`). Based on
@@ -23,9 +24,8 @@ truth → **docs/RE.md** · the OSF Intimacy scene-engine boundary → **docs/IN
 - **Version:** RE-verified against **1.16.244.0** (SFSE AddrLib v21 + self-made
   versionlib-1-16-244-0). Every engine binding gates before use → **after any game patch, work
   `docs/POST_PATCH_CHECKLIST.md`**. Address detail: `docs/RE.md`.
-- **Target name is currently `OSF Animation Core`** (temporary, set in `xmake.lua` so this build
-  does not clobber the live `OSF Animation` MO2 deploy during the carve). Flip back to
-  `OSF Animation` at the folder swap (repo == xmake target == MO2 mod).
+- **Target name is `OSF Animation`** (set in `xmake.lua`) — the final shipping name; repo == xmake
+  target == MO2 mod, so a build deploys to `MO2\mods\OSF Animation\`.
 
 ## Status snapshot
 
@@ -39,7 +39,9 @@ truth → **docs/RE.md** · the OSF Intimacy scene-engine boundary → **docs/IN
   primitive (non-Scene) Play+Sync path. Content-neutral mechanism; the core never auto-applies it.
 - **[LIVE] SAF shim:** `SAF.psc` / `SAFScript.psc` forward to the lean surface
   (`Ping→IsReady`, `PlaySceneSeparate→StartSceneFiles`, `StopAnimation→Stop/StopScene`,
-  `SyncGraphs→Sync`). Existing SAF content runs unchanged. The launch headline.
+  `SyncGraphs→Sync`). Existing SAF **playback/sync/scene** content runs unchanged — the launch
+  headline. Advanced SAF entry points with no core equivalent (phase/sequence-end callbacks,
+  crosshair selection, blend-graph variables, absolute `SetActorPosition`) are no-op SHIM-GAP stubs.
 - **Carved out → OSF Intimacy (NOT in this repo):** `ScenePolicy`, undress/redress
   (EquipmentService), scheduled voice + SoundService/WwiseBackend, FadeService, EventRelay
   scene/cue callbacks, stall watchdog, Cosave aftermath persistence, the scene-integrated
@@ -55,14 +57,14 @@ Bound on `OSF` (see `dist/Scripts/Source/OSF.psc`):
   SAF `PlaySceneSeparate` replacement) · `SetSceneStage` · `GetSceneStage` · `StopScene` ·
   `FindScenes` · `ReloadPacks`.
 - **Readiness:** `IsReady` · `HasFeature("scenes"/"playback"/"sync"/"anchor")` · `GetVersion`.
-- **Misc:** `SetSceneControlMask` (debug) · `NotifyGameLoaded` (save-safety).
-- **Compat (`OSFCompat`):** `SetPlayerControlLock` · `SetPlayerCameraLock`.
+- **Misc:** `NotifyGameLoaded` (save-safety).
+- **Compat (`OSFCompat`):** `SetPlayerControlLock` · `SetPlayerCameraLock` · `SetSceneControlMask` (debug, off the public surface).
 
 Natives are never removed / signatures stable within a major version.
 
 ## Build & dev loop
 
-- **`xmake`** — builds + auto-installs `OSF Animation Core.dll` + `dist/Scripts/*.pex` +
+- **`xmake`** — builds + auto-installs `OSF Animation.dll` + `dist/Scripts/*.pex` +
   `dist/OSF/*.json` + `dist/OSF/Animations` to `MO2\mods\<target name>\` (via `XSE_SF_MODS_PATH`).
   First configure needs `-y`.
 - **Papyrus recompile** (pass the script *name*, not a path), THEN re-run `xmake`:

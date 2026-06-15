@@ -36,7 +36,7 @@ It is a framework, not an animation pack: it ships a couple of small SFW demo sc
 [*]Content-neutral by design — no undress, no voice, no camera takeover. The core is mechanism only; intimate-scene orchestration is the separate OSF Intimacy engine.
 [*]Standalone player-control / camera locks available for scenes the player is part of (used by the SAF shim; never auto-applied).
 [*]Save-safe teardown on save-load, and automatic re-binding of the Papyrus natives onto the rebuilt VM.
-[*]Drop-in SAF compatibility shim — existing SAF-dependent mods run on OSF unchanged.
+[*]Drop-in SAF compatibility shim — existing SAF mods' playback, sync, and scene calls run on OSF unchanged (a few advanced SAF-only entry points have no core equivalent and are inert).
 [/list]
 
 [line]
@@ -46,7 +46,7 @@ It is a framework, not an animation pack: it ships a couple of small SFW demo sc
 [list]
 [*][b]Starfield 1.16.244.0 — last verified build.[/b] OSF is built and tested against this version; it's the reference it's known-good on, not a hard lock. Engine bindings gate themselves and self-disable on a different build rather than crash, and the startup log states which build it's running on. On other builds playback may be unavailable until OSF is re-verified — so if it does nothing, check the log for a version note first.
 [*]SFSE matching your game version.
-[*]Address Library for SFSE (v21 format). The version database for the verified build ([font=Courier New]versionlib-1-16-244-0.bin[/font]) is [b]bundled in the download[/b] and installs next to the plugin under [font=Courier New]Data\SFSE\Plugins\[/font]. Every SFSE plugin needs a version database matching the build it runs on to resolve engine addresses — without one, the plugin cannot load. The bundled copy covers the verified build, so a standard install needs nothing extra; on a different build, your Address Library install must supply that build's database.
+[*]Address Library for SFSE (v21 format) — it provides the version database for your game build ([font=Courier New]versionlib-1-16-244-0.bin[/font] for 1.16.244) under [font=Courier New]Data\SFSE\Plugins\[/font]. Every SFSE plugin needs a version database matching the build it runs on to resolve engine addresses — without one, the plugin cannot load. OSF does [b]not[/b] bundle this file; install Address Library for your build (a standard 1.16.244 install already includes it).
 [/list]
 
 [line]
@@ -55,7 +55,7 @@ It is a framework, not an animation pack: it ships a couple of small SFW demo sc
 
 [list=1]
 [*]Install SFSE and Address Library first; confirm they work.
-[*]Install OSF Animation with a mod manager (MO2 recommended) and enable it. The bundled version database ([font=Courier New]versionlib-1-16-244-0.bin[/font]) installs alongside the plugin — leave it in place.
+[*]Install OSF Animation with a mod manager (MO2 recommended) and enable it. Make sure Address Library has supplied the version database for your build ([font=Courier New]versionlib-1-16-244-0.bin[/font]) under [font=Courier New]Data\SFSE\Plugins\[/font].
 [*]Launch through SFSE.
 [*]Check [font=Courier New]Documents\My Games\Starfield\SFSE\Logs\OSF Animation.log[/font] — the first lines state the supported game version and what it is running on, then a one-line feature report says whether the playback hooks installed. Start here if the mod seems to do nothing: a version-mismatch warning means you are not on 1.16.244.
 [/list]
@@ -114,7 +114,7 @@ GPL-3.0. Source is public; build instructions are in the repository.
 - Starfield 1.16.244.0 (last verified build — not a hard lock; bindings self-disable on other builds, see description)
 
 **Resolved:**
-- Address Library version data for 1.16.244 (`versionlib-1-16-244-0.bin`) — **bundled in the zip** under `SFSE\Plugins\` next to the DLL, so the mod works regardless of whether the user's Address Library install already covers 1.16.244 (CommonLibSF hard-fails to load without a version database for the running build). AddrLib-format permission/credit is sorted (LAUNCH.md Phase 3). *Packaging action: include the `.bin` when you build the release archive.*
+- Address Library version data for 1.16.244 (`versionlib-1-16-244-0.bin`) — **NOT bundled**; it is provided by the Address Library for SFSE Plugins mod (a standard 1.16.244 install supplies it under `SFSE\Plugins\`). CommonLibSF hard-fails to load without a version database for the running build, so list Address Library as a hard requirement. No `.bin` ships in the OSF zip.
 
 **Decisions still open for you:**
 - Whether to cross-link the OSF Intimacy scene engine and OSF Seduce content from this page once they ship.

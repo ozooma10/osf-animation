@@ -146,14 +146,18 @@ EndFunction
 ; --- Speed ---
 
 Function SetAnimationSpeed(Actor akActor, Float fSpeed) Global
-    SAFLog("SetAnimationSpeed actor=" + akActor + " speed=" + fSpeed)
-    OSF.SetSpeed(akActor, fSpeed)
+    ; SAF/NAF speed is a percentage (100 = normal); OSF.SetSpeed is a multiplier.
+    ; (Mirrors SAF.SetAnimationSpeed — both standalone speed setters take percent.)
+    Float mult = fSpeed / 100.0
+    SAFLog("SetAnimationSpeed actor=" + akActor + " speed=" + fSpeed + " -> OSF.SetSpeed " + mult)
+    OSF.SetSpeed(akActor, mult)
 EndFunction
 
 Float Function GetAnimationSpeed(Actor akActor) Global
-    Float s = OSF.GetSpeed(akActor)
-    SAFLog("GetAnimationSpeed actor=" + akActor + " -> " + s)
-    return s
+    ; OSF multiplier -> SAF/NAF percentage.
+    Float pct = OSF.GetSpeed(akActor) * 100.0
+    SAFLog("GetAnimationSpeed actor=" + akActor + " -> " + pct)
+    return pct
 EndFunction
 
 ; --- Position / anchoring -- no-ops: OSF anchors participants and pins the

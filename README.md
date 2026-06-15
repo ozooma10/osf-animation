@@ -24,15 +24,15 @@ callbacks) lives in the separate OSF Intimacy scene engine, not here. See
 - **Starfield 1.16.244.0** — last verified build. OSF is built and tested against this version;
   it's the reference it's known-good on, not a hard lock. Engine bindings gate themselves and
   self-disable on any other build rather than crash, and the startup log reports the build it's
-  running on — so a wrong game patch is the first thing to check if the mod does nothing. Some
-  features (notably equipment) stay disabled on unverified builds.
+  running on — so a wrong game patch is the first thing to check if the mod does nothing. On an
+  unverified build the playback hooks self-disable wholesale (the feature report logs `playback
+  hooks UNAVAILABLE`) rather than partly working.
 - **SFSE** matching that game version.
-- **Address Library for SFSE Plugins** (v21 format) **plus the version database for the verified
-  build**, `versionlib-1-16-244-0.bin`. CommonLibSF loads it from the plugin's own folder
-  (`Data\SFSE\Plugins\`, next to `OSF Animation.dll`); without a version database matching the
-  build it runs on, no SFSE plugin can resolve engine addresses and OSF fails to load. **The
-  release zip bundles this file**, so a standard install on the verified build needs nothing extra —
-  but if you assemble the mod yourself, that `.bin` must sit alongside the DLL.
+- **Address Library for SFSE Plugins** (v21 format) — it supplies the version database for your
+  game build (`versionlib-1-16-244-0.bin` for 1.16.244) under `Data\SFSE\Plugins\`. CommonLibSF
+  loads it from there; without a version database matching the build it runs on, no SFSE plugin can
+  resolve engine addresses and OSF fails to load. OSF does **not** bundle this file — install the
+  Address Library mod for your build (a standard 1.16.244 Address Library install already includes it).
 
 ### Build (to compile from source)
 
@@ -73,7 +73,7 @@ The harness exercises the offline GLTF import path without launching the game.
 
 The plugin logs to `Documents\My Games\Starfield\SFSE\Logs\OSF Animation.log`. Lines are
 `[time] [thread] [level] message` with spdlog level letters (T/D/I/W/E/C), e.g.
-`[16:39:17] [38092] [W] Scene equipment form '...' did not resolve`.
+`[16:39:17] [38092] [W] Sync: actor 14 has no live graph — skipping`.
 
 [klogg](https://klogg.filimonov.dev/) can color them by severity: under **Tools → Highlighters
 Configuration**, add one rule per level, anchored to the level field so message text can't

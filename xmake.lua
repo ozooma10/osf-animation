@@ -3,7 +3,7 @@ includes("lib/commonlibsf")
 
 -- set project constants
 set_project("OSF Animation")
-set_version("0.1.0")
+set_version("1.0.0")
 set_license("GPL-3.0")
 set_languages("c++23")
 set_warnings("allextra")
@@ -20,8 +20,7 @@ add_rules("plugin.vsxmake.autoupdate")
 
 -- define targets
 -- target name == repo folder == MO2 mod folder (deploy goes to XSE_SF_MODS_PATH\<target name>)
--- NOTE: TEMPORARY name during the core carve so this build does not clobber the
--- live "OSF Animation" MO2 deploy. Flip back to "OSF Animation" at the folder swap.
+-- Final shipping name; repo == xmake target == MO2 mod (DESIGN.md §8).
 target("OSF Animation")
     add_rules("commonlibsf.plugin", {
         name = "OSF Animation",

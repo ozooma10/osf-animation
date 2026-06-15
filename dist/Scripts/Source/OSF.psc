@@ -77,8 +77,11 @@ int Function ReloadPacks() Global Native
 ; True once OSF is loaded + initialized (hooks installed).
 bool Function IsReady() Global Native
 
-; Whether a feature is effective in this build ("scenes"/"playback"/"sync"/"anchor");
-; playback self-disables on a version/binding mismatch.
+; True when the named feature is effective in this build. The lean core has a
+; SINGLE gate — the two playback vtable hooks installed + verified — so
+; "scenes"/"playback"/"sync"/"anchor" all report that one aggregate state (they
+; self-disable together on a version/binding mismatch rather than crash). Any
+; other name returns false. Treat this as one "is OSF's engine layer live?" check.
 bool Function HasFeature(string asFeature) Global Native
 
 ; Framework version (semver). Natives are never removed and signatures never
@@ -86,10 +89,6 @@ bool Function HasFeature(string asFeature) Global Native
 string Function GetVersion() Global Native
 
 ; --- Misc ---------------------------------------------------------------------
-
-; DEBUG: replaces the standalone player-lock input-disable bitmasks (live-reapplies
-; to an active lock, so the bit layout can be bisected in one session). 0/0 = block nothing.
-Function SetSceneControlMask(int aiUserMask, int aiOtherMask) Global Native
 
 ; Save-safety. Call from a consumer's OnPlayerLoadGame: drops all in-memory
 ; scene/graph state (anchored in the discarded world). Does NOT restore

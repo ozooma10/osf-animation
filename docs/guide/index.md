@@ -57,4 +57,4 @@ Undress/redress, scheduled voice, camera/control takeover, fade choreography, an
 scene/cue callbacks are **not** in this core — they are the **OSF Intimacy** scene engine,
 which builds on it. If your mod needs that policy layer, build on OSF Intimacy; if you need
 reliable native playback (machinima, dance, NPC vignettes, custom scene logic), build on
-the core directly. Existing SAF mods run unchanged via the bundled SAF shim.
+the core directly. Existing SAF mods' playback/sync/scene calls run unchanged via the bundled SAF shim (a few advanced SAF-only entry points — phase callbacks, crosshair selection, blend-graph variables — have no core equivalent and are inert).

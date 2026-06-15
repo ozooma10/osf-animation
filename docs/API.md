@@ -76,9 +76,10 @@ scene logic), build on this core directly.
 Gate on OSF as an optional dependency:
 
 - `OSF.IsReady()` — loaded + playback hooks installed.
-- `OSF.HasFeature(name)` — `"scenes"`/`"playback"`/`"sync"`/`"anchor"` are effective when
-  the engine bindings verified on this game build (they self-disable on a version
-  mismatch rather than crash). Unknown name → false.
+- `OSF.HasFeature(name)` — a **single aggregate gate**: `"scenes"`/`"playback"`/`"sync"`/
+  `"anchor"` all report the same state (the two playback hooks installed + verified on this
+  game build; they self-disable together on a version mismatch rather than crash). Unknown
+  name → false. Treat it as one "is OSF's engine layer live?" check, not per-feature probing.
 - `OSF.GetVersion()` — semver.
 
 ## Save-safety contract
@@ -112,6 +113,13 @@ scene needs the body frozen. New integrations generally don't need them.
 
 The `OSFTest.psc` script shipped in `Scripts/Source` is a complete minimal consumer:
 console-callable wrappers for every primitive and scene entry. `SAF.psc` / `SAFScript.psc`
-are the SAF compatibility shim — existing SAF content runs unchanged by forwarding
-`Ping→IsReady`, `PlaySceneSeparate→StartSceneFiles`, `StopAnimation→Stop`/`StopScene`,
-`SyncGraphs→Sync`.
+are the SAF compatibility shim — existing SAF **playback/sync/scene** content runs unchanged
+by forwarding `Ping→IsReady`, `PlaySceneSeparate→StartSceneFiles`,
+`StopAnimation→Stop`/`StopScene`, `SyncGraphs→Sync`.
+
+**SHIM-GAPs (what does *not* carry over).** SAF entry points the content-neutral core has no
+equivalent for are inert stubs that log and no-op: phase/sequence-end callbacks
+(`RegisterForPhaseBegin`/`RegisterForSequenceEnd` never fire), the crosshair pickers + selection
+buffer, blend-graph variables (`Set`/`GetBlendGraphVariable`), and absolute positioning
+(`SetActorPosition`/`MatchActorTransform`). SAF content that drives gameplay off those will not
+behave identically; playback-driven SAF content does.

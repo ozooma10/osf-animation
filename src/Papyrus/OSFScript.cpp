@@ -228,8 +228,9 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().HooksInstalled();
 		}
 
-		// Whether a named feature is effective in this build (playback self-disables
-		// if the engine binding gates refused this game version). Unknown => false.
+		// Whether a named feature is effective in this build. The lean core has ONE
+		// gate (both playback hooks installed), so scenes/playback/sync/anchor all
+		// report that single aggregate state; any other name => false.
 		bool HasFeature(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_feature)
 		{
 			const std::string f = Util::ToLower(a_feature.c_str());
@@ -334,7 +335,6 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Sync", &Sync, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "PlaySequence", &PlaySequence, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StopScene", &StopScene, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneControlMask", &SetSceneControlMask, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "NotifyGameLoaded", &NotifyGameLoaded, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
@@ -347,8 +347,11 @@ namespace OSF::Papyrus
 
 		// Compatibility-only natives — kept off the public OSF surface (see
 		// COMPAT_SCRIPT_NAME / OSFCompat.psc). Only the SAF->OSF shim calls these.
+		// SetSceneControlMask is a DEBUG/RE-bisect tool parked here (NOT on OSF) so
+		// the 1.0 never-remove ABI guarantee does not freeze a throwaway native.
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetSceneControlMask", &SetSceneControlMask, true, false);
 		REX::INFO("Registered compatibility natives on script '{}'", COMPAT_SCRIPT_NAME);
 	}
 

@@ -14,7 +14,8 @@ ship the content-neutral playback core first; OSF Intimacy (scene engine) and co
   `test.stages`/`test.loops`); full content lives downstream (OSF Seduce, via OSF Intimacy).
 - **CLSF fork: published.** `ozooma10/commonlibsf` branch `forge` (pinned `5df499f`); `.gitmodules`
   points at it → GPL source availability + third-party buildability satisfied.
-- **SAF shim is the launch headline:** existing SAF content runs unchanged on the core.
+- **SAF shim is the launch headline:** existing SAF playback/sync/scene content runs unchanged on
+  the core (advanced SAF-only entry points with no core equivalent are inert SHIM-GAP stubs).
 
 ## Phase 0 — Pre-work — DONE
 
@@ -52,13 +53,13 @@ The pre-split core validated the migrated engine code; this phase re-confirms it
 
 ## Phase 3 — Packaging & distribution
 
-- [x] **Address Library story — DECIDED + DOCUMENTED.** Bundle `versionlib-1-16-244-0.bin` in the
-      zip (CommonLibSF loads it from the plugin's own `Data\SFSE\Plugins\` and hard-fails without a
-      database for the running build). Documented in README + NEXUS_PAGE. *Remaining: actually
-      include the `.bin` when assembling the release archive.*
-- [ ] **Tagged release**: semver decision (0.x vs 1.0.0); zip = `OSF Animation.dll` +
-      `versionlib-1-16-244-0.bin` (in `SFSE\Plugins\`) + pex (OSF/OSFCompat/OSFTest/SAF/SAFScript) +
-      psc + docs + OSFTestPack.json + baked-in SFW GLBs.
+- [x] **Address Library story — DECIDED + DOCUMENTED.** The version database
+      (`versionlib-1-16-244-0.bin`) is **NOT bundled** — it ships with the Address Library for SFSE
+      Plugins mod, which is a hard requirement (CommonLibSF hard-fails without a database for the
+      running build). README + NEXUS_PAGE list Address Library as required; no `.bin` ships in the zip.
+- [ ] **Tagged release** (semver = **1.0.0**, set in `xmake.lua`): zip = `OSF Animation.dll` + pex
+      (OSF/OSFCompat/OSFTest/SAF/SAFScript) + psc + docs + OSFTestPack.json + baked-in SFW GLBs.
+      (Address Library supplies the version database; it is not bundled.)
 - [x] **Player-audience docs pass** — README + docs/ (API / PACK_SCHEMA / GETTING_STARTED / guide)
       curated to the lean content-neutral surface (this doc-cleanup pass). NEXUS_PAGE reframed.
 - [ ] **Post-patch checklist** — `docs/POST_PATCH_CHECKLIST.md` curated to the bindings the lean
