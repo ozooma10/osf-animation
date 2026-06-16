@@ -21,18 +21,9 @@ callbacks) lives in the separate OSF Intimacy scene engine, not here. See
 
 ### Runtime (to play with the mod)
 
-- **Starfield 1.16.244.0** — last verified build. OSF is built and tested against this version;
-  it's the reference it's known-good on, not a hard lock. Engine bindings gate themselves and
-  self-disable on any other build rather than crash, and the startup log reports the build it's
-  running on — so a wrong game patch is the first thing to check if the mod does nothing. On an
-  unverified build the playback hooks self-disable wholesale (the feature report logs `playback
-  hooks UNAVAILABLE`) rather than partly working.
+- **Starfield 1.16.244.0** — last verified build.
 - **SFSE** matching that game version.
-- **Address Library for SFSE Plugins** (v21 format) — it supplies the version database for your
-  game build (`versionlib-1-16-244-0.bin` for 1.16.244) under `Data\SFSE\Plugins\`. CommonLibSF
-  loads it from there; without a version database matching the build it runs on, no SFSE plugin can
-  resolve engine addresses and OSF fails to load. OSF does **not** bundle this file — install the
-  Address Library mod for your build (a standard 1.16.244 Address Library install already includes it).
+- **Address Library for SFSE Plugins**
 
 ### Build (to compile from source)
 

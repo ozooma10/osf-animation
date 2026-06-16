@@ -11,9 +11,8 @@ namespace OSF::UI
 {
 	namespace
 	{
-		// Incompatible rig-stamping frameworks, by their shipped SFSE plugin DLL
-		// name. GetModuleHandle is enough: an SFSE plugin is loaded into our
-		// process, so a non-null handle means it co-loaded this session.
+		// Incompatible rig-stamping frameworks, by their shipped SFSE plugin DLL name. 
+		// GetModuleHandle is enough: an SFSE plugin is loaded into our process, so a non-null handle means it co-loaded this session.
 		struct IncompatibleFramework
 		{
 			const wchar_t* module;       // DLL as it appears in SFSE/Plugins
@@ -25,10 +24,8 @@ namespace OSF::UI
 			IncompatibleFramework{ L"NAF.dll", "NAFSF" },
 		};
 
-		// Win32 MessageBox type: MB_OK | MB_ICONWARNING | MB_SETFOREGROUND. Raw
-		// values — REX::W32 doesn't wrap the MB_* constants, same as CommonLibSF's
-		// own Fail() path which just passes an int.
-		constexpr std::uint32_t kMessageBoxFlags = 0x00000000 | 0x00000030 | 0x00010000;
+		// Win32 MessageBox type: MB_OK | MB_ICONWARNING | MB_SETFOREGROUND. 
+aa		constexpr std::uint32_t kMessageBoxFlags = 0x00000000 | 0x00000030 | 0x00010000;
 	}
 
 	void CompatWarning::ProbeIncompatibilities()
@@ -36,9 +33,7 @@ namespace OSF::UI
 		std::string detected;
 		for (const auto& framework : kIncompatibleFrameworks) {
 			if (REX::W32::GetModuleHandleW(framework.module) != nullptr) {
-				REX::WARN("Co-loaded incompatible animation framework: {}. Both write the engine rig "
-						  "buffer every frame and will fight over poses.",
-					framework.displayName);
+				REX::WARN("Co-loaded incompatible animation framework: {}. Both write the engine rig buffer every frame and will fight over poses.", framework.displayName);
 				if (!detected.empty()) {
 					detected += " and ";
 				}
@@ -53,17 +48,15 @@ namespace OSF::UI
 
 		const std::string body = std::format(
 			"{} is also installed.\n\n"
-			"OSF Animation and {} both drive the same animation system and will fight over actor "
-			"poses (twitching / T-posing). They cannot run together.\n\n"
+			"OSF Animation and {} both drive the same animation system and will fight over actor poses (twitching / T-posing)."
+			"They cannot run together.\n\n"
 			"To use OSF Animation, DISABLE {} in your mod manager, then restart the game. "
 			"(If you would rather keep {}, disable OSF Animation instead.)",
 			detected, detected, detected, detected);
 
-		// Blocking Win32 box on the load thread — the game hasn't reached the title
-		// screen yet, so blocking here is harmless and guarantees the user sees it
-		// before any scene plays. nullptr owner = top-level (no game window yet).
+		// Blocking Win32 box on the load thread — the game hasn't reached the title  screen yet, 
+		// so blocking here is harmless and guarantees the user sees it before any scene plays. nullptr owner = top-level (no game window yet).
 		REX::INFO("Posting co-load compatibility warning via Win32 MessageBox: {}", detected);
-		REX::W32::MessageBoxA(nullptr, body.c_str(), "OSF Animation — conflicting framework detected",
-			kMessageBoxFlags);
+		REX::W32::MessageBoxA(nullptr, body.c_str(), "OSF Animation — conflicting framework detected", kMessageBoxFlags);
 	}
 }

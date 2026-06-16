@@ -22,13 +22,6 @@ namespace OSF::Serialization::SaveSafety
 			return Util::Hooking::PrologueMatches(RE::ID::SaveLoadEvent::GetEventSource, kExpectedPrologue);
 		}
 
-		// Full opType enumeration statically proven 2026-06-12 (osf-re
-		// engine.save_load: all 10 FireBegin sites + every request-bit setter,
-		// 1.16.242 + 1.16.244). World-replacing loads are exactly these four —
-		// kLoadMostRecent is the DEATH RELOAD path, which the previous
-		// {4, 6}-only set missed. New game and Unity/NG+ never enter the
-		// manager pump and fire no SaveLoadEvent at all (TESLoadGameEvent
-		// backstop still covers them).
 		bool IsWorldReplacingLoadOp(RE::SaveLoadEvent::OpType a_opType)
 		{
 			using OpType = RE::SaveLoadEvent::OpType;
@@ -69,12 +62,6 @@ namespace OSF::Serialization::SaveSafety
 			RE::BSEventNotifyControl ProcessEvent(const RE::TESLoadGameEvent&,
 				RE::BSTEventSource<RE::TESLoadGameEvent>*) override
 			{
-				// Starfield rebuilds the Papyrus VM on every load (the script log
-				// closes and reopens), dropping the natives OSF bound once at
-				// kPostDataLoad. Re-bind them onto the fresh VM here, or every OSF.*
-				// call from consumers — including the SAF->OSF shim that drives
-				// legacy SAF mods — fails with "Unbound native function" and all
-				// playback silently no-ops. This fires post-load (VM is back up).
 				if (!Papyrus::RegisterFunctions()) {
 					REX::WARN("SaveSafety: could not re-register OSF natives after load (GameVM unavailable); "
 						"OSF.* stays unbound until the next successful load");
