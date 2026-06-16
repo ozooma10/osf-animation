@@ -11,7 +11,7 @@ per-graph, **overridable** contract, set via the `aiRootMode` argument on the an
 | Mode | Value | Root translation | Where the skeleton renders | Use for |
 |------|-------|------------------|----------------------------|---------|
 | `pin` | `0` (default *with* anchor) | **ignored** | locked at the anchor point every frame | stationary scenes — paired poses, sex, sit/lie idles; GLBs authored at origin |
-| `additive` | `1` | **applied**, from the anchor | travels outward as root motion accumulates | locomotion / travelling dances / walk cycles |
+| `additive` *(experimental)* | `1` | **applied**, from the anchor | **currently pins** — root-motion travel not yet implemented (intended: travels outward as root motion accumulates) | locomotion / travelling dances / walk cycles *(planned)* |
 | `follow` | `2` (default *without* anchor) | **ignored** | rides the actor's LIVE world transform | in-place anims on an engine-moved actor (the bare `Play` default) |
 
 ## Anchor × mode matrix
@@ -23,8 +23,11 @@ per-graph, **overridable** contract, set via the `aiRootMode` argument on the an
   - `pin` — the rendered root is forced to the anchor each frame. The physics capsule may settle
     ~0.3 m off; that is **expected** — judge alignment visually, not by `GetWorldTranslation`.
     This is today's compose-root pinning behaviour.
-  - `additive` — the anchor is the START point; the clip's root motion moves the skeleton from
-    there.
+  - `additive` *(experimental — currently behaves like `pin`)* — the *intended* behaviour is that
+    the anchor is the START point and the clip's root motion moves the skeleton from there.
+    Root-motion travel is not yet implemented in the stamp hook (pending in-game RE); today this
+    mode falls through to the same compose-root pin as `pin`. Treat value `1` as reserved /
+    experimental, not a shipping travelling-motion mode.
   - `follow` with an anchor set is contradictory; the anchor is ignored and the graph follows the
     actor.
 
@@ -39,6 +42,7 @@ fighting an invisible default. Cross-content alignment lives or dies here.
 
 Root handling happens in the stamp hook (BGSModelNode::Update vfunc-2 PRE-orig), writing into the
 engine flat rig buffers in **NiTransform ROW layout — do NOT transpose** (docs/RE.md). `pin`
-overwrites the compose-root translation with the anchor; `additive` composes anchor × root;
-`follow` leaves the engine's own root translation in place. No game RE / AddressLib work — this is
+overwrites the compose-root translation with the anchor; `additive` is *specified* to compose
+anchor × root but currently falls through to the same pin (travel pending in-game RE); `follow`
+leaves the engine's own root translation in place. No game RE / AddressLib work — this is
 internal pose math on bindings OSF already owns.

@@ -42,7 +42,7 @@ No teleport — you place the actors yourself first; `Sync` only locks their tim
 OSF.SetAnchor(akActor, x, y, z, headingDeg, 0)   ; rootMode 0 = pin (lock here)
 OSF.ClearAnchor(akActor)                          ; back to following the actor
 ```
-`rootMode`: `0` pin · `1` additive (root motion travels from the point) · `2` follow.
+`rootMode`: `0` pin · `1` additive *(experimental — currently behaves like pin; root-motion travel pending)* · `2` follow.
 See [ANCHORING.md](../ANCHORING.md). Refused for scene participants (their placement is
 scene-driven).
 

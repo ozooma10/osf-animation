@@ -1,7 +1,7 @@
 Scriptname SAF extends ScriptObject
 
-; SAF -> OSF compatibility shim. Maintains SAF mods not ported to OSF; not full
-; coverage (functions tagged SHIM-GAP have no OSF equivalent yet).
+; SAF -> OSF compatibility shim. Maintains SAF mods not ported to OSF;
+; Do not use these methods, use OSF methods for future mods.
 
 Struct SequencePhase
     Int numLoops = 0            ; -1 = loop forever, 0 = play once
@@ -9,8 +9,7 @@ Struct SequencePhase
     String filePath             ; anim path relative to Data (as in NAF/SAF)
 EndStruct
 
-; Logs "[SAF->OSF] ..." to the Papyrus log (and on-screen if DebugNotify). Both
-; are compile-time toggles (pure-global Papyrus has no mutable static state).
+; Logs "[SAF->OSF] ..." to the Papyrus log (and on-screen if DebugNotify). 
 Bool Function DebugEnabled() Global
     return True
 EndFunction
@@ -28,10 +27,7 @@ Function SAFLog(String asMsg) Global
     EndIf
 EndFunction
 
-; Prepends the SAF animation root: consumers pass ids without it (e.g.
-; "GE\Flr\x.glb") but OSF wants a Data-relative path. Kept local (not a call into
-; SAFScript.ResolveAnim) so a mixed setup with the real SAF native still resolves;
-; keep this root in sync with SAFScript.ResolveAnim.
+; prepends the SAF animation root to the given animation ID.
 String Function ResolveAnim(String asAnimId) Global
     If asAnimId == ""
         return asAnimId
@@ -39,10 +35,6 @@ String Function ResolveAnim(String asAnimId) Global
     return "SAF\\Animations\\" + asAnimId
 EndFunction
 
-; SAF "Locked"/"Restrained" scenes froze the player. The content-neutral core
-; never auto-locks, so the shim engages the standalone OSFCompat lock when the
-; player participates, and releases it on Stop/Unlock (the core also releases on
-; load). NPCs need no control lock — the scene anchors/pins them.
 Function EngagePlayerLockIfPlayer(Actor akActor) Global
     If akActor != None && akActor == Game.GetPlayer()
         SAFLog("Engaging player lock -> ControlLock + CameraLock (on)")
@@ -58,9 +50,6 @@ Function ReleasePlayerLockIfPlayer(Actor akActor) Global
         OSFCompat.SetPlayerCameraLock(false)
     EndIf
 EndFunction
-
-; Single-actor playback. fTransitionSeconds ignored (OSF uses its blend default);
-; OSF.Play is already single (non-looping).
 
 Function PlayAnimation(Actor akTarget, String asAnim, Float fTransitionSeconds = 1.0) Global
     SAFLog("PlayAnimation target=" + akTarget + " anim=" + asAnim)
@@ -83,8 +72,7 @@ Bool Function StopAnimation(Actor akTarget, Float fTransitionSeconds = 1.0) Glob
     return OSF.Stop(akTarget)
 EndFunction
 
-; Frame-locks the group's clocks on one shared clock (SAF's SyncAnimations was a
-; clock frame-lock). Mirrors SAFScript.SyncGraphs.
+; Sync the animation clocks of the given actors.
 Function SyncAnimations(Actor[] akTargets) Global
     Int n = 0
     If akTargets != None
@@ -97,15 +85,16 @@ Function SyncAnimations(Actor[] akTargets) Global
     OSF.Sync(akTargets)
 EndFunction
 
+; Removes the given actor from the sync group.
 Function StopSyncing(Actor akTarget) Global
     SAFLog("StopSyncing target=" + akTarget)
     ; OSF has no "leave the sync group"; stop the graph instead.
     OSF.Stop(akTarget)
 EndFunction
 
-; Maps onto OSF.PlaySequence (solo multi-phase). SAF SequencePhase.numLoops:
-; -1 = loop forever (hold until AdvanceSequence), 0 = play once then advance,
-; N = N loops then advance. OSF aiLoops: <=0 = hold, N = advance after N.
+; Maps to OSF.PlaySequence.
+; SequencePhase.numLoops: -1 = loop forever (hold until AdvanceSequence), 0 = play once then advance,
+; N = N loops then advance.
 Function StartSequence(Actor akTarget, SequencePhase[] sPhases, Bool bLoop) Global
     Int phaseCount = 0
     If sPhases != None
@@ -135,8 +124,7 @@ Function StartSequence(Actor akTarget, SequencePhase[] sPhases, Bool bLoop) Glob
     OSF.PlaySequence(akTarget, files, loops, blends, bLoop)
 EndFunction
 
-; Manual advance to the next phase (PlaySequence builds a staged scene; jump it).
-; False when not in a sequence or already past the last phase.
+; advance to the next stage.
 Bool Function AdvanceSequence(Actor akTarget, Bool bSmooth) Global
     Int cur = OSF.GetSceneStage(akTarget)
     If cur < 0
@@ -160,15 +148,16 @@ Int Function GetSequencePhase(Actor akTarget) Global
     return phase
 EndFunction
 
-; Position / AI locking -- no-ops: OSF anchors/pins participants automatically on
-; scene start. Player control is NOT auto-locked by the core (use OSFCompat).
+; Position / AI locking - no-ops: 
+; OSF anchors/pins participants automatically on scene start. 
+; Player control is NOT auto-locked by the core (use OSFCompat).    
 
 Function SetPositionLocked(Actor akTarget, Bool bLocked) Global
     SAFLog("SetPositionLocked target=" + akTarget + " locked=" + bLocked + " (no-op, OSF auto-pins)")
 EndFunction
 
-; OSF anchors/pins NPCs via the scene; only a player participant needs control +
-; camera frozen. SAF may pass akActor=None with abIsPlayer=true to mean "player".
+; OSF anchors/pins NPCs via the scene; only a player participant needs control + camera frozen. 
+; SAF may pass akActor=None with abIsPlayer=true to mean "player".
 Function LockActorForAnimationRestrained(Actor akActor, Float fX, Float fY, Float fZ, Bool abIsPlayer = false) Global
     Actor target = akActor
     If target == None && abIsPlayer
@@ -220,7 +209,7 @@ Function PlaySceneLocked(Actor akActor1, Actor akActor2, String asAnim1, String 
     files[0] = ResolveAnim(asAnim1)
     files[1] = ResolveAnim(asAnim2)
     If OSF.StartSceneFiles(actors, files, fSpeed)
-        ; SAF froze the player in player-participant scenes — restore that.
+        ; SAF froze the player in player-participant scenes, restore that.
         EngagePlayerLockIfPlayer(akActor1)
         EngagePlayerLockIfPlayer(akActor2)
     EndIf
@@ -243,7 +232,6 @@ Function PlaySceneSeparatePlayerNPC(Actor akNPC, String asPlayerAnim, String asN
 EndFunction
 
 ; Approach-then-play: wait loop is plain Papyrus, playback is OSF.
-
 Function PlaySceneWithApproach(Actor akActor1, Actor akActor2, String asAnim1, String asAnim2, Float fSpeed = 1.0, Float fStopDistance = 50.0, Float fTimeout = 10.0, Float fApproachOffset = 40.0) Global
     SAFLog("PlaySceneWithApproach a1=" + akActor1 + " a2=" + akActor2 + " stopDist=" + fStopDistance + " timeout=" + fTimeout)
     If akActor1 == None || akActor2 == None
@@ -275,7 +263,6 @@ Function PlaySceneWithApproachPlayerNPC(Actor akNPC, String asPlayerAnim, String
 EndFunction
 
 ; SHIM-GAP: SAF set an ABSOLUTE world position; OSF only exposes a relative nudge
-; (AdjustScenePlacement) and a raw SetPosition would fight the compose-root pin.
 Function SetActorPosition(Actor akTarget, Float fX, Float fY, Float fZ) Global
     SAFLog("SetActorPosition target=" + akTarget + " (" + fX + "," + fY + "," + fZ + ") (SHIM-GAP, no-op)")
 EndFunction
@@ -312,9 +299,7 @@ Float Function GetBlendGraphVariable(Actor akTarget, String asName) Global
     return 0.0
 EndFunction
 
-; Event registration -- SHIM-GAP: SAF dispatches to a ScriptObject INSTANCE
-; method; OSF registers a GLOBAL function by name. Bridging needs a stored
-; instance + DispatchMethodCall, so these are stubbed (callbacks do NOT fire).
+; Event registration -- Didnt see any connsumers for this and much simpler to not replicate and rely on the OSF event system.
 
 Function RegisterForPhaseBegin(ScriptObject sScript, String sFunctionName) Global
     SAFLog("RegisterForPhaseBegin fn=" + sFunctionName + " (SHIM-GAP, callback will NOT fire)")
