@@ -77,6 +77,7 @@ It is a framework, not an animation pack: it ships a couple of small SFW demo sc
 [list]
 [*]An actor's physics capsule settles ~0.3 m off the visual anchor — cosmetic; judge alignment by what you see, not console position readouts.
 [*]Scene actors must keep AI enabled — the engine won't animate AI-disabled NPCs.
+[*]The anchor [i]additive[/i] root-motion mode (travelling root motion, rootMode 1) is experimental — it currently behaves like [i]pin[/i]. Pin and follow are the working modes.
 [/list]
 
 [line]

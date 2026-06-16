@@ -205,6 +205,33 @@ namespace OSF::Papyrus
 			Camera::CameraService::GetSingleton().SetStandaloneLock(a_locked);
 		}
 
+		// Engine crosshair target: the reference under the reticle / activate prompt.
+		// PlayerCharacter->commandTarget (0x0F90, RE-verified 1.16.244 — see
+		// commonlibsf PlayerCharacter.h). Any ref kind (actor/door/container/...) or
+		// null when the crosshair is on nothing.
+		RE::TESObjectREFR* CrosshairTarget()
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			return player ? player->commandTarget : nullptr;
+		}
+
+		// COMPATIBILITY-ONLY: the raw engine crosshair reference, or None. Restores
+		// SAF's native crosshairRef the pure-Papyrus shim had no way to read.
+		RE::TESObjectREFR* GetCrosshairRef(OSFVM&, uint32_t, std::monostate)
+		{
+			return CrosshairTarget();
+		}
+
+		// COMPATIBILITY-ONLY: the crosshair reference cast to Actor, or None when the
+		// crosshair is on nothing or a non-actor ref (kACHR form-type gate). Backs the
+		// SAF shim's crosshair pickers, which otherwise approximate selection with a
+		// pure-Papyrus heading-angle cone search.
+		RE::Actor* GetCrosshairActor(OSFVM&, uint32_t, std::monostate)
+		{
+			auto* target = CrosshairTarget();
+			return (target && target->IsActor()) ? static_cast<RE::Actor*>(target) : nullptr;
+		}
+
 		// Framework semver "major.minor.patch" (string so it can't be misread).
 		RE::BSFixedString GetVersion(OSFVM&, uint32_t, std::monostate)
 		{
@@ -352,6 +379,8 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetSceneControlMask", &SetSceneControlMask, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
 		REX::INFO("Registered compatibility natives on script '{}'", COMPAT_SCRIPT_NAME);
 	}
 

@@ -299,7 +299,8 @@ Float Function GetBlendGraphVariable(Actor akTarget, String asName) Global
     return 0.0
 EndFunction
 
-; Event registration -- Didnt see any connsumers for this and much simpler to not replicate and rely on the OSF event system.
+; Event registration -- no consumers found; rely on the OSF event system rather
+; than replicate the SAF dispatch. Stubbed (callbacks do NOT fire).
 
 Function RegisterForPhaseBegin(ScriptObject sScript, String sFunctionName) Global
     SAFLog("RegisterForPhaseBegin fn=" + sFunctionName + " (SHIM-GAP, callback will NOT fire)")
@@ -317,8 +318,10 @@ Function UnregisterForSequenceEnd(ScriptObject sScript) Global
     SAFLog("UnregisterForSequenceEnd (SHIM-GAP, no-op)")
 EndFunction
 
-; Crosshair pickers -- pure-Papyrus cone search (heading angle + distance); SAF's
-; native crosshairRef fast-path is dropped.
+; Crosshair pickers -- native fast-path (OSFCompat.GetCrosshairActor reads the
+; engine crosshair target, PlayerCharacter->commandTarget) restores SAF's native
+; crosshairRef behavior; the pure-Papyrus cone search (heading angle + distance)
+; remains as a forgiving fallback when the reticle is not directly on a listed actor.
 
 Actor Function PickActorFromCrosshair(Actor[] sceneActors, Float maxAngle = 20.0, Float maxDist = 500.0) Global
     If sceneActors == None || sceneActors.Length == 0
@@ -326,6 +329,15 @@ Actor Function PickActorFromCrosshair(Actor[] sceneActors, Float maxAngle = 20.0
         return None
     EndIf
 
+    ; Fast-path: if the engine crosshair is squarely on one of the listed actors,
+    ; take it -- precise + occlusion-aware (no heading/distance approximation).
+    Actor hit = OSFCompat.GetCrosshairActor()
+    If hit && sceneActors.Find(hit) >= 0
+        SAFLog("PickActorFromCrosshair native crosshair -> " + hit)
+        return hit
+    EndIf
+
+    ; Fallback: cone search for when the reticle is not pixel-on a listed actor.
     Actor player = Game.GetPlayer()
     Actor best = None
     Float bestScore = maxAngle
@@ -345,7 +357,7 @@ Actor Function PickActorFromCrosshair(Actor[] sceneActors, Float maxAngle = 20.0
         i += 1
     EndWhile
 
-    SAFLog("PickActorFromCrosshair count=" + sceneActors.Length + " -> " + best)
+    SAFLog("PickActorFromCrosshair count=" + sceneActors.Length + " (cone) -> " + best)
     return best
 EndFunction
 

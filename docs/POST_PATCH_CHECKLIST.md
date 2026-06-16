@@ -57,7 +57,6 @@ with hooks reported installed. See `docs/RE.md` "Rig pipeline" / "Participant vi
 | # | Binding | AddrLib ID | Gate | Notes |
 |---|---|---|---|---|
 | 3 | SaveLoadEvent::GetEventSource | **82710** | prologue (13 bytes) → begin sink | falls back to row 4 backstop on mismatch |
-| 4 | TESLoadGameEvent::GetEventSource | **64149** | source-null check → finalizer backstop | last line of defense; also re-binds the natives; manual `OSF.NotifyGameLoaded()` below it |
 | 5 | SaveLoadEvent payload layout | — | raw offset: opType @0xC, status @0xD | a layout move is silent — re-verify via osf-re `engine.save_load` if load teardown stops firing |
 
 Log on success: `registered SaveLoadEvent begin sink` + `registered TESLoadGameEvent backstop

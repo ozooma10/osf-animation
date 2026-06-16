@@ -41,7 +41,9 @@ truth → **docs/RE.md** · the OSF Intimacy scene-engine boundary → **docs/IN
   (`Ping→IsReady`, `PlaySceneSeparate→StartSceneFiles`, `StopAnimation→Stop/StopScene`,
   `SyncGraphs→Sync`). Existing SAF **playback/sync/scene** content runs unchanged — the launch
   headline. Advanced SAF entry points with no core equivalent (phase/sequence-end callbacks,
-  crosshair selection, blend-graph variables, absolute `SetActorPosition`) are no-op SHIM-GAP stubs.
+  the crosshair selection buffer, blend-graph variables, absolute `SetActorPosition`) are no-op
+  SHIM-GAP stubs. (The crosshair *target* — `GetCrosshairRef`/`GetCrosshairActor` + the pickers —
+  is native via `OSFCompat` reading `PlayerCharacter->commandTarget`.)
 - **Carved out → OSF Intimacy (NOT in this repo):** `ScenePolicy`, undress/redress
   (EquipmentService), scheduled voice + SoundService/WwiseBackend, FadeService, EventRelay
   scene/cue callbacks, stall watchdog, Cosave aftermath persistence, the scene-integrated
@@ -57,7 +59,6 @@ Bound on `OSF` (see `dist/Scripts/Source/OSF.psc`):
   SAF `PlaySceneSeparate` replacement) · `SetSceneStage` · `GetSceneStage` · `StopScene` ·
   `FindScenes` · `ReloadPacks`.
 - **Readiness:** `IsReady` · `HasFeature("scenes"/"playback"/"sync"/"anchor")` · `GetVersion`.
-- **Misc:** `NotifyGameLoaded` (save-safety).
 - **Compat (`OSFCompat`):** `SetPlayerControlLock` · `SetPlayerCameraLock` · `SetSceneControlMask` (debug, off the public surface).
 
 Natives are never removed / signatures stable within a major version.
@@ -129,8 +130,6 @@ Each entry: **system** (`path`) — what it does. Addresses/offsets/RE detail li
   every load (the VM is rebuilt). `OSF.psc` + pex ship.
 - **Save-safety** (`src/Serialization/SaveSafety.*`) — `GraphManager::StopAll` drops ALL scene/graph
   state on a world-replacing load (SaveLoadEvent begin sink + TESLoadGameEvent backstop + manual
-  `OSF.NotifyGameLoaded()`); the backstop also re-binds the natives onto the rebuilt VM. **No cosave
-  aftermath persistence** (carved to OSF Intimacy).
 - **Startup** (`src/main.cpp`) — logs game-version vs RE build, emits a one-line feature report.
 
 ## Conventions

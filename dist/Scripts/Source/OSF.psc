@@ -1,13 +1,10 @@
 ScriptName OSF Native Hidden
 
 ; OSF Animation — native animation playback core for Starfield.
-; Content-neutral: scenes here are mechanical (anchored, staged, synced). Scene
-; POLICY — undress/redress, scheduled voice, camera/control, fade choreography,
-; scene/cue callbacks — lives in the OSF Intimacy scene engine, not here.
 
 ; --- Primitives ---------------------------------------------------------------
 
-; Plays a GLTF/GLB animation on akActor. asFile is Data-relative (e.g. "OSF\MyAnim.glb"); asAnim selects a clip by name or index ("" = first).
+; Plays a GLTF/GLB animation on akActor. asFile is Data-relative (e.g. "OSF\MyAnim.glb");
 bool Function Play(Actor akActor, string asFile, string asAnim = "") Global Native
 
 ; Stops playback on the given actor and returns control to the game.
@@ -77,22 +74,8 @@ int Function ReloadPacks() Global Native
 ; True once OSF is loaded + initialized (hooks installed).
 bool Function IsReady() Global Native
 
-; True when the named feature is effective in this build. The lean core has a
-; SINGLE gate — the two playback vtable hooks installed + verified — so
-; "scenes"/"playback"/"sync"/"anchor" all report that one aggregate state (they
-; self-disable together on a version/binding mismatch rather than crash). Any
-; other name returns false. Treat this as one "is OSF's engine layer live?" check.
+; True when the named feature is effective in this build.
 bool Function HasFeature(string asFeature) Global Native
 
-; Framework version (semver). Natives are never removed and signatures never
-; change within a major; minors only add. Gate features / report build on this.
+; Framework version (semver). Natives are never removed and signatures never change within a major; minors only add.
 string Function GetVersion() Global Native
-
-; --- Misc ---------------------------------------------------------------------
-
-; Save-safety. Call from a consumer's OnPlayerLoadGame: drops all in-memory
-; scene/graph state (anchored in the discarded world). Does NOT restore
-; movement (the loaded save is authoritative). No-op when nothing plays.
-; WARNING: never call against a LIVE scene outside an actual load. Use StopScene
-; for normal teardown.
-Function NotifyGameLoaded() Global Native

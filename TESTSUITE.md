@@ -99,7 +99,6 @@ scene (`cgf "OSFTest.Loops"`) on two NPCs, trigger the load, grep the log.
 | SAVE-04 | New game | Mid-scene → main menu → New Game | NO `save-load begin`; backstop only: `StopAll (save loaded (TESLoadGameEvent backstop))` | ⬜ **GATE** |
 | SAVE-05 | Unity/NG+ | Mid-scene → enter Unity (needs F-Endgame) | Same as SAVE-04 | 🚫 defer if no endgame save (statically proven same path as SAVE-04) |
 | SAVE-06 | Native re-bind after load | After any load above: `cgf "OSF.GetVersion"` / start a scene | Natives still bound (no "Unbound native function"); scene plays — proves the VM re-bind | ⬜ **GATE** |
-| SAVE-07 | Manual fallback | `cgf "OSF.NotifyGameLoaded"` with no scene live | StopAll runs harmlessly (NEVER call against a live scene outside a real load) | ✅ 2026-06-12 (pre-split) |
 
 After every SAVE row also confirm: no actor left frozen, no stuck pose pinned to a dead anchor.
 

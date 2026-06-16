@@ -1,24 +1,24 @@
 Scriptname SAFScript extends ScriptObject
 
-; SAFScript -> OSF compatibility shim. Functions tagged SHIM-GAP have no OSF
-; equivalent yet. ResolveAnim/SAFLog kept local (no SAF.psc dependency) so a
-; mixed setup with the real SAF native still resolves.
+; SAFScript -> OSF compatibility shim. 
+; Prefer using the OSF functions directly when possible.
 
 Bool Function DebugEnabled() Global
     return True
 EndFunction
 
+; Logs "[SAFScript->OSF] ..." to the Papyrus log. The distinct prefix keeps this
+; shim's calls separable from the struct-based SAF shim's "[SAF->OSF]" lines.
 Function SAFLog(String asMsg) Global
     If DebugEnabled()
         Debug.Trace("[SAFScript->OSF] " + asMsg)
     EndIf
 EndFunction
 
+; Prepends the SAF animation root to the given animation ID. Delegates to
+; SAF.ResolveAnim -- both shims share the root, and the helper is pure (no log).
 String Function ResolveAnim(String asAnimId) Global
-    If asAnimId == ""
-        return asAnimId
-    EndIf
-    return "SAF\\Animations\\" + asAnimId
+    return SAF.ResolveAnim(asAnimId)
 EndFunction
 
 Function ReleasePlayerLockIfPlayer(Actor akActor) Global
@@ -29,9 +29,7 @@ Function ReleasePlayerLockIfPlayer(Actor akActor) Global
     EndIf
 EndFunction
 
-; SAF "Locked" scenes froze the player. The content-neutral core never auto-locks,
-; so the shim engages the standalone OSFCompat lock when the player participates
-; (released by StopAnimation / UnlockActorAfterAnimation, and by the core on load).
+
 Function EngagePlayerLockIfPlayer(Actor akActor) Global
     If akActor != None && akActor == Game.GetPlayer()
         SAFLog("Engaging player lock -> ControlLock + CameraLock (on)")
@@ -108,6 +106,8 @@ Bool Function StopAnimation(Actor akActor) Global
     return OSF.Stop(akActor)
 EndFunction
 
+; Returns the FULL Data-relative path (with the ResolveAnim root prepended), not
+; the bare id SAF returned -- Papyrus has no substring to strip it back.
 String Function GetCurrentAnimation(Actor akActor) Global
     String anim = OSF.GetCurrentAnimation(akActor)
     SAFLog("GetCurrentAnimation actor=" + akActor + " -> " + anim)
@@ -160,8 +160,8 @@ Float Function GetAnimationSpeed(Actor akActor) Global
     return pct
 EndFunction
 
-; --- Position / anchoring -- no-ops: OSF anchors participants and pins the
-; compose root automatically. Real anchoring happens in SyncGraphs / scene start.
+; --- Position / anchoring -- no-ops: OSF anchors participants and pins the compose root automatically. 
+; Real anchoring happens in SyncGraphs / scene start.
 
 Function SetGraphControlsPosition(Actor akActor, Bool bLocked) Global
     SAFLog("SetGraphControlsPosition actor=" + akActor + " locked=" + bLocked + " (no-op, OSF auto-pins)")
@@ -178,8 +178,8 @@ Function MatchActorTransform(Actor akTarget, Actor akSource) Global
 EndFunction
 
 ; OSF anchors/pins NPCs via the scene, so positional locking is a no-op for them;
-; but a player participant still needs control/camera frozen (SAF's lock). SAF may
-; pass akActor=None with abIsPlayer=true to mean "the player".
+; but a player participant still needs control/camera frozen (SAF's lock). 
+; SAF may pass akActor=None with abIsPlayer=true to mean "the player".
 Function LockActorForAnimation(Actor akActor, Float fX, Float fY, Float fZ, Bool abIsPlayer = false) Global
     Actor target = akActor
     If target == None && abIsPlayer
@@ -208,8 +208,7 @@ Function UnlockActorAfterAnimation(Actor akActor, Bool abIsPlayer = false) Globa
     EndIf
 EndFunction
 
-; SAF's SyncGraphs frame-locks a group on one shared clock. OSF.Sync does exactly
-; that (the content-neutral core does not auto-manage scene policy).
+; SAF's SyncGraphs frame-locks a group on one shared clock.
 Function SyncGraphs(Actor[] akTargets) Global
     Int n = 0
     If akTargets != None
@@ -290,23 +289,23 @@ Float Function GetBlendGraphVariable(Actor akActor, String asName) Global
     return 0.0
 EndFunction
 
-; --- Crosshair / selection buffer -- all SHIM-GAP: SAF read these natively
-; (engine crosshairRef, ProcessLists walk, persistent buffer); pure Papyrus has
-; no equivalent ---
 
 ObjectReference Function GetCrosshairRef() Global
-    SAFLog("GetCrosshairRef -> None (SHIM-GAP)")
-    return None
+    ObjectReference ref = OSFCompat.GetCrosshairRef()
+    SAFLog("GetCrosshairRef -> " + ref)
+    return ref
 EndFunction
 
 Actor Function GetCrosshairActor() Global
-    SAFLog("GetCrosshairActor -> None (SHIM-GAP)")
-    return None
+    Actor a = OSFCompat.GetCrosshairActor()
+    SAFLog("GetCrosshairActor -> " + a)
+    return a
 EndFunction
 
 Actor Function FindActorNearCrosshair(Float maxAngleDeg = 15.0, Float maxDist = 2000.0) Global
-    SAFLog("FindActorNearCrosshair -> None (SHIM-GAP, no candidate enumeration)")
-    return None
+    Actor a = OSFCompat.GetCrosshairActor()
+    SAFLog("FindActorNearCrosshair -> " + a)
+    return a
 EndFunction
 
 Int Function AddActorToSelectionBuffer(Float maxAngleDeg = 15.0, Float maxDist = 2000.0) Global
@@ -334,9 +333,7 @@ Int Function SelectActor(Actor akActor) Global
     return -1
 EndFunction
 
-; --- Event registration -- SHIM-GAP: SAF dispatches to a ScriptObject INSTANCE
-; method; OSF registers a GLOBAL function by name. Bridging needs a stored
-; instance + DispatchMethodCall, so these are stubbed (callbacks do NOT fire) ---
+; --- Event registration -- SHIM-GAP: Couldnt find any true consumers of these events.
 
 Function RegisterForPhaseBegin(ScriptObject akScript, String asFunctionName) Global
     SAFLog("RegisterForPhaseBegin fn=" + asFunctionName + " (SHIM-GAP, callback will NOT fire)")

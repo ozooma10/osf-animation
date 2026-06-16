@@ -82,16 +82,6 @@ Gate on OSF as an optional dependency:
   name → false. Treat it as one "is OSF's engine layer live?" check, not per-feature probing.
 - `OSF.GetVersion()` — semver.
 
-## Save-safety contract
-
-On a world-replacing load the engine resets every actor to the saved state, so the core
-**drops all in-memory scene/graph state** (it is anchored in the world that was just
-discarded) — via a SaveLoadEvent sink, a TESLoadGameEvent backstop, and the manual
-`OSF.NotifyGameLoaded()` fallback (read its warning in OSF.psc first). The backstop also
-re-binds the natives onto the rebuilt Papyrus VM. The core does **not** persist any
-scene aftermath across saves and never resumes playback from a save — replay from your
-own quest state if needed. (Cross-restart redress/resume is an OSF Intimacy concern.)
-
 ## Compatibility natives (`OSFCompat`)
 
 `OSFCompat.SetPlayerControlLock(bool)` and `SetPlayerCameraLock(bool)` are
@@ -119,7 +109,10 @@ by forwarding `Ping→IsReady`, `PlaySceneSeparate→StartSceneFiles`,
 
 **SHIM-GAPs (what does *not* carry over).** SAF entry points the content-neutral core has no
 equivalent for are inert stubs that log and no-op: phase/sequence-end callbacks
-(`RegisterForPhaseBegin`/`RegisterForSequenceEnd` never fire), the crosshair pickers + selection
-buffer, blend-graph variables (`Set`/`GetBlendGraphVariable`), and absolute positioning
+(`RegisterForPhaseBegin`/`RegisterForSequenceEnd` never fire), the multi-actor selection buffer
+(`AddActorToSelectionBuffer`/`GetSelectionBuffer`), blend-graph variables
+(`Set`/`GetBlendGraphVariable`), and absolute positioning
 (`SetActorPosition`/`MatchActorTransform`). SAF content that drives gameplay off those will not
-behave identically; playback-driven SAF content does.
+behave identically; playback-driven SAF content does. (The single crosshair target —
+`GetCrosshairRef`/`GetCrosshairActor` and the crosshair pickers — is now native, via
+`OSFCompat` reading `PlayerCharacter->commandTarget`.)
