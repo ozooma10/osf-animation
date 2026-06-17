@@ -127,7 +127,8 @@ namespace OSF::Scene
 		{
 			kControlLock,  // player control + camera lock (ref-counted across scenes)
 			kFade,         // screen fade-to-black (undo = fade back in)
-			kEquipment     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
+			kEquipment,    // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
+			kCamera        // held camera state (undo = release the standalone camera lock)
 		};
 
 		struct Slot
@@ -191,6 +192,14 @@ namespace OSF::Scene
 		// Play one content-neutral sound spec, positioned at a_role's actor (or the player when
 		// the role resolves nothing). Shared by the sound lane + osf.voice.play.
 		static void PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role, float a_volume);
+
+		// Engage a node's enter (a_enter) or exit camera-track entries. Numeric/end-timed camera
+		// entries engage via OnTimedMarks instead. Call OUTSIDE _lock. No-op for a non-def scene.
+		static void DispatchLifecycleCamera(std::int32_t a_handle, std::string_view a_node, bool a_enter);
+
+		// Engage one camera state (held, ledger-tracked, auto-restored). a_hasPlayer gates it
+		// (camera affects the player). v1: "thirdperson_hold" -> the standalone camera lock.
+		static void RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer);
 
 		// Run a node's enter (a_enter) or exit action-track entries (the lifecycle anchors).
 		// Numeric/end-timed actions run via OnTimedMarks instead. Call OUTSIDE _lock. No-op for

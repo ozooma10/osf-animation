@@ -502,3 +502,21 @@ Function SoundTest() global
     OSFCompat.Dbg_Log("SoundTest: stopping.")
     OSF.StopScene(h)
 EndFunction
+
+; --- Camera lane (Slice 18: minimal-safe third-person hold) -----------------------------
+; Be in FIRST person, then start "author.scenes.cameratest" on the PLAYER: the camera lane
+; forces + holds THIRD person (and bounces you back if you scroll into first). NO authored
+; release — on stop (~4s) the kCamera undo-ledger entry restores you to first person.
+; Expect: 'camera 'thirdperson_hold' — third-person hold engaged' + 'Player camera forced to
+; third person'; on stop 'camera undo — releasing the camera hold' + 'restored to first person'.
+;   cgf "OSFTest.CameraTest"
+Function CameraTest() global
+    Actor a = Game.GetPlayer()
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.cameratest", 0)
+    OSFCompat.Dbg_Log("CameraTest: started h=" + h + " — should snap to THIRD person + hold. Stopping in 4s; expect restore to first person.")
+    Utility.Wait(4.0)
+    OSFCompat.Dbg_Log("CameraTest: stopping — expect 'camera undo' + restore to first person.")
+    OSF.StopScene(h)
+EndFunction

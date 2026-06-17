@@ -13,7 +13,9 @@ namespace OSF::Camera
 
 		// Standalone camera lock: forces third person and keeps Tick() bouncing
 		// the player back if they zoom into first person while held. Restores the
-		// prior POV on release. Idempotent.
+		// prior POV on release. REF-COUNTED across owners (the scene control lock +
+		// the camera track lane both drive it) — engages on the first holder, restores
+		// only when the last releases. Each true must be matched by one false.
 		void SetStandaloneLock(bool a_enable);
 
 		// Rides the update-hook call stream (job threads). POVSwitch stays enabled
@@ -32,5 +34,6 @@ namespace OSF::Camera
 		std::atomic<bool> bouncePending{ false };
 		bool standaloneActive = false;
 		bool standaloneWasFirstPerson = false;
+		int  holdCount = 0;  // # of owners holding the lock (engages at 1, restores at 0)
 	};
 }

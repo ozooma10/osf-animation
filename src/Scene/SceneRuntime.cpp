@@ -98,6 +98,15 @@ namespace OSF::Scene
 					stage.marks.push_back({ 0.0f, false, true, kLaneSound, token });
 				}
 			}
+			for (std::size_t i = 0; i < a_node.cameras.size(); i++) {
+				const auto& cam = a_node.cameras[i];
+				const auto token = std::to_string(i);  // index into node.cameras
+				if (cam.pos == Registry::CameraPos::kFraction) {
+					stage.marks.push_back({ cam.fraction, cam.everyLoop, false, kLaneCamera, token });
+				} else if (cam.pos == Registry::CameraPos::kEnd) {
+					stage.marks.push_back({ 0.0f, false, true, kLaneCamera, token });
+				}
+			}
 		}
 
 		// The outgoing auto-edge of a_node whose `when` matches, by §1.3 arbitration: highest
@@ -182,6 +191,7 @@ namespace OSF::Scene
 		// run in the fixed cross-lane order action -> (camera) -> sound -> cue (§1.3).
 		if (a_event == Event::kNodeExit) {
 			DispatchLifecycleActions(a_handle, a_node, false);
+			DispatchLifecycleCamera(a_handle, a_node, false);
 			DispatchLifecycleSounds(a_handle, a_node, false);
 			DispatchLifecycleCues(a_handle, a_node, false);
 		}
@@ -201,6 +211,7 @@ namespace OSF::Scene
 		// order action -> (camera) -> sound -> cue.
 		if (a_event == Event::kNodeEnter) {
 			DispatchLifecycleActions(a_handle, a_node, true);
+			DispatchLifecycleCamera(a_handle, a_node, true);
 			DispatchLifecycleSounds(a_handle, a_node, true);
 			DispatchLifecycleCues(a_handle, a_node, true);
 		}
@@ -272,6 +283,49 @@ namespace OSF::Scene
 		}
 	}
 
+	void SceneRuntime::RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer)
+	{
+		// Camera affects the player's view, so an NPC-only scene must not seize it.
+		if (!a_hasPlayer) {
+			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — no player participant, no-op", a_handle, a_state);
+			return;
+		}
+		// v1: the one content-neutral state. The hold is ledger-tracked (kCamera) and
+		// auto-restored on cleanup; RecordMechanism engages the ref-counted standalone lock.
+		REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — third-person hold engaged", a_handle, a_state);
+		GetSingleton().RecordMechanism(a_handle, Mechanism::kCamera);
+	}
+
+	void SceneRuntime::DispatchLifecycleCamera(std::int32_t a_handle, std::string_view a_node, bool a_enter)
+	{
+		std::string id;
+		std::vector<RE::Actor*> participants;
+		{
+			std::lock_guard l{ GetSingleton()._lock };
+			Slot* s = GetSingleton().Resolve(a_handle);
+			if (!s) {
+				return;
+			}
+			id = s->id;
+			participants = s->participants;
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		if (!node) {
+			return;  // pack/files scene or unknown node — no camera entries
+		}
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		const bool hasPlayer = player &&
+			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
+
+		const auto wantPos = a_enter ? Registry::CameraPos::kEnter : Registry::CameraPos::kExit;
+		for (const auto& cam : node->cameras) {
+			if (cam.pos == wantPos) {
+				RunCamera(a_handle, cam.state, hasPlayer);
+			}
+		}
+	}
+
 	void SceneRuntime::DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
 		std::string_view a_role, std::string_view a_anchor)
 	{
@@ -290,6 +344,7 @@ namespace OSF::Scene
 	void SceneRuntime::RecordMechanism(std::int32_t a_handle, Mechanism a_mech)
 	{
 		bool engageLock = false;
+		bool engageCamera = false;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
@@ -302,11 +357,16 @@ namespace OSF::Scene
 			s->ledger.push_back(a_mech);
 			if (a_mech == Mechanism::kControlLock) {
 				engageLock = (++_controlLockCount == 1);  // first global holder engages the lock
+			} else if (a_mech == Mechanism::kCamera) {
+				engageCamera = true;  // the camera lock is ref-counted internally (composes w/ control lock)
 			}
 			// kFade: the visible fade-out was posted by RunAction; recording just notes the debt.
 		}
 		if (engageLock) {
 			Player::PlayerControlService::GetSingleton().SetStandaloneLock(true);
+			Camera::CameraService::GetSingleton().SetStandaloneLock(true);
+		}
+		if (engageCamera) {
 			Camera::CameraService::GetSingleton().SetStandaloneLock(true);
 		}
 	}
@@ -358,6 +418,10 @@ namespace OSF::Scene
 			for (auto& [actor, snap] : equip) {
 				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
 			}
+			break;
+		case Mechanism::kCamera:
+			REX::INFO("SceneRuntime: scene {:#010x} camera undo — releasing the camera hold", a_handle);
+			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
 			break;
 		}
 	}
@@ -600,6 +664,14 @@ namespace OSF::Scene
 				if (ec == std::errc{} && idx < node->sounds.size()) {
 					const auto& snd = node->sounds[idx];
 					PlaySound(handle, snd.spec, snd.role, snd.volume);
+				}
+			} else if (m.lane == kLaneCamera && node) {
+				// token = index into node->cameras (set by ApplyNodeMarks).
+				std::size_t idx = 0;
+				const auto* first = m.token.data();
+				const auto [ptr, ec] = std::from_chars(first, first + m.token.size(), idx);
+				if (ec == std::errc{} && idx < node->cameras.size()) {
+					RunCamera(handle, node->cameras[idx].state, hasPlayer);
 				}
 			}
 		}

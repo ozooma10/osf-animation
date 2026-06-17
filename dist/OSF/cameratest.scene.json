@@ -1,0 +1,25 @@
+{
+  // Camera lane test (Slice 18, minimal-safe). One held node that engages the
+  // 'thirdperson_hold' camera state on enter — forces + holds third person via the
+  // ref-counted standalone camera lock. NO authored release: the kCamera undo-ledger
+  // entry restores the prior POV on stop. Be in FIRST person before starting to see it.
+  "schema": 1,
+  "id": "author.scenes.cameratest",
+  "name": "Camera Hold Test",
+  "tags": ["test", "solo"],
+  "roles": [ { "name": "lead", "gender": "any" } ],
+  "entry": "main",
+  "nodes": [
+    {
+      "id": "main",
+      "anim": "solo",
+      "loop": { "mode": "hold" },
+      "loopForever": true,
+      "tracks": {
+        "camera": [
+          { "at": "enter", "state": "thirdperson_hold" }
+        ]
+      }
+    }
+  ]
+}

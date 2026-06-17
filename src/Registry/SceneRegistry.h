@@ -108,6 +108,26 @@ namespace OSF::Registry
 		float        volume = 1.0f;
 	};
 
+	// Where a `camera` track entry fires — same time model as the other lanes.
+	enum class CameraPos : std::uint8_t
+	{
+		kEnter,
+		kExit,
+		kFraction,
+		kEnd
+	};
+
+	// One `camera` track entry: a held camera state, auto-restored on cleanup (§1.5). v1
+	// supports the single content-neutral state "thirdperson_hold" (force + hold third person
+	// via the standalone camera lock); free-fly/orbit/matrix states are deferred past v1.
+	struct CameraEntry
+	{
+		CameraPos    pos = CameraPos::kEnter;
+		float        fraction = 0.0f;
+		bool         everyLoop = false;
+		std::string  state;   // camera state id ("thirdperson_hold")
+	};
+
 	struct SceneNode
 	{
 		std::string              id;
@@ -120,7 +140,8 @@ namespace OSF::Registry
 		std::vector<SceneEdge>   edges;
 		std::vector<CueEntry>    cues;          // `cue` track
 		std::vector<ActionEntry> actions;       // `action` track
-		std::vector<SoundEntry>  sounds;        // `sound` track (camera lane deferred)
+		std::vector<SoundEntry>  sounds;        // `sound` track
+		std::vector<CameraEntry> cameras;       // `camera` track
 	};
 
 	struct SceneRole

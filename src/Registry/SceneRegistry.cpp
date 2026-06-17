@@ -225,8 +225,57 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse the node's `tracks` block. v1 lanes: `cue` + `action` + `sound` (parsed + run);
-		// `camera` is recognized but not yet executed. Any other lane name rejects.
+		void ParseCameraTrack(const json& a_entries, SceneNode& a_node_out)
+		{
+			if (!a_entries.is_array()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': 'camera' track must be an array");
+			}
+			for (const auto& c : a_entries) {
+				CameraEntry ce;
+				ce.state = c.value("state", std::string{});
+				if (ce.state.empty()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': a camera track entry is missing 'state'");
+				}
+				// v1 supports one content-neutral state; free-fly/orbit/matrix are deferred.
+				if (ToLower(ce.state) != "thirdperson_hold") {
+					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + ce.state +
+						"' (v1 supports 'thirdperson_hold')");
+				}
+				const auto repeat = ToLower(c.value("repeat", "none"));
+				if (repeat != "none" && repeat != "loop") {
+					throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' has unknown repeat '" + repeat + "'");
+				}
+				ce.everyLoop = (repeat == "loop");
+				const auto atIt = c.find("at");
+				if (atIt == c.end() || atIt->is_string()) {
+					const std::string at = (atIt != c.end()) ? ToLower(atIt->get<std::string>()) : "enter";
+					if (at == "enter") {
+						ce.pos = CameraPos::kEnter;
+					} else if (at == "exit") {
+						ce.pos = CameraPos::kExit;
+					} else if (at == "end") {
+						ce.pos = CameraPos::kEnd;
+					} else {
+						throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' has unknown anchor 'at':'" + at + "'");
+					}
+					if (ce.everyLoop) {
+						throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' named anchor cannot use repeat:loop");
+					}
+				} else if (atIt->is_number()) {
+					ce.pos = CameraPos::kFraction;
+					ce.fraction = atIt->get<float>();
+					if (ce.fraction < 0.0f || ce.fraction >= 1.0f) {
+						throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
+					}
+				} else {
+					throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' 'at' must be a number or enter/exit/end");
+				}
+				a_node_out.cameras.push_back(std::move(ce));
+			}
+		}
+
+		// Parse the node's `tracks` block. v1 lanes: `cue` + `action` + `sound` + `camera`, all
+		// parsed + run. Any other lane name rejects.
 		void ParseCueTracks(const json& a_node, SceneNode& a_node_out)
 		{
 			const auto it = a_node.find("tracks");
@@ -247,7 +296,8 @@ namespace OSF::Registry
 					continue;
 				}
 				if (laneLower == "camera") {
-					continue;  // recognized lane, not executed yet (Slice 18)
+					ParseCameraTrack(entries, a_node_out);
+					continue;
 				}
 				if (laneLower != "cue") {
 					throw std::runtime_error("node '" + a_node_out.id + "': unknown track lane '" + lane + "'");
