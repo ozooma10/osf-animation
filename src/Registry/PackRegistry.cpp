@@ -373,6 +373,14 @@ namespace OSF::Registry
 		return std::nullopt;
 	}
 
+	void PackRegistry::ForEachAnim(const std::function<void(const AnimationDef&)>& a_fn) const
+	{
+		std::shared_lock l{ lock };
+		for (const auto& [key, def] : animations) {
+			a_fn(def);
+		}
+	}
+
 	size_t PackRegistry::Size() const
 	{
 		std::shared_lock l{ lock };

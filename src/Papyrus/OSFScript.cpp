@@ -2,6 +2,7 @@
 
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
+#include "Matchmaking/Matchmaker.h"
 #include "Player/PlayerControlService.h"
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
@@ -19,15 +20,30 @@ namespace OSF::Papyrus
 	{
 		using OSFVM = RE::BSScript::IVirtualMachine;
 
-		std::vector<RE::SEX> ActorGenders(const std::vector<RE::Actor*>& a_actors)
+		std::vector<std::string> ToStrings(const std::vector<RE::BSFixedString>& a_in)
 		{
-			std::vector<RE::SEX> genders;
-			genders.reserve(a_actors.size());
-			for (auto* actor : a_actors) {
-				auto* npc = actor ? actor->GetNPC() : nullptr;
-				genders.push_back(npc ? npc->GetSex() : RE::SEX::kNone);
+			std::vector<std::string> out;
+			out.reserve(a_in.size());
+			for (const auto& s : a_in) {
+				out.emplace_back(s.c_str());
 			}
-			return genders;
+			return out;
+		}
+
+		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the
+		// slot->actor order, so we never re-bind here). Scene defs go through StartFromDef (binds by
+		// declaration order = the reordered actors); packs through StartFromPack.
+		int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors)
+		{
+			std::vector<RE::Actor*> ordered(a_pick.order.size());
+			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
+				ordered[slot] = a_actors[a_pick.order[slot]];
+			}
+			auto& rt = Scene::SceneRuntime::GetSingleton();
+			if (a_pick.source == Matchmaking::Candidate::Source::kSceneDef) {
+				return rt.StartFromDef(a_pick.id, ordered);
+			}
+			return rt.StartFromPack(a_pick.id, ordered, 0);
 		}
 
 		bool Play(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_file, RE::BSFixedString a_animId)
@@ -79,18 +95,37 @@ namespace OSF::Papyrus
 			return static_cast<int32_t>(registry.Size());
 		}
 
+		// Discovery: ids of scenes (composed defs + packs) with aiActorCount actors whose tags contain
+		// ALL asTags. Deterministic (priority desc, then id asc). Count + tags only — filter-UNAWARE
+		// (no Actor[]); use FindScenesForActorsQuery / StartSceneByTags* for a filter-correct result.
 		std::vector<RE::BSFixedString> FindScenes(OSFVM&, uint32_t, std::monostate, int32_t a_actorCount, std::vector<RE::BSFixedString> a_tags)
 		{
-			std::vector<std::string> tags;
-			tags.reserve(a_tags.size());
-			for (const auto& tag : a_tags) {
-				tags.emplace_back(tag.c_str());
-			}
 			std::vector<RE::BSFixedString> result;
-			if (a_actorCount > 0) {
-				for (auto& id : Registry::PackRegistry::GetSingleton().FindByTags(static_cast<size_t>(a_actorCount), tags)) {
-					result.emplace_back(id);
-				}
+			if (a_actorCount <= 0) {
+				return result;
+			}
+			Matchmaking::TagQuery q;
+			q.allOf = ToStrings(a_tags);
+			const std::vector<RE::Actor*> noActors;
+			for (auto& id : Matchmaking::FindIds(a_actorCount, q, noActors)) {
+				result.emplace_back(id);
+			}
+			return result;
+		}
+
+		// Discovery, filter-aware: like FindScenes but takes the actors, so keyword/race/gender role
+		// filters AND a complete binding are required for a scene def to appear. Boolean tag sets.
+		std::vector<RE::BSFixedString> FindScenesForActorsQuery(OSFVM&, uint32_t, std::monostate,
+			std::vector<RE::Actor*> a_actors, std::vector<RE::BSFixedString> a_allOf,
+			std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf)
+		{
+			std::vector<RE::BSFixedString> result;
+			if (a_actors.empty()) {
+				return result;
+			}
+			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
+			for (auto& id : Matchmaking::FindIds(static_cast<int32_t>(a_actors.size()), q, a_actors)) {
+				result.emplace_back(id);
 			}
 			return result;
 		}
@@ -404,9 +439,9 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
 		}
 
-		// Matchmake a registry pack by tags + gender slots and start it as a single-path scene.
-		// Returns the scene handle (0 = no match / start failed). The chosen id is recoverable
-		// via GetSceneId(handle).
+		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs),
+		// pick by priority tier + weighted-random, and start it with the matchmade binding. Returns
+		// the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_tags)
 		{
@@ -420,23 +455,45 @@ namespace OSF::Papyrus
 					return 0;
 				}
 			}
-			const auto genders = ActorGenders(a_actors);
-			std::vector<std::string> tags;
-			tags.reserve(a_tags.size());
-			for (const auto& tag : a_tags) {
-				tags.emplace_back(tag.c_str());
-			}
-			auto pick = Registry::PackRegistry::GetSingleton().PickByTags(tags, genders);
+			Matchmaking::TagQuery q;
+			q.allOf = ToStrings(a_tags);
+			auto pick = Matchmaking::Pick(a_actors, q);
 			if (!pick) {
 				return 0;
 			}
-			std::vector<RE::Actor*> ordered(a_actors.size());
-			for (size_t slot = 0; slot < pick->order.size(); slot++) {
-				ordered[slot] = a_actors[pick->order[slot]];
-			}
-			const int32_t handle = Scene::SceneRuntime::GetSingleton().StartFromPack(pick->id, ordered, 0);
+			const int32_t handle = StartCandidate(*pick, a_actors);
 			if (handle) {
-				REX::INFO("OSF.StartSceneByTags: playing '{}' (handle {:#010x})", pick->id, handle);
+				REX::INFO("OSF.StartSceneByTags: playing '{}' ({}) handle {:#010x}",
+					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
+			}
+			return handle;
+		}
+
+		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise
+		// identical (filter-aware matchmaking across both registries, priority + weighted pick).
+		int32_t StartSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
+			std::vector<RE::BSFixedString> a_noneOf)
+		{
+			if (a_actors.empty()) {
+				REX::WARN("OSF.StartSceneByTagsQuery: no actors given");
+				return 0;
+			}
+			for (auto* actor : a_actors) {
+				if (!actor) {
+					REX::WARN("OSF.StartSceneByTagsQuery: null actor in list");
+					return 0;
+				}
+			}
+			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
+			auto pick = Matchmaking::Pick(a_actors, q);
+			if (!pick) {
+				return 0;
+			}
+			const int32_t handle = StartCandidate(*pick, a_actors);
+			if (handle) {
+				REX::INFO("OSF.StartSceneByTagsQuery: playing '{}' ({}) handle {:#010x}",
+					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
 			}
 			return handle;
 		}
@@ -757,8 +814,10 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneAt", &StartSceneAt, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenes", &FindScenes, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenesForActorsQuery", &FindScenesForActorsQuery, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "HasFeature", &HasFeature, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);

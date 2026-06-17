@@ -3,7 +3,9 @@
 #include "Util/StringUtil.h"
 
 #include <algorithm>
+#include <charconv>
 #include <fstream>
+#include <optional>
 #include <stdexcept>
 #include <unordered_set>
 
@@ -17,16 +19,97 @@ namespace OSF::Registry
 	{
 		using json = nlohmann::json;
 
-		SlotGender ParseRoleGender(const json& a_role)
+		SlotGender ParseGenderString(const std::string& a_str)
 		{
-			const auto s = ToLower(a_role.value("gender", "any"));
+			const auto s = ToLower(a_str);
 			if (s == "male" || s == "m") {
 				return SlotGender::kMale;
 			}
 			if (s == "female" || s == "f") {
 				return SlotGender::kFemale;
 			}
-			return SlotGender::kAny;
+			return SlotGender::kAny;  // "any"/"" and anything else
+		}
+
+		// --- Form-ref resolution ("Plugin.esm|0xLOCAL") ------------------------------------------
+		// Compose a runtime FormID from a "<plugin>|0x<localId>" ref, or nullopt if malformed or the
+		// plugin isn't loaded. The plugin name is matched case-insensitively by basename; the local
+		// id's high/load-order bits are IGNORED (the plugin name is authoritative), so a FormID pasted
+		// whole from xEdit resolves regardless of its load-order byte. Light/medium tiers derive their
+		// secondary index from the file's position in smallFiles/mediumFiles.
+		// RE-sensitive: relies on TESDataHandler::compiledFileCollection (offset RE-proven, see
+		// docs/RE.md) + the Starfield FormID bit layout. Fail-soft — unresolved => scene rejected at
+		// load. NEEDS in-game verification of the tier composition.
+		std::optional<RE::TESFormID> ComposeFormID(const std::string& a_ref)
+		{
+			const auto bar = a_ref.find('|');
+			if (bar == std::string::npos) {
+				return std::nullopt;
+			}
+			std::string plugin = a_ref.substr(0, bar);
+			std::string idStr = a_ref.substr(bar + 1);
+			if (plugin.empty() || idStr.empty()) {
+				return std::nullopt;
+			}
+			if (plugin.find('/') != std::string::npos || plugin.find('\\') != std::string::npos) {
+				return std::nullopt;  // a path in the plugin name is malformed
+			}
+			std::uint32_t local = 0;
+			{
+				const char* b = idStr.data();
+				const char* e = b + idStr.size();
+				if (idStr.size() > 2 && (idStr[0] == '0') && (idStr[1] == 'x' || idStr[1] == 'X')) {
+					b += 2;
+				}
+				const auto [ptr, ec] = std::from_chars(b, e, local, 16);
+				if (ec != std::errc{} || ptr != e) {
+					return std::nullopt;  // not a hex local id
+				}
+			}
+			auto* dh = RE::TESDataHandler::GetSingleton();
+			if (!dh) {
+				return std::nullopt;
+			}
+			const auto want = ToLower(plugin);
+			auto nameMatches = [&](RE::TESFile* a_file) {
+				return a_file && ToLower(a_file->fileName) == want;
+			};
+			const auto& c = dh->compiledFileCollection;
+			for (std::uint32_t i = 0; i < c.files.size(); i++) {
+				if (nameMatches(c.files[i])) {
+					return (i << 24) | (local & 0x00FFFFFFu);  // full master
+				}
+			}
+			for (std::uint32_t i = 0; i < c.mediumFiles.size(); i++) {
+				if (nameMatches(c.mediumFiles[i])) {
+					return 0xFD000000u | (i << 16) | (local & 0x0000FFFFu);  // medium (.esm medium tier)
+				}
+			}
+			for (std::uint32_t i = 0; i < c.smallFiles.size(); i++) {
+				if (nameMatches(c.smallFiles[i])) {
+					return 0xFE000000u | (i << 12) | (local & 0x00000FFFu);  // light (.esl/ESL-flagged)
+				}
+			}
+			return std::nullopt;  // plugin not loaded
+		}
+
+		// Resolve a form ref to T* (BGSKeyword / TESRace). Throws (rejecting the scene) with a precise
+		// role+field message on any failure. LookupByID<T> returns null for not-found OR wrong-type.
+		template <class T>
+		T* ResolveFormRef(const std::string& a_ref, const std::string& a_sceneId, const std::string& a_role,
+			const char* a_field, const char* a_expected)
+		{
+			const auto id = ComposeFormID(a_ref);
+			if (!id) {
+				throw std::runtime_error("scene '" + a_sceneId + "': role '" + a_role + "': " + a_field +
+					" '" + a_ref + "' is malformed or names an unloaded plugin (use \"Plugin.esm|0xLocalID\")");
+			}
+			T* form = RE::TESForm::LookupByID<T>(*id);
+			if (!form) {
+				throw std::runtime_error("scene '" + a_sceneId + "': role '" + a_role + "': " + a_field +
+					" '" + a_ref + "' did not resolve to a " + a_expected);
+			}
+			return form;
 		}
 
 		LoopMode ParseLoop(const json& a_node, std::int32_t& a_count)
@@ -427,6 +510,71 @@ namespace OSF::Registry
 			return n;
 		}
 
+		// Parse one role: name, gender (the `gender` shorthand and `filters.gender` are the same
+		// constraint — reject if both present and differ), and the resolved keyword/race filters.
+		SceneRole ParseRole(const json& a_role, const std::string& a_sceneId)
+		{
+			SceneRole r;
+			r.name = a_role.value("name", std::string{});
+			if (r.name.empty()) {
+				throw std::runtime_error("scene '" + a_sceneId + "': a role is missing 'name'");
+			}
+
+			std::optional<SlotGender> shorthand;
+			if (auto git = a_role.find("gender"); git != a_role.end()) {
+				if (!git->is_string()) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' must be a string");
+				}
+				shorthand = ParseGenderString(git->get<std::string>());
+			}
+			std::optional<SlotGender> fromFilter;
+
+			if (auto fit = a_role.find("filters"); fit != a_role.end()) {
+				if (!fit->is_object()) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'filters' must be an object");
+				}
+				const json& f = *fit;
+				if (auto git = f.find("gender"); git != f.end()) {
+					if (!git->is_string()) {
+						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': filters.gender must be a string");
+					}
+					fromFilter = ParseGenderString(git->get<std::string>());
+				}
+				// keyword / race: a single string or an array of strings; resolved to forms now
+				// (any-of within each list). Unresolvable / wrong-type => the scene is rejected.
+				auto parseRefs = [&](const char* a_key, const char* a_field, auto a_push) {
+					auto kit = f.find(a_key);
+					if (kit == f.end()) {
+						return;
+					}
+					if (kit->is_string()) {
+						a_push(kit->get<std::string>(), a_field);
+					} else if (kit->is_array()) {
+						for (const auto& e : *kit) {
+							if (!e.is_string()) {
+								throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': " + a_field + " entries must be strings");
+							}
+							a_push(e.get<std::string>(), a_field);
+						}
+					} else {
+						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': " + a_field + " must be a string or array of strings");
+					}
+				};
+				parseRefs("keyword", "filters.keyword", [&](const std::string& a_ref, const char* a_field) {
+					r.keywords.push_back(ResolveFormRef<RE::BGSKeyword>(a_ref, a_sceneId, r.name, a_field, "Keyword (KYWD)"));
+				});
+				parseRefs("race", "filters.race", [&](const std::string& a_ref, const char* a_field) {
+					r.races.push_back(ResolveFormRef<RE::TESRace>(a_ref, a_sceneId, r.name, a_field, "Race (RACE)"));
+				});
+			}
+
+			if (shorthand && fromFilter && *shorthand != *fromFilter) {
+				throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' and filters.gender disagree");
+			}
+			r.gender = shorthand ? *shorthand : (fromFilter ? *fromFilter : SlotGender::kAny);
+			return r;
+		}
+
 		// Throws std::runtime_error on any reject; pushes non-fatal notes to a_warnings.
 		SceneDef ParseScene(const json& a_json, std::vector<std::string>& a_warnings)
 		{
@@ -437,6 +585,16 @@ namespace OSF::Registry
 			}
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", 0);
+			if (auto it = a_json.find("weight"); it != a_json.end()) {
+				if (!it->is_number_integer()) {
+					throw std::runtime_error("scene '" + def.id + "': 'weight' must be an integer");
+				}
+				const auto w = it->get<std::int64_t>();
+				if (w < 1 || w > 1000000) {
+					throw std::runtime_error("scene '" + def.id + "': 'weight' must be in [1, 1000000]");
+				}
+				def.weight = static_cast<std::int32_t>(w);
+			}
 			def.entry = a_json.value("entry", std::string{});
 			if (def.entry.empty()) {
 				throw std::runtime_error("scene '" + def.id + "': missing 'entry'");
@@ -448,13 +606,7 @@ namespace OSF::Registry
 			}
 			if (const auto it = a_json.find("roles"); it != a_json.end()) {
 				for (const auto& jRole : *it) {
-					SceneRole r;
-					r.name = jRole.value("name", std::string{});
-					if (r.name.empty()) {
-						throw std::runtime_error("scene '" + def.id + "': a role is missing 'name'");
-					}
-					r.gender = ParseRoleGender(jRole);
-					def.roles.push_back(std::move(r));
+					def.roles.push_back(ParseRole(jRole, def.id));
 				}
 			}
 
@@ -651,6 +803,14 @@ namespace OSF::Registry
 		std::shared_lock l{ lock };
 		const auto it = scenes.find(ToLower(std::string(a_id)));
 		return it != scenes.end() ? &it->second : nullptr;
+	}
+
+	void SceneRegistry::ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const
+	{
+		std::shared_lock l{ lock };
+		for (const auto& [key, def] : scenes) {
+			a_fn(def);
+		}
 	}
 
 	size_t SceneRegistry::Size() const

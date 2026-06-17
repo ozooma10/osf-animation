@@ -7,6 +7,8 @@
 
 #include "Registry/PackRegistry.h"  // SlotGender
 
+#include <functional>
+
 namespace OSF::Registry
 {
 	// Highest scene schema version we understand. Bump only on a breaking change.
@@ -148,6 +150,12 @@ namespace OSF::Registry
 	{
 		std::string name;
 		SlotGender  gender = SlotGender::kAny;
+		// Resolved role filters (resolved once at scene load via the form-ref resolver). The role's
+		// bound actor must satisfy every PRESENT constraint; within `keywords`/`races` it is any-of
+		// (the actor needs ANY listed keyword, and ANY listed race). An empty vector = that
+		// constraint is absent. `gender` desugars from `gender`/`filters.gender`.
+		std::vector<RE::BGSKeyword*> keywords;  // empty = no keyword constraint
+		std::vector<RE::TESRace*>    races;     // empty = no race constraint
 	};
 
 	struct SceneDef
@@ -155,6 +163,7 @@ namespace OSF::Registry
 		std::string              id;
 		std::string              name;
 		std::int32_t             priority = 0;
+		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		std::vector<std::string> tags;
 		std::vector<SceneRole>   roles;
 		std::string              entry;
@@ -181,6 +190,11 @@ namespace OSF::Registry
 
 		// Scene by id (case-insensitive), or nullptr.
 		const SceneDef* Find(std::string_view a_id) const;
+
+		// Visit every loaded scene def under the read lock (used by the matchmaker to build
+		// candidates). The callback runs while the registry lock is held, so it must NOT re-enter
+		// the registry; keep it to reading the def + cheap per-actor predicate checks.
+		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
 
 		size_t Size() const;
 

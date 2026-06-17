@@ -653,3 +653,57 @@ Function IntrospectScene(string id) global
         i += 1
     EndWhile
 EndFunction
+
+; --- Matchmaking (tags + role filters across scene defs + packs) ---------------
+; Single-actor StartSceneByTags: builds [tag] and matchmakes across composed scene defs AND packs
+; (priority tier + weighted pick + role/gender(+keyword/race) fit). Crosshair actor or player. Logs
+; the chosen id + the runtime's 'playing ... (scene|pack)' line. ('solo' matches the baked-in pack.)
+;   cgf "OSFTest.MatchTags" "solo"
+Function MatchTags(string tag) global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    OSF.StopSceneForActor(a)   ; clear any prior test scene so the actor isn't exclusivity-locked
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    string[] tags = new string[1]
+    tags[0] = tag
+    int h = OSF.StartSceneByTags(actors, tags)
+    OSFCompat.Dbg_Log("MatchTags '" + tag + "': handle=" + h + " id='" + OSF.GetSceneId(h) + "' (NOTE: '" + tag + "' is a TAG; many scenes share it)")
+EndFunction
+
+; Boolean-query form: allOf={asAllOf}, noneOf={asNoneOf}, anyOf empty. Proves none-of exclusion —
+; pass a tag the candidate also has as asNoneOf and it should no longer match (handle 0).
+;   cgf "OSFTest.MatchQuery" "solo" "combat"
+Function MatchQuery(string asAllOf, string asNoneOf) global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    OSF.StopSceneForActor(a)   ; clear any prior test scene so the actor isn't exclusivity-locked
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    string[] allOf = new string[1]
+    allOf[0] = asAllOf
+    string[] anyOf = new string[0]
+    string[] noneOf = new string[1]
+    noneOf[0] = asNoneOf
+    int h = OSF.StartSceneByTagsQuery(actors, allOf, anyOf, noneOf)
+    OSFCompat.Dbg_Log("MatchQuery allOf='" + asAllOf + "' noneOf='" + asNoneOf + "': handle=" + h + " id='" + OSF.GetSceneId(h) + "'")
+EndFunction
+
+; Discovery: list ids (scene defs + packs) matching one tag for N actors, deterministic order
+; (priority desc, then id asc). Filter-unaware (no actors) — a hint, see the API doc.
+;   cgf "OSFTest.FindTest" 1 "solo"
+Function FindTest(int count, string tag) global
+    string[] tags = new string[1]
+    tags[0] = tag
+    string[] ids = OSF.FindScenes(count, tags)
+    OSFCompat.Dbg_Log("FindTest count=" + count + " tag='" + tag + "': " + ids.Length + " match(es)")
+    int i = 0
+    While i < ids.Length
+        OSFCompat.Dbg_Log("  [" + i + "] '" + ids[i] + "'")
+        i += 1
+    EndWhile
+EndFunction

@@ -4,6 +4,7 @@
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
+#include "Matchmaking/Matchmaker.h"
 #include "Player/PlayerControlService.h"
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
@@ -905,6 +906,21 @@ namespace OSF::Scene
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
 		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor)
 	{
+		// Filter enforcement (every def start path funnels through here): a bound actor must satisfy
+		// its role's filters. Binding is role-declaration order (participants[i] <-> roles[i]); validate
+		// the bound pairs. StartSceneByTags pre-binds via matchmaking so this always passes for it;
+		// the explicit paths (StartScene/StartSceneAt/StartSceneRoles) reject a bad bind here.
+		if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id)) {
+			const std::size_t n = std::min(a_participants.size(), def->roles.size());
+			for (std::size_t i = 0; i < n; i++) {
+				if (!Matchmaking::RoleAccepts(def->roles[i], a_participants[i])) {
+					REX::WARN("SceneRuntime: start '{}' refused — actor {:X} fails role '{}' filters",
+						a_id, a_participants[i] ? a_participants[i]->formID : 0, def->roles[i].name);
+					return 0;
+				}
+			}
+		}
+
 		const std::int32_t handle = MintSlot(Kind::kDef, a_id, a_entryNode, 0, a_participants);
 		if (!handle) {
 			return 0;

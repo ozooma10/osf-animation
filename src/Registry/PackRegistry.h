@@ -7,6 +7,8 @@
 
 #include "Animation/Scene.h"
 
+#include <functional>
+
 namespace OSF::Registry
 {
 	// Highest pack schema version we understand. We read the stage-major layout (version 2);
@@ -77,6 +79,10 @@ namespace OSF::Registry
 
 		// Random animation matching a_genders.size() actors + a_tags whose gender slots these actors can fill (kAny accepts anyone; kNone fits only kAny).
 		std::optional<SlottedPick> PickByTags(const std::vector<std::string>& a_tags, const std::vector<RE::SEX>& a_genders) const;
+
+		// Visit every loaded animation def under the read lock (used by the matchmaker to build pack
+		// pseudo-candidates). The callback must NOT re-enter the registry (it holds the shared lock).
+		void ForEachAnim(const std::function<void(const AnimationDef&)>& a_fn) const;
 
 		size_t Size() const;
 

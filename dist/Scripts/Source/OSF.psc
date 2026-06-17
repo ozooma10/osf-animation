@@ -60,9 +60,14 @@ int Function StartSceneAt(Actor[] akActors, string asSceneId, ObjectReference ak
 ; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
 int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles, int aiStage = 0) Global Native
 
-; Matchmake a registry pack by tags + gender slots and start it. Returns the scene handle
-; (0 = no match); recover the chosen id with GetSceneId(handle).
+; Matchmake by tags + role/gender fit across composed scene defs AND packs, pick by priority tier
+; + weighted-random, and start it. Returns the scene handle (0 = no match); recover the chosen id
+; with GetSceneId(handle). (A scene def's priority/weight rank it; a same-id pack is shadowed.)
 int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
+
+; Boolean-query form of StartSceneByTags: asAllOf (every tag must match) + asAnyOf (at least one;
+; empty = ignored) + asNoneOf (none may match). Same filter-aware matchmaking + weighted pick.
+int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf) Global Native
 
 ; Ad-hoc scene from raw files: co-locates akActors at akActors[0], plays asFiles[i] on akActors[i], syncs the clock. 
 ; Equal-length arrays. Returns the scene handle.
@@ -86,9 +91,15 @@ bool Function StopScene(int aiScene) Global Native
 ; Actor convenience: stops the live scene akActor participates in. False if it is in none.
 bool Function StopSceneForActor(Actor akActor) Global Native
 
-; Registry scene ids with aiActorCount actors whose tags contain ALL asTags
-; (case-insensitive; empty = any).
+; Discovery: ids of scenes (composed defs + packs) with aiActorCount actors whose tags contain ALL
+; asTags (case-insensitive; empty = any). Deterministic order (priority desc, then id asc). Count +
+; tags only — FILTER-UNAWARE (no actors), so a returned id may not bind; for a filter-correct result
+; use FindScenesForActorsQuery or StartSceneByTags*. (See OSF.GetSceneRoles etc. to inspect a result.)
 string[] Function FindScenes(int aiActorCount, string[] asTags) Global Native
+
+; Filter-aware discovery: like FindScenes but takes the actors, so keyword/race/gender role filters +
+; a complete binding are required for a scene def to appear. Boolean tag sets (allOf/anyOf/noneOf).
+string[] Function FindScenesForActorsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf) Global Native
 
 ; Rescans Data/OSF/**/*.json and replaces the registry. Returns the count now registered.
 int Function ReloadPacks() Global Native
