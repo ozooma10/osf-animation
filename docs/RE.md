@@ -60,6 +60,18 @@ update).
 ozz's column-major storage, so `WriteNiTransformRows` is a **straight memcpy** + scale = 1.0.
 **Do NOT transpose** (inverts every bone rotation — fully contorted rig).
 
+**Bind = name match, race-agnostic.** `Graph::ResolveAndBind` builds the `rigIndex → jointIndex`
+map by lowercasing each live bone-map entry's name and matching it against the animation's joint
+names — no per-race skeleton tables (the SAF-lineage per-race bone lists are obsolete here). The
+only name-based exclusion is `IsFaceRigNode`: skip the engine's facial rig, which is uniformly
+prefixed **`faceBone_`** on the human skeleton (verified against `HumanRace.json` — every
+jaw/eye/lip/ear/cheek/nose control *and* the facial-rig neck bones carry the prefix; the structural
+`C_Neck`/`C_Head`/`*_Twist` joints do not). The filter therefore tests only `starts_with("facebone")`
+(plus a `morph` expression-track guard). It previously denylisted bare anatomical tokens
+(jaw/eye/lip/ear/...), which froze creature **structural** body bones that legitimately use those
+words — e.g. a Terrormorph's animated maw `R_Jaw`/`C_Jaw`/`L_Jaw` rendered with a dead jaw on any
+body anim. The prefix test leaves those bindable.
+
 ## Hooks & identity
 
 | Hook | Binding | Notes |

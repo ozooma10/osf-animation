@@ -13,40 +13,25 @@ namespace OSF::Animation
 	{
 		using OSF::Util::ToLower;
 
-		bool IsNameSeparator(char a_char)
-		{
-			return !std::isalnum(static_cast<unsigned char>(a_char));
-		}
-
-		bool ContainsDelimitedToken(std::string_view a_name, std::string_view a_token)
-		{
-			size_t pos = a_name.find(a_token);
-			while (pos != std::string_view::npos) {
-				const bool leftOk = pos == 0 || IsNameSeparator(a_name[pos - 1]);
-				const size_t right = pos + a_token.size();
-				const bool rightOk = right >= a_name.size() || IsNameSeparator(a_name[right]);
-				if (leftOk && rightOk) {
-					return true;
-				}
-				pos = a_name.find(a_token, pos + 1);
-			}
-			return false;
-		}
-
 		bool IsFaceRigNode(std::string_view a_lowerName)
 		{
-			// Director drives body playback only. NAF-lineage GLBs are bones-only
-			// today, but future imports may carry expression tracks whose names
-			// collide with Starfield's facial rig. Keep head/neck structural
-			// joints bindable; explicitly leave facial controls to the engine.
-			return a_lowerName.starts_with("face") || a_lowerName.starts_with("facial") ||
-			       a_lowerName.starts_with("morph") || ContainsDelimitedToken(a_lowerName, "facial") ||
-			       ContainsDelimitedToken(a_lowerName, "eye") || ContainsDelimitedToken(a_lowerName, "eyelid") ||
-			       ContainsDelimitedToken(a_lowerName, "eyelash") || ContainsDelimitedToken(a_lowerName, "brow") ||
-			       ContainsDelimitedToken(a_lowerName, "cheek") || ContainsDelimitedToken(a_lowerName, "jaw") ||
-			       ContainsDelimitedToken(a_lowerName, "lip") || ContainsDelimitedToken(a_lowerName, "mouth") ||
-			       ContainsDelimitedToken(a_lowerName, "nose") || ContainsDelimitedToken(a_lowerName, "teeth") ||
-			       ContainsDelimitedToken(a_lowerName, "tongue") || ContainsDelimitedToken(a_lowerName, "ear");
+			// Director drives body playback only; leave Starfield's facial rig to
+			// the engine. That rig is uniformly prefixed "faceBone_" — verified
+			// against the human skeleton (faceBone_C_LipsTop, faceBone_R_EyeBottom,
+			// faceBone_L_InnerJaw, ...). Even the facial-rig jaw/ear/neck bones
+			// carry the prefix, while the structural C_Neck/C_Head/*_Twist joints
+			// do NOT, so a single prefix test cleanly separates the two.
+			//
+			// Do NOT denylist bare anatomical tokens (jaw/eye/lip/ear/...): non-human
+			// creature rigs name STRUCTURAL body bones with those words — a
+			// Terrormorph's animated maw is "R_Jaw"/"C_Jaw"/"L_Jaw" — and a token
+			// denylist froze them, rendering creature body anims with a dead jaw.
+			// ResolveAndBind is name-based and per-actor (race-agnostic), so this
+			// prefix guard is the only facial filter needed.
+			//
+			// "morph" stays guarded: future imports may carry expression/morph
+			// tracks whose names would otherwise collide with the live rig.
+			return a_lowerName.starts_with("facebone") || a_lowerName.starts_with("morph");
 		}
 
 		// Write one bone slot in the engine's NiTransform layout: rotation as
@@ -272,7 +257,7 @@ namespace OSF::Animation
 		binding.clear();
 		binding.reserve(cachedBoneCount);
 
-		uint32_t skippedFaceBones = 0;
+		uint32_t skippedFaceBones = 0;  // faceBone_-prefixed / morph nodes left to the engine
 		for (uint32_t i = 0; i < modelNode->nodes.size(); i++) {
 			const auto& entry = modelNode->nodes[i];
 			if (!entry.node) {
@@ -294,7 +279,7 @@ namespace OSF::Animation
 
 		if (!loggedBind) {
 			loggedBind = true;
-			REX::INFO("Graph: rig bind — {}/{} mapped body bones matched skeleton joints ({} face nodes skipped)",
+			REX::INFO("Graph: rig bind — {}/{} mapped body bones matched skeleton joints ({} faceBone_/morph nodes skipped)",
 				binding.size(), cachedBoneCount, skippedFaceBones);
 		}
 
