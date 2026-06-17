@@ -8,6 +8,7 @@
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/GLTFImport.h"
+#include "Util/Math.h"
 #include "Util/StringUtil.h"
 
 #include <format>
@@ -550,6 +551,66 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().GetSceneForActor(a_actor);
 		}
 
+		// --- Scene-metadata introspection (read-only; reads *.scene.json defs by id) ----------
+		// Let an orchestrator inspect a scene's role/gender/tag conventions before binding actors.
+		// All resolve a *.scene.json def by id; an unknown id (or a pack id, which is not a scene
+		// def) yields the empty/sentinel result. Returned arrays are real (possibly empty) — safe
+		// per the None-array footgun, which is about INBOUND None arrays.
+
+		// Declared role names of a scene (in declaration order). Empty if unknown.
+		std::vector<RE::BSFixedString> GetSceneRoles(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
+		{
+			std::vector<RE::BSFixedString> out;
+			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str())) {
+				for (const auto& r : def->roles) {
+					out.emplace_back(r.name);
+				}
+			}
+			return out;
+		}
+
+		// Gender slot of a named role: "male" / "female" / "any". "" for an unknown scene or role.
+		RE::BSFixedString GetSceneRoleGender(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id, RE::BSFixedString a_role)
+		{
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str());
+			if (!def) {
+				return "";
+			}
+			const auto want = Util::ToLower(a_role.c_str());
+			for (const auto& r : def->roles) {
+				if (Util::ToLower(r.name) == want) {
+					switch (r.gender) {
+					case Registry::SlotGender::kMale:
+						return "male";
+					case Registry::SlotGender::kFemale:
+						return "female";
+					default:
+						return "any";
+					}
+				}
+			}
+			return "";
+		}
+
+		// Declared role/actor count of a scene; 0 for an unknown id or a scene with no roles.
+		int32_t GetSceneActorCount(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
+		{
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str());
+			return def ? static_cast<int32_t>(def->roles.size()) : 0;
+		}
+
+		// Tags of a scene. Empty if unknown.
+		std::vector<RE::BSFixedString> GetSceneTags(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
+		{
+			std::vector<RE::BSFixedString> out;
+			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str())) {
+				for (const auto& t : def->tags) {
+					out.emplace_back(t);
+				}
+			}
+			return out;
+		}
+
 		// DEBUG (OSFCompat): drive the scene-runtime lifecycle directly, without going through
 		// the GraphManager/StartScene handle minting. Each fires the matching lifecycle
 		// event(s) through the relay.
@@ -705,6 +766,10 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneNode", &GetSceneNode, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneForActor", &GetSceneForActor, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneRoles", &GetSceneRoles, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneRoleGender", &GetSceneRoleGender, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneActorCount", &GetSceneActorCount, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneTags", &GetSceneTags, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ValidateScene", &ValidateScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneValidationErrors", &GetSceneValidationErrors, true, false);

@@ -122,6 +122,16 @@ string Function GetSceneId(int aiScene) Global Native
 string Function GetSceneNode(int aiScene) Global Native
 int Function GetSceneForActor(Actor akActor) Global Native
 
+; --- Scene-metadata introspection (read-only; by scene id, not handle) ---------
+; Inspect a *.scene.json scene's role/gender/tag conventions before binding actors. All take a
+; scene id; an unknown id (or a pack id, which is not a scene def) yields the empty/sentinel result.
+; Returned arrays are real (possibly empty) — safe to receive (the None-array rule is about passing
+; None IN, not getting an array back).
+string[] Function GetSceneRoles(string asSceneId) Global Native            ; declared role names, in order ([] if unknown)
+string Function GetSceneRoleGender(string asSceneId, string asRole) Global Native  ; "male"/"female"/"any"; "" if unknown
+int Function GetSceneActorCount(string asSceneId) Global Native            ; declared role/actor count (0 if unknown / no roles)
+string[] Function GetSceneTags(string asSceneId) Global Native             ; scene tags ([] if unknown)
+
 ; Problems (errors + warnings, each prefixed [error]/[warn]) from the last scene load / ReloadPacks
 ; Empty = all scene files loaded cleanly.
 string[] Function GetSceneLoadErrors() Global Native
