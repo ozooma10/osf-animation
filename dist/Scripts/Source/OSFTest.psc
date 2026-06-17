@@ -73,6 +73,21 @@ Function DefinedSolo(string id, Actor a) global
     OSF.StartScene(actors, id)
 EndFunction
 
+; --- Dynamic test clip (visibly moving, 1.2s loop) --------------------------------
+; The baked-in surrender/cover poses are STATIC (one pose held 20s), so you can't see
+; playback/loop/blend/sync working. "solo.sway" oscillates surrender<->cover on a 1.2s loop
+; (real upper-body motion). Use these to eyeball that things actually move.
+;   cgf "OSFTest.Sway" <ref>          solo dynamic loop (loop + blend-on-stop visible)
+;   cgf "OSFTest.SwayPair" <a> <b>    two actors swaying in LOCKSTEP -> proves Sync visually
+;   cgf "OSFTest.Speed" <ref> 0.25    then slow it to watch the loop in detail
+Function Sway(Actor a) global
+    DefinedSolo("solo.sway", a)
+EndFunction
+
+Function SwayPair(Actor a, Actor b) global
+    DefinedStage("pair.sway", 0, a, b)
+EndFunction
+
 Function Stage(Actor a, int stage) global
     OSF.SetSceneStageForActor(a, stage)
 EndFunction

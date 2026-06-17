@@ -26,6 +26,33 @@
     },
 
     {
+      "id": "solo.sway",
+      "name": "Sway (DYNAMIC, 1.2s loop — surrender<->cover; use this to SEE playback/loop/blend)",
+      "tags": ["test", "solo"],
+      "actors": [
+        {}
+      ],
+      "stages": [
+        { "clips": ["OSF/Animations/OSF_Test/TestSway01.glb"] }
+      ]
+    },
+    {
+      "id": "pair.sway",
+      "name": "Sway x2 (DYNAMIC — two actors looping in lockstep; use this to SEE Sync)",
+      "tags": ["test", "paired"],
+      "actors": [
+        {},
+        { "offset": { "y": 1.0, "heading": 180.0 } }
+      ],
+      "stages": [
+        { "clips": [
+          "OSF/Animations/OSF_Test/TestSway01.glb",
+          "OSF/Animations/OSF_Test/TestSway01.glb"
+        ] }
+      ]
+    },
+
+    {
       "id": "solo.stages",
       "name": "Solo 3-stage (manual stage-jump test; no timers, holds each stage)",
       "tags": ["test", "solo"],
