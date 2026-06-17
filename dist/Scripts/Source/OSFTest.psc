@@ -424,3 +424,24 @@ Function ActionTest() global
     OSFCompat.Dbg_Log("ActionTest: stopping — expect ACTION 'test.cleanup' + control lock auto-released. Free to move after.")
     OSF.StopScene(h)
 EndFunction
+
+; --- Numeric-timed action (Slice 13: generalized Scene timed-mark) ----------------------
+; Starts "author.scenes.timedaction" and WAITS — the scene holds and loops. On enter:
+; ACTION 'test.begin'. Then EVERY clip loop: ACTION 'test.tick' (numeric at 0.3) and CUE
+; 'ping' (numeric at 0.6) — the action fires BEFORE the cue within a tick (they're on
+; different fractions here, so just confirm both recur). On stop: ACTION 'test.done' (exit).
+; Keep the game FOCUSED (the clock stalls on focus loss). Crosshair actor or player.
+;   cgf "OSFTest.TimedActionTest"
+Function TimedActionTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.timedaction", 0)
+    OSFCompat.Dbg_Log("TimedActionTest: started h=" + h + " — expect ACTION 'test.begin' now, then recurring ACTION 'test.tick' (~0.3 of each loop) + CUE 'ping' (~0.6). WAIT ~6s.")
+    Utility.Wait(6.0)
+    OSFCompat.Dbg_Log("TimedActionTest: stopping — expect ACTION 'test.done' (exit) + NODE_EXIT + SCENE_END.")
+    OSF.StopScene(h)
+EndFunction

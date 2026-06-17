@@ -131,7 +131,7 @@ namespace OSF::Animation
 				stage.placements = planStage.placements.empty() ?
 				                       std::vector<ParticipantPlacement>(a_actors.size()) :
 				                       planStage.placements;
-				stage.cues = planStage.cues;
+				stage.marks = planStage.marks;
 				for (const auto& fileSpec : planStage.files) {
 					auto file = ResolveClipPath(std::filesystem::path{ fileSpec });
 					auto r = Serialization::GLTFImport::LoadAnimation(file, "");
@@ -798,16 +798,16 @@ namespace OSF::Animation
 		});
 	}
 
-	void GraphManager::QueueCuesIfFired(Graph& a_graph)
+	void GraphManager::QueueTimedMarksIfFired(Graph& a_graph)
 	{
-		if (!a_graph.scene || !_cueHandler) {
+		if (!a_graph.scene || !_timedMarkHandler) {
 			return;
 		}
-		// Drain the cue ids the scene fired this frame (token-gated, so only the advancing
+		// Drain the marks the scene fired this frame (token-gated, so only the advancing
 		// graph populates them — any participant draining gets them once).
-		std::vector<std::string> ids;
-		a_graph.scene->DrainFiredCues(ids);
-		if (ids.empty()) {
+		std::vector<FiredMark> marks;
+		a_graph.scene->DrainFiredMarks(marks);
+		if (marks.empty()) {
 			return;
 		}
 		// Snapshot the participant actors (NiPointer keeps them alive across the deferred
@@ -818,14 +818,14 @@ namespace OSF::Animation
 				keep.emplace_back(static_cast<RE::Actor*>(p->target.get()));
 			}
 		}
-		SFSE::GetTaskInterface()->AddTask([keep, ids]() {
+		SFSE::GetTaskInterface()->AddTask([keep, marks]() {
 			std::vector<RE::Actor*> actors;
 			actors.reserve(keep.size());
 			for (auto& a : keep) {
 				actors.push_back(a.get());
 			}
-			if (GetSingleton()._cueHandler) {
-				GetSingleton()._cueHandler(actors, ids);
+			if (GetSingleton()._timedMarkHandler) {
+				GetSingleton()._timedMarkHandler(actors, marks);
 			}
 		});
 	}
@@ -924,7 +924,7 @@ namespace OSF::Animation
 		// Per-graph follow-ups, run under both locks (each defers any
 		// game-thread-only work to the task queue).
 		gm.QueueAutoEndIfFinished(*g);
-		gm.QueueCuesIfFired(*g);
+		gm.QueueTimedMarksIfFired(*g);
 		gm.QueueFadeRemovalIfDone(*g);
 		gm.LogSceneDiag(*g, refr);
 	}

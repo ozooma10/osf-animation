@@ -35,12 +35,13 @@ namespace OSF::Animation
 		using SceneClearHandler = std::function<void()>;
 		void SetSceneClearHandler(SceneClearHandler a_handler) { _clearHandler = std::move(a_handler); }
 
-		// Layer-B timed-cue hook. Invoked on the game thread when a scene's stage fires cue
-		// marks (numeric / end). Layer A stays content-neutral: it hands Layer B the opaque cue
-		// ids + the scene's participant actors; Layer B dispatches them as EVENT_CUE (and drives
-		// trigger:<id> edges). Inverted dependency like the auto-end hook.
-		using SceneCueHandler = std::function<void(const std::vector<RE::Actor*>&, const std::vector<std::string>&)>;
-		void SetSceneCueHandler(SceneCueHandler a_handler) { _cueHandler = std::move(a_handler); }
+		// Layer-B timed-mark hook. Invoked on the game thread when a scene's stage fires timed
+		// marks (numeric / end) on any lane. Layer A stays content-neutral: it hands Layer B the
+		// opaque (lane, token) marks + the scene's participant actors; Layer B decodes them
+		// (cue -> EVENT_CUE + trigger edges, action -> built-in/notify, sound/camera -> services).
+		// Inverted dependency like the auto-end hook.
+		using SceneTimedMarkHandler = std::function<void(const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
+		void SetSceneTimedMarkHandler(SceneTimedMarkHandler a_handler) { _timedMarkHandler = std::move(a_handler); }
 
 		// Installs the AnimationManager::Update vtable hook. Verifies the
 		// resolved slot actually points at the expected function before
@@ -139,7 +140,7 @@ namespace OSF::Animation
 		// while the caller holds stateLock (shared) and the graph's own lock.
 		// Each defers any game-thread-only follow-up via the SFSE task queue.
 		void QueueAutoEndIfFinished(Graph& a_graph);                   // last stage ran out -> StopScene
-		void QueueCuesIfFired(Graph& a_graph);                         // stage fired cue marks -> cue handler
+		void QueueTimedMarksIfFired(Graph& a_graph);                   // stage fired timed marks -> mark handler
 		void QueueFadeRemovalIfDone(Graph& a_graph);                  // fade-out elapsed -> RemoveFadedGraph
 		void LogSceneDiag(Graph& a_graph, RE::TESObjectREFR* a_refr);  // throttled scene diagnostics
 
@@ -174,8 +175,8 @@ namespace OSF::Animation
 		// Layer-B handle-table drop hook (see SetSceneClearHandler). Empty = no Layer B.
 		SceneClearHandler _clearHandler;
 
-		// Layer-B timed-cue hook (see SetSceneCueHandler). Empty = cues are dropped.
-		SceneCueHandler _cueHandler;
+		// Layer-B timed-mark hook (see SetSceneTimedMarkHandler). Empty = marks are dropped.
+		SceneTimedMarkHandler _timedMarkHandler;
 
 		// Mirror of graphs.size(), refreshed after every mutation under unique
 		// stateLock. Both hooks run for EVERY skeleton/manager in the game,

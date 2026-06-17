@@ -59,12 +59,15 @@ namespace OSF::Registry
 		std::string  id;
 	};
 
-	// Where an `action` track entry runs. Numeric/end action timing is deferred — v1 actions
-	// run at the lifecycle anchors only.
+	// Where an `action` track entry runs (§1.3 time model). kEnter/kExit are the lifecycle
+	// anchors (fired directly by Layer B on node enter/exit). kFraction/kEnd are timed by the
+	// clip clock (fired through the Scene timed-mark path, like cues).
 	enum class ActionPos : std::uint8_t
 	{
 		kEnter,
-		kExit
+		kExit,
+		kFraction,
+		kEnd
 	};
 
 	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the
@@ -72,6 +75,8 @@ namespace OSF::Registry
 	struct ActionEntry
 	{
 		ActionPos    pos = ActionPos::kEnter;
+		float        fraction = 0.0f;    // when pos == kFraction
+		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  type;   // namespaced (osf.* built-in, else custom)
 		std::string  role;   // optional role the action targets
 	};

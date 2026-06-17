@@ -128,15 +128,36 @@ namespace OSF::Registry
 					// Custom actions are best-effort notifications; `required` is reserved (§1.3).
 					throw std::runtime_error("node '" + a_node_out.id + "': custom action '" + ae.type + "' cannot be 'required' in v1");
 				}
+				// `at` mirrors the cue time model (§1.3): enter/exit/end named anchors, or a
+				// numeric clip-local fraction in [0,1). repeat:"loop" is numeric-only.
+				const auto repeat = ToLower(a.value("repeat", "none"));
+				if (repeat != "none" && repeat != "loop") {
+					throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' has unknown repeat '" + repeat + "'");
+				}
+				ae.everyLoop = (repeat == "loop");
 				const auto atIt = a.find("at");
-				const std::string at = (atIt != a.end() && atIt->is_string()) ? ToLower(atIt->get<std::string>()) : "enter";
-				if (at == "enter") {
-					ae.pos = ActionPos::kEnter;
-				} else if (at == "exit") {
-					ae.pos = ActionPos::kExit;
+				if (atIt == a.end() || atIt->is_string()) {
+					const std::string at = (atIt != a.end()) ? ToLower(atIt->get<std::string>()) : "enter";
+					if (at == "enter") {
+						ae.pos = ActionPos::kEnter;
+					} else if (at == "exit") {
+						ae.pos = ActionPos::kExit;
+					} else if (at == "end") {
+						ae.pos = ActionPos::kEnd;
+					} else {
+						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' has unknown anchor 'at':'" + at + "'");
+					}
+					if (ae.everyLoop) {
+						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' named anchor cannot use repeat:loop");
+					}
+				} else if (atIt->is_number()) {
+					ae.pos = ActionPos::kFraction;
+					ae.fraction = atIt->get<float>();
+					if (ae.fraction < 0.0f || ae.fraction >= 1.0f) {
+						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
+					}
 				} else {
-					throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type +
-						"' 'at' must be enter/exit (numeric/end action timing not yet supported)");
+					throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' 'at' must be a number or enter/exit/end");
 				}
 				a_node_out.actions.push_back(std::move(ae));
 			}

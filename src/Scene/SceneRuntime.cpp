@@ -9,11 +9,20 @@
 #include "Util/StringUtil.h"
 
 #include <algorithm>
+#include <charconv>
 
 namespace OSF::Scene
 {
 	namespace
 	{
+		// Timed-mark lane ids. Layer A treats these as opaque; Layer B assigns meaning AND the
+		// §1.3 same-tick ordering — sorting fired marks by lane ascending yields the fixed order
+		// action -> camera -> sound -> cue.
+		constexpr std::uint8_t kLaneAction = 0;
+		constexpr std::uint8_t kLaneCamera = 1;
+		constexpr std::uint8_t kLaneSound = 2;
+		constexpr std::uint8_t kLaneCue = 3;
+
 		// Map a node's loop policy + timerSec onto the played plan's TERMINAL stage so
 		// GraphManager auto-ends it (and reports timer vs loops). For a single-stage anim
 		// (the common node) that is "the stage"; for a multi-stage pack used as a node, the
@@ -48,10 +57,14 @@ namespace OSF::Scene
 			stage.timer = (hasTimerEdge && a_node.timerSec > 0.0f) ? a_node.timerSec : 0.0f;
 		}
 
-		// Map a node's TIMED cue-track entries (numeric `at` + `end`) onto the played plan's
-		// terminal stage, so the Scene fires them by clip time. Enter/exit cues are fired by
-		// Layer-B lifecycle (DispatchLifecycleCues), not here.
-		void ApplyNodeCues(Animation::ScenePlan& a_plan, const Registry::SceneNode& a_node)
+		// Map a node's TIMED track entries (numeric `at` + `end`) onto the played plan's terminal
+		// stage as opaque lane+token marks, so the Scene fires them by clip time and Layer B
+		// decodes them in OnTimedMarks. Lifecycle enter/exit entries are fired by Layer-B
+		// lifecycle dispatch (DispatchLifecycleCues / DispatchLifecycleActions), not here.
+		//   - cue lane: token = the cue id (matches trigger:<id> edges + the EVENT_CUE payload).
+		//   - action lane: token = the action's index in node.actions (stable; OnTimedMarks
+		//     resolves the node and recovers the full ActionEntry by index).
+		void ApplyNodeMarks(Animation::ScenePlan& a_plan, const Registry::SceneNode& a_node)
 		{
 			if (a_plan.stages.empty()) {
 				return;
@@ -59,9 +72,18 @@ namespace OSF::Scene
 			auto& stage = a_plan.stages.back();
 			for (const auto& cue : a_node.cues) {
 				if (cue.pos == Registry::CuePos::kFraction) {
-					stage.cues.push_back({ cue.fraction, cue.everyLoop, false, cue.id });
+					stage.marks.push_back({ cue.fraction, cue.everyLoop, false, kLaneCue, cue.id });
 				} else if (cue.pos == Registry::CuePos::kEnd) {
-					stage.cues.push_back({ 0.0f, false, true, cue.id });
+					stage.marks.push_back({ 0.0f, false, true, kLaneCue, cue.id });
+				}
+			}
+			for (std::size_t i = 0; i < a_node.actions.size(); i++) {
+				const auto& act = a_node.actions[i];
+				const auto token = std::to_string(i);
+				if (act.pos == Registry::ActionPos::kFraction) {
+					stage.marks.push_back({ act.fraction, act.everyLoop, false, kLaneAction, token });
+				} else if (act.pos == Registry::ActionPos::kEnd) {
+					stage.marks.push_back({ 0.0f, false, true, kLaneAction, token });
 				}
 			}
 		}
@@ -95,9 +117,9 @@ namespace OSF::Scene
 			});
 		// Drop the handle table on any load teardown (handles hold raw Actor* participants).
 		gm.SetSceneClearHandler([]() { SceneRuntime::GetSingleton().Clear(); });
-		// Fire EVENT_CUE for the timed cues a scene's stage crosses.
-		gm.SetSceneCueHandler([](const std::vector<RE::Actor*>& a_actors, const std::vector<std::string>& a_ids) {
-			SceneRuntime::GetSingleton().OnTimedCues(a_actors, a_ids);
+		// Decode the timed marks a scene's stage crosses (cue -> EVENT_CUE/trigger, action -> run).
+		gm.SetSceneTimedMarkHandler([](const std::vector<RE::Actor*>& a_actors, const std::vector<Animation::FiredMark>& a_marks) {
+			SceneRuntime::GetSingleton().OnTimedMarks(a_actors, a_marks);
 		});
 	}
 
@@ -287,40 +309,53 @@ namespace OSF::Scene
 
 		const auto wantPos = a_enter ? Registry::ActionPos::kEnter : Registry::ActionPos::kExit;
 		for (const auto& act : node->actions) {
-			if (act.pos != wantPos) {
-				continue;
-			}
-			const auto type = Util::ToLower(act.type);
-			if (type == "osf.control.lock") {
-				if (hasPlayer) {
-					REX::INFO("SceneRuntime: scene {:#010x} action osf.control.lock (role '{}')", a_handle, act.role);
-					GetSingleton().AcquireSceneControlLock(a_handle);
-				} else {
-					REX::INFO("SceneRuntime: scene {:#010x} osf.control.lock — no player participant, no-op", a_handle);
-				}
-			} else if (type == "osf.control.release") {
-				REX::INFO("SceneRuntime: scene {:#010x} action osf.control.release", a_handle);
-				GetSingleton().ReleaseSceneControlLock(a_handle);
-			} else if (type.rfind("osf.", 0) == 0) {
-				// recognized built-in mechanism, not yet executed (equipment/fade/voice — Layer C).
-				REX::INFO("SceneRuntime: scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
-					a_handle, act.type, act.role);
-			} else {
-				// custom namespaced action -> EVENT_ACTION (best-effort notification, §1.3).
-				DispatchAction(a_handle, a_node, act.type, act.role, a_enter ? "enter" : "exit");
+			if (act.pos == wantPos) {
+				RunAction(a_handle, a_node, act, a_enter ? "enter" : "exit", hasPlayer);
 			}
 		}
 	}
 
-	void SceneRuntime::OnTimedCues(const std::vector<RE::Actor*>& a_participants, const std::vector<std::string>& a_cueIds)
+	void SceneRuntime::RunAction(std::int32_t a_handle, std::string_view a_node, const Registry::ActionEntry& a_action,
+		std::string_view a_anchor, bool a_hasPlayer)
 	{
+		const auto type = Util::ToLower(a_action.type);
+		if (type == "osf.control.lock") {
+			if (a_hasPlayer) {
+				REX::INFO("SceneRuntime: scene {:#010x} action osf.control.lock (role '{}')", a_handle, a_action.role);
+				GetSingleton().AcquireSceneControlLock(a_handle);
+			} else {
+				REX::INFO("SceneRuntime: scene {:#010x} osf.control.lock — no player participant, no-op", a_handle);
+			}
+		} else if (type == "osf.control.release") {
+			REX::INFO("SceneRuntime: scene {:#010x} action osf.control.release", a_handle);
+			GetSingleton().ReleaseSceneControlLock(a_handle);
+		} else if (type.rfind("osf.", 0) == 0) {
+			// recognized built-in mechanism, not yet executed (equipment/fade/voice — Layer C).
+			REX::INFO("SceneRuntime: scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
+				a_handle, a_action.type, a_action.role);
+		} else {
+			// custom namespaced action -> EVENT_ACTION (best-effort notification, §1.3).
+			DispatchAction(a_handle, a_node, a_action.type, a_action.role, a_anchor);
+		}
+	}
+
+	void SceneRuntime::OnTimedMarks(const std::vector<RE::Actor*>& a_participants, const std::vector<Animation::FiredMark>& a_marks)
+	{
+		if (a_marks.empty()) {
+			return;
+		}
+
+		// §1.3 same-tick order across lanes is fixed (action -> camera -> sound -> cue), NOT JSON
+		// order. The lane ids are numbered in that order, so a stable sort by lane yields it while
+		// preserving the Scene's per-lane declaration order.
+		std::vector<Animation::FiredMark> marks = a_marks;
+		std::stable_sort(marks.begin(), marks.end(),
+			[](const Animation::FiredMark& a_lhs, const Animation::FiredMark& a_rhs) { return a_lhs.lane < a_rhs.lane; });
+
 		std::int32_t handle = 0;
 		std::string oldNode;
-		std::string newNode;
 		std::string sceneId;
 		std::vector<RE::Actor*> participants;
-		bool triggered = false;
-		bool end = false;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = nullptr;
@@ -335,41 +370,75 @@ namespace OSF::Scene
 			oldNode = s->node;
 			sceneId = s->id;
 			participants = s->participants;
+		}
 
-			// First fired cue with a matching trigger:<id> edge on the current node wins (a
-			// transition changes the node, so later cues' triggers are moot). The slot's node
-			// is set now for the transition; an $end stays valid through SCENE_END (freed below).
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
-			const auto* node = def ? def->FindNode(s->node) : nullptr;
-			if (node) {
-				for (const auto& id : a_cueIds) {
-					const auto want = Util::ToLower(id);
-					const Registry::SceneEdge* edge = nullptr;
-					for (const auto& e : node->edges) {
-						if (e.when == Registry::EdgeWhen::kTrigger && Util::ToLower(e.trigger) == want) {
-							edge = &e;
-							break;
-						}
-					}
-					if (edge) {
-						triggered = true;
-						if (edge->to == "$end") {
-							end = true;
-						} else {
-							s->node = edge->to;
-							newNode = edge->to;
-						}
-						break;
-					}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(sceneId);
+		const auto* node = def ? def->FindNode(oldNode) : nullptr;
+
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		const bool hasPlayer = player &&
+			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
+
+		// Decode each mark by lane (already lane-ordered). Action-lane marks run their mechanism
+		// now; cue-lane ids are collected for EVENT_CUE + the trigger pass after the tick's
+		// entries have run (§1.3). camera/sound lanes are recognized but not executed yet.
+		std::vector<std::string> cueIds;
+		for (const auto& m : marks) {
+			if (m.lane == kLaneCue) {
+				cueIds.push_back(m.token);
+			} else if (m.lane == kLaneAction && node) {
+				// token = index into node->actions (set by ApplyNodeMarks).
+				std::size_t idx = 0;
+				const auto* first = m.token.data();
+				const auto [ptr, ec] = std::from_chars(first, first + m.token.size(), idx);
+				if (ec == std::errc{} && idx < node->actions.size()) {
+					RunAction(handle, oldNode, node->actions[idx], "", hasPlayer);
 				}
 			}
 		}
 
-		// Every fired cue dispatches EVENT_CUE on the node it fired on (notification); the
-		// trigger edge is evaluated after (§1.3). (Precise fraction/anchor isn't threaded back
-		// from the Scene in v1; the id is the contract's key field.)
-		for (const auto& id : a_cueIds) {
+		// EVENT_CUE per fired cue on the node it fired on (notification). (Precise fraction/anchor
+		// isn't threaded back from the Scene in v1; the id is the contract's key field.)
+		for (const auto& id : cueIds) {
 			DispatchCue(handle, oldNode, id, "", -1.0f);
+		}
+
+		// trigger:<cueId> edge auto-take — evaluated AFTER the tick's track entries (§1.3). The
+		// first fired cue with a matching trigger edge on the CURRENT node wins (a transition
+		// changes the node, so later cues' triggers are moot). Re-resolve under the lock: an
+		// action above could (defensively) have ended the scene or changed the node.
+		std::string newNode;
+		bool triggered = false;
+		bool end = false;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(handle);
+			if (s && s->node == oldNode) {
+				const auto* d = Registry::SceneRegistry::GetSingleton().Find(s->id);
+				const auto* n = d ? d->FindNode(s->node) : nullptr;
+				if (n) {
+					for (const auto& id : cueIds) {
+						const auto want = Util::ToLower(id);
+						const Registry::SceneEdge* edge = nullptr;
+						for (const auto& e : n->edges) {
+							if (e.when == Registry::EdgeWhen::kTrigger && Util::ToLower(e.trigger) == want) {
+								edge = &e;
+								break;
+							}
+						}
+						if (edge) {
+							triggered = true;
+							if (edge->to == "$end") {
+								end = true;  // freed after SCENE_END (handle valid through the events)
+							} else {
+								s->node = edge->to;
+								newNode = edge->to;
+							}
+							break;
+						}
+					}
+				}
+			}
 		}
 		if (triggered) {
 			REX::INFO("SceneRuntime: scene {:#010x} cue-trigger node '{}' -> {}", handle, oldNode, end ? "$end" : newNode);
@@ -406,7 +475,7 @@ namespace OSF::Scene
 		// (which takes the matching auto-edge). A `hold` node leaves the stage un-timed and
 		// holds for a manual AdvanceScene, as before.
 		ApplyNodePolicy(*plan, *node);
-		ApplyNodeCues(*plan, *node);  // node's timed cues -> the played stage (Scene fires them)
+		ApplyNodeMarks(*plan, *node);  // node's timed cues + actions -> the played stage (Scene fires them)
 		// Re-playing on actors already in a scene tears the old node's scene first, so a
 		// node transition is just a fresh PlaySceneStaged.
 		Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0);

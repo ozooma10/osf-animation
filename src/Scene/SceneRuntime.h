@@ -8,6 +8,12 @@
 namespace OSF::Animation
 {
 	enum class SceneEndReason : std::uint8_t;  // Animation/Scene.h
+	struct FiredMark;                          // Animation/Scene.h
+}
+
+namespace OSF::Registry
+{
+	struct ActionEntry;   // Registry/SceneRegistry.h
 }
 
 namespace OSF::Scene
@@ -26,10 +32,12 @@ namespace OSF::Scene
 		// Returns true if the scene was handled by the SceneRuntime, false otherwise (ex. direct StartScene without a graph).
 		bool OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason);
 
-		// Layer-A timed-cue callback (registered with GraphManager). Game thread. Resolves the
-		// handle owning a_participants, dispatches each fired cue id as EVENT_CUE, then takes the
-		// first matching trigger:<id> edge on the current node (transition, or end if "$end").
-		void OnTimedCues(const std::vector<RE::Actor*>& a_participants, const std::vector<std::string>& a_cueIds);
+		// Layer-A timed-mark callback (registered with GraphManager). Game thread. Resolves the
+		// handle owning a_participants, then decodes each fired mark by lane in the §1.3 same-tick
+		// order (action -> camera -> sound -> cue): action-lane marks run the built-in/custom
+		// mechanism; cue-lane marks dispatch EVENT_CUE and then take the first matching
+		// trigger:<id> edge on the current node (transition, or end if "$end").
+		void OnTimedMarks(const std::vector<RE::Actor*>& a_participants, const std::vector<Animation::FiredMark>& a_marks);
 
 		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. 
 		// Returns the handle (0 = failed: table full).
@@ -157,10 +165,17 @@ namespace OSF::Scene
 		// _lock. No-op for a non-def scene or a node with no matching cues.
 		static void DispatchLifecycleCues(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
-		// Run a node's enter (a_enter) or exit action-track entries: built-in osf.* mechanisms
-		// (control.lock/release executed; the rest recognized + logged), custom actions emitted
-		// as EVENT_ACTION. Call OUTSIDE _lock. No-op for a non-def scene.
+		// Run a node's enter (a_enter) or exit action-track entries (the lifecycle anchors).
+		// Numeric/end-timed actions run via OnTimedMarks instead. Call OUTSIDE _lock. No-op for
+		// a non-def scene.
 		static void DispatchLifecycleActions(std::int32_t a_handle, std::string_view a_node, bool a_enter);
+
+		// Execute one action entry: built-in osf.* mechanisms (control.lock/release executed;
+		// the rest recognized + logged), custom actions emitted as EVENT_ACTION. Shared by the
+		// lifecycle + timed dispatch paths. Call OUTSIDE _lock (may Acquire/Release the lock).
+		// a_hasPlayer = the player is a participant (gates player-only mechanisms).
+		static void RunAction(std::int32_t a_handle, std::string_view a_node, const Registry::ActionEntry& a_action,
+			std::string_view a_anchor, bool a_hasPlayer);
 
 		// Dispatch one EVENT_ACTION (custom action notification) through the relay.
 		static void DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,

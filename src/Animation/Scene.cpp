@@ -17,31 +17,32 @@ namespace OSF::Animation
 			bool stageChanged = false;
 			const bool wrapped = looped && duration > 0.0f && clock.time >= duration;
 
-			// Fire timed cues for the current stage BEFORE any terminal transition (so an
-			// "end" cue and an end edge never race). A numeric mark fires when the playhead
+			// Fire timed marks for the current stage BEFORE any terminal transition (so an
+			// "end" mark and an end edge never race). A numeric mark fires when the playhead
 			// crosses its time over [prevTime, clock.time) — handling a single wrap; an "end"
 			// mark fires on the first loop's wrap. repeat:loop fires every loop, else first
-			// loop only (gated by cueFired[i]). Fired ids land in firedCues (drained by the hook).
+			// loop only (gated by markFired[i]). Fired marks land in firedMarks (drained by the
+			// hook); the Scene round-trips the opaque lane+token without interpreting them.
 			if (!stages.empty()) {
-				const auto& cues = stages[currentStage].cues;
-				for (size_t i = 0; i < cues.size(); i++) {
-					const auto& cue = cues[i];
+				const auto& marks = stages[currentStage].marks;
+				for (size_t i = 0; i < marks.size(); i++) {
+					const auto& mark = marks[i];
 					bool crossed = false;
-					if (cue.atEnd) {
+					if (mark.atEnd) {
 						crossed = wrapped && stageLoops == 0;
 					} else if (duration > 0.0f) {
-						const float markTime = cue.fraction * duration;
+						const float markTime = mark.fraction * duration;
 						crossed = !wrapped ? (prevTime <= markTime && markTime < clock.time)
 						                   : (markTime >= prevTime || markTime < (clock.time - duration));
 					}
 					if (!crossed) {
 						continue;
 					}
-					if (cue.everyLoop) {
-						firedCues.push_back(cue.id);  // every loop
-					} else if (stageLoops == 0 && i < cueFired.size() && !cueFired[i]) {
-						firedCues.push_back(cue.id);  // first loop only, once
-						cueFired[i] = true;
+					if (mark.everyLoop) {
+						firedMarks.push_back({ mark.lane, mark.token });  // every loop
+					} else if (stageLoops == 0 && i < markFired.size() && !markFired[i]) {
+						firedMarks.push_back({ mark.lane, mark.token });  // first loop only, once
+						markFired[i] = true;
 					}
 				}
 			}
@@ -111,11 +112,11 @@ namespace OSF::Animation
 		return currentStage;
 	}
 
-	void Scene::DrainFiredCues(std::vector<std::string>& a_out)
+	void Scene::DrainFiredMarks(std::vector<FiredMark>& a_out)
 	{
 		std::scoped_lock l{ lock };
-		a_out.swap(firedCues);
-		firedCues.clear();
+		a_out.swap(firedMarks);
+		firedMarks.clear();
 	}
 
 	void Scene::ApplyStageLocked(uint32_t a_stage)
@@ -128,8 +129,8 @@ namespace OSF::Animation
 		const auto& stage = stages[a_stage];
 		duration = stage.duration;
 
-		// Reset per-pass cue gating for this stage's marks (all unfired).
-		cueFired.assign(stage.cues.size(), false);
+		// Reset per-pass gating for this stage's marks (all unfired).
+		markFired.assign(stage.marks.size(), false);
 
 		// Element-wise: the pin reads `placements` lock-free, so never reallocate.
 		const size_t n = std::min(placements.size(), stage.placements.size());

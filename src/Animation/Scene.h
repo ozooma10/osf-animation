@@ -46,16 +46,27 @@ namespace OSF::Animation
 		kLoops
 	};
 
-	// A timed cue mark on a stage's clip timeline — a content-neutral "fire opaque token `id`
-	// at time T" record. Layer B (SceneRuntime) computes these from a node's `cue` track and
-	// reads the fired ids back as EVENT_CUE. The Scene just fires by time; it never interprets
-	// the id. (Lifecycle enter/exit cues are fired by Layer B directly, not via this list.)
-	struct CueMark
+	// A timed mark on a stage's clip timeline — a content-neutral "fire opaque token at
+	// time T, on lane L" record. Layer B (SceneRuntime) computes these from a node's tracks
+	// (cue / action / sound / camera) and decodes the lane+token on the way back. The Scene
+	// fires purely by time; it never interprets the lane or the token. (Lifecycle enter/exit
+	// track entries are fired by Layer B directly, not via this list.)
+	struct TimedMark
 	{
-		float       fraction = 0.0f;   // clip-local fraction in [0,1); ignored when atEnd
-		bool        everyLoop = false;  // fire every loop (else first loop only)
-		bool        atEnd = false;      // fire once at the clip end of the first loop
-		std::string id;
+		float         fraction = 0.0f;   // clip-local fraction in [0,1); ignored when atEnd
+		bool          everyLoop = false;  // fire every loop (else first loop only)
+		bool          atEnd = false;      // fire once at the clip end of the first loop
+		std::uint8_t  lane = 0;          // opaque lane id (Layer B assigns meaning + ordering)
+		std::string   token;             // opaque payload (cue id, action index, ...)
+	};
+
+	// A mark the Scene fired this frame, drained by the hook and handed to Layer B. The
+	// lane+token are exactly what Layer B stamped onto the TimedMark; the Scene round-trips
+	// them without interpretation.
+	struct FiredMark
+	{
+		std::uint8_t lane = 0;
+		std::string  token;
 	};
 
 	// Caller's scene description (files not yet loaded); PlaySceneStaged loads them.
@@ -68,7 +79,7 @@ namespace OSF::Animation
 			float timer = 0.0f;                            // seconds; <= 0 = no auto-advance
 			int32_t loops = 0;                             // clip loops; <= 0 = no auto-advance
 			float blendIn = -1.0f;                         // secs; < 0 = use plan blendIn
-			std::vector<CueMark> cues;                     // timed cues (numeric/end) for this stage
+			std::vector<TimedMark> marks;                  // timed marks (numeric/end) for this stage
 		};
 		std::vector<Stage> stages;
 		std::string animId;     // registry id ("" = ad-hoc)
@@ -98,7 +109,7 @@ namespace OSF::Animation
 			std::vector<ParticipantSlot> participants;
 			std::vector<ParticipantPlacement> placements;
 			float blendIn = 0.4f;   // blend-in secs when this stage activates
-			std::vector<CueMark> cues;  // timed cues fired by Advance (see firedCues)
+			std::vector<TimedMark> marks;  // timed marks fired by Advance (see firedMarks)
 		};
 
 		struct Tick  // what this sample should use
@@ -153,10 +164,10 @@ namespace OSF::Animation
 		// NOT hold `lock`.
 		uint32_t CurrentStage();
 
-		// Move the cue ids fired since the last drain into a_out (swaps the buffer empty).
-		// Drained once per frame by the update hook; the ids dispatch as EVENT_CUE. Caller
+		// Move the marks fired since the last drain into a_out (swaps the buffer empty).
+		// Drained once per frame by the update hook; Layer B decodes lane+token. Caller
 		// must NOT hold `lock`.
-		void DrainFiredCues(std::vector<std::string>& a_out);
+		void DrainFiredMarks(std::vector<FiredMark>& a_out);
 
 	private:
 		void ApplyStageLocked(uint32_t a_stage);  // caller holds `lock`
@@ -166,10 +177,11 @@ namespace OSF::Animation
 		float stageElapsed = 0.0f;  // time in stage (doesn't wrap, unlike clock.time)
 		int32_t stageLoops = 0;     // completed wraps in stage = 0-based loop index
 
-		// Cue scheduling state (all under `lock`). firedCues accumulates ids whose marks
-		// crossed this frame; cueFired[i] gates a non-repeating mark to fire once per stage
-		// pass (parallel to the current stage's `cues`, reset on every stage change).
-		std::vector<std::string> firedCues;
-		std::vector<bool>        cueFired;
+		// Timed-mark scheduling state (all under `lock`). firedMarks accumulates the marks
+		// (lane+token) whose times crossed this frame; markFired[i] gates a non-repeating mark
+		// to fire once per stage pass (parallel to the current stage's `marks`, reset on every
+		// stage change).
+		std::vector<FiredMark> firedMarks;
+		std::vector<bool>      markFired;
 	};
 }
