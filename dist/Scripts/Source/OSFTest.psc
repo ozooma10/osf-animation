@@ -88,8 +88,8 @@ Function PlayTag(string tag, Actor a, Actor b) global
     actors[1] = b
     string[] tags = new string[1]
     tags[0] = tag
-    string id = OSF.StartSceneByTags(actors, tags)
-    Debug.Notification("OSF: StartSceneByTags -> '" + id + "'")
+    int h = OSF.StartSceneByTags(actors, tags)
+    Debug.Notification("OSF: StartSceneByTags -> handle " + h + " id '" + OSF.GetSceneId(h) + "'")
 EndFunction
 
 ; --- Primitives (anchor + sync + speed) -------------------------------------
@@ -150,7 +150,7 @@ Function StartPair(string id, Actor a, Actor b) global
 EndFunction
 
 Function StopPair(Actor a) global
-    OSF.StopScene(a)
+    OSF.StopSceneForActor(a)
 EndFunction
 
 ; --- Scene-event callback transport prototype -------------------------------
@@ -255,4 +255,64 @@ Function PbTest() global
     Utility.Wait(4.0)
     OSFCompat.Dbg_StopScene(h)
     OSFCompat.Dbg_Log("PbTest: stopped -> animation ends")
+EndFunction
+
+; --- P3 AUTO-advance test (the scene walks its OWN graph; NO manual advance) -----
+; Point the crosshair at an actor (or none = the player), run, then DON'T touch it.
+; Node 'first' (StandSurrender) holds for a 4s timer, then the runtime auto-takes its
+; 'timer' edge to 'second' (StandCover); after another 4s timer it auto-takes a 'timer'
+; edge to "$end" and the scene ends — all with zero AdvanceScene/NavigateScene calls.
+; Watch OSF Animation.log for the two timer auto-edges and SCENE_END.
+;   cgf "OSFTest.AutoTest"
+Function AutoTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    int h = OSFCompat.Dbg_StartSceneDef(a, "author.scenes.autotest")
+    OSFCompat.Dbg_Log("AutoTest: started h=" + h + " node='" + OSF.GetSceneNode(h) + "' (expect 'first')")
+    OSFCompat.Dbg_Log("AutoTest: now WAIT, do NOT advance. ~4s -> 'second' (auto), ~4s more -> scene ends (auto).")
+EndFunction
+
+; --- Actor-exclusivity test (one actor -> at most one live scene, SCENE_DESIGN §1.3) ---
+; Start a scene on the actor, then try to start a SECOND on the same actor: the second
+; start must be REFUSED (handle 0) while the first stays live and GetSceneForActor keeps
+; returning it. Uses the hold-based pbtest scene so nothing auto-advances mid-check; the
+; test cleans up h1 at the end. No waiting — runs to completion immediately.
+;   cgf "OSFTest.ExclusivityTest"
+Function ExclusivityTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    int h1 = OSFCompat.Dbg_StartSceneDef(a, "author.scenes.pbtest")
+    OSFCompat.Dbg_Log("ExclusivityTest: first start h1=" + h1 + " (expect nonzero)")
+    int h2 = OSFCompat.Dbg_StartSceneDef(a, "author.scenes.pbtest")
+    OSFCompat.Dbg_Log("ExclusivityTest: re-start same actor h2=" + h2 + " (expect 0 = refused)")
+    OSFCompat.Dbg_Log("ExclusivityTest: GetSceneForActor=" + OSF.GetSceneForActor(a) + " (expect " + h1 + ", the live one)")
+    OSFCompat.Dbg_StopScene(h1)
+    OSFCompat.Dbg_Log("ExclusivityTest: stopped h1; GetSceneForActor=" + OSF.GetSceneForActor(a) + " (expect 0)")
+EndFunction
+
+; --- P2: the REAL public StartScene -> handle (routed through the scene runtime) -------
+; The public StartScene/StartSceneByTags/StartSceneFiles now return an opaque int HANDLE
+; (not bool/string) and route through SceneRuntime — so GetSceneId/GetSceneForActor and the
+; handle-based StopScene work on a scene started by the PUBLIC API, and lifecycle events
+; (NODE_ENTER on start, SCENE_END on stop) fire with NO Dbg_* native. Uses the baked-in
+; "solo" pack (a linear pack auto-exposed as a single-path scene). Crosshair actor or player.
+;   cgf "OSFTest.SceneHandleTest"
+Function SceneHandleTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "solo", 0)
+    OSFCompat.Dbg_Log("SceneHandleTest: StartScene('solo') -> h=" + h + " (expect nonzero)")
+    OSFCompat.Dbg_Log("  GetSceneId(h)='" + OSF.GetSceneId(h) + "' (expect 'solo'); GetSceneForActor=" + OSF.GetSceneForActor(a) + " (expect " + h + ")")
+    int h2 = OSF.StartScene(actors, "solo", 0)
+    OSFCompat.Dbg_Log("  re-StartScene same actor -> h2=" + h2 + " (expect 0 = exclusivity refused)")
+    bool stopped = OSF.StopScene(h)
+    OSFCompat.Dbg_Log("  StopScene(h)=" + stopped + "; GetSceneForActor=" + OSF.GetSceneForActor(a) + " (expect 0)")
 EndFunction

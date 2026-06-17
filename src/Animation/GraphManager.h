@@ -9,12 +9,31 @@
 #include "Animation/Graph.h"
 #include "Animation/Scene.h"
 
+#include <functional>
+
 namespace OSF::Animation
 {
 	class GraphManager
 	{
 	public:
 		static GraphManager& GetSingleton();
+
+		// Layer-B (SceneRuntime) auto-advance hook. Invoked on the game thread when an
+		// anchored scene auto-ends at its terminal stage (timer / loop target). Layering
+		// stays clean: Layer A knows nothing about scene graphs — it just hands Layer B the
+		// participant actors + the reason. Returns true if Layer B took ownership of what
+		// happens next (transition to the next node, or end its own scene); false (or no
+		// handler) -> GraphManager stops the scene itself (the standalone default). Set once
+		// at load (SceneRuntime::RegisterWithGraphManager), before any scene runs.
+		using SceneAutoEndHandler = std::function<bool(const std::vector<RE::Actor*>&, SceneEndReason)>;
+		void SetSceneAutoEndHandler(SceneAutoEndHandler a_handler) { _autoEndHandler = std::move(a_handler); }
+
+		// Layer-B "scenes dropped" hook. Invoked from StopAll (every load-teardown path) so
+		// Layer B can drop its handle table — its scene handles hold raw Actor* participants
+		// that a world-replacing load invalidates. Inverted dependency like the auto-end
+		// hook: Layer A never names SceneRuntime.
+		using SceneClearHandler = std::function<void()>;
+		void SetSceneClearHandler(SceneClearHandler a_handler) { _clearHandler = std::move(a_handler); }
 
 		// Installs the AnimationManager::Update vtable hook. Verifies the
 		// resolved slot actually points at the expected function before
@@ -139,6 +158,13 @@ namespace OSF::Animation
 		std::shared_mutex stateLock;
 		std::unordered_map<RE::TESObjectREFR*, std::shared_ptr<Graph>> graphs;
 		std::vector<std::shared_ptr<Scene>> scenes;
+
+		// Layer-B auto-advance hook (see SetSceneAutoEndHandler). Empty = standalone
+		// behavior (auto-end just stops the scene).
+		SceneAutoEndHandler _autoEndHandler;
+
+		// Layer-B handle-table drop hook (see SetSceneClearHandler). Empty = no Layer B.
+		SceneClearHandler _clearHandler;
 
 		// Mirror of graphs.size(), refreshed after every mutation under unique
 		// stateLock. Both hooks run for EVERY skeleton/manager in the game,

@@ -6,12 +6,75 @@
 #include "Scene/SceneEventRelay.h"
 #include "Util/StringUtil.h"
 
+#include <algorithm>
+
 namespace OSF::Scene
 {
+	namespace
+	{
+		// Map a node's loop policy + timerSec onto the played plan's TERMINAL stage so
+		// GraphManager auto-ends it (and reports timer vs loops). For a single-stage anim
+		// (the common node) that is "the stage"; for a multi-stage pack used as a node, the
+		// intermediate stages keep their pack-authored timers and the node policy bounds the
+		// last one. once -> loops 1 (play once -> 'end'); count N -> loops N (-> 'loops');
+		// hold -> loops 0 (never auto-ends). timerSec arms the stage timer (-> 'timer') only
+		// when the node actually carries a `timer` edge (a bare timerSec is just a warning).
+		void ApplyNodePolicy(Animation::ScenePlan& a_plan, const Registry::SceneNode& a_node)
+		{
+			if (a_plan.stages.empty()) {
+				return;
+			}
+			auto& stage = a_plan.stages.back();
+			switch (a_node.loopMode) {
+			case Registry::LoopMode::kOnce:
+				stage.loops = 1;
+				break;
+			case Registry::LoopMode::kCount:
+				stage.loops = a_node.loopCount;
+				break;
+			case Registry::LoopMode::kHold:
+				stage.loops = 0;
+				break;
+			}
+			bool hasTimerEdge = false;
+			for (const auto& e : a_node.edges) {
+				if (e.when == Registry::EdgeWhen::kTimer) {
+					hasTimerEdge = true;
+					break;
+				}
+			}
+			stage.timer = (hasTimerEdge && a_node.timerSec > 0.0f) ? a_node.timerSec : 0.0f;
+		}
+
+		// The outgoing auto-edge of a_node whose `when` matches, by §1.3 arbitration: highest
+		// priority wins, ties keep declaration order. nullptr if the node has no such edge.
+		const Registry::SceneEdge* SelectAutoEdge(const Registry::SceneNode& a_node, Registry::EdgeWhen a_when)
+		{
+			const Registry::SceneEdge* best = nullptr;
+			for (const auto& e : a_node.edges) {
+				if (e.when == a_when && (!best || e.priority > best->priority)) {
+					best = &e;
+				}
+			}
+			return best;
+		}
+	}
+
 	SceneRuntime& SceneRuntime::GetSingleton()
 	{
 		static SceneRuntime singleton;
 		return singleton;
+	}
+
+	void SceneRuntime::RegisterWithGraphManager()
+	{
+		auto& gm = Animation::GraphManager::GetSingleton();
+		gm.SetSceneAutoEndHandler(
+			[](const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason a_reason) {
+				return SceneRuntime::GetSingleton().OnGraphAutoEnd(a_actors, a_reason);
+			});
+		// Drop the handle table on any load teardown (handles hold raw Actor* participants).
+		gm.SetSceneClearHandler([]() { SceneRuntime::GetSingleton().Clear(); });
 	}
 
 	SceneRuntime::Slot* SceneRuntime::Resolve(std::int32_t a_handle)
@@ -25,6 +88,26 @@ namespace OSF::Scene
 			return nullptr;
 		}
 		return &_slots[slot];
+	}
+
+	SceneRuntime::Slot* SceneRuntime::FindSlotForActor(RE::Actor* a_actor, std::int32_t* a_token)
+	{
+		if (!a_actor) {
+			return nullptr;
+		}
+		for (std::uint16_t slot = 0; slot < _slots.size(); slot++) {
+			Slot& s = _slots[slot];
+			if (s.generation == 0) {
+				continue;
+			}
+			if (std::find(s.participants.begin(), s.participants.end(), a_actor) != s.participants.end()) {
+				if (a_token) {
+					*a_token = MakeToken(s.generation, slot);
+				}
+				return &s;
+			}
+		}
+		return nullptr;
 	}
 
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor)
@@ -57,9 +140,13 @@ namespace OSF::Scene
 				a_nodeId, node->anim, a_participants.size());
 			return;
 		}
+		// P3: stamp the node's loop policy + timerSec onto the plan so GraphManager
+		// auto-ends at the node's terminal condition and reports it back via OnGraphAutoEnd
+		// (which takes the matching auto-edge). A `hold` node leaves the stage un-timed and
+		// holds for a manual AdvanceScene, as before.
+		ApplyNodePolicy(*plan, *node);
 		// Re-playing on actors already in a scene tears the old node's scene first, so a
-		// node transition is just a fresh PlaySceneStaged. (P1: the node's anim plays as
-		// authored — single-pose anims hold; graph-level auto-advance is a later increment.)
+		// node transition is just a fresh PlaySceneStaged.
 		Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0);
 	}
 
@@ -70,48 +157,72 @@ namespace OSF::Scene
 		}
 	}
 
+	std::int32_t SceneRuntime::MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node,
+		std::int32_t a_stage, const std::vector<RE::Actor*>& a_participants)
+	{
+		std::lock_guard l{ _lock };
+
+		// Actor exclusivity (v1, SCENE_DESIGN §1.3): an actor is in at most one live scene, so
+		// a start on a busy actor fails (0) — the caller must Stop it first. Without this, two
+		// handles could alias one actor, making GetSceneForActor multi-valued and the auto-end
+		// resolver ambiguous.
+		for (auto* a : a_participants) {
+			std::int32_t busy = 0;
+			if (FindSlotForActor(a, &busy)) {
+				REX::WARN("SceneRuntime: actor {:X} already in live scene {:#010x} — refusing start '{}' (Stop it first)",
+					a ? a->formID : 0, busy, a_id);
+				return 0;
+			}
+		}
+
+		std::uint16_t slot = 0;
+		bool reused = false;
+		for (; slot < _slots.size(); slot++) {
+			if (_slots[slot].generation == 0) {
+				reused = true;
+				break;
+			}
+		}
+		if (!reused) {
+			if (_slots.size() >= 0xFFFF) {
+				REX::ERROR("SceneRuntime: handle table full");
+				return 0;
+			}
+			_slots.emplace_back();
+		}
+
+		const std::uint16_t gen = _nextGen++;
+		if (_nextGen == 0) {
+			_nextGen = 1;  // never hand out generation 0 (the empty-slot marker)
+		}
+
+		Slot& s = _slots[slot];
+		s.generation = gen;
+		s.kind = a_kind;
+		s.id = std::string(a_id);
+		s.node = std::string(a_node);
+		s.stage = a_stage;
+		s.participants = a_participants;
+		return MakeToken(gen, slot);
+	}
+
+	void SceneRuntime::ReleaseSlot(std::int32_t a_handle)
+	{
+		std::lock_guard l{ _lock };
+		if (Slot* s = Resolve(a_handle)) {
+			*s = Slot{};
+		}
+	}
+
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
 		const std::vector<RE::Actor*>& a_participants)
 	{
-		std::int32_t handle = 0;
-		std::string node;
-		{
-			std::lock_guard l{ _lock };
-
-			std::uint16_t slot = 0;
-			bool reused = false;
-			for (; slot < _slots.size(); slot++) {
-				if (_slots[slot].generation == 0) {
-					reused = true;
-					break;
-				}
-			}
-			if (!reused) {
-				if (_slots.size() >= 0xFFFF) {
-					REX::ERROR("SceneRuntime::Start: handle table full");
-					return 0;
-				}
-				_slots.emplace_back();
-			}
-
-			const std::uint16_t gen = _nextGen++;
-			if (_nextGen == 0) {
-				_nextGen = 1;  // never hand out generation 0 (the empty-slot marker)
-			}
-
-			Slot& s = _slots[slot];
-			s.generation = gen;
-			s.id = std::string(a_id);
-			s.node = std::string(a_entryNode);
-			s.stage = 0;
-			s.participants = a_participants;
-
-			handle = MakeToken(gen, slot);
-			node = s.node;
+		const std::int32_t handle = MintSlot(Kind::kDef, a_id, a_entryNode, 0, a_participants);
+		if (!handle) {
+			return 0;
 		}
-
-		PlayNodeAnim(a_participants, a_id, node);
-		Fire(handle, Event::kNodeEnter, node, "enter");
+		PlayNodeAnim(a_participants, a_id, a_entryNode);
+		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
 		return handle;
 	}
 
@@ -162,6 +273,18 @@ namespace OSF::Scene
 		return true;
 	}
 
+	bool SceneRuntime::StopForActor(RE::Actor* a_actor)
+	{
+		std::int32_t handle = 0;
+		{
+			std::lock_guard l{ _lock };
+			if (!FindSlotForActor(a_actor, &handle)) {
+				return false;
+			}
+		}
+		return Stop(handle);  // re-resolves under its own lock; fires NODE_EXIT + SCENE_END
+	}
+
 	std::int32_t SceneRuntime::StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
@@ -171,6 +294,51 @@ namespace OSF::Scene
 		}
 		// Start mints the handle, records the instance, and fires NODE_ENTER for the entry.
 		return Start(def->id, def->entry, a_participants);
+	}
+
+	std::int32_t SceneRuntime::StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage)
+	{
+		if (a_participants.empty()) {
+			return 0;
+		}
+		// Build the pack plan FIRST (cheap validate) so we don't mint a handle for an unknown
+		// or wrong-actor-count pack (PackRegistry logs the reason).
+		auto plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(a_packId, a_participants.size());
+		if (!plan) {
+			return 0;
+		}
+		const std::int32_t handle = MintSlot(Kind::kPack, a_packId, "main", a_startStage, a_participants);
+		if (!handle) {
+			return 0;  // actor already in a scene
+		}
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, a_startStage)) {
+			ReleaseSlot(handle);  // play failed after mint — no events fired yet, just free it
+			return 0;
+		}
+		Fire(handle, Event::kNodeEnter, "main", "enter");
+		return handle;
+	}
+
+	std::int32_t SceneRuntime::StartFromFiles(const std::vector<RE::Actor*>& a_participants,
+		const std::vector<std::string>& a_files, float a_speed, float a_blendIn)
+	{
+		if (a_participants.empty() || a_participants.size() != a_files.size()) {
+			return 0;
+		}
+		const std::int32_t handle = MintSlot(Kind::kFiles, "", "main", 0, a_participants);
+		if (!handle) {
+			return 0;  // actor already in a scene
+		}
+		Animation::ScenePlan plan;
+		plan.stages.push_back({ a_files, {}, 0.0f });  // one stage, holds (loop mode hold, §1.2)
+		plan.speed = a_speed;
+		plan.blendIn = a_blendIn;
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, plan, 0)) {
+			ReleaseSlot(handle);
+			return 0;
+		}
+		Fire(handle, Event::kNodeEnter, "main", "enter");
+		return handle;
 	}
 
 	bool SceneRuntime::Advance(std::int32_t a_scene)
@@ -276,6 +444,91 @@ namespace OSF::Scene
 		return true;
 	}
 
+	bool SceneRuntime::OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason)
+	{
+		std::int32_t handle = 0;
+		std::string oldNode;
+		std::string newNode;
+		std::string sceneId;
+		std::vector<RE::Actor*> participants;
+		bool end = false;
+		bool tookEdge = false;  // an explicit edge matched (vs terminal completion)
+		{
+			std::lock_guard l{ _lock };
+
+			// Resolve the live handle owning these participants. Actor exclusivity makes
+			// this single-valued: the first participant that maps to a slot is THE scene.
+			// Unowned => not a SceneRuntime scene (GraphManager stops it itself).
+			Slot* s = nullptr;
+			for (auto* a : a_participants) {
+				if ((s = FindSlotForActor(a, &handle))) {
+					break;
+				}
+			}
+			if (!s) {
+				return false;  // standalone scene (e.g. PlaySequence) — GraphManager stops it
+			}
+
+			oldNode = s->node;
+			sceneId = s->id;
+			participants = s->participants;
+
+			if (s->kind != Kind::kDef) {
+				// Pack / files single-path scene: it has no edges, so its terminal stage IS
+				// the whole scene ending. (We still own the teardown so SCENE_END fires and
+				// the handle invalidates, vs returning false and letting GraphManager stop it
+				// silently — which would leak the handle.)
+				end = true;
+				*s = Slot{};
+			} else {
+				const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
+				const auto* node = def ? def->FindNode(s->node) : nullptr;
+				if (!node) {
+					// def-backed but the node/def vanished — end defensively (don't leak).
+					end = true;
+					*s = Slot{};
+				} else {
+					// Map the fired condition to the node's edge semantics: a timer arms a
+					// `timer` edge; a loop/clip-end arms `loops` (count) or `end` (once).
+					const auto wantWhen = (a_reason == Animation::SceneEndReason::kTimer)
+						? Registry::EdgeWhen::kTimer
+						: (node->loopMode == Registry::LoopMode::kCount ? Registry::EdgeWhen::kLoops : Registry::EdgeWhen::kEnd);
+					const Registry::SceneEdge* edge = SelectAutoEdge(*node, wantWhen);
+					if (edge) {
+						tookEdge = true;
+						if (edge->to == "$end") {
+							end = true;
+							*s = Slot{};
+						} else {
+							s->node = edge->to;
+							newNode = edge->to;
+						}
+					} else {
+						// No matching edge. once/count with no outgoing edge = terminal
+						// completion (ends when the clip / loop target finishes, §1.3). A timer
+						// can't land here (we only arm the stage timer when a `timer` edge exists).
+						end = true;
+						*s = Slot{};
+					}
+				}
+			}
+		}
+
+		REX::INFO("SceneRuntime: scene {:#010x} auto-end (reason={}) node '{}' -> {}{}",
+			handle, a_reason == Animation::SceneEndReason::kTimer ? "timer" : "loops",
+			oldNode, end ? "$end" : newNode, tookEdge ? "" : " (terminal, no edge)");
+
+		Fire(handle, Event::kNodeExit, oldNode, "exit");
+		if (end) {
+			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
+			Fire(handle, Event::kSceneEnd, oldNode, "");
+		} else {
+			PlayNodeAnim(participants, sceneId, newNode);
+			Fire(handle, Event::kNodeEnter, newNode, "enter");
+		}
+		return true;
+	}
+
 	std::int32_t SceneRuntime::EdgeCount(std::int32_t a_scene)
 	{
 		std::lock_guard l{ _lock };
@@ -350,7 +603,14 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 		Slot* s = Resolve(a_scene);
-		return s ? s->id : std::string{};
+		if (!s) {
+			return {};
+		}
+		// A files scene has no registry id — synthesize the documented one (§1.2).
+		if (s->kind == Kind::kFiles) {
+			return "runtime.files:" + std::to_string(a_scene);
+		}
+		return s->id;
 	}
 
 	std::string SceneRuntime::GetNode(std::int32_t a_scene)
@@ -369,22 +629,9 @@ namespace OSF::Scene
 
 	std::int32_t SceneRuntime::GetSceneForActor(RE::Actor* a_actor)
 	{
-		if (!a_actor) {
-			return 0;
-		}
 		std::lock_guard l{ _lock };
-		for (std::uint16_t slot = 0; slot < _slots.size(); slot++) {
-			const Slot& s = _slots[slot];
-			if (s.generation == 0) {
-				continue;
-			}
-			for (auto* p : s.participants) {
-				if (p == a_actor) {
-					return MakeToken(s.generation, slot);
-				}
-			}
-		}
-		return 0;
+		std::int32_t token = 0;
+		return FindSlotForActor(a_actor, &token) ? token : 0;
 	}
 
 	void SceneRuntime::Clear()

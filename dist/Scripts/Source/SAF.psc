@@ -63,10 +63,11 @@ EndFunction
 
 Bool Function StopAnimation(Actor akTarget, Float fTransitionSeconds = 1.0) Global
     ReleasePlayerLockIfPlayer(akTarget)
-    ; OSF.Stop refuses scene participants -- route them to StopScene.
+    ; OSF.Stop refuses scene participants -- route them to StopSceneForActor (handle-keyed
+    ; StopScene now; the actor convenience preserves this shim's actor-centric call).
     If OSF.GetSceneStage(akTarget) >= 0
-        SAFLog("StopAnimation target=" + akTarget + " (scene -> StopScene)")
-        return OSF.StopScene(akTarget)
+        SAFLog("StopAnimation target=" + akTarget + " (scene -> StopSceneForActor)")
+        return OSF.StopSceneForActor(akTarget)
     EndIf
     SAFLog("StopAnimation target=" + akTarget + " (solo -> Stop)")
     return OSF.Stop(akTarget)
@@ -208,6 +209,10 @@ Function PlaySceneLocked(Actor akActor1, Actor akActor2, String asAnim1, String 
     String[] files = new String[2]
     files[0] = ResolveAnim(asAnim1)
     files[1] = ResolveAnim(asAnim2)
+    ; OSF now enforces actor-exclusivity (one live scene per actor); SAF replayed freely,
+    ; so stop any existing scene on these actors first to preserve replace-on-replay.
+    OSF.StopSceneForActor(akActor1)
+    OSF.StopSceneForActor(akActor2)
     If OSF.StartSceneFiles(actors, files, fSpeed)
         ; SAF froze the player in player-participant scenes, restore that.
         EngagePlayerLockIfPlayer(akActor1)

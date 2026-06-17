@@ -37,6 +37,15 @@ namespace OSF::Animation
 		};
 	}
 
+	// Why an auto-advancing scene reached its terminal stage. Reported to the Layer-B
+	// auto-advance handler (GraphManager::SceneAutoEndHandler) so SceneRuntime can pick the
+	// matching auto-edge: kTimer -> a `timer` edge; kLoops -> a `loops`/`end` edge.
+	enum class SceneEndReason : std::uint8_t
+	{
+		kTimer,
+		kLoops
+	};
+
 	// Caller's scene description (files not yet loaded); PlaySceneStaged loads them.
 	struct ScenePlan
 	{
@@ -112,6 +121,10 @@ namespace OSF::Animation
 		// once and defers StopScene to the game thread.
 		std::atomic<bool> ended{ false };
 		std::atomic<bool> endQueued{ false };
+
+		// Why the terminal stage ended (only meaningful once `ended` is set). Set under
+		// `lock` in Advance; read by the deferred auto-end task to pick the auto-edge.
+		std::atomic<SceneEndReason> endReason{ SceneEndReason::kLoops };
 
 		// Advances the shared clock once per frame (owner-token gated), auto-advancing
 		// stages, and returns the time + stage this sample should use.

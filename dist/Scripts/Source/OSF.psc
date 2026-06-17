@@ -43,24 +43,32 @@ string Function GetCurrentAnimation(Actor akActor) Global Native
 bool Function IsPlaying(Actor akActor) Global Native
 
 ; --- Scenes (mechanical: anchored, staged, synced — no policy) -----------------
+; Start* return an opaque scene HANDLE (int; 0 = failed) — pass it to StopScene / the
+; handle-based getters / navigation below. (A bare id resolves a *.scene.json graph first,
+; then a registry pack auto-exposed as a single-path scene; prefix scene:/anim: to force.)
 
-; Start a registry scene by id (1-actor defs run as full 1-participant scenes).
-bool Function StartScene(Actor[] akActors, string asSceneId, int aiStage = 0) Global Native
+; Start a scene by id, returning its handle. aiStage = pack start stage (ignored for graphs).
+int Function StartScene(Actor[] akActors, string asSceneId, int aiStage = 0) Global Native
 
-; Matchmake a registry scene by tags + gender slots and start it. Returns the chosen id, or "".
-string Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
+; Matchmake a registry pack by tags + gender slots and start it. Returns the scene handle
+; (0 = no match); recover the chosen id with GetSceneId(handle).
+int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
 
-; Ad-hoc scene from raw files: co-locates akActors at akActors[0], plays asFiles[i] on akActors[i], syncs the clock. Equal-length arrays.
-bool Function StartSceneFiles(Actor[] akActors, string[] asFiles, float afSpeed = 1.0, float afBlendIn = 0.4) Global Native
+; Ad-hoc scene from raw files: co-locates akActors at akActors[0], plays asFiles[i] on akActors[i], syncs the clock. Equal-length arrays. Returns the scene handle.
+int Function StartSceneFiles(Actor[] akActors, string[] asFiles, float afSpeed = 1.0, float afBlendIn = 0.4) Global Native
 
-; Jumps the scene containing akActor to stage aiStage (0-based).
+; Jumps the scene containing akActor to stage aiStage (0-based). NOTE: the stage interface is
+; still actor-keyed (linear/legacy convenience); the handle-based form lands with linearStages.
 bool Function SetSceneStage(Actor akActor, int aiStage) Global Native
 
 ; Current stage of the scene akActor is in, or -1 if not in a scene.
 int Function GetSceneStage(Actor akActor) Global Native
 
-; Stops the scene that akActor participates in (all of its participants).
-bool Function StopScene(Actor akActor) Global Native
+; Stops a live scene by its handle (from a Start* call). False if the handle is invalid/ended.
+bool Function StopScene(int aiScene) Global Native
+
+; Actor convenience: stops the live scene akActor participates in. False if it is in none.
+bool Function StopSceneForActor(Actor akActor) Global Native
 
 ; Registry scene ids with aiActorCount actors whose tags contain ALL asTags
 ; (case-insensitive; empty = any).

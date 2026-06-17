@@ -174,13 +174,21 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().PlaySequence(a_actor, files, a_loops, a_blends, a_loopWhole);
 		}
 
-		bool StopScene(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
+		// Stop a live scene by its handle (from a Start* call). False if the handle is
+		// invalid/ended. Fires NODE_EXIT + SCENE_END to registered callbacks.
+		bool StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
+		}
+
+		// Actor convenience: stop the live scene a_actor participates in. False if none.
+		bool StopSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.StopScene: no actor given");
+				REX::WARN("OSF.StopSceneForActor: no actor given");
 				return false;
 			}
-			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
+			return Scene::SceneRuntime::GetSingleton().StopForActor(a_actor);
 		}
 
 		// DEBUG: replaces the player-lock input-disable masks (CLSF flag names
@@ -271,36 +279,55 @@ namespace OSF::Papyrus
 			return false;
 		}
 
-		// Registry scene by id (content-neutral: anchored, staged, synced — no
-		// undress/voice/fade/camera policy; that is the OSF Intimacy layer).
-		// 1-actor defs run as full 1-participant scenes.
-		bool StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
+		// Start a scene by id, returning an opaque scene HANDLE (0 = failed). Routes through
+		// SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
+		// ID resolution (§1.2): a `scene:` prefix forces the scene registry, `anim:` forces the
+		// pack registry; a bare id resolves the scene registry first (a composed *.scene.json
+		// graph), then the pack registry (a linear pack auto-exposed as a single-path scene).
+		// aiStage = pack start stage (ignored for def-backed graphs; linearStages deferred).
+		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			int32_t a_stage)
 		{
 			if (a_actors.empty()) {
 				REX::WARN("OSF.StartScene: no actors given");
-				return false;
+				return 0;
 			}
-			auto plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(a_id.c_str(), a_actors.size());
-			if (!plan) {
-				return false;
+			std::string sid = a_id.c_str();
+			bool forceScene = false;
+			bool forcePack = false;
+			if (sid.rfind("scene:", 0) == 0) {
+				forceScene = true;
+				sid = sid.substr(6);
+			} else if (sid.rfind("anim:", 0) == 0) {
+				forcePack = true;
+				sid = sid.substr(5);
 			}
-			return Animation::GraphManager::GetSingleton().PlaySceneStaged(a_actors, *plan, a_stage);
+
+			auto& rt = Scene::SceneRuntime::GetSingleton();
+			if (!forcePack && Registry::SceneRegistry::GetSingleton().Find(sid)) {
+				return rt.StartFromDef(sid, a_actors);  // composed graph
+			}
+			if (!forceScene) {
+				return rt.StartFromPack(sid, a_actors, a_stage);  // linear pack as single-path scene
+			}
+			REX::WARN("OSF.StartScene: no scene '{}' (scene: prefix forced)", sid);
+			return 0;
 		}
 
-		// Matchmake a registry scene by tags + gender slots, then start it.
-		// Returns the chosen id, or "".
-		RE::BSFixedString StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+		// Matchmake a registry pack by tags + gender slots and start it as a single-path scene.
+		// Returns the scene handle (0 = no match / start failed). The chosen id is recoverable
+		// via GetSceneId(handle).
+		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_tags)
 		{
 			if (a_actors.empty()) {
 				REX::WARN("OSF.StartSceneByTags: no actors given");
-				return "";
+				return 0;
 			}
 			for (auto* actor : a_actors) {
 				if (!actor) {
 					REX::WARN("OSF.StartSceneByTags: null actor in list");
-					return "";
+					return 0;
 				}
 			}
 			const auto genders = ActorGenders(a_actors);
@@ -309,44 +336,37 @@ namespace OSF::Papyrus
 			for (const auto& tag : a_tags) {
 				tags.emplace_back(tag.c_str());
 			}
-			auto& registry = Registry::PackRegistry::GetSingleton();
-			auto pick = registry.PickByTags(tags, genders);
+			auto pick = Registry::PackRegistry::GetSingleton().PickByTags(tags, genders);
 			if (!pick) {
-				return "";
+				return 0;
 			}
 			std::vector<RE::Actor*> ordered(a_actors.size());
 			for (size_t slot = 0; slot < pick->order.size(); slot++) {
 				ordered[slot] = a_actors[pick->order[slot]];
 			}
-			auto plan = registry.BuildScenePlan(pick->id, ordered.size());
-			bool ok = plan && Animation::GraphManager::GetSingleton().PlaySceneStaged(ordered, *plan, 0);
-			if (ok) {
-				REX::INFO("OSF.StartSceneByTags: playing '{}'", pick->id);
-				return pick->id;
+			const int32_t handle = Scene::SceneRuntime::GetSingleton().StartFromPack(pick->id, ordered, 0);
+			if (handle) {
+				REX::INFO("OSF.StartSceneByTags: playing '{}' (handle {:#010x})", pick->id, handle);
 			}
-			return "";
+			return handle;
 		}
 
 		// Ad-hoc atomic scene from raw files (the SAF PlaySceneSeparate replacement):
 		// co-locates the actors at actor[0], plays each file at afSpeed with afBlendIn,
-		// and syncs the clock. Content-neutral — no policy.
-		bool StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+		// and syncs the clock. Returns the scene handle (0 = failed). Content-neutral — no policy.
+		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_files, float a_speed, float a_blendIn)
 		{
 			if (a_actors.size() != a_files.size()) {
 				REX::WARN("OSF.StartSceneFiles: actor/file array sizes differ ({} vs {})", a_actors.size(), a_files.size());
-				return false;
+				return 0;
 			}
 			std::vector<std::string> files;
 			files.reserve(a_files.size());
 			for (const auto& f : a_files) {
 				files.emplace_back(f.c_str());
 			}
-			Animation::ScenePlan plan;
-			plan.stages.push_back({ files, {}, 0.0f });
-			plan.speed = a_speed;
-			plan.blendIn = a_blendIn;
-			return Animation::GraphManager::GetSingleton().PlaySceneStaged(a_actors, plan, 0);
+			return Scene::SceneRuntime::GetSingleton().StartFromFiles(a_actors, files, a_speed, a_blendIn);
 		}
 
 		// --- Scene-event callbacks (Phase A transport: Var[] payload) --------------
@@ -535,6 +555,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Sync", &Sync, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "PlaySequence", &PlaySequence, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StopScene", &StopScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StopSceneForActor", &StopSceneForActor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "NotifyGameLoaded", &NotifyGameLoaded, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);

@@ -456,6 +456,14 @@ namespace OSF::Animation
 		Camera::CameraService::GetSingleton().OnStopAll();
 		Player::PlayerControlService::GetSingleton().OnStopAll();
 
+		// Drop Layer-B scene handles too — their participants are raw Actor* that the load
+		// invalidates, so a stashed handle must read as dead afterward. Unconditional (even
+		// when we hold no graphs/scenes ourselves) so the handle table can never drift live
+		// across a load. Runs before stateLock: Clear takes SceneRuntime's own lock.
+		if (_clearHandler) {
+			_clearHandler();
+		}
+
 		std::unique_lock l{ stateLock };
 		if (scenes.empty() && graphs.empty()) {
 			return;
@@ -758,7 +766,27 @@ namespace OSF::Animation
 				return;
 			}
 			REX::INFO("Scene end task executing on game thread");
-			GetSingleton().StopSceneByPtr(keepAlive.get());
+			auto& gm = GetSingleton();
+
+			// Layer B (SceneRuntime) gets first refusal: a graph-driven scene takes the
+			// matching auto-edge (advance to the next node / end its scene) and owns the
+			// teardown. A standalone scene (direct StartScene*, no graph) is not claimed —
+			// we stop it ourselves, the legacy behavior. No GraphManager lock is held here,
+			// so the handler is free to PlaySceneStaged/StopScene.
+			bool handled = false;
+			if (gm._autoEndHandler) {
+				std::vector<RE::Actor*> actors;
+				for (const auto& p : keepAlive->participants) {
+					if (p && p->target) {
+						// scene participants are always actors (PlayScene takes Actor*)
+						actors.push_back(static_cast<RE::Actor*>(p->target.get()));
+					}
+				}
+				handled = gm._autoEndHandler(actors, keepAlive->endReason.load(std::memory_order_relaxed));
+			}
+			if (!handled) {
+				gm.StopSceneByPtr(keepAlive.get());
+			}
 		});
 	}
 
