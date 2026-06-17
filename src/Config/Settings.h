@@ -15,7 +15,9 @@
 //     "soundVolume": 1.0,         // master cue volume (clamped 0..2)
 //     "fadeEnabled": true,        // FadeService (osf.fade.out/in)
 //     "equipmentEnabled": true,   // EquipmentService (osf.equipment.hide) — alias: "undressEnabled"
-//     "weaponEnabled": true       // WeaponService (osf.weapon.sheathe)
+//     "weaponEnabled": true,      // WeaponService (osf.weapon.sheathe)
+//     "wwiseSelfTest": false      // Milestone-0 diagnostic: post the PCM test clip as a Wwise
+//                                 // external source at startup and log the playingID (one beep)
 //   }
 // // comments are tolerated, like pack JSON.
 

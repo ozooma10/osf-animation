@@ -1,26 +1,28 @@
 #pragma once
 
-// Cue-driven sound playback, two backends behind one Play() call:
+// Cue-driven sound playback. The single intended path is the game's own Wwise
+// engine (WwiseBackend.*) so everything rides the game mix — master/SFX volume
+// sliders, the pause menu, ducking and busses all apply:
 //
-// - File paths (the default): our own output device (miniaudio), BYPASSING
-//   the game's Wwise mix. Pack cues carry Data-relative sound paths
-//   (cues[].sound); the scene fires them here at cue time with the cue
-//   actor's rendered world position, and the per-frame Tick keeps the
-//   listener on the player. Spatialization is miniaudio's (inverse-distance
-//   attenuation + pan from the player's heading) — good enough for short
-//   voice/SFX clips, but the sounds do NOT react to the game's volume
-//   sliders, pause menu, or ducking.
-// - "event:<WwiseEventName>" / "event:0x<akEventID>" specs: posted through
-//   the game's OWN Wwise engine (WwiseBackend.*) — engine-mixed, but only
-//   events already in the game's loaded soundbanks, and for now unpositioned.
+// - "event:<WwiseEventName>" / "event:0x<akEventID>" specs: posted as a BAKED
+//   event (events already in a loaded soundbank), engine-mixed, at the listener.
+// - Plain file paths (the default for pack cues): posted as a Wwise EXTERNAL
+//   SOURCE through our shipped placeholder bank — loose .wav/.wem/.xwm play
+//   engine-mixed, no per-file soundbank authoring. This is the GAME'S OWN loose
+//   voice-file mechanism (RE-proven on 1.16.244). v1 posts at the listener
+//   (player game object); positioned posting is a deferred follow-up.
 //
-// Loose custom files cannot ride the Wwise path (no LoadBank mapping yet),
-// so miniaudio stays the backend for pack-shipped audio.
+// LEGACY FALLBACK (miniaudio, to be removed once the Wwise path is validated
+// in-game — Milestone 0): when the placeholder bank is not loaded, or for a
+// codec the external source can't stream directly, a plain file still plays
+// through our own output device, BYPASSING the game mix. This keeps loose-file
+// audio working before the authored bank is shipped; it is not the target.
 //
-// Threading: Play() is called from animation job threads (under the scene
-// lock) and must never block — sounds are created with async decode and all
-// service state sits behind one mutex. Init() runs the (slow) device init at
-// kPostDataLoad so the first cue doesn't stall a job thread.
+// Threading: Play() is called from animation job threads (under the scene lock)
+// and must never block. The Wwise post only enqueues into AK's command queue
+// (any-thread-safe). The miniaudio fallback creates sounds async and keeps all
+// service state behind one mutex. Init() runs the (slow) device init + the bank
+// load at kPostDataLoad so the first cue doesn't stall a job thread.
 
 namespace OSF::Audio
 {
@@ -58,7 +60,15 @@ namespace OSF::Audio
 		// Cuts every live sound (GraphManager::StopAll — a loaded save should
 		// not have last-world sounds ringing over it). Normal scene teardown
 		// deliberately lets sub-second tails finish on their own.
+		// (Only reaches the miniaudio fallback sounds; Wwise posts are
+		// fire-and-forget short cues the engine owns.)
 		void StopAll();
+
+		// Milestone-0 validation hook (gated by the "wwiseSelfTest" setting). Posts the
+		// shipped PCM test clip (OSF/Sounds/testbeep.wav) as a Wwise external source and
+		// logs the playingID — confirms the engine accepts our external post before any
+		// scene runs. See WwiseBackend::RunSelfTest.
+		void RunWwiseSelfTest();
 
 	private:
 		struct ActiveSound;

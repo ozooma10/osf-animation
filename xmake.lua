@@ -49,6 +49,12 @@ target("OSF Animation")
             if os.isdir("dist/OSF/Sounds") then
                 os.cp("dist/OSF/Sounds", osf .. "/")  -- sample sound cues, if any are present
             end
+            -- Wwise soundbanks live under Data\Sound\Soundbanks (NOT under OSF\). The mod folder
+            -- is a virtual Data root, so dist/Sound/** -> <mod>/Sound/**. The placeholder bank
+            -- (OSF_Placeholder.bnk) routes loose files through the engine mix once authored.
+            if os.isdir("dist/Sound") then
+                os.cp("dist/Sound", path.join(mods, target:name()) .. "/")
+            end
         end
     end)
 

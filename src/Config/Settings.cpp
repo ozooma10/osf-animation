@@ -66,6 +66,9 @@ namespace OSF::Config::Settings
 		// Deprecated alias for the content-neutral rename (equipment == the old "undress").
 		boolKey("undressEnabled", [](bool v) { Equipment::EquipmentService::GetSingleton().SetEnabled(v); });
 		boolKey("weaponEnabled", [](bool v) { Weapon::WeaponService::GetSingleton().SetEnabled(v); });
+		// Milestone-0 diagnostic: when true, post the PCM test clip as a Wwise external source at
+		// startup and log the playingID. Off by default; harmless to leave on (one beep at the menu).
+		boolKey("wwiseSelfTest", [](bool v) { if (v) Audio::SoundService::GetSingleton().RunWwiseSelfTest(); });
 
 		// Anything still here is either a typo or a key from a newer build. Warn loudly
 		// enough that someone can figure out why their setting didn't take effect.
