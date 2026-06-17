@@ -294,7 +294,12 @@ namespace OSF::Papyrus
 		bool HasFeature(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_feature)
 		{
 			const std::string f = Util::ToLower(a_feature.c_str());
-			if (f == "scenes" || f == "playback" || f == "sync" || f == "anchor") {
+			// One aggregate gate: every engine-layer capability reports the same "are the
+			// playback hooks installed + verified on this game build" state (they self-disable
+			// together on a version mismatch). The scene-runtime capabilities (cues/actions/
+			// sound/camera/callbacks) are part of the same merged engine.
+			if (f == "scenes" || f == "playback" || f == "sync" || f == "anchor" ||
+				f == "cues" || f == "actions" || f == "sound" || f == "camera" || f == "callbacks") {
 				return Animation::GraphManager::GetSingleton().HooksInstalled();
 			}
 			return false;
@@ -467,6 +472,24 @@ namespace OSF::Papyrus
 			Scene::SceneEventRelay::GetSingleton().DispatchStatic(a_script.c_str(), a_fn.c_str(), e);
 		}
 
+		// DEBUG (OSFCompat): fire a synthetic EVENT_ACTION carrying a REAL actor through the
+		// static dispatch, to prove the actorRef object marshalling (Actor* -> Var -> struct
+		// member) without needing a scripted-form instance for the real RegisterSceneCallback path.
+		void Dbg_FireActionActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_script,
+			RE::BSFixedString a_fn, RE::BSFixedString a_role)
+		{
+			REX::INFO("OSFCompat.Dbg_FireActionActor: -> {}.{}(SceneEvent) actor={:X} role='{}'",
+				a_script.c_str(), a_fn.c_str(), a_actor ? a_actor->formID : 0, a_role.c_str());
+			Scene::SceneEvent e;
+			e.scene = 0x9999;
+			e.event = Scene::Event::kAction;
+			e.node = "main";
+			e.actionType = "test.ping";
+			e.role = a_role.c_str();
+			e.actor = a_actor;  // packed into actorRef by PackPayload
+			Scene::SceneEventRelay::GetSingleton().DispatchStatic(a_script.c_str(), a_fn.c_str(), e);
+		}
+
 		// --- Scene state getters (handle-based; Phase A: the SceneRuntime instance table) --
 		// Scene instance id, or "" if the handle is invalid/ended.
 		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
@@ -556,6 +579,31 @@ namespace OSF::Papyrus
 			return out;
 		}
 
+		// True iff a_id names a scene that LOADED — a scene in the registry passed all of §1.6's
+		// validation (invalid scenes are skipped at load), so "loaded" == "valid". A scene that
+		// failed to parse is absent → false; use GetSceneValidationErrors / GetSceneLoadErrors to
+		// see why. (Pack-registry ids are not scenes and return false here.)
+		bool ValidateScene(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
+		{
+			return Registry::SceneRegistry::GetSingleton().Find(a_id.c_str()) != nullptr;
+		}
+
+		// The load problems (errors + warnings) referring to a_id — the subset of GetSceneLoadErrors
+		// whose text mentions the id (the reject/warn messages embed the scene id). Empty = the id
+		// had no recorded problems (it loaded clean, or the id never appeared). For a file that
+		// failed before its id could be read, use GetSceneLoadErrors (the full list).
+		std::vector<RE::BSFixedString> GetSceneValidationErrors(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
+		{
+			const std::string want = Util::ToLower(a_id.c_str());
+			std::vector<RE::BSFixedString> out;
+			for (const auto& e : Registry::SceneRegistry::GetSingleton().LoadErrors()) {
+				if (Util::ToLower(e).find(want) != std::string::npos) {
+					out.emplace_back(e.c_str());
+				}
+			}
+			return out;
+		}
+
 		// DEBUG (OSFCompat): log a parsed scene's graph structure to the OSF Animation.log.
 		void Dbg_DumpScene(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
 		{
@@ -616,6 +664,8 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneNode", &GetSceneNode, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneForActor", &GetSceneForActor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ValidateScene", &ValidateScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneValidationErrors", &GetSceneValidationErrors, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "AdvanceScene", &AdvanceScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "NavigateScene", &NavigateScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeCount", &GetSceneEdgeCount, true, false);
@@ -634,6 +684,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEvent", &Dbg_FireSceneEvent, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEventStatic", &Dbg_FireSceneEventStatic, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireActionActor", &Dbg_FireActionActor, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartScene", &Dbg_StartScene, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_SetSceneNode", &Dbg_SetSceneNode, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StopScene", &Dbg_StopScene, true, false);

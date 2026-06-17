@@ -8,11 +8,15 @@ re-verified at-gate on **1.16.244**; 2026-06-12 findings are native 1.16.244.
 **This doc = the facts the core relies on. The recovery runbook = `docs/POST_PATCH_CHECKLIST.md`.**
 Full RE record: osf-re `tools/ghidra/context_repo/modules/gameplay.actor_transforms.json`.
 
-> **Carved features moved.** RE for the carved tier — equipment (equip/unequip/add/remove),
-> cosave save-name hooks, the FaderMenu fade poster, Wwise `PostEvent` — is **not used by this
-> repo**; it belongs to the OSF Intimacy scene engine. Those findings are banked in osf-re
-> (`gameplay.actor_equipment`, `engine.save_load`, `ui.fader_menu`, `wwise-audio-re-handoff.md`)
-> and in the `OSF Animation Archive` repo. This page keeps only the core's ground truth.
+> **Policy-mechanism RE is now IN this repo (Phase C, 2026-06-17).** The scene engine merged back in,
+> so the Layer-C mechanism bindings — equipment equip/unequip (`ActorEquipManager` IDs 101949/101951),
+> the FaderMenu fade poster (114430), Wwise `PostEvent` (150391) — are **used by this repo** (see
+> `src/Equipment`, `src/UI/FadeService`, `src/Audio`). Each prologue-gates before use, like every
+> binding here. Canonical RE detail still lives in osf-re (`gameplay.actor_equipment`,
+> `engine.save_load`, `ui.fader_menu`, `wwise-audio-re-handoff.md`); this page keeps the core's ground
+> truth. **Still NOT in this repo:** cosave save-name hooks / aftermath persistence (deferred), and
+> free-fly/orbit camera (`camera.state_machine`, runtime-OPEN — the v1 camera lane uses only the
+> already-bound third-person force/hold).
 
 ## Version provenance
 
@@ -130,7 +134,7 @@ CLSF declares `SaveLoadEvent` payload-less; OSF reads it by raw offset in SaveSa
 World-replacing opTypes (full enumeration, osf-re `engine.save_load`): {kLoadMostRecent,
 kQuickload, kLoad, kLoadNamedFile}; new game / Unity-NG+ fire no SaveLoadEvent (the TESLoadGameEvent
 backstop owns them). The core uses these only to drop scene/graph state on a load and re-bind the
-natives onto the rebuilt VM — it does NOT persist cosave aftermath (that is OSF Intimacy).
+natives onto the rebuilt VM — it does NOT persist cosave aftermath (deferred, still unimplemented).
 
 ## Misc offsets & fallbacks
 

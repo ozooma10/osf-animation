@@ -248,9 +248,10 @@ Struct fields not listed for an event hold their null/sentinel (`""` / `None` / 
 | `ACTION_FAILED` | node | — | `actionType`=failed `osf.*` type | role if any | the entry's coordinate | `RESULT_*` |
 | `SCENE_END`/`SCENE_ABORT` | last node | — | — | — | — | `RESULT_*` on abort |
 
-(`akEvent.sceneHandle` is the handle for every event; `akEvent.loopIndex` is the current loop. **Phase
-A note:** `actorRef` is currently always `None` — real object marshalling lands with the events that
-carry a role/actor.)
+(`akEvent.sceneHandle` is the handle for every event; `akEvent.loopIndex` is the current loop.
+`akEvent.actorRef` is a real `Actor` object on events that resolve a role — in v1 that is
+`EVENT_ACTION` (custom action) with a `role`, where it is the bound participant; other events leave it
+`None`. Marshalled via CLSF's handle-policy `PackVariable`.)
 
 ## 1.3 The `*.scene.json` schema (v1)
 

@@ -2,6 +2,7 @@
 
 #include "Util/StringUtil.h"
 
+#include "RE/B/BSScriptUtil.h"
 #include "RE/S/Struct.h"
 #include "RE/S/StructTypeInfo.h"
 #include "RE/V/VirtualMachine.h"
@@ -53,7 +54,13 @@ namespace OSF::Scene
 			v = a_event.time;                                   set("time", v);
 			v = RE::BSFixedString(a_event.anchor.c_str());      set("anchor", v);
 			v = a_event.result;                                 set("result", v);
-			// actorRef: left as the struct default (None) for Phase A.
+			// actorRef: packed as a real Actor object via CLSF's handle-policy helper when the
+			// event carries one (v1: EVENT_ACTION with a resolved role). Otherwise left None.
+			if (a_event.actor) {
+				RE::BSScript::Variable actorVar;
+				RE::BSScript::detail::PackVariable(actorVar, a_event.actor);
+				set("actorRef", actorVar);
+			}
 
 			a_out = proxy;
 			return true;

@@ -5,10 +5,12 @@ and self-disables on mismatch, so the worst case is "plugin loads, features refu
 a crash. This document turns recovery from an archaeology dig into a checklist: every
 version-sensitive binding the lean core uses, where it lives, how it gates, and how to re-verify it.*
 
-> **Lean core scope.** The carved tier's bindings — equipment (equip/unequip/add/remove), cosave
-> save-name hooks, the FaderMenu fade poster, Wwise `PostEvent` — are **not in this repo**; they
-> moved to the OSF Intimacy scene engine and are tracked in its checklist. This page lists only the
-> handful of bindings the playback core depends on.
+> **Scope: playback core + Layer-C mechanisms.** The scene engine merged back in (Phase C,
+> 2026-06-17), so this checklist now also covers the policy-mechanism bindings that ship here:
+> equipment equip/unequip (`ActorEquipManager` 101949/101951), the FaderMenu fade poster (114430),
+> and Wwise `PostEvent` (150391) — each prologue-gated and self-disabling on a mismatch. **Still NOT
+> in this repo** (skip them here): cosave save-name hooks / aftermath persistence (deferred) and
+> free-fly/orbit camera (the v1 camera lane only uses the already-listed third-person force/hold).
 
 **Bus-factor note:** someone who is *not* the original author should be able to list every binding
 needing re-verification in <10 minutes from this table. Re-deriving a moved address still needs the
@@ -96,8 +98,9 @@ Verify every inherited ID against expected bytes/slots before patching — never
 ## RE project
 
 Ground truth lives in the dedicated **OSF RE** project (`C:\Modding\Starfield\OSF RE`), Ghidra
-context repo under `tools/ghidra/context_repo/modules/`. Canonical modules for the core's bindings:
-`gameplay.actor_transforms` (hooks, rig, transforms, movement) and `engine.save_load` (rows 3–5,
-opType enumeration). Carved-feature modules (`gameplay.actor_equipment`, `ui.fader_menu`, the Wwise
-handoff) are OSF Intimacy's concern. All pre-2026-06 findings proven on 1.16.242 and re-verified
+context repo under `tools/ghidra/context_repo/modules/`. Canonical modules for this repo's bindings:
+`gameplay.actor_transforms` (hooks, rig, transforms, movement), `engine.save_load` (rows 3–5, opType
+enumeration), and — since the Phase-C merge — the Layer-C mechanism modules `gameplay.actor_equipment`,
+`ui.fader_menu`, and the Wwise handoff (now used here, not external). `camera.state_machine` is consulted
+but the free-fly path stays deferred. All pre-2026-06 findings proven on 1.16.242 and re-verified
 at-gate on 1.16.244; 2026-06-12 findings are native 1.16.244.

@@ -338,6 +338,11 @@ namespace OSF::Scene
 		e.actionType = std::string(a_type);
 		e.role = std::string(a_role);
 		e.anchor = std::string(a_anchor);
+		// Carry the bound actor when the action names a role, so the receiver gets it directly
+		// (akEvent.actorRef) without a GetSceneForActor round-trip. Empty role -> None.
+		if (!a_role.empty()) {
+			e.actor = GetSingleton().ResolveRoleActor(a_handle, a_role);
+		}
 		SceneEventRelay::GetSingleton().Dispatch(e);
 	}
 

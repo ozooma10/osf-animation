@@ -92,7 +92,10 @@ int Function ReloadPacks() Global Native
 ; True once OSF is loaded + initialized (hooks installed).
 bool Function IsReady() Global Native
 
-; True when the named feature is effective in this build.
+; True when the named feature is effective in this build. One aggregate "is OSF's engine layer
+; live?" gate — "scenes"/"playback"/"sync"/"anchor"/"cues"/"actions"/"sound"/"camera"/"callbacks"
+; all report the same state (playback hooks installed + verified; they self-disable together on a
+; version mismatch). Unknown name -> false.
 bool Function HasFeature(string asFeature) Global Native
 
 ; Framework version (semver). Natives are never removed and signatures never change within a major; minors only add.
@@ -116,6 +119,16 @@ int Function GetSceneForActor(Actor akActor) Global Native
 ; Problems (errors + warnings, each prefixed [error]/[warn]) from the last scene load / ReloadPacks
 ; Empty = all scene files loaded cleanly.
 string[] Function GetSceneLoadErrors() Global Native
+
+; True iff asSceneId names a scene that LOADED — a scene in the registry passed all validation
+; (invalid scenes are skipped at load), so loaded == valid. False for an unknown/failed id or a
+; pack id. Use GetSceneValidationErrors(asSceneId) to see why an id is invalid.
+bool Function ValidateScene(string asSceneId) Global Native
+
+; The load problems referring to asSceneId (the subset of GetSceneLoadErrors mentioning the id).
+; Empty = no recorded problems for that id. For a file that failed before its id could be read,
+; use GetSceneLoadErrors (the full list).
+string[] Function GetSceneValidationErrors(string asSceneId) Global Native
 
 ; --- Scene navigation (handle-based; def-backed scenes) -----------------------
 ; Take the current node's DEFAULT advance edge (or end the scene if it targets "$end").

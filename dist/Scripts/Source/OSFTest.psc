@@ -181,13 +181,47 @@ EndFunction
 ; Receiver: takes the OSFEvent:SceneEvent struct and reads fields directly. This is the
 ; shape every real consumer's callback function takes.
 Function OnSceneEvent(OSFEvent:SceneEvent akEvent) global
+    string actorStr = "None"
+    If akEvent.actorRef
+        actorStr = akEvent.actorRef.GetFormID() + ""
+    EndIf
     string msg = "OnSceneEvent: scene=" + akEvent.sceneHandle \
         + " event=" + akEvent.eventType \
         + " node='" + akEvent.node + "'" \
-        + " anchor='" + akEvent.anchor + "'"
+        + " anchor='" + akEvent.anchor + "'" \
+        + " action='" + akEvent.actionType + "'" \
+        + " role='" + akEvent.role + "'" \
+        + " actorRef=" + actorStr
     OSFCompat.Dbg_Log(msg)              ; -> OSF Animation.log (reliable)
     Debug.Trace("OSFTest." + msg)        ; -> Papyrus log (only if logging enabled)
     Debug.Notification("OSF: " + msg)    ; -> on-screen
+EndFunction
+
+; --- Diagnostics natives: ValidateScene / GetSceneValidationErrors + HasFeature ----------
+; Reloads, then validates a known-good scene + a bogus id, dumps per-id validation errors, and
+; checks the merged HasFeature capability names. Watch the OSF Animation.log.
+;   cgf "OSFTest.ValidateTest"
+Function ValidateTest() global
+    OSF.ReloadPacks()
+    OSFCompat.Dbg_Log("ValidateTest: ValidateScene('author.scenes.demo')=" + OSF.ValidateScene("author.scenes.demo") + " (expect True)")
+    OSFCompat.Dbg_Log("ValidateTest: ValidateScene('author.scenes.nope')=" + OSF.ValidateScene("author.scenes.nope") + " (expect False)")
+    string[] errs = OSF.GetSceneValidationErrors("author.scenes.demo")
+    OSFCompat.Dbg_Log("ValidateTest: demo has " + errs.Length + " validation problem(s)")
+    OSFCompat.Dbg_Log("ValidateTest: HasFeature scenes=" + OSF.HasFeature("scenes") + " actions=" + OSF.HasFeature("actions") + " sound=" + OSF.HasFeature("sound") + " camera=" + OSF.HasFeature("camera") + " callbacks=" + OSF.HasFeature("callbacks") + " bogus=" + OSF.HasFeature("bogus"))
+EndFunction
+
+; --- Callback actorRef marshalling -------------------------------------------------------
+; Fires a synthetic EVENT_ACTION carrying the crosshair actor (or player) through the static
+; dispatch to OnSceneEvent, proving the Actor -> actorRef struct-member marshalling. Expect an
+; 'OnSceneEvent ... action='test.ping' role='lead' actorRef=<formID>' line (not None).
+;   cgf "OSFTest.ActorRefTest"
+Function ActorRefTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    OSFCompat.Dbg_Log("ActorRefTest: firing EVENT_ACTION with actor " + a.GetFormID() + " -> expect actorRef=" + a.GetFormID())
+    OSFCompat.Dbg_FireActionActor(a, "OSFTest", "OnSceneEvent", "lead")
 EndFunction
 
 ; --- Scene-runtime lifecycle prototype (handles + lifecycle events) ----------

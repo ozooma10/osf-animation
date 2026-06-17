@@ -27,6 +27,10 @@ Function Dbg_FireSceneEvent(int aiScene, int aiEvent, string asNode) Global Nati
 ; no registration. Proves the Var[] marshalling from the console without a scripted form.
 Function Dbg_FireSceneEventStatic(string asScript, string asFn, int aiScene, int aiEvent, string asNode) Global Native
 
+; DEBUG: fire a synthetic EVENT_ACTION carrying a REAL actor through the static dispatch — proves
+; the actorRef object marshalling (Actor -> struct member) without a scripted-form instance.
+Function Dbg_FireActionActor(Actor akActor, string asScript, string asFn, string asRole) Global Native
+
 ; DEBUG directly (mint a handle + fire NODE_ENTER; transition fires NODE_EXIT+NODE_ENTER; 
 ; stop fires NODE_EXIT+SCENE_END and invalidates the handle).
 int Function Dbg_StartScene(Actor akActor, string asId, string asNode) Global Native
