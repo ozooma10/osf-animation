@@ -3,6 +3,7 @@
 #include "Audio/SoundService.h"
 #include "Equipment/EquipmentService.h"
 #include "UI/FadeService.h"
+#include "Weapon/WeaponService.h"
 
 #include <fstream>
 
@@ -64,6 +65,7 @@ namespace OSF::Config::Settings
 		boolKey("equipmentEnabled", [](bool v) { Equipment::EquipmentService::GetSingleton().SetEnabled(v); });
 		// Deprecated alias for the content-neutral rename (equipment == the old "undress").
 		boolKey("undressEnabled", [](bool v) { Equipment::EquipmentService::GetSingleton().SetEnabled(v); });
+		boolKey("weaponEnabled", [](bool v) { Weapon::WeaponService::GetSingleton().SetEnabled(v); });
 
 		// Anything still here is either a typo or a key from a newer build. Warn loudly
 		// enough that someone can figure out why their setting didn't take effect.

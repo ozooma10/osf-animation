@@ -10,6 +10,7 @@
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
 #include "Util/StringUtil.h"
+#include "Weapon/WeaponService.h"
 
 #include <algorithm>
 #include <charconv>
@@ -381,6 +382,7 @@ namespace OSF::Scene
 		bool disengageLock = false;
 		std::int32_t remaining = 0;
 		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;  // moved out for kEquipment
+		std::vector<RE::Actor*> weapon;                                 // moved out for kWeapon
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
@@ -400,6 +402,8 @@ namespace OSF::Scene
 				remaining = _controlLockCount;
 			} else if (a_mech == Mechanism::kEquipment) {
 				equip.swap(s->hiddenEquip);  // take this scene's hidden apparel out for restore
+			} else if (a_mech == Mechanism::kWeapon) {
+				weapon.swap(s->sheathedWeapon);  // take this scene's sheathed actors out for re-draw
 			}
 		}
 		// Apply the reversal OUTSIDE the lock (services enter the VM / post UI messages / touch
@@ -427,6 +431,12 @@ namespace OSF::Scene
 		case Mechanism::kCamera:
 			REX::INFO("SceneRuntime: scene {:#010x} camera undo — releasing the camera hold", a_handle);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
+			break;
+		case Mechanism::kWeapon:
+			REX::INFO("SceneRuntime: scene {:#010x} weapon undo — re-drawing {} actor(s)", a_handle, weapon.size());
+			for (auto* actor : weapon) {
+				Weapon::WeaponService::GetSingleton().Draw(actor);
+			}
 			break;
 		}
 	}
@@ -493,6 +503,22 @@ namespace OSF::Scene
 		s->hiddenEquip.emplace_back(a_actor, std::move(a_snapshot));
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipment) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kEquipment);  // one ledger entry; the snapshots accumulate
+		}
+	}
+
+	void SceneRuntime::RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor)
+	{
+		std::lock_guard l{ _lock };
+		Slot* s = Resolve(a_handle);
+		if (!s) {
+			return;
+		}
+		if (std::find(s->sheathedWeapon.begin(), s->sheathedWeapon.end(), a_actor) != s->sheathedWeapon.end()) {
+			return;  // already recorded for this scene
+		}
+		s->sheathedWeapon.push_back(a_actor);
+		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kWeapon) == s->ledger.end()) {
+			s->ledger.push_back(Mechanism::kWeapon);  // one ledger entry; the actors accumulate
 		}
 	}
 
@@ -585,6 +611,27 @@ namespace OSF::Scene
 			// it. (Restores the whole scene's hidden apparel; per-role restore isn't done yet.)
 			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipment);
+		} else if (type == "osf.weapon.sheathe") {
+			// Holster the role's actor's weapon; record it so cleanup (or osf.weapon.restore)
+			// re-draws it. Disabled by settings = silent skip. Symmetric pair (see WeaponService):
+			// re-draw on cleanup is unconditional, so author this only on a role that's armed.
+			if (!Weapon::WeaponService::GetSingleton().Enabled()) {
+				REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.sheathe — disabled by settings, skipped", a_handle);
+			} else if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
+				if (Weapon::WeaponService::GetSingleton().Sheathe(actor)) {
+					REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.sheathe (role '{}')", a_handle, a_action.role);
+					GetSingleton().RecordSheathedWeapon(a_handle, actor);
+				} else {
+					REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.sheathe — unavailable on this build, skipped", a_handle);
+				}
+			} else {
+				REX::WARN("SceneRuntime: scene {:#010x} osf.weapon.sheathe — role '{}' resolved no actor, skipped",
+					a_handle, a_action.role);
+			}
+		} else if (type == "osf.weapon.restore") {
+			// Re-draw everything this scene sheathed + drop the weapon debt so cleanup won't redo it.
+			REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.restore", a_handle);
+			GetSingleton().UndoMechanism(a_handle, Mechanism::kWeapon);
 		} else if (type == "osf.voice.play") {
 			// Fire-and-forget voice line: play the `set` spec at the role's actor. Not reversible
 			// (a one-shot sound has nothing to undo), so no ledger entry. Silent-skips if disabled.

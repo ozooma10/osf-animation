@@ -14,7 +14,8 @@
 //     "soundEnabled": true,       // SoundService (osf.voice.play + the sound lane)
 //     "soundVolume": 1.0,         // master cue volume (clamped 0..2)
 //     "fadeEnabled": true,        // FadeService (osf.fade.out/in)
-//     "equipmentEnabled": true    // EquipmentService (osf.equipment.hide) — alias: "undressEnabled"
+//     "equipmentEnabled": true,   // EquipmentService (osf.equipment.hide) — alias: "undressEnabled"
+//     "weaponEnabled": true       // WeaponService (osf.weapon.sheathe)
 //   }
 // // comments are tolerated, like pack JSON.
 

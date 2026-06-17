@@ -298,7 +298,8 @@ namespace OSF::Papyrus
 			// together on a version mismatch). The scene-runtime capabilities (cues/actions/
 			// sound/camera/callbacks) are part of the same merged engine.
 			if (f == "scenes" || f == "playback" || f == "sync" || f == "anchor" ||
-				f == "cues" || f == "actions" || f == "sound" || f == "camera" || f == "callbacks") {
+				f == "cues" || f == "actions" || f == "sound" || f == "camera" || f == "callbacks" ||
+				f == "weapon") {
 				return Animation::GraphManager::GetSingleton().HooksInstalled();
 			}
 			return false;

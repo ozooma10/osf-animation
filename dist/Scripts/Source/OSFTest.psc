@@ -569,3 +569,70 @@ Function CameraTest() global
     OSFCompat.Dbg_Log("CameraTest: stopping — expect 'camera undo' + restore to first person.")
     OSF.StopScene(h)
 EndFunction
+
+; --- Weapon sheathe/restore (osf.weapon.*) -----------------------------------
+; DRAW your weapon first, then run on the PLAYER: on enter osf.weapon.sheathe holsters it and
+; records it in the undo ledger. NO authored restore — on stop (~5s) the ledger re-draws (the
+; symmetric pair, like EquipTest). Watch your weapon holster then draw.
+; Expect: 'osf.weapon.sheathe (role 'lead')' + 'Actor XX: weapon sheathed'; on stop NODE_EXIT ->
+; 'weapon undo — re-drawing 1 actor(s)' -> 'Actor XX: weapon drawn' -> SCENE_END.
+; If the log shows 'unavailable on this build' the Actor vtable binding didn't resolve (see RE.md).
+;   cgf "OSFTest.WeaponTest"
+Function WeaponTest() global
+    Actor a = Game.GetPlayer()
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.weapontest", 0)
+    OSFCompat.Dbg_Log("WeaponTest: started h=" + h + " — your weapon should HOLSTER now. Stopping in 5s; expect it RE-DRAWN (ledger, no authored restore).")
+    Utility.Wait(5.0)
+    OSFCompat.Dbg_Log("WeaponTest: stopping — expect 'weapon undo — re-drawing' + weapon drawn again.")
+    OSF.StopScene(h)
+EndFunction
+
+; --- StartSceneAt (scene world-anchored at an ObjectReference) ----------------
+; Point the crosshair at a piece of FURNITURE / a marker / any nearby ref, then run on the
+; PLAYER: the scene anchors at that ref (position + its heading) instead of at the player's feet,
+; so the player co-locates AT the ref. Contrast with SceneHandleTest (anchors at the actor).
+; Expect the log to report 'anchored at (x,y,z)' = the ref's position, and the player to snap
+; there and hold the 'solo' pose. Stops after ~6s.
+;   cgf "OSFTest.StartAtTest"
+Function StartAtTest() global
+    ObjectReference anchor = OSFCompat.GetCrosshairRef()
+    If !anchor
+        OSFCompat.Dbg_Log("StartAtTest: no crosshair ref — point at furniture / a marker and retry.")
+        Return
+    EndIf
+    Actor[] actors = new Actor[1]
+    actors[0] = Game.GetPlayer()
+    int h = OSF.StartSceneAt(actors, "solo", anchor)
+    OSFCompat.Dbg_Log("StartAtTest: StartSceneAt('solo') at ref " + anchor.GetFormID() + " -> h=" + h + " (expect the player AT the ref, not where they stood). Stopping in 6s.")
+    Utility.Wait(6.0)
+    OSF.StopScene(h)
+    OSFCompat.Dbg_Log("StartAtTest: stopped.")
+EndFunction
+
+; --- Scene-metadata introspection (read-only; no scene started) ---------------
+; Dumps a scene's role/gender/tag/actor-count WITHOUT starting it. Checks a known-good scene
+; (author.scenes.weapontest: 1 role 'lead' any, tags test+solo) and an unknown id (-> empty/0).
+;   cgf "OSFTest.IntrospectTest"   (or:  cgf "OSFTest.IntrospectScene" "author.scenes.demo")
+Function IntrospectTest() global
+    IntrospectScene("author.scenes.weapontest")
+    IntrospectScene("author.scenes.nope")
+EndFunction
+
+Function IntrospectScene(string id) global
+    string[] roles = OSF.GetSceneRoles(id)
+    string[] tags = OSF.GetSceneTags(id)
+    int n = OSF.GetSceneActorCount(id)
+    OSFCompat.Dbg_Log("IntrospectScene '" + id + "': actorCount=" + n + " roles=" + roles.Length + " tags=" + tags.Length)
+    int i = 0
+    While i < roles.Length
+        OSFCompat.Dbg_Log("  role[" + i + "]='" + roles[i] + "' gender='" + OSF.GetSceneRoleGender(id, roles[i]) + "'")
+        i += 1
+    EndWhile
+    i = 0
+    While i < tags.Length
+        OSFCompat.Dbg_Log("  tag[" + i + "]='" + tags[i] + "'")
+        i += 1
+    EndWhile
+EndFunction

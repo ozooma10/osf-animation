@@ -101,6 +101,7 @@ namespace OSF::Registry
 			static const std::unordered_set<std::string> kKnown{
 				"osf.control.lock", "osf.control.release",
 				"osf.equipment.hide", "osf.equipment.restore",
+				"osf.weapon.sheathe", "osf.weapon.restore",
 				"osf.fade.out", "osf.fade.in",
 				"osf.voice.play"
 			};
@@ -131,6 +132,7 @@ namespace OSF::Registry
 					// also needs its sound set. Fade takes no required field.
 					const bool needsRole = typeLower == "osf.control.lock" || typeLower == "osf.control.release" ||
 						typeLower == "osf.equipment.hide" || typeLower == "osf.equipment.restore" ||
+						typeLower == "osf.weapon.sheathe" || typeLower == "osf.weapon.restore" ||
 						typeLower == "osf.voice.play";
 					if (needsRole && ae.role.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' requires 'role'");

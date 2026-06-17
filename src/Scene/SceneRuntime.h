@@ -151,7 +151,8 @@ namespace OSF::Scene
 			kControlLock,  // player control + camera lock (ref-counted across scenes)
 			kFade,         // screen fade-to-black (undo = fade back in)
 			kEquipment,    // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
-			kCamera        // held camera state (undo = release the standalone camera lock)
+			kCamera,       // held camera state (undo = release the standalone camera lock)
+			kWeapon        // sheathed weapons (undo = re-draw; per-actor list in the Slot)
 		};
 
 		struct Slot
@@ -170,6 +171,9 @@ namespace OSF::Scene
 			// here (not the ledger entry) so the ledger stays a plain ordered type list — same
 			// pattern as control-lock keeping its count in _controlLockCount.
 			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenEquip;
+			// kWeapon's per-actor state: actors this scene sheathed (re-drawn on undo). Same
+			// out-of-ledger pattern as hiddenEquip.
+			std::vector<RE::Actor*> sheathedWeapon;
 		};
 
 		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen >= 1 -> nonzero).
@@ -259,6 +263,10 @@ namespace OSF::Scene
 		// Record apparel this scene hid for a_actor (osf.equipment.hide), adding the kEquipment
 		// ledger entry. Call OUTSIDE _lock (it locks). a_snapshot moved in.
 		void RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
+
+		// Record a weapon this scene sheathed for a_actor (osf.weapon.sheathe), adding the
+		// kWeapon ledger entry. Call OUTSIDE _lock (it locks).
+		void RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor);
 
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants
 		// already snapshotted. PlayNodeAnim looks up the node's `anim` id and copies the node's
