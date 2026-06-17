@@ -4,8 +4,8 @@ namespace OSF::UI
 {
 	namespace CompatWarning
 	{
-		// Probes for co-loaded SAF/NAFSF modules (GetModuleHandle — no load, no ref count)
-		// If any are present, logs it and raises a blocking Win32 MessageBox
+		// Checks whether SAF or NAFSF are loaded alongside us (via GetModuleHandle, so we
+		// don't load or ref-count them). If either is, logs it and pops a blocking message box.
 		void ProbeIncompatibilities();
 	}
 }

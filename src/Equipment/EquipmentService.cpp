@@ -7,10 +7,9 @@ namespace OSF::Equipment
 {
 	namespace
 	{
-		// Equip/unequip are mapped in CLSF (ID::ActorEquipManager::{Equip,Unequip}Object =
-		// 101949/101951). We prologue-gate before first use: the RE was disassembled on
-		// 1.16.236, and this is the verify-before-call discipline every engine call gets.
-		// Shared first 29 bytes (byte 29 differs E0/D0 = stack frame size, excluded).
+		// Equip/unequip go through ActorEquipManager::{Equip,Unequip}Object. We byte-check
+		// both before first use, like every other raw engine call. These are the shared first
+		// 29 bytes (byte 29 differs, E0/D0 = stack frame size, so it's left out).
 		constexpr std::array<std::uint8_t, 29> kExpectedPrologue{
 			0x48, 0x89, 0x5C, 0x24, 0x18, 0x48, 0x89, 0x4C, 0x24, 0x08,
 			0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41,
@@ -40,9 +39,8 @@ namespace OSF::Equipment
 				REX::WARN("Undress/redress disabled: ActorEquipManager singleton resolved null");
 				return false;
 			}
-			// Verify-before-call gate: confirm CLSF's mapped IDs land on the expected code on
-			// THIS runtime (the RE was on 1.16.236). A mismatch disables the feature instead of
-			// calling into wrong code.
+			// Make sure the two functions still look like what we expect on this game build.
+			// On a mismatch we disable the feature rather than call into the wrong code.
 			if (!PrologueMatches(RE::ID::ActorEquipManager::EquipObject) ||
 				!PrologueMatches(RE::ID::ActorEquipManager::UnequipObject)) {
 				REX::WARN("Undress/redress disabled: equip/unequip prologue mismatch on this runtime "
@@ -66,9 +64,9 @@ namespace OSF::Equipment
 
 		// Never strip the actor's base skin: on some NPCs the skin/body ARMO enumerates as an
 		// equipped inventory item, and unequipping it leaves the actor invisible. Identified by
-		// FORM IDENTITY (NPC override skin, else race default — TESNPC::GetSkin) instead of the
-		// biped mask, whose offset is contested between CLSF and the 1.16.236 RE. A wrong
-		// resolve can only fail the pointer compare below, so this stays fail-soft.
+		// form identity (NPC override skin, else race default, via TESNPC::GetSkin) rather than
+		// the biped mask, whose offset we're not fully sure of. A wrong resolve can only fail the
+		// pointer compare below, so this stays fail-soft.
 		const RE::TESObjectARMO* skin = nullptr;
 		if (auto* npc = a_actor->GetNPC()) {
 			skin = npc->GetSkin();
@@ -129,8 +127,8 @@ namespace OSF::Equipment
 				continue;
 			}
 			// Re-resolve instanceData from the live item: the engine's outfit/skin pass can
-			// re-instance items while unequipped, so the snapshot's instanceData may be stale
-			// (RE guidance). Fall back to the snapshot.
+			// re-instance items while unequipped, so the snapshot's instanceData may be stale.
+			// Fall back to the snapshot copy.
 			RE::TBO_InstanceData* liveInstance = w.instanceData.get();
 			{
 				const auto guard = a_actor->inventoryList.LockRead();

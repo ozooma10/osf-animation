@@ -27,7 +27,7 @@ namespace OSF::UI
 		// void(bool fadingOut /*cl*/, bool blackFade /*dl*/,
 		//      float fadeDuration /*xmm2*/, bool stayFaded /*r9b*/,
 		//      float secsBeforeFade, RefCounted* doneCallback,
-		//      bool setGlobalFadedFlag, u32 flags) — RE-recovered signature;
+		//      bool setGlobalFadedFlag, u32 flags) — the recovered signature;
 		// trailing constants mirror the Papyrus thunk exactly
 		// (callback=null, setGlobalFadedFlag=1, flags=1).
 		using FadeScreenFn = void (*)(bool a_fadingOut, bool a_blackFade, float a_fadeDuration,
@@ -114,19 +114,17 @@ namespace OSF::UI
 			return false;
 		}
 		releaseAtMs.store(0, std::memory_order_relaxed);
-		// Fade-in always releases the engine-side latch, even mid-fade-out
-		// (RE-proven: StartFade never refuses a fade-in request).
+		// A fade-in always releases the engine-side latch, even mid-fade-out
+		// (the engine never refuses a fade-in request).
 		PostFade(/*fadingOut*/ false, std::clamp(a_fadeSecs, 0.05f, 5.0f), /*stayFaded*/ false);
 		return true;
 	}
 
 	void FadeService::OnStopAll()
 	{
-		// Release NOW if anything is held or ramping: GraphManager::StopAll
-		// runs synchronously in the SaveLoadEvent BEGIN sink, and the engine
-		// load path crashes on a held stay-faded latch (runtime-proven,
-		// osf-re ui.fader_menu). Posting is enqueue-only — safe in the
-		// pre-load window.
+		// Release right now if anything is held or ramping: StopAll runs synchronously
+		// in the save-load sink, and the load path crashes on a held stay-faded latch.
+		// Posting only enqueues, so it's safe in the pre-load window.
 		if (releaseAtMs.exchange(0, std::memory_order_relaxed) != 0 && Available()) {
 			PostFade(/*fadingOut*/ false, 0.3f, /*stayFaded*/ false);
 			REX::INFO("Held screen fade released for save-load teardown");

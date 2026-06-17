@@ -3,9 +3,9 @@
 namespace OSF::Camera
 {
 	// Standalone player-camera lock used by the SAF-compat playback path (the
-	// Play+Sync flow that has no managed Scene). Forces third person and bounces
-	// the player back if they zoom into first person while held. Scene-integrated
-	// camera policy lives in the OSF Intimacy scene engine, not here.
+	// Play+Sync flow with no managed Scene). Forces third person and bounces the
+	// player back if they zoom into first person while it's held. This is just the
+	// lock mechanism; the scene runtime decides when to apply it.
 	class CameraService
 	{
 	public:

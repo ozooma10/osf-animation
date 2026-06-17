@@ -60,9 +60,9 @@ namespace OSF::Animation
 						ApplyStageLocked(0);  // PlaySequence whole-loop
 						REX::INFO("Scene: final stage {} expired — looping to stage 0", why);
 					} else {
-						// Record which condition fired so the Layer-B auto-advance handler
-						// can pick the matching auto-edge (timer vs loops/end). Set BEFORE
-						// `ended` so a reader gated on `ended` sees the reason.
+						// Record which condition fired so the scene runtime's auto-advance
+						// handler can pick the matching auto-edge (timer vs loops/end). Set
+						// before `ended` so a reader gated on `ended` sees the reason.
 						endReason.store(timerExpired ? SceneEndReason::kTimer : SceneEndReason::kLoops,
 							std::memory_order_relaxed);
 						ended.store(true, std::memory_order_relaxed);  // hook defers StopScene

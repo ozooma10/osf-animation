@@ -11,9 +11,9 @@ namespace OSF::Audio::Wwise
 	{
 		// AK::SoundEngine::PostEvent(AkUniqueID, AkGameObjectID, u32 flags,
 		// callback, cookie, u32 cExternals, AkExternalSourceInfo*, AkPlayingID)
-		// — exact Wwise 2021.1 ABI, statically pinned and RUNTIME-PROVEN on
-		// 1.16.244 (called from a fresh worker thread; returned playing IDs
-		// continued the engine's own counter). See wwise-audio-re-handoff.md §7.
+		// — the Wwise 2021.1 ABI, statically linked into the game. Confirmed
+		// callable on 1.16.244: called from a worker thread, the returned playing
+		// IDs continued the engine's own counter.
 		constexpr REL::ID kAkPostEventByID{ 150391 };
 
 		// First 16 bytes of 150391, byte-identical on 1.16.242 and 1.16.244

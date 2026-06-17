@@ -169,7 +169,7 @@ Function StopPair(Actor a) global
 EndFunction
 
 ; --- Scene-event callback transport prototype -------------------------------
-; Proves the C++->Papyrus Var[] dispatch (docs/SCENE_DESIGN §1.2). No CK/ESP needed:
+; Proves the C++->Papyrus Var[] dispatch. No CK/ESP needed:
 ; Dbg_FireSceneEventStatic dispatches a synthetic event straight to OnSceneEvent below.
 ;   cgf "OSFTest.CbTransportTest"   -> fires NODE_ENTER then SCENE_END; watch the log
 Function CbTransportTest() global
@@ -225,7 +225,7 @@ Function ActorRefTest() global
 EndFunction
 
 ; --- Scene-runtime lifecycle prototype (handles + lifecycle events) ----------
-; Exercises the Phase-A scene-instance spine: mint a handle, query getters, transition a
+; Exercises the scene-instance spine: mint a handle, query getters, transition a
 ; node, stop. Lifecycle events (NODE_ENTER/EXIT/SCENE_END) are logged by the runtime, so
 ; they're visible with no registered callback (the relay also delivers them to any that are).
 ;   cgf "OSFTest.SceneTest"   -> watch the OSF Animation.log
@@ -306,7 +306,7 @@ Function PbTest() global
     OSFCompat.Dbg_Log("PbTest: stopped -> animation ends")
 EndFunction
 
-; --- P3 AUTO-advance test (the scene walks its OWN graph; NO manual advance) -----
+; --- Auto-advance test (the scene walks its OWN graph; NO manual advance) -----
 ; Point the crosshair at an actor (or none = the player), run, then DON'T touch it.
 ; Node 'first' (StandSurrender) holds for a 4s timer, then the runtime auto-takes its
 ; 'timer' edge to 'second' (StandCover); after another 4s timer it auto-takes a 'timer'
@@ -323,7 +323,7 @@ Function AutoTest() global
     OSFCompat.Dbg_Log("AutoTest: now WAIT, do NOT advance. ~4s -> 'second' (auto), ~4s more -> scene ends (auto).")
 EndFunction
 
-; --- Actor-exclusivity test (one actor -> at most one live scene, SCENE_DESIGN §1.3) ---
+; --- Actor-exclusivity test (one actor -> at most one live scene) ---
 ; Start a scene on the actor, then try to start a SECOND on the same actor: the second
 ; start must be REFUSED (handle 0) while the first stays live and GetSceneForActor keeps
 ; returning it. Uses the hold-based pbtest scene so nothing auto-advances mid-check; the
@@ -343,9 +343,9 @@ Function ExclusivityTest() global
     OSFCompat.Dbg_Log("ExclusivityTest: stopped h1; GetSceneForActor=" + OSF.GetSceneForActor(a) + " (expect 0)")
 EndFunction
 
-; --- P2: the REAL public StartScene -> handle (routed through the scene runtime) -------
+; --- The REAL public StartScene -> handle (routed through the scene runtime) -------
 ; The public StartScene/StartSceneByTags/StartSceneFiles now return an opaque int HANDLE
-; (not bool/string) and route through SceneRuntime — so GetSceneId/GetSceneForActor and the
+; (not bool/string) and route through the scene runtime — so GetSceneId/GetSceneForActor and the
 ; handle-based StopScene work on a scene started by the PUBLIC API, and lifecycle events
 ; (NODE_ENTER on start, SCENE_END on stop) fire with NO Dbg_* native. Uses the baked-in
 ; "solo" pack (a linear pack auto-exposed as a single-path scene). Crosshair actor or player.
@@ -366,7 +366,7 @@ Function SceneHandleTest() global
     OSFCompat.Dbg_Log("  StopScene(h)=" + stopped + "; GetSceneForActor=" + OSF.GetSceneForActor(a) + " (expect 0)")
 EndFunction
 
-; --- #1: handle-based linear stage interface (GetSceneStage/SetSceneStage by HANDLE) ---
+; --- Handle-based linear stage interface (GetSceneStage/SetSceneStage by HANDLE) ---
 ; A multi-stage pack is a linear scene, so the handle-keyed stage getters/setters work on it.
 ; Starts the baked-in 3-stage "solo.stages" (no timers — holds each stage), reads/jumps stages
 ; by handle, checks the out-of-range reject, then stops. Crosshair actor or player. No waiting.
@@ -388,7 +388,7 @@ Function StageHandleTest() global
     OSFCompat.Dbg_Log("  stopped; GetSceneStage(h)=" + OSF.GetSceneStage(h) + " (expect -1 = invalid handle)")
 EndFunction
 
-; --- #1: StartSceneRoles (bind actors to NAMED roles) -------------------------------
+; --- StartSceneRoles (bind actors to NAMED roles) -------------------------------
 ; Starts the 1-role "author.scenes.pbtest" graph binding the actor to role "lead", then exercises
 ; the validation rejects (unknown role, role/actor count mismatch). Crosshair actor or player.
 ;   cgf "OSFTest.RolesTest"
@@ -474,7 +474,7 @@ Function ActionTest() global
     OSF.StopScene(h)
 EndFunction
 
-; --- Numeric-timed action (Slice 13: generalized Scene timed-mark) ----------------------
+; --- Numeric-timed action (generalized Scene timed-mark) ----------------------
 ; Starts "author.scenes.timedaction" and WAITS — the scene holds and loops. On enter:
 ; ACTION 'test.begin'. Then EVERY clip loop: ACTION 'test.tick' (numeric at 0.3) and CUE
 ; 'ping' (numeric at 0.6) — the action fires BEFORE the cue within a tick (they're on
@@ -495,7 +495,7 @@ Function TimedActionTest() global
     OSF.StopScene(h)
 EndFunction
 
-; --- Fade + generalized undo ledger (Slice 14) ------------------------------------------
+; --- Fade + generalized undo ledger ------------------------------------------
 ; Starts "author.scenes.fadetest" on the PLAYER: on enter it locks control THEN fades to
 ; black (no authored release of either). After ~4s (screen black, you're frozen) it stops,
 ; and the undo ledger replays in REVERSE: fade-in FIRST, then control unlock. Watch the
@@ -514,7 +514,7 @@ Function FadeTest() global
     OSF.StopScene(h)
 EndFunction
 
-; --- Equipment hide/restore (Slice 15) --------------------------------------------------
+; --- Equipment hide/restore --------------------------------------------------
 ; Starts "author.scenes.equiptest" on the PLAYER: on enter osf.equipment.hide strips your
 ; worn apparel (skin excluded) and records it in the undo ledger. NO authored restore — on
 ; stop (~5s) the ledger re-equips. Watch your CHARACTER undress then redress. Run somewhere
@@ -534,7 +534,7 @@ Function EquipTest() global
     OSF.StopScene(h)
 EndFunction
 
-; --- Sound lane + osf.voice.play (Slice 16) ---------------------------------------------
+; --- Sound lane + osf.voice.play ---------------------------------------------
 ; Starts "author.scenes.soundtest" on the PLAYER. You should HEAR a short beep on start
 ; (osf.voice.play + the sound-lane enter entry) and again ~2s in (the numeric 0.1 sound,
 ; every loop). Confirms the harvested SoundService + the sound lane on the timed-mark path.
@@ -552,7 +552,7 @@ Function SoundTest() global
     OSF.StopScene(h)
 EndFunction
 
-; --- Camera lane (Slice 18: minimal-safe third-person hold) -----------------------------
+; --- Camera lane (minimal-safe third-person hold) -----------------------------
 ; Be in FIRST person, then start "author.scenes.cameratest" on the PLAYER: the camera lane
 ; forces + holds THIRD person (and bounces you back if you scroll into first). NO authored
 ; release — on stop (~4s) the kCamera undo-ledger entry restores you to first person.

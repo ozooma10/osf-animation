@@ -104,7 +104,7 @@ namespace OSF::Registry
 				// moved out of actors[].stages[] into the top-level stages[].clips[].
 				if (jActor.contains("stages") || jActor.contains("file")) {
 					throw std::runtime_error("'" + def.id + "': actor-major layout removed in schema 2 — move each "
-						"actor's clips into the top-level stages[].clips[] (see docs/PACK_SCHEMA.md)");
+						"actor's clips into the top-level stages[].clips[]");
 				}
 				SlotDef slot;
 				slot.gender = ParseGender(jActor);
@@ -115,9 +115,9 @@ namespace OSF::Registry
 			}
 			const size_t actorCount = def.actors.size();
 
-			// stages[]: the timeline. Required and non-empty; every stage carries
-			// timing plus one clip per actor (clips[], actor order). The OSF content
-			// fields (intensity/peak/cues) are ignored by the core parser.
+			// stages[]: the timeline. Required and non-empty; every stage carries its
+			// timing plus one clip per actor (clips[], in actor order). Any content
+			// fields a stage carries are ignored here.
 			const auto stagesIt = a_json.find("stages");
 			if (stagesIt == a_json.end() || !stagesIt->is_array() || stagesIt->empty()) {
 				throw std::runtime_error("'" + def.id + "': 'stages' must be a non-empty array");
@@ -182,7 +182,7 @@ namespace OSF::Registry
 				// Skip the *.json file types that aren't animation packs so they are never
 				// opened/parsed here: settings files (other OSF layers), scene graphs
 				// (*.scene.json -> SceneRegistry), and the reserved *.voice.json /
-				// *.dialogue.json. (See docs/INTIMACY_SEAM.md.)
+				// *.dialogue.json.
 				const auto fileName = ToLower(entry.path().filename().string());
 				if (fileName == "settings.json" || fileName.ends_with(".settings.json") ||
 					fileName.ends_with(".scene.json") || fileName.ends_with(".voice.json") ||
@@ -203,7 +203,7 @@ namespace OSF::Registry
 		void LoadPackFile(const nlohmann::json& a_json, const std::filesystem::path& a_file, LoadState& a_state)
 		{
 			const std::string fileName = a_file.filename().string();
-			std::int64_t schema = 1;  // absent = v1 (pre-versioning packs)
+			std::int64_t schema = 1;  // absent = version 1 (pre-versioning packs)
 			if (auto it = a_json.find("schema"); it != a_json.end()) {
 				if (!it->is_number_integer()) {
 					REX::ERROR("PackRegistry: '{}' has a non-integer 'schema' field — pack skipped", fileName);

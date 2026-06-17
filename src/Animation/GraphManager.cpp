@@ -15,14 +15,15 @@ namespace OSF::Animation
 {
 	namespace
 	{
-		// The two engine hooks. Full provenance (per-version VAs/RVAs) in docs/RE.md;
-		// InstallHooks verifies each vtable slot before patching.
+		// The two engine hooks. InstallHooks verifies each vtable slot still points where we
+		// expect before patching it.
 		// AnimationManager::Update — slot 4, the clock/sampling point.
 		constexpr REL::ID AnimManagerVTableID(467920);
 		constexpr REL::ID AnimManagerUpdateFnID(122232);
 		constexpr size_t UpdateVFuncIdx = 4;
 		// BGSModelNode::Update — slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*).
-		// PRE-orig is the rig-buffer write point (that same call composes + commits).
+		// Stamping before the original runs is the rig-buffer write point (that same call
+		// composes + commits).
 		constexpr REL::ID ModelNodeVTableID(400534);
 		constexpr REL::ID ModelNodeUpdateFnID(48634);
 		constexpr size_t ModelNodeUpdateVFuncIdx = 2;
@@ -32,10 +33,9 @@ namespace OSF::Animation
 		// participant. Used by the compose-root pin when re-centering worldBound.
 		constexpr float kPinCullRadius = 2.5f;
 
-		// BSFadeNode near-camera fade flag (+0x1B4, binary float 1.0=drawn/0.0=faded;
-		// RE 2026-06-14, docs/RE.md). The engine fades an actor when the 3rd-person
-		// camera orbits close; held at 1.0 each frame so pinned participants don't
-		// vanish (forcing it pre-orig of the rig sync holds).
+		// BSFadeNode near-camera fade flag (+0x1B4, a float: 1.0 = drawn, 0.0 = faded).
+		// The engine fades an actor out when the third-person camera orbits close; we
+		// hold it at 1.0 each frame so pinned participants don't vanish.
 		constexpr std::ptrdiff_t kFadeNodeVisFlagOff = 0x1B4;
 
 		// Resolve a pack clip spec to an absolute path: absolute passes through; a
@@ -464,10 +464,10 @@ namespace OSF::Animation
 		// Cut every live cue sound — a loaded save shouldn't have last-world sounds ringing over it.
 		Audio::SoundService::GetSingleton().StopAll();
 
-		// Drop Layer-B scene handles too — their participants are raw Actor* that the load
-		// invalidates, so a stashed handle must read as dead afterward. Unconditional (even
-		// when we hold no graphs/scenes ourselves) so the handle table can never drift live
-		// across a load. Runs before stateLock: Clear takes SceneRuntime's own lock.
+		// Drop the scene runtime's handles too — their participants are raw Actor* that the
+		// load invalidates, so a stashed handle must read as dead afterward. Done even when we
+		// hold no graphs/scenes ourselves, so the handle table can never stay live across a
+		// load. Runs before stateLock, since Clear takes the runtime's own lock.
 		if (_clearHandler) {
 			_clearHandler();
 		}
@@ -783,11 +783,11 @@ namespace OSF::Animation
 			REX::INFO("Scene end task executing on game thread");
 			auto& gm = GetSingleton();
 
-			// Layer B (SceneRuntime) gets first refusal: a graph-driven scene takes the
-			// matching auto-edge (advance to the next node / end its scene) and owns the
-			// teardown. A standalone scene (direct StartScene*, no graph) is not claimed —
-			// we stop it ourselves, the legacy behavior. No GraphManager lock is held here,
-			// so the handler is free to PlaySceneStaged/StopScene.
+			// The scene runtime gets first refusal: a graph-driven scene takes the matching
+			// auto-edge (advance to the next node / end its scene) and owns the teardown. A
+			// standalone scene (a direct StartScene* with no graph) isn't claimed — we stop
+			// it ourselves. No manager lock is held here, so the handler is free to call
+			// PlaySceneStaged/StopScene.
 			bool handled = false;
 			if (gm._autoEndHandler) {
 				std::vector<RE::Actor*> actors;
@@ -859,8 +859,8 @@ namespace OSF::Animation
 		// world transform is the physics capsule position, NOT the rendered
 		// skeleton — the compose-root pin redirects the rig compose input, and
 		// mapped bones get their worlds from the rig buffers. ~0.3m capsule offset
-		// per co-located actor is EXPECTED (live-confirmed 2026-06-10 with correct
-		// visual alignment); a jump beyond ~0.5m means physics dragged the actor.
+		// per co-located actor is expected (and lines up correctly on screen); a jump
+		// beyond ~0.5m means physics dragged the actor.
 		if (!a_graph.scene || a_graph.participantIndex < 0) {
 			return;
 		}
@@ -941,8 +941,8 @@ namespace OSF::Animation
 	uint64_t GraphManager::Hook_ModelNodeUpdate(RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData)
 	{
 		// Stamp the latest sampled pose for the graph driving this skeleton
-		// BEFORE the engine's compose+commit runs (pre-orig is the verified
-		// write point). Unmanaged skeletons fall through with one map scan;
+		// before the engine's compose+commit runs (the verified write point).
+		// Unmanaged skeletons fall through with one map scan;
 		// managed graph counts are small (scene participants).
 		auto& gm = GetSingleton();
 		// This runs once per skeleton per frame game-wide; with no OSF playback
@@ -978,7 +978,7 @@ namespace OSF::Animation
 							hasPinHeading = true;
 							doPin = true;
 						} else if (!g->scene && g->hasAnchor && g->rootMode != RootMode::kFollow) {
-							pinWorld = g->anchorPos;  // additive currently pins like kPin (travel pending in-game RE)
+							pinWorld = g->anchorPos;  // additive currently pins like kPin (root-motion travel not done yet)
 							doPin = true;
 						}
 						if (doPin && a_parentTransform) {
@@ -1015,7 +1015,7 @@ namespace OSF::Animation
 
 							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0 so pinned
 							// participants don't fade out when the camera orbits close (see
-							// kFadeNodeVisFlagOff / docs/RE.md).
+							// kFadeNodeVisFlagOff).
 							*reinterpret_cast<float*>(
 								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff) = 1.0f;
 						}

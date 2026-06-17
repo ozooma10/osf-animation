@@ -2,7 +2,8 @@
 
 namespace OSF::Serialization::SaveSafety
 {
-	// Registers the SaveLoadEvent begin sink (drops graphs/scenes before a  world-replacing load) 
-	// and the TESLoadGameEvent backstop (re-binds natives onto the rebuilt VM + a late StopAll). Call at kPostDataLoad.
+	// Registers the SaveLoadEvent "begin" sink, which drops graphs and scenes before a load
+	// replaces the world, plus a TESLoadGameEvent backstop that re-binds the natives onto the
+	// rebuilt VM and does a late StopAll. Call this at kPostDataLoad.
 	void RegisterLoadEventSinks();
 }

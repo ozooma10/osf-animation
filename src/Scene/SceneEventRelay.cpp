@@ -54,8 +54,8 @@ namespace OSF::Scene
 			v = a_event.time;                                   set("time", v);
 			v = RE::BSFixedString(a_event.anchor.c_str());      set("anchor", v);
 			v = a_event.result;                                 set("result", v);
-			// actorRef: packed as a real Actor object via CLSF's handle-policy helper when the
-			// event carries one (v1: EVENT_ACTION with a resolved role). Otherwise left None.
+			// actorRef: packed as a real Actor object when the event carries one (currently
+			// EVENT_ACTION with a resolved role). Otherwise left None.
 			if (a_event.actor) {
 				RE::BSScript::Variable actorVar;
 				RE::BSScript::detail::PackVariable(actorVar, a_event.actor);

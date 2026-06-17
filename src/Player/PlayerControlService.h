@@ -3,11 +3,11 @@
 namespace OSF::Player
 {
 	// Standalone player-control lock used by the SAF-compat playback path (the
-	// Play+Sync flow that has no managed Scene). Engages an input-disable layer
+	// Play+Sync flow with no managed Scene). Engages an input-disable layer
 	// (Movement incl. Jumping, Fighting, Sneaking, Activation, ...) plus the
-	// persistent AI-driven flag (decouples the body from the camera so a pinned
-	// rig doesn't yaw with mouse-look). Scene-integrated control policy lives in
-	// the OSF Intimacy scene engine, not here.
+	// persistent AI-driven flag, which decouples the body from the camera so a
+	// pinned rig doesn't yaw with mouse-look. This is just the lock mechanism;
+	// the scene runtime decides when to apply it.
 	class PlayerControlService
 	{
 	public:
@@ -19,11 +19,11 @@ namespace OSF::Player
 		// memory of the lock).
 		void OnStopAll();
 
-		// Debug/bisect: replace the user/other disable masks at runtime (queued
-		// to the game thread; live-reapplied if a lock is active). The CLSF flag
-		// names are marked unconfirmed, so when an input we want alive (e.g.
-		// scroll-zoom) turns out gated by a bit we disable, this lets one game
-		// session bisect the real bit layout from the console.
+		// Debug aid: replace the user/other disable masks at runtime (queued to the
+		// game thread, re-applied live if a lock is active). The flag names aren't
+		// fully confirmed, so when an input we want to keep alive (e.g. scroll-zoom)
+		// turns out to be gated by a bit we disable, this lets you bisect the real
+		// bit layout from the console in one session.
 		void SetMasks(uint32_t a_userMask, uint32_t a_otherMask);
 
 		// Standalone player control lock: engages the input-disable layer + masks

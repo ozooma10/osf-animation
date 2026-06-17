@@ -1,27 +1,24 @@
 #pragma once
 
-// Scene undress/redress mechanism for the osf.equipment.hide / osf.equipment.restore
-// actions. Hide() snapshots an actor's worn apparel and unequips it; Restore() re-equips
-// the snapshot. Engine equip/unequip is synchronous + game-thread-only (RE-verified), so
-// callers must invoke from the game thread (SceneRuntime's action dispatch already runs there).
+// Hides and restores an actor's worn apparel, behind the osf.equipment.hide /
+// osf.equipment.restore actions. Hide() snapshots what the actor is wearing and unequips
+// it; Restore() re-equips the snapshot. The engine's equip/unequip is synchronous and
+// game-thread-only, so callers must be on the game thread (the scene runtime's action
+// dispatch already is).
 //
-// Equip path RE-verified (osf-re gameplay.actor_equipment module): the
-// ActorEquipManager::{Equip,Unequip}Object 8/9-arg ABI, silent-strip flag semantics, and
-// game-thread affinity all confirmed. CLSF maps the IDs (ID::ActorEquipManager::{Equip,
-// Unequip}Object = 101949/101951); Available() still prologue-gates them (the RE was
-// disassembled on 1.16.236, the byte check confirms the same code on 1.16.244) and the
-// feature self-disables on a mismatch.
+// The equip/unequip calls go through ActorEquipManager::{Equip,Unequip}Object (8/9-arg);
+// the silent-strip flags and the game-thread requirement were both worked out by hand.
+// Available() byte-checks the two functions before first use and disables the feature if
+// the code doesn't match what we expect on this game build.
 //
-// Lean carve: this is hide/restore only. The pre-split EquipmentService also added scene-only
-// ARMO forms (the adult-content "scene equipment" path) — that machinery (ResolveArmor,
-// add-then-equip, native inventory remove, the Papyrus removal fallback) is NOT part of the
-// content-neutral hide/restore action and is left in the archive.
+// This is hide/restore only. There's no notion of adding scene-specific outfits here — that
+// belongs to the content layer, not this content-neutral mechanism.
 //
-// Caveats inherited from the RE (deferred to in-game observation, not guessed offsets):
-//   - the base skin/body ARMO is excluded from the strip by FORM identity (TESNPC::GetSkin),
-//     not the contested biped mask, so an invisible actor can't result;
-//   - an NPC whose lazy inventory list has never materialized isn't stripped (no crash) —
-//     the player + interacted NPCs always have a list.
+// A couple of things we leave to in-game behaviour rather than guess at:
+//   - the base skin/body ARMO is left on, matched by form identity (TESNPC::GetSkin) rather
+//     than the biped mask, so we can never accidentally make an actor invisible;
+//   - an NPC whose inventory list has never been built simply isn't stripped (no crash) —
+//     the player and any NPC you've interacted with always have one.
 
 namespace OSF::Equipment
 {
@@ -50,8 +47,8 @@ namespace OSF::Equipment
 		// Result cached; the disabled state logs once.
 		bool Available();
 
-		// User-settings toggle (§1.5): when false the osf.equipment.hide action silent-skips.
-		// Cleanup restore always runs regardless (never strand an actor undressed).
+		// The user's equipment toggle: when false, osf.equipment.hide quietly does nothing.
+		// Restore always runs regardless, so we never leave an actor stripped.
 		void SetEnabled(bool a_enabled) { enabled.store(a_enabled, std::memory_order_relaxed); }
 		bool Enabled() const { return enabled.load(std::memory_order_relaxed); }
 

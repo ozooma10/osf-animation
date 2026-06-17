@@ -65,8 +65,8 @@ namespace OSF::Config::Settings
 		// Deprecated alias for the content-neutral rename (equipment == the old "undress").
 		boolKey("undressEnabled", [](bool v) { Equipment::EquipmentService::GetSingleton().SetEnabled(v); });
 
-		// Anything left is a typo or a key from a newer build — say so, loudly enough to
-		// explain "why didn't my setting apply".
+		// Anything still here is either a typo or a key from a newer build. Warn loudly
+		// enough that someone can figure out why their setting didn't take effect.
 		for (const auto& [key, value] : json.items()) {
 			REX::WARN("Settings: unrecognized key '{}' — ignored (typo, or a newer OSF Animation?)", key);
 		}

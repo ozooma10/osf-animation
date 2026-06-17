@@ -1,13 +1,13 @@
 #pragma once
 
-// Persistent user settings: Data/OSF/settings.json, read once at kPostDataLoad. These are
-// the user/global safety toggles in the settings-precedence rule (SCENE_DESIGN §1.5):
-// effective = (scene wants) AND (user setting allows). A disabled mechanism makes its
-// osf.* action a SILENT skip (no EVENT_ACTION_FAILED); cleanup/undo always runs regardless.
+// Persistent user settings, read once at startup from Data/OSF/settings.json. These are the
+// user's safety toggles, and they win over what a scene asks for: a mechanism only runs when
+// both the scene wants it and the user allows it. A disabled mechanism makes its osf.* action
+// quietly skip (no failure event); cleanup and undo always run regardless.
 //
-// The file is OPTIONAL (absent = compiled defaults) and user-owned: the build does NOT ship
-// one, so MO2 users keep theirs across updates. SceneRegistry/PackRegistry skip the reserved
-// filename "settings.json" during scans.
+// The file is optional (absent = compiled defaults) and owned by the user: the build doesn't
+// ship one, so people keep theirs across updates. The pack and scene scans skip the reserved
+// "settings.json" filename.
 //
 // Recognized keys (flat; unknown keys warn):
 //   {

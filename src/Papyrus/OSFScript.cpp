@@ -47,8 +47,8 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopAnimation(a_actor);
 		}
 
-		// Jump a LINEAR scene (by handle) to a given stage (§1.4). False on a non-linear graph,
-		// out-of-range stage, or invalid handle.
+		// Jump a linear scene (by handle) to a given stage. False on a non-linear graph,
+		// an out-of-range stage, or an invalid handle.
 		bool SetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_stage)
 		{
 			return Scene::SceneRuntime::GetSingleton().SetStage(a_scene, a_stage);
@@ -142,7 +142,7 @@ namespace OSF::Papyrus
 		}
 
 		// Pin akActor's solo graph to a WORLD point + heading (degrees). aiRootMode:
-		// 0 pin / 1 additive / 2 follow (docs/ANCHORING.md). Also moves the capsule
+		// 0 pin / 1 additive / 2 follow. Also moves the capsule
 		// there. Refused for scene participants (their placement is scene-driven).
 		bool SetAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
@@ -212,18 +212,18 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
 		}
 
-		// DEBUG: replaces the player-lock input-disable masks (CLSF flag names
-		// are unconfirmed — this bisects the real bit layout in one session).
-		// 0/0 = disable nothing.
+		// DEBUG: replaces the player-lock input-disable masks. The flag names aren't fully
+		// confirmed, so this lets you bisect the real bit layout in one session. 0/0 disables
+		// nothing.
 		void SetSceneControlMask(OSFVM&, uint32_t, std::monostate, int32_t a_userMask, int32_t a_otherMask)
 		{
 			Player::PlayerControlService::GetSingleton().SetMasks(
 				static_cast<uint32_t>(a_userMask), static_cast<uint32_t>(a_otherMask));
 		}
 
-		// COMPATIBILITY-ONLY natives (bound on OSFCompat). The SAF shim's non-Scene
-		// Play+Sync path freezes the player via these standalone locks (content-neutral
-		// mechanism; the core never auto-applies them). See OSFCompat.psc.
+		// Compatibility-only natives (bound on OSFCompat). The SAF shim's non-Scene Play+Sync
+		// path freezes the player via these standalone locks; the core never applies them on
+		// its own. See OSFCompat.psc.
 
 		// Standalone control lock: input-disable layer + AI-driven. false releases.
 		void SetPlayerControlLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
@@ -239,8 +239,7 @@ namespace OSF::Papyrus
 		}
 
 		// Engine crosshair target: the reference under the reticle / activate prompt.
-		// PlayerCharacter->commandTarget (0x0F90, RE-verified 1.16.244 — see
-		// commonlibsf PlayerCharacter.h). Any ref kind (actor/door/container/...) or
+		// Reads PlayerCharacter->commandTarget. Any ref kind (actor/door/container/...), or
 		// null when the crosshair is on nothing.
 		RE::TESObjectREFR* CrosshairTarget()
 		{
@@ -307,10 +306,10 @@ namespace OSF::Papyrus
 
 		// Start a scene by id, returning an opaque scene HANDLE (0 = failed). Routes through
 		// SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
-		// ID resolution (§1.2): a `scene:` prefix forces the scene registry, `anim:` forces the
+		// ID resolution: a `scene:` prefix forces the scene registry, `anim:` forces the
 		// pack registry; a bare id resolves the scene registry first (a composed *.scene.json
 		// graph), then the pack registry (a linear pack auto-exposed as a single-path scene).
-		// aiStage = pack start stage (ignored for def-backed graphs; linearStages deferred).
+		// aiStage = pack start stage (ignored for def-backed graphs).
 		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			int32_t a_stage)
 		{
@@ -399,9 +398,9 @@ namespace OSF::Papyrus
 			return handle;
 		}
 
-		// Ad-hoc atomic scene from raw files (the SAF PlaySceneSeparate replacement):
-		// co-locates the actors at actor[0], plays each file at afSpeed with afBlendIn,
-		// and syncs the clock. Returns the scene handle (0 = failed). Content-neutral — no policy.
+		// Ad-hoc one-shot scene from raw files (the SAF PlaySceneSeparate replacement):
+		// co-locates the actors at actor[0], plays each file at afSpeed with afBlendIn, and
+		// syncs the clock. Returns the scene handle (0 = failed).
 		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_files, float a_speed, float a_blendIn)
 		{
@@ -417,7 +416,7 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromFiles(a_actors, files, a_speed, a_blendIn);
 		}
 
-		// --- Scene-event callbacks (Phase A transport: Var[] payload) --------------
+		// --- Scene-event callbacks (Var[] payload) --------------------------------
 		// Register akReceiver.asFn(Var[]) for events in aiEventMask (& scene aiScene, 0 =
 		// any). Returns a generational token (0 = failed). Decode the Var[] via OSFEvent.
 		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver,
@@ -490,7 +489,7 @@ namespace OSF::Papyrus
 			Scene::SceneEventRelay::GetSingleton().DispatchStatic(a_script.c_str(), a_fn.c_str(), e);
 		}
 
-		// --- Scene state getters (handle-based; Phase A: the SceneRuntime instance table) --
+		// --- Scene state getters (handle-based, against the scene runtime's instance table) --
 		// Scene instance id, or "" if the handle is invalid/ended.
 		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
@@ -509,9 +508,9 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().GetSceneForActor(a_actor);
 		}
 
-		// DEBUG (OSFCompat): drive the SceneRuntime lifecycle directly, without the
-		// GraphManager/StartScene handle-mint integration (a later slice). Each fires the
-		// matching lifecycle event(s) through the relay.
+		// DEBUG (OSFCompat): drive the scene-runtime lifecycle directly, without going through
+		// the GraphManager/StartScene handle minting. Each fires the matching lifecycle
+		// event(s) through the relay.
 		int32_t Dbg_StartScene(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_id, RE::BSFixedString a_node)
 		{
 			std::vector<RE::Actor*> participants;
@@ -531,8 +530,8 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
 		}
 
-		// Start a scene from its *.scene.json def (enter at the def's entry node). DEBUG
-		// (OSFCompat) until the real StartScene mints handles. Returns the handle (0 = fail).
+		// Start a scene from its *.scene.json def (entering at the def's entry node). DEBUG
+		// helper on OSFCompat. Returns the handle (0 = fail).
 		int32_t Dbg_StartSceneDef(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_sceneId)
 		{
 			std::vector<RE::Actor*> participants;
@@ -579,10 +578,10 @@ namespace OSF::Papyrus
 			return out;
 		}
 
-		// True iff a_id names a scene that LOADED — a scene in the registry passed all of §1.6's
-		// validation (invalid scenes are skipped at load), so "loaded" == "valid". A scene that
-		// failed to parse is absent → false; use GetSceneValidationErrors / GetSceneLoadErrors to
-		// see why. (Pack-registry ids are not scenes and return false here.)
+		// True iff a_id names a scene that loaded. Anything in the registry passed validation
+		// (invalid scenes are skipped at load), so "loaded" means "valid". A scene that failed
+		// to parse is absent -> false; use GetSceneValidationErrors / GetSceneLoadErrors to see
+		// why. (Pack-registry ids aren't scenes and return false here.)
 		bool ValidateScene(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
 		{
 			return Registry::SceneRegistry::GetSingleton().Find(a_id.c_str()) != nullptr;
@@ -675,8 +674,8 @@ namespace OSF::Papyrus
 
 		// Compatibility-only natives — kept off the public OSF surface (see
 		// COMPAT_SCRIPT_NAME / OSFCompat.psc). Only the SAF->OSF shim calls these.
-		// SetSceneControlMask is a DEBUG/RE-bisect tool parked here (NOT on OSF) so
-		// the 1.0 never-remove ABI guarantee does not freeze a throwaway native.
+		// SetSceneControlMask is a debug bisect tool parked here (not on OSF) so the
+		// never-remove ABI promise doesn't lock in a throwaway native.
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetSceneControlMask", &SetSceneControlMask, true, false);

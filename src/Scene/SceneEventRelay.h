@@ -1,15 +1,14 @@
 #pragma once
 
-// Phase-A callback transport for the scene runtime (docs/SCENE_DESIGN.md §1.2).
+// Delivers scene-runtime events to registered Papyrus callbacks.
 //
-// FINDING (resolves SCENE_DESIGN §2.6 open Q1): there is no synchronous C++->Papyrus
-// path. The only entries CLSF exposes (IVirtualMachine DispatchStaticCall /
-// DispatchMethodCall, vfuncs 0x2F/0x31) QUEUE a Papyrus stack on the VM tasklet
-// scheduler and return immediately — the receiver runs later, off this stack. So the
-// "dispatch-time getter" model is infeasible; the payload is snapshotted into a `Var[]`
-// argument instead (receiver signature `Function MyFn(Var[] akEvent)`, decoded via
-// OSFEvent.psc). Async dispatch also gives the contract's "callbacks aren't reentrant /
-// mutations land later" for free.
+// There's no synchronous C++->Papyrus path: the only entries available
+// (DispatchStaticCall / DispatchMethodCall) queue a Papyrus stack on the VM scheduler and
+// return immediately, so the receiver runs later, off this stack. That rules out a
+// "dispatch-time getter" model, so instead we snapshot the payload into a `Var[]` argument
+// (receiver signature `Function MyFn(Var[] akEvent)`, decoded via OSFEvent.psc). The async
+// dispatch also gives us, for free, the guarantee that callbacks aren't reentrant and any
+// mutations they make land later.
 
 namespace OSF::Scene
 {

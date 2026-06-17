@@ -1,10 +1,9 @@
 #pragma once
 
-// Graph storage + the per-frame hook.
-// Single hook surface: a vtable patch on AnimationManager::Update (vfunc 4) —
-// the per-graph per-frame evaluation point validated by RE on 1.16.242.0.
-// Graph/manager structure ported in reduced form from
-// NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh).
+// Graph storage plus the per-frame hooks.
+// The main hook surface is a vtable patch on AnimationManager::Update (vfunc 4), the
+// per-graph per-frame evaluation point. The graph/manager structure is adapted, in
+// reduced form, from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh).
 
 #include "Animation/Graph.h"
 #include "Animation/Scene.h"
@@ -18,28 +17,27 @@ namespace OSF::Animation
 	public:
 		static GraphManager& GetSingleton();
 
-		// Layer-B (SceneRuntime) auto-advance hook. Invoked on the game thread when an
-		// anchored scene auto-ends at its terminal stage (timer / loop target). Layering
-		// stays clean: Layer A knows nothing about scene graphs — it just hands Layer B the
-		// participant actors + the reason. Returns true if Layer B took ownership of what
-		// happens next (transition to the next node, or end its own scene); false (or no
-		// handler) -> GraphManager stops the scene itself (the standalone default). Set once
-		// at load (SceneRuntime::RegisterWithGraphManager), before any scene runs.
+		// Hook the scene runtime sets for auto-advance. Called on the game thread when an
+		// anchored scene auto-ends at its final stage (timer or loop target). This manager
+		// knows nothing about scene graphs — it just hands the runtime the participant actors
+		// and the reason. Returns true if the runtime took over what happens next (move to the
+		// next node, or end its own scene); false (or no handler) -> the manager stops the scene
+		// itself. Set once at load, before any scene runs.
 		using SceneAutoEndHandler = std::function<bool(const std::vector<RE::Actor*>&, SceneEndReason)>;
 		void SetSceneAutoEndHandler(SceneAutoEndHandler a_handler) { _autoEndHandler = std::move(a_handler); }
 
-		// Layer-B "scenes dropped" hook. Invoked from StopAll (every load-teardown path) so
-		// Layer B can drop its handle table — its scene handles hold raw Actor* participants
-		// that a world-replacing load invalidates. Inverted dependency like the auto-end
-		// hook: Layer A never names SceneRuntime.
+		// Hook called from StopAll (every load-teardown path) so the scene runtime can drop its
+		// handle table — its scene handles hold raw Actor* participants that a world-replacing
+		// load invalidates. Like the auto-end hook, the dependency is inverted: this manager
+		// never names the runtime directly.
 		using SceneClearHandler = std::function<void()>;
 		void SetSceneClearHandler(SceneClearHandler a_handler) { _clearHandler = std::move(a_handler); }
 
-		// Layer-B timed-mark hook. Invoked on the game thread when a scene's stage fires timed
-		// marks (numeric / end) on any lane. Layer A stays content-neutral: it hands Layer B the
-		// opaque (lane, token) marks + the scene's participant actors; Layer B decodes them
-		// (cue -> EVENT_CUE + trigger edges, action -> built-in/notify, sound/camera -> services).
-		// Inverted dependency like the auto-end hook.
+		// Hook called on the game thread when a scene's stage fires timed marks (numeric or end)
+		// on any lane. This manager stays content-neutral: it hands the runtime the opaque
+		// (lane, token) marks and the participant actors, and the runtime decodes them (cue ->
+		// EVENT_CUE + trigger edges, action -> built-in/notify, sound/camera -> services). Same
+		// inverted dependency as the auto-end hook.
 		using SceneTimedMarkHandler = std::function<void(const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
 		void SetSceneTimedMarkHandler(SceneTimedMarkHandler a_handler) { _timedMarkHandler = std::move(a_handler); }
 
@@ -96,7 +94,7 @@ namespace OSF::Animation
 		float GetSpeed(RE::Actor* a_actor);
 
 		// Pin a SOLO graph to a world point + heading (degrees), with a rootMode
-		// (0 pin / 1 additive / 2 follow; see docs/ANCHORING.md). Also moves the
+		// (0 pin / 1 additive / 2 follow). Also moves the
 		// capsule there. Refused for scene participants. ClearAnchor releases it.
 		bool SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode);
 		bool ClearAnchor(RE::Actor* a_actor);
@@ -124,8 +122,8 @@ namespace OSF::Animation
 		// renders stale poses pinned to a dead anchor. Dispatches "end" per
 		// torn-down scene (deferred, lands after the load). Does NOT restore
 		// equipment/movement: the snapshot may belong to a different timeline
-		// than the loaded save, and re-equipping then would be wrong — that
-		// gap is the documented no-serialization limitation. Triggers:
+		// than the loaded save, and re-equipping then would be wrong — that's
+		// a known limitation of not serializing this state. Triggers:
 		// SaveLoadEvent begin for world-replacing loads (safe, pre-teardown),
 		// TESLoadGameEvent as a late backstop, and OSF.NotifyGameLoaded() as a
 		// manual fallback.
@@ -148,12 +146,12 @@ namespace OSF::Animation
 		// frame on job threads with subdivided dt (timeDelta @ +0x60). Used for
 		// clock advance + pose sampling ONLY — rig writes here are dead by
 		// design: the engine's snapshot applier (vfunc 7) rewrites rig locals
-		// right after every update (RE-proven on 1.16.242).
+		// right after every update.
 		static void Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData);
 
 		// BGSModelNode::Update (vfunc 2), called once per skeleton per frame
 		// from BSFadeNode::Update on scene-update threads. Stamping rig locals
-		// PRE-orig is the RE-proven write point: that same call composes and
+		// before the original runs is the right write point: that same call composes and
 		// commits them deterministically (and it keeps running for AI-frozen
 		// actors, whose AnimationManager updates stop).
 		static uint64_t Hook_ModelNodeUpdate(RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData);
@@ -168,14 +166,14 @@ namespace OSF::Animation
 		std::unordered_map<RE::TESObjectREFR*, std::shared_ptr<Graph>> graphs;
 		std::vector<std::shared_ptr<Scene>> scenes;
 
-		// Layer-B auto-advance hook (see SetSceneAutoEndHandler). Empty = standalone
-		// behavior (auto-end just stops the scene).
+		// Auto-advance hook (see SetSceneAutoEndHandler). Empty = standalone behaviour,
+		// where auto-end just stops the scene.
 		SceneAutoEndHandler _autoEndHandler;
 
-		// Layer-B handle-table drop hook (see SetSceneClearHandler). Empty = no Layer B.
+		// Handle-table drop hook (see SetSceneClearHandler). Empty = no scene runtime registered.
 		SceneClearHandler _clearHandler;
 
-		// Layer-B timed-mark hook (see SetSceneTimedMarkHandler). Empty = marks are dropped.
+		// Timed-mark hook (see SetSceneTimedMarkHandler). Empty = marks are dropped.
 		SceneTimedMarkHandler _timedMarkHandler;
 
 		// Mirror of graphs.size(), refreshed after every mutation under unique

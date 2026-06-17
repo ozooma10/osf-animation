@@ -1,15 +1,15 @@
 #pragma once
 
-// Loads scene graphs from Data/OSF/**/*.scene.json (docs/SCENE_DESIGN.md §1.3). A scene is
-// a graph of nodes; each node references an animation id (from PackRegistry) + a loop policy
-// + outgoing edges. This is the Phase-A MVP: graph structure (nodes/edges/roles/loop/timer)
-// + validation + load diagnostics. Tracks (sound/cue/action/camera) are deferred.
+// Loads scene graphs from Data/OSF/**/*.scene.json. A scene is a graph of nodes; each node
+// references an animation id (from PackRegistry), a loop policy, and outgoing edges, plus the
+// four track lanes (cue/action/sound/camera). Handles the graph structure, validation, and
+// load diagnostics.
 
 #include "Registry/PackRegistry.h"  // SlotGender
 
 namespace OSF::Registry
 {
-	// Highest scene "schema" we parse. Bump only on a breaking change.
+	// Highest scene schema version we understand. Bump only on a breaking change.
 	inline constexpr std::int64_t kSceneSchemaVersion = 1;
 
 	enum class LoopMode : std::uint8_t
@@ -40,8 +40,8 @@ namespace OSF::Registry
 		std::int32_t priority = 0;
 	};
 
-	// Where on the node's clip timeline a cue fires. kFraction = clip-local fraction in [0,1);
-	// the rest are the named lifecycle anchors (§1.3 time model).
+	// Where on the node's clip timeline a cue fires. kFraction = a clip-local fraction in
+	// [0,1); the rest are the named lifecycle anchors.
 	enum class CuePos : std::uint8_t
 	{
 		kFraction,
@@ -59,9 +59,9 @@ namespace OSF::Registry
 		std::string  id;
 	};
 
-	// Where an `action` track entry runs (§1.3 time model). kEnter/kExit are the lifecycle
-	// anchors (fired directly by Layer B on node enter/exit). kFraction/kEnd are timed by the
-	// clip clock (fired through the Scene timed-mark path, like cues).
+	// Where an `action` track entry runs. kEnter/kExit are the lifecycle anchors, fired directly
+	// on node enter/exit; kFraction/kEnd are timed by the clip clock, fired through the same
+	// timed-mark path as cues.
 	enum class ActionPos : std::uint8_t
 	{
 		kEnter,
@@ -84,8 +84,8 @@ namespace OSF::Registry
 		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
 	};
 
-	// Where a `sound` track entry fires — same time model as cues/actions. kEnter/kExit are
-	// lifecycle anchors; kFraction/kEnd are clip-timed (through the Scene timed-mark path).
+	// Where a `sound` track entry fires — same time model as cues and actions. kEnter/kExit
+	// are lifecycle anchors; kFraction/kEnd are clip-timed.
 	enum class SoundPos : std::uint8_t
 	{
 		kEnter,
@@ -94,10 +94,10 @@ namespace OSF::Registry
 		kEnd
 	};
 
-	// One `sound` track entry: play a content-neutral sound spec. `spec` is a Data-relative
-	// file path (miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed).
-	// (The schema's `pool` name -> clip resolution needs pack metadata and is deferred; v1
-	// treats the value as a literal spec.)
+	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played
+	// through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed). The
+	// schema's `pool` name -> clip resolution isn't wired up yet, so for now the value is taken
+	// as a literal spec.
 	struct SoundEntry
 	{
 		SoundPos     pos = SoundPos::kFraction;
@@ -117,9 +117,9 @@ namespace OSF::Registry
 		kEnd
 	};
 
-	// One `camera` track entry: a held camera state, auto-restored on cleanup (§1.5). v1
-	// supports the single content-neutral state "thirdperson_hold" (force + hold third person
-	// via the standalone camera lock); free-fly/orbit/matrix states are deferred past v1.
+	// One `camera` track entry: a held camera state, auto-restored on cleanup. For now the only
+	// state is "thirdperson_hold" (force and hold third person via the standalone camera lock);
+	// free-fly/orbit/matrix states aren't supported yet.
 	struct CameraEntry
 	{
 		CameraPos    pos = CameraPos::kEnter;
@@ -174,9 +174,9 @@ namespace OSF::Registry
 	public:
 		static SceneRegistry& GetSingleton();
 
-		// Scans Data/OSF/**/*.scene.json and replaces the registry. Bad scenes are skipped;
-		// every skip/warning is logged AND recorded for LoadErrors(). Called after the pack
-		// registry at kPostDataLoad and from OSF.ReloadPacks().
+		// Scans Data/OSF/**/*.scene.json and rebuilds the registry. Bad scenes are skipped; every
+		// skip and warning is both logged and recorded for LoadErrors(). Runs after the pack
+		// registry at startup, and again on OSF.ReloadPacks().
 		void LoadAll();
 
 		// Scene by id (case-insensitive), or nullptr.

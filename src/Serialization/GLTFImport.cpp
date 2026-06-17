@@ -1,5 +1,5 @@
-// GLTF -> ozz-animation import.
-// Ported in reduced form (bones only, skeleton derived from the GLTF node hierarchy)s from NativeAnimationFrameworkSF (Serialization/GLTFImport.cpp)
+// GLTF -> ozz-animation import. Reduced to bones only, with the skeleton derived from the
+// GLTF node hierarchy. Adapted from NativeAnimationFrameworkSF (Serialization/GLTFImport.cpp).
 // Copyright (C) Deweh, https://github.com/Deweh/NativeAnimationFrameworkSF
 
 #include "GLTFImport.h"
@@ -387,11 +387,11 @@ namespace OSF::Serialization
 
 	namespace
 	{
-		// Clip cache (successes only). NOTE: no logging in this file — it also
-		// builds in the offline osf-import-test target, which has no CLSF.
-		// Deliberately leaked: destroying the map at process exit frees ozz
-		// objects after ozz's own statics are gone (crashed osf-import-test
-		// post-main with STATUS_STACK_BUFFER_OVERRUN).
+		// Clip cache (successes only). Note: no logging in this file — it also
+		// builds into the standalone import-test tool, which doesn't link the
+		// game libraries. Deliberately leaked: destroying the map at process exit
+		// would free ozz objects after ozz's own statics are gone, which crashed
+		// the import tool after main with STATUS_STACK_BUFFER_OVERRUN.
 		std::mutex g_clipCacheLock;
 		auto& ClipCache()
 		{

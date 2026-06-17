@@ -1,13 +1,14 @@
 #pragma once
 
-// Content-neutral synced scene: one shared clock drives every participant graph
-// (frame-locked regardless of job-thread order). The scene owns a world anchor +
-// per-participant offsets; the BGSModelNode::Update pin holds the rendered
-// skeleton there each frame. Stages preload all clips at start; Advance()
-// auto-advances on timer expiry or loop-count, or holds when both are <= 0; after
-// the last stage it flags `ended` and the hook defers StopScene.
+// A synced scene: one shared clock drives every participant graph, so they stay
+// frame-locked no matter what order the job threads run in. The scene owns a world
+// anchor and per-participant offsets; the BGSModelNode::Update pin holds the rendered
+// skeleton there each frame. All of a stage's clips are preloaded at start; Advance()
+// auto-advances on a timer or a loop count, or just holds when both are <= 0; after
+// the last stage it flags `ended` and the hook defers the StopScene.
 //
-// Scene POLICY (undress, voice, camera/control, fades, callbacks) is OSF Intimacy.
+// This class is pure playback. The policy that sits on top of it (equipment, voice,
+// camera/control, fades, callbacks) lives in the scene runtime, not here.
 
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
@@ -37,32 +38,32 @@ namespace OSF::Animation
 		};
 	}
 
-	// Why an auto-advancing scene reached its terminal stage. Reported to the Layer-B
-	// auto-advance handler (GraphManager::SceneAutoEndHandler) so SceneRuntime can pick the
-	// matching auto-edge: kTimer -> a `timer` edge; kLoops -> a `loops`/`end` edge.
+	// Why an auto-advancing scene reached its final stage. Reported back to the scene
+	// runtime's auto-advance handler so it can pick the matching auto-edge: kTimer -> a
+	// `timer` edge; kLoops -> a `loops`/`end` edge.
 	enum class SceneEndReason : std::uint8_t
 	{
 		kTimer,
 		kLoops
 	};
 
-	// A timed mark on a stage's clip timeline — a content-neutral "fire opaque token at
-	// time T, on lane L" record. Layer B (SceneRuntime) computes these from a node's tracks
-	// (cue / action / sound / camera) and decodes the lane+token on the way back. The Scene
-	// fires purely by time; it never interprets the lane or the token. (Lifecycle enter/exit
-	// track entries are fired by Layer B directly, not via this list.)
+	// A timed mark on a stage's clip timeline — basically "fire this opaque token at time
+	// T, on lane L". The scene runtime builds these from a node's tracks (cue/action/sound/
+	// camera) and decodes the lane+token on the way back. The scene fires purely by time and
+	// never interprets either field. (Enter/exit lifecycle entries are fired by the runtime
+	// directly, not through this list.)
 	struct TimedMark
 	{
 		float         fraction = 0.0f;   // clip-local fraction in [0,1); ignored when atEnd
 		bool          everyLoop = false;  // fire every loop (else first loop only)
 		bool          atEnd = false;      // fire once at the clip end of the first loop
-		std::uint8_t  lane = 0;          // opaque lane id (Layer B assigns meaning + ordering)
+		std::uint8_t  lane = 0;          // opaque lane id (the runtime assigns meaning + ordering)
 		std::string   token;             // opaque payload (cue id, action index, ...)
 	};
 
-	// A mark the Scene fired this frame, drained by the hook and handed to Layer B. The
-	// lane+token are exactly what Layer B stamped onto the TimedMark; the Scene round-trips
-	// them without interpretation.
+	// A mark the scene fired this frame, drained by the hook and handed to the runtime. The
+	// lane+token are exactly what the runtime stamped onto the TimedMark; the scene just
+	// round-trips them.
 	struct FiredMark
 	{
 		std::uint8_t lane = 0;
@@ -86,8 +87,8 @@ namespace OSF::Animation
 		float speed = 1.0f;     // clock speed multiplier
 		float blendIn = 0.4f;   // default per-participant blend-in secs
 		bool loopWhole = false; // restart at stage 0 after the last (vs end)
-		// false = no teleport/pin; the rig rides each actor's live transform
-		// ("follow", see docs/ANCHORING.md). true = teleport to anchor+offset, pin.
+		// false = no teleport or pin; the rig follows each actor's live transform.
+		// true = teleport to anchor+offset and pin there.
 		bool anchored = true;
 	};
 
@@ -165,8 +166,8 @@ namespace OSF::Animation
 		uint32_t CurrentStage();
 
 		// Move the marks fired since the last drain into a_out (swaps the buffer empty).
-		// Drained once per frame by the update hook; Layer B decodes lane+token. Caller
-		// must NOT hold `lock`.
+		// Drained once per frame by the update hook; the runtime decodes lane+token. The
+		// caller must NOT hold `lock`.
 		void DrainFiredMarks(std::vector<FiredMark>& a_out);
 
 	private:

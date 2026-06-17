@@ -1,26 +1,22 @@
 #pragma once
 
-// Native screen fade-to-black, the engine-side equivalent of SAF Seduce's
-// ImageSpaceModifier fade. We post through the engine function behind the
-// Papyrus native Game.FadeOutGame — no plugin records needed, and the fade
-// rides the game's own FaderMenu (engine-paced, save-load aware UI path).
-// Full RE record: osf-re ui.fader_menu (static trace + runtime proof,
-// 2026-06-12, 1.16.244; poster bytes identical on 1.16.242).
+// Native screen fade-to-black. We post through the same engine function that
+// backs the Papyrus Game.FadeOutGame native, so no plugin records are needed and
+// the fade rides the game's own FaderMenu (engine-paced and save-load aware).
 //
-// The poster (AddrLib 114430) is build-request + enqueue onto the spin-locked
-// UIMessageQueue — RE-verdict: callable from ANY thread, so scene start/stop
-// and job-thread ticks need no marshaling.
+// The poster just builds a request and enqueues it onto the UIMessageQueue, and
+// it's safe to call from any thread, so scene start/stop and the job-thread ticks
+// don't need to marshal onto the game thread.
 //
-// CRASH CONSTRAINT (runtime-proven): a held stay-faded latch (FaderMenu
-// +0x19B) across a save-load CRASHES the engine. Every hold this service
-// creates is therefore (a) deadline-bounded — Tick() force-releases it — and
-// (b) released immediately by OnStopAll(), which GraphManager::StopAll calls
-// synchronously from the SaveLoadEvent BEGIN sink before the load proceeds.
-// Never add a hold path that bypasses the release deadline.
+// One sharp edge to respect: holding the engine's stay-faded latch across a
+// save-load crashes the game. So every hold here is (a) deadline-bounded — Tick()
+// force-releases it — and (b) released immediately by OnStopAll(), which StopAll
+// calls synchronously from the save-load sink before the load proceeds. Never add
+// a hold path that skips the release deadline.
 //
-// Lean carve: the scene runtime drives fades explicitly through the
-// osf.fade.out/osf.fade.in actions + the undo ledger (SceneRuntime), so this
-// service is just the content-neutral fade mechanism — no Scene* coupling.
+// The scene runtime drives fades explicitly through the osf.fade.out/osf.fade.in
+// actions and the undo ledger, so this service is just the fade mechanism with no
+// scene coupling of its own.
 
 namespace OSF::UI
 {
@@ -29,12 +25,12 @@ namespace OSF::UI
 	public:
 		static FadeService& GetSingleton();
 
-		// True when the fade poster's prologue matches the RE-verified bytes
-		// on this runtime. Computed once; a mismatch logs and self-disables.
+		// True when the fade poster still matches the bytes we expect on this game
+		// build. Computed once; a mismatch logs and disables fades.
 		bool Available();
 
-		// Auto-fade toggle (user setting). When false, osf.fade.* actions
-		// silent-skip (§1.5); the manual entry points still honor it.
+		// The user's auto-fade toggle. When false, the osf.fade.* actions quietly do
+		// nothing; the manual entry points still honour it.
 		void SetEnabled(bool a_enabled);
 		bool Enabled() const;
 
@@ -47,8 +43,8 @@ namespace OSF::UI
 		// false when unavailable.
 		bool FadeFromBlack(float a_fadeSecs);
 
-		// Save-load teardown: release any held/pending fade NOW (see the crash
-		// constraint above). Called synchronously from GraphManager::StopAll.
+		// Save-load teardown: release any held or pending fade right now (see the
+		// crash note above). Called synchronously from StopAll.
 		void OnStopAll();
 
 		// Rides the update-hook call stream (job threads): posts the deferred

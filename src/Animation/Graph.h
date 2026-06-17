@@ -1,9 +1,9 @@
 #pragma once
 
 // Per-actor graph: samples the active ozz clip and writes the pose into the engine's
-// flat rig local buffers (the pipeline the renderer consumes — see docs/RE.md).
-// Ozz plumbing ported from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh);
-// the rig-buffer apply path follows the 1.16.244 RE ground truth.
+// flat rig local buffers, which is the path the renderer reads from. The ozz plumbing
+// is adapted from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh); the
+// rig-buffer apply path follows what we reverse-engineered on 1.16.244.
 
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
@@ -21,7 +21,7 @@ namespace OSF::Animation
 		kOut    // ramping 1 -> 0 after BeginFadeOut; graph removed at 0
 	};
 
-	// How a graph's root-bone translation meets its anchor (docs/ANCHORING.md).
+	// How a graph's root-bone translation meets its anchor.
 	enum class RootMode : std::uint8_t
 	{
 		kPin = 0,       // lock the rendered root at the anchor (root translation ignored)
@@ -102,8 +102,8 @@ namespace OSF::Animation
 
 		// BGSModelNode::Update (vfunc 2) hook PRE-orig, on the thread that owns this
 		// skeleton's compose: samples the clip at Sample's accumulated time and stamps
-		// it into the rig local buffer, which the same call composes + commits
-		// (RE-proven write point). No-op until a_modelNode matches the cached binding.
+		// it into the rig local buffer, which the same call then composes and commits
+		// (the write point we confirmed). No-op until a_modelNode matches the cached binding.
 		void StampPose(const RE::BGSModelNode* a_modelNode);
 
 	private:

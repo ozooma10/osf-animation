@@ -127,8 +127,8 @@ namespace OSF::Registry
 					if (!IsKnownBuiltinAction(typeLower)) {
 						throw std::runtime_error("node '" + a_node_out.id + "': unknown built-in action '" + ae.type + "'");
 					}
-					// Per-action required fields (§1.3 / §1.6). Role-targeted mechanisms need a
-					// role; voice also needs its sound set. Fade takes no required field.
+					// Per-action required fields. Role-targeted mechanisms need a role; voice
+					// also needs its sound set. Fade takes no required field.
 					const bool needsRole = typeLower == "osf.control.lock" || typeLower == "osf.control.release" ||
 						typeLower == "osf.equipment.hide" || typeLower == "osf.equipment.restore" ||
 						typeLower == "osf.voice.play";
@@ -139,11 +139,11 @@ namespace OSF::Registry
 						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.voice.play' requires 'set'");
 					}
 				} else if (a.value("required", false)) {
-					// Custom actions are best-effort notifications; `required` is reserved (§1.3).
-					throw std::runtime_error("node '" + a_node_out.id + "': custom action '" + ae.type + "' cannot be 'required' in v1");
+					// Custom actions are best-effort notifications; `required` is reserved.
+					throw std::runtime_error("node '" + a_node_out.id + "': custom action '" + ae.type + "' cannot be 'required'");
 				}
-				// `at` mirrors the cue time model (§1.3): enter/exit/end named anchors, or a
-				// numeric clip-local fraction in [0,1). repeat:"loop" is numeric-only.
+				// `at` mirrors the cue time model: enter/exit/end named anchors, or a numeric
+				// clip-local fraction in [0,1). repeat:"loop" only applies to numeric positions.
 				const auto repeat = ToLower(a.value("repeat", "none"));
 				if (repeat != "none" && repeat != "loop") {
 					throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' has unknown repeat '" + repeat + "'");
@@ -185,7 +185,7 @@ namespace OSF::Registry
 			for (const auto& s : a_entries) {
 				SoundEntry se;
 				// `sound` is the literal spec; `pool` is accepted as an alias (name->clip
-				// resolution is deferred, so v1 treats either as a literal spec).
+				// resolution isn't wired up yet, so for now either is treated literally).
 				se.spec = s.value("sound", s.value("pool", std::string{}));
 				if (se.spec.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound track entry is missing 'sound'/'pool'");
@@ -236,10 +236,10 @@ namespace OSF::Registry
 				if (ce.state.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a camera track entry is missing 'state'");
 				}
-				// v1 supports one content-neutral state; free-fly/orbit/matrix are deferred.
+				// Only one camera state is supported for now; free-fly/orbit/matrix aren't yet.
 				if (ToLower(ce.state) != "thirdperson_hold") {
 					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + ce.state +
-						"' (v1 supports 'thirdperson_hold')");
+						"' (only 'thirdperson_hold' is supported)");
 				}
 				const auto repeat = ToLower(c.value("repeat", "none"));
 				if (repeat != "none" && repeat != "loop") {
@@ -274,8 +274,8 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse the node's `tracks` block. v1 lanes: `cue` + `action` + `sound` + `camera`, all
-		// parsed + run. Any other lane name rejects.
+		// Parse the node's `tracks` block. The lanes are `cue`, `action`, `sound`, and `camera`,
+		// all parsed and run; any other lane name is rejected.
 		void ParseCueTracks(const json& a_node, SceneNode& a_node_out)
 		{
 			const auto it = a_node.find("tracks");
@@ -404,7 +404,7 @@ namespace OSF::Registry
 
 			ParseCueTracks(a_node, n);
 
-			// A trigger:<cueId> edge must reference a cue emitted on THIS node (§1.6).
+			// A trigger:<cueId> edge must reference a cue emitted on this same node.
 			for (const auto& e : n.edges) {
 				if (e.when != EdgeWhen::kTrigger) {
 					continue;
@@ -484,7 +484,7 @@ namespace OSF::Registry
 			if (!nodeIds.count(ToLower(def.entry))) {
 				throw std::runtime_error("scene '" + def.id + "': entry '" + def.entry + "' is not a node");
 			}
-			// A non-empty action/sound role must name a declared scene role (§1.6).
+			// A non-empty action/sound role must name a role the scene declares.
 			std::unordered_set<std::string> roleNames;
 			for (const auto& r : def.roles) {
 				roleNames.insert(ToLower(r.name));

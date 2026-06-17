@@ -12,7 +12,7 @@
 //   sliders, pause menu, or ducking.
 // - "event:<WwiseEventName>" / "event:0x<akEventID>" specs: posted through
 //   the game's OWN Wwise engine (WwiseBackend.*) — engine-mixed, but only
-//   events already in the game's loaded soundbanks, and (v1) unpositioned.
+//   events already in the game's loaded soundbanks, and for now unpositioned.
 //
 // Loose custom files cannot ride the Wwise path (no LoadBank mapping yet),
 // so miniaudio stays the backend for pack-shipped audio.
@@ -50,8 +50,9 @@ namespace OSF::Audio
 		bool SetEnabled(bool a_enabled);
 		void SetVolume(float a_volume);
 
-		// User-settings toggle state (§1.5): osf.voice.play / the sound lane silent-skip when
-		// false. (Play() also guards internally — this just lets callers log + skip the setup.)
+		// Reflects the user's master sound toggle. osf.voice.play and the sound lane quietly
+		// skip when this is off. (Play() also guards internally — this just lets callers
+		// log and skip the setup.)
 		bool Enabled() const { return enabled.load(std::memory_order_relaxed); }
 
 		// Cuts every live sound (GraphManager::StopAll — a loaded save should

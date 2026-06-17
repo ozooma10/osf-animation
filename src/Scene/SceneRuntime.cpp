@@ -18,9 +18,9 @@ namespace OSF::Scene
 {
 	namespace
 	{
-		// Timed-mark lane ids. Layer A treats these as opaque; Layer B assigns meaning AND the
-		// §1.3 same-tick ordering — sorting fired marks by lane ascending yields the fixed order
-		// action -> camera -> sound -> cue.
+		// Timed-mark lane ids. The playback layer treats these as opaque; this runtime assigns
+		// the meaning and the same-tick ordering — sorting fired marks by lane ascending yields
+		// the fixed order action -> camera -> sound -> cue.
 		constexpr std::uint8_t kLaneAction = 0;
 		constexpr std::uint8_t kLaneCamera = 1;
 		constexpr std::uint8_t kLaneSound = 2;
@@ -60,10 +60,10 @@ namespace OSF::Scene
 			stage.timer = (hasTimerEdge && a_node.timerSec > 0.0f) ? a_node.timerSec : 0.0f;
 		}
 
-		// Map a node's TIMED track entries (numeric `at` + `end`) onto the played plan's terminal
-		// stage as opaque lane+token marks, so the Scene fires them by clip time and Layer B
-		// decodes them in OnTimedMarks. Lifecycle enter/exit entries are fired by Layer-B
-		// lifecycle dispatch (DispatchLifecycleCues / DispatchLifecycleActions), not here.
+		// Map a node's timed track entries (numeric `at` + `end`) onto the played plan's terminal
+		// stage as opaque lane+token marks, so the Scene fires them by clip time and this runtime
+		// decodes them in OnTimedMarks. Lifecycle enter/exit entries are fired by the lifecycle
+		// dispatch (DispatchLifecycleCues / DispatchLifecycleActions), not here.
 		//   - cue lane: token = the cue id (matches trigger:<id> edges + the EVENT_CUE payload).
 		//   - action lane: token = the action's index in node.actions (stable; OnTimedMarks
 		//     resolves the node and recovers the full ActionEntry by index).
@@ -109,8 +109,8 @@ namespace OSF::Scene
 			}
 		}
 
-		// The outgoing auto-edge of a_node whose `when` matches, by §1.3 arbitration: highest
-		// priority wins, ties keep declaration order. nullptr if the node has no such edge.
+		// The outgoing auto-edge of a_node whose `when` matches: highest priority wins, ties keep
+		// declaration order. nullptr if the node has no such edge.
 		const Registry::SceneEdge* SelectAutoEdge(const Registry::SceneNode& a_node, Registry::EdgeWhen a_when)
 		{
 			const Registry::SceneEdge* best = nullptr;
@@ -179,16 +179,16 @@ namespace OSF::Scene
 
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor)
 	{
-		// Undo-ledger replay before SCENE_END (§1.5): reverse every reversible mechanism this
-		// scene engaged (reverse order, once, idempotently) so a listener reacting to scene-end
-		// already sees the actors/screen restored. Runs on every termination path (they all
-		// Fire SCENE_END), so cleanup never depends on an authored release action.
+		// Undo-ledger replay before SCENE_END: reverse every reversible mechanism this scene
+		// engaged (reverse order, once, idempotently) so a listener reacting to scene-end already
+		// sees the actors/screen restored. Runs on every termination path (they all Fire
+		// SCENE_END), so cleanup never depends on an authored release action.
 		if (a_event == Event::kSceneEnd) {
 			GetSingleton().ReplayLedger(a_handle);
 		}
 
-		// "exit" track entries run BEFORE the structural NODE_EXIT (§1.5); within the tick they
-		// run in the fixed cross-lane order action -> (camera) -> sound -> cue (§1.3).
+		// "exit" track entries run before the structural NODE_EXIT; within the tick they run in
+		// the fixed cross-lane order action -> (camera) -> sound -> cue.
 		if (a_event == Event::kNodeExit) {
 			DispatchLifecycleActions(a_handle, a_node, false);
 			DispatchLifecycleCamera(a_handle, a_node, false);
@@ -204,10 +204,10 @@ namespace OSF::Scene
 		e.event = a_event;
 		e.node = std::string(a_node);
 		e.anchor = std::string(a_anchor);
-		// actor/role left default (Phase A).
+		// actor/role left default.
 		SceneEventRelay::GetSingleton().Dispatch(e);
 
-		// "enter" track entries run AFTER the structural NODE_ENTER, in the §1.3 cross-lane
+		// "enter" track entries run after the structural NODE_ENTER, in the same cross-lane
 		// order action -> (camera) -> sound -> cue.
 		if (a_event == Event::kNodeEnter) {
 			DispatchLifecycleActions(a_handle, a_node, true);
@@ -290,8 +290,8 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — no player participant, no-op", a_handle, a_state);
 			return;
 		}
-		// v1: the one content-neutral state. The hold is ledger-tracked (kCamera) and
-		// auto-restored on cleanup; RecordMechanism engages the ref-counted standalone lock.
+		// The one supported state. The hold is ledger-tracked (kCamera) and auto-restored on
+		// cleanup; RecordMechanism engages the ref-counted standalone lock.
 		REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — third-person hold engaged", a_handle, a_state);
 		GetSingleton().RecordMechanism(a_handle, Mechanism::kCamera);
 	}
@@ -433,9 +433,9 @@ namespace OSF::Scene
 
 	void SceneRuntime::ReplayLedger(std::int32_t a_handle)
 	{
-		// Reverse order, once, idempotently — the cleanup guarantee (§1.5). Snapshot the ledger
-		// reversed (UndoMechanism erases each entry as it reverses it; a later call finds it
-		// empty and no-ops). The Fire(SCENE_END) chokepoint calls this on every termination.
+		// Reverse order, once, idempotently — the cleanup guarantee. Snapshot the ledger reversed
+		// (UndoMechanism erases each entry as it reverses it; a later call finds it empty and
+		// no-ops). The single Fire(SCENE_END) point calls this on every termination.
 		std::vector<Mechanism> reversed;
 		{
 			std::lock_guard l{ _lock };
@@ -469,7 +469,7 @@ namespace OSF::Scene
 		if (a_role.empty()) {
 			return participants.front();  // default target = the first participant
 		}
-		// v1 binding is role-declaration order: roles[i] <-> participants[i].
+		// The binding is role-declaration order: roles[i] <-> participants[i].
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
 		if (!def) {
 			return nullptr;
@@ -543,7 +543,7 @@ namespace OSF::Scene
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kControlLock);
 		} else if (type == "osf.fade.out") {
 			// Screen fade only matters when the player is watching (NPC-only scenes must not
-			// black out the player's screen). Disabled-by-settings = silent skip (§1.5).
+			// black out the player's screen). Disabled by settings = silent skip.
 			if (!a_hasPlayer) {
 				REX::INFO("SceneRuntime: scene {:#010x} osf.fade.out — no player participant, no-op", a_handle);
 			} else if (!UI::FadeService::GetSingleton().Enabled()) {
@@ -560,13 +560,13 @@ namespace OSF::Scene
 				}
 			}
 		} else if (type == "osf.fade.in") {
-			// Fade back in + drop the fade debt so the cleanup ledger won't redo it. (v1 uses the
-			// mechanism default ramp; the authored `duration` is honored on fade.out only.)
+			// Fade back in + drop the fade debt so the cleanup ledger won't redo it. (Uses the
+			// mechanism's default ramp; the authored `duration` is honoured on fade.out only.)
 			REX::INFO("SceneRuntime: scene {:#010x} osf.fade.in", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kFade);
 		} else if (type == "osf.equipment.hide") {
 			// Strip the role's actor's worn apparel; record the snapshot in the ledger so cleanup
-			// (or osf.equipment.restore) re-equips it. Disabled-by-settings = silent skip (§1.5).
+			// (or osf.equipment.restore) re-equips it. Disabled by settings = silent skip.
 			if (!Equipment::EquipmentService::GetSingleton().Enabled()) {
 				REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.hide — disabled by settings, skipped", a_handle);
 			} else if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
@@ -582,12 +582,12 @@ namespace OSF::Scene
 			}
 		} else if (type == "osf.equipment.restore") {
 			// Re-equip everything this scene hid + drop the equipment debt so cleanup won't redo
-			// it. (v1 restores the whole scene's hidden apparel; per-role restore is deferred.)
+			// it. (Restores the whole scene's hidden apparel; per-role restore isn't done yet.)
 			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipment);
 		} else if (type == "osf.voice.play") {
-			// Fire-and-forget vocal: play the `set` spec at the role's actor. Not reversible (a
-			// one-shot sound has nothing to undo), so no ledger entry. Settings silent-skip (§1.5).
+			// Fire-and-forget voice line: play the `set` spec at the role's actor. Not reversible
+			// (a one-shot sound has nothing to undo), so no ledger entry. Silent-skips if disabled.
 			if (!Audio::SoundService::GetSingleton().Enabled()) {
 				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play — disabled by settings, skipped", a_handle);
 			} else if (a_action.set.empty()) {
@@ -597,11 +597,11 @@ namespace OSF::Scene
 				PlaySound(a_handle, a_action.set, a_action.role, 1.0f);
 			}
 		} else if (type.rfind("osf.", 0) == 0) {
-			// recognized built-in mechanism, not yet executed (camera is a track lane — Slice 18).
+			// recognised built-in mechanism we don't execute yet.
 			REX::INFO("SceneRuntime: scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
 				a_handle, a_action.type, a_action.role);
 		} else {
-			// custom namespaced action -> EVENT_ACTION (best-effort notification, §1.3).
+			// custom namespaced action -> EVENT_ACTION (best-effort notification).
 			DispatchAction(a_handle, a_node, a_action.type, a_action.role, a_anchor);
 		}
 	}
@@ -612,7 +612,7 @@ namespace OSF::Scene
 			return;
 		}
 
-		// §1.3 same-tick order across lanes is fixed (action -> camera -> sound -> cue), NOT JSON
+		// The same-tick order across lanes is fixed (action -> camera -> sound -> cue), not JSON
 		// order. The lane ids are numbered in that order, so a stable sort by lane yields it while
 		// preserving the Scene's per-lane declaration order.
 		std::vector<Animation::FiredMark> marks = a_marks;
@@ -648,7 +648,7 @@ namespace OSF::Scene
 
 		// Decode each mark by lane (already lane-ordered). Action-lane marks run their mechanism
 		// now; cue-lane ids are collected for EVENT_CUE + the trigger pass after the tick's
-		// entries have run (§1.3). camera/sound lanes are recognized but not executed yet.
+		// entries have run. The camera and sound lanes run their marks here too.
 		std::vector<std::string> cueIds;
 		for (const auto& m : marks) {
 			if (m.lane == kLaneCue) {
@@ -682,12 +682,12 @@ namespace OSF::Scene
 		}
 
 		// EVENT_CUE per fired cue on the node it fired on (notification). (Precise fraction/anchor
-		// isn't threaded back from the Scene in v1; the id is the contract's key field.)
+		// isn't threaded back from the Scene yet; the id is the key field anyway.)
 		for (const auto& id : cueIds) {
 			DispatchCue(handle, oldNode, id, "", -1.0f);
 		}
 
-		// trigger:<cueId> edge auto-take — evaluated AFTER the tick's track entries (§1.3). The
+		// trigger:<cueId> edge auto-take — evaluated after the tick's track entries. The
 		// first fired cue with a matching trigger edge on the CURRENT node wins (a transition
 		// changes the node, so later cues' triggers are moot). Re-resolve under the lock: an
 		// action above could (defensively) have ended the scene or changed the node.
@@ -728,7 +728,7 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} cue-trigger node '{}' -> {}", handle, oldNode, end ? "$end" : newNode);
 			Fire(handle, Event::kNodeExit, oldNode, "exit");
 			if (end) {
-				StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
+				StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END
 				Fire(handle, Event::kSceneEnd, oldNode, "");
 				ReleaseSlot(handle);
 			} else {
@@ -754,10 +754,10 @@ namespace OSF::Scene
 				a_nodeId, node->anim, a_participants.size());
 			return;
 		}
-		// P3: stamp the node's loop policy + timerSec onto the plan so GraphManager
-		// auto-ends at the node's terminal condition and reports it back via OnGraphAutoEnd
-		// (which takes the matching auto-edge). A `hold` node leaves the stage un-timed and
-		// holds for a manual AdvanceScene, as before.
+		// Stamp the node's loop policy + timerSec onto the plan so the GraphManager auto-ends
+		// at the node's terminal condition and reports it back via OnGraphAutoEnd (which takes
+		// the matching auto-edge). A `hold` node leaves the stage un-timed and holds for a
+		// manual AdvanceScene.
 		ApplyNodePolicy(*plan, *node);
 		ApplyNodeMarks(*plan, *node);  // node's timed cues + actions -> the played stage (Scene fires them)
 		// Re-playing on actors already in a scene tears the old node's scene first, so a
@@ -777,8 +777,8 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 
-		// Reject a null actor or the same actor passed twice in one call (§1.3) — both would
-		// break the one-actor-one-scene model the rest of the runtime relies on.
+		// Reject a null actor or the same actor passed twice in one call — both would break the
+		// one-actor-one-scene model the rest of the runtime relies on.
 		for (std::size_t i = 0; i < a_participants.size(); i++) {
 			if (!a_participants[i]) {
 				REX::WARN("SceneRuntime: null actor in start '{}'", a_id);
@@ -792,10 +792,9 @@ namespace OSF::Scene
 			}
 		}
 
-		// Actor exclusivity (v1, SCENE_DESIGN §1.3): an actor is in at most one live scene, so
-		// a start on a busy actor fails (0) — the caller must Stop it first. Without this, two
-		// handles could alias one actor, making GetSceneForActor multi-valued and the auto-end
-		// resolver ambiguous.
+		// Actor exclusivity: an actor is in at most one live scene, so a start on a busy actor
+		// fails (0) — the caller must Stop it first. Without this, two handles could alias one
+		// actor, making GetSceneForActor multi-valued and the auto-end resolver ambiguous.
 		for (auto* a : a_participants) {
 			std::int32_t busy = 0;
 			if (FindSlotForActor(a, &busy)) {
@@ -894,9 +893,8 @@ namespace OSF::Scene
 			}
 			node = s->node;
 			participants = s->participants;
-			// Keep the handle valid through NODE_EXIT + SCENE_END: the exit cues resolve it to
-			// look up the node, and §1.5 says the handle is read-only-valid during SCENE_END.
-			// Released right after.
+			// Keep the handle valid through NODE_EXIT + SCENE_END: the exit cues resolve it to look
+			// up the node, and the handle stays read-only-valid during SCENE_END. Released right after.
 		}
 
 		StopGraph(participants);
@@ -963,7 +961,7 @@ namespace OSF::Scene
 			return 0;  // actor already in a scene
 		}
 		Animation::ScenePlan plan;
-		plan.stages.push_back({ a_files, {}, 0.0f });  // one stage, holds (loop mode hold, §1.2)
+		plan.stages.push_back({ a_files, {}, 0.0f });  // one stage, holds (loop mode hold)
 		plan.speed = a_speed;
 		plan.blendIn = a_blendIn;
 		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, plan, 0)) {
@@ -1066,7 +1064,7 @@ namespace OSF::Scene
 
 		Fire(a_scene, Event::kNodeExit, oldNode, "exit");
 		if (end) {
-			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
+			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END
 			Fire(a_scene, Event::kSceneEnd, oldNode, "");
 			ReleaseSlot(a_scene);
 		} else {
@@ -1157,8 +1155,8 @@ namespace OSF::Scene
 			sceneId = s->id;
 			participants = s->participants;
 
-			// The handle is freed AFTER the events for any `end` path (ReleaseSlot below) so
-			// exit cues resolve it and SCENE_END dispatches with a valid handle (§1.5).
+			// The handle is freed after the events for any `end` path (ReleaseSlot below) so exit
+			// cues resolve it and SCENE_END dispatches with a valid handle.
 			if (s->kind != Kind::kDef) {
 				// Pack / files single-path scene: it has no edges, so its terminal stage IS
 				// the whole scene ending. (We still own the teardown so SCENE_END fires and
@@ -1188,7 +1186,7 @@ namespace OSF::Scene
 						}
 					} else {
 						// No matching edge. once/count with no outgoing edge = terminal
-						// completion (ends when the clip / loop target finishes, §1.3). A timer
+						// completion (ends when the clip / loop target finishes). A timer
 						// can't land here (we only arm the stage timer when a `timer` edge exists).
 						end = true;
 					}
@@ -1202,7 +1200,7 @@ namespace OSF::Scene
 
 		Fire(handle, Event::kNodeExit, oldNode, "exit");
 		if (end) {
-			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
+			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END
 			Fire(handle, Event::kSceneEnd, oldNode, "");
 			ReleaseSlot(handle);
 		} else {
@@ -1289,7 +1287,7 @@ namespace OSF::Scene
 		if (!s) {
 			return {};
 		}
-		// A files scene has no registry id — synthesize the documented one (§1.2).
+		// A files scene has no registry id — synthesize one.
 		if (s->kind == Kind::kFiles) {
 			return "runtime.files:" + std::to_string(a_scene);
 		}

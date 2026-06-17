@@ -2,10 +2,10 @@
 
 #include "Equipment/EquipmentService.h"  // Snapshot stored per-handle in the undo ledger
 
-// Tracks live scenes in a generational int-handle table
-// fires lifecycle events (NODE_ENTER / NODE_EXIT / SCENE_END) through the SceneEventRelay. 
-// For now a scene is just an id, its current node, a stage, and the participants; 
-/// the heavier runtime (graph navigation, track scheduler, undo ledger) gets built on top of this later.
+// Tracks live scenes in a generational int-handle table and fires lifecycle events
+// (NODE_ENTER / NODE_EXIT / SCENE_END) through the SceneEventRelay. Each live scene is an id,
+// its current node, a stage, and its participants, with graph navigation, the track scheduler,
+// and the undo ledger built on top of that.
 
 namespace OSF::Animation
 {
@@ -25,18 +25,18 @@ namespace OSF::Scene
 	public:
 		static SceneRuntime& GetSingleton();
 
-		// Register the SceneRuntime with the GraphManager.
+		// Wire this runtime up to the GraphManager.
 		void RegisterWithGraphManager();
 
-		// callback for when a node's animation auto-ends.  (game thread)
-		// Resolves the live handle owning the participants. and what triggered auto-edge (timer, loops, end) edge.
-		// no match edge -> terminal completion (ends the scene).
-		// Returns true if the scene was handled by the SceneRuntime, false otherwise (ex. direct StartScene without a graph).
+		// Called on the game thread when a node's animation auto-ends. Resolves the live handle
+		// owning the participants and which auto-edge fired (timer/loops/end); if no edge matches,
+		// the scene completes and ends. Returns true if this runtime handled the scene, false
+		// otherwise (e.g. a direct StartScene with no graph).
 		bool OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason);
 
-		// Layer-A timed-mark callback (registered with GraphManager). Game thread. Resolves the
-		// handle owning a_participants, then decodes each fired mark by lane in the §1.3 same-tick
-		// order (action -> camera -> sound -> cue): action-lane marks run the built-in/custom
+		// Timed-mark callback registered with the GraphManager. Runs on the game thread. Resolves
+		// the handle owning a_participants, then decodes each fired mark by lane in the same-tick
+		// order action -> camera -> sound -> cue: action-lane marks run the built-in/custom
 		// mechanism; cue-lane marks dispatch EVENT_CUE and then take the first matching
 		// trigger:<id> edge on the current node (transition, or end if "$end").
 		void OnTimedMarks(const std::vector<RE::Actor*>& a_participants, const std::vector<Animation::FiredMark>& a_marks);
@@ -60,27 +60,28 @@ namespace OSF::Scene
 		// Returns the handle (0 = no such scene def). Navigation works on these.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
 
-		// Start a registry PACK as a single-path scene: the pack's stages play as ONE GraphManager scene (the engine handles stage auto-advance); 
-		// the handle wraps it and its terminal stage ends the scene (SCENE_END). a_startStage = initial pack stage.
-		// 0 = unknown/unbuildable pack, play failure, or an actor is already in a scene.
+		// Start a registry pack as a single-path scene: the pack's stages play as one GraphManager
+		// scene (the engine auto-advances the stages), the handle wraps it, and its final stage ends
+		// the scene (SCENE_END). a_startStage = initial pack stage. 0 = unknown/unbuildable pack,
+		// play failure, or an actor is already in a scene.
 		std::int32_t StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage);
 
-		// Start an ad-hoc files scene (the StartSceneFiles backing): one synthetic "main" node athat holds (co-located + synced by GraphManager). 
-		// 0 = bad args, play failure, or an
-		// actor is already in a scene.
+		// Start an ad-hoc files scene (what StartSceneFiles is built on): a single synthetic "main"
+		// node that holds, with the actors co-located and synced by the GraphManager. 0 = bad args,
+		// play failure, or an actor is already in a scene.
 		std::int32_t StartFromFiles(const std::vector<RE::Actor*>& a_participants,
 			const std::vector<std::string>& a_files, float a_speed, float a_blendIn);
 
 		// Start a def-backed scene with actors bound to NAMED roles (a_roles[i] = role for
-		// a_actors[i]). Validates per §1.3 (unknown/duplicate role, null/duplicate actor, role
+		// a_actors[i]). Validates the binding (unknown/duplicate role, null/duplicate actor, role
 		// count, every declared role filled) and reorders actors into role-declaration order
 		// before entering. 0 = no such scene def, a validation failure, or an actor is busy.
 		std::int32_t StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
 			const std::vector<std::string>& a_roles);
 
-		// Jump a LINEAR scene to stage a_stage (SCENE_DESIGN §1.4): a pack/files scene (delegates
-		// to GraphManager's stage jump) or a def scene declaring `linearStages` (transitions to
-		// the indexed node). False on a non-linear graph, out-of-range stage, or invalid handle.
+		// Jump a linear scene to stage a_stage: either a pack/files scene (delegates to the
+		// GraphManager's stage jump) or a def scene declaring `linearStages` (transitions to the
+		// indexed node). False on a non-linear graph, an out-of-range stage, or an invalid handle.
 		bool SetStage(std::int32_t a_scene, std::int32_t a_stage);
 
 		// Take the current node's DEFAULT advance edge (transition, or end the scene if the edge targets "$end").
@@ -100,18 +101,18 @@ namespace OSF::Scene
 		// Lookups (contract sentinels): id/node "" if invalid; stage -1; actor→handle 0.
 		std::string  GetId(std::int32_t a_scene);
 		std::string  GetNode(std::int32_t a_scene);
-		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only (§1.4); else -1
+		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only; else -1
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
-		// Drop all live scenes (load teardown — invoked from GraphManager::StopAll via the
-		// registered clear handler, so a stashed handle reads as dead after a load).
+		// Drop all live scenes (load teardown). Invoked from GraphManager::StopAll via the
+		// registered clear handler, so a stashed handle reads as dead after a load.
 		void Clear();
 
 	private:
 		// What backs a live scene instance. kDef = a *.scene.json graph (navigable edges).
 		// kPack/kFiles = single-path "main" scenes with no edges; their GraphManager scene's
-		// terminal stage IS the scene ending (OnGraphAutoEnd ends them rather than taking an
-		// edge). kFiles also synthesizes its id ("runtime.files:<handle>", §1.2).
+		// final stage is the scene ending (OnGraphAutoEnd ends them rather than taking an edge).
+		// kFiles also synthesizes its id ("runtime.files:<handle>").
 		enum class Kind : std::uint8_t
 		{
 			kDef,
@@ -119,10 +120,10 @@ namespace OSF::Scene
 			kFiles
 		};
 
-		// A reversible side-effect a scene engaged, tracked in the per-handle undo ledger
-		// (SCENE_DESIGN §1.5). On any termination the ledger replays REVERSE order, once,
-		// idempotently — cleanup never depends on an authored release. Mechanisms with
-		// cross-scene state (control lock) keep their own ref-count alongside the per-handle entry.
+		// A reversible side-effect a scene engaged, tracked in the per-handle undo ledger. On any
+		// termination the ledger replays in reverse order, once, idempotently, so cleanup never
+		// depends on an authored release. Mechanisms with cross-scene state (the control lock) keep
+		// their own ref-count alongside the per-handle entry.
 		enum class Mechanism : std::uint8_t
 		{
 			kControlLock,  // player control + camera lock (ref-counted across scenes)
@@ -148,7 +149,7 @@ namespace OSF::Scene
 			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenEquip;
 		};
 
-		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen>=1 → nonzero).
+		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen >= 1 -> nonzero).
 		static std::int32_t MakeToken(std::uint16_t a_gen, std::uint16_t a_slot)
 		{
 			return (static_cast<std::int32_t>(a_gen) << 16) | a_slot;
@@ -167,14 +168,15 @@ namespace OSF::Scene
 		// after the handle was minted. Takes _lock itself.
 		void ReleaseSlot(std::int32_t a_handle);
 
-		// Caller holds _lock. The live slot a_actor participates in (and its token via a_token if non-null), or null. 
-		// Single source for the actor-exclusivity invariant (one actor -> at most one live scene) and the actor->handle lookups.
+		// Caller holds _lock. The live slot a_actor participates in (and its token via a_token if
+		// non-null), or null. This is the single source for the one-actor-one-scene invariant and
+		// the actor->handle lookups.
 		Slot* FindSlotForActor(RE::Actor* a_actor, std::int32_t* a_token);
 
 		// Log + dispatch a lifecycle event through the relay.
 		// Call OUTSIDE _lock (it enters the VM); the caller snapshots node/handle first.
 		// For NODE_ENTER / NODE_EXIT it also dispatches the node's enter / exit cue-track
-		// entries as EVENT_CUE (notification; trigger:<id> auto-take is a later increment).
+		// entries as EVENT_CUE.
 		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor);
 
 		// Dispatch one EVENT_CUE through the relay. Call OUTSIDE _lock.
@@ -198,7 +200,7 @@ namespace OSF::Scene
 		static void DispatchLifecycleCamera(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
 		// Engage one camera state (held, ledger-tracked, auto-restored). a_hasPlayer gates it
-		// (camera affects the player). v1: "thirdperson_hold" -> the standalone camera lock.
+		// (the camera affects the player). "thirdperson_hold" -> the standalone camera lock.
 		static void RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer);
 
 		// Run a node's enter (a_enter) or exit action-track entries (the lifecycle anchors).
@@ -217,28 +219,29 @@ namespace OSF::Scene
 		static void DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
 			std::string_view a_role, std::string_view a_anchor);
 
-		// Undo ledger (§1.5). RecordMechanism engages + records a reversible mechanism for a
-		// scene (idempotent per scene+mechanism). UndoMechanism reverses ONE mechanism for a
-		// scene (idempotent: applies its undo + drops the entry) — the authored osf.*.release /
-		// osf.fade.in path. ReplayLedger reverses the whole ledger in REVERSE order, once,
-		// idempotently — called from the Fire(SCENE_END) chokepoint so cleanup runs on every
-		// termination path. Control-lock keeps a cross-scene ref-count (_controlLockCount).
+		// Undo ledger. RecordMechanism engages and records a reversible mechanism for a scene
+		// (idempotent per scene+mechanism). UndoMechanism reverses one mechanism for a scene
+		// (idempotent: applies its undo and drops the entry) — the authored osf.*.release /
+		// osf.fade.in path. ReplayLedger reverses the whole ledger in reverse order, once,
+		// idempotently — called from the single Fire(SCENE_END) point so cleanup runs on every
+		// termination path. The control lock keeps a cross-scene ref-count (_controlLockCount).
 		void RecordMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void UndoMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void ReplayLedger(std::int32_t a_handle);
 
-		// The participant bound to a_role (by role-declaration order, the v1 binding; empty role
-		// -> the first participant). nullptr if the handle is dead or the role is unknown.
+		// The participant bound to a_role (by role-declaration order; an empty role -> the first
+		// participant). nullptr if the handle is dead or the role is unknown.
 		RE::Actor* ResolveRoleActor(std::int32_t a_handle, std::string_view a_role);
 
 		// Record apparel this scene hid for a_actor (osf.equipment.hide), adding the kEquipment
 		// ledger entry. Call OUTSIDE _lock (it locks). a_snapshot moved in.
 		void RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
 
-		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants already snapshotted. 
-		// PlayNodeAnim looks up the node's `anim` id and copies the node's loop policy and timerSec onto the last stage of the plan it plays,
-		// so the GraphManager auto-ends it and reports the timer/loops back through OnGraphAutoEnd. 
-		// If the scene has no animation or the id won't play, it does nothing. 
+		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants
+		// already snapshotted. PlayNodeAnim looks up the node's `anim` id and copies the node's
+		// loop policy and timerSec onto the last stage of the plan it plays, so the GraphManager
+		// auto-ends it and reports the timer/loops back through OnGraphAutoEnd. If the scene has no
+		// animation, or the id won't play, it does nothing.
 		static void PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId);
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);

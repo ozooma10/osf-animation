@@ -1,18 +1,17 @@
 #pragma once
 
-// loads JSON packs from Data/OSF/** and resolves animation ids to per-actor files + placements. 
-// Parses only the mechanical structure (id/tags/gender-slots/stages/clips/offsets/timer/loops); 
-// OSF content fields (undress, voice, intensity/peak, cues) are ignored.
-//
-// Canonical schema: docs/PACK_SCHEMA.md (keep in sync with this parser). Offsets are alignment correction
+// Loads JSON animation packs from Data/OSF/** and resolves animation ids to per-actor files
+// and placements. It only reads the mechanical structure (id, tags, gender slots, stages,
+// clips, offsets, timer, loops); any content fields a pack carries are ignored here. Offsets
+// are alignment corrections.
 
 #include "Animation/Scene.h"
 
 namespace OSF::Registry
 {
-	// Highest pack "schema" we parse. The parser implements the stage-major layout, which
-	// PACK_SCHEMA.md documents as v2 — so we accept up to 2 (older actor-major v1 packs are
-	// rejected with a migration hint in ParseAnimation). Bump only on a breaking change.
+	// Highest pack schema version we understand. We read the stage-major layout (version 2);
+	// older actor-major (version 1) packs are rejected with a migration hint in ParseAnimation.
+	// Bump only on a breaking change.
 	inline constexpr std::int64_t kPackSchemaVersion = 2;
 
 	enum class SlotGender : std::uint8_t
@@ -59,7 +58,8 @@ namespace OSF::Registry
 	public:
 		static PackRegistry& GetSingleton();
 
-		// Scans Data/OSF/**/*.json and replaces the registry. Bad files/entries are logged and skipped. Called at kPostDataLoad and from OSF.ReloadPacks().
+		// Scans Data/OSF/**/*.json and rebuilds the registry. Bad files or entries are logged
+		// and skipped. Runs at startup and again on OSF.ReloadPacks().
 		void LoadAll();
 
 		// Resolves id -> a multi-stage ScenePlan (files + placements + timer/loops), or nullopt (reason logged).

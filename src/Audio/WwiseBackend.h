@@ -1,35 +1,31 @@
 #pragma once
 
-// Engine-native cue playback: posts events through the game's own statically
-// linked Wwise sound engine (AK::SoundEngine::PostEvent), so the sound rides
-// the game mix — volume sliders, pause, ducking, busses all apply. This is
-// the opt-in upgrade path mapped by the Wwise RE round (wwise-audio-re-
-// handoff.md): cue "sound" entries of the form "event:<WwiseEventName>" or
-// "event:0x<akEventID>" route here; plain file paths keep playing through
-// the miniaudio device (SoundService) — Wwise can only fire events that
-// exist in the game's loaded soundbanks, not loose files.
+// Engine-native sound playback: posts events through the game's own statically
+// linked Wwise engine (AK::SoundEngine::PostEvent), so the sound rides the game
+// mix — volume sliders, pause, ducking and busses all apply. Cue "sound" entries
+// of the form "event:<WwiseEventName>" or "event:0x<akEventID>" route here; plain
+// file paths keep playing through the miniaudio device (SoundService). Wwise can
+// only fire events that already exist in the game's loaded soundbanks, not loose
+// files, so it's the opt-in path for sounds the game itself ships.
 //
-// v1 limitation (deliberate): events post on the PLAYER's Wwise game object
-// (engine special-case ID 2), i.e. at the listener — no per-actor 3D source.
-// The per-refr game-object resolver (AddrLib 73392) takes an engine-built
-// audio-space key object we cannot safely synthesize yet; positioned posting
-// is the open follow-up in the handoff. Scene cues fire near the player in
-// practice, so the audible difference is attenuation, not correctness.
+// For now, events post on the PLAYER's Wwise game object (the engine's special-case
+// ID 2), i.e. at the listener, with no per-actor 3D source. The per-refr resolver
+// wants an engine-built audio-space key object we can't safely synthesize yet, so
+// positioned posting is left for later. In practice scene cues fire near the player,
+// so the difference is attenuation rather than correctness.
 //
-// Verify-before-call: every engine address is prologue-gated (runtime-proven
-// bytes, identical 1.16.242/1.16.244); a mismatch self-disables event cues
-// and logs once — file-path cues are unaffected.
+// Every engine address is prologue-checked before we call it (the bytes are the same
+// on 1.16.242 and 1.16.244); on a mismatch we disable event cues, log once, and leave
+// file-path cues alone.
 //
-// Thread-safety: PostEvent is enqueue-only into AK's command queue and was
-// runtime-proven callable from arbitrary non-game threads (probe round 2),
-// so cue firing from animation job threads needs no marshaling.
+// PostEvent only enqueues into AK's command queue and is safe to call from any thread,
+// so firing cues from the animation job threads needs no marshaling.
 
 namespace OSF::Audio::Wwise
 {
-	// AK::SoundEngine::GetIDFromString reimplemented: FNV-1 32-bit over the
-	// lowercased name (basis 0x811C9DC5, prime 0x1000193) — RE-verified exact
-	// against the engine's own hasher (AddrLib 150371). Lets packs name events
-	// directly; no WWED form or soundbank metadata lookup needed.
+	// A reimplementation of AK::SoundEngine::GetIDFromString: FNV-1 32-bit over the
+	// lowercased name (basis 0x811C9DC5, prime 0x1000193), matching the engine's own
+	// hasher exactly. Lets packs name events directly, with no soundbank metadata lookup.
 	std::uint32_t HashEventName(std::string_view a_name);
 
 	// Recognizes the "event:" cue-sound spec. Returns the AkUniqueID (hex
