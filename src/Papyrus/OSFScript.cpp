@@ -4,7 +4,9 @@
 #include "Camera/CameraService.h"
 #include "Player/PlayerControlService.h"
 #include "Registry/PackRegistry.h"
+#include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
+#include "Scene/SceneRuntime.h"
 #include "Serialization/GLTFImport.h"
 #include "Util/StringUtil.h"
 
@@ -64,6 +66,7 @@ namespace OSF::Papyrus
 			REX::INFO("ReloadPacks: clip cache cleared");
 			auto& registry = Registry::PackRegistry::GetSingleton();
 			registry.LoadAll();
+			Registry::SceneRegistry::GetSingleton().LoadAll();  // ReloadPacks reloads scenes too
 			return static_cast<int32_t>(registry.Size());
 		}
 
@@ -400,6 +403,120 @@ namespace OSF::Papyrus
 			e.anchor = (a_event == Scene::Event::kNodeEnter) ? "enter" : (a_event == Scene::Event::kNodeExit) ? "exit" : "";
 			Scene::SceneEventRelay::GetSingleton().DispatchStatic(a_script.c_str(), a_fn.c_str(), e);
 		}
+
+		// --- Scene state getters (handle-based; Phase A: the SceneRuntime instance table) --
+		// Scene instance id, or "" if the handle is invalid/ended.
+		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetId(a_scene).c_str());
+		}
+
+		// Current node id of the scene, or "" if invalid.
+		RE::BSFixedString GetSceneNode(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetNode(a_scene).c_str());
+		}
+
+		// The scene handle a_actor participates in, or 0 if none.
+		int32_t GetSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
+		{
+			return Scene::SceneRuntime::GetSingleton().GetSceneForActor(a_actor);
+		}
+
+		// DEBUG (OSFCompat): drive the SceneRuntime lifecycle directly, without the
+		// GraphManager/StartScene handle-mint integration (a later slice). Each fires the
+		// matching lifecycle event(s) through the relay.
+		int32_t Dbg_StartScene(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_id, RE::BSFixedString a_node)
+		{
+			std::vector<RE::Actor*> participants;
+			if (a_actor) {
+				participants.push_back(a_actor);
+			}
+			return Scene::SceneRuntime::GetSingleton().Start(a_id.c_str(), a_node.c_str(), participants);
+		}
+
+		bool Dbg_SetSceneNode(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_node, int32_t a_stage)
+		{
+			return Scene::SceneRuntime::GetSingleton().SetNode(a_scene, a_node.c_str(), a_stage);
+		}
+
+		bool Dbg_StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
+		}
+
+		// Start a scene from its *.scene.json def (enter at the def's entry node). DEBUG
+		// (OSFCompat) until the real StartScene mints handles. Returns the handle (0 = fail).
+		int32_t Dbg_StartSceneDef(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_sceneId)
+		{
+			std::vector<RE::Actor*> participants;
+			if (a_actor) {
+				participants.push_back(a_actor);
+			}
+			return Scene::SceneRuntime::GetSingleton().StartFromDef(a_sceneId.c_str(), participants);
+		}
+
+		// --- Scene navigation (handle-based; def-backed scenes) --------------------
+		bool AdvanceScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().Advance(a_scene);
+		}
+
+		bool NavigateScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_edgeId)
+		{
+			return Scene::SceneRuntime::GetSingleton().Navigate(a_scene, a_edgeId.c_str());
+		}
+
+		int32_t GetSceneEdgeCount(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().EdgeCount(a_scene);
+		}
+
+		RE::BSFixedString GetSceneEdgeId(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
+		{
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeId(a_scene, a_index).c_str());
+		}
+
+		RE::BSFixedString GetSceneEdgeLabel(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
+		{
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeLabel(a_scene, a_index).c_str());
+		}
+
+		// --- Scene-load diagnostics ------------------------------------------------
+		// Problems (errors + warnings, each prefixed) from the last load / ReloadPacks.
+		std::vector<RE::BSFixedString> GetSceneLoadErrors(OSFVM&, uint32_t, std::monostate)
+		{
+			std::vector<RE::BSFixedString> out;
+			for (const auto& e : Registry::SceneRegistry::GetSingleton().LoadErrors()) {
+				out.emplace_back(e.c_str());
+			}
+			return out;
+		}
+
+		// DEBUG (OSFCompat): log a parsed scene's graph structure to the OSF Animation.log.
+		void Dbg_DumpScene(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
+		{
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str());
+			if (!def) {
+				REX::INFO("Dbg_DumpScene: no scene '{}'", a_id.c_str());
+				return;
+			}
+			REX::INFO("Dbg_DumpScene '{}' name='{}' entry='{}' tags={} roles={} nodes={}",
+				def->id, def->name, def->entry, def->tags.size(), def->roles.size(), def->nodes.size());
+			for (const auto& n : def->nodes) {
+				const char* mode = n.loopMode == Registry::LoopMode::kOnce ? "once" :
+					n.loopMode == Registry::LoopMode::kHold ? "hold" : "count";
+				REX::INFO("  node '{}' anim='{}' loop={}({}) timer={} edges={}",
+					n.id, n.anim, mode, n.loopCount, n.timerSec, n.edges.size());
+				for (const auto& e : n.edges) {
+					const char* when = e.when == Registry::EdgeWhen::kEnd ? "end" :
+						e.when == Registry::EdgeWhen::kLoops ? "loops" :
+						e.when == Registry::EdgeWhen::kTimer ? "timer" :
+						e.when == Registry::EdgeWhen::kAdvance ? "advance" : "trigger";
+					REX::INFO("    edge -> '{}' when={} id='{}' default={}", e.to, when, e.id, e.isDefault);
+				}
+			}
+		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
@@ -428,6 +545,15 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "HasFeature", &HasFeature, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "UnregisterSceneCallback", &UnregisterSceneCallback, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneNode", &GetSceneNode, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneForActor", &GetSceneForActor, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "AdvanceScene", &AdvanceScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "NavigateScene", &NavigateScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeCount", &GetSceneEdgeCount, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeId", &GetSceneEdgeId, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeLabel", &GetSceneEdgeLabel, true, false);
 		REX::INFO("Registered papyrus natives on script '{}'", SCRIPT_NAME);
 
 		// Compatibility-only natives — kept off the public OSF surface (see
@@ -441,6 +567,11 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEvent", &Dbg_FireSceneEvent, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEventStatic", &Dbg_FireSceneEventStatic, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartScene", &Dbg_StartScene, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_SetSceneNode", &Dbg_SetSceneNode, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StopScene", &Dbg_StopScene, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_DumpScene", &Dbg_DumpScene, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartSceneDef", &Dbg_StartSceneDef, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_Log", &Dbg_Log, true, false);
 		REX::INFO("Registered compatibility natives on script '{}'", COMPAT_SCRIPT_NAME);
 	}

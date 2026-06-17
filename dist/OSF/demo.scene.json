@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "id": "author.scenes.demo",
+  "name": "Demo Scene",
+  "priority": 0,
+  "tags": ["paired", "demo"],
+  "roles": [
+    { "name": "lead", "gender": "any" },
+    { "name": "other", "gender": "any" }
+  ],
+  "entry": "approach",
+  "nodes": [
+    {
+      "id": "approach",
+      "anim": "author.pack.walkin",
+      "loop": { "mode": "once" },
+      "edges": [ { "to": "main", "when": "end" } ]
+    },
+    {
+      "id": "main",
+      "anim": "author.pack.main",
+      "loop": { "mode": "hold" },
+      "edges": [
+        { "id": "finish", "label": "Finish", "to": "climax", "when": "advance", "default": true },
+        { "id": "tease", "label": "Tease", "to": "main", "when": "advance" }
+      ]
+    },
+    {
+      "id": "climax",
+      "anim": "author.pack.peak",
+      "loop": { "mode": "count", "count": 3 },
+      "edges": [ { "to": "cooldown", "when": "loops" } ]
+    },
+    {
+      "id": "cooldown",
+      "anim": "author.pack.winddown",
+      "loop": { "mode": "once" }
+    }
+  ]
+}

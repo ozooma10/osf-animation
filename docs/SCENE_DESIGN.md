@@ -157,12 +157,12 @@ membership is deferred.) A `None` actor, or the same actor passed twice in one c
 
 ### Callback contract
 
-Token-based registration; the payload arrives as a single **`Var[]` argument**, decoded via the
-shipped `OSFEvent` helper. **Prototype-confirmed (resolves §2.6 Q1):** there is no synchronous
-C++→Papyrus path — CLSF's `DispatchMethodCall`/`DispatchStaticCall` queue a VM stack and return, so
-the receiver runs *later*, off the firing stack. Dispatch-time getters are therefore **infeasible**;
-the event is snapshotted into the `Var[]`. (Async dispatch also makes callbacks non-reentrant for
-free — see Semantics.)
+Token-based registration; the payload arrives as an **`OSFEvent:SceneEvent` struct argument** —
+read fields directly (`akEvent.node`). **Prototype-confirmed (resolves §2.6 Q1):** there is no
+synchronous C++→Papyrus path — CLSF's `DispatchMethodCall`/`DispatchStaticCall` queue a VM stack and
+return, so the receiver runs *later*, off the firing stack. Dispatch-time getters are therefore
+**infeasible**; the event is snapshotted into the struct. (Async dispatch also makes callbacks
+non-reentrant for free — see Semantics.)
 
 ```papyrus
 ; aiScene = 0 means "all scenes"; aiEventMask filters. Returns a generational token (0 = failed).
@@ -170,17 +170,20 @@ free — see Semantics.)
 int  Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 
-; The receiver takes ONE Var[], decoded through OSFEvent (frozen index layout):
-Function OnSceneEvent(Var[] akEvent)            ; the function name is the caller's choice
-    If OSFEvent.EventType(akEvent) == OSF.EVENT_NODE_ENTER()
-        Actor a = OSFEvent.GetActor(akEvent)
+; The receiver takes one OSFEvent:SceneEvent struct:
+Function OnSceneEvent(OSFEvent:SceneEvent akEvent)   ; the function name is the caller's choice
+    If akEvent.eventType == OSF.EVENT_NODE_ENTER()
+        Actor a = akEvent.actorRef
         ; ...
     EndIf
 EndFunction
 ```
 
-`OSFEvent` accessors (one per field): `Scene` · `EventType` · `Node` · `Edge` · `Cue` ·
-`ActionType` · `GetActor` · `Role` · `LoopIndex` · `Time` · `Anchor` · `Result`.
+`OSFEvent:SceneEvent` fields: `sceneHandle` · `eventType` · `node` · `edge` · `cue` · `actionType` ·
+`actorRef` · `role` · `loopIndex` · `time` · `anchor` · `result`. Three are renamed to dodge Papyrus
+reserved-word / type-name clashes (struct members can't equal a keyword or type name,
+case-insensitive): **`eventType`** not `event`, **`sceneHandle`** not `scene` (vanilla `Scene` type),
+**`actorRef`** not `actor` (`Actor` type).
 
 Event types (mask bits; `EVENT_ALL` = all): `EVENT_NODE_ENTER`, `EVENT_NODE_EXIT`, `EVENT_CUE`,
 `EVENT_ACTION`, `EVENT_ACTION_FAILED`, `EVENT_SCENE_END`, `EVENT_SCENE_ABORT`.
@@ -193,20 +196,20 @@ Semantics:
   callback that calls `Stop`/`Advance`/`Navigate` is naturally safe: it acts on a later tick, and a
   now-dead scene handle reads as invalid for any still-queued callbacks (generational handles). No
   explicit defer queue is needed for the v1 surface.
-- **Receiver `fn` takes one `Var[]`** on `akReceiver` (global or member). A missing function, or an
-  unloaded/`None` receiver, is **skipped with a warning** (never asserts) and dropped.
-- For a named-anchor event, `OSFEvent.Time` is `-1.0` and `OSFEvent.Anchor` names it
-  (`"enter"` also reports `Time` 0.0; `"exit"`/`"end"` → `-1.0`).
-- `EVENT_CUE` → `OSFEvent.Cue` = the cue id. `EVENT_ACTION` → `OSFEvent.ActionType` = a custom
-  (non-`osf`) type (best-effort notification, §1.3). `EVENT_ACTION_FAILED` → `OSFEvent.ActionType` =
-  the failed built-in `osf.*` type, `OSFEvent.Result` = a `RESULT_*` code (not emitted for custom
+- **Receiver `fn` takes one `OSFEvent:SceneEvent`** on `akReceiver` (global or member). A missing
+  function, or an unloaded/`None` receiver, is **skipped with a warning** (never asserts) and dropped.
+- For a named-anchor event, `akEvent.time` is `-1.0` and `akEvent.anchor` names it
+  (`"enter"` also reports `time` 0.0; `"exit"`/`"end"` → `-1.0`).
+- `EVENT_CUE` → `akEvent.cue` = the cue id. `EVENT_ACTION` → `akEvent.actionType` = a custom
+  (non-`osf`) type (best-effort notification, §1.3). `EVENT_ACTION_FAILED` → `akEvent.actionType` =
+  the failed built-in `osf.*` type, `akEvent.result` = a `RESULT_*` code (not emitted for custom
   actions in v1).
 - The callback token is a distinct, generational handle namespace from scene handles; validated and
   fails safely if confused.
-- **String payload fields** (`Node`, `Edge`, `Cue`, `Anchor`, `Role`, `ActionType`) are
-  `BSFixedString`-interned and therefore **case-insensitive** — the returned casing may differ from
-  the authored casing (verified in the Phase-A test: `"main"`→`"Main"`). Compare with Papyrus `==`
-  (already case-insensitive); never do case-sensitive matching on them.
+- **String fields** (`node`, `edge`, `cue`, `anchor`, `role`, `actionType`) are `BSFixedString`-
+  interned and therefore **case-insensitive** — the returned casing may differ from the authored
+  casing (verified in the Phase-A test: `"main"`→`"Main"`). Compare with Papyrus `==` (already
+  case-insensitive); never do case-sensitive matching on them.
 
 ### Event & result constants
 
@@ -222,7 +225,7 @@ build**: a `Native` script's properties cannot be read on the type, so functions
 | `EVENT_ACTION` | `0x08` | | | |
 | `EVENT_ACTION_FAILED` | `0x10` | | | |
 
-Result codes (`OSFEvent.Result`): `RESULT_OK`=0, `RESULT_BAD_ROLE`=1, `RESULT_RUNTIME_FAILURE`=2,
+Result codes (`akEvent.result`): `RESULT_OK`=0, `RESULT_BAD_ROLE`=1, `RESULT_RUNTIME_FAILURE`=2,
 `RESULT_NO_HANDLER`=3. **Disabled-by-user-settings is a silent skip, not a failure** — a suppressed
 action emits no `EVENT_ACTION_FAILED` and logs at debug only (the user disabling a mechanism is
 expected, not an error). `RESULT_DISABLED_BY_SETTINGS`(=4) is reserved for a future opt-in
@@ -230,21 +233,20 @@ expected, not an error). `RESULT_DISABLED_BY_SETTINGS`(=4) is reserved for a fut
 
 ### Callback payload by event
 
-Fields not listed for an event return their null/sentinel (`""` / `None` / `-1` / `-1.0`), read via
-the `OSFEvent` accessor of the same name.
+Struct fields not listed for an event hold their null/sentinel (`""` / `None` / `-1` / `-1.0`).
 
-| Event | node | edge | cue / actionType | actor / role | time / anchor | result |
+| Event | node | edge | cue / actionType | actorRef / role | time / anchor | result |
 |---|---|---|---|---|---|---|
 | `NODE_ENTER` | new node | entering edge or `""` | — | — | `-1.0` / `"enter"` | — |
 | `NODE_EXIT` | leaving node | chosen edge | — | — | `-1.0` / `"exit"` | — |
-| `CUE` | node | — | `Cue`=id | role on the cue if any | the cue's coordinate | — |
-| `ACTION` | node | — | `ActionType`=custom type | role if any | the entry's coordinate | — |
-| `ACTION_FAILED` | node | — | `ActionType`=failed `osf.*` type | role if any | the entry's coordinate | `RESULT_*` |
+| `CUE` | node | — | `cue`=id | role on the cue if any | the cue's coordinate | — |
+| `ACTION` | node | — | `actionType`=custom type | role if any | the entry's coordinate | — |
+| `ACTION_FAILED` | node | — | `actionType`=failed `osf.*` type | role if any | the entry's coordinate | `RESULT_*` |
 | `SCENE_END`/`SCENE_ABORT` | last node | — | — | — | — | `RESULT_*` on abort |
 
-(`OSFEvent.Scene` is the handle for every event; `OSFEvent.LoopIndex` is the current loop. **Phase A
-note:** the `actor` slot is currently always `None` — real object marshalling lands with the events
-that carry a role/actor.)
+(`akEvent.sceneHandle` is the handle for every event; `akEvent.loopIndex` is the current loop. **Phase
+A note:** `actorRef` is currently always `None` — real object marshalling lands with the events that
+carry a role/actor.)
 
 ## 1.3 The `*.scene.json` schema (v1)
 
@@ -596,11 +598,16 @@ built-in actions and the undo ledger *are* part of v1 — they just land in phas
 
 ## 2.6 Open questions (post-review)
 
-1. ~~**Callback transport**~~ **RESOLVED (Phase-A prototype, 2026-06-17):** no synchronous
-   C++→Papyrus path exists; dispatch-time getters are infeasible. The payload is passed as a `Var[]`
-   argument via async `DispatchMethodCall` (per-receiver) / `DispatchStaticCall` (debug probe),
-   decoded through `OSFEvent`. Constants ship as `OSF.*()` global functions (a `Native` script can't
-   expose properties on the type). See §1.2.
+1. ~~**Callback transport**~~ **RESOLVED (Phase-A prototype, 2026-06-17, in-game verified):** no
+   synchronous C++→Papyrus path exists; dispatch-time getters are infeasible. The payload is passed
+   as an **`OSFEvent:SceneEvent` struct** argument via async `DispatchMethodCall` (per-receiver) /
+   `DispatchStaticCall` (debug probe). Constants ship as `OSF.*()` global functions (a `Native`
+   script can't expose properties on the type). **Struct-marshalling traps (for any future struct):**
+   CLSF's `structure_wrapper::insert` is broken (looks up members with a `std::string_view` against a
+   `BSFixedString`-keyed map → hash miss); `varNameIndexMap::find` is *also* unreliable; and the
+   compiler **reorders** struct members (declaration order ≠ slot order). The working recipe:
+   `CreateStruct` → **iterate** `varNameIndexMap` to build a case-folded name→slot map → write
+   `proxy->variables[slot]` directly. See `src/Scene/SceneEventRelay.cpp`.
 2. **Camera ownership under true concurrency** — last-writer + snapshot chain (§1.5) is the v1 rule;
    revisit if real multi-scene camera contention appears.
 

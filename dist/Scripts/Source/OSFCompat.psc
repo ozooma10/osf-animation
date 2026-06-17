@@ -27,6 +27,21 @@ Function Dbg_FireSceneEvent(int aiScene, int aiEvent, string asNode) Global Nati
 ; no registration. Proves the Var[] marshalling from the console without a scripted form.
 Function Dbg_FireSceneEventStatic(string asScript, string asFn, int aiScene, int aiEvent, string asNode) Global Native
 
+; DEBUG (Phase A scene-runtime prototype, NOT public API): drive the scene lifecycle
+; directly (mint a handle + fire NODE_ENTER; transition fires NODE_EXIT+NODE_ENTER; stop
+; fires NODE_EXIT+SCENE_END and invalidates the handle).
+int Function Dbg_StartScene(Actor akActor, string asId, string asNode) Global Native
+bool Function Dbg_SetSceneNode(int aiScene, string asNode, int aiStage) Global Native
+bool Function Dbg_StopScene(int aiScene) Global Native
+
+; DEBUG: log a parsed *.scene.json graph (nodes/edges) to the OSF Animation.log.
+Function Dbg_DumpScene(string asId) Global Native
+
+; DEBUG: start a scene from its *.scene.json def (enter at the def's entry node), so the
+; handle-based AdvanceScene/NavigateScene can be exercised before the real StartScene mints
+; handles. Returns the scene handle (0 = no such def).
+int Function Dbg_StartSceneDef(Actor akActor, string asSceneId) Global Native
+
 ; DEBUG: echo a message into OSF Animation.log (REX) from Papyrus, so the callback
 ; round-trip is provable without enabling the Papyrus script log.
 Function Dbg_Log(string asMsg) Global Native

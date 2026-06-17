@@ -1,41 +1,67 @@
 #include "Scene/SceneEventRelay.h"
 
+#include "Util/StringUtil.h"
+
+#include "RE/S/Struct.h"
+#include "RE/S/StructTypeInfo.h"
+#include "RE/V/VirtualMachine.h"
+
 namespace OSF::Scene
 {
 	namespace
 	{
 		using VM = RE::BSScript::Internal::VirtualMachine;
 
-		// Build the frozen-layout Var[] payload (see SceneEvent / OSFEvent.psc). Returns
-		// null if the VM can't allocate the array.
-		RE::BSTSmartPointer<RE::BSScript::Array> PackPayload(VM* a_vm, const SceneEvent& a_event)
+		// Build the OSFEvent:SceneEvent struct payload. Map member name -> slot index by
+		// ITERATING varNameIndexMap: the compiler REORDERS struct members (declaration order
+		// != slot order — verified in-game), and the map's `find` proved unreliable on this
+		// BSFixedString-keyed table (only hash-coincidence members hit, both with string_view
+		// and BSFixedString keys). Iterating reads the true (name, index) pairs directly.
+		// Case-normalized for safety. Returns false if the struct type isn't loaded.
+		bool PackPayload(VM* a_vm, const SceneEvent& a_event, RE::BSScript::Variable& a_out)
 		{
-			RE::BSTSmartPointer<RE::BSScript::Array> arr;
-			// Element type kVar => a Papyrus Var[] (the container provides the array-ness).
-			if (!a_vm->CreateArray(RE::BSScript::TypeInfo::RawType::kVar, RE::BSFixedString{}, 12u, arr) || !arr) {
-				return nullptr;
+			RE::BSTSmartPointer<RE::BSScript::Struct> proxy;
+			if (!a_vm->CreateStruct("OSFEvent#SceneEvent", proxy) || !proxy || !proxy->type) {
+				REX::WARN("SceneEventRelay: OSFEvent:SceneEvent struct type not loaded");
+				return false;
 			}
 
-			auto str = [](const std::string& s) { return RE::BSFixedString(s.c_str()); };
-			(*arr)[0] = a_event.scene;
-			(*arr)[1] = a_event.event;
-			(*arr)[2] = str(a_event.node);
-			(*arr)[3] = str(a_event.edge);
-			(*arr)[4] = str(a_event.cue);
-			(*arr)[5] = str(a_event.actionType);
-			// [6] actor: left as None for Phase A (NODE_ENTER/EXIT carry no actor). Real
-			// object marshalling lands with the events that populate a role/actor.
-			(*arr)[7] = str(a_event.role);
-			(*arr)[8] = a_event.loopIndex;
-			(*arr)[9] = a_event.time;
-			(*arr)[10] = str(a_event.anchor);
-			(*arr)[11] = a_event.result;
-			return arr;
+			std::unordered_map<std::string, std::uint32_t> index;
+			for (const auto& kv : proxy->type->varNameIndexMap) {
+				index[Util::ToLower(kv.key.c_str())] = kv.value;
+			}
+
+			const auto count = proxy->type->variables.size();
+			auto set = [&](const char* a_member, const RE::BSScript::Variable& a_val) {
+				const auto it = index.find(Util::ToLower(a_member));
+				if (it != index.end() && it->second < count) {
+					proxy->variables[it->second] = a_val;
+				} else {
+					REX::WARN("SceneEventRelay: member '{}' not found in OSFEvent:SceneEvent", a_member);
+				}
+			};
+
+			RE::BSScript::Variable v;
+			v = a_event.scene;                                  set("sceneHandle", v);
+			v = a_event.event;                                  set("eventType", v);
+			v = RE::BSFixedString(a_event.node.c_str());        set("node", v);
+			v = RE::BSFixedString(a_event.edge.c_str());        set("edge", v);
+			v = RE::BSFixedString(a_event.cue.c_str());         set("cue", v);
+			v = RE::BSFixedString(a_event.actionType.c_str());  set("actionType", v);
+			v = RE::BSFixedString(a_event.role.c_str());        set("role", v);
+			v = a_event.loopIndex;                              set("loopIndex", v);
+			v = a_event.time;                                   set("time", v);
+			v = RE::BSFixedString(a_event.anchor.c_str());      set("anchor", v);
+			v = a_event.result;                                 set("result", v);
+			// actorRef: left as the struct default (None) for Phase A.
+
+			a_out = proxy;
+			return true;
 		}
 
-		// A one-argument call: args[0] = the Var[] payload. Capturing the array keeps it
-		// alive until the (async) Papyrus stack consumes it.
-		auto MakeArgs(RE::BSTSmartPointer<RE::BSScript::Array> a_payload)
+		// A one-argument call: args[0] = the struct payload. Capturing the Variable (a
+		// copy shares the struct proxy) keeps it alive until the async stack consumes it.
+		auto MakeArgs(RE::BSScript::Variable a_payload)
 		{
 			return [payload = std::move(a_payload)](RE::BSScrapArray<RE::BSScript::Variable>& a_args) -> bool {
 				a_args.resize(1);
@@ -90,7 +116,7 @@ namespace OSF::Scene
 		e.eventMask = (a_eventMask == 0) ? Event::kAll : a_eventMask;
 
 		const std::int32_t token = MakeToken(gen, slot);
-		REX::INFO("SceneEventRelay: registered token {:#010x} -> {}(Var[]) (mask {:#x}, scene {})",
+		REX::INFO("SceneEventRelay: registered token {:#010x} -> {}(OSFEvent:SceneEvent) (mask {:#x}, scene {})",
 			token, e.fn.c_str(), e.eventMask, e.sceneFilter);
 		return token;
 	}
@@ -141,14 +167,11 @@ namespace OSF::Scene
 			REX::WARN("SceneEventRelay::Dispatch: no VM");
 			return;
 		}
-		auto payload = PackPayload(vm, a_event);
-		if (!payload) {
-			REX::WARN("SceneEventRelay::Dispatch: failed to build payload array");
+		RE::BSScript::Variable payload;
+		if (!PackPayload(vm, a_event, payload)) {
 			return;
 		}
 
-		REX::INFO("SceneEventRelay::Dispatch: event={:#x} scene={} -> {} receiver(s)",
-			a_event.event, a_event.scene, targets.size());
 		const RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> noCallback{};
 		for (auto& [receiver, fn] : targets) {
 			vm->DispatchMethodCall(receiver, fn, MakeArgs(payload), noCallback, 0);
@@ -162,17 +185,15 @@ namespace OSF::Scene
 			REX::WARN("SceneEventRelay::DispatchStatic: no VM");
 			return false;
 		}
-		auto payload = PackPayload(vm, a_event);
-		if (!payload) {
+		RE::BSScript::Variable payload;
+		if (!PackPayload(vm, a_event, payload)) {
 			return false;
 		}
 		const RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> noCallback{};
-		const bool queued = vm->DispatchStaticCall(
+		return vm->DispatchStaticCall(
 			RE::BSFixedString(std::string(a_script).c_str()),
 			RE::BSFixedString(std::string(a_fn).c_str()),
 			MakeArgs(payload), noCallback, 0);
-		REX::INFO("SceneEventRelay::DispatchStatic: {}.{}(Var[]) queued={}", a_script, a_fn, queued);
-		return queued;
 	}
 
 	void SceneEventRelay::Clear()

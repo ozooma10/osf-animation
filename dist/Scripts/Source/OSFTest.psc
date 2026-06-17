@@ -163,14 +163,73 @@ Function CbTransportTest() global
     OSFCompat.Dbg_FireSceneEventStatic("OSFTest", "OnSceneEvent", 123, OSF.EVENT_SCENE_END(), "main")
 EndFunction
 
-; Receiver: decodes the Var[] payload through OSFEvent and logs it. This is the shape
-; every real consumer's callback function takes.
-Function OnSceneEvent(Var[] akEvent) global
-    string msg = "OnSceneEvent: scene=" + OSFEvent.Scene(akEvent) \
-        + " event=" + OSFEvent.EventType(akEvent) \
-        + " node='" + OSFEvent.Node(akEvent) + "'" \
-        + " anchor='" + OSFEvent.Anchor(akEvent) + "'"
+; Receiver: takes the OSFEvent:SceneEvent struct and reads fields directly. This is the
+; shape every real consumer's callback function takes.
+Function OnSceneEvent(OSFEvent:SceneEvent akEvent) global
+    string msg = "OnSceneEvent: scene=" + akEvent.sceneHandle \
+        + " event=" + akEvent.eventType \
+        + " node='" + akEvent.node + "'" \
+        + " anchor='" + akEvent.anchor + "'"
     OSFCompat.Dbg_Log(msg)              ; -> OSF Animation.log (reliable)
     Debug.Trace("OSFTest." + msg)        ; -> Papyrus log (only if logging enabled)
     Debug.Notification("OSF: " + msg)    ; -> on-screen
+EndFunction
+
+; --- Scene-runtime lifecycle prototype (handles + lifecycle events) ----------
+; Exercises the Phase-A scene-instance spine: mint a handle, query getters, transition a
+; node, stop. Lifecycle events (NODE_ENTER/EXIT/SCENE_END) are logged by the runtime, so
+; they're visible with no registered callback (the relay also delivers them to any that are).
+;   cgf "OSFTest.SceneTest"   -> watch the OSF Animation.log
+Function SceneTest() global
+    Actor p = Game.GetPlayer()
+    int h = OSFCompat.Dbg_StartScene(p, "author.scenes.demo", "approach")
+    OSFCompat.Dbg_Log("SceneTest: started h=" + h + " id='" + OSF.GetSceneId(h) + "' node='" + OSF.GetSceneNode(h) + "'")
+    OSFCompat.Dbg_Log("SceneTest: GetSceneForActor(player)=" + OSF.GetSceneForActor(p) + " (expect " + h + ")")
+    OSFCompat.Dbg_SetSceneNode(h, "main", 1)
+    OSFCompat.Dbg_Log("SceneTest: transitioned -> node='" + OSF.GetSceneNode(h) + "'")
+    OSFCompat.Dbg_StopScene(h)
+    OSFCompat.Dbg_Log("SceneTest: stopped; id now='" + OSF.GetSceneId(h) + "' (expect empty), GetSceneForActor=" + OSF.GetSceneForActor(p) + " (expect 0)")
+EndFunction
+
+; --- .scene.json parser test --------------------------------------------------
+; Reloads content (packs + scenes), reports any scene-load problems, and dumps the bundled
+; demo scene's parsed graph.
+;   cgf "OSFTest.SceneLoadTest"   -> watch the OSF Animation.log
+Function SceneLoadTest() global
+    OSF.ReloadPacks()
+    string[] errors = OSF.GetSceneLoadErrors()
+    OSFCompat.Dbg_Log("SceneLoadTest: " + errors.Length + " scene-load problem(s)")
+    int i = 0
+    While i < errors.Length
+        OSFCompat.Dbg_Log("  " + errors[i])
+        i += 1
+    EndWhile
+    OSFCompat.Dbg_DumpScene("author.scenes.demo")
+EndFunction
+
+; --- Scene navigation test ----------------------------------------------------
+; Starts the demo scene from its def (entry='approach'), exercises Advance/Navigate/edge
+; introspection. Lifecycle events are logged by the runtime.
+;   cgf "OSFTest.NavTest"   -> watch the OSF Animation.log
+Function NavTest() global
+    Actor p = Game.GetPlayer()
+    int h = OSFCompat.Dbg_StartSceneDef(p, "author.scenes.demo")
+    OSFCompat.Dbg_Log("NavTest: started h=" + h + " node='" + OSF.GetSceneNode(h) + "' (expect approach)")
+    ; 'approach' has only an auto 'end' edge -> 0 branchable, Advance returns false.
+    OSFCompat.Dbg_Log("NavTest: edges@approach=" + OSF.GetSceneEdgeCount(h) + " (expect 0); advance=" + OSF.AdvanceScene(h) + " (expect False)")
+    ; Jump to 'main' (debug) to test the branch edges.
+    OSFCompat.Dbg_SetSceneNode(h, "main", 0)
+    int n = OSF.GetSceneEdgeCount(h)
+    OSFCompat.Dbg_Log("NavTest: edges@main=" + n + " (expect 2)")
+    int i = 0
+    While i < n
+        OSFCompat.Dbg_Log("  edge[" + i + "] id='" + OSF.GetSceneEdgeId(h, i) + "' label='" + OSF.GetSceneEdgeLabel(h, i) + "'")
+        i += 1
+    EndWhile
+    bool nav = OSF.NavigateScene(h, "finish")
+    OSFCompat.Dbg_Log("NavTest: navigate 'finish'=" + nav + " -> node='" + OSF.GetSceneNode(h) + "' (expect climax)")
+    ; 'climax' has only an auto 'loops' edge -> no default advance -> false.
+    OSFCompat.Dbg_Log("NavTest: advance@climax=" + OSF.AdvanceScene(h) + " (expect False)")
+    OSFCompat.Dbg_StopScene(h)
+    OSFCompat.Dbg_Log("NavTest: stopped; node now='" + OSF.GetSceneNode(h) + "' (expect empty)")
 EndFunction

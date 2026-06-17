@@ -1,6 +1,7 @@
 #include "Animation/GraphManager.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/PackRegistry.h"
+#include "Registry/SceneRegistry.h"
 #include "Serialization/SaveSafety.h"
 #include "UI/CompatWarning.h"
 
@@ -32,6 +33,7 @@ namespace
 			break;
 		case SFSE::MessagingInterface::kPostDataLoad:
 			OSF::Registry::PackRegistry::GetSingleton().LoadAll();
+			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}

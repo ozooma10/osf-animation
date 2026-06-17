@@ -89,6 +89,28 @@ string Function GetVersion() Global Native
 int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 
+; --- Scene state getters (handle-based) ---------------------------------------
+; Take an opaque scene handle (from a Start* call). Phase A: these read the scene-runtime
+; instance table. Sentinels: id/node "" when the handle is invalid/ended; actor->handle 0.
+string Function GetSceneId(int aiScene) Global Native
+string Function GetSceneNode(int aiScene) Global Native
+int Function GetSceneForActor(Actor akActor) Global Native
+
+; Problems (errors + warnings, each prefixed [error]/[warn]) from the last scene load /
+; ReloadPacks. Empty = all scene files loaded cleanly.
+string[] Function GetSceneLoadErrors() Global Native
+
+; --- Scene navigation (handle-based; def-backed scenes) -----------------------
+; Take the current node's DEFAULT advance edge (or end the scene if it targets "$end").
+; False if the handle is invalid or the node has no default advance edge (never inferred).
+bool Function AdvanceScene(int aiScene) Global Native
+; Take the current node's branchable advance edge with id == asEdgeId. False if no such edge.
+bool Function NavigateScene(int aiScene, string asEdgeId) Global Native
+; Branchable (advance) edges of the current node — for building menus.
+int Function GetSceneEdgeCount(int aiScene) Global Native
+string Function GetSceneEdgeId(int aiScene, int aiIndex) Global Native
+string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
+
 ; Event-type bits (compose into aiEventMask; EVENT_ALL = every type). Exposed as global
 ; getter functions, not properties: a `Native` script's properties cannot be read on the
 ; type (OSF.X), but global functions can (OSF.EVENT_NODE_ENTER()).
