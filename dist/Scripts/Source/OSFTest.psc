@@ -367,3 +367,25 @@ Function RolesTest() global
     int h3 = OSF.StartSceneRoles(actors, "author.scenes.pbtest", two, 0)
     OSFCompat.Dbg_Log("  StartSceneRoles(2 roles, 1 actor) -> h3=" + h3 + " (expect 0 = count mismatch)")
 EndFunction
+
+; --- Cue tracks (EVENT_CUE at enter/exit/end + numeric clip fractions) ----------------
+; Starts "author.scenes.cuetest" (one held node with a cue track) and waits ~3s. The cue
+; firings are logged by the runtime ("SceneRuntime: scene ... CUE '<id>' ..."), so they're
+; visible with NO registered receiver. Crosshair actor or player. Keep the game FOCUSED —
+; the numeric cues advance on the animation clock, which stalls when the game pauses.
+; Expect: CUE 'began' (enter, on start), 'early' (~1s), 'tick' (~2s, repeat:loop first hit),
+; then on stop CUE 'done' (exit). ('looped' fires at the ~20s clip end if left running.)
+;   cgf "OSFTest.CueTest"
+Function CueTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.cuetest", 0)
+    OSFCompat.Dbg_Log("CueTest: started h=" + h + " — expect CUE 'began' now, 'early' ~1s, 'tick' ~2s")
+    Utility.Wait(3.0)
+    OSFCompat.Dbg_Log("CueTest: stopping — expect CUE 'done' (exit)")
+    OSF.StopScene(h)
+EndFunction

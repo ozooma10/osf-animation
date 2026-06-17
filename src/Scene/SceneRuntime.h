@@ -26,6 +26,11 @@ namespace OSF::Scene
 		// Returns true if the scene was handled by the SceneRuntime, false otherwise (ex. direct StartScene without a graph).
 		bool OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason);
 
+		// Layer-A timed-cue callback (registered with GraphManager). Game thread. Resolves the
+		// handle owning a_participants and dispatches each fired cue id as EVENT_CUE on the
+		// current node. (trigger:<id> edge auto-take is a later increment.)
+		void OnTimedCues(const std::vector<RE::Actor*>& a_participants, const std::vector<std::string>& a_cueIds);
+
 		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. 
 		// Returns the handle (0 = failed: table full).
 		std::int32_t Start(std::string_view a_id, std::string_view a_entryNode, const std::vector<RE::Actor*>& a_participants);
@@ -137,9 +142,19 @@ namespace OSF::Scene
 		// Single source for the actor-exclusivity invariant (one actor -> at most one live scene) and the actor->handle lookups.
 		Slot* FindSlotForActor(RE::Actor* a_actor, std::int32_t* a_token);
 
-		// Log + dispatch a lifecycle event through the relay. 
+		// Log + dispatch a lifecycle event through the relay.
 		// Call OUTSIDE _lock (it enters the VM); the caller snapshots node/handle first.
+		// For NODE_ENTER / NODE_EXIT it also dispatches the node's enter / exit cue-track
+		// entries as EVENT_CUE (notification; trigger:<id> auto-take is a later increment).
 		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor);
+
+		// Dispatch one EVENT_CUE through the relay. Call OUTSIDE _lock.
+		static void DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
+			std::string_view a_anchor, float a_time);
+
+		// Dispatch a node's enter (a_enter) or exit cue-track entries as EVENT_CUE. Call OUTSIDE
+		// _lock. No-op for a non-def scene or a node with no matching cues.
+		static void DispatchLifecycleCues(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants already snapshotted. 
 		// PlayNodeAnim looks up the node's `anim` id and copies the node's loop policy and timerSec onto the last stage of the plan it plays,

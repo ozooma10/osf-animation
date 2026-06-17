@@ -94,6 +94,71 @@ namespace OSF::Registry
 			return e;
 		}
 
+		// Parse the node's `tracks` block. v1 lanes: `cue` (parsed + fired), and
+		// sound/action/camera (recognized but not yet executed). Any other lane name rejects.
+		void ParseCueTracks(const json& a_node, SceneNode& a_node_out)
+		{
+			const auto it = a_node.find("tracks");
+			if (it == a_node.end()) {
+				return;
+			}
+			if (!it->is_object()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': 'tracks' must be an object");
+			}
+			for (const auto& [lane, entries] : it->items()) {
+				const auto laneLower = ToLower(lane);
+				if (laneLower == "sound" || laneLower == "action" || laneLower == "camera") {
+					continue;  // recognized lanes, not executed yet (Layer C / later increment)
+				}
+				if (laneLower != "cue") {
+					throw std::runtime_error("node '" + a_node_out.id + "': unknown track lane '" + lane + "'");
+				}
+				if (!entries.is_array()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': 'cue' track must be an array");
+				}
+				for (const auto& c : entries) {
+					CueEntry ce;
+					ce.id = c.value("id", std::string{});
+					if (ce.id.empty()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': a cue track entry is missing 'id'");
+					}
+					const auto atIt = c.find("at");
+					if (atIt == c.end()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' is missing 'at'");
+					}
+					const auto repeat = ToLower(c.value("repeat", "none"));
+					if (repeat != "none" && repeat != "loop") {
+						throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' has unknown repeat '" + repeat + "'");
+					}
+					ce.everyLoop = (repeat == "loop");
+					if (atIt->is_string()) {
+						const auto at = ToLower(atIt->get<std::string>());
+						if (at == "enter") {
+							ce.pos = CuePos::kEnter;
+						} else if (at == "exit") {
+							ce.pos = CuePos::kExit;
+						} else if (at == "end") {
+							ce.pos = CuePos::kEnd;
+						} else {
+							throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' has unknown anchor 'at':'" + at + "'");
+						}
+						if (ce.everyLoop) {
+							throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' named anchor cannot use repeat:loop");
+						}
+					} else if (atIt->is_number()) {
+						ce.pos = CuePos::kFraction;
+						ce.fraction = atIt->get<float>();
+						if (ce.fraction < 0.0f || ce.fraction >= 1.0f) {
+							throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
+						}
+					} else {
+						throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' 'at' must be a number or enter/exit/end");
+					}
+					a_node_out.cues.push_back(std::move(ce));
+				}
+			}
+		}
+
 		SceneNode ParseNode(const json& a_node, std::vector<std::string>& a_warnings, const std::string& a_sceneId)
 		{
 			SceneNode n;
@@ -146,6 +211,27 @@ namespace OSF::Registry
 			}
 			if (!hasTimerEdge && n.timerSec > 0.0f) {
 				a_warnings.push_back("scene '" + a_sceneId + "' node '" + n.id + "': timerSec set but no 'timer' edge");
+			}
+
+			ParseCueTracks(a_node, n);
+
+			// A trigger:<cueId> edge must reference a cue emitted on THIS node (§1.6).
+			for (const auto& e : n.edges) {
+				if (e.when != EdgeWhen::kTrigger) {
+					continue;
+				}
+				const auto want = ToLower(e.trigger);
+				bool found = false;
+				for (const auto& c : n.cues) {
+					if (ToLower(c.id) == want) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					throw std::runtime_error("node '" + n.id + "': trigger edge references cue '" + e.trigger +
+						"' with no matching cue track entry on this node");
+				}
 			}
 			return n;
 		}

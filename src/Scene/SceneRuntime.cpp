@@ -46,6 +46,24 @@ namespace OSF::Scene
 			stage.timer = (hasTimerEdge && a_node.timerSec > 0.0f) ? a_node.timerSec : 0.0f;
 		}
 
+		// Map a node's TIMED cue-track entries (numeric `at` + `end`) onto the played plan's
+		// terminal stage, so the Scene fires them by clip time. Enter/exit cues are fired by
+		// Layer-B lifecycle (DispatchLifecycleCues), not here.
+		void ApplyNodeCues(Animation::ScenePlan& a_plan, const Registry::SceneNode& a_node)
+		{
+			if (a_plan.stages.empty()) {
+				return;
+			}
+			auto& stage = a_plan.stages.back();
+			for (const auto& cue : a_node.cues) {
+				if (cue.pos == Registry::CuePos::kFraction) {
+					stage.cues.push_back({ cue.fraction, cue.everyLoop, false, cue.id });
+				} else if (cue.pos == Registry::CuePos::kEnd) {
+					stage.cues.push_back({ 0.0f, false, true, cue.id });
+				}
+			}
+		}
+
 		// The outgoing auto-edge of a_node whose `when` matches, by §1.3 arbitration: highest
 		// priority wins, ties keep declaration order. nullptr if the node has no such edge.
 		const Registry::SceneEdge* SelectAutoEdge(const Registry::SceneNode& a_node, Registry::EdgeWhen a_when)
@@ -75,6 +93,10 @@ namespace OSF::Scene
 			});
 		// Drop the handle table on any load teardown (handles hold raw Actor* participants).
 		gm.SetSceneClearHandler([]() { SceneRuntime::GetSingleton().Clear(); });
+		// Fire EVENT_CUE for the timed cues a scene's stage crosses.
+		gm.SetSceneCueHandler([](const std::vector<RE::Actor*>& a_actors, const std::vector<std::string>& a_ids) {
+			SceneRuntime::GetSingleton().OnTimedCues(a_actors, a_ids);
+		});
 	}
 
 	SceneRuntime::Slot* SceneRuntime::Resolve(std::int32_t a_handle)
@@ -112,6 +134,11 @@ namespace OSF::Scene
 
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor)
 	{
+		// "exit" cue entries run BEFORE the structural NODE_EXIT (§1.5 transition order).
+		if (a_event == Event::kNodeExit) {
+			DispatchLifecycleCues(a_handle, a_node, false);
+		}
+
 		// Logged so the lifecycle is visible even with no registered receiver; the relay
 		// delivers the OSFEvent:SceneEvent struct to any that are registered.
 		REX::INFO("SceneRuntime: scene {:#010x} event {:#x} node='{}' anchor='{}'", a_handle, a_event, a_node, a_anchor);
@@ -122,6 +149,70 @@ namespace OSF::Scene
 		e.anchor = std::string(a_anchor);
 		// actor/role left default (Phase A).
 		SceneEventRelay::GetSingleton().Dispatch(e);
+
+		// "enter" cue entries run AFTER the structural NODE_ENTER (§1.5 transition order).
+		if (a_event == Event::kNodeEnter) {
+			DispatchLifecycleCues(a_handle, a_node, true);
+		}
+	}
+
+	void SceneRuntime::DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
+		std::string_view a_anchor, float a_time)
+	{
+		REX::INFO("SceneRuntime: scene {:#010x} CUE '{}' node='{}' anchor='{}' time={:.3f}",
+			a_handle, a_cue, a_node, a_anchor, a_time);
+		SceneEvent e;
+		e.scene = a_handle;
+		e.event = Event::kCue;
+		e.node = std::string(a_node);
+		e.cue = std::string(a_cue);
+		e.anchor = std::string(a_anchor);
+		e.time = a_time;
+		SceneEventRelay::GetSingleton().Dispatch(e);
+	}
+
+	void SceneRuntime::DispatchLifecycleCues(std::int32_t a_handle, std::string_view a_node, bool a_enter)
+	{
+		const std::string id = GetSingleton().GetId(a_handle);  // "" for pack/files -> no cues
+		if (id.empty()) {
+			return;
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		if (!node) {
+			return;
+		}
+		const auto wantPos = a_enter ? Registry::CuePos::kEnter : Registry::CuePos::kExit;
+		for (const auto& cue : node->cues) {
+			if (cue.pos == wantPos) {
+				DispatchCue(a_handle, a_node, cue.id, a_enter ? "enter" : "exit", -1.0f);
+			}
+		}
+	}
+
+	void SceneRuntime::OnTimedCues(const std::vector<RE::Actor*>& a_participants, const std::vector<std::string>& a_cueIds)
+	{
+		std::int32_t handle = 0;
+		std::string node;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = nullptr;
+			for (auto* a : a_participants) {
+				if ((s = FindSlotForActor(a, &handle))) {
+					break;
+				}
+			}
+			if (!s) {
+				return;  // not a SceneRuntime scene (e.g. PlaySequence)
+			}
+			node = s->node;
+		}
+		// Numeric/end cues -> EVENT_CUE on the current node. (The precise fraction/anchor isn't
+		// threaded back from the Scene in v1; the id is the contract's key field. trigger:<id>
+		// edge auto-take lands with the next increment.)
+		for (const auto& id : a_cueIds) {
+			DispatchCue(handle, node, id, "", -1.0f);
+		}
 	}
 
 	void SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId)
@@ -145,6 +236,7 @@ namespace OSF::Scene
 		// (which takes the matching auto-edge). A `hold` node leaves the stage un-timed and
 		// holds for a manual AdvanceScene, as before.
 		ApplyNodePolicy(*plan, *node);
+		ApplyNodeCues(*plan, *node);  // node's timed cues -> the played stage (Scene fires them)
 		// Re-playing on actors already in a scene tears the old node's scene first, so a
 		// node transition is just a fresh PlaySceneStaged.
 		Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0);
@@ -279,12 +371,15 @@ namespace OSF::Scene
 			}
 			node = s->node;
 			participants = s->participants;
-			*s = Slot{};  // generation 0 → empty; invalidates the handle
+			// Keep the handle valid through NODE_EXIT + SCENE_END: the exit cues resolve it to
+			// look up the node, and §1.5 says the handle is read-only-valid during SCENE_END.
+			// Released right after.
 		}
 
 		StopGraph(participants);
 		Fire(a_scene, Event::kNodeExit, node, "exit");
 		Fire(a_scene, Event::kSceneEnd, node, "");
+		ReleaseSlot(a_scene);  // generation 0 → invalidates the handle
 		return true;
 	}
 
@@ -439,8 +534,7 @@ namespace OSF::Scene
 			sceneId = s->id;
 			participants = s->participants;
 			if (edge->to == "$end") {
-				end = true;
-				*s = Slot{};  // free the handle
+				end = true;  // freed after SCENE_END (handle valid through the events)
 			} else {
 				s->node = edge->to;
 				newNode = edge->to;
@@ -451,6 +545,7 @@ namespace OSF::Scene
 		if (end) {
 			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
 			Fire(a_scene, Event::kSceneEnd, oldNode, "");
+			ReleaseSlot(a_scene);
 		} else {
 			PlayNodeAnim(participants, sceneId, newNode);
 			Fire(a_scene, Event::kNodeEnter, newNode, "enter");
@@ -491,8 +586,7 @@ namespace OSF::Scene
 			sceneId = s->id;
 			participants = s->participants;
 			if (edge->to == "$end") {
-				end = true;
-				*s = Slot{};
+				end = true;  // freed after SCENE_END (handle valid through the events)
 			} else {
 				s->node = edge->to;
 				newNode = edge->to;
@@ -503,6 +597,7 @@ namespace OSF::Scene
 		if (end) {
 			StopGraph(participants);
 			Fire(a_scene, Event::kSceneEnd, oldNode, "");
+			ReleaseSlot(a_scene);
 		} else {
 			PlayNodeAnim(participants, sceneId, newNode);
 			Fire(a_scene, Event::kNodeEnter, newNode, "enter");
@@ -539,20 +634,20 @@ namespace OSF::Scene
 			sceneId = s->id;
 			participants = s->participants;
 
+			// The handle is freed AFTER the events for any `end` path (ReleaseSlot below) so
+			// exit cues resolve it and SCENE_END dispatches with a valid handle (§1.5).
 			if (s->kind != Kind::kDef) {
 				// Pack / files single-path scene: it has no edges, so its terminal stage IS
 				// the whole scene ending. (We still own the teardown so SCENE_END fires and
 				// the handle invalidates, vs returning false and letting GraphManager stop it
 				// silently — which would leak the handle.)
 				end = true;
-				*s = Slot{};
 			} else {
 				const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
 				const auto* node = def ? def->FindNode(s->node) : nullptr;
 				if (!node) {
 					// def-backed but the node/def vanished — end defensively (don't leak).
 					end = true;
-					*s = Slot{};
 				} else {
 					// Map the fired condition to the node's edge semantics: a timer arms a
 					// `timer` edge; a loop/clip-end arms `loops` (count) or `end` (once).
@@ -564,7 +659,6 @@ namespace OSF::Scene
 						tookEdge = true;
 						if (edge->to == "$end") {
 							end = true;
-							*s = Slot{};
 						} else {
 							s->node = edge->to;
 							newNode = edge->to;
@@ -574,7 +668,6 @@ namespace OSF::Scene
 						// completion (ends when the clip / loop target finishes, §1.3). A timer
 						// can't land here (we only arm the stage timer when a `timer` edge exists).
 						end = true;
-						*s = Slot{};
 					}
 				}
 			}
@@ -588,6 +681,7 @@ namespace OSF::Scene
 		if (end) {
 			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
 			Fire(handle, Event::kSceneEnd, oldNode, "");
+			ReleaseSlot(handle);
 		} else {
 			PlayNodeAnim(participants, sceneId, newNode);
 			Fire(handle, Event::kNodeEnter, newNode, "enter");

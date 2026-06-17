@@ -131,6 +131,7 @@ namespace OSF::Animation
 				stage.placements = planStage.placements.empty() ?
 				                       std::vector<ParticipantPlacement>(a_actors.size()) :
 				                       planStage.placements;
+				stage.cues = planStage.cues;
 				for (const auto& fileSpec : planStage.files) {
 					auto file = ResolveClipPath(std::filesystem::path{ fileSpec });
 					auto r = Serialization::GLTFImport::LoadAnimation(file, "");
@@ -797,6 +798,38 @@ namespace OSF::Animation
 		});
 	}
 
+	void GraphManager::QueueCuesIfFired(Graph& a_graph)
+	{
+		if (!a_graph.scene || !_cueHandler) {
+			return;
+		}
+		// Drain the cue ids the scene fired this frame (token-gated, so only the advancing
+		// graph populates them — any participant draining gets them once).
+		std::vector<std::string> ids;
+		a_graph.scene->DrainFiredCues(ids);
+		if (ids.empty()) {
+			return;
+		}
+		// Snapshot the participant actors (NiPointer keeps them alive across the deferred
+		// task); dispatch on the game thread — the handler enters the VM (and may transition).
+		std::vector<RE::NiPointer<RE::Actor>> keep;
+		for (auto& p : a_graph.scene->participants) {
+			if (p && p->target) {
+				keep.emplace_back(static_cast<RE::Actor*>(p->target.get()));
+			}
+		}
+		SFSE::GetTaskInterface()->AddTask([keep, ids]() {
+			std::vector<RE::Actor*> actors;
+			actors.reserve(keep.size());
+			for (auto& a : keep) {
+				actors.push_back(a.get());
+			}
+			if (GetSingleton()._cueHandler) {
+				GetSingleton()._cueHandler(actors, ids);
+			}
+		});
+	}
+
 	void GraphManager::QueueFadeRemovalIfDone(Graph& a_graph)
 	{
 		// Fade-out finished: queue removal on the game thread (the hook holds the
@@ -891,6 +924,7 @@ namespace OSF::Animation
 		// Per-graph follow-ups, run under both locks (each defers any
 		// game-thread-only work to the task queue).
 		gm.QueueAutoEndIfFinished(*g);
+		gm.QueueCuesIfFired(*g);
 		gm.QueueFadeRemovalIfDone(*g);
 		gm.LogSceneDiag(*g, refr);
 	}

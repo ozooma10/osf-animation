@@ -40,6 +40,25 @@ namespace OSF::Registry
 		std::int32_t priority = 0;
 	};
 
+	// Where on the node's clip timeline a cue fires. kFraction = clip-local fraction in [0,1);
+	// the rest are the named lifecycle anchors (§1.3 time model).
+	enum class CuePos : std::uint8_t
+	{
+		kFraction,
+		kEnter,
+		kExit,
+		kEnd
+	};
+
+	// One `cue` track entry: fires EVENT_CUE (and, later, drives a trigger:<id> edge).
+	struct CueEntry
+	{
+		CuePos       pos = CuePos::kEnter;
+		float        fraction = 0.0f;   // when pos == kFraction
+		bool         everyLoop = false;  // repeat:"loop" (numeric only)
+		std::string  id;
+	};
+
 	struct SceneNode
 	{
 		std::string              id;
@@ -50,7 +69,7 @@ namespace OSF::Registry
 		float                    timerSec = 0.0f;
 		bool                     loopForever = false;
 		std::vector<SceneEdge>   edges;
-		// tracks (sound/cue/action/camera) deferred to a later increment.
+		std::vector<CueEntry>    cues;          // `cue` track (sound/action/camera lanes deferred)
 	};
 
 	struct SceneRole
