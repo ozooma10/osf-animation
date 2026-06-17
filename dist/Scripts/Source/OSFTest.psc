@@ -389,3 +389,21 @@ Function CueTest() global
     OSFCompat.Dbg_Log("CueTest: stopping — expect CUE 'done' (exit)")
     OSF.StopScene(h)
 EndFunction
+
+; --- Cue-driven graph transitions (trigger:<cueId> edge auto-take) ---------------------
+; Starts "author.scenes.trigtest" and does NOTHING else — the scene walks itself via cues:
+; node 'first' fires cue 'go' at ~2s, whose trigger:go edge transitions to 'second'; 'second'
+; fires 'done' at ~2s, whose trigger:done edge ends the scene. Keep the game FOCUSED.
+; Expect (no manual advance): CUE 'go' -> cue-trigger -> NODE_ENTER 'second' -> CUE 'done' ->
+; cue-trigger $end -> SCENE_END.  Crosshair actor or player.
+;   cgf "OSFTest.TrigTest"
+Function TrigTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.trigtest", 0)
+    OSFCompat.Dbg_Log("TrigTest: started h=" + h + " node='" + OSF.GetSceneNode(h) + "' (expect 'first') — now WAIT, cues drive it: 'go' ~2s -> 'second', 'done' ~2s -> end.")
+EndFunction

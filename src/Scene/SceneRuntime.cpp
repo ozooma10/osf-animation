@@ -193,7 +193,12 @@ namespace OSF::Scene
 	void SceneRuntime::OnTimedCues(const std::vector<RE::Actor*>& a_participants, const std::vector<std::string>& a_cueIds)
 	{
 		std::int32_t handle = 0;
-		std::string node;
+		std::string oldNode;
+		std::string newNode;
+		std::string sceneId;
+		std::vector<RE::Actor*> participants;
+		bool triggered = false;
+		bool end = false;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = nullptr;
@@ -205,13 +210,56 @@ namespace OSF::Scene
 			if (!s) {
 				return;  // not a SceneRuntime scene (e.g. PlaySequence)
 			}
-			node = s->node;
+			oldNode = s->node;
+			sceneId = s->id;
+			participants = s->participants;
+
+			// First fired cue with a matching trigger:<id> edge on the current node wins (a
+			// transition changes the node, so later cues' triggers are moot). The slot's node
+			// is set now for the transition; an $end stays valid through SCENE_END (freed below).
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
+			const auto* node = def ? def->FindNode(s->node) : nullptr;
+			if (node) {
+				for (const auto& id : a_cueIds) {
+					const auto want = Util::ToLower(id);
+					const Registry::SceneEdge* edge = nullptr;
+					for (const auto& e : node->edges) {
+						if (e.when == Registry::EdgeWhen::kTrigger && Util::ToLower(e.trigger) == want) {
+							edge = &e;
+							break;
+						}
+					}
+					if (edge) {
+						triggered = true;
+						if (edge->to == "$end") {
+							end = true;
+						} else {
+							s->node = edge->to;
+							newNode = edge->to;
+						}
+						break;
+					}
+				}
+			}
 		}
-		// Numeric/end cues -> EVENT_CUE on the current node. (The precise fraction/anchor isn't
-		// threaded back from the Scene in v1; the id is the contract's key field. trigger:<id>
-		// edge auto-take lands with the next increment.)
+
+		// Every fired cue dispatches EVENT_CUE on the node it fired on (notification); the
+		// trigger edge is evaluated after (§1.3). (Precise fraction/anchor isn't threaded back
+		// from the Scene in v1; the id is the contract's key field.)
 		for (const auto& id : a_cueIds) {
-			DispatchCue(handle, node, id, "", -1.0f);
+			DispatchCue(handle, oldNode, id, "", -1.0f);
+		}
+		if (triggered) {
+			REX::INFO("SceneRuntime: scene {:#010x} cue-trigger node '{}' -> {}", handle, oldNode, end ? "$end" : newNode);
+			Fire(handle, Event::kNodeExit, oldNode, "exit");
+			if (end) {
+				StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
+				Fire(handle, Event::kSceneEnd, oldNode, "");
+				ReleaseSlot(handle);
+			} else {
+				PlayNodeAnim(participants, sceneId, newNode);
+				Fire(handle, Event::kNodeEnter, newNode, "enter");
+			}
 		}
 	}
 

@@ -27,8 +27,8 @@ namespace OSF::Scene
 		bool OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason);
 
 		// Layer-A timed-cue callback (registered with GraphManager). Game thread. Resolves the
-		// handle owning a_participants and dispatches each fired cue id as EVENT_CUE on the
-		// current node. (trigger:<id> edge auto-take is a later increment.)
+		// handle owning a_participants, dispatches each fired cue id as EVENT_CUE, then takes the
+		// first matching trigger:<id> edge on the current node (transition, or end if "$end").
 		void OnTimedCues(const std::vector<RE::Actor*>& a_participants, const std::vector<std::string>& a_cueIds);
 
 		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. 
