@@ -157,11 +157,17 @@ namespace OSF::Animation
 			scene->placements.resize(a_actors.size());
 			scene->SetStage(a_startStage);
 
-			// Anchor at actor[0]'s current transform; participant world positions
-			// are anchor + each placement's offset rotated into the anchor heading
-			// frame (see PlacementToWorld).
-			scene->anchorPos = a_actors[0]->data.location;
-			scene->anchorHeading = a_actors[0]->data.angle.z;
+			// Anchor at actor[0]'s current transform by default; participant world
+			// positions are anchor + each placement's offset rotated into the anchor
+			// heading frame (see PlacementToWorld). An explicit anchor (StartSceneAt)
+			// overrides actor[0], so the scene world-anchors to a thing (furniture/marker).
+			if (a_plan.anchorExplicit) {
+				scene->anchorPos = a_plan.anchorPos;
+				scene->anchorHeading = a_plan.anchorHeading;
+			} else {
+				scene->anchorPos = a_actors[0]->data.location;
+				scene->anchorHeading = a_actors[0]->data.angle.z;
+			}
 			return scene;
 		}
 	}

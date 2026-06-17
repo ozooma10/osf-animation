@@ -754,6 +754,18 @@ namespace OSF::Scene
 				a_nodeId, node->anim, a_participants.size());
 			return;
 		}
+		// StartSceneAt: if the owning scene carries an explicit world anchor, every node plays
+		// anchored there instead of at participant[0]. Read it fresh from the slot so all the
+		// transition paths (Advance/Navigate/auto-end/trigger) reuse it with no per-site plumbing.
+		{
+			std::lock_guard l{ GetSingleton()._lock };
+			std::int32_t tok = 0;
+			if (Slot* s = GetSingleton().FindSlotForActor(a_participants.front(), &tok); s && s->anchor.set) {
+				plan->anchorExplicit = true;
+				plan->anchorPos = s->anchor.pos;
+				plan->anchorHeading = s->anchor.heading;
+			}
+		}
 		// Stamp the node's loop policy + timerSec onto the plan so the GraphManager auto-ends
 		// at the node's terminal condition and reports it back via OnGraphAutoEnd (which takes
 		// the matching auto-edge). A `hold` node leaves the stage un-timed and holds for a
@@ -844,11 +856,19 @@ namespace OSF::Scene
 	}
 
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
-		const std::vector<RE::Actor*>& a_participants)
+		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor)
 	{
 		const std::int32_t handle = MintSlot(Kind::kDef, a_id, a_entryNode, 0, a_participants);
 		if (!handle) {
 			return 0;
+		}
+		// Store the explicit anchor on the slot BEFORE the first play so PlayNodeAnim (which
+		// reads it back from the slot) and every later node transition reuse it (StartSceneAt).
+		if (a_anchor.set) {
+			std::lock_guard l{ _lock };
+			if (Slot* s = Resolve(handle)) {
+				s->anchor = a_anchor;
+			}
 		}
 		PlayNodeAnim(a_participants, a_id, a_entryNode);
 		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
@@ -927,7 +947,19 @@ namespace OSF::Scene
 		return Start(def->id, def->entry, a_participants);
 	}
 
-	std::int32_t SceneRuntime::StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage)
+	std::int32_t SceneRuntime::StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
+		RE::NiPoint3 a_anchorPos, float a_anchorHeading)
+	{
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		if (!def) {
+			REX::WARN("SceneRuntime::StartFromDefAt: no scene def '{}'", a_sceneId);
+			return 0;
+		}
+		return Start(def->id, def->entry, a_participants, AnchorOverride{ true, a_anchorPos, a_anchorHeading });
+	}
+
+	std::int32_t SceneRuntime::StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage,
+		const AnchorOverride& a_anchor)
 	{
 		if (a_participants.empty()) {
 			return 0;
@@ -937,6 +969,13 @@ namespace OSF::Scene
 		auto plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(a_packId, a_participants.size());
 		if (!plan) {
 			return 0;
+		}
+		// StartSceneAt: world-anchor the pack scene at the explicit anchor (a pack scene is
+		// single-path, so there are no node transitions — stamping the plan once is enough).
+		if (a_anchor.set) {
+			plan->anchorExplicit = true;
+			plan->anchorPos = a_anchor.pos;
+			plan->anchorHeading = a_anchor.heading;
 		}
 		const std::int32_t handle = MintSlot(Kind::kPack, a_packId, "main", a_startStage, a_participants);
 		if (!handle) {

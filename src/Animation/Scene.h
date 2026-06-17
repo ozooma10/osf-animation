@@ -90,6 +90,12 @@ namespace OSF::Animation
 		// false = no teleport or pin; the rig follows each actor's live transform.
 		// true = teleport to anchor+offset and pin there.
 		bool anchored = true;
+		// Explicit world anchor (StartSceneAt). false = anchor at actor[0]'s current
+		// transform (the default). true = anchor at anchorPos/anchorHeading instead, so a
+		// scene can be world-anchored to a piece of furniture/marker, not an actor.
+		bool anchorExplicit = false;
+		RE::NiPoint3 anchorPos{};
+		float anchorHeading = 0.0f;  // radians
 	};
 
 	class Scene

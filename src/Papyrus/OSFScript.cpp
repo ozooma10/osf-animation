@@ -339,6 +339,47 @@ namespace OSF::Papyrus
 			return 0;
 		}
 
+		// Like StartScene, but world-anchors the scene at an ObjectReference (furniture / bed /
+		// marker) instead of co-locating the actors at actor[0]. afHeadingDeg < 0 uses akAnchor's
+		// own heading; otherwise it is a heading in DEGREES. Id resolution (scene-then-pack, the
+		// scene:/anim: prefixes) mirrors StartScene. Returns the handle (0 = failed).
+		int32_t StartSceneAt(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
+			RE::TESObjectREFR* a_anchor, float a_headingDeg)
+		{
+			if (a_actors.empty()) {
+				REX::WARN("OSF.StartSceneAt: no actors given");
+				return 0;
+			}
+			if (!a_anchor) {
+				REX::WARN("OSF.StartSceneAt: no anchor reference given");
+				return 0;
+			}
+			std::string sid = a_id.c_str();
+			bool forceScene = false;
+			bool forcePack = false;
+			if (sid.rfind("scene:", 0) == 0) {
+				forceScene = true;
+				sid = sid.substr(6);
+			} else if (sid.rfind("anim:", 0) == 0) {
+				forcePack = true;
+				sid = sid.substr(5);
+			}
+
+			// World anchor = the reference's position + (its heading, or an explicit one in degrees).
+			const RE::NiPoint3 pos = a_anchor->data.location;
+			const float heading = (a_headingDeg < 0.0f) ? a_anchor->data.angle.z : (a_headingDeg * Util::kDegToRadF);
+
+			auto& rt = Scene::SceneRuntime::GetSingleton();
+			if (!forcePack && Registry::SceneRegistry::GetSingleton().Find(sid)) {
+				return rt.StartFromDefAt(sid, a_actors, pos, heading);  // composed graph, anchored at the ref
+			}
+			if (!forceScene) {
+				return rt.StartFromPack(sid, a_actors, 0, Scene::SceneRuntime::AnchorOverride{ true, pos, heading });
+			}
+			REX::WARN("OSF.StartSceneAt: no scene '{}' (scene: prefix forced)", sid);
+			return 0;
+		}
+
 		// Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for
 		// akActors[i] (equal lengths). Returns the handle (0 = no such scene / validation fail).
 		// Roles are a *.scene.json concept; a `scene:` prefix is tolerated/stripped.
@@ -651,6 +692,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "NotifyGameLoaded", &NotifyGameLoaded, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneAt", &StartSceneAt, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);

@@ -25,6 +25,16 @@ namespace OSF::Scene
 	public:
 		static SceneRuntime& GetSingleton();
 
+		// Explicit world anchor for a scene (StartSceneAt). When set, every node's playback
+		// anchors here instead of at participant[0], so a scene world-anchors to a thing
+		// (furniture/bed/marker). Stored on the Slot so node transitions reuse it.
+		struct AnchorOverride
+		{
+			bool         set = false;
+			RE::NiPoint3 pos{};
+			float        heading = 0.0f;  // radians
+		};
+
 		// Wire this runtime up to the GraphManager.
 		void RegisterWithGraphManager();
 
@@ -41,9 +51,12 @@ namespace OSF::Scene
 		// trigger:<id> edge on the current node (transition, or end if "$end").
 		void OnTimedMarks(const std::vector<RE::Actor*>& a_participants, const std::vector<Animation::FiredMark>& a_marks);
 
-		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. 
-		// Returns the handle (0 = failed: table full).
-		std::int32_t Start(std::string_view a_id, std::string_view a_entryNode, const std::vector<RE::Actor*>& a_participants);
+		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. An explicit
+		// anchor (StartSceneAt) world-anchors the scene at a_anchor instead of at participant[0]
+		// and is stored on the slot so node transitions reuse it. Returns the handle (0 = failed:
+		// table full / an actor is already in a scene).
+		std::int32_t Start(std::string_view a_id, std::string_view a_entryNode, const std::vector<RE::Actor*>& a_participants,
+			const AnchorOverride& a_anchor = {});
 
 		// Move to a different node: fire NODE_EXIT (old node) then NODE_ENTER (new node).
 		// False if the handle is invalid.
@@ -60,11 +73,20 @@ namespace OSF::Scene
 		// Returns the handle (0 = no such scene def). Navigation works on these.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
 
+		// Like StartFromDef, but world-anchored at (a_anchorPos, a_anchorHeading in RADIANS)
+		// instead of at participant[0] (StartSceneAt). The anchor is stored on the slot so every
+		// node transition reuses it.
+		std::int32_t StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
+			RE::NiPoint3 a_anchorPos, float a_anchorHeading);
+
 		// Start a registry pack as a single-path scene: the pack's stages play as one GraphManager
 		// scene (the engine auto-advances the stages), the handle wraps it, and its final stage ends
 		// the scene (SCENE_END). a_startStage = initial pack stage. 0 = unknown/unbuildable pack,
 		// play failure, or an actor is already in a scene.
-		std::int32_t StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage);
+		// a_anchor world-anchors the pack scene (StartSceneAt) instead of anchoring at
+		// participant[0]; default-unset keeps the original participant[0] anchoring.
+		std::int32_t StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage,
+			const AnchorOverride& a_anchor = {});
 
 		// Start an ad-hoc files scene (what StartSceneFiles is built on): a single synthetic "main"
 		// node that holds, with the actors co-located and synced by the GraphManager. 0 = bad args,
@@ -140,6 +162,7 @@ namespace OSF::Scene
 			std::string             node;
 			std::int32_t            stage = 0;
 			std::vector<RE::Actor*> participants;
+			AnchorOverride          anchor;  // StartSceneAt world anchor (unset = anchor at participant[0])
 			// Ordered list of reversible mechanisms this scene engaged (at most one entry per
 			// Mechanism — record is idempotent). Replayed in reverse on termination.
 			std::vector<Mechanism>  ledger;

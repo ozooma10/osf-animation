@@ -49,6 +49,12 @@ bool Function IsPlaying(Actor akActor) Global Native
 ; Start a scene by id, returning its handle. aiStage = pack start stage (ignored for graphs).
 int Function StartScene(Actor[] akActors, string asSceneId, int aiStage = 0) Global Native
 
+; Start a scene world-ANCHORED at akAnchor (furniture / bed / marker) instead of co-locating the
+; actors at akActors[0] — for furniture/sleep encounters that belong to a thing, not an actor.
+; afHeadingDeg < 0 uses akAnchor's own heading; otherwise it is a heading in DEGREES. Id resolution
+; (scene-then-pack, scene:/anim: prefixes) mirrors StartScene. Returns the handle (0 = failed).
+int Function StartSceneAt(Actor[] akActors, string asSceneId, ObjectReference akAnchor, float afHeadingDeg = -1.0) Global Native
+
 ; Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
 ; (equal lengths; every declared role must be filled exactly once). 
 ; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
