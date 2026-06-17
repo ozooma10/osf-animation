@@ -117,6 +117,7 @@ namespace OSF::Scene
 			std::string             node;
 			std::int32_t            stage = 0;
 			std::vector<RE::Actor*> participants;
+			bool                    controlLocked = false;  // this scene holds the player control lock
 		};
 
 		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen>=1 → nonzero).
@@ -156,6 +157,21 @@ namespace OSF::Scene
 		// _lock. No-op for a non-def scene or a node with no matching cues.
 		static void DispatchLifecycleCues(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
+		// Run a node's enter (a_enter) or exit action-track entries: built-in osf.* mechanisms
+		// (control.lock/release executed; the rest recognized + logged), custom actions emitted
+		// as EVENT_ACTION. Call OUTSIDE _lock. No-op for a non-def scene.
+		static void DispatchLifecycleActions(std::int32_t a_handle, std::string_view a_node, bool a_enter);
+
+		// Dispatch one EVENT_ACTION (custom action notification) through the relay.
+		static void DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
+			std::string_view a_role, std::string_view a_anchor);
+
+		// Scene control lock (player control + camera), ref-counted across scenes so the player
+		// unlocks only when the last holder releases. Acquire is idempotent per scene; Release
+		// is the undo (called on osf.control.release AND on any scene termination, via Fire).
+		void AcquireSceneControlLock(std::int32_t a_handle);
+		void ReleaseSceneControlLock(std::int32_t a_handle);
+
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants already snapshotted. 
 		// PlayNodeAnim looks up the node's `anim` id and copies the node's loop policy and timerSec onto the last stage of the plan it plays,
 		// so the GraphManager auto-ends it and reports the timer/loops back through OnGraphAutoEnd. 
@@ -167,5 +183,6 @@ namespace OSF::Scene
 		std::mutex        _lock;
 		std::vector<Slot> _slots;
 		std::uint16_t     _nextGen = 1;
+		std::int32_t      _controlLockCount = 0;  // # of live scenes holding the player control lock
 	};
 }

@@ -407,3 +407,20 @@ Function TrigTest() global
     int h = OSF.StartScene(actors, "author.scenes.trigtest", 0)
     OSFCompat.Dbg_Log("TrigTest: started h=" + h + " node='" + OSF.GetSceneNode(h) + "' (expect 'first') — now WAIT, cues drive it: 'go' ~2s -> 'second', 'done' ~2s -> end.")
 EndFunction
+
+; --- Action track (osf.control.lock + custom EVENT_ACTION + scene-end cleanup) ----------
+; Starts "author.scenes.actiontest" on the PLAYER so osf.control.lock applies, waits 5s, stops.
+; On enter: control lock engaged (player frozen) + ACTION 'test.notify'. On stop: ACTION
+; 'test.cleanup' (exit) + the lock auto-released by the scene-end ledger (NO authored release).
+; Try to move while it runs (should be locked); you should be free after. Logged either way.
+;   cgf "OSFTest.ActionTest"
+Function ActionTest() global
+    Actor a = Game.GetPlayer()
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.actiontest", 0)
+    OSFCompat.Dbg_Log("ActionTest: started h=" + h + " — expect osf.control.lock + ACTION 'test.notify'. Try to move (locked).")
+    Utility.Wait(5.0)
+    OSFCompat.Dbg_Log("ActionTest: stopping — expect ACTION 'test.cleanup' + control lock auto-released. Free to move after.")
+    OSF.StopScene(h)
+EndFunction

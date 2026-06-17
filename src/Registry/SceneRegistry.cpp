@@ -94,8 +94,56 @@ namespace OSF::Registry
 			return e;
 		}
 
-		// Parse the node's `tracks` block. v1 lanes: `cue` (parsed + fired), and
-		// sound/action/camera (recognized but not yet executed). Any other lane name rejects.
+		// The built-in osf.* action mechanisms this build recognizes (a subset are executed;
+		// the rest are validated + accepted but logged-not-executed by the runtime).
+		bool IsKnownBuiltinAction(const std::string& a_typeLower)
+		{
+			static const std::unordered_set<std::string> kKnown{
+				"osf.control.lock", "osf.control.release",
+				"osf.equipment.hide", "osf.equipment.restore",
+				"osf.fade.out", "osf.fade.in",
+				"osf.voice.play"
+			};
+			return kKnown.count(a_typeLower) != 0;
+		}
+
+		void ParseActionTrack(const json& a_entries, SceneNode& a_node_out)
+		{
+			if (!a_entries.is_array()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': 'action' track must be an array");
+			}
+			for (const auto& a : a_entries) {
+				ActionEntry ae;
+				ae.type = a.value("type", std::string{});
+				if (ae.type.empty()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': an action track entry is missing 'type'");
+				}
+				ae.role = a.value("role", std::string{});
+				const auto typeLower = ToLower(ae.type);
+				if (typeLower.rfind("osf.", 0) == 0) {
+					if (!IsKnownBuiltinAction(typeLower)) {
+						throw std::runtime_error("node '" + a_node_out.id + "': unknown built-in action '" + ae.type + "'");
+					}
+				} else if (a.value("required", false)) {
+					// Custom actions are best-effort notifications; `required` is reserved (§1.3).
+					throw std::runtime_error("node '" + a_node_out.id + "': custom action '" + ae.type + "' cannot be 'required' in v1");
+				}
+				const auto atIt = a.find("at");
+				const std::string at = (atIt != a.end() && atIt->is_string()) ? ToLower(atIt->get<std::string>()) : "enter";
+				if (at == "enter") {
+					ae.pos = ActionPos::kEnter;
+				} else if (at == "exit") {
+					ae.pos = ActionPos::kExit;
+				} else {
+					throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type +
+						"' 'at' must be enter/exit (numeric/end action timing not yet supported)");
+				}
+				a_node_out.actions.push_back(std::move(ae));
+			}
+		}
+
+		// Parse the node's `tracks` block. v1 lanes: `cue` + `action` (parsed + run), and
+		// sound/camera (recognized but not yet executed). Any other lane name rejects.
 		void ParseCueTracks(const json& a_node, SceneNode& a_node_out)
 		{
 			const auto it = a_node.find("tracks");
@@ -107,7 +155,11 @@ namespace OSF::Registry
 			}
 			for (const auto& [lane, entries] : it->items()) {
 				const auto laneLower = ToLower(lane);
-				if (laneLower == "sound" || laneLower == "action" || laneLower == "camera") {
+				if (laneLower == "action") {
+					ParseActionTrack(entries, a_node_out);
+					continue;
+				}
+				if (laneLower == "sound" || laneLower == "camera") {
 					continue;  // recognized lanes, not executed yet (Layer C / later increment)
 				}
 				if (laneLower != "cue") {

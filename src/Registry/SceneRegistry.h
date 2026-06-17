@@ -59,6 +59,23 @@ namespace OSF::Registry
 		std::string  id;
 	};
 
+	// Where an `action` track entry runs. Numeric/end action timing is deferred — v1 actions
+	// run at the lifecycle anchors only.
+	enum class ActionPos : std::uint8_t
+	{
+		kEnter,
+		kExit
+	};
+
+	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the
+	// runtime); any other namespace is a custom action emitted as EVENT_ACTION (notification).
+	struct ActionEntry
+	{
+		ActionPos    pos = ActionPos::kEnter;
+		std::string  type;   // namespaced (osf.* built-in, else custom)
+		std::string  role;   // optional role the action targets
+	};
+
 	struct SceneNode
 	{
 		std::string              id;
@@ -69,7 +86,8 @@ namespace OSF::Registry
 		float                    timerSec = 0.0f;
 		bool                     loopForever = false;
 		std::vector<SceneEdge>   edges;
-		std::vector<CueEntry>    cues;          // `cue` track (sound/action/camera lanes deferred)
+		std::vector<CueEntry>    cues;          // `cue` track
+		std::vector<ActionEntry> actions;       // `action` track (sound/camera lanes deferred)
 	};
 
 	struct SceneRole

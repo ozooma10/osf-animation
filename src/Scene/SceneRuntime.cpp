@@ -1,6 +1,8 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Animation/GraphManager.h"
+#include "Camera/CameraService.h"
+#include "Player/PlayerControlService.h"
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
@@ -134,8 +136,18 @@ namespace OSF::Scene
 
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor)
 	{
-		// "exit" cue entries run BEFORE the structural NODE_EXIT (§1.5 transition order).
+		// Undo-ledger replay before SCENE_END (§1.5): release this scene's control lock so a
+		// listener reacting to scene-end already sees the player restored. Runs on every
+		// termination path (they all Fire SCENE_END), so cleanup never depends on an authored
+		// release action.
+		if (a_event == Event::kSceneEnd) {
+			GetSingleton().ReleaseSceneControlLock(a_handle);
+		}
+
+		// "exit" track entries run BEFORE the structural NODE_EXIT (§1.5); within the tick,
+		// action runs before cue (§1.3 same-tick order).
 		if (a_event == Event::kNodeExit) {
+			DispatchLifecycleActions(a_handle, a_node, false);
 			DispatchLifecycleCues(a_handle, a_node, false);
 		}
 
@@ -150,8 +162,9 @@ namespace OSF::Scene
 		// actor/role left default (Phase A).
 		SceneEventRelay::GetSingleton().Dispatch(e);
 
-		// "enter" cue entries run AFTER the structural NODE_ENTER (§1.5 transition order).
+		// "enter" track entries run AFTER the structural NODE_ENTER; action before cue (§1.3).
 		if (a_event == Event::kNodeEnter) {
+			DispatchLifecycleActions(a_handle, a_node, true);
 			DispatchLifecycleCues(a_handle, a_node, true);
 		}
 	}
@@ -186,6 +199,115 @@ namespace OSF::Scene
 		for (const auto& cue : node->cues) {
 			if (cue.pos == wantPos) {
 				DispatchCue(a_handle, a_node, cue.id, a_enter ? "enter" : "exit", -1.0f);
+			}
+		}
+	}
+
+	void SceneRuntime::DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
+		std::string_view a_role, std::string_view a_anchor)
+	{
+		REX::INFO("SceneRuntime: scene {:#010x} ACTION '{}' node='{}' role='{}' anchor='{}'",
+			a_handle, a_type, a_node, a_role, a_anchor);
+		SceneEvent e;
+		e.scene = a_handle;
+		e.event = Event::kAction;
+		e.node = std::string(a_node);
+		e.actionType = std::string(a_type);
+		e.role = std::string(a_role);
+		e.anchor = std::string(a_anchor);
+		SceneEventRelay::GetSingleton().Dispatch(e);
+	}
+
+	void SceneRuntime::AcquireSceneControlLock(std::int32_t a_handle)
+	{
+		bool engage = false;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_handle);
+			if (!s || s->controlLocked) {
+				return;  // invalid, or this scene already holds the lock (idempotent)
+			}
+			s->controlLocked = true;
+			engage = (++_controlLockCount == 1);  // first holder engages the actual lock
+		}
+		if (engage) {
+			Player::PlayerControlService::GetSingleton().SetStandaloneLock(true);
+			Camera::CameraService::GetSingleton().SetStandaloneLock(true);
+		}
+	}
+
+	void SceneRuntime::ReleaseSceneControlLock(std::int32_t a_handle)
+	{
+		bool disengage = false;
+		std::int32_t remaining = 0;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_handle);
+			if (!s || !s->controlLocked) {
+				return;
+			}
+			s->controlLocked = false;
+			disengage = (--_controlLockCount <= 0);  // last holder releases the actual lock
+			if (_controlLockCount < 0) {
+				_controlLockCount = 0;
+			}
+			remaining = _controlLockCount;
+		}
+		if (disengage) {
+			REX::INFO("SceneRuntime: scene {:#010x} control lock released — player unlocked", a_handle);
+			Player::PlayerControlService::GetSingleton().SetStandaloneLock(false);
+			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
+		} else {
+			REX::INFO("SceneRuntime: scene {:#010x} control lock released — {} scene(s) still hold it", a_handle, remaining);
+		}
+	}
+
+	void SceneRuntime::DispatchLifecycleActions(std::int32_t a_handle, std::string_view a_node, bool a_enter)
+	{
+		std::string id;
+		std::vector<RE::Actor*> participants;
+		{
+			std::lock_guard l{ GetSingleton()._lock };
+			Slot* s = GetSingleton().Resolve(a_handle);
+			if (!s) {
+				return;
+			}
+			id = s->id;
+			participants = s->participants;
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		if (!node) {
+			return;  // pack/files scene or unknown node — no actions
+		}
+
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		const bool hasPlayer = player &&
+			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
+
+		const auto wantPos = a_enter ? Registry::ActionPos::kEnter : Registry::ActionPos::kExit;
+		for (const auto& act : node->actions) {
+			if (act.pos != wantPos) {
+				continue;
+			}
+			const auto type = Util::ToLower(act.type);
+			if (type == "osf.control.lock") {
+				if (hasPlayer) {
+					REX::INFO("SceneRuntime: scene {:#010x} action osf.control.lock (role '{}')", a_handle, act.role);
+					GetSingleton().AcquireSceneControlLock(a_handle);
+				} else {
+					REX::INFO("SceneRuntime: scene {:#010x} osf.control.lock — no player participant, no-op", a_handle);
+				}
+			} else if (type == "osf.control.release") {
+				REX::INFO("SceneRuntime: scene {:#010x} action osf.control.release", a_handle);
+				GetSingleton().ReleaseSceneControlLock(a_handle);
+			} else if (type.rfind("osf.", 0) == 0) {
+				// recognized built-in mechanism, not yet executed (equipment/fade/voice — Layer C).
+				REX::INFO("SceneRuntime: scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
+					a_handle, act.type, act.role);
+			} else {
+				// custom namespaced action -> EVENT_ACTION (best-effort notification, §1.3).
+				DispatchAction(a_handle, a_node, act.type, act.role, a_enter ? "enter" : "exit");
 			}
 		}
 	}
@@ -894,5 +1016,8 @@ namespace OSF::Scene
 		std::lock_guard l{ _lock };
 		_slots.clear();
 		_nextGen = 1;
+		// The actual player lock is released by GraphManager::StopAll (PlayerControlService /
+		// CameraService OnStopAll) before this runs; just drop the ref-count.
+		_controlLockCount = 0;
 	}
 }
