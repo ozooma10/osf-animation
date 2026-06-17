@@ -1,6 +1,8 @@
 #pragma once
 
-// Tracks live scenes in a generational int-handle table 
+#include "Equipment/EquipmentService.h"  // Snapshot stored per-handle in the undo ledger
+
+// Tracks live scenes in a generational int-handle table
 // fires lifecycle events (NODE_ENTER / NODE_EXIT / SCENE_END) through the SceneEventRelay. 
 // For now a scene is just an id, its current node, a stage, and the participants; 
 /// the heavier runtime (graph navigation, track scheduler, undo ledger) gets built on top of this later.
@@ -124,7 +126,8 @@ namespace OSF::Scene
 		enum class Mechanism : std::uint8_t
 		{
 			kControlLock,  // player control + camera lock (ref-counted across scenes)
-			kFade          // screen fade-to-black (undo = fade back in)
+			kFade,         // screen fade-to-black (undo = fade back in)
+			kEquipment     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
 		};
 
 		struct Slot
@@ -138,6 +141,10 @@ namespace OSF::Scene
 			// Ordered list of reversible mechanisms this scene engaged (at most one entry per
 			// Mechanism — record is idempotent). Replayed in reverse on termination.
 			std::vector<Mechanism>  ledger;
+			// kEquipment's per-actor state: apparel this scene hid (restored on undo). Lives
+			// here (not the ledger entry) so the ledger stays a plain ordered type list — same
+			// pattern as control-lock keeping its count in _controlLockCount.
+			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenEquip;
 		};
 
 		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen>=1 → nonzero).
@@ -202,6 +209,14 @@ namespace OSF::Scene
 		void RecordMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void UndoMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void ReplayLedger(std::int32_t a_handle);
+
+		// The participant bound to a_role (by role-declaration order, the v1 binding; empty role
+		// -> the first participant). nullptr if the handle is dead or the role is unknown.
+		RE::Actor* ResolveRoleActor(std::int32_t a_handle, std::string_view a_role);
+
+		// Record apparel this scene hid for a_actor (osf.equipment.hide), adding the kEquipment
+		// ledger entry. Call OUTSIDE _lock (it locks). a_snapshot moved in.
+		void RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
 
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants already snapshotted. 
 		// PlayNodeAnim looks up the node's `anim` id and copies the node's loop policy and timerSec onto the last stage of the plan it plays,

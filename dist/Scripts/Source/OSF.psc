@@ -130,7 +130,9 @@ string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
 
 ; Event-type bits (compose into aiEventMask; EVENT_ALL = every type). Exposed as global
 ; getter functions, not properties: a `Native` script's properties cannot be read on the
-; type (OSF.X), but global functions can (OSF.EVENT_NODE_ENTER()).
+; type (OSF.X), but global functions can (OSF.EVENT_NODE_ENTER()). (A non-Native companion
+; with AutoReadOnly properties doesn't help — Papyrus rejects reading a property on a type
+; name, so it would force every consumer to hold an instance. The () is the right tradeoff.)
 int Function EVENT_NODE_ENTER() Global
     return 1
 EndFunction

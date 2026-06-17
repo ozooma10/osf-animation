@@ -464,3 +464,23 @@ Function FadeTest() global
     OSFCompat.Dbg_Log("FadeTest: stopping — expect 'fade undo' BEFORE 'control lock released' (reverse replay), then screen fades back in + free to move.")
     OSF.StopScene(h)
 EndFunction
+
+; --- Equipment hide/restore (Slice 15) --------------------------------------------------
+; Starts "author.scenes.equiptest" on the PLAYER: on enter osf.equipment.hide strips your
+; worn apparel (skin excluded) and records it in the undo ledger. NO authored restore — on
+; stop (~5s) the ledger re-equips. Watch your CHARACTER undress then redress. Run somewhere
+; SAFE (an interior); you're briefly undressed.
+; Expect: 'osf.equipment.hide ... hid N item(s)' + 'Actor XX: hid N worn item(s)'; on stop
+; NODE_EXIT -> 'equipment undo — restoring 1 actor(s)' -> 'Actor XX: restored N worn item(s)'
+; -> SCENE_END.
+;   cgf "OSFTest.EquipTest"
+Function EquipTest() global
+    Actor a = Game.GetPlayer()
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.equiptest", 0)
+    OSFCompat.Dbg_Log("EquipTest: started h=" + h + " — your apparel should be HIDDEN now. Stopping in 5s; expect it RESTORED (ledger, no authored restore).")
+    Utility.Wait(5.0)
+    OSFCompat.Dbg_Log("EquipTest: stopping — expect 'equipment undo — restoring' + your apparel re-equipped.")
+    OSF.StopScene(h)
+EndFunction

@@ -1,0 +1,26 @@
+{
+  // Equipment hide/restore test (Slice 15). One held node that, on enter, runs
+  // osf.equipment.hide on the 'lead' role — strips the actor's worn apparel (skin excluded)
+  // and records the snapshot in the undo ledger. There is NO authored osf.equipment.restore:
+  // on stop the ledger replays and re-equips, proving cleanup doesn't depend on an authored
+  // restore. Run somewhere SAFE (an interior) — the player is briefly undressed.
+  "schema": 1,
+  "id": "author.scenes.equiptest",
+  "name": "Equipment Hide/Restore Test",
+  "tags": ["test", "solo"],
+  "roles": [ { "name": "lead", "gender": "any" } ],
+  "entry": "main",
+  "nodes": [
+    {
+      "id": "main",
+      "anim": "solo",
+      "loop": { "mode": "hold" },
+      "loopForever": true,
+      "tracks": {
+        "action": [
+          { "at": "enter", "type": "osf.equipment.hide", "role": "lead" }
+        ]
+      }
+    }
+  ]
+}

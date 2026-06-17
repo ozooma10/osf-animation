@@ -2,6 +2,7 @@
 
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
+#include "Equipment/EquipmentService.h"
 #include "Player/PlayerControlService.h"
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
@@ -269,6 +270,7 @@ namespace OSF::Scene
 	{
 		bool disengageLock = false;
 		std::int32_t remaining = 0;
+		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;  // moved out for kEquipment
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
@@ -286,9 +288,12 @@ namespace OSF::Scene
 					_controlLockCount = 0;
 				}
 				remaining = _controlLockCount;
+			} else if (a_mech == Mechanism::kEquipment) {
+				equip.swap(s->hiddenEquip);  // take this scene's hidden apparel out for restore
 			}
 		}
-		// Apply the reversal OUTSIDE the lock (services enter the VM / post UI messages).
+		// Apply the reversal OUTSIDE the lock (services enter the VM / post UI messages / touch
+		// the inventory lock).
 		switch (a_mech) {
 		case Mechanism::kControlLock:
 			if (disengageLock) {
@@ -302,6 +307,12 @@ namespace OSF::Scene
 		case Mechanism::kFade:
 			REX::INFO("SceneRuntime: scene {:#010x} fade undo — fading back in", a_handle);
 			UI::FadeService::GetSingleton().FadeFromBlack(0.5f);
+			break;
+		case Mechanism::kEquipment:
+			REX::INFO("SceneRuntime: scene {:#010x} equipment undo — restoring {} actor(s)", a_handle, equip.size());
+			for (auto& [actor, snap] : equip) {
+				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
+			}
 			break;
 		}
 	}
@@ -322,6 +333,52 @@ namespace OSF::Scene
 		}
 		for (auto m : reversed) {
 			UndoMechanism(a_handle, m);
+		}
+	}
+
+	RE::Actor* SceneRuntime::ResolveRoleActor(std::int32_t a_handle, std::string_view a_role)
+	{
+		std::string id;
+		std::vector<RE::Actor*> participants;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_handle);
+			if (!s) {
+				return nullptr;
+			}
+			id = s->id;
+			participants = s->participants;
+		}
+		if (participants.empty()) {
+			return nullptr;
+		}
+		if (a_role.empty()) {
+			return participants.front();  // default target = the first participant
+		}
+		// v1 binding is role-declaration order: roles[i] <-> participants[i].
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		if (!def) {
+			return nullptr;
+		}
+		const auto want = Util::ToLower(std::string(a_role));
+		for (std::size_t i = 0; i < def->roles.size(); i++) {
+			if (Util::ToLower(def->roles[i].name) == want) {
+				return i < participants.size() ? participants[i] : nullptr;
+			}
+		}
+		return nullptr;  // unknown role
+	}
+
+	void SceneRuntime::RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot)
+	{
+		std::lock_guard l{ _lock };
+		Slot* s = Resolve(a_handle);
+		if (!s) {
+			return;
+		}
+		s->hiddenEquip.emplace_back(a_actor, std::move(a_snapshot));
+		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipment) == s->ledger.end()) {
+			s->ledger.push_back(Mechanism::kEquipment);  // one ledger entry; the snapshots accumulate
 		}
 	}
 
@@ -393,8 +450,29 @@ namespace OSF::Scene
 			// mechanism default ramp; the authored `duration` is honored on fade.out only.)
 			REX::INFO("SceneRuntime: scene {:#010x} osf.fade.in", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kFade);
+		} else if (type == "osf.equipment.hide") {
+			// Strip the role's actor's worn apparel; record the snapshot in the ledger so cleanup
+			// (or osf.equipment.restore) re-equips it. Disabled-by-settings = silent skip (§1.5).
+			if (!Equipment::EquipmentService::GetSingleton().Enabled()) {
+				REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.hide — disabled by settings, skipped", a_handle);
+			} else if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
+				auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor);
+				REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.hide (role '{}') — hid {} item(s)",
+					a_handle, a_action.role, snap.stripped.size());
+				if (!snap.Empty()) {
+					GetSingleton().RecordHiddenEquip(a_handle, actor, std::move(snap));
+				}
+			} else {
+				REX::WARN("SceneRuntime: scene {:#010x} osf.equipment.hide — role '{}' resolved no actor, skipped",
+					a_handle, a_action.role);
+			}
+		} else if (type == "osf.equipment.restore") {
+			// Re-equip everything this scene hid + drop the equipment debt so cleanup won't redo
+			// it. (v1 restores the whole scene's hidden apparel; per-role restore is deferred.)
+			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.restore", a_handle);
+			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipment);
 		} else if (type.rfind("osf.", 0) == 0) {
-			// recognized built-in mechanism, not yet executed (equipment/voice — Layer C).
+			// recognized built-in mechanism, not yet executed (voice — Layer C).
 			REX::INFO("SceneRuntime: scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
 				a_handle, a_action.type, a_action.role);
 		} else {
