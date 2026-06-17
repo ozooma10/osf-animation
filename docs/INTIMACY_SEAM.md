@@ -27,9 +27,9 @@
 The scene layer is a **separate registry that references core animation ids** (the OStim
 model), not a second reader of the same pack file.
 
-| | Animation registry (core) | Scene registry (OSF Intimacy) |
+| | Animation registry (Layer A) | Scene registry (Layer B, in this repo) |
 |---|---|---|
-| File | `Data/OSF/**/*.json` (pack) | `Data/OSF/**/*.scene.json` (reserved — the core skips it today) |
+| File | `Data/OSF/**/*.json` (pack) | `Data/OSF/**/*.scene.json` (read by `SceneRegistry`; PackRegistry skips it) |
 | Unit | one synced multi-actor **animation** (clips + offsets + gender slots + tags) | a **scene**: references anim ids + policy + sequencing/transitions + roles |
 | Reuse | a reusable building block | many scenes reuse one animation |
 

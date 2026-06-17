@@ -32,22 +32,24 @@ If !OSF.IsReady()
     Return   ; framework absent / hooks not installed — degrade gracefully
 EndIf
 
-; --- mechanical scene by registry id (anchored, staged, synced) ---------------
+; --- scene by registry id (anchored, staged, synced) -------------------------
+; Start* return an opaque int HANDLE (0 = failed); pass it to StopScene / the getters / navigation.
 Actor[] a = new Actor[2]
 a[0] = first      ; fills the definition's actor slot 0
 a[1] = second
-OSF.StartScene(a, "author.pack.bridge")        ; 1..N actors; a 1-actor def is a real scene
+int h = OSF.StartScene(a, "author.pack.bridge")   ; 1..N actors; a 1-actor def is a real scene
 
-; matchmake by tags + gender slots (returns the chosen id, or ""):
-string played = OSF.StartSceneByTags(a, tags)
+; matchmake by tags + gender slots (returns a handle, 0 = no match; GetSceneId(h) recovers the id):
+int h2 = OSF.StartSceneByTags(a, tags)
 
 ; ad-hoc scene straight from files (co-locates a[1..] at a[0], anchors, syncs):
 string[] files = new string[2]
 files[0] = "OSF\\Anims\\bridgeA.glb"
 files[1] = "OSF\\Anims\\bridgeB.glb"
-OSF.StartSceneFiles(a, files)
+int h3 = OSF.StartSceneFiles(a, files)
 
-OSF.StopScene(a[0])   ; any participant identifies the scene
+OSF.StopScene(h)                ; stop by handle
+; OSF.StopSceneForActor(a[0])   ; ...or by any participant
 
 ; --- bare animation primitive (bones only, no scene side-effects) -------------
 OSF.Play(npc, "OSF\\MyDance.glb")              ; plays in place, follows the actor
@@ -60,10 +62,11 @@ OSF.Stop(npc)
 is untouched; you position actors yourself, then `Sync` puts already-playing graphs on
 one shared clock. *Scenes* (`StartScene` / `StartSceneByTags` / `StartSceneFiles`) are
 **mechanical productions**: the core co-locates the actors at the anchor with the pack's
-per-participant offsets, frame-locks their clocks, runs the pack's stages (timer / loop
-auto-advance), and pins the rendered skeletons each frame. That is the *whole* contract —
-no undress, no voice, no camera, no fade. Rule of thumb: one actor, bones only, world
-unchanged → a primitive; anything that coordinates actors or anchors them → a scene.
+per-participant offsets, frame-locks their clocks, runs the stages (timer / loop auto-advance),
+and pins the rendered skeletons each frame. A bare pack scene carries **no policy** — undress,
+voice, camera, fade are opt-in `action`/`sound`/`camera` track entries an authored `*.scene.json`
+adds (see "Where's the policy?" below). Rule of thumb: one actor, bones only, world unchanged →
+a primitive; anything that coordinates actors or anchors them → a scene.
 (Anchoring/rootMode: [docs/ANCHORING.md](ANCHORING.md). Design rationale: [SCENE_DESIGN.md](SCENE_DESIGN.md).)
 
 **Where's the policy?** The content-neutral policy *mechanisms* — control/camera lock, fade,

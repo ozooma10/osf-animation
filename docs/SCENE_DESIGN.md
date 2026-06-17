@@ -1,9 +1,11 @@
 # OSF Scene Design — public contract + internal design
 
-*Design spec, revised 2026-06-17 after two rounds of external API review. **Nothing here is frozen
-yet** — OSF is pre-1.0 and the scene runtime is not implemented. Part 1 describes the surface that
-**freezes at 1.0, after implementation phases A+B+C land and are tested** (§2.5); Part 2 is
-non-contract and may change freely.*
+*Design spec, revised 2026-06-17 after two rounds of external API review. **Implementation status:
+phases A+B+C are now implemented and in-game tested** (the scene runtime, all four track lanes, the
+built-in `osf.*` actions, the generalized undo ledger, settings precedence, and validation — build
+slices 1–18). Part 1 describes the surface that **freezes at 1.0**; with A+B+C landed it is now the
+freeze candidate — treat Part-1 signatures as stable (the one allowed pre-1.0 break, `StartScene*`
+bool/string→int handle, already landed). Part 2 is non-contract and may change freely.*
 
 **How to read this doc.**
 
@@ -55,9 +57,11 @@ an actor.
 | `GetSceneForActor` | `0` = actor not in a scene |
 | `GetSceneStage` | `-1` = invalid handle **or** non-linear scene |
 | `GetSceneEdgeCount` | `0` = invalid handle **or** no branchable edges |
-| `GetCallbackEvent` | `0` = no callback dispatch active |
-| `GetCallbackResult` | `0` = success/none; nonzero = `RESULT_*` |
-| `GetCallbackTime` | `-1.0` = named-anchor event (use `GetCallbackAnchor`) |
+
+(The earlier `GetCallbackEvent`/`GetCallbackResult`/`GetCallbackTime` *dispatch-time getters* were
+**removed** — the Phase-A prototype proved no synchronous C++→Papyrus path exists, so the event is
+snapshotted into the `OSFEvent:SceneEvent` struct argument instead. Read those fields directly:
+`akEvent.eventType`, `akEvent.result`, `akEvent.time`/`akEvent.anchor` — see the Callback contract below.)
 
 ```papyrus
 ; --- start (all return an int scene handle; 0 = failed; all actor-first for consistent arg order) ---
@@ -533,15 +537,20 @@ definition.
 ## 1.7 Versioning & stability
 
 - Native signatures freeze at **OSF 1.0** (semver; [API.md](API.md)) — *after* implementation phases
-  A+B+C land and are tested (§2.5). Pre-1.0 they may still move.
+  A+B+C land and are tested (§2.5). **A+B+C are now done + tested (2026-06-17)**, so the surface is at
+  its freeze candidate; treat Part-1 signatures as stable from here (the one allowed pre-1.0 break,
+  `StartScene*`→int handle, already landed).
 - The scene schema carries its own `schema` int, versioned independently; unknown fields are
   additive by design.
 - **Deferred from v1** (named so authors don't depend on them): the Papyrus scene builder (Papyrus
   is run-only; scenes are file-based) · `cond:<expr>` / condition registry · arbitrary
   `SetSceneNode` on graphs · scene-level `policy` object (all policy is `action` entries) · `atSec`
-  runtime field · `osf.camera.set` action (camera is a track) · a custom action-handler API with
-  acknowledgment / `required` custom actions (v1 custom actions are notification-only) · optional
-  roles · the C-ABI builder · scene parameters / auto-drive (§2.4).
+  runtime field · `osf.camera.set` action (camera is a track) · free-fly/orbit/matrix camera states
+  (v1 camera lane = `thirdperson_hold` only) · pool/set→clip metadata resolution (v1 sound/voice
+  take a literal spec) · positioned Wwise posting · the `equipment.hide` `slots` filter (v1 strips
+  all worn apparel) · per-role `equipment.restore` · a custom action-handler API with acknowledgment
+  / `required` custom actions (v1 custom actions are notification-only) · optional roles · the C-ABI
+  builder · scene parameters / auto-drive (§2.4).
 
 ---
 
@@ -584,17 +593,18 @@ which v1 also defers). It slots into Layer B additively as a `when:"param:<name>
 
 ## 2.5 Phasing — implementation order vs the v1 freeze
 
-The Part-1 contract is the **end state**. It does not ship piecemeal; the implementation phases
-below build toward it, and **public v1 freezes only after A+B+C are implemented and tested.** So
-built-in actions and the undo ledger *are* part of v1 — they just land in phase C.
+The Part-1 contract is the **end state**. It did not ship piecemeal; the implementation phases below
+built toward it, and **public v1 freezes only after A+B+C are implemented and tested.** So built-in
+actions and the undo ledger *are* part of v1 — they landed in phase C. **All three phases are now
+DONE + in-game tested (2026-06-17), so this is the v1 freeze candidate.**
 
-| Phase | Scope |
-|---|---|
-| **A** | Layer B scheduler, handle table, command queue, token callbacks, diagnostics, `sound`/`cue` tracks. Linear packs run through it. |
-| **B** | Graph navigation: `edges[]`, branches, `Navigate`/`GetSceneEdge*`, arbitration + validation. |
-| **C** | Built-in `action`s + Layer C services (equipment/fade/camera) + undo-ledger integration + the `camera` track. |
-| **— v1 freeze —** | after A+B+C land and pass in-game tests, freeze Part 1 and tag 1.0. |
-| **D (post-v1)** | C-ABI builder; conditions / scene parameters (additive). |
+| Phase | Scope | Status |
+|---|---|---|
+| **A** | Layer B scheduler, handle table, command queue, token callbacks, diagnostics, `sound`/`cue` tracks. Linear packs run through it. | ✅ done + tested |
+| **B** | Graph navigation: `edges[]`, branches, `Navigate`/`GetSceneEdge*`, arbitration + validation. | ✅ done + tested |
+| **C** | Built-in `action`s + Layer C services (equipment/fade/voice/sound/camera) + undo-ledger integration + the `sound`/`camera` tracks + settings precedence + validation. | ✅ done + tested |
+| **— v1 freeze —** | A+B+C landed + passed in-game tests → freeze Part 1 and tag 1.0. | ⬅ here now |
+| **D (post-v1)** | C-ABI builder; conditions / scene parameters; free-fly/orbit camera; pool/set→clip metadata; positioned Wwise (all additive). | deferred |
 
 ## 2.6 Open questions (post-review)
 
@@ -609,7 +619,12 @@ built-in actions and the undo ledger *are* part of v1 — they just land in phas
    `CreateStruct` → **iterate** `varNameIndexMap` to build a case-folded name→slot map → write
    `proxy->variables[slot]` directly. See `src/Scene/SceneEventRelay.cpp`.
 2. **Camera ownership under true concurrency** — last-writer + snapshot chain (§1.5) is the v1 rule;
-   revisit if real multi-scene camera contention appears.
+   revisit if real multi-scene camera contention appears. **v1 shipped a minimal-safe camera lane**:
+   the single content-neutral state `thirdperson_hold` (force + hold third person via the
+   ref-counted standalone camera lock, ledger-tracked + auto-restored). Free-fly/orbit/matrix camera
+   states are **deferred** — the runtime free-fly gate is still OPEN in OSF RE (`camera.state_machine`;
+   `SetCameraState`=113375 statically proven) and the prior orbit attempt crashed/reverted. The
+   multi-state snapshot chain (held transitions between several camera states) is deferred with them.
 
 ## 2.7 Reconciliation with other docs
 
