@@ -119,6 +119,8 @@ namespace OSF::Registry
 					throw std::runtime_error("node '" + a_node_out.id + "': an action track entry is missing 'type'");
 				}
 				ae.role = a.value("role", std::string{});
+				ae.hold = a.value("hold", false);          // osf.fade.out: stay faded on cleanup
+				ae.duration = a.value("duration", 0.0f);   // osf.fade.*: ramp secs (0 = default)
 				const auto typeLower = ToLower(ae.type);
 				if (typeLower.rfind("osf.", 0) == 0) {
 					if (!IsKnownBuiltinAction(typeLower)) {

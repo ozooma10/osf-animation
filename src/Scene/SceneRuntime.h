@@ -117,6 +117,16 @@ namespace OSF::Scene
 			kFiles
 		};
 
+		// A reversible side-effect a scene engaged, tracked in the per-handle undo ledger
+		// (SCENE_DESIGN §1.5). On any termination the ledger replays REVERSE order, once,
+		// idempotently — cleanup never depends on an authored release. Mechanisms with
+		// cross-scene state (control lock) keep their own ref-count alongside the per-handle entry.
+		enum class Mechanism : std::uint8_t
+		{
+			kControlLock,  // player control + camera lock (ref-counted across scenes)
+			kFade          // screen fade-to-black (undo = fade back in)
+		};
+
 		struct Slot
 		{
 			std::uint16_t           generation = 0;  // 0 = empty
@@ -125,7 +135,9 @@ namespace OSF::Scene
 			std::string             node;
 			std::int32_t            stage = 0;
 			std::vector<RE::Actor*> participants;
-			bool                    controlLocked = false;  // this scene holds the player control lock
+			// Ordered list of reversible mechanisms this scene engaged (at most one entry per
+			// Mechanism — record is idempotent). Replayed in reverse on termination.
+			std::vector<Mechanism>  ledger;
 		};
 
 		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen>=1 → nonzero).
@@ -181,11 +193,15 @@ namespace OSF::Scene
 		static void DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
 			std::string_view a_role, std::string_view a_anchor);
 
-		// Scene control lock (player control + camera), ref-counted across scenes so the player
-		// unlocks only when the last holder releases. Acquire is idempotent per scene; Release
-		// is the undo (called on osf.control.release AND on any scene termination, via Fire).
-		void AcquireSceneControlLock(std::int32_t a_handle);
-		void ReleaseSceneControlLock(std::int32_t a_handle);
+		// Undo ledger (§1.5). RecordMechanism engages + records a reversible mechanism for a
+		// scene (idempotent per scene+mechanism). UndoMechanism reverses ONE mechanism for a
+		// scene (idempotent: applies its undo + drops the entry) — the authored osf.*.release /
+		// osf.fade.in path. ReplayLedger reverses the whole ledger in REVERSE order, once,
+		// idempotently — called from the Fire(SCENE_END) chokepoint so cleanup runs on every
+		// termination path. Control-lock keeps a cross-scene ref-count (_controlLockCount).
+		void RecordMechanism(std::int32_t a_handle, Mechanism a_mech);
+		void UndoMechanism(std::int32_t a_handle, Mechanism a_mech);
+		void ReplayLedger(std::int32_t a_handle);
 
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants already snapshotted. 
 		// PlayNodeAnim looks up the node's `anim` id and copies the node's loop policy and timerSec onto the last stage of the plan it plays,

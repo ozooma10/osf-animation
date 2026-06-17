@@ -79,6 +79,8 @@ namespace OSF::Registry
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  type;   // namespaced (osf.* built-in, else custom)
 		std::string  role;   // optional role the action targets
+		bool         hold = false;       // osf.fade.out: end faded (opt out of the cleanup fade-in)
+		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
 	};
 
 	struct SceneNode

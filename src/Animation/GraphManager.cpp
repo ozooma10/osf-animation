@@ -2,6 +2,7 @@
 
 #include "Camera/CameraService.h"
 #include "Player/PlayerControlService.h"
+#include "UI/FadeService.h"
 #include "Serialization/GLTFImport.h"
 #include "Util/Math.h"
 
@@ -456,6 +457,9 @@ namespace OSF::Animation
 		// no in-memory lock; the input-disable layer is non-persistent.
 		Camera::CameraService::GetSingleton().OnStopAll();
 		Player::PlayerControlService::GetSingleton().OnStopAll();
+		// Release any held/pending screen fade before the load (the stay-faded latch crashes
+		// the load path — see FadeService crash constraint).
+		UI::FadeService::GetSingleton().OnStopAll();
 
 		// Drop Layer-B scene handles too — their participants are raw Actor* that the load
 		// invalidates, so a stashed handle must read as dead afterward. Unconditional (even
@@ -891,6 +895,7 @@ namespace OSF::Animation
 		// managed-graph filter — its own atomic early-out makes the idle case
 		// free, and a standalone lock with no live graph still bounces.
 		Camera::CameraService::GetSingleton().Tick();
+		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
 
 		// Idle early-out: this hook fires ~7x per render frame for every
 		// AnimationManager in the game; with no managed graphs there is

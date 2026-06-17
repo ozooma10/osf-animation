@@ -6,6 +6,7 @@
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
+#include "UI/FadeService.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>
@@ -158,12 +159,12 @@ namespace OSF::Scene
 
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor)
 	{
-		// Undo-ledger replay before SCENE_END (§1.5): release this scene's control lock so a
-		// listener reacting to scene-end already sees the player restored. Runs on every
-		// termination path (they all Fire SCENE_END), so cleanup never depends on an authored
-		// release action.
+		// Undo-ledger replay before SCENE_END (§1.5): reverse every reversible mechanism this
+		// scene engaged (reverse order, once, idempotently) so a listener reacting to scene-end
+		// already sees the actors/screen restored. Runs on every termination path (they all
+		// Fire SCENE_END), so cleanup never depends on an authored release action.
 		if (a_event == Event::kSceneEnd) {
-			GetSingleton().ReleaseSceneControlLock(a_handle);
+			GetSingleton().ReplayLedger(a_handle);
 		}
 
 		// "exit" track entries run BEFORE the structural NODE_EXIT (§1.5); within the tick,
@@ -240,47 +241,87 @@ namespace OSF::Scene
 		SceneEventRelay::GetSingleton().Dispatch(e);
 	}
 
-	void SceneRuntime::AcquireSceneControlLock(std::int32_t a_handle)
+	void SceneRuntime::RecordMechanism(std::int32_t a_handle, Mechanism a_mech)
 	{
-		bool engage = false;
+		bool engageLock = false;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
-			if (!s || s->controlLocked) {
-				return;  // invalid, or this scene already holds the lock (idempotent)
+			if (!s) {
+				return;
 			}
-			s->controlLocked = true;
-			engage = (++_controlLockCount == 1);  // first holder engages the actual lock
+			if (std::find(s->ledger.begin(), s->ledger.end(), a_mech) != s->ledger.end()) {
+				return;  // already recorded — idempotent per scene+mechanism
+			}
+			s->ledger.push_back(a_mech);
+			if (a_mech == Mechanism::kControlLock) {
+				engageLock = (++_controlLockCount == 1);  // first global holder engages the lock
+			}
+			// kFade: the visible fade-out was posted by RunAction; recording just notes the debt.
 		}
-		if (engage) {
+		if (engageLock) {
 			Player::PlayerControlService::GetSingleton().SetStandaloneLock(true);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(true);
 		}
 	}
 
-	void SceneRuntime::ReleaseSceneControlLock(std::int32_t a_handle)
+	void SceneRuntime::UndoMechanism(std::int32_t a_handle, Mechanism a_mech)
 	{
-		bool disengage = false;
+		bool disengageLock = false;
 		std::int32_t remaining = 0;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
-			if (!s || !s->controlLocked) {
+			if (!s) {
 				return;
 			}
-			s->controlLocked = false;
-			disengage = (--_controlLockCount <= 0);  // last holder releases the actual lock
-			if (_controlLockCount < 0) {
-				_controlLockCount = 0;
+			const auto it = std::find(s->ledger.begin(), s->ledger.end(), a_mech);
+			if (it == s->ledger.end()) {
+				return;  // not held — idempotent (already reversed, or never engaged)
 			}
-			remaining = _controlLockCount;
+			s->ledger.erase(it);
+			if (a_mech == Mechanism::kControlLock) {
+				disengageLock = (--_controlLockCount <= 0);  // last holder releases the actual lock
+				if (_controlLockCount < 0) {
+					_controlLockCount = 0;
+				}
+				remaining = _controlLockCount;
+			}
 		}
-		if (disengage) {
-			REX::INFO("SceneRuntime: scene {:#010x} control lock released — player unlocked", a_handle);
-			Player::PlayerControlService::GetSingleton().SetStandaloneLock(false);
-			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
-		} else {
-			REX::INFO("SceneRuntime: scene {:#010x} control lock released — {} scene(s) still hold it", a_handle, remaining);
+		// Apply the reversal OUTSIDE the lock (services enter the VM / post UI messages).
+		switch (a_mech) {
+		case Mechanism::kControlLock:
+			if (disengageLock) {
+				REX::INFO("SceneRuntime: scene {:#010x} control lock released — player unlocked", a_handle);
+				Player::PlayerControlService::GetSingleton().SetStandaloneLock(false);
+				Camera::CameraService::GetSingleton().SetStandaloneLock(false);
+			} else {
+				REX::INFO("SceneRuntime: scene {:#010x} control lock released — {} scene(s) still hold it", a_handle, remaining);
+			}
+			break;
+		case Mechanism::kFade:
+			REX::INFO("SceneRuntime: scene {:#010x} fade undo — fading back in", a_handle);
+			UI::FadeService::GetSingleton().FadeFromBlack(0.5f);
+			break;
+		}
+	}
+
+	void SceneRuntime::ReplayLedger(std::int32_t a_handle)
+	{
+		// Reverse order, once, idempotently — the cleanup guarantee (§1.5). Snapshot the ledger
+		// reversed (UndoMechanism erases each entry as it reverses it; a later call finds it
+		// empty and no-ops). The Fire(SCENE_END) chokepoint calls this on every termination.
+		std::vector<Mechanism> reversed;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_handle);
+			if (!s || s->ledger.empty()) {
+				return;
+			}
+			reversed.assign(s->ledger.rbegin(), s->ledger.rend());
+		}
+		for (auto m : reversed) {
+			UndoMechanism(a_handle, m);
 		}
 	}
 
@@ -322,15 +363,38 @@ namespace OSF::Scene
 		if (type == "osf.control.lock") {
 			if (a_hasPlayer) {
 				REX::INFO("SceneRuntime: scene {:#010x} action osf.control.lock (role '{}')", a_handle, a_action.role);
-				GetSingleton().AcquireSceneControlLock(a_handle);
+				GetSingleton().RecordMechanism(a_handle, Mechanism::kControlLock);
 			} else {
 				REX::INFO("SceneRuntime: scene {:#010x} osf.control.lock — no player participant, no-op", a_handle);
 			}
 		} else if (type == "osf.control.release") {
 			REX::INFO("SceneRuntime: scene {:#010x} action osf.control.release", a_handle);
-			GetSingleton().ReleaseSceneControlLock(a_handle);
+			GetSingleton().UndoMechanism(a_handle, Mechanism::kControlLock);
+		} else if (type == "osf.fade.out") {
+			// Screen fade only matters when the player is watching (NPC-only scenes must not
+			// black out the player's screen). Disabled-by-settings = silent skip (§1.5).
+			if (!a_hasPlayer) {
+				REX::INFO("SceneRuntime: scene {:#010x} osf.fade.out — no player participant, no-op", a_handle);
+			} else if (!UI::FadeService::GetSingleton().Enabled()) {
+				REX::INFO("SceneRuntime: scene {:#010x} osf.fade.out — disabled by settings, skipped", a_handle);
+			} else {
+				const float dur = a_action.duration > 0.0f ? a_action.duration : 0.5f;
+				const bool posted = UI::FadeService::GetSingleton().FadeToBlack(dur, /*holdMaxSecs*/ 10.0f);
+				REX::INFO("SceneRuntime: scene {:#010x} osf.fade.out ({:.2f}s ramp, hold={}) — {}",
+					a_handle, dur, a_action.hold, posted ? "posted" : "unavailable");
+				// Reversible by default: record the fade so cleanup fades back in. hold:true opts
+				// out (scene intends to end faded; the bounded Tick cap still un-fades for safety).
+				if (posted && !a_action.hold) {
+					GetSingleton().RecordMechanism(a_handle, Mechanism::kFade);
+				}
+			}
+		} else if (type == "osf.fade.in") {
+			// Fade back in + drop the fade debt so the cleanup ledger won't redo it. (v1 uses the
+			// mechanism default ramp; the authored `duration` is honored on fade.out only.)
+			REX::INFO("SceneRuntime: scene {:#010x} osf.fade.in", a_handle);
+			GetSingleton().UndoMechanism(a_handle, Mechanism::kFade);
 		} else if (type.rfind("osf.", 0) == 0) {
-			// recognized built-in mechanism, not yet executed (equipment/fade/voice — Layer C).
+			// recognized built-in mechanism, not yet executed (equipment/voice — Layer C).
 			REX::INFO("SceneRuntime: scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
 				a_handle, a_action.type, a_action.role);
 		} else {

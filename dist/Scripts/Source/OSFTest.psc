@@ -440,8 +440,27 @@ Function TimedActionTest() global
     Actor[] actors = new Actor[1]
     actors[0] = a
     int h = OSF.StartScene(actors, "author.scenes.timedaction", 0)
-    OSFCompat.Dbg_Log("TimedActionTest: started h=" + h + " — expect ACTION 'test.begin' now, then recurring ACTION 'test.tick' (~0.3 of each loop) + CUE 'ping' (~0.6). WAIT ~6s.")
+    OSFCompat.Dbg_Log("TimedActionTest: started h=" + h + " — expect ACTION 'test.begin' now, then ~2s in ACTION 'test.tick' immediately followed by CUE 'ping' (same tick, action before cue). WAIT ~6s.")
     Utility.Wait(6.0)
     OSFCompat.Dbg_Log("TimedActionTest: stopping — expect ACTION 'test.done' (exit) + NODE_EXIT + SCENE_END.")
+    OSF.StopScene(h)
+EndFunction
+
+; --- Fade + generalized undo ledger (Slice 14) ------------------------------------------
+; Starts "author.scenes.fadetest" on the PLAYER: on enter it locks control THEN fades to
+; black (no authored release of either). After ~4s (screen black, you're frozen) it stops,
+; and the undo ledger replays in REVERSE: fade-in FIRST, then control unlock. Watch the
+; SCREEN fade to black on start and back in on stop, and the log order below.
+; Expect on stop: NODE_EXIT (0x2) -> 'fade undo — fading back in' -> 'control lock released
+; — player unlocked' -> SCENE_END (0x20).  Keep the game FOCUSED.
+;   cgf "OSFTest.FadeTest"
+Function FadeTest() global
+    Actor a = Game.GetPlayer()
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.fadetest", 0)
+    OSFCompat.Dbg_Log("FadeTest: started h=" + h + " — screen should fade to BLACK + you're frozen. Stopping in 4s; expect fade-IN then unlock (reverse-order ledger).")
+    Utility.Wait(4.0)
+    OSFCompat.Dbg_Log("FadeTest: stopping — expect 'fade undo' BEFORE 'control lock released' (reverse replay), then screen fades back in + free to move.")
     OSF.StopScene(h)
 EndFunction
