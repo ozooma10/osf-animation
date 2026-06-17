@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FOMOD installer for OSF Animation.
+  - Core is always installed (requiredInstallFiles).
+  - "SAF compatibility shim" is a Recommended (pre-checked) option.
+  - "Example scenes & test pack" is an Optional (unchecked) option.
+  Each <folder source> is staged by packaging/build-archive.ps1; destination="" puts its
+  internal SFSE/ Scripts/ OSF/ layout at the Data root.
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+  <moduleName>OSF Animation</moduleName>
+
+  <requiredInstallFiles>
+    <folder source="Core" destination="" priority="0"/>
+  </requiredInstallFiles>
+
+  <installSteps order="Explicit">
+    <installStep name="Components">
+      <optionalFileGroups order="Explicit">
+
+        <group name="Compatibility" type="SelectAny">
+          <plugins order="Explicit">
+            <plugin name="SAF compatibility shim">
+              <description>Installs the SAF / SAFScript Papyrus scripts so existing SAF-dependent mods run unchanged — the drop-in-replacement path. Install this if you are replacing SAF or use any SAF mod. Harmless if nothing calls it. (Disable/uninstall SAF itself first — OSF and SAF cannot run together.)</description>
+              <files>
+                <folder source="SAF" destination="" priority="0"/>
+              </files>
+              <typeDescriptor>
+                <type name="Recommended"/>
+              </typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+
+        <group name="Extras (for modders)" type="SelectAny">
+          <plugins order="Explicit">
+            <plugin name="Example scenes &amp; test pack">
+              <description>Demo *.scene.json files, a baked-in test animation pack, and the OSFTest console harness (cgf "OSFTest.*"). Useful for learning the scene-file format or smoke-testing the install — NOT needed for normal use. Off by default.</description>
+              <files>
+                <folder source="Examples" destination="" priority="0"/>
+              </files>
+              <typeDescriptor>
+                <type name="Optional"/>
+              </typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+
+      </optionalFileGroups>
+    </installStep>
+  </installSteps>
+</config>

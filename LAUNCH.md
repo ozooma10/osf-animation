@@ -56,11 +56,17 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
   replaced by the struct payload). *(Shared with the Phase C agent.)*
 
 ### Packaging
-- 🔴 **Distributable archive / FOMOD** — there is none yet (only the MO2 deploy folder). Bundle: the
-  DLL, `dist/Scripts/*.pex`, `dist/Scripts/Source/*.psc`, `dist/OSF/*.json` schema, the self-made
-  `versionlib-1-16-244-0.bin`, and (optionally) the test pack.
-- 🟡 State the dependencies explicitly: **Starfield 1.16.244.0**, matching **SFSE**, **Address
+- ✅ **FOMOD structure drafted (2026-06-17)** — `packaging/fomod/{info,ModuleConfig}.xml` +
+  `packaging/build-archive.ps1` (assembles Core / SAF-shim / Examples from `build/` + `dist/`,
+  excludes the `.pdb` + dev probes, stamps the version, zips). Verified: produces a valid 1 MB
+  archive. See [docs/PACKAGING.md](docs/PACKAGING.md).
+- 🟡 **Bump the version** — `xmake.lua` says `1.0.0`; a beta ships `0.x`. Rebuild so `GetVersion()`
+  matches the archive name, then run the script.
+- 🟡 **No `versionlib` bundled** — OSF uses the **Address Library** mod (a hard dependency, *not*
+  bundled). Deps to state on the page: **Starfield 1.16.244.0**, matching **SFSE**, **Address
   Library**. CLSF is statically linked (not a user dependency).
+- 🟡 Add `OSFConst.pex/.psc` to the package when the Phase C agent lands it (the script picks it up
+  automatically; warns if absent).
 
 ### Compatibility & safety (verify one pass each on a real save)
 - ✅ Co-load warning for SAF / NAFSF (they're mutually exclusive with OSF).
@@ -84,7 +90,8 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
 ## 3. Top blockers (the few that actually gate the beta)
 
 1. **Real-world testing** — real SAF mods + real animation packs through the shim. (#1 risk.)
-2. **Packaging** — a downloadable archive/FOMOD with the deps stated.
+2. ✅ **Packaging** — FOMOD structure + assembly script drafted & verified (2026-06-17). Remaining:
+   bump the version to `0.x` and rebuild before the real archive.
 3. ✅ **Doc reconciliation** — pre-merge framing killed (2026-06-17); SAF migration guide shipped.
    (RE.md / POST_PATCH_CHECKLIST.md framing left to the Phase C track.)
 4. **Lock the callback struct field names** — the one truly expensive-to-change ABI surface.
