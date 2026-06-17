@@ -48,3 +48,8 @@ int Function Dbg_StartSceneDef(Actor akActor, string asSceneId) Global Native
 ; DEBUG: echo a message into OSF Animation.log (REX) from Papyrus, so the callback
 ; round-trip is provable without enabling the Papyrus script log.
 Function Dbg_Log(string asMsg) Global Native
+
+; DEBUG: play a Data-relative loose file through SoundService at the player's position — the
+; in-world audible test for the Wwise external-source path (same routing as scene sound cues).
+;   cgf "OSFCompat.Dbg_PlaySound" "OSF\Sounds\testbeep.wav"
+Function Dbg_PlaySound(string asDataRelPath) Global Native

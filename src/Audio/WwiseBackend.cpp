@@ -1,10 +1,8 @@
 #include "Audio/WwiseBackend.h"
 
 #include <array>
-#include <atomic>
 #include <cctype>
 #include <charconv>
-#include <cstdlib>
 #include <cstring>
 
 namespace OSF::Audio::Wwise
@@ -26,23 +24,19 @@ namespace OSF::Audio::Wwise
 			0x48, 0x89, 0x74, 0x24, 0x18, 0x4C
 		};
 
-		// The mod-shipped placeholder bank + its single external-source event.
-		// LoadBank appends ".bnk" and resolves via the engine IO hook from
-		// Data\Sound\Soundbanks\.
-		constexpr const char* kPlaceholderBank = "OSF_Placeholder";
-		constexpr const char* kPlaceholderEvent = "OSF_PlayExternal";
-
-		// Proven shipped event that already carries an "External_Source" slot and played a
-		// loose file live (RE capture, 1.16.244). Used ONLY by RunSelfTest so the external
-		// mechanism can be confirmed before the placeholder bank is authored — NOT a
-		// production fallback (a combat-dialogue event is RTPC/ducking-gated for real cues).
-		constexpr std::uint32_t kFallbackEventDialogue6Combat = 0x5DE4F1F3;
+		// Shipped event that already carries an "External_Source" placeholder slot and streamed a
+		// loose file live (RE capture, 1.16.244 — OSF RE Investigations/Responses/
+		// 2026-06-17-wwise-external-loose-audio.md). It is already resident in a loaded bank, so
+		// NO LoadBank is needed: we just substitute our own media through its external-source slot.
+		// (Equivalent at runtime: AkSoundEngine::GetIDFromString("Dialogue_6_Combat").)
+		//
+		// LIMITATION: this is a dialogue/VO event, so posts route through the dialogue bus
+		// (dialogue-volume gated, may duck other audio). Fine for v1; for cleaner SFX routing,
+		// swap kExternalSourceEvent to a content-neutral SFX event that carries the 0x24DB9834
+		// cookie (an OSF RE HIRC scan of the loaded banks) — same code, cleaner bus.
+		constexpr std::uint32_t kExternalSourceEvent = 0x5DE4F1F3;  // Ak hash of "Dialogue_6_Combat"
 
 		constexpr std::string_view kEventPrefix = "event:";
-
-		// Set once at startup (kPostDataLoad, single-threaded), read from job threads after.
-		std::atomic<bool>          g_bankLoaded{ false };
-		std::atomic<std::uint32_t> g_placeholderEventID{ 0 };
 
 		// Lowercased file extension (without the dot), or "" if none.
 		std::string LowerExtension(std::string_view a_path)
@@ -60,15 +54,16 @@ namespace OSF::Audio::Wwise
 
 		// Lower-level external post on a chosen event/object. Builds the descriptor exactly as
 		// the game does (SDK-confirmed 0x20 layout, default "External_Source" cookie). The
-		// engine deep-copies the descriptor + path string into the queued command, so a_absPath
-		// only needs to outlive this call.
-		std::uint32_t PostExternalOn(std::uint32_t a_eventID, const std::wstring& a_absPath,
+		// engine deep-copies the descriptor + path string into the queued command, so a_path
+		// only needs to outlive this call. a_path is the game's Data-RELATIVE convention
+		// ('Data\...'), NOT absolute — an absolute path is accepted but never opened (silent).
+		std::uint32_t PostExternalOn(std::uint32_t a_eventID, const std::wstring& a_path,
 			RE::BGSAudio::AkCodecID a_codec, std::uint64_t a_gameObj)
 		{
 			RE::BGSAudio::AkExternalSourceInfo ext{};
 			ext.iExternalSrcCookie = RE::BGSAudio::kExternalSourceCookie;
 			ext.idCodec = static_cast<std::uint32_t>(a_codec);
-			ext.szFile = const_cast<wchar_t*>(a_absPath.c_str());
+			ext.szFile = const_cast<wchar_t*>(a_path.c_str());
 			ext.pInMemory = nullptr;
 			ext.uiMemorySize = 0;
 			ext.idFile = 0;
@@ -136,54 +131,6 @@ namespace OSF::Audio::Wwise
 			a_eventID, RE::BGSAudio::AkSoundEngine::kPlayerGameObject, 0, nullptr, nullptr, 0, nullptr, 0);
 	}
 
-	bool LoadPlaceholderBank()
-	{
-		if (!Available()) {
-			return false;
-		}
-		if (g_bankLoaded.load(std::memory_order_acquire)) {
-			return true;  // idempotent
-		}
-
-		RE::BGSAudio::AkSoundEngine::AkBankID bankID = 0;
-		const auto result = RE::BGSAudio::AkSoundEngine::LoadBank(kPlaceholderBank, bankID);
-		if (result != RE::BGSAudio::AkSoundEngine::kAkSuccess) {
-			REX::WARN("WwiseBackend: LoadBank(\"{}\") returned {} (expected kAkSuccess {}) — placeholder "
-			          "external-source path OFF; ship Data\\Sound\\Soundbanks\\{}.bnk. Loose-file cues "
-			          "use the legacy device until then.",
-				kPlaceholderBank, result, RE::BGSAudio::AkSoundEngine::kAkSuccess, kPlaceholderBank);
-			return false;
-		}
-
-		const auto eventID = RE::BGSAudio::AkSoundEngine::GetIDFromString(kPlaceholderEvent);
-		g_placeholderEventID.store(eventID, std::memory_order_relaxed);
-		g_bankLoaded.store(true, std::memory_order_release);
-		REX::INFO("WwiseBackend: placeholder bank \"{}\" loaded (bankID {}), event \"{}\" -> 0x{:08X} — "
-		          "loose files now play through the game's Wwise mix",
-			kPlaceholderBank, bankID, kPlaceholderEvent, eventID);
-
-		// Symmetric teardown the brief asks for. atexit runs during normal CRT shutdown, before
-		// the statically-linked Wwise destructors; a single bank unload is cheap and avoids the
-		// DllMain-teardown hazard the legacy device deliberately skips.
-		std::atexit([]() { UnloadPlaceholderBank(); });
-		return true;
-	}
-
-	void UnloadPlaceholderBank()
-	{
-		if (!Available() || !g_bankLoaded.exchange(false, std::memory_order_acq_rel)) {
-			return;
-		}
-		// File-loaded bank -> nullptr memPtr.
-		const auto result = RE::BGSAudio::AkSoundEngine::UnloadBank(kPlaceholderBank, nullptr);
-		REX::INFO("WwiseBackend: UnloadBank(\"{}\") returned {}", kPlaceholderBank, result);
-	}
-
-	bool ExternalReady()
-	{
-		return g_bankLoaded.load(std::memory_order_acquire);
-	}
-
 	std::optional<RE::BGSAudio::AkCodecID> CodecForExtension(std::string_view a_path)
 	{
 		const auto ext = LowerExtension(a_path);
@@ -199,45 +146,30 @@ namespace OSF::Audio::Wwise
 		return std::nullopt;  // mp3/ogg/etc. — needs a PCM decode first (deferred)
 	}
 
-	std::uint32_t PostExternalFile(const std::wstring& a_absPath, RE::BGSAudio::AkCodecID a_codec)
+	std::uint32_t PostExternalFile(const std::wstring& a_path, RE::BGSAudio::AkCodecID a_codec)
 	{
-		if (!Available() || !ExternalReady()) {
+		if (!Available()) {
 			return 0;
 		}
-		return PostExternalOn(g_placeholderEventID.load(std::memory_order_relaxed), a_absPath, a_codec,
+		return PostExternalOn(kExternalSourceEvent, a_path, a_codec,
 			RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
 	}
 
-	void RunSelfTest(const std::wstring& a_absWav)
+	void RunSelfTest(const std::wstring& a_wav)
 	{
 		if (!Available()) {
 			REX::WARN("WwiseBackend self-test: AK PostEvent unavailable on this runtime — skipped");
 			return;
 		}
-		REX::INFO("WwiseBackend self-test (Milestone 0): posting a PCM .wav as an external source. "
-		          "playingID != 0 = the engine ACCEPTED it; AUDIBLE must still be confirmed by ear "
-		          "(file resolves async). File: '{}'",
-			std::filesystem::path(a_absWav).string());
+		REX::INFO("WwiseBackend self-test (Milestone 0): posting a PCM .wav as an external source on "
+		          "the shipped event Dialogue_6_Combat. playingID != 0 = the engine ACCEPTED it; "
+		          "AUDIBLE must still be confirmed by ear (file resolves async, and a dialogue event "
+		          "may be quiet at the main menu). File: '{}'",
+			std::filesystem::path(a_wav).string());
 
-		const auto codec = RE::BGSAudio::AkCodecID::kPCM;
-		const auto obj = RE::BGSAudio::AkSoundEngine::kPlayerGameObject;
-
-		if (ExternalReady()) {
-			const auto id = g_placeholderEventID.load(std::memory_order_relaxed);
-			const auto playingID = PostExternalOn(id, a_absWav, codec, obj);
-			REX::INFO("WwiseBackend self-test: placeholder event \"{}\" (0x{:08X}) -> playingID {} ({})",
-				kPlaceholderEvent, id, playingID, playingID ? "ACCEPTED" : "REJECTED");
-		} else {
-			REX::INFO("WwiseBackend self-test: placeholder bank not loaded — skipping its post "
-			          "(ship Data\\Sound\\Soundbanks\\{}.bnk to test the production event)",
-				kPlaceholderBank);
-		}
-
-		// Always also try the proven shipped event so the mechanism can be confirmed even with
-		// no authored bank. May be quiet at the main menu if dialogue isn't active — the
-		// placeholder event is the authoritative test.
-		const auto fbID = PostExternalOn(kFallbackEventDialogue6Combat, a_absWav, codec, obj);
-		REX::INFO("WwiseBackend self-test: fallback event Dialogue_6_Combat (0x{:08X}) -> playingID {} ({})",
-			kFallbackEventDialogue6Combat, fbID, fbID ? "ACCEPTED" : "REJECTED");
+		const auto playingID = PostExternalOn(kExternalSourceEvent, a_wav,
+			RE::BGSAudio::AkCodecID::kPCM, RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
+		REX::INFO("WwiseBackend self-test: event Dialogue_6_Combat (0x{:08X}) -> playingID {} ({})",
+			kExternalSourceEvent, playingID, playingID ? "ACCEPTED" : "REJECTED");
 	}
 }

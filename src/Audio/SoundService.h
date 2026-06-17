@@ -7,22 +7,22 @@
 // - "event:<WwiseEventName>" / "event:0x<akEventID>" specs: posted as a BAKED
 //   event (events already in a loaded soundbank), engine-mixed, at the listener.
 // - Plain file paths (the default for pack cues): posted as a Wwise EXTERNAL
-//   SOURCE through our shipped placeholder bank — loose .wav/.wem/.xwm play
-//   engine-mixed, no per-file soundbank authoring. This is the GAME'S OWN loose
-//   voice-file mechanism (RE-proven on 1.16.244). v1 posts at the listener
-//   (player game object); positioned posting is a deferred follow-up.
+//   SOURCE through a shipped event's "External_Source" slot — loose .wav/.wem/.xwm
+//   play engine-mixed, no per-file soundbank authoring and no bank to load. This is
+//   the GAME'S OWN loose voice-file mechanism (RE-proven on 1.16.244). v1 posts at
+//   the listener (player game object); positioned posting is a deferred follow-up.
 //
 // LEGACY FALLBACK (miniaudio, to be removed once the Wwise path is validated
-// in-game — Milestone 0): when the placeholder bank is not loaded, or for a
-// codec the external source can't stream directly, a plain file still plays
-// through our own output device, BYPASSING the game mix. This keeps loose-file
-// audio working before the authored bank is shipped; it is not the target.
+// in-game — Milestone 0): when Wwise is unavailable (PostEvent prologue mismatch)
+// or for a codec the external source can't stream directly, a plain file still
+// plays through our own output device, BYPASSING the game mix. Safety net only;
+// it is not the target.
 //
 // Threading: Play() is called from animation job threads (under the scene lock)
 // and must never block. The Wwise post only enqueues into AK's command queue
 // (any-thread-safe). The miniaudio fallback creates sounds async and keeps all
-// service state behind one mutex. Init() runs the (slow) device init + the bank
-// load at kPostDataLoad so the first cue doesn't stall a job thread.
+// service state behind one mutex. Init() runs the (slow) device init at
+// kPostDataLoad so the first cue doesn't stall a job thread.
 
 namespace OSF::Audio
 {

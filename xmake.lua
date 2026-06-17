@@ -49,12 +49,9 @@ target("OSF Animation")
             if os.isdir("dist/OSF/Sounds") then
                 os.cp("dist/OSF/Sounds", osf .. "/")  -- sample sound cues, if any are present
             end
-            -- Wwise soundbanks live under Data\Sound\Soundbanks (NOT under OSF\). The mod folder
-            -- is a virtual Data root, so dist/Sound/** -> <mod>/Sound/**. The placeholder bank
-            -- (OSF_Placeholder.bnk) routes loose files through the engine mix once authored.
-            if os.isdir("dist/Sound") then
-                os.cp("dist/Sound", path.join(mods, target:name()) .. "/")
-            end
+            -- No soundbanks ship: loose audio plays through a SHIPPED event's external-source
+            -- slot (WwiseBackend), not a mod .bnk — the engine resolves banks by BSResource
+            -- registry membership, so a custom LoadBank fails (OSF RE, 1.16.244).
         end
     end)
 

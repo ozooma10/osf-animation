@@ -50,11 +50,10 @@ namespace OSF::Audio
 		}
 		initAttempted = true;
 
-		// Bring up the engine-native path first: load the placeholder bank so loose files can
-		// post as external sources through the game's Wwise mix. Safe here — the game's audio
-		// engine is up by kPostDataLoad. On failure it logs and loose files use the legacy
-		// device below until the bank is shipped.
-		Wwise::LoadPlaceholderBank();
+		// The engine-native path needs no setup here: loose files post as external sources
+		// through a SHIPPED event that already carries an "External_Source" slot (WwiseBackend),
+		// so they ride the game's Wwise mix with no bank to load. The miniaudio device below is
+		// the legacy fallback, used only for codecs the external source can't stream directly.
 
 		if (ma_engine_init(nullptr, &g_engine) != MA_SUCCESS) {
 			REX::WARN("SoundService: audio device init failed — cue sounds disabled (cue events still dispatch)");
@@ -90,14 +89,18 @@ namespace OSF::Audio
 			return;
 		}
 
-		// Plain file path: the intended path is a Wwise EXTERNAL SOURCE through the placeholder
-		// bank — engine-mixed, at the listener (v1). a_worldPos / a_volume don't apply yet (the
-		// mix is engine-owned; positioned posting is the deferred 3D follow-up).
-		if (Wwise::ExternalReady()) {
+		// Plain file path: the intended path is a Wwise EXTERNAL SOURCE through a shipped event's
+		// "External_Source" slot — engine-mixed, at the listener (v1). a_worldPos / a_volume don't
+		// apply yet (the mix is engine-owned; positioned posting is the deferred 3D follow-up).
+		if (Wwise::Available()) {
 			if (const auto codec = Wwise::CodecForExtension(a_dataRelPath)) {
-				const auto abs = (std::filesystem::current_path() / "Data" / a_dataRelPath).wstring();
-				if (const auto playingID = Wwise::PostExternalFile(abs, *codec)) {
-					REX::DEBUG("SoundService: posted external '{}' (codec {}) -> playingID {} (engine-mixed)",
+				// szFile must be a Data-RELATIVE path, not absolute. The game's own external-source
+				// posts hand AK 'Data\Sound\Voice\...\<id>.wem' (resolved through the resource IO,
+				// USVFS-aware); an absolute C:\ path is accepted but never opened -> silent
+				// (RE-proven on 1.16.244). make_preferred() = backslashes, matching the engine.
+				const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
+				if (const auto playingID = Wwise::PostExternalFile(rel, *codec)) {
+					REX::INFO("SoundService: posted external '{}' (codec {}) -> playingID {} (engine-mixed)",
 						a_dataRelPath, static_cast<int>(*codec), playingID);
 					return;
 				}
@@ -110,8 +113,8 @@ namespace OSF::Audio
 		}
 
 		// ---- legacy miniaudio fallback (bypasses the game mix; removed once the external-source
-		//      path is validated in-game — Milestone 0). Reached only when the bank isn't loaded
-		//      or the codec isn't directly streamable. ----
+		//      path is validated in-game — Milestone 0). Reached only when Wwise is unavailable
+		//      (prologue mismatch), the codec isn't directly streamable, or the post was rejected. ----
 		Init();  // no-op after the first attempt; normally kPostDataLoad paid this
 
 		std::scoped_lock l{ lock };
@@ -219,7 +222,8 @@ namespace OSF::Audio
 
 	void SoundService::RunWwiseSelfTest()
 	{
-		const auto abs = (std::filesystem::current_path() / "Data" / "OSF" / "Sounds" / "testbeep.wav").wstring();
-		Wwise::RunSelfTest(abs);
+		// Data-relative path (the engine's external-source convention — see Play()).
+		const auto rel = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testbeep.wav").make_preferred().wstring();
+		Wwise::RunSelfTest(rel);
 	}
 }

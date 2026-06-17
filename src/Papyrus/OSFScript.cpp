@@ -1,6 +1,7 @@
 #include "OSFScript.h"
 
 #include "Animation/GraphManager.h"
+#include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Player/PlayerControlService.h"
@@ -555,6 +556,21 @@ namespace OSF::Papyrus
 			REX::INFO("[Papyrus] {}", a_msg.c_str());
 		}
 
+		// DEBUG (OSFCompat): play a Data-relative loose file through SoundService at the player's
+		// position — the in-world audible test for the Wwise external-source path. Routes through the
+		// SAME code as scene sound cues ("event:" specs, codec-by-extension, external-source post on
+		// the shipped event), so hearing a beep here proves audible + engine-mixed playback end to end
+		// (it should duck/pause with the game and follow the volume sliders). e.g. from the console:
+		//   cgf "OSFCompat.Dbg_PlaySound" "OSF\Sounds\testbeep.wav"
+		void Dbg_PlaySound(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_dataRelPath)
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			const RE::NiPoint3 pos = player ? player->data.location : RE::NiPoint3{};
+			REX::INFO("OSFCompat.Dbg_PlaySound: '{}' at player ({:.1f},{:.1f},{:.1f})",
+				a_dataRelPath.c_str(), pos.x, pos.y, pos.z);
+			Audio::SoundService::GetSingleton().Play(a_dataRelPath.c_str(), pos, 1.0f);
+		}
+
 		// DEBUG (OSFCompat): no-instance transport probe — DispatchStaticCall
 		// asScript.asFn(Var[]) directly (no registration). Proves the Var[] marshalling
 		// from the console without a scripted form.
@@ -857,6 +873,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_DumpScene", &Dbg_DumpScene, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartSceneDef", &Dbg_StartSceneDef, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_Log", &Dbg_Log, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_PlaySound", &Dbg_PlaySound, true, false);
 		REX::INFO("Registered compatibility natives on script '{}'", COMPAT_SCRIPT_NAME);
 	}
 

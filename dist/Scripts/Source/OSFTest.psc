@@ -97,6 +97,20 @@ Function Reload() global
     Debug.Trace("OSFTest: " + n + " animations registered")
 EndFunction
 
+; --- Wwise audio test (in-world audible probe) ------------------------------
+; Plays a loose file through the engine's Wwise mix at the player. Run from a SAVE
+; (not the main menu) so the audio bus is live, then listen — and check it ducks/pauses
+; with the game and follows the volume sliders. Watch the playingID in OSF Animation.log.
+;   cgf "OSFTest.Sound"                          plays OSF\Sounds\testbeep.wav
+;   cgf "OSFTest.SoundFile" "OSF\Sounds\x.wav"   plays any Data-relative file
+Function Sound() global
+    OSFCompat.Dbg_PlaySound("OSF\\Sounds\\testbeep.wav")
+EndFunction
+
+Function SoundFile(string asPath) global
+    OSFCompat.Dbg_PlaySound(asPath)
+EndFunction
+
 Function PlayTag(string tag, Actor a, Actor b) global
     Actor[] actors = new Actor[2]
     actors[0] = a

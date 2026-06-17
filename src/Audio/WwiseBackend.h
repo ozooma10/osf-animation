@@ -16,9 +16,12 @@
 //      (cExternals, AkExternalSourceInfo*) args. This is the GAME'S OWN voice path: it
 //      streams loose Data\Sound\Voice\...\<id>.wem files exactly this way (RE-proven on
 //      1.16.244, see OSF RE Investigations/Responses/2026-06-17-wwise-external-loose-audio.md).
-//      We ship a 1-event placeholder bank (Data\Sound\Soundbanks\OSF_Placeholder.bnk, event
-//      "OSF_PlayExternal") and post loose pack files through its slot — so loose .wav/.wem/.xwm
-//      play engine-mixed, no per-file soundbank authoring.
+//      We post loose pack files through the external-source slot of a SHIPPED event that is
+//      already resident in a loaded bank ("Dialogue_6_Combat", AkUniqueID 0x5DE4F1F3) — so
+//      loose .wav/.wem/.xwm play engine-mixed with NO soundbank authoring and NO LoadBank.
+//      (A custom mod .bnk does NOT work: the engine resolves banks by BSResource registry
+//      membership, not loose-file presence, so LoadBank on a modder bank returns AK_Fail and
+//      the file is never opened — OSF RE, 1.16.244. The shipped-event slot is the way in.)
 //
 // Positioning: v1 posts on the player's Wwise game object (the engine special-case ID 2),
 // i.e. at the listener. SetPosition is bound, but a positioned post needs an OSF-owned game
@@ -26,9 +29,13 @@
 // follow-up). Scene cues fire near the player, so the v1 difference is attenuation, not
 // correctness. Do NOT hand-synthesize the registration.
 //
+// Bus limitation: Dialogue_6_Combat is a dialogue/VO event, so external posts route through
+// the dialogue bus (dialogue-volume gated, may duck other audio). Acceptable for v1; for
+// cleaner SFX routing, request a content-neutral SFX event carrying the 0x24DB9834 cookie
+// from OSF RE and swap the event ID in WwiseBackend.cpp — same code, cleaner bus.
+//
 // Safety: the PostEvent address is prologue-checked once before we trust the binding (the
 // bytes match on 1.16.242 and 1.16.244); on a mismatch the whole Wwise path self-disables.
-// LoadBank/UnloadBank are verified by their runtime AKRESULT (kAkSuccess), logged once.
 //
 // Threading: PostEvent only enqueues into AK's command queue and is safe to call from any
 // thread, so firing cues from the animation job threads needs no marshaling. The engine
@@ -59,33 +66,22 @@ namespace OSF::Audio::Wwise
 
 	// --- external-source (loose-file) path ---
 
-	// Loads the mod-shipped placeholder bank and caches its "OSF_PlayExternal" event id.
-	// Call once at startup (after the game's Wwise engine is up — kPostDataLoad is safe).
-	// Idempotent; logs the AKRESULT. Returns true on kAkSuccess. No-op false when !Available().
-	bool LoadPlaceholderBank();
-
-	// Unloads the placeholder bank if it loaded (registered via atexit by LoadPlaceholderBank).
-	// Safe/no-op otherwise. Banks are file-loaded, so the memPtr is nullptr.
-	void UnloadPlaceholderBank();
-
-	// True once a usable external-source event id is known (the placeholder bank loaded).
-	// When false, PostExternalFile returns 0 and callers fall back.
-	bool ExternalReady();
-
 	// Maps a file extension to the external-source codec we post it with. nullopt = a format
 	// the engine's external source can't stream directly (needs offline conversion or a PCM
 	// decode first). .wav->kPCM, .wem->kVorbis, .xwm->kXWMA.
 	std::optional<RE::BGSAudio::AkCodecID> CodecForExtension(std::string_view a_path);
 
-	// Posts a loose file as an external source through the placeholder event, on the player's
-	// game object (v1, at-listener). a_absPath is the absolute Windows path (wide). Returns
-	// the AkPlayingID (0 = rejected / !ExternalReady()). Safe from any thread.
-	std::uint32_t PostExternalFile(const std::wstring& a_absPath, RE::BGSAudio::AkCodecID a_codec);
+	// Posts a loose file as an external source through a shipped event's "External_Source" slot,
+	// on the player's game object (v1, at-listener). No bank load is needed — the event is
+	// already resident. a_path is the game's Data-RELATIVE convention ('Data\...', wide), NOT
+	// absolute — an absolute path is accepted but never opened (silent), RE-proven on 1.16.244.
+	// Returns the AkPlayingID (0 = rejected / !Available()). Safe from any thread.
+	std::uint32_t PostExternalFile(const std::wstring& a_path, RE::BGSAudio::AkCodecID a_codec);
 
-	// Milestone-0 self-test: posts a_absWav (a PCM .wav) as an external source with idCodec=kPCM
-	// on (a) the placeholder event if the bank loaded, and (b) the proven shipped fallback event
-	// Dialogue_6_Combat — logging each playingID. Lets the PCM-direct mechanism be confirmed at
-	// boot before any scene/bank exists. Nonzero playingID = accepted; AUDIBLE must still be
-	// confirmed by ear (a queued event resolves the file async). Logs and returns when !Available().
-	void RunSelfTest(const std::wstring& a_absWav);
+	// Milestone-0 self-test: posts a_wav (a PCM .wav, Data-relative path) as an external source
+	// with idCodec=kPCM on the shipped event Dialogue_6_Combat and logs the playingID. Lets the
+	// PCM-direct mechanism be confirmed at boot before any scene runs. Nonzero playingID = accepted;
+	// AUDIBLE must still be confirmed by ear (a queued event resolves the file async, and a dialogue
+	// event may be quiet at the main menu). Logs and returns when !Available().
+	void RunSelfTest(const std::wstring& a_wav);
 }
