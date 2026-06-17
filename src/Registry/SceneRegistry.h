@@ -81,6 +81,31 @@ namespace OSF::Registry
 		std::string  role;   // optional role the action targets
 		bool         hold = false;       // osf.fade.out: end faded (opt out of the cleanup fade-in)
 		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
+		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
+	};
+
+	// Where a `sound` track entry fires — same time model as cues/actions. kEnter/kExit are
+	// lifecycle anchors; kFraction/kEnd are clip-timed (through the Scene timed-mark path).
+	enum class SoundPos : std::uint8_t
+	{
+		kEnter,
+		kExit,
+		kFraction,
+		kEnd
+	};
+
+	// One `sound` track entry: play a content-neutral sound spec. `spec` is a Data-relative
+	// file path (miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed).
+	// (The schema's `pool` name -> clip resolution needs pack metadata and is deferred; v1
+	// treats the value as a literal spec.)
+	struct SoundEntry
+	{
+		SoundPos     pos = SoundPos::kFraction;
+		float        fraction = 0.0f;
+		bool         everyLoop = false;
+		std::string  spec;    // file path or event: spec
+		std::string  role;    // optional; positions the sound at this actor (else the player)
+		float        volume = 1.0f;
 	};
 
 	struct SceneNode
@@ -94,7 +119,8 @@ namespace OSF::Registry
 		bool                     loopForever = false;
 		std::vector<SceneEdge>   edges;
 		std::vector<CueEntry>    cues;          // `cue` track
-		std::vector<ActionEntry> actions;       // `action` track (sound/camera lanes deferred)
+		std::vector<ActionEntry> actions;       // `action` track
+		std::vector<SoundEntry>  sounds;        // `sound` track (camera lane deferred)
 	};
 
 	struct SceneRole

@@ -13,6 +13,7 @@ add_requires("fastgltf v0.9.0")
 add_requires("ozz-animation 0.16.0")
 add_requires("zlib")
 add_requires("nlohmann_json")
+add_requires("miniaudio 0.11.25")  -- loose-file cue playback (SoundService)
 
 -- add common rules
 add_rules("mode.debug", "mode.releasedbg")
@@ -30,7 +31,7 @@ target("OSF Animation")
     })
 
     -- add dependency packages
-    add_packages("fastgltf", "ozz-animation", "zlib", "nlohmann_json")
+    add_packages("fastgltf", "ozz-animation", "zlib", "nlohmann_json", "miniaudio")
 
     -- add src files
     add_files("src/**.cpp")
@@ -52,6 +53,9 @@ target("OSF Animation")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
             os.cp("dist/OSF/*.json", osf .. "/")
             os.cp("dist/OSF/Animations", osf .. "/")
+            if os.isdir("dist/OSF/Sounds") then
+                os.cp("dist/OSF/Sounds", osf .. "/")  -- sample/test cue sounds (SoundService)
+            end
         end
     end)
 

@@ -1,6 +1,7 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Animation/GraphManager.h"
+#include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
 #include "Player/PlayerControlService.h"
@@ -88,6 +89,15 @@ namespace OSF::Scene
 					stage.marks.push_back({ 0.0f, false, true, kLaneAction, token });
 				}
 			}
+			for (std::size_t i = 0; i < a_node.sounds.size(); i++) {
+				const auto& snd = a_node.sounds[i];
+				const auto token = std::to_string(i);  // index into node.sounds
+				if (snd.pos == Registry::SoundPos::kFraction) {
+					stage.marks.push_back({ snd.fraction, snd.everyLoop, false, kLaneSound, token });
+				} else if (snd.pos == Registry::SoundPos::kEnd) {
+					stage.marks.push_back({ 0.0f, false, true, kLaneSound, token });
+				}
+			}
 		}
 
 		// The outgoing auto-edge of a_node whose `when` matches, by §1.3 arbitration: highest
@@ -168,10 +178,11 @@ namespace OSF::Scene
 			GetSingleton().ReplayLedger(a_handle);
 		}
 
-		// "exit" track entries run BEFORE the structural NODE_EXIT (§1.5); within the tick,
-		// action runs before cue (§1.3 same-tick order).
+		// "exit" track entries run BEFORE the structural NODE_EXIT (§1.5); within the tick they
+		// run in the fixed cross-lane order action -> (camera) -> sound -> cue (§1.3).
 		if (a_event == Event::kNodeExit) {
 			DispatchLifecycleActions(a_handle, a_node, false);
+			DispatchLifecycleSounds(a_handle, a_node, false);
 			DispatchLifecycleCues(a_handle, a_node, false);
 		}
 
@@ -186,9 +197,11 @@ namespace OSF::Scene
 		// actor/role left default (Phase A).
 		SceneEventRelay::GetSingleton().Dispatch(e);
 
-		// "enter" track entries run AFTER the structural NODE_ENTER; action before cue (§1.3).
+		// "enter" track entries run AFTER the structural NODE_ENTER, in the §1.3 cross-lane
+		// order action -> (camera) -> sound -> cue.
 		if (a_event == Event::kNodeEnter) {
 			DispatchLifecycleActions(a_handle, a_node, true);
+			DispatchLifecycleSounds(a_handle, a_node, true);
 			DispatchLifecycleCues(a_handle, a_node, true);
 		}
 	}
@@ -223,6 +236,38 @@ namespace OSF::Scene
 		for (const auto& cue : node->cues) {
 			if (cue.pos == wantPos) {
 				DispatchCue(a_handle, a_node, cue.id, a_enter ? "enter" : "exit", -1.0f);
+			}
+		}
+	}
+
+	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role, float a_volume)
+	{
+		RE::NiPoint3 pos{};
+		if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role)) {
+			pos = actor->data.location;
+		} else if (auto* player = RE::PlayerCharacter::GetSingleton()) {
+			pos = player->data.location;  // listener-centered fallback (full volume)
+		}
+		REX::INFO("SceneRuntime: scene {:#010x} sound '{}' (role '{}') at ({:.0f},{:.0f},{:.0f}) vol {:.2f}",
+			a_handle, a_spec, a_role, pos.x, pos.y, pos.z, a_volume);
+		Audio::SoundService::GetSingleton().Play(std::string(a_spec), pos, a_volume);
+	}
+
+	void SceneRuntime::DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter)
+	{
+		const std::string id = GetSingleton().GetId(a_handle);  // "" for pack/files -> no sounds
+		if (id.empty()) {
+			return;
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		if (!node) {
+			return;
+		}
+		const auto wantPos = a_enter ? Registry::SoundPos::kEnter : Registry::SoundPos::kExit;
+		for (const auto& snd : node->sounds) {
+			if (snd.pos == wantPos) {
+				PlaySound(a_handle, snd.spec, snd.role, snd.volume);
 			}
 		}
 	}
@@ -471,8 +516,19 @@ namespace OSF::Scene
 			// it. (v1 restores the whole scene's hidden apparel; per-role restore is deferred.)
 			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipment);
+		} else if (type == "osf.voice.play") {
+			// Fire-and-forget vocal: play the `set` spec at the role's actor. Not reversible (a
+			// one-shot sound has nothing to undo), so no ledger entry. Settings silent-skip (§1.5).
+			if (!Audio::SoundService::GetSingleton().Enabled()) {
+				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play — disabled by settings, skipped", a_handle);
+			} else if (a_action.set.empty()) {
+				REX::WARN("SceneRuntime: scene {:#010x} osf.voice.play — missing 'set' spec, skipped", a_handle);
+			} else {
+				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play (role '{}', set '{}')", a_handle, a_action.role, a_action.set);
+				PlaySound(a_handle, a_action.set, a_action.role, 1.0f);
+			}
 		} else if (type.rfind("osf.", 0) == 0) {
-			// recognized built-in mechanism, not yet executed (voice — Layer C).
+			// recognized built-in mechanism, not yet executed (camera is a track lane — Slice 18).
 			REX::INFO("SceneRuntime: scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
 				a_handle, a_action.type, a_action.role);
 		} else {
@@ -535,6 +591,15 @@ namespace OSF::Scene
 				const auto [ptr, ec] = std::from_chars(first, first + m.token.size(), idx);
 				if (ec == std::errc{} && idx < node->actions.size()) {
 					RunAction(handle, oldNode, node->actions[idx], "", hasPlayer);
+				}
+			} else if (m.lane == kLaneSound && node) {
+				// token = index into node->sounds (set by ApplyNodeMarks).
+				std::size_t idx = 0;
+				const auto* first = m.token.data();
+				const auto [ptr, ec] = std::from_chars(first, first + m.token.size(), idx);
+				if (ec == std::errc{} && idx < node->sounds.size()) {
+					const auto& snd = node->sounds[idx];
+					PlaySound(handle, snd.spec, snd.role, snd.volume);
 				}
 			}
 		}

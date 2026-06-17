@@ -484,3 +484,21 @@ Function EquipTest() global
     OSFCompat.Dbg_Log("EquipTest: stopping — expect 'equipment undo — restoring' + your apparel re-equipped.")
     OSF.StopScene(h)
 EndFunction
+
+; --- Sound lane + osf.voice.play (Slice 16) ---------------------------------------------
+; Starts "author.scenes.soundtest" on the PLAYER. You should HEAR a short beep on start
+; (osf.voice.play + the sound-lane enter entry) and again ~2s in (the numeric 0.1 sound,
+; every loop). Confirms the harvested SoundService + the sound lane on the timed-mark path.
+; Expect log: 'audio engine ready' (once, at load), then on start 'osf.voice.play' +
+; 'sound 'OSF/Sounds/testbeep.wav'' lines; another 'sound ...' ~2s in. Keep the game FOCUSED.
+;   cgf "OSFTest.SoundTest"
+Function SoundTest() global
+    Actor a = Game.GetPlayer()
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "author.scenes.soundtest", 0)
+    OSFCompat.Dbg_Log("SoundTest: started h=" + h + " — expect a BEEP now (voice.play + sound-lane enter) and another ~2s in (numeric 0.1). WAIT ~5s.")
+    Utility.Wait(5.0)
+    OSFCompat.Dbg_Log("SoundTest: stopping.")
+    OSF.StopScene(h)
+EndFunction

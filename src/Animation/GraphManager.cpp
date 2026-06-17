@@ -1,5 +1,6 @@
 #include "GraphManager.h"
 
+#include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Player/PlayerControlService.h"
 #include "UI/FadeService.h"
@@ -460,6 +461,8 @@ namespace OSF::Animation
 		// Release any held/pending screen fade before the load (the stay-faded latch crashes
 		// the load path — see FadeService crash constraint).
 		UI::FadeService::GetSingleton().OnStopAll();
+		// Cut every live cue sound — a loaded save shouldn't have last-world sounds ringing over it.
+		Audio::SoundService::GetSingleton().StopAll();
 
 		// Drop Layer-B scene handles too — their participants are raw Actor* that the load
 		// invalidates, so a stashed handle must read as dead afterward. Unconditional (even
@@ -896,6 +899,7 @@ namespace OSF::Animation
 		// free, and a standalone lock with no live graph still bounces.
 		Camera::CameraService::GetSingleton().Tick();
 		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
+		Audio::SoundService::GetSingleton().Tick();  // moves the listener to the player + reaps finished sounds
 
 		// Idle early-out: this hook fires ~7x per render frame for every
 		// AnimationManager in the game; with no managed graphs there is

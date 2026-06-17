@@ -1,4 +1,6 @@
 #include "Animation/GraphManager.h"
+#include "Audio/SoundService.h"
+#include "Config/Settings.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
@@ -36,6 +38,10 @@ namespace
 			OSF::Registry::PackRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
+			// Pay the (slow) audio device init now so the first cue sound doesn't stall a job thread.
+			OSF::Audio::SoundService::GetSingleton().Init();
+			// Apply user safety toggles (settings precedence, §1.5) AFTER the services exist.
+			OSF::Config::Settings::Load();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}

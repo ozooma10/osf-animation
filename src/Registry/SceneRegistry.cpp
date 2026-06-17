@@ -121,10 +121,22 @@ namespace OSF::Registry
 				ae.role = a.value("role", std::string{});
 				ae.hold = a.value("hold", false);          // osf.fade.out: stay faded on cleanup
 				ae.duration = a.value("duration", 0.0f);   // osf.fade.*: ramp secs (0 = default)
+				ae.set = a.value("set", std::string{});    // osf.voice.play: sound spec
 				const auto typeLower = ToLower(ae.type);
 				if (typeLower.rfind("osf.", 0) == 0) {
 					if (!IsKnownBuiltinAction(typeLower)) {
 						throw std::runtime_error("node '" + a_node_out.id + "': unknown built-in action '" + ae.type + "'");
+					}
+					// Per-action required fields (§1.3 / §1.6). Role-targeted mechanisms need a
+					// role; voice also needs its sound set. Fade takes no required field.
+					const bool needsRole = typeLower == "osf.control.lock" || typeLower == "osf.control.release" ||
+						typeLower == "osf.equipment.hide" || typeLower == "osf.equipment.restore" ||
+						typeLower == "osf.voice.play";
+					if (needsRole && ae.role.empty()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' requires 'role'");
+					}
+					if (typeLower == "osf.voice.play" && ae.set.empty()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.voice.play' requires 'set'");
 					}
 				} else if (a.value("required", false)) {
 					// Custom actions are best-effort notifications; `required` is reserved (§1.3).
@@ -165,8 +177,56 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse the node's `tracks` block. v1 lanes: `cue` + `action` (parsed + run), and
-		// sound/camera (recognized but not yet executed). Any other lane name rejects.
+		void ParseSoundTrack(const json& a_entries, SceneNode& a_node_out)
+		{
+			if (!a_entries.is_array()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': 'sound' track must be an array");
+			}
+			for (const auto& s : a_entries) {
+				SoundEntry se;
+				// `sound` is the literal spec; `pool` is accepted as an alias (name->clip
+				// resolution is deferred, so v1 treats either as a literal spec).
+				se.spec = s.value("sound", s.value("pool", std::string{}));
+				if (se.spec.empty()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': a sound track entry is missing 'sound'/'pool'");
+				}
+				se.role = s.value("role", std::string{});
+				se.volume = s.value("volume", 1.0f);
+				const auto repeat = ToLower(s.value("repeat", "none"));
+				if (repeat != "none" && repeat != "loop") {
+					throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' has unknown repeat '" + repeat + "'");
+				}
+				se.everyLoop = (repeat == "loop");
+				const auto atIt = s.find("at");
+				if (atIt == s.end() || atIt->is_string()) {
+					const std::string at = (atIt != s.end()) ? ToLower(atIt->get<std::string>()) : "enter";
+					if (at == "enter") {
+						se.pos = SoundPos::kEnter;
+					} else if (at == "exit") {
+						se.pos = SoundPos::kExit;
+					} else if (at == "end") {
+						se.pos = SoundPos::kEnd;
+					} else {
+						throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' has unknown anchor 'at':'" + at + "'");
+					}
+					if (se.everyLoop) {
+						throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' named anchor cannot use repeat:loop");
+					}
+				} else if (atIt->is_number()) {
+					se.pos = SoundPos::kFraction;
+					se.fraction = atIt->get<float>();
+					if (se.fraction < 0.0f || se.fraction >= 1.0f) {
+						throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
+					}
+				} else {
+					throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' 'at' must be a number or enter/exit/end");
+				}
+				a_node_out.sounds.push_back(std::move(se));
+			}
+		}
+
+		// Parse the node's `tracks` block. v1 lanes: `cue` + `action` + `sound` (parsed + run);
+		// `camera` is recognized but not yet executed. Any other lane name rejects.
 		void ParseCueTracks(const json& a_node, SceneNode& a_node_out)
 		{
 			const auto it = a_node.find("tracks");
@@ -182,8 +242,12 @@ namespace OSF::Registry
 					ParseActionTrack(entries, a_node_out);
 					continue;
 				}
-				if (laneLower == "sound" || laneLower == "camera") {
-					continue;  // recognized lanes, not executed yet (Layer C / later increment)
+				if (laneLower == "sound") {
+					ParseSoundTrack(entries, a_node_out);
+					continue;
+				}
+				if (laneLower == "camera") {
+					continue;  // recognized lane, not executed yet (Slice 18)
 				}
 				if (laneLower != "cue") {
 					throw std::runtime_error("node '" + a_node_out.id + "': unknown track lane '" + lane + "'");
@@ -369,6 +433,25 @@ namespace OSF::Registry
 			// Reference validation (needs the full node-id set).
 			if (!nodeIds.count(ToLower(def.entry))) {
 				throw std::runtime_error("scene '" + def.id + "': entry '" + def.entry + "' is not a node");
+			}
+			// A non-empty action/sound role must name a declared scene role (§1.6).
+			std::unordered_set<std::string> roleNames;
+			for (const auto& r : def.roles) {
+				roleNames.insert(ToLower(r.name));
+			}
+			for (const auto& n : def.nodes) {
+				for (const auto& a : n.actions) {
+					if (!a.role.empty() && !roleNames.count(ToLower(a.role))) {
+						throw std::runtime_error("scene '" + def.id + "': node '" + n.id + "' action '" + a.type +
+							"' references undeclared role '" + a.role + "'");
+					}
+				}
+				for (const auto& s : n.sounds) {
+					if (!s.role.empty() && !roleNames.count(ToLower(s.role))) {
+						throw std::runtime_error("scene '" + def.id + "': node '" + n.id + "' sound '" + s.spec +
+							"' references undeclared role '" + s.role + "'");
+					}
+				}
 			}
 			for (const auto& n : def.nodes) {
 				for (const auto& e : n.edges) {
