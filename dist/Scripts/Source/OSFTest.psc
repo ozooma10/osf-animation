@@ -233,3 +233,26 @@ Function NavTest() global
     OSFCompat.Dbg_StopScene(h)
     OSFCompat.Dbg_Log("NavTest: stopped; node now='" + OSF.GetSceneNode(h) + "' (expect empty)")
 EndFunction
+
+; --- Scene PLAYBACK test (the node's anim actually plays) ----------------------
+; Point the crosshair at an actor (or none = the player) and run. The actor plays the
+; entry node's anim (StandSurrender), then advancing visibly swaps to the next node's anim
+; (StandCover), then back, then stop. Needs no animation mod (baked-in test clips).
+;   cgf "OSFTest.PbTest"
+Function PbTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    int h = OSFCompat.Dbg_StartSceneDef(a, "author.scenes.pbtest")
+    OSFCompat.Dbg_Log("PbTest: started h=" + h + " node='" + OSF.GetSceneNode(h) + "' -> StandSurrender (4s)")
+    Utility.Wait(4.0)
+    OSF.AdvanceScene(h)
+    OSFCompat.Dbg_Log("PbTest: advanced -> node='" + OSF.GetSceneNode(h) + "' -> StandCover (4s)")
+    Utility.Wait(4.0)
+    OSF.AdvanceScene(h)
+    OSFCompat.Dbg_Log("PbTest: advanced -> node='" + OSF.GetSceneNode(h) + "' -> StandSurrender (4s)")
+    Utility.Wait(4.0)
+    OSFCompat.Dbg_StopScene(h)
+    OSFCompat.Dbg_Log("PbTest: stopped -> animation ends")
+EndFunction

@@ -10,8 +10,10 @@
 
 namespace OSF::Registry
 {
-	// Highest pack "schema" we parse. Bump only on a breaking change
-	inline constexpr std::int64_t kPackSchemaVersion = 1;
+	// Highest pack "schema" we parse. The parser implements the stage-major layout, which
+	// PACK_SCHEMA.md documents as v2 — so we accept up to 2 (older actor-major v1 packs are
+	// rejected with a migration hint in ParseAnimation). Bump only on a breaking change.
+	inline constexpr std::int64_t kPackSchemaVersion = 2;
 
 	enum class SlotGender : std::uint8_t
 	{

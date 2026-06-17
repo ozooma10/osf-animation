@@ -14,6 +14,17 @@
       ]
     },
     {
+      "id": "solo.cover",
+      "name": "Stand cover (baked-in solo test, second pose)",
+      "tags": ["test", "solo"],
+      "actors": [
+        {}
+      ],
+      "stages": [
+        { "clips": ["OSF/Animations/OSF_Test/StandCover01.glb"] }
+      ]
+    },
+    {
       "id": "pair",
       "name": "Stand surrender x2 (baked-in pair test)",
       "tags": ["test", "paired"],

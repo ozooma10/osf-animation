@@ -1,5 +1,7 @@
 #include "Scene/SceneRuntime.h"
 
+#include "Animation/GraphManager.h"
+#include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "Util/StringUtil.h"
@@ -37,6 +39,35 @@ namespace OSF::Scene
 		e.anchor = std::string(a_anchor);
 		// actor/role left default (Phase A).
 		SceneEventRelay::GetSingleton().Dispatch(e);
+	}
+
+	void SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId)
+	{
+		if (a_participants.empty()) {
+			return;  // synthetic scene with no participants — nothing to play
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
+		if (!node || node->anim.empty()) {
+			return;  // not def-backed, or the node has no anim
+		}
+		auto plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(node->anim, a_participants.size());
+		if (!plan) {
+			REX::WARN("SceneRuntime: node '{}' anim '{}' not playable for {} participant(s)",
+				a_nodeId, node->anim, a_participants.size());
+			return;
+		}
+		// Re-playing on actors already in a scene tears the old node's scene first, so a
+		// node transition is just a fresh PlaySceneStaged. (P1: the node's anim plays as
+		// authored — single-pose anims hold; graph-level auto-advance is a later increment.)
+		Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0);
+	}
+
+	void SceneRuntime::StopGraph(const std::vector<RE::Actor*>& a_participants)
+	{
+		if (!a_participants.empty() && a_participants.front()) {
+			Animation::GraphManager::GetSingleton().StopScene(a_participants.front());
+		}
 	}
 
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
@@ -79,6 +110,7 @@ namespace OSF::Scene
 			node = s.node;
 		}
 
+		PlayNodeAnim(a_participants, a_id, node);
 		Fire(handle, Event::kNodeEnter, node, "enter");
 		return handle;
 	}
@@ -87,6 +119,8 @@ namespace OSF::Scene
 	{
 		std::string oldNode;
 		std::string newNode;
+		std::string sceneId;
+		std::vector<RE::Actor*> participants;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_scene);
@@ -97,9 +131,12 @@ namespace OSF::Scene
 			s->node = std::string(a_node);
 			s->stage = a_stage;
 			newNode = s->node;
+			sceneId = s->id;
+			participants = s->participants;
 		}
 
 		Fire(a_scene, Event::kNodeExit, oldNode, "exit");
+		PlayNodeAnim(participants, sceneId, newNode);
 		Fire(a_scene, Event::kNodeEnter, newNode, "enter");
 		return true;
 	}
@@ -107,6 +144,7 @@ namespace OSF::Scene
 	bool SceneRuntime::Stop(std::int32_t a_scene)
 	{
 		std::string node;
+		std::vector<RE::Actor*> participants;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_scene);
@@ -114,9 +152,11 @@ namespace OSF::Scene
 				return false;
 			}
 			node = s->node;
+			participants = s->participants;
 			*s = Slot{};  // generation 0 → empty; invalidates the handle
 		}
 
+		StopGraph(participants);
 		Fire(a_scene, Event::kNodeExit, node, "exit");
 		Fire(a_scene, Event::kSceneEnd, node, "");
 		return true;
@@ -137,6 +177,8 @@ namespace OSF::Scene
 	{
 		std::string oldNode;
 		std::string newNode;
+		std::string sceneId;
+		std::vector<RE::Actor*> participants;
 		bool end = false;
 		{
 			std::lock_guard l{ _lock };
@@ -160,6 +202,8 @@ namespace OSF::Scene
 				return false;  // no default advance edge — never inferred
 			}
 			oldNode = s->node;
+			sceneId = s->id;
+			participants = s->participants;
 			if (edge->to == "$end") {
 				end = true;
 				*s = Slot{};  // free the handle
@@ -170,7 +214,13 @@ namespace OSF::Scene
 		}
 
 		Fire(a_scene, Event::kNodeExit, oldNode, "exit");
-		Fire(a_scene, end ? Event::kSceneEnd : Event::kNodeEnter, end ? oldNode : newNode, end ? "" : "enter");
+		if (end) {
+			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END (§1.5)
+			Fire(a_scene, Event::kSceneEnd, oldNode, "");
+		} else {
+			PlayNodeAnim(participants, sceneId, newNode);
+			Fire(a_scene, Event::kNodeEnter, newNode, "enter");
+		}
 		return true;
 	}
 
@@ -179,6 +229,8 @@ namespace OSF::Scene
 		const auto wantId = Util::ToLower(std::string(a_edgeId));
 		std::string oldNode;
 		std::string newNode;
+		std::string sceneId;
+		std::vector<RE::Actor*> participants;
 		bool end = false;
 		{
 			std::lock_guard l{ _lock };
@@ -202,6 +254,8 @@ namespace OSF::Scene
 				return false;  // no such branchable edge on the current node
 			}
 			oldNode = s->node;
+			sceneId = s->id;
+			participants = s->participants;
 			if (edge->to == "$end") {
 				end = true;
 				*s = Slot{};
@@ -212,7 +266,13 @@ namespace OSF::Scene
 		}
 
 		Fire(a_scene, Event::kNodeExit, oldNode, "exit");
-		Fire(a_scene, end ? Event::kSceneEnd : Event::kNodeEnter, end ? oldNode : newNode, end ? "" : "enter");
+		if (end) {
+			StopGraph(participants);
+			Fire(a_scene, Event::kSceneEnd, oldNode, "");
+		} else {
+			PlayNodeAnim(participants, sceneId, newNode);
+			Fire(a_scene, Event::kNodeEnter, newNode, "enter");
+		}
 		return true;
 	}
 

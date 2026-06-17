@@ -258,12 +258,12 @@ namespace OSF::Registry
 					// last arg: tolerate // comments in hand-edited packs
 					const auto json = nlohmann::json::parse(in, nullptr, true, true);
 					const auto lowerName = ToLower(fileName);
-					// Reserved OSF Intimacy file types (scene defs, voice sets, dialogue
-					// manifests): skipped so they aren't misparsed as core anim packs.
-					// See docs/INTIMACY_SEAM.md.
+					// Non-pack file types skipped here so they aren't misparsed as anim packs:
+					// scene graphs (*.scene.json) load via SceneRegistry; *.voice.json /
+					// *.dialogue.json are reserved (not yet read). See docs/INTIMACY_SEAM.md.
 					if (lowerName.ends_with(".scene.json") || lowerName.ends_with(".voice.json") ||
 						lowerName.ends_with(".dialogue.json")) {
-						REX::INFO("PackRegistry: ignoring OSF Intimacy manifest '{}'", fileName);
+						REX::INFO("PackRegistry: '{}' is not an anim pack (handled elsewhere) — skipped", fileName);
 					} else {
 						LoadPackFile(json, packFile, state);
 					}

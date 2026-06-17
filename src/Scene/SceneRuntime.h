@@ -79,6 +79,12 @@ namespace OSF::Scene
 		// the VM); the caller snapshots node/handle first.
 		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor);
 
+		// Playback bridge to Layer A (GraphManager). Call OUTSIDE _lock with snapshotted
+		// participants. PlayNodeAnim resolves the node's `anim` id and plays it (no-op for a
+		// synthetic/no-anim scene or an unplayable id); StopGraph ends the participants' scene.
+		static void PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId);
+		static void StopGraph(const std::vector<RE::Actor*>& a_participants);
+
 		std::mutex        _lock;
 		std::vector<Slot> _slots;
 		std::uint16_t     _nextGen = 1;
