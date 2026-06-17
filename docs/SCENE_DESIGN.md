@@ -66,6 +66,7 @@ snapshotted into the `OSFEvent:SceneEvent` struct argument instead. Read those f
 ```papyrus
 ; --- start (all return an int scene handle; 0 = failed; all actor-first for consistent arg order) ---
 int Function StartScene(Actor[] akActors, string asId, int aiStage = 0) Global Native
+int Function StartSceneAt(Actor[] akActors, string asId, ObjectReference akAnchor, float afHeadingDeg = -1.0) Global Native  ; world-anchor at a thing, not actor[0]
 int Function StartSceneRoles(Actor[] akActors, string asId, string[] asRoles, int aiStage = 0) Global Native
 int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native     ; GetSceneId recovers the match
 int Function StartSceneFiles(Actor[] akActors, string[] asFiles, float afSpeed = 1.0, float afBlendIn = 0.4) Global Native
@@ -88,6 +89,12 @@ string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
 
 ; --- discovery (inspect candidates; result order matches StartSceneByTags ranking) ---
 string[] Function FindScenes(int aiActorCount, string[] asTags) Global Native
+
+; --- scene-metadata introspection (read-only; by scene id, not handle; "" / 0 / empty if unknown) ---
+string[] Function GetSceneRoles(string asId) Global Native
+string   Function GetSceneRoleGender(string asId, string asRole) Global Native   ; "male"/"female"/"any"
+int      Function GetSceneActorCount(string asId) Global Native
+string[] Function GetSceneTags(string asId) Global Native
 
 ; --- actor convenience ---
 int  Function GetSceneForActor(Actor akActor) Global Native       ; 0 if not in a scene
@@ -136,6 +143,12 @@ keeps `GetSceneForActor` single-valued and animation ownership/cleanup unambiguo
 membership is deferred.) A `None` actor, or the same actor passed twice in one call, also fails.
 
 - **`StartScene`** — `akActors` fills definition slots by order (or per the node's `slots`, §1.4).
+- **`StartSceneAt`** — like `StartScene`, but the scene's world anchor is `akAnchor`'s position +
+  heading (participants co-locate at the ref + each placement offset) instead of `akActors[0]`'s
+  transform. `afHeadingDeg < 0` uses the ref's own heading; otherwise it is a heading in degrees. For
+  furniture/bed/marker encounters that belong to a *thing*, not an actor — it removes the caller-side
+  `MoveTo` + settle dance. Same id resolution as `StartScene` (composed scene def, else pack). A
+  `None` anchor fails (`0`).
 - **`StartSceneRoles`** — `asRoles.Length` must equal `akActors.Length`; unknown role name,
   duplicate role name, `None` actor, duplicate actor, missing required role, or an extra actor with
   no matching role → start fails (`0`), reason logged.
@@ -358,6 +371,7 @@ Closed v1 set of named lanes: `sound`, `cue`, `action`, `camera`.
 | `type` | Mechanism |
 |---|---|
 | `osf.equipment.hide` / `osf.equipment.restore` | strip / restore slots (`slots`, `role`) |
+| `osf.weapon.sheathe` / `osf.weapon.restore` | holster / re-draw the role's weapon (`role`) |
 | `osf.control.lock` / `osf.control.release` | freeze / restore player control + camera (`role`) |
 | `osf.fade.out` / `osf.fade.in` | screen fade (`"hold": true` on `fade.out` = end-faded, opts out of auto fade-in) |
 | `osf.voice.play` | explicit scheduled vocal (`role`, `set`); default vocals are metadata-driven |
@@ -371,6 +385,8 @@ Per-action payload (required vs optional fields):
 |---|---|---|---|
 | `osf.equipment.hide` | `role` | `slots` | unknown role → reject; empty `slots` = the metadata/default profile |
 | `osf.equipment.restore` | `role` | `slots` | restores only this scene's ledger entries |
+| `osf.weapon.sheathe` | `role` | — | unknown role → reject; holsters the role's weapon |
+| `osf.weapon.restore` | `role` | — | re-draws weapons this scene sheathed |
 | `osf.control.lock` | `role` | — | unknown role → reject |
 | `osf.control.release` | `role` | — | releasing an unowned lock → no-op |
 | `osf.fade.out` | — | `hold`, duration | `hold:true` opts out of the cleanup fade-in |
@@ -475,6 +491,11 @@ Per-mechanism ownership:
   clamped no-op; `StopScene` releases all of that handle's locks; the player unlocks at count 0.
 - **Equipment** — the ledger records only items *this* scene hid; restore touches only those; items
   the player/another mod changed mid-scene are not blindly overwritten.
+- **Weapon** — the ledger records the actors *this* scene sheathed; cleanup re-draws exactly those.
+  Sheathe/restore are a **symmetric pair** (re-draw is unconditional, like `control.lock`), so author
+  `osf.weapon.sheathe` only on a role you know is armed — exactly as you'd `osf.equipment.hide` only an
+  actor you mean to strip. A state-aware restore (skip re-drawing an actor that had nothing drawn) is a
+  noted future refinement; it needs the `actorState` weapon-drawn bit, unverified on this build (RE.md).
 - **Camera** — each camera entry snapshots the prior state; on cleanup the scene restores only if it
   still owns the active camera state (last-writer ownership); concurrent camera owners are resolved
   last-writer-wins with the snapshot chain.

@@ -56,11 +56,11 @@ ground truth → **docs/RE.md** · the Layer A↔B scene-runtime seam → **docs
   same-tick order (action→camera→sound→cue).
 - **[LIVE] Layer C policy mechanisms (Phase C, complete 2026-06-17; harvested from `OSF Animation
   Archive`):** built-in `osf.*` actions — `control.lock`/`release`, `fade.out`/`in`,
-  `equipment.hide`/`restore`, `voice.play` — plus the `sound`/`camera` lanes; backed by content-neutral
-  services (Player/Camera locks, FadeService, EquipmentService, SoundService/WwiseBackend). A
-  **generalized per-handle undo ledger** reverses every reversible mechanism (control/fade/equipment/
-  camera) in reverse order, once, idempotently, on ANY termination — cleanup never needs an authored
-  release. User-settings precedence (silent-skip when disabled, `Data/OSF/settings.json`) + per-action
+  `equipment.hide`/`restore`, `weapon.sheathe`/`restore`, `voice.play` — plus the `sound`/`camera` lanes;
+  backed by content-neutral services (Player/Camera locks, FadeService, EquipmentService, WeaponService,
+  SoundService/WwiseBackend). A **generalized per-handle undo ledger** reverses every reversible mechanism
+  (control/fade/equipment/camera/weapon) in reverse order, once, idempotently, on ANY termination —
+  cleanup never needs an authored release. User-settings precedence (silent-skip when disabled, `Data/OSF/settings.json`) + per-action
   required-field validation. **Deferred past v1** (additive, no API impact): free-fly/orbit camera
   states (runtime-OPEN in OSF RE), pool/set→clip metadata resolution, positioned Wwise posting.
   **Still external:** the **OSF Seduce** content layer (specific adult choreography/content/profiles);
@@ -71,12 +71,13 @@ ground truth → **docs/RE.md** · the Layer A↔B scene-runtime seam → **docs
 Bound on `OSF` (see `dist/Scripts/Source/OSF.psc`):
 - **Primitives:** `Play` · `Stop` · `SetSpeed`/`GetSpeed` · `SetAnchor`/`ClearAnchor` · `Sync` ·
   `PlaySequence` · `GetCurrentAnimation` · `IsPlaying`.
-- **Scenes (anchored, staged, synced):** `StartScene` (registry id) · `StartSceneRoles` ·
-  `StartSceneByTags` (matchmake by tags + gender slots) · `StartSceneFiles` (ad-hoc raw files, the
-  SAF `PlaySceneSeparate` replacement) · `AdvanceScene`/`NavigateScene` · `GetSceneEdge*` ·
-  `SetSceneStage` · `GetSceneStage` · `StopScene`/`StopSceneForActor` · `GetSceneId`/`GetSceneNode`/
-  `GetSceneForActor` · `FindScenes` · `ReloadPacks` · `RegisterSceneCallback` + the `EVENT_*`/`RESULT_*`
-  getters.
+- **Scenes (anchored, staged, synced):** `StartScene` (registry id) · `StartSceneAt` (world-anchored
+  at an ObjectReference — furniture/bed/marker) · `StartSceneRoles` · `StartSceneByTags` (matchmake by
+  tags + gender slots) · `StartSceneFiles` (ad-hoc raw files, the SAF `PlaySceneSeparate` replacement) ·
+  `AdvanceScene`/`NavigateScene` · `GetSceneEdge*` · `SetSceneStage` · `GetSceneStage` ·
+  `StopScene`/`StopSceneForActor` · `GetSceneId`/`GetSceneNode`/`GetSceneForActor` ·
+  `GetSceneRoles`/`GetSceneRoleGender`/`GetSceneActorCount`/`GetSceneTags` (read-only metadata) ·
+  `FindScenes` · `ReloadPacks` · `RegisterSceneCallback` + the `EVENT_*`/`RESULT_*` getters.
 - **Readiness:** `IsReady` · `HasFeature("scenes"/"playback"/"sync"/"anchor")` · `GetVersion`.
 - **Compat (`OSFCompat`):** `SetPlayerControlLock` · `SetPlayerCameraLock` · `SetSceneControlMask` (debug, off the public surface).
 

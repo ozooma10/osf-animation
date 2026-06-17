@@ -10,8 +10,9 @@ Full RE record: osf-re `tools/ghidra/context_repo/modules/gameplay.actor_transfo
 
 > **Policy-mechanism RE is now IN this repo (Phase C, 2026-06-17).** The scene engine merged back in,
 > so the Layer-C mechanism bindings — equipment equip/unequip (`ActorEquipManager` IDs 101949/101951),
+> weapon sheathe/draw (`Actor::DrawWeaponMagicHands` vtable slot 0x136),
 > the FaderMenu fade poster (114430), Wwise `PostEvent` (150391) — are **used by this repo** (see
-> `src/Equipment`, `src/UI/FadeService`, `src/Audio`). Each prologue-gates before use, like every
+> `src/Equipment`, `src/Weapon`, `src/UI/FadeService`, `src/Audio`). Each prologue-gates before use, like every
 > binding here. Canonical RE detail still lives in osf-re (`gameplay.actor_equipment`,
 > `engine.save_load`, `ui.fader_menu`, `wwise-audio-re-handoff.md`); this page keeps the core's ground
 > truth. **Still NOT in this repo:** cosave save-name hooks / aftermath persistence (deferred), and
@@ -130,6 +131,20 @@ capsule sits:
   bit 19 from the Papyrus thread (open RE question, deprioritized).
 - **AI off is UNUSABLE for scene actors:** the engine stops calling AnimationManager::Update for
   AI-disabled NPCs, freezing the whole anim pipeline.
+
+## Weapon sheathe / draw (Layer-C `osf.weapon.*`)
+
+- `Actor::DrawWeaponMagicHands(bool)` = CLSF Actor virtual **vtable slot 0x136** (RE/A/Actor.h;
+  hex-indexed like its neighbours SetPosition 0x137 / Update 0x13F). `false` = sheathe, `true` =
+  draw. **Called, not patched.** `WeaponService::Available()` resolves the AddressLib-mapped Actor
+  vtable (`RE::Actor::VTABLE[0]`, id 451610), reads slot 0x136, and disables the feature if it
+  doesn't resolve on this build (verify-before-call; an absent id throws in `address()` → caught →
+  feature off, never dispatched).
+- **Weapon-drawn state bit: UNVERIFIED.** No named accessor exists in CLSF (`ActorState::actorState1/
+  actorState2` are raw bitfields) and OSF RE hasn't located the weapon-state bits. So `osf.weapon.*`
+  is a **symmetric pair** — `restore` re-draws unconditionally (author sheathes only armed roles). A
+  state-aware restore (re-draw only an actor that was drawn pre-sheathe) is deferred until the bit is
+  proven: log `actorState1` for the player holstered-vs-drawn to find it, then gate restore on it.
 
 ## Save / load (event source + payload)
 

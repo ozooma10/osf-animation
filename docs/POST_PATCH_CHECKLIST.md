@@ -65,6 +65,18 @@ Log on success: `registered SaveLoadEvent begin sink` + `registered TESLoadGameE
 sink`. If row 3 fails you'll see `SaveLoadEvent GetEventSource prologue mismatch; relying on
 TESLoadGameEvent backstop` — degraded but safe (load-START teardown reverts to load-FINISH).
 
+### Layer-C mechanisms (single-capability; each self-disables, the scene still runs) — `src/Equipment`, `src/Weapon`, `src/UI/FadeService`, `src/Audio`
+
+| # | Binding | AddrLib ID / slot | Gate | Notes |
+|---|---|---|---|---|
+| 8 | ActorEquipManager Equip/UnequipObject | **101949 / 101951** | prologue (29 bytes) | `osf.equipment.*` — strip/restore apparel; off = no undress |
+| 9 | Actor::DrawWeaponMagicHands | vtable slot **0x136** (`RE::Actor::VTABLE[0]` **451610**) | vtable-resolve in `WeaponService::Available()` | `osf.weapon.*` — sheathe/draw; off = weapon actions skip. Weapon-drawn bit is **UNVERIFIED** → restore is a symmetric pair (RE.md) |
+| 10 | FaderMenu fade poster | **114430** | prologue | `osf.fade.*` |
+| 11 | Wwise PostEvent | **150391** | prologue | `osf.voice.play` + the sound lane |
+
+On a mismatch the affected mechanism logs `... disabled: ... mismatch on this runtime` once and
+silently no-ops; the scene runtime keeps running and the cleanup ledger stays safe.
+
 ### Positioning / movement (single-capability, non-core) — IDs in CLSF fork
 
 | # | Binding | AddrLib ID | Gate | Notes |

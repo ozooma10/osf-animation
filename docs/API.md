@@ -42,6 +42,9 @@ int h = OSF.StartScene(a, "author.pack.bridge")   ; 1..N actors; a 1-actor def i
 ; matchmake by tags + gender slots (returns a handle, 0 = no match; GetSceneId(h) recovers the id):
 int h2 = OSF.StartSceneByTags(a, tags)
 
+; world-anchor a scene at a thing (bed/chair/marker) instead of at a[0] — furniture/sleep encounters:
+int hb = OSF.StartSceneAt(a, "author.scenes.bedrest", akBedRef)   ; afHeadingDeg defaults to the ref's heading
+
 ; ad-hoc scene straight from files (co-locates a[1..] at a[0], anchors, syncs):
 string[] files = new string[2]
 files[0] = "OSF\\Anims\\bridgeA.glb"
@@ -81,14 +84,20 @@ scene logic), the Tier-0 primitives and scenes are all you need.
 `GetSceneStage(actor)` (-1 = not in a scene) · `IsPlaying(actor)` (includes fade-outs) ·
 `GetCurrentAnimation(actor)` (source path, or "") · `GetSpeed(actor)` · `GetVersion()`.
 
+**Scene-metadata introspection (read-only, by scene id).** Inspect a `*.scene.json` scene's
+conventions before binding actors: `GetSceneRoles(id)` (role names) · `GetSceneRoleGender(id, role)`
+(`"male"`/`"female"`/`"any"`) · `GetSceneActorCount(id)` · `GetSceneTags(id)`. An unknown id (or a
+pack id — packs aren't scene defs) returns the empty/sentinel result; the arrays are safe to receive.
+
 ## Readiness handshake
 
 Gate on OSF as an optional dependency:
 
 - `OSF.IsReady()` — loaded + playback hooks installed.
 - `OSF.HasFeature(name)` — a **single aggregate gate**: `"scenes"`/`"playback"`/`"sync"`/
-  `"anchor"` all report the same state (the two playback hooks installed + verified on this
-  game build; they self-disable together on a version mismatch rather than crash). Unknown
+  `"anchor"` (and the scene-runtime capabilities `"cues"`/`"actions"`/`"sound"`/`"camera"`/
+  `"callbacks"`/`"weapon"`) all report the same state (the two playback hooks installed + verified
+  on this game build; they self-disable together on a version mismatch rather than crash). Unknown
   name → false. Treat it as one "is OSF's engine layer live?" check, not per-feature probing.
 - `OSF.GetVersion()` — semver.
 
