@@ -8,10 +8,11 @@ ScriptName OSFEvent
 ;       EndIf
 ;   EndFunction
 ;
-; The member set is FROZEN with the ABI (kept in sync with src/Scene/SceneEventRelay.h
-; SceneEvent / PackPayload). New fields append at the end (old callbacks ignore them).
-; `eventType` (not `event`) and `actorRef` (not `actor`) dodge Papyrus reserved-word /
-; type-name clashes. String fields are BSFixedString-interned -> case-insensitive; compare
+; The member set is FROZEN with the ABI 
+; (must be kept in sync with src/Scene/SceneEventRelay.h SceneEvent / PackPayload). 
+; New fields append at the end (old callbacks ignore them).
+; `eventType` (not `event`) and `actorRef` (not `actor`) those are reserved words / type-name clashes. 
+; String fields are BSFixedString-interned -> case-insensitives; compare
 ; with Papyrus `==`.
 
 Struct SceneEvent

@@ -27,9 +27,8 @@ Function Dbg_FireSceneEvent(int aiScene, int aiEvent, string asNode) Global Nati
 ; no registration. Proves the Var[] marshalling from the console without a scripted form.
 Function Dbg_FireSceneEventStatic(string asScript, string asFn, int aiScene, int aiEvent, string asNode) Global Native
 
-; DEBUG (Phase A scene-runtime prototype, NOT public API): drive the scene lifecycle
-; directly (mint a handle + fire NODE_ENTER; transition fires NODE_EXIT+NODE_ENTER; stop
-; fires NODE_EXIT+SCENE_END and invalidates the handle).
+; DEBUG directly (mint a handle + fire NODE_ENTER; transition fires NODE_EXIT+NODE_ENTER; 
+; stop fires NODE_EXIT+SCENE_END and invalidates the handle).
 int Function Dbg_StartScene(Actor akActor, string asId, string asNode) Global Native
 bool Function Dbg_SetSceneNode(int aiScene, string asNode, int aiStage) Global Native
 bool Function Dbg_StopScene(int aiScene) Global Native

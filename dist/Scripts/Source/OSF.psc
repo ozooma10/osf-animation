@@ -30,7 +30,7 @@ bool Function ClearAnchor(Actor akActor) Global Native
 ; Each clip keeps its length (mismatched ones loop independently, shared phase origin).
 bool Function Sync(Actor[] akActors) Global Native
 
-; Solo multi-phase sequence (primitive — no anchor/policy; follows the actor).
+; Solo multi-phase sequence (primitive, no anchor/policy; follows the actor).
 ; Parallel arrays of equal non-zero length:
 ; asFiles[i] = phase clip, aiLoops[i] = loops before advancing (<=0 = hold), afBlends[i] = blend-in secs.
 ; abLoopWhole restarts at phase 0 after the last instead of ending.
@@ -42,35 +42,35 @@ string Function GetCurrentAnimation(Actor akActor) Global Native
 ; True while akActor has a live animation graph (scene or solo).
 bool Function IsPlaying(Actor akActor) Global Native
 
-; --- Scenes (mechanical: anchored, staged, synced — no policy) -----------------
-; Start* return an opaque scene HANDLE (int; 0 = failed) — pass it to StopScene / the
-; handle-based getters / navigation below. (A bare id resolves a *.scene.json graph first,
-; then a registry pack auto-exposed as a single-path scene; prefix scene:/anim: to force.)
+; --- Scenes (mechanical: anchored, staged, synced - no policy) -----------------
+; Start* return an opaque scene HANDLE (int; 0 = failed) - pass it to StopScene / the handle-based getters / navigation below. 
+; (A bare id resolves a *.scene.json graph first, then a registry pack auto-exposed as a single-path scene; prefix scene:/anim: to force.)
 
 ; Start a scene by id, returning its handle. aiStage = pack start stage (ignored for graphs).
 int Function StartScene(Actor[] akActors, string asSceneId, int aiStage = 0) Global Native
 
 ; Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
-; (equal lengths; every declared role must be filled exactly once). Returns the handle (0 = no
-; such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
+; (equal lengths; every declared role must be filled exactly once). 
+; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
 int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles, int aiStage = 0) Global Native
 
 ; Matchmake a registry pack by tags + gender slots and start it. Returns the scene handle
 ; (0 = no match); recover the chosen id with GetSceneId(handle).
 int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
 
-; Ad-hoc scene from raw files: co-locates akActors at akActors[0], plays asFiles[i] on akActors[i], syncs the clock. Equal-length arrays. Returns the scene handle.
+; Ad-hoc scene from raw files: co-locates akActors at akActors[0], plays asFiles[i] on akActors[i], syncs the clock. 
+; Equal-length arrays. Returns the scene handle.
 int Function StartSceneFiles(Actor[] akActors, string[] asFiles, float afSpeed = 1.0, float afBlendIn = 0.4) Global Native
 
-; Jump a LINEAR scene (by handle) to stage aiStage (0-based): a pack/files scene, or a graph that
-; declares linearStages. False on a non-linear graph, out-of-range stage, or invalid handle.
+; Jump a LINEAR scene (by handle) to stage aiStage (0-based): a pack/files scene, or a graph that declares linearStages.
+; False on a non-linear graph, out-of-range stage, or invalid handle.
 bool Function SetSceneStage(int aiScene, int aiStage) Global Native
 
 ; Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
 int Function GetSceneStage(int aiScene) Global Native
 
-; Actor conveniences: read/jump the live scene akActor is in by ACTOR (reaches any scene driving
-; the actor, including a PlaySequence solo sequence that has no handle). -1 / false if in none.
+; Actor conveniences: read/jump the live scene akActor is in by ACTOR 
+; (reaches any scene driving the actor, including a PlaySequence solo sequence that has no handle). -1 / false if in none.
 int Function GetSceneStageForActor(Actor akActor) Global Native
 bool Function SetSceneStageForActor(Actor akActor, int aiStage) Global Native
 
@@ -98,24 +98,23 @@ bool Function HasFeature(string asFeature) Global Native
 ; Framework version (semver). Natives are never removed and signatures never change within a major; minors only add.
 string Function GetVersion() Global Native
 
-; --- Scene-event callbacks (Var[] payload — decode via OSFEvent) ---------------
-; Register akReceiver.asFn(Var[]) for events whose bit is set in aiEventMask, and
-; (when aiScene != 0) whose scene handle == aiScene. Returns a generational token
-; (0 = failed). Dispatch is asynchronous: the receiver runs later on the VM, so the
-; payload arrives as the Var[] argument (there are no dispatch-time getters).
-;   Function OnSceneEvent(Var[] akEvent)   ; on akReceiver's script
+; --- Scene-event callbacks (Var[] payload - decode via OSFEvent) ---------------
+; Register akReceiver.asFn(Var[]) for events whose bit is set in aiEventMask
+; (when aiScene != 0) whose scene handle == aiScene. Returns a generational token (0 = failed). 
+; Dispatch is asynchronous: the receiver runs later on the VM, so the payload arrives as the Var[] argument (there are no dispatch-time getters).
+; Function OnSceneEvent(Var[] akEvent)   ; on akReceiver's script
 int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 
 ; --- Scene state getters (handle-based) ---------------------------------------
-; Take an opaque scene handle (from a Start* call). Phase A: these read the scene-runtime
-; instance table. Sentinels: id/node "" when the handle is invalid/ended; actor->handle 0.
+; Take an opaque scene handle (from a Start* call).
+; Sentinels: id/node "" when the handle is invalid/ended; actor->handle 0.
 string Function GetSceneId(int aiScene) Global Native
 string Function GetSceneNode(int aiScene) Global Native
 int Function GetSceneForActor(Actor akActor) Global Native
 
-; Problems (errors + warnings, each prefixed [error]/[warn]) from the last scene load /
-; ReloadPacks. Empty = all scene files loaded cleanly.
+; Problems (errors + warnings, each prefixed [error]/[warn]) from the last scene load / ReloadPacks
+; Empty = all scene files loaded cleanly.
 string[] Function GetSceneLoadErrors() Global Native
 
 ; --- Scene navigation (handle-based; def-backed scenes) -----------------------
