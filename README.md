@@ -1,12 +1,13 @@
 # OSF Animation
 
-OSF Animation is an SFSE plugin — the native animation-playback core of the OSF scene
-framework for Starfield (a SAF/NAFSF-lineage replacement): native GLTF/GLB playback,
-synced multi-actor scenes, shared-clock frame-locking, anchoring/pinning, staged
-advancement, a clip/pack registry, and a SAF compatibility shim. It is **content-neutral** —
-scene *policy* (undress, scheduled voice, camera/control, fade choreography, scene/cue
-callbacks) lives in the separate OSF Intimacy scene engine, not here. See
-[DESIGN.md](DESIGN.md) §8 and [CLAUDE.md](CLAUDE.md) for architecture and dev notes.
+OSF Animation is an SFSE plugin — the engine of the OSF scene framework for Starfield (a
+SAF/NAFSF-lineage replacement): native GLTF/GLB playback, synced multi-actor scenes,
+shared-clock frame-locking, anchoring/pinning, a clip/pack registry, a SAF compatibility
+shim, and the **scene runtime** — graphs of nodes with cues, actions, callbacks, and
+navigation. It stays **content-neutral**: the engine provides the policy *mechanisms* (player
+control/camera lock, fade, equipment, scheduled voice — all named neutrally), while specific
+adult content and orchestration live in the separate **OSF Seduce** content mod. See
+[docs/SCENE_DESIGN.md](docs/SCENE_DESIGN.md) and [CLAUDE.md](CLAUDE.md) for architecture and dev notes.
 
 ## Documentation
 

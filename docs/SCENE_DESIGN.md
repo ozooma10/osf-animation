@@ -619,4 +619,8 @@ built-in actions and the undo ledger *are* part of v1 — they just land in phas
   forward.
 - [PACK_SCHEMA.md](PACK_SCHEMA.md) — packs unchanged; vocals/undress defaults live in pack metadata +
   user settings (Layer C), not author-placed.
-- `AGENTS.md` — the "carved out → OSF Intimacy" framing updates when the merge lands.
+- `AGENTS.md`, `README.md`, `docs/{API,GETTING_STARTED,PACK_SCHEMA,INTIMACY_SEAM,NEXUS_PAGE,guide/*}.md`
+  — reconciled 2026-06-17 from the pre-merge "policy lives in a separate OSF Intimacy plugin" framing
+  to the merged reality (scene runtime + content-neutral policy mechanisms are in this repo; specific
+  adult content → the OSF Seduce mod). RE.md / POST_PATCH_CHECKLIST.md track Layer-C binding additions
+  alongside Phase C.

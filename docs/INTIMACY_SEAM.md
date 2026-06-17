@@ -1,11 +1,11 @@
-# OSF Intimacy seam — the scene-engine contract
+# Scene-runtime seam — the Layer A ↔ Layer B contract (formerly the "OSF Intimacy" seam)
 
-> **Superseded as a plugin boundary (2026-06-16).** The scene engine is **merging back into OSF
-> Animation** as an internal module (one DLL, one mod) — see [SCENE_DESIGN.md](SCENE_DESIGN.md).
-> This document's *contract* still holds and is still load-bearing: the **two-registry model**, the
-> **role→slot assignment rule**, the **frozen Tier-0 ABI**, and the **planned additive primitives**
-> all carry forward — they now describe an **internal module seam** (Layer A playback core ↔ Layer B
-> scene runtime) instead of a cross-plugin seam. Read "OSF Intimacy plugin" below as "the scene
+> **No longer a plugin boundary.** The scene engine **merged back into OSF Animation** as an
+> internal module (one DLL, one mod) — see [SCENE_DESIGN.md](SCENE_DESIGN.md) §2.1. This document's
+> *contract* still holds and is still load-bearing: the **two-registry model**, the **role→slot
+> assignment rule**, the **frozen Tier-0 ABI**, and the **additive scene primitives** all carry
+> forward — they now describe an **internal module seam** (Layer A playback core ↔ Layer B scene
+> runtime) instead of a cross-plugin seam. Read "OSF Intimacy plugin" below as "the Layer-B scene
 > runtime subsystem." The invariant that only the playback core touches the engine is unchanged.
 
 *Originally forward-looking, settled 2026-06-14. Records the boundary between the playback core
@@ -16,7 +16,7 @@
 - **OSF Animation (this repo, core)** — the **animation registry** + the **playback
   mechanism** (play / sync / anchor / staged advance, the two engine hooks). Content-neutral.
   The ONLY plugin that patches the engine.
-- **OSF Intimacy (future plugin)** — a **scene registry** + **role assignment** + **scene
+- **Scene runtime (Layer B, in this repo)** — a **scene registry** + **role assignment** + **scene
   policy** (undress, scheduled voice, camera/control, fade) + **composition/navigation**.
   Builds *on* the core: does undress/voice/fade itself via CLSF, uses the core's `OSFCompat`
   locks for player control/camera. It never hooks the engine — that stays the core's job, so
@@ -79,8 +79,9 @@ real use for them (the core stays lean). Names below are illustrative.
    keeping the anchor, actors, and locks, for seamless node → node transitions. (Today the path
    is `StopScene` + `StartScene`, which re-anchors and restarts with a fade reset; the player
    lock survives because it's standalone, but the animation visibly resets.)
-3. **C ABI over SFSE messaging** (DESIGN.md §6.4) — efficient C++ → C++ driving so Intimacy
-   doesn't round-trip through Papyrus. Gated by the readiness handshake.
+3. **C ABI over SFSE messaging** ([SCENE_DESIGN.md](SCENE_DESIGN.md) §2.5 Phase D, deferred) —
+   efficient C++ → C++ driving so a consumer doesn't round-trip through Papyrus. Gated by the
+   readiness handshake.
 
 ## ABI promise
 

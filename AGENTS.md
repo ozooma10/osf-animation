@@ -1,21 +1,24 @@
 # OSF Animation
 
-SFSE plugin — the native animation-playback **core** of **OSF**, a SexLab-style scene framework
-for Starfield (NAFSF/SAF lineage). This is the lean, **content-neutral** core (a SAF replacement):
-playback, sync, shared clock, anchoring, the clip/pack registry, and the engine hooks. Scene
-**policy** — undress/redress, scheduled voice, camera/control, fade choreography, scene/cue
-callbacks, the stall watchdog, cosave aftermath — is **carved out** to the separate **OSF Intimacy**
-scene engine (DESIGN.md §8). This file is the always-loaded session brief. Deeper docs:
-architecture & rationale → **DESIGN.md** · launch roadmap → **LAUNCH.md** · RE/address ground
-truth → **docs/RE.md** · the OSF Intimacy scene-engine boundary → **docs/INTIMACY_SEAM.md**.
+SFSE plugin — the **engine** of **OSF**, a SexLab-style scene framework for Starfield (NAFSF/SAF
+lineage, a SAF replacement). It hosts native playback, sync, the shared clock, anchoring, the
+clip/pack registry, the engine hooks, the SAF shim, **and the scene runtime** — graphs of nodes
+with cues, actions, callbacks, and navigation. (The scene engine — formerly the planned separate
+"OSF Intimacy" plugin — was **merged in as an internal subsystem**; the three-plugin split was
+reversed, see `docs/SCENE_DESIGN.md` §2.1.) It stays **content-neutral**: the engine provides the
+policy *mechanisms* (player control/camera lock, fade, equipment-strip, scheduled voice — named
+neutrally; some shipping, some Phase-C-in-progress), while specific adult content + orchestration
+live in the **OSF Seduce** content mod. This file is the always-loaded session brief. Deeper docs:
+architecture & rationale → **docs/SCENE_DESIGN.md** · launch roadmap → **LAUNCH.md** · RE/address
+ground truth → **docs/RE.md** · the Layer A↔B scene-runtime seam → **docs/INTIMACY_SEAM.md**.
 
-> **This repo is the result of the "core carve"** (clean-cut, fresh history): the RE-verified
-> native core was **migrated** from the pre-split `OSF Animation` repo, never rewritten. The
-> archived pre-split repo (`OSF Animation Archive`) is the source the OSF Intimacy harvest draws
-> from. **Consumer docs under `docs/` (API.md, PACK_SCHEMA.md, GETTING_STARTED.md, guide/) and
-> TESTSUITE.md have been curated to the lean content-neutral surface** (LAUNCH.md Phase 3): they
-> reference only the bound natives, route all policy to OSF Intimacy, and document no removed
-> natives. (Spot residual stale lines as found, but the bulk curation pass is done.)
+> **History:** the RE-verified playback core was **migrated** (never rewritten) from the pre-split
+> `OSF Animation` repo; the **scene engine + content-neutral policy were then merged back in** as an
+> internal subsystem (the earlier "OSF Intimacy" split reversed — `docs/SCENE_DESIGN.md` §2.1). The
+> archived pre-split repo (`OSF Animation Archive`) is the harvest source for the Layer-C policy
+> services (equipment/fade/voice/sound/camera) still landing via Phase C. **Consumer docs are being
+> reconciled** from the pre-merge "policy lives elsewhere" framing to the merged reality (bulk sweep
+> 2026-06-17; flag/fix residual stale lines as found).
 
 - **Build:** C++23, **xmake only** (no CMake/vcpkg). GPL-3.0 (NAFSF-derived; attribution in
   `src/Animation/Graph.h` + `GraphManager.h`). Based on
@@ -44,10 +47,15 @@ truth → **docs/RE.md** · the OSF Intimacy scene-engine boundary → **docs/IN
   the crosshair selection buffer, blend-graph variables, absolute `SetActorPosition`) are no-op
   SHIM-GAP stubs. (The crosshair *target* — `GetCrosshairRef`/`GetCrosshairActor` + the pickers —
   is native via `OSFCompat` reading `PlayerCharacter->commandTarget`.)
-- **Carved out → OSF Intimacy (NOT in this repo):** `ScenePolicy`, undress/redress
-  (EquipmentService), scheduled voice + SoundService/WwiseBackend, FadeService, EventRelay
-  scene/cue callbacks, stall watchdog, Cosave aftermath persistence, the scene-integrated
-  camera/control auto-apply.
+- **[LIVE] scene runtime (merged in, Layer B):** the `*.scene.json` graph registry + generational
+  int-handle table, lifecycle/navigation (`StartScene*`→handle, `AdvanceScene`/`NavigateScene`,
+  stage interface, roles, exclusivity, load-safe handles), scene-event callbacks (`EventRelay`,
+  async struct payload), the **cue** track lane (lifecycle + numeric + trigger-edge auto-take), and
+  the **action** track lane (`osf.control.lock`/`release` + custom `EVENT_ACTION` + cleanup ledger).
+- **In this repo, Phase-C-in-progress (Layer C policy services, harvested from `OSF Animation
+  Archive`):** equipment-strip, fade, scheduled voice, sound + camera track lanes; the multi-mechanism
+  ordered undo ledger. **Still external:** the **OSF Seduce** content layer (specific adult
+  choreography/content/profiles); cosave aftermath persistence + the stall watchdog remain deferred.
 
 ## Native surface (lean, content-neutral)
 
@@ -114,16 +122,18 @@ Each entry: **system** (`path`) — what it does. Addresses/offsets/RE detail li
 - **Scene** (`src/Animation/Scene.*`) — content-neutral: shared clock + participant graphs + world
   anchor + per-participant placements + per-stage {files, placements, timer, loops, blend}.
   `Advance` auto-advances on timer/loop-target; `loopWhole` (PlaySequence) restarts at stage 0;
-  after the last stage sets `ended` (hook defers StopScene to the game thread). **No voice/cues/
-  equipment/policy/events/watchdog** — those left for OSF Intimacy.
-- **PackRegistry** (`src/Registry/PackRegistry.*`) — loads SLAL-shaped JSON from `Data/OSF/**`.
-  Parses the mechanical schema (tags, gender slots, stages, clips, offsets, timer/loops); the OSF
-  content fields (undress/equipment/voice/intensity/peak/cues) are **ignored**. `*.voice.json` /
-  `*.dialogue.json` skipped (OSF Intimacy content). Cross-pack id collisions: case-insensitive,
-  first-load-wins. Schema doc: **docs/PACK_SCHEMA.md** (stale — content fields removed from the core).
+  after the last stage sets `ended` (hook defers StopScene to the game thread). The `Scene` class is
+  **pure Layer-A playback** — cues/actions/events/policy live in the Layer-B scene runtime
+  (`src/Scene/SceneRuntime.*`), not here.
+- **PackRegistry** (`src/Registry/PackRegistry.*`) — loads SLAL-shaped JSON **animation packs** from
+  `Data/OSF/**`. Parses the mechanical schema (tags, gender slots, stages, clips, offsets,
+  timer/loops); pack-level content fields (undress/equipment/voice/intensity/peak/cues) are
+  **ignored** — scene policy lives in `*.scene.json` scene files (`SceneRegistry`), not packs.
+  `*.scene.json` is handled by `SceneRegistry`; `*.voice.json` / `*.dialogue.json` reserved/skipped.
+  Cross-pack id collisions: case-insensitive, first-load-wins. Schema doc: **docs/PACK_SCHEMA.md**.
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —
-  standalone-only locks for the SAF shim (input-disable layer + AI-driven + third-person hold/POV
-  bounce). No scene integration (that is OSF Intimacy).
+  standalone locks (input-disable layer + AI-driven + third-person hold/POV bounce). Used by the SAF
+  shim's primitive path AND by the scene runtime's `osf.control.lock` action (ref-counted per scene).
 - **Co-load warning** (`src/UI/CompatWarning.*`) — probes at `kPostLoad` for SAF/NAFSF (rig-stamping
   conflict) via `GetModuleHandle`; logs + a blocking Win32 `MessageBoxA`.
 - **Papyrus** (`src/Papyrus/OSFScript.*`) — natives bound via GameVM at kPostDataLoad + re-bound on

@@ -10,9 +10,10 @@ patch / CLSF bump / hook change. Every case has an exact pass signal — visual,
 
 > **Statuses marked "(pre-split)" were validated on the pre-carve full framework.** The lean
 > core is a verbatim migration of that engine code, so those behaviors are expected to hold —
-> but a fresh in-game pass on the lean `OSF Animation` build is the Phase 1 GATE. Carved
-> features (undress/equipment, scheduled voice, cues, fades, cosave aftermath, the stall
-> watchdog, alignment hotkeys) and their suites are **gone** — they belong to OSF Intimacy.
+> but a fresh in-game pass on the `OSF Animation` build is the Phase 1 GATE. The scene runtime
+> (graphs, cues, the `osf.control.lock` action, callbacks) merged in and is tested separately; the
+> remaining policy mechanisms (equipment/fade/voice/sound/camera) land via Phase C; specific adult
+> content is the **OSF Seduce** mod.
 
 ## How to run
 

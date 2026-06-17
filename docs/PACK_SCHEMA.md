@@ -4,28 +4,28 @@ This is the canonical reference for every JSON animation pack OSF Animation load
 `Data/OSF/`. It is the document the parser (`src/Registry/PackRegistry.cpp`) is written
 against — **if parsing behavior changes, this file changes in the same commit.**
 
-OSF Animation is the **content-neutral core**: it parses the mechanical structure of a
-pack (ids, tags, gender slots, stages, clips, alignment offsets, timer/loop advance) and
-nothing else. **Content fields — undress/scene equipment, scheduled voice, stage
-intensity/peak, timed cues, sound pools — are ignored by the core** and are the domain of
-the **OSF Intimacy** scene engine. They are documented here only as "carried, not read":
-a pack may include them for OSF Intimacy and still loads cleanly on the bare core.
+A **pack** is content-neutral: the pack parser reads the mechanical structure (ids, tags,
+gender slots, stages, clips, alignment offsets, timer/loop advance) and nothing else.
+**Content fields — undress/scene equipment, scheduled voice, stage intensity/peak, timed
+cues, sound pools — are not read by the pack parser.** Scene policy lives in `*.scene.json`
+**scene files** (the scene runtime), not in packs; legacy SAF/NAF content keys carried in a
+pack still load cleanly but are ignored here.
 
 OSF scans `Data/OSF/**/*.json` recursively at game start and on `OSF.ReloadPacks()`.
 A file's name decides what it is:
 
 | Filename | Meaning |
 |---|---|
-| `*.scene.json` | OSF Intimacy scene definition (references anim ids) — **skipped by the core** |
-| `*.voice.json` | OSF Intimacy voice set — **skipped by the core** |
-| `*.dialogue.json` | OSF Intimacy dialogue manifest — **skipped by the core** |
+| `*.scene.json` | an OSF **scene definition** — a node graph referencing anim ids; loaded by the scene registry (the scene runtime), not the pack parser |
+| `*.voice.json` | voice set (reserved) — **skipped by the pack parser** |
+| `*.dialogue.json` | dialogue manifest (reserved) — **skipped by the pack parser** |
 | `*.settings.json` / `settings.json` | settings files, never parsed as a pack |
 | any other `*.json` | an animation pack |
 
 General rules:
 
-- **Unknown fields are ignored** (forward compatible — this is exactly why a pack can
-  carry OSF Intimacy content fields without breaking on the bare core).
+- **Unknown fields are ignored** (forward compatible — this is why a pack can carry extra
+  or legacy content fields without breaking).
 - **`//` comments are tolerated** when reading.
 - **Bad entries are skipped, never fatal.** Every skip is logged with the file name and
   reason in `Documents\My Games\Starfield\SFSE\Logs\OSF Animation.log`.
@@ -75,15 +75,15 @@ That is the whole schema the core reads. Tags + gender slots drive matchmaking
 (`StartSceneByTags`); the per-stage `clips` and `offset`s drive anchored playback; `timer`
 and `loops` drive stage auto-advance.
 
-### Scene policy lives in OSF Intimacy, not here
+### Scene policy lives in scene files, not packs
 
 This pack is **pure animation** — clips, placement, gender slots, tags, staging. Scene
 **policy** (undress/scene equipment, scheduled voice, intensity/peak, cues) belongs in a
-separate OSF Intimacy **scene file** (`*.scene.json`) that references these animation ids; see
-**docs/INTIMACY_SEAM.md**. The core ignores unknown fields, so a pack that *carries* legacy
-policy keys (`sounds`/`sceneEquipment`, actor `undress`/`sceneEquip`/`voice`/`voiceSet`, stage
-`intensity`/`peak`/`cues`) still loads — but the recommended home is the scene file, and the
-core never reads them.
+`*.scene.json` **scene file** (the scene runtime) that references these animation ids; see
+**[SCENE_DESIGN.md](SCENE_DESIGN.md)**. The pack parser ignores unknown fields, so a pack that
+*carries* legacy policy keys (`sounds`/`sceneEquipment`, actor `undress`/`sceneEquip`/`voice`/
+`voiceSet`, stage `intensity`/`peak`/`cues`) still loads — but the home for policy is the scene
+file, and the pack parser never reads them.
 
 ### Migrating pre-2.0 packs (actor-major → stage-major)
 
@@ -93,7 +93,7 @@ a pack whose `actors[]` entries still carry a `stages` (or `file`) key is skippe
 migration hint in the log. To convert an entry:
 
 - Strip the per-actor `stages[]` out of every actor; leave only the stage-invariant metadata
-  (`gender`/`offset`, plus any OSF Intimacy content fields).
+  (`gender`/`offset`, plus any extra/legacy content fields).
 - For each stage index, gather that index's clip from every actor into the top-level
   `stages[N].clips[]` (actor order); move that stage's `timer`/`loops` alongside the clips.
   Bump `"schema"` to `2`.

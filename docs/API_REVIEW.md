@@ -25,13 +25,18 @@ Frozen with the ABI. The marshaller maps **by member name** (it iterates `varNam
   `anchor`, `result`. Confirm with the Phase C agent that `actorRef`/`role`/`loopIndex` get filled
   (real actor marshalling) or are documented as reserved — either way the *names* must be final.
 
-### 2.2 Event / result constants as functions
+### 2.2 Event / result constants as functions — ✅ RESOLVED (keep functions; WONTFIX the companion)
 `OSF.EVENT_NODE_ENTER()` etc. — the `()` is forced (a `Native Hidden` script can't expose readable
 properties on the type). It works, but it's the kind of ergonomic wart modders bake into their code.
-- **Option (recommended):** ship a small **non-Native** companion script, e.g. `OSFConst`, with
-  `Int Property EVENT_NODE_ENTER = 1 AutoReadOnly` … so consumers write `OSFConst.EVENT_NODE_ENTER`.
-  Keep the `OSF.X()` functions too (don't break the existing form). Decide before beta so the
-  cleaner form is the documented one.
+- **Investigated & rejected:** the recommended "non-Native `OSFConst` companion with `Int Property
+  EVENT_NODE_ENTER = 1 AutoReadOnly`" **does not deliver cleaner syntax** — Papyrus rejects reading a
+  property on a type name (`a property cannot be used directly on a type, it must be used on a
+  variable`, compiler-verified 2026-06-17). `OSFConst.EVENT_NODE_ENTER` only compiles if the consumer
+  holds an `OSFConst` *instance* (a CK-filled property or a cast), which is *more* friction than the
+  `()`, not less.
+- **Decision:** the global getter functions are the only zero-friction type-level constant access in
+  Papyrus; the `()` is the language tax. Keep `OSF.X()` as the canonical, documented form. No
+  companion script.
 
 ## 3. Gaps vs. the spec (good framework DX, missing today)
 

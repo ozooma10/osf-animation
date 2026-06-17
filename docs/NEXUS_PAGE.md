@@ -18,7 +18,7 @@ Supporting fields (summary / tags / requirements) at the bottom.
 
 OSF Animation is an SFSE plugin that plays skeletal animations and drives synchronized, multi-actor scenes entirely in native code — no ESP, no Creation Kit, no Papyrus animation hacks. It is the [b]playback core[/b] of the OSF framework family, a clean GPL replacement for the NAF/SAF playback layer.
 
-It is deliberately [b]content-neutral[/b]: it provides the mechanism — play clips, frame-lock actors on a shared clock, anchor and pin them, run staged scenes, load packs — and nothing about what the animation is for. Scene policy (undressing, scheduled voice, camera takeover, fade choreography, intimate-scene orchestration) is not part of this mod; it lives in the separate OSF Intimacy scene engine that builds on this core. That makes OSF Animation a clean foundation for machinima, dance, and NPC-vignette work without any intimate-framework baggage.
+It is deliberately [b]content-neutral[/b]: it provides the mechanisms — play clips, frame-lock actors on a shared clock, anchor and pin them, run scene graphs, load packs, and the neutral policy mechanisms (player control/camera lock, fade, equipment, scheduled voice) — and nothing about what the animation is [i]for[/i]. Specific adult content and orchestration are not part of this mod; they ship in the separate OSF Seduce content mod. That makes OSF Animation a clean foundation for machinima, dance, and NPC-vignette work without any adult-content baggage.
 
 It is a framework, not an animation pack: it ships a couple of small SFW demo scenes to prove it works, and nothing else. Content lives in separate packs. A pack is a folder of GLB animations plus a JSON descriptor; a quest or scene mod drives playback through the [b]OSF.*[/b] Papyrus API.
 
@@ -33,7 +33,7 @@ It is a framework, not an animation pack: it ships a couple of small SFW demo sc
 [*]Staged scenes that advance on a timer or after a set number of loops, or hold for manual control.
 [*]Cross-fade blending on every seam — start, stage change, stop — instead of snapping.
 [*]A JSON/GLB pack registry: tags, gender slots, multi-stage timelines, per-stage alignment offsets, with cross-pack animation-id collision detection.
-[*]Content-neutral by design — no undress, no voice, no camera takeover. The core is mechanism only; intimate-scene orchestration is the separate OSF Intimacy engine.
+[*]Content-neutral by design — the engine provides the mechanisms (control/camera lock, fade, equipment, voice), named neutrally; specific adult content and orchestration live in the separate OSF Seduce content mod.
 [*]Standalone player-control / camera locks available for scenes the player is part of (used by the SAF shim; never auto-applied).
 [*]Save-safe teardown on save-load, and automatic re-binding of the Papyrus natives onto the rebuilt VM.
 [*]Drop-in SAF compatibility shim — existing SAF mods' playback, sync, and scene calls run on OSF unchanged (a few advanced SAF-only entry points have no core equivalent and are inert).
@@ -68,7 +68,7 @@ It is a framework, not an animation pack: it ships a couple of small SFW demo sc
 
 [b]Pack authors:[/b] ship JSON + GLB, no C++ and no plugin records. The schema is SLAL-shaped — actors with gender slots, multi-stage timelines, timers, loop counts, and per-stage alignment offsets. See the getting-started guide and schema reference in the docs.
 
-[b]Quest / scene-mod authors:[/b] drive OSF from a two-layer [b]OSF.*[/b] API. Use primitives (play a clip, frame-lock several, anchor, set speed, run a sequence) for raw bone playback, or one-call mechanical scenes started by id, tags, or files. Gate on a readiness handshake to keep OSF an optional dependency and query state. SAF-dependent mods can use the shim. Natives are never removed or re-signatured within a major version. If your mod needs undress, voice, camera takeover, or intimate-scene orchestration, build on the OSF Intimacy scene engine, which adds that policy layer on top of this core.
+[b]Quest / scene-mod authors:[/b] drive OSF from a two-layer [b]OSF.*[/b] API. Use primitives (play a clip, frame-lock several, anchor, set speed, run a sequence) for raw bone playback, or one-call mechanical scenes started by id, tags, or files. Gate on a readiness handshake to keep OSF an optional dependency and query state. SAF-dependent mods can use the shim. Tier-0 natives are never removed or re-signatured within a major version (the scene API is beta pre-1.0). If your mod needs scene policy — undress, voice, camera/control lock, fades — author it as action/cue tracks in scene files (the built-in scene runtime); specific adult content ships in the OSF Seduce content mod.
 
 [line]
 
@@ -118,6 +118,6 @@ GPL-3.0. Source is public; build instructions are in the repository.
 - Address Library version data for 1.16.244 (`versionlib-1-16-244-0.bin`) — **NOT bundled**; it is provided by the Address Library for SFSE Plugins mod (a standard 1.16.244 install supplies it under `SFSE\Plugins\`). CommonLibSF hard-fails to load without a version database for the running build, so list Address Library as a hard requirement. No `.bin` ships in the OSF zip.
 
 **Decisions still open for you:**
-- Whether to cross-link the OSF Intimacy scene engine and OSF Seduce content from this page once they ship.
+- Whether to cross-link the OSF Seduce content mod from this page once it ships (the scene engine is built into OSF Animation, not a separate download).
 - A header image / a short scene clip (gif or YouTube embed) would carry this page more than any copy — `[youtube]ID[/youtube]` slots in cleanly.
 ```

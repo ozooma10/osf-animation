@@ -4,9 +4,10 @@ This is the path from "I have animations" to "they play in-game", with zero C++ 
 zero plugin records. A pack is a folder of files — JSON metadata and GLB animations —
 that OSF Animation discovers at game start.
 
-OSF Animation is the **content-neutral playback core**: a pack here is animation +
-alignment. Voice, undress, fades, and intimate-scene orchestration are provided by the
-separate **OSF Intimacy** scene engine, not the core — so a core pack stays simple.
+OSF Animation is the OSF **engine**, and a pack here is just animation + alignment. Scene
+policy — scheduled voice, undress/redress, fades, camera/control, callbacks — is authored
+separately in `*.scene.json` **scene files** (the scene runtime), which reference your
+pack's animation ids. So a pack stays simple.
 
 ## What you need
 
@@ -73,11 +74,11 @@ position readouts lie to you here.
 
 ## Voice, undress, and scene policy
 
-Not part of the core. Scheduled voice, undress/redress, fades, and intimate-scene
-orchestration are provided by the **OSF Intimacy** scene engine, which reads extra content
-fields in the same pack format (carried but ignored by the bare core — see PACK_SCHEMA.md
-"Content fields"). Author those against OSF Intimacy's documentation; a pack targeting only
-the core needs none of them.
+Not part of a *pack*. Scene policy — scheduled voice, undress/redress, fades, camera/control,
+and scene/cue callbacks — is authored in `*.scene.json` **scene files** that reference your
+pack's animation ids: graphs of nodes with `cue` and `action` tracks (see
+[SCENE_DESIGN.md](SCENE_DESIGN.md) §1.3). A pack that only needs mechanical playback needs none
+of it. Specific adult content + orchestration ships in the **OSF Seduce** content mod.
 
 ## Troubleshooting, in log lines
 

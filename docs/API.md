@@ -1,17 +1,16 @@
 # OSF Papyrus API — consumer guide & stability policy
 
-> **Direction note (2026-06-16).** The natives documented here are the **frozen Tier-0 surface**
-> and remain canonical and stable. A scene-engine **merge** is in design: the scene runtime + policy
-> fold back into this mod as an internal subsystem, and a tiered API (Tier 1 *run a scene*, Tier 2
-> *author a scene* — a node graph with a loop-relative track timeline) lands **additively** on top
-> of these primitives. Spec: [SCENE_DESIGN.md](SCENE_DESIGN.md). Nothing below changes; it gains
-> layers above it. (This supersedes the separate-plugin framing in some sections — see the seam doc.)
+> **Direction note.** The scene-engine **merge has landed**: the scene runtime (a node graph with a
+> loop-relative track timeline — navigation, cues, actions, callbacks) is now an internal subsystem
+> in this mod, **additive** on the frozen Tier-0 primitives documented below. The Tier-0 natives
+> remain canonical and stable; the scene API (Tier 1 *run a scene*, Tier 2 *author a scene*) is
+> specified in [SCENE_DESIGN.md](SCENE_DESIGN.md) and is **beta** pre-1.0.
 
-OSF Animation is the **content-neutral animation playback core**. Its API moves bones,
-synchronizes actors, anchors them in the world, and runs mechanical staged scenes —
-nothing about *what* an animation is for. Scene **policy** (undress, scheduled voice,
-camera/control, fade choreography, scene/cue callbacks) is **not here** — it lives in
-the separate **OSF Intimacy** scene engine that builds on this core.
+OSF Animation is the OSF **engine**. Tier 0 moves bones, synchronizes actors, anchors them in the
+world, and runs mechanical staged scenes; the scene runtime (Tier 1+) adds graphs of nodes with
+cues, actions, and callbacks. It stays **content-neutral**: it provides the policy *mechanisms*
+(player control/camera lock, fade, equipment, scheduled voice — named neutrally), while specific
+adult content and orchestration live in the separate **OSF Seduce** content mod.
 
 The **canonical per-native reference is `Scripts/Source/OSF.psc`** — every native is
 documented at its declaration (units, defaults, gotchas, return semantics). This page is
@@ -65,13 +64,14 @@ per-participant offsets, frame-locks their clocks, runs the pack's stages (timer
 auto-advance), and pins the rendered skeletons each frame. That is the *whole* contract —
 no undress, no voice, no camera, no fade. Rule of thumb: one actor, bones only, world
 unchanged → a primitive; anything that coordinates actors or anchors them → a scene.
-(Anchoring/rootMode: [docs/ANCHORING.md](ANCHORING.md). Design rationale: DESIGN.md §7–8.)
+(Anchoring/rootMode: [docs/ANCHORING.md](ANCHORING.md). Design rationale: [SCENE_DESIGN.md](SCENE_DESIGN.md).)
 
-**Where did policy go?** Undress/redress, scheduled voice, camera/control, fade
-choreography, and scene/cue callbacks are **OSF Intimacy** — a separate scene engine that
-depends on this core. If your mod needs intimate-scene orchestration, build on OSF
-Intimacy; if you need reliable native playback (machinima, dance, NPC vignettes, custom
-scene logic), build on this core directly.
+**Where's the policy?** The content-neutral policy *mechanisms* — control/camera lock, fade,
+equipment-strip, scheduled voice — are built-in `action`-track entries in the scene runtime, here
+(see [SCENE_DESIGN.md](SCENE_DESIGN.md) §1.3). Scene/cue callbacks are the `RegisterSceneCallback`
+event system, also here. What lives *elsewhere* is specific adult content + orchestration — the
+**OSF Seduce** content mod. For reliable native playback (machinima, dance, NPC vignettes, custom
+scene logic), the Tier-0 primitives and scenes are all you need.
 
 ## State getters
 

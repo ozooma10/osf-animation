@@ -4,9 +4,10 @@ Task-oriented recipes. Every function is a `Global` native on the `OSF` script �
 `OSF.Foo(...)`. Gate everything on `OSF.IsReady()` (see the [guide overview](index.md)).
 Full per-argument docs live at each native's declaration in `Scripts/Source/OSF.psc`.
 
-This is the **content-neutral core**: it plays, syncs, anchors, and stages. Undress, voice,
-camera, fades, and scene callbacks are the **OSF Intimacy** scene engine, not here (see the
-end of this page).
+This is the OSF **engine**: it plays, syncs, anchors, stages, and runs scene graphs. It stays
+**content-neutral** — the policy *mechanisms* (control/camera lock, fade, equipment, voice) are
+here; specific adult content lives in the separate **OSF Seduce** content mod (see the end of
+this page).
 
 ---
 
@@ -131,7 +132,8 @@ OSFCompat.SetPlayerControlLock(false)
 OSFCompat.SetPlayerCameraLock(false)
 ```
 These are the same mechanism the SAF shim uses. (Scene-integrated, automatic
-control/camera/fade policy is OSF Intimacy.)
+control/camera/fade policy is the scene runtime's `action` track — `osf.control.lock`,
+`osf.fade.out`, etc.; see [SCENE_DESIGN.md](../SCENE_DESIGN.md) §1.3.)
 
 ---
 
@@ -156,12 +158,12 @@ exists as a manual fallback; read its warning in `OSF.psc` before calling it.)
 
 ---
 
-## Beyond the core — OSF Intimacy
+## Scene policy & content
 
-Undress/redress, scheduled voice, camera/control takeover, fade-to-black choreography, and
-scene/cue callbacks are provided by the **OSF Intimacy** scene engine layered on this core,
-not by the core itself. Author intimate-scene orchestration against OSF Intimacy's
-documentation.
+Scene policy — undress/redress, scheduled voice, camera/control lock, fade-to-black choreography,
+and scene/cue callbacks — is built into the **scene runtime** here, authored as `action`/`cue`
+tracks in `*.scene.json` scene files (see [SCENE_DESIGN.md](../SCENE_DESIGN.md) §1.3). Specific
+adult content + orchestration ship in the separate **OSF Seduce** content mod.
 
 **Authoring the animations themselves** (JSON packs, tags, stages, alignment offsets) is a
 separate job — see [GETTING_STARTED.md](../GETTING_STARTED.md) and

@@ -51,10 +51,14 @@ OSF.StopScene(pair[0])   ; any participant identifies the scene
 | [ANCHORING.md](../ANCHORING.md) | the anchor / `rootMode` alignment contract |
 | [GETTING_STARTED.md](../GETTING_STARTED.md) + [PACK_SCHEMA.md](../PACK_SCHEMA.md) | authoring animation **packs** (JSON) — not Papyrus |
 
-## Beyond the core — OSF Intimacy
+## Scene policy & content
 
-Undress/redress, scheduled voice, camera/control takeover, fade choreography, and
-scene/cue callbacks are **not** in this core — they are the **OSF Intimacy** scene engine,
-which builds on it. If your mod needs that policy layer, build on OSF Intimacy; if you need
-reliable native playback (machinima, dance, NPC vignettes, custom scene logic), build on
-the core directly. Existing SAF mods' playback/sync/scene calls run unchanged via the bundled SAF shim (a few advanced SAF-only entry points — phase callbacks, the crosshair selection buffer, blend-graph variables — have no core equivalent and are inert; the crosshair target itself is native).
+Scene policy — undress/redress, scheduled voice, camera/control lock, fade choreography, and
+scene/cue callbacks — is built into the **scene runtime** here, authored as `action`/`cue` tracks
+in `*.scene.json` scene files (see [SCENE_DESIGN.md](../SCENE_DESIGN.md)). It stays content-neutral:
+the engine provides the *mechanisms*, while specific adult content + orchestration ship in the
+separate **OSF Seduce** content mod. If you only need reliable native playback (machinima, dance,
+NPC vignettes, custom scene logic), the Tier-0 primitives + scenes are enough. Existing SAF mods'
+playback/sync/scene calls run unchanged via the bundled SAF shim (a few advanced SAF-only entry
+points — phase callbacks, the crosshair selection buffer, blend-graph variables — have no
+equivalent and are inert; the crosshair target itself is native).

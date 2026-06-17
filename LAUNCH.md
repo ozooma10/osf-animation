@@ -42,14 +42,18 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
 - 🟡 Ratify `GetSceneStageForActor`/`SetSceneStageForActor` into the contract (currently undocumented).
 
 ### Docs
-- 🔴 **Doc-drift sweep** — README / `PACK_SCHEMA.md` / `INTIMACY_SEAM.md` still describe the pre-merge
-  split ("scene policy lives in the separate OSF Intimacy engine, not here"). Reconcile to the merged
-  reality (policy lives here now).
-- ✅ `docs/API_REVIEW.md` (this pass), `docs/SAF_MIGRATION.md`.
-- 🟡 `docs/API.md` / `docs/GETTING_STARTED.md` / the `guide/` — verify accurate to the shipped surface.
-- 🟡 `docs/PACK_SCHEMA.md` — flagged stale (content fields removed from the core); refresh.
+- ✅ **Doc-drift sweep (2026-06-17)** — reconciled the pre-merge "policy lives in a separate OSF
+  Intimacy plugin" framing to the merged reality across README, AGENTS.md, `docs/{API, GETTING_STARTED,
+  PACK_SCHEMA, INTIMACY_SEAM, NEXUS_PAGE, guide/index, guide/cookbook}.md`, TESTSUITE.md, and fixed the
+  broken bare `DESIGN.md` links (→ `SCENE_DESIGN.md`).
+- ✅ `docs/API_REVIEW.md`, `docs/SAF_MIGRATION.md`, `LAUNCH.md`.
+- 🟡 `docs/RE.md` + `docs/POST_PATCH_CHECKLIST.md` — still say the equipment/fade/voice/Wwise RE
+  "belongs to OSF Intimacy / not used by this repo"; **Phase C owns these** (it's adding those very
+  bindings) and should reconcile the framing as it lands the gates.
+- 🟡 `docs/INTIMACY_SEAM.md` — title + banner + intro fixed; the body still says "OSF Intimacy" but
+  is covered by the redirect banner ("read it as the Layer-B scene runtime"). Full body rewrite deferred.
 - 🟡 `SCENE_DESIGN.md` — reconcile the stale callback sentinel table (dispatch-time getters were
-  replaced by the struct payload).
+  replaced by the struct payload). *(Shared with the Phase C agent.)*
 
 ### Packaging
 - 🔴 **Distributable archive / FOMOD** — there is none yet (only the MO2 deploy folder). Bundle: the
@@ -81,7 +85,8 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
 
 1. **Real-world testing** — real SAF mods + real animation packs through the shim. (#1 risk.)
 2. **Packaging** — a downloadable archive/FOMOD with the deps stated.
-3. **Doc reconciliation** — kill the pre-merge framing; ship the SAF migration guide.
+3. ✅ **Doc reconciliation** — pre-merge framing killed (2026-06-17); SAF migration guide shipped.
+   (RE.md / POST_PATCH_CHECKLIST.md framing left to the Phase C track.)
 4. **Lock the callback struct field names** — the one truly expensive-to-change ABI surface.
 
 Everything else is polish or fast-follow.
