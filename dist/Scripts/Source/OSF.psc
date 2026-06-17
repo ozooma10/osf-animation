@@ -79,3 +79,54 @@ bool Function HasFeature(string asFeature) Global Native
 
 ; Framework version (semver). Natives are never removed and signatures never change within a major; minors only add.
 string Function GetVersion() Global Native
+
+; --- Scene-event callbacks (Var[] payload — decode via OSFEvent) ---------------
+; Register akReceiver.asFn(Var[]) for events whose bit is set in aiEventMask, and
+; (when aiScene != 0) whose scene handle == aiScene. Returns a generational token
+; (0 = failed). Dispatch is asynchronous: the receiver runs later on the VM, so the
+; payload arrives as the Var[] argument (there are no dispatch-time getters).
+;   Function OnSceneEvent(Var[] akEvent)   ; on akReceiver's script
+int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
+bool Function UnregisterSceneCallback(int aiToken) Global Native
+
+; Event-type bits (compose into aiEventMask; EVENT_ALL = every type). Exposed as global
+; getter functions, not properties: a `Native` script's properties cannot be read on the
+; type (OSF.X), but global functions can (OSF.EVENT_NODE_ENTER()).
+int Function EVENT_NODE_ENTER() Global
+    return 1
+EndFunction
+int Function EVENT_NODE_EXIT() Global
+    return 2
+EndFunction
+int Function EVENT_CUE() Global
+    return 4
+EndFunction
+int Function EVENT_ACTION() Global
+    return 8
+EndFunction
+int Function EVENT_ACTION_FAILED() Global
+    return 16
+EndFunction
+int Function EVENT_SCENE_END() Global
+    return 32
+EndFunction
+int Function EVENT_SCENE_ABORT() Global
+    return 64
+EndFunction
+int Function EVENT_ALL() Global
+    return 65535
+EndFunction
+
+; Result codes (OSFEvent.Result). Disabled-by-settings is a silent skip, NOT a failure.
+int Function RESULT_OK() Global
+    return 0
+EndFunction
+int Function RESULT_BAD_ROLE() Global
+    return 1
+EndFunction
+int Function RESULT_RUNTIME_FAILURE() Global
+    return 2
+EndFunction
+int Function RESULT_NO_HANDLER() Global
+    return 3
+EndFunction

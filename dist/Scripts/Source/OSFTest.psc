@@ -152,3 +152,25 @@ EndFunction
 Function StopPair(Actor a) global
     OSF.StopScene(a)
 EndFunction
+
+; --- Scene-event callback transport prototype -------------------------------
+; Proves the C++->Papyrus Var[] dispatch (docs/SCENE_DESIGN §1.2). No CK/ESP needed:
+; Dbg_FireSceneEventStatic dispatches a synthetic event straight to OnSceneEvent below.
+;   cgf "OSFTest.CbTransportTest"   -> fires NODE_ENTER then SCENE_END; watch the log
+Function CbTransportTest() global
+    Debug.Trace("OSFTest: firing synthetic NODE_ENTER -> OSFTest.OnSceneEvent")
+    OSFCompat.Dbg_FireSceneEventStatic("OSFTest", "OnSceneEvent", 123, OSF.EVENT_NODE_ENTER(), "main")
+    OSFCompat.Dbg_FireSceneEventStatic("OSFTest", "OnSceneEvent", 123, OSF.EVENT_SCENE_END(), "main")
+EndFunction
+
+; Receiver: decodes the Var[] payload through OSFEvent and logs it. This is the shape
+; every real consumer's callback function takes.
+Function OnSceneEvent(Var[] akEvent) global
+    string msg = "OnSceneEvent: scene=" + OSFEvent.Scene(akEvent) \
+        + " event=" + OSFEvent.EventType(akEvent) \
+        + " node='" + OSFEvent.Node(akEvent) + "'" \
+        + " anchor='" + OSFEvent.Anchor(akEvent) + "'"
+    OSFCompat.Dbg_Log(msg)              ; -> OSF Animation.log (reliable)
+    Debug.Trace("OSFTest." + msg)        ; -> Papyrus log (only if logging enabled)
+    Debug.Notification("OSF: " + msg)    ; -> on-screen
+EndFunction

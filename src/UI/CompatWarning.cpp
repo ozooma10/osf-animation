@@ -25,7 +25,7 @@ namespace OSF::UI
 		};
 
 		// Win32 MessageBox type: MB_OK | MB_ICONWARNING | MB_SETFOREGROUND. 
-aa		constexpr std::uint32_t kMessageBoxFlags = 0x00000000 | 0x00000030 | 0x00010000;
+		constexpr std::uint32_t kMessageBoxFlags = 0x00000000 | 0x00000030 | 0x00010000;
 	}
 
 	void CompatWarning::ProbeIncompatibilities()

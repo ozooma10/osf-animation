@@ -1,8 +1,15 @@
 # OSF Intimacy seam — the scene-engine contract
 
-*Forward-looking, settled 2026-06-14. Records the boundary between this core (OSF Animation)
-and the future **OSF Intimacy** scene engine so the seam stays stable while the core ships a
-frozen 1.0 ABI. OSF Intimacy is NOT built yet — this is the contract it will build on.*
+> **Superseded as a plugin boundary (2026-06-16).** The scene engine is **merging back into OSF
+> Animation** as an internal module (one DLL, one mod) — see [SCENE_DESIGN.md](SCENE_DESIGN.md).
+> This document's *contract* still holds and is still load-bearing: the **two-registry model**, the
+> **role→slot assignment rule**, the **frozen Tier-0 ABI**, and the **planned additive primitives**
+> all carry forward — they now describe an **internal module seam** (Layer A playback core ↔ Layer B
+> scene runtime) instead of a cross-plugin seam. Read "OSF Intimacy plugin" below as "the scene
+> runtime subsystem." The invariant that only the playback core touches the engine is unchanged.
+
+*Originally forward-looking, settled 2026-06-14. Records the boundary between the playback core
+(OSF Animation) and the scene engine so the seam stays stable while the core ships a frozen 1.0 ABI.*
 
 ## The split
 

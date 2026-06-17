@@ -4,6 +4,7 @@
 #include "Camera/CameraService.h"
 #include "Player/PlayerControlService.h"
 #include "Registry/PackRegistry.h"
+#include "Scene/SceneEventRelay.h"
 #include "Serialization/GLTFImport.h"
 #include "Util/StringUtil.h"
 
@@ -344,6 +345,61 @@ namespace OSF::Papyrus
 			plan.blendIn = a_blendIn;
 			return Animation::GraphManager::GetSingleton().PlaySceneStaged(a_actors, plan, 0);
 		}
+
+		// --- Scene-event callbacks (Phase A transport: Var[] payload) --------------
+		// Register akReceiver.asFn(Var[]) for events in aiEventMask (& scene aiScene, 0 =
+		// any). Returns a generational token (0 = failed). Decode the Var[] via OSFEvent.
+		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver,
+			RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
+		{
+			if (!a_receiver.get()) {
+				REX::WARN("OSF.RegisterSceneCallback: null receiver");
+				return 0;
+			}
+			return Scene::SceneEventRelay::GetSingleton().Register(a_receiver, a_fn.c_str(), a_scene, a_eventMask);
+		}
+
+		bool UnregisterSceneCallback(OSFVM&, uint32_t, std::monostate, int32_t a_token)
+		{
+			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
+		}
+
+		// DEBUG (OSFCompat, off the public surface): synthesize one scene event and
+		// dispatch it through the real relay to every registered receiver. Exercises the
+		// registry + method-call path once a scripted form has registered.
+		void Dbg_FireSceneEvent(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_event, RE::BSFixedString a_node)
+		{
+			REX::INFO("OSFCompat.Dbg_FireSceneEvent: scene={} event={:#x} node='{}' (-> relay)", a_scene, a_event, a_node.c_str());
+			Scene::SceneEvent e;
+			e.scene = a_scene;
+			e.event = a_event;
+			e.node = a_node.c_str();
+			e.anchor = (a_event == Scene::Event::kNodeEnter) ? "enter" : (a_event == Scene::Event::kNodeExit) ? "exit" : "";
+			Scene::SceneEventRelay::GetSingleton().Dispatch(e);
+		}
+
+		// DEBUG: lets a Papyrus receiver echo into OSF Animation.log (REX), so the
+		// transport round-trip is provable without enabling the Papyrus script log.
+		void Dbg_Log(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_msg)
+		{
+			REX::INFO("[Papyrus] {}", a_msg.c_str());
+		}
+
+		// DEBUG (OSFCompat): no-instance transport probe — DispatchStaticCall
+		// asScript.asFn(Var[]) directly (no registration). Proves the Var[] marshalling
+		// from the console without a scripted form.
+		void Dbg_FireSceneEventStatic(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_script,
+			RE::BSFixedString a_fn, int32_t a_scene, int32_t a_event, RE::BSFixedString a_node)
+		{
+			REX::INFO("OSFCompat.Dbg_FireSceneEventStatic: -> {}.{}(Var[]) scene={} event={:#x} node='{}'",
+				a_script.c_str(), a_fn.c_str(), a_scene, a_event, a_node.c_str());
+			Scene::SceneEvent e;
+			e.scene = a_scene;
+			e.event = a_event;
+			e.node = a_node.c_str();
+			e.anchor = (a_event == Scene::Event::kNodeEnter) ? "enter" : (a_event == Scene::Event::kNodeExit) ? "exit" : "";
+			Scene::SceneEventRelay::GetSingleton().DispatchStatic(a_script.c_str(), a_fn.c_str(), e);
+		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
@@ -370,6 +426,8 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenes", &FindScenes, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "HasFeature", &HasFeature, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "UnregisterSceneCallback", &UnregisterSceneCallback, true, false);
 		REX::INFO("Registered papyrus natives on script '{}'", SCRIPT_NAME);
 
 		// Compatibility-only natives — kept off the public OSF surface (see
@@ -381,6 +439,9 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetSceneControlMask", &SetSceneControlMask, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEvent", &Dbg_FireSceneEvent, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEventStatic", &Dbg_FireSceneEventStatic, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_Log", &Dbg_Log, true, false);
 		REX::INFO("Registered compatibility natives on script '{}'", COMPAT_SCRIPT_NAME);
 	}
 

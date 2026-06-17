@@ -16,5 +16,17 @@ Function SetSceneControlMask(int aiUserMask, int aiOtherMask) Global Native
 ; Engine crosshair target
 ObjectReference Function GetCrosshairRef() Global Native
 
-; The crosshair target cast to Actor, or None when the crosshair is on nothing or a non-actor reference. 
+; The crosshair target cast to Actor, or None when the crosshair is on nothing or a non-actor reference.
 Actor Function GetCrosshairActor() Global Native
+
+; DEBUG (Phase A transport prototype, NOT public API): synthesize one scene event and
+; dispatch it through the real relay to every registered receiver.
+Function Dbg_FireSceneEvent(int aiScene, int aiEvent, string asNode) Global Native
+
+; DEBUG: no-instance transport probe — DispatchStaticCall asScript.asFn(Var[]) directly,
+; no registration. Proves the Var[] marshalling from the console without a scripted form.
+Function Dbg_FireSceneEventStatic(string asScript, string asFn, int aiScene, int aiEvent, string asNode) Global Native
+
+; DEBUG: echo a message into OSF Animation.log (REX) from Papyrus, so the callback
+; round-trip is provable without enabling the Papyrus script log.
+Function Dbg_Log(string asMsg) Global Native

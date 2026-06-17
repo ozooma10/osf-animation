@@ -1,5 +1,12 @@
 # OSF Papyrus API — consumer guide & stability policy
 
+> **Direction note (2026-06-16).** The natives documented here are the **frozen Tier-0 surface**
+> and remain canonical and stable. A scene-engine **merge** is in design: the scene runtime + policy
+> fold back into this mod as an internal subsystem, and a tiered API (Tier 1 *run a scene*, Tier 2
+> *author a scene* — a node graph with a loop-relative track timeline) lands **additively** on top
+> of these primitives. Spec: [SCENE_DESIGN.md](SCENE_DESIGN.md). Nothing below changes; it gains
+> layers above it. (This supersedes the separate-plugin framing in some sections — see the seam doc.)
+
 OSF Animation is the **content-neutral animation playback core**. Its API moves bones,
 synchronizes actors, anchors them in the world, and runs mechanical staged scenes —
 nothing about *what* an animation is for. Scene **policy** (undress, scheduled voice,
