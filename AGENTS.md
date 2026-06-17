@@ -72,12 +72,19 @@ Bound on `OSF` (see `dist/Scripts/Source/OSF.psc`):
 - **Primitives:** `Play` · `Stop` · `SetSpeed`/`GetSpeed` · `SetAnchor`/`ClearAnchor` · `Sync` ·
   `PlaySequence` · `GetCurrentAnimation` · `IsPlaying`.
 - **Scenes (anchored, staged, synced):** `StartScene` (registry id) · `StartSceneAt` (world-anchored
-  at an ObjectReference — furniture/bed/marker) · `StartSceneRoles` · `StartSceneByTags` (matchmake by
-  tags + gender slots) · `StartSceneFiles` (ad-hoc raw files, the SAF `PlaySceneSeparate` replacement) ·
+  at an ObjectReference — furniture/bed/marker) · `StartSceneRoles` · `StartSceneByTags` /
+  `StartSceneByTagsQuery` (matchmake across scene defs + packs by tags + role filters; priority tier +
+  weighted pick) · `StartSceneFiles` (ad-hoc raw files, the SAF `PlaySceneSeparate` replacement) ·
   `AdvanceScene`/`NavigateScene` · `GetSceneEdge*` · `SetSceneStage` · `GetSceneStage` ·
   `StopScene`/`StopSceneForActor` · `GetSceneId`/`GetSceneNode`/`GetSceneForActor` ·
   `GetSceneRoles`/`GetSceneRoleGender`/`GetSceneActorCount`/`GetSceneTags` (read-only metadata) ·
-  `FindScenes` · `ReloadPacks` · `RegisterSceneCallback` + the `EVENT_*`/`RESULT_*` getters.
+  `FindScenes` / `FindScenesForActorsQuery` · `ReloadPacks` · `RegisterSceneCallback` + the
+  `EVENT_*`/`RESULT_*` getters.
+- **Matchmaking** (`src/Matchmaking/Matchmaker.*`): unified candidate pool over `SceneRegistry` defs +
+  `PackRegistry` packs (pack = priority-0/weight-1 pseudo-candidate, shadowed by a same-id scene def);
+  deterministic complete role-binding; `roles[].filters` gender/keyword/race with `"Plugin.esm|0xID"`
+  form-refs resolved at load (RE-sensitive — see RE.md; needs in-game verification). Behavior change:
+  tag matchmaking now spans scene defs, not packs-only.
 - **Readiness:** `IsReady` · `HasFeature("scenes"/"playback"/"sync"/"anchor")` · `GetVersion`.
 - **Compat (`OSFCompat`):** `SetPlayerControlLock` · `SetPlayerCameraLock` · `SetSceneControlMask` (debug, off the public surface).
 

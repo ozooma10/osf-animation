@@ -67,18 +67,8 @@ namespace OSF::Registry
 		// Resolves id -> a multi-stage ScenePlan (files + placements + timer/loops), or nullopt (reason logged).
 		std::optional<Animation::ScenePlan> BuildScenePlan(std::string_view a_id, size_t a_actorCount) const;
 
-		// Ids with a_actorCount actors whose tags contain ALL a_tags (case-insensitive; empty = any). Sorted for determinism.
-		std::vector<std::string> FindByTags(size_t a_actorCount, const std::vector<std::string>& a_tags) const;
-
-		// order[slot] = index into the caller's actor list filling that definition slot.
-		struct SlottedPick
-		{
-			std::string id;
-			std::vector<size_t> order;
-		};
-
-		// Random animation matching a_genders.size() actors + a_tags whose gender slots these actors can fill (kAny accepts anyone; kNone fits only kAny).
-		std::optional<SlottedPick> PickByTags(const std::vector<std::string>& a_tags, const std::vector<RE::SEX>& a_genders) const;
+		// Tag/gender matchmaking moved to OSF::Matchmaking (src/Matchmaking/Matchmaker.*), which spans
+		// BOTH this registry and the scene registry; it reads packs via ForEachAnim below.
 
 		// Visit every loaded animation def under the read lock (used by the matchmaker to build pack
 		// pseudo-candidates). The callback must NOT re-enter the registry (it holds the shared lock).

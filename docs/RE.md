@@ -146,6 +146,33 @@ capsule sits:
   state-aware restore (re-draw only an actor that was drawn pre-sheathe) is deferred until the bit is
   proven: log `actorState1` for the player holstered-vs-drawn to find it, then gate restore on it.
 
+## Matchmaking form-refs + role-filter predicates (`roles[].filters`)
+
+Scene role filters (`keyword`/`race`) resolve `"Plugin.esm|0xLocalID"` refs to forms **at scene load**
+(`src/Registry/SceneRegistry.cpp`, `ComposeFormID`). RE-sensitive. **Verified in-game 2026-06-17:**
+full-master tier composition + the race predicate — `Starfield.esm|0x0021A8D7` (SIF TerrormorphRace)
+resolved clean and `StartSceneByTags` bound a live Terrormorph (runtime ref `FF…`) to the filtered role
+while rejecting a human. **Still unverified:** the light/medium tiers (no `.esl`/medium ref tested yet)
+and the **keyword** predicate (`ActorHasKeyword` — a different call path than race).
+
+- Plugin → index via `TESDataHandler::GetSingleton()->compiledFileCollection` (CLSF offset **0x1580**,
+  RE-proven 1.16.242). Match `TESFile::fileName` (char[260] @ **+0x38**) case-insensitively by basename
+  across the three tiers and derive the index from the array position:
+  - full master (`files[i]`): `formID = (i << 24) | (local & 0x00FFFFFF)`
+  - medium (`mediumFiles[i]`, tier 0xFD): `formID = 0xFD000000 | (i << 16) | (local & 0xFFFF)`
+  - light (`smallFiles[i]`, tier 0xFE): `formID = 0xFE000000 | (i << 12) | (local & 0xFFF)`
+  (`TESFile::compileIndex` @ **+0x1B7** = the tier sentinel for light/medium, not the secondary index,
+  so the index comes from the array position.) The local id's high/load-order byte is masked off — the
+  plugin name is authoritative, so a whole xEdit FormID resolves regardless of its load-order byte.
+- Form + type check via `TESForm::LookupByID<T>` (returns null on not-found OR wrong type). Unresolved /
+  wrong-type → the scene is rejected at load (fail-soft; ReloadPacks re-attempts in-game).
+- **Keyword predicate** (`Matchmaking::ActorHasKeyword`): an actor matches if its **actorbase**
+  (`Actor::GetNPC()`, a `BGSKeywordForm` via `TESActorBase`) OR its **race** (`Actor::race` @ **+0x358**,
+  a `BGSKeywordForm`) carries the keyword. The base call is qualified `BGSKeywordForm::HasKeyword(...)`
+  because `TESNPC` hides it with a `HasKeyword(string_view)` overload. Whether to also fold in other
+  race-derived keyword sources is the one open semantics item (revisit if SIF needs it).
+- **Race predicate**: `Actor::race` pointer-equals one of the role's resolved `TESRace*`.
+
 ## Save / load (event source + payload)
 
 CLSF declares `SaveLoadEvent` payload-less; OSF reads it by raw offset in SaveSafety.cpp

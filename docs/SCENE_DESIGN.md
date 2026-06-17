@@ -69,6 +69,7 @@ int Function StartScene(Actor[] akActors, string asId, int aiStage = 0) Global N
 int Function StartSceneAt(Actor[] akActors, string asId, ObjectReference akAnchor, float afHeadingDeg = -1.0) Global Native  ; world-anchor at a thing, not actor[0]
 int Function StartSceneRoles(Actor[] akActors, string asId, string[] asRoles, int aiStage = 0) Global Native
 int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native     ; GetSceneId recovers the match
+int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf) Global Native
 int Function StartSceneFiles(Actor[] akActors, string[] asFiles, float afSpeed = 1.0, float afBlendIn = 0.4) Global Native
 
 ; --- control (take a handle) ---
@@ -88,7 +89,8 @@ string Function GetSceneEdgeId(int aiScene, int aiIndex) Global Native
 string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
 
 ; --- discovery (inspect candidates; result order matches StartSceneByTags ranking) ---
-string[] Function FindScenes(int aiActorCount, string[] asTags) Global Native
+string[] Function FindScenes(int aiActorCount, string[] asTags) Global Native               ; count+tags, filter-UNAWARE (discovery hint)
+string[] Function FindScenesForActorsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf) Global Native
 
 ; --- scene-metadata introspection (read-only; by scene id, not handle; "" / 0 / empty if unknown) ---
 string[] Function GetSceneRoles(string asId) Global Native
@@ -152,16 +154,21 @@ membership is deferred.) A `None` actor, or the same actor passed twice in one c
 - **`StartSceneRoles`** — `asRoles.Length` must equal `akActors.Length`; unknown role name,
   duplicate role name, `None` actor, duplicate actor, missing required role, or an extra actor with
   no matching role → start fails (`0`), reason logged.
-- **`StartSceneByTags`** — candidate selection is deterministic, the final tie-break random (for
-  scene variety): (1) actor count and role filters must match; (2) **every requested tag must
-  match**; (3) higher scene `priority` wins; (4) **random among the remaining top tier**. The
-  candidate set and ranking are deterministic; only the last step is random. Inspect candidates
-  first with `FindScenes(actorCount, tags)` (same ranking order) when a caller wants to choose
-  itself. **Actor→role binding:** `StartSceneByTags` keeps the existing gender-fit matchmaking via a
-  **deterministic greedy assignment** — actors in array order are each placed into the first
-  still-unfilled role whose `filters` they satisfy; if any role is left unfilled the candidate is
-  rejected. (`StartScene` by explicit id binds by declaration order with no permutation;
-  `StartSceneRoles` is explicit named binding.)
+- **`StartSceneByTags`** — matchmakes across **both registries** (composed scene defs + animation
+  packs; a pack is a `priority 0` / `weight 1` pseudo-candidate, and a same-id pack is shadowed by its
+  scene def but still reachable via `anim:`). Selection: (1) actor count + every requested tag match;
+  (2) a **complete role/slot binding** exists (every role filled by a distinct compatible actor —
+  gender + keyword/race filters); (3) highest scene `priority` wins; (4) **weighted-random by `weight`
+  within the top priority tier**. Only step (4) is random. The chosen candidate carries its binding, so
+  the start uses exactly the matchmade cast. `StartSceneByTagsQuery` is the boolean-tag form
+  (`allOf`/`anyOf`/`noneOf`). Binding uses **deterministic complete matching** (the
+  lexicographically-smallest assignment by role order), so a satisfiable cast is never falsely
+  rejected. (`StartScene` by explicit id binds by declaration order then validates filters;
+  `StartSceneRoles` is explicit named binding + filter validation.)
+- **Discovery vs start:** `FindScenes(count, tags)` is count+tags only and **filter-unaware** — a
+  returned id is a hint, not a guarantee a later `StartScene(actors, id)` binds. For a filter-correct
+  result let OSF bind (`StartSceneByTags*`) or use `FindScenesForActorsQuery` (filter-aware) +
+  introspection + `StartSceneRoles`.
 - **`StartSceneFiles`** — creates a **synthetic single-node scene**: `GetSceneId` →
   `"runtime.files:<handle>"`, `GetSceneNode` → `"main"`, no branch edges, `GetSceneStage` → `0`, loop
   mode `hold`. `asFiles` maps **one clip per actor** (`asFiles[i]` on `akActors[i]`, equal lengths —
@@ -280,6 +287,7 @@ pack reader); canonical/tool-emitted files are strict JSON. Examples are JSONC f
   "id": "author.scenes.barflirt",
   "name": "Bar Flirt",
   "priority": 0,                  // optional int, default 0; higher wins in StartSceneByTags ranking
+  "weight": 1,                    // optional int [1,1e6], default 1; weighted-random within the top priority tier
   "tags": ["paired", "social"],
   "roles": [ { "name": "lead", "gender": "any" }, { "name": "other", "gender": "any" } ],
   "entry": "main",
@@ -295,12 +303,32 @@ pack reader); canonical/tool-emitted files are strict JSON. Examples are JSONC f
 
 ### Roles
 
-`gender` (`"male"`/`"female"`/`"any"`) is first-class sugar matching the pack schema; it desugars to
-`filters.gender`. `filters` is the open extension point for future actor constraints.
+`gender` (`"male"`/`"female"`/`"any"`) is first-class sugar for `filters.gender` (if both are given
+and differ, the scene is rejected at load). `filters` constrains which actor may fill a role; an actor
+must satisfy **every present** constraint, and within `keyword`/`race` it is **any-of** (the actor
+needs ANY listed keyword, and ANY listed race). Each takes a single ref or an array.
 
 ```jsonc
-"roles": [ { "name": "lead", "gender": "any", "filters": { /* future constraints */ } } ]
+"roles": [
+  { "name": "lead",  "gender": "any" },
+  { "name": "beast", "filters": { "keyword": "Starfield.esm|0x00261C1E",
+                                  "race":    ["Starfield.esm|0x00023A01", "MyMod.esm|0x801"] } }
+]
 ```
+
+**Form references** are `"<plugin-filename>|0x<localID>"` (Starfield strips runtime EditorIDs). The
+plugin is matched case-insensitively by basename; the local id's load-order/high bits are ignored (the
+plugin name is authoritative), so a FormID pasted whole from xEdit resolves regardless of its index
+byte. Light/medium plugins are supported. A malformed ref, an unloaded plugin, or a wrong-type form
+(`keyword` not a Keyword / `race` not a Race) **rejects the scene at load**, named by role+field in
+`GetSceneValidationErrors`. `keyword` matches if the actor's **base or race** carries it.
+
+Filters are enforced on **every** scene-def start path: `StartScene`/`StartSceneAt` (bind by
+declaration order, then validate → reject a bad bind), `StartSceneRoles` (named bind, validate), and
+`StartSceneByTags*` (a role's filters are part of "compatible" — an unfillable role drops the
+candidate). Role→actor binding for `StartSceneByTags*` uses **deterministic complete matching** (every
+role filled by a distinct compatible actor; the lexicographically-smallest binding by role order), not
+first-fit — so a valid cast is never falsely rejected.
 
 **All roles are required in v1** — every declared role must be filled, and every actor must match a
 role. Optional roles are deferred (they interact with slot counts, per-node `slots`, fallback
@@ -536,6 +564,10 @@ Loading is never fatal; bad scenes are skipped and reported.
   returns `false` — a default is never inferred.
 - **Roles:** all roles required in v1; every declared role must be fillable.
 - **Priority:** `priority` is an optional int (default 0); non-int → reject.
+- **Weight:** `weight` is an optional int in `[1, 1000000]` (default 1); non-int / out-of-range → reject.
+- **Role filters:** `filters.keyword`/`filters.race` form refs resolve at load — a malformed ref, an
+  unloaded plugin, or a wrong-type form → reject (named by role + field via `GetSceneValidationErrors`).
+  `gender` and `filters.gender` disagreeing → reject.
 - **Unknown:** unknown **track-lane name** → reject; unknown **`osf.*` action type** → reject;
   unknown **custom-namespaced action** → `EVENT_ACTION` (best-effort, §1.3); unknown **fields inside
   known objects** → ignored.

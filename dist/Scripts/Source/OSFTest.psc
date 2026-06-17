@@ -673,6 +673,24 @@ Function MatchTags(string tag) global
     OSFCompat.Dbg_Log("MatchTags '" + tag + "': handle=" + h + " id='" + OSF.GetSceneId(h) + "' (NOTE: '" + tag + "' is a TAG; many scenes share it)")
 EndFunction
 
+; Explicit-target StartSceneByTags: pass the actor's refID (CLICK the creature in the console to read
+; its FormID). Use this for a specific NPC/creature — GetCrosshairActor reads commandTarget, which only
+; tracks actor COMMAND targets, so it can't pick a hostile creature you're merely aiming at.
+;   cgf "OSFTest.MatchOn" <refID> "filter"     e.g. cgf "OSFTest.MatchOn" 1A2B3C "filter"
+Function MatchOn(Actor akTarget, string tag) global
+    If !akTarget
+        OSFCompat.Dbg_Log("MatchOn: null target actor.")
+        Return
+    EndIf
+    OSF.StopSceneForActor(akTarget)
+    Actor[] actors = new Actor[1]
+    actors[0] = akTarget
+    string[] tags = new string[1]
+    tags[0] = tag
+    int h = OSF.StartSceneByTags(actors, tags)
+    OSFCompat.Dbg_Log("MatchOn " + akTarget.GetFormID() + " '" + tag + "': handle=" + h + " id='" + OSF.GetSceneId(h) + "'")
+EndFunction
+
 ; Boolean-query form: allOf={asAllOf}, noneOf={asNoneOf}, anyOf empty. Proves none-of exclusion —
 ; pass a tag the candidate also has as asNoneOf and it should no longer match (handle 0).
 ;   cgf "OSFTest.MatchQuery" "solo" "combat"

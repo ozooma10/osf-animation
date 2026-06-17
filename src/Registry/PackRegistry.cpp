@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <fstream>
-#include <random>
 
 #include <nlohmann/json.hpp>
 
@@ -36,45 +35,6 @@ namespace OSF::Registry
 				return SlotGender::kFemale;
 			}
 			return SlotGender::kAny;
-		}
-
-		bool HasAllTags(const AnimationDef& a_def, const std::vector<std::string>& a_tagsLower)
-		{
-			for (const auto& want : a_tagsLower) {
-				bool found = false;
-				for (const auto& have : a_def.tags) {
-					if (ToLower(have) == want) {
-						found = true;
-						break;
-					}
-				}
-				if (!found) {
-					return false;
-				}
-			}
-			return true;
-		}
-
-		bool SlotsSatisfied(const std::vector<SlotDef>& a_slots, const std::vector<RE::SEX>& a_genders,
-			const std::vector<size_t>& a_perm)
-		{
-			for (size_t slot = 0; slot < a_slots.size(); slot++) {
-				switch (a_slots[slot].gender) {
-				case SlotGender::kMale:
-					if (a_genders[a_perm[slot]] != RE::SEX::kMale) {
-						return false;
-					}
-					break;
-				case SlotGender::kFemale:
-					if (a_genders[a_perm[slot]] != RE::SEX::kFemale) {
-						return false;
-					}
-					break;
-				default:
-					break;  // kAny accepts anyone, including SEX::kNone
-				}
-			}
-			return true;
 		}
 
 		AnimationDef ParseAnimation(const nlohmann::json& a_json, const std::string& a_packName)
@@ -312,65 +272,6 @@ namespace OSF::Registry
 			plan.stages.push_back(std::move(stage));
 		}
 		return plan;
-	}
-
-	std::vector<std::string> PackRegistry::FindByTags(size_t a_actorCount, const std::vector<std::string>& a_tags) const
-	{
-		std::vector<std::string> tagsLower;
-		tagsLower.reserve(a_tags.size());
-		for (const auto& tag : a_tags) {
-			tagsLower.push_back(ToLower(tag));
-		}
-
-		std::shared_lock l{ lock };
-		std::vector<std::string> result;
-		for (const auto& [key, def] : animations) {
-			if (def.actors.size() == a_actorCount && HasAllTags(def, tagsLower)) {
-				result.push_back(def.id);
-			}
-		}
-		std::sort(result.begin(), result.end());
-		return result;
-	}
-
-	std::optional<PackRegistry::SlottedPick> PackRegistry::PickByTags(const std::vector<std::string>& a_tags,
-		const std::vector<RE::SEX>& a_genders) const
-	{
-		std::vector<std::string> tagsLower;
-		tagsLower.reserve(a_tags.size());
-		for (const auto& tag : a_tags) {
-			tagsLower.push_back(ToLower(tag));
-		}
-
-		std::shared_lock l{ lock };
-
-		std::vector<const AnimationDef*> candidates;
-		for (const auto& [key, def] : animations) {
-			if (def.actors.size() == a_genders.size() && HasAllTags(def, tagsLower)) {
-				candidates.push_back(&def);
-			}
-		}
-		if (candidates.empty()) {
-			return std::nullopt;
-		}
-
-		std::mt19937 rng{ std::random_device{}() };
-		std::shuffle(candidates.begin(), candidates.end(), rng);
-
-		// Party sizes are tiny (<= 4ish): brute-force the slot permutations.
-		std::vector<size_t> perm(a_genders.size());
-		for (const auto* def : candidates) {
-			for (size_t i = 0; i < perm.size(); i++) {
-				perm[i] = i;
-			}
-			do {
-				if (SlotsSatisfied(def->actors, a_genders, perm)) {
-					return SlottedPick{ def->id, perm };
-				}
-			} while (std::next_permutation(perm.begin(), perm.end()));
-		}
-		REX::WARN("PackRegistry: {} animation(s) match the tags but none fit these actors' genders", candidates.size());
-		return std::nullopt;
 	}
 
 	void PackRegistry::ForEachAnim(const std::function<void(const AnimationDef&)>& a_fn) const

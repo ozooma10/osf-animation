@@ -39,8 +39,11 @@ a[0] = first      ; fills the definition's actor slot 0
 a[1] = second
 int h = OSF.StartScene(a, "author.pack.bridge")   ; 1..N actors; a 1-actor def is a real scene
 
-; matchmake by tags + gender slots (returns a handle, 0 = no match; GetSceneId(h) recovers the id):
+; matchmake by tags + role/gender(+keyword/race) fit across scene defs AND packs (priority + weighted
+; pick; returns a handle, 0 = no match; GetSceneId(h) recovers the id):
 int h2 = OSF.StartSceneByTags(a, tags)
+; boolean-tag form: allOf / anyOf / noneOf
+int h2b = OSF.StartSceneByTagsQuery(a, allOfTags, anyOfTags, noneOfTags)
 
 ; world-anchor a scene at a thing (bed/chair/marker) instead of at a[0] — furniture/sleep encounters:
 int hb = OSF.StartSceneAt(a, "author.scenes.bedrest", akBedRef)   ; afHeadingDeg defaults to the ref's heading
@@ -108,6 +111,19 @@ standalone player locks (input-disable layer + AI-driven; force/hold third perso
 the SAF shim's primitive (non-Scene) Play+Sync path. They are a content-neutral
 *mechanism* the core never auto-applies — call them explicitly if a player-participant
 scene needs the body frozen. New integrations generally don't need them.
+
+## Matchmaking (tags + role filters)
+
+`StartSceneByTags` / `StartSceneByTagsQuery` matchmake across **both** composed `*.scene.json` scene
+defs and animation packs. A scene def carries `priority` (tier) + `weight` (weighted-random within the
+top tier) and per-role `filters` (`gender`, plus `keyword`/`race` as `"Plugin.esm|0xLocalID"` form
+refs); a pack is a `priority 0` / `weight 1` pseudo-candidate, shadowed by a same-id scene def. Role
+binding is deterministic complete matching, and filters are enforced on every scene-def start path
+(`StartScene`/`StartSceneAt`/`StartSceneRoles` too). **Behavior change:** because matchmaking now spans
+scene defs, an existing pack-only caller may receive scene-def ids and priority-based (not uniform)
+selection once any matching scene def is installed — set `priority > 0` on a scene to intentionally
+supersede packs. `FindScenes` (count+tags) is a **filter-unaware discovery hint**; for a filter-correct
+list use `FindScenesForActorsQuery` (takes the actors) or let `StartSceneByTags*` bind.
 
 ## Gotchas that will actually bite you
 
