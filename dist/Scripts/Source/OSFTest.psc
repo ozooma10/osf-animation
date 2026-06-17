@@ -602,13 +602,30 @@ Function StartAtTest() global
         OSFCompat.Dbg_Log("StartAtTest: no crosshair ref — point at furniture / a marker and retry.")
         Return
     EndIf
+    StartAtRef(anchor)
+EndFunction
+
+; Reliable variant: pass the anchor ref EXPLICITLY. In the console, CLICK the container / chair /
+; marker (its FormID shows at the top), then pass that FormID. Use this for NON-ACTOR anchors —
+; GetCrosshairRef reads PlayerCharacter->commandTarget, which only tracks ACTOR command targets,
+; so it won't pick up a container/furniture (you'll get a stale/garbage ref instead).
+;   cgf "OSFTest.StartAt" <refID>     e.g. cgf "OSFTest.StartAt" 1A2B3C
+Function StartAt(ObjectReference anchor) global
+    StartAtRef(anchor)
+EndFunction
+
+Function StartAtRef(ObjectReference anchor) global
+    If !anchor
+        OSFCompat.Dbg_Log("StartAt: null anchor ref.")
+        Return
+    EndIf
     Actor[] actors = new Actor[1]
     actors[0] = Game.GetPlayer()
     int h = OSF.StartSceneAt(actors, "solo", anchor)
-    OSFCompat.Dbg_Log("StartAtTest: StartSceneAt('solo') at ref " + anchor.GetFormID() + " -> h=" + h + " (expect the player AT the ref, not where they stood). Stopping in 6s.")
+    OSFCompat.Dbg_Log("StartAt: StartSceneAt('solo') at ref " + anchor.GetFormID() + " -> h=" + h + " (expect the player AT the ref, not where they stood). Stopping in 6s.")
     Utility.Wait(6.0)
     OSF.StopScene(h)
-    OSFCompat.Dbg_Log("StartAtTest: stopped.")
+    OSFCompat.Dbg_Log("StartAt: stopped.")
 EndFunction
 
 ; --- Scene-metadata introspection (read-only; no scene started) ---------------
