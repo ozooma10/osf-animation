@@ -68,9 +68,14 @@ namespace OSF::Registry
 		std::vector<SceneRole>   roles;
 		std::string              entry;
 		std::vector<SceneNode>   nodes;
+		std::vector<std::string> linearStages;  // optional: stage i -> node id (GetSceneStage/SetSceneStage)
 		std::filesystem::path    sourceFile;
 
 		const SceneNode* FindNode(std::string_view a_id) const;
+
+		// Index of a_nodeId in linearStages (case-insensitive), or -1 (also -1 if the scene
+		// declares no linearStages — a non-linear graph has no stage number).
+		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
 	class SceneRegistry

@@ -56,7 +56,19 @@ namespace OSF::Scene
 		std::int32_t StartFromFiles(const std::vector<RE::Actor*>& a_participants,
 			const std::vector<std::string>& a_files, float a_speed, float a_blendIn);
 
-		// Take the current node's DEFAULT advance edge (transition, or end the scene if the edge targets "$end"). 
+		// Start a def-backed scene with actors bound to NAMED roles (a_roles[i] = role for
+		// a_actors[i]). Validates per §1.3 (unknown/duplicate role, null/duplicate actor, role
+		// count, every declared role filled) and reorders actors into role-declaration order
+		// before entering. 0 = no such scene def, a validation failure, or an actor is busy.
+		std::int32_t StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
+			const std::vector<std::string>& a_roles);
+
+		// Jump a LINEAR scene to stage a_stage (SCENE_DESIGN §1.4): a pack/files scene (delegates
+		// to GraphManager's stage jump) or a def scene declaring `linearStages` (transitions to
+		// the indexed node). False on a non-linear graph, out-of-range stage, or invalid handle.
+		bool SetStage(std::int32_t a_scene, std::int32_t a_stage);
+
+		// Take the current node's DEFAULT advance edge (transition, or end the scene if the edge targets "$end").
 		// False if the handle is invalid or the node has no default advance edge (a default is never inferred).
 		bool Advance(std::int32_t a_scene);
 
@@ -73,7 +85,7 @@ namespace OSF::Scene
 		// Lookups (contract sentinels): id/node "" if invalid; stage -1; actor→handle 0.
 		std::string  GetId(std::int32_t a_scene);
 		std::string  GetNode(std::int32_t a_scene);
-		std::int32_t GetStage(std::int32_t a_scene);
+		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only (§1.4); else -1
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
 		// Drop all live scenes (load teardown — invoked from GraphManager::StopAll via the

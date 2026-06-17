@@ -179,11 +179,14 @@ namespace OSF::Registry
 				if (!entry.is_regular_file(ec) || ToLower(entry.path().extension().string()) != ".json") {
 					continue;
 				}
-				// settings files are not animation packs: the bare user-owned
-				// "settings.json" and mod-namespaced "*.settings.json" (consumed by
-				// other OSF layers, skipped here so they aren't misparsed as packs).
+				// Skip the *.json file types that aren't animation packs so they are never
+				// opened/parsed here: settings files (other OSF layers), scene graphs
+				// (*.scene.json -> SceneRegistry), and the reserved *.voice.json /
+				// *.dialogue.json. (See docs/INTIMACY_SEAM.md.)
 				const auto fileName = ToLower(entry.path().filename().string());
-				if (fileName == "settings.json" || fileName.ends_with(".settings.json")) {
+				if (fileName == "settings.json" || fileName.ends_with(".settings.json") ||
+					fileName.ends_with(".scene.json") || fileName.ends_with(".voice.json") ||
+					fileName.ends_with(".dialogue.json")) {
 					continue;
 				}
 				files.push_back(entry.path());
@@ -257,16 +260,7 @@ namespace OSF::Registry
 					std::ifstream in(packFile, std::ios::binary);
 					// last arg: tolerate // comments in hand-edited packs
 					const auto json = nlohmann::json::parse(in, nullptr, true, true);
-					const auto lowerName = ToLower(fileName);
-					// Non-pack file types skipped here so they aren't misparsed as anim packs:
-					// scene graphs (*.scene.json) load via SceneRegistry; *.voice.json /
-					// *.dialogue.json are reserved (not yet read). See docs/INTIMACY_SEAM.md.
-					if (lowerName.ends_with(".scene.json") || lowerName.ends_with(".voice.json") ||
-						lowerName.ends_with(".dialogue.json")) {
-						REX::INFO("PackRegistry: '{}' is not an anim pack (handled elsewhere) — skipped", fileName);
-					} else {
-						LoadPackFile(json, packFile, state);
-					}
+					LoadPackFile(json, packFile, state);
 				} catch (const std::exception& e) {
 					REX::ERROR("PackRegistry: failed to parse '{}': {}", fileName, e.what());
 				}

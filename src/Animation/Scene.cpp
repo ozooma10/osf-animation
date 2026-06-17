@@ -74,6 +74,12 @@ namespace OSF::Animation
 		return true;
 	}
 
+	uint32_t Scene::CurrentStage()
+	{
+		std::scoped_lock l{ lock };
+		return currentStage;
+	}
+
 	void Scene::ApplyStageLocked(uint32_t a_stage)
 	{
 		currentStage = a_stage;

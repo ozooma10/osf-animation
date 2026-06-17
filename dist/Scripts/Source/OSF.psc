@@ -19,10 +19,10 @@ float Function GetSpeed(Actor akActor) Global Native
 
 ; Pins akActor's solo graph to a WORLD point + heading (DEGREES) and moves the capsule there.
 ; aiRootMode: 0 = pin (lock rendered root at the point), 1 = additive (EXPERIMENTAL — currently behaves like pin), 2 = follow (ride the actor).
-; Refused for scene participants (placement is scene-driven); false if no live graph. See docs/ANCHORING.md.
+; Refused for scene participants (placement is scene-driven); false if no live graph.
 bool Function SetAnchor(Actor akActor, float afX, float afY, float afZ, float afHeadingDeg, int aiRootMode = 0) Global Native
 
-; Releases akActor's anchor — the graph returns to "follow". No-op if unanchored.
+; Releases akActor's anchor, the graph returns to "follow". No-op if unanchored.
 bool Function ClearAnchor(Actor akActor) Global Native
 
 ; Put N already-playing graphs on one shared clock (frame-lock): Play each actor first, then Sync.
@@ -50,6 +50,11 @@ bool Function IsPlaying(Actor akActor) Global Native
 ; Start a scene by id, returning its handle. aiStage = pack start stage (ignored for graphs).
 int Function StartScene(Actor[] akActors, string asSceneId, int aiStage = 0) Global Native
 
+; Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
+; (equal lengths; every declared role must be filled exactly once). Returns the handle (0 = no
+; such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
+int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles, int aiStage = 0) Global Native
+
 ; Matchmake a registry pack by tags + gender slots and start it. Returns the scene handle
 ; (0 = no match); recover the chosen id with GetSceneId(handle).
 int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
@@ -57,12 +62,17 @@ int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
 ; Ad-hoc scene from raw files: co-locates akActors at akActors[0], plays asFiles[i] on akActors[i], syncs the clock. Equal-length arrays. Returns the scene handle.
 int Function StartSceneFiles(Actor[] akActors, string[] asFiles, float afSpeed = 1.0, float afBlendIn = 0.4) Global Native
 
-; Jumps the scene containing akActor to stage aiStage (0-based). NOTE: the stage interface is
-; still actor-keyed (linear/legacy convenience); the handle-based form lands with linearStages.
-bool Function SetSceneStage(Actor akActor, int aiStage) Global Native
+; Jump a LINEAR scene (by handle) to stage aiStage (0-based): a pack/files scene, or a graph that
+; declares linearStages. False on a non-linear graph, out-of-range stage, or invalid handle.
+bool Function SetSceneStage(int aiScene, int aiStage) Global Native
 
-; Current stage of the scene akActor is in, or -1 if not in a scene.
-int Function GetSceneStage(Actor akActor) Global Native
+; Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
+int Function GetSceneStage(int aiScene) Global Native
+
+; Actor conveniences: read/jump the live scene akActor is in by ACTOR (reaches any scene driving
+; the actor, including a PlaySequence solo sequence that has no handle). -1 / false if in none.
+int Function GetSceneStageForActor(Actor akActor) Global Native
+bool Function SetSceneStageForActor(Actor akActor, int aiStage) Global Native
 
 ; Stops a live scene by its handle (from a Start* call). False if the handle is invalid/ended.
 bool Function StopScene(int aiScene) Global Native

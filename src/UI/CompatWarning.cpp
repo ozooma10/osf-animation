@@ -42,7 +42,7 @@ namespace OSF::UI
 		}
 
 		if (detected.empty()) {
-			REX::INFO("No incompatible animation framework co-loaded (SAF / NAFSF)");
+			REX::INFO("No incompatibilities Detected.");
 			return;
 		}
 

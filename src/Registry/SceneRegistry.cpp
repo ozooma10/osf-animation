@@ -194,6 +194,17 @@ namespace OSF::Registry
 				def.nodes.push_back(std::move(n));
 			}
 
+			// Optional linear-stage map (stage i -> node id). Each must name a real node.
+			if (const auto it = a_json.find("linearStages"); it != a_json.end()) {
+				for (const auto& s : *it) {
+					auto nid = s.get<std::string>();
+					if (!nodeIds.count(ToLower(nid))) {
+						throw std::runtime_error("scene '" + def.id + "': linearStages references missing node '" + nid + "'");
+					}
+					def.linearStages.push_back(std::move(nid));
+				}
+			}
+
 			// Reference validation (needs the full node-id set).
 			if (!nodeIds.count(ToLower(def.entry))) {
 				throw std::runtime_error("scene '" + def.id + "': entry '" + def.entry + "' is not a node");
@@ -280,6 +291,17 @@ namespace OSF::Registry
 			}
 		}
 		return nullptr;
+	}
+
+	std::int32_t SceneDef::LinearStageOf(std::string_view a_nodeId) const
+	{
+		const auto want = ToLower(std::string(a_nodeId));
+		for (std::size_t i = 0; i < linearStages.size(); i++) {
+			if (ToLower(linearStages[i]) == want) {
+				return static_cast<std::int32_t>(i);
+			}
+		}
+		return -1;
 	}
 
 	SceneRegistry& SceneRegistry::GetSingleton()

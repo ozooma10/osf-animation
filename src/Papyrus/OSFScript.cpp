@@ -47,11 +47,19 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopAnimation(a_actor);
 		}
 
-		// Jumps the scene containing a_actor to the given stage (0-based).
-		bool SetSceneStage(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, int32_t a_stage)
+		// Jump a LINEAR scene (by handle) to a given stage (§1.4). False on a non-linear graph,
+		// out-of-range stage, or invalid handle.
+		bool SetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_stage)
+		{
+			return Scene::SceneRuntime::GetSingleton().SetStage(a_scene, a_stage);
+		}
+
+		// Actor convenience: jump the live GraphManager scene a_actor is in to a stage (0-based).
+		// Reaches any GraphManager scene including a PlaySequence solo sequence (no handle).
+		bool SetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, int32_t a_stage)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.SetSceneStage: no actor given");
+				REX::WARN("OSF.SetSceneStageForActor: no actor given");
 				return false;
 			}
 			return Animation::GraphManager::GetSingleton().SetSceneStage(a_actor, a_stage);
@@ -86,7 +94,15 @@ namespace OSF::Papyrus
 			return result;
 		}
 
-		int32_t GetSceneStage(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
+		// Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
+		int32_t GetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().GetStage(a_scene);
+		}
+
+		// Actor convenience: current stage of the live GraphManager scene a_actor is in, or -1.
+		// Reaches any GraphManager scene including a PlaySequence solo sequence (no handle).
+		int32_t GetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			return Animation::GraphManager::GetSingleton().GetSceneStage(a_actor);
 		}
@@ -181,14 +197,19 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
 		}
 
-		// Actor convenience: stop the live scene a_actor participates in. False if none.
+		// Actor convenience: stop the live scene a_actor participates in. Tries the SceneRuntime
+		// handle first (fires NODE_EXIT + SCENE_END, invalidates it); falls back to a raw
+		// GraphManager scene with no handle (a PlaySequence solo sequence). False if in neither.
 		bool StopSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
 				REX::WARN("OSF.StopSceneForActor: no actor given");
 				return false;
 			}
-			return Scene::SceneRuntime::GetSingleton().StopForActor(a_actor);
+			if (Scene::SceneRuntime::GetSingleton().StopForActor(a_actor)) {
+				return true;
+			}
+			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
 		}
 
 		// DEBUG: replaces the player-lock input-disable masks (CLSF flag names
@@ -312,6 +333,28 @@ namespace OSF::Papyrus
 			}
 			REX::WARN("OSF.StartScene: no scene '{}' (scene: prefix forced)", sid);
 			return 0;
+		}
+
+		// Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for
+		// akActors[i] (equal lengths). Returns the handle (0 = no such scene / validation fail).
+		// Roles are a *.scene.json concept; a `scene:` prefix is tolerated/stripped.
+		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles, int32_t /*a_stage*/)
+		{
+			if (a_actors.empty()) {
+				REX::WARN("OSF.StartSceneRoles: no actors given");
+				return 0;
+			}
+			std::string sid = a_id.c_str();
+			if (sid.rfind("scene:", 0) == 0) {
+				sid = sid.substr(6);
+			}
+			std::vector<std::string> roles;
+			roles.reserve(a_roles.size());
+			for (const auto& r : a_roles) {
+				roles.emplace_back(r.c_str());
+			}
+			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
 		}
 
 		// Matchmake a registry pack by tags + gender slots and start it as a single-path scene.
@@ -544,8 +587,10 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Play", &Play, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Stop", &Stop, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStage", &SetSceneStage, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStageForActor", &SetSceneStageForActor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ReloadPacks", &ReloadPacks, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneStage", &GetSceneStage, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneStageForActor", &GetSceneStageForActor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsPlaying", &IsPlaying, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetCurrentAnimation", &GetCurrentAnimation, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSpeed", &SetSpeed, true, false);
@@ -559,6 +604,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "NotifyGameLoaded", &NotifyGameLoaded, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenes", &FindScenes, true, false);

@@ -74,7 +74,7 @@ Function DefinedSolo(string id, Actor a) global
 EndFunction
 
 Function Stage(Actor a, int stage) global
-    OSF.SetSceneStage(a, stage)
+    OSF.SetSceneStageForActor(a, stage)
 EndFunction
 
 Function Reload() global
@@ -315,4 +315,55 @@ Function SceneHandleTest() global
     OSFCompat.Dbg_Log("  re-StartScene same actor -> h2=" + h2 + " (expect 0 = exclusivity refused)")
     bool stopped = OSF.StopScene(h)
     OSFCompat.Dbg_Log("  StopScene(h)=" + stopped + "; GetSceneForActor=" + OSF.GetSceneForActor(a) + " (expect 0)")
+EndFunction
+
+; --- #1: handle-based linear stage interface (GetSceneStage/SetSceneStage by HANDLE) ---
+; A multi-stage pack is a linear scene, so the handle-keyed stage getters/setters work on it.
+; Starts the baked-in 3-stage "solo.stages" (no timers — holds each stage), reads/jumps stages
+; by handle, checks the out-of-range reject, then stops. Crosshair actor or player. No waiting.
+;   cgf "OSFTest.StageHandleTest"
+Function StageHandleTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    int h = OSF.StartScene(actors, "solo.stages", 0)
+    OSFCompat.Dbg_Log("StageHandleTest: started h=" + h + " stage=" + OSF.GetSceneStage(h) + " (expect 0)")
+    bool ok = OSF.SetSceneStage(h, 2)
+    OSFCompat.Dbg_Log("  SetSceneStage(h,2)=" + ok + " -> stage=" + OSF.GetSceneStage(h) + " (expect True / 2)")
+    bool bad = OSF.SetSceneStage(h, 5)
+    OSFCompat.Dbg_Log("  SetSceneStage(h,5)=" + bad + " (expect False = out of range)")
+    OSF.StopScene(h)
+    OSFCompat.Dbg_Log("  stopped; GetSceneStage(h)=" + OSF.GetSceneStage(h) + " (expect -1 = invalid handle)")
+EndFunction
+
+; --- #1: StartSceneRoles (bind actors to NAMED roles) -------------------------------
+; Starts the 1-role "author.scenes.pbtest" graph binding the actor to role "lead", then exercises
+; the validation rejects (unknown role, role/actor count mismatch). Crosshair actor or player.
+;   cgf "OSFTest.RolesTest"
+Function RolesTest() global
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    string[] good = new string[1]
+    good[0] = "lead"
+    int h = OSF.StartSceneRoles(actors, "author.scenes.pbtest", good, 0)
+    OSFCompat.Dbg_Log("RolesTest: StartSceneRoles(lead) -> h=" + h + " node='" + OSF.GetSceneNode(h) + "' (expect nonzero / 'surrender')")
+    OSF.StopScene(h)
+    ; Negative: unknown role name.
+    string[] bad = new string[1]
+    bad[0] = "bogus"
+    int h2 = OSF.StartSceneRoles(actors, "author.scenes.pbtest", bad, 0)
+    OSFCompat.Dbg_Log("  StartSceneRoles(bogus) -> h2=" + h2 + " (expect 0 = unknown role)")
+    ; Negative: role/actor count mismatch (1 actor, 2 role names).
+    string[] two = new string[2]
+    two[0] = "lead"
+    two[1] = "extra"
+    int h3 = OSF.StartSceneRoles(actors, "author.scenes.pbtest", two, 0)
+    OSFCompat.Dbg_Log("  StartSceneRoles(2 roles, 1 actor) -> h3=" + h3 + " (expect 0 = count mismatch)")
 EndFunction

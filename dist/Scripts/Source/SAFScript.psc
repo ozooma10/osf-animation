@@ -99,7 +99,7 @@ Bool Function StopAnimation(Actor akActor) Global
     ReleasePlayerLockIfPlayer(akActor)
     ; OSF.Stop refuses scene participants -- route them to StopSceneForActor (StopScene is
     ; handle-keyed now; the actor convenience preserves this shim's actor-centric call).
-    If OSF.GetSceneStage(akActor) >= 0
+    If OSF.GetSceneStageForActor(akActor) >= 0
         SAFLog("StopAnimation actor=" + akActor + " (scene -> StopSceneForActor)")
         return OSF.StopSceneForActor(akActor)
     EndIf
@@ -260,12 +260,12 @@ EndFunction
 ; Manual advance to the next phase (PlaySequence builds a staged scene; jump it).
 ; False when not in a sequence or already past the last phase.
 Bool Function AdvanceSequence(Actor akActor, Bool bSmooth) Global
-    Int cur = OSF.GetSceneStage(akActor)
+    Int cur = OSF.GetSceneStageForActor(akActor)
     If cur < 0
         SAFLog("AdvanceSequence actor=" + akActor + " -> false (not in a sequence)")
         return false
     EndIf
-    Bool ok = OSF.SetSceneStage(akActor, cur + 1)
+    Bool ok = OSF.SetSceneStageForActor(akActor, cur + 1)
     SAFLog("AdvanceSequence actor=" + akActor + " " + cur + " -> " + (cur + 1) + " = " + ok)
     return ok
 EndFunction
@@ -273,11 +273,11 @@ EndFunction
 Bool Function SetSequencePhase(Actor akActor, Int iPhase) Global
     SAFLog("SetSequencePhase actor=" + akActor + " phase=" + iPhase)
     ; Only meaningful if akActor is in an OSF staged scene.
-    return OSF.SetSceneStage(akActor, iPhase)
+    return OSF.SetSceneStageForActor(akActor, iPhase)
 EndFunction
 
 Int Function GetSequencePhase(Actor akActor) Global
-    Int phase = OSF.GetSceneStage(akActor)
+    Int phase = OSF.GetSceneStageForActor(akActor)
     SAFLog("GetSequencePhase actor=" + akActor + " -> " + phase)
     return phase
 EndFunction

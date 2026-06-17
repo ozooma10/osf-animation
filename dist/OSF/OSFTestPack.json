@@ -24,6 +24,20 @@
         { "clips": ["OSF/Animations/OSF_Test/StandCover01.glb"] }
       ]
     },
+
+    {
+      "id": "solo.stages",
+      "name": "Solo 3-stage (manual stage-jump test; no timers, holds each stage)",
+      "tags": ["test", "solo"],
+      "actors": [
+        {}
+      ],
+      "stages": [
+        { "clips": ["OSF/Animations/OSF_Test/StandSurrender01.glb"] },
+        { "clips": ["OSF/Animations/OSF_Test/StandCover01.glb"] },
+        { "clips": ["OSF/Animations/OSF_Test/StandSurrender01.glb"] }
+      ]
+    },
     {
       "id": "pair",
       "name": "Stand surrender x2 (baked-in pair test)",

@@ -197,7 +197,7 @@ namespace OSF::Animation
 			vtbl.write_vfunc(UpdateVFuncIdx, &Hook_AnimGraphUpdate));
 		_origModelNodeUpdate = reinterpret_cast<ModelNodeUpdateFn*>(
 			mnVtbl.write_vfunc(ModelNodeUpdateVFuncIdx, &Hook_ModelNodeUpdate));
-		REX::INFO("Installed AnimationManager::Update (slot {}) + BGSModelNode::Update (slot {}) vtable hooks (both verified)",
+		REX::INFO("Installed AnimationManager::Update and  BGSModelNode::Update Hooked",
 			UpdateVFuncIdx, ModelNodeUpdateVFuncIdx);
 	}
 
@@ -490,8 +490,15 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return -1;
 		}
-		std::scoped_lock gl{ iter->second->lock };
-		return iter->second->scene ? static_cast<int32_t>(iter->second->appliedStage) : -1;
+		Scene* scene = nullptr;
+		{
+			std::scoped_lock gl{ iter->second->lock };
+			scene = iter->second->scene;
+		}
+		// Report the scene's authoritative current stage (set immediately on SetStage /
+		// auto-advance), not the graph's appliedStage (lags one sample). stateLock (shared)
+		// keeps the scene alive while we read it.
+		return scene ? static_cast<int32_t>(scene->CurrentStage()) : -1;
 	}
 
 	bool GraphManager::IsPlaying(RE::Actor* a_actor)

@@ -162,6 +162,21 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 
+		// Reject a null actor or the same actor passed twice in one call (§1.3) — both would
+		// break the one-actor-one-scene model the rest of the runtime relies on.
+		for (std::size_t i = 0; i < a_participants.size(); i++) {
+			if (!a_participants[i]) {
+				REX::WARN("SceneRuntime: null actor in start '{}'", a_id);
+				return 0;
+			}
+			for (std::size_t j = i + 1; j < a_participants.size(); j++) {
+				if (a_participants[i] == a_participants[j]) {
+					REX::WARN("SceneRuntime: actor {:X} passed twice in start '{}'", a_participants[i]->formID, a_id);
+					return 0;
+				}
+			}
+		}
+
 		// Actor exclusivity (v1, SCENE_DESIGN §1.3): an actor is in at most one live scene, so
 		// a start on a busy actor fails (0) — the caller must Stop it first. Without this, two
 		// handles could alias one actor, making GetSceneForActor multi-valued and the auto-end
@@ -170,7 +185,7 @@ namespace OSF::Scene
 			std::int32_t busy = 0;
 			if (FindSlotForActor(a, &busy)) {
 				REX::WARN("SceneRuntime: actor {:X} already in live scene {:#010x} — refusing start '{}' (Stop it first)",
-					a ? a->formID : 0, busy, a_id);
+					a->formID, busy, a_id);
 				return 0;
 			}
 		}
@@ -339,6 +354,57 @@ namespace OSF::Scene
 		}
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
+	}
+
+	std::int32_t SceneRuntime::StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
+		const std::vector<std::string>& a_roles)
+	{
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		if (!def) {
+			REX::WARN("StartSceneRoles: no scene def '{}'", a_sceneId);
+			return 0;
+		}
+		if (a_actors.size() != a_roles.size()) {
+			REX::WARN("StartSceneRoles '{}': {} actor(s) vs {} role name(s)", a_sceneId, a_actors.size(), a_roles.size());
+			return 0;
+		}
+		if (a_actors.size() != def->roles.size()) {
+			REX::WARN("StartSceneRoles '{}': scene declares {} role(s), got {}", a_sceneId, def->roles.size(), a_actors.size());
+			return 0;
+		}
+
+		// Place each actor into its named role's declaration slot. Rejects unknown roles,
+		// a role filled twice, and null actors; missing roles fall out as an unfilled slot.
+		std::vector<RE::Actor*> ordered(def->roles.size(), nullptr);
+		for (std::size_t i = 0; i < a_actors.size(); i++) {
+			if (!a_actors[i]) {
+				REX::WARN("StartSceneRoles '{}': null actor for role '{}'", a_sceneId, a_roles[i]);
+				return 0;
+			}
+			const auto want = Util::ToLower(a_roles[i]);
+			std::int32_t roleIdx = -1;
+			for (std::size_t r = 0; r < def->roles.size(); r++) {
+				if (Util::ToLower(def->roles[r].name) == want) {
+					roleIdx = static_cast<std::int32_t>(r);
+					break;
+				}
+			}
+			if (roleIdx < 0) {
+				REX::WARN("StartSceneRoles '{}': unknown role '{}'", a_sceneId, a_roles[i]);
+				return 0;
+			}
+			if (ordered[roleIdx]) {
+				REX::WARN("StartSceneRoles '{}': role '{}' assigned twice", a_sceneId, a_roles[i]);
+				return 0;
+			}
+			ordered[roleIdx] = a_actors[i];
+		}
+		// Every role filled (size match + each filled at most once => all filled); a duplicate
+		// actor across two roles is caught by MintSlot's same-actor-twice check.
+
+		// Bind by role-declaration order, then enter at the def's entry (MintSlot enforces
+		// actor exclusivity + the duplicate-actor reject).
+		return Start(def->id, def->entry, ordered);
 	}
 
 	bool SceneRuntime::Advance(std::int32_t a_scene)
@@ -622,9 +688,56 @@ namespace OSF::Scene
 
 	std::int32_t SceneRuntime::GetStage(std::int32_t a_scene)
 	{
-		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_scene);
-		return s ? s->stage : -1;
+		Kind kind;
+		std::string id;
+		std::string node;
+		RE::Actor* first = nullptr;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_scene);
+			if (!s) {
+				return -1;
+			}
+			kind = s->kind;
+			id = s->id;
+			node = s->node;
+			first = s->participants.empty() ? nullptr : s->participants.front();
+		}
+		if (kind != Kind::kDef) {
+			// pack/files: the single GraphManager scene's live stage (files -> always 0).
+			return Animation::GraphManager::GetSingleton().GetSceneStage(first);
+		}
+		// def graph: a stage number exists only if linearStages is declared.
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		return def ? def->LinearStageOf(node) : -1;
+	}
+
+	bool SceneRuntime::SetStage(std::int32_t a_scene, std::int32_t a_stage)
+	{
+		Kind kind;
+		std::string id;
+		RE::Actor* first = nullptr;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_scene);
+			if (!s) {
+				return false;
+			}
+			kind = s->kind;
+			id = s->id;
+			first = s->participants.empty() ? nullptr : s->participants.front();
+		}
+		if (kind != Kind::kDef) {
+			// pack/files: jump the live GraphManager scene (it range-checks the stage).
+			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage);
+		}
+		// def graph: linear only via linearStages; jumping a stage = transitioning to its node.
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		if (!def || a_stage < 0 || static_cast<std::size_t>(a_stage) >= def->linearStages.size()) {
+			return false;
+		}
+		// SetNode fires NODE_EXIT/ENTER and plays the target node (re-locks internally).
+		return SetNode(a_scene, def->linearStages[a_stage], a_stage);
 	}
 
 	std::int32_t SceneRuntime::GetSceneForActor(RE::Actor* a_actor)

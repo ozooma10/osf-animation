@@ -134,6 +134,11 @@ namespace OSF::Animation
 		// false if out of range.
 		bool SetStage(int32_t a_stage);
 
+		// Authoritative current stage index — updated immediately by SetStage / auto-advance,
+		// unlike the per-graph `appliedStage` which lags until the next sample. Caller must
+		// NOT hold `lock`.
+		uint32_t CurrentStage();
+
 	private:
 		void ApplyStageLocked(uint32_t a_stage);  // caller holds `lock`
 
