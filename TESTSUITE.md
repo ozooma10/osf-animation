@@ -5,6 +5,11 @@ regression suite: run the GATE subset before any release, and the full suite aft
 patch / CLSF bump / hook change. Every case has an exact pass signal — visual, or a line in
 `Documents\My Games\Starfield\SFSE\Logs\OSF Animation.log`.*
 
+> **The engine-independent logic IS automated** — JSON pack/scene parsing, the matchmaker,
+> the utilities, the frame clock, and the placement math run offline (no game / no CLSF) via
+> the `osf-tests` target: `xmake build osf-tests && xmake run osf-tests`. See
+> [test/README.md](test/README.md). This document covers only what needs the running engine.
+
 **Status legend:** ✅ PASS (date) · ❌ FAIL · ⬜ NOT RUN · 🚫 BLOCKED/DEFERRED (reason)
 **GATE** = must pass before first public release (LAUNCH.md Phase 1).
 

@@ -104,6 +104,10 @@ allowed pre-1.0 break — `StartScene*` bool/string→int handle — already lan
 - **Test:** enable the mod in MO2 → launch via SFSE → read
   `Documents\My Games\Starfield\SFSE\Logs\OSF Animation.log`. The `solo`/`pair`/`test.stages`/
   `test.loops` baked-in entries need no animation mod.
+- **Offline unit tests:** `xmake build osf-tests && xmake run osf-tests` — pure-logic
+  regression suite (registries, matchmaker, util, frame clock, scene math) that builds
+  WITHOUT CLSF/the game via an RE/REX stub pch (`test/stubs/`). See `test/README.md`. Run it
+  after touching any of those modules; it's the only CI-able coverage (in-game → `TESTSUITE.md`).
 - **Offline import harness:** `xmake build osf-import-test` + `osf-import-test.exe <file.glb>`
   (builds without CLSF).
 

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "osf.scene.hi",
+  "name": "HighPriority",
+  "priority": 10,
+  "tags": ["pair", "scenetag"],
+  "roles": [
+    { "name": "a", "gender": "male" },
+    { "name": "b", "gender": "female" }
+  ],
+  "entry": "only",
+  "nodes": [
+    { "id": "only", "anim": "osf.test.pair", "loop": { "mode": "hold" }, "loopForever": true }
+  ]
+}

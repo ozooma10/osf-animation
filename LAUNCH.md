@@ -40,11 +40,18 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
 - ⚪ Phase-D camera (free-fly/orbit), pool/set metadata, positioned Wwise — additive, post-v1.
 
 ### API quality (see API_REVIEW.md)
-- 🔴 Lock the **callback struct field names** (`OSFEvent:SceneEvent`) — frozen with the ABI.
-- 🟡 `ValidateScene` / `GetSceneValidationErrors` — spec'd, not implemented; good modder DX.
-- 🟡 `HasFeature` — recognize the merged-engine capabilities (`cues`/`actions`/`callbacks`).
-- 🟡 Constants ergonomics — `OSF.EVENT_X()` works; consider a non-Native `OSFConst.EVENT_X` property.
-- 🟡 Ratify `GetSceneStageForActor`/`SetSceneStageForActor` into the contract (currently undocumented).
+- ✅ **Callback struct field names locked** (`OSFEvent:SceneEvent`) — the ABI names are final:
+  `sceneHandle`, `eventType`, `node`, `edge`, `cue`, `actionType`, `actorRef`, `role`, `loopIndex`,
+  `time`, `anchor`, `result`. `actorRef` is a real Actor object on role-bearing `EVENT_ACTION`;
+  `loopIndex` is present and currently reserved/defaults to `-1` until loop-index reporting is wired.
+- ✅ `ValidateScene` / `GetSceneValidationErrors` — bound and documented; per-scene diagnostics now
+  mirror the `GetSceneLoadErrors` load-error stream.
+- ✅ `HasFeature` — recognizes merged-engine capabilities (`cues`/`actions`/`sound`/`camera`/
+  `callbacks`/`weapon`) through the aggregate engine gate.
+- ✅ Constants ergonomics decided — keep `OSF.EVENT_X()` / `OSF.RESULT_X()` getter functions. A
+  non-Native `OSFConst.EVENT_X` property companion was compiler-tested and rejected because Papyrus
+  cannot read properties directly on a type name.
+- ✅ `GetSceneStageForActor`/`SetSceneStageForActor` ratified into `OSF.psc` + `docs/API.md`.
 
 ### Docs
 - ✅ **Doc-drift sweep (2026-06-17)** — reconciled the pre-merge "policy lives in a separate OSF
@@ -55,14 +62,14 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
 - ✅ `SCENE_DESIGN.md` / `API.md` / `AGENTS.md` / `INTIMACY_SEAM.md` — Phase-C reconciliation pass
   (2026-06-17): status banners + §2.5 phasing + §1.7 freeze + the action/lane/ledger surface; API.md
   quickstart updated to the `StartScene*`→int-handle returns; INTIMACY_SEAM registry table de-staled.
-- 🟡 `docs/RE.md` + `docs/POST_PATCH_CHECKLIST.md` — still say the equipment/fade/voice/Wwise RE
-  "belongs to OSF Intimacy / not used by this repo." Phase C landed those bindings IN this repo, so the
-  framing needs a pass (the RE *content* is still valid — it's the ownership note that's stale).
+- ✅ `docs/RE.md` + `docs/POST_PATCH_CHECKLIST.md` — ownership framing updated: Layer-C
+  equipment/fade/voice/Wwise/weapon bindings are in this repo, prologue-gated, and covered by the
+  post-patch recovery checklist.
 - ✅ `SCENE_DESIGN.md` §1.2 — removed the stale `GetCallbackEvent`/`Result`/`Time` dispatch-time
   getters from the sentinel table (the struct-payload transport replaced them); points to the
   `OSFEvent:SceneEvent` fields.
-- 🟡 `docs/INTIMACY_SEAM.md` — banner + table fixed; the body still says "OSF Intimacy" (covered by
-  the redirect banner). Full body rewrite still optional.
+- ✅ `docs/INTIMACY_SEAM.md` — rewritten from the old cross-plugin "OSF Intimacy" boundary to the
+  current internal Layer A ↔ Layer B seam.
 
 ### Packaging
 - ✅ **FOMOD structure drafted (2026-06-17)** — `packaging/fomod/{info,ModuleConfig}.xml` +
@@ -74,8 +81,8 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
 - 🟡 **No `versionlib` bundled** — OSF uses the **Address Library** mod (a hard dependency, *not*
   bundled). Deps to state on the page: **Starfield 1.16.244.0**, matching **SFSE**, **Address
   Library**. CLSF is statically linked (not a user dependency).
-- 🟡 Add `OSFConst.pex/.psc` to the package when the Phase C agent lands it (the script picks it up
-  automatically; warns if absent).
+- ✅ **No `OSFConst` package artifact** — the companion script was rejected; Core ships
+  `OSF`/`OSFCompat`/`OSFEvent` scripts and constants remain `OSF.EVENT_X()` / `OSF.RESULT_X()`.
 
 ### Compatibility & safety (verify one pass each on a real save)
 - ✅ Co-load warning for SAF / NAFSF (they're mutually exclusive with OSF).
@@ -102,26 +109,29 @@ AGENTS.md references it as the launch roadmap. Companion docs: API audit →
 ## 3. Top blockers (the few that actually gate the beta)
 
 1. **Real-world testing** — real SAF mods + real animation packs through the shim. (#1 risk.)
-2. ✅ **Packaging** — FOMOD structure + assembly script drafted & verified (2026-06-17). Remaining:
-   bump the version to `0.x` and rebuild before the real archive.
+2. **Package the exact tested build** — FOMOD structure + assembly script are drafted & verified
+   (2026-06-17), and `xmake.lua` is already `0.1.0`. Remaining: rebuild, archive, and hash-match the
+   `releasedbg` DLL that passed the real-world gate.
 3. ✅ **Doc reconciliation** — pre-merge framing killed (2026-06-17); SAF migration guide shipped;
-   Phase-C reconciliation pass done (RE.md / POST_PATCH_CHECKLIST.md ownership note still pending).
-4. **Lock the callback struct field names** — the one truly expensive-to-change ABI surface.
+   Phase-C/API/packaging status now matches the code.
+4. **Publish/support prep** — refresh the LoversLab/Nexus copy, pick a support channel, and send the
+   courtesy heads-up to SAF / NAFSF maintainers.
 
 Everything else is polish or fast-follow.
 
 ## 4. API punch-list (remaining beta polish)
 
-Small `OSFScript.cpp` / `SceneRegistry.*` / `OSF.psc` edits that improve the beta API. Phase C is done,
-so these are no longer blocked on a shared-core track:
+The beta-facing API punch-list is closed:
 
-- Add `ValidateScene(asId)` + `GetSceneValidationErrors(asId)` (the parser already produces the data;
-  `GetSceneLoadErrors` exists, the per-scene forms don't yet).
-- Extend `HasFeature` to answer `cues`/`actions`/`sound`/`camera`/`callbacks`.
-- Add `GetSceneStageForActor`/`SetSceneStageForActor` to `OSF.psc`'s documented contract + `docs/API.md`.
-- ✅ Unimplemented-`osf.*`-action behavior decided — unknown `osf.*` is rejected at load (loud).
-- Confirm/populate the callback struct `actorRef`/`role`/`loopIndex` (currently `actorRef` is always
-  `None` — real object marshalling for role/actor-bearing events is a follow-up) or document as reserved.
+- ✅ `ValidateScene(asId)` + `GetSceneValidationErrors(asId)` bound.
+- ✅ `HasFeature` answers `cues`/`actions`/`sound`/`camera`/`callbacks`/`weapon`.
+- ✅ `GetSceneStageForActor`/`SetSceneStageForActor` are documented in `OSF.psc` + `docs/API.md`.
+- ✅ Unknown `osf.*` actions are rejected at load (loud).
+- ✅ Callback field names are locked; `actorRef`/`role` are populated for role-bearing custom
+  actions. `loopIndex` remains a reserved/defaulted field until loop-index reporting is implemented
+  or explicitly deferred in the 1.0 contract.
+
+Optional fast-follow only: `ReloadContent` as a clearer alias of `ReloadPacks`.
 
 ## 5. Explicitly out of scope for v0.1 (now post-v1 / additive)
 

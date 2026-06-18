@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "osf.dup.scene",
+  "name": "DupB",
+  "entry": "second",
+  "nodes": [
+    { "id": "second", "anim": "osf.test.solo", "loop": { "mode": "hold" }, "loopForever": true }
+  ]
+}

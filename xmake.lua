@@ -63,3 +63,30 @@ target("osf-import-test")
     add_files("src/Serialization/GLTFImport.cpp", "test/ImportTest.cpp")
     add_includedirs("src")
 
+-- Offline unit tests for the engine-independent logic (registries, matchmaker,
+-- util, scene math). Builds WITHOUT CommonLibSF/the game by force-including the
+-- RE/REX stub pch (test/stubs/test_pch.h). Run with: xmake build osf-tests &&
+-- xmake run osf-tests.  See test/README.md.
+target("osf-tests")
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    set_warnings("less")  -- the stubs trip allextra; the real target keeps allextra
+    add_packages("ozz-animation", "nlohmann_json")
+
+    -- The real, engine-independent logic under test...
+    add_files("src/Registry/PackRegistry.cpp")
+    add_files("src/Registry/SceneRegistry.cpp")
+    add_files("src/Matchmaking/Matchmaker.cpp")
+    -- ...plus the test cases and runner.
+    add_files("test/unit/*.cpp")
+
+    add_includedirs("src", "test")
+    set_pcxxheader("test/stubs/test_pch.h")
+
+    -- Bake the fixtures path so the runner can chdir there with no arguments.
+    on_load(function (target)
+        local fixtures = path.join(os.projectdir(), "test", "fixtures"):gsub("\\", "/")
+        target:add("defines", "OSF_TEST_FIXTURES_DIR=\"" .. fixtures .. "\"")
+    end)
+

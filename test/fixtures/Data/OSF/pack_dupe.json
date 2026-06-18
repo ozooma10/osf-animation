@@ -1,0 +1,14 @@
+{
+  "name": "DupePack",
+  "schema": 2,
+  "animations": [
+    {
+      "id": "OSF.TEST.SOLO",
+      "name": "DupeSolo",
+      "actors": [ { "gender": "female" } ],
+      "stages": [
+        { "clips": [ "dupe.glb" ] }
+      ]
+    }
+  ]
+}
