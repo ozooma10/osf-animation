@@ -517,9 +517,9 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromFiles(a_actors, files, a_speed, a_blendIn);
 		}
 
-		// --- Scene-event callbacks (Var[] payload) --------------------------------
-		// Register akReceiver.asFn(Var[]) for events in aiEventMask (& scene aiScene, 0 =
-		// any). Returns a generational token (0 = failed). Decode the Var[] via OSFEvent.
+		// --- Scene-event callbacks (OSFEvent:SceneEvent payload) ------------------
+		// Register akReceiver.asFn(OSFEvent:SceneEvent) for events in aiEventMask
+		// (& scene aiScene, 0 = any). Returns a generational token (0 = failed).
 		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver,
 			RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
 		{
@@ -572,12 +572,12 @@ namespace OSF::Papyrus
 		}
 
 		// DEBUG (OSFCompat): no-instance transport probe — DispatchStaticCall
-		// asScript.asFn(Var[]) directly (no registration). Proves the Var[] marshalling
-		// from the console without a scripted form.
+		// asScript.asFn(OSFEvent:SceneEvent) directly (no registration). Proves the struct
+		// marshalling from the console without a scripted form.
 		void Dbg_FireSceneEventStatic(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_script,
 			RE::BSFixedString a_fn, int32_t a_scene, int32_t a_event, RE::BSFixedString a_node)
 		{
-			REX::INFO("OSFCompat.Dbg_FireSceneEventStatic: -> {}.{}(Var[]) scene={} event={:#x} node='{}'",
+			REX::INFO("OSFCompat.Dbg_FireSceneEventStatic: -> {}.{}(SceneEvent) scene={} event={:#x} node='{}'",
 				a_script.c_str(), a_fn.c_str(), a_scene, a_event, a_node.c_str());
 			Scene::SceneEvent e;
 			e.scene = a_scene;

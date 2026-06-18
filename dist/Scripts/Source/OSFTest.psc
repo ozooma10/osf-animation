@@ -183,7 +183,7 @@ Function StopPair(Actor a) global
 EndFunction
 
 ; --- Scene-event callback transport prototype -------------------------------
-; Proves the C++->Papyrus Var[] dispatch. No CK/ESP needed:
+; Proves the C++->Papyrus OSFEvent:SceneEvent dispatch. No CK/ESP needed:
 ; Dbg_FireSceneEventStatic dispatches a synthetic event straight to OnSceneEvent below.
 ;   cgf "OSFTest.CbTransportTest"   -> fires NODE_ENTER then SCENE_END; watch the log
 Function CbTransportTest() global

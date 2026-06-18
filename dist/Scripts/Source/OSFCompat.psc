@@ -23,8 +23,8 @@ Actor Function GetCrosshairActor() Global Native
 ; relay to every registered receiver.
 Function Dbg_FireSceneEvent(int aiScene, int aiEvent, string asNode) Global Native
 
-; DEBUG: no-instance transport probe — DispatchStaticCall asScript.asFn(Var[]) directly,
-; no registration. Proves the Var[] marshalling from the console without a scripted form.
+; DEBUG: no-instance transport probe — DispatchStaticCall asScript.asFn(OSFEvent:SceneEvent)
+; directly, no registration. Proves the struct marshalling from the console without a scripted form.
 Function Dbg_FireSceneEventStatic(string asScript, string asFn, int aiScene, int aiEvent, string asNode) Global Native
 
 ; DEBUG: fire a synthetic EVENT_ACTION carrying a REAL actor through the static dispatch — proves

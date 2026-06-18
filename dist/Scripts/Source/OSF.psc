@@ -118,11 +118,11 @@ bool Function HasFeature(string asFeature) Global Native
 ; Framework version (semver). Natives are never removed and signatures never change within a major; minors only add.
 string Function GetVersion() Global Native
 
-; --- Scene-event callbacks (Var[] payload - decode via OSFEvent) ---------------
-; Register akReceiver.asFn(Var[]) for events whose bit is set in aiEventMask
+; --- Scene-event callbacks (OSFEvent:SceneEvent payload) ----------------------
+; Register akReceiver.asFn(OSFEvent:SceneEvent) for events whose bit is set in aiEventMask
 ; (when aiScene != 0) whose scene handle == aiScene. Returns a generational token (0 = failed). 
-; Dispatch is asynchronous: the receiver runs later on the VM, so the payload arrives as the Var[] argument (there are no dispatch-time getters).
-; Function OnSceneEvent(Var[] akEvent)   ; on akReceiver's script
+; Dispatch is asynchronous: the receiver runs later on the VM, so the payload arrives as a snapshot struct (there are no dispatch-time getters).
+; Function OnSceneEvent(OSFEvent:SceneEvent akEvent)   ; on akReceiver's script
 int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 

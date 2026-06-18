@@ -5,10 +5,11 @@
 // There's no synchronous C++->Papyrus path: the only entries available
 // (DispatchStaticCall / DispatchMethodCall) queue a Papyrus stack on the VM scheduler and
 // return immediately, so the receiver runs later, off this stack. That rules out a
-// "dispatch-time getter" model, so instead we snapshot the payload into a `Var[]` argument
-// (receiver signature `Function MyFn(Var[] akEvent)`, decoded via OSFEvent.psc). The async
-// dispatch also gives us, for free, the guarantee that callbacks aren't reentrant and any
-// mutations they make land later.
+// "dispatch-time getter" model, so instead we snapshot the payload into an
+// `OSFEvent:SceneEvent` struct argument (receiver signature
+// `Function MyFn(OSFEvent:SceneEvent akEvent)`). The async dispatch also gives us,
+// for free, the guarantee that callbacks aren't reentrant and any mutations they make
+// land later.
 
 namespace OSF::Scene
 {
@@ -25,9 +26,10 @@ namespace OSF::Scene
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 
-	// One scene event, snapshotted and dispatched to registered Papyrus callbacks as a
-	// `Var[]` payload. Index layout is frozen with the ABI (see OSFEvent.psc + Pack()).
-	// Fields irrelevant to a given event keep their defaults.
+	// One scene event, snapshotted and dispatched to registered Papyrus callbacks as an
+	// OSFEvent:SceneEvent struct. Member names are frozen with the ABI; PackPayload maps
+	// those names to the compiler-reordered struct slots. Fields irrelevant to a given event
+	// keep their defaults.
 	struct SceneEvent
 	{
 		std::int32_t scene = 0;        // [0] scene handle
@@ -38,7 +40,7 @@ namespace OSF::Scene
 		std::string  actionType;       // [5] EVENT_ACTION / EVENT_ACTION_FAILED type
 		RE::Actor*   actor = nullptr;  // [6] participant (may be null)
 		std::string  role;             // [7] role name
-		std::int32_t loopIndex = -1;   // [8]
+		std::int32_t loopIndex = -1;   // [8] reserved in v0.1
 		float        time = -1.0f;     // [9] clip-local fraction, or -1.0 for a named anchor
 		std::string  anchor;           // [10] "", "enter", "exit", "end"
 		std::int32_t result = 0;       // [11] RESULT_*
@@ -51,22 +53,22 @@ namespace OSF::Scene
 	public:
 		static SceneEventRelay& GetSingleton();
 
-		// Register a_receiver.a_fn(Var[]) for events whose bit is set in a_eventMask and
-		// (when a_sceneFilter != 0) whose scene == a_sceneFilter. Returns a generational
-		// token (0 = failed: null receiver or no VM).
+		// Register a_receiver.a_fn(OSFEvent:SceneEvent) for events whose bit is set in
+		// a_eventMask and (when a_sceneFilter != 0) whose scene == a_sceneFilter. Returns a
+		// generational token (0 = failed: null receiver or no VM).
 		std::int32_t Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn,
 			std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
 		// Remove the registration for a_token. False if the token is stale/invalid.
 		bool Unregister(std::int32_t a_token);
 
-		// Snapshot a_event into a Var[] and DispatchMethodCall every matching receiver,
-		// in registration order. Safe from any thread.
+		// Snapshot a_event into an OSFEvent:SceneEvent and DispatchMethodCall every matching
+		// receiver, in registration order. Safe from any thread.
 		void Dispatch(const SceneEvent& a_event);
 
-		// DEBUG/no-instance transport probe: DispatchStaticCall a_script.a_fn(Var[]) with
-		// a_event's payload (no registration needed). Proves the Var[] marshalling without
-		// a scripted form. Returns false if the VM is unavailable.
+		// DEBUG/no-instance transport probe: DispatchStaticCall a_script.a_fn(SceneEvent)
+		// with a_event's payload (no registration needed). Proves the struct marshalling
+		// without a scripted form. Returns false if the VM is unavailable.
 		bool DispatchStatic(std::string_view a_script, std::string_view a_fn, const SceneEvent& a_event);
 
 		// Drop every registration (load teardown).

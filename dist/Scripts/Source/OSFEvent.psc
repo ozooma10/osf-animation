@@ -23,7 +23,7 @@ Struct SceneEvent
     string actionType   ; EVENT_ACTION / EVENT_ACTION_FAILED type
     Actor actorRef      ; participant (may be None)
     string role         ; role name
-    int loopIndex
+    int loopIndex       ; reserved in v0.1; currently -1
     float time          ; clip-local fraction, or -1.0 for a named anchor
     string anchor       ; "", "enter", "exit", "end"
     int result          ; OSF.RESULT_*()
