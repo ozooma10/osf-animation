@@ -21,7 +21,7 @@ target("OSF Animation")
     add_rules("commonlibsf.plugin", {
         name = "OSF Animation",
         author = "ozooma10",
-        description = "OSF Animation — native animation playback core for Starfield",
+        description = "OSF Animation - native animations and scenes for Starfield",
         email = "98544147+ozooma10@users.noreply.github.com"
     })
 
@@ -49,13 +49,10 @@ target("OSF Animation")
             if os.isdir("dist/OSF/Sounds") then
                 os.cp("dist/OSF/Sounds", osf .. "/")  -- sample sound cues, if any are present
             end
-            -- No soundbanks ship: loose audio plays through a SHIPPED event's external-source
-            -- slot (WwiseBackend), not a mod .bnk — the engine resolves banks by BSResource
-            -- registry membership, so a custom LoadBank fails (OSF RE, 1.16.244).
         end
     end)
 
--- Standalone GLTF import tester you can run without the game (xmake build osf-import-test).
+-- Standalone GLTF import tester (xmake build osf-import-test).
 target("osf-import-test")
     set_kind("binary")
     set_default(false)
@@ -63,22 +60,21 @@ target("osf-import-test")
     add_files("src/Serialization/GLTFImport.cpp", "test/ImportTest.cpp")
     add_includedirs("src")
 
--- Offline unit tests for the engine-independent logic (registries, matchmaker,
--- util, scene math). Builds WITHOUT CommonLibSF/the game by force-including the
--- RE/REX stub pch (test/stubs/test_pch.h). Run with: xmake build osf-tests &&
--- xmake run osf-tests.  See test/README.md.
+-- Offline unit tests for the engine-independent logic (registries, matchmaker, util, scene math). 
+-- Builds WITHOUT CommonLibSF/game by force-including the RE/REX stub pch (test/stubs/test_pch.h). 
+-- Run with: xmake build osf-tests && xmake run osf-tests.  See test/README.md.
 target("osf-tests")
     set_kind("binary")
     set_default(false)
     set_languages("c++23")
-    set_warnings("less")  -- the stubs trip allextra; the real target keeps allextra
+    set_warnings("less")
     add_packages("ozz-animation", "nlohmann_json")
 
-    -- The real, engine-independent logic under test...
+    -- "Real" files under test
     add_files("src/Registry/PackRegistry.cpp")
     add_files("src/Registry/SceneRegistry.cpp")
     add_files("src/Matchmaking/Matchmaker.cpp")
-    -- ...plus the test cases and runner.
+    -- Test-only files
     add_files("test/unit/*.cpp")
 
     add_includedirs("src", "test")
