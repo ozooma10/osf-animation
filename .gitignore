@@ -11,7 +11,6 @@
 build/
 vs*/
 __pycache__/
-tools/saf_toolkit/
 
 # files
 *.zip
