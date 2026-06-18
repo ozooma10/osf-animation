@@ -11,18 +11,17 @@ adult content and orchestration live in the separate **OSF Seduce** content mod.
 
 ## Documentation
 
-- **Pack authors:** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) — ship
-  animations with JSON + GLB, no C++; full schema in
-  [docs/PACK_SCHEMA.md](docs/PACK_SCHEMA.md).
 - **Quest/consumer-mod authors:** [docs/API.md](docs/API.md) — Papyrus integration
   guide and the API stability policy; per-native reference in
   [dist/Scripts/Source/OSF.psc](dist/Scripts/Source/OSF.psc).
 
+- **Pack authors:** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) — ship
+  animations with JSON + GLB, no C++; full schema in
+  [docs/PACK_SCHEMA.md](docs/PACK_SCHEMA.md).
+  
+
 ## Requirements
 
-### Runtime (to play with the mod)
-
-- **Starfield 1.16.244.0** — last verified build.
 - **SFSE** matching that game version.
 - **Address Library for SFSE Plugins**
 
