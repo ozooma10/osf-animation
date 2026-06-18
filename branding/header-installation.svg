@@ -1,0 +1,16 @@
+<svg viewBox="0 0 1600 200" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Bahnschrift, 'DIN Next', 'Oswald', 'Segoe UI Semibold', 'Segoe UI', sans-serif">
+<title>OSF section header - Installation</title>
+<defs>
+  <linearGradient id="anim" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#e6904a"/><stop offset="0.55" stop-color="#cf8050"/><stop offset="1" stop-color="#c2622f"/>
+  </linearGradient>
+  <path id="wave" d="M -30 0 H 1630"/>
+</defs>
+<text x="58" y="118" fill="url(#anim)" font-size="80" font-weight="700" letter-spacing="3">INSTALLATION</text>
+<g fill="none" stroke-linecap="butt">
+  <use href="#wave" transform="translate(0,156)" stroke="#c8ced5" stroke-opacity="0.55" stroke-width="3"/>
+  <use href="#wave" transform="translate(0,166)" stroke="#e6904a" stroke-width="13"/>
+  <use href="#wave" transform="translate(0,181)" stroke="#c2622f" stroke-width="11"/>
+  <use href="#wave" transform="translate(0,193)" stroke="#828a93" stroke-opacity="0.7" stroke-width="5"/>
+</g>
+</svg>

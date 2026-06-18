@@ -1,0 +1,17 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>OSF armature emblem</title>
+<desc>The OSF mark alone: an amber articulated armature figure mid-stride with brushed-steel joints, no ring, transparent background.</desc>
+<!-- Square icon (transparent). Armature only, centered + scaled to fill. -->
+<g transform="translate(250.4,253.3) scale(3.6)">
+  <g fill="none" stroke="#d2722f" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -6.2 -39.5 L 6.2 1.55"/>
+    <path d="M 32.6 -35.7 L 20.2 -21.7 L 0 -31 L -15 -16 L -29.5 -12"/>
+    <path d="M 17 48 L 23.3 20.2 L 6.2 1.55 L -10.9 18 L -26.4 30"/>
+    <circle cx="-6.2" cy="-46.5" r="7.1"/>
+  </g>
+  <g fill="#f0ece2">
+    <circle cx="0" cy="-31" r="2.9"/><circle cx="20.2" cy="-21.7" r="2.6"/><circle cx="-15" cy="-16" r="2.6"/>
+    <circle cx="6.2" cy="1.55" r="2.9"/><circle cx="23.3" cy="20.2" r="2.6"/><circle cx="-10.9" cy="18" r="2.6"/>
+  </g>
+</g>
+</svg>
