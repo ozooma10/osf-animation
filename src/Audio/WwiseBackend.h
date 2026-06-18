@@ -11,17 +11,20 @@
 //      "event:0x<akEventID>". Posts the event with NO external source (cExternals 0). The
 //      event must already live in a loaded soundbank. This is the unchanged "event:" path.
 //
-//   2. EXTERNAL SOURCE (loose modder files) — any event that carries an "External_Source"
+//   2. EXTERNAL SOURCE (.wem modder files) — any event that carries an "External_Source"
 //      placeholder slot lets PostEvent substitute caller-supplied media via the trailing
-//      (cExternals, AkExternalSourceInfo*) args. This is the GAME'S OWN voice path: it
-//      streams loose Data\Sound\Voice\...\<id>.wem files exactly this way (RE-proven on
-//      1.16.244, see OSF RE Investigations/Responses/2026-06-17-wwise-external-loose-audio.md).
-//      We post loose pack files through the external-source slot of a SHIPPED event that is
-//      already resident in a loaded bank ("Dialogue_6_Combat", AkUniqueID 0x5DE4F1F3) — so
-//      loose .wav/.wem/.xwm play engine-mixed with NO soundbank authoring and NO LoadBank.
-//      (A custom mod .bnk does NOT work: the engine resolves banks by BSResource registry
-//      membership, not loose-file presence, so LoadBank on a modder bank returns AK_Fail and
-//      the file is never opened — OSF RE, 1.16.244. The shipped-event slot is the way in.)
+//      (cExternals, AkExternalSourceInfo*) args. We post through the slot of a SHIPPED event
+//      already resident in a loaded bank ("Dialogue_6_Combat", AkUniqueID 0x5DE4F1F3) — so a
+//      loose .wem plays engine-mixed with NO soundbank authoring and NO LoadBank. The media is
+//      provided via pInMemory (BYTES), NOT szFile (a path): the engine's audio file resolver is
+//      BSResource-registry-gated and never opens a loose file, so a szFile post is accepted
+//      (nonzero playingID) but SILENT — proven 1.16.244 (OSF RE .../2026-06-17-wwise-plugin-
+//      external-post-silent.md; mechanism in module engine.resource_loading). The .wem bytes live
+//      in a process-lifetime cache INSIDE this backend, so CALLERS NEVER MANAGE MEMORY — just pass
+//      a path. The media MUST be a Wwise-encoded .wem (Vorbis OR PCM, read from its fmt tag); a
+//      vanilla .wav/.mp3 is NOT engine-mixable and is routed to the miniaudio device by
+//      SoundService instead (see IsWwiseExternalSource). (A custom mod .bnk is likewise dead:
+//      LoadBank is registry-gated, returns AK_Fail.)
 //
 // Positioning: v1 posts on the player's Wwise game object (the engine special-case ID 2),
 // i.e. at the listener. SetPosition is bound, but a positioned post needs an OSF-owned game
@@ -38,9 +41,10 @@
 // bytes match on 1.16.242 and 1.16.244); on a mismatch the whole Wwise path self-disables.
 //
 // Threading: PostEvent only enqueues into AK's command queue and is safe to call from any
-// thread, so firing cues from the animation job threads needs no marshaling. The engine
-// deep-copies the AkExternalSourceInfo (and its file-path string) into the queued command,
-// so a caller-local path string is safe.
+// thread, so firing cues from the animation job threads needs no marshaling. AK copies the
+// AkExternalSourceInfo descriptor into the queued command, but does NOT copy the pInMemory
+// bytes — it references them across the whole playback. The backend's media cache owns those
+// bytes for the process lifetime, so they always outlive the voice (callers manage nothing).
 
 namespace OSF::Audio::Wwise
 {
@@ -64,24 +68,26 @@ namespace OSF::Audio::Wwise
 	// not in any loaded bank). Safe from any thread; no-op when !Available().
 	std::uint32_t PostEvent(std::uint32_t a_eventID);
 
-	// --- external-source (loose-file) path ---
+	// --- external-source (.wem) path ---
 
-	// Maps a file extension to the external-source codec we post it with. nullopt = a format
-	// the engine's external source can't stream directly (needs offline conversion or a PCM
-	// decode first). .wav->kPCM, .wem->kVorbis, .xwm->kXWMA.
-	std::optional<RE::BGSAudio::AkCodecID> CodecForExtension(std::string_view a_path);
+	// True only for a Wwise-encoded .wem — the one format the engine-mixed Wwise external-source
+	// path accepts (AK rejects a vanilla .wav: accepted but SILENT, proven 1.16.244). Returns false
+	// for .wav/.mp3/etc, which SoundService::Play routes to the miniaudio device (NOT engine-mixed);
+	// convert audio to .wem (e.g. WwiseConsole) to get it engine-mixed.
+	bool IsWwiseExternalSource(std::string_view a_path);
 
-	// Posts a loose file as an external source through a shipped event's "External_Source" slot,
-	// on the player's game object (v1, at-listener). No bank load is needed — the event is
-	// already resident. a_path is the game's Data-RELATIVE convention ('Data\...', wide), NOT
-	// absolute — an absolute path is accepted but never opened (silent), RE-proven on 1.16.244.
-	// Returns the AkPlayingID (0 = rejected / !Available()). Safe from any thread.
-	std::uint32_t PostExternalFile(const std::wstring& a_path, RE::BGSAudio::AkCodecID a_codec);
+	// Plays a .wem as an external source through a shipped event's "External_Source" slot, on the
+	// player's game object (at-listener). No bank load is needed — the event is already resident.
+	// a_path is opened through the process file API (game-root-relative 'Data\...', so MO2/USVFS
+	// loose files resolve), loaded ONCE into a process-lifetime media cache, and posted via
+	// pInMemory; the post codec is read from the .wem's fmt tag (Vorbis or PCM). The caller manages
+	// no memory and may free a_path immediately. Returns the AkPlayingID (0 = rejected / load failed
+	// / !Available()). Safe from any thread. Caller must gate on IsWwiseExternalSource first.
+	std::uint32_t PostExternalFile(const std::wstring& a_path);
 
-	// Milestone-0 self-test: posts a_wav (a PCM .wav, Data-relative path) as an external source
-	// with idCodec=kPCM on the shipped event Dialogue_6_Combat and logs the playingID. Lets the
-	// PCM-direct mechanism be confirmed at boot before any scene runs. Nonzero playingID = accepted;
-	// AUDIBLE must still be confirmed by ear (a queued event resolves the file async, and a dialogue
-	// event may be quiet at the main menu). Logs and returns when !Available().
-	void RunSelfTest(const std::wstring& a_wav);
+	// Self-test: posts a_wem (a Wwise .wem, Data-relative path) as an external source on the shipped
+	// event Dialogue_6_Combat and logs the playingID. Lets the external-source path be confirmed at
+	// boot before any scene runs. Nonzero playingID = accepted; AUDIBLE must still be confirmed by
+	// ear (a dialogue event may be quiet at the main menu). Logs and returns when !Available().
+	void RunSelfTest(const std::wstring& a_wem);
 }

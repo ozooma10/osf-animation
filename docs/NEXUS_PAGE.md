@@ -10,34 +10,75 @@ Supporting fields (summary / tags / requirements) at the bottom.
 
 ```bbcode
 [center][size=6][b]OSF Animation[/b][/size][/center]
-[center]The native animation playback core for Starfield.[/center]
+[center]A native animation & scene framework for Starfield.[/center]
 
 [line]
 
 [size=4][b]Overview[/b][/size]
 
-OSF Animation is an SFSE plugin that plays skeletal animations and drives synchronized, multi-actor scenes entirely in native code — no ESP, no Creation Kit, no Papyrus animation hacks. It is the [b]playback core[/b] of the OSF framework family, a clean GPL replacement for the NAF/SAF playback layer.
+OSF Animation is an SFSE plugin and a [b]complete framework[/b] for animation-driven scenes in Starfield — running entirely in native code, with no ESP, no Creation Kit, and no Papyrus animation hacks. It is the engine of the OSF framework family.
 
-It is deliberately [b]content-neutral[/b]: it provides the mechanisms — play clips, frame-lock actors on a shared clock, anchor and pin them, run scene graphs, load packs, and the neutral policy mechanisms (player control/camera lock, fade, equipment, scheduled voice) — and nothing about what the animation is [i]for[/i]. Specific adult content and orchestration are not part of this mod; they ship in the separate OSF Seduce content mod. That makes OSF Animation a clean foundation for machinima, dance, and NPC-vignette work without any adult-content baggage.
+It is two things at once. Underneath is a fast, RE-verified [b]playback core[/b] — it plays skeletal clips and frame-locks any number of actors onto a single shared clock. On top of that is a full [b]scene runtime[/b]: scenes are authored as JSON [b]node graphs[/b] with timed track lanes that fire cues, actions, sound, and camera moves as a clip plays — a real sequencing engine, not just a "press play" call. You drive all of it from a clean two-layer [b]OSF.*[/b] Papyrus API.
 
-It is a framework, not an animation pack: it ships a couple of small SFW demo scenes to prove it works, and nothing else. Content lives in separate packs. A pack is a folder of GLB animations plus a JSON descriptor; a quest or scene mod drives playback through the [b]OSF.*[/b] Papyrus API.
+It is deliberately [b]content-neutral[/b]. It ships the [i]mechanisms[/i] — play, sync, anchor, scene graphs, pack loading, plus neutral policy actions (player/camera lock, fade, equipment hide/restore, weapon sheathe, scheduled voice) — and nothing about what the animation is [i]for[/i]. Specific adult content and choreography are not part of this mod; they ship in the separate OSF Seduce content mod. That makes OSF Animation a clean foundation for machinima, dance, cutscenes, and NPC vignettes without any adult-content baggage.
+
+It is a framework, not an animation pack: it ships a couple of small SFW demo scenes to prove it works, and nothing else. Content lives in separate packs — a folder of GLB animations plus a JSON descriptor — and a quest or scene mod drives it through the API.
+
+[b]Coming from SAF?[/b] OSF includes a drop-in compatibility shim, so existing SAF playback, sync, and scene content runs on OSF unchanged. But OSF is not just a replacement — it's a new, more capable framework to build on. See [i]Compatibility[/i] below.
 
 [line]
 
 [size=4][b]Features[/b][/size]
 
+[size=3][b]Playback core[/b][/size]
 [list]
 [*]Native GLTF/GLB playback of NAF-format clips (bones only), including gzip-compressed GLBs, straight onto Starfield's skeleton.
-[*]Solo and synchronized scenes, 1 to N actors, played in lockstep on one shared clock around a world anchor.
-[*]Playback primitives below the scene layer: play a single clip in place, frame-lock several already-playing animations onto one clock, pin a pose to a world spot with selectable root-motion handling, scale or freeze speed, run a multi-phase sequence.
-[*]Staged scenes that advance on a timer or after a set number of loops, or hold for manual control.
+[*]Solo and synchronized scenes, 1 to N actors, played in lockstep on one shared clock.
+[*]Low-level primitives below the scene layer: play a single clip in place, frame-lock several already-playing animations onto one clock, pin a pose to a world spot with selectable root-motion handling, scale or freeze speed, run a multi-phase sequence.
 [*]Cross-fade blending on every seam — start, stage change, stop — instead of snapping.
-[*]A JSON/GLB pack registry: tags, gender slots, multi-stage timelines, per-stage alignment offsets, with cross-pack animation-id collision detection.
-[*]Content-neutral by design — the engine provides the mechanisms (control/camera lock, fade, equipment, voice), named neutrally; specific adult content and orchestration live in the separate OSF Seduce content mod.
-[*]Standalone player-control / camera locks available for scenes the player is part of (used by the SAF shim; never auto-applied).
-[*]Save-safe teardown on save-load, and automatic re-binding of the Papyrus natives onto the rebuilt VM.
-[*]Drop-in SAF compatibility shim — existing SAF mods' playback, sync, and scene calls run on OSF unchanged (a few advanced SAF-only entry points have no core equivalent and are inert).
 [/list]
+
+[size=3][b]Scene framework[/b][/size]
+[list]
+[*][b]Scenes as node graphs[/b] — author a scene as a graph of nodes (each an animation) with edges for navigation; advance, branch, or hold under script control.
+[*][b]Timed track lanes[/b] — every node carries four synchronized lanes that fire on the clip's own clock: [i]cue[/i] (lifecycle + numeric + trigger-edge events), [i]action[/i], [i]sound[/i], and [i]camera[/i]. This is a sequencer, not a one-shot play call.
+[*][b]Built-in policy actions[/b] — author [font=Courier New]osf.*[/font] actions directly in scene tracks: control lock/release, fade out/in, equipment hide/restore, weapon sheathe/restore, scheduled voice. A generalized [b]undo ledger[/b] reverses every reversible action automatically on any scene end — no cleanup choreography to author, and nothing left stuck if a scene is interrupted.
+[*][b]World anchoring[/b] — start a scene anchored to any ObjectReference (furniture, bed, marker) with per-actor placement offsets; staged scenes auto-advance on a timer or loop count, or hold for manual control.
+[*][b]Tag matchmaking[/b] — ask for a scene by tags + role filters (gender / keyword / race) and let OSF pick a fit across every installed scene def and pack, by priority tier and weighted random.
+[*][b]Scene-event callbacks[/b] — register a Papyrus receiver and get async struct-payload events as scenes start, advance, hit cues, and end. Hook gameplay onto the timeline without polling.
+[*][b]Roles, exclusivity, and load-safe handles[/b] — generational int handles that die cleanly across save-load, role binding, and per-actor scene queries.
+[/list]
+
+[size=3][b]Authoring & content[/b][/size]
+[list]
+[*]A JSON/GLB pack registry: tags, gender slots, multi-stage timelines, per-stage alignment offsets, with cross-pack animation-id collision detection.
+[*]Per-user settings precedence (an action silently skips when its mechanism is disabled in [font=Courier New]Data\OSF\settings.json[/font]) and per-action field validation, with loud load-time rejection of unknown actions so authors are never surprised.
+[*]Content-neutral by design — the engine names the mechanism, never the content; specific choreography and adult content live in the separate OSF Seduce content mod.
+[/list]
+
+[size=3][b]Compatibility & safety[/b][/size]
+[list]
+[*][b]Drop-in SAF compatibility shim[/b] — existing SAF mods' playback, sync, and scene calls run on OSF unchanged (a few advanced SAF-only entry points have no core equivalent and are inert, logged as SHIM-GAP).
+[*]Standalone player-control / camera locks for scenes the player is part of (used by the shim; never auto-applied).
+[*]Save-safe teardown on save-load, automatic re-binding of the Papyrus natives onto the rebuilt VM, version-gated engine bindings, and a co-install warning against NAFSF/SAF.
+[/list]
+
+[line]
+
+[size=4][b]Roadmap — coming soon[/b][/size]
+
+OSF ships as a [b]0.x beta[/b]: the Tier-0 playback primitives are stable, and the scene API is frozen-candidate but flagged "beta, may refine" until 1.0. The following are designed-in and additive (no API breakage) — landing in later updates:
+
+[list]
+[*][b]Free-fly / orbit scene cameras[/b] — scripted cinematic camera states beyond the current hold/lock, for machinima and cutscene framing.
+[*][b]Positioned 3D audio[/b] — Wwise sound posted at a scene's world position, not just flat playback.
+[*][b]Pool / set → clip resolution[/b] — richer pack metadata so a scene can request a [i]kind[/i] of animation and let OSF resolve the specific clip.
+[*][b]Seamless live retargeting[/b] — swap an actor or transition scenes without a visible reset.
+[*][b]Per-node role→slot remap[/b] and finer equipment control (slot-filtered hide, per-role restore).
+[*][b]A Papyrus scene builder[/b] — assemble scenes at runtime from script, not just from authored JSON.
+[/list]
+
+[i]Stability promise:[/i] Tier-0 natives are never removed or re-signatured within a major version. The one allowed pre-1.0 break (scene-start calls returning an int handle) has already landed.
 
 [line]
 
@@ -68,7 +109,7 @@ It is a framework, not an animation pack: it ships a couple of small SFW demo sc
 
 [b]Pack authors:[/b] ship JSON + GLB, no C++ and no plugin records. The schema is SLAL-shaped — actors with gender slots, multi-stage timelines, timers, loop counts, and per-stage alignment offsets. See the getting-started guide and schema reference in the docs.
 
-[b]Quest / scene-mod authors:[/b] drive OSF from a two-layer [b]OSF.*[/b] API. Use primitives (play a clip, frame-lock several, anchor, set speed, run a sequence) for raw bone playback, or one-call mechanical scenes started by id, tags, or files. Gate on a readiness handshake to keep OSF an optional dependency and query state. SAF-dependent mods can use the shim. Tier-0 natives are never removed or re-signatured within a major version (the scene API is beta pre-1.0). If your mod needs scene policy — undress, voice, camera/control lock, fades — author it as action/cue tracks in scene files (the built-in scene runtime); specific adult content ships in the OSF Seduce content mod.
+[b]Quest / scene-mod authors:[/b] drive OSF from a two-layer [b]OSF.*[/b] API. Drop down to primitives (play a clip, frame-lock several, anchor, set speed, run a sequence) for raw bone playback, or work at the scene layer — start a scene by id, by world anchor, by roles, by tags (matchmade), or from ad-hoc files; then advance/navigate the graph, query state, and register a callback to hook gameplay onto scene events. Gate on a readiness handshake to keep OSF an optional dependency. SAF-dependent mods can use the shim. If your mod needs scene policy — equipment, voice, camera/control lock, fades — author it as [font=Courier New]osf.*[/font] action/cue tracks in the scene file and let the runtime (and its undo ledger) run it; specific adult content ships in the OSF Seduce content mod.
 
 [line]
 
@@ -103,7 +144,7 @@ GPL-3.0. Source is public; build instructions are in the repository.
 
 **Short summary (Nexus "Summary" field, ~one sentence):**
 
-> The native animation playback core for Starfield — synchronized multi-actor scenes, staged playback, anchoring, and a JSON/GLB pack format, driven from a small two-layer Papyrus API with a drop-in SAF compatibility shim. Content-neutral: a framework for mod authors, not an animation pack.
+> A native animation & scene framework for Starfield — synchronized multi-actor playback plus a scene-graph runtime with timed cue/action/sound/camera tracks, world anchoring, tag matchmaking, and scene-event callbacks, driven from a two-layer Papyrus API. Includes a drop-in SAF compatibility shim. Content-neutral: a framework for mod authors, not an animation pack.
 
 **Suggested category:** Modders Resources / Utilities (it's a dependency, not end-user content).
 

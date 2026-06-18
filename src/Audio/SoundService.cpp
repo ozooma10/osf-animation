@@ -89,27 +89,23 @@ namespace OSF::Audio
 			return;
 		}
 
-		// Plain file path: the intended path is a Wwise EXTERNAL SOURCE through a shipped event's
-		// "External_Source" slot — engine-mixed, at the listener (v1). a_worldPos / a_volume don't
-		// apply yet (the mix is engine-owned; positioned posting is the deferred 3D follow-up).
-		if (Wwise::Available()) {
-			if (const auto codec = Wwise::CodecForExtension(a_dataRelPath)) {
-				// szFile must be a Data-RELATIVE path, not absolute. The game's own external-source
-				// posts hand AK 'Data\Sound\Voice\...\<id>.wem' (resolved through the resource IO,
-				// USVFS-aware); an absolute C:\ path is accepted but never opened -> silent
-				// (RE-proven on 1.16.244). make_preferred() = backslashes, matching the engine.
-				const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
-				if (const auto playingID = Wwise::PostExternalFile(rel, *codec)) {
-					REX::INFO("SoundService: posted external '{}' (codec {}) -> playingID {} (engine-mixed)",
-						a_dataRelPath, static_cast<int>(*codec), playingID);
-					return;
-				}
-				REX::WARN("SoundService: Wwise external post rejected '{}' — falling back to the legacy device",
-					a_dataRelPath);
-			} else {
-				REX::DEBUG("SoundService: '{}' has no direct external-source codec — legacy device "
-					"(decode-to-PCM path is a deferred follow-up)", a_dataRelPath);
+		// Plain file path. A Wwise-encoded .wem rides the engine-mixed Wwise EXTERNAL SOURCE path
+		// (through a shipped event's "External_Source" slot, at the listener; a_worldPos / a_volume
+		// don't apply — the mix is engine-owned). A raw .wav/.mp3 is NOT engine-mixable (AK external
+		// sources reject a vanilla WAV — proven 1.16.244), so it falls through to the miniaudio
+		// device below; convert audio to .wem to get it engine-mixed.
+		if (Wwise::Available() && Wwise::IsWwiseExternalSource(a_dataRelPath)) {
+			// The backend opens this path itself (game-root-relative, USVFS-aware), caches the bytes,
+			// and posts via pInMemory — a loose szFile is NEVER opened by the engine's registry-gated
+			// audio resolver (RE-proven 1.16.244). make_preferred() = backslashes; 'Data\' is game-root.
+			const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
+			if (const auto playingID = Wwise::PostExternalFile(rel)) {
+				REX::INFO("SoundService: posted external '{}' -> playingID {} (engine-mixed)",
+					a_dataRelPath, playingID);
+				return;
 			}
+			REX::WARN("SoundService: Wwise .wem post rejected '{}' — falling back to the miniaudio device",
+				a_dataRelPath);
 		}
 
 		// ---- legacy miniaudio fallback (bypasses the game mix; removed once the external-source
@@ -222,8 +218,8 @@ namespace OSF::Audio
 
 	void SoundService::RunWwiseSelfTest()
 	{
-		// Data-relative path (the engine's external-source convention — see Play()).
-		const auto rel = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testbeep.wav").make_preferred().wstring();
+		// Data-relative path to a Wwise .wem (the engine-mixed external-source path — see Play()).
+		const auto rel = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testvoice.wem").make_preferred().wstring();
 		Wwise::RunSelfTest(rel);
 	}
 }
