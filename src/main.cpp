@@ -12,26 +12,14 @@
 
 namespace
 {
-	// Last game version whose offsets I checked by hand. Should keep working unless
-	// AddressLib ships a breaking update.
+	// Last game version whose offsets I checked by hand. Should keep working unless AddressLib ships a breaking update.
 	constexpr REL::Version kVerifiedGameVersion{ 1, 16, 244, 0 };
-
-	// Quick line in the log saying whether the plugin came up working.
-	void LogFeatureReport()
-	{
-		const bool hooks = OSF::Animation::GraphManager::GetSingleton().HooksInstalled();
-		REX::INFO("Feature report: playback hooks {} "
-			"('unavailable' = the AnimationManager/BGSModelNode vtable verification refused this game build; "
-			"see the matching error above)",
-			hooks ? "INSTALLED" : "UNAVAILABLE");
-	}
 
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
 	{
 		switch (a_msg->type) {
 		case SFSE::MessagingInterface::kPostLoad:
-			// Every SFSE plugin's load handler has run by now, so an incompatible
-			// framework's DLL (if any) is in-process for the module probe.
+			// Every SFSE plugin's load handler has run by now, so an incompatible framework's DLL (if any) is in-process for the module probe.
 			OSF::UI::CompatWarning::ProbeIncompatibilities();
 			break;
 		case SFSE::MessagingInterface::kPostDataLoad:
@@ -46,7 +34,8 @@ namespace
 				REX::ERROR("GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
-			LogFeatureReport();
+
+			REX::INFO("FEATURE: Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
 			break;
 		default:
 			break;
@@ -70,9 +59,8 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 		SFSE::GetPluginName(), SFSE::GetPluginVersion().string(),
 		kVerifiedGameVersion.string(), runtime.string());
 	if (runtime != kVerifiedGameVersion) {
-		REX::WARN("Unsupported game version: OSF Animation supports Starfield {} only, but this is {}. "
-			"Version-locked engine bindings self-disable on a mismatch, so playback may be partly or "
-			"fully unavailable — update the game to {} (or wait for a plugin update).",
+		REX::WARN("Unsupported game version: OSF Animation was last tested against Starfield version {} only, but this is {}. "
+			"Not all features may be available",
 			kVerifiedGameVersion.string(), runtime.string(), kVerifiedGameVersion.string());
 	}
 
