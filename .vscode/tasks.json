@@ -1,12 +1,7 @@
 {
-  // Papyrus build tasks for OSF Animation.
-  // Run via "Tasks: Run Task" (Ctrl+Shift+P) or "Run Build Task" (Ctrl+Shift+B).
   "version": "2.0.0",
   "tasks": [
     {
-      // Batch-compiles every .psc in dist/Scripts/Source to dist/Scripts/*.pex
-      // (the repo's checked-in artifacts). Does NOT deploy to the MO2 mod — use
-      // "Papyrus: Compile + Deploy" for that.
       "label": "Papyrus: Compile",
       "type": "process",
       "command": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Starfield\\Tools\\Papyrus Compiler\\PapyrusCompiler.exe",

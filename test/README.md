@@ -1,5 +1,7 @@
 # OSF Animation — offline test targets
 
+All this test stuff is AI slop so :shrug:
+
 Two `xmake` binary targets exercise the engine-independent code **without the game
 or CommonLibSF**, so they run in CI / on any dev box. In-game behavior is covered
 separately by the manual E2E suite in [../TESTSUITE.md](../TESTSUITE.md).
