@@ -2,7 +2,7 @@
 <fomod>
   <Name>OSF Animation</Name>
   <Author>ozooma10</Author>
-  <Version MachineVersion="0.9.0">0.9.0-beta</Version>
+  <Version MachineVersion="0.1.0">0.1.0-beta</Version>
   <Description>The engine of the OSF scene framework for Starfield (a SAF/NAFSF-lineage replacement): native GLTF/GLB animation playback, synced multi-actor scenes, shared-clock frame-locking, anchoring, a scene-graph runtime (nodes, cues, actions, callbacks), and a SAF compatibility shim. Content-neutral — the engine provides the mechanisms; specific adult content lives in the separate OSF Seduce content mod.</Description>
   <Groups>
     <element>Animation</element>
