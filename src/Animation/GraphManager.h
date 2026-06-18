@@ -99,9 +99,14 @@ namespace OSF::Animation
 		bool SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode);
 		bool ClearAnchor(RE::Actor* a_actor);
 
-		// Put N already-playing SOLO graphs on one shared clock so they stay
-		// frame-locked. Scene participants are skipped; needs >= 2 playable graphs.
-		bool Sync(const std::vector<RE::Actor*>& a_actors);
+		// Bring N already-playing SOLO graphs together. a_anchor = true (the default)
+		// promotes them into one anchored, clock-shared scene at actor[0]'s transform
+		// — same-spot overlap, so the paired clips' baked root offsets arrange the
+		// actors about one shared origin+heading (the SAF/NAF convention). a_anchor =
+		// false is the opt-out: legacy clock-merge only — frame-lock on a shared clock
+		// while each actor stays at its own world position. Scene participants are
+		// skipped; needs >= 2 playable graphs.
+		bool Sync(const std::vector<RE::Actor*>& a_actors, bool a_anchor = true);
 
 		// Solo multi-phase sequence (primitive: no anchor/policy, event-free). Phase
 		// i plays a_files[i] looping a_loops[i] times then advances; a_blends[i] =

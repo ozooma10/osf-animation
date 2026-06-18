@@ -642,12 +642,78 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool GraphManager::Sync(const std::vector<RE::Actor*>& a_actors)
+	bool GraphManager::Sync(const std::vector<RE::Actor*>& a_actors, bool a_anchor)
 	{
 		if (a_actors.size() < 2) {
 			REX::WARN("Sync: need >= 2 actors (got {})", a_actors.size());
 			return false;
 		}
+
+		// Auto-anchor (the default): promote the independently-played solo graphs into
+		// ONE anchored, clock-shared scene at actor[0]'s current transform. Placements
+		// are left empty (same-spot overlap), so each paired clip's baked root offset
+		// arranges the actors about one shared origin+heading — the SAF/NAF paired-clip
+		// convention. Without this, Play+Sync leaves every actor animating about its own
+		// (far-apart) world position, which is the "actors stand apart" symptom.
+		if (a_anchor) {
+			std::vector<RE::Actor*> sceneActors;
+			std::vector<std::string> sceneFiles;
+			float groupSpeed = 1.0f;
+			bool gotSpeed = false;
+			{
+				// Collect the qualifying solo graphs' clips in actor order WITHOUT
+				// mutating them, then drop stateLock before PlaySceneStaged (which takes
+				// it unique). Skip actors with no graph, no clip, or already in a scene.
+				std::shared_lock l{ stateLock };
+				for (auto* actor : a_actors) {
+					if (!actor) {
+						continue;
+					}
+					auto iter = graphs.find(actor);
+					if (iter == graphs.end()) {
+						REX::WARN("Sync: actor {:X} has no live graph — skipping", actor->formID);
+						continue;
+					}
+					std::scoped_lock gl{ iter->second->lock };
+					if (iter->second->scene) {
+						REX::WARN("Sync: actor {:X} is already a scene participant — skipping", actor->formID);
+						continue;
+					}
+					if (iter->second->currentFile.empty()) {
+						REX::WARN("Sync: actor {:X} has no clip to anchor — skipping", actor->formID);
+						continue;
+					}
+					if (!gotSpeed) {  // carry a pre-Sync SetSpeed over to the scene clock
+						groupSpeed = iter->second->speed;
+						gotSpeed = true;
+					}
+					sceneActors.push_back(actor);
+					sceneFiles.push_back(iter->second->currentFile);
+				}
+			}
+			if (sceneActors.size() < 2) {
+				REX::WARN("Sync: fewer than 2 anchorable solo graphs ({}) — nothing synced "
+						  "(pass abAnchor=false for in-place clock sync)", sceneActors.size());
+				return false;
+			}
+			// One ad-hoc anchored stage; empty placements = same-spot overlap at actor[0].
+			ScenePlan plan;
+			plan.anchored = true;
+			plan.speed = groupSpeed;
+			ScenePlan::Stage stage;
+			stage.files = std::move(sceneFiles);
+			plan.stages.push_back(std::move(stage));
+			if (!PlaySceneStaged(sceneActors, plan, 0)) {
+				REX::WARN("Sync: anchored promotion failed; actors left unsynced");
+				return false;
+			}
+			REX::INFO("Sync: {} graphs promoted to one anchored scene (same-spot overlap at actor {:X})",
+				sceneActors.size(), sceneActors.front()->formID);
+			return true;
+		}
+
+		// Opt-out (abAnchor=false): legacy clock-merge only — frame-lock the solo graphs
+		// on one shared clock, leaving each actor at its own world position.
 		std::shared_lock l{ stateLock };
 		// First pass: collect the qualifying solo graphs WITHOUT mutating them, so
 		// a group that can't reach 2 members leaves nothing half-synced (a stray

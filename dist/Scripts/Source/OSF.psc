@@ -25,10 +25,17 @@ bool Function SetAnchor(Actor akActor, float afX, float afY, float afZ, float af
 ; Releases akActor's anchor, the graph returns to "follow". No-op if unanchored.
 bool Function ClearAnchor(Actor akActor) Global Native
 
-; Put N already-playing graphs on one shared clock (frame-lock): Play each actor first, then Sync.
+; Bring N already-playing graphs together: Play each actor first, then Sync.
+; The graphs are anchored into one shared scene at actor[0]'s spot — same-spot overlap, so paired
+; clips arrange themselves about a shared origin + heading (the fix for actors standing apart).
 ; Scene participants skipped; needs >= 2 playable graphs.
 ; Each clip keeps its length (mismatched ones loop independently, shared phase origin).
 bool Function Sync(Actor[] akActors) Global Native
+
+; Opt-out twin of Sync: clock-merge only — frame-lock the graphs on one shared clock while each
+; actor stays at its own world position (no teleport/anchor). Use when the clips already carry the
+; intended world separation and you do NOT want them pulled to a shared anchor.
+bool Function SyncInPlace(Actor[] akActors) Global Native
 
 ; Solo multi-phase sequence (primitive, no anchor/policy; follows the actor).
 ; Parallel arrays of equal non-zero length:
