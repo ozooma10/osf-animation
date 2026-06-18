@@ -22,7 +22,7 @@ deploy folder (which accumulates dev junk like `settings.json` / `zzz_*` probes)
 | Ships | Excluded |
 |---|---|
 | `OSF Animation.dll` | `OSF Animation.pdb` (debug symbols — never ship) |
-| `OSF`/`OSFCompat`/`OSFEvent`/`OSFConst` `.pex` + `.psc` | `OSFTest.pex`/`.psc` (console test harness → Examples only) |
+| `OSF`/`OSFCompat`/`OSFEvent` `.pex` + `.psc` | `OSFTest.pex`/`.psc` (console test harness → Examples only) |
 | `SAF`/`SAFScript` `.pex` + `.psc` (shim) | the test `*.scene.json` + `OSFTestPack.json` (→ Examples only) |
 | | `OSF/Animations/OSF_Test/*.glb` (test clips → Examples only) |
 | | `settings.json`, `zzz_flicker_probe.json`, any dev probe |
@@ -32,9 +32,9 @@ deploy folder (which accumulates dev junk like `settings.json` / `zzz_*` probes)
 > DLL / stale pdb — see the build-mode memory). Ship `releasedbg` unless `release` has been
 > rebuilt+verified. Either way, **omit the `.pdb`**.
 
-> **`OSFConst`:** the constants script (`OSFConst.psc`/`.pex`) is on the API-review punch-list and
-> may not be in `dist/` yet. The packaging script includes it **if present**; once it lands it joins
-> Core. Until then the `OSF.EVENT_X()` functions are the only constant form.
+> **Constants:** there is no `OSFConst` companion script. It was compiler-tested and rejected because
+> Papyrus cannot read properties directly on a type name. The canonical constant form is
+> `OSF.EVENT_X()` / `OSF.RESULT_X()`.
 
 ## Archive layout (FOMOD)
 
@@ -45,8 +45,8 @@ OSF Animation v<ver>.zip
 │   └── ModuleConfig.xml    ← the installer: required Core + optional groups
 ├── Core/                   ← REQUIRED (installed to Data/)
 │   ├── SFSE/Plugins/OSF Animation.dll
-│   ├── Scripts/OSF.pex, OSFCompat.pex, OSFEvent.pex[, OSFConst.pex]
-│   └── Scripts/Source/OSF.psc, OSFCompat.psc, OSFEvent.psc[, OSFConst.psc]
+│   ├── Scripts/OSF.pex, OSFCompat.pex, OSFEvent.pex
+│   └── Scripts/Source/OSF.psc, OSFCompat.psc, OSFEvent.psc
 ├── SAF/                    ← RECOMMENDED group "SAF compatibility shim"
 │   ├── Scripts/SAF.pex, SAFScript.pex
 │   └── Scripts/Source/SAF.psc, SAFScript.psc
@@ -76,8 +76,8 @@ Examples all at once — still valid, just without the opt-out.
 
 ```powershell
 # from the repo root, after a verified build (xmake) :
-packaging\build-archive.ps1 -Version 0.9.0-beta
-# -> packaging\out\OSF Animation v0.9.0-beta.zip
+packaging\build-archive.ps1 -Version 0.1.0-beta
+# -> packaging\out\OSF Animation v0.1.0-beta.zip
 ```
 
 The script (`packaging/build-archive.ps1`) stages `Core/`, `SAF/`, `Examples/` from `build/` + `dist/`
@@ -86,8 +86,8 @@ The script (`packaging/build-archive.ps1`) stages `Core/`, `SAF/`, `Examples/` f
 
 ## Pre-publish checklist
 
-- [ ] **Bump the version** — `xmake.lua` `set_version("…")` currently says `1.0.0`; a beta ships as
-      `0.x` (the scene API is beta pre-1.0). Rebuild so `OSF.GetVersion()` matches the archive name.
+- [ ] **Confirm the version** — `xmake.lua` `set_version("…")` is currently `0.1.0`; rebuild so
+      `OSF.GetVersion()` matches the archive name you publish.
 - [ ] Rebuild + **verify in-game** (the `releasedbg` DLL hash matches the one you tested).
 - [ ] Confirm the archive contains **no `.pdb`**, no `settings.json`/`zzz_*`, no test content in Core.
 - [ ] Install the FOMOD in a clean MO2 profile; verify Core-only, Core+SAF, and Core+SAF+Examples.

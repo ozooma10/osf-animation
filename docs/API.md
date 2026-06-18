@@ -84,8 +84,9 @@ scene logic), the Tier-0 primitives and scenes are all you need.
 
 ## State getters
 
-`GetSceneStage(actor)` (-1 = not in a scene) · `IsPlaying(actor)` (includes fade-outs) ·
-`GetCurrentAnimation(actor)` (source path, or "") · `GetSpeed(actor)` · `GetVersion()`.
+`GetSceneStage(handle)` / `GetSceneStageForActor(actor)` (-1 = non-linear, invalid, or not in a
+scene) · `IsPlaying(actor)` (includes fade-outs) · `GetCurrentAnimation(actor)` (source path, or "")
+· `GetSpeed(actor)` · `GetVersion()`.
 
 **Scene-metadata introspection (read-only, by scene id).** Inspect a `*.scene.json` scene's
 conventions before binding actors: `GetSceneRoles(id)` (role names) · `GetSceneRoleGender(id, role)`

@@ -93,9 +93,9 @@ Verify every inherited ID against expected bytes/slots before patching — never
 ## Re-verification procedure
 
 1. **Confirm the break** — launch, read the log, list which rows above logged a mismatch.
-2. **Update the version baseline** — if the game moved (e.g. .244 → .245), the AddressLib database
-   and a matching versionlib are needed for the new build *first*; OSF ships a self-made versionlib
-   for 1.16.244 (see the launch docs / Address Library dependency note).
+2. **Update the version baseline** — if the game moved (e.g. .244 → .245), install/obtain the
+   matching Address Library version database for the new build *first*. OSF does **not** bundle a
+   `versionlib-*.bin`; the public package depends on the Address Library mod for that data.
 3. **Re-derive moved targets** — for each failed row, use the OSF RE project to find the new
    address/slot and confirm the prologue bytes; update the in-repo constant (rows 1–2) or the CLSF
    `RE/IDs.h` ID (push the fork branch FIRST, then bump the submodule pointer).

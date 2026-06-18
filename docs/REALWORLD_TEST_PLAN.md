@@ -123,8 +123,10 @@ Don't log these as bugs:
 - SAF SHIM-GAPs (absolute positioning, blend-graph vars, selection buffer, phase/sequence-end
   callbacks) are intentionally inert — see SAF_MIGRATION.md.
 - The game **pauses on focus loss**, so cue/timer-driven advancement freezes while alt-tabbed.
-- `osf.equipment.*` / `osf.fade.*` / `osf.voice.*` / sound + camera tracks are **Phase-C-in-progress**;
-  authored-but-unimplemented `osf.*` actions are recognized + logged, not executed.
+- Phase-D mechanisms are deferred/additive: free-fly/orbit camera, pool/set→clip metadata
+  resolution, positioned Wwise posting, and finer equipment slot filtering. Phase-C mechanisms are
+  in v0.1: `osf.equipment.*`, `osf.weapon.*`, `osf.fade.*`, `osf.voice.play`, sound, camera hold,
+  settings precedence, validation, and undo-ledger cleanup.
 - Scene-engine handles are **session-scoped** — dead across save/load by design.
 
 ---

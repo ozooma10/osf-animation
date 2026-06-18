@@ -1,26 +1,29 @@
-# Scene-runtime seam — the Layer A ↔ Layer B contract (formerly the "OSF Intimacy" seam)
+# Scene-runtime seam — the Layer A ↔ Layer B contract
 
 > **No longer a plugin boundary.** The scene engine **merged back into OSF Animation** as an
 > internal module (one DLL, one mod) — see [SCENE_DESIGN.md](SCENE_DESIGN.md) §2.1. This document's
 > *contract* still holds and is still load-bearing: the **two-registry model**, the **role→slot
 > assignment rule**, the **frozen Tier-0 ABI**, and the **additive scene primitives** all carry
 > forward — they now describe an **internal module seam** (Layer A playback core ↔ Layer B scene
-> runtime) instead of a cross-plugin seam. Read "OSF Intimacy plugin" below as "the Layer-B scene
-> runtime subsystem." The invariant that only the playback core touches the engine is unchanged.
+> runtime) instead of a cross-plugin seam. The invariant that only the playback core touches the
+> fragile animation hooks is unchanged.
 
-*Originally forward-looking, settled 2026-06-14. Records the boundary between the playback core
-(OSF Animation) and the scene engine so the seam stays stable while the core ships a frozen 1.0 ABI.*
+*Originally forward-looking, settled 2026-06-14, reconciled after the scene-runtime merge. Records
+the boundary between the playback core and the scene runtime so the internal seam stays stable while
+OSF ships a frozen 1.0 ABI.*
 
-## The split
+## Internal layers
 
-- **OSF Animation (this repo, core)** — the **animation registry** + the **playback
-  mechanism** (play / sync / anchor / staged advance, the two engine hooks). Content-neutral.
-  The ONLY plugin that patches the engine.
+- **Layer A playback core** — the **animation registry** + the **playback mechanism** (play / sync /
+  anchor / staged advance, the two engine hooks). Content-neutral. The only layer that touches the
+  fragile animation playback hooks.
 - **Scene runtime (Layer B, in this repo)** — a **scene registry** + **role assignment** + **scene
-  policy** (undress, scheduled voice, camera/control, fade) + **composition/navigation**.
-  Builds *on* the core: does undress/voice/fade itself via CLSF, uses the core's `OSFCompat`
-  locks for player control/camera. It never hooks the engine — that stays the core's job, so
-  the game-update-fragile surface lives in one place.
+  composition/navigation**. It builds on Layer A through the public playback surface; it never hooks
+  the animation engine directly.
+- **Layer C mechanisms (in this repo)** — content-neutral services for equipment, weapon, fade,
+  sound/voice, camera, and player control. Layer B drives these through data-authored `osf.*`
+  actions and track lanes; the services prologue-gate their game-facing bindings and know nothing
+  about scene graphs.
 
 ## Two registries (the chosen model)
 
@@ -41,15 +44,14 @@ but the recommended home is the scene file.
 
 A core **animation** = one synced multi-actor unit; a **scene** composes/sequences animations.
 The pack schema allows `1..N` stages, so a core entry can be a single node OR a simple linear
-multi-stage scene — OSF Intimacy references single-stage entries as scene-graph nodes and
-sequences them itself.
+multi-stage scene. The scene runtime references animation ids as scene-graph nodes and sequences
+them itself.
 
 ## Role assignment
 
-The core knows **positional slots + gender** only: `StartScene` fills definition slot `i` with
-`actors[i]`; `StartSceneByTags` returns the gender-fit ordering. Richer roles
-(dominant/submissive, giver/receiver, …) are OSF Intimacy's — it tracks roles, maps role → slot,
-and passes the ordered actor array down. The core never knows what a slot *means*.
+The playback core knows **positional slots + gender** only. The scene runtime owns richer role
+metadata, filters, complete role binding, and role → slot mapping, then calls Layer A with the
+ordered actor array. Layer A never knows what a slot *means*.
 
 ## What the core provides today (stable within the 1.0 major ABI)
 
@@ -66,11 +68,11 @@ and passes the ordered actor array down. The core never knows what a slot *means
 | Readiness gate | `IsReady`, `HasFeature`, `GetVersion` |
 | Pack reload | `ReloadPacks` |
 
-## Planned additive primitives (build *with* OSF Intimacy, not before)
+## Planned additive primitives
 
 These are **purely additive** — natives are never removed or re-signatured within a major
-version (API.md), so they slot in without moving the ABI. Don't add them until Intimacy has a
-real use for them (the core stays lean). Names below are illustrative.
+version (API.md), so they slot in without moving the ABI. Add them only when the merged scene
+runtime or a real consumer needs them (the core stays lean). Names below are illustrative.
 
 1. **`DescribeAnimation(id)` → { actorCount, genderSlots, tags, stageCount }** — lets the scene
    layer validate references and assign roles without re-parsing packs. (Today the scene layer
@@ -86,4 +88,5 @@ real use for them (the core stays lean). Names below are illustrative.
 ## ABI promise
 
 Within a major version, natives are never removed or re-signatured and the pack schema versions
-independently (API.md). OSF Intimacy can pin to a core major and the seam won't move under it.
+independently (API.md). Consumers can pin to an OSF major and the Layer A ↔ B seam won't move under
+them.
