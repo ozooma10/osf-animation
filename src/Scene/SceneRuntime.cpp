@@ -774,15 +774,7 @@ namespace OSF::Scene
 		}
 		if (triggered) {
 			REX::INFO("SceneRuntime: scene {:#010x} cue-trigger node '{}' -> {}", handle, oldNode, end ? "$end" : newNode);
-			Fire(handle, Event::kNodeExit, oldNode, "exit");
-			if (end) {
-				StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END
-				Fire(handle, Event::kSceneEnd, oldNode, "");
-				ReleaseSlot(handle);
-			} else {
-				PlayNodeAnim(participants, sceneId, newNode);
-				Fire(handle, Event::kNodeEnter, newNode, "enter");
-			}
+			ApplyTransition(handle, oldNode, newNode, end, sceneId, participants);
 		}
 	}
 
@@ -829,6 +821,20 @@ namespace OSF::Scene
 	{
 		if (!a_participants.empty() && a_participants.front()) {
 			Animation::GraphManager::GetSingleton().StopScene(a_participants.front());
+		}
+	}
+
+	void SceneRuntime::ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
+		bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
+	{
+		Fire(a_handle, Event::kNodeExit, a_oldNode, "exit");
+		if (a_end) {
+			StopGraph(a_participants);  // cleanup after NODE_EXIT, before SCENE_END
+			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");
+			ReleaseSlot(a_handle);  // generation 0 → invalidates the handle
+		} else {
+			PlayNodeAnim(a_participants, a_sceneId, a_newNode);
+			Fire(a_handle, Event::kNodeEnter, a_newNode, "enter");
 		}
 	}
 
@@ -958,9 +964,7 @@ namespace OSF::Scene
 			participants = s->participants;
 		}
 
-		Fire(a_scene, Event::kNodeExit, oldNode, "exit");
-		PlayNodeAnim(participants, sceneId, newNode);
-		Fire(a_scene, Event::kNodeEnter, newNode, "enter");
+		ApplyTransition(a_scene, oldNode, newNode, /*a_end*/ false, sceneId, participants);
 		return true;
 	}
 
@@ -1164,15 +1168,7 @@ namespace OSF::Scene
 			}
 		}
 
-		Fire(a_scene, Event::kNodeExit, oldNode, "exit");
-		if (end) {
-			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END
-			Fire(a_scene, Event::kSceneEnd, oldNode, "");
-			ReleaseSlot(a_scene);
-		} else {
-			PlayNodeAnim(participants, sceneId, newNode);
-			Fire(a_scene, Event::kNodeEnter, newNode, "enter");
-		}
+		ApplyTransition(a_scene, oldNode, newNode, end, sceneId, participants);
 		return true;
 	}
 
@@ -1216,15 +1212,7 @@ namespace OSF::Scene
 			}
 		}
 
-		Fire(a_scene, Event::kNodeExit, oldNode, "exit");
-		if (end) {
-			StopGraph(participants);
-			Fire(a_scene, Event::kSceneEnd, oldNode, "");
-			ReleaseSlot(a_scene);
-		} else {
-			PlayNodeAnim(participants, sceneId, newNode);
-			Fire(a_scene, Event::kNodeEnter, newNode, "enter");
-		}
+		ApplyTransition(a_scene, oldNode, newNode, end, sceneId, participants);
 		return true;
 	}
 
@@ -1300,15 +1288,7 @@ namespace OSF::Scene
 			handle, a_reason == Animation::SceneEndReason::kTimer ? "timer" : "loops",
 			oldNode, end ? "$end" : newNode, tookEdge ? "" : " (terminal, no edge)");
 
-		Fire(handle, Event::kNodeExit, oldNode, "exit");
-		if (end) {
-			StopGraph(participants);  // cleanup after NODE_EXIT, before SCENE_END
-			Fire(handle, Event::kSceneEnd, oldNode, "");
-			ReleaseSlot(handle);
-		} else {
-			PlayNodeAnim(participants, sceneId, newNode);
-			Fire(handle, Event::kNodeEnter, newNode, "enter");
-		}
+		ApplyTransition(handle, oldNode, newNode, end, sceneId, participants);
 		return true;
 	}
 

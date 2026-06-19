@@ -176,7 +176,9 @@ namespace OSF::Animation
 		currentFile = std::move(a_file);
 		localTime = 0.0f;
 		hasPose = false;
-		soloClock.Reset();
+		if(!scene) {
+			syncGroup = std::make_shared<SyncGroup>();	// new clip owns the clock if not in a scene
+		}
 
 		const int numJoints = skeleton->data->num_joints();
 		samplingContext.Resize(numJoints);
@@ -341,51 +343,36 @@ namespace OSF::Animation
 		// AnimationManager seen advances, so a graph updated by two managers —
 		// e.g. the player's 1st/3rd person graphs — runs at 1x regardless of
 		// interleaving; in a scene the shared clock above does the same job).
-		if (!scene) {
-			if (syncGroup) {
-				// Synced group: a shared free-running accumulator owned by the
-				// first reporting manager; the rest read it. Wrapped by THIS
-				// graph's own duration so mismatched clips still loop, and advanced
-				// by the GROUP speed (any member's SetSpeed sets it).
-				std::scoped_lock sgl{ syncGroup->lock };
-				auto& clk = syncGroup->clock;
-				const int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-					std::chrono::steady_clock::now().time_since_epoch()).count();
-				// Re-elect the owner if the current one has gone silent (its graph
-				// stopped or its actor unloaded); without this the dead owner never
-				// advances again and the whole group freezes (solo graphs have no
-				// WatchdogSweep). The next ShouldAdvance below claims the clock.
-				if (clk.owner && a_token != clk.owner && nowMs - syncGroup->lastAdvanceMs > kSyncOwnerStaleMs) {
-					clk.owner = nullptr;
-				}
-				if (clk.ShouldAdvance(a_token)) {
-					clk.time += a_deltaTime * syncGroup->speed.load(std::memory_order_relaxed);
-					syncGroup->lastAdvanceMs = nowMs;
-				}
-				float t = clk.time;
-				if (looped) {
-					t = std::fmod(t, duration);
-					if (t < 0.0f) {
-						t += duration;
-					}
-				} else {
-					t = std::clamp(t, 0.0f, duration);
-				}
-				localTime = t;
-			} else {
-				if (soloClock.ShouldAdvance(a_token)) {
-					soloClock.time += a_deltaTime * speed;
-					if (looped) {
-						soloClock.time = std::fmod(soloClock.time, duration);
-						if (soloClock.time < 0.0f) {
-							soloClock.time += duration;
-						}
-					} else {
-						soloClock.time = std::clamp(soloClock.time, 0.0f, duration);
-					}
-				}
-				localTime = soloClock.time;
+		if (!scene && syncGroup) {
+			// Synced group: a shared free-running accumulator owned by the
+			// first reporting manager; the rest read it. Wrapped by THIS
+			// graph's own duration so mismatched clips still loop, and advanced
+			// by the GROUP speed (any member's SetSpeed sets it).
+			std::scoped_lock sgl{ syncGroup->lock };
+			auto& clk = syncGroup->clock;
+			const int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now().time_since_epoch()).count();
+			// Re-elect the owner if the current one has gone silent (its graph
+			// stopped or its actor unloaded); without this the dead owner never
+			// advances again and the whole group freezes (solo graphs have no
+			// WatchdogSweep). The next ShouldAdvance below claims the clock.
+			if (clk.owner && a_token != clk.owner && nowMs - syncGroup->lastAdvanceMs > kSyncOwnerStaleMs) {
+				clk.owner = nullptr;
 			}
+			if (clk.ShouldAdvance(a_token)) {
+				clk.time += a_deltaTime * syncGroup->speed.load(std::memory_order_relaxed);
+				syncGroup->lastAdvanceMs = nowMs;
+			}
+			float t = clk.time;
+			if (looped) {
+				t = std::fmod(t, duration);
+				if (t < 0.0f) {
+					t += duration;
+				}
+			} else {
+				t = std::clamp(t, 0.0f, duration);
+			}
+			localTime = t;
 		}
 
 		// The ozz sample itself is deferred to StampPose. AnimationManager::Update

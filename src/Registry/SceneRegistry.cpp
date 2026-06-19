@@ -191,6 +191,51 @@ namespace OSF::Registry
 			return kKnown.count(a_typeLower) != 0;
 		}
 
+		// Parse the timing fields shared by every track lane (cue/action/sound/camera): the
+		// `repeat` flag and the `at` position (enter/exit/end anchor or a numeric clip-fraction
+		// in [0,1)). Writes pos/fraction/everyLoop onto a_out, whose `pos` enum supplies the
+		// kEnter/kExit/kEnd/kFraction values (all four lane enums share those names). a_subject is
+		// the entry descriptor for diagnostics, e.g. "action 'osf.fade.out'". When a_atRequired,
+		// a missing `at` is rejected (cues); otherwise a missing `at` defaults to the enter anchor.
+		template <class Entry>
+		void ParseTrackTiming(const json& a_entry, Entry& a_out, const std::string& a_nodeId,
+			const std::string& a_subject, bool a_atRequired)
+		{
+			using Pos = decltype(a_out.pos);
+			const auto atIt = a_entry.find("at");
+			if (a_atRequired && atIt == a_entry.end()) {
+				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " is missing 'at'");
+			}
+			const auto repeat = ToLower(a_entry.value("repeat", "none"));
+			if (repeat != "none" && repeat != "loop") {
+				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " has unknown repeat '" + repeat + "'");
+			}
+			a_out.everyLoop = (repeat == "loop");
+			if (atIt == a_entry.end() || atIt->is_string()) {
+				const std::string at = (atIt != a_entry.end()) ? ToLower(atIt->get<std::string>()) : "enter";
+				if (at == "enter") {
+					a_out.pos = Pos::kEnter;
+				} else if (at == "exit") {
+					a_out.pos = Pos::kExit;
+				} else if (at == "end") {
+					a_out.pos = Pos::kEnd;
+				} else {
+					throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " has unknown anchor 'at':'" + at + "'");
+				}
+				if (a_out.everyLoop) {
+					throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " named anchor cannot use repeat:loop");
+				}
+			} else if (atIt->is_number()) {
+				a_out.pos = Pos::kFraction;
+				a_out.fraction = atIt->get<float>();
+				if (a_out.fraction < 0.0f || a_out.fraction >= 1.0f) {
+					throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " numeric 'at' must be in [0,1) (use 'end' for 1.0)");
+				}
+			} else {
+				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " 'at' must be a number or enter/exit/end");
+			}
+		}
+
 		void ParseActionTrack(const json& a_entries, SceneNode& a_node_out)
 		{
 			if (!a_entries.is_array()) {
@@ -229,35 +274,7 @@ namespace OSF::Registry
 				}
 				// `at` mirrors the cue time model: enter/exit/end named anchors, or a numeric
 				// clip-local fraction in [0,1). repeat:"loop" only applies to numeric positions.
-				const auto repeat = ToLower(a.value("repeat", "none"));
-				if (repeat != "none" && repeat != "loop") {
-					throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' has unknown repeat '" + repeat + "'");
-				}
-				ae.everyLoop = (repeat == "loop");
-				const auto atIt = a.find("at");
-				if (atIt == a.end() || atIt->is_string()) {
-					const std::string at = (atIt != a.end()) ? ToLower(atIt->get<std::string>()) : "enter";
-					if (at == "enter") {
-						ae.pos = ActionPos::kEnter;
-					} else if (at == "exit") {
-						ae.pos = ActionPos::kExit;
-					} else if (at == "end") {
-						ae.pos = ActionPos::kEnd;
-					} else {
-						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' has unknown anchor 'at':'" + at + "'");
-					}
-					if (ae.everyLoop) {
-						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' named anchor cannot use repeat:loop");
-					}
-				} else if (atIt->is_number()) {
-					ae.pos = ActionPos::kFraction;
-					ae.fraction = atIt->get<float>();
-					if (ae.fraction < 0.0f || ae.fraction >= 1.0f) {
-						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
-					}
-				} else {
-					throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' 'at' must be a number or enter/exit/end");
-				}
+				ParseTrackTiming(a, ae, a_node_out.id, "action '" + ae.type + "'", /*a_atRequired*/ false);
 				a_node_out.actions.push_back(std::move(ae));
 			}
 		}
@@ -277,35 +294,7 @@ namespace OSF::Registry
 				}
 				se.role = s.value("role", std::string{});
 				se.volume = s.value("volume", 1.0f);
-				const auto repeat = ToLower(s.value("repeat", "none"));
-				if (repeat != "none" && repeat != "loop") {
-					throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' has unknown repeat '" + repeat + "'");
-				}
-				se.everyLoop = (repeat == "loop");
-				const auto atIt = s.find("at");
-				if (atIt == s.end() || atIt->is_string()) {
-					const std::string at = (atIt != s.end()) ? ToLower(atIt->get<std::string>()) : "enter";
-					if (at == "enter") {
-						se.pos = SoundPos::kEnter;
-					} else if (at == "exit") {
-						se.pos = SoundPos::kExit;
-					} else if (at == "end") {
-						se.pos = SoundPos::kEnd;
-					} else {
-						throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' has unknown anchor 'at':'" + at + "'");
-					}
-					if (se.everyLoop) {
-						throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' named anchor cannot use repeat:loop");
-					}
-				} else if (atIt->is_number()) {
-					se.pos = SoundPos::kFraction;
-					se.fraction = atIt->get<float>();
-					if (se.fraction < 0.0f || se.fraction >= 1.0f) {
-						throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
-					}
-				} else {
-					throw std::runtime_error("node '" + a_node_out.id + "': sound '" + se.spec + "' 'at' must be a number or enter/exit/end");
-				}
+				ParseTrackTiming(s, se, a_node_out.id, "sound '" + se.spec + "'", /*a_atRequired*/ false);
 				a_node_out.sounds.push_back(std::move(se));
 			}
 		}
@@ -326,35 +315,7 @@ namespace OSF::Registry
 					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + ce.state +
 						"' (only 'thirdperson_hold' is supported)");
 				}
-				const auto repeat = ToLower(c.value("repeat", "none"));
-				if (repeat != "none" && repeat != "loop") {
-					throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' has unknown repeat '" + repeat + "'");
-				}
-				ce.everyLoop = (repeat == "loop");
-				const auto atIt = c.find("at");
-				if (atIt == c.end() || atIt->is_string()) {
-					const std::string at = (atIt != c.end()) ? ToLower(atIt->get<std::string>()) : "enter";
-					if (at == "enter") {
-						ce.pos = CameraPos::kEnter;
-					} else if (at == "exit") {
-						ce.pos = CameraPos::kExit;
-					} else if (at == "end") {
-						ce.pos = CameraPos::kEnd;
-					} else {
-						throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' has unknown anchor 'at':'" + at + "'");
-					}
-					if (ce.everyLoop) {
-						throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' named anchor cannot use repeat:loop");
-					}
-				} else if (atIt->is_number()) {
-					ce.pos = CameraPos::kFraction;
-					ce.fraction = atIt->get<float>();
-					if (ce.fraction < 0.0f || ce.fraction >= 1.0f) {
-						throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
-					}
-				} else {
-					throw std::runtime_error("node '" + a_node_out.id + "': camera '" + ce.state + "' 'at' must be a number or enter/exit/end");
-				}
+				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + ce.state + "'", /*a_atRequired*/ false);
 				a_node_out.cameras.push_back(std::move(ce));
 			}
 		}
@@ -396,38 +357,8 @@ namespace OSF::Registry
 					if (ce.id.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': a cue track entry is missing 'id'");
 					}
-					const auto atIt = c.find("at");
-					if (atIt == c.end()) {
-						throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' is missing 'at'");
-					}
-					const auto repeat = ToLower(c.value("repeat", "none"));
-					if (repeat != "none" && repeat != "loop") {
-						throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' has unknown repeat '" + repeat + "'");
-					}
-					ce.everyLoop = (repeat == "loop");
-					if (atIt->is_string()) {
-						const auto at = ToLower(atIt->get<std::string>());
-						if (at == "enter") {
-							ce.pos = CuePos::kEnter;
-						} else if (at == "exit") {
-							ce.pos = CuePos::kExit;
-						} else if (at == "end") {
-							ce.pos = CuePos::kEnd;
-						} else {
-							throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' has unknown anchor 'at':'" + at + "'");
-						}
-						if (ce.everyLoop) {
-							throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' named anchor cannot use repeat:loop");
-						}
-					} else if (atIt->is_number()) {
-						ce.pos = CuePos::kFraction;
-						ce.fraction = atIt->get<float>();
-						if (ce.fraction < 0.0f || ce.fraction >= 1.0f) {
-							throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' numeric 'at' must be in [0,1) (use 'end' for 1.0)");
-						}
-					} else {
-						throw std::runtime_error("node '" + a_node_out.id + "': cue '" + ce.id + "' 'at' must be a number or enter/exit/end");
-					}
+					// Cues require an explicit `at` (no enter default); the rest of the time model is shared.
+					ParseTrackTiming(c, ce, a_node_out.id, "cue '" + ce.id + "'", /*a_atRequired*/ true);
 					a_node_out.cues.push_back(std::move(ce));
 				}
 			}

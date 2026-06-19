@@ -277,6 +277,13 @@ namespace OSF::Scene
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);
 
+		// The node-transition lifecycle, shared by every transition path (SetNode / Advance /
+		// Navigate / OnGraphAutoEnd / cue-trigger): fire NODE_EXIT for a_oldNode, then either end
+		// the scene (StopGraph + SCENE_END + release the handle) when a_end, or play a_newNode and
+		// fire NODE_ENTER. Call OUTSIDE _lock with the slot's id + participants already snapshotted.
+		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
+			bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
+
 		std::mutex        _lock;
 		std::vector<Slot> _slots;
 		std::uint16_t     _nextGen = 1;

@@ -1,9 +1,10 @@
 #include "UI/FadeService.h"
 
+#include "Util/Hooking.h"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <cstring>
 
 namespace OSF::UI
 {
@@ -50,8 +51,7 @@ namespace OSF::UI
 	bool FadeService::Available()
 	{
 		static const bool available = []() {
-			const auto* code = reinterpret_cast<const std::uint8_t*>(kFadeScreenPoster.address());
-			if (!code || std::memcmp(code, kFadePosterPrologue.data(), kFadePosterPrologue.size()) != 0) {
+			if (!Util::Hooking::PrologueMatches(kFadeScreenPoster, kFadePosterPrologue)) {
 				REX::WARN("Screen fades disabled: fade poster (ID {}) prologue mismatch on this runtime "
 				          "— osf.fade.* actions are no-ops",
 					kFadeScreenPoster.id());

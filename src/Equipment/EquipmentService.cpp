@@ -1,7 +1,8 @@
 #include "Equipment/EquipmentService.h"
 
+#include "Util/Hooking.h"
+
 #include <array>
-#include <cstring>
 
 namespace OSF::Equipment
 {
@@ -15,15 +16,6 @@ namespace OSF::Equipment
 			0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41,
 			0x57, 0x48, 0x8D, 0x6C, 0x24, 0xF9, 0x48, 0x81, 0xEC
 		};
-
-		bool PrologueMatches(REL::ID a_id)
-		{
-			if (a_id.id() == 0) {
-				return false;
-			}
-			const auto* code = reinterpret_cast<const std::uint8_t*>(a_id.address());
-			return code && std::memcmp(code, kExpectedPrologue.data(), kExpectedPrologue.size()) == 0;
-		}
 	}
 
 	EquipmentService& EquipmentService::GetSingleton()
@@ -41,8 +33,8 @@ namespace OSF::Equipment
 			}
 			// Make sure the two functions still look like what we expect on this game build.
 			// On a mismatch we disable the feature rather than call into the wrong code.
-			if (!PrologueMatches(RE::ID::ActorEquipManager::EquipObject) ||
-				!PrologueMatches(RE::ID::ActorEquipManager::UnequipObject)) {
+			if (!Util::Hooking::PrologueMatches(RE::ID::ActorEquipManager::EquipObject, kExpectedPrologue) ||
+				!Util::Hooking::PrologueMatches(RE::ID::ActorEquipManager::UnequipObject, kExpectedPrologue)) {
 				REX::WARN("Undress/redress disabled: equip/unequip prologue mismatch on this runtime "
 					"(IDs {}/{} do not match the verified bytes)",
 					RE::ID::ActorEquipManager::EquipObject.id(),

@@ -1,9 +1,8 @@
 #pragma once
 
-// Per-actor graph: samples the active ozz clip and writes the pose into the engine's
-// flat rig local buffers, which is the path the renderer reads from. The ozz plumbing
-// is adapted from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh); the
-// rig-buffer apply path follows what we reverse-engineered on 1.16.244.
+// Animation Graph run on an actor.
+// - Sample active ozz clip and writes the pose into engines flat rig local buffers, which is the path the renderer reads from.
+// - The ozz plumbing is adapted from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh); 
 
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
@@ -31,71 +30,73 @@ namespace OSF::Animation
 
 	class Graph
 	{
+		// GraphManager owns graph lifetime and drives Sample/StampPose from the
+		// per-frame hooks; it is the only thing that touches a Graph's internals.
+		// GraphManager owns the graph lifetime and drives all the juice.
+		friend class GraphManager;
 	public:
+
+
+
+	private:
 		std::mutex lock;
 		RE::NiPointer<RE::TESObjectREFR> target;
 
-		// guarded by `lock`
+		// graphs state is guarded by `stateLock`
 		std::shared_ptr<const OzzSkeleton> skeleton;
 		std::shared_ptr<const OzzAnimation> anim;
 		float localTime = 0.0f;
-		float speed = 1.0f;
 		bool looped = true;
 
-		std::string currentFile;  // current clip path as given (for GetCurrentAnimation); "" = none
+		// Currently running animclip file; "" = none.
+		std::string currentFile;
 
-		// Per-graph world anchor (OSF.SetAnchor) for SOLO graphs; scene participants
-		// are pinned by their scene. When hasAnchor && rootMode != kFollow the stamp
-		// hook pins the compose root to anchorPos.
+		// Per-graph world anchor (OSF.SetAnchor) for SOLO graphs;  scene participants are pinned by their scene. 
+		// When hasAnchor && rootMode != kFollow the stamp hook pins the compose root to anchorPos.
 		bool hasAnchor = false;
 		RE::NiPoint3 anchorPos{};
 		RootMode rootMode = RootMode::kPin;
 
-		// Non-null while in a Sync group: samples the group's shared clock instead of
-		// soloClock. Cleared when the graph joins a Scene (the scene owns the clock).
+		//non-null for all non-scene graphs. sync merges members onto a shared group (which owns the clock)
 		std::shared_ptr<SyncGroup> syncGroup;
 
 		// Non-null while a scene participant; the scene owns the clock.
 		Scene* scene = nullptr;
 		int participantIndex = -1;   // index into scene->placements/participants; const while in the scene
 		uint32_t appliedStage = 0;   // stage this graph's clip matches; Sample swaps on a stage change
-		uint32_t sceneFrames = 0;    // update-call counter, diag cadence only
 
-		// Cross-fade (guarded by `lock`). Blend-in at every SetAnimation: from the
-		// previous sampled pose if any (clip-to-clip), else the engine's live rig
-		// pose. Blend-out at BeginFadeOut: keep sampling while weight ramps to 0
-		// (lands on the live pose), then the hook queues RemoveFadedGraph.
+		// Handle cross fade timing. blend-in from previous pose (sampled or engines live rig)
+		// blend-out at BeginFadeOut: keep sampling while weight ramps to 0 (lands on the live pose), then the hook queues RemoveFadedGraph.	
 		BlendPhase blendPhase = BlendPhase::kNone;
 		float blendDuration = 0.4f;  // seconds for either ramp
 		bool removalQueued = false;  // fade-out finished, removal dispatched
 
+
+		// Start a new animation clip. Resets time and starts a blend-in. a_file is for diagnostics only ("" = none).
+		void SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file = "");
+
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
 		bool IsFadedOut() const;  // fade-out ramp fully elapsed
 
-		// Scene teardown: detach, hand the clip to the solo clock at its current
-		// phase (fade keeps animating), start the fade-out. Caller holds `lock`.
+		// Scene teardown: detach, hand clip back to "solo" syncGroup
 		void DetachAndFadeOut()
 		{
 			scene = nullptr;
 			participantIndex = -1;
-			soloClock.Reset();
-			soloClock.time = localTime;
+			syncGroup = std::make_shared<SyncGroup>();	// return to a "solo" syncGroup (group of 1)
+			syncGroup->clock.time = localTime;			// fade resumes from current phase
 			BeginFadeOut();
 		}
 
-		// Last resolved 3D root (diag only). NiPointer not raw: the late
-		// TESLoadGameEvent backstop can fire after 3D is torn down on other threads,
-		// so a raw pointer would be a use-after-free. Cleared on a failed resolve.
+		// Last resolved 3d root.
 		RE::NiPointer<RE::BSFadeNode> lastRoot;
 
 		// modelNode identity the stamp hook matches against (set by Sample's bind).
 		const RE::BGSModelNode* StampTarget() const { return cachedModelNode; }
 
-		void SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file = "");
-
 		// AnimationManager::Update hook (job threads, ~7x/frame, subdivided dt).
-		// Re-resolves the rig chain (caching the stamp hook's match key) and advances
-		// time (a_token = clock owner), driving stage advance. Does NOT sample/write
+		// Re-resolves the rig chain (caching the stamp hook's match key)
+		// advances =time (a_token = clock owner), driving stage advance. Does NOT sample/write
 		// the pose — StampPose does that once per frame (a write here would be
 		// clobbered by the engine's snapshot applier).
 		void Sample(float a_deltaTime, const void* a_token);
@@ -106,7 +107,6 @@ namespace OSF::Animation
 		// (the write point we confirmed). No-op until a_modelNode matches the cached binding.
 		void StampPose(const RE::BGSModelNode* a_modelNode);
 
-	private:
 		bool ResolveAndBind();
 
 		ozz::animation::SamplingJob::Context samplingContext;
@@ -122,7 +122,6 @@ namespace OSF::Animation
 		uint32_t cachedBoneCount = 0;
 		std::vector<std::pair<uint16_t, uint16_t>> binding;  // {rigIndex, jointIndex}
 
-		FrameClock soloClock;   // used only when `scene` is null
 		FrameClock blendClock;  // blend ramps; owner-token gated, reset at SetAnimation/BeginFadeOut
 
 		std::vector<ozz::math::Float4x4> blendFromPose;  // cross-fade-from pose (our joint indexing)

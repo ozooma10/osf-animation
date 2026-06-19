@@ -344,7 +344,6 @@ namespace OSF::Animation
 					slot->scene = scene.get();
 					slot->participantIndex = static_cast<int>(i);
 					slot->appliedStage = startStage;
-					slot->sceneFrames = 0;
 					slot->hasAnchor = false;  // the scene drives positioning; drop any solo SetAnchor
 					slot->syncGroup.reset();  // the scene clock supersedes any Sync group
 
@@ -563,10 +562,8 @@ namespace OSF::Animation
 		// speed, not the owner's); an unsynced solo graph advances by Graph::speed.
 		if (iter->second->scene) {
 			iter->second->scene->speed = speed;
-		} else if (iter->second->syncGroup) {
-			iter->second->syncGroup->speed.store(speed, std::memory_order_relaxed);
 		} else {
-			iter->second->speed = speed;
+			iter->second->syncGroup->speed.store(speed, std::memory_order_relaxed);
 		}
 		return true;
 	}
@@ -585,10 +582,7 @@ namespace OSF::Animation
 		if (iter->second->scene) {
 			return iter->second->scene->speed.load(std::memory_order_relaxed);
 		}
-		if (iter->second->syncGroup) {
-			return iter->second->syncGroup->speed.load(std::memory_order_relaxed);
-		}
-		return iter->second->speed;
+		return iter->second->syncGroup->speed.load(std::memory_order_relaxed);
 	}
 
 	bool GraphManager::SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
@@ -684,7 +678,7 @@ namespace OSF::Animation
 						continue;
 					}
 					if (!gotSpeed) {  // carry a pre-Sync SetSpeed over to the scene clock
-						groupSpeed = iter->second->speed;
+						groupSpeed = iter->second->syncGroup->speed;
 						gotSpeed = true;
 					}
 					sceneActors.push_back(actor);
@@ -749,7 +743,7 @@ namespace OSF::Animation
 		auto group = std::make_shared<SyncGroup>();
 		{
 			std::scoped_lock gl{ targets.front()->lock };
-			group->speed.store(targets.front()->speed, std::memory_order_relaxed);
+			group->speed.store(targets.front()->syncGroup->speed, std::memory_order_relaxed);
 		}
 		for (auto& g : targets) {
 			std::scoped_lock gl{ g->lock };
@@ -936,20 +930,20 @@ namespace OSF::Animation
 		if (!a_graph.scene || a_graph.participantIndex < 0) {
 			return;
 		}
-		const auto frames = ++a_graph.sceneFrames;
-		if (frames != 480 && frames % 4800 != 0) {
-			return;
-		}
-		float capsuleErr = 0.0f;
-		if (a_graph.lastRoot) {
-			const auto& pl = a_graph.scene->placements[a_graph.participantIndex];
-			const RE::NiPoint3 world = PlacementToWorld(a_graph.scene->anchorPos, a_graph.scene->anchorHeading, pl);
-			const auto& rootPos = a_graph.lastRoot->world.translate;
-			const float ex = rootPos.x - world.x, ey = rootPos.y - world.y, ez = rootPos.z - world.z;
-			capsuleErr = std::sqrt(ex * ex + ey * ey + ez * ez);
-		}
-		REX::INFO("Scene diag [{} calls] actor {:X}: stage {}/{}, t={:.2f}s, capsule err {:.3f}m (rendered skeleton is pinned)",
-			frames, a_refr->formID, a_graph.appliedStage + 1, a_graph.scene->stages.size(), a_graph.localTime, capsuleErr);
+		// const auto frames = ++a_graph.sceneFrames;
+		// if (frames != 480 && frames % 4800 != 0) {
+		// 	return;
+		// }
+		// float capsuleErr = 0.0f;
+		// if (a_graph.lastRoot) {
+		// 	const auto& pl = a_graph.scene->placements[a_graph.participantIndex];
+		// 	const RE::NiPoint3 world = PlacementToWorld(a_graph.scene->anchorPos, a_graph.scene->anchorHeading, pl);
+		// 	const auto& rootPos = a_graph.lastRoot->world.translate;
+		// 	const float ex = rootPos.x - world.x, ey = rootPos.y - world.y, ez = rootPos.z - world.z;
+		// 	capsuleErr = std::sqrt(ex * ex + ey * ey + ez * ez);
+		// }
+		// REX::INFO("Scene diag [{} calls] actor {:X}: stage {}/{}, t={:.2f}s, capsule err {:.3f}m (rendered skeleton is pinned)",
+		// 	frames, a_refr->formID, a_graph.appliedStage + 1, a_graph.scene->stages.size(), a_graph.localTime, capsuleErr);
 	}
 
 	void GraphManager::Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData)

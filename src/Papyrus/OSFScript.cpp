@@ -31,6 +31,30 @@ namespace OSF::Papyrus
 			return out;
 		}
 
+		// Split a "scene:"/"anim:" registry prefix off a start id. "scene:" forces the scene
+		// registry, "anim:" forces the pack registry; a bare id leaves both false (the caller's
+		// scene-then-pack resolution). Shared by StartScene / StartSceneAt.
+		struct ScenePrefix
+		{
+			std::string id;
+			bool        forceScene = false;
+			bool        forcePack = false;
+		};
+
+		ScenePrefix SplitScenePrefix(std::string_view a_raw)
+		{
+			ScenePrefix p;
+			p.id = a_raw;
+			if (p.id.rfind("scene:", 0) == 0) {
+				p.forceScene = true;
+				p.id = p.id.substr(6);
+			} else if (p.id.rfind("anim:", 0) == 0) {
+				p.forcePack = true;
+				p.id = p.id.substr(5);
+			}
+			return p;
+		}
+
 		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the
 		// slot->actor order, so we never re-bind here). Scene defs go through StartFromDef (binds by
 		// declaration order = the reordered actors); packs through StartFromPack.
@@ -365,16 +389,7 @@ namespace OSF::Papyrus
 				REX::WARN("OSF.StartScene: no actors given");
 				return 0;
 			}
-			std::string sid = a_id.c_str();
-			bool forceScene = false;
-			bool forcePack = false;
-			if (sid.rfind("scene:", 0) == 0) {
-				forceScene = true;
-				sid = sid.substr(6);
-			} else if (sid.rfind("anim:", 0) == 0) {
-				forcePack = true;
-				sid = sid.substr(5);
-			}
+			const auto [sid, forceScene, forcePack] = SplitScenePrefix(a_id.c_str());
 
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			if (!forcePack && Registry::SceneRegistry::GetSingleton().Find(sid)) {
@@ -402,16 +417,7 @@ namespace OSF::Papyrus
 				REX::WARN("OSF.StartSceneAt: no anchor reference given");
 				return 0;
 			}
-			std::string sid = a_id.c_str();
-			bool forceScene = false;
-			bool forcePack = false;
-			if (sid.rfind("scene:", 0) == 0) {
-				forceScene = true;
-				sid = sid.substr(6);
-			} else if (sid.rfind("anim:", 0) == 0) {
-				forcePack = true;
-				sid = sid.substr(5);
-			}
+			const auto [sid, forceScene, forcePack] = SplitScenePrefix(a_id.c_str());
 
 			// World anchor = the reference's position + (its heading, or an explicit one in degrees).
 			const RE::NiPoint3 pos = a_anchor->data.location;
