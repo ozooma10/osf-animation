@@ -532,20 +532,6 @@ namespace OSF::Papyrus
 			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
 		}
 
-		// DEBUG (OSFCompat, off the public surface): synthesize one scene event and
-		// dispatch it through the real relay to every registered receiver. Exercises the
-		// registry + method-call path once a scripted form has registered.
-		void Dbg_FireSceneEvent(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_event, RE::BSFixedString a_node)
-		{
-			REX::INFO("OSFCompat.Dbg_FireSceneEvent: scene={} event={:#x} node='{}' (-> relay)", a_scene, a_event, a_node.c_str());
-			Scene::SceneEvent e;
-			e.scene = a_scene;
-			e.event = a_event;
-			e.node = a_node.c_str();
-			e.anchor = (a_event == Scene::Event::kNodeEnter) ? "enter" : (a_event == Scene::Event::kNodeExit) ? "exit" : "";
-			Scene::SceneEventRelay::GetSingleton().Dispatch(e);
-		}
-
 		// DEBUG: lets a Papyrus receiver echo into OSF Animation.log (REX), so the
 		// transport round-trip is provable without enabling the Papyrus script log.
 		void Dbg_Log(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_msg)
@@ -853,15 +839,12 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeLabel", &GetSceneEdgeLabel, true, false);
 		REX::INFO("Registered papyrus natives on script '{}'", SCRIPT_NAME);
 
-		// Compatibility-only natives — kept off the public OSF surface (see
-		// COMPAT_SCRIPT_NAME / OSFCompat.psc). Only the SAF->OSF shim calls these.
-		// SetSceneControlMask is a debug bisect tool parked here (not on OSF) so the
-		// never-remove ABI promise doesn't lock in a throwaway native.
+		// Compatibility-only + debug natives — kept off the public OSF surface (see
+		// COMPAT_SCRIPT_NAME / OSFCompat.psc). The SAF->OSF shim and the OSFTest harness call these.
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEvent", &Dbg_FireSceneEvent, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEventStatic", &Dbg_FireSceneEventStatic, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireActionActor", &Dbg_FireActionActor, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartScene", &Dbg_StartScene, true, false);

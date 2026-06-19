@@ -14,10 +14,6 @@ ObjectReference Function GetCrosshairRef() Global Native
 ; The crosshair target cast to Actor, or None when the crosshair is on nothing or a non-actor reference.
 Actor Function GetCrosshairActor() Global Native
 
-; DEBUG (not public API): synthesize one scene event and dispatch it through the real
-; relay to every registered receiver.
-Function Dbg_FireSceneEvent(int aiScene, int aiEvent, string asNode) Global Native
-
 ; DEBUG: no-instance transport probe — DispatchStaticCall asScript.asFn(OSFEvent:SceneEvent)
 ; directly, no registration. Proves the struct marshalling from the console without a scripted form.
 Function Dbg_FireSceneEventStatic(string asScript, string asFn, int aiScene, int aiEvent, string asNode) Global Native
