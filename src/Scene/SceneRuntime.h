@@ -2,6 +2,8 @@
 
 #include "Equipment/EquipmentService.h"  // Snapshot stored per-handle in the undo ledger
 
+#include <functional>
+
 // Tracks live scenes in a generational int-handle table and fires lifecycle events
 // (NODE_ENTER / NODE_EXIT / SCENE_END) through the SceneEventRelay. Each live scene is an id,
 // its current node, a stage, and its participants, with graph navigation, the track scheduler,
@@ -16,6 +18,8 @@ namespace OSF::Animation
 namespace OSF::Registry
 {
 	struct ActionEntry;   // Registry/SceneRegistry.h
+	struct SceneNode;     // Registry/SceneRegistry.h
+	struct SceneEdge;     // Registry/SceneRegistry.h
 }
 
 namespace OSF::Scene
@@ -283,6 +287,14 @@ namespace OSF::Scene
 		// fire NODE_ENTER. Call OUTSIDE _lock with the slot's id + participants already snapshotted.
 		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
 			bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
+
+		// Shared body of Advance / Navigate. Under _lock: resolve the def node and let a_selectEdge
+		// pick an outgoing edge; on a hit, snapshot the transition args (mutating the slot's node for
+		// a non-"$end" target) and run ApplyTransition OUTSIDE _lock. False if the handle is invalid,
+		// not def-backed, or a_selectEdge finds no edge. Centralizes the "$end vs next node" +
+		// snapshot-under-lock contract that Advance and Navigate would otherwise each copy.
+		bool TakeEdge(std::int32_t a_scene,
+			const std::function<const Registry::SceneEdge*(const Registry::SceneNode&)>& a_selectEdge);
 
 		std::mutex        _lock;
 		std::vector<Slot> _slots;

@@ -1129,7 +1129,8 @@ namespace OSF::Scene
 		return Start(def->id, def->entry, ordered);
 	}
 
-	bool SceneRuntime::Advance(std::int32_t a_scene)
+	bool SceneRuntime::TakeEdge(std::int32_t a_scene,
+		const std::function<const Registry::SceneEdge*(const Registry::SceneNode&)>& a_selectEdge)
 	{
 		std::string oldNode;
 		std::string newNode;
@@ -1147,15 +1148,9 @@ namespace OSF::Scene
 			if (!node) {
 				return false;  // not def-backed, or current node not in the def
 			}
-			const Registry::SceneEdge* edge = nullptr;
-			for (const auto& e : node->edges) {
-				if (e.when == Registry::EdgeWhen::kAdvance && e.isDefault) {
-					edge = &e;
-					break;
-				}
-			}
+			const Registry::SceneEdge* edge = a_selectEdge(*node);
 			if (!edge) {
-				return false;  // no default advance edge — never inferred
+				return false;  // selector found no matching edge
 			}
 			oldNode = s->node;
 			sceneId = s->id;
@@ -1172,48 +1167,31 @@ namespace OSF::Scene
 		return true;
 	}
 
-	bool SceneRuntime::Navigate(std::int32_t a_scene, std::string_view a_edgeId)
+	bool SceneRuntime::Advance(std::int32_t a_scene)
 	{
-		const auto wantId = Util::ToLower(std::string(a_edgeId));
-		std::string oldNode;
-		std::string newNode;
-		std::string sceneId;
-		std::vector<RE::Actor*> participants;
-		bool end = false;
-		{
-			std::lock_guard l{ _lock };
-			Slot* s = Resolve(a_scene);
-			if (!s) {
-				return false;
-			}
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
-			const auto* node = def ? def->FindNode(s->node) : nullptr;
-			if (!node) {
-				return false;
-			}
-			const Registry::SceneEdge* edge = nullptr;
-			for (const auto& e : node->edges) {
-				if (e.when == Registry::EdgeWhen::kAdvance && Util::ToLower(e.id) == wantId) {
-					edge = &e;
-					break;
+		// The node's DEFAULT advance edge (never inferred).
+		return TakeEdge(a_scene, [](const Registry::SceneNode& a_node) -> const Registry::SceneEdge* {
+			for (const auto& e : a_node.edges) {
+				if (e.when == Registry::EdgeWhen::kAdvance && e.isDefault) {
+					return &e;
 				}
 			}
-			if (!edge) {
-				return false;  // no such branchable edge on the current node
-			}
-			oldNode = s->node;
-			sceneId = s->id;
-			participants = s->participants;
-			if (edge->to == "$end") {
-				end = true;  // freed after SCENE_END (handle valid through the events)
-			} else {
-				s->node = edge->to;
-				newNode = edge->to;
-			}
-		}
+			return nullptr;
+		});
+	}
 
-		ApplyTransition(a_scene, oldNode, newNode, end, sceneId, participants);
-		return true;
+	bool SceneRuntime::Navigate(std::int32_t a_scene, std::string_view a_edgeId)
+	{
+		// The branchable advance edge whose id matches a_edgeId.
+		const auto wantId = Util::ToLower(std::string(a_edgeId));
+		return TakeEdge(a_scene, [&wantId](const Registry::SceneNode& a_node) -> const Registry::SceneEdge* {
+			for (const auto& e : a_node.edges) {
+				if (e.when == Registry::EdgeWhen::kAdvance && Util::ToLower(e.id) == wantId) {
+					return &e;
+				}
+			}
+			return nullptr;
+		});
 	}
 
 	bool SceneRuntime::OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason)
