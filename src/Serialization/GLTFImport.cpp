@@ -193,21 +193,27 @@ namespace OSF::Serialization
 			return true;
 		}
 
-		std::optional<fastgltf::Asset> LoadAsset(const std::filesystem::path& a_file, std::string& a_detail)
+		// Sets a_error + a_detail and returns nullopt on failure. The read/sanitize stages report
+		// kFileReadFailed; the fastgltf stages report kParseFailed. (Previously the caller recovered
+		// the category by sniffing a_detail's prefix — control flow keyed on log prose.)
+		std::optional<fastgltf::Asset> LoadAsset(const std::filesystem::path& a_file, GLTFError& a_error, std::string& a_detail)
 		{
 			auto bytes = ReadFileMaybeGzip(a_file);
 			if (!bytes) {
+				a_error = GLTFError::kFileReadFailed;
 				a_detail = "file missing, unreadable or gzip decompression failed";
 				return std::nullopt;
 			}
 
 			if (!SanitizeGltfBytes(*bytes)) {
+				a_error = GLTFError::kFileReadFailed;
 				a_detail = "not a parseable glTF/GLB file";
 				return std::nullopt;
 			}
 
 			auto data = fastgltf::GltfDataBuffer::FromBytes(bytes->data(), bytes->size());
 			if (data.error() != fastgltf::Error::None) {
+				a_error = GLTFError::kParseFailed;
 				a_detail = std::format("fastgltf buffer error: {}", fastgltf::getErrorMessage(data.error()));
 				return std::nullopt;
 			}
@@ -226,6 +232,7 @@ namespace OSF::Serialization
 
 			auto gltf = parser.loadGltf(data.get(), a_file.parent_path(), gltfOptions, gltfCategories);
 			if (gltf.error() != fastgltf::Error::None) {
+				a_error = GLTFError::kParseFailed;
 				a_detail = std::format("fastgltf parse error: {}", fastgltf::getErrorMessage(gltf.error()));
 				return std::nullopt;
 			}
@@ -441,10 +448,11 @@ namespace OSF::Serialization
 	{
 		LoadResult result;
 
+		GLTFError loadError = GLTFError::kFileReadFailed;
 		std::string detail;
-		auto asset = LoadAsset(a_file, detail);
+		auto asset = LoadAsset(a_file, loadError, detail);
 		if (!asset) {
-			result.error = detail.starts_with("fastgltf") ? GLTFError::kParseFailed : GLTFError::kFileReadFailed;
+			result.error = loadError;
 			result.detail = std::move(detail);
 			return result;
 		}
