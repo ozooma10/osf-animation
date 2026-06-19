@@ -1,11 +1,12 @@
-# OSF Animation — RE Ground Truth
+# OSF Animation — RE AI SLOP DOC
+
+AI GENERATED SLOP DOC TO HELP ORIENT THE AI WHEN RE'ing
 
 Layout/offset/address ground truth for the **lean playback core**, verified by the dedicated
 **OSF RE** project (`C:\Modding\Starfield\OSF RE`; Ghidra context repo under
 `tools/ghidra/context_repo/modules/`). Pre-2026-06 findings were proven on 1.16.242 and
 re-verified at-gate on **1.16.244**; 2026-06-12 findings are native 1.16.244.
 
-**This doc = the facts the core relies on. The recovery runbook = `docs/POST_PATCH_CHECKLIST.md`.**
 Full RE record: osf-re `tools/ghidra/context_repo/modules/gameplay.actor_transforms.json`.
 
 > **Policy-mechanism RE is now IN this repo (Phase C, 2026-06-17).** The scene engine merged back in,
