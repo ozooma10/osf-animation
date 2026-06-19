@@ -225,22 +225,15 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().ClearAnchor(a_actor);
 		}
 
-		// Bring N already-playing graphs together. Call OSF.Play on each actor first,
-		// then OSF.Sync: the graphs are anchored into one shared scene at actor[0]'s spot
-		// (same-spot overlap, so paired clips arrange themselves about a shared
-		// origin+heading). Signature is frozen at one arg — pre-compiled SAF/content
-		// callers depend on it; the in-place opt-out is the separate SyncInPlace native.
-		// Scene participants are skipped; needs >= 2 graphs.
-		bool Sync(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors)
+		// Bring N already-playing graphs together. Call OSF.Play on each actor first, then OSF.Sync.
+		// abAnchor=true (default): anchor the graphs into one shared scene at actor[0]'s spot —
+		// same-spot overlap, so paired clips arrange themselves about a shared origin+heading.
+		// abAnchor=false: clock-merge only — frame-lock the graphs on one shared clock while each
+		// actor stays at its own world position (no teleport/anchor), for clips that already carry
+		// the intended separation. Scene participants are skipped; needs >= 2 graphs.
+		bool Sync(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, bool a_anchor)
 		{
-			return Animation::GraphManager::GetSingleton().Sync(a_actors, /*a_anchor=*/true);
-		}
-
-		// Opt-out twin of Sync: clock-merge only — frame-lock the graphs on one shared
-		// clock while each actor stays at its own world position (no teleport/anchor).
-		bool SyncInPlace(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors)
-		{
-			return Animation::GraphManager::GetSingleton().Sync(a_actors, /*a_anchor=*/false);
+			return Animation::GraphManager::GetSingleton().Sync(a_actors, a_anchor);
 		}
 
 		// Solo multi-phase sequence (primitive). Parallel arrays, equal length:
@@ -804,7 +797,6 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetAnchor", &SetAnchor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ClearAnchor", &ClearAnchor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Sync", &Sync, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "SyncInPlace", &SyncInPlace, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "PlaySequence", &PlaySequence, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StopScene", &StopScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StopSceneForActor", &StopSceneForActor, true, false);
