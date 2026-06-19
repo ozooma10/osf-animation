@@ -30,19 +30,15 @@ namespace OSF::Animation
 
 	class Graph
 	{
-		// GraphManager owns graph lifetime and drives Sample/StampPose from the
+		// GraphManager owns the graph's lifetime and drives Sample/StampPose from the
 		// per-frame hooks; it is the only thing that touches a Graph's internals.
-		// GraphManager owns the graph lifetime and drives all the juice.
 		friend class GraphManager;
-	public:
-
-
 
 	private:
 		std::mutex lock;
 		RE::NiPointer<RE::TESObjectREFR> target;
 
-		// graphs state is guarded by `stateLock`
+		// graph state is guarded by `lock`
 		std::shared_ptr<const OzzSkeleton> skeleton;
 		std::shared_ptr<const OzzAnimation> anim;
 		float localTime = 0.0f;

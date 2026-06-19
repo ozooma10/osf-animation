@@ -562,7 +562,7 @@ namespace OSF::Animation
 		// speed, not the owner's); an unsynced solo graph advances by Graph::speed.
 		if (iter->second->scene) {
 			iter->second->scene->speed = speed;
-		} else {
+		} else if (iter->second->syncGroup) {  // null only in the brief window before SetAnimation runs
 			iter->second->syncGroup->speed.store(speed, std::memory_order_relaxed);
 		}
 		return true;
@@ -582,7 +582,10 @@ namespace OSF::Animation
 		if (iter->second->scene) {
 			return iter->second->scene->speed.load(std::memory_order_relaxed);
 		}
-		return iter->second->syncGroup->speed.load(std::memory_order_relaxed);
+		if (iter->second->syncGroup) {
+			return iter->second->syncGroup->speed.load(std::memory_order_relaxed);
+		}
+		return 1.0f;  // graph created but not yet started (pre-SetAnimation) — authored speed
 	}
 
 	bool GraphManager::SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
@@ -743,7 +746,9 @@ namespace OSF::Animation
 		auto group = std::make_shared<SyncGroup>();
 		{
 			std::scoped_lock gl{ targets.front()->lock };
-			group->speed.store(targets.front()->syncGroup->speed, std::memory_order_relaxed);
+			if (const auto& sg = targets.front()->syncGroup) {  // null only pre-SetAnimation
+				group->speed.store(sg->speed.load(std::memory_order_relaxed), std::memory_order_relaxed);
+			}
 		}
 		for (auto& g : targets) {
 			std::scoped_lock gl{ g->lock };
