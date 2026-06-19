@@ -2,8 +2,7 @@
 
 // Graph storage plus the per-frame hooks.
 // The main hook surface is a vtable patch on AnimationManager::Update (vfunc 4), the
-// per-graph per-frame evaluation point. The graph/manager structure is adapted, in
-// reduced form, from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh).
+// This graph/manager structure is adapted, in reduced form, from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh).
 
 #include "Animation/Graph.h"
 #include "Animation/Scene.h"
@@ -23,6 +22,7 @@ namespace OSF::Animation
 		// and the reason. Returns true if the runtime took over what happens next (move to the
 		// next node, or end its own scene); false (or no handler) -> the manager stops the scene
 		// itself. Set once at load, before any scene runs.
+		
 		using SceneAutoEndHandler = std::function<bool(const std::vector<RE::Actor*>&, SceneEndReason)>;
 		void SetSceneAutoEndHandler(SceneAutoEndHandler a_handler) { _autoEndHandler = std::move(a_handler); }
 

@@ -1,14 +1,39 @@
 ScriptName OSF Native Hidden
 
-; OSF Animation — native animation playback core for Starfield.
+; OSF Animation - native animation and scene framework for Starfield.
+
+; Scene function return an int handle (0 = failed to start, e.g. invalid id or actor binding; >0 = a live scene instance). 
+; The handle is used for scene-specific operations (navigation, callbacks, stop) and queries (id/node/participants). 
+; A scene ends when its graph(s) finish or are stopped; the handle becomes invalid and queries return sentinels (e.g. "").
+
+; Matchmake by tags + role/gender fit across scene defs and packs in registry
+; chosen by priority tier + weighted-random, and start it. 
+; Returns the scene handle (0 = no match); 
+; recover the chosen scene id with GetSceneId(handle)
+int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
+
+; Start a specific scene by id. aiStage = start stage
+int Function StartScene(Actor[] akActors, string asSceneId, int aiStage = 0) Global Native
+
+
+
+
 
 ; --- Primitives ---------------------------------------------------------------
 
-; Plays a GLTF/GLB animation on akActor. asFile is Data-relative (e.g. "OSF\MyAnim.glb");
+; True while akActor is in an animation or scene
+bool Function IsPlaying(Actor akActor) Global Native
+
+; Plays a GLTF/GLB animation on akActor. asFile is path to animation, relative to Data folder (e.g. "OSF\MyAnim.glb");
 bool Function Play(Actor akActor, string asFile, string asAnim = "") Global Native
 
 ; Stops playback on the given actor and returns control to the game.
 bool Function Stop(Actor akActor) Global Native
+
+
+
+
+; ---- Advanced API ------
 
 ; Per-graph playback speed: 1.0 = authored, 0 = freeze (clamped 0..100).
 ; For a participant, sets the shared scene clock. False if no live graph.
@@ -46,15 +71,7 @@ bool Function PlaySequence(Actor akActor, string[] asFiles, int[] aiLoops, float
 ; The source path playing on akActor (as passed to Play), or "" if no live graph.
 string Function GetCurrentAnimation(Actor akActor) Global Native
 
-; True while akActor has a live animation graph (scene or solo).
-bool Function IsPlaying(Actor akActor) Global Native
 
-; --- Scenes (mechanical: anchored, staged, synced - no policy) -----------------
-; Start* return an opaque scene HANDLE (int; 0 = failed) - pass it to StopScene / the handle-based getters / navigation below. 
-; (A bare id resolves a *.scene.json graph first, then a registry pack auto-exposed as a single-path scene; prefix scene:/anim: to force.)
-
-; Start a scene by id, returning its handle. aiStage = pack start stage (ignored for graphs).
-int Function StartScene(Actor[] akActors, string asSceneId, int aiStage = 0) Global Native
 
 ; Start a scene world-ANCHORED at akAnchor (furniture / bed / marker) instead of co-locating the
 ; actors at akActors[0] — for furniture/sleep encounters that belong to a thing, not an actor.
@@ -66,11 +83,6 @@ int Function StartSceneAt(Actor[] akActors, string asSceneId, ObjectReference ak
 ; (equal lengths; every declared role must be filled exactly once). 
 ; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
 int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles, int aiStage = 0) Global Native
-
-; Matchmake by tags + role/gender fit across composed scene defs AND packs, pick by priority tier
-; + weighted-random, and start it. Returns the scene handle (0 = no match); recover the chosen id
-; with GetSceneId(handle). (A scene def's priority/weight rank it; a same-id pack is shadowed.)
-int Function StartSceneByTags(Actor[] akActors, string[] asTags) Global Native
 
 ; Boolean-query form of StartSceneByTags: asAllOf (every tag must match) + asAnyOf (at least one;
 ; empty = ignored) + asNoneOf (none may match). Same filter-aware matchmaking + weighted pick.

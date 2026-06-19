@@ -25,8 +25,7 @@ namespace OSF::Animation
 		ozz::unique_ptr<ozz::animation::Animation> data;
 	};
 
-	// Reduced LocalToModelJob: converts SoaTransforms to local-space Float4x4s
-	// without any hierarchy math.
+	// converts SoaTransforms to local-space Float4x4s without any hierarchy math.
 	inline void UnpackSoaTransforms(const std::span<const ozz::math::SoaTransform>& a_input,
 		const std::span<ozz::math::Float4x4>& a_output,
 		const ozz::animation::Skeleton* a_skeleton)
