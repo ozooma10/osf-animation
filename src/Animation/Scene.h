@@ -127,7 +127,6 @@ namespace OSF::Animation
 
 		std::mutex lock;
 		float duration = 0.0f;  // current stage's clip length
-		bool looped = true;
 		// SetSpeed writes from the Papyrus thread (under a graph lock), Advance
 		// reads under the scene lock — atomic carries its own ordering.
 		std::atomic<float> speed{ 1.0f };

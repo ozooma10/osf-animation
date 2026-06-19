@@ -42,7 +42,6 @@ namespace OSF::Animation
 		std::shared_ptr<const OzzSkeleton> skeleton;
 		std::shared_ptr<const OzzAnimation> anim;
 		float localTime = 0.0f;
-		bool looped = true;
 
 		// Currently running animclip file; "" = none.
 		std::string currentFile;

@@ -15,7 +15,7 @@ namespace OSF::Animation
 			stageElapsed += step;
 
 			bool stageChanged = false;
-			const bool wrapped = looped && duration > 0.0f && clock.time >= duration;
+			const bool wrapped = duration > 0.0f && clock.time >= duration;
 
 			// Fire timed marks for the current stage BEFORE any terminal transition (so an
 			// "end" mark and an end edge never race). A numeric mark fires when the playhead
@@ -79,13 +79,9 @@ namespace OSF::Animation
 					stageLoops++;
 				}
 				if (duration > 0.0f) {
-					if (looped) {
-						clock.time = std::fmod(clock.time, duration);
-						if (clock.time < 0.0f) {
-							clock.time += duration;
-						}
-					} else {
-						clock.time = std::clamp(clock.time, 0.0f, duration);
+					clock.time = std::fmod(clock.time, duration);
+					if (clock.time < 0.0f) {
+						clock.time += duration;
 					}
 				}
 			}

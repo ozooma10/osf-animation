@@ -364,13 +364,9 @@ namespace OSF::Animation
 				syncGroup->lastAdvanceMs = nowMs;
 			}
 			float t = clk.time;
-			if (looped) {
-				t = std::fmod(t, duration);
-				if (t < 0.0f) {
-					t += duration;
-				}
-			} else {
-				t = std::clamp(t, 0.0f, duration);
+			t = std::fmod(t, duration);
+			if (t < 0.0f) {
+				t += duration;
 			}
 			localTime = t;
 		}
