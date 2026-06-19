@@ -283,15 +283,6 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
 		}
 
-		// DEBUG: replaces the player-lock input-disable masks. The flag names aren't fully
-		// confirmed, so this lets you bisect the real bit layout in one session. 0/0 disables
-		// nothing.
-		void SetSceneControlMask(OSFVM&, uint32_t, std::monostate, int32_t a_userMask, int32_t a_otherMask)
-		{
-			Player::PlayerControlService::GetSingleton().SetMasks(
-				static_cast<uint32_t>(a_userMask), static_cast<uint32_t>(a_otherMask));
-		}
-
 		// Compatibility-only natives (bound on OSFCompat). The SAF shim's non-Scene Play+Sync
 		// path freezes the player via these standalone locks; the core never applies them on
 		// its own. See OSFCompat.psc.
@@ -868,7 +859,6 @@ namespace OSF::Papyrus
 		// never-remove ABI promise doesn't lock in a throwaway native.
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetSceneControlMask", &SetSceneControlMask, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEvent", &Dbg_FireSceneEvent, true, false);

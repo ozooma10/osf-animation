@@ -119,24 +119,6 @@ namespace OSF::Player
 		});
 	}
 
-	void PlayerControlService::SetMasks(uint32_t a_userMask, uint32_t a_otherMask)
-	{
-		SFSE::GetTaskInterface()->AddTask([this, a_userMask, a_otherMask]() {
-			std::scoped_lock l{ lock };
-			const bool live = standaloneActive && inputLayer;
-			if (live) {
-				RestoreEnabled();
-			}
-			userMask = a_userMask;
-			otherMask = a_otherMask;
-			if (live) {
-				ApplyDisabled();
-			}
-			REX::INFO("Player control masks set: user=0x{:X} other=0x{:X}{}",
-				a_userMask, a_otherMask, live ? " (re-applied to live lock)" : "");
-		});
-	}
-
 	bool PlayerControlService::EnsureLayer()
 	{
 		if (inputLayer) {
@@ -162,13 +144,11 @@ namespace OSF::Player
 		if (!inputLayer) {
 			return;
 		}
-		appliedUserMask = userMask;
-		appliedOtherMask = otherMask;
-		if (appliedUserMask) {
-			inputLayer->EnableUserEvent(static_cast<RE::USER_EVENT_FLAG>(appliedUserMask), false, RE::USER_EVENT_SENDER_ID::Script);
+		if (userMask) {
+			inputLayer->EnableUserEvent(static_cast<RE::USER_EVENT_FLAG>(userMask), false, RE::USER_EVENT_SENDER_ID::Script);
 		}
-		if (appliedOtherMask) {
-			inputLayer->EnableOtherEvent(static_cast<RE::OTHER_EVENT_FLAG>(appliedOtherMask), false, RE::USER_EVENT_SENDER_ID::Script);
+		if (otherMask) {
+			inputLayer->EnableOtherEvent(static_cast<RE::OTHER_EVENT_FLAG>(otherMask), false, RE::USER_EVENT_SENDER_ID::Script);
 		}
 	}
 
@@ -177,13 +157,11 @@ namespace OSF::Player
 		if (!inputLayer) {
 			return;
 		}
-		if (appliedUserMask) {
-			inputLayer->EnableUserEvent(static_cast<RE::USER_EVENT_FLAG>(appliedUserMask), true, RE::USER_EVENT_SENDER_ID::Script);
+		if (userMask) {
+			inputLayer->EnableUserEvent(static_cast<RE::USER_EVENT_FLAG>(userMask), true, RE::USER_EVENT_SENDER_ID::Script);
 		}
-		if (appliedOtherMask) {
-			inputLayer->EnableOtherEvent(static_cast<RE::OTHER_EVENT_FLAG>(appliedOtherMask), true, RE::USER_EVENT_SENDER_ID::Script);
+		if (otherMask) {
+			inputLayer->EnableOtherEvent(static_cast<RE::OTHER_EVENT_FLAG>(otherMask), true, RE::USER_EVENT_SENDER_ID::Script);
 		}
-		appliedUserMask = 0;
-		appliedOtherMask = 0;
 	}
 }

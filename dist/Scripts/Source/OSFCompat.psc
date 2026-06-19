@@ -8,11 +8,6 @@ Function SetPlayerControlLock(bool abLocked) Global Native
 ; Standalone camera lock for the primitive path: forces 3rd person, bounces back on zoom-in to 1st.
 Function SetPlayerCameraLock(bool abLocked) Global Native
 
-; DEBUG: replaces the standalone player-lock input-disable bitmasks (live-reapplies to an
-; active lock, so the bit layout can be bisected in one session). 0/0 = block nothing.
-; Parked on OSFCompat, not the public OSF surface.
-Function SetSceneControlMask(int aiUserMask, int aiOtherMask) Global Native
-
 ; Engine crosshair target
 ObjectReference Function GetCrosshairRef() Global Native
 

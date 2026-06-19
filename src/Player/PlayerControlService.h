@@ -19,13 +19,6 @@ namespace OSF::Player
 		// memory of the lock).
 		void OnStopAll();
 
-		// Debug aid: replace the user/other disable masks at runtime (queued to the
-		// game thread, re-applied live if a lock is active). The flag names aren't
-		// fully confirmed, so when an input we want to keep alive (e.g. scroll-zoom)
-		// turns out to be gated by a bit we disable, this lets you bisect the real
-		// bit layout from the console in one session.
-		void SetMasks(uint32_t a_userMask, uint32_t a_otherMask);
-
 		// Standalone player control lock: engages the input-disable layer + masks
 		// (Movement includes Jumping, which AI-driven alone leaks) plus AI-driven.
 		// Released by the matching false call or OnStopAll. Idempotent.
@@ -41,12 +34,9 @@ namespace OSF::Player
 		std::mutex lock;
 		RE::BSInputEnableLayer* inputLayer = nullptr;
 		bool standaloneActive = false;
-		// Masks currently configured (what ApplyDisabled will disable) and the
-		// masks actually applied to the live layer (what RestoreEnabled must
-		// re-enable — kept separate so a mid-lock SetMasks can't strand bits).
-		uint32_t userMask = 0;
-		uint32_t otherMask = 0;
-		uint32_t appliedUserMask = 0;
-		uint32_t appliedOtherMask = 0;
+		// The input events the lock disables, fixed at construction (kSceneUserEvents /
+		// kSceneOtherEvents). ApplyDisabled disables them; RestoreEnabled re-enables them.
+		const uint32_t userMask;
+		const uint32_t otherMask;
 	};
 }
