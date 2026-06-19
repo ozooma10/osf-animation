@@ -429,7 +429,7 @@ namespace OSF::Papyrus
 		// akActors[i] (equal lengths). Returns the handle (0 = no such scene / validation fail).
 		// Roles are a *.scene.json concept; a `scene:` prefix is tolerated/stripped.
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
-			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles, int32_t /*a_stage*/)
+			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
 			if (a_actors.empty()) {
 				REX::WARN("OSF.StartSceneRoles: no actors given");

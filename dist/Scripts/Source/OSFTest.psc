@@ -415,19 +415,19 @@ Function RolesTest() global
     actors[0] = a
     string[] good = new string[1]
     good[0] = "lead"
-    int h = OSF.StartSceneRoles(actors, "author.scenes.pbtest", good, 0)
+    int h = OSF.StartSceneRoles(actors, "author.scenes.pbtest", good)
     OSFCompat.Dbg_Log("RolesTest: StartSceneRoles(lead) -> h=" + h + " node='" + OSF.GetSceneNode(h) + "' (expect nonzero / 'surrender')")
     OSF.StopScene(h)
     ; Negative: unknown role name.
     string[] bad = new string[1]
     bad[0] = "bogus"
-    int h2 = OSF.StartSceneRoles(actors, "author.scenes.pbtest", bad, 0)
+    int h2 = OSF.StartSceneRoles(actors, "author.scenes.pbtest", bad)
     OSFCompat.Dbg_Log("  StartSceneRoles(bogus) -> h2=" + h2 + " (expect 0 = unknown role)")
     ; Negative: role/actor count mismatch (1 actor, 2 role names).
     string[] two = new string[2]
     two[0] = "lead"
     two[1] = "extra"
-    int h3 = OSF.StartSceneRoles(actors, "author.scenes.pbtest", two, 0)
+    int h3 = OSF.StartSceneRoles(actors, "author.scenes.pbtest", two)
     OSFCompat.Dbg_Log("  StartSceneRoles(2 roles, 1 actor) -> h3=" + h3 + " (expect 0 = count mismatch)")
 EndFunction
 

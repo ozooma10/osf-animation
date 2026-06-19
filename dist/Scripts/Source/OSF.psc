@@ -51,16 +51,13 @@ bool Function SetAnchor(Actor akActor, float afX, float afY, float afZ, float af
 bool Function ClearAnchor(Actor akActor) Global Native
 
 ; Bring N already-playing graphs together: Play each actor first, then Sync.
-; The graphs are anchored into one shared scene at actor[0]'s spot — same-spot overlap, so paired
-; clips arrange themselves about a shared origin + heading (the fix for actors standing apart).
-; Scene participants skipped; needs >= 2 playable graphs.
-; Each clip keeps its length (mismatched ones loop independently, shared phase origin).
-bool Function Sync(Actor[] akActors) Global Native
-
-; Opt-out twin of Sync: clock-merge only — frame-lock the graphs on one shared clock while each
-; actor stays at its own world position (no teleport/anchor). Use when the clips already carry the
-; intended world separation and you do NOT want them pulled to a shared anchor.
-bool Function SyncInPlace(Actor[] akActors) Global Native
+; abAnchor=true (default): anchor the graphs into one shared scene at actor[0]'s spot — same-spot
+; overlap, so paired clips arrange themselves about a shared origin + heading (the fix for actors
+; standing apart). abAnchor=false: clock-merge only — frame-lock the graphs on one shared clock while
+; each actor stays at its own world position (no teleport/anchor), for clips that already carry the
+; intended world separation. Scene participants skipped; needs >= 2 playable graphs. Each clip keeps
+; its length (mismatched ones loop independently, shared phase origin).
+bool Function Sync(Actor[] akActors, bool abAnchor = true) Global Native
 
 ; Solo multi-phase sequence (primitive, no anchor/policy; follows the actor).
 ; Parallel arrays of equal non-zero length:
@@ -82,7 +79,7 @@ int Function StartSceneAt(Actor[] akActors, string asSceneId, ObjectReference ak
 ; Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
 ; (equal lengths; every declared role must be filled exactly once). 
 ; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
-int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles, int aiStage = 0) Global Native
+int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles) Global Native
 
 ; Boolean-query form of StartSceneByTags: asAllOf (every tag must match) + asAnyOf (at least one;
 ; empty = ignored) + asNoneOf (none may match). Same filter-aware matchmaking + weighted pick.
@@ -134,7 +131,8 @@ bool Function IsReady() Global Native
 ; version mismatch). Unknown name -> false.
 bool Function HasFeature(string asFeature) Global Native
 
-; Framework version (semver). Natives are never removed and signatures never change within a major; minors only add.
+; Framework version (semver). Pre-1.0 (0.x) the surface is still settling and may change between
+; releases; from 1.0 on, natives are never removed or re-signatured within a major version (minors only add).
 string Function GetVersion() Global Native
 
 ; --- Scene-event callbacks (OSFEvent:SceneEvent payload) ----------------------
