@@ -25,18 +25,6 @@ namespace OSF::Registry
 			return p;
 		}
 
-		SlotGender ParseGender(const nlohmann::json& a_actor)
-		{
-			const auto s = ToLower(a_actor.value("gender", "any"));
-			if (s == "male" || s == "m") {
-				return SlotGender::kMale;
-			}
-			if (s == "female" || s == "f") {
-				return SlotGender::kFemale;
-			}
-			return SlotGender::kAny;
-		}
-
 		AnimationDef ParseAnimation(const nlohmann::json& a_json, const std::string& a_packName)
 		{
 			AnimationDef def;
@@ -67,7 +55,7 @@ namespace OSF::Registry
 						"actor's clips into the top-level stages[].clips[]");
 				}
 				SlotDef slot;
-				slot.gender = ParseGender(jActor);
+				slot.gender = ParseSlotGender(jActor.value("gender", "any"));
 				if (auto it = jActor.find("offset"); it != jActor.end()) {
 					slot.offset = ParseOffset(*it);
 				}
@@ -198,6 +186,18 @@ namespace OSF::Registry
 			}
 			a_state.packCount++;
 		}
+	}
+
+	SlotGender ParseSlotGender(std::string_view a_str)
+	{
+		const auto s = Util::ToLower(a_str);
+		if (s == "male" || s == "m") {
+			return SlotGender::kMale;
+		}
+		if (s == "female" || s == "f") {
+			return SlotGender::kFemale;
+		}
+		return SlotGender::kAny;  // "any"/"" and anything else
 	}
 
 	PackRegistry& PackRegistry::GetSingleton()

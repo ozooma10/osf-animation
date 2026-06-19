@@ -8,6 +8,7 @@
 #include "Animation/Scene.h"
 
 #include <functional>
+#include <string_view>
 
 namespace OSF::Registry
 {
@@ -22,6 +23,10 @@ namespace OSF::Registry
 		kMale,
 		kFemale
 	};
+
+	// Case-insensitive gender-string parse ("male"/"m" -> kMale, "female"/"f" -> kFemale, else kAny).
+	// Shared by both registries: pack actor slots and scene role filters use the same vocabulary.
+	SlotGender ParseSlotGender(std::string_view a_str);
 
 	// One actor's clip for one stage (one per slot in StageDef::clips, actor order).
 	struct StageClip

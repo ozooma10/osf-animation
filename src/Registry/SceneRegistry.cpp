@@ -19,18 +19,6 @@ namespace OSF::Registry
 	{
 		using json = nlohmann::json;
 
-		SlotGender ParseGenderString(const std::string& a_str)
-		{
-			const auto s = ToLower(a_str);
-			if (s == "male" || s == "m") {
-				return SlotGender::kMale;
-			}
-			if (s == "female" || s == "f") {
-				return SlotGender::kFemale;
-			}
-			return SlotGender::kAny;  // "any"/"" and anything else
-		}
-
 		// --- Form-ref resolution ("Plugin.esm|0xLOCAL") ------------------------------------------
 		// Compose a runtime FormID from a "<plugin>|0x<localId>" ref, or nullopt if malformed or the
 		// plugin isn't loaded. The plugin name is matched case-insensitively by basename; the local
@@ -456,7 +444,7 @@ namespace OSF::Registry
 				if (!git->is_string()) {
 					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' must be a string");
 				}
-				shorthand = ParseGenderString(git->get<std::string>());
+				shorthand = ParseSlotGender(git->get<std::string>());
 			}
 			std::optional<SlotGender> fromFilter;
 
@@ -469,7 +457,7 @@ namespace OSF::Registry
 					if (!git->is_string()) {
 						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': filters.gender must be a string");
 					}
-					fromFilter = ParseGenderString(git->get<std::string>());
+					fromFilter = ParseSlotGender(git->get<std::string>());
 				}
 				// keyword / race: a single string or an array of strings; resolved to forms now
 				// (any-of within each list). Unresolvable / wrong-type => the scene is rejected.
