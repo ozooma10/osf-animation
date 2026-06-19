@@ -456,34 +456,43 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
 		}
 
+		// Shared body of the StartSceneByTags* natives: validate the actor list, matchmake a_query
+		// across both registries (priority tier + weighted-random), and start the picked candidate
+		// with its matchmade binding. a_logTag is the native name for the warn/info lines. Returns
+		// the scene handle (0 = no actors / null actor / no match / start failed).
+		int32_t StartMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query, const char* a_logTag)
+		{
+			if (a_actors.empty()) {
+				REX::WARN("{}: no actors given", a_logTag);
+				return 0;
+			}
+			for (auto* actor : a_actors) {
+				if (!actor) {
+					REX::WARN("{}: null actor in list", a_logTag);
+					return 0;
+				}
+			}
+			auto pick = Matchmaking::Pick(a_actors, a_query);
+			if (!pick) {
+				return 0;
+			}
+			const int32_t handle = StartCandidate(*pick, a_actors);
+			if (handle) {
+				REX::INFO("{}: playing '{}' ({}) handle {:#010x}", a_logTag,
+					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
+			}
+			return handle;
+		}
+
 		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs),
 		// pick by priority tier + weighted-random, and start it with the matchmade binding. Returns
 		// the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_tags)
 		{
-			if (a_actors.empty()) {
-				REX::WARN("OSF.StartSceneByTags: no actors given");
-				return 0;
-			}
-			for (auto* actor : a_actors) {
-				if (!actor) {
-					REX::WARN("OSF.StartSceneByTags: null actor in list");
-					return 0;
-				}
-			}
 			Matchmaking::TagQuery q;
 			q.allOf = ToStrings(a_tags);
-			auto pick = Matchmaking::Pick(a_actors, q);
-			if (!pick) {
-				return 0;
-			}
-			const int32_t handle = StartCandidate(*pick, a_actors);
-			if (handle) {
-				REX::INFO("OSF.StartSceneByTags: playing '{}' ({}) handle {:#010x}",
-					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
-			}
-			return handle;
+			return StartMatched(a_actors, q, "OSF.StartSceneByTags");
 		}
 
 		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise
@@ -492,27 +501,8 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
 			std::vector<RE::BSFixedString> a_noneOf)
 		{
-			if (a_actors.empty()) {
-				REX::WARN("OSF.StartSceneByTagsQuery: no actors given");
-				return 0;
-			}
-			for (auto* actor : a_actors) {
-				if (!actor) {
-					REX::WARN("OSF.StartSceneByTagsQuery: null actor in list");
-					return 0;
-				}
-			}
 			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
-			auto pick = Matchmaking::Pick(a_actors, q);
-			if (!pick) {
-				return 0;
-			}
-			const int32_t handle = StartCandidate(*pick, a_actors);
-			if (handle) {
-				REX::INFO("OSF.StartSceneByTagsQuery: playing '{}' ({}) handle {:#010x}",
-					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
-			}
-			return handle;
+			return StartMatched(a_actors, q, "OSF.StartSceneByTagsQuery");
 		}
 
 		// Ad-hoc one-shot scene from raw files (the SAF PlaySceneSeparate replacement):
