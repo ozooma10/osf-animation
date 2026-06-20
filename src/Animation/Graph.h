@@ -30,15 +30,15 @@ namespace OSF::Animation
 
 	class Graph
 	{
-		// GraphManager owns the graph's lifetime and drives Sample/StampPose from the
-		// per-frame hooks; it is the only thing that touches a Graph's internals.
+		// GraphManager owns the graph's lifetime and drives Sample/StampPose from the per-frame hooks 
+		// it is the only thing that touches a Graph's internals.
 		friend class GraphManager;
 
 	private:
-		std::mutex lock;
+		std::mutex stateLock;
 		RE::NiPointer<RE::TESObjectREFR> target;
 
-		// graph state is guarded by `lock`
+		// graph state is guarded by `stateLock`
 		std::shared_ptr<const OzzSkeleton> skeleton;
 		std::shared_ptr<const OzzAnimation> anim;
 		float localTime = 0.0f;
@@ -46,7 +46,7 @@ namespace OSF::Animation
 		// Currently running animclip file; "" = none.
 		std::string currentFile;
 
-		// Per-graph world anchor (OSF.SetAnchor) for SOLO graphs;  scene participants are pinned by their scene. 
+		// Per-graph world anchor (OSF.SetAnchor) for SOLO graphs; scene participants are pinned by their scene. 
 		// When hasAnchor && rootMode != kFollow the stamp hook pins the compose root to anchorPos.
 		bool hasAnchor = false;
 		RE::NiPoint3 anchorPos{};
@@ -90,17 +90,13 @@ namespace OSF::Animation
 		// modelNode identity the stamp hook matches against (set by Sample's bind).
 		const RE::BGSModelNode* StampTarget() const { return cachedModelNode; }
 
-		// AnimationManager::Update hook (job threads, ~7x/frame, subdivided dt).
-		// Re-resolves the rig chain (caching the stamp hook's match key)
-		// advances =time (a_token = clock owner), driving stage advance. Does NOT sample/write
-		// the pose — StampPose does that once per frame (a write here would be
-		// clobbered by the engine's snapshot applier).
+		// AnimationManager::Update hook (job threads, ~7x/frame, subdivided dt). Re-resolves the rig chain (caching the stamp hooks match key)
+		// Does NOT sample/write the pose, StampPose does that once per frame (a write here would be clobbered by the engine's snapshot applier).
 		void Sample(float a_deltaTime, const void* a_token);
 
-		// BGSModelNode::Update (vfunc 2) hook PRE-orig, on the thread that owns this
-		// skeleton's compose: samples the clip at Sample's accumulated time and stamps
-		// it into the rig local buffer, which the same call then composes and commits
-		// (the write point we confirmed). No-op until a_modelNode matches the cached binding.
+		// BGSModelNode::Update (vfunc 2) hook PRE-orig, on the thread that owns this skeleton's compose
+		// samples the clip at Sample's accumulated time and stamps it into the rig local buffer, which the same call then composes and commits
+		// No-op until a_modelNode matches the cached binding.
 		void StampPose(const RE::BGSModelNode* a_modelNode);
 
 		bool ResolveAndBind();

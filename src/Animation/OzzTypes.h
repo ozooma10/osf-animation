@@ -1,8 +1,8 @@
 #pragma once
 
 // Ozz wrapper types and SoA/AoS conversion helpers.
-// Ported in reduced form from NativeAnimationFrameworkSF (Animation/Ozz.h, Util/Ozz.h)
-// Copyright (C) Deweh, GPL-3.0 — https://github.com/Deweh/NativeAnimationFrameworkSF
+// Ported in reduced form from NativeAnimationFrameworkSF (Animation/Ozz.h, Util/Ozz.h) 
+// https://github.com/Deweh/NativeAnimationFrameworkSF
 
 #include <span>
 

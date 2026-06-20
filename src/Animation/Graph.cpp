@@ -15,34 +15,12 @@ namespace OSF::Animation
 
 		bool IsFaceRigNode(std::string_view a_lowerName)
 		{
-			// Director drives body playback only; leave Starfield's facial rig to
-			// the engine. That rig is uniformly prefixed "faceBone_" — verified
-			// against the human skeleton (faceBone_C_LipsTop, faceBone_R_EyeBottom,
-			// faceBone_L_InnerJaw, ...). Even the facial-rig jaw/ear/neck bones
-			// carry the prefix, while the structural C_Neck/C_Head/*_Twist joints
-			// do NOT, so a single prefix test cleanly separates the two.
-			//
-			// Do NOT denylist bare anatomical tokens (jaw/eye/lip/ear/...): non-human
-			// creature rigs name STRUCTURAL body bones with those words — a
-			// Terrormorph's animated maw is "R_Jaw"/"C_Jaw"/"L_Jaw" — and a token
-			// denylist froze them, rendering creature body anims with a dead jaw.
-			// ResolveAndBind is name-based and per-actor (race-agnostic), so this
-			// prefix guard is the only facial filter needed.
-			//
-			// "morph" stays guarded: future imports may carry expression/morph
-			// tracks whose names would otherwise collide with the live rig.
+			//We only want to drive body. rig has face prefixed with faceBone_, morph also not stamped
 			return a_lowerName.starts_with("facebone") || a_lowerName.starts_with("morph");
 		}
 
-		// Write one bone slot in the engine's NiTransform layout: rotation as
-		// 3 rows of 4 floats (+0x00/+0x10/+0x20), translation +0x30, uniform
-		// scale +0x3C. CONVENTION (settled by the engine's own quat→matrix
-		// routine 0x1404001C0, sign pattern R01=2xy+2wz / R10=2xy-2wz):
-		// Bethesda rotations are row-vector convention, so the stored rows are
-		// the TRANSPOSE of the standard column-vector matrix — which makes them
-		// byte-identical to ozz's column-major storage. A straight copy is
-		// correct; do NOT transpose (a transposed write inverts every bone
-		// rotation — live-observed as a fully contorted rig).
+		// Write bone slot in engines NiTransform layout. Rotation as 3 rows of 4 floats (0x00,0x10,0x20), translation +0x30, scale +0x3C 
+		// row-vector convention so rows are transpose of standard column-vec matrix (byte identical to ozz's column-major)
 		void WriteNiTransformRows(float* a_slot, const ozz::math::Float4x4& a_matrix)
 		{
 			const float* m = reinterpret_cast<const float*>(&a_matrix);
@@ -50,11 +28,8 @@ namespace OSF::Animation
 			a_slot[15] = 1.0f;           // uniform scale
 		}
 
-		// --- cross-fade math -------------------------------------------------
-		// Both blend sources share the slot/ozz storage convention, so any
-		// self-consistent matrix<->quat pair is correct here (a transposed
-		// reading would yield conjugate quats, and nlerp of conjugates is the
-		// conjugate of the nlerp — the round trip cancels).
+		// --- cross-fade math ---
+		// Largely ai slop "MAKE THIS WORK PLZ"
 
 		struct Quat
 		{
@@ -135,9 +110,6 @@ namespace OSF::Animation
 			return q;
 		}
 
-		// Blend a_from (slot layout; may alias a_slot — all reads happen before
-		// any write) toward a_target by a_weight and write the slot: quaternion
-		// nlerp for rotation, lerp for translation, scale forced to 1.
 		void WriteNiTransformRowsBlended(float* a_slot, const float* a_from, const ozz::math::Float4x4& a_target, float a_weight)
 		{
 			const float* to = reinterpret_cast<const float*>(&a_target);
@@ -156,10 +128,7 @@ namespace OSF::Animation
 
 	void Graph::SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file)
 	{
-		// Cross-fade FROM the pose currently on screen when there is one and
-		// the joint indexing carries over (same rig family — true for stage
-		// switches and replays); otherwise blend in from the engine's live
-		// pose, read per-bone at the write point.
+		//crossfade from pose on screen when there is one. otherwise blend in from engines live pose
 		if (hasPose && !outputPose.empty() &&
 			outputPose.size() == static_cast<size_t>(a_skeleton->data->num_joints())) {
 			blendFromPose = outputPose;
@@ -200,11 +169,9 @@ namespace OSF::Animation
 
 	bool Graph::ResolveAndBind()
 	{
-		// Any failure below invalidates the binding cache, not just the return:
-		// cachedModelNode is the stamp hook's match key, and once the chain
-		// stops resolving (3D detached, e.g. during a save-load teardown) the
-		// cached address can be freed and reused by an unrelated BGSModelNode —
-		// a stale match would stamp an old binding into the wrong rig.
+
+		//failure invalidates the binding cache.
+		//cachedModelNode is the stamp hooks match key. Once chain stops resolving (3d detatched), the cached address can be freed and reused.
 		const auto fail = [this]() {
 			lastRoot = nullptr;
 			cachedModelNode = nullptr;
@@ -220,12 +187,6 @@ namespace OSF::Animation
 		}
 
 		// refr -> data3D -> BSFadeNode -> BGSModelNode -> rig -> local buffer.
-		// Re-resolved every call: all of these churn on reload/rig rebuild.
-		// The root ref is taken UNDER the loadedData lock and held as a
-		// NiPointer for everything below: during a save-load the engine tears
-		// the 3D down on other threads while this graph is still live (the
-		// teardown event fires only at the load finalizer), so a raw pointer
-		// used after the lock is released is a use-after-free.
 		RE::NiPointer<RE::BSFadeNode> root;
 		{
 			auto loadedData = refr->loadedData.LockRead();
@@ -252,14 +213,14 @@ namespace OSF::Animation
 			return !binding.empty();
 		}
 
-		// (re)build the rigIndex -> jointIndex binding from the bone map
+		// build the rigIndex -> jointIndex binding from the bone map
 		cachedModelNode = modelNode;
 		cachedRig = rig;
 		cachedBoneCount = modelNode->nodes.size();
 		binding.clear();
 		binding.reserve(cachedBoneCount);
 
-		uint32_t skippedFaceBones = 0;  // faceBone_-prefixed / morph nodes left to the engine
+		uint32_t skippedFaceBones = 0;
 		for (uint32_t i = 0; i < modelNode->nodes.size(); i++) {
 			const auto& entry = modelNode->nodes[i];
 			if (!entry.node) {
@@ -281,8 +242,7 @@ namespace OSF::Animation
 
 		if (!loggedBind) {
 			loggedBind = true;
-			REX::INFO("Graph: rig bind — {}/{} mapped body bones matched skeleton joints ({} faceBone_/morph nodes skipped)",
-				binding.size(), cachedBoneCount, skippedFaceBones);
+			REX::INFO("Graph: rig bind — {}/{} mapped body bones matched skeleton joints ({} faceBone_/morph nodes skipped)", binding.size(), cachedBoneCount, skippedFaceBones);
 		}
 
 		return !binding.empty();
@@ -305,16 +265,12 @@ namespace OSF::Animation
 
 	void Graph::Sample(float a_deltaTime, const void* a_token)
 	{
-		// Blend ramps run on the sanitized playback dt (owner-token gated),
-		// independent of clip looping/clamping; dt 0 holds the ramp.
+		// Blend ramps run on playback dt, independent of clip looping/clamping
 		if (blendPhase != BlendPhase::kNone && blendClock.ShouldAdvance(a_token)) {
 			blendClock.time += a_deltaTime;
 		}
 
-		// Advance the scene clock first: it owns the stage, and a stage switch
-		// swaps this graph's animation (preloaded slot, no IO) which clears the
-		// rig binding — ResolveAndBind below then rebinds in the same call.
-		// scene->stages is immutable after publish, safe to read lock-free.
+		// Advance scene clock first, if it triggers stage switch (new anim), clears rig binding, which will cause below to rebind in same call.
 		if (scene) {
 			const auto tick = scene->Advance(a_token, a_deltaTime);
 			if (tick.stage != appliedStage && participantIndex >= 0 && tick.stage < scene->stages.size()) {
@@ -339,23 +295,13 @@ namespace OSF::Animation
 			return;
 		}
 
-		// Solo: our own owner-token clock advances time (only the first
-		// AnimationManager seen advances, so a graph updated by two managers —
-		// e.g. the player's 1st/3rd person graphs — runs at 1x regardless of
-		// interleaving; in a scene the shared clock above does the same job).
+		//solo scenes ownly owner token advances time (so if ex. 1st/3rd person graph running, only 1 triggers time)
 		if (!scene && syncGroup) {
-			// Synced group: a shared free-running accumulator owned by the
-			// first reporting manager; the rest read it. Wrapped by THIS
-			// graph's own duration so mismatched clips still loop, and advanced
-			// by the GROUP speed (any member's SetSpeed sets it).
 			std::scoped_lock sgl{ syncGroup->lock };
 			auto& clk = syncGroup->clock;
 			const int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now().time_since_epoch()).count();
-			// Re-elect the owner if the current one has gone silent (its graph
-			// stopped or its actor unloaded); without this the dead owner never
-			// advances again and the whole group freezes (solo graphs have no
-			// WatchdogSweep). The next ShouldAdvance below claims the clock.
+			//if owner clock stoped, elect new owner.
 			if (clk.owner && a_token != clk.owner && nowMs - syncGroup->lastAdvanceMs > kSyncOwnerStaleMs) {
 				clk.owner = nullptr;
 			}
@@ -371,12 +317,8 @@ namespace OSF::Animation
 			localTime = t;
 		}
 
-		// The ozz sample itself is deferred to StampPose. AnimationManager::Update
-		// fires ~7x per render frame (subdivided dt), but only the pose composed
-		// by BGSModelNode::Update is ever rendered — sampling here would compute
-		// and discard ~6 of every 7 full-skeleton evaluations. Sample only
-		// advances time/stage/cues and keeps the rig binding warm (above);
-		// StampPose samples once per frame at the time accumulated here.
+		// ozz sample defered to StampPose. AnimationManager::Update fires 7x per frame, so sampling here is waste.
+		// this only advance time/stage/cues and keeps rig binding warm. StampPose samples once per frame at time accumulated here
 	}
 
 	void Graph::StampPose(const RE::BGSModelNode* a_modelNode)
@@ -385,10 +327,7 @@ namespace OSF::Animation
 			return;
 		}
 
-		// Blend weight toward our pose. The slot content at this point is the
-		// engine's live pose for this frame (its applier refreshed it after the
-		// last graph update), so blending against the slot blends against
-		// whatever the actor would otherwise be doing.
+		//blend toward pose. slot content here is engines live pose for this frame, so blending blends against whatever actor would otherwise be doing.
 		float weight = 1.0f;
 		if (blendPhase == BlendPhase::kIn) {
 			weight = blendDuration > 0.0f ? std::min(blendClock.time / blendDuration, 1.0f) : 1.0f;
@@ -402,12 +341,7 @@ namespace OSF::Animation
 			}
 		}
 
-		// Sample the active clip at the time Sample accumulated on the update
-		// stream. This is the single pose the engine is about to compose+commit,
-		// so it runs once per render frame per skeleton (not once per subdivided
-		// AnimationManager::Update slice). Serialized with Sample by `lock` (the
-		// stamp hook holds it unique), so the sampling context/buffers stay
-		// single-writer.
+		// sample active clip at the time Sample accumulated on the update stream.
 		const float duration = anim->data->duration();
 		if (duration <= 0.0f) {
 			return;
