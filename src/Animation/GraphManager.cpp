@@ -15,33 +15,32 @@ namespace OSF::Animation
 {
 	namespace
 	{
-		// The two engine hooks. InstallHooks verifies each vtable slot still points where we
-		// expect before patching it.
-		// AnimationManager::Update — slot 4, the clock/sampling point.
+		// The two engine hooks. InstallHooks verifies each vtable slot still points where we expect before patching it.
+		// AnimationManager::Update - slot 4, the clock/sampling point.
+		// TODO: move to commonlib
 		constexpr REL::ID AnimManagerVTableID(467920);
 		constexpr REL::ID AnimManagerUpdateFnID(122232);
 		constexpr size_t UpdateVFuncIdx = 4;
-		// BGSModelNode::Update — slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*).
-		// Stamping before the original runs is the rig-buffer write point (that same call
-		// composes + commits).
+		
+		// BGSModelNode::Update - slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*).
+		// Stamping before the original runs is the rig-buffer write point (that same call composes + commits).
+		// TODO: move to commonlib
 		constexpr REL::ID ModelNodeVTableID(400534);
 		constexpr REL::ID ModelNodeUpdateFnID(48634);
 		constexpr size_t ModelNodeUpdateVFuncIdx = 2;
 
-		// Floor for a pinned actor's cull-sphere radius (meters): big enough to
-		// enclose any posed humanoid so a stale engine radius can't frustum-cull a
-		// participant. Used by the compose-root pin when re-centering worldBound.
+		// Floor for a pinned actor's cull-sphere radius (meters)
+		// big enough to enclose any posed humanoid so a stale engine radius can't frustum-cull a participant. 
+		// Used by the compose-root pin when re-centering worldBound.
 		constexpr float kPinCullRadius = 2.5f;
 
 		// BSFadeNode near-camera fade flag (+0x1B4, a float: 1.0 = drawn, 0.0 = faded).
-		// The engine fades an actor out when the third-person camera orbits close; we
-		// hold it at 1.0 each frame so pinned participants don't vanish.
+		// The engine fades an actor out when the third-person camera orbits close; we hold it at 1.0 each frame so pinned participants don't vanish.
 		constexpr std::ptrdiff_t kFadeNodeVisFlagOff = 0x1B4;
 
-		// Resolve a pack clip spec to an absolute path: absolute passes through; a
-		// relative spec tries Data/<spec>, then Data/OSF/Animations/<filename> (a bare
-		// shared GLB). Returns the primary Data path if neither exists, so the
-		// load-failure log names what the author wrote.
+		// Resolve a pack clip spec to an absolute path: absolute passes through;
+		// a  relative spec tries Data/<spec>, then Data/OSF/Animations/<filename>. 
+		// Returns the primary Data path if neither exists, so the load-failure log names what the author wrote.
 		std::filesystem::path ResolveClipPath(const std::filesystem::path& a_spec)
 		{
 			if (a_spec.is_absolute()) {
@@ -73,17 +72,15 @@ namespace OSF::Animation
 				return 0.0f;
 			}
 
-			// Animation updates are normally subdivided into small slices. After
-			// a menu pause the engine can report accumulated wall time; that is a
-			// resume/catch-up spike for OSF playback, not animation time.
+			// Animation updates are normally subdivided into small slices. After a menu pause the engine can report accumulated wall time; 
+			// that is a resume/catch-up spike for OSF playback, not animation time.
 			constexpr float kMaxUpdateStep = 0.1f;
 			const float dt = a_updateData.timeDelta;
 			return (std::isfinite(dt) && dt >= 0.0f && dt <= kMaxUpdateStep) ? dt : 0.0f;
 		}
 
-		// Validates a play request's shapes (actor count, per-stage file/placement
-		// counts, no null actors); logs the specific failure. The hook-installed
-		// precondition is checked separately by the caller.
+		// Validates a play request's shapes (actor count, per-stage file/placement counts, no null actors); 
+		// logs the specific failure. The hook-installed precondition is checked separately by the caller.
 		bool ValidateScenePlanArgs(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage)
 		{
 			if (a_actors.empty()) {
@@ -116,10 +113,8 @@ namespace OSF::Animation
 			return true;
 		}
 
-		// Loads every clip of every stage up front and assembles the Scene
-		// (stages, voices, sizing, initial stage, world anchor). Returns nullptr
-		// if any clip fails to load — the caller refuses a partial scene. Touches
-		// no GraphManager state; the caller wires up the participant graphs.
+		// Loads every clip of every stage up front and assembles the Scene (stages, voices, sizing, initial stage, world anchor). 
+		// Returns nullptr if any clip fails to load - the caller refuses a partial scene. Touches  no GraphManager state; the caller wires up the participant graphs.
 		std::shared_ptr<Scene> BuildSceneFromPlan(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan,
 			int32_t a_startStage)
 		{
@@ -152,15 +147,12 @@ namespace OSF::Animation
 			scene->loopWhole = a_plan.loopWhole;
 			scene->speed = std::clamp(a_plan.speed, 0.0f, 100.0f);  // same range as SetSpeed (no raw afSpeed)
 
-			// Current-stage state: placements is sized once here and only ever
-			// mutated element-wise afterwards (the pin reads it lock-free).
+			// Current-stage state: placements is sized once here and only ever mutated element-wise afterwards (the pin reads it lock-free).
 			scene->placements.resize(a_actors.size());
 			scene->SetStage(a_startStage);
 
-			// Anchor at actor[0]'s current transform by default; participant world
-			// positions are anchor + each placement's offset rotated into the anchor
-			// heading frame (see PlacementToWorld). An explicit anchor (StartSceneAt)
-			// overrides actor[0], so the scene world-anchors to a thing (furniture/marker).
+			// Anchor at actor[0]'s current transform by default; participant world positions are anchor + each placement's offset rotated into the anchor heading frame (see PlacementToWorld).
+			// An explicit anchor (StartSceneAt) overrides actor[0], so the scene world-anchors to a thing (furniture/marker).
 			if (a_plan.anchorExplicit) {
 				scene->anchorPos = a_plan.anchorPos;
 				scene->anchorHeading = a_plan.anchorHeading;
@@ -235,10 +227,9 @@ namespace OSF::Animation
 			std::unique_lock l{ stateLock };
 			auto& slot = graphs[a_actor];
 			if (slot) {
-				// Refuse to clobber a scene participant (it would keep g->scene set
-				// and the next stage tick would overwrite this clip anyway). Mirror
-				// of StopAnimation's guard — use StopScene to end a scene first.
-				std::scoped_lock gl{ slot->lock };
+				// Refuse to clobber a scene participant (it would keep g->scene set and the next stage tick would overwrite this clip anyway). 
+				// Mirror of StopAnimation's guard — use StopScene to end a scene first.
+				std::scoped_lock gl{ slot->stateLock };
 				if (slot->scene) {
 					REX::WARN("Play refused: actor {:X} is in a scene — use StopScene first", a_actor->formID);
 					return false;
@@ -252,7 +243,7 @@ namespace OSF::Animation
 		}
 
 		{
-			std::unique_lock gl{ g->lock };
+			std::unique_lock gl{ g->stateLock };
 			g->SetAnimation(loadResult.skeleton, loadResult.anim, std::string(a_file));
 		}
 
@@ -271,7 +262,7 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return false;
 		}
-		std::scoped_lock gl{ iter->second->lock };
+		std::scoped_lock gl{ iter->second->stateLock };
 		if (iter->second->scene) {
 			REX::WARN("Stop: actor {:X} is in a scene — use StopScene", a_actor->formID);
 			return false;
@@ -290,7 +281,7 @@ namespace OSF::Animation
 		auto g = iter->second;  // keep alive past the erase
 		bool faded = false;
 		{
-			std::scoped_lock gl{ g->lock };
+			std::scoped_lock gl{ g->stateLock };
 			faded = !g->scene && g->IsFadedOut();  // replayed meanwhile? keep it
 		}
 		if (faded) {
@@ -309,9 +300,8 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// Load every clip of every stage up front; a null result means one failed,
-		// so refuse a partial scene. Preloading is what makes stage switches on the
-		// job threads IO-free.
+		// Load every clip of every stage up front; a null result means one failed, so refuse a partial scene. 
+		// Preloading is what makes stage switches on the job threads IO-free.
 		auto scene = BuildSceneFromPlan(a_actors, a_plan, a_startStage);
 		if (!scene) {
 			return false;
@@ -321,8 +311,7 @@ namespace OSF::Animation
 		{
 			std::unique_lock l{ stateLock };
 
-			// Re-playing on actors already in a scene: tear the old scene(s)
-			// down first so movement state is restored exactly once per scene.
+			// Re-playing on actors already in a scene: tear the old scene(s) down first so movement state is restored exactly once per scene.
 			for (auto* actor : a_actors) {
 				if (auto iter = graphs.find(actor); iter != graphs.end() && iter->second->scene) {
 					REX::INFO("PlayScene: actor {:X} already in a scene — stopping it first", actor->formID);
@@ -338,7 +327,7 @@ namespace OSF::Animation
 					slot->target.reset(a_actors[i]);
 				}
 				{
-					std::scoped_lock gl{ slot->lock };
+					std::scoped_lock gl{ slot->stateLock };
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
 					slot->blendDuration = scene->stages[startStage].blendIn;
 					slot->scene = scene.get();
@@ -355,11 +344,9 @@ namespace OSF::Animation
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}
 
-		// Initial placement. One teleport holds — idle actors get no position
-		// write-back; the compose-root pin in the BGSModelNode hook maintains
-		// the visual position each frame against physics capsule drift.
-		// NOTE: AI off is NOT an option — the engine stops AnimationManager::Update
-		// for AI-disabled NPCs, which freezes playback.
+		// Initial placement. One teleport holds - idle actors get no position write-back;
+		// the compose-root pin in the BGSModelNode hook maintains the visual position each frame against physics capsule drift.
+		// NOTE: AI off is NOT an option - the engine stops AnimationManager::Update for AI-disabled NPCs, which freezes playback.
 		auto* transforms = RE::TransformService::GetSingleton();
 		for (size_t i = 0; scene->anchored && i < scene->participants.size() && transforms; i++) {
 			const auto& pl = scene->placements[i];
@@ -372,14 +359,10 @@ namespace OSF::Animation
 			}
 		}
 
-		// Movement controller animation-driven so graph root motion is the only
-		// intentional position writer (the engine's own paired-scene anchor);
-		// reverted in StopScene. Dispatched to the game thread via the SFSE
-		// task queue — the switch never engaged when called from the Papyrus
-		// thread (bit 19 stayed clear); the engine's own callers (console,
-		// sync-anim manager) all run on the game thread. Only for anchored scenes —
-		// an unanchored (in-place / synced-in-formation) scene leaves movement
-		// engine-owned.
+		// Movement controller animation-driven so graph root motion is the only intentional position writer (the engine's own paired-scene anchor);
+		// reverted in StopScene. Dispatched to the game thread via the SFSE task queue,  the switch never engaged when called from the Papyrus thread (bit 19 stayed clear); 
+		// the engine's own callers (console, sync-anim manager) all run on the game thread. 
+		// Only for anchored scenes - an unanchored (in-place / synced-in-formation) scene leaves movement engine-owned.
 		if (scene->anchored) {
 			for (auto* actor : a_actors) {
 				RE::NiPointer<RE::Actor> keepAlive{ actor };
@@ -411,8 +394,8 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// shared stateLock keeps the scene alive (scenes only mutate under
-		// unique); the stage jump itself is guarded by the scene's own lock
+		// shared stateLock keeps the scene alive (scenes only mutate under unique);
+		// the stage jump itself is guarded by the scene's own lock
 		std::shared_lock l{ stateLock };
 		auto iter = graphs.find(a_actor);
 		if (iter == graphs.end()) {
@@ -420,7 +403,7 @@ namespace OSF::Animation
 		}
 		Scene* scene = nullptr;
 		{
-			std::scoped_lock gl{ iter->second->lock };
+			std::scoped_lock gl{ iter->second->stateLock };
 			scene = iter->second->scene;
 		}
 		if (!scene) {
@@ -458,22 +441,20 @@ namespace OSF::Animation
 
 	void GraphManager::StopAll(const char* a_reason)
 	{
-		// Release the player standalone lock + the persistent AI-driven flag (set
-		// by the SAF-shim compat lock). The AI-driven flag is serialized into
-		// saves, so it MUST be cleared on every load even when this process holds
-		// no in-memory lock; the input-disable layer is non-persistent.
+		// Release the player standalone lock + the persistent AI-driven flag (set by the SAF-shim compat lock). 
+		// The AI-driven flag is serialized into saves, so it MUST be cleared on every load even when this process holds no in-memory lock;
+		// the input-disable layer is non-persistent.
 		Camera::CameraService::GetSingleton().OnStopAll();
 		Player::PlayerControlService::GetSingleton().OnStopAll();
-		// Release any held/pending screen fade before the load (the stay-faded latch crashes
-		// the load path — see FadeService crash constraint).
+
+		// Release any held/pending screen fade before the load (the stay-faded latch crashes the load path).
 		UI::FadeService::GetSingleton().OnStopAll();
-		// Cut every live cue sound — a loaded save shouldn't have last-world sounds ringing over it.
+		// Cut every live cue sound, a loaded save shouldn't have last-world sounds ringing over it.
 		Audio::SoundService::GetSingleton().StopAll();
 
-		// Drop the scene runtime's handles too — their participants are raw Actor* that the
-		// load invalidates, so a stashed handle must read as dead afterward. Done even when we
-		// hold no graphs/scenes ourselves, so the handle table can never stay live across a
-		// load. Runs before stateLock, since Clear takes the runtime's own lock.
+		// Drop the scene runtime's handles too, their participants are raw Actor* that the load invalidates, so a stashed handle must read as dead afterward. 
+		// Done even when we hold no graphs/scenes ourselves, so the handle table can never stay live across a load. 
+		// Runs before stateLock, since Clear takes the runtime's own lock.
 		if (_clearHandler) {
 			_clearHandler();
 		}
@@ -485,10 +466,8 @@ namespace OSF::Animation
 		REX::INFO("StopAll ({}): dropping {} scene(s) + {} graph(s)",
 			a_reason ? a_reason : "?", scenes.size(), graphs.size());
 
-		// We do NOT fade or revert movement here: on a save load the engine has
-		// already reset every actor to the saved state, and our graphs are
-		// anchored in the world that was just discarded. Stale graphs/scenes just
-		// stop existing; the engine's rig refresh owns the pose.
+		// We do NOT fade or revert movement here: on a save load the engine has already reset every actor to the saved state, and our graphs are anchored in the world that was just discarded. 
+		// Stale graphs/scenes just stop existing; the engine's rig refresh owns the pose.
 		scenes.clear();
 		graphs.clear();
 		graphCount.store(0, std::memory_order_relaxed);
@@ -506,12 +485,11 @@ namespace OSF::Animation
 		}
 		Scene* scene = nullptr;
 		{
-			std::scoped_lock gl{ iter->second->lock };
+			std::scoped_lock gl{ iter->second->stateLock };
 			scene = iter->second->scene;
 		}
-		// Report the scene's authoritative current stage (set immediately on SetStage /
-		// auto-advance), not the graph's appliedStage (lags one sample). stateLock (shared)
-		// keeps the scene alive while we read it.
+		// Report the scene's authoritative current stage (set immediately on SetStage / auto-advance), not the graph's appliedStage (lags one sample). 
+		// stateLock (shared) keeps the scene alive while we read it.
 		return scene ? static_cast<int32_t>(scene->CurrentStage()) : -1;
 	}
 
@@ -525,7 +503,7 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return false;
 		}
-		std::scoped_lock gl{ iter->second->lock };
+		std::scoped_lock gl{ iter->second->stateLock };
 		return !iter->second->IsFadedOut();
 	}
 
@@ -539,7 +517,7 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return {};
 		}
-		std::scoped_lock gl{ iter->second->lock };
+		std::scoped_lock gl{ iter->second->stateLock };
 		if (iter->second->IsFadedOut()) {
 			return {};
 		}
@@ -557,10 +535,9 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return false;
 		}
-		std::scoped_lock gl{ iter->second->lock };
-		// Scene participants share the scene clock (Scene::Advance reads speed); a
-		// synced solo graph shares its group clock (which advances by the group
-		// speed, not the owner's); an unsynced solo graph advances by Graph::speed.
+		std::scoped_lock gl{ iter->second->stateLock };
+		// Scene participants share the scene clock (Scene::Advance reads speed); 
+		// a synced solo graph shares its group clock (which advances by the group speed, not the owner's); an unsynced solo graph advances by Graph::speed.
 		if (iter->second->scene) {
 			iter->second->scene->speed = speed;
 		} else if (iter->second->syncGroup) {  // null only in the brief window before SetAnimation runs
@@ -579,14 +556,14 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return 0.0f;
 		}
-		std::scoped_lock gl{ iter->second->lock };
+		std::scoped_lock gl{ iter->second->stateLock };
 		if (iter->second->scene) {
 			return iter->second->scene->speed.load(std::memory_order_relaxed);
 		}
 		if (iter->second->syncGroup) {
 			return iter->second->syncGroup->speed.load(std::memory_order_relaxed);
 		}
-		return 1.0f;  // graph created but not yet started (pre-SetAnimation) — authored speed
+		return 1.0f;  // graph created but not yet started (pre-SetAnimation), authored speed
 	}
 
 	bool GraphManager::SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
@@ -603,7 +580,7 @@ namespace OSF::Animation
 				REX::WARN("SetAnchor: actor {:X} has no live graph", a_actor->formID);
 				return false;
 			}
-			std::scoped_lock gl{ iter->second->lock };
+			std::scoped_lock gl{ iter->second->stateLock };
 			if (iter->second->scene) {
 				REX::WARN("SetAnchor: actor {:X} is a scene participant — anchoring is scene-driven (use the scene's placement offsets)",
 					a_actor->formID);
@@ -613,9 +590,8 @@ namespace OSF::Animation
 			iter->second->rootMode = mode;
 			iter->second->hasAnchor = true;
 		}
-		// The pin only fixes the RENDERED root; move the capsule to the anchor too
-		// (keeps physics/interaction near) and set heading once. SetPosition runs
-		// fine from the calling thread (PlaySceneStaged does the same directly).
+		// The pin only fixes the RENDERED root; move the capsule to the anchor too (keeps physics/interaction near) and set heading once. 
+		// SetPosition runs fine from the calling thread (PlaySceneStaged does the same directly).
 		if (auto* transforms = RE::TransformService::GetSingleton()) {
 			transforms->SetPosition(a_actor, { a_x, a_y, a_z });
 			transforms->SetHeadingZ(a_actor, heading);
@@ -635,7 +611,7 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return false;
 		}
-		std::scoped_lock gl{ iter->second->lock };
+		std::scoped_lock gl{ iter->second->stateLock };
 		iter->second->hasAnchor = false;
 		return true;
 	}
@@ -647,21 +623,17 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// Auto-anchor (the default): promote the independently-played solo graphs into
-		// ONE anchored, clock-shared scene at actor[0]'s current transform. Placements
-		// are left empty (same-spot overlap), so each paired clip's baked root offset
-		// arranges the actors about one shared origin+heading — the SAF/NAF paired-clip
-		// convention. Without this, Play+Sync leaves every actor animating about its own
-		// (far-apart) world position, which is the "actors stand apart" symptom.
+		// Auto-anchor (the default): promote the independently-played solo graphs into ONE anchored, clock-shared scene at actor[0]'s current transform. 
+		// Placements are left empty (same-spot overlap), so each paired clip's baked root offset arranges the actors about one shared origin+heading
+		// Without this, Play+Sync leaves every actor animating about its own (far-apart) world position, which is the "actors stand apart" symptom.
 		if (a_anchor) {
 			std::vector<RE::Actor*> sceneActors;
 			std::vector<std::string> sceneFiles;
 			float groupSpeed = 1.0f;
 			bool gotSpeed = false;
 			{
-				// Collect the qualifying solo graphs' clips in actor order WITHOUT
-				// mutating them, then drop stateLock before PlaySceneStaged (which takes
-				// it unique). Skip actors with no graph, no clip, or already in a scene.
+				// Collect the qualifying solo graphs' clips in actor order WITHOUT  mutating them, then drop stateLock before PlaySceneStaged (which takes it unique). 
+				// Skip actors with no graph, no clip, or already in a scene.
 				std::shared_lock l{ stateLock };
 				for (auto* actor : a_actors) {
 					if (!actor) {
@@ -672,7 +644,7 @@ namespace OSF::Animation
 						REX::WARN("Sync: actor {:X} has no live graph — skipping", actor->formID);
 						continue;
 					}
-					std::scoped_lock gl{ iter->second->lock };
+					std::scoped_lock gl{ iter->second->stateLock };
 					if (iter->second->scene) {
 						REX::WARN("Sync: actor {:X} is already a scene participant — skipping", actor->formID);
 						continue;
@@ -710,15 +682,12 @@ namespace OSF::Animation
 			return true;
 		}
 
-		// Opt-out (abAnchor=false): legacy clock-merge only — frame-lock the solo graphs
-		// on one shared clock, leaving each actor at its own world position.
+		// Opt-out (abAnchor=false): legacy clock-merge only, frame-lock the solo graphs on one shared clock, leaving each actor at its own world position.
 		std::shared_lock l{ stateLock };
-		// First pass: collect the qualifying solo graphs WITHOUT mutating them, so
-		// a group that can't reach 2 members leaves nothing half-synced (a stray
-		// 1-member assignment strands that graph on a private clock and snaps it to
-		// frame 0 even though we report failure). Holding stateLock shared across
-		// both passes blocks scene (un)assignment — which takes stateLock unique —
-		// so the scene check from pass 1 stays valid through pass 2.
+
+		// First pass: collect the qualifying solo graphs WITHOUT mutating them, so a group that can't reach 2 members leaves nothing half-synced 
+		// (a stray 1-member assignment strands that graph on a private clock and snaps it to frame 0 even though we report failure). 
+		// Holding stateLock shared across both passes blocks scene (un)assignment, which takes stateLock unique, so the scene check from pass 1 stays valid through pass 2.
 		std::vector<std::shared_ptr<Graph>> targets;
 		for (auto* actor : a_actors) {
 			if (!actor) {
@@ -729,7 +698,7 @@ namespace OSF::Animation
 				REX::WARN("Sync: actor {:X} has no live graph — skipping", actor->formID);
 				continue;
 			}
-			std::scoped_lock gl{ iter->second->lock };
+			std::scoped_lock gl{ iter->second->stateLock };
 			if (iter->second->scene) {
 				REX::WARN("Sync: actor {:X} is a scene participant (already clock-synced) — skipping", actor->formID);
 				continue;
@@ -740,27 +709,25 @@ namespace OSF::Animation
 			REX::WARN("Sync: fewer than 2 playable solo graphs to sync ({})", targets.size());
 			return false;
 		}
-		// Second pass: one shared clock for the whole group; each graph reads it
-		// under its own lock (the group lock is a leaf). Graphs jump to the clock's
-		// t=0 on their next sample, so the group snaps into phase together. Seed the
-		// group speed from the first member so a pre-Sync SetSpeed carries over.
+		// Second pass: one shared clock for the whole group; each graph reads it under its own lock (the group lock is a leaf). 
+		// Graphs jump to the clock's t=0 on their next sample, so the group snaps into phase together. 
+		// Seed the group speed from the first member so a pre-Sync SetSpeed carries over.
 		auto group = std::make_shared<SyncGroup>();
 		{
-			std::scoped_lock gl{ targets.front()->lock };
+			std::scoped_lock gl{ targets.front()->stateLock };
 			if (const auto& sg = targets.front()->syncGroup) {  // null only pre-SetAnimation
 				group->speed.store(sg->speed.load(std::memory_order_relaxed), std::memory_order_relaxed);
 			}
 		}
 		for (auto& g : targets) {
-			std::scoped_lock gl{ g->lock };
+			std::scoped_lock gl{ g->stateLock };
 			g->syncGroup = group;
 		}
 		REX::INFO("Sync: {} graphs frame-locked on one shared clock", targets.size());
 		return true;
 	}
 
-	bool GraphManager::PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files,
-		const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole)
+	bool GraphManager::PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole)
 	{
 		if (!a_actor) {
 			return false;
@@ -787,8 +754,7 @@ namespace OSF::Animation
 
 	void GraphManager::StopSceneLocked(Scene* a_scene)
 	{
-		// Detach every participant of this scene and drop their graphs; the
-		// engine's own rig refresh restores the game pose next frame.
+		// Detach every participant of this scene and drop their graphs; the engine's own rig refresh restores the game pose next frame.
 		auto sceneIter = std::find_if(scenes.begin(), scenes.end(),
 			[&](const std::shared_ptr<Scene>& s) { return s.get() == a_scene; });
 		if (sceneIter == scenes.end()) {
@@ -800,13 +766,11 @@ namespace OSF::Animation
 		auto& participants = (*sceneIter)->participants;
 		for (auto& p : participants) {
 			{
-				// graph stays in the map and fades to the engine pose; the
-				// update hook queues its removal once the ramp elapses
-				std::scoped_lock gl{ p->lock };
+				// graph stays in the map and fades to the engine pose; the update hook queues its removal once the ramp elapses
+				std::scoped_lock gl{ p->stateLock };
 				p->DetachAndFadeOut();
 			}
-			// Revert the animation-driven movement switch from PlaySceneStaged
-			// (anchored scenes only). Game-thread only.
+			// Revert the animation-driven movement switch from PlaySceneStaged (anchored scenes only). Game-thread only.
 			if (anchored && p->target) {
 				// participants are always Actors (PlayScene takes Actor*)
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
@@ -825,10 +789,8 @@ namespace OSF::Animation
 
 	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph)
 	{
-		// The last timed/loop-counted stage ran out. StopScene needs stateLock
-		// unique (the hook holds it shared), so defer to the game thread;
-		// capturing the shared_ptr keeps the Scene alive and makes the pointer
-		// ABA-safe — StopSceneByPtr no-ops if the scene was already stopped.
+		// The last timed/loop-counted stage ran out. StopScene needs stateLock unique (the hook holds it shared), so defer to the game thread;
+		// capturing the shared_ptr keeps the Scene alive and makes the pointer ABA-safe, StopSceneByPtr no-ops if the scene was already stopped.
 		if (!a_graph.scene || !a_graph.scene->ended.load(std::memory_order_relaxed) ||
 			a_graph.scene->endQueued.exchange(true, std::memory_order_relaxed)) {
 			return;
@@ -846,8 +808,8 @@ namespace OSF::Animation
 		}
 		REX::INFO("Scene finished its last stage — queueing stop task (from job thread)");
 		SFSE::GetTaskInterface()->AddTask([keepAlive]() {
-			// SetStage between the queue and now revives the scene (clears
-			// `ended`) — a revived scene must not be killed by this stale task.
+			// SetStage between the queue and now revives the scene (clears `ended`)
+			// a revived scene must not be killed by this stale task.
 			if (!keepAlive->ended.load(std::memory_order_relaxed)) {
 				REX::INFO("Scene end task: scene was revived meanwhile — not stopping");
 				return;
@@ -855,11 +817,9 @@ namespace OSF::Animation
 			REX::INFO("Scene end task executing on game thread");
 			auto& gm = GetSingleton();
 
-			// The scene runtime gets first refusal: a graph-driven scene takes the matching
-			// auto-edge (advance to the next node / end its scene) and owns the teardown. A
-			// standalone scene (a direct StartScene* with no graph) isn't claimed — we stop
-			// it ourselves. No manager lock is held here, so the handler is free to call
-			// PlaySceneStaged/StopScene.
+			// The scene runtime gets first refusal: a graph-driven scene takes the matching auto-edge (advance to the next node / end its scene) and owns the teardown. 
+			// A standalone scene (a direct StartScene* with no graph) isn't claimed, we stop it ourselves. 
+			// No manager lock is held here, so the handler is free to call PlaySceneStaged/StopScene.
 			bool handled = false;
 			if (gm._autoEndHandler) {
 				std::vector<RE::Actor*> actors;
@@ -882,15 +842,14 @@ namespace OSF::Animation
 		if (!a_graph.scene || !_timedMarkHandler) {
 			return;
 		}
-		// Drain the marks the scene fired this frame (token-gated, so only the advancing
-		// graph populates them — any participant draining gets them once).
+		// Drain the marks the scene fired this frame (token-gated, so only the advancing graph populates them, any participant draining gets them once).
 		std::vector<FiredMark> marks;
 		a_graph.scene->DrainFiredMarks(marks);
 		if (marks.empty()) {
 			return;
 		}
-		// Snapshot the participant actors (NiPointer keeps them alive across the deferred
-		// task); dispatch on the game thread — the handler enters the VM (and may transition).
+		// Snapshot the participant actors (NiPointer keeps them alive across the deferred task); 
+		// dispatch on the game thread, the handler enters the VM (and may transition).
 		std::vector<RE::NiPointer<RE::Actor>> keep;
 		for (auto& p : a_graph.scene->participants) {
 			if (p && p->target) {
@@ -911,9 +870,8 @@ namespace OSF::Animation
 
 	void GraphManager::QueueFadeRemovalIfDone(Graph& a_graph)
 	{
-		// Fade-out finished: queue removal on the game thread (the hook holds the
-		// state lock shared here). A replay before the task runs resets the blend
-		// state, and RemoveFadedGraph re-checks under the lock.
+		// Fade-out finished: queue removal on the game thread (the hook holds the state lock shared here). 
+		// A replay before the task runs resets the blend state, and RemoveFadedGraph re-checks under the lock.
 		if (a_graph.scene || !a_graph.IsFadedOut() || a_graph.removalQueued) {
 			return;
 		}
@@ -926,13 +884,10 @@ namespace OSF::Animation
 
 	void GraphManager::LogSceneDiag(Graph& a_graph, RE::TESObjectREFR* a_refr)
 	{
-		// Update calls arrive ~7x per render frame (subdivided dt), so cadences
-		// are in update-calls, not frames: ~240 calls ≈ 0.5s. NOTE: the root-node
-		// world transform is the physics capsule position, NOT the rendered
-		// skeleton — the compose-root pin redirects the rig compose input, and
-		// mapped bones get their worlds from the rig buffers. ~0.3m capsule offset
-		// per co-located actor is expected (and lines up correctly on screen); a jump
-		// beyond ~0.5m means physics dragged the actor.
+		// Update calls arrive ~7x per render frame (subdivided dt), so cadences are in update-calls, not frames: ~240 calls ≈ 0.5s.
+		// NOTE: the root-node world transform is the physics capsule position, NOT the rendered skeleton
+		// the compose-root pin redirects the rig compose input, and mapped bones get their worlds from the rig buffers.
+		// ~0.3m capsule offset  per co-located actor is expected (and lines up correctly on screen); a jump beyond ~0.5m means physics dragged the actor.
 		if (!a_graph.scene || a_graph.participantIndex < 0) {
 			return;
 		}
@@ -954,8 +909,7 @@ namespace OSF::Animation
 
 	void GraphManager::Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData)
 	{
-		// Evaluate the game's graph first; our rig writes land after the
-		// engine's pose refresh + eval and before world composition.
+		// Evaluate the game's graph first; our rig writes land after the engine's pose refresh + eval and before world composition.
 		_origAnimGraphUpdate(a_this, a_updateData);
 
 		if (!a_updateData) {
@@ -964,24 +918,19 @@ namespace OSF::Animation
 
 		auto& gm = GetSingleton();
 
-		// Player camera guard: POVSwitch stays enabled for scroll-zoom, so first
-		// person must be bounced if the player zooms all the way in while a
-		// standalone camera lock is held (SAF-shim Play+Sync flow). Above the
-		// managed-graph filter — its own atomic early-out makes the idle case
-		// free, and a standalone lock with no live graph still bounces.
+		// Player camera guard: POVSwitch stays enabled for scroll-zoom, so first person must be bounced if the player zooms all the way in while a standalone camera lock is held. 
+		// Above the managed-graph filter — its own atomic early-out makes the idle case free, and a standalone lock with no live graph still bounces.
 		Camera::CameraService::GetSingleton().Tick();
 		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
 		Audio::SoundService::GetSingleton().Tick();  // moves the listener to the player + reaps finished sounds
 
-		// Idle early-out: this hook fires ~7x per render frame for every
-		// AnimationManager in the game; with no managed graphs there is
-		// nothing else to do.
+		// Idle early-out: this hook fires ~7x per render frame for every AnimationManager in the game; 
+		// with no managed graphs there is nothing else to do.
 		if (gm.graphCount.load(std::memory_order_relaxed) == 0) {
 			return;
 		}
 
-		// Identity match: resolve the managed actor directly from the
-		// AnimationManager pointer (no position guessing, no collisions).
+		// Identity match: resolve the managed actor directly from the AnimationManager pointer (no position guessing, no collisions).
 		auto* animMgr = static_cast<RE::AnimationManager*>(a_this);
 		RE::TESObjectREFR* refr = animMgr ? animMgr->GetTargetReference() : nullptr;
 		if (!refr) {
@@ -993,17 +942,14 @@ namespace OSF::Animation
 		if (iter == gm.graphs.end()) {
 			return;
 		}
-		// stateLock is held shared through the rest of this function, so the map
-		// entry can't be erased from under us — bind to the slot by reference
-		// instead of copying the shared_ptr (drops a refcount RMW per call, and
-		// this fires ~7x/frame per managed actor).
+		// stateLock is held shared through the rest of this function, so the map entry can't be erased from under us 
+		// bind to the slot by reference instead of copying the shared_ptr (drops a refcount RMW per call, and this fires ~7x/frame per managed actor).
 		auto& g = iter->second;
 
-		std::unique_lock gl{ g->lock };
+		std::unique_lock gl{ g->stateLock };
 		g->Sample(PlaybackDelta(*a_updateData), a_this);
 
-		// Per-graph follow-ups, run under both locks (each defers any
-		// game-thread-only work to the task queue).
+		// Per-graph follow-ups, run under both locks (each defers any game-thread-only work to the task queue).
 		gm.QueueAutoEndIfFinished(*g);
 		gm.QueueTimedMarksIfFired(*g);
 		gm.QueueFadeRemovalIfDone(*g);
@@ -1012,34 +958,25 @@ namespace OSF::Animation
 
 	uint64_t GraphManager::Hook_ModelNodeUpdate(RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData)
 	{
-		// Stamp the latest sampled pose for the graph driving this skeleton
-		// before the engine's compose+commit runs (the verified write point).
-		// Unmanaged skeletons fall through with one map scan;
-		// managed graph counts are small (scene participants).
+		// Stamp the latest sampled pose for the graph driving this skeleton before the engine's compose+commit runs (the verified write point).
+		// Unmanaged skeletons fall through with one map scan; managed graph counts are small (scene participants).
 		auto& gm = GetSingleton();
-		// This runs once per skeleton per frame game-wide; with no OSF playback
-		// the atomic check keeps it lock-free. A racing insert is benign (the
-		// new graph stamps next frame at the latest).
+		// This runs once per skeleton per frame game-wide; with no OSF playback the atomic check keeps it lock-free. 
+		// A racing insert is benign (the new graph stamps next frame at the latest).
 		if (gm.graphCount.load(std::memory_order_relaxed) > 0) {
 			std::shared_lock l{ gm.stateLock };
 			if (!gm.graphs.empty()) {
 				for (auto& [refr, g] : gm.graphs) {
-					// benign unsynchronized pointer read; verified again under
-					// the graph lock inside StampPose
+					// benign unsynchronized pointer read; verified again under the graph lock inside StampPose
 					if (g->StampTarget() == a_this) {
-						std::unique_lock gl{ g->lock };
+						std::unique_lock gl{ g->stateLock };
 						g->StampPose(a_this);
-						// Pin the compose root TRANSLATION to the placement world position.
-						// a_parentTransform = &fadeNode->local (this compose's root input;
-						// NiTransform, translate at +0x30). Overriding the compose input pins
-						// the RENDERED skeleton without fighting physics (capsules sit ~0.3 m
-						// off and win any refr-teleport). Scene participant -> its placement
-						// (anchored); solo graph -> its SetAnchor anchor when rootMode != kFollow.
+						// Pin the compose root TRANSLATION to the placement world position. a_parentTransform = &fadeNode->local (this compose's root input;
+						// NiTransform, translate at +0x30). Overriding the compose input pins the RENDERED skeleton without fighting physics 
+						// (capsules sit ~0.3 m off and win any refr-teleport). Scene participant -> its placement (anchored); solo graph -> its SetAnchor anchor when rootMode != kFollow.
 						RE::NiPoint3 pinWorld{};
 						bool doPin = false;
-						// World heading to re-pin per frame (radians). Only known on
-						// the scene path; solo anchors retain no heading. Gated to the
-						// PLAYER below.
+						// World heading to re-pin per frame (radians). Only known on the scene path; solo anchors retain no heading. Gated to the PLAYER below.
 						float pinHeading = 0.0f;
 						bool hasPinHeading = false;
 						if (g->scene && g->scene->anchored && g->participantIndex >= 0) {
@@ -1059,11 +996,9 @@ namespace OSF::Animation
 							root[13] = pinWorld.y;
 							root[14] = pinWorld.z;
 
-							// Pin compose-root ROTATION for the PLAYER only: in 3rd person the
-							// engine rewrites the player heading from camera yaw each frame
-							// (AI-driven doesn't suppress it on 1.16.244), so the rig spins as
-							// the camera orbits. NPCs stay anim-owned. Rotation = NiMatrix3 at
-							// +0x00: three ROWS of 4 floats (4th pad), stride 4 -> root[r*4 + c].
+							// Pin compose-root ROTATION for the PLAYER only: in 3rd person the engine rewrites the player heading from camera yaw each frame
+							// (AI-driven doesn't suppress it on 1.16.244), so the rig spins as the camera orbits. 
+							// NPCs stay anim-owned. Rotation = NiMatrix3 at +0x00: three ROWS of 4 floats (4th pad), stride 4 -> root[r*4 + c].
 							// Write a Z-up yaw; leave the pad lanes (root[3],[7],[11]) alone.
 							if (hasPinHeading &&
 								refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
@@ -1074,20 +1009,16 @@ namespace OSF::Animation
 								root[8] = 0.0f; root[9] = 0.0f; root[10] = 1.0f;  // row2
 							}
 
-							// Keep the CULL SPHERE on the pinned render position. The engine
-							// derives worldBound from the physics capsule (~0.3 m off), so left
-							// alone NiCullingProcess pops the actor in/out as the camera orbits.
-							// Recover the node from a_parentTransform (= local @ +0x40) and
-							// rewrite worldBound (center +0x100, radius +0x10C). Written pre-orig
-							// but after the bound pass, so culling sees it this frame.
+							// Keep the CULL SPHERE on the pinned render position. The engine derives worldBound from the physics capsule (~0.3 m off), 
+							// so left alone NiCullingProcess pops the actor in/out as the camera orbits.
+							// Recover the node from a_parentTransform (= local @ +0x40) and rewrite worldBound (center +0x100, radius +0x10C). 
+							// Written pre-orig but after the bound pass, so culling sees it this frame.
 							auto* fadeNode = reinterpret_cast<RE::NiAVObject*>(
 								reinterpret_cast<std::byte*>(a_parentTransform) - offsetof(RE::NiAVObject, local));
 							fadeNode->worldBound.center = pinWorld;
 							fadeNode->worldBound.radius = std::max(fadeNode->worldBound.radius, kPinCullRadius);
 
-							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0 so pinned
-							// participants don't fade out when the camera orbits close (see
-							// kFadeNodeVisFlagOff).
+							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0 so pinned participants don't fade out when the camera orbits close (see kFadeNodeVisFlagOff).
 							*reinterpret_cast<float*>(
 								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff) = 1.0f;
 						}
