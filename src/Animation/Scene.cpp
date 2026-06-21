@@ -17,12 +17,10 @@ namespace OSF::Animation
 			bool stageChanged = false;
 			const bool wrapped = duration > 0.0f && clock.time >= duration;
 
-			// Fire timed marks for the current stage BEFORE any terminal transition (so an
-			// "end" mark and an end edge never race). A numeric mark fires when the playhead
-			// crosses its time over [prevTime, clock.time) — handling a single wrap; an "end"
-			// mark fires on the first loop's wrap. repeat:loop fires every loop, else first
-			// loop only (gated by markFired[i]). Fired marks land in firedMarks (drained by the
-			// hook); the Scene round-trips the opaque lane+token without interpreting them.
+			// Fire timed marks for the current stage BEFORE any terminal transition (so an "end" mark and an end edge never race).
+			// A numeric mark fires when the playhead crosses its time over [prevTime, clock.time) - handling a single wrap; 
+			// an "end" mark fires on the first loop's wrap. repeat:loop fires every loop, else first loop only (gated by markFired[i]). 
+			// Fired marks land in firedMarks (drained by the hook); the Scene round-trips the opaque lane+token without interpreting them.
 			if (!stages.empty()) {
 				const auto& marks = stages[currentStage].marks;
 				for (size_t i = 0; i < marks.size(); i++) {
@@ -60,9 +58,8 @@ namespace OSF::Animation
 						ApplyStageLocked(0);  // PlaySequence whole-loop
 						REX::INFO("Scene: final stage {} expired — looping to stage 0", why);
 					} else {
-						// Record which condition fired so the scene runtime's auto-advance
-						// handler can pick the matching auto-edge (timer vs loops/end). Set
-						// before `ended` so a reader gated on `ended` sees the reason.
+						// Record which condition fired so the scene runtime's auto-advance handler can pick the matching auto-edge (timer vs loops/end). 
+						// Set before `ended` so a reader gated on `ended` sees the reason.
 						endReason.store(timerExpired ? SceneEndReason::kTimer : SceneEndReason::kLoops,
 							std::memory_order_relaxed);
 						ended.store(true, std::memory_order_relaxed);  // hook defers StopScene
@@ -72,8 +69,7 @@ namespace OSF::Animation
 				}
 			}
 
-			// Count the loop + wrap the clock. Skipped on a stage switch (that
-			// wrap belongs to the stage we just left).
+			// Count the loop + wrap the clock. Skipped on a stage switch (that wrap belongs to the stage we just left).
 			if (!stageChanged) {
 				if (wrapped) {
 					stageLoops++;
