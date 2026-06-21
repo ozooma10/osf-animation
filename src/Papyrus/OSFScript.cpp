@@ -31,9 +31,8 @@ namespace OSF::Papyrus
 			return out;
 		}
 
-		// Split a "scene:"/"anim:" registry prefix off a start id. "scene:" forces the scene
-		// registry, "anim:" forces the pack registry; a bare id leaves both false (the caller's
-		// scene-then-pack resolution). Shared by StartScene / StartSceneAt.
+		// Split a "scene:"/"anim:" registry prefix off a start id. "scene:" forces the scene registry, "anim:" forces the pack registry; 
+		// a bare id leaves both false (the caller's scene-then-pack resolution). Shared by StartScene / StartSceneAt.
 		struct ScenePrefix
 		{
 			std::string id;
@@ -55,9 +54,8 @@ namespace OSF::Papyrus
 			return p;
 		}
 
-		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the
-		// slot->actor order, so we never re-bind here). Scene defs go through StartFromDef (binds by
-		// declaration order = the reordered actors); packs through StartFromPack.
+		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the slot->actor order, so we never re-bind here). 
+		// Scene defs go through StartFromDef (binds by declaration order = the reordered actors); packs through StartFromPack.
 		int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors)
 		{
 			std::vector<RE::Actor*> ordered(a_pick.order.size());
@@ -89,8 +87,7 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopAnimation(a_actor);
 		}
 
-		// Jump a linear scene (by handle) to a given stage. False on a non-linear graph,
-		// an out-of-range stage, or an invalid handle.
+		// Jump a linear scene (by handle) to a given stage. False on a non-linear graph, an out-of-range stage, or an invalid handle.
 		bool SetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_stage)
 		{
 			return Scene::SceneRuntime::GetSingleton().SetStage(a_scene, a_stage);
@@ -107,9 +104,8 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().SetSceneStage(a_actor, a_stage);
 		}
 
-		// Rescans Data/OSF/**/*.json (dev convenience: edit a pack, reload, replay
-		// without restarting the game). Returns the number of animations loaded.
-		// Also drops the GLB clip cache so edited animation files re-import.
+		// Rescans Data/OSF/**/*.json (dev convenience: edit a pack, reload, replay without restarting the game).
+		// Returns the number of animations loaded. Also drops the GLB clip cache so edited animation files re-import.
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
 			Serialization::GLTFImport::ClearCache();
@@ -120,9 +116,9 @@ namespace OSF::Papyrus
 			return static_cast<int32_t>(registry.Size());
 		}
 
-		// Discovery: ids of scenes (composed defs + packs) with aiActorCount actors whose tags contain
-		// ALL asTags. Deterministic (priority desc, then id asc). Count + tags only — filter-UNAWARE
-		// (no Actor[]); use FindScenesForActorsQuery / StartSceneByTags* for a filter-correct result.
+		// Discovery: ids of scenes (composed defs + packs) with aiActorCount actors whose tags contain ALL asTags. 
+		// Deterministic (priority desc, then id asc). Count + tags only — filter-UNAWARE (no Actor[]); 
+		// use FindScenesForActorsQuery / StartSceneByTags* for a filter-correct result.
 		std::vector<RE::BSFixedString> FindScenes(OSFVM&, uint32_t, std::monostate, int32_t a_actorCount, std::vector<RE::BSFixedString> a_tags)
 		{
 			std::vector<RE::BSFixedString> result;
@@ -173,8 +169,7 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().IsPlaying(a_actor);
 		}
 
-		// Current source file path playing on a_actor (as the caller passed it),
-		// or "" if the actor has no live graph.
+		// Current source file path playing on a_actor (as the caller passed it), or "" if the actor has no live graph.
 		RE::BSFixedString GetCurrentAnimation(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
@@ -202,9 +197,9 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().GetSpeed(a_actor);
 		}
 
-		// Pin akActor's solo graph to a WORLD point + heading (degrees). aiRootMode:
-		// 0 pin / 1 additive / 2 follow. Also moves the capsule
-		// there. Refused for scene participants (their placement is scene-driven).
+		// Pin akActor's solo graph to a WORLD point + heading (degrees). 
+		// aiRootMode: 0 pin / 1 additive / 2 follow. 
+		// Also moves the capsule there. Refused for scene participants (their placement is scene-driven).
 		bool SetAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
 		{
@@ -215,8 +210,7 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().SetAnchor(a_actor, a_x, a_y, a_z, a_headingDeg, a_rootMode);
 		}
 
-		// Releases akActor's anchor — the graph returns to "follow" (rides the
-		// actor's live transform). No-op if no anchor was set.
+		// Releases akActor's anchor — the graph returns to "follow" (rides the actor's live transform). No-op if no anchor was set.
 		bool ClearAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
@@ -226,19 +220,15 @@ namespace OSF::Papyrus
 		}
 
 		// Bring N already-playing graphs together. Call OSF.Play on each actor first, then OSF.Sync.
-		// abAnchor=true (default): anchor the graphs into one shared scene at actor[0]'s spot —
-		// same-spot overlap, so paired clips arrange themselves about a shared origin+heading.
-		// abAnchor=false: clock-merge only — frame-lock the graphs on one shared clock while each
-		// actor stays at its own world position (no teleport/anchor), for clips that already carry
-		// the intended separation. Scene participants are skipped; needs >= 2 graphs.
+		// abAnchor=true (default): anchor the graphs into one shared scene at actor[0]'s spot
+		// Scene participants are skipped; needs >= 2 graphs.
 		bool Sync(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, bool a_anchor)
 		{
 			return Animation::GraphManager::GetSingleton().Sync(a_actors, a_anchor);
 		}
 
 		// Solo multi-phase sequence (primitive). Parallel arrays, equal length:
-		// asFiles[i] phase clip, aiLoops[i] loops before advancing, afBlends[i]
-		// blend-in secs. abLoopWhole restarts at phase 0 after the last.
+		// asFiles[i] phase clip, aiLoops[i] loops before advancing, afBlends[i] blend-in secs. abLoopWhole restarts at phase 0 after the last.
 		bool PlaySequence(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			std::vector<RE::BSFixedString> a_files, std::vector<int32_t> a_loops, std::vector<float> a_blends, bool a_loopWhole)
 		{
@@ -254,16 +244,14 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().PlaySequence(a_actor, files, a_loops, a_blends, a_loopWhole);
 		}
 
-		// Stop a live scene by its handle (from a Start* call). False if the handle is
-		// invalid/ended. Fires NODE_EXIT + SCENE_END to registered callbacks.
+		// Stop a live scene by its handle (from a Start* call). False if the handle is invalid/ended. Fires NODE_EXIT + SCENE_END to registered callbacks.
 		bool StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
 			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
 		}
 
-		// Actor convenience: stop the live scene a_actor participates in. Tries the SceneRuntime
-		// handle first (fires NODE_EXIT + SCENE_END, invalidates it); falls back to a raw
-		// GraphManager scene with no handle (a PlaySequence solo sequence). False if in neither.
+		// Actor convenience: stop the live scene a_actor participates in. Tries the SceneRuntime handle first (fires NODE_EXIT + SCENE_END, invalidates it);
+		// falls back to a raw GraphManager scene with no handle (a PlaySequence solo sequence). False if in neither.
 		bool StopSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
@@ -276,9 +264,8 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
 		}
 
-		// Compatibility-only natives (bound on OSFCompat). The SAF shim's non-Scene Play+Sync
-		// path freezes the player via these standalone locks; the core never applies them on
-		// its own. See OSFCompat.psc.
+		// Compatibility-only natives (bound on OSFCompat). The SAF shim's non-Scene Play+Sync path freezes the player via these standalone locks; 
+		// the core never applies them on its own. See OSFCompat.psc.
 
 		// Standalone control lock: input-disable layer + AI-driven. false releases.
 		void SetPlayerControlLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
@@ -294,25 +281,22 @@ namespace OSF::Papyrus
 		}
 
 		// Engine crosshair target: the reference under the reticle / activate prompt.
-		// Reads PlayerCharacter->commandTarget. Any ref kind (actor/door/container/...), or
-		// null when the crosshair is on nothing.
+		// Reads PlayerCharacter->commandTarget. Any ref kind (actor/door/container/...), or null when the crosshair is on nothing.
 		RE::TESObjectREFR* CrosshairTarget()
 		{
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			return player ? player->commandTarget : nullptr;
 		}
 
-		// COMPATIBILITY-ONLY: the raw engine crosshair reference, or None. Restores
-		// SAF's native crosshairRef the pure-Papyrus shim had no way to read.
+		// COMPATIBILITY-ONLY: the raw engine crosshair reference, or None. 
+		// Restores SAF's native crosshairRef the pure-Papyrus shim had no way to read.
 		RE::TESObjectREFR* GetCrosshairRef(OSFVM&, uint32_t, std::monostate)
 		{
 			return CrosshairTarget();
 		}
 
-		// COMPATIBILITY-ONLY: the crosshair reference cast to Actor, or None when the
-		// crosshair is on nothing or a non-actor ref (kACHR form-type gate). Backs the
-		// SAF shim's crosshair pickers, which otherwise approximate selection with a
-		// pure-Papyrus heading-angle cone search.
+		// COMPATIBILITY-ONLY: the crosshair reference cast to Actor, or None when the crosshair is on nothing or a non-actor ref (kACHR form-type gate). 
+		// Backs the SAF shim's crosshair pickers, which otherwise approximate selection with a pure-Papyrus heading-angle cone search.
 		RE::Actor* GetCrosshairActor(OSFVM&, uint32_t, std::monostate)
 		{
 			auto* target = CrosshairTarget();
@@ -326,45 +310,31 @@ namespace OSF::Papyrus
 			return RE::BSFixedString(std::format("{}.{}.{}", v.major(), v.minor(), v.patch()));
 		}
 
-		// Save-safety fallback: drop scene/graph state anchored in the discarded
-		// world. WARNING: only on an actual load — against a LIVE scene it leaves
-		// participants animation-driven (StopAll skips actor restore). Use StopScene
-		// for normal teardown.
+		// Save-safety fallback: drop scene/graph state anchored in the discarded world. 
+		// WARNING: only on an actual load — against a LIVE scene it leaves participants animation-driven (StopAll skips actor restore). 
+		// Use StopScene for normal teardown.
 		void NotifyGameLoaded(OSFVM&, uint32_t, std::monostate)
 		{
 			Animation::GraphManager::GetSingleton().StopAll("game loaded");
 		}
 
-		// True once OSF is loaded and initialized (playback hooks installed). The
-		// optional-dependency gate consumers branch on (a SAF shim's Ping forwards here).
+		// True once OSF is loaded and initialized (playback hooks installed).
 		bool IsReady(OSFVM&, uint32_t, std::monostate)
 		{
 			return Animation::GraphManager::GetSingleton().HooksInstalled();
 		}
 
-		// Whether a named feature is effective in this build. The lean core has ONE
-		// gate (both playback hooks installed), so scenes/playback/sync/anchor all
-		// report that single aggregate state; any other name => false.
+		//STUBBED FOR NOW TO JUST RETURN GLOBAL STATE
 		bool HasFeature(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_feature)
 		{
-			const std::string f = Util::ToLower(a_feature.c_str());
-			// One aggregate gate: every engine-layer capability reports the same "are the
-			// playback hooks installed + verified on this game build" state (they self-disable
-			// together on a version mismatch). The scene-runtime capabilities (cues/actions/
-			// sound/camera/callbacks) are part of the same merged engine.
-			if (f == "scenes" || f == "playback" || f == "sync" || f == "anchor" ||
-				f == "cues" || f == "actions" || f == "sound" || f == "camera" || f == "callbacks" ||
-				f == "weapon") {
+
 				return Animation::GraphManager::GetSingleton().HooksInstalled();
-			}
-			return false;
 		}
 
-		// Start a scene by id, returning an opaque scene HANDLE (0 = failed). Routes through
-		// SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
-		// ID resolution: a `scene:` prefix forces the scene registry, `anim:` forces the
-		// pack registry; a bare id resolves the scene registry first (a composed *.scene.json
-		// graph), then the pack registry (a linear pack auto-exposed as a single-path scene).
+		// Start a scene by id, returning an opaque scene HANDLE (0 = failed). 
+		// Routes through SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
+		// ID resolution: a `scene:` prefix forces the scene registry, `anim:` forces the pack registry; 
+		// a bare id resolves the scene registry first, then the pack registry (a linear pack auto-exposed as a single-path scene).
 		// aiStage = pack start stage (ignored for def-backed graphs).
 		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			int32_t a_stage)
@@ -386,10 +356,9 @@ namespace OSF::Papyrus
 			return 0;
 		}
 
-		// Like StartScene, but world-anchors the scene at an ObjectReference (furniture / bed /
-		// marker) instead of co-locating the actors at actor[0]. afHeadingDeg < 0 uses akAnchor's
-		// own heading; otherwise it is a heading in DEGREES. Id resolution (scene-then-pack, the
-		// scene:/anim: prefixes) mirrors StartScene. Returns the handle (0 = failed).
+		// Like StartScene, but world-anchors the scene at an ObjectReference (furniture / bed / marker) instead of co-locating the actors at actor[0]. 
+		// afHeadingDeg < 0 uses akAnchor's own heading; otherwise it is a heading in DEGREES. Id resolution (scene-then-pack, the scene:/anim: prefixes) mirrors StartScene. 
+		// Returns the handle (0 = failed).
 		int32_t StartSceneAt(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			RE::TESObjectREFR* a_anchor, float a_headingDeg)
 		{
@@ -418,8 +387,8 @@ namespace OSF::Papyrus
 			return 0;
 		}
 
-		// Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for
-		// akActors[i] (equal lengths). Returns the handle (0 = no such scene / validation fail).
+		// Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i] (equal lengths). 
+		// Returns the handle (0 = no such scene / validation fail).
 		// Roles are a *.scene.json concept; a `scene:` prefix is tolerated/stripped.
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
@@ -440,10 +409,9 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
 		}
 
-		// Shared body of the StartSceneByTags* natives: validate the actor list, matchmake a_query
-		// across both registries (priority tier + weighted-random), and start the picked candidate
-		// with its matchmade binding. a_logTag is the native name for the warn/info lines. Returns
-		// the scene handle (0 = no actors / null actor / no match / start failed).
+		// Shared body of the StartSceneByTags* natives: validate the actor list, matchmake a_query across both registries (priority tier + weighted-random), 
+		// and start the picked candidate with its matchmade binding. a_logTag is the native name for the warn/info lines.
+		// Returns  the scene handle (0 = no actors / null actor / no match / start failed).
 		int32_t StartMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query, const char* a_logTag)
 		{
 			if (a_actors.empty()) {
@@ -468,9 +436,8 @@ namespace OSF::Papyrus
 			return handle;
 		}
 
-		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs),
-		// pick by priority tier + weighted-random, and start it with the matchmade binding. Returns
-		// the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
+		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs), pick by priority tier + weighted-random, and start it with the matchmade binding.
+		// Returns the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_tags)
 		{
@@ -479,8 +446,7 @@ namespace OSF::Papyrus
 			return StartMatched(a_actors, q, "OSF.StartSceneByTags");
 		}
 
-		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise
-		// identical (filter-aware matchmaking across both registries, priority + weighted pick).
+		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise identical (filter-aware matchmaking across both registries, priority + weighted pick).
 		int32_t StartSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
 			std::vector<RE::BSFixedString> a_noneOf)
@@ -490,8 +456,7 @@ namespace OSF::Papyrus
 		}
 
 		// Ad-hoc one-shot scene from raw files (the SAF PlaySceneSeparate replacement):
-		// co-locates the actors at actor[0], plays each file at afSpeed with afBlendIn, and
-		// syncs the clock. Returns the scene handle (0 = failed).
+		// co-locates the actors at actor[0], plays each file at afSpeed with afBlendIn, and syncs the clock. Returns the scene handle (0 = failed).
 		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_files, float a_speed, float a_blendIn)
 		{
@@ -682,8 +647,8 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
 		}
 
-		// Start a scene from its *.scene.json def (entering at the def's entry node). DEBUG
-		// helper on OSFCompat. Returns the handle (0 = fail).
+		// Start a scene from its *.scene.json def (entering at the def's entry node). 
+		// DEBUG helper on OSFCompat. Returns the handle (0 = fail).
 		int32_t Dbg_StartSceneDef(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_sceneId)
 		{
 			std::vector<RE::Actor*> participants;
@@ -851,9 +816,6 @@ namespace OSF::Papyrus
 
 	bool RegisterFunctions()
 	{
-		// Mirrors main.cpp's kPostDataLoad grab so there is a single place that
-		// knows how to fetch the live VM and (re)bind. Returns false if the VM is
-		// not available yet so callers can log their own context.
 		if (auto* gameVM = RE::GameVM::GetSingleton(); gameVM && gameVM->GetVM()) {
 			RegisterFunctions(gameVM->GetVM());
 			return true;

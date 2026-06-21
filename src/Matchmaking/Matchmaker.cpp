@@ -34,15 +34,14 @@ namespace OSF::Matchmaking
 		}
 
 		// The actor "has" a keyword if its actorbase (TESNPC, a BGSKeywordForm) OR its race (also a
-		// BGSKeywordForm) carries it — matching the game's actor keyword condition reasonably.
+		// BGSKeywordForm) carries it, matching the game's actor keyword condition reasonably.
 		bool ActorHasKeyword(RE::Actor* a_actor, RE::BGSKeyword* a_keyword)
 		{
 			if (!a_actor || !a_keyword) {
 				return false;
 			}
-			// Qualify the base call: TESNPC declares its own HasKeyword(string_view), which hides the
-			// inherited BGSKeywordForm::HasKeyword(BGSKeyword*). The base checks the actorbase's own
-			// keywords; the race is checked separately so an actor matches if EITHER carries it.
+			// Qualify the base call: TESNPC declares its own HasKeyword(string_view), which hides the inherited BGSKeywordForm::HasKeyword(BGSKeyword*). 
+			// The base checks the actorbase's own keywords; the race is checked separately so an actor matches if EITHER carries it.
 			if (auto* npc = a_actor->GetNPC(); npc && npc->BGSKeywordForm::HasKeyword(a_keyword)) {
 				return true;
 			}
@@ -96,10 +95,8 @@ namespace OSF::Matchmaking
 		}
 
 		// Deterministic complete assignment of a_n actors to a_n slots: perm[slot] = actor index.
-		// Iterates permutations in lexicographic order and returns the first one where every slot is
-		// compatible (so the result is the lexicographically smallest binding by slot order). nullopt
-		// if no complete assignment exists. a_n is small (party size), so brute force is fine — this is
-		// what the pack matcher already does.
+		// Iterates permutations in lexicographic order and returns the first one where every slot is compatible (so the result is the lexicographically smallest binding by slot order). 
+		// nullopt if no complete assignment exists. a_n is small (party size), so brute force is fine, this is what the pack matcher already does.
 		template <class Pred>
 		std::optional<std::vector<std::size_t>> MatchComplete(std::size_t a_n, Pred a_compatible)
 		{
@@ -122,8 +119,8 @@ namespace OSF::Matchmaking
 			return std::nullopt;
 		}
 
-		// Build the unified candidate pool. a_actors non-empty => filter-aware with a complete binding
-		// (Candidate::order filled); empty => count + tags only (discovery, no binding).
+		// Build the unified candidate pool. a_actors non-empty => filter-aware with a complete binding (Candidate::order filled); 
+		// empty => count + tags only (discovery, no binding).
 		std::vector<Candidate> BuildPool(std::int32_t a_count, const TagQuery& a_query,
 			const std::vector<RE::Actor*>& a_actors)
 		{
