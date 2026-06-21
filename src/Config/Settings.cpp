@@ -63,15 +63,10 @@ namespace OSF::Config::Settings
 		floatKey("soundVolume", [](float v) { Audio::SoundService::GetSingleton().SetVolume(v); });
 		boolKey("fadeEnabled", [](bool v) { UI::FadeService::GetSingleton().SetEnabled(v); });
 		boolKey("equipmentEnabled", [](bool v) { Equipment::EquipmentService::GetSingleton().SetEnabled(v); });
-		// Deprecated alias for the content-neutral rename (equipment == the old "undress").
-		boolKey("undressEnabled", [](bool v) { Equipment::EquipmentService::GetSingleton().SetEnabled(v); });
 		boolKey("weaponEnabled", [](bool v) { Weapon::WeaponService::GetSingleton().SetEnabled(v); });
-		// Milestone-0 diagnostic: when true, post the PCM test clip as a Wwise external source at
-		// startup and log the playingID. Off by default; harmless to leave on (one beep at the menu).
+
 		boolKey("wwiseSelfTest", [](bool v) { if (v) Audio::SoundService::GetSingleton().RunWwiseSelfTest(); });
 
-		// Anything still here is either a typo or a key from a newer build. Warn loudly
-		// enough that someone can figure out why their setting didn't take effect.
 		for (const auto& [key, value] : json.items()) {
 			REX::WARN("Settings: unrecognized key '{}' — ignored (typo, or a newer OSF Animation?)", key);
 		}

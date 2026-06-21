@@ -14,7 +14,7 @@ namespace OSF::Camera
 			{
 				std::scoped_lock l{ lock };
 				if (++holdCount != 1) {
-					return;  // already held by another owner — ref-count only
+					return;  // already held by another owner, ref-count only
 				}
 				standaloneActive = true;
 				playerSceneActive.store(true, std::memory_order_relaxed);  // arm Tick's bounce
@@ -38,7 +38,7 @@ namespace OSF::Camera
 			{
 				std::scoped_lock l{ lock };
 				if (holdCount == 0) {
-					return;  // not held — nothing to release
+					return;  // not held, nothing to release
 				}
 				if (--holdCount != 0) {
 					return;  // still held by another owner
