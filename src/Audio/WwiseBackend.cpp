@@ -14,31 +14,24 @@ namespace OSF::Audio::Wwise
 {
 	namespace
 	{
-		// AK::SoundEngine::PostEvent(AkUniqueID, AkGameObjectID, u32 flags,
-		// callback, cookie, u32 cExternals, AkExternalSourceInfo*, AkPlayingID)
-		// — the Wwise 2021.1 ABI, statically linked into the game. Confirmed
-		// callable on 1.16.244: called from a worker thread, the returned playing
-		// IDs continued the engine's own counter. We call it through the CommonLibSF
-		// fork binding (RE::BGSAudio::AkSoundEngine); this ID is only the gate target.
+		//@TODO: use Commonlib?
+		// AK::SoundEngine::PostEvent(AkUniqueID, AkGameObjectID, u32 flags, callback, cookie, u32 cExternals, AkExternalSourceInfo*, AkPlayingID)
+		// Wwise 2021.1 ABI, statically linked into the game. called from a worker thread, the returned playing IDs continued the engine's own counter.
 		constexpr REL::ID kAkPostEventByID{ 150391 };
 
 		// First 16 bytes of 150391, byte-identical on 1.16.242 and 1.16.244
-		// (verified by the RE probe). Mismatch on a future patch = self-disable.
+		// Mismatch on a future patch = self-disable.
 		constexpr std::array<std::uint8_t, 16> kPostEventPrologue{
 			0x48, 0x89, 0x5C, 0x24, 0x08, 0x48, 0x89, 0x6C, 0x24, 0x10,
 			0x48, 0x89, 0x74, 0x24, 0x18, 0x4C
 		};
 
-		// Shipped event that already carries an "External_Source" placeholder slot and streamed a
-		// loose file live (RE capture, 1.16.244 — OSF RE Investigations/Responses/
-		// 2026-06-17-wwise-external-loose-audio.md). It is already resident in a loaded bank, so
-		// NO LoadBank is needed: we just substitute our own media through its external-source slot.
+		// Shipped event that already carries an "External_Source" placeholder slot and streamed a loose file live.
+		// It is already resident in a loaded bank, so NO LoadBank is needed: we just substitute our own media through its external-source slot.
 		// (Equivalent at runtime: AkSoundEngine::GetIDFromString("Dialogue_6_Combat").)
-		//
+
 		// LIMITATION: this is a dialogue/VO event, so posts route through the dialogue bus
-		// (dialogue-volume gated, may duck other audio). Fine for v1; for cleaner SFX routing,
-		// swap kExternalSourceEvent to a content-neutral SFX event that carries the 0x24DB9834
-		// cookie (an OSF RE HIRC scan of the loaded banks) — same code, cleaner bus.
+		// (dialogue-volume gated, may duck other audio).
 		constexpr std::uint32_t kExternalSourceEvent = 0x5DE4F1F3;  // Ak hash of "Dialogue_6_Combat"
 
 		constexpr std::string_view kEventPrefix = "event:";
@@ -57,10 +50,10 @@ namespace OSF::Audio::Wwise
 			return ext;
 		}
 
-		// A Wwise .wem held in memory. AK references pInMemory zero-copy and reads it across the
-		// whole playback, so the cache OWNS this memory for the process lifetime (never freed).
-		// `codec` is the AkCodecID to post with — read from the .wem's own fmt tag, since a .wem may
-		// be Vorbis OR PCM (WwiseConsole's default external-source conversion, for instance, is PCM).
+		// A Wwise .wem held in memory. 
+		// AK references pInMemory zero-copy and reads it across the whole playback, so the cache OWNS this memory for the process lifetime (never freed).
+		// `codec` is the AkCodecID to post with — read from the .wem's own fmt tag, since a .wem may be Vorbis OR PCM 
+		// (WwiseConsole's default external-source conversion, for instance, is PCM).
 		struct MediaBuffer
 		{
 			void* data{ nullptr };
@@ -95,10 +88,9 @@ namespace OSF::Audio::Wwise
 			return RE::BGSAudio::AkCodecID::kVorbis;
 		}
 
-		// Loads a Wwise .wem into a 16-byte-aligned, process-lifetime buffer (AK requires aligned
-		// in-memory media and references it zero-copy). Opened through the process file API so
-		// MO2/USVFS-virtual loose files resolve — unlike szFile, which the registry-gated audio
-		// resolver never opens (OSF RE module engine.resource_loading), the reason we post bytes.
+		// Loads a Wwise .wem into a 16-byte-aligned, process-lifetime buffer (AK requires aligned in-memory media and references it zero-copy). 
+		// Opened through the process file API so MO2/USVFS-virtual loose files resolve, unlike szFile, 
+		// which the registry-gated audio resolver never opens, the reason we post bytes.
 		MediaBuffer LoadWemFile(const std::wstring& a_path)
 		{
 			std::ifstream file{ a_path, std::ios::binary | std::ios::ate };
@@ -125,8 +117,7 @@ namespace OSF::Audio::Wwise
 			return MediaBuffer{ buffer, bytes, DeriveWemCodec(buffer, bytes) };
 		}
 
-		// Loads a .wem once and caches it for the process (success AND failure, so a missing file
-		// neither re-hits disk nor spams the log on every cue).
+		// Loads a .wem once and caches it for the process (success AND failure, so a missing file doesnt re-hit disk).
 		MediaBuffer GetOrLoadMedia(const std::wstring& a_path)
 		{
 			const std::scoped_lock lock{ g_mediaCacheMutex };
@@ -138,10 +129,9 @@ namespace OSF::Audio::Wwise
 			return media;
 		}
 
-		// Posts a .wem as an external source via pInMemory — NOT szFile: the engine's audio file
-		// resolver is registry-gated and never opens a loose file, so a szFile post is accepted but
-		// SILENT (proven 1.16.244). pInMemory bypasses the resolver and renders engine-mixed. The
-		// cache owns the bytes for the process, so the descriptor only needs to outlive this call.
+		// Posts a .wem as an external source via pInMemory, NOT szFile
+		// the engine's audio file resolver is registry-gated and never opens a loose file, so a szFile post is accepted but SILENT. 
+		// pInMemory bypasses the resolver and renders engine-mixed. The cache owns the bytes for the process, so the descriptor only needs to outlive this call.
 		std::uint32_t PostExternalOn(std::uint32_t a_eventID, const std::wstring& a_path, std::uint64_t a_gameObj)
 		{
 			const MediaBuffer media = GetOrLoadMedia(a_path);
@@ -198,8 +188,7 @@ namespace OSF::Audio::Wwise
 		static const bool available = []() {
 			const auto* code = reinterpret_cast<const std::uint8_t*>(kAkPostEventByID.address());
 			if (!code || std::memcmp(code, kPostEventPrologue.data(), kPostEventPrologue.size()) != 0) {
-				REX::WARN("Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime "
-				          "— loose-file cues fall back to the legacy device",
+				REX::WARN("Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime loose-file cues fall back to the legacy device",
 					kAkPostEventByID.id());
 				return false;
 			}
@@ -215,15 +204,13 @@ namespace OSF::Audio::Wwise
 			return 0;
 		}
 		// cExternals 0 = no external source: a plain baked event on the player object.
-		return RE::BGSAudio::AkSoundEngine::PostEvent(
-			a_eventID, RE::BGSAudio::AkSoundEngine::kPlayerGameObject, 0, nullptr, nullptr, 0, nullptr, 0);
+		return RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, RE::BGSAudio::AkSoundEngine::kPlayerGameObject, 0, nullptr, nullptr, 0, nullptr, 0);
 	}
 
 	bool IsWwiseExternalSource(std::string_view a_path)
 	{
-		// Only a Wwise-encoded .wem rides the engine-mixed Wwise external-source path: AK external
-		// sources reject a vanilla .wav (accepted but SILENT, proven 1.16.244). Every other format
-		// returns false and SoundService::Play plays it on the miniaudio device (not engine-mixed);
+		// Only a Wwise-encoded .wem rides the engine-mixed Wwise external-source path: AK external sources reject a vanilla .wav. 
+		// Every other format returns false and SoundService::Play plays it on the miniaudio device (not engine-mixed);
 		// convert audio to .wem (e.g. WwiseConsole) to get it engine-mixed.
 		return LowerExtension(a_path) == "wem";
 	}
