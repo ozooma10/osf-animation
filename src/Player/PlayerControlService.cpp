@@ -4,10 +4,8 @@ namespace OSF::Player
 {
 	namespace
 	{
-		// POVSwitch stays ENABLED: in Starfield the mouse wheel rides the POV
-		// control (one continuous first<->third zoom axis), so blocking it kills
-		// scroll-zoom during the lock. CameraService::Tick bounces the camera back
-		// to third person if the player zooms/keys all the way into first person.
+		// POVSwitch stays ENABLED: in Starfield the mouse wheel rides the POV control (one continuous first<->third zoom axis), so blocking it kills scroll-zoom during the lock.
+		// CameraService::Tick bounces the camera back to third person if the player zooms/keys all the way into first person.
 		constexpr auto kSceneUserEvents =
 			RE::USER_EVENT_FLAG::Movement |
 			RE::USER_EVENT_FLAG::Fighting |
@@ -21,18 +19,13 @@ namespace OSF::Player
 			RE::OTHER_EVENT_FLAG::HandScanner |
 			RE::OTHER_EVENT_FLAG::Favorites;
 
-		// Sets/clears the player's AI-driven flag via the Papyrus VM
-		// (Game.SetPlayerAIDriven). AI-driven DECOUPLES the player body from the
-		// camera: in third person the engine otherwise yaws the actor's heading to
-		// follow mouse-look, dragging the rig off a pinned mesh. Engaged alongside
-		// the input-disable lock so the camera still orbits freely but the body
-		// stays put.
+		// Sets/clears the player's AI-driven flag via the Papyrus VM (Game.SetPlayerAIDriven). 
+		// AI-driven DECOUPLES the player body from the camera: in third person the engine otherwise yaws the actor's heading to follow mouse-look, dragging the rig off a pinned mesh. 
+		// Engaged alongside the input-disable lock so the camera still orbits freely but the body stays put.
 		//
-		// CAVEAT — the flag is PERSISTENT (serialized into the save), unlike the
-		// runtime input-disable layer. A save made while it is set reloads with the
-		// player AI-driven, so OnStopAll clears it UNCONDITIONALLY on every load.
-		// There is no native binding for it. Queued via SFSE task; safe from any
-		// thread.
+		// CAVEAT — the flag is PERSISTENT (serialized into the save), unlike the runtime input-disable layer.
+		// A save made while it is set reloads with the player AI-driven, so OnStopAll clears it UNCONDITIONALLY on every load.
+		// There is no native binding for it. Queued via SFSE task; safe from any thread.
 		void SetPlayerAIDriven(bool a_driven)
 		{
 			SFSE::GetTaskInterface()->AddTask([a_driven]() {
@@ -51,9 +44,7 @@ namespace OSF::Player
 					},
 					RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor>(), 0);
 				if (!dispatched) {
-					REX::WARN("SetPlayerAIDriven: Game.SetPlayerAIDriven({}) dispatch failed "
-							  "(VM rebuilding mid-load?) — player AI-driven state may lag until the next load",
-						a_driven);
+					REX::WARN("SetPlayerAIDriven: Game.SetPlayerAIDriven({}) dispatch failed (VM rebuilding mid-load?) — player AI-driven state may lag until the next load", a_driven);
 				}
 			});
 		}
@@ -72,13 +63,10 @@ namespace OSF::Player
 
 	void PlayerControlService::OnStopAll()
 	{
-		// Release the PERSISTENT AI-driven flag UNCONDITIONALLY — even when this
-		// process holds no lock. OnStopAll runs only on a load (every
-		// GraphManager::StopAll caller is a save-load/revert/manual-load sink), and
-		// the AI-driven flag set by SetStandaloneLock is serialized into the save,
-		// so a save made mid-lock reloads the player AI-driven with NO in-process
-		// memory of the lock. The runtime input-disable layer below is
-		// non-persistent and gated on standaloneActive.
+		// Release the PERSISTENT AI-driven flag UNCONDITIONALLY, even when this  process holds no lock.
+		// OnStopAll runs only on a load (every GraphManager::StopAll caller is a save-load/revert/manual-load sink),
+		// the AI-driven flag set by SetStandaloneLock is serialized into the save, so a save made mid-lock reloads the player AI-driven with NO in-process memory of the lock. 
+		// The runtime input-disable layer below is non-persistent and gated on standaloneActive.
 		SetPlayerAIDriven(false);
 
 		SFSE::GetTaskInterface()->AddTask([this]() {

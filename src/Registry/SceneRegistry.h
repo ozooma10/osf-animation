@@ -1,11 +1,10 @@
 #pragma once
 
-// Loads scene graphs from Data/OSF/**/*.scene.json. A scene is a graph of nodes; each node
-// references an animation id (from PackRegistry), a loop policy, and outgoing edges, plus the
-// four track lanes (cue/action/sound/camera). Handles the graph structure, validation, and
-// load diagnostics.
+// Loads scene graphs from Data/OSF/**/*.scene.json. A scene is a graph of nodes; 
+// each node references an animation id (from PackRegistry), a loop policy, and outgoing edges, plus the four track lanes (cue/action/sound/camera). 
+// Handles the graph structure, validation, and load diagnostics.
 
-#include "Registry/PackRegistry.h"  // SlotGender
+#include "Registry/PackRegistry.h"
 
 #include <functional>
 
@@ -42,8 +41,7 @@ namespace OSF::Registry
 		std::int32_t priority = 0;
 	};
 
-	// Where on the node's clip timeline a cue fires. kFraction = a clip-local fraction in
-	// [0,1); the rest are the named lifecycle anchors.
+	// Where on the node's clip timeline a cue fires. kFraction = a clip-local fraction in [0,1); the rest are the named lifecycle anchors.
 	enum class CuePos : std::uint8_t
 	{
 		kFraction,
@@ -61,9 +59,8 @@ namespace OSF::Registry
 		std::string  id;
 	};
 
-	// Where an `action` track entry runs. kEnter/kExit are the lifecycle anchors, fired directly
-	// on node enter/exit; kFraction/kEnd are timed by the clip clock, fired through the same
-	// timed-mark path as cues.
+	// Where an `action` track entry runs. kEnter/kExit are the lifecycle anchors, fired directly on node enter/exit; 
+	// kFraction/kEnd are timed by the clip clock, fired through the same timed-mark path as cues.
 	enum class ActionPos : std::uint8_t
 	{
 		kEnter,
@@ -72,8 +69,8 @@ namespace OSF::Registry
 		kEnd
 	};
 
-	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the
-	// runtime); any other namespace is a custom action emitted as EVENT_ACTION (notification).
+	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the  runtime); 
+	// any other namespace is a custom action emitted as EVENT_ACTION (notification).
 	struct ActionEntry
 	{
 		ActionPos    pos = ActionPos::kEnter;
@@ -86,8 +83,7 @@ namespace OSF::Registry
 		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
 	};
 
-	// Where a `sound` track entry fires — same time model as cues and actions. kEnter/kExit
-	// are lifecycle anchors; kFraction/kEnd are clip-timed.
+	// Where a `sound` track entry fires — same time model as cues and actions. kEnter/kExit are lifecycle anchors; kFraction/kEnd are clip-timed.
 	enum class SoundPos : std::uint8_t
 	{
 		kEnter,
@@ -96,10 +92,8 @@ namespace OSF::Registry
 		kEnd
 	};
 
-	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played
-	// through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed). The
-	// schema's `pool` name -> clip resolution isn't wired up yet, so for now the value is taken
-	// as a literal spec.
+	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed). 
+	// The schema's `pool` name -> clip resolution isn't wired up yet, so for now the value is taken as a literal spec.
 	struct SoundEntry
 	{
 		SoundPos     pos = SoundPos::kFraction;
@@ -119,8 +113,8 @@ namespace OSF::Registry
 		kEnd
 	};
 
-	// One `camera` track entry: a held camera state, auto-restored on cleanup. For now the only
-	// state is "thirdperson_hold" (force and hold third person via the standalone camera lock);
+	// One `camera` track entry: a held camera state, auto-restored on cleanup. 
+	// For now the only state is "thirdperson_hold" (force and hold third person via the standalone camera lock);
 	// free-fly/orbit/matrix states aren't supported yet.
 	struct CameraEntry
 	{
@@ -150,10 +144,10 @@ namespace OSF::Registry
 	{
 		std::string name;
 		SlotGender  gender = SlotGender::kAny;
-		// Resolved role filters (resolved once at scene load via the form-ref resolver). The role's
-		// bound actor must satisfy every PRESENT constraint; within `keywords`/`races` it is any-of
-		// (the actor needs ANY listed keyword, and ANY listed race). An empty vector = that
-		// constraint is absent. `gender` desugars from `gender`/`filters.gender`.
+		// Resolved role filters (resolved once at scene load via the form-ref resolver). 
+		// The role's bound actor must satisfy every PRESENT constraint; 
+		// within `keywords`/`races` it is any-of (the actor needs ANY listed keyword, and ANY listed race). 
+		// An empty vector = that constraint is absent. `gender` desugars from `gender`/`filters.gender`.
 		std::vector<RE::BGSKeyword*> keywords;  // empty = no keyword constraint
 		std::vector<RE::TESRace*>    races;     // empty = no race constraint
 	};
@@ -173,8 +167,7 @@ namespace OSF::Registry
 
 		const SceneNode* FindNode(std::string_view a_id) const;
 
-		// Index of a_nodeId in linearStages (case-insensitive), or -1 (also -1 if the scene
-		// declares no linearStages — a non-linear graph has no stage number).
+		// Index of a_nodeId in linearStages (case-insensitive), or -1 (also -1 if the scene declares no linearStages — a non-linear graph has no stage number).
 		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
@@ -183,17 +176,16 @@ namespace OSF::Registry
 	public:
 		static SceneRegistry& GetSingleton();
 
-		// Scans Data/OSF/**/*.scene.json and rebuilds the registry. Bad scenes are skipped; every
-		// skip and warning is both logged and recorded for LoadErrors(). Runs after the pack
-		// registry at startup, and again on OSF.ReloadPacks().
+		// Scans Data/OSF/**/*.scene.json and rebuilds the registry. 
+		// Bad scenes are skipped; every skip and warning is both logged and recorded for LoadErrors().
+		// Runs after the pack registry at startup, and again on OSF.ReloadPacks().
 		void LoadAll();
 
 		// Scene by id (case-insensitive), or nullptr.
 		const SceneDef* Find(std::string_view a_id) const;
 
-		// Visit every loaded scene def under the read lock (used by the matchmaker to build
-		// candidates). The callback runs while the registry lock is held, so it must NOT re-enter
-		// the registry; keep it to reading the def + cheap per-actor predicate checks.
+		// Visit every loaded scene def under the read lock (used by the matchmaker to build candidates). 
+		// The callback runs while the registry lock is held, so it must NOT re-enter the registry; keep it to reading the def + cheap per-actor predicate checks.
 		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
 
 		size_t Size() const;

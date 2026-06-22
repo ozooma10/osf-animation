@@ -1,9 +1,8 @@
 #pragma once
 
-// Loads JSON animation packs from Data/OSF/** and resolves animation ids to per-actor files
-// and placements. It only reads the mechanical structure (id, tags, gender slots, stages,
-// clips, offsets, timer, loops); any content fields a pack carries are ignored here. Offsets
-// are alignment corrections.
+// Loads JSON animation packs from Data/OSF/** and resolves animation ids to per-actor files and placements. 
+// It only reads the mechanical structure (id, tags, gender slots, stages, clips, offsets, timer, loops); any content fields a pack carries are ignored here. 
+// Offsets are alignment corrections.
 
 #include "Animation/Scene.h"
 
@@ -12,10 +11,9 @@
 
 namespace OSF::Registry
 {
-	// Highest pack schema version we understand. We read the stage-major layout (version 2);
-	// older actor-major (version 1) packs are rejected with a migration hint in ParseAnimation.
+	// Highest pack schema version we understand. We read the stage-major layout (version 1);
 	// Bump only on a breaking change.
-	inline constexpr std::int64_t kPackSchemaVersion = 2;
+	inline constexpr std::int64_t kPackSchemaVersion = 1;
 
 	enum class SlotGender : std::uint8_t
 	{
@@ -65,18 +63,18 @@ namespace OSF::Registry
 	public:
 		static PackRegistry& GetSingleton();
 
-		// Scans Data/OSF/**/*.json and rebuilds the registry. Bad files or entries are logged
-		// and skipped. Runs at startup and again on OSF.ReloadPacks().
+		// Scans Data/OSF/**/*.json and rebuilds the registry. Bad files or entries are logged and skipped. 
+		// Runs at startup and again on OSF.ReloadPacks().
 		void LoadAll();
 
 		// Resolves id -> a multi-stage ScenePlan (files + placements + timer/loops), or nullopt (reason logged).
 		std::optional<Animation::ScenePlan> BuildScenePlan(std::string_view a_id, size_t a_actorCount) const;
 
-		// Tag/gender matchmaking moved to OSF::Matchmaking (src/Matchmaking/Matchmaker.*), which spans
-		// BOTH this registry and the scene registry; it reads packs via ForEachAnim below.
+		// Tag/gender matchmaking moved to OSF::Matchmaking (src/Matchmaking/Matchmaker.*), which spans BOTH this registry and the scene registry; 
+		// it reads packs via ForEachAnim below.
 
-		// Visit every loaded animation def under the read lock (used by the matchmaker to build pack
-		// pseudo-candidates). The callback must NOT re-enter the registry (it holds the shared lock).
+		// Visit every loaded animation def under the read lock (used by the matchmaker to build pack pseudo-candidates). 
+		// The callback must NOT re-enter the registry (it holds the shared lock).
 		void ForEachAnim(const std::function<void(const AnimationDef&)>& a_fn) const;
 
 		size_t Size() const;
