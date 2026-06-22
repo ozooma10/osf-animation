@@ -2,7 +2,7 @@
 
 OSF Animation is a fully native, Animation and Scene framework for Starfield.
 
-Inspired by NAFSF, it acts as a drop-in replacement for NAFSF/SAF as well as a comprehensive data-driven scene runtime.
+Inspired by NAFSF, it provides native external-format (GLTF/GLB) animation playback alongside a comprehensive data-driven scene runtime.
 
 Key Features:
 - Synced multi-actor GLTF/GLB playback

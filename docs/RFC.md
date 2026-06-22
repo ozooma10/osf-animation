@@ -42,8 +42,6 @@ A scene engine needs a finer control plane *underneath* that: a shared frame clo
 advance, and teardown hooks that feed the undo ledger. Its just far simpler to have the coordination layer and the
 stamping be inside the same code surface.
 
-OSF will ship with a compatibility shim so that existing NAF/SAF content can run on OSF unchanged.
-
 ### Q2 - Why not port an established framework from another game (SexLab / OStim / AAF)?
 
 Because the parts worth keeping are *ideas*, trying to port the framework directly will also port all the built up tech-debt and compatibility scars.
@@ -239,14 +237,7 @@ EndFunction
 ```
 ---
 
-## 5. Compatibility & migration
-
-There's an optional **SAF shim** so existing SAF *playback/sync* content can run by forwarding to OSF equivalents. It's a migration aid, not a guarantee of identical behaviour — a few SAF entry points (absolute repositioning, blend-graph variables, the selection buffer, phase/sequence callbacks) have
-no content-neutral equivalent and are inert stubs. If you maintain SAF content and want parity, that gap list is a good place to tell me what actually matters.
-
----
-
-## 6. What it deliberately doesn't do (yet) — known constraints
+## 5. What it deliberately doesn't do (yet) — known constraints
 
 Stating these up front because they shape what you can build:
 
@@ -258,7 +249,7 @@ Stating these up front because they shape what you can build:
 
 ---
 
-## 7. Where I specifically want comment
+## 6. Where I specifically want comment
 
 These are the main things really looking for thoughts/opinions on
 

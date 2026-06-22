@@ -1,12 +1,6 @@
 ScriptName OSFCompat Native
-; COMPATIBILITY-ONLY natives for the SAF->OSF shim's primitive (non-Scene) path:
-; standalone player control/camera locks. NOT public API.
-
-; Standalone player control lock for the primitive (non-Scene) path.
-Function SetPlayerControlLock(bool abLocked) Global Native
-
-; Standalone camera lock for the primitive path: forces 3rd person, bounces back on zoom-in to 1st.
-Function SetPlayerCameraLock(bool abLocked) Global Native
+; Non-public natives for the OSFTest harness: crosshair pickers + debug/test probes.
+; NOT public API — consumer mods use the OSF script.
 
 ; Engine crosshair target
 ObjectReference Function GetCrosshairRef() Global Native

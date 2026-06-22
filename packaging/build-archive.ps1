@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
   Assemble the OSF Animation FOMOD release archive from build/ (DLL) + dist/ (scripts + content).
-  Filters out test/dev files from Core/SAF; the test harness + demo content go to the optional
+  Filters out test/dev files from Core; the test harness + demo content go to the optional
   Examples component. See docs/PACKAGING.md.
 .EXAMPLE
   packaging\build-archive.ps1 -Version 0.1.0-beta
@@ -24,10 +24,10 @@ $dll  = Join-Path $repo "build\windows\x64\$DllFlavor\OSF Animation.dll"
 $dist = Join-Path $repo 'dist'
 if (-not (Test-Path $dll)) { throw "DLL not found: $dll  (run xmake first; -DllFlavor $DllFlavor)" }
 
-# --- stage Core / SAF / Examples ---
+# --- stage Core / Examples ---
 $stage = Join-Path $env:TEMP "osfanim-pkg-$(Get-Random)"
-$core = "$stage\Core"; $saf = "$stage\SAF"; $ex = "$stage\Examples"
-@("$core\SFSE\Plugins", "$core\Scripts\Source", "$saf\Scripts\Source", "$ex\Scripts\Source", "$ex\OSF") |
+$core = "$stage\Core"; $ex = "$stage\Examples"
+@("$core\SFSE\Plugins", "$core\Scripts\Source", "$ex\Scripts\Source", "$ex\OSF") |
     ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 
 # Core: the DLL (no .pdb) + the OSF* API scripts/sources (a consumer needs the .psc to compile against).
@@ -35,12 +35,6 @@ Copy-Item $dll "$core\SFSE\Plugins\"
 foreach ($s in @('OSF', 'OSFCompat', 'OSFEvent')) {
     if (Test-Path "$dist\Scripts\$s.pex")        { Copy-Item "$dist\Scripts\$s.pex" "$core\Scripts\" }
     if (Test-Path "$dist\Scripts\Source\$s.psc") { Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\" }
-}
-
-# SAF compatibility shim.
-foreach ($s in @('SAF', 'SAFScript')) {
-    Copy-Item "$dist\Scripts\$s.pex" "$saf\Scripts\"
-    Copy-Item "$dist\Scripts\Source\$s.psc" "$saf\Scripts\Source\"
 }
 
 # Examples: the OSFTest harness + every demo pack/scene/clip under dist/OSF.

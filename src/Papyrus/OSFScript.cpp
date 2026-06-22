@@ -2,9 +2,7 @@
 
 #include "Animation/GraphManager.h"
 #include "Audio/SoundService.h"
-#include "Camera/CameraService.h"
 #include "Matchmaking/Matchmaker.h"
-#include "Player/PlayerControlService.h"
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
@@ -264,22 +262,6 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
 		}
 
-		// Compatibility-only natives (bound on OSFCompat). The SAF shim's non-Scene Play+Sync path freezes the player via these standalone locks; 
-		// the core never applies them on its own. See OSFCompat.psc.
-
-		// Standalone control lock: input-disable layer + AI-driven. false releases.
-		void SetPlayerControlLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
-		{
-			Player::PlayerControlService::GetSingleton().SetStandaloneLock(a_locked);
-		}
-
-		// Standalone camera lock: force/hold third person (bounces on zoom-in).
-		// false restores the prior POV.
-		void SetPlayerCameraLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
-		{
-			Camera::CameraService::GetSingleton().SetStandaloneLock(a_locked);
-		}
-
 		// Engine crosshair target: the reference under the reticle / activate prompt.
 		// Reads PlayerCharacter->commandTarget. Any ref kind (actor/door/container/...), or null when the crosshair is on nothing.
 		RE::TESObjectREFR* CrosshairTarget()
@@ -288,15 +270,14 @@ namespace OSF::Papyrus
 			return player ? player->commandTarget : nullptr;
 		}
 
-		// COMPATIBILITY-ONLY: the raw engine crosshair reference, or None. 
-		// Restores SAF's native crosshairRef the pure-Papyrus shim had no way to read.
+		// Non-public helper: the raw engine crosshair reference, or None. Used by the OSFTest harness to pick a target from the reticle.
 		RE::TESObjectREFR* GetCrosshairRef(OSFVM&, uint32_t, std::monostate)
 		{
 			return CrosshairTarget();
 		}
 
-		// COMPATIBILITY-ONLY: the crosshair reference cast to Actor, or None when the crosshair is on nothing or a non-actor ref (kACHR form-type gate). 
-		// Backs the SAF shim's crosshair pickers, which otherwise approximate selection with a pure-Papyrus heading-angle cone search.
+		// Non-public helper: the crosshair reference cast to Actor, or None when the crosshair is on nothing or a non-actor ref (kACHR form-type gate).
+		// Used by the OSFTest harness to target the actor under the reticle.
 		RE::Actor* GetCrosshairActor(OSFVM&, uint32_t, std::monostate)
 		{
 			auto* target = CrosshairTarget();
@@ -455,8 +436,8 @@ namespace OSF::Papyrus
 			return StartMatched(a_actors, q, "OSF.StartSceneByTagsQuery");
 		}
 
-		// Ad-hoc one-shot scene from raw files (the SAF PlaySceneSeparate replacement):
-		// co-locates the actors at actor[0], plays each file at afSpeed with afBlendIn, and syncs the clock. Returns the scene handle (0 = failed).
+		// Ad-hoc one-shot scene from raw animation files: co-locates the actors at actor[0],
+		// plays each file at afSpeed with afBlendIn, and syncs the clock. Returns the scene handle (0 = failed).
 		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_files, float a_speed, float a_blendIn)
 		{
@@ -796,10 +777,8 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeLabel", &GetSceneEdgeLabel, true, false);
 		REX::INFO("Registered papyrus natives on script '{}'", SCRIPT_NAME);
 
-		// Compatibility-only + debug natives — kept off the public OSF surface (see
-		// COMPAT_SCRIPT_NAME / OSFCompat.psc). The SAF->OSF shim and the OSFTest harness call these.
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
+		// Non-public crosshair + debug natives — kept off the public OSF surface (see
+		// COMPAT_SCRIPT_NAME / OSFCompat.psc). The OSFTest harness calls these.
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEventStatic", &Dbg_FireSceneEventStatic, true, false);
@@ -811,7 +790,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartSceneDef", &Dbg_StartSceneDef, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_Log", &Dbg_Log, true, false);
 		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_PlaySound", &Dbg_PlaySound, true, false);
-		REX::INFO("Registered compatibility natives on script '{}'", COMPAT_SCRIPT_NAME);
+		REX::INFO("Registered non-public natives on script '{}'", COMPAT_SCRIPT_NAME);
 	}
 
 	bool RegisterFunctions()

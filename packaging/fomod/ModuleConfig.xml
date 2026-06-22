@@ -2,7 +2,6 @@
 <!--
   FOMOD installer for OSF Animation.
   - Core is always installed (requiredInstallFiles).
-  - "SAF compatibility shim" is a Recommended (pre-checked) option.
   - "Example scenes & test pack" is an Optional (unchecked) option.
   Each <folder source> is staged by packaging/build-archive.ps1; destination="" puts its
   internal SFSE/ Scripts/ OSF/ layout at the Data root.
@@ -18,20 +17,6 @@
   <installSteps order="Explicit">
     <installStep name="Components">
       <optionalFileGroups order="Explicit">
-
-        <group name="Compatibility" type="SelectAny">
-          <plugins order="Explicit">
-            <plugin name="SAF compatibility shim">
-              <description>Installs the SAF / SAFScript Papyrus scripts so existing SAF-dependent mods run unchanged — the drop-in-replacement path. Install this if you are replacing SAF or use any SAF mod. Harmless if nothing calls it. (Disable/uninstall SAF itself first — OSF and SAF cannot run together.)</description>
-              <files>
-                <folder source="SAF" destination="" priority="0"/>
-              </files>
-              <typeDescriptor>
-                <type name="Recommended"/>
-              </typeDescriptor>
-            </plugin>
-          </plugins>
-        </group>
 
         <group name="Extras (for modders)" type="SelectAny">
           <plugins order="Explicit">

@@ -144,10 +144,6 @@ A scene runtime needs a finer control plane *underneath* playback: the same code
 
 Its just far simpler and more reliable when the scene coordinator and the playback layer live inside the same code surface.
 
-#### Compatibility note
-
-OSF will ship with a SAF compatibility shim to support existing SAF mods as-is
-
 ## Relationship to SexLab, OStim, and AAF
 
 SexLab, OStim, and AAF all prove a shared scene ecosystem is valuable. The parts worth keeping are *ideas* though - porting a framework directly also ports all the built-up tech debt and compatibility scars.

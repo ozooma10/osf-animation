@@ -2,9 +2,9 @@
 
 namespace OSF::Player
 {
-	// Standalone player-control lock used by the SAF-compat playback path (the Play+Sync flow with no managed Scene). 
-	// Engages an input-disable layer (Movement incl. Jumping, Fighting, Sneaking, Activation, ...) plus the persistent AI-driven flag, 
-	// which decouples the body from the camera so a pinned rig doesn't yaw with mouse-look. 
+	// Standalone player-control lock applied by the scene runtime's osf.control.lock action.
+	// Engages an input-disable layer (Movement incl. Jumping, Fighting, Sneaking, Activation, ...) plus the persistent AI-driven flag,
+	// which decouples the body from the camera so a pinned rig doesn't yaw with mouse-look.
 	// This is just the lock mechanism; the scene runtime decides when to apply it.
 	class PlayerControlService
 	{

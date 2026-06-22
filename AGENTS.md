@@ -1,7 +1,6 @@
 # OSF Animation
 
-SFSE plugin - the **engine** of **OSF**, a scene framework for Starfield (SAF/NAFSF playback lineage). It hosts native playback, sync, the shared clock, anchoring, a clip/pack registry, the
-SAF shim, and the **scene runtime** (graphs of nodes with cues/actions/callbacks/navigation). The engine stays
+SFSE plugin - the **engine** of **OSF**, a scene framework for Starfield (NAFSF playback lineage). It hosts native playback, sync, the shared clock, anchoring, a clip/pack registry, and the **scene runtime** (graphs of nodes with cues/actions/callbacks/navigation). The engine stays
 **content-neutral**: it provides policy *mechanisms* (control/camera lock, fade, equipment-strip,
 voice/sound, camera hold);
 
@@ -25,7 +24,7 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
   `Data/OSF/**` (mechanical schema only; content fields ignored — policy lives in `*.scene.json`).
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —
   standalone locks (input-disable + AI-driven + third-person hold). 
-  Used by the SAF shim's primitive path and the runtime's `osf.control.lock` action (ref-counted per scene).
+  Applied by the runtime's `osf.control.lock` action (ref-counted per scene).
 - **Papyrus** (`src/Papyrus/OSFScript.*`) — natives bound via GameVM at kPostDataLoad, re-bound every
   load (VM is rebuilt).
 - **Save-safety** (`src/Serialization/SaveSafety.*`) — `GraphManager::StopAll` drops ALL scene/graph

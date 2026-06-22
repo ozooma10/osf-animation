@@ -441,7 +441,7 @@ namespace OSF::Animation
 
 	void GraphManager::StopAll(const char* a_reason)
 	{
-		// Release the player standalone lock + the persistent AI-driven flag (set by the SAF-shim compat lock). 
+		// Release the player standalone lock + the persistent AI-driven flag (set by the scene runtime's control lock).
 		// The AI-driven flag is serialized into saves, so it MUST be cleared on every load even when this process holds no in-memory lock;
 		// the input-disable layer is non-persistent.
 		Camera::CameraService::GetSingleton().OnStopAll();

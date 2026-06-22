@@ -4,7 +4,7 @@ namespace OSF::Papyrus
 {
 	inline constexpr std::string_view SCRIPT_NAME = "OSF";
 
-	// Separate script name for compatibility-only natives, the escape hatches the SAF->OSF shim (SAFScript.psc) needs to reproduce SAF behaviour 
+	// Separate script name for non-public natives: the crosshair pickers and debug/test probes the OSFTest harness drives.
 	// These are deliberately kept off the OSF public surface; the scene runtime drives its own control/camera policy through actions instead. See OSFCompat.psc.
 	inline constexpr std::string_view COMPAT_SCRIPT_NAME = "OSFCompat";
 
