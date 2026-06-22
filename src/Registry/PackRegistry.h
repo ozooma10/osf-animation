@@ -11,7 +11,7 @@
 
 namespace OSF::Registry
 {
-	// Highest pack schema version we understand. We read the stage-major layout (version 1);
+	// Highest pack schema version we understand. We read the stage-major layout (version 1).
 	// Bump only on a breaking change.
 	inline constexpr std::int64_t kPackSchemaVersion = 1;
 

@@ -1,6 +1,6 @@
 {
   "name": "OSFTestPack",
-  "schema": 2,
+  "schema": 1,
   "animations": [
     {
       "id": "osf.test.solo",

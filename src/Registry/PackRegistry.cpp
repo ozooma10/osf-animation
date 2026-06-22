@@ -48,10 +48,10 @@ namespace OSF::Registry
 				throw std::runtime_error("'actors' must be a non-empty array");
 			}
 			for (const auto& jActor : actors) {
-				// Reject the pre-2.0 actor-major layout with a clear hint: clips
-				// moved out of actors[].stages[] into the top-level stages[].clips[].
+				// Reject the actor-major layout with a clear hint: clips live in the
+				// top-level stages[].clips[], not under actors[].stages[]/actors[].file.
 				if (jActor.contains("stages") || jActor.contains("file")) {
-					throw std::runtime_error("'" + def.id + "': actor-major layout removed in schema 2 — move each "
+					throw std::runtime_error("'" + def.id + "': actor-major layout is not supported — move each "
 						"actor's clips into the top-level stages[].clips[]");
 				}
 				SlotDef slot;
