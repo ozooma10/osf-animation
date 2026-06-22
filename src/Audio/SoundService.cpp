@@ -63,10 +63,6 @@ namespace OSF::Audio
 
 	void SoundService::Play(const std::string& a_dataRelPath, const RE::NiPoint3& a_worldPos, float a_volume)
 	{
-		if (!enabled.load(std::memory_order_relaxed)) {
-			return;
-		}
-
 		// "event:" specs post through the game's own Wwise engine as a baked event, engine-mixed (sliders/pause/ducking apply)
 		// fired on the player's game object so position and a_volume do not apply (the mix is engine-owned). See WwiseBackend.h.
 		if (const auto eventID = Wwise::ParseEventSpec(a_dataRelPath)) {
@@ -169,16 +165,6 @@ namespace OSF::Audio
 			return done;
 		});
 		activeCount.store(static_cast<int>(sounds.size()), std::memory_order_relaxed);
-	}
-
-	bool SoundService::SetEnabled(bool a_enabled)
-	{
-		enabled.store(a_enabled, std::memory_order_relaxed);
-		if (!a_enabled) {
-			StopAll();
-		}
-		std::scoped_lock l{ lock };
-		return a_enabled && (engineReady || !initAttempted);
 	}
 
 	void SoundService::SetVolume(float a_volume)

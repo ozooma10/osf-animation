@@ -37,14 +37,8 @@ namespace OSF::Audio
 		// Early-outs on an atomic when nothing is playing, so riding the ~7x/frame update-call stream costs nothing in the idle case.
 		void Tick();
 
-		// Master toggle/volume (OSF.SetSoundEnabled / OSF.SetSoundVolume).
-		// Returns the EFFECTIVE state, false when the device failed to init.
-		bool SetEnabled(bool a_enabled);
+		// Master cue volume, clamped 0..2.
 		void SetVolume(float a_volume);
-
-		// Reflects the user's master sound toggle. osf.voice.play and the sound lane quietly skip when this is off. 
-		// (Play() also guards internally, this just lets callers log and skip the setup.)
-		bool Enabled() const { return enabled.load(std::memory_order_relaxed); }
 
 		// Cuts every live sound (GraphManager::StopAll, a loaded save should not have last-world sounds ringing over it). 
 		// Normal scene teardown deliberately lets sub-second tails finish on their own.
@@ -63,7 +57,6 @@ namespace OSF::Audio
 		std::mutex lock;
 		std::vector<std::unique_ptr<ActiveSound>> sounds;
 		std::atomic<int> activeCount{ 0 };
-		std::atomic<bool> enabled{ true };
 		bool engineReady = false;
 		bool initAttempted = false;
 	};

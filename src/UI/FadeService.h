@@ -29,11 +29,6 @@ namespace OSF::UI
 		// build. Computed once; a mismatch logs and disables fades.
 		bool Available();
 
-		// The user's auto-fade toggle. When false, the osf.fade.* actions quietly do
-		// nothing; the manual entry points still honour it.
-		void SetEnabled(bool a_enabled);
-		bool Enabled() const;
-
 		// Fade to black and hold. The hold is CAPPED — Tick() posts the fade-in
 		// at a_fadeSecs + a_holdMaxSecs even if nothing releases it (crash
 		// safety). Returns false when unavailable.
@@ -55,7 +50,6 @@ namespace OSF::UI
 		void PostFade(bool a_fadingOut, float a_fadeSecs, bool a_stayFaded);
 		void ScheduleRelease(float a_fadeSecs, float a_holdSecs);
 
-		std::atomic<bool> enabled{ true };
 		// Steady-clock ms deadline for the deferred fade-in; 0 = nothing held.
 		std::atomic<int64_t> releaseAtMs{ 0 };
 	};

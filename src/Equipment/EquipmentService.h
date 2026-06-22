@@ -33,19 +33,11 @@ namespace OSF::Equipment
 
 		bool Available();
 
-		// The user's equipment toggle: when false, osf.equipment.hide quietly does nothing.
-		// Restore always runs regardless, so we never leave an actor stripped.
-		void SetEnabled(bool a_enabled) { enabled.store(a_enabled, std::memory_order_relaxed); }
-		bool Enabled() const { return enabled.load(std::memory_order_relaxed); }
-
 		// GAME THREAD. Snapshots + unequips the actor's worn apparel (all equipped ARMO except the base skin).
 		// Empty snapshot = nothing hidden (nothing to restore later).
 		Snapshot Hide(RE::Actor* a_actor);
 
 		// GAME THREAD. Re-equips the apparel recorded in a_snapshot (idempotent, re-equipping an item the actor already wears is a no-op).
 		void Restore(RE::Actor* a_actor, const Snapshot& a_snapshot);
-
-	private:
-		std::atomic<bool> enabled{ true };
 	};
 }

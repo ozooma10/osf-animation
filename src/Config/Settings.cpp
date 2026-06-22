@@ -1,9 +1,6 @@
 #include "Config/Settings.h"
 
 #include "Audio/SoundService.h"
-#include "Equipment/EquipmentService.h"
-#include "UI/FadeService.h"
-#include "Weapon/WeaponService.h"
 
 #include <fstream>
 
@@ -59,11 +56,7 @@ namespace OSF::Config::Settings
 			}
 		};
 
-		boolKey("soundEnabled", [](bool v) { Audio::SoundService::GetSingleton().SetEnabled(v); });
 		floatKey("soundVolume", [](float v) { Audio::SoundService::GetSingleton().SetVolume(v); });
-		boolKey("fadeEnabled", [](bool v) { UI::FadeService::GetSingleton().SetEnabled(v); });
-		boolKey("equipmentEnabled", [](bool v) { Equipment::EquipmentService::GetSingleton().SetEnabled(v); });
-		boolKey("weaponEnabled", [](bool v) { Weapon::WeaponService::GetSingleton().SetEnabled(v); });
 
 		boolKey("wwiseSelfTest", [](bool v) { if (v) Audio::SoundService::GetSingleton().RunWwiseSelfTest(); });
 

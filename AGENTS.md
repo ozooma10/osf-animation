@@ -48,4 +48,5 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 ### Layer-C - services 
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks, `src/Config/Settings.*`) -
   content-neutral *mechanisms* with NO scene knowledge; each prologue-gates its engine calls and
-  self-disables on mismatch. User-settings precedence: silent-skip when disabled (`Data/OSF/settings.json`).
+  self-disables on mismatch. Whether a mechanism runs is driven by the scene/API alone — there is no
+  user-settings feature toggle; `Data/OSF/settings.json` only tunes behaviour (e.g. `soundVolume`).

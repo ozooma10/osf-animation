@@ -570,11 +570,9 @@ namespace OSF::Scene
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kControlLock);
 		} else if (type == "osf.fade.out") {
 			// Screen fade only matters when the player is watching (NPC-only scenes must not
-			// black out the player's screen). Disabled by settings = silent skip.
+			// black out the player's screen).
 			if (!a_hasPlayer) {
 				REX::INFO("SceneRuntime: scene {:#010x} osf.fade.out — no player participant, no-op", a_handle);
-			} else if (!UI::FadeService::GetSingleton().Enabled()) {
-				REX::INFO("SceneRuntime: scene {:#010x} osf.fade.out — disabled by settings, skipped", a_handle);
 			} else {
 				const float dur = a_action.duration > 0.0f ? a_action.duration : 0.5f;
 				const bool posted = UI::FadeService::GetSingleton().FadeToBlack(dur, /*holdMaxSecs*/ 10.0f);
@@ -593,10 +591,8 @@ namespace OSF::Scene
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kFade);
 		} else if (type == "osf.equipment.hide") {
 			// Strip the role's actor's worn apparel; record the snapshot in the ledger so cleanup
-			// (or osf.equipment.restore) re-equips it. Disabled by settings = silent skip.
-			if (!Equipment::EquipmentService::GetSingleton().Enabled()) {
-				REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.hide — disabled by settings, skipped", a_handle);
-			} else if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
+			// (or osf.equipment.restore) re-equips it.
+			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
 				auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor);
 				REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.hide (role '{}') — hid {} item(s)",
 					a_handle, a_action.role, snap.stripped.size());
@@ -614,11 +610,9 @@ namespace OSF::Scene
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipment);
 		} else if (type == "osf.weapon.sheathe") {
 			// Holster the role's actor's weapon; record it so cleanup (or osf.weapon.restore)
-			// re-draws it. Disabled by settings = silent skip. Symmetric pair (see WeaponService):
-			// re-draw on cleanup is unconditional, so author this only on a role that's armed.
-			if (!Weapon::WeaponService::GetSingleton().Enabled()) {
-				REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.sheathe — disabled by settings, skipped", a_handle);
-			} else if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
+			// re-draws it. Symmetric pair (see WeaponService): re-draw on cleanup is unconditional,
+			// so author this only on a role that's armed.
+			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
 				if (Weapon::WeaponService::GetSingleton().Sheathe(actor)) {
 					REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.sheathe (role '{}')", a_handle, a_action.role);
 					GetSingleton().RecordSheathedWeapon(a_handle, actor);
@@ -635,10 +629,8 @@ namespace OSF::Scene
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kWeapon);
 		} else if (type == "osf.voice.play") {
 			// Fire-and-forget voice line: play the `set` spec at the role's actor. Not reversible
-			// (a one-shot sound has nothing to undo), so no ledger entry. Silent-skips if disabled.
-			if (!Audio::SoundService::GetSingleton().Enabled()) {
-				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play — disabled by settings, skipped", a_handle);
-			} else if (a_action.set.empty()) {
+			// (a one-shot sound has nothing to undo), so no ledger entry.
+			if (a_action.set.empty()) {
 				REX::WARN("SceneRuntime: scene {:#010x} osf.voice.play — missing 'set' spec, skipped", a_handle);
 			} else {
 				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play (role '{}', set '{}')", a_handle, a_action.role, a_action.set);

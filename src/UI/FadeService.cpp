@@ -63,16 +63,6 @@ namespace OSF::UI
 		return available;
 	}
 
-	void FadeService::SetEnabled(bool a_enabled)
-	{
-		enabled.store(a_enabled, std::memory_order_relaxed);
-	}
-
-	bool FadeService::Enabled() const
-	{
-		return enabled.load(std::memory_order_relaxed);
-	}
-
 	void FadeService::PostFade(bool a_fadingOut, float a_fadeSecs, bool a_stayFaded)
 	{
 		const auto post = reinterpret_cast<FadeScreenFn>(kFadeScreenPoster.address());

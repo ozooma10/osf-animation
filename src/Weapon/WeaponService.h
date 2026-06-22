@@ -28,20 +28,11 @@ namespace OSF::Weapon
 		// Result cached; the disabled state logs once.
 		bool Available();
 
-		// The user's weapon toggle: when false, osf.weapon.sheathe quietly does nothing.
-		// Draw always runs regardless, so we never leave an actor stuck holstered by a scene.
-		void SetEnabled(bool a_enabled) { enabled.store(a_enabled, std::memory_order_relaxed); }
-		bool Enabled() const { return enabled.load(std::memory_order_relaxed); }
-
 		// GAME THREAD. Holsters a_actor's weapon. Returns false if the actor is null or the
 		// feature is unavailable (nothing recorded for restore in that case).
 		bool Sheathe(RE::Actor* a_actor);
 
-		// GAME THREAD. Un-holsters a_actor's weapon (the restore half; runs regardless of the
-		// user toggle so a scene never strands an actor holstered).
+		// GAME THREAD. Un-holsters a_actor's weapon (the restore half).
 		void Draw(RE::Actor* a_actor);
-
-	private:
-		std::atomic<bool> enabled{ true };
 	};
 }
