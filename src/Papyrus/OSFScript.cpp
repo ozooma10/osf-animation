@@ -695,7 +695,7 @@ namespace OSF::Papyrus
 
 		bool Dbg_SetSceneNode(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_node, int32_t a_stage)
 		{
-			return Scene::SceneRuntime::GetSingleton().SetNode(a_scene, a_node.c_str(), a_stage);
+			return Scene::SceneRuntime::GetSingleton().SetNode(a_scene, a_node.c_str());
 		}
 
 		bool Dbg_StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)

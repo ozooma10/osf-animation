@@ -64,7 +64,7 @@ namespace OSF::Scene
 
 		// Move to a different node: fire NODE_EXIT (old node) then NODE_ENTER (new node).
 		// False if the handle is invalid.
-		bool SetNode(std::int32_t a_scene, std::string_view a_node, std::int32_t a_stage);
+		bool SetNode(std::int32_t a_scene, std::string_view a_node);
 
 		// Fire NODE_EXIT then SCENE_END, then release the handle. False if invalid.
 		bool Stop(std::int32_t a_scene);
@@ -204,11 +204,9 @@ namespace OSF::Scene
 		// Caller holds _lock; null if the handle is stale/invalid.
 		Slot* Resolve(std::int32_t a_handle);
 
-		// Allocate a slot (exclusivity-checked), record it, return the handle (0 = table full
-		// or an actor is already in a live scene). Does NOT play or fire — the caller plays
-		// the animation + fires NODE_ENTER OUTSIDE _lock. Shared by every Start* entry point.
-		std::int32_t MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node,
-			std::int32_t a_stage, const std::vector<RE::Actor*>& a_participants);
+		// Allocate a slot (exclusivity-checked), record it, return the handle (0 = table full or an actor is already in a live scene). 
+		// Does NOT play or fire, the caller plays the animation + fires NODE_ENTER OUTSIDE _lock. Shared by every Start* entry point.
+		std::int32_t MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants);
 
 		// Free the slot a_handle names (no events). Rollback for a start whose playback failed
 		// after the handle was minted. Takes _lock itself.

@@ -820,7 +820,7 @@ namespace OSF::Scene
 		}
 	}
 
-	std::int32_t SceneRuntime::MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node, std::int32_t a_stage, const std::vector<RE::Actor*>& a_participants)
+	std::int32_t SceneRuntime::MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants)
 	{
 		std::lock_guard l{ _lock };
 
@@ -907,7 +907,7 @@ namespace OSF::Scene
 			}
 		}
 
-		const std::int32_t handle = MintSlot(Kind::kDef, a_id, a_entryNode, 0, a_participants);
+		const std::int32_t handle = MintSlot(Kind::kDef, a_id, a_entryNode, a_participants);
 		if (!handle) {
 			return 0;
 		}
@@ -924,7 +924,7 @@ namespace OSF::Scene
 		return handle;
 	}
 
-	bool SceneRuntime::SetNode(std::int32_t a_scene, std::string_view a_node, std::int32_t a_stage)
+	bool SceneRuntime::SetNode(std::int32_t a_scene, std::string_view a_node)
 	{
 		std::string oldNode;
 		std::string newNode;
@@ -1016,7 +1016,7 @@ namespace OSF::Scene
 			plan->anchorPos = a_anchor.pos;
 			plan->anchorHeading = a_anchor.heading;
 		}
-		const std::int32_t handle = MintSlot(Kind::kPack, a_packId, "main", a_startStage, a_participants);
+		const std::int32_t handle = MintSlot(Kind::kPack, a_packId, "main", a_participants);
 		if (!handle) {
 			return 0;  // actor already in a scene
 		}
@@ -1034,7 +1034,7 @@ namespace OSF::Scene
 		if (a_participants.empty() || a_participants.size() != a_files.size()) {
 			return 0;
 		}
-		const std::int32_t handle = MintSlot(Kind::kFiles, "", "main", 0, a_participants);
+		const std::int32_t handle = MintSlot(Kind::kFiles, "", "main", a_participants);
 		if (!handle) {
 			return 0;  // actor already in a scene
 		}
@@ -1335,7 +1335,7 @@ namespace OSF::Scene
 			return false;
 		}
 		// SetNode fires NODE_EXIT/ENTER and plays the target node (re-locks internally).
-		return SetNode(a_scene, def->linearStages[a_stage], a_stage);
+		return SetNode(a_scene, def->linearStages[a_stage]);
 	}
 
 	std::int32_t SceneRuntime::GetSceneForActor(RE::Actor* a_actor)
