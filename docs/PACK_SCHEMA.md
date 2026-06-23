@@ -96,7 +96,6 @@ A role's bound actor must satisfy **every present** constraint; within `keyword`
 {
   "id": "main",
   "anim": "author.pack.main",       // pack animation id this node plays
-  "slots": [],                      // optional role->slot remap; default = role declaration order
   "loop": { "mode": "hold", "count": 0 },  // mode: "once" | "hold" | "count" (count uses "count")
   "loopForever": false,
   "timerSec": 0.0,                  // arms a node timer; pair with a {"when":"timer"} edge

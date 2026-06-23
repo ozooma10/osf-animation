@@ -128,7 +128,6 @@ namespace OSF::Registry
 	{
 		std::string              id;
 		std::string              anim;         // referenced animation id (PackRegistry)
-		std::vector<std::string> slots;        // role->slot map (optional; else declaration order)
 		LoopMode                 loopMode = LoopMode::kHold;
 		std::int32_t             loopCount = 0;  // when loopMode == kCount
 		float                    timerSec = 0.0f;

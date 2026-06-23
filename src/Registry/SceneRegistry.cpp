@@ -366,11 +366,6 @@ namespace OSF::Registry
 			n.loopMode = ParseLoop(a_node, n.loopCount);
 			n.timerSec = a_node.value("timerSec", 0.0f);
 			n.loopForever = a_node.value("loopForever", false);
-			if (const auto it = a_node.find("slots"); it != a_node.end()) {
-				for (const auto& s : *it) {
-					n.slots.push_back(s.get<std::string>());
-				}
-			}
 
 			std::unordered_set<std::string> edgeIds;
 			int defaults = 0;
