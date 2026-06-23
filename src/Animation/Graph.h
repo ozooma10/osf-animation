@@ -24,8 +24,7 @@ namespace OSF::Animation
 	enum class RootMode : std::uint8_t
 	{
 		kPin = 0,       // lock the rendered root at the anchor (root translation ignored)
-		kAdditive = 1,  // root motion travels from the anchor (experimental — currently pins)
-		kFollow = 2     // no pin — ride the actor's live transform
+		kFollow = 1     // no pin — ride the actor's live transform
 	};
 
 	class Graph
