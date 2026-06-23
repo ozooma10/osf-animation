@@ -179,6 +179,22 @@ namespace OSF::Scene
 			std::vector<RE::Actor*> sheathedWeapon;
 		};
 
+		// lock-free copy of slot fields for dispatch/lookup paths reading out of lock
+		struct SlotView
+		{
+			Kind                    kind = Kind::kDef;
+			std::string             id;
+			std::string             node;
+			std::vector<RE::Actor*> participants;
+		};
+
+		// The id + resolved label of one branchable (advance) edge, for the menu accessors.
+		struct AdvanceEdgeInfo
+		{
+			std::string id;
+			std::string label;  // labelKey if set, else the literal label
+		};
+
 		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen >= 1 -> nonzero).
 		static std::int32_t MakeToken(std::uint16_t a_gen, std::uint16_t a_slot)
 		{
@@ -202,6 +218,11 @@ namespace OSF::Scene
 		// non-null), or null. This is the single source for the one-actor-one-scene invariant and
 		// the actor->handle lookups.
 		Slot* FindSlotForActor(RE::Actor* a_actor, std::int32_t* a_token);
+
+		// Snapshot the slot a_handle names into a_out under _lock; 
+		// false (a_out left default) if the handle is stale. 
+		// The single source of the "lock, Resolve, copy out, unlock" preamble the out-of-lock dispatch / lookup paths share.
+		bool SnapshotSlot(std::int32_t a_handle, SlotView& a_out);
 
 		// Log + dispatch a lifecycle event through the relay.
 		// Call OUTSIDE _lock (it enters the VM); the caller snapshots node/handle first.
@@ -292,8 +313,11 @@ namespace OSF::Scene
 		// a non-"$end" target) and run ApplyTransition OUTSIDE _lock. False if the handle is invalid,
 		// not def-backed, or a_selectEdge finds no edge. Centralizes the "$end vs next node" +
 		// snapshot-under-lock contract that Advance and Navigate would otherwise each copy.
-		bool TakeEdge(std::int32_t a_scene,
-			const std::function<const Registry::SceneEdge*(const Registry::SceneNode&)>& a_selectEdge);
+		bool TakeEdge(std::int32_t a_scene, const std::function<const Registry::SceneEdge*(const Registry::SceneNode&)>& a_selectEdge);
+
+		// The current node's branchable (advance) edges, snapshotted under _lock for the menu accessors (EdgeCount / EdgeId / EdgeLabel). 
+		// Empty if the handle is invalid or the node isn't def-backed.
+		std::vector<AdvanceEdgeInfo> AdvanceEdges(std::int32_t a_scene);
 
 		std::mutex        _lock;
 		std::vector<Slot> _slots;

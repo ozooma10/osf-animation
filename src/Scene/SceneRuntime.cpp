@@ -28,6 +28,37 @@ namespace OSF::Scene
 		constexpr std::uint8_t kLaneSound = 2;
 		constexpr std::uint8_t kLaneCue = 3;
 
+		// Schedule a node's timed-track entries (numeric `at` -> a fraction mark; `end` -> an end mark) onto a_marks as opaque lane+token marks. 
+		// a_token maps an entry + its list index to the mark token. 
+		// Lifecycle enter/exit entries carry other pos values and are skipped here (they're fired directly by the lifecycle dispatch, not via the timeline).
+		template <class Entry, class Pos, class TokenFn>
+		void ScheduleMarks(std::vector<Animation::TimedMark>& a_marks, const std::vector<Entry>& a_entries,
+			Pos a_fractionPos, Pos a_endPos, std::uint8_t a_lane, TokenFn a_token)
+		{
+			for (std::size_t i = 0; i < a_entries.size(); i++) {
+				const auto& e = a_entries[i];
+				if (e.pos == a_fractionPos) {
+					a_marks.push_back({ e.fraction, e.everyLoop, false, a_lane, a_token(e, i) });
+				} else if (e.pos == a_endPos) {
+					a_marks.push_back({ 0.0f, false, true, a_lane, a_token(e, i) });
+				}
+			}
+		}
+
+		// Parse a decimal index token (the one ApplyNodeMarks stamped) into a_out, bounded by a_count. 
+		// false if the token isn't a number or is >= a_count.
+		bool ParseIndexToken(std::string_view a_token, std::size_t a_count, std::size_t& a_out)
+		{
+			std::size_t idx = 0;
+			const auto* first = a_token.data();
+			const auto [ptr, ec] = std::from_chars(first, first + a_token.size(), idx);
+			if (ec != std::errc{} || idx >= a_count) {
+				return false;
+			}
+			a_out = idx;
+			return true;
+		}
+
 		// Map a node's loop policy + timerSec onto the played plan's TERMINAL stage so
 		// GraphManager auto-ends it (and reports timer vs loops). For a single-stage anim
 		// (the common node) that is "the stage"; for a multi-stage pack used as a node, the
@@ -74,45 +105,16 @@ namespace OSF::Scene
 			if (a_plan.stages.empty()) {
 				return;
 			}
-			auto& stage = a_plan.stages.back();
-			for (const auto& cue : a_node.cues) {
-				if (cue.pos == Registry::CuePos::kFraction) {
-					stage.marks.push_back({ cue.fraction, cue.everyLoop, false, kLaneCue, cue.id });
-				} else if (cue.pos == Registry::CuePos::kEnd) {
-					stage.marks.push_back({ 0.0f, false, true, kLaneCue, cue.id });
-				}
-			}
-			for (std::size_t i = 0; i < a_node.actions.size(); i++) {
-				const auto& act = a_node.actions[i];
-				const auto token = std::to_string(i);
-				if (act.pos == Registry::ActionPos::kFraction) {
-					stage.marks.push_back({ act.fraction, act.everyLoop, false, kLaneAction, token });
-				} else if (act.pos == Registry::ActionPos::kEnd) {
-					stage.marks.push_back({ 0.0f, false, true, kLaneAction, token });
-				}
-			}
-			for (std::size_t i = 0; i < a_node.sounds.size(); i++) {
-				const auto& snd = a_node.sounds[i];
-				const auto token = std::to_string(i);  // index into node.sounds
-				if (snd.pos == Registry::SoundPos::kFraction) {
-					stage.marks.push_back({ snd.fraction, snd.everyLoop, false, kLaneSound, token });
-				} else if (snd.pos == Registry::SoundPos::kEnd) {
-					stage.marks.push_back({ 0.0f, false, true, kLaneSound, token });
-				}
-			}
-			for (std::size_t i = 0; i < a_node.cameras.size(); i++) {
-				const auto& cam = a_node.cameras[i];
-				const auto token = std::to_string(i);  // index into node.cameras
-				if (cam.pos == Registry::CameraPos::kFraction) {
-					stage.marks.push_back({ cam.fraction, cam.everyLoop, false, kLaneCamera, token });
-				} else if (cam.pos == Registry::CameraPos::kEnd) {
-					stage.marks.push_back({ 0.0f, false, true, kLaneCamera, token });
-				}
-			}
+			auto& marks = a_plan.stages.back().marks;
+			// cue lane token = the cue id; action/sound/camera lanes token = the entry's list index (OnTimedMarks recovers the entry by index). 
+			// Per-lane declaration order is preserved.
+			ScheduleMarks(marks, a_node.cues, Registry::CuePos::kFraction, Registry::CuePos::kEnd, kLaneCue, [](const auto& a_cue, std::size_t) { return a_cue.id; });
+			ScheduleMarks(marks, a_node.actions, Registry::ActionPos::kFraction, Registry::ActionPos::kEnd, kLaneAction, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
+			ScheduleMarks(marks, a_node.sounds, Registry::SoundPos::kFraction, Registry::SoundPos::kEnd, kLaneSound, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
+			ScheduleMarks(marks, a_node.cameras, Registry::CameraPos::kFraction, Registry::CameraPos::kEnd, kLaneCamera, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 		}
 
-		// The outgoing auto-edge of a_node whose `when` matches: highest priority wins, ties keep
-		// declaration order. nullptr if the node has no such edge.
+		// The outgoing auto-edge of a_node whose `when` matches: highest priority wins, ties keep declaration order. nullptr if the node has no such edge.
 		const Registry::SceneEdge* SelectAutoEdge(const Registry::SceneNode& a_node, Registry::EdgeWhen a_when)
 		{
 			const Registry::SceneEdge* best = nullptr;
@@ -177,6 +179,20 @@ namespace OSF::Scene
 			}
 		}
 		return nullptr;
+	}
+
+	bool SceneRuntime::SnapshotSlot(std::int32_t a_handle, SlotView& a_out)
+	{
+		std::lock_guard l{ _lock };
+		Slot* s = Resolve(a_handle);
+		if (!s) {
+			return false;
+		}
+		a_out.kind = s->kind;
+		a_out.id = s->id;
+		a_out.node = s->node;
+		a_out.participants = s->participants;
+		return true;
 	}
 
 	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor)
@@ -300,25 +316,18 @@ namespace OSF::Scene
 
 	void SceneRuntime::DispatchLifecycleCamera(std::int32_t a_handle, std::string_view a_node, bool a_enter)
 	{
-		std::string id;
-		std::vector<RE::Actor*> participants;
-		{
-			std::lock_guard l{ GetSingleton()._lock };
-			Slot* s = GetSingleton().Resolve(a_handle);
-			if (!s) {
-				return;
-			}
-			id = s->id;
-			participants = s->participants;
+		SlotView view;
+		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
+			return;
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;  // pack/files scene or unknown node — no camera entries
 		}
 		auto* player = RE::PlayerCharacter::GetSingleton();
 		const bool hasPlayer = player &&
-			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
+			std::find(view.participants.begin(), view.participants.end(), static_cast<RE::Actor*>(player)) != view.participants.end();
 
 		const auto wantPos = a_enter ? Registry::CameraPos::kEnter : Registry::CameraPos::kExit;
 		for (const auto& cam : node->cameras) {
@@ -463,17 +472,11 @@ namespace OSF::Scene
 
 	RE::Actor* SceneRuntime::ResolveRoleActor(std::int32_t a_handle, std::string_view a_role)
 	{
-		std::string id;
-		std::vector<RE::Actor*> participants;
-		{
-			std::lock_guard l{ _lock };
-			Slot* s = Resolve(a_handle);
-			if (!s) {
-				return nullptr;
-			}
-			id = s->id;
-			participants = s->participants;
+		SlotView view;
+		if (!SnapshotSlot(a_handle, view)) {
+			return nullptr;
 		}
+		const auto& participants = view.participants;
 		if (participants.empty()) {
 			return nullptr;
 		}
@@ -481,7 +484,7 @@ namespace OSF::Scene
 			return participants.front();  // default target = the first participant
 		}
 		// The binding is role-declaration order: roles[i] <-> participants[i].
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
 		if (!def) {
 			return nullptr;
 		}
@@ -525,18 +528,11 @@ namespace OSF::Scene
 
 	void SceneRuntime::DispatchLifecycleActions(std::int32_t a_handle, std::string_view a_node, bool a_enter)
 	{
-		std::string id;
-		std::vector<RE::Actor*> participants;
-		{
-			std::lock_guard l{ GetSingleton()._lock };
-			Slot* s = GetSingleton().Resolve(a_handle);
-			if (!s) {
-				return;
-			}
-			id = s->id;
-			participants = s->participants;
+		SlotView view;
+		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
+			return;
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;  // pack/files scene or unknown node — no actions
@@ -544,7 +540,7 @@ namespace OSF::Scene
 
 		auto* player = RE::PlayerCharacter::GetSingleton();
 		const bool hasPlayer = player &&
-			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
+			std::find(view.participants.begin(), view.participants.end(), static_cast<RE::Actor*>(player)) != view.participants.end();
 
 		const auto wantPos = a_enter ? Registry::ActionPos::kEnter : Registry::ActionPos::kExit;
 		for (const auto& act : node->actions) {
@@ -696,26 +692,20 @@ namespace OSF::Scene
 			} else if (m.lane == kLaneAction && node) {
 				// token = index into node->actions (set by ApplyNodeMarks).
 				std::size_t idx = 0;
-				const auto* first = m.token.data();
-				const auto [ptr, ec] = std::from_chars(first, first + m.token.size(), idx);
-				if (ec == std::errc{} && idx < node->actions.size()) {
+				if (ParseIndexToken(m.token, node->actions.size(), idx)) {
 					RunAction(handle, oldNode, node->actions[idx], "", hasPlayer);
 				}
 			} else if (m.lane == kLaneSound && node) {
 				// token = index into node->sounds (set by ApplyNodeMarks).
 				std::size_t idx = 0;
-				const auto* first = m.token.data();
-				const auto [ptr, ec] = std::from_chars(first, first + m.token.size(), idx);
-				if (ec == std::errc{} && idx < node->sounds.size()) {
+				if (ParseIndexToken(m.token, node->sounds.size(), idx)) {
 					const auto& snd = node->sounds[idx];
 					PlaySound(handle, snd.spec, snd.role, snd.volume);
 				}
 			} else if (m.lane == kLaneCamera && node) {
 				// token = index into node->cameras (set by ApplyNodeMarks).
 				std::size_t idx = 0;
-				const auto* first = m.token.data();
-				const auto [ptr, ec] = std::from_chars(first, first + m.token.size(), idx);
-				if (ec == std::errc{} && idx < node->cameras.size()) {
+				if (ParseIndexToken(m.token, node->cameras.size(), idx)) {
 					RunCamera(handle, node->cameras[idx].state, hasPlayer);
 				}
 			}
@@ -830,8 +820,7 @@ namespace OSF::Scene
 		}
 	}
 
-	std::int32_t SceneRuntime::MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node,
-		std::int32_t a_stage, const std::vector<RE::Actor*>& a_participants)
+	std::int32_t SceneRuntime::MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node, std::int32_t a_stage, const std::vector<RE::Actor*>& a_participants)
 	{
 		std::lock_guard l{ _lock };
 
@@ -960,23 +949,16 @@ namespace OSF::Scene
 
 	bool SceneRuntime::Stop(std::int32_t a_scene)
 	{
-		std::string node;
-		std::vector<RE::Actor*> participants;
-		{
-			std::lock_guard l{ _lock };
-			Slot* s = Resolve(a_scene);
-			if (!s) {
-				return false;
-			}
-			node = s->node;
-			participants = s->participants;
-			// Keep the handle valid through NODE_EXIT + SCENE_END: the exit cues resolve it to look
-			// up the node, and the handle stays read-only-valid during SCENE_END. Released right after.
+		// Snapshot keeps the handle valid through NODE_EXIT + SCENE_END: the exit cues resolve it to
+		// look up the node, and the handle stays read-only-valid during SCENE_END. Released right after.
+		SlotView view;
+		if (!SnapshotSlot(a_scene, view)) {
+			return false;
 		}
 
-		StopGraph(participants);
-		Fire(a_scene, Event::kNodeExit, node, "exit");
-		Fire(a_scene, Event::kSceneEnd, node, "");
+		StopGraph(view.participants);
+		Fire(a_scene, Event::kNodeExit, view.node, "exit");
+		Fire(a_scene, Event::kSceneEnd, view.node, "");
 		ReleaseSlot(a_scene);  // generation 0 → invalidates the handle
 		return true;
 	}
@@ -1260,74 +1242,43 @@ namespace OSF::Scene
 		return true;
 	}
 
-	std::int32_t SceneRuntime::EdgeCount(std::int32_t a_scene)
+	std::vector<SceneRuntime::AdvanceEdgeInfo> SceneRuntime::AdvanceEdges(std::int32_t a_scene)
 	{
+		std::vector<AdvanceEdgeInfo> out;
 		std::lock_guard l{ _lock };
 		Slot* s = Resolve(a_scene);
 		if (!s) {
-			return 0;
+			return out;
 		}
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
 		const auto* node = def ? def->FindNode(s->node) : nullptr;
 		if (!node) {
-			return 0;
+			return out;
 		}
-		std::int32_t count = 0;
 		for (const auto& e : node->edges) {
 			if (e.when == Registry::EdgeWhen::kAdvance) {
-				count++;
+				// labelKey (a localization token) if present, else the literal label.
+				out.push_back({ e.id, e.labelKey.empty() ? e.label : e.labelKey });
 			}
 		}
-		return count;
+		return out;
+	}
+
+	std::int32_t SceneRuntime::EdgeCount(std::int32_t a_scene)
+	{
+		return static_cast<std::int32_t>(AdvanceEdges(a_scene).size());
 	}
 
 	std::string SceneRuntime::EdgeId(std::int32_t a_scene, std::int32_t a_index)
 	{
-		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_scene);
-		if (!s) {
-			return {};
-		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
-		const auto* node = def ? def->FindNode(s->node) : nullptr;
-		if (!node) {
-			return {};
-		}
-		std::int32_t i = 0;
-		for (const auto& e : node->edges) {
-			if (e.when == Registry::EdgeWhen::kAdvance) {
-				if (i == a_index) {
-					return e.id;
-				}
-				i++;
-			}
-		}
-		return {};
+		const auto edges = AdvanceEdges(a_scene);
+		return (a_index >= 0 && static_cast<std::size_t>(a_index) < edges.size()) ? edges[a_index].id : std::string{};
 	}
 
 	std::string SceneRuntime::EdgeLabel(std::int32_t a_scene, std::int32_t a_index)
 	{
-		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_scene);
-		if (!s) {
-			return {};
-		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
-		const auto* node = def ? def->FindNode(s->node) : nullptr;
-		if (!node) {
-			return {};
-		}
-		std::int32_t i = 0;
-		for (const auto& e : node->edges) {
-			if (e.when == Registry::EdgeWhen::kAdvance) {
-				if (i == a_index) {
-					// labelKey (a localization token) if present, else the literal label.
-					return e.labelKey.empty() ? e.label : e.labelKey;
-				}
-				i++;
-			}
-		}
-		return {};
+		const auto edges = AdvanceEdges(a_scene);
+		return (a_index >= 0 && static_cast<std::size_t>(a_index) < edges.size()) ? edges[a_index].label : std::string{};
 	}
 
 	std::string SceneRuntime::GetId(std::int32_t a_scene)
@@ -1353,51 +1304,33 @@ namespace OSF::Scene
 
 	std::int32_t SceneRuntime::GetStage(std::int32_t a_scene)
 	{
-		Kind kind;
-		std::string id;
-		std::string node;
-		RE::Actor* first = nullptr;
-		{
-			std::lock_guard l{ _lock };
-			Slot* s = Resolve(a_scene);
-			if (!s) {
-				return -1;
-			}
-			kind = s->kind;
-			id = s->id;
-			node = s->node;
-			first = s->participants.empty() ? nullptr : s->participants.front();
+		SlotView view;
+		if (!SnapshotSlot(a_scene, view)) {
+			return -1;
 		}
-		if (kind != Kind::kDef) {
+		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
+		if (view.kind != Kind::kDef) {
 			// pack/files: the single GraphManager scene's live stage (files -> always 0).
 			return Animation::GraphManager::GetSingleton().GetSceneStage(first);
 		}
 		// def graph: a stage number exists only if linearStages is declared.
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
-		return def ? def->LinearStageOf(node) : -1;
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		return def ? def->LinearStageOf(view.node) : -1;
 	}
 
 	bool SceneRuntime::SetStage(std::int32_t a_scene, std::int32_t a_stage)
 	{
-		Kind kind;
-		std::string id;
-		RE::Actor* first = nullptr;
-		{
-			std::lock_guard l{ _lock };
-			Slot* s = Resolve(a_scene);
-			if (!s) {
-				return false;
-			}
-			kind = s->kind;
-			id = s->id;
-			first = s->participants.empty() ? nullptr : s->participants.front();
+		SlotView view;
+		if (!SnapshotSlot(a_scene, view)) {
+			return false;
 		}
-		if (kind != Kind::kDef) {
+		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
+		if (view.kind != Kind::kDef) {
 			// pack/files: jump the live GraphManager scene (it range-checks the stage).
 			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage);
 		}
 		// def graph: linear only via linearStages; jumping a stage = transitioning to its node.
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
 		if (!def || a_stage < 0 || static_cast<std::size_t>(a_stage) >= def->linearStages.size()) {
 			return false;
 		}
