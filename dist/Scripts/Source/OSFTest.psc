@@ -687,6 +687,27 @@ Function MatchTags(string tag) global
     OSFCompat.Dbg_Log("MatchTags '" + tag + "': handle=" + h + " id='" + OSF.GetSceneId(h) + "' (NOTE: '" + tag + "' is a TAG; many scenes share it)")
 EndFunction
 
+; Anchored StartSceneByTagsAt: matchmake one tag AND world-anchor the picked scene at a ref (the bed/furniture path SIF's OnSleep uses). 
+; The crosshair actor (or player) is the participant; the scene plays AT the ref, not at the actor.
+; cgf "OSFTest.MatchAt" <refID> "filter"     e.g. cgf "OSFTest.MatchAt" 1A2B3C "solo"
+Function MatchAt(ObjectReference akAnchor, string tag) global
+    If !akAnchor
+        OSFCompat.Dbg_Log("MatchAt: null anchor ref — click a bed/furniture/marker and pass its FormID.")
+        Return
+    EndIf
+    Actor a = OSFCompat.GetCrosshairActor()
+    If !a
+        a = Game.GetPlayer()
+    EndIf
+    OSF.StopSceneForActor(a)   ; clear any prior test scene so the actor isn't exclusivity-locked
+    Actor[] actors = new Actor[1]
+    actors[0] = a
+    string[] tags = new string[1]
+    tags[0] = tag
+    int h = OSF.StartSceneByTagsAt(actors, tags, akAnchor)
+    OSFCompat.Dbg_Log("MatchAt '" + tag + "' @ ref " + akAnchor.GetFormID() + ": handle=" + h + " id='" + OSF.GetSceneId(h) + "' (scene should sit AT the ref)")
+EndFunction
+
 ; Explicit-target StartSceneByTags: pass the actor's refID (CLICK the creature in the console to read
 ; its FormID). Use this for a specific NPC/creature — GetCrosshairActor reads commandTarget, which only
 ; tracks actor COMMAND targets, so it can't pick a hostile creature you're merely aiming at.

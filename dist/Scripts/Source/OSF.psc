@@ -85,6 +85,15 @@ int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRole
 ; empty = ignored) + asNoneOf (none may match). Same filter-aware matchmaking + weighted pick.
 int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf) Global Native
 
+; Like StartSceneByTags, but world-ANCHORS the matchmade scene at akAnchor (furniture / bed / marker) instead of co-locating the actors at akActors[0]
+; for furniture/sleep encounters that belong to a thing, not an actor. 
+; afHeadingDeg < 0 uses akAnchor's own heading; otherwise it is a heading in DEGREES. 
+; Returns the scene handle (0 = no match / no anchor / start failed).
+int Function StartSceneByTagsAt(Actor[] akActors, string[] asTags, ObjectReference akAnchor, float afHeadingDeg = -1.0) Global Native
+
+; Boolean-query form of StartSceneByTagsAt (asAllOf / asAnyOf / asNoneOf), world-anchored at akAnchor.
+int Function StartSceneByTagsQueryAt(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, ObjectReference akAnchor, float afHeadingDeg = -1.0) Global Native
+
 ; Ad-hoc scene from raw files: co-locates akActors at akActors[0], plays asFiles[i] on akActors[i], syncs the clock. 
 ; Equal-length arrays. Returns the scene handle.
 int Function StartSceneFiles(Actor[] akActors, string[] asFiles, float afSpeed = 1.0, float afBlendIn = 0.4) Global Native

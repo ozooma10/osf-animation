@@ -417,6 +417,48 @@ namespace OSF::Papyrus
 			return handle;
 		}
 
+		// Anchored counterpart of StartCandidate: start the matchmade pick world-anchored at (a_pos, a_heading) instead of co-locating the actors at actor[0]. 
+		// Uses the SAME two anchored entry points StartSceneAt does (StartFromDefAt for scene defs, StartFromPack + AnchorOverride for packs),
+		// so a matchmade scene can sit on a bed / furniture / marker.
+		int32_t StartCandidateAt(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors, const RE::NiPoint3& a_pos, float a_heading)
+		{
+			std::vector<RE::Actor*> ordered(a_pick.order.size());
+			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
+				ordered[slot] = a_actors[a_pick.order[slot]];
+			}
+			auto& rt = Scene::SceneRuntime::GetSingleton();
+			if (a_pick.source == Matchmaking::Candidate::Source::kSceneDef) {
+				return rt.StartFromDefAt(a_pick.id, ordered, a_pos, a_heading);
+			}
+			return rt.StartFromPack(a_pick.id, ordered, 0, Scene::SceneRuntime::AnchorOverride{ true, a_pos, a_heading });
+		}
+
+		// Anchored counterpart of StartMatched: matchmake a_query, then start the pick anchored at (a_pos, a_heading).
+		// Shared body of the StartSceneByTags*At natives.
+		int32_t StartMatchedAt(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
+			const RE::NiPoint3& a_pos, float a_heading, const char* a_logTag)
+		{
+			if (a_actors.empty()) {
+				REX::WARN("{}: no actors given", a_logTag);
+				return 0;
+			}
+			for (auto* actor : a_actors) {
+				if (!actor) {
+					REX::WARN("{}: null actor in list", a_logTag);
+					return 0;
+				}
+			}
+			auto pick = Matchmaking::Pick(a_actors, a_query);
+			if (!pick) {
+				return 0;
+			}
+			const int32_t handle = StartCandidateAt(*pick, a_actors, a_pos, a_heading);
+			if (handle) {
+				REX::INFO("{}: playing '{}' ({}) handle {:#010x} (anchored)", a_logTag, pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
+			}
+			return handle;
+		}
+
 		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs), pick by priority tier + weighted-random, and start it with the matchmade binding.
 		// Returns the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
@@ -434,6 +476,46 @@ namespace OSF::Papyrus
 		{
 			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
 			return StartMatched(a_actors, q, "OSF.StartSceneByTagsQuery");
+		}
+
+		// Like StartSceneByTags, but world-anchors the matchmade scene at akAnchor (furniture / bed / marker) instead of co-locating the actors at actor[0]. 
+		// afHeadingDeg < 0 uses the anchor's own heading; otherwise it is a heading in DEGREES. 
+		// For furniture/sleep encounters that belong to a thing, not an actor.
+		int32_t StartSceneByTagsAt(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_tags, RE::TESObjectREFR* a_anchor, float a_headingDeg)
+		{
+			if (a_actors.empty()) {
+				REX::WARN("OSF.StartSceneByTagsAt: no actors given");
+				return 0;
+			}
+			if (!a_anchor) {
+				REX::WARN("OSF.StartSceneByTagsAt: no anchor reference given");
+				return 0;
+			}
+			const RE::NiPoint3 pos = a_anchor->data.location;
+			const float heading = (a_headingDeg < 0.0f) ? a_anchor->data.angle.z : (a_headingDeg * Util::kDegToRadF);
+			Matchmaking::TagQuery q;
+			q.allOf = ToStrings(a_tags);
+			return StartMatchedAt(a_actors, q, pos, heading, "OSF.StartSceneByTagsAt");
+		}
+
+		// Boolean-query form of StartSceneByTagsAt (all-of / any-of / none-of), world-anchored at akAnchor.
+		int32_t StartSceneByTagsQueryAt(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
+			std::vector<RE::BSFixedString> a_noneOf, RE::TESObjectREFR* a_anchor, float a_headingDeg)
+		{
+			if (a_actors.empty()) {
+				REX::WARN("OSF.StartSceneByTagsQueryAt: no actors given");
+				return 0;
+			}
+			if (!a_anchor) {
+				REX::WARN("OSF.StartSceneByTagsQueryAt: no anchor reference given");
+				return 0;
+			}
+			const RE::NiPoint3 pos = a_anchor->data.location;
+			const float heading = (a_headingDeg < 0.0f) ? a_anchor->data.angle.z : (a_headingDeg * Util::kDegToRadF);
+			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
+			return StartMatchedAt(a_actors, q, pos, heading, "OSF.StartSceneByTagsQueryAt");
 		}
 
 		// Ad-hoc one-shot scene from raw animation files: co-locates the actors at actor[0],
@@ -753,6 +835,8 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsAt", &StartSceneByTagsAt, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQueryAt", &StartSceneByTagsQueryAt, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenes", &FindScenes, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenesForActorsQuery", &FindScenesForActorsQuery, true, false);
