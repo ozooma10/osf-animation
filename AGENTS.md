@@ -4,6 +4,15 @@ SFSE plugin - the **engine** of **OSF**, a scene framework for Starfield (NAFSF 
 **content-neutral**: it provides policy *mechanisms* (control/camera lock, fade, equipment-strip,
 voice/sound, camera hold);
 
+## Build
+
+- **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
+  then `xmake`). This is the only thing an agent compiles.
+- **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): do NOT compile.** When you edit a `.psc`,
+  update the source (and any docs) and stop — leave the stale `.pex` as-is. The user recompiles the
+  Papyrus scripts manually before in-game testing. Don't extract base scripts or invoke
+  PapyrusCompiler; just note in your summary that the `.pex` needs a manual recompile.
+
 ## Architecture
 
 Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
