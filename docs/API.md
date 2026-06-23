@@ -113,9 +113,7 @@ EndFunction
 | `OSF.EVENT_NODE_EXIT()` | 2 | a node is exited |
 | `OSF.EVENT_CUE()` | 4 | a `cue` track entry fires |
 | `OSF.EVENT_ACTION()` | 8 | a custom (non-`osf.*`) action fires |
-| `OSF.EVENT_ACTION_FAILED()` | 16 | a custom action could not be delivered |
-| `OSF.EVENT_SCENE_END()` | 32 | the scene ended normally |
-| `OSF.EVENT_SCENE_ABORT()` | 64 | the scene was aborted |
+| `OSF.EVENT_SCENE_END()` | 16 | the scene ended (normal end or `Stop()`) |
 | `OSF.EVENT_ALL()` | 65535 | every type |
 
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode

@@ -20,7 +20,7 @@ Struct SceneEvent
     string node         ; node id
     string edge         ; edge id
     string cue          ; EVENT_CUE id
-    string actionType   ; EVENT_ACTION / EVENT_ACTION_FAILED type
+    string actionType   ; EVENT_ACTION type
     Actor actorRef      ; participant (may be None)
     string role         ; role name
     int loopIndex       ; reserved in v0.1; currently -1

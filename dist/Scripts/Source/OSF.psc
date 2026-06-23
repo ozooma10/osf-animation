@@ -205,14 +205,8 @@ EndFunction
 int Function EVENT_ACTION() Global
     return 8
 EndFunction
-int Function EVENT_ACTION_FAILED() Global
-    return 16
-EndFunction
 int Function EVENT_SCENE_END() Global
-    return 32
-EndFunction
-int Function EVENT_SCENE_ABORT() Global
-    return 64
+    return 16
 EndFunction
 int Function EVENT_ALL() Global
     return 65535

@@ -20,9 +20,7 @@ namespace OSF::Scene
 		inline constexpr std::int32_t kNodeExit = 0x02;
 		inline constexpr std::int32_t kCue = 0x04;
 		inline constexpr std::int32_t kAction = 0x08;
-		inline constexpr std::int32_t kActionFailed = 0x10;
-		inline constexpr std::int32_t kSceneEnd = 0x20;
-		inline constexpr std::int32_t kSceneAbort = 0x40;
+		inline constexpr std::int32_t kSceneEnd = 0x10;
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 
@@ -37,7 +35,7 @@ namespace OSF::Scene
 		std::string  node;             // [2] node id
 		std::string  edge;             // [3] edge id
 		std::string  cue;              // [4] EVENT_CUE id
-		std::string  actionType;       // [5] EVENT_ACTION / EVENT_ACTION_FAILED type
+		std::string  actionType;       // [5] EVENT_ACTION type
 		RE::Actor*   actor = nullptr;  // [6] participant (may be null)
 		std::string  role;             // [7] role name
 		std::int32_t loopIndex = -1;   // [8] reserved in v0.1
