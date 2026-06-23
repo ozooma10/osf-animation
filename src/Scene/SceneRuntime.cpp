@@ -956,10 +956,8 @@ namespace OSF::Scene
 			return false;
 		}
 
-		StopGraph(view.participants);
-		Fire(a_scene, Event::kNodeExit, view.node, "exit");
-		Fire(a_scene, Event::kSceneEnd, view.node, "");
-		ReleaseSlot(a_scene);  // generation 0 → invalidates the handle
+		// Stop via the normal "end" transition (which trigers all the right events)
+		ApplyTransition(a_scene, view.node, /*a_newNode*/ "", /*a_end*/ true, view.id, view.participants);
 		return true;
 	}
 
