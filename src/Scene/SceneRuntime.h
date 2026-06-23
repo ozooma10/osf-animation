@@ -165,7 +165,6 @@ namespace OSF::Scene
 			Kind                    kind = Kind::kDef;
 			std::string             id;
 			std::string             node;
-			std::int32_t            stage = 0;
 			std::vector<RE::Actor*> participants;
 			AnchorOverride          anchor;  // StartSceneAt world anchor (unset = anchor at participant[0])
 			// Ordered list of reversible mechanisms this scene engaged (at most one entry per

@@ -888,7 +888,6 @@ namespace OSF::Scene
 		s.kind = a_kind;
 		s.id = std::string(a_id);
 		s.node = std::string(a_node);
-		s.stage = a_stage;
 		s.participants = a_participants;
 		return MakeToken(gen, slot);
 	}
@@ -950,7 +949,6 @@ namespace OSF::Scene
 			}
 			oldNode = s->node;
 			s->node = std::string(a_node);
-			s->stage = a_stage;
 			newNode = s->node;
 			sceneId = s->id;
 			participants = s->participants;
