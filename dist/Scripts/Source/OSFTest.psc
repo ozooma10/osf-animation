@@ -165,10 +165,10 @@ Function Sequence(Actor a) global
 EndFunction
 
 ; --- Readiness handshake ----------------------------------------------------
-;   cgf "OSFTest.Ready"                                   (IsReady + HasFeature -> HUD)
+;   cgf "OSFTest.Ready"                                   (IsReady)
 ;   cgf "OSFTest.StartPair" "pair" <a> <b>                (StartScene)
 Function Ready() global
-    Debug.Notification("OSF ready: " + OSF.IsReady() + " | scenes: " + OSF.HasFeature("scenes") + " | sync: " + OSF.HasFeature("sync") + " | anchor: " + OSF.HasFeature("anchor"))
+    Debug.Notification("OSF ready: " + OSF.IsReady())
 EndFunction
 
 Function StartPair(string id, Actor a, Actor b) global
@@ -211,9 +211,8 @@ Function OnSceneEvent(OSFEvent:SceneEvent akEvent) global
     Debug.Notification("OSF: " + msg)    ; -> on-screen
 EndFunction
 
-; --- Diagnostics natives: ValidateScene / GetSceneValidationErrors + HasFeature ----------
-; Reloads, then validates a known-good scene + a bogus id, dumps per-id validation errors, and
-; checks the merged HasFeature capability names. Watch the OSF Animation.log.
+; --- Diagnostics natives: ValidateScene / GetSceneValidationErrors  ----------
+; Reloads, then validates a known-good scene + a bogus id and dumps per-id validation errors. Watch the OSF Animation.log.
 ;   cgf "OSFTest.ValidateTest"
 Function ValidateTest() global
     OSF.ReloadPacks()
@@ -221,7 +220,6 @@ Function ValidateTest() global
     OSFCompat.Dbg_Log("ValidateTest: ValidateScene('author.scenes.nope')=" + OSF.ValidateScene("author.scenes.nope") + " (expect False)")
     string[] errs = OSF.GetSceneValidationErrors("author.scenes.demo")
     OSFCompat.Dbg_Log("ValidateTest: demo has " + errs.Length + " validation problem(s)")
-    OSFCompat.Dbg_Log("ValidateTest: HasFeature scenes=" + OSF.HasFeature("scenes") + " actions=" + OSF.HasFeature("actions") + " sound=" + OSF.HasFeature("sound") + " camera=" + OSF.HasFeature("camera") + " callbacks=" + OSF.HasFeature("callbacks") + " bogus=" + OSF.HasFeature("bogus"))
 EndFunction
 
 ; --- Callback actorRef marshalling -------------------------------------------------------

@@ -305,13 +305,6 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().HooksInstalled();
 		}
 
-		//STUBBED FOR NOW TO JUST RETURN GLOBAL STATE
-		bool HasFeature(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_feature)
-		{
-
-				return Animation::GraphManager::GetSingleton().HooksInstalled();
-		}
-
 		// Start a scene by id, returning an opaque scene HANDLE (0 = failed). 
 		// Routes through SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
 		// ID resolution: a `scene:` prefix forces the scene registry, `anim:` forces the pack registry; 
@@ -841,7 +834,6 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenes", &FindScenes, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenesForActorsQuery", &FindScenesForActorsQuery, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "HasFeature", &HasFeature, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "UnregisterSceneCallback", &UnregisterSceneCallback, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);

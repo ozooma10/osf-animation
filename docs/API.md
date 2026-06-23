@@ -15,8 +15,6 @@ worked example; see [GETTING_STARTED.md](GETTING_STARTED.md)).
 If OSF.IsReady()                  ; hooks installed + verified
     ...
 EndIf
-Bool ok = OSF.HasFeature("scenes")  ; "scenes"/"playback"/"sync"/"anchor"/"cues"/"actions"/
-                                    ; "sound"/"camera"/"callbacks" — all report the engine-live state
 String v = OSF.GetVersion()         ; semver "major.minor.patch"
 ```
 

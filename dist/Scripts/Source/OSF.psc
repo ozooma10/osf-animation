@@ -134,12 +134,6 @@ int Function ReloadPacks() Global Native
 ; True once OSF is loaded + initialized (hooks installed).
 bool Function IsReady() Global Native
 
-; True when the named feature is effective in this build. One aggregate "is OSF's engine layer
-; live?" gate — "scenes"/"playback"/"sync"/"anchor"/"cues"/"actions"/"sound"/"camera"/"callbacks"
-; all report the same state (playback hooks installed + verified; they self-disable together on a
-; version mismatch). Unknown name -> false.
-bool Function HasFeature(string asFeature) Global Native
-
 ; Framework version (semver). Pre-1.0 (0.x) the surface is still settling and may change between
 ; releases; from 1.0 on, natives are never removed or re-signatured within a major version (minors only add).
 string Function GetVersion() Global Native

@@ -205,7 +205,7 @@ Built-in `osf.*` actions today: `control.lock/release`, `fade.out/in`, `equipmen
 ```
 You get handles, navigation (`Advance`/`Navigate`/edge listing for menus), read-only scene
 introspection (roles, gender, tags, actor count) so you can bind correctly, and a
-`HasFeature()`/`GetVersion()` handshake.
+`GetVersion()` handshake.
 
 ### D. React to scenes & define your own verbs — *integrators*
 **What you ship:** a Papyrus script that registers a callback.
