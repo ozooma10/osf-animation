@@ -99,6 +99,23 @@ OSF_TEST_CASE(SceneRegistry_player_lock_defaults_on_and_opts_out)
 	}
 }
 
+OSF_TEST_CASE(SceneRegistry_strip_actors_defaults_on_and_opts_out)
+{
+	auto& reg = SceneRegistry::GetSingleton();
+	// Default: a scene with no 'stripActors' key strips every participant's apparel.
+	const auto* on = reg.Find("osf.scene.basic");
+	CHECK(on != nullptr);
+	if (on) {
+		CHECK(on->stripActors);
+	}
+	// Opt-out: "stripActors": false parses through and keeps actors clothed.
+	const auto* off = reg.Find("osf.scene.stripactorsoff");
+	CHECK(off != nullptr);
+	if (off) {
+		CHECK(!off->stripActors);
+	}
+}
+
 OSF_TEST_CASE(SceneRegistry_linear_stage_index)
 {
 	const auto* def = SceneRegistry::GetSingleton().Find("osf.scene.basic");

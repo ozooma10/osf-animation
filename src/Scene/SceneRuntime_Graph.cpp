@@ -1,6 +1,7 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Animation/GraphManager.h"
+#include "Equipment/EquipmentService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
@@ -309,6 +310,28 @@ namespace OSF::Scene
 		RecordMechanism(a_handle, Mechanism::kControlLock);
 	}
 
+	void SceneRuntime::StripDefaultActors(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
+	{
+		if (!a_defId.empty()) {
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId);
+			if (def && !def->stripActors) {
+				REX::INFO("SceneRuntime: scene {:#010x} default actor strip skipped — scene opts out (stripActors:false)", a_handle);
+				return;
+			}
+		}
+		// Hide every participant's worn apparel
+		for (auto* actor : a_participants) {
+			if (!actor) {
+				continue;
+			}
+			auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor);
+			if (!snap.Empty()) {
+				RecordHiddenEquip(a_handle, actor, std::move(snap));
+			}
+		}
+		REX::INFO("SceneRuntime: scene {:#010x} default actor strip applied to {} participant(s)", a_handle, a_participants.size());
+	}
+
 	void SceneRuntime::ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
 		bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
 	{
@@ -356,6 +379,7 @@ namespace OSF::Scene
 		PlayNodeAnim(a_participants, a_id, a_entryNode);
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, a_id, a_participants);
+		StripDefaultActors(handle, a_id, a_participants);  // hide every participant's apparel by default
 		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
 		return handle;
 	}
@@ -459,6 +483,7 @@ namespace OSF::Scene
 			return 0;
 		}
 		EngageDefaultPlayerLock(handle, "", a_participants);  // pack scene: no def to opt out via
+		StripDefaultActors(handle, "", a_participants);       // pack scene: always strips participants
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}
@@ -482,6 +507,7 @@ namespace OSF::Scene
 			return 0;
 		}
 		EngageDefaultPlayerLock(handle, "", a_participants);  // files scene: no def to opt out via
+		StripDefaultActors(handle, "", a_participants);       // files scene: always strips participants
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}

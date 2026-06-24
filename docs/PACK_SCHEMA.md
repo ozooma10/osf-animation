@@ -81,6 +81,7 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
   "weight": 1,                    // weighted-random sampling within the top priority tier
   "tags": ["paired", "demo"],     // free-form matchmaking tags
   "lockPlayer": true,             // default: disable player input when the player participates (false to opt out)
+  "stripActors": true,            // default: hide every participant's worn apparel (false to opt out)
   "roles": [                      // declared participants, in binding order
     { "name": "lead",  "gender": "any" },
     { "name": "other", "filters": { "race": "Starfield.esm|0x0021A8D7" } }
@@ -111,6 +112,17 @@ like any mechanism, so it auto-releases on every end path.
   no-op), and an authored release can drop it mid-scene.
 - Pack/files scenes (no `*.scene.json`) always lock when the player participates — they have no field to
   opt out via.
+
+### Actor strip (default-on)
+At scene start the runtime hides **every participant's** worn apparel (the base skin/body is always kept,
+so an actor is never made invisible) — you do **not** need to author `osf.equipment.hide`. It is
+ledger-tracked, so each actor is re-dressed on every end path.
+- Set **`"stripActors": false`** to keep actors clothed (then author per-role `osf.equipment.hide` for
+  selective stripping).
+- Unlike the player lock, this applies to **all** participants, including NPC-only scenes.
+- Authored `osf.equipment.hide` / `osf.equipment.restore` still work: re-stripping an already-bare actor
+  hides nothing extra, and an authored restore re-dresses mid-scene.
+- Pack/files scenes always strip their participants — they have no field to opt out via.
 
 ### Nodes
 ```jsonc
@@ -163,7 +175,7 @@ All are **recorded in the per-handle undo ledger and auto-reversed on any scene 
 | Action `type` | Effect | Needs `role` | Extra fields |
 |---------------|--------|:---:|---|
 | `osf.control.lock` / `osf.control.release` | Player input-disable + AI-driven lock (ref-counted). **On by default when the player participates** — see *Player input lock*; author these only to override. | ✓ | |
-| `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). | ✓ | |
+| `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). **All participants are stripped by default** — see *Actor strip*; author these only to override. | ✓ | |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
 | `osf.voice.play` | Play a sound spec positioned at the role. | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |

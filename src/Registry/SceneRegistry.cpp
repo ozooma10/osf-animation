@@ -456,6 +456,12 @@ namespace OSF::Registry
 				}
 				def.lockPlayer = it->get<bool>();
 			}
+			if (auto it = a_json.find("stripActors"); it != a_json.end()) {
+				if (!it->is_boolean()) {
+					throw std::runtime_error("scene '" + def.id + "': 'stripActors' must be a boolean");
+				}
+				def.stripActors = it->get<bool>();
+			}
 			def.entry = a_json.value("entry", std::string{});
 			if (def.entry.empty()) {
 				throw std::runtime_error("scene '" + def.id + "': missing 'entry'");

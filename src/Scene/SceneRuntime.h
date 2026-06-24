@@ -299,8 +299,11 @@ namespace OSF::Scene
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);
 
-		// Default player lock, applied once at scene START (not on node transitions): when the player is among a_participants and the scene hasn't opted out (def `lockPlayer:false`)
+		// Default player lock on scene start: when the player is among a_participants and the scene hasn't opted out (def `lockPlayer:false`)
 		void EngageDefaultPlayerLock(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+
+		// Default actor strip on scene start: unless the scene opts out (def `stripActors:false`), hide EVERY participant's worn apparel
+		void StripDefaultActors(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
 
 		// The node-transition lifecycle, shared by every transition path (SetNode / Advance /
 		// Navigate / OnGraphAutoEnd / cue-trigger): fire NODE_EXIT for a_oldNode, then either end

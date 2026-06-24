@@ -58,6 +58,9 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 - **SceneRuntime** (`src/Scene/SceneRuntime.*`) - generational handle table, lifecycle (`Fire`), navigation, timed-mark decode (`OnTimedMarks`, lane-ordered action→camera→sound→cue)
   `osf.*` action dispatch (`RunAction`), and the **per-handle undo ledger** (reverses every reversible
   mechanism in reverse order, once, idempotently, on ANY termination). Talks to Layer A only via its public surface, to Layer C via services.
+  **Scene-start defaults** (`EngageDefaultPlayerLock` / `StripDefaultActors`, called once per start in each
+  `Start*` funnel): lock the player's input when they participate (opt out `lockPlayer:false`) and strip
+  every participant's apparel (opt out `stripActors:false`); both ledger-tracked so they auto-reverse on end.
 - **SceneEventRelay** (`src/Scene/SceneEventRelay.*`) - token registry + async C++->Papyrus dispatch of
   the `OSFEvent:SceneEvent` struct.
 - **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `SceneRegistry` defs
