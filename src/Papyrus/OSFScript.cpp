@@ -146,7 +146,11 @@ namespace OSF::Papyrus
 				REX::WARN("OSF.Play: no actor given");
 				return false;
 			}
-			return Animation::GraphManager::GetSingleton().PlayAnimation(a_actor, a_file.c_str(), a_animId.c_str());
+			if (!Animation::GraphManager::GetSingleton().PlayAnimation(a_actor, a_file.c_str(), a_animId.c_str())) {
+				REX::WARN("OSF.Play: could not find/play animation '{}' (id '{}')", a_file.c_str(), a_animId.c_str());
+				return false;
+			}
+			return true;
 		}
 
 		bool Stop(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
@@ -360,12 +364,16 @@ namespace OSF::Papyrus
 			}
 			auto pick = Matchmaking::Pick(a_actors, a_query);
 			if (!pick) {
+				REX::WARN("{}: no matching animation found for the given tags/actors", a_logTag);
 				return 0;
 			}
 			const int32_t handle = StartCandidate(*pick, a_actors);
 			if (handle) {
 				REX::INFO("{}: playing '{}' ({}) handle {:#010x}", a_logTag,
 					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
+			} else {
+				REX::WARN("{}: could not start matched animation '{}' ({})", a_logTag,
+					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack");
 			}
 			return handle;
 		}
@@ -403,6 +411,7 @@ namespace OSF::Papyrus
 			}
 			auto pick = Matchmaking::Pick(a_actors, a_query);
 			if (!pick) {
+				REX::WARN("{}: no matching animation found for the given tags/actors", a_logTag);
 				return 0;
 			}
 			const int32_t handle = StartCandidateAt(*pick, a_actors, a_pos, a_heading);
