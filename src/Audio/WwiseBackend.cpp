@@ -4,11 +4,22 @@
 #include <cctype>
 #include <charconv>
 #include <cstring>
+#include <cwctype>
 #include <filesystem>
 #include <fstream>
 #include <malloc.h>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
+
+// miniaudio decoder, DECLARATIONS ONLY: the implementation TU is SoundService.cpp (#define MINIAUDIO_IMPLEMENTATION). 
+// We mirror the same MA_NO_* config so the shared struct definitions are identical across the two TUs. 
+// Used here to decode an arbitrary .wav/.mp3/.ogg/.flac to raw PCM, which BuildPcmWem then wraps into a Wwise PCM .wem.
+#pragma warning(push, 0)
+#define MA_NO_ENCODING
+#define MA_NO_GENERATION
+#include <miniaudio.h>
+#pragma warning(pop)
 
 namespace OSF::Audio::Wwise
 {
@@ -50,10 +61,11 @@ namespace OSF::Audio::Wwise
 			return ext;
 		}
 
-		// A Wwise .wem held in memory. 
-		// AK references pInMemory zero-copy and reads it across the whole playback, so the cache OWNS this memory for the process lifetime (never freed).
-		// `codec` is the AkCodecID to post with — read from the .wem's own fmt tag, since a .wem may be Vorbis OR PCM 
-		// (WwiseConsole's default external-source conversion, for instance, is PCM).
+		// Ready-to-post .wem bytes held in memory — either a real .wem loaded from disk, or one built
+		// at runtime from decoded PCM (BuildPcmWem). AK references pInMemory zero-copy across the whole
+		// playback, so the cache OWNS this memory for the process lifetime (never freed).
+		// `codec` is the AkCodecID to post with — Vorbis/PCM read from a real .wem's fmt tag, or kPCM
+		// for a runtime-built buffer.
 		struct MediaBuffer
 		{
 			void* data{ nullptr };
@@ -117,20 +129,162 @@ namespace OSF::Audio::Wwise
 			return MediaBuffer{ buffer, bytes, DeriveWemCodec(buffer, bytes) };
 		}
 
-		// Loads a .wem once and caches it for the process (success AND failure, so a missing file doesnt re-hit disk).
+		// Lowercased file extension of a wide path (no dot), or L"" if none.
+		std::wstring LowerExtensionW(const std::wstring& a_path)
+		{
+			const auto dot = a_path.find_last_of(L'.');
+			if (dot == std::wstring::npos) {
+				return {};
+			}
+			std::wstring ext = a_path.substr(dot + 1);
+			for (auto& c : ext) {
+				c = static_cast<wchar_t>(std::towlower(c));
+			}
+			return ext;
+		}
+
+		// AkChannelConfig (Wwise 2021.1 AkSpeakerConfig packing): numChannels | (eConfigType_Standard(1) << 8) | (speakerMask << 12). 
+		// Only mono (front-center mask 0x4 -> 0x00004101) and stereo (L|R mask 0x3 -> 0x00003102) are RE-proven; 
+		// DecodeToPcmWem downmixes anything wider to stereo before calling here, so a_channels is always 1 or 2.
+		std::uint32_t AkChannelConfigFor(std::uint32_t a_channels)
+		{
+			const std::uint32_t speakerMask = (a_channels == 1) ? 0x4u : 0x3u;
+			return a_channels | (1u << 8) | (speakerMask << 12);
+		}
+
+		// Wraps raw interleaved 16-bit PCM in a Wwise 2021.1 PCM .wem (idCodec=kPCM) entirely in memory, byte-for-byte matching WwiseConsole's `convert-external-source` PCM output
+		// The `data` payload deliberately starts at file offset 64 (16-byte aligned, which AK requires for in-memory media), produced by a fixed 4-byte JUNK pad after the 24-byte WAVE_FORMAT_EXTENSIBLE fmt chunk:
+		//   0   'RIFF' / size / 'WAVE'
+		//   12  'fmt ' / 24 / { tag 0xFFFE, channels, rate, avgBytes, blockAlign, 16, cbSize 6, 0, AkChannelConfig }
+		//   44  'JUNK' / 4 / <4 zero bytes>          (aligns data content to offset 64)
+		//   56  'data' / dataBytes / <s16 PCM @ 64>
+		// The returned buffer is _aligned_malloc'd and owned by the process-lifetime cache (never freed).
+		MediaBuffer BuildPcmWem(const std::int16_t* a_pcm, std::size_t a_frames, std::uint32_t a_channels, std::uint32_t a_sampleRate)
+		{
+			const std::uint32_t dataBytes =
+				static_cast<std::uint32_t>(a_frames * a_channels * sizeof(std::int16_t));
+			const std::uint32_t totalSize = 64u + dataBytes;
+			auto* buf = static_cast<std::uint8_t*>(_aligned_malloc(totalSize, 16));
+			if (buf == nullptr) {
+				return {};
+			}
+
+			std::size_t at = 0;
+			const auto putBytes = [&](const void* a_src, std::size_t a_n) {
+				std::memcpy(buf + at, a_src, a_n);
+				at += a_n;
+			};
+			const auto putU16 = [&](std::uint16_t a_v) { putBytes(&a_v, 2); };
+			const auto putU32 = [&](std::uint32_t a_v) { putBytes(&a_v, 4); };
+
+			putBytes("RIFF", 4);
+			putU32(totalSize - 8u);  // RIFF chunk size = file size - 8
+			putBytes("WAVE", 4);
+
+			putBytes("fmt ", 4);
+			putU32(24u);                                            // EXTENSIBLE fmt payload size
+			putU16(0xFFFEu);                                        // wFormatTag = Wwise PCM marker
+			putU16(static_cast<std::uint16_t>(a_channels));         // nChannels
+			putU32(a_sampleRate);                                   // nSamplesPerSec
+			putU32(a_sampleRate * a_channels * 2u);                 // nAvgBytesPerSec
+			putU16(static_cast<std::uint16_t>(a_channels * 2u));    // nBlockAlign
+			putU16(16u);                                            // wBitsPerSample
+			putU16(6u);                                             // cbSize
+			putU16(0u);                                             // reserved
+			putU32(AkChannelConfigFor(a_channels));                // AkChannelConfig
+
+			putBytes("JUNK", 4);
+			putU32(4u);
+			putU32(0u);  // 4 zero pad bytes -> data content lands at offset 64
+
+			putBytes("data", 4);
+			putU32(dataBytes);
+			if (dataBytes != 0) {
+				putBytes(a_pcm, dataBytes);
+			}
+
+			return MediaBuffer{ buf, totalSize, RE::BGSAudio::AkCodecID::kPCM };
+		}
+
+		// Decodes any miniaudio-supported file (.wav/.mp3/.ogg/.flac) to interleaved 16-bit PCM and wraps it in a PCM .wem, so a vanilla audio file rides the SAME engine-mixed external-source path as a real .wem. 
+		// Returns an empty buffer on any decode failure; the caller then falls back to the miniaudio device.
+		MediaBuffer DecodeToPcmWem(const std::wstring& a_path)
+		{
+			// Phase 1: open with native channels/rate (s16 output) to learn the channel count.
+			ma_decoder_config cfg = ma_decoder_config_init(ma_format_s16, 0, 0);
+			ma_decoder decoder;
+			if (ma_decoder_init_file_w(a_path.c_str(), &cfg, &decoder) != MA_SUCCESS) {
+				REX::WARN("WwiseBackend: cannot decode '{}'", std::filesystem::path(a_path).string());
+				return {};
+			}
+
+			std::uint32_t channels = decoder.outputChannels;
+			// Only mono + stereo AkChannelConfig masks are RE-proven; re-open forcing 2-channel output so miniaudio downmixes anything wider to stereo.
+			if (channels > 2) {
+				ma_decoder_uninit(&decoder);
+				cfg = ma_decoder_config_init(ma_format_s16, 2, 0);
+				if (ma_decoder_init_file_w(a_path.c_str(), &cfg, &decoder) != MA_SUCCESS) {
+					REX::WARN("WwiseBackend: cannot re-open '{}' for stereo downmix",
+						std::filesystem::path(a_path).string());
+					return {};
+				}
+				channels = decoder.outputChannels;  // == 2
+			}
+			const std::uint32_t sampleRate = decoder.outputSampleRate;
+
+			// Read all frames in chunks: mp3/vorbis report only an ESTIMATED length, so a single sized read is unreliable. 
+			// Cap with the same per-clip guard as raw media.
+			std::vector<std::int16_t> pcm;
+			constexpr std::size_t kFramesPerRead = 4096;
+			std::vector<std::int16_t> chunk(kFramesPerRead * channels);
+			for (;;) {
+				ma_uint64 got = 0;
+				const ma_result r = ma_decoder_read_pcm_frames(&decoder, chunk.data(), kFramesPerRead, &got);
+				if (got != 0) {
+					pcm.insert(pcm.end(), chunk.begin(),
+						chunk.begin() + static_cast<std::ptrdiff_t>(got * channels));
+				}
+				if (pcm.size() * sizeof(std::int16_t) > kMaxMediaBytes) {
+					REX::WARN("WwiseBackend: decoded '{}' exceeds {} bytes — aborting",
+						std::filesystem::path(a_path).string(), kMaxMediaBytes);
+					ma_decoder_uninit(&decoder);
+					return {};
+				}
+				if (r != MA_SUCCESS || got < kFramesPerRead) {
+					break;  // MA_AT_END or short tail read
+				}
+			}
+			ma_decoder_uninit(&decoder);
+
+			if (pcm.empty()) {
+				REX::WARN("WwiseBackend: '{}' decoded to 0 frames", std::filesystem::path(a_path).string());
+				return {};
+			}
+			return BuildPcmWem(pcm.data(), pcm.size() / channels, channels, sampleRate);
+		}
+
+		// Produces the ready-to-post media for a_path: a real .wem is loaded as-is (codec from its fmt tag); 
+		// any other decodable format is decoded to PCM and wrapped in a PCM .wem at runtime.
+		MediaBuffer LoadMedia(const std::wstring& a_path)
+		{
+			return (LowerExtensionW(a_path) == L"wem") ? LoadWemFile(a_path) : DecodeToPcmWem(a_path);
+		}
+
+		// Loads + prepares a clip once and caches it for the WHOLE PROCESS (success AND failure, so a missing/bad file doesn't re-hit disk). 
+		// The cache is NEVER evicted on purpose: AK references pInMemory zero-copy for the entire playback and the external-source duplicator copies only the 0x20 descriptor, 
+		// NOT the bytes — freeing a buffer while a voice still reads it is an audio-thread use-after-free. Process-lifetime ownership is the invariant that keeps it safe.
 		MediaBuffer GetOrLoadMedia(const std::wstring& a_path)
 		{
 			const std::scoped_lock lock{ g_mediaCacheMutex };
 			if (const auto it = g_mediaCache.find(a_path); it != g_mediaCache.end()) {
 				return it->second;
 			}
-			const MediaBuffer media = LoadWemFile(a_path);
+			const MediaBuffer media = LoadMedia(a_path);
 			g_mediaCache.emplace(a_path, media);
 			return media;
 		}
 
-		// Posts a .wem as an external source via pInMemory, NOT szFile
-		// the engine's audio file resolver is registry-gated and never opens a loose file, so a szFile post is accepted but SILENT. 
+		// Posts a .wem as an external source via pInMemory, NOT szFile the engine's audio file resolver is registry-gated and never opens a loose file, so a szFile post is accepted but SILENT. 
 		// pInMemory bypasses the resolver and renders engine-mixed. The cache owns the bytes for the process, so the descriptor only needs to outlive this call.
 		std::uint32_t PostExternalOn(std::uint32_t a_eventID, const std::wstring& a_path, std::uint64_t a_gameObj)
 		{
@@ -145,8 +299,7 @@ namespace OSF::Audio::Wwise
 			ext.pInMemory = media.data;
 			ext.uiMemorySize = media.size;
 			ext.idFile = 0;
-			return RE::BGSAudio::AkSoundEngine::PostEvent(
-				a_eventID, a_gameObj, 0, nullptr, nullptr, 1, &ext, 0);
+			return RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, a_gameObj, 0, nullptr, nullptr, 1, &ext, 0);
 		}
 	}
 
@@ -188,8 +341,7 @@ namespace OSF::Audio::Wwise
 		static const bool available = []() {
 			const auto* code = reinterpret_cast<const std::uint8_t*>(kAkPostEventByID.address());
 			if (!code || std::memcmp(code, kPostEventPrologue.data(), kPostEventPrologue.size()) != 0) {
-				REX::WARN("Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime loose-file cues fall back to the legacy device",
-					kAkPostEventByID.id());
+				REX::WARN("Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime loose-file cues fall back to the legacy device", kAkPostEventByID.id());
 				return false;
 			}
 			REX::INFO("Wwise audio available: AK PostEvent prologue verified");
@@ -209,10 +361,11 @@ namespace OSF::Audio::Wwise
 
 	bool IsWwiseExternalSource(std::string_view a_path)
 	{
-		// Only a Wwise-encoded .wem rides the engine-mixed Wwise external-source path: AK external sources reject a vanilla .wav. 
-		// Every other format returns false and SoundService::Play plays it on the miniaudio device (not engine-mixed);
-		// convert audio to .wem (e.g. WwiseConsole) to get it engine-mixed.
-		return LowerExtension(a_path) == "wem";
+		// Formats that ride the engine-mixed Wwise external-source path. A real .wem is posted as-is;
+		// .wav/.mp3/.ogg/.flac are decoded to PCM and wrapped in a PCM .wem at runtime.
+		// Anything else (a codec miniaudio can't decode) returns false and SoundService::Play uses the legacy miniaudio device.
+		const std::string ext = LowerExtension(a_path);
+		return ext == "wem" || ext == "wav" || ext == "mp3" || ext == "ogg" || ext == "flac";
 	}
 
 	std::uint32_t PostExternalFile(const std::wstring& a_path)
@@ -223,19 +376,19 @@ namespace OSF::Audio::Wwise
 		return PostExternalOn(kExternalSourceEvent, a_path, RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
 	}
 
-	void RunSelfTest(const std::wstring& a_wem)
+	void RunSelfTest(const std::wstring& a_file)
 	{
 		if (!Available()) {
 			REX::WARN("WwiseBackend self-test: AK PostEvent unavailable on this runtime — skipped");
 			return;
 		}
-		REX::INFO("WwiseBackend self-test: posting a .wem as an external source (pInMemory) on the shipped "
+		REX::INFO("WwiseBackend self-test: posting '{}' as an external source (pInMemory) on the shipped "
 		          "event Dialogue_6_Combat. playingID != 0 = the engine ACCEPTED it; AUDIBLE must still be "
-		          "confirmed by ear in-world (a dialogue event may be quiet at the main menu). File: '{}'",
-			std::filesystem::path(a_wem).string());
+		          "confirmed by ear in-world (a dialogue event may be quiet at the main menu).",
+			std::filesystem::path(a_file).string());
 
-		const auto playingID = PostExternalOn(kExternalSourceEvent, a_wem, RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
-		REX::INFO("WwiseBackend self-test: event Dialogue_6_Combat (0x{:08X}) -> playingID {} ({})",
-			kExternalSourceEvent, playingID, playingID ? "ACCEPTED" : "REJECTED");
+		const auto playingID = PostExternalOn(kExternalSourceEvent, a_file, RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
+		REX::INFO("WwiseBackend self-test: '{}' on Dialogue_6_Combat (0x{:08X}) -> playingID {} ({})",
+			std::filesystem::path(a_file).string(), kExternalSourceEvent, playingID, playingID ? "ACCEPTED" : "REJECTED");
 	}
 }

@@ -75,20 +75,18 @@ namespace OSF::Audio
 			return;
 		}
 
-		// Plain file path. A Wwise-encoded .wem rides the engine-mixed Wwise EXTERNAL SOURCE path 
-		// (through a shipped event's "External_Source" slot, at the listener; a_worldPos / a_volume don't apply — the mix is engine-owned). 
-		// A raw .wav/.mp3 is NOT engine-mixable (AK external sources reject a vanilla WAV — proven 1.16.244), so it falls through to the miniaudio device below; 
-		// convert audio to .wem to get it engine-mixed.
+		// Plain file path. A .wem (posted as-is) OR a .wav/.mp3/.ogg/.flac (decoded to PCM and wrapped in a PCM .wem at runtime by the backend) 
+		// rides the engine-mixed Wwise EXTERNAL SOURCE path through a shipped event's "External_Source" slot, AT THE LISTENER;
+		// a_worldPos / a_volume do NOT apply on this path (the mix is engine-owned; positioned posting is a deferred follow-up via SetPosition, AddrLib 150420). 
+		// A codec miniaudio can't decode falls through to the device below.
 		if (Wwise::Available() && Wwise::IsWwiseExternalSource(a_dataRelPath)) {
-			// The backend opens this path itself (game-root-relative, USVFS-aware), caches the bytes, and posts via pInMemory
-			// a loose szFile is NEVER opened by the engine's registry-gated audio resolver (RE-proven 1.16.244).
-			// make_preferred() = backslashes; 'Data\' is game-root.
+			// The backend opens this path itself (game-root-relative), prepares the bytes, and posts via pInMemory
 			const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
 			if (const auto playingID = Wwise::PostExternalFile(rel)) {
 				REX::INFO("SoundService: posted external '{}' -> playingID {} (engine-mixed)", a_dataRelPath, playingID);
 				return;
 			}
-			REX::WARN("SoundService: Wwise .wem post rejected '{}' — falling back to the miniaudio device",
+			REX::WARN("SoundService: Wwise external-source post rejected '{}' — falling back to the miniaudio device",
 				a_dataRelPath);
 		}
 
@@ -187,8 +185,11 @@ namespace OSF::Audio
 
 	void SoundService::RunWwiseSelfTest()
 	{
-		// Data-relative path to a Wwise .wem (the engine-mixed external-source path, see Play()).
-		const auto rel = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testvoice.wem").make_preferred().wstring();
-		Wwise::RunSelfTest(rel);
+		// Fired by Data/OSF/settings.json "wwiseSelfTest": true.
+		const auto beep = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testbeep.wav").make_preferred().wstring();
+		Wwise::RunSelfTest(beep);
+
+		const auto wem = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testvoice.wem").make_preferred().wstring();
+		Wwise::RunSelfTest(wem);
 	}
 }
