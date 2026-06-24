@@ -42,7 +42,8 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
             "OSF/Animations/MyPack/greet_a.glb",
             { "file": "OSF/Animations/MyPack/greet_b.glb", "offset": { "y": 1.0, "heading": 180.0 } }
           ]
-        }
+        },
+        ["OSF/Animations/MyPack/greet2_a.glb", "OSF/Animations/MyPack/greet2_b.glb"]  // shorthand: bare clips array, default timer/loops
       ]
     }
   ]
@@ -55,6 +56,10 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
 - **`clips`** entries are either a bare Data-relative path string, or `{ "file": ..., "offset": {...} }`
   to override that slot's placement for that stage. Every stage must have the same number of clips — equal
   to `actors.length` when `actors` is given, otherwise to the first stage's clip count.
+- **Stage shorthand:** a stage may be written as a bare array of clips instead of a
+  `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
+  with `timer`/`loops` defaulted to 0. The array entries are clips, so each may still be a bare path or a
+  `{ "file", "offset" }` object. Mix shorthand and full-object stages freely within one `stages[]`.
 - **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A slot-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.

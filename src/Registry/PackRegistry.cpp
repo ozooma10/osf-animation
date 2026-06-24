@@ -80,16 +80,27 @@ namespace OSF::Registry
 			size_t actorCount = def.actors.size();
 			for (const auto& jStage : *stagesIt) {
 				StageDef info;
-				info.timer = jStage.value("timer", 0.0f);
-				info.loops = jStage.value("loops", 0);
+				// A stage is either the full object form { timer, loops, clips[] }
+				// or the shorthand form: a bare array that IS the clips list, with
+				// timer/loops taking their defaults (0 = no auto-advance).
+				const nlohmann::json* clipsNode = nullptr;
+				if (jStage.is_array()) {
+					clipsNode = &jStage;
+				} else if (jStage.is_object()) {
+					info.timer = jStage.value("timer", 0.0f);
+					info.loops = jStage.value("loops", 0);
+					const auto clipsIt = jStage.find("clips");
+					if (clipsIt == jStage.end() || !clipsIt->is_array()) {
+						throw std::runtime_error("'" + def.id + "': every stage needs a 'clips' array (one clip per actor)");
+					}
+					clipsNode = &(*clipsIt);
+				} else {
+					throw std::runtime_error("'" + def.id + "': a stage must be a clips array (shorthand) or a { timer, loops, clips } object");
+				}
 				// clips[]: one per actor, in actor order. A bare string is just the
 				// file; an object is { file, offset } where offset overrides the
 				// actor's default placement for this stage.
-				const auto clipsIt = jStage.find("clips");
-				if (clipsIt == jStage.end() || !clipsIt->is_array()) {
-					throw std::runtime_error("'" + def.id + "': every stage needs a 'clips' array (one clip per actor)");
-				}
-				for (const auto& jClip : *clipsIt) {
+				for (const auto& jClip : *clipsNode) {
 					StageClip clip;
 					if (jClip.is_string()) {
 						clip.file = jClip.get<std::string>();

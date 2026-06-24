@@ -41,6 +41,15 @@
         { "timer": 0, "loops": 0, "clips": [ "OSF\\Anim\\na0a.glb", "OSF\\Anim\\na0b.glb" ] },
         { "timer": 1.5, "loops": 0, "clips": [ "OSF\\Anim\\na1a.glb", "OSF\\Anim\\na1b.glb" ] }
       ]
+    },
+    {
+      "id": "osf.test.shorthand",
+      "name": "Shorthand",
+      "tags": ["test"],
+      "stages": [
+        [ "OSF\\Anim\\sh0a.glb", "OSF\\Anim\\sh0b.glb" ],
+        { "timer": 2.0, "loops": 1, "clips": [ "OSF\\Anim\\sh1a.glb", "OSF\\Anim\\sh1b.glb" ] }
+      ]
     }
   ]
 }

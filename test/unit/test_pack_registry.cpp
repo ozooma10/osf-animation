@@ -68,6 +68,34 @@ OSF_TEST_CASE(PackRegistry_infers_actor_count_when_actors_omitted)
 	}
 }
 
+OSF_TEST_CASE(PackRegistry_parses_shorthand_stages)
+{
+	// osf.test.shorthand's first stage is the bare-array shorthand; the second is
+	// the full object form. Both must parse, the shorthand stage defaulting
+	// timer/loops to 0, and the actor count inferred from the shorthand clips.
+	const auto* sh = Find("osf.test.shorthand");
+	CHECK(sh != nullptr);
+	if (sh) {
+		CHECK_EQ(sh->actors.size(), static_cast<size_t>(2));
+		CHECK_EQ(sh->stages.size(), static_cast<size_t>(2));
+		// Shorthand stage 0: defaults.
+		CHECK_NEAR(sh->stages[0].timer, 0.0f, 1e-4f);
+		CHECK_EQ(sh->stages[0].loops, 0);
+		CHECK_EQ(sh->stages[0].clips.size(), static_cast<size_t>(2));
+		// Object stage 1: timing carried through.
+		CHECK_NEAR(sh->stages[1].timer, 2.0f, 1e-4f);
+		CHECK_EQ(sh->stages[1].loops, 1);
+	}
+	// Resolves through BuildScenePlan like any other two-actor anim.
+	auto plan = PackRegistry::GetSingleton().BuildScenePlan("osf.test.shorthand", 2);
+	CHECK(plan.has_value());
+	if (plan) {
+		CHECK_EQ(plan->stages.size(), static_cast<size_t>(2));
+		CHECK_EQ(plan->stages[0].files.size(), static_cast<size_t>(2));
+		CHECK_EQ(plan->stages[0].files[0], std::string("OSF\\Anim\\sh0a.glb"));
+	}
+}
+
 OSF_TEST_CASE(PackRegistry_rejects_bad_schema_and_dupes)
 {
 	// pack_badschema.json (schema 99) contributes nothing; its anim id is absent.
