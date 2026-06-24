@@ -36,10 +36,10 @@ Actor[] actors = new Actor[2]
 actors[0] = akA
 actors[1] = akB
 
-; By id (scene def or pack; "scene:"/"anim:" prefixes force a registry):
+; By id (a single registry lookup — one scene namespace, no prefixes, no fallback):
 int h = OSF.StartScene(actors, "author.scenes.demo")
 
-; By matchmaking — tags + role/gender/keyword/race fit across scene defs AND packs,
+; By matchmaking — tags + role/gender/keyword/race fit across the one scene registry,
 ; chosen by priority tier then weighted-random:
 string[] tags = new string[1]
 tags[0] = "takedown"
@@ -59,7 +59,7 @@ the ones that apply to it):
 |---|---|---|---|
 | `Anchor` | `ObjectReference` | StartScene, StartSceneByTags(Query) | world-anchor at a ref (furniture/bed/marker) instead of co-locating at `actors[0]` |
 | `HeadingDeg` | `Float` | (with `Anchor`) | anchor facing in degrees; `< 0` = the ref's own heading |
-| `Stage` | `Int` | StartScene (by-id / pack) | start stage (ignored by def graphs) |
+| `Stage` | `Int` | StartScene (by-id) | start stage of a linear scene (ignored by graph scenes) |
 | `Speed` / `BlendIn` | `Float` | StartSceneFiles | playback speed / blend-in seconds |
 
 `SceneOptions` holds only scalar/ref fields — **Papyrus structs can't have array members**, so named-role
@@ -105,7 +105,7 @@ String eid = OSF.GetSceneEdgeId(h, 0)
 String lbl = OSF.GetSceneEdgeLabel(h, 0)
 ```
 
-Linear scenes (packs / `linearStages`) also support `GetSceneStage`/`SetSceneStage` (by handle) and
+Linear scenes (those with `linearStages`) also support `GetSceneStage`/`SetSceneStage` (by handle) and
 `GetSceneStageForActor`/`SetSceneStageForActor` (by actor).
 
 ## Scene-event callbacks
@@ -155,8 +155,12 @@ int n          = OSF.GetSceneActorCount("author.scenes.demo")
 Bool valid     = OSF.ValidateScene("author.scenes.demo")
 string[] errs  = OSF.GetSceneLoadErrors()                            ; [error]/[warn] prefixed
 string[] e2    = OSF.GetSceneValidationErrors("author.scenes.demo")
-int count      = OSF.ReloadPacks()                                   ; rescan Data/OSF, return count
+int count      = OSF.ReloadPacks()                                   ; rescan Data/OSF, return scene count
 ```
+
+`ReloadPacks()` rescans `Data/OSF/**/*.osf.json`, rebuilds the **one** scene registry, and returns the
+loaded scene count. The native keeps its `ReloadPacks` name for the existing Papyrus binding (renaming
+it would require regenerating `OSF.pex`); there are no separate "packs" anymore.
 
 ## Primitives (advanced)
 

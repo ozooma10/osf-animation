@@ -1,0 +1,19 @@
+{
+  // Role-filter test (Phase 2). Role 'beast' requires the Terrormorph race
+  // (Starfield.esm|0x0021A8D7, from SIF's TerrormorphRace). Verifies two things:
+  //   1. the form-ref RESOLVER — this scene must load with NO validation error (an unresolved /
+  //      wrong-type ref would reject it; check OSF.GetSceneLoadErrors / cgf "OSFTest.SceneLoadTest");
+  //   2. the race PREDICATE — StartSceneByTags binds the role only to a Terrormorph; a human (the
+  //      player) yields no candidate (handle 0), proving the filter gates matchmaking.
+  // The 'solo' clip is a human pose and won't fit a Terrormorph rig — that's fine; this fixture
+  // tests the filter/bind path (handle + log), not animation fidelity. Tag 'filter' is unique to it.
+  "schema": 2,
+  "id": "author.scenes.filtertest",
+  "name": "Role Filter Test (Terrormorph race)",
+  "tags": ["test", "filter"],
+  "roles": [ { "name": "beast", "filters": { "race": "Starfield.esm|0x0021A8D7" } } ],
+  "entry": "main",
+  "nodes": [
+    { "id": "main", "use": "solo", "loop": { "mode": "hold" }, "loopForever": true }
+  ]
+}

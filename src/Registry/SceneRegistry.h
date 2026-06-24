@@ -1,21 +1,56 @@
 #pragma once
 
-// Loads scene graphs from Data/OSF/**/*.scene.json. A scene is a graph of nodes; 
-// each node references an animation id (from PackRegistry), a loop policy, and outgoing edges, plus the four track lanes (cue/action/sound/camera). 
-// Handles the graph structure, validation, and load diagnostics.
+// Loads scenes from Data/OSF/**/*.osf.json. A scene is the one content concept: minimal (a `clip` or
+// `stages[]` timeline, desugared to a node chain) up to a full graph of nodes with loop policy, edges,
+// roles, and the four track lanes (cue/action/sound/camera). A node plays an inline `stages[]` timeline
+// or `use`s another scene by id. Handles parsing, the desugar, validation, and load diagnostics.
 
+#include "Animation/Scene.h"   // ParticipantPlacement, ScenePlan
 #include "Input/InputTypes.h"  // PlayerControl capabilities default to Input::kAllCapabilities
-#include "Registry/PackRegistry.h"
 
+#include <cstdint>
+#include <filesystem>
 #include <functional>
+#include <optional>
+#include <shared_mutex>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
 
 namespace OSF::Registry
 {
 	// Highest scene schema version we understand. Bump only on a breaking change.
 	inline constexpr std::int64_t kSceneSchemaVersion = 1;
 
-	// Unified scene schema version 
+	// Unified scene schema version
 	inline constexpr std::int64_t kUnifiedSchemaVersion = 2;
+
+	enum class SlotGender : std::uint8_t
+	{
+		kAny,
+		kMale,
+		kFemale
+	};
+
+	// Case-insensitive gender-string parse ("male"/"m" -> kMale, "female"/"f" -> kFemale, else kAny).
+	SlotGender ParseSlotGender(std::string_view a_str);
+
+	// One actor's clip for one stage (one per role in StageDef::clips, role order).
+	struct StageClip
+	{
+		std::string file;
+		std::optional<Animation::ParticipantPlacement> offset;  // overrides the role's default placement
+	};
+
+	// One stage of a timeline: timing + one clip per role. timer/loops 0 = no auto-advance (hold);
+	// a stage that specifies NEITHER gets the play-once default (loops=1) at parse time.
+	struct StageDef
+	{
+		float                  timer = 0.0f;  // seconds; 0 = no time-based auto-advance
+		std::int32_t           loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
+		std::vector<StageClip> clips;         // one per role, role order
+	};
 
 	enum class LoopMode : std::uint8_t
 	{
@@ -131,9 +166,8 @@ namespace OSF::Registry
 	struct SceneNode
 	{
 		std::string              id;
-		std::string              anim;         // LEGACY (*.scene.json): referenced animation id (PackRegistry)
-		// Unified (*.osf.json) playables — a node carries EXACTLY ONE of:
-		std::string              use;          //   reference another scene by id (the old `anim`, renamed), OR
+		// A node carries EXACTLY ONE playable:
+		std::string              use;          //   reference another scene by id, OR
 		std::vector<StageDef>    stages;       //   an inline clip timeline (one-off, no separate file)
 		LoopMode                 loopMode = LoopMode::kHold;
 		std::int32_t             loopCount = 0;  // when loopMode == kCount
@@ -156,7 +190,7 @@ namespace OSF::Registry
 		// An empty vector = that constraint is absent. `gender` desugars from `gender`/`filters.gender`.
 		std::vector<RE::BGSKeyword*> keywords;  // empty = no keyword constraint
 		std::vector<RE::TESRace*>    races;     // empty = no race constraint
-		Animation::ParticipantPlacement offset{};  // default placement for this slot (was pack SlotDef::offset)
+		Animation::ParticipantPlacement offset{};  // default placement for this slot
 	};
 
 	// Per-scene player-input grant. Input control is ENABLED BY DEFAULT: with no `playerControl` block the player gets every capability while participating. 
@@ -197,9 +231,9 @@ namespace OSF::Registry
 	public:
 		static SceneRegistry& GetSingleton();
 
-		// Scans Data/OSF/**/*.scene.json and rebuilds the registry. 
+		// Scans Data/OSF/**/*.osf.json and rebuilds the registry.
 		// Bad scenes are skipped; every skip and warning is both logged and recorded for LoadErrors().
-		// Runs after the pack registry at startup, and again on OSF.ReloadPacks().
+		// Runs at startup and again on OSF.ReloadPacks().
 		void LoadAll();
 
 		// Scene by id (case-insensitive), or nullptr.

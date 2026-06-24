@@ -3,7 +3,6 @@
 #include "Animation/GraphManager.h"
 #include "Audio/SoundService.h"
 #include "Matchmaking/Matchmaker.h"
-#include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneRuntime.h"
@@ -102,42 +101,15 @@ namespace OSF::Papyrus
 			return anchor;
 		}
 
-		// Split a "scene:"/"anim:" registry prefix off a start id. "scene:" forces the scene registry, "anim:" forces the pack registry; 
-		// a bare id leaves both false (the caller's scene-then-pack resolution). Shared by StartScene / StartSceneAt.
-		struct ScenePrefix
-		{
-			std::string id;
-			bool        forceScene = false;
-			bool        forcePack = false;
-		};
-
-		ScenePrefix SplitScenePrefix(std::string_view a_raw)
-		{
-			ScenePrefix p;
-			p.id = a_raw;
-			if (p.id.rfind("scene:", 0) == 0) {
-				p.forceScene = true;
-				p.id = p.id.substr(6);
-			} else if (p.id.rfind("anim:", 0) == 0) {
-				p.forcePack = true;
-				p.id = p.id.substr(5);
-			}
-			return p;
-		}
-
-		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the slot->actor order, so we never re-bind here). 
-		// Scene defs go through StartFromDef (binds by declaration order = the reordered actors); packs through StartFromPack.
+		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the
+		// slot->actor order, so we never re-bind here). Binds by declaration order = the reordered actors.
 		int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors)
 		{
 			std::vector<RE::Actor*> ordered(a_pick.order.size());
 			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
 				ordered[slot] = a_actors[a_pick.order[slot]];
 			}
-			auto& rt = Scene::SceneRuntime::GetSingleton();
-			if (a_pick.source == Matchmaking::Candidate::Source::kSceneDef) {
-				return rt.StartFromDef(a_pick.id, ordered);
-			}
-			return rt.StartFromPack(a_pick.id, ordered, 0);
+			return Scene::SceneRuntime::GetSingleton().StartFromDef(a_pick.id, ordered);
 		}
 
 		bool Play(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_file, RE::BSFixedString a_animId)
@@ -179,16 +151,16 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().SetSceneStage(a_actor, a_stage);
 		}
 
-		// Rescans Data/OSF/**/*.json (dev convenience: edit a pack, reload, replay without restarting the game).
-		// Returns the number of animations loaded. Also drops the GLB clip cache so edited animation files re-import.
+		// Rescans Data/OSF/**/*.osf.json (dev convenience: edit a scene, reload, replay without
+		// restarting the game). Returns the number of scenes loaded. Also drops the clip caches so
+		// edited animation files re-import. (Name kept for the existing Papyrus binding.)
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
 			Serialization::GLTFImport::ClearCache();
 			Serialization::AFImport::ClearCache();
 			REX::INFO("ReloadPacks: clip cache cleared");
-			auto& registry = Registry::PackRegistry::GetSingleton();
+			auto& registry = Registry::SceneRegistry::GetSingleton();
 			registry.LoadAll();
-			Registry::SceneRegistry::GetSingleton().LoadAll();  // ReloadPacks reloads scenes too
 			return static_cast<int32_t>(registry.Size());
 		}
 
@@ -295,10 +267,8 @@ namespace OSF::Papyrus
 
 		// Start a scene by id, returning an opaque scene HANDLE (0 = failed).
 		// Routes through SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
-		// ID resolution: a `scene:` prefix forces the scene registry, `anim:` forces the pack registry;
-		// a bare id resolves the scene registry first, then the pack registry (a linear pack auto-exposed as a single-path scene).
-		// akOpts: Stage = pack start stage (ignored for def graphs); Anchor world-anchors the scene (def or
-		// pack) at a ref instead of co-locating at actor[0]. For named-role binding use StartSceneRoles.
+		// akOpts.Anchor world-anchors the scene at a ref instead of co-locating at actor[0].
+		// For named-role binding use StartSceneRoles.
 		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			SceneOptionsArg a_opts)
 		{
@@ -306,28 +276,22 @@ namespace OSF::Papyrus
 				REX::WARN("OSF.StartScene: no actors given");
 				return 0;
 			}
-			const SceneOpts opts = ReadSceneOptions(a_opts);
-			const auto [sid, forceScene, forcePack] = SplitScenePrefix(a_id.c_str());
-			const auto anchor = MakeAnchor(opts);
-
+			const std::string sid = a_id.c_str();
+			if (!Registry::SceneRegistry::GetSingleton().Find(sid)) {
+				REX::WARN("OSF.StartScene: no scene '{}'", sid);
+				return 0;
+			}
+			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
 			auto& rt = Scene::SceneRuntime::GetSingleton();
-			if (!forcePack && Registry::SceneRegistry::GetSingleton().Find(sid)) {  // composed graph
-				if (anchor.set) {
-					return rt.StartFromDefAt(sid, a_actors, anchor.pos, anchor.heading);  // anchored at the ref
-				}
-				return rt.StartFromDef(sid, a_actors);
+			if (anchor.set) {
+				return rt.StartFromDefAt(sid, a_actors, anchor.pos, anchor.heading);  // anchored at the ref
 			}
-			if (!forceScene) {  // linear pack as single-path scene
-				return rt.StartFromPack(sid, a_actors, opts.stage, anchor);
-			}
-			REX::WARN("OSF.StartScene: no scene '{}' (scene: prefix forced)", sid);
-			return 0;
+			return rt.StartFromDef(sid, a_actors);
 		}
 
-		// Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
+		// Start a scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
 		// (equal lengths). Returns the handle (0 = no such scene / validation fail). Its own native rather
-		// than a SceneOptions field because Papyrus structs cannot carry the role array. A `scene:` prefix
-		// is tolerated/stripped.
+		// than a SceneOptions field because Papyrus structs cannot carry the role array.
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
@@ -335,10 +299,7 @@ namespace OSF::Papyrus
 				REX::WARN("OSF.StartSceneRoles: no actors given");
 				return 0;
 			}
-			std::string sid = a_id.c_str();
-			if (sid.rfind("scene:", 0) == 0) {
-				sid = sid.substr(6);
-			}
+			const std::string sid = a_id.c_str();
 			std::vector<std::string> roles;
 			roles.reserve(a_roles.size());
 			for (const auto& r : a_roles) {
@@ -369,29 +330,22 @@ namespace OSF::Papyrus
 			}
 			const int32_t handle = StartCandidate(*pick, a_actors);
 			if (handle) {
-				REX::INFO("{}: playing '{}' ({}) handle {:#010x}", a_logTag,
-					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
+				REX::INFO("{}: playing '{}' handle {:#010x}", a_logTag, pick->id, handle);
 			} else {
-				REX::WARN("{}: could not start matched animation '{}' ({})", a_logTag,
-					pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack");
+				REX::WARN("{}: could not start matched scene '{}'", a_logTag, pick->id);
 			}
 			return handle;
 		}
 
-		// Anchored counterpart of StartCandidate: start the matchmade pick world-anchored at (a_pos, a_heading) instead of co-locating the actors at actor[0]. 
-		// Uses the SAME two anchored entry points StartSceneAt does (StartFromDefAt for scene defs, StartFromPack + AnchorOverride for packs),
-		// so a matchmade scene can sit on a bed / furniture / marker.
+		// Anchored counterpart of StartCandidate: start the matchmade pick world-anchored at (a_pos,
+		// a_heading) instead of co-locating the actors at actor[0], so it can sit on a bed/furniture/marker.
 		int32_t StartCandidateAt(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors, const RE::NiPoint3& a_pos, float a_heading)
 		{
 			std::vector<RE::Actor*> ordered(a_pick.order.size());
 			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
 				ordered[slot] = a_actors[a_pick.order[slot]];
 			}
-			auto& rt = Scene::SceneRuntime::GetSingleton();
-			if (a_pick.source == Matchmaking::Candidate::Source::kSceneDef) {
-				return rt.StartFromDefAt(a_pick.id, ordered, a_pos, a_heading);
-			}
-			return rt.StartFromPack(a_pick.id, ordered, 0, Scene::SceneRuntime::AnchorOverride{ true, a_pos, a_heading });
+			return Scene::SceneRuntime::GetSingleton().StartFromDefAt(a_pick.id, ordered, a_pos, a_heading);
 		}
 
 		// Anchored counterpart of StartMatched: matchmake a_query, then start the pick anchored at (a_pos, a_heading).
@@ -416,7 +370,7 @@ namespace OSF::Papyrus
 			}
 			const int32_t handle = StartCandidateAt(*pick, a_actors, a_pos, a_heading);
 			if (handle) {
-				REX::INFO("{}: playing '{}' ({}) handle {:#010x} (anchored)", a_logTag, pick->id, pick->source == Matchmaking::Candidate::Source::kSceneDef ? "scene" : "pack", handle);
+				REX::INFO("{}: playing '{}' handle {:#010x} (anchored)", a_logTag, pick->id, handle);
 			}
 			return handle;
 		}

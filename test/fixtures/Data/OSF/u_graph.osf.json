@@ -1,0 +1,39 @@
+{
+  // Advanced graph: a `use` node + an inline-stages node, all four track lanes, named roles with
+  // policy, a branch (finish -> $end), and a self-loop (tease -> main).
+  "schema": 2,
+  "id": "osf.u.graph",
+  "name": "Graph",
+  "priority": 5,
+  "weight": 2,
+  "tags": ["paired", "demo"],
+  "lockPlayer": true,
+  "stripActors": false,
+  "playerControl": { "disable": ["speed"], "locked": true },
+  "roles": [
+    { "name": "lead", "gender": "any" },
+    { "name": "other", "gender": "female" }
+  ],
+  "entry": "approach",
+  "nodes": [
+    {
+      "id": "approach",
+      "use": "osf.u.shared",
+      "loop": { "mode": "once" },
+      "edges": [ { "to": "main", "when": "end" } ]
+    },
+    {
+      "id": "main",
+      "stages": [ { "loops": 0, "clips": ["OSF/Anim/main_a.glb", "OSF/Anim/main_b.glb"] } ],
+      "loop": { "mode": "hold" },
+      "cue":    [ { "at": 0.5,     "id": "beat" } ],
+      "action": [ { "at": "enter", "type": "osf.fade.in" } ],
+      "sound":  [ { "at": 0.5,     "spec": "event:Music", "role": "lead" } ],
+      "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],
+      "edges": [
+        { "id": "finish", "label": "Finish", "to": "$end", "when": "advance", "default": true },
+        { "id": "tease",  "label": "Tease",  "to": "main", "when": "advance" }
+      ]
+    }
+  ]
+}

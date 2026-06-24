@@ -3,7 +3,6 @@
 #include "Config/Settings.h"
 #include "Input/InputService.h"
 #include "Papyrus/OSFScript.h"
-#include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/SaveSafety.h"
@@ -25,7 +24,6 @@ namespace
 			OSF::UI::CompatWarning::ProbeIncompatibilities();
 			break;
 		case SFSE::MessagingInterface::kPostDataLoad:
-			OSF::Registry::PackRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
 			// Spin up the audio device now — it is slow — so the first sound cue doesn't stall a job thread.

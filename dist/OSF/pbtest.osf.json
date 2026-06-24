@@ -1,0 +1,22 @@
+{
+  "schema": 2,
+  "id": "author.scenes.pbtest",
+  "name": "Playback Test",
+  "tags": ["test", "solo"],
+  "roles": [ { "name": "lead", "gender": "any" } ],
+  "entry": "surrender",
+  "nodes": [
+    {
+      "id": "surrender",
+      "use": "solo",
+      "loop": { "mode": "hold" },
+      "edges": [ { "id": "cover", "label": "Cover", "to": "cover", "when": "advance", "default": true } ]
+    },
+    {
+      "id": "cover",
+      "use": "solo.cover",
+      "loop": { "mode": "hold" },
+      "edges": [ { "id": "back", "label": "Back", "to": "surrender", "when": "advance", "default": true } ]
+    }
+  ]
+}

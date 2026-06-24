@@ -1,7 +1,6 @@
-// Tests for the unified matchmaker over both registries: tag queries, the
-// scene-def-shadows-pack rule, deterministic discovery ordering, role-filter
-// acceptance, and weighted/priority Pick. Uses real stub actors (we own RE::Actor
-// here) to drive the full filter-aware binding path.
+// Tests for the matchmaker over the scene registry: tag queries, deterministic
+// discovery ordering, role-filter acceptance, and weighted/priority Pick. Uses real
+// stub actors (we own RE::Actor here) to drive the full filter-aware binding path.
 #include "framework/TestHarness.h"
 
 #include "Matchmaking/Matchmaker.h"
@@ -36,43 +35,35 @@ namespace
 
 OSF_TEST_CASE(Matchmaker_discovery_orders_priority_then_id)
 {
-	// Two-actor "pair" candidates: scene hi (p10), scene basic (p0), pack pair (p0).
+	// Two-actor "pair" candidates: hi (p10), basic (p0), pair (p0).
 	auto ids = FindIds(2, AllOf({ "pair" }), kNoActors);
 	CHECK_EQ(ids.size(), static_cast<size_t>(3));
 	if (ids.size() == 3) {
-		CHECK_EQ(ids[0], std::string("osf.scene.hi"));     // highest priority first
-		CHECK_EQ(ids[1], std::string("osf.scene.basic"));  // p0 tie -> id ascending
-		CHECK_EQ(ids[2], std::string("osf.test.pair"));
+		CHECK_EQ(ids[0], std::string("osf.mm.hi"));     // highest priority first
+		CHECK_EQ(ids[1], std::string("osf.mm.basic"));  // p0 tie -> id ascending
+		CHECK_EQ(ids[2], std::string("osf.mm.pair"));
 	}
-}
-
-OSF_TEST_CASE(Matchmaker_scene_def_shadows_same_id_pack)
-{
-	// Both a scene def and a pack declare osf.test.shadowed; the pack is suppressed.
-	auto ids = FindIds(2, AllOf({ "shadowtag" }), kNoActors);
-	CHECK_EQ(ids.size(), static_cast<size_t>(1));
-	CHECK(Contains(ids, "osf.test.shadowed"));
 }
 
 OSF_TEST_CASE(Matchmaker_actor_count_filter)
 {
-	// solo (1-actor pack) appears for count 1, not for count 2.
-	CHECK(Contains(FindIds(1, AllOf({ "solo" }), kNoActors), "osf.test.solo"));
+	// solo (1-actor) appears for count 1, not for count 2.
+	CHECK(Contains(FindIds(1, AllOf({ "solo" }), kNoActors), "osf.mm.solo"));
 	CHECK(FindIds(1, AllOf({ "pair" }), kNoActors).empty());      // pair things need 2
-	CHECK(!Contains(FindIds(2, AllOf({ "solo" }), kNoActors), "osf.test.solo"));
+	CHECK(!Contains(FindIds(2, AllOf({ "solo" }), kNoActors), "osf.mm.solo"));
 }
 
 OSF_TEST_CASE(Matchmaker_anyof_and_noneof)
 {
-	// anyOf scenetag -> only the two scene defs carry it (the pack does not).
+	// anyOf scenetag -> only hi + basic carry it (mm.pair is tagged "test").
 	auto anyIds = FindIds(2, TagQuery{ {}, { "scenetag" }, {} }, kNoActors);
 	CHECK_EQ(anyIds.size(), static_cast<size_t>(2));
-	CHECK(Contains(anyIds, "osf.scene.basic"));
-	CHECK(Contains(anyIds, "osf.scene.hi"));
-	// noneOf test -> excludes the pack (tagged "test"), keeps the scene defs.
+	CHECK(Contains(anyIds, "osf.mm.basic"));
+	CHECK(Contains(anyIds, "osf.mm.hi"));
+	// noneOf test -> excludes mm.pair (tagged "test"), keeps hi + basic.
 	auto noneIds = FindIds(2, TagQuery{ { "pair" }, {}, { "test" } }, kNoActors);
 	CHECK_EQ(noneIds.size(), static_cast<size_t>(2));
-	CHECK(!Contains(noneIds, "osf.test.pair"));
+	CHECK(!Contains(noneIds, "osf.mm.pair"));
 }
 
 OSF_TEST_CASE(Matchmaker_role_accepts_gender)
@@ -166,12 +157,12 @@ OSF_TEST_CASE(Matchmaker_pick_takes_top_priority_tier)
 	female.npc = &femaleNpc;
 
 	std::vector<RE::Actor*> actors{ &male, &female };
-	// hi (p10), basic (p0), pack pair (p0) all bind to (M, F); the top tier is hi
-	// alone, so the weighted pick is deterministic.
+	// hi (p10), basic (p0), pair (p0) all bind to (M, F); the top tier is hi alone,
+	// so the weighted pick is deterministic.
 	auto pick = Pick(actors, AllOf({ "pair" }));
 	CHECK(pick.has_value());
 	if (pick) {
-		CHECK_EQ(pick->id, std::string("osf.scene.hi"));
+		CHECK_EQ(pick->id, std::string("osf.mm.hi"));
 		CHECK_EQ(pick->order.size(), static_cast<size_t>(2));
 	}
 }

@@ -1,0 +1,9 @@
+{
+  // Parses fine, but the node `use` resolves to nothing -> recorded as a load error (the scene is kept).
+  "schema": 2,
+  "id": "osf.u.dangling",
+  "entry": "n",
+  "nodes": [
+    { "id": "n", "use": "osf.does.not.exist", "loop": { "mode": "hold" }, "loopForever": true }
+  ]
+}

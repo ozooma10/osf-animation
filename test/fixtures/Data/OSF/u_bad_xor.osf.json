@@ -1,0 +1,9 @@
+{
+  // Invalid: a node declares BOTH `use` and inline `stages` (exactly one is allowed) -> rejected.
+  "schema": 2,
+  "id": "osf.u.badxor",
+  "entry": "n",
+  "nodes": [
+    { "id": "n", "use": "osf.u.shared", "stages": [ ["OSF/Anim/x.glb"] ], "loop": { "mode": "hold" } }
+  ]
+}

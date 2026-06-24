@@ -1,9 +1,8 @@
 // Entry point for the offline osf-tests target. Sets the working directory to the
-// fixtures root (so the registries' LoadAll() finds Data/OSF), loads both
-// registries once, then runs every self-registered test case.
+// fixtures root (so SceneRegistry::LoadAll() finds Data/OSF), loads the registry
+// once, then runs every self-registered test case.
 #include "framework/TestHarness.h"
 
-#include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 
 #include <cstdio>
@@ -36,8 +35,6 @@ int main(int argc, char** argv)
 		return 2;
 	}
 
-	// Order matters in the real startup too: packs first, then scenes.
-	OSF::Registry::PackRegistry::GetSingleton().LoadAll();
 	OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 
 	return osftest::RunAll();

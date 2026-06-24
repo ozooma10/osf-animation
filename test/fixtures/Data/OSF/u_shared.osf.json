@@ -1,0 +1,6 @@
+{
+  // A single-node inline-stage scene — a valid `use` target.
+  "schema": 2,
+  "id": "osf.u.shared",
+  "clip": "OSF/Anim/shared.glb"
+}

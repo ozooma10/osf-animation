@@ -89,7 +89,6 @@ target("osf-tests")
     add_packages("ozz-animation", "nlohmann_json")
 
     -- "Real" files under test
-    add_files("src/Registry/PackRegistry.cpp")
     add_files("src/Registry/SceneRegistry.cpp")
     add_files("src/Matchmaking/Matchmaker.cpp")
     -- Test-only files

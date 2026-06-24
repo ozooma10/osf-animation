@@ -2,7 +2,7 @@
 
 Two kinds of mod build on OSF:
 
-1. **Content mods** — ship animations + scenes as JSON + GLB. **No Papyrus, no scripting, no ESP
+1. **Content mods** — ship scenes as JSON (`*.osf.json`) + GLB. **No Papyrus, no scripting, no ESP
    required.** Drop files under `Data/OSF/**` and they're discovered.
 2. **Trigger / consumer mods** — Papyrus (and usually an ESP) that decides *when* to start an OSF
    scene in response to gameplay. They call the [`OSF.*` API](API.md).
@@ -18,28 +18,24 @@ The split is deliberate: OSF is content-neutral, so animation **data** lives in 
 Export your animation clips as GLB and place them anywhere Data-relative, conventionally
 `Data/OSF/Animations/<YourPack>/*.glb`.
 
-### b. Write a pack (`Data/OSF/<yourpack>.json`)
-A pack maps an **id** to clip files + per-actor placement + per-stage timing:
+### b. Write a minimal scene (`Data/OSF/<yourscene>.osf.json`)
+Everything you author is a **scene** (`*.osf.json`, `"schema": 2`). A minimal scene maps an **id** to
+clip files + per-role placement + per-stage timing:
 
 ```jsonc
 {
-  "schema": 1,
-  "name": "My Pack",
-  "animations": [
-    {
-      "id": "mypack.greet",
-      "tags": ["social", "greet"],          // matchmaking tags
-      "actors": [ {}, { "offset": { "y": 1.0, "heading": 180.0 } } ],
-      "stages": [
-        // No timer/loops -> the stage plays once and the scene ends. Add "loops": 0
-        // to loop/hold this clip forever instead (e.g. an idle), or "timer"/"loops" to
-        // auto-advance to a next stage.
-        { "clips": [
-          "OSF/Animations/MyPack/greet_a.glb",
-          "OSF/Animations/MyPack/greet_b.glb"
-        ] }
-      ]
-    }
+  "schema": 2,
+  "id": "mypack.greet",
+  "tags": ["social", "greet"],            // matchmaking tags
+  "roles": [ {}, { "offset": { "y": 1.0, "heading": 180.0 } } ],  // optional; else inferred from clips
+  "stages": [
+    // No timer/loops -> the stage plays once and the scene ends. Add "loops": 0
+    // to loop/hold this clip forever instead (e.g. an idle), or "timer"/"loops" to
+    // auto-advance to a next stage.
+    { "clips": [
+      "OSF/Animations/MyPack/greet_a.glb",
+      "OSF/Animations/MyPack/greet_b.glb"
+    ] }
   ]
 }
 ```
@@ -47,13 +43,14 @@ A pack maps an **id** to clip files + per-actor placement + per-stage timing:
 A solo or simple paired clip can stop here — `OSF.StartScene(actors, "mypack.greet")` or a tag query
 will play it.
 
-### c. (optional) Write a scene (`Data/OSF/<yourscene>.scene.json`)
-Use a scene when you want phases, branching, furniture anchoring, or declarative immersion
-(camera/weapon/control/fade) with **automatic cleanup**:
+### c. (optional) Grow it into a graph scene
+The **same** scene grows `nodes[]` (+ `entry`) when you want phases, branching, furniture anchoring, or
+declarative immersion (camera/weapon/control/fade) with **automatic cleanup**. Each node plays an inline
+`stages` timeline (the default) or `use`s another scene by id:
 
 ```jsonc
 {
-  "schema": 1,
+  "schema": 2,
   "id": "mypack.scenes.greet",
   "tags": ["social", "greet"],
   "roles": [ { "name": "lead", "gender": "any" }, { "name": "other", "gender": "any" } ],
@@ -61,13 +58,14 @@ Use a scene when you want phases, branching, furniture anchoring, or declarative
   "nodes": [
     {
       "id": "main",
-      "anim": "mypack.greet",
+      "stages": [ { "loops": 0, "clips": [          // inline; or "use": "mypack.greet"
+        "OSF/Animations/MyPack/greet_a.glb",
+        "OSF/Animations/MyPack/greet_b.glb"
+      ] } ],
       "loop": { "mode": "hold" },
       "timerSec": 8.0,
-      "tracks": {
-        "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],
-        "action": [ { "at": "enter", "type": "osf.control.lock", "role": "lead" } ]
-      },
+      "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],   // track lanes are flat keys
+      "action": [ { "at": "enter", "type": "osf.control.lock", "role": "lead" } ],
       "edges": [ { "to": "$end", "when": "timer" } ]   // auto-end after 8s; ledger reverses camera+lock
     }
   ]
@@ -75,7 +73,7 @@ Use a scene when you want phases, branching, furniture anchoring, or declarative
 ```
 
 You author only the *engage* half of any `osf.*` mechanism — the undo ledger reverses it on every end
-path. See [PACK_SCHEMA.md](PACK_SCHEMA.md) for the full field reference and the `osf.*` action list.
+path. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full field reference and the `osf.*` action list.
 
 ### d. Verify
 ```bat
@@ -90,7 +88,7 @@ Iterate without restarting: edit the JSON/GLB, then `cgf "OSFTest.Reload"` (or `
 ## 2. Write a trigger mod (Papyrus)
 
 A trigger mod listens to gameplay and starts an OSF scene. It holds **no animation data** — that's in
-content packs/scenes (yours or third-party). The pattern:
+content scenes (yours or third-party). The pattern:
 
 ```papyrus
 ; On some gameplay event (a hit, a hotkey, sleeping near an NPC, ...):
@@ -121,7 +119,7 @@ SIF is exactly this shape. Its `SIF_PlayerEventHandler` (a player `ReferenceAlia
 `OnHit` / `OnCombatStateChanged` / `OnPlayerSleepStart`, applies a keyword-FormList fast-fail gate and
 an RNG chance roll (gameplay policy), then calls `OSF.StartSceneByTagsQuery` /
 `OSF.StartSceneByTags` (with `SceneOptions.Anchor` for the bed). Its `SIF_API` quest holds only the trigger→tag registries and branded custom
-events. It ships zero animations — those are OSF JSON packs/scenes. That is the whole division of
+events. It ships zero animations — those are OSF JSON scenes. That is the whole division of
 labour: SIF decides *when*; OSF does *everything else*.
 
 ---

@@ -1,6 +1,5 @@
 #include "Matchmaking/Matchmaker.h"
 
-#include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Util/StringUtil.h"
 
@@ -128,10 +127,8 @@ namespace OSF::Matchmaking
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
 
 			std::vector<Candidate> pool;
-			std::unordered_set<std::string> sceneIds;  // shadow set: EVERY scene id (regardless of match)
 
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
-				sceneIds.insert(ToLower(a_def.id));
 				if (static_cast<std::int32_t>(a_def.roles.size()) != a_count) {
 					return;
 				}
@@ -139,39 +136,12 @@ namespace OSF::Matchmaking
 					return;
 				}
 				Candidate c;
-				c.source = Candidate::Source::kSceneDef;
 				c.id = a_def.id;
 				c.priority = a_def.priority;
 				c.weight = a_def.weight;
 				if (haveActors) {
 					auto order = MatchComplete(static_cast<std::size_t>(a_count),
 						[&](std::size_t a_slot, std::size_t a_ai) { return RoleAccepts(a_def.roles[a_slot], a_actors[a_ai]); });
-					if (!order) {
-						return;
-					}
-					c.order = std::move(*order);
-				}
-				pool.push_back(std::move(c));
-			});
-
-			Registry::PackRegistry::GetSingleton().ForEachAnim([&](const Registry::AnimationDef& a_def) {
-				if (static_cast<std::int32_t>(a_def.actors.size()) != a_count) {
-					return;
-				}
-				if (sceneIds.count(ToLower(a_def.id))) {
-					return;  // shadowed by a same-id scene def (still reachable via anim:)
-				}
-				if (!TagsMatch(a_def.tags, q)) {
-					return;
-				}
-				Candidate c;
-				c.source = Candidate::Source::kPack;
-				c.id = a_def.id;
-				c.priority = 0;
-				c.weight = 1;
-				if (haveActors) {
-					auto order = MatchComplete(static_cast<std::size_t>(a_count),
-						[&](std::size_t a_slot, std::size_t a_ai) { return SlotGenderAccepts(a_def.actors[a_slot].gender, SexOf(a_actors[a_ai])); });
 					if (!order) {
 						return;
 					}

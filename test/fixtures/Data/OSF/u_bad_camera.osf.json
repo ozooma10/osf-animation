@@ -1,0 +1,10 @@
+{
+  // Invalid: an unsupported camera state -> rejected (recorded).
+  "schema": 2,
+  "id": "osf.u.badcam",
+  "entry": "n",
+  "nodes": [
+    { "id": "n", "stages": [ ["OSF/Anim/a.glb"] ], "loop": { "mode": "hold" }, "loopForever": true,
+      "camera": [ { "at": "enter", "state": "matrix_bullettime" } ] }
+  ]
+}

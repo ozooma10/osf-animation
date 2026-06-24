@@ -72,7 +72,7 @@ Building fresh lets OSF try and take the best aspects of all the existing framew
   scene end/abort) and drive their own logic off them - quests, custom SFX, UI, telemetry - instead of
   polling or guessing what the engine is doing.
 
-- **Hot-reloadable content** - drop a pack or `*.scene.json` under `Data/OSF/` and reload it without
+- **Hot-reloadable content** - drop an `*.osf.json` scene under `Data/OSF/` and reload it without
   restarting the game; authors iterate in seconds.
 
 - **Branching, navigable scenes** - a scene is a graph, not a fixed sequence: edges auto-advance on a
@@ -123,12 +123,14 @@ ends *any* way (authored stop, navigation to end, a crash mid-scene, or a save-l
 mechanism exactly once, in reverse order, on every termination path. Any effect *you* add must self-heal
 the same way.
 
-**6 One matchmaking surface over animations *and* scenes.**
-Content mods shouldn't hardcode animation ids - they should ask for *what fits* and let the engine
-bind it. A single query (tags plus per-role filters - gender, keyword/race, etc...) returns the best candidate; scenes win when they exist, and packs are the baseline that's always there. 
-Packs are the larger pool, so one query lets a mod tap the whole installed animation library on day one, not just the slice someone has wrapped in a scene. This also means it upgrades for "free".
-ask "two actors, these tags" and you get a fitting animation today; when someone later ships an
-authored scene with the same tags at higher priority, the *same* query picks it up automatically.
+**6 One matchmaking surface over all scenes.**
+Content mods shouldn't hardcode scene ids - they should ask for *what fits* and let the engine
+bind it. A single query (tags plus per-role filters - gender, keyword/race, etc...) over the one scene
+registry returns the best candidate, ranked purely by `priority` tier then weighted-random `weight`.
+There is one pool: a bare clip-only scene and a richly authored graph scene compete in the same query,
+and a richer scene simply declares a higher `priority` than a barer one.
+ask "two actors, these tags" and you get a fitting scene today; when someone later ships a
+more elaborate scene with the same tags at a higher priority, the *same* query picks it up automatically.
 
 ---
 
@@ -150,41 +152,45 @@ at an anchor, runs its stages, and layers on whatever policy the author opted in
 ## 4. Injection points - how you build on OSF
 
 
-### A. Ship new animations - *animation authors*
-**What you ship:** a JSON pack + GLB/AF clips under `Data/OSF/…`. No code.
-You describe clips, the actors/roles they're for, gender slots, per-stage/per-clip alignment offsets
-(metres/degrees), and timer/loop behaviour. The engine discovers packs recursively at load and on
-`OSF.ReloadPacks()` - iterate without restarting the game.
+### A. Author scenes - *content authors*
+**What you ship:** an `*.osf.json` scene + GLB/AF clips under `Data/OSF/…`. No code.
+Everything an author writes is a **scene** — there's no separate "pack" vs "scene" anymore. A scene is
+*minimal by default* (just clips) and *grows graph features* (nodes, edges, tracks, roles, policy) only
+when you need them. The engine discovers scenes recursively at load and on `OSF.ReloadPacks()` -
+iterate without restarting the game. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full field reference.
+
+A **minimal** scene is just clips, the actors/roles they're for, gender slots, per-stage/per-clip
+alignment offsets (metres/degrees), and timer/loop behaviour:
 
 ```jsonc
-// Data/OSF/MyPack/dance.json  (shape illustrative)
-{ "id": "yourname.dance.solo",
+// Data/OSF/MyPack/dance.osf.json  — a minimal, looping solo
+{ "schema": 2,
+  "id": "yourname.dance.solo",
   "tags": ["dance", "solo"],
-  "actors": [{ "gender": "any" }],
-  "stages": [{ "clips": [{ "file": "OSF/Anims/dance_loop.glb" }],
-               "loop": true }] }
+  "roles": [{ "gender": "any" }],                          // optional; else inferred from clips
+  "stages": [{ "loops": 0, "clips": ["OSF/Anims/dance_loop.glb"] }] }   // loops:0 = hold/loop forever
 ```
 
-### B. Author new scenes - *scene authors* 
-**What you ship:** a `*.scene.json` graph. Still no code.
-A scene is **nodes** (each plays an animation) connected by **edges** (auto-advance on timer/loop,
-branchable choices, or cue-triggered), with **roles** (named, with gender/keyword/race filters) and
-four **tracks** per node: `cue`, `action`, `sound`, `camera`. Actions are where you opt into arbitrary mechanics to trigger during scene.
-
-***SCHEMA LARGELY IN FLUX, THIS IS WAY TOO VERBOSE, WILL NEED SIMPLE SHORTHAND***
+A solo or simple paired clip can stop there — `OSF.StartScene(actors, "yourname.dance.solo")` or a tag
+query plays it. When you need phases, branching, furniture anchoring, or declarative immersion, the
+**same scene** grows `nodes[]` (each plays an inline `stages` timeline or `use`s another scene by id)
+connected by **edges** (auto-advance on timer/loop, branchable choices, or cue-triggered), with
+**roles** (named, with gender/keyword/race filters) and four per-node **track lanes** (`cue`, `action`,
+`sound`, `camera`). Actions are where you opt into arbitrary mechanics to trigger during the scene:
 
 ```jsonc
-{ "id": "yourname.scene.greet", "entry": "intro",
+// Data/OSF/MyPack/greet.osf.json  — a graph scene
+{ "schema": 2,
+  "id": "yourname.scene.greet", "entry": "intro",
   "roles": [{ "name": "host", "gender": "any" }],
   "nodes": [{
-    "id": "intro", "anim": "yourname.dance.solo",
-    "tracks": {
-      "action": [
-        { "at": "enter", "type": "osf.control.lock", "role": "host" },
-        { "at": 0.5,     "type": "osf.fade.out" }
-      ],
-      "anim":    [{ "at": "enter", "id": "started" }]
-    }
+    "id": "intro",
+    "stages": [{ "clips": ["OSF/Anims/dance_loop.glb"] }],   // inline; or "use": "yourname.dance.solo"
+    "action": [
+      { "at": "enter", "type": "osf.control.lock", "role": "host" },
+      { "at": 0.5,     "type": "osf.fade.out" }
+    ],
+    "cue": [{ "at": "enter", "id": "started" }]
   }] }
 ```
 Built-in `osf.*` actions today: `control.lock/release`, `fade.out/in`, `equipment.hide/restore`,
@@ -192,7 +198,7 @@ Built-in `osf.*` actions today: `control.lock/release`, `fade.out/in`, `equipmen
 
 > Will ship with an "adult" wrapper that supports scene definitions with *much* simpler definition to represent the more "standard" sl style linear sequences. So things like fade, control/camera locks/ sequencing, etc... are all automated away and not in the scene. Scene just acts as override.
 
-### C. Trigger scenes from your mod — *content / quest authors* 
+### B. Trigger scenes from your mod — *content / quest authors* 
 **What you ship:** an ESP with Papyrus (or native sfse) that calls the `OSF.*` API.
 
 ```papyrus
@@ -207,7 +213,7 @@ You get handles, navigation (`Advance`/`Navigate`/edge listing for menus), read-
 introspection (roles, gender, tags, actor count) so you can bind correctly, and a
 `GetVersion()` handshake.
 
-### D. React to scenes & define your own verbs — *integrators*
+### C. React to scenes & define your own verbs — *integrators*
 **What you ship:** a Papyrus script that registers a callback.
 `RegisterSceneCallback(receiver, fn, sceneFilter, eventMask)` delivers `OSFTypes:SceneEvent` structs
 for node-enter/exit, cues, actions, scene-end/abort. Delivery is async and non-reentrant — your
@@ -253,10 +259,10 @@ Stating these up front because they shape what you can build:
 
 These are the main things really looking for thoughts/opinions on
 
-**1. Custom-action payload (4D).** A custom `yourmod.*` action carries its `type`, `role`, and timing
+**1. Custom-action payload (4C).** A custom `yourmod.*` action carries its `type`, `role`, and timing
 today - but no arbitrary data. I'm leaning toward appending an opaque `data` string e.g. `{"type":"yourmod.spawnProp","data":"formId=Mod.esm|0x801;count=2"}`, and you parse it yourself. **Is an opaque string enough, or do you need structured/typed fields and form-ref resolution done for you?**
 
-**2. Should a custom verb ever *block*? (4D/6).** Right now custom actions are fire-and-forget
+**2. Should a custom verb ever *block*? (4C/6).** Right now custom actions are fire-and-forget
 notifications - they can't make a scene wait on them or report failure. **Does anyone actually need a
 verb that holds scene progress ("don't advance until my prop finished spawning"), or is notify-only good enough, with anything blocking needing to be done in a native plugin?**
 

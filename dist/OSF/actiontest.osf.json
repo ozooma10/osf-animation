@@ -1,0 +1,26 @@
+{
+  // Action-track test: one held node with an `action` track. On enter it runs the built-in
+  // osf.control.lock (freezes player control + camera, ref-counted, auto-released on scene end)
+  // and emits a custom action 'test.notify' (EVENT_ACTION); on exit it emits 'test.cleanup'.
+  // There is intentionally NO osf.control.release — the lock is released by the scene-end undo
+  // ledger, proving cleanup doesn't depend on an authored release.
+  "schema": 2,
+  "id": "author.scenes.actiontest",
+  "name": "Action Track Test",
+  "tags": ["test", "solo"],
+  "roles": [ { "name": "lead", "gender": "any" } ],
+  "entry": "main",
+  "nodes": [
+    {
+      "id": "main",
+      "use": "solo",
+      "loop": { "mode": "hold" },
+      "loopForever": true,
+      "action": [
+        { "at": "enter", "type": "osf.control.lock", "role": "lead" },
+        { "at": "enter", "type": "test.notify" },
+        { "at": "exit",  "type": "test.cleanup" }
+      ]
+    }
+  ]
+}

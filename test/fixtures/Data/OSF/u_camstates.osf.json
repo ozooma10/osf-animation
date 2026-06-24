@@ -1,0 +1,13 @@
+{
+  // Camera-state overrides: vanity_orbit on one node, freefly on the next.
+  "schema": 2,
+  "id": "osf.u.camstates",
+  "entry": "orbit",
+  "nodes": [
+    { "id": "orbit", "stages": [ ["OSF/Anim/a.glb"] ], "loop": { "mode": "once" },
+      "camera": [ { "at": "enter", "state": "vanity_orbit" } ],
+      "edges": [ { "to": "fly", "when": "end" } ] },
+    { "id": "fly", "stages": [ { "loops": 0, "clips": ["OSF/Anim/b.glb"] } ], "loop": { "mode": "hold" }, "loopForever": true,
+      "camera": [ { "at": "enter", "state": "freefly" } ] }
+  ]
+}

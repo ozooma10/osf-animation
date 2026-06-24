@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "id": "osf.bad.entry",
-  "name": "BadEntry",
-  "entry": "nope",
-  "nodes": [
-    { "id": "real", "anim": "osf.test.solo", "loop": { "mode": "hold" }, "loopForever": true }
-  ]
-}

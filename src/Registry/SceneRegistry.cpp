@@ -44,7 +44,7 @@ namespace OSF::Registry
 		}
 
 		// Parse an { x, y, z, heading } placement. Authors write heading in DEGREES; the
-		// runtime uses radians. Mirrors the pack offset parse (PackRegistry ParseOffset).
+		// runtime uses radians.
 		Animation::ParticipantPlacement ParseOffsetField(const json& a_json)
 		{
 			Animation::ParticipantPlacement p{};
@@ -265,131 +265,12 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse the node's `tracks` block. The lanes are `cue`, `action`, `sound`, and `camera`,
-		// all parsed and run; any other lane name is rejected.
-		void ParseCueTracks(const json& a_node, SceneNode& a_node_out)
-		{
-			const auto it = a_node.find("tracks");
-			if (it == a_node.end()) {
-				return;
-			}
-			if (!it->is_object()) {
-				throw std::runtime_error("node '" + a_node_out.id + "': 'tracks' must be an object");
-			}
-			for (const auto& [lane, entries] : it->items()) {
-				const auto laneLower = ToLower(lane);
-				if (laneLower == "action") {
-					ParseActionTrack(entries, a_node_out);
-					continue;
-				}
-				if (laneLower == "sound") {
-					ParseSoundTrack(entries, a_node_out);
-					continue;
-				}
-				if (laneLower == "camera") {
-					ParseCameraTrack(entries, a_node_out);
-					continue;
-				}
-				if (laneLower != "cue") {
-					throw std::runtime_error("node '" + a_node_out.id + "': unknown track lane '" + lane + "'");
-				}
-				if (!entries.is_array()) {
-					throw std::runtime_error("node '" + a_node_out.id + "': 'cue' track must be an array");
-				}
-				for (const auto& c : entries) {
-					CueEntry ce;
-					ce.id = c.value("id", std::string{});
-					if (ce.id.empty()) {
-						throw std::runtime_error("node '" + a_node_out.id + "': a cue track entry is missing 'id'");
-					}
-					// Cues require an explicit `at` (no enter default); the rest of the time model is shared.
-					ParseTrackTiming(c, ce, a_node_out.id, "cue '" + ce.id + "'", /*a_atRequired*/ true);
-					a_node_out.cues.push_back(std::move(ce));
-				}
-			}
-		}
-
-		SceneNode ParseNode(const json& a_node, std::vector<std::string>& a_warnings, const std::string& a_sceneId)
-		{
-			SceneNode n;
-			n.id = a_node.value("id", std::string{});
-			if (n.id.empty()) {
-				throw std::runtime_error("a node is missing 'id'");
-			}
-			n.anim = a_node.value("anim", std::string{});
-			if (n.anim.empty()) {
-				throw std::runtime_error("node '" + n.id + "': missing 'anim'");
-			}
-			n.loopMode = ParseLoop(a_node, n.loopCount);
-			n.timerSec = a_node.value("timerSec", 0.0f);
-			n.loopForever = a_node.value("loopForever", false);
-
-			std::unordered_set<std::string> edgeIds;
-			int defaults = 0;
-			bool hasTimerEdge = false;
-			if (const auto it = a_node.find("edges"); it != a_node.end()) {
-				for (const auto& jEdge : *it) {
-					auto e = ParseEdge(jEdge, n.id);
-					if (e.when == EdgeWhen::kEnd && n.loopMode == LoopMode::kHold) {
-						throw std::runtime_error("node '" + n.id + "': an 'end' edge on a hold node can never fire");
-					}
-					if (e.when == EdgeWhen::kLoops && n.loopMode != LoopMode::kCount) {
-						throw std::runtime_error("node '" + n.id + "': a 'loops' edge needs loop mode 'count'");
-					}
-					if (e.when == EdgeWhen::kTimer) {
-						hasTimerEdge = true;
-					}
-					if (e.isDefault) {
-						defaults++;
-					}
-					if (!e.id.empty() && !edgeIds.insert(ToLower(e.id)).second) {
-						throw std::runtime_error("node '" + n.id + "': duplicate edge id '" + e.id + "'");
-					}
-					n.edges.push_back(std::move(e));
-				}
-			}
-			if (defaults > 1) {
-				throw std::runtime_error("node '" + n.id + "': more than one default advance edge");
-			}
-			if (hasTimerEdge && n.timerSec <= 0.0f) {
-				throw std::runtime_error("node '" + n.id + "': has a 'timer' edge but timerSec <= 0");
-			}
-			if (!hasTimerEdge && n.timerSec > 0.0f) {
-				a_warnings.push_back("scene '" + a_sceneId + "' node '" + n.id + "': timerSec set but no 'timer' edge");
-			}
-
-			ParseCueTracks(a_node, n);
-
-			// A trigger:<cueId> edge must reference a cue emitted on this same node.
-			for (const auto& e : n.edges) {
-				if (e.when != EdgeWhen::kTrigger) {
-					continue;
-				}
-				const auto want = ToLower(e.trigger);
-				bool found = false;
-				for (const auto& c : n.cues) {
-					if (ToLower(c.id) == want) {
-						found = true;
-						break;
-					}
-				}
-				if (!found) {
-					throw std::runtime_error("node '" + n.id + "': trigger edge references cue '" + e.trigger +
-						"' with no matching cue track entry on this node");
-				}
-			}
-			return n;
-		}
-
 		// Parse one role: name, gender (the `gender` shorthand and `filters.gender` are the same
 		// constraint — reject if both present and differ), and the resolved keyword/race filters.
-		SceneRole ParseRole(const json& a_role, const std::string& a_sceneId, bool a_nameRequired = true)
+		SceneRole ParseRole(const json& a_role, const std::string& a_sceneId)
 		{
 			SceneRole r;
-			r.name = a_role.value("name", std::string{});
-			if (r.name.empty() && a_nameRequired) {
-				throw std::runtime_error("scene '" + a_sceneId + "': a role is missing 'name'");
-			}
+			r.name = a_role.value("name", std::string{});  // "" = anonymous positional slot
 
 			std::optional<SlotGender> shorthand;
 			if (auto git = a_role.find("gender"); git != a_role.end()) {
@@ -450,10 +331,9 @@ namespace OSF::Registry
 			return r;
 		}
 
-		// Shared top-level metadata (name/priority/weight/lockPlayer/stripActors/playerControl) for
-		// both the legacy *.scene.json and the unified *.osf.json parsers. id, entry, tags, roles, and
-		// the node graph are parsed by the caller. a_lockDefault/a_stripDefault seed the policy opt-outs
-		// (file-level defaults under *.osf.json; plain true for legacy scenes).
+		// Top-level metadata (name/priority/weight/lockPlayer/stripActors/playerControl). id, tags,
+		// roles, and the playable (clip/stages/nodes) are parsed by the caller. a_lockDefault/
+		// a_stripDefault seed the policy opt-outs (the file-level defaults).
 		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault)
 		{
 			def.name = a_json.value("name", def.id);
@@ -528,152 +408,8 @@ namespace OSF::Registry
 			}
 		}
 
-		// Throws std::runtime_error on any reject; pushes non-fatal notes to a_warnings.
-		SceneDef ParseScene(const json& a_json, std::vector<std::string>& a_warnings)
-		{
-			SceneDef def;
-			def.id = a_json.value("id", std::string{});
-			if (def.id.empty()) {
-				throw std::runtime_error("scene missing 'id'");
-			}
-			ParseSceneMeta(a_json, def, /*lockDefault*/ true, /*stripDefault*/ true);
-			def.entry = a_json.value("entry", std::string{});
-			if (def.entry.empty()) {
-				throw std::runtime_error("scene '" + def.id + "': missing 'entry'");
-			}
-			if (const auto it = a_json.find("tags"); it != a_json.end()) {
-				for (const auto& t : *it) {
-					def.tags.push_back(t.get<std::string>());
-				}
-			}
-			if (const auto it = a_json.find("roles"); it != a_json.end()) {
-				for (const auto& jRole : *it) {
-					def.roles.push_back(ParseRole(jRole, def.id));
-				}
-			}
-
-			const auto jNodes = a_json.find("nodes");
-			if (jNodes == a_json.end() || !jNodes->is_array() || jNodes->empty()) {
-				throw std::runtime_error("scene '" + def.id + "': 'nodes' must be a non-empty array");
-			}
-			std::unordered_set<std::string> nodeIds;
-			for (const auto& jNode : *jNodes) {
-				auto n = ParseNode(jNode, a_warnings, def.id);
-				if (!nodeIds.insert(ToLower(n.id)).second) {
-					throw std::runtime_error("scene '" + def.id + "': duplicate node id '" + n.id + "'");
-				}
-				def.nodes.push_back(std::move(n));
-			}
-
-			// Optional linear-stage map (stage i -> node id). Each must name a real node.
-			if (const auto it = a_json.find("linearStages"); it != a_json.end()) {
-				for (const auto& s : *it) {
-					auto nid = s.get<std::string>();
-					if (!nodeIds.count(ToLower(nid))) {
-						throw std::runtime_error("scene '" + def.id + "': linearStages references missing node '" + nid + "'");
-					}
-					def.linearStages.push_back(std::move(nid));
-				}
-			}
-
-			// Reference validation (needs the full node-id set).
-			if (!nodeIds.count(ToLower(def.entry))) {
-				throw std::runtime_error("scene '" + def.id + "': entry '" + def.entry + "' is not a node");
-			}
-			// A non-empty action/sound role must name a role the scene declares.
-			std::unordered_set<std::string> roleNames;
-			for (const auto& r : def.roles) {
-				roleNames.insert(ToLower(r.name));
-			}
-			for (const auto& n : def.nodes) {
-				for (const auto& a : n.actions) {
-					if (!a.role.empty() && !roleNames.count(ToLower(a.role))) {
-						throw std::runtime_error("scene '" + def.id + "': node '" + n.id + "' action '" + a.type +
-							"' references undeclared role '" + a.role + "'");
-					}
-				}
-				for (const auto& s : n.sounds) {
-					if (!s.role.empty() && !roleNames.count(ToLower(s.role))) {
-						throw std::runtime_error("scene '" + def.id + "': node '" + n.id + "' sound '" + s.spec +
-							"' references undeclared role '" + s.role + "'");
-					}
-				}
-			}
-			for (const auto& n : def.nodes) {
-				for (const auto& e : n.edges) {
-					if (e.to != "$end" && !nodeIds.count(ToLower(e.to))) {
-						throw std::runtime_error("scene '" + def.id + "': node '" + n.id + "' edge targets missing node '" + e.to + "'");
-					}
-				}
-				if (n.loopMode == LoopMode::kHold && !n.loopForever) {
-					bool hasExit = false;
-					for (const auto& e : n.edges) {
-						if (e.when == EdgeWhen::kAdvance || e.when == EdgeWhen::kTimer || e.when == EdgeWhen::kTrigger) {
-							hasExit = true;
-							break;
-						}
-					}
-					if (!hasExit) {
-						a_warnings.push_back("scene '" + def.id + "' node '" + n.id +
-							"': hold node with no advance/timer/trigger edge never ends (set loopForever:true if intended)");
-					}
-				}
-			}
-			return def;
-		}
-
-		void LoadSceneFile(const json& a_json, const std::filesystem::path& a_file,
-			std::unordered_map<std::string, SceneDef>& a_out, std::vector<std::string>& a_errors)
-		{
-			const std::string fileName = a_file.filename().string();
-
-			const auto it = a_json.find("schema");
-			if (it == a_json.end()) {
-				a_errors.push_back("[error] '" + fileName + "': missing required 'schema'");
-				REX::ERROR("SceneRegistry: '{}' missing required 'schema' — skipped", fileName);
-				return;
-			}
-			if (!it->is_number_integer()) {
-				a_errors.push_back("[error] '" + fileName + "': non-integer 'schema'");
-				REX::ERROR("SceneRegistry: '{}' has a non-integer 'schema' — skipped", fileName);
-				return;
-			}
-			const auto schema = it->get<std::int64_t>();
-			if (schema < 1 || schema > kSceneSchemaVersion) {
-				a_errors.push_back("[error] '" + fileName + "': scene schema " + std::to_string(schema) +
-					" unsupported (max " + std::to_string(kSceneSchemaVersion) + ")");
-				REX::ERROR("SceneRegistry: '{}' declares scene schema {} but this build understands up to {} — skipped",
-					fileName, schema, kSceneSchemaVersion);
-				return;
-			}
-
-			std::vector<std::string> warnings;
-			try {
-				auto def = ParseScene(a_json, warnings);
-				def.sourceFile = a_file;
-				auto key = ToLower(def.id);
-				if (const auto f = a_out.find(key); f != a_out.end()) {
-					a_errors.push_back("[error] duplicate scene id '" + def.id + "' in '" + fileName +
-						"' (already from '" + f->second.sourceFile.filename().string() + "') — keeping the first");
-					REX::ERROR("SceneRegistry: duplicate scene id '{}' in '{}' — keeping first from '{}'",
-						def.id, fileName, f->second.sourceFile.filename().string());
-					return;
-				}
-				for (const auto& w : warnings) {
-					a_errors.push_back("[warn] " + w);
-					REX::WARN("SceneRegistry: {}", w);
-				}
-				REX::INFO("SceneRegistry: loaded scene '{}' ({} node(s)) from '{}'", def.id, def.nodes.size(), fileName);
-				a_out[std::move(key)] = std::move(def);
-			} catch (const std::exception& e) {
-				a_errors.push_back("[error] '" + fileName + "': " + e.what());
-				REX::ERROR("SceneRegistry: skipping scene in '{}': {}", fileName, e.what());
-			}
-		}
-
 		// ============================================================================
-		// Unified *.osf.json parser — the one "scene" concept (RFC-unified-animation-schema.md).
-		// Additive: the legacy ParseScene (*.scene.json) and pack loaders stay until Phase 5.
+		// Scene parser — the one "scene" concept (RFC-unified-animation-schema.md).
 		// ============================================================================
 
 		// Reject authored ids that collide with the synthetic desugar namespace.
@@ -688,7 +424,7 @@ namespace OSF::Registry
 		// Parse a stage list (timer/loops/clips, with the play-once default and the bare-array
 		// shorthand) — the unified equivalent of the pack stages[] parse. a_ioActorCount is the
 		// participant count: when a_fixed it is authoritative (every stage must match it); else the
-		// first stage's clip count sets it. Mirrors PackRegistry ParseAnimation's stage loop.
+		// first stage's clip count sets it.
 		std::vector<StageDef> ParseOsfStageList(const json& a_stages, const std::string& a_subject,
 			size_t& a_ioActorCount, bool a_fixed)
 		{
@@ -971,7 +707,7 @@ namespace OSF::Registry
 				}
 				rolesGiven = true;
 				for (const auto& jRole : *it) {
-					def.roles.push_back(ParseRole(jRole, def.id, /*a_nameRequired*/ false));
+					def.roles.push_back(ParseRole(jRole, def.id));
 				}
 			}
 
@@ -1155,7 +891,7 @@ namespace OSF::Registry
 
 		// Build an Animation::ScenePlan from a resolved (roles, stages) pair: a per-clip offset overrides
 		// the role's default placement; every stage's clip count must equal a_actorCount. Shared by the
-		// inline-stages and `use`-target node paths. Mirrors PackRegistry::BuildScenePlan.
+		// inline-stages and `use`-target node paths.
 		std::optional<Animation::ScenePlan> BuildPlanFromStages(const std::string& a_id,
 			const std::vector<SceneRole>& a_roles, const std::vector<StageDef>& a_stages, size_t a_actorCount)
 		{
@@ -1186,6 +922,18 @@ namespace OSF::Registry
 			}
 			return plan;
 		}
+	}
+
+	SlotGender ParseSlotGender(std::string_view a_str)
+	{
+		const auto s = ToLower(a_str);
+		if (s == "male" || s == "m") {
+			return SlotGender::kMale;
+		}
+		if (s == "female" || s == "f") {
+			return SlotGender::kFemale;
+		}
+		return SlotGender::kAny;  // "any"/"" and anything else
 	}
 
 	const SceneNode* SceneDef::FindNode(std::string_view a_id) const
@@ -1227,10 +975,11 @@ namespace OSF::Registry
 		if (fs::is_directory(dir, ec)) {
 			std::vector<fs::path> files;
 			for (const auto& entry : fs::recursive_directory_iterator(dir, ec)) {
-				if (entry.is_regular_file(ec) && ToLower(entry.path().filename().string()).ends_with(".scene.json")) {
+				if (entry.is_regular_file(ec) && ToLower(entry.path().filename().string()).ends_with(".osf.json")) {
 					files.push_back(entry.path());
 				}
 			}
+			// Sorted by filename so "first-loaded wins" on an id collision is deterministic.
 			std::sort(files.begin(), files.end(), [](const fs::path& a_lhs, const fs::path& a_rhs) {
 				return ToLower(a_lhs.filename().string()) < ToLower(a_rhs.filename().string());
 			});
@@ -1238,28 +987,6 @@ namespace OSF::Registry
 				try {
 					std::ifstream in(file, std::ios::binary);
 					const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
-					LoadSceneFile(j, file, loaded, errors);
-				} catch (const std::exception& e) {
-					errors.push_back("[error] '" + file.filename().string() + "': parse failed: " + e.what());
-					REX::ERROR("SceneRegistry: failed to parse '{}': {}", file.filename().string(), e.what());
-				}
-			}
-
-			// Unified *.osf.json scenes (the one-concept format) load into the SAME map, so a
-			// cross-kind id collision is caught like any duplicate (RFC-unified-animation-schema.md).
-			std::vector<fs::path> osfFiles;
-			for (const auto& entry : fs::recursive_directory_iterator(dir, ec)) {
-				if (entry.is_regular_file(ec) && ToLower(entry.path().filename().string()).ends_with(".osf.json")) {
-					osfFiles.push_back(entry.path());
-				}
-			}
-			std::sort(osfFiles.begin(), osfFiles.end(), [](const fs::path& a_lhs, const fs::path& a_rhs) {
-				return ToLower(a_lhs.filename().string()) < ToLower(a_rhs.filename().string());
-			});
-			for (const auto& file : osfFiles) {
-				try {
-					std::ifstream in(file, std::ios::binary);
-					const auto j = nlohmann::json::parse(in, nullptr, true, true);
 					LoadOsfFile(j, file, loaded, errors);
 				} catch (const std::exception& e) {
 					errors.push_back("[error] '" + file.filename().string() + "': parse failed: " + e.what());

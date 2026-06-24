@@ -125,14 +125,13 @@ namespace OSF::Scene
 		if (!s) {
 			return false;
 		}
-		a_out.kind = s->kind;
 		a_out.id = s->id;
 		a_out.node = s->node;
 		a_out.participants = s->participants;
 		return true;
 	}
 
-	std::int32_t SceneRuntime::MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants)
+	std::int32_t SceneRuntime::MintSlot(std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants)
 	{
 		std::lock_guard l{ _lock };
 
@@ -184,7 +183,6 @@ namespace OSF::Scene
 
 		Slot& s = _slots[slot];
 		s.generation = gen;
-		s.kind = a_kind;
 		s.id = std::string(a_id);
 		s.node = std::string(a_node);
 		s.participants = a_participants;
@@ -206,8 +204,8 @@ namespace OSF::Scene
 		if (!s) {
 			return {};
 		}
-		// A files scene has no registry id — synthesize one.
-		if (s->kind == Kind::kFiles) {
+		// An ad-hoc files scene has no registry id (empty) — synthesize one.
+		if (s->id.empty()) {
 			return "runtime.files:" + std::to_string(a_scene);
 		}
 		return s->id;
@@ -227,13 +225,13 @@ namespace OSF::Scene
 			return -1;
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
-		if (view.kind != Kind::kDef) {
-			// pack/files: the single GraphManager scene's live stage (files -> always 0).
+		// A registry scene has a stage number only if it declares linearStages; an ad-hoc files
+		// scene (no registry def) reports the single GraphManager scene's live stage.
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		if (!def) {
 			return Animation::GraphManager::GetSingleton().GetSceneStage(first);
 		}
-		// def graph: a stage number exists only if linearStages is declared.
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
-		return def ? def->LinearStageOf(view.node) : -1;
+		return def->LinearStageOf(view.node);
 	}
 
 	bool SceneRuntime::SetStage(std::int32_t a_scene, std::int32_t a_stage)
@@ -243,13 +241,13 @@ namespace OSF::Scene
 			return false;
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
-		if (view.kind != Kind::kDef) {
-			// pack/files: jump the live GraphManager scene (it range-checks the stage).
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		if (!def) {
+			// ad-hoc files scene: jump the live GraphManager scene (it range-checks the stage).
 			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage);
 		}
-		// def graph: linear only via linearStages; jumping a stage = transitioning to its node.
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
-		if (!def || a_stage < 0 || static_cast<std::size_t>(a_stage) >= def->linearStages.size()) {
+		// registry scene: linear only via linearStages; jumping a stage = transitioning to its node.
+		if (a_stage < 0 || static_cast<std::size_t>(a_stage) >= def->linearStages.size()) {
 			return false;
 		}
 		// SetNode fires NODE_EXIT/ENTER and plays the target node (re-locks internally).

@@ -1,10 +1,7 @@
 #pragma once
 
-// Unified tag/role matchmaking over BOTH registries: composed *.scene.json defs and animation packs (a pack is a priority-0 / weight-1 pseudo-candidate). 
-// Scene defs and packs compete in one ranking model, scene defs are NOT implicitly higher priority; a scene author sets priority > 0 to supersede a pack. 
-// A scene def shadows a same-id pack (the pack is suppressed from matchmaking but still reachable via the anim: prefix). 
-// Role binding uses deterministic COMPLETE matching (not greedy), mirroring the pack matcher; 
-// the chosen candidate carries its resolved binding so the start path never re-derives it. Pure logic over the registries — no playback/engine-hook surface.
+// Tag/role matchmaking over the scene registry: a scene is matched by tags + a complete per-role filter binding (gender + any-of keyword + any-of race), ranked by priority tier then weighted-random.
+// Role binding uses deterministic COMPLETE matching (not greedy); the chosen candidate carries its resolved binding so the start path never re-derives it. 
 
 #include <optional>
 #include <string>
@@ -28,16 +25,10 @@ namespace OSF::Matchmaking
 
 	struct Candidate
 	{
-		enum class Source : std::uint8_t
-		{
-			kSceneDef,
-			kPack
-		};
-		Source                   source = Source::kPack;
 		std::string              id;
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;
-		// slot/role index -> index into the caller's actor array (the resolved binding). 
+		// slot/role index -> index into the caller's actor array (the resolved binding).
 		// Empty on the actor-less discovery path.
 		std::vector<std::size_t> order;
 	};

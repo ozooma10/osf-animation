@@ -1,0 +1,29 @@
+{
+  // P3 auto-advance demo: this scene walks its OWN graph with no manual AdvanceScene.
+  // 'first' (StandSurrender) holds for a 4s timer, auto-takes its 'timer' edge to
+  // 'second' (StandCover), which after its own 4s timer auto-takes a 'timer' edge to
+  // "$end" — the scene ends itself. Timers are used (not loop-count) so the demo is
+  // deterministic regardless of the baked-in clips' loop length.
+  "schema": 2,
+  "id": "author.scenes.autotest",
+  "name": "Auto-Advance Test",
+  "tags": ["test", "solo"],
+  "roles": [ { "name": "lead", "gender": "any" } ],
+  "entry": "first",
+  "nodes": [
+    {
+      "id": "first",
+      "use": "solo",
+      "loop": { "mode": "hold" },
+      "timerSec": 4.0,
+      "edges": [ { "to": "second", "when": "timer" } ]
+    },
+    {
+      "id": "second",
+      "use": "solo.cover",
+      "loop": { "mode": "hold" },
+      "timerSec": 4.0,
+      "edges": [ { "to": "$end", "when": "timer" } ]
+    }
+  ]
+}

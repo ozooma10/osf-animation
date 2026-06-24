@@ -79,7 +79,7 @@ namespace OSF::Scene
 		bool StopForActor(RE::Actor* a_actor);
 
 		// --- Navigation (def-backed scenes) ---
-		// Start a scene from its *.scene.json definition: enter at the def's `entry` node.
+		// Start a scene from its registered definition: enter at the def's `entry` node.
 		// Returns the handle (0 = no such scene def). Navigation works on these.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
 
@@ -88,15 +88,6 @@ namespace OSF::Scene
 		// node transition reuses it.
 		std::int32_t StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
 			RE::NiPoint3 a_anchorPos, float a_anchorHeading);
-
-		// Start a registry pack as a single-path scene: the pack's stages play as one GraphManager
-		// scene (the engine auto-advances the stages), the handle wraps it, and its final stage ends
-		// the scene (SCENE_END). a_startStage = initial pack stage. 0 = unknown/unbuildable pack,
-		// play failure, or an actor is already in a scene.
-		// a_anchor world-anchors the pack scene (StartSceneAt) instead of anchoring at
-		// participant[0]; default-unset keeps the original participant[0] anchoring.
-		std::int32_t StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage,
-			const AnchorOverride& a_anchor = {});
 
 		// Start an ad-hoc files scene (what StartSceneFiles is built on): a single synthetic "main"
 		// node that holds, with the actors co-located and synced by the GraphManager. 0 = bad args,
@@ -111,9 +102,9 @@ namespace OSF::Scene
 		std::int32_t StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
 			const std::vector<std::string>& a_roles);
 
-		// Jump a linear scene to stage a_stage: either a pack/files scene (delegates to the
-		// GraphManager's stage jump) or a def scene declaring `linearStages` (transitions to the
-		// indexed node). False on a non-linear graph, an out-of-range stage, or an invalid handle.
+		// Jump a linear scene to stage a_stage: an ad-hoc files scene (delegates to the GraphManager's
+		// stage jump) or a registry scene declaring `linearStages` (transitions to the indexed node).
+		// False on a non-linear graph, an out-of-range stage, or an invalid handle.
 		bool SetStage(std::int32_t a_scene, std::int32_t a_stage);
 
 		// Take the current node's DEFAULT advance edge (transition, or end the scene if the edge targets "$end").
@@ -141,17 +132,6 @@ namespace OSF::Scene
 		void Clear();
 
 	private:
-		// What backs a live scene instance. kDef = a *.scene.json graph (navigable edges).
-		// kPack/kFiles = single-path "main" scenes with no edges; their GraphManager scene's
-		// final stage is the scene ending (OnGraphAutoEnd ends them rather than taking an edge).
-		// kFiles also synthesizes its id ("runtime.files:<handle>").
-		enum class Kind : std::uint8_t
-		{
-			kDef,
-			kPack,
-			kFiles
-		};
-
 		// A reversible side-effect a scene engaged, tracked in the per-handle undo ledger. On any
 		// termination the ledger replays in reverse order, once, idempotently, so cleanup never
 		// depends on an authored release. Mechanisms with cross-scene state (the control lock) keep
@@ -170,7 +150,6 @@ namespace OSF::Scene
 		struct Slot
 		{
 			std::uint16_t           generation = 0;  // 0 = empty
-			Kind                    kind = Kind::kDef;
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
@@ -192,7 +171,6 @@ namespace OSF::Scene
 		// lock-free copy of slot fields for dispatch/lookup paths reading out of lock
 		struct SlotView
 		{
-			Kind                    kind = Kind::kDef;
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
@@ -216,7 +194,7 @@ namespace OSF::Scene
 
 		// Allocate a slot (exclusivity-checked), record it, return the handle (0 = table full or an actor is already in a live scene). 
 		// Does NOT play or fire, the caller plays the animation + fires NODE_ENTER OUTSIDE _lock. Shared by every Start* entry point.
-		std::int32_t MintSlot(Kind a_kind, std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants);
+		std::int32_t MintSlot(std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants);
 
 		// Free the slot a_handle names (no events). Rollback for a start whose playback failed
 		// after the handle was minted. Takes _lock itself.
@@ -308,11 +286,11 @@ namespace OSF::Scene
 		void RecordInputChannel(std::int32_t a_handle, const Input::Grant& a_grant);
 
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants
-		// already snapshotted. PlayNodeAnim resolves the node's playable (unified inline `stages` /
-		// `use` via SceneRegistry::BuildNodePlan, or a legacy `anim` id via PackRegistry) and copies
-		// the node's loop policy and timerSec onto the last stage of the plan it plays, so the
-		// GraphManager auto-ends it and reports the timer/loops back through OnGraphAutoEnd. If the
-		// scene has no playable, or it won't play, it does nothing.
+		// already snapshotted. PlayNodeAnim resolves the node's playable (inline `stages` or a `use`
+		// reference, via SceneRegistry::BuildNodePlan) and copies the node's loop policy and timerSec
+		// onto the last stage of the plan it plays, so the GraphManager auto-ends it and reports the
+		// timer/loops back through OnGraphAutoEnd. If the scene has no playable, or it won't play, it
+		// does nothing.
 		static void PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId);
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);

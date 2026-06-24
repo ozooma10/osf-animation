@@ -1,0 +1,52 @@
+{
+  "schema": 2,
+  "id": "author.scenes.demo",
+  "name": "Demo Scene",
+  "priority": 0,
+  "tags": ["paired", "demo"],
+  "roles": [
+    { "name": "lead", "gender": "any" },
+    { "name": "other", "gender": "any" }
+  ],
+  "entry": "approach",
+  "nodes": [
+    {
+      "id": "approach",
+      "stages": [ { "clips": [
+        "OSF/Animations/OSF_Test/StandSurrender01.glb",
+        "OSF/Animations/OSF_Test/StandSurrender01.glb"
+      ] } ],
+      "loop": { "mode": "once" },
+      "edges": [ { "to": "main", "when": "end" } ]
+    },
+    {
+      "id": "main",
+      "stages": [ { "loops": 0, "clips": [
+        "OSF/Animations/OSF_Test/TestSway01.glb",
+        "OSF/Animations/OSF_Test/TestSway01.glb"
+      ] } ],
+      "loop": { "mode": "hold" },
+      "edges": [
+        { "id": "finish", "label": "Finish", "to": "climax", "when": "advance", "default": true },
+        { "id": "tease", "label": "Tease", "to": "main", "when": "advance" }
+      ]
+    },
+    {
+      "id": "climax",
+      "stages": [ { "clips": [
+        "OSF/Animations/OSF_Test/StandCover01.glb",
+        "OSF/Animations/OSF_Test/StandCover01.glb"
+      ] } ],
+      "loop": { "mode": "count", "count": 3 },
+      "edges": [ { "to": "cooldown", "when": "loops" } ]
+    },
+    {
+      "id": "cooldown",
+      "stages": [ { "clips": [
+        "OSF/Animations/OSF_Test/StandSurrender01.glb",
+        "OSF/Animations/OSF_Test/StandSurrender01.glb"
+      ] } ],
+      "loop": { "mode": "once" }
+    }
+  ]
+}

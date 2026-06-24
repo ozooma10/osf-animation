@@ -3,7 +3,6 @@
 #include "Animation/GraphManager.h"
 #include "Equipment/EquipmentService.h"
 #include "Matchmaking/Matchmaker.h"
-#include "Registry/PackRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "Util/StringUtil.h"
@@ -252,19 +251,11 @@ namespace OSF::Scene
 		}
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
-		if (!node) {
-			return;  // not def-backed
+		if (!node || (node->use.empty() && node->stages.empty())) {
+			return;  // not def-backed, or the node has no playable
 		}
-		// Resolve the node's playable. Unified nodes (inline `stages` or a `use` reference) resolve in
-		// the scene registry; a legacy *.scene.json node carries a pack-animation id in `anim`.
-		std::optional<Animation::ScenePlan> plan;
-		if (!node->use.empty() || !node->stages.empty()) {
-			plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(*def, *node, a_participants.size());
-		} else if (!node->anim.empty()) {
-			plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(node->anim, a_participants.size());
-		} else {
-			return;  // the node has no playable
-		}
+		// Resolve the node's playable: inline `stages`, or a `use` reference, in the scene registry.
+		auto plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(*def, *node, a_participants.size());
 		if (!plan) {
 			REX::WARN("SceneRuntime: node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
 			return;
@@ -398,7 +389,7 @@ namespace OSF::Scene
 			}
 		}
 
-		const std::int32_t handle = MintSlot(Kind::kDef, a_id, a_entryNode, a_participants);
+		const std::int32_t handle = MintSlot(a_id, a_entryNode, a_participants);
 		if (!handle) {
 			return 0;
 		}
@@ -498,49 +489,13 @@ namespace OSF::Scene
 		return Start(def->id, def->entry, a_participants, AnchorOverride{ true, a_anchorPos, a_anchorHeading });
 	}
 
-	std::int32_t SceneRuntime::StartFromPack(std::string_view a_packId, const std::vector<RE::Actor*>& a_participants, std::int32_t a_startStage,
-		const AnchorOverride& a_anchor)
-	{
-		if (a_participants.empty()) {
-			return 0;
-		}
-		// Build the pack plan FIRST (cheap validate) so we don't mint a handle for an unknown
-		// or wrong-actor-count pack (PackRegistry logs the reason).
-		auto plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(a_packId, a_participants.size());
-		if (!plan) {
-			return 0;
-		}
-		// StartSceneAt: world-anchor the pack scene at the explicit anchor (a pack scene is
-		// single-path, so there are no node transitions — stamping the plan once is enough).
-		if (a_anchor.set) {
-			plan->anchorExplicit = true;
-			plan->anchorPos = a_anchor.pos;
-			plan->anchorHeading = a_anchor.heading;
-		}
-		const std::int32_t handle = MintSlot(Kind::kPack, a_packId, "main", a_participants);
-		if (!handle) {
-			return 0;  // actor already in a scene
-		}
-		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, a_startStage)) {
-			ReleaseSlot(handle);  // play failed after mint — no events fired yet, just free it
-			return 0;
-		}
-		// Pack scenes carry their own opt-outs (pack top-level default, per-animation override).
-		const auto policy = Registry::PackRegistry::GetSingleton().GetPolicy(a_packId);
-		EngageDefaultPlayerLock(handle, policy.lockPlayer, a_participants);   // honors pack/anim lockPlayer
-		StripDefaultActors(handle, policy.stripActors, a_participants);       // honors pack/anim stripActors
-		EngageDefaultPlayerControl(handle, "", a_participants);  // pack scene: default-on input (all capabilities)
-		Fire(handle, Event::kNodeEnter, "main", "enter");
-		return handle;
-	}
-
 	std::int32_t SceneRuntime::StartFromFiles(const std::vector<RE::Actor*>& a_participants,
 		const std::vector<std::string>& a_files, float a_speed, float a_blendIn)
 	{
 		if (a_participants.empty() || a_participants.size() != a_files.size()) {
 			return 0;
 		}
-		const std::int32_t handle = MintSlot(Kind::kFiles, "", "main", a_participants);
+		const std::int32_t handle = MintSlot("", "main", a_participants);
 		if (!handle) {
 			return 0;  // actor already in a scene
 		}
@@ -706,39 +661,34 @@ namespace OSF::Scene
 
 			// The handle is freed after the events for any `end` path (ReleaseSlot below) so exit
 			// cues resolve it and SCENE_END dispatches with a valid handle.
-			if (s->kind != Kind::kDef) {
-				// Pack / files single-path scene: it has no edges, so its terminal stage IS
-				// the whole scene ending. (We still own the teardown so SCENE_END fires and
-				// the handle invalidates, vs returning false and letting GraphManager stop it
-				// silently — which would leak the handle.)
-				end = true;
+			// A registry scene takes its matching auto-edge; an ad-hoc files scene (no registry def)
+			// has no edges, so its terminal stage IS the whole scene ending — it falls through the
+			// no-node path. We own the teardown so SCENE_END fires and the handle invalidates here
+			// (vs returning false and letting GraphManager stop it silently, which would leak it).
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
+			const auto* node = def ? def->FindNode(s->node) : nullptr;
+			if (!node) {
+				end = true;  // files scene, or the def/node vanished — end defensively.
 			} else {
-				const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
-				const auto* node = def ? def->FindNode(s->node) : nullptr;
-				if (!node) {
-					// def-backed but the node/def vanished — end defensively (don't leak).
-					end = true;
-				} else {
-					// Map the fired condition to the node's edge semantics: a timer arms a
-					// `timer` edge; a loop/clip-end arms `loops` (count) or `end` (once).
-					const auto wantWhen = (a_reason == Animation::SceneEndReason::kTimer)
-						? Registry::EdgeWhen::kTimer
-						: (node->loopMode == Registry::LoopMode::kCount ? Registry::EdgeWhen::kLoops : Registry::EdgeWhen::kEnd);
-					const Registry::SceneEdge* edge = SelectAutoEdge(*node, wantWhen);
-					if (edge) {
-						tookEdge = true;
-						if (edge->to == "$end") {
-							end = true;
-						} else {
-							s->node = edge->to;
-							newNode = edge->to;
-						}
-					} else {
-						// No matching edge. once/count with no outgoing edge = terminal
-						// completion (ends when the clip / loop target finishes). A timer
-						// can't land here (we only arm the stage timer when a `timer` edge exists).
+				// Map the fired condition to the node's edge semantics: a timer arms a
+				// `timer` edge; a loop/clip-end arms `loops` (count) or `end` (once).
+				const auto wantWhen = (a_reason == Animation::SceneEndReason::kTimer)
+					? Registry::EdgeWhen::kTimer
+					: (node->loopMode == Registry::LoopMode::kCount ? Registry::EdgeWhen::kLoops : Registry::EdgeWhen::kEnd);
+				const Registry::SceneEdge* edge = SelectAutoEdge(*node, wantWhen);
+				if (edge) {
+					tookEdge = true;
+					if (edge->to == "$end") {
 						end = true;
+					} else {
+						s->node = edge->to;
+						newNode = edge->to;
 					}
+				} else {
+					// No matching edge. once/count with no outgoing edge = terminal completion
+					// (ends when the clip / loop target finishes). A timer can't land here (we
+					// only arm the stage timer when a `timer` edge exists).
+					end = true;
 				}
 			}
 		}

@@ -1,0 +1,9 @@
+{
+  // Matchmaker fixture: a high-priority paired scene.
+  "schema": 2,
+  "id": "osf.mm.hi",
+  "priority": 10,
+  "tags": ["pair", "scenetag"],
+  "roles": [ { "gender": "male" }, { "gender": "female" } ],
+  "stages": [ ["OSF/Anim/a.glb", "OSF/Anim/b.glb"] ]
+}
