@@ -34,9 +34,9 @@ namespace OSF::Papyrus
 			return out;
 		}
 
-		// --- OSF:SceneOptions (the trailing `SceneOptions akOpts = None` on the Start* natives) ----
-		// A struct parameter arrives as this wrapper; the `= None` default makes it optional
-		using SceneOptionsArg = std::optional<RE::BSScript::structure_wrapper<"OSF", "SceneOptions">>;
+		// --- OSFTypes:SceneOptions (the trailing `SceneOptions akOpts = None` on the Start* natives) ----
+		// A struct parameter arrives as this wrapper; the `= None` default makes it optional.
+		using SceneOptionsArg = std::optional<RE::BSScript::structure_wrapper<"OSFTypes", "SceneOptions">>;
 
 		// SceneOption defaults. Keep in sync with OSF.psc
 		struct SceneOpts
@@ -444,18 +444,12 @@ namespace OSF::Papyrus
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
 	{
-		// Force-load the OSF script type so its nested SceneOptions struct is registered BEFORE we bind
-		// the struct-typed Start* natives below — else the struct lookup inside BindNativeMethod
-		// (structure_wrapper<"OSF","SceneOptions"> -> GetScriptStructType "OSF#SceneOptions") fails with
-		// "failed to get type info for structure" and StartScene / StartSceneByTags / StartSceneByTagsQuery
-		// silently don't register. GetScriptObjectType (vs ...NoLoad) links the .pex + its struct types.
-		// REQUIRES OSF.psc to be a NORMAL script, not `Native` — the VM never loads a Native script's .pex
-		// structs (it treats Native scripts like Utility/Game as engine-provided). See dist/Scripts/Source/OSF.psc.
+		// Force-load the OSFTypes script type so its SceneOptions struct is registered BEFORE we bind the struct-typed Start* natives below
 		{
-			RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> osfType;
-			if (!a_vm->GetScriptObjectType(RE::BSFixedString(SCRIPT_NAME.data()), osfType) || !osfType) {
+			RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> typesType;
+			if (!a_vm->GetScriptObjectType(RE::BSFixedString(TYPES_SCRIPT_NAME.data()), typesType) || !typesType) {
 				REX::WARN("RegisterFunctions: could not preload '{}' type info — struct-typed natives "
-						  "(StartScene/StartSceneByTags/StartSceneByTagsQuery) may fail to register", SCRIPT_NAME);
+						  "(StartScene/StartSceneByTags/StartSceneByTagsQuery) may fail to register", TYPES_SCRIPT_NAME);
 			}
 		}
 

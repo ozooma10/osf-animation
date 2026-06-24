@@ -1,4 +1,4 @@
-ScriptName OSF Hidden
+ScriptName OSF Native Hidden
 
 ; OSF Animation - native animation and scene framework for Starfield.
 
@@ -6,26 +6,17 @@ ScriptName OSF Hidden
 ; The handle is used for scene-specific operations (navigation, callbacks, stop) and queries (id/node/participants). 
 ; A scene ends when its graph(s) finish or are stopped; the handle becomes invalid and queries return sentinels (e.g. "").
 
-; --- Scene options ------------------------------------------------------------
-; Optional modifiers shared by the Start* functions. Pass None (the default) for the common case; 
-Struct SceneOptions
-    ObjectReference Anchor    ; world-anchor the scene at this ref (furniture/bed/marker) instead of co-locating at akActors[0]. Ignored by StartSceneFiles.
-    float HeadingDeg = -1.0   ; anchor heading in DEGREES; < 0 = use Anchor's own heading
-    int Stage = 0             ; StartScene by-id / pack: start stage (ignored by def-backed graphs)
-    float Speed = 1.0         ; StartSceneFiles: playback speed
-    float BlendIn = 0.4       ; StartSceneFiles: blend-in seconds
-EndStruct
 
 ; Matchmake by tags + role/gender fit across scene defs and packs in registry, chosen by priority tier + weighted-random, and start it.
 ; Returns the scene handle (0 = no match);
 ; recover the chosen scene id with GetSceneId(handle).
-int Function StartSceneByTags(Actor[] akActors, string[] asTags, SceneOptions akOpts = None) Global Native
+int Function StartSceneByTags(Actor[] akActors, string[] asTags, OSFTypes:SceneOptions akOpts = None) Global Native
 
 ; Start a specific scene by id. akOpts.Stage = start stage (packs; ignored by def graphs);
-int Function StartScene(Actor[] akActors, string asSceneId, SceneOptions akOpts = None) Global Native
+int Function StartScene(Actor[] akActors, string asSceneId, OSFTypes:SceneOptions akOpts = None) Global Native
 
 ; Boolean-query form of StartSceneByTags: asAllOf (every tag must match) + asAnyOf (at least one; empty = ignored) + asNoneOf (none may match).
-int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, SceneOptions akOpts = None) Global Native
+int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, OSFTypes:SceneOptions akOpts = None) Global Native
 
 ; Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i] (equal lengths; every declared role must be filled exactly once).
 ; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
