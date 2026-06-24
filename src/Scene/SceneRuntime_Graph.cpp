@@ -334,12 +334,17 @@ namespace OSF::Scene
 
 	void SceneRuntime::EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
 	{
-		if (a_defId.empty()) {
-			return;  // only def scenes can declare a playerControl block (pack/files cannot)
+		// Input control is ENABLED BY DEFAULT (like lockPlayer/stripActors). A def scene can opt out / narrow via its playerControl block; 
+		// pack/files scenes (empty defId) always get the default.
+		Registry::PlayerControl pc;  // enabled, all capabilities, not locked
+		if (!a_defId.empty()) {
+			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId)) {
+				pc = def->playerControl;
+			}
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId);
-		if (!def || !def->playerControl.present) {
-			return;  // scene grants no player control — no native input channel (current behavior)
+		if (!pc.enabled || pc.capabilities == 0) {
+			REX::INFO("SceneRuntime: scene {:#010x} playerControl disabled by scene config", a_handle);
+			return;  // scene opted out (or disabled every capability) — no input channel
 		}
 		// v1: the local human drives only when they're a participant (director mode — a non-participant
 		// player driving an NPC-only scene — is a later addition; controlRole is parsed but unused here).
@@ -347,16 +352,15 @@ namespace OSF::Scene
 		const bool hasPlayer = player &&
 			std::find(a_participants.begin(), a_participants.end(), static_cast<RE::Actor*>(player)) != a_participants.end();
 		if (!hasPlayer) {
-			REX::INFO("SceneRuntime: scene {:#010x} playerControl skipped — player not a participant", a_handle);
-			return;
+			return;  // NPC-only scene — no local input to drive it (nothing to engage)
 		}
 		Input::Grant grant;
 		grant.handle = a_handle;
-		grant.caps = def->playerControl.caps;
+		grant.capabilities = pc.capabilities;
 		grant.driver = player;
-		grant.locked = def->playerControl.locked;
+		grant.locked = pc.locked;
 		RecordInputChannel(a_handle, grant);
-		REX::INFO("SceneRuntime: scene {:#010x} playerControl engaged (caps {:#x}, locked {})", a_handle, grant.caps, grant.locked);
+		REX::INFO("SceneRuntime: scene {:#010x} playerControl engaged (capabilities {:#x}, locked {})", a_handle, grant.capabilities, grant.locked);
 	}
 
 	void SceneRuntime::ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
@@ -511,8 +515,9 @@ namespace OSF::Scene
 			ReleaseSlot(handle);  // play failed after mint — no events fired yet, just free it
 			return 0;
 		}
-		EngageDefaultPlayerLock(handle, "", a_participants);  // pack scene: no def to opt out via
-		StripDefaultActors(handle, "", a_participants);       // pack scene: always strips participants
+		EngageDefaultPlayerLock(handle, "", a_participants);     // pack scene: no def to opt out via
+		StripDefaultActors(handle, "", a_participants);         // pack scene: always strips participants
+		EngageDefaultPlayerControl(handle, "", a_participants);  // pack scene: default-on input (all capabilities)
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}
@@ -535,8 +540,9 @@ namespace OSF::Scene
 			ReleaseSlot(handle);
 			return 0;
 		}
-		EngageDefaultPlayerLock(handle, "", a_participants);  // files scene: no def to opt out via
-		StripDefaultActors(handle, "", a_participants);       // files scene: always strips participants
+		EngageDefaultPlayerLock(handle, "", a_participants);     // files scene: no def to opt out via
+		StripDefaultActors(handle, "", a_participants);         // files scene: always strips participants
+		EngageDefaultPlayerControl(handle, "", a_participants);  // files scene: default-on input (all capabilities)
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}

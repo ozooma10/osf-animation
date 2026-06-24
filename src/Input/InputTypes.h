@@ -21,7 +21,16 @@ namespace OSF::Input
 		kEnd = 1u << 5,         // end the scene (subject to playerControl.locked)
 	};
 
-	// Map an `allow` string to its capability bit; 0 if unrecognized (caller warns).
+	// Every capability bit, the default grant when a scene doesn't opt out. Input control is ON by default; a scene narrows this set via `playerControl.disable`.
+	inline constexpr std::uint32_t kAllCapabilities =
+		static_cast<std::uint32_t>(Capability::kAdvance) |
+		static_cast<std::uint32_t>(Capability::kNavigate) |
+		static_cast<std::uint32_t>(Capability::kSpeed) |
+		static_cast<std::uint32_t>(Capability::kReposition) |
+		static_cast<std::uint32_t>(Capability::kFreecam) |
+		static_cast<std::uint32_t>(Capability::kEnd);
+
+	// Map a capability name (in `allow`/`disable`) to its bit; 0 if unrecognized (caller warns).
 	inline std::uint32_t CapabilityBit(std::string_view a_name)
 	{
 		if (a_name == "advance") return static_cast<std::uint32_t>(Capability::kAdvance);
@@ -69,7 +78,7 @@ namespace OSF::Input
 	struct Grant
 	{
 		std::int32_t  handle = 0;
-		std::uint32_t caps = 0;        // OR of Capability bits the scene granted
+		std::uint32_t capabilities = 0;        // OR of Capability bits the scene granted
 		RE::Actor*    driver = nullptr;
 		bool          locked = false;  // player may not End
 	};

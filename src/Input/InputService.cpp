@@ -64,7 +64,7 @@ namespace OSF::Input
 				grant = g_grant;
 				handler = g_verbHandler;
 			}
-			if ((grant.caps & RequiredCapability(verb)) == 0) {
+			if ((grant.capabilities & RequiredCapability(verb)) == 0) {
 				return;  // scene didn't grant this capability
 			}
 			if (verb == Verb::kEnd && grant.locked) {
@@ -163,8 +163,8 @@ namespace OSF::Input
 			g_grant = a_grant;
 		}
 		g_active.store(true, std::memory_order_relaxed);
-		REX::INFO("InputService: director channel engaged for scene {:#010x} (caps {:#x}, locked {})",
-			a_grant.handle, a_grant.caps, a_grant.locked);
+		REX::INFO("InputService: director channel engaged for scene {:#010x} (capabilities {:#x}, locked {})",
+			a_grant.handle, a_grant.capabilities, a_grant.locked);
 	}
 
 	void InputService::Release(std::int32_t a_handle)

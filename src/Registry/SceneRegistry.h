@@ -4,6 +4,7 @@
 // each node references an animation id (from PackRegistry), a loop policy, and outgoing edges, plus the four track lanes (cue/action/sound/camera). 
 // Handles the graph structure, validation, and load diagnostics.
 
+#include "Input/InputTypes.h"  // PlayerControl capabilities default to Input::kAllCapabilities
 #include "Registry/PackRegistry.h"
 
 #include <functional>
@@ -151,14 +152,15 @@ namespace OSF::Registry
 		std::vector<RE::TESRace*>    races;     // empty = no race constraint
 	};
 
-	// Per-scene player-input grant, parsed from the optional `playerControl` block. present=false (the default) means no native input channel
-	// caps is an OR of OSF::Input::Capability bits (advance/navigate/speed/reposition/freecam/end).
+	// Per-scene player-input grant. Input control is ENABLED BY DEFAULT: with no `playerControl` block the player gets every capability while participating. 
+	// A scene opts out wholesale (`"playerControl": false`) or narrows it (`{ "disable": ["speed","end"], "locked": true }`).
+	// capabilities is an OR of OSF::Input::Capability bits (advance/navigate/speed/reposition/freecam/end).
 	struct PlayerControl
 	{
-		bool          present = false;
-		std::uint32_t caps = 0;
-		std::string   controlRole;     // role whose scene the local input drives ("" => the player participant)
-		bool          locked = false;  // player may not end the scene via the input channel (story scenes)
+		bool          enabled = true;                  // false => no input channel at all
+		std::uint32_t capabilities = Input::kAllCapabilities;  // capabilities granted (default: all; `disable` removes)
+		std::string   controlRole;                     // role whose scene the local input drives ("" => the player participant)
+		bool          locked = false;                  // player may not end the scene via the input channel (story scenes)
 	};
 
 	struct SceneDef
@@ -169,7 +171,7 @@ namespace OSF::Registry
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
-		PlayerControl            playerControl;  // optional opt-in director-input grant (default: absent)
+		PlayerControl            playerControl;  // director-input grant; ENABLED by default, scene opts out/narrows
 		std::vector<std::string> tags;
 		std::vector<SceneRole>   roles;
 		std::string              entry;
