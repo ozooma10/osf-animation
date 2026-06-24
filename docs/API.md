@@ -27,6 +27,10 @@ getters return sentinels (`""` / `0`).
 
 ## Starting scenes
 
+There are **four ways to pick a scene** — one function per selection method. Each takes an optional
+trailing `SceneOptions` struct (`None` = all defaults) that folds in anchoring, role binding, start
+stage, and files playback, so the common case stays a one-liner.
+
 ```papyrus
 Actor[] actors = new Actor[2]
 actors[0] = akA
@@ -44,17 +48,37 @@ int h2 = OSF.StartSceneByTags(actors, tags)
 ; Boolean query form (allOf / anyOf / noneOf — pass real empty arrays, never None):
 int h3 = OSF.StartSceneByTagsQuery(actors, allOf, anyOf, noneOf)
 
-; World-anchored at a ref (furniture / bed / marker) instead of at actors[0]:
-int h4 = OSF.StartSceneByTagsAt(actors, tags, akBed)               ; afHeadingDeg < 0 = ref's own heading
-int h5 = OSF.StartSceneByTagsQueryAt(actors, allOf, anyOf, noneOf, akBed)
-int h6 = OSF.StartSceneAt(actors, "author.scenes.demo", akBed)     ; by id, anchored
-int h7 = OSF.StartSceneRoles(actors, "author.scenes.demo", roleNames)  ; bind actors to named roles
-int h8 = OSF.StartSceneFiles(actors, files, 1.0, 0.4)              ; ad-hoc from raw clip paths
+; Ad-hoc from raw clip paths (one file per actor):
+int h4 = OSF.StartSceneFiles(actors, files)
+```
+
+`SceneOptions` carries the optional modifiers (set only the fields you need; each `Start*` reads only
+the ones that apply to it):
+
+| Field | Type | Applies to | Meaning |
+|---|---|---|---|
+| `Anchor` | `ObjectReference` | StartScene, StartSceneByTags(Query) | world-anchor at a ref (furniture/bed/marker) instead of co-locating at `actors[0]` |
+| `HeadingDeg` | `Float` | (with `Anchor`) | anchor facing in degrees; `< 0` = the ref's own heading |
+| `Stage` | `Int` | StartScene (by-id / pack) | start stage (ignored by def graphs) |
+| `Speed` / `BlendIn` | `Float` | StartSceneFiles | playback speed / blend-in seconds |
+
+`SceneOptions` holds only scalar/ref fields — **Papyrus structs can't have array members**, so named-role
+binding stays its own function, `StartSceneRoles`.
+
+```papyrus
+; World-anchored at a ref (the old StartSceneByTagsAt / StartSceneAt):
+OSF:SceneOptions opts = new OSF:SceneOptions
+opts.Anchor = akBed                                           ; opts.HeadingDeg stays -1.0 = bed's heading
+int h5 = OSF.StartScene(actors, "author.scenes.demo", opts)   ; by id, anchored
+int h6 = OSF.StartSceneByTags(actors, tags, opts)             ; matchmade, anchored
+
+; Bind actors to named roles (its own function — the role array can't live in a struct):
+int h7 = OSF.StartSceneRoles(actors, "author.scenes.demo", roleNames)
 ```
 
 > **None-array footgun:** passing a `None` array into a native that expects an array can crash. Always
 > pass a real (possibly empty) array — `new String[0]` is valid and accepted. Arrays you *receive* from
-> OSF are always real.
+> OSF are always real. (A `None` *struct* is fine — that's how an omitted `SceneOptions` arrives.)
 
 ## Stopping & state
 
