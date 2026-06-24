@@ -4,7 +4,7 @@
   //  - sound lane: one at enter (lifecycle) + one at fraction 0.1 every loop (clip-timed).
   // All play OSF/Sounds/testbeep.wav through the miniaudio device, positioned at the lead.
   // Confirms the sound mechanism + that the sound lane rides the generalized timed-mark path.
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.soundtest",
   "name": "Sound Lane Test",
   "tags": ["test", "solo"],

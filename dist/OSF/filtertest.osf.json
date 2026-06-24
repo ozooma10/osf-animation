@@ -7,7 +7,7 @@
   //      player) yields no candidate (handle 0), proving the filter gates matchmaking.
   // The 'solo' clip is a human pose and won't fit a Terrormorph rig — that's fine; this fixture
   // tests the filter/bind path (handle + log), not animation fidelity. Tag 'filter' is unique to it.
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.filtertest",
   "name": "Role Filter Test (Terrormorph race)",
   "tags": ["test", "filter"],

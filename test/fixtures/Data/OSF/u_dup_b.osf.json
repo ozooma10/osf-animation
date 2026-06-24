@@ -1,6 +1,6 @@
 {
   // Re-declares osf.u.dup -> recorded as a duplicate, dropped (first-loaded wins).
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.dup",
   "clip": "OSF/Anim/dup_b.glb"
 }

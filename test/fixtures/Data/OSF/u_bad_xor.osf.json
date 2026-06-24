@@ -1,6 +1,6 @@
 {
   // Invalid: a node declares BOTH `use` and inline `stages` (exactly one is allowed) -> rejected.
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.badxor",
   "entry": "n",
   "nodes": [

@@ -84,7 +84,7 @@ bool Function ClearAnchor(Actor akActor) Global Native
 ; The source path playing on akActor (as passed to Play), or "" if no live graph.
 string Function GetCurrentAnimation(Actor akActor) Global Native
 
-; Jump a LINEAR scene (by handle) to stage aiStage (0-based): a pack/files scene, or a graph that declares linearStages.
+; Jump a LINEAR scene (by handle) to stage aiStage (0-based): a files scene, or a scene that declares linearStages.
 ; False on a non-linear graph, out-of-range stage, or invalid handle.
 bool Function SetSceneStage(int aiScene, int aiStage) Global Native
 
@@ -102,7 +102,7 @@ bool Function StopScene(int aiScene) Global Native
 ; Actor convenience: stops the live scene akActor participates in. False if it is in none.
 bool Function StopSceneForActor(Actor akActor) Global Native
 
-; Rescans Data/OSF/**/*.json and replaces the registry. Returns the count now registered.
+; Rescans Data/OSF/**/*.osf.json and replaces the scene registry. Returns the count now registered.
 int Function ReloadPacks() Global Native
 
 ; --- Readiness handshake ------------------------------------------------------

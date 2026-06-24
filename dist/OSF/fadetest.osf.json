@@ -5,7 +5,7 @@
   // back in) BEFORE the control-lock release. Proves (a) osf.fade.out/in via the harvested
   // FadeService, (b) reversible-by-default fade (no authored fade.in needed), (c) ordered
   // reverse-replay across two mechanisms.
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.fadetest",
   "name": "Fade + Ledger Test",
   "tags": ["test", "solo"],

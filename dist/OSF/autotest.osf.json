@@ -4,7 +4,7 @@
   // 'second' (StandCover), which after its own 4s timer auto-takes a 'timer' edge to
   // "$end" — the scene ends itself. Timers are used (not loop-count) so the demo is
   // deterministic regardless of the baked-in clips' loop length.
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.autotest",
   "name": "Auto-Advance Test",
   "tags": ["test", "solo"],

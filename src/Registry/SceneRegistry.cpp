@@ -811,11 +811,11 @@ namespace OSF::Registry
 				return;
 			}
 			const auto schema = it->get<std::int64_t>();
-			if (schema != kUnifiedSchemaVersion) {
+			if (schema != kSchemaVersion) {
 				a_errors.push_back("[error] '" + fileName + "': *.osf.json schema " + std::to_string(schema) +
-					" unsupported (expected " + std::to_string(kUnifiedSchemaVersion) + ")");
+					" unsupported (expected " + std::to_string(kSchemaVersion) + ")");
 				REX::ERROR("SceneRegistry: '{}' declares osf schema {} but this build expects {} — skipped",
-					fileName, schema, kUnifiedSchemaVersion);
+					fileName, schema, kSchemaVersion);
 				return;
 			}
 

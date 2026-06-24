@@ -5,7 +5,7 @@ ScriptName OSFTypes
 Struct SceneOptions
     ObjectReference Anchor    ; world-anchor the scene at this ref (furniture/bed/marker) instead of co-locating at akActors[0]. Ignored by StartSceneFiles.
     float HeadingDeg = -1.0   ; anchor heading in DEGREES; < 0 = use Anchor's own heading
-    int Stage = 0             ; StartScene by-id / pack: start stage (ignored by def-backed graphs)
+    int Stage = 0             ; StartScene: start stage for a linear scene (ignored by graph scenes)
     float Speed = 1.0         ; StartSceneFiles: playback speed
     float BlendIn = 0.4       ; StartSceneFiles: blend-in seconds
 EndStruct

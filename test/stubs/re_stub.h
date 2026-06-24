@@ -1,10 +1,10 @@
 #pragma once
 
 // Minimal RE / REX stand-ins so the engine-independent logic translation units
-// (PackRegistry, SceneRegistry, Matchmaker) compile and link in the offline
-// `osf-tests` target WITHOUT CommonLibSF or the game.
+// (SceneRegistry, Matchmaker) compile and link in the offline `osf-tests` target
+// WITHOUT CommonLibSF or the game.
 //
-// These are NOT the real engine types — they only model the surface the three
+// These are NOT the real engine types — they only model the surface the
 // pure-logic TUs actually touch, with real, controllable behavior so unit tests
 // can construct actors/forms and exercise the binding logic. Anything that, in
 // the real build, reaches into the running game (the FormID bit-layout via

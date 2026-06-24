@@ -4,7 +4,7 @@
   // and records the snapshot in the undo ledger. There is NO authored osf.equipment.restore:
   // on stop the ledger replays and re-equips, proving cleanup doesn't depend on an authored
   // restore. Run somewhere SAFE (an interior) — the player is briefly undressed.
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.equiptest",
   "name": "Equipment Hide/Restore Test",
   "tags": ["test", "solo"],

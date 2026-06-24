@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.pbtest",
   "name": "Playback Test",
   "tags": ["test", "solo"],

@@ -1,6 +1,6 @@
 {
   // Matchmaker fixture: a second priority-0 paired scene, tagged "test" (not "scenetag").
-  "schema": 2,
+  "schema": 1,
   "id": "osf.mm.pair",
   "priority": 0,
   "tags": ["pair", "test"],

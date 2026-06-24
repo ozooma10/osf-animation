@@ -1,6 +1,6 @@
 {
   // Player-lock opt-out: lockPlayer:false; stripActors left default (on).
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.lockoff",
   "lockPlayer": false,
   "clip": "OSF/Anim/a.glb"

@@ -3,7 +3,7 @@
   // cue 'go' at clip fraction 0.1 (~2s into the 20s clip), whose trigger:go edge transitions
   // to 'second' (solo.cover); 'second' fires cue 'done' at 0.1, whose trigger:done edge ends
   // the scene ("$end"). Watch the log: CUE go -> cue-trigger -> 'second', CUE done -> $end.
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.trigtest",
   "name": "Cue Trigger Test",
   "tags": ["test", "solo"],

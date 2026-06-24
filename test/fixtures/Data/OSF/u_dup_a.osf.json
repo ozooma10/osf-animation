@@ -1,6 +1,6 @@
 {
   // First-loaded of a colliding id (sorted by filename, _a precedes _b): this one wins.
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.dup",
   "clip": "OSF/Anim/dup_a.glb"
 }

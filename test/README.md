@@ -21,7 +21,7 @@ build/windows/x64/releasedbg/osf-tests.exe
 
 ### How it builds without the game
 
-The real `PackRegistry.cpp`, `SceneRegistry.cpp`, and `Matchmaker.cpp` are compiled
+The real `SceneRegistry.cpp` and `Matchmaker.cpp` are compiled
 as-is, but the target force-includes [`stubs/test_pch.h`](stubs/test_pch.h) instead
 of `src/pch.h`. That pch substitutes [`stubs/re_stub.h`](stubs/re_stub.h) — minimal,
 real-behavior stand-ins for the handful of `RE::*` types these TUs touch (actors,

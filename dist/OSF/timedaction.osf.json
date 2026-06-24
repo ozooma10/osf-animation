@@ -5,7 +5,7 @@
   // (every loop) rides the same generalized Scene timed-mark path, proving cues still fire
   // and that within a tick the action lane is decoded before the cue lane (§1.3 ordering;
   // here they fall on different fractions so order is just confirmed not to regress).
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.timedaction",
   "name": "Timed Action Test",
   "tags": ["test", "solo"],

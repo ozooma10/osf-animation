@@ -1,6 +1,6 @@
 {
   // Minimal unified scene: a single `clip` -> one play-once stage -> one desugared node.
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.minimal",
   "clip": "OSF/Anim/wave.glb"
 }

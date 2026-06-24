@@ -1,6 +1,6 @@
 {
   // Matchmaker fixture: a single-actor scene.
-  "schema": 2,
+  "schema": 1,
   "id": "osf.mm.solo",
   "tags": ["solo", "test"],
   "roles": [ { "gender": "any" } ],

@@ -1,7 +1,7 @@
 {
   // Advanced graph: a `use` node + an inline-stages node, all four track lanes, named roles with
   // policy, a branch (finish -> $end), and a self-loop (tease -> main).
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.graph",
   "name": "Graph",
   "priority": 5,

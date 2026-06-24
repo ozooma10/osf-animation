@@ -1,6 +1,6 @@
 {
   // Invalid: an unsupported camera state -> rejected (recorded).
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.badcam",
   "entry": "n",
   "nodes": [

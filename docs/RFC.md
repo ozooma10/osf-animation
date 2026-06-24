@@ -164,7 +164,7 @@ alignment offsets (metres/degrees), and timer/loop behaviour:
 
 ```jsonc
 // Data/OSF/MyPack/dance.osf.json  — a minimal, looping solo
-{ "schema": 2,
+{ "schema": 1,
   "id": "yourname.dance.solo",
   "tags": ["dance", "solo"],
   "roles": [{ "gender": "any" }],                          // optional; else inferred from clips
@@ -180,7 +180,7 @@ connected by **edges** (auto-advance on timer/loop, branchable choices, or cue-t
 
 ```jsonc
 // Data/OSF/MyPack/greet.osf.json  — a graph scene
-{ "schema": 2,
+{ "schema": 1,
   "id": "yourname.scene.greet", "entry": "intro",
   "roles": [{ "name": "host", "gender": "any" }],
   "nodes": [{

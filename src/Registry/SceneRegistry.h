@@ -20,11 +20,8 @@
 
 namespace OSF::Registry
 {
-	// Highest scene schema version we understand. Bump only on a breaking change.
-	inline constexpr std::int64_t kSceneSchemaVersion = 1;
-
-	// Unified scene schema version
-	inline constexpr std::int64_t kUnifiedSchemaVersion = 2;
+	// Scene schema version (*.osf.json declares this). Bump only on a breaking change.
+	inline constexpr std::int64_t kSchemaVersion = 1;
 
 	enum class SlotGender : std::uint8_t
 	{

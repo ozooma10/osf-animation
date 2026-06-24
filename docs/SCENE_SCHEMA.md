@@ -10,7 +10,7 @@ allowed):
 
 All `*.osf.json` files are scanned recursively under `Data/OSF`. Bad files/entries are skipped and
 reported via `OSF.GetSceneLoadErrors()` (and the `OSF Animation.log`). The current schema version is
-**2** (`"schema": 2`).
+**1** (`"schema": 1`).
 
 A **scene** is the unified content entity an author writes (`SceneDef`). There is no separate "pack" or
 "animation" content noun anymore — a clip is just a `.glb`/`.af` file, and the thing that sequences
@@ -32,13 +32,13 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 
 ```jsonc
 // single-scene file
-{ "schema": 2, "id": "author.wave", "clip": "OSF/Anims/Wave.glb" }
+{ "schema": 1, "id": "author.wave", "clip": "OSF/Anims/Wave.glb" }
 ```
 
 ```jsonc
 // multi-scene file
 {
-  "schema": 2,
+  "schema": 1,
   "name": "My Content",                  // diagnostics only
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
@@ -62,7 +62,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 
 ```jsonc
 {
-  "schema": 2,
+  "schema": 1,
   "id": "author.playthrough",
   "name": "Solo play-through",                 // diagnostics only
   "tags": ["solo"],                            // free-form matchmaking tags
@@ -146,7 +146,7 @@ and an `entry` node id:
 
 ```jsonc
 {
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.demo",
   "name": "Demo Scene",
   "priority": 5, "weight": 2,                    // matchmaking
@@ -348,7 +348,7 @@ Surfaced via `OSF.GetSceneLoadErrors()` (`[error]`/`[warn]` prefixed):
 
 See `dist/OSF/` for runnable references:
 
-- `OSFTestPack.osf.json` — a `{ "schema": 2, "scenes": [...] }` multi-scene file: solo, paired,
+- `OSFTestPack.osf.json` — a `{ "schema": 1, "scenes": [...] }` multi-scene file: solo, paired,
   multi-stage, timed, and loop-count **linear** scenes.
 - `demo.osf.json` — a branching graph with **inline-stage** nodes and branchable `advance` edges
   (`finish` / `tease` self-loop).

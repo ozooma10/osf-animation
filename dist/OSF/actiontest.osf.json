@@ -4,7 +4,7 @@
   // and emits a custom action 'test.notify' (EVENT_ACTION); on exit it emits 'test.cleanup'.
   // There is intentionally NO osf.control.release — the lock is released by the scene-end undo
   // ledger, proving cleanup doesn't depend on an authored release.
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.actiontest",
   "name": "Action Track Test",
   "tags": ["test", "solo"],

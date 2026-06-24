@@ -1,6 +1,6 @@
 {
   // Camera-state overrides: vanity_orbit on one node, freefly on the next.
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.camstates",
   "entry": "orbit",
   "nodes": [

@@ -6,7 +6,7 @@
   //
   // Run it on an ARMED actor (draw your weapon first) — the sheathe is only meaningful when a
   // weapon is out, and restore re-draws unconditionally (author contract: sheathe armed roles).
-  "schema": 2,
+  "schema": 1,
   "id": "author.scenes.weapontest",
   "name": "Weapon Sheathe/Restore Test",
   "tags": ["test", "solo"],

@@ -1,6 +1,6 @@
 {
   // Matchmaker fixture: a high-priority paired scene.
-  "schema": 2,
+  "schema": 1,
   "id": "osf.mm.hi",
   "priority": 10,
   "tags": ["pair", "scenetag"],

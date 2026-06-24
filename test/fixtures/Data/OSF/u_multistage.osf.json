@@ -1,6 +1,6 @@
 {
   // Multi-stage linear: play-once -> timer -> loop-count. Desugars to a 3-node chain ending at $end.
-  "schema": 2,
+  "schema": 1,
   "id": "osf.u.multistage",
   "tags": ["solo"],
   "roles": [ {}, { "offset": { "y": 1.0, "heading": 180 } } ],

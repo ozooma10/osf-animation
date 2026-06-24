@@ -3,7 +3,7 @@
   // advances to the next stage (and the scene ENDS after the final stage). To hold a
   // pose or loop a clip forever, give the stage an explicit "loops": 0 (as the idle /
   // pose / manual-jump entries below do). See solo.playthrough for the new default.
-  "schema": 2,
+  "schema": 1,
   "name": "OSF Animation Test Pack",
   "scenes": [
     {

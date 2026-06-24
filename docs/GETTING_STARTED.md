@@ -19,12 +19,12 @@ Export your animation clips as GLB and place them anywhere Data-relative, conven
 `Data/OSF/Animations/<YourPack>/*.glb`.
 
 ### b. Write a minimal scene (`Data/OSF/<yourscene>.osf.json`)
-Everything you author is a **scene** (`*.osf.json`, `"schema": 2`). A minimal scene maps an **id** to
+Everything you author is a **scene** (`*.osf.json`, `"schema": 1`). A minimal scene maps an **id** to
 clip files + per-role placement + per-stage timing:
 
 ```jsonc
 {
-  "schema": 2,
+  "schema": 1,
   "id": "mypack.greet",
   "tags": ["social", "greet"],            // matchmaking tags
   "roles": [ {}, { "offset": { "y": 1.0, "heading": 180.0 } } ],  // optional; else inferred from clips
@@ -50,7 +50,7 @@ declarative immersion (camera/weapon/control/fade) with **automatic cleanup**. E
 
 ```jsonc
 {
-  "schema": 2,
+  "schema": 1,
   "id": "mypack.scenes.greet",
   "tags": ["social", "greet"],
   "roles": [ { "name": "lead", "gender": "any" }, { "name": "other", "gender": "any" } ],
