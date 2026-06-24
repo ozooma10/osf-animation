@@ -129,6 +129,40 @@ OSF_TEST_CASE(PackRegistry_untimed_stage_defaults_to_play_once)
 	}
 }
 
+OSF_TEST_CASE(PackRegistry_resolves_top_level_and_per_anim_policy)
+{
+	auto& reg = PackRegistry::GetSingleton();
+	// An animation with no policy keys (and a pack with no top-level keys) defaults both opt-outs ON,
+	// matching scene defs: a directly-played pack strips apparel and locks the player.
+	const auto* solo = Find("osf.test.solo");
+	CHECK(solo != nullptr);
+	if (solo) {
+		CHECK(solo->policy.stripActors);
+		CHECK(solo->policy.lockPlayer);
+	}
+	// pack_policy.json sets top-level stripActors:false. An animation that doesn't override it inherits
+	// that; lockPlayer, absent at both levels, stays default-on.
+	const auto* inherit = Find("osf.policy.inherit");
+	CHECK(inherit != nullptr);
+	if (inherit) {
+		CHECK(!inherit->policy.stripActors);
+		CHECK(inherit->policy.lockPlayer);
+	}
+	// A per-animation key overrides the pack default in both directions: stripActors back to true,
+	// lockPlayer opted out at the animation level.
+	const auto* over = Find("osf.policy.override");
+	CHECK(over != nullptr);
+	if (over) {
+		CHECK(over->policy.stripActors);
+		CHECK(!over->policy.lockPlayer);
+	}
+	// GetPolicy mirrors the resolved def (case-insensitive); an unknown id reads as all-default.
+	CHECK(!reg.GetPolicy("osf.policy.inherit").stripActors);
+	CHECK(reg.GetPolicy("OSF.POLICY.INHERIT").lockPlayer);
+	CHECK(reg.GetPolicy("does.not.exist").stripActors);
+	CHECK(reg.GetPolicy("does.not.exist").lockPlayer);
+}
+
 OSF_TEST_CASE(PackRegistry_rejects_bad_schema_and_dupes)
 {
 	// pack_badschema.json (schema 99) contributes nothing; its anim id is absent.

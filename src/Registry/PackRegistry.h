@@ -49,6 +49,14 @@ namespace OSF::Registry
 		std::vector<StageClip> clips;  // one per actor, index-aligned with AnimationDef::actors
 	};
 
+	// Resolved per-animation default-mechanism policy. Both mirror the scene-def opt-outs and are default-on: 
+	// Each value is resolved at load, the pack's top-level setting supplies the default, which an individual animation may override.
+	struct PackPolicy
+	{
+		bool stripActors = true;  // hide every participant's worn apparel on start (base skin kept)
+		bool lockPlayer = true;   // disable player input while the player participates
+	};
+
 	struct AnimationDef
 	{
 		std::string id;
@@ -58,6 +66,7 @@ namespace OSF::Registry
 		std::vector<std::string> tags;
 		std::vector<SlotDef> actors;
 		std::vector<StageDef> stages;  // every stage has actors.size() clips
+		PackPolicy policy;             // resolved opt-outs (pack top-level default, per-animation override)
 	};
 
 	class PackRegistry
@@ -71,6 +80,9 @@ namespace OSF::Registry
 
 		// Resolves id -> a multi-stage ScenePlan (files + placements + timer/loops), or nullopt (reason logged).
 		std::optional<Animation::ScenePlan> BuildScenePlan(std::string_view a_id, size_t a_actorCount) const;
+
+		// Resolved default-mechanism policy for animation a_id, or the all-default policy if the id is unknow.
+		PackPolicy GetPolicy(std::string_view a_id) const;
 
 		// Tag/gender matchmaking moved to OSF::Matchmaking (src/Matchmaking/Matchmaker.*), which spans BOTH this registry and the scene registry; 
 		// it reads packs via ForEachAnim below.

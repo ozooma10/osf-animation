@@ -14,6 +14,27 @@ namespace OSF::Registry
 	{
 		using OSF::Util::ToLower;
 
+		// Pack top-level policy defaults: the file's settings, applied to every animation in the pack unless that animation overrides the same key.
+		struct PackDefaults
+		{
+			bool stripActors = true;
+			bool lockPlayer = true;
+		};
+
+		// Read an optional boolean field. Absent -> a_default; present-but-not-a-boolean -> throw (the caller rejects the pack or animation). 
+		// Shared by the pack top-level defaults and the per-animation overrides so both validate identically. a_subject is the diagnostic prefix (e.g. "pack 'X'" / "'id'").
+		bool ParseBoolField(const nlohmann::json& a_json, const char* a_key, bool a_default, const std::string& a_subject)
+		{
+			const auto it = a_json.find(a_key);
+			if (it == a_json.end()) {
+				return a_default;
+			}
+			if (!it->is_boolean()) {
+				throw std::runtime_error(a_subject + ": '" + a_key + "' must be a boolean");
+			}
+			return it->get<bool>();
+		}
+
 		Animation::ParticipantPlacement ParseOffset(const nlohmann::json& a_json)
 		{
 			Animation::ParticipantPlacement p{};
@@ -25,7 +46,7 @@ namespace OSF::Registry
 			return p;
 		}
 
-		AnimationDef ParseAnimation(const nlohmann::json& a_json, const std::string& a_packName)
+		AnimationDef ParseAnimation(const nlohmann::json& a_json, const std::string& a_packName, const PackDefaults& a_defaults)
 		{
 			AnimationDef def;
 			def.id = a_json.at("id").get<std::string>();
@@ -34,6 +55,10 @@ namespace OSF::Registry
 			}
 			def.name = a_json.value("name", def.id);
 			def.pack = a_packName;
+
+			// Default-mechanism opt-outs: the pack top-level supplies the default, an animation key overrides it.
+			def.policy.stripActors = ParseBoolField(a_json, "stripActors", a_defaults.stripActors, "'" + def.id + "'");
+			def.policy.lockPlayer = ParseBoolField(a_json, "lockPlayer", a_defaults.lockPlayer, "'" + def.id + "'");
 
 			if (auto it = a_json.find("tags"); it != a_json.end()) {
 				for (const auto& tag : *it) {
@@ -205,9 +230,19 @@ namespace OSF::Registry
 				return;
 			}
 			const std::string packName = a_json.value("name", a_file.stem().string());
+			// Pack top-level policy defaults, applied to every animation unless it overrides them. A bad
+			// top-level value is a file-level problem (like a bad schema): log it and skip the whole pack.
+			PackDefaults defaults;
+			try {
+				defaults.stripActors = ParseBoolField(a_json, "stripActors", true, "pack '" + packName + "'");
+				defaults.lockPlayer = ParseBoolField(a_json, "lockPlayer", true, "pack '" + packName + "'");
+			} catch (const std::exception& e) {
+				REX::ERROR("PackRegistry: '{}' has an invalid top-level setting: {} — pack skipped", fileName, e.what());
+				return;
+			}
 			for (const auto& jAnim : a_json.at("animations")) {
 				try {
-					auto def = ParseAnimation(jAnim, packName);
+					auto def = ParseAnimation(jAnim, packName, defaults);
 					def.sourceFile = a_file;
 					auto key = ToLower(def.id);
 					if (auto it = a_state.animations.find(key); it != a_state.animations.end()) {
@@ -311,6 +346,13 @@ namespace OSF::Registry
 			plan.stages.push_back(std::move(stage));
 		}
 		return plan;
+	}
+
+	PackPolicy PackRegistry::GetPolicy(std::string_view a_id) const
+	{
+		std::shared_lock l{ lock };
+		const auto it = animations.find(ToLower(a_id));
+		return it != animations.end() ? it->second.policy : PackPolicy{};
 	}
 
 	void PackRegistry::ForEachAnim(const std::function<void(const AnimationDef&)>& a_fn) const

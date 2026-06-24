@@ -25,11 +25,15 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
 {
   "schema": 1,
   "name": "My Pack",                         // diagnostics only
+  "stripActors": true,                       // pack-wide default; hide every participant's apparel (false to opt out)
+  "lockPlayer": true,                        // pack-wide default; disable player input while participating (false to opt out)
   "animations": [
     {
       "id": "author.pack.greet",             // unique id; referenced by scenes / StartScene / tags
       "name": "Friendly greeting",
       "tags": ["social", "greet"],           // free-form; used by StartSceneByTags* matchmaking
+      "stripActors": false,                  // OPTIONAL; overrides the pack-wide default for this animation
+      "lockPlayer": false,                   // OPTIONAL; overrides the pack-wide default for this animation
       "actors": [                            // OPTIONAL; one entry per participant slot.
         { "gender": "any" },                 //   gender: "male" | "female" | "any" (or "m"/"f")
         { "gender": "any", "offset": { "y": 1.0, "heading": 180.0 } }  // default placement for this slot
@@ -74,6 +78,14 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
   e.g. `OSF/Animations/...` resolves to `Data/OSF/Animations/...`). Only *pack/scene JSON discovery* is
   restricted to `Data/OSF`.
 - A multi-stage pack is a **linear scene**: `OSF.GetSceneStage`/`SetSceneStage` work on it by handle.
+- **`stripActors` / `lockPlayer`** are the pack equivalents of the scene opt-outs (see *Actor strip* /
+  *Player input lock* below). Both default **on**, so a pack played directly (`StartScene`/`StartSceneByTags`
+  on a pack id) strips every participant's apparel and locks the player exactly like a scene. They resolve
+  **pack top-level → per-animation**: the file-level value is the default for every animation, and an
+  individual animation may override either key. (Before, packs had no field to opt out via.) These govern
+  only the **directly-played** pack — when a pack animation is a node inside a `*.scene.json`, the **scene's**
+  own `stripActors`/`lockPlayer` apply. An invalid (non-boolean) top-level value skips the whole pack; an
+  invalid per-animation value skips just that animation (both logged).
 
 ---
 

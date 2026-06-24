@@ -307,11 +307,12 @@ namespace OSF::Scene
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);
 
-		// Default player lock on scene start: when the player is among a_participants and the scene hasn't opted out (def `lockPlayer:false`)
-		void EngageDefaultPlayerLock(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+		// Default player lock on scene start: when the player is among a_participants and policy keeps it on. 
+		// The caller resolves a_lockPlayer from the scene def (`lockPlayer`) or pack;
+		void EngageDefaultPlayerLock(std::int32_t a_handle, bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants);
 
-		// Default actor strip on scene start: unless the scene opts out (def `stripActors:false`), hide EVERY participant's worn apparel
-		void StripDefaultActors(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
+		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants);
 
 		// Player director-input on scene start: when the def declares a `playerControl` block and the player is a participant, hand the InputService a Grant (ledger-tracked via kInputChannel so it releases on any termination). 
 		// No-op for non-def / no playerControl / player-absent scenes.

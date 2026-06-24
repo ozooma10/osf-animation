@@ -463,38 +463,48 @@ namespace OSF::Registry
 				}
 				def.stripActors = it->get<bool>();
 			}
+			// Input control is enabled-by-default (def.playerControl starts enabled with all capabilities).
+			// `"playerControl": false` turns it off; an object narrows it via `disable`/`locked`.
 			if (auto it = a_json.find("playerControl"); it != a_json.end()) {
-				if (!it->is_object()) {
-					throw std::runtime_error("scene '" + def.id + "': 'playerControl' must be an object");
-				}
-				def.playerControl.present = true;
-				if (auto a = it->find("allow"); a != it->end()) {
-					if (!a->is_array()) {
-						throw std::runtime_error("scene '" + def.id + "': 'playerControl.allow' must be an array of strings");
-					}
-					for (const auto& v : *a) {
-						if (!v.is_string()) {
-							throw std::runtime_error("scene '" + def.id + "': 'playerControl.allow' entries must be strings");
+				if (it->is_boolean()) {
+					def.playerControl.enabled = it->get<bool>();
+				} else if (it->is_object()) {
+					if (auto en = it->find("enabled"); en != it->end()) {
+						if (!en->is_boolean()) {
+							throw std::runtime_error("scene '" + def.id + "': 'playerControl.enabled' must be a boolean");
 						}
-						const auto name = v.get<std::string>();
-						const auto bit = Input::CapabilityBit(name);
-						if (bit == 0) {
-							REX::WARN("scene '{}': unknown playerControl capability '{}' — ignored (typo, or a newer OSF Animation?)", def.id, name);
+						def.playerControl.enabled = en->get<bool>();
+					}
+					if (auto d = it->find("disable"); d != it->end()) {
+						if (!d->is_array()) {
+							throw std::runtime_error("scene '" + def.id + "': 'playerControl.disable' must be an array of strings");
 						}
-						def.playerControl.caps |= bit;
+						for (const auto& v : *d) {
+							if (!v.is_string()) {
+								throw std::runtime_error("scene '" + def.id + "': 'playerControl.disable' entries must be strings");
+							}
+							const auto name = v.get<std::string>();
+							const auto bit = Input::CapabilityBit(name);
+							if (bit == 0) {
+								REX::WARN("scene '{}': unknown playerControl capability '{}' — ignored (typo, or a newer OSF Animation?)", def.id, name);
+							}
+							def.playerControl.capabilities &= ~bit;  // remove from the default-all set
+						}
 					}
-				}
-				if (auto r = it->find("controlRole"); r != it->end()) {
-					if (!r->is_string()) {
-						throw std::runtime_error("scene '" + def.id + "': 'playerControl.controlRole' must be a string");
+					if (auto r = it->find("controlRole"); r != it->end()) {
+						if (!r->is_string()) {
+							throw std::runtime_error("scene '" + def.id + "': 'playerControl.controlRole' must be a string");
+						}
+						def.playerControl.controlRole = r->get<std::string>();
 					}
-					def.playerControl.controlRole = r->get<std::string>();
-				}
-				if (auto lk = it->find("locked"); lk != it->end()) {
-					if (!lk->is_boolean()) {
-						throw std::runtime_error("scene '" + def.id + "': 'playerControl.locked' must be a boolean");
+					if (auto lk = it->find("locked"); lk != it->end()) {
+						if (!lk->is_boolean()) {
+							throw std::runtime_error("scene '" + def.id + "': 'playerControl.locked' must be a boolean");
+						}
+						def.playerControl.locked = lk->get<bool>();
 					}
-					def.playerControl.locked = lk->get<bool>();
+				} else {
+					throw std::runtime_error("scene '" + def.id + "': 'playerControl' must be a boolean or an object");
 				}
 			}
 			def.entry = a_json.value("entry", std::string{});

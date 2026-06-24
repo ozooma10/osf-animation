@@ -39,7 +39,8 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 - **Scene** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
 - **PackRegistry** (`src/Registry/PackRegistry.*`) — loads SLAL-shaped JSON animation packs from
-  `Data/OSF/**` (mechanical schema only; content fields ignored — policy lives in `*.scene.json`).
+  `Data/OSF/**` (mechanical schema; content fields ignored). Carries the `stripActors`/`lockPlayer`
+  default-mechanism opt-outs (resolved pack top-level → per-animation); richer policy lives in `*.scene.json`.
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —
   standalone locks (input-disable + AI-driven + third-person hold).
   Engaged **by default at scene start when the player is a participant** (the runtime calls
@@ -61,6 +62,8 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
   **Scene-start defaults** (`EngageDefaultPlayerLock` / `StripDefaultActors`, called once per start in each
   `Start*` funnel): lock the player's input when they participate (opt out `lockPlayer:false`) and strip
   every participant's apparel (opt out `stripActors:false`); both ledger-tracked so they auto-reverse on end.
+  The caller resolves each opt-out — from the `SceneDef` for a def scene, the `PackPolicy` for a pack — and
+  passes the booleans in; a files scene has no field, so both stay on.
 - **SceneEventRelay** (`src/Scene/SceneEventRelay.*`) - token registry + async C++->Papyrus dispatch of
   the `OSFEvent:SceneEvent` struct.
 - **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `SceneRegistry` defs
