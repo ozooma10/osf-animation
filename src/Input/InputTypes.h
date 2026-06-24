@@ -55,6 +55,20 @@ namespace OSF::Input
 		kEnd,         // -> SceneRuntime::Stop            (cap kEnd, blocked if Grant.locked)
 	};
 
+	// Human-readable verb name for logging.
+	inline const char* VerbName(Verb a_verb)
+	{
+		switch (a_verb) {
+		case Verb::kAdvance:    return "Advance";
+		case Verb::kSpeedUp:    return "SpeedUp";
+		case Verb::kSpeedDown:  return "SpeedDown";
+		case Verb::kSpeedReset: return "SpeedReset";
+		case Verb::kPause:      return "Pause";
+		case Verb::kEnd:        return "End";
+		default:                return "None";
+		}
+	}
+
 	// The capability a verb requires (0 for kNone).
 	inline std::uint32_t RequiredCapability(Verb a_verb)
 	{

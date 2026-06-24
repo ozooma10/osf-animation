@@ -50,6 +50,10 @@ namespace OSF::Input
 				return;  // press edge only (no release / held-repeat verbs in v1)
 			}
 			const Verb verb = VerbForKeyboard(a_event->idCode);
+
+			REX::INFO("InputService: input event device {} idCode {:#x} value {:.2f} -> verb {}",
+				static_cast<std::uint32_t>(a_event->deviceType), a_event->idCode, a_event->value, VerbName(verb));
+
 			if (verb == Verb::kNone) {
 				return;
 			}
@@ -163,8 +167,7 @@ namespace OSF::Input
 			g_grant = a_grant;
 		}
 		g_active.store(true, std::memory_order_relaxed);
-		REX::INFO("InputService: director channel engaged for scene {:#010x} (capabilities {:#x}, locked {})",
-			a_grant.handle, a_grant.capabilities, a_grant.locked);
+		REX::INFO("InputService: director channel engaged for scene {:#010x} (capabilities {:#x}, locked {})", a_grant.handle, a_grant.capabilities, a_grant.locked);
 	}
 
 	void InputService::Release(std::int32_t a_handle)
