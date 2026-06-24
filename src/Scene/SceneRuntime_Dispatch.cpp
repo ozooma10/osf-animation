@@ -36,7 +36,7 @@ namespace OSF::Scene
 		}
 
 		// Logged so the lifecycle is visible even with no registered receiver; the relay
-		// delivers the OSFEvent:SceneEvent struct to any that are registered.
+		// delivers the OSFTypes:SceneEvent struct to any that are registered.
 		REX::INFO("SceneRuntime: scene {:#010x} event {:#x} node='{}' anchor='{}'", a_handle, a_event, a_node, a_anchor);
 		SceneEvent e;
 		e.scene = a_handle;

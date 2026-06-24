@@ -110,8 +110,8 @@ Linear scenes (packs / `linearStages`) also support `GetSceneStage`/`SetSceneSta
 
 ## Scene-event callbacks
 
-Register a receiver to get `OSFEvent:SceneEvent` structs (see
-[dist/Scripts/Source/OSFEvent.psc](../dist/Scripts/Source/OSFEvent.psc)). Dispatch is **asynchronous**
+Register a receiver to get `OSFTypes:SceneEvent` structs (see
+[dist/Scripts/Source/OSFTypes.psc](../dist/Scripts/Source/OSFTypes.psc)). Dispatch is **asynchronous**
 — the payload is a snapshot struct (no dispatch-time getters).
 
 ```papyrus
@@ -120,7 +120,7 @@ int token = OSF.RegisterSceneCallback(Self, "OnSceneEvent", 0, OSF.EVENT_ALL())
 ...
 OSF.UnregisterSceneCallback(token)
 
-Function OnSceneEvent(OSFEvent:SceneEvent akEvent)
+Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
     If akEvent.eventType == OSF.EVENT_SCENE_END()
         Actor a = akEvent.actorRef
         ; akEvent fields: sceneHandle, eventType, node, edge, cue, actionType,
@@ -168,5 +168,5 @@ graphs), `PlaySequence` (solo multi-phase), `GetCurrentAnimation`.
 
 Pre-1.0 (`0.x`) the surface is still settling and may change between releases. From **1.0** on, natives
 are never removed or re-signatured within a major version (minor versions only **add**). The
-`OSFEvent:SceneEvent` struct member set is part of the ABI — new fields append at the end, so old
+`OSFTypes:SceneEvent` struct member set is part of the ABI — new fields append at the end, so old
 callbacks keep working.

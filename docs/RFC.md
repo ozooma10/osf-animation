@@ -209,7 +209,7 @@ introspection (roles, gender, tags, actor count) so you can bind correctly, and 
 
 ### D. React to scenes & define your own verbs — *integrators*
 **What you ship:** a Papyrus script that registers a callback.
-`RegisterSceneCallback(receiver, fn, sceneFilter, eventMask)` delivers `OSFEvent:SceneEvent` structs
+`RegisterSceneCallback(receiver, fn, sceneFilter, eventMask)` delivers `OSFTypes:SceneEvent` structs
 for node-enter/exit, cues, actions, scene-end/abort. Delivery is async and non-reentrant — your
 handler can safely call back in.
 
@@ -228,7 +228,7 @@ an unknown `yourmod.*` type, so instead of running it, it forwards it to you:
 Then register a receiver and handle it in Papyrus:
 
 ```papyrus
-Function OnSceneEvent(OSFEvent:SceneEvent akEvent)
+Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
     If akEvent.actionType == "yourmod.spawnProp"
         Actor host = akEvent.actorRef        ; the actor bound to role "host"
         ; …spawn your prop, fire an fx, set a quest stage — whatever it means to you

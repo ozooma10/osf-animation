@@ -13,7 +13,7 @@ namespace OSF::Scene
 	{
 		using VM = RE::BSScript::Internal::VirtualMachine;
 
-		// Build the OSFEvent:SceneEvent struct payload. Map member name -> slot index by
+		// Build the OSFTypes:SceneEvent struct payload. Map member name -> slot index by
 		// ITERATING varNameIndexMap: the compiler REORDERS struct members (declaration order
 		// != slot order — verified in-game), and the map's `find` proved unreliable on this
 		// BSFixedString-keyed table (only hash-coincidence members hit, both with string_view
@@ -22,8 +22,8 @@ namespace OSF::Scene
 		bool PackPayload(VM* a_vm, const SceneEvent& a_event, RE::BSScript::Variable& a_out)
 		{
 			RE::BSTSmartPointer<RE::BSScript::Struct> proxy;
-			if (!a_vm->CreateStruct("OSFEvent#SceneEvent", proxy) || !proxy || !proxy->type) {
-				REX::WARN("SceneEventRelay: OSFEvent:SceneEvent struct type not loaded");
+			if (!a_vm->CreateStruct("OSFTypes#SceneEvent", proxy) || !proxy || !proxy->type) {
+				REX::WARN("SceneEventRelay: OSFTypes:SceneEvent struct type not loaded");
 				return false;
 			}
 
@@ -38,7 +38,7 @@ namespace OSF::Scene
 				if (it != index.end() && it->second < count) {
 					proxy->variables[it->second] = a_val;
 				} else {
-					REX::WARN("SceneEventRelay: member '{}' not found in OSFEvent:SceneEvent", a_member);
+					REX::WARN("SceneEventRelay: member '{}' not found in OSFTypes:SceneEvent", a_member);
 				}
 			};
 
@@ -123,7 +123,7 @@ namespace OSF::Scene
 		e.eventMask = (a_eventMask == 0) ? Event::kAll : a_eventMask;
 
 		const std::int32_t token = MakeToken(gen, slot);
-		REX::INFO("SceneEventRelay: registered token {:#010x} -> {}(OSFEvent:SceneEvent) (mask {:#x}, scene {})",
+		REX::INFO("SceneEventRelay: registered token {:#010x} -> {}(OSFTypes:SceneEvent) (mask {:#x}, scene {})",
 			token, e.fn.c_str(), e.eventMask, e.sceneFilter);
 		return token;
 	}

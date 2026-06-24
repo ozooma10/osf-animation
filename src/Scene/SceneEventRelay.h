@@ -6,8 +6,8 @@
 // (DispatchStaticCall / DispatchMethodCall) queue a Papyrus stack on the VM scheduler and
 // return immediately, so the receiver runs later, off this stack. That rules out a
 // "dispatch-time getter" model, so instead we snapshot the payload into an
-// `OSFEvent:SceneEvent` struct argument (receiver signature
-// `Function MyFn(OSFEvent:SceneEvent akEvent)`). The async dispatch also gives us,
+// `OSFTypes:SceneEvent` struct argument (receiver signature
+// `Function MyFn(OSFTypes:SceneEvent akEvent)`). The async dispatch also gives us,
 // for free, the guarantee that callbacks aren't reentrant and any mutations they make
 // land later.
 
@@ -25,7 +25,7 @@ namespace OSF::Scene
 	}
 
 	// One scene event, snapshotted and dispatched to registered Papyrus callbacks as an
-	// OSFEvent:SceneEvent struct. Member names are frozen with the ABI; PackPayload maps
+	// OSFTypes:SceneEvent struct. Member names are frozen with the ABI; PackPayload maps
 	// those names to the compiler-reordered struct slots. Fields irrelevant to a given event
 	// keep their defaults.
 	struct SceneEvent
@@ -51,7 +51,7 @@ namespace OSF::Scene
 	public:
 		static SceneEventRelay& GetSingleton();
 
-		// Register a_receiver.a_fn(OSFEvent:SceneEvent) for events whose bit is set in
+		// Register a_receiver.a_fn(OSFTypes:SceneEvent) for events whose bit is set in
 		// a_eventMask and (when a_sceneFilter != 0) whose scene == a_sceneFilter. Returns a
 		// generational token (0 = failed: null receiver or no VM).
 		std::int32_t Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn,
@@ -60,7 +60,7 @@ namespace OSF::Scene
 		// Remove the registration for a_token. False if the token is stale/invalid.
 		bool Unregister(std::int32_t a_token);
 
-		// Snapshot a_event into an OSFEvent:SceneEvent and DispatchMethodCall every matching
+		// Snapshot a_event into an OSFTypes:SceneEvent and DispatchMethodCall every matching
 		// receiver, in registration order. Safe from any thread.
 		void Dispatch(const SceneEvent& a_event);
 

@@ -24,9 +24,9 @@ int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRole
 
 
 ; --- Scene-event callbacks (OSFTypes:SceneEvent payload) ----------------------
-; Register akReceiver.asFn(OSFTypes:SceneEvent) for events whose bit is set in aiEventMask (when aiScene != 0) whose scene handle == aiScene. 
-; Returns a generational token (0 = failed). 
-; Function OnSceneEvent(OSFEvent:SceneEvent akEvent)   ; on akReceiver's script
+; Register akReceiver.asFn(OSFTypes:SceneEvent) for events whose bit is set in aiEventMask (when aiScene != 0) whose scene handle == aiScene.
+; Returns a generational token (0 = failed).
+; Function OnSceneEvent(OSFTypes:SceneEvent akEvent)   ; on akReceiver's script
 int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 
@@ -112,7 +112,7 @@ int Function EVENT_ALL() Global
     return 65535
 EndFunction
 
-; Result codes (OSFEvent.Result).
+; Result codes (decode OSFTypes:SceneEvent.result).
 int Function RESULT_OK() Global
     return 0
 EndFunction

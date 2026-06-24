@@ -10,9 +10,10 @@ Struct SceneOptions
     float BlendIn = 0.4       ; StartSceneFiles: blend-in seconds
 EndStruct
 
-; The scene-event payload struct, delivered to a RegisterSceneCallback receiver:
+; The scene-event payload struct, delivered to a RegisterSceneCallback receiver. The native relay
+; marshals into this type via CreateStruct("OSFTypes#SceneEvent"):
 ;
-;   Function OnSceneEvent(OSFEvent:SceneEvent akEvent)
+;   Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
 ;       If akEvent.eventType == OSF.EVENT_NODE_ENTER()
 ;           Actor a = akEvent.actorRef
 ;           ...
