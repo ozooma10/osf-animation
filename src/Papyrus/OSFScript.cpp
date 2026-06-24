@@ -444,6 +444,21 @@ namespace OSF::Papyrus
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
 	{
+		// Force-load the OSF script type so its nested SceneOptions struct is registered BEFORE we bind
+		// the struct-typed Start* natives below — else the struct lookup inside BindNativeMethod
+		// (structure_wrapper<"OSF","SceneOptions"> -> GetScriptStructType "OSF#SceneOptions") fails with
+		// "failed to get type info for structure" and StartScene / StartSceneByTags / StartSceneByTagsQuery
+		// silently don't register. GetScriptObjectType (vs ...NoLoad) links the .pex + its struct types.
+		// REQUIRES OSF.psc to be a NORMAL script, not `Native` — the VM never loads a Native script's .pex
+		// structs (it treats Native scripts like Utility/Game as engine-provided). See dist/Scripts/Source/OSF.psc.
+		{
+			RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> osfType;
+			if (!a_vm->GetScriptObjectType(RE::BSFixedString(SCRIPT_NAME.data()), osfType) || !osfType) {
+				REX::WARN("RegisterFunctions: could not preload '{}' type info — struct-typed natives "
+						  "(StartScene/StartSceneByTags/StartSceneByTagsQuery) may fail to register", SCRIPT_NAME);
+			}
+		}
+
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);

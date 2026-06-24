@@ -18,6 +18,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -630,6 +631,13 @@ namespace OSF::Serialization
 	AFLoadResult AFImport::LoadAnimation(const std::filesystem::path& a_afFile, const std::filesystem::path& a_rigFile)
 	{
 		const std::string rigKey = NormKey(a_rigFile);
+		return LoadAnimation(a_afFile, rigKey, [a_rigFile]() { return ReadFile(a_rigFile); });
+	}
+
+	AFLoadResult AFImport::LoadAnimation(const std::filesystem::path& a_afFile, std::string_view a_rigKey,
+		const RigBytesProvider& a_rigProvider)
+	{
+		const std::string rigKey{ a_rigKey };
 		const std::string clipKey = NormKey(a_afFile) + '|' + rigKey;
 
 		{
@@ -642,7 +650,7 @@ namespace OSF::Serialization
 
 		AFLoadResult result;
 
-		// Rig (cached, shared across clips): parse + ozz skeleton.
+		// Rig (cached, shared across clips): parse + ozz skeleton. Fetched via the provider only here.
 		std::shared_ptr<RigData> rig;
 		std::shared_ptr<const Animation::OzzSkeleton> skeleton;
 		{
@@ -653,10 +661,13 @@ namespace OSF::Serialization
 			}
 		}
 		if (!rig) {
-			auto rigBytes = ReadFile(a_rigFile);
+			std::optional<std::vector<unsigned char>> rigBytes;
+			if (a_rigProvider) {
+				rigBytes = a_rigProvider();
+			}
 			if (!rigBytes) {
 				result.error = AFError::kRigReadFailed;
-				result.detail = "skeleton.rig missing or unreadable";
+				result.detail = "skeleton.rig unavailable (no loose file and not found in any BA2)";
 				return result;
 			}
 			auto parsed = std::make_shared<RigData>();

@@ -23,8 +23,12 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 - **AFImport** (`src/Serialization/AFImport.*`) — Starfield engine-native `.af` + `skeleton.rig` → ozz
   skeleton + runtime anim (same output shape as GLTFImport, so it plays through Graph). Decodes the
   quantized rest-relative tracks (ported from CALUMI) and re-bases to absolute local (`local = bind ∘
-  track`); lets the ozz path source `.af`/vanilla content with full clock/sync. No CLSF dep; offline
-  test: `osf-af-import-test <clip.af> <skeleton.rig>`.
+  track`); lets the ozz path source `.af`/vanilla content with full clock/sync. Rig bytes come via a
+  caller-supplied provider (GraphManager: loose file, else read from the game BA2 via `Util::Ba2`),
+  fetched once per session. No CLSF dep; offline test: `osf-af-import-test <clip.af> <skeleton.rig|@ba2>`.
+- **Ba2** (`src/Util/Ba2.*`) — minimal Starfield BA2 "GNRL" reader (header + records + name table,
+  zlib); pulls one file (the human `skeleton.rig`) out of the base archives so OSF ships no vanilla
+  asset. Ported from glb2af `ba2extract.py`; texture (DX10) archives skipped.
 - **Graph** (`src/Animation/Graph.*`) — per-actor sampler/stamper across two hooks: `Sample()`
   (advances time/stage, keeps rig binding warm) + `StampPose()` (samples ozz pose ONCE/frame, writes
   engine flat rig buffers, NiTransform ROW layout — do NOT transpose).

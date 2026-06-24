@@ -2,8 +2,12 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "Animation/OzzTypes.h"
 
@@ -42,9 +46,19 @@ namespace OSF::Serialization
 		// Playback speed can be retuned via OSF.SetSpeed.
 		static constexpr float kAfFps = 30.0f;
 
-		// Loads `a_afFile` against `a_rigFile` (the human skeleton.rig). Successful results are cached  process-wide, keyed on (af path, rig path); 
-		// the parsed rig + ozz skeleton are shared across every clip that uses the same rig.
+		// Loads `a_afFile` against `a_rigFile` (a loose skeleton.rig on disk). Successful results are
+		// cached process-wide, keyed on (af path, rig path); the parsed rig + ozz skeleton are shared.
 		static AFLoadResult LoadAnimation(const std::filesystem::path& a_afFile, const std::filesystem::path& a_rigFile);
+
+		// Source of raw skeleton.rig bytes, invoked ONLY on a rig-cache miss (keyed on a_rigKey). Lets
+		// the caller supply the rig from anywhere — a loose file or a BA2 archive read — without paying
+		// the fetch on every clip. nullopt = rig unavailable.
+		using RigBytesProvider = std::function<std::optional<std::vector<std::uint8_t>>()>;
+
+		// Loads `a_afFile` against a rig identified by `a_rigKey` (any stable string), fetching the rig
+		// bytes via `a_rigProvider` only when the rig isn't already cached.
+		static AFLoadResult LoadAnimation(const std::filesystem::path& a_afFile, std::string_view a_rigKey,
+			const RigBytesProvider& a_rigProvider);
 
 		// Drops the clip + rig caches (the OSF.ReloadPacks dev edit loop).
 		static void ClearCache();

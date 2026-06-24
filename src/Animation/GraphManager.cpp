@@ -6,6 +6,7 @@
 #include "UI/FadeService.h"
 #include "Serialization/AFImport.h"
 #include "Serialization/GLTFImport.h"
+#include "Util/Ba2.h"
 #include "Util/Math.h"
 #include "Util/StringUtil.h"
 
@@ -13,6 +14,7 @@
 #include <chrono>
 #include <cstddef>
 #include <format>
+#include <fstream>
 
 namespace OSF::Animation
 {
@@ -61,11 +63,36 @@ namespace OSF::Animation
 			return primary;
 		}
 
-		// The human skeleton.rig the .af importer maps clips onto. OSF ships it at the vanilla path
-		// under its mod folder (so MO2's VFS exposes it at Data\meshes\...). AFImport caches it once.
-		std::filesystem::path ResolveRigPath()
+		// Raw bytes of the human skeleton.rig for the .af importer. Prefers a loose file (dev / extracted),
+		// otherwise reads it straight out of the base game BA2 (Starfield - Animations.ba2) so OSF needs
+		// no shipped vanilla asset. Runs once per session — AFImport caches the parsed rig + skeleton.
+		std::optional<std::vector<std::uint8_t>> LoadHumanRigBytes()
 		{
-			return std::filesystem::current_path() / "Data" / "meshes" / "actors" / "human" / "characterassets" / "skeleton.rig";
+			const auto data = std::filesystem::current_path() / "Data";
+			const std::filesystem::path looseCandidates[] = {
+				data / "OSF" / "skeleton.rig",
+				data / "OSF" / "Animations" / "skeleton.rig",
+				data / "meshes" / "actors" / "human" / "characterassets" / "skeleton.rig",  // vanilla path, if extracted loose
+			};
+			std::error_code ec;
+			for (const auto& cand : looseCandidates) {
+				if (std::filesystem::exists(cand, ec)) {
+					std::ifstream f(cand, std::ios::binary);
+					if (f) {
+						std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+						if (!bytes.empty()) {
+							REX::INFO("AFImport rig: loose {}", cand.string());
+							return bytes;
+						}
+					}
+				}
+			}
+			if (auto b = Util::Ba2::ReadGameFile("meshes/actors/human/characterassets/skeleton.rig")) {
+				REX::INFO("AFImport rig: read from BA2 ({} bytes)", b->size());
+				return b;
+			}
+			REX::ERROR("AFImport rig: no loose skeleton.rig and none found in any Data\\*.ba2");
+			return std::nullopt;
 		}
 
 		struct ClipLoad
@@ -83,10 +110,9 @@ namespace OSF::Animation
 		{
 			ClipLoad out;
 			if (Util::ToLower(a_file.extension().string()) == ".af") {
-				const auto rig = ResolveRigPath();
-				auto r = Serialization::AFImport::LoadAnimation(a_file, rig);
+				auto r = Serialization::AFImport::LoadAnimation(a_file, "human-skeleton", &LoadHumanRigBytes);
 				if (r.error != Serialization::AFError::kSuccess) {
-					out.detail = std::format("af error {}: {} (rig {})", static_cast<int>(r.error), r.detail, rig.string());
+					out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
 					return out;
 				}
 				out.skeleton = std::move(r.skeleton);

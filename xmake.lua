@@ -67,8 +67,8 @@ target("osf-af-import-test")
     set_kind("binary")
     set_default(false)
     set_languages("c++23")
-    add_packages("ozz-animation")
-    add_files("src/Serialization/AFImport.cpp", "test/AFImportTest.cpp")
+    add_packages("ozz-animation", "zlib")
+    add_files("src/Serialization/AFImport.cpp", "src/Util/Ba2.cpp", "test/AFImportTest.cpp")
     add_includedirs("src")
 
 -- Offline unit tests for the engine-independent logic (registries, matchmaker, util, scene math). 

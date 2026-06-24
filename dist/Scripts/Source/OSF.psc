@@ -1,4 +1,4 @@
-ScriptName OSF Native Hidden
+ScriptName OSF Hidden
 
 ; OSF Animation - native animation and scene framework for Starfield.
 

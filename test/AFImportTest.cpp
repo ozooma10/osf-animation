@@ -4,6 +4,7 @@
 #include "Serialization/AFImport.h"
 
 #include "Animation/OzzTypes.h"
+#include "Util/Ba2.h"
 #include "ozz/animation/runtime/sampling_job.h"
 #include "ozz/base/span.h"
 
@@ -16,13 +17,20 @@ int main(int argc, char** argv)
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 
 	if (argc < 3) {
-		std::printf("usage: osf-af-import-test <clip.af> <skeleton.rig>\n");
+		std::printf("usage: osf-af-import-test <clip.af> <skeleton.rig | @ba2>\n");
+		std::printf("  @ba2 reads the human rig from the game BA2s (run from the Starfield install dir)\n");
 		return 2;
 	}
 
 	OSF::Serialization::AFLoadResult result;
 	try {
-		result = OSF::Serialization::AFImport::LoadAnimation(argv[1], argv[2]);
+		if (std::strcmp(argv[2], "@ba2") == 0) {
+			result = OSF::Serialization::AFImport::LoadAnimation(argv[1], "human-skeleton", []() {
+				return OSF::Util::Ba2::ReadGameFile("meshes/actors/human/characterassets/skeleton.rig");
+			});
+		} else {
+			result = OSF::Serialization::AFImport::LoadAnimation(argv[1], argv[2]);
+		}
 	} catch (const std::exception& e) {
 		std::printf("LoadAnimation threw: %s\n", e.what());
 		return 1;
