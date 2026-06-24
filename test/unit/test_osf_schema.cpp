@@ -49,9 +49,13 @@ OSF_TEST_CASE(Osf_minimal_clip_desugars_to_single_play_once_node)
 	CHECK_EQ(n.stages.size(), static_cast<size_t>(1));
 	CHECK_EQ(n.stages[0].clips.size(), static_cast<size_t>(1));
 	CHECK_EQ(n.stages[0].clips[0].file, std::string("OSF/Anim/wave.glb"));
-	CHECK_EQ(n.edges.size(), static_cast<size_t>(1));
+	// loops edge (auto-end after one play) + a default advance edge (manual step), both to $end.
+	CHECK_EQ(n.edges.size(), static_cast<size_t>(2));
 	CHECK_EQ(n.edges[0].to, std::string("$end"));
 	CHECK(n.edges[0].when == EdgeWhen::kLoops);
+	CHECK_EQ(n.edges[1].to, std::string("$end"));
+	CHECK(n.edges[1].when == EdgeWhen::kAdvance);
+	CHECK(n.edges[1].isDefault);
 }
 
 OSF_TEST_CASE(Osf_idle_stage_holds_forever)
@@ -61,12 +65,16 @@ OSF_TEST_CASE(Osf_idle_stage_holds_forever)
 	if (!def) {
 		return;
 	}
-	// loops:0 + timer:0 -> hold-forever node with no auto-advance edge.
+	// loops:0 + timer:0 -> hold-forever node with no auto-end edge, but still a default advance
+	// edge so the player can step off it manually.
 	CHECK_EQ(def->nodes.size(), static_cast<size_t>(1));
 	const auto& n = def->nodes[0];
 	CHECK(n.loopMode == LoopMode::kHold);
 	CHECK(n.loopForever);
-	CHECK_EQ(n.edges.size(), static_cast<size_t>(0));
+	CHECK_EQ(n.edges.size(), static_cast<size_t>(1));
+	CHECK(n.edges[0].when == EdgeWhen::kAdvance);
+	CHECK(n.edges[0].isDefault);
+	CHECK_EQ(n.edges[0].to, std::string("$end"));
 }
 
 OSF_TEST_CASE(Osf_multistage_desugars_to_node_chain)
@@ -81,28 +89,37 @@ OSF_TEST_CASE(Osf_multistage_desugars_to_node_chain)
 	CHECK_EQ(def->linearStages.size(), static_cast<size_t>(3));
 	CHECK_EQ(def->LinearStageOf("#s1"), 1);
 
-	// Stage 0: untimed -> play-once (count 1) -> loops edge to #s1.
+	// Stage 0: untimed -> play-once (count 1) -> loops edge to #s1, plus a default advance edge to #s1.
 	const auto& s0 = def->nodes[0];
 	CHECK_EQ(s0.id, std::string("#s0"));
 	CHECK(s0.loopMode == LoopMode::kCount);
 	CHECK_EQ(s0.loopCount, 1);
-	CHECK_EQ(s0.edges.size(), static_cast<size_t>(1));
+	CHECK_EQ(s0.edges.size(), static_cast<size_t>(2));
 	CHECK_EQ(s0.edges[0].to, std::string("#s1"));
 	CHECK(s0.edges[0].when == EdgeWhen::kLoops);
+	CHECK(s0.edges[1].when == EdgeWhen::kAdvance);
+	CHECK(s0.edges[1].isDefault);
+	CHECK_EQ(s0.edges[1].to, std::string("#s1"));
 
-	// Stage 1: timer -> hold + timer edge to #s2.
+	// Stage 1: timer -> hold + timer edge to #s2, plus a default advance edge to #s2.
 	const auto& s1 = def->nodes[1];
 	CHECK(s1.loopMode == LoopMode::kHold);
 	CHECK_NEAR(s1.timerSec, 6.0f, 1e-4f);
+	CHECK_EQ(s1.edges.size(), static_cast<size_t>(2));
 	CHECK_EQ(s1.edges[0].to, std::string("#s2"));
 	CHECK(s1.edges[0].when == EdgeWhen::kTimer);
+	CHECK(s1.edges[1].when == EdgeWhen::kAdvance);
+	CHECK_EQ(s1.edges[1].to, std::string("#s2"));
 
-	// Stage 2 (last): loop-count -> count(2) + loops edge to $end.
+	// Stage 2 (last): loop-count -> count(2) + loops edge to $end, plus a default advance edge to $end.
 	const auto& s2 = def->nodes[2];
 	CHECK(s2.loopMode == LoopMode::kCount);
 	CHECK_EQ(s2.loopCount, 2);
+	CHECK_EQ(s2.edges.size(), static_cast<size_t>(2));
 	CHECK_EQ(s2.edges[0].to, std::string("$end"));
 	CHECK(s2.edges[0].when == EdgeWhen::kLoops);
+	CHECK(s2.edges[1].when == EdgeWhen::kAdvance);
+	CHECK_EQ(s2.edges[1].to, std::string("$end"));
 
 	// Unified roles[]: anonymous slot 0, slot 1 carries a default offset.
 	CHECK_EQ(def->roles.size(), static_cast<size_t>(2));

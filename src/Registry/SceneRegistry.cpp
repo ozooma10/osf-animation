@@ -642,7 +642,15 @@ namespace OSF::Registry
 					node.edges.push_back(autoEdge(EdgeWhen::kLoops));
 				} else {
 					node.loopMode = LoopMode::kHold;
-					node.loopForever = true;  // explicit hold (timer:0, loops:0): hold until manual stage jump/stop
+					node.loopForever = true;  // explicit hold (timer:0, loops:0): hold here until the player advances
+				}
+				// Every linear stage also gets a DEFAULT advance edge so the player can step to the next
+				// stage manually (space / AdvanceScene), independent of any timer/loops auto-end above.
+				// It carries no id/label (it isn't a branch choice — AdvanceEdges skips id-less edges).
+				{
+					SceneEdge adv = autoEdge(EdgeWhen::kAdvance);
+					adv.isDefault = true;
+					node.edges.push_back(std::move(adv));
 				}
 				def.linearStages.push_back(node.id);
 				def.nodes.push_back(std::move(node));

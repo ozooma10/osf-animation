@@ -734,7 +734,10 @@ namespace OSF::Scene
 			return out;
 		}
 		for (const auto& e : node->edges) {
-			if (e.when == Registry::EdgeWhen::kAdvance) {
+			// Only id'd advance edges are navigable branch choices (Navigate matches by id). The
+			// synthetic default advance edge on a linear stage carries no id — skip it here so it
+			// doesn't show up as a blank menu entry.
+			if (e.when == Registry::EdgeWhen::kAdvance && !e.id.empty()) {
 				// labelKey (a localization token) if present, else the literal label.
 				out.push_back({ e.id, e.labelKey.empty() ? e.label : e.labelKey });
 			}
