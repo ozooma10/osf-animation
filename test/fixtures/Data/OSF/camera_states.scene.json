@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "id": "osf.scene.camerastates",
+  "name": "CameraStates",
+  "roles": [
+    { "name": "a", "gender": "male" },
+    { "name": "b", "gender": "female" }
+  ],
+  "entry": "orbit",
+  "linearStages": ["orbit", "fly"],
+  "nodes": [
+    {
+      "id": "orbit",
+      "anim": "osf.test.pair",
+      "loop": { "mode": "once" },
+      "edges": [ { "to": "fly", "when": "end" } ],
+      "tracks": {
+        "camera": [ { "state": "vanity_orbit", "at": "enter" } ]
+      }
+    },
+    {
+      "id": "fly",
+      "anim": "osf.test.pair",
+      "loop": { "mode": "hold" },
+      "loopForever": true,
+      "tracks": {
+        "camera": [ { "state": "freefly", "at": "enter" } ]
+      }
+    }
+  ]
+}

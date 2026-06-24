@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "id": "osf.bad.camera",
+  "name": "BadCamera",
+  "roles": [
+    { "name": "a", "gender": "male" },
+    { "name": "b", "gender": "female" }
+  ],
+  "entry": "n",
+  "nodes": [
+    {
+      "id": "n",
+      "anim": "osf.test.pair",
+      "loop": { "mode": "hold" },
+      "loopForever": true,
+      "tracks": {
+        "camera": [ { "state": "orbit_matrix", "at": "enter" } ]
+      }
+    }
+  ]
+}

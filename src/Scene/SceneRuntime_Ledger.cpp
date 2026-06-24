@@ -100,6 +100,10 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} camera undo — releasing the camera hold", a_handle);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
 			break;
+		case Mechanism::kCameraState:
+			REX::INFO("SceneRuntime: scene {:#010x} camera-state undo — releasing the camera override", a_handle);
+			Camera::CameraService::GetSingleton().ReleaseStateOverride();
+			break;
 		case Mechanism::kWeapon:
 			REX::INFO("SceneRuntime: scene {:#010x} weapon undo — re-drawing {} actor(s)", a_handle, weapon.size());
 			for (auto* actor : weapon) {
@@ -159,6 +163,28 @@ namespace OSF::Scene
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kWeapon) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kWeapon);  // one ledger entry; the actors accumulate
 		}
+	}
+
+	void SceneRuntime::RecordCameraState(std::int32_t a_handle, Camera::CameraMode a_mode)
+	{
+		bool firstForScene = false;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_handle);
+			if (!s) {
+				return;
+			}
+			if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kCameraState) == s->ledger.end()) {
+				s->ledger.push_back(Mechanism::kCameraState);  // one entry; the override is released once on undo
+				firstForScene = true;
+			}
+		}
+		// Drive the service OUTSIDE _lock (it takes its own lock + posts game-thread tasks).
+		auto& cam = Camera::CameraService::GetSingleton();
+		if (firstForScene) {
+			cam.AcquireStateOverride();  // capture baseline + suppress the bounce on the first holder
+		}
+		cam.SetLiveCameraState(a_mode);  // retarget the live camera every call (supports per-node switches)
 	}
 
 	void SceneRuntime::RecordInputChannel(std::int32_t a_handle, const Input::Grant& a_grant)

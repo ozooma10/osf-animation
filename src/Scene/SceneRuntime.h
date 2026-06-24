@@ -23,6 +23,11 @@ namespace OSF::Registry
 	struct SceneEdge;     // Registry/SceneRegistry.h
 }
 
+namespace OSF::Camera
+{
+	enum class CameraMode : std::uint8_t;  // Camera/CameraService.h
+}
+
 namespace OSF::Scene
 {
 	class SceneRuntime
@@ -156,7 +161,8 @@ namespace OSF::Scene
 			kControlLock,   // player control + camera lock (ref-counted across scenes)
 			kFade,          // screen fade-to-black (undo = fade back in)
 			kEquipment,     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
-			kCamera,        // held camera state (undo = release the standalone camera lock)
+			kCamera,        // held third-person camera lock (undo = release the standalone camera lock)
+			kCameraState,   // alt camera posture: free-fly / vanity orbit (undo = release the state override)
 			kWeapon,        // sheathed weapons (undo = re-draw; per-actor list in the Slot)
 			kInputChannel   // player director-input channel (undo = release the InputService grant; Grant in the Slot)
 		};
@@ -252,8 +258,8 @@ namespace OSF::Scene
 		// entries engage via OnTimedMarks instead. Call OUTSIDE _lock. No-op for a non-def scene.
 		static void DispatchLifecycleCamera(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
-		// Engage one camera state (held, ledger-tracked, auto-restored). a_hasPlayer gates it
-		// (the camera affects the player). "thirdperson_hold" -> the standalone camera lock.
+		// Engage one camera state (held, ledger-tracked, auto-restored).
+		// "thirdperson_hold" -> the standalone camera lock (kCamera); "freefly" / "vanity_orbit" -> a PlayerCamera state override (kCameraState).
 		static void RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer);
 
 		// Run a node's enter (a_enter) or exit action-track entries (the lifecycle anchors).
@@ -293,6 +299,9 @@ namespace OSF::Scene
 		// Record a weapon this scene sheathed for a_actor (osf.weapon.sheathe), adding the
 		// kWeapon ledger entry. Call OUTSIDE _lock (it locks).
 		void RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor);
+
+		// Engage an alternate camera posture (free-fly / vanity orbit) for a_handle. Call OUTSIDE _lock (it locks, then drives the service outside it).
+		void RecordCameraState(std::int32_t a_handle, Camera::CameraMode a_mode);
 
 		// Store a_grant on the slot, add the kInputChannel ledger entry (idempotent), and engage the InputService director channel. 
 		// Call OUTSIDE _lock (it locks, then engages outside it).

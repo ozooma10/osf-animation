@@ -82,6 +82,35 @@ OSF_TEST_CASE(SceneRegistry_parses_all_track_lanes)
 	CHECK_EQ(intro->cameras[0].state, std::string("thirdperson_hold"));
 }
 
+OSF_TEST_CASE(SceneRegistry_parses_camera_state_overrides)
+{
+	// camera_states.scene.json: an enter-anchored vanity_orbit on one node and freefly on the next.
+	const auto* def = SceneRegistry::GetSingleton().Find("osf.scene.camerastates");
+	CHECK(def != nullptr);
+	if (!def) {
+		return;
+	}
+	const auto* orbit = def->FindNode("orbit");
+	CHECK(orbit != nullptr);
+	if (orbit) {
+		CHECK_EQ(orbit->cameras.size(), static_cast<size_t>(1));
+		CHECK_EQ(orbit->cameras[0].state, std::string("vanity_orbit"));
+	}
+	const auto* fly = def->FindNode("fly");
+	CHECK(fly != nullptr);
+	if (fly) {
+		CHECK_EQ(fly->cameras.size(), static_cast<size_t>(1));
+		CHECK_EQ(fly->cameras[0].state, std::string("freefly"));
+	}
+}
+
+OSF_TEST_CASE(SceneRegistry_rejects_unknown_camera_state)
+{
+	// bad_camera.scene.json uses an unsupported camera state -> rejected fail-soft + recorded.
+	CHECK(SceneRegistry::GetSingleton().Find("osf.bad.camera") == nullptr);
+	CHECK(AnyErrorContains("unknown camera state"));
+}
+
 OSF_TEST_CASE(SceneRegistry_player_lock_defaults_on_and_opts_out)
 {
 	auto& reg = SceneRegistry::GetSingleton();

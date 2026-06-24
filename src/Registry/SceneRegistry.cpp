@@ -240,10 +240,12 @@ namespace OSF::Registry
 				if (ce.state.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a camera track entry is missing 'state'");
 				}
-				// Only one camera state is supported for now; free-fly/orbit/matrix aren't yet.
-				if (ToLower(ce.state) != "thirdperson_hold") {
+				// Supported camera postures: the default third-person hold, plus the PlayerCamera state overrides free-fly and vanity orbit. 
+				//@TODO: (Tethered orbit / photo mode / cinematic between-actor shots aren't wired yet.)
+				const auto stateLower = ToLower(ce.state);
+				if (stateLower != "thirdperson_hold" && stateLower != "freefly" && stateLower != "vanity_orbit") {
 					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + ce.state +
-						"' (only 'thirdperson_hold' is supported)");
+						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit')");
 				}
 				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + ce.state + "'", /*a_atRequired*/ false);
 				a_node_out.cameras.push_back(std::move(ce));

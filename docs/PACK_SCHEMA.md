@@ -185,7 +185,21 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
 | `action` | `{ "at", "type", "role", "hold", "duration", "set", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
 | `sound` | `{ "at", "sound", "role", "volume", "repeat" }` | `sound` is a Data-relative file or `"event:<name>"` Wwise spec; `role` positions it (else player). |
-| `camera` | `{ "at", "state", "repeat" }` | `state` must be `"thirdperson_hold"` (only one supported; free-fly/orbit aren't yet). |
+| `camera` | `{ "at", "state", "repeat" }` | `state` is one of `"thirdperson_hold"`, `"freefly"`, `"vanity_orbit"` (see below). Player-only (NPC scenes ignore it). |
+
+#### Camera `state` values
+All are **held** postures: ledger-tracked and auto-restored to the player's prior POV on any scene end.
+
+| `state` | Effect | Input | Notes |
+|---------|--------|-------|-------|
+| `thirdperson_hold` | Force third person and bounce the player back if they zoom to first person. | none | The default posture; also engaged automatically by the player control lock. |
+| `vanity_orbit` | Drive the camera into Starfield's auto-orbit (`kAutoVanity`) — a slow cinematic orbit. | **none** (hands-free) | Lowest-risk override; works even while the player input lock is engaged. Best for cinematic/ambient beats. |
+| `freefly` | Drive the camera into the free-fly state (`kFreeFly`) — a pilotable free camera. | player flies it | Needs the input lock relaxed to be pilotable (`lockPlayer:false`, or a future director-input grant); otherwise it floats in place. |
+
+Notes:
+- A `freefly` / `vanity_orbit` entry **suppresses the third-person bounce** while held, so it composes with the default control lock instead of fighting it.
+- Camera postures are **latching**: once a `freefly` / `vanity_orbit` override engages it holds until scene end (you can switch *between* `freefly` and `vanity_orbit` on later nodes, but not back to `thirdperson_hold` mid-scene — the hold resumes when the override releases at end).
+- `SetCameraState` (the override path) drives the Starfield camera state machine, which is **runtime-OPEN / unverified** — see `docs/RE.md`. Verify in-game before relying on `freefly` / `vanity_orbit`.
 
 ### `osf.*` action vocabulary (built-in mechanisms)
 All are **recorded in the per-handle undo ledger and auto-reversed on any scene termination** — you do

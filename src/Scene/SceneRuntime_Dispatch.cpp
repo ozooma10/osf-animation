@@ -1,6 +1,7 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Audio/SoundService.h"
+#include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
@@ -129,10 +130,21 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — no player participant, no-op", a_handle, a_state);
 			return;
 		}
-		// The one supported state. The hold is ledger-tracked (kCamera) and auto-restored on
-		// cleanup; RecordMechanism engages the ref-counted standalone lock.
-		REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — third-person hold engaged", a_handle, a_state);
-		GetSingleton().RecordMechanism(a_handle, Mechanism::kCamera);
+		// thirdperson_hold engages the ref-counted standalone lock (kCamera); freefly / vanity_orbit engage a PlayerCamera state override (kCameraState) that suppresses the hold's bounce while held.
+		const std::string state = Util::ToLower(std::string{ a_state });
+		if (state == "thirdperson_hold") {
+			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — third-person hold engaged", a_handle, a_state);
+			GetSingleton().RecordMechanism(a_handle, Mechanism::kCamera);
+		} else if (state == "freefly") {
+			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — free-fly state engaged", a_handle, a_state);
+			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kFreeFly);
+		} else if (state == "vanity_orbit") {
+			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — vanity orbit engaged", a_handle, a_state);
+			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kVanityOrbit);
+		} else {
+			// SceneRegistry validation restricts authored states to the known set; an unknown one here is a no-op.
+			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — unknown state, no-op", a_handle, a_state);
+		}
 	}
 
 	void SceneRuntime::DispatchLifecycleCamera(std::int32_t a_handle, std::string_view a_node, bool a_enter)
