@@ -31,6 +31,27 @@ int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiS
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 
 
+; --- Navigation  -------------------------------------------
+; Operate on the int handle a Start* call returned.
+
+; Take the current node's DEFAULT advance edge (or end the scene if it targets "$end").
+; False if aiScene is invalid or the current node has no default advance edge.
+bool Function AdvanceScene(int aiScene) Global Native
+
+; Take the current node's branchable advance edge whose id == asEdgeId.
+; False if aiScene is invalid or the current node has no such edge.
+bool Function NavigateScene(int aiScene, string asEdgeId) Global Native
+
+; Number of branchable (advance) edges on the current node, for building a choice menu. 0 if invalid.
+int Function GetSceneEdgeCount(int aiScene) Global Native
+
+; Id of the aiIndex-th branchable edge (0 .. GetSceneEdgeCount-1) of the current node. "" if out of range/invalid.
+string Function GetSceneEdgeId(int aiScene, int aiIndex) Global Native
+
+; Resolved label (labelKey or literal) of the aiIndex-th branchable edge of the current node. "" if out of range/invalid.
+string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
+
+
 ; --- Primitives ---------------------------------------------------------------
 
 ; True while akActor is in an animation or scene

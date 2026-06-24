@@ -464,16 +464,54 @@ namespace OSF::Papyrus
 		{
 			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
 		}
+
+		// --- Navigation (def-backed scenes) -----------------------------------------
+		// Handle-based, mirroring SetSceneStage/GetSceneStage: the SceneRuntime resolves the
+		// handle and returns contract sentinels (false / 0 / "") for an invalid or non-def scene.
+
+		// Take the current node's DEFAULT advance edge (or end the scene if it targets "$end").
+		// False if the handle is invalid or the node has no default advance edge.
+		bool AdvanceScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().Advance(a_scene);
+		}
+
+		// Take the current node's branchable advance edge whose id == asEdgeId.
+		// False if the handle is invalid or the current node has no such edge.
+		bool NavigateScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_edgeId)
+		{
+			return Scene::SceneRuntime::GetSingleton().Navigate(a_scene, a_edgeId.c_str());
+		}
+
+		// Number of branchable (advance) edges on the current node, for building a choice menu. 0 if invalid.
+		int32_t GetSceneEdgeCount(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().EdgeCount(a_scene);
+		}
+
+		// Id of the a_index-th branchable edge (0 .. count-1) of the current node. "" if out of range/invalid.
+		RE::BSFixedString GetSceneEdgeId(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
+		{
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeId(a_scene, a_index).c_str());
+		}
+
+		// Resolved label (labelKey or literal) of the a_index-th branchable edge of the current node. "" if out of range/invalid.
+		RE::BSFixedString GetSceneEdgeLabel(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
+		{
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeLabel(a_scene, a_index).c_str());
+		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
 	{
-		// Force-load the OSFTypes script type so its SceneOptions struct is registered BEFORE we bind the struct-typed Start* natives below
+		// Force-load the OSFTypes script type so its SceneOptions + SceneEvent structs are registered
+		// BEFORE we bind the struct-typed Start* natives AND before the relay's CreateStruct("OSFTypes#SceneEvent") at dispatch time.
 		{
 			RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> typesType;
 			if (!a_vm->GetScriptObjectType(RE::BSFixedString(TYPES_SCRIPT_NAME.data()), typesType) || !typesType) {
 				REX::WARN("RegisterFunctions: could not preload '{}' type info — struct-typed natives "
-						  "(StartScene/StartSceneByTags/StartSceneByTagsQuery) may fail to register", TYPES_SCRIPT_NAME);
+						  "(StartScene/StartSceneByTags/StartSceneByTagsQuery) may fail to register and "
+						  "scene-event callbacks may receive no payload", TYPES_SCRIPT_NAME);
 			}
 		}
 
@@ -484,6 +522,12 @@ namespace OSF::Papyrus
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "UnregisterSceneCallback", &UnregisterSceneCallback, true, false);
+
+		a_vm->BindNativeMethod(SCRIPT_NAME, "AdvanceScene", &AdvanceScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "NavigateScene", &NavigateScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeCount", &GetSceneEdgeCount, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeId", &GetSceneEdgeId, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeLabel", &GetSceneEdgeLabel, true, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsPlaying", &IsPlaying, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Play", &Play, true, false);
