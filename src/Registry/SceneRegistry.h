@@ -14,6 +14,9 @@ namespace OSF::Registry
 	// Highest scene schema version we understand. Bump only on a breaking change.
 	inline constexpr std::int64_t kSceneSchemaVersion = 1;
 
+	// Unified scene schema version 
+	inline constexpr std::int64_t kUnifiedSchemaVersion = 2;
+
 	enum class LoopMode : std::uint8_t
 	{
 		kOnce,   // play through, then the "end" edge
@@ -128,7 +131,10 @@ namespace OSF::Registry
 	struct SceneNode
 	{
 		std::string              id;
-		std::string              anim;         // referenced animation id (PackRegistry)
+		std::string              anim;         // LEGACY (*.scene.json): referenced animation id (PackRegistry)
+		// Unified (*.osf.json) playables — a node carries EXACTLY ONE of:
+		std::string              use;          //   reference another scene by id (the old `anim`, renamed), OR
+		std::vector<StageDef>    stages;       //   an inline clip timeline (one-off, no separate file)
 		LoopMode                 loopMode = LoopMode::kHold;
 		std::int32_t             loopCount = 0;  // when loopMode == kCount
 		float                    timerSec = 0.0f;
@@ -142,14 +148,15 @@ namespace OSF::Registry
 
 	struct SceneRole
 	{
-		std::string name;
+		std::string name;  // "" = an anonymous positional slot (unified *.osf.json; clips index-align to role order)
 		SlotGender  gender = SlotGender::kAny;
-		// Resolved role filters (resolved once at scene load via the form-ref resolver). 
-		// The role's bound actor must satisfy every PRESENT constraint; 
-		// within `keywords`/`races` it is any-of (the actor needs ANY listed keyword, and ANY listed race). 
+		// Resolved role filters (resolved once at scene load via the form-ref resolver).
+		// The role's bound actor must satisfy every PRESENT constraint;
+		// within `keywords`/`races` it is any-of (the actor needs ANY listed keyword, and ANY listed race).
 		// An empty vector = that constraint is absent. `gender` desugars from `gender`/`filters.gender`.
 		std::vector<RE::BGSKeyword*> keywords;  // empty = no keyword constraint
 		std::vector<RE::TESRace*>    races;     // empty = no race constraint
+		Animation::ParticipantPlacement offset{};  // default placement for this slot (was pack SlotDef::offset)
 	};
 
 	// Per-scene player-input grant. Input control is ENABLED BY DEFAULT: with no `playerControl` block the player gets every capability while participating. 

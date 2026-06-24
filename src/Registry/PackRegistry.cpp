@@ -195,8 +195,8 @@ namespace OSF::Registry
 				// *.dialogue.json.
 				const auto fileName = ToLower(entry.path().filename().string());
 				if (fileName == "settings.json" || fileName.ends_with(".settings.json") ||
-					fileName.ends_with(".scene.json") || fileName.ends_with(".voice.json") ||
-					fileName.ends_with(".dialogue.json")) {
+					fileName.ends_with(".scene.json") || fileName.ends_with(".osf.json") ||
+					fileName.ends_with(".voice.json") || fileName.ends_with(".dialogue.json")) {
 					continue;
 				}
 				files.push_back(entry.path());
