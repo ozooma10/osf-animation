@@ -4,12 +4,15 @@
 #include "Camera/CameraService.h"
 #include "Player/PlayerControlService.h"
 #include "UI/FadeService.h"
+#include "Serialization/AFImport.h"
 #include "Serialization/GLTFImport.h"
 #include "Util/Math.h"
+#include "Util/StringUtil.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <format>
 
 namespace OSF::Animation
 {
@@ -56,6 +59,50 @@ namespace OSF::Animation
 				return fallback;
 			}
 			return primary;
+		}
+
+		// The human skeleton.rig the .af importer maps clips onto. OSF ships it at the vanilla path
+		// under its mod folder (so MO2's VFS exposes it at Data\meshes\...). AFImport caches it once.
+		std::filesystem::path ResolveRigPath()
+		{
+			return std::filesystem::current_path() / "Data" / "meshes" / "actors" / "human" / "characterassets" / "skeleton.rig";
+		}
+
+		struct ClipLoad
+		{
+			std::shared_ptr<const OzzSkeleton>  skeleton;
+			std::shared_ptr<const OzzAnimation> anim;
+			bool                                ok = false;
+			std::string                         detail;
+		};
+
+		// Unified clip load for the ozz path: a `.af` goes through AFImport (engine-native clip decoded
+		// against the shipped human rig); anything else (`.glb`/`.gltf`) through GLTFImport. Both yield
+		// an ozz {skeleton, anim} the Graph sampler consumes identically.
+		ClipLoad LoadClip(const std::filesystem::path& a_file, std::string_view a_animId)
+		{
+			ClipLoad out;
+			if (Util::ToLower(a_file.extension().string()) == ".af") {
+				const auto rig = ResolveRigPath();
+				auto r = Serialization::AFImport::LoadAnimation(a_file, rig);
+				if (r.error != Serialization::AFError::kSuccess) {
+					out.detail = std::format("af error {}: {} (rig {})", static_cast<int>(r.error), r.detail, rig.string());
+					return out;
+				}
+				out.skeleton = std::move(r.skeleton);
+				out.anim = std::move(r.anim);
+				out.ok = true;
+				return out;
+			}
+			auto r = Serialization::GLTFImport::LoadAnimation(a_file, a_animId);
+			if (r.error != Serialization::GLTFError::kSuccess) {
+				out.detail = std::format("gltf error {}: {}", static_cast<int>(r.error), r.detail);
+				return out;
+			}
+			out.skeleton = std::move(r.skeleton);
+			out.anim = std::move(r.anim);
+			out.ok = true;
+			return out;
 		}
 
 		bool IsGameMenuPaused()
@@ -131,13 +178,13 @@ namespace OSF::Animation
 				stage.marks = planStage.marks;
 				for (const auto& fileSpec : planStage.files) {
 					auto file = ResolveClipPath(std::filesystem::path{ fileSpec });
-					auto r = Serialization::GLTFImport::LoadAnimation(file, "");
-					if (r.error != Serialization::GLTFError::kSuccess) {
-						REX::ERROR("PlayScene: failed to load '{}' (error {}: {}) — scene not started",
-							file.string(), static_cast<int>(r.error), r.detail);
+					auto load = LoadClip(file, "");
+					if (!load.ok) {
+						REX::ERROR("PlayScene: failed to load '{}' ({}) — scene not started",
+							file.string(), load.detail);
 						return nullptr;
 					}
-					stage.participants.push_back({ std::move(r.skeleton), std::move(r.anim), fileSpec });
+					stage.participants.push_back({ std::move(load.skeleton), std::move(load.anim), fileSpec });
 				}
 				stage.duration = stage.participants[0].anim->data->duration();
 				scene->stages.push_back(std::move(stage));
@@ -215,10 +262,9 @@ namespace OSF::Animation
 
 		auto file = ResolveClipPath(std::filesystem::path{ a_file });
 
-		auto loadResult = Serialization::GLTFImport::LoadAnimation(file, a_animId);
-		if (loadResult.error != Serialization::GLTFError::kSuccess) {
-			REX::ERROR("Failed to load animation '{}' (error {}: {})", file.string(),
-				static_cast<int>(loadResult.error), loadResult.detail);
+		auto loadResult = LoadClip(file, a_animId);
+		if (!loadResult.ok) {
+			REX::ERROR("Failed to load animation '{}' ({})", file.string(), loadResult.detail);
 			return false;
 		}
 
