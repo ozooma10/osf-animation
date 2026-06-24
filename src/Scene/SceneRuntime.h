@@ -308,10 +308,11 @@ namespace OSF::Scene
 		void RecordInputChannel(std::int32_t a_handle, const Input::Grant& a_grant);
 
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants
-		// already snapshotted. PlayNodeAnim looks up the node's `anim` id and copies the node's
-		// loop policy and timerSec onto the last stage of the plan it plays, so the GraphManager
-		// auto-ends it and reports the timer/loops back through OnGraphAutoEnd. If the scene has no
-		// animation, or the id won't play, it does nothing.
+		// already snapshotted. PlayNodeAnim resolves the node's playable (unified inline `stages` /
+		// `use` via SceneRegistry::BuildNodePlan, or a legacy `anim` id via PackRegistry) and copies
+		// the node's loop policy and timerSec onto the last stage of the plan it plays, so the
+		// GraphManager auto-ends it and reports the timer/loops back through OnGraphAutoEnd. If the
+		// scene has no playable, or it won't play, it does nothing.
 		static void PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId);
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);

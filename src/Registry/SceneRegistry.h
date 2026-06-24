@@ -205,6 +205,10 @@ namespace OSF::Registry
 		// Scene by id (case-insensitive), or nullptr.
 		const SceneDef* Find(std::string_view a_id) const;
 
+		// Resolve a node's inline `stages`, or a `use` target's single inline-stage node - to a ScenePlan (files + placements + timer/loops), or nullopt (reason logged).
+		// a_actorCount must equal the resolved role count.
+		std::optional<Animation::ScenePlan> BuildNodePlan(const SceneDef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
+
 		// Visit every loaded scene def under the read lock (used by the matchmaker to build candidates). 
 		// The callback runs while the registry lock is held, so it must NOT re-enter the registry; keep it to reading the def + cheap per-actor predicate checks.
 		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;

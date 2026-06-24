@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <optional>
 
 // SceneRuntime — graph / playback slice (one class, split across translation units; see SceneRuntime.cpp). 
 // Owns the node graph: starting scenes, node transitions (the single ApplyTransition path), the auto-edge / cue-trigger navigation, and decoding the timed marks a stage crosses. 
@@ -251,13 +252,21 @@ namespace OSF::Scene
 		}
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
-		if (!node || node->anim.empty()) {
-			return;  // not def-backed, or the node has no anim
+		if (!node) {
+			return;  // not def-backed
 		}
-		auto plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(node->anim, a_participants.size());
+		// Resolve the node's playable. Unified nodes (inline `stages` or a `use` reference) resolve in
+		// the scene registry; a legacy *.scene.json node carries a pack-animation id in `anim`.
+		std::optional<Animation::ScenePlan> plan;
+		if (!node->use.empty() || !node->stages.empty()) {
+			plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(*def, *node, a_participants.size());
+		} else if (!node->anim.empty()) {
+			plan = Registry::PackRegistry::GetSingleton().BuildScenePlan(node->anim, a_participants.size());
+		} else {
+			return;  // the node has no playable
+		}
 		if (!plan) {
-			REX::WARN("SceneRuntime: node '{}' anim '{}' not playable for {} participant(s)",
-				a_nodeId, node->anim, a_participants.size());
+			REX::WARN("SceneRuntime: node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
 			return;
 		}
 		// StartSceneAt: if the owning scene carries an explicit world anchor, every node plays

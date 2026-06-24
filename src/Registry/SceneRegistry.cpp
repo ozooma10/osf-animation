@@ -1152,6 +1152,40 @@ namespace OSF::Registry
 				}
 			}
 		}
+
+		// Build an Animation::ScenePlan from a resolved (roles, stages) pair: a per-clip offset overrides
+		// the role's default placement; every stage's clip count must equal a_actorCount. Shared by the
+		// inline-stages and `use`-target node paths. Mirrors PackRegistry::BuildScenePlan.
+		std::optional<Animation::ScenePlan> BuildPlanFromStages(const std::string& a_id,
+			const std::vector<SceneRole>& a_roles, const std::vector<StageDef>& a_stages, size_t a_actorCount)
+		{
+			if (a_stages.empty()) {
+				return std::nullopt;
+			}
+			if (a_roles.size() != a_actorCount) {
+				REX::WARN("SceneRegistry: '{}' needs {} role(s), got {}", a_id, a_roles.size(), a_actorCount);
+				return std::nullopt;
+			}
+			Animation::ScenePlan plan;
+			plan.animId = a_id;
+			plan.stages.reserve(a_stages.size());
+			for (const auto& sd : a_stages) {
+				if (sd.clips.size() != a_actorCount) {
+					REX::WARN("SceneRegistry: '{}' stage has {} clip(s) but {} role(s)", a_id, sd.clips.size(), a_actorCount);
+					return std::nullopt;
+				}
+				Animation::ScenePlan::Stage stage;
+				stage.timer = sd.timer;
+				stage.loops = sd.loops;
+				for (size_t a = 0; a < a_actorCount; a++) {
+					const auto& clip = sd.clips[a];
+					stage.files.push_back(clip.file);
+					stage.placements.push_back(clip.offset.value_or(a_roles[a].offset));
+				}
+				plan.stages.push_back(std::move(stage));
+			}
+			return plan;
+		}
 	}
 
 	const SceneNode* SceneDef::FindNode(std::string_view a_id) const
@@ -1252,6 +1286,28 @@ namespace OSF::Registry
 		std::shared_lock l{ lock };
 		const auto it = scenes.find(ToLower(std::string(a_id)));
 		return it != scenes.end() ? &it->second : nullptr;
+	}
+
+	std::optional<Animation::ScenePlan> SceneRegistry::BuildNodePlan(const SceneDef& a_def, const SceneNode& a_node, size_t a_actorCount) const
+	{
+		if (!a_node.use.empty()) {
+			// A `use` node splices the target scene's single inline-stage node (validated at load,
+			// re-checked here). The target's own roles supply the default placements.
+			std::shared_lock l{ lock };
+			const auto it = scenes.find(ToLower(a_node.use));
+			if (it == scenes.end()) {
+				REX::WARN("SceneRegistry: node '{}' use '{}' references unknown scene", a_node.id, a_node.use);
+				return std::nullopt;
+			}
+			const auto& target = it->second;
+			if (target.nodes.size() != 1 || !target.nodes[0].use.empty() || target.nodes[0].stages.empty()) {
+				REX::WARN("SceneRegistry: node '{}' use target '{}' is not a single inline-stage scene", a_node.id, a_node.use);
+				return std::nullopt;
+			}
+			return BuildPlanFromStages(target.id, target.roles, target.nodes[0].stages, a_actorCount);
+		}
+		// Inline node: this scene's roles supply the default placements.
+		return BuildPlanFromStages(a_def.id, a_def.roles, a_node.stages, a_actorCount);
 	}
 
 	void SceneRegistry::ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const
