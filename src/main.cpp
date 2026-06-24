@@ -7,6 +7,7 @@
 #include "Scene/SceneRuntime.h"
 #include "Serialization/SaveSafety.h"
 #include "UI/CompatWarning.h"
+#include "Util/CrashHandler.h"
 
 #include <REX/W32/KERNEL32.h>
 
@@ -45,6 +46,10 @@ namespace
 
 SFSE_PLUGIN_PRELOAD(const SFSE::PreLoadInterface* a_sfse)
 {
+	// Earliest possible — before anything (ours or commonlib's) can assert/crash. Captures
+	// CRT asserts (which trainwreck cannot see) + a stack + minidump into the SFSE Logs folder.
+	OSF::Util::CrashHandler::Install();
+
 	SFSE::Init(a_sfse);
 
 	return true;
