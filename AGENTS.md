@@ -29,6 +29,11 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
 - **Scene** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
+- **IdlePlayer** (`src/Animation/IdlePlayer.*`) — separate playback door: plays a modder-supplied
+  loose `.af` on any actor through the engine's OWN graph (a template `TESIdleForm`'s GNAM repointed
+  per play + native `PlayIdle`, archetype-swap for the player), NOT the ozz sampler. Pure-native
+  (`RE::ActorUtils`, REL::ID; no Papyrus VM). Template pool ships in OSF.esm; archetype keywords are
+  fixed base-Starfield forms (not settings). `OSF.PlayIdleFile`.
 - **PackRegistry** (`src/Registry/PackRegistry.*`) — loads SLAL-shaped JSON animation packs from
   `Data/OSF/**` (mechanical schema only; content fields ignored — policy lives in `*.scene.json`).
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —

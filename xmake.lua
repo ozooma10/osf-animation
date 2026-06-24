@@ -45,9 +45,16 @@ target("OSF Animation")
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
             os.cp("dist/OSF/*.json", osf .. "/")
+            if os.isfile("dist/OSF.esm") then
+                os.cp("dist/OSF.esm", path.join(mods, target:name()) .. "/")  -- template-IDLE master for IdlePlayer
+            end
             os.cp("dist/OSF/Animations", osf .. "/")
             if os.isdir("dist/OSF/Sounds") then
                 os.cp("dist/OSF/Sounds", osf .. "/")  -- sample sound cues, if any are present
+            end
+            if os.isdir("dist/meshes") then
+                -- loose .af (+ .afx) clips for the PlayIdleFile dynamic-idle door (engine loads these under meshes\)
+                os.cp("dist/meshes", path.join(mods, target:name()) .. "/")
             end
         end
     end)

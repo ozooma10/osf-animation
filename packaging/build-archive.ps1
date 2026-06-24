@@ -32,6 +32,8 @@ $core = "$stage\Core"; $ex = "$stage\Examples"
 
 # Core: the DLL (no .pdb) + the OSF* API scripts/sources (a consumer needs the .psc to compile against).
 Copy-Item $dll "$core\SFSE\Plugins\"
+# Core: the template-IDLE master OSF.esm — IdlePlayer's default pool (OSF.esm|0x800-0x803) resolves against it.
+if (Test-Path "$dist\OSF.esm") { Copy-Item "$dist\OSF.esm" "$core\" }
 foreach ($s in @('OSF', 'OSFCompat', 'OSFEvent')) {
     if (Test-Path "$dist\Scripts\$s.pex")        { Copy-Item "$dist\Scripts\$s.pex" "$core\Scripts\" }
     if (Test-Path "$dist\Scripts\Source\$s.psc") { Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\" }

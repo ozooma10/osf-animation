@@ -1,5 +1,6 @@
 #include "GraphManager.h"
 
+#include "Animation/IdlePlayer.h"
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Player/PlayerControlService.h"
@@ -446,6 +447,7 @@ namespace OSF::Animation
 		// the input-disable layer is non-persistent.
 		Camera::CameraService::GetSingleton().OnStopAll();
 		Player::PlayerControlService::GetSingleton().OnStopAll();
+		IdlePlayer::GetSingleton().OnStopAll();  // drop player archetype-swap tracking across the load
 
 		// Release any held/pending screen fade before the load (the stay-faded latch crashes the load path).
 		UI::FadeService::GetSingleton().OnStopAll();
@@ -923,6 +925,7 @@ namespace OSF::Animation
 		Camera::CameraService::GetSingleton().Tick();
 		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
 		Audio::SoundService::GetSingleton().Tick();  // moves the listener to the player + reaps finished sounds
+		IdlePlayer::GetSingleton().Tick();  // drives the player settle->PlayIdle step + archetype-restore timeout
 
 		// Idle early-out: this hook fires ~7x per render frame for every AnimationManager in the game; 
 		// with no managed graphs there is nothing else to do.

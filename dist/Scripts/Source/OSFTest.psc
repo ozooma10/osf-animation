@@ -182,6 +182,30 @@ Function StopPair(Actor a) global
     OSF.StopSceneForActor(a)
 EndFunction
 
+; --- Loose .af idle playback (OSF.PlayIdleFile / the dynamic-idle door) -------
+; The .af must live under meshes\ and ship its .afx companion; asAfPath is the GNAM path
+; (meshes-relative, NO "meshes\" prefix), e.g. "actors\human\animations\osf_test\StandCover01.af".
+; The osf_test\ clips are deployed by OSF Animation's build (dist\meshes), and OSF.esm must be enabled.
+;   cgf "OSFTest.IdleFile" 14 "actors\human\animations\osf_test\osf_testclip.af"   ; player, proven control clip
+;   cgf "OSFTest.IdleCross" "actors\human\animations\osf_test\StandCover01.af"     ; NPC under the crosshair
+;   cgf "OSFTest.StopIdle" 14                                                       ; restore the player archetype
+Function IdleFile(Actor a, string asAfPath) global
+    OSF.PlayIdleFile(a, asAfPath)
+EndFunction
+
+Function IdleCross(string asAfPath) global
+    Actor a = OSFCompat.GetCrosshairActor()
+    if a
+        OSF.PlayIdleFile(a, asAfPath)
+    else
+        Debug.Trace("OSFTest.IdleCross: no actor under the crosshair")
+    endif
+EndFunction
+
+Function StopIdle(Actor a) global
+    OSF.StopIdleFile(a)
+EndFunction
+
 ; --- Scene-event callback transport prototype -------------------------------
 ; Proves the C++->Papyrus OSFEvent:SceneEvent dispatch. No CK/ESP needed:
 ; Dbg_FireSceneEventStatic dispatches a synthetic event straight to OnSceneEvent below.

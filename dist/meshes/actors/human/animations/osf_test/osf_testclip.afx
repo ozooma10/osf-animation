@@ -1,0 +1,22 @@
+<root>
+	<is_state>1</is_state>
+	<tag>LooseAnim_Read_M01</tag>
+	<filename>LooseAnim_Read_M01.af</filename>
+	<rampout>20</rampout>
+	<flags>
+		<flag>Is In Flavor</flag>
+	</flags>
+	<events>
+		<event><frame>0</frame><name>AnimObjLoad</name><payload>AnimObjectDataSlate</payload></event>
+		<event><frame>27</frame><name>AnimObjDraw</name><payload>AnimObjectDataSlate</payload></event>
+		<event><frame>307</frame><name>AnimObjUnequipAll</name><payload></payload></event>
+	</events>
+	<audios>
+		<audio><frame>25</frame><foley>ITM_Datacard_Up</foley></audio>
+		<audio><frame>300</frame><foley>ITM_Datacard_Down</foley></audio>
+	</audios>
+	<variables>
+		<variable><name>bNoHeadTrack</name><start>0</start><end>350</end></variable>
+		<variable><name>AnimObjActive</name><start>0</start><end>308</end></variable>
+	</variables>
+</root>

@@ -30,6 +30,18 @@ bool Function Play(Actor akActor, string asFile, string asAnim = "") Global Nati
 ; Stops playback on the given actor and returns control to the game.
 bool Function Stop(Actor akActor) Global Native
 
+; Plays a modder-supplied loose .af on akActor through the engine's own animation graph (the
+; dynamic-idle door), distinct from Play (the GLTF/GLB path). asAfPath is the path as an IDLE GNAM
+; stores it: under meshes\, NO "meshes\" prefix, CamelCase filename, e.g.
+; "Actors\Human\Animations\OSF\mydance.af". Deploy the .af (and its .afx companion) at that path.
+; NPCs play immediately; the player needs the anim-archetype keywords + a template pool configured
+; in Data/OSF/settings.json (idleTemplates / idleNonPlayerArchetype / idlePlayerArchetype).
+bool Function PlayIdleFile(Actor akActor, string asAfPath) Global Native
+
+; Stops a loose-.af idle started by PlayIdleFile: ends the running idle (plays OSF's stop idle) on an NPC
+; or the player, cancels a still-settling play, and for the player also restores the swapped anim archetype.
+bool Function StopIdleFile(Actor akActor) Global Native
+
 
 
 

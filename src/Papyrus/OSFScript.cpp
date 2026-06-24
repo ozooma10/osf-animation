@@ -1,6 +1,7 @@
 #include "OSFScript.h"
 
 #include "Animation/GraphManager.h"
+#include "Animation/IdlePlayer.h"
 #include "Audio/SoundService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/PackRegistry.h"
@@ -83,6 +84,35 @@ namespace OSF::Papyrus
 				return false;
 			}
 			return Animation::GraphManager::GetSingleton().StopAnimation(a_actor);
+		}
+
+		// Play a modder-supplied loose .af on akActor through the engine's own animation graph (the
+		// dynamic-idle door), distinct from OSF.Play (the ozz GLB path). Pure-native — the playback is
+		// engine PlayIdle/ChangeAnimArchetype calls, not a Papyrus Actor.PlayIdle. asAfPath is the path
+		// as an IDLE GNAM stores it: under meshes\, NO "meshes\" prefix, CamelCase filename, e.g.
+		// "Actors\Human\Animations\OSF\mydance.af". NPCs play immediately; the player is archetype-gated
+		// (handled internally). Just deploy the .af (and its .afx companion) at that path and enable
+		// OSF.esm (it ships the template-IDLE pool). False on a hard reject (OSF.esm not enabled / null
+		// actor / archetype keyword unresolved); the play itself is async on the game thread.
+		bool PlayIdleFile(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_afPath)
+		{
+			if (!a_actor) {
+				REX::WARN("OSF.PlayIdleFile: no actor given");
+				return false;
+			}
+			return Animation::IdlePlayer::GetSingleton().Play(a_actor, a_afPath.c_str());
+		}
+
+		// Stop a loose-.af idle started by PlayIdleFile: ends the running idle (plays OSF's stop idle, the
+		// only way to deliver the IdleStop graph event) on NPC or player, cancels a still-settling play,
+		// and for the PLAYER also restores the swapped anim archetype. Returns true for any non-null actor.
+		bool StopIdleFile(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
+		{
+			if (!a_actor) {
+				REX::WARN("OSF.StopIdleFile: no actor given");
+				return false;
+			}
+			return Animation::IdlePlayer::GetSingleton().Stop(a_actor);
 		}
 
 		// Jump a linear scene (by handle) to a given stage. False on a non-linear graph, an out-of-range stage, or an invalid handle.
@@ -806,6 +836,8 @@ namespace OSF::Papyrus
 	{
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Play", &Play, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Stop", &Stop, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "PlayIdleFile", &PlayIdleFile, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StopIdleFile", &StopIdleFile, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStage", &SetSceneStage, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStageForActor", &SetSceneStageForActor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ReloadPacks", &ReloadPacks, true, false);

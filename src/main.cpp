@@ -1,3 +1,4 @@
+#include "Animation/AfxStubber.h"
 #include "Animation/GraphManager.h"
 #include "Animation/IdlePlayer.h"
 #include "Audio/SoundService.h"
@@ -66,6 +67,11 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 			"Not all features may be available",
 			kVerifiedGameVersion.string(), runtime.string(), kVerifiedGameVersion.string());
 	}
+
+	// Write stub .afx sidecars for any loose custom .af missing one, so authors ship only `.af`.
+	// Must run here (load time) — the engine reads .afx during its startup AnimTextData scan, which
+	// is after this but before gameplay; doing it at kPostDataLoad would be a launch too late.
+	OSF::Animation::EnsureAfxStubs();
 
 	OSF::Animation::GraphManager::GetSingleton().InstallHooks();
 	SFSE::GetMessagingInterface()->RegisterListener(MessageCallback);
