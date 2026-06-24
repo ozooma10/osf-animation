@@ -32,16 +32,23 @@ target("OSF Animation")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
-    -- Copy the compiled Papyrus scripts and animation JSON next to the plugin in the mod folder.
+    -- Copy the compiled DLL, Papyrus scripts, and animation JSON into the mod folder.
     after_build(function (target)
         local mods = os.getenv("XSE_SF_MODS_PATH")
         if mods then
+            -- SFSE loads plugins from <mod>\SFSE\Plugins\*.dll.
+            local plugins = path.join(mods, target:name(), "SFSE", "Plugins")
             local scripts = path.join(mods, target:name(), "Scripts")
             local source = path.join(scripts, "Source")
             local osf = path.join(mods, target:name(), "OSF")
+            os.mkdir(plugins)
             os.mkdir(scripts)
             os.mkdir(source)
             os.mkdir(osf)
+            os.cp(target:targetfile(), plugins .. "/")
+            if os.isfile(target:symbolfile()) then
+                os.cp(target:symbolfile(), plugins .. "/")  -- .pdb for crash-log symbolication
+            end
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
             os.cp("dist/OSF/*.json", osf .. "/")
