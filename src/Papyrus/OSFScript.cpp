@@ -449,6 +449,21 @@ namespace OSF::Papyrus
 			}
 			return StartMatched(a_actors, q, "OSF.StartSceneByTagsQuery");
 		}
+
+		// --- Scene-event callbacks (OSFTypes:SceneEvent payload) --------------------
+		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
+		{
+			if (!a_receiver.get()) {
+				REX::WARN("OSF.RegisterSceneCallback: null receiver");
+				return 0;
+			}
+			return Scene::SceneEventRelay::GetSingleton().Register(a_receiver, a_fn.c_str(), a_scene, a_eventMask);
+		}
+
+		bool UnregisterSceneCallback(OSFVM&, uint32_t, std::monostate, int32_t a_token)
+		{
+			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
+		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
@@ -466,6 +481,9 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
+
+		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "UnregisterSceneCallback", &UnregisterSceneCallback, true, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsPlaying", &IsPlaying, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Play", &Play, true, false);

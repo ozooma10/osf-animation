@@ -22,6 +22,15 @@ int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] 
 ; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
 int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles) Global Native
 
+
+; --- Scene-event callbacks (OSFTypes:SceneEvent payload) ----------------------
+; Register akReceiver.asFn(OSFTypes:SceneEvent) for events whose bit is set in aiEventMask (when aiScene != 0) whose scene handle == aiScene. 
+; Returns a generational token (0 = failed). 
+; Function OnSceneEvent(OSFEvent:SceneEvent akEvent)   ; on akReceiver's script
+int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
+bool Function UnregisterSceneCallback(int aiToken) Global Native
+
+
 ; --- Primitives ---------------------------------------------------------------
 
 ; True while akActor is in an animation or scene
@@ -82,3 +91,37 @@ bool Function IsReady() Global Native
 
 ; Framework version 
 string Function GetVersion() Global Native
+
+; Event-type bits (compose into aiEventMask; EVENT_ALL = every type). 
+int Function EVENT_NODE_ENTER() Global
+    return 1
+EndFunction
+int Function EVENT_NODE_EXIT() Global
+    return 2
+EndFunction
+int Function EVENT_CUE() Global
+    return 4
+EndFunction
+int Function EVENT_ACTION() Global
+    return 8
+EndFunction
+int Function EVENT_SCENE_END() Global
+    return 16
+EndFunction
+int Function EVENT_ALL() Global
+    return 65535
+EndFunction
+
+; Result codes (OSFEvent.Result).
+int Function RESULT_OK() Global
+    return 0
+EndFunction
+int Function RESULT_BAD_ROLE() Global
+    return 1
+EndFunction
+int Function RESULT_RUNTIME_FAILURE() Global
+    return 2
+EndFunction
+int Function RESULT_NO_HANDLER() Global
+    return 3
+EndFunction
