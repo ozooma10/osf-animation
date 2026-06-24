@@ -36,14 +36,14 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
       ],                                     // omit entirely to infer the actor count from stages[].clips[]
       "stages": [                            // one or more stages; advance by timer/loops
         {
-          "timer": 0.0,                      // seconds; 0 = no auto-advance on time
-          "loops": 0,                        // clip loops before advancing; 0 = no auto-advance
+          "timer": 4.0,                      // seconds; >0 = advance after this long. 0 = no time advance
+          "loops": 0,                        // clip loops before advancing; 0 here = HOLD (no loop advance)
           "clips": [                         // one per actor, index-aligned with "actors"
             "OSF/Animations/MyPack/greet_a.glb",
             { "file": "OSF/Animations/MyPack/greet_b.glb", "offset": { "y": 1.0, "heading": 180.0 } }
           ]
         },
-        ["OSF/Animations/MyPack/greet2_a.glb", "OSF/Animations/MyPack/greet2_b.glb"]  // shorthand: bare clips array, default timer/loops
+        ["OSF/Animations/MyPack/greet2_a.glb", "OSF/Animations/MyPack/greet2_b.glb"]  // shorthand: bare clips array (no timing) -> plays once, then the scene ends
       ]
     }
   ]
@@ -56,10 +56,17 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
 - **`clips`** entries are either a bare Data-relative path string, or `{ "file": ..., "offset": {...} }`
   to override that slot's placement for that stage. Every stage must have the same number of clips — equal
   to `actors.length` when `actors` is given, otherwise to the first stage's clip count.
+- **Stage advance & the play-once default:** a stage advances to the next stage when its `timer`
+  elapses (`timer > 0`, seconds) or its clip has looped `loops` times (`loops > 0`). **A stage that
+  specifies _neither_ plays through once and then advances** — so a multi-stage pack progresses
+  linearly and the scene **ends after its final stage**. To make a stage hold a pose or loop forever
+  (until a manual `SetSceneStage`/stop), give it an explicit **`"loops": 0`** (or `"timer": 0`). A
+  single-stage looping idle therefore needs `"loops": 0`, or it will play once and end.
 - **Stage shorthand:** a stage may be written as a bare array of clips instead of a
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
-  with `timer`/`loops` defaulted to 0. The array entries are clips, so each may still be a bare path or a
-  `{ "file", "offset" }` object. Mix shorthand and full-object stages freely within one `stages[]`.
+  (no timing, so it uses the play-once default above). The array entries are clips, so each may still be
+  a bare path or a `{ "file", "offset" }` object. Mix shorthand and full-object stages freely within
+  one `stages[]`.
 - **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A slot-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.

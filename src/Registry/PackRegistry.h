@@ -42,8 +42,10 @@ namespace OSF::Registry
 
 	struct StageDef
 	{
-		float timer = 0.0f;            // seconds; 0 = no auto-advance
-		int32_t loops = 0;            // clip loops; 0 = no auto-advance
+		// These hold the engine-level values: 0 means "no auto-advance" for both (hold this stage forever).
+		// The play-once convenience default, a stage that specifies NEITHER timer nor loops becomes loops=1
+		float timer = 0.0f;            // seconds; 0 = no time-based auto-advance
+		int32_t loops = 0;             // clip loops before advancing; 0 = no loop-based auto-advance
 		std::vector<StageClip> clips;  // one per actor, index-aligned with AnimationDef::actors
 	};
 

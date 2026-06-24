@@ -31,6 +31,9 @@ A pack maps an **id** to clip files + per-actor placement + per-stage timing:
       "tags": ["social", "greet"],          // matchmaking tags
       "actors": [ {}, { "offset": { "y": 1.0, "heading": 180.0 } } ],
       "stages": [
+        // No timer/loops -> the stage plays once and the scene ends. Add "loops": 0
+        // to loop/hold this clip forever instead (e.g. an idle), or "timer"/"loops" to
+        // auto-advance to a next stage.
         { "clips": [
           "OSF/Animations/MyPack/greet_a.glb",
           "OSF/Animations/MyPack/greet_b.glb"

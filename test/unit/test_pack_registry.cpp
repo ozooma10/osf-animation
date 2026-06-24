@@ -71,16 +71,17 @@ OSF_TEST_CASE(PackRegistry_infers_actor_count_when_actors_omitted)
 OSF_TEST_CASE(PackRegistry_parses_shorthand_stages)
 {
 	// osf.test.shorthand's first stage is the bare-array shorthand; the second is
-	// the full object form. Both must parse, the shorthand stage defaulting
-	// timer/loops to 0, and the actor count inferred from the shorthand clips.
+	// the full object form. Both must parse, the shorthand stage (which specifies no
+	// timing) defaulting to play-once (loops:1, timer:0), and the actor count inferred
+	// from the shorthand clips.
 	const auto* sh = Find("osf.test.shorthand");
 	CHECK(sh != nullptr);
 	if (sh) {
 		CHECK_EQ(sh->actors.size(), static_cast<size_t>(2));
 		CHECK_EQ(sh->stages.size(), static_cast<size_t>(2));
-		// Shorthand stage 0: defaults.
+		// Shorthand stage 0: no timing given -> play-once default.
 		CHECK_NEAR(sh->stages[0].timer, 0.0f, 1e-4f);
-		CHECK_EQ(sh->stages[0].loops, 0);
+		CHECK_EQ(sh->stages[0].loops, 1);
 		CHECK_EQ(sh->stages[0].clips.size(), static_cast<size_t>(2));
 		// Object stage 1: timing carried through.
 		CHECK_NEAR(sh->stages[1].timer, 2.0f, 1e-4f);
@@ -93,6 +94,38 @@ OSF_TEST_CASE(PackRegistry_parses_shorthand_stages)
 		CHECK_EQ(plan->stages.size(), static_cast<size_t>(2));
 		CHECK_EQ(plan->stages[0].files.size(), static_cast<size_t>(2));
 		CHECK_EQ(plan->stages[0].files[0], std::string("OSF\\Anim\\sh0a.glb"));
+	}
+}
+
+OSF_TEST_CASE(PackRegistry_untimed_stage_defaults_to_play_once)
+{
+	// A stage that specifies NEITHER timer nor loops defaults to play-once (loops:1)
+	// so a pack progresses linearly and ends after its final stage. This holds for the
+	// object form too, not just the bare-array shorthand. osf.test.shadowed's only stage
+	// is { "clips": [...] } with no timing.
+	const auto* shadowed = Find("osf.test.shadowed");
+	CHECK(shadowed != nullptr);
+	if (shadowed) {
+		CHECK_EQ(shadowed->stages.size(), static_cast<size_t>(1));
+		CHECK_NEAR(shadowed->stages[0].timer, 0.0f, 1e-4f);
+		CHECK_EQ(shadowed->stages[0].loops, 1);
+	}
+	// An explicit timer:0 / loops:0 opts BACK into hold-forever — the default is not
+	// applied when either field is present. osf.test.solo is { "timer": 0, "loops": 0 }.
+	const auto* solo = Find("osf.test.solo");
+	CHECK(solo != nullptr);
+	if (solo) {
+		CHECK_EQ(solo->stages.size(), static_cast<size_t>(1));
+		CHECK_EQ(solo->stages[0].loops, 0);
+	}
+	// Specifying only one of the two also counts as explicit: osf.test.noactors stage 1
+	// is { "timer": 1.5, "loops": 0 } — timer present, so loops stays the authored 0
+	// (time-based advance only, no play-once override).
+	const auto* na = Find("osf.test.noactors");
+	CHECK(na != nullptr);
+	if (na && na->stages.size() == 2) {
+		CHECK_NEAR(na->stages[1].timer, 1.5f, 1e-4f);
+		CHECK_EQ(na->stages[1].loops, 0);
 	}
 }
 
