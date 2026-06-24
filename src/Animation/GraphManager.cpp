@@ -2,6 +2,7 @@
 
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
+#include "Input/InputService.h"
 #include "Player/PlayerControlService.h"
 #include "UI/FadeService.h"
 #include "Serialization/AFImport.h"
@@ -518,6 +519,8 @@ namespace OSF::Animation
 		// the input-disable layer is non-persistent.
 		Camera::CameraService::GetSingleton().OnStopAll();
 		Player::PlayerControlService::GetSingleton().OnStopAll();
+		// Drop any live director-input grant too (its scene is about to be cleared below).
+		Input::InputService::GetSingleton().OnStopAll();
 
 		// Release any held/pending screen fade before the load (the stay-faded latch crashes the load path).
 		UI::FadeService::GetSingleton().OnStopAll();

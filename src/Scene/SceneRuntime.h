@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Equipment/EquipmentService.h"  // Snapshot stored per-handle in the undo ledger
+#include "Input/InputTypes.h"            // Grant stored per-handle for the input channel
 
 #include <functional>
 
@@ -152,11 +153,12 @@ namespace OSF::Scene
 		// their own ref-count alongside the per-handle entry.
 		enum class Mechanism : std::uint8_t
 		{
-			kControlLock,  // player control + camera lock (ref-counted across scenes)
-			kFade,         // screen fade-to-black (undo = fade back in)
-			kEquipment,    // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
-			kCamera,       // held camera state (undo = release the standalone camera lock)
-			kWeapon        // sheathed weapons (undo = re-draw; per-actor list in the Slot)
+			kControlLock,   // player control + camera lock (ref-counted across scenes)
+			kFade,          // screen fade-to-black (undo = fade back in)
+			kEquipment,     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
+			kCamera,        // held camera state (undo = release the standalone camera lock)
+			kWeapon,        // sheathed weapons (undo = re-draw; per-actor list in the Slot)
+			kInputChannel   // player director-input channel (undo = release the InputService grant; Grant in the Slot)
 		};
 
 		struct Slot
@@ -177,6 +179,8 @@ namespace OSF::Scene
 			// kWeapon's per-actor state: actors this scene sheathed (re-drawn on undo). Same
 			// out-of-ledger pattern as hiddenEquip.
 			std::vector<RE::Actor*> sheathedWeapon;
+			// kInputChannel's data: the director-input grant this scene handed the InputService (engaged on record, released on undo).
+			Input::Grant            grant;
 		};
 
 		// lock-free copy of slot fields for dispatch/lookup paths reading out of lock
@@ -290,6 +294,10 @@ namespace OSF::Scene
 		// kWeapon ledger entry. Call OUTSIDE _lock (it locks).
 		void RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor);
 
+		// Store a_grant on the slot, add the kInputChannel ledger entry (idempotent), and engage the InputService director channel. 
+		// Call OUTSIDE _lock (it locks, then engages outside it).
+		void RecordInputChannel(std::int32_t a_handle, const Input::Grant& a_grant);
+
 		// Hands playback off to the GraphManager. Call these OUTSIDE _lock, with the participants
 		// already snapshotted. PlayNodeAnim looks up the node's `anim` id and copies the node's
 		// loop policy and timerSec onto the last stage of the plan it plays, so the GraphManager
@@ -304,6 +312,10 @@ namespace OSF::Scene
 
 		// Default actor strip on scene start: unless the scene opts out (def `stripActors:false`), hide EVERY participant's worn apparel
 		void StripDefaultActors(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+
+		// Player director-input on scene start: when the def declares a `playerControl` block and the player is a participant, hand the InputService a Grant (ledger-tracked via kInputChannel so it releases on any termination). 
+		// No-op for non-def / no playerControl / player-absent scenes.
+		void EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
 
 		// The node-transition lifecycle, shared by every transition path (SetNode / Advance /
 		// Navigate / OnGraphAutoEnd / cue-trigger): fire NODE_EXIT for a_oldNode, then either end

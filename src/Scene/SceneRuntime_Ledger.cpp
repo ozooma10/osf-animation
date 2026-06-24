@@ -2,6 +2,7 @@
 
 #include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
+#include "Input/InputService.h"
 #include "Player/PlayerControlService.h"
 #include "UI/FadeService.h"
 #include "Weapon/WeaponService.h"
@@ -105,6 +106,10 @@ namespace OSF::Scene
 				Weapon::WeaponService::GetSingleton().Draw(actor);
 			}
 			break;
+		case Mechanism::kInputChannel:
+			REX::INFO("SceneRuntime: scene {:#010x} input channel undo — releasing the director grant", a_handle);
+			Input::InputService::GetSingleton().Release(a_handle);
+			break;
 		}
 	}
 
@@ -154,5 +159,24 @@ namespace OSF::Scene
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kWeapon) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kWeapon);  // one ledger entry; the actors accumulate
 		}
+	}
+
+	void SceneRuntime::RecordInputChannel(std::int32_t a_handle, const Input::Grant& a_grant)
+	{
+		Input::Grant grant;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_handle);
+			if (!s) {
+				return;
+			}
+			s->grant = a_grant;
+			if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kInputChannel) == s->ledger.end()) {
+				s->ledger.push_back(Mechanism::kInputChannel);
+			}
+			grant = s->grant;
+		}
+		// Engage OUTSIDE _lock (the service takes its own lock + posts tasks).
+		Input::InputService::GetSingleton().Engage(grant);
 	}
 }

@@ -1,6 +1,7 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Animation/GraphManager.h"
+#include "Input/InputService.h"
 #include "Registry/SceneRegistry.h"
 
 #include <algorithm>
@@ -13,6 +14,53 @@
 
 namespace OSF::Scene
 {
+	namespace
+	{
+		// Execute one director verb against the active grant. Runs on the game thread (the InputService posts it via the SFSE task queue), so it may safely touch scene/graph state.
+		// Bails if the scene ended between the keypress and now (a load ran Clear); that keeps us off a stale driver Actor*, since a live handle implies live participants.
+		void DispatchInputVerb(Input::Verb a_verb, const Input::Grant& a_grant)
+		{
+			auto& rt = SceneRuntime::GetSingleton();
+			if (rt.GetNode(a_grant.handle).empty()) {
+				return;  // handle dead (scene ended / load) — do nothing
+			}
+			auto&              gm = Animation::GraphManager::GetSingleton();
+			static float       s_prePauseSpeed = 1.0f;  // game-thread only; remembers speed across a pause toggle
+			constexpr float    kStep = 0.25f;
+			constexpr float    kMax = 5.0f;
+			constexpr float    kMin = 0.1f;
+			switch (a_verb) {
+			case Input::Verb::kAdvance:
+				rt.Advance(a_grant.handle);
+				break;
+			case Input::Verb::kEnd:
+				rt.Stop(a_grant.handle);  // Grant.locked was already enforced in the InputService
+				break;
+			case Input::Verb::kSpeedUp:
+				gm.SetSpeed(a_grant.driver, std::min(gm.GetSpeed(a_grant.driver) + kStep, kMax));
+				break;
+			case Input::Verb::kSpeedDown:
+				gm.SetSpeed(a_grant.driver, std::max(gm.GetSpeed(a_grant.driver) - kStep, kMin));
+				break;
+			case Input::Verb::kSpeedReset:
+				gm.SetSpeed(a_grant.driver, 1.0f);
+				break;
+			case Input::Verb::kPause: {
+				const float cur = gm.GetSpeed(a_grant.driver);
+				if (cur > 0.0f) {
+					s_prePauseSpeed = cur;
+					gm.SetSpeed(a_grant.driver, 0.0f);
+				} else {
+					gm.SetSpeed(a_grant.driver, s_prePauseSpeed > 0.0f ? s_prePauseSpeed : 1.0f);
+				}
+				break;
+			}
+			default:
+				break;
+			}
+		}
+	}
+
 	SceneRuntime& SceneRuntime::GetSingleton()
 	{
 		static SceneRuntime singleton;
@@ -32,6 +80,9 @@ namespace OSF::Scene
 		gm.SetSceneTimedMarkHandler([](const std::vector<RE::Actor*>& a_actors, const std::vector<Animation::FiredMark>& a_marks) {
 			SceneRuntime::GetSingleton().OnTimedMarks(a_actors, a_marks);
 		});
+		// How a player director verb (from the InputService input hook) drives the active scene.
+		Input::InputService::GetSingleton().SetVerbHandler(
+			[](Input::Verb a_verb, const Input::Grant& a_grant) { DispatchInputVerb(a_verb, a_grant); });
 	}
 
 	SceneRuntime::Slot* SceneRuntime::Resolve(std::int32_t a_handle)

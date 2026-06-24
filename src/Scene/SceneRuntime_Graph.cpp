@@ -332,6 +332,33 @@ namespace OSF::Scene
 		REX::INFO("SceneRuntime: scene {:#010x} default actor strip applied to {} participant(s)", a_handle, a_participants.size());
 	}
 
+	void SceneRuntime::EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
+	{
+		if (a_defId.empty()) {
+			return;  // only def scenes can declare a playerControl block (pack/files cannot)
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId);
+		if (!def || !def->playerControl.present) {
+			return;  // scene grants no player control — no native input channel (current behavior)
+		}
+		// v1: the local human drives only when they're a participant (director mode — a non-participant
+		// player driving an NPC-only scene — is a later addition; controlRole is parsed but unused here).
+		auto*      player = RE::PlayerCharacter::GetSingleton();
+		const bool hasPlayer = player &&
+			std::find(a_participants.begin(), a_participants.end(), static_cast<RE::Actor*>(player)) != a_participants.end();
+		if (!hasPlayer) {
+			REX::INFO("SceneRuntime: scene {:#010x} playerControl skipped — player not a participant", a_handle);
+			return;
+		}
+		Input::Grant grant;
+		grant.handle = a_handle;
+		grant.caps = def->playerControl.caps;
+		grant.driver = player;
+		grant.locked = def->playerControl.locked;
+		RecordInputChannel(a_handle, grant);
+		REX::INFO("SceneRuntime: scene {:#010x} playerControl engaged (caps {:#x}, locked {})", a_handle, grant.caps, grant.locked);
+	}
+
 	void SceneRuntime::ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
 		bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
 	{
@@ -380,6 +407,8 @@ namespace OSF::Scene
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, a_id, a_participants);
 		StripDefaultActors(handle, a_id, a_participants);  // hide every participant's apparel by default
+		// Recorded AFTER lock + strip so the ledger undoes the input channel FIRST (release the wheel before unlocking/redressing).
+		EngageDefaultPlayerControl(handle, a_id, a_participants);
 		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
 		return handle;
 	}

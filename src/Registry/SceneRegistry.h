@@ -151,6 +151,16 @@ namespace OSF::Registry
 		std::vector<RE::TESRace*>    races;     // empty = no race constraint
 	};
 
+	// Per-scene player-input grant, parsed from the optional `playerControl` block. present=false (the default) means no native input channel
+	// caps is an OR of OSF::Input::Capability bits (advance/navigate/speed/reposition/freecam/end).
+	struct PlayerControl
+	{
+		bool          present = false;
+		std::uint32_t caps = 0;
+		std::string   controlRole;     // role whose scene the local input drives ("" => the player participant)
+		bool          locked = false;  // player may not end the scene via the input channel (story scenes)
+	};
+
 	struct SceneDef
 	{
 		std::string              id;
@@ -159,6 +169,7 @@ namespace OSF::Registry
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
+		PlayerControl            playerControl;  // optional opt-in director-input grant (default: absent)
 		std::vector<std::string> tags;
 		std::vector<SceneRole>   roles;
 		std::string              entry;

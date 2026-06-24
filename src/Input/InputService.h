@@ -1,0 +1,35 @@
+#pragma once
+
+#include "Input/InputTypes.h"
+
+#include <functional>
+
+namespace OSF::Input
+{
+	// input hook: a vfunc swap on RE::UI's BSInputEventReceiver::PerformInputProcessing; the point where the game's UI receives the per-frame raw InputEvent queue. 
+	class InputService
+	{
+	public:
+		static InputService& GetSingleton();
+
+		// Proves the compiled UI layout matches the running binary. Must pass before install. Logs + dumps on failure.
+		bool VerifyUiLayout();
+
+		// Swaps the vfunc. Call once the UI singleton exists (kPostPostDataLoad). Idempotent.
+		bool Install();
+
+		// True once the vfunc hook is installed.
+		bool Installed() const;
+
+		// The runtime registers HOW a verb executes (it drives the active scene + clock). Called on the game thread.
+		void SetVerbHandler(std::function<void(Verb, const Grant&)> a_handler);
+
+		// Engage/release the director channel for one scene. Engage stores the grant + arms dispatch;
+		// Release clears it if a_handle is the active grant. Driven by the undo ledger (Mechanism::kInputChannel), so the channel tracks the scene lock's lifecycle exactly.
+		void Engage(const Grant& a_grant);
+		void Release(std::int32_t a_handle);
+
+		// Load teardown: drop the grant + disarm. Mirrors Player/CameraService::OnStopAll.
+		void OnStopAll();
+	};
+}
