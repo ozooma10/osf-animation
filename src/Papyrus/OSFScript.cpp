@@ -7,9 +7,14 @@
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneRuntime.h"
+#include "Serialization/AFImport.h"
 #include "Serialization/GLTFImport.h"
 #include "Util/Math.h"
 #include "Util/StringUtil.h"
+
+#include "RE/B/BSScriptUtil.h"
+#include "RE/S/Struct.h"
+#include "RE/S/StructTypeInfo.h"
 
 #include <format>
 
@@ -27,6 +32,74 @@ namespace OSF::Papyrus
 				out.emplace_back(s.c_str());
 			}
 			return out;
+		}
+
+		// --- OSF:SceneOptions (the trailing `SceneOptions akOpts = None` on the Start* natives) ----
+		// A struct parameter arrives as this wrapper; the `= None` default makes it optional
+		using SceneOptionsArg = std::optional<RE::BSScript::structure_wrapper<"OSF", "SceneOptions">>;
+
+		// SceneOption defaults. Keep in sync with OSF.psc
+		struct SceneOpts
+		{
+			RE::TESObjectREFR* anchor = nullptr;
+			float              headingDeg = -1.0f;
+			std::int32_t       stage = 0;
+			float              speed = 1.0f;
+			float              blendIn = 0.4f;
+		};
+
+		// Read an OSF:SceneOptions: pull the raw struct proxy and map member name -> slot by ITERATING varNameIndexMap, rather than trusting structure_wrapper::find / varNameIndexMap.find
+		SceneOpts ReadSceneOptions(const SceneOptionsArg& a_opts)
+		{
+			SceneOpts out;
+			if (!a_opts) {
+				return out;
+			}
+			const RE::BSTSmartPointer<RE::BSScript::Struct> proxy =
+				RE::BSScript::detail::wrapper_accessor::get_proxy(*a_opts);
+			if (!proxy || !proxy->type) {
+				return out;
+			}
+
+			std::unordered_map<std::string, std::uint32_t> index;
+			for (const auto& kv : proxy->type->varNameIndexMap) {
+				index[Util::ToLower(kv.key.c_str())] = kv.value;
+			}
+			const auto count = proxy->type->variables.size();
+			const auto member = [&](const char* a_name) -> const RE::BSScript::Variable* {
+				const auto it = index.find(Util::ToLower(a_name));
+				return (it != index.end() && it->second < count) ? &proxy->variables[it->second] : nullptr;
+			};
+
+			if (const auto* v = member("Anchor"); v && v->is<RE::BSScript::Object>() && RE::BSScript::get<RE::BSScript::Object>(*v)) {
+				out.anchor = RE::BSScript::UnpackVariable<RE::TESObjectREFR>(*v);
+			}
+			if (const auto* v = member("HeadingDeg"); v && v->is<float>()) {
+				out.headingDeg = RE::BSScript::get<float>(*v);
+			}
+			if (const auto* v = member("Stage"); v && v->is<std::int32_t>()) {
+				out.stage = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (const auto* v = member("Speed"); v && v->is<float>()) {
+				out.speed = RE::BSScript::get<float>(*v);
+			}
+			if (const auto* v = member("BlendIn"); v && v->is<float>()) {
+				out.blendIn = RE::BSScript::get<float>(*v);
+			}
+			return out;
+		}
+
+		// A SceneRuntime world-anchor from resolved options (unset when no Anchor). 
+		// Heading < 0 uses the ref's own facing; otherwise the explicit degrees, converted to radians.
+		Scene::SceneRuntime::AnchorOverride MakeAnchor(const SceneOpts& a_opts)
+		{
+			Scene::SceneRuntime::AnchorOverride anchor{};
+			if (a_opts.anchor) {
+				anchor.set = true;
+				anchor.pos = a_opts.anchor->data.location;
+				anchor.heading = (a_opts.headingDeg < 0.0f) ? a_opts.anchor->data.angle.z : (a_opts.headingDeg * Util::kDegToRadF);
+			}
+			return anchor;
 		}
 
 		// Split a "scene:"/"anim:" registry prefix off a start id. "scene:" forces the scene registry, "anim:" forces the pack registry; 
@@ -107,46 +180,12 @@ namespace OSF::Papyrus
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
 			Serialization::GLTFImport::ClearCache();
+			Serialization::AFImport::ClearCache();
 			REX::INFO("ReloadPacks: clip cache cleared");
 			auto& registry = Registry::PackRegistry::GetSingleton();
 			registry.LoadAll();
 			Registry::SceneRegistry::GetSingleton().LoadAll();  // ReloadPacks reloads scenes too
 			return static_cast<int32_t>(registry.Size());
-		}
-
-		// Discovery: ids of scenes (composed defs + packs) with aiActorCount actors whose tags contain ALL asTags. 
-		// Deterministic (priority desc, then id asc). Count + tags only — filter-UNAWARE (no Actor[]); 
-		// use FindScenesForActorsQuery / StartSceneByTags* for a filter-correct result.
-		std::vector<RE::BSFixedString> FindScenes(OSFVM&, uint32_t, std::monostate, int32_t a_actorCount, std::vector<RE::BSFixedString> a_tags)
-		{
-			std::vector<RE::BSFixedString> result;
-			if (a_actorCount <= 0) {
-				return result;
-			}
-			Matchmaking::TagQuery q;
-			q.allOf = ToStrings(a_tags);
-			const std::vector<RE::Actor*> noActors;
-			for (auto& id : Matchmaking::FindIds(a_actorCount, q, noActors)) {
-				result.emplace_back(id);
-			}
-			return result;
-		}
-
-		// Discovery, filter-aware: like FindScenes but takes the actors, so keyword/race/gender role
-		// filters AND a complete binding are required for a scene def to appear. Boolean tag sets.
-		std::vector<RE::BSFixedString> FindScenesForActorsQuery(OSFVM&, uint32_t, std::monostate,
-			std::vector<RE::Actor*> a_actors, std::vector<RE::BSFixedString> a_allOf,
-			std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf)
-		{
-			std::vector<RE::BSFixedString> result;
-			if (a_actors.empty()) {
-				return result;
-			}
-			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
-			for (auto& id : Matchmaking::FindIds(static_cast<int32_t>(a_actors.size()), q, a_actors)) {
-				result.emplace_back(id);
-			}
-			return result;
 		}
 
 		// Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
@@ -217,31 +256,6 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().ClearAnchor(a_actor);
 		}
 
-		// Bring N already-playing graphs together. Call OSF.Play on each actor first, then OSF.Sync.
-		// abAnchor=true (default): anchor the graphs into one shared scene at actor[0]'s spot
-		// Scene participants are skipped; needs >= 2 graphs.
-		bool Sync(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, bool a_anchor)
-		{
-			return Animation::GraphManager::GetSingleton().Sync(a_actors, a_anchor);
-		}
-
-		// Solo multi-phase sequence (primitive). Parallel arrays, equal length:
-		// asFiles[i] phase clip, aiLoops[i] loops before advancing, afBlends[i] blend-in secs. abLoopWhole restarts at phase 0 after the last.
-		bool PlaySequence(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
-			std::vector<RE::BSFixedString> a_files, std::vector<int32_t> a_loops, std::vector<float> a_blends, bool a_loopWhole)
-		{
-			if (!a_actor) {
-				REX::WARN("OSF.PlaySequence: no actor given");
-				return false;
-			}
-			std::vector<std::string> files;
-			files.reserve(a_files.size());
-			for (const auto& f : a_files) {
-				files.emplace_back(f.c_str());
-			}
-			return Animation::GraphManager::GetSingleton().PlaySequence(a_actor, files, a_loops, a_blends, a_loopWhole);
-		}
-
 		// Stop a live scene by its handle (from a Start* call). False if the handle is invalid/ended. Fires NODE_EXIT + SCENE_END to registered callbacks.
 		bool StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
@@ -262,41 +276,11 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
 		}
 
-		// Engine crosshair target: the reference under the reticle / activate prompt.
-		// Reads PlayerCharacter->commandTarget. Any ref kind (actor/door/container/...), or null when the crosshair is on nothing.
-		RE::TESObjectREFR* CrosshairTarget()
-		{
-			auto* player = RE::PlayerCharacter::GetSingleton();
-			return player ? player->commandTarget : nullptr;
-		}
-
-		// Non-public helper: the raw engine crosshair reference, or None. Used by the OSFTest harness to pick a target from the reticle.
-		RE::TESObjectREFR* GetCrosshairRef(OSFVM&, uint32_t, std::monostate)
-		{
-			return CrosshairTarget();
-		}
-
-		// Non-public helper: the crosshair reference cast to Actor, or None when the crosshair is on nothing or a non-actor ref (kACHR form-type gate).
-		// Used by the OSFTest harness to target the actor under the reticle.
-		RE::Actor* GetCrosshairActor(OSFVM&, uint32_t, std::monostate)
-		{
-			auto* target = CrosshairTarget();
-			return (target && target->IsActor()) ? static_cast<RE::Actor*>(target) : nullptr;
-		}
-
 		// Framework semver "major.minor.patch" (string so it can't be misread).
 		RE::BSFixedString GetVersion(OSFVM&, uint32_t, std::monostate)
 		{
 			const auto v = SFSE::GetPluginVersion();
 			return RE::BSFixedString(std::format("{}.{}.{}", v.major(), v.minor(), v.patch()));
-		}
-
-		// Save-safety fallback: drop scene/graph state anchored in the discarded world. 
-		// WARNING: only on an actual load — against a LIVE scene it leaves participants animation-driven (StopAll skips actor restore). 
-		// Use StopScene for normal teardown.
-		void NotifyGameLoaded(OSFVM&, uint32_t, std::monostate)
-		{
-			Animation::GraphManager::GetSingleton().StopAll("game loaded");
 		}
 
 		// True once OSF is loaded and initialized (playback hooks installed).
@@ -305,65 +289,41 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().HooksInstalled();
 		}
 
-		// Start a scene by id, returning an opaque scene HANDLE (0 = failed). 
+		// Start a scene by id, returning an opaque scene HANDLE (0 = failed).
 		// Routes through SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
-		// ID resolution: a `scene:` prefix forces the scene registry, `anim:` forces the pack registry; 
+		// ID resolution: a `scene:` prefix forces the scene registry, `anim:` forces the pack registry;
 		// a bare id resolves the scene registry first, then the pack registry (a linear pack auto-exposed as a single-path scene).
-		// aiStage = pack start stage (ignored for def-backed graphs).
+		// akOpts: Stage = pack start stage (ignored for def graphs); Anchor world-anchors the scene (def or
+		// pack) at a ref instead of co-locating at actor[0]. For named-role binding use StartSceneRoles.
 		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
-			int32_t a_stage)
+			SceneOptionsArg a_opts)
 		{
 			if (a_actors.empty()) {
 				REX::WARN("OSF.StartScene: no actors given");
 				return 0;
 			}
+			const SceneOpts opts = ReadSceneOptions(a_opts);
 			const auto [sid, forceScene, forcePack] = SplitScenePrefix(a_id.c_str());
+			const auto anchor = MakeAnchor(opts);
 
 			auto& rt = Scene::SceneRuntime::GetSingleton();
-			if (!forcePack && Registry::SceneRegistry::GetSingleton().Find(sid)) {
-				return rt.StartFromDef(sid, a_actors);  // composed graph
+			if (!forcePack && Registry::SceneRegistry::GetSingleton().Find(sid)) {  // composed graph
+				if (anchor.set) {
+					return rt.StartFromDefAt(sid, a_actors, anchor.pos, anchor.heading);  // anchored at the ref
+				}
+				return rt.StartFromDef(sid, a_actors);
 			}
-			if (!forceScene) {
-				return rt.StartFromPack(sid, a_actors, a_stage);  // linear pack as single-path scene
+			if (!forceScene) {  // linear pack as single-path scene
+				return rt.StartFromPack(sid, a_actors, opts.stage, anchor);
 			}
 			REX::WARN("OSF.StartScene: no scene '{}' (scene: prefix forced)", sid);
 			return 0;
 		}
 
-		// Like StartScene, but world-anchors the scene at an ObjectReference (furniture / bed / marker) instead of co-locating the actors at actor[0]. 
-		// afHeadingDeg < 0 uses akAnchor's own heading; otherwise it is a heading in DEGREES. Id resolution (scene-then-pack, the scene:/anim: prefixes) mirrors StartScene. 
-		// Returns the handle (0 = failed).
-		int32_t StartSceneAt(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
-			RE::TESObjectREFR* a_anchor, float a_headingDeg)
-		{
-			if (a_actors.empty()) {
-				REX::WARN("OSF.StartSceneAt: no actors given");
-				return 0;
-			}
-			if (!a_anchor) {
-				REX::WARN("OSF.StartSceneAt: no anchor reference given");
-				return 0;
-			}
-			const auto [sid, forceScene, forcePack] = SplitScenePrefix(a_id.c_str());
-
-			// World anchor = the reference's position + (its heading, or an explicit one in degrees).
-			const RE::NiPoint3 pos = a_anchor->data.location;
-			const float heading = (a_headingDeg < 0.0f) ? a_anchor->data.angle.z : (a_headingDeg * Util::kDegToRadF);
-
-			auto& rt = Scene::SceneRuntime::GetSingleton();
-			if (!forcePack && Registry::SceneRegistry::GetSingleton().Find(sid)) {
-				return rt.StartFromDefAt(sid, a_actors, pos, heading);  // composed graph, anchored at the ref
-			}
-			if (!forceScene) {
-				return rt.StartFromPack(sid, a_actors, 0, Scene::SceneRuntime::AnchorOverride{ true, pos, heading });
-			}
-			REX::WARN("OSF.StartSceneAt: no scene '{}' (scene: prefix forced)", sid);
-			return 0;
-		}
-
-		// Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i] (equal lengths). 
-		// Returns the handle (0 = no such scene / validation fail).
-		// Roles are a *.scene.json concept; a `scene:` prefix is tolerated/stripped.
+		// Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
+		// (equal lengths). Returns the handle (0 = no such scene / validation fail). Its own native rather
+		// than a SceneOptions field because Papyrus structs cannot carry the role array. A `scene:` prefix
+		// is tolerated/stripped.
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
@@ -383,7 +343,7 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
 		}
 
-		// Shared body of the StartSceneByTags* natives: validate the actor list, matchmake a_query across both registries (priority tier + weighted-random), 
+		// Shared body of the StartSceneByTags* natives: validate the actor list, matchmake a_query across both registries (priority tier + weighted-random),
 		// and start the picked candidate with its matchmade binding. a_logTag is the native name for the warn/info lines.
 		// Returns  the scene handle (0 = no actors / null actor / no match / start failed).
 		int32_t StartMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query, const char* a_logTag)
@@ -454,419 +414,61 @@ namespace OSF::Papyrus
 
 		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs), pick by priority tier + weighted-random, and start it with the matchmade binding.
 		// Returns the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
+		// akOpts.Anchor world-anchors the matchmade scene at a ref (furniture/bed/marker) instead of co-locating at actor[0].
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
-			std::vector<RE::BSFixedString> a_tags)
+			std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
 		{
 			Matchmaking::TagQuery q;
 			q.allOf = ToStrings(a_tags);
+			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
+			if (anchor.set) {
+				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, "OSF.StartSceneByTags");
+			}
 			return StartMatched(a_actors, q, "OSF.StartSceneByTags");
 		}
 
 		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise identical (filter-aware matchmaking across both registries, priority + weighted pick).
+		// akOpts.Anchor world-anchors the matchmade scene.
 		int32_t StartSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
-			std::vector<RE::BSFixedString> a_noneOf)
+			std::vector<RE::BSFixedString> a_noneOf, SceneOptionsArg a_opts)
 		{
 			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
+			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
+			if (anchor.set) {
+				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, "OSF.StartSceneByTagsQuery");
+			}
 			return StartMatched(a_actors, q, "OSF.StartSceneByTagsQuery");
-		}
-
-		// Like StartSceneByTags, but world-anchors the matchmade scene at akAnchor (furniture / bed / marker) instead of co-locating the actors at actor[0]. 
-		// afHeadingDeg < 0 uses the anchor's own heading; otherwise it is a heading in DEGREES. 
-		// For furniture/sleep encounters that belong to a thing, not an actor.
-		int32_t StartSceneByTagsAt(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
-			std::vector<RE::BSFixedString> a_tags, RE::TESObjectREFR* a_anchor, float a_headingDeg)
-		{
-			if (a_actors.empty()) {
-				REX::WARN("OSF.StartSceneByTagsAt: no actors given");
-				return 0;
-			}
-			if (!a_anchor) {
-				REX::WARN("OSF.StartSceneByTagsAt: no anchor reference given");
-				return 0;
-			}
-			const RE::NiPoint3 pos = a_anchor->data.location;
-			const float heading = (a_headingDeg < 0.0f) ? a_anchor->data.angle.z : (a_headingDeg * Util::kDegToRadF);
-			Matchmaking::TagQuery q;
-			q.allOf = ToStrings(a_tags);
-			return StartMatchedAt(a_actors, q, pos, heading, "OSF.StartSceneByTagsAt");
-		}
-
-		// Boolean-query form of StartSceneByTagsAt (all-of / any-of / none-of), world-anchored at akAnchor.
-		int32_t StartSceneByTagsQueryAt(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
-			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
-			std::vector<RE::BSFixedString> a_noneOf, RE::TESObjectREFR* a_anchor, float a_headingDeg)
-		{
-			if (a_actors.empty()) {
-				REX::WARN("OSF.StartSceneByTagsQueryAt: no actors given");
-				return 0;
-			}
-			if (!a_anchor) {
-				REX::WARN("OSF.StartSceneByTagsQueryAt: no anchor reference given");
-				return 0;
-			}
-			const RE::NiPoint3 pos = a_anchor->data.location;
-			const float heading = (a_headingDeg < 0.0f) ? a_anchor->data.angle.z : (a_headingDeg * Util::kDegToRadF);
-			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
-			return StartMatchedAt(a_actors, q, pos, heading, "OSF.StartSceneByTagsQueryAt");
-		}
-
-		// Ad-hoc one-shot scene from raw animation files: co-locates the actors at actor[0],
-		// plays each file at afSpeed with afBlendIn, and syncs the clock. Returns the scene handle (0 = failed).
-		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
-			std::vector<RE::BSFixedString> a_files, float a_speed, float a_blendIn)
-		{
-			if (a_actors.size() != a_files.size()) {
-				REX::WARN("OSF.StartSceneFiles: actor/file array sizes differ ({} vs {})", a_actors.size(), a_files.size());
-				return 0;
-			}
-			std::vector<std::string> files;
-			files.reserve(a_files.size());
-			for (const auto& f : a_files) {
-				files.emplace_back(f.c_str());
-			}
-			return Scene::SceneRuntime::GetSingleton().StartFromFiles(a_actors, files, a_speed, a_blendIn);
-		}
-
-		// --- Scene-event callbacks (OSFEvent:SceneEvent payload) ------------------
-		// Register akReceiver.asFn(OSFEvent:SceneEvent) for events in aiEventMask
-		// (& scene aiScene, 0 = any). Returns a generational token (0 = failed).
-		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver,
-			RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
-		{
-			if (!a_receiver.get()) {
-				REX::WARN("OSF.RegisterSceneCallback: null receiver");
-				return 0;
-			}
-			return Scene::SceneEventRelay::GetSingleton().Register(a_receiver, a_fn.c_str(), a_scene, a_eventMask);
-		}
-
-		bool UnregisterSceneCallback(OSFVM&, uint32_t, std::monostate, int32_t a_token)
-		{
-			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
-		}
-
-		// DEBUG: lets a Papyrus receiver echo into OSF Animation.log (REX), so the
-		// transport round-trip is provable without enabling the Papyrus script log.
-		void Dbg_Log(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_msg)
-		{
-			REX::INFO("[Papyrus] {}", a_msg.c_str());
-		}
-
-		// DEBUG (OSFCompat): play a Data-relative loose file through SoundService at the player's
-		// position — the in-world audible test for the Wwise external-source path. Routes through the
-		// SAME code as scene sound cues ("event:" specs, codec-by-extension, external-source post on
-		// the shipped event), so hearing a beep here proves audible + engine-mixed playback end to end
-		// (it should duck/pause with the game and follow the volume sliders). e.g. from the console:
-		//   cgf "OSFCompat.Dbg_PlaySound" "OSF\Sounds\testbeep.wav"
-		void Dbg_PlaySound(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_dataRelPath)
-		{
-			auto* player = RE::PlayerCharacter::GetSingleton();
-			const RE::NiPoint3 pos = player ? player->data.location : RE::NiPoint3{};
-			REX::INFO("OSFCompat.Dbg_PlaySound: '{}' at player ({:.1f},{:.1f},{:.1f})",
-				a_dataRelPath.c_str(), pos.x, pos.y, pos.z);
-			Audio::SoundService::GetSingleton().Play(a_dataRelPath.c_str(), pos, 1.0f);
-		}
-
-		// DEBUG (OSFCompat): no-instance transport probe — DispatchStaticCall
-		// asScript.asFn(OSFEvent:SceneEvent) directly (no registration). Proves the struct
-		// marshalling from the console without a scripted form.
-		void Dbg_FireSceneEventStatic(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_script,
-			RE::BSFixedString a_fn, int32_t a_scene, int32_t a_event, RE::BSFixedString a_node)
-		{
-			REX::INFO("OSFCompat.Dbg_FireSceneEventStatic: -> {}.{}(SceneEvent) scene={} event={:#x} node='{}'",
-				a_script.c_str(), a_fn.c_str(), a_scene, a_event, a_node.c_str());
-			Scene::SceneEvent e;
-			e.scene = a_scene;
-			e.event = a_event;
-			e.node = a_node.c_str();
-			e.anchor = (a_event == Scene::Event::kNodeEnter) ? "enter" : (a_event == Scene::Event::kNodeExit) ? "exit" : "";
-			Scene::SceneEventRelay::GetSingleton().DispatchStatic(a_script.c_str(), a_fn.c_str(), e);
-		}
-
-		// DEBUG (OSFCompat): fire a synthetic EVENT_ACTION carrying a REAL actor through the
-		// static dispatch, to prove the actorRef object marshalling (Actor* -> Var -> struct
-		// member) without needing a scripted-form instance for the real RegisterSceneCallback path.
-		void Dbg_FireActionActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_script,
-			RE::BSFixedString a_fn, RE::BSFixedString a_role)
-		{
-			REX::INFO("OSFCompat.Dbg_FireActionActor: -> {}.{}(SceneEvent) actor={:X} role='{}'",
-				a_script.c_str(), a_fn.c_str(), a_actor ? a_actor->formID : 0, a_role.c_str());
-			Scene::SceneEvent e;
-			e.scene = 0x9999;
-			e.event = Scene::Event::kAction;
-			e.node = "main";
-			e.actionType = "test.ping";
-			e.role = a_role.c_str();
-			e.actor = a_actor;  // packed into actorRef by PackPayload
-			Scene::SceneEventRelay::GetSingleton().DispatchStatic(a_script.c_str(), a_fn.c_str(), e);
-		}
-
-		// --- Scene state getters (handle-based, against the scene runtime's instance table) --
-		// Scene instance id, or "" if the handle is invalid/ended.
-		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
-		{
-			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetId(a_scene).c_str());
-		}
-
-		// Current node id of the scene, or "" if invalid.
-		RE::BSFixedString GetSceneNode(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
-		{
-			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetNode(a_scene).c_str());
-		}
-
-		// The scene handle a_actor participates in, or 0 if none.
-		int32_t GetSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
-		{
-			return Scene::SceneRuntime::GetSingleton().GetSceneForActor(a_actor);
-		}
-
-		// --- Scene-metadata introspection (read-only; reads *.scene.json defs by id) ----------
-		// Let an orchestrator inspect a scene's role/gender/tag conventions before binding actors.
-		// All resolve a *.scene.json def by id; an unknown id (or a pack id, which is not a scene
-		// def) yields the empty/sentinel result. Returned arrays are real (possibly empty) — safe
-		// per the None-array footgun, which is about INBOUND None arrays.
-
-		// Declared role names of a scene (in declaration order). Empty if unknown.
-		std::vector<RE::BSFixedString> GetSceneRoles(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
-		{
-			std::vector<RE::BSFixedString> out;
-			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str())) {
-				for (const auto& r : def->roles) {
-					out.emplace_back(r.name);
-				}
-			}
-			return out;
-		}
-
-		// Gender slot of a named role: "male" / "female" / "any". "" for an unknown scene or role.
-		RE::BSFixedString GetSceneRoleGender(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id, RE::BSFixedString a_role)
-		{
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str());
-			if (!def) {
-				return "";
-			}
-			const auto want = Util::ToLower(a_role.c_str());
-			for (const auto& r : def->roles) {
-				if (Util::ToLower(r.name) == want) {
-					switch (r.gender) {
-					case Registry::SlotGender::kMale:
-						return "male";
-					case Registry::SlotGender::kFemale:
-						return "female";
-					default:
-						return "any";
-					}
-				}
-			}
-			return "";
-		}
-
-		// Declared role/actor count of a scene; 0 for an unknown id or a scene with no roles.
-		int32_t GetSceneActorCount(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
-		{
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str());
-			return def ? static_cast<int32_t>(def->roles.size()) : 0;
-		}
-
-		// Tags of a scene. Empty if unknown.
-		std::vector<RE::BSFixedString> GetSceneTags(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
-		{
-			std::vector<RE::BSFixedString> out;
-			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str())) {
-				for (const auto& t : def->tags) {
-					out.emplace_back(t);
-				}
-			}
-			return out;
-		}
-
-		// DEBUG (OSFCompat): drive the scene-runtime lifecycle directly, without going through
-		// the GraphManager/StartScene handle minting. Each fires the matching lifecycle
-		// event(s) through the relay.
-		int32_t Dbg_StartScene(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_id, RE::BSFixedString a_node)
-		{
-			std::vector<RE::Actor*> participants;
-			if (a_actor) {
-				participants.push_back(a_actor);
-			}
-			return Scene::SceneRuntime::GetSingleton().Start(a_id.c_str(), a_node.c_str(), participants);
-		}
-
-		bool Dbg_SetSceneNode(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_node, int32_t a_stage)
-		{
-			return Scene::SceneRuntime::GetSingleton().SetNode(a_scene, a_node.c_str());
-		}
-
-		bool Dbg_StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
-		{
-			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
-		}
-
-		// Start a scene from its *.scene.json def (entering at the def's entry node). 
-		// DEBUG helper on OSFCompat. Returns the handle (0 = fail).
-		int32_t Dbg_StartSceneDef(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_sceneId)
-		{
-			std::vector<RE::Actor*> participants;
-			if (a_actor) {
-				participants.push_back(a_actor);
-			}
-			return Scene::SceneRuntime::GetSingleton().StartFromDef(a_sceneId.c_str(), participants);
-		}
-
-		// --- Scene navigation (handle-based; def-backed scenes) --------------------
-		bool AdvanceScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
-		{
-			return Scene::SceneRuntime::GetSingleton().Advance(a_scene);
-		}
-
-		bool NavigateScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_edgeId)
-		{
-			return Scene::SceneRuntime::GetSingleton().Navigate(a_scene, a_edgeId.c_str());
-		}
-
-		int32_t GetSceneEdgeCount(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
-		{
-			return Scene::SceneRuntime::GetSingleton().EdgeCount(a_scene);
-		}
-
-		RE::BSFixedString GetSceneEdgeId(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
-		{
-			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeId(a_scene, a_index).c_str());
-		}
-
-		RE::BSFixedString GetSceneEdgeLabel(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
-		{
-			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeLabel(a_scene, a_index).c_str());
-		}
-
-		// --- Scene-load diagnostics ------------------------------------------------
-		// Problems (errors + warnings, each prefixed) from the last load / ReloadPacks.
-		std::vector<RE::BSFixedString> GetSceneLoadErrors(OSFVM&, uint32_t, std::monostate)
-		{
-			std::vector<RE::BSFixedString> out;
-			for (const auto& e : Registry::SceneRegistry::GetSingleton().LoadErrors()) {
-				out.emplace_back(e.c_str());
-			}
-			return out;
-		}
-
-		// True iff a_id names a scene that loaded. Anything in the registry passed validation
-		// (invalid scenes are skipped at load), so "loaded" means "valid". A scene that failed
-		// to parse is absent -> false; use GetSceneValidationErrors / GetSceneLoadErrors to see
-		// why. (Pack-registry ids aren't scenes and return false here.)
-		bool ValidateScene(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
-		{
-			return Registry::SceneRegistry::GetSingleton().Find(a_id.c_str()) != nullptr;
-		}
-
-		// The load problems (errors + warnings) referring to a_id — the subset of GetSceneLoadErrors
-		// whose text mentions the id (the reject/warn messages embed the scene id). Empty = the id
-		// had no recorded problems (it loaded clean, or the id never appeared). For a file that
-		// failed before its id could be read, use GetSceneLoadErrors (the full list).
-		std::vector<RE::BSFixedString> GetSceneValidationErrors(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
-		{
-			const std::string want = Util::ToLower(a_id.c_str());
-			std::vector<RE::BSFixedString> out;
-			for (const auto& e : Registry::SceneRegistry::GetSingleton().LoadErrors()) {
-				if (Util::ToLower(e).find(want) != std::string::npos) {
-					out.emplace_back(e.c_str());
-				}
-			}
-			return out;
-		}
-
-		// DEBUG (OSFCompat): log a parsed scene's graph structure to the OSF Animation.log.
-		void Dbg_DumpScene(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_id)
-		{
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str());
-			if (!def) {
-				REX::INFO("Dbg_DumpScene: no scene '{}'", a_id.c_str());
-				return;
-			}
-			REX::INFO("Dbg_DumpScene '{}' name='{}' entry='{}' tags={} roles={} nodes={}",
-				def->id, def->name, def->entry, def->tags.size(), def->roles.size(), def->nodes.size());
-			for (const auto& n : def->nodes) {
-				const char* mode = n.loopMode == Registry::LoopMode::kOnce ? "once" :
-					n.loopMode == Registry::LoopMode::kHold ? "hold" : "count";
-				REX::INFO("  node '{}' anim='{}' loop={}({}) timer={} edges={}",
-					n.id, n.anim, mode, n.loopCount, n.timerSec, n.edges.size());
-				for (const auto& e : n.edges) {
-					const char* when = e.when == Registry::EdgeWhen::kEnd ? "end" :
-						e.when == Registry::EdgeWhen::kLoops ? "loops" :
-						e.when == Registry::EdgeWhen::kTimer ? "timer" :
-						e.when == Registry::EdgeWhen::kAdvance ? "advance" : "trigger";
-					REX::INFO("    edge -> '{}' when={} id='{}' default={}", e.to, when, e.id, e.isDefault);
-				}
-			}
 		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
 	{
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
+
+		a_vm->BindNativeMethod(SCRIPT_NAME, "IsPlaying", &IsPlaying, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Play", &Play, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Stop", &Stop, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStage", &SetSceneStage, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStageForActor", &SetSceneStageForActor, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "ReloadPacks", &ReloadPacks, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneStage", &GetSceneStage, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneStageForActor", &GetSceneStageForActor, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "IsPlaying", &IsPlaying, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetCurrentAnimation", &GetCurrentAnimation, true, false);
+
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSpeed", &SetSpeed, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSpeed", &GetSpeed, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetAnchor", &SetAnchor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ClearAnchor", &ClearAnchor, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "Sync", &Sync, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "PlaySequence", &PlaySequence, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetCurrentAnimation", &GetCurrentAnimation, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStage", &SetSceneStage, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneStage", &GetSceneStage, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneStageForActor", &SetSceneStageForActor, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneStageForActor", &GetSceneStageForActor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StopScene", &StopScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StopSceneForActor", &StopSceneForActor, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "NotifyGameLoaded", &NotifyGameLoaded, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneAt", &StartSceneAt, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsAt", &StartSceneByTagsAt, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQueryAt", &StartSceneByTagsQueryAt, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenes", &FindScenes, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "FindScenesForActorsQuery", &FindScenesForActorsQuery, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "UnregisterSceneCallback", &UnregisterSceneCallback, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneNode", &GetSceneNode, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneForActor", &GetSceneForActor, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneRoles", &GetSceneRoles, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneRoleGender", &GetSceneRoleGender, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneActorCount", &GetSceneActorCount, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneTags", &GetSceneTags, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "ValidateScene", &ValidateScene, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneValidationErrors", &GetSceneValidationErrors, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "AdvanceScene", &AdvanceScene, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "NavigateScene", &NavigateScene, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeCount", &GetSceneEdgeCount, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeId", &GetSceneEdgeId, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeLabel", &GetSceneEdgeLabel, true, false);
-		REX::INFO("Registered papyrus natives on script '{}'", SCRIPT_NAME);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ReloadPacks", &ReloadPacks, true, false);
 
-		// Non-public crosshair + debug natives — kept off the public OSF surface (see
-		// COMPAT_SCRIPT_NAME / OSFCompat.psc). The OSFTest harness calls these.
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireSceneEventStatic", &Dbg_FireSceneEventStatic, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_FireActionActor", &Dbg_FireActionActor, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartScene", &Dbg_StartScene, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_SetSceneNode", &Dbg_SetSceneNode, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StopScene", &Dbg_StopScene, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_DumpScene", &Dbg_DumpScene, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_StartSceneDef", &Dbg_StartSceneDef, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_Log", &Dbg_Log, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "Dbg_PlaySound", &Dbg_PlaySound, true, false);
-		REX::INFO("Registered non-public natives on script '{}'", COMPAT_SCRIPT_NAME);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
+		REX::INFO("Registered papyrus natives on script '{}'", SCRIPT_NAME);
 	}
 
 	bool RegisterFunctions()

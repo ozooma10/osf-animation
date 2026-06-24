@@ -87,7 +87,7 @@ namespace OSF::Serialization::SaveSafety
 			src->RegisterSink(LoadGameSink::GetSingleton());
 			REX::INFO("SaveSafety: registered TESLoadGameEvent backstop sink");
 		} else {
-			REX::WARN("SaveSafety: TESLoadGameEvent source null; OSF.NotifyGameLoaded() remains the manual fallback");
+			REX::WARN("SaveSafety: TESLoadGameEvent source null; Something very wrong");
 		}
 	}
 }
