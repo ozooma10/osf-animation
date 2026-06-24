@@ -20,6 +20,11 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 ### Layer A - core playback
 - **GLTFImport** (`src/Serialization/GLTFImport.*`) — fastgltf 0.9 → ozz skeleton + runtime anim;
   handles NAF gzip GLBs; process-wide import cache cleared by `ReloadPacks()`. No CLSF dep.
+- **AFImport** (`src/Serialization/AFImport.*`) — Starfield engine-native `.af` + `skeleton.rig` → ozz
+  skeleton + runtime anim (same output shape as GLTFImport, so it plays through Graph). Decodes the
+  quantized rest-relative tracks (ported from CALUMI) and re-bases to absolute local (`local = bind ∘
+  track`); lets the ozz path source `.af`/vanilla content with full clock/sync. No CLSF dep; offline
+  test: `osf-af-import-test <clip.af> <skeleton.rig>`.
 - **Graph** (`src/Animation/Graph.*`) — per-actor sampler/stamper across two hooks: `Sample()`
   (advances time/stage, keeps rig binding warm) + `StampPose()` (samples ozz pose ONCE/frame, writes
   engine flat rig buffers, NiTransform ROW layout — do NOT transpose).

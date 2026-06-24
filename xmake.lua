@@ -60,6 +60,17 @@ target("osf-import-test")
     add_files("src/Serialization/GLTFImport.cpp", "test/ImportTest.cpp")
     add_includedirs("src")
 
+-- Standalone .af import tester (xmake build osf-af-import-test).
+-- Decodes a Starfield .af + skeleton.rig into ozz and samples a few poses, no game needed:
+--   xmake run osf-af-import-test <clip.af> <skeleton.rig>
+target("osf-af-import-test")
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_packages("ozz-animation")
+    add_files("src/Serialization/AFImport.cpp", "test/AFImportTest.cpp")
+    add_includedirs("src")
+
 -- Offline unit tests for the engine-independent logic (registries, matchmaker, util, scene math). 
 -- Builds WITHOUT CommonLibSF/game by force-including the RE/REX stub pch (test/stubs/test_pch.h). 
 -- Run with: xmake build osf-tests && xmake run osf-tests.  See test/README.md.
