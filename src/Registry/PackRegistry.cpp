@@ -105,8 +105,7 @@ namespace OSF::Registry
 			size_t actorCount = def.actors.size();
 			for (const auto& jStage : *stagesIt) {
 				StageDef info;
-				// A stage is either the full object form { timer, loops, clips[] }
-				// or the shorthand form: a bare array that IS the clips list.
+				// A stage is either the full object form { timer, loops, clips[] } or the shorthand form: a bare array that IS the clips list.
 				// timingGiven tracks whether the author specified ANY auto-advance timing: when they specified NEITHER timer nor loops, the stage defaults to play-once
 				// An explicit timer:0 / loops:0 opts back into the engine's hold-forever behavior
 				const nlohmann::json* clipsNode = nullptr;
@@ -129,9 +128,8 @@ namespace OSF::Registry
 				if (!timingGiven) {
 					info.loops = 1;
 				}
-				// clips[]: one per actor, in actor order. A bare string is just the
-				// file; an object is { file, offset } where offset overrides the
-				// actor's default placement for this stage.
+				// clips[]: one per actor, in actor order. A bare string is just the file;
+				// an object is { file, offset } where offset overrides the  actor's default placement for this stage.
 				for (const auto& jClip : *clipsNode) {
 					StageClip clip;
 					if (jClip.is_string()) {
