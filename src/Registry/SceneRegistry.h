@@ -157,6 +157,7 @@ namespace OSF::Registry
 		std::string              name;
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
+		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		std::vector<std::string> tags;
 		std::vector<SceneRole>   roles;
 		std::string              entry;

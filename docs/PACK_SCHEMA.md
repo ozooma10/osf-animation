@@ -80,6 +80,7 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
   "priority": 0,                  // matchmaking tier (higher wins); ties broken by "weight"
   "weight": 1,                    // weighted-random sampling within the top priority tier
   "tags": ["paired", "demo"],     // free-form matchmaking tags
+  "lockPlayer": true,             // default: disable player input when the player participates (false to opt out)
   "roles": [                      // declared participants, in binding order
     { "name": "lead",  "gender": "any" },
     { "name": "other", "filters": { "race": "Starfield.esm|0x0021A8D7" } }
@@ -99,6 +100,17 @@ A role's bound actor must satisfy **every present** constraint; within `keyword`
 - `filters.race`: a form-ref string or array; the actor's race must equal any one.
 - **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0021A8D7"`). Resolved once at scene
   load; an unresolvable / wrong-type ref **rejects** the scene (see `GetSceneValidationErrors`).
+
+### Player input lock (default-on)
+When the **player is a participant**, the scene engages the control lock (input-disable + AI-driven
+decouple) automatically at start — you do **not** need to author `osf.control.lock`. It is ledger-tracked
+like any mechanism, so it auto-releases on every end path.
+- Set **`"lockPlayer": false`** to leave the player free (e.g. a scene they only spectate).
+- The default never engages for an **NPC-only** scene (no player participant).
+- Authored `osf.control.lock` / `osf.control.release` still work: the lock is idempotent (re-locking is a
+  no-op), and an authored release can drop it mid-scene.
+- Pack/files scenes (no `*.scene.json`) always lock when the player participates — they have no field to
+  opt out via.
 
 ### Nodes
 ```jsonc
@@ -150,7 +162,7 @@ All are **recorded in the per-handle undo ledger and auto-reversed on any scene 
 
 | Action `type` | Effect | Needs `role` | Extra fields |
 |---------------|--------|:---:|---|
-| `osf.control.lock` / `osf.control.release` | Player input-disable + AI-driven lock (ref-counted). | ✓ | |
+| `osf.control.lock` / `osf.control.release` | Player input-disable + AI-driven lock (ref-counted). **On by default when the player participates** — see *Player input lock*; author these only to override. | ✓ | |
 | `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). | ✓ | |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |

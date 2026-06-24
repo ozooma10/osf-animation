@@ -41,8 +41,10 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 - **PackRegistry** (`src/Registry/PackRegistry.*`) — loads SLAL-shaped JSON animation packs from
   `Data/OSF/**` (mechanical schema only; content fields ignored — policy lives in `*.scene.json`).
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —
-  standalone locks (input-disable + AI-driven + third-person hold). 
-  Applied by the runtime's `osf.control.lock` action (ref-counted per scene).
+  standalone locks (input-disable + AI-driven + third-person hold).
+  Engaged **by default at scene start when the player is a participant** (the runtime calls
+  `EngageDefaultPlayerLock`; a scene opts out with `lockPlayer:false`), and also by the explicit
+  `osf.control.lock` action. Ref-counted per scene, ledger-tracked so it auto-releases on any end.
 - **Papyrus** (`src/Papyrus/OSFScript.*`) — natives bound via GameVM at kPostDataLoad, re-bound every
   load (VM is rebuilt).
 - **Save-safety** (`src/Serialization/SaveSafety.*`) — `GraphManager::StopAll` drops ALL scene/graph

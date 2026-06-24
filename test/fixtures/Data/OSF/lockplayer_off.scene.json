@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "osf.scene.lockplayeroff",
+  "name": "Lock Player Off",
+  "lockPlayer": false,
+  "entry": "main",
+  "nodes": [
+    {
+      "id": "main",
+      "anim": "osf.test.pair",
+      "loop": { "mode": "hold" },
+      "loopForever": true
+    }
+  ]
+}

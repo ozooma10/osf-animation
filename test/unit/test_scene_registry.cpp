@@ -82,6 +82,23 @@ OSF_TEST_CASE(SceneRegistry_parses_all_track_lanes)
 	CHECK_EQ(intro->cameras[0].state, std::string("thirdperson_hold"));
 }
 
+OSF_TEST_CASE(SceneRegistry_player_lock_defaults_on_and_opts_out)
+{
+	auto& reg = SceneRegistry::GetSingleton();
+	// Default: a scene with no 'lockPlayer' key disables player input when the player is in.
+	const auto* on = reg.Find("osf.scene.basic");
+	CHECK(on != nullptr);
+	if (on) {
+		CHECK(on->lockPlayer);
+	}
+	// Opt-out: "lockPlayer": false parses through and leaves the player free.
+	const auto* off = reg.Find("osf.scene.lockplayeroff");
+	CHECK(off != nullptr);
+	if (off) {
+		CHECK(!off->lockPlayer);
+	}
+}
+
 OSF_TEST_CASE(SceneRegistry_linear_stage_index)
 {
 	const auto* def = SceneRegistry::GetSingleton().Find("osf.scene.basic");

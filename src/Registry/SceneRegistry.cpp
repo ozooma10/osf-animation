@@ -450,6 +450,12 @@ namespace OSF::Registry
 				}
 				def.weight = static_cast<std::int32_t>(w);
 			}
+			if (auto it = a_json.find("lockPlayer"); it != a_json.end()) {
+				if (!it->is_boolean()) {
+					throw std::runtime_error("scene '" + def.id + "': 'lockPlayer' must be a boolean");
+				}
+				def.lockPlayer = it->get<bool>();
+			}
 			def.entry = a_json.value("entry", std::string{});
 			if (def.entry.empty()) {
 				throw std::runtime_error("scene '" + def.id + "': missing 'entry'");

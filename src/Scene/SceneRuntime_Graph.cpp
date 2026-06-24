@@ -289,6 +289,26 @@ namespace OSF::Scene
 		}
 	}
 
+	void SceneRuntime::EngageDefaultPlayerLock(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		const bool hasPlayer = player &&
+			std::find(a_participants.begin(), a_participants.end(), static_cast<RE::Actor*>(player)) != a_participants.end();
+		if (!hasPlayer) {
+			return;  // NPC-only scene, the player isn't involved, so there's nothing to lock.
+		}
+		// A def scene can decline the default (a scene the player only spectates)
+		if (!a_defId.empty()) {
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId);
+			if (def && !def->lockPlayer) {
+				REX::INFO("SceneRuntime: scene {:#010x} default player lock skipped — scene opts out (lockPlayer:false)", a_handle);
+				return;
+			}
+		}
+		REX::INFO("SceneRuntime: scene {:#010x} default player lock engaged — player is a participant", a_handle);
+		RecordMechanism(a_handle, Mechanism::kControlLock);
+	}
+
 	void SceneRuntime::ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
 		bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
 	{
@@ -334,6 +354,8 @@ namespace OSF::Scene
 			}
 		}
 		PlayNodeAnim(a_participants, a_id, a_entryNode);
+		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
+		EngageDefaultPlayerLock(handle, a_id, a_participants);
 		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
 		return handle;
 	}
@@ -436,6 +458,7 @@ namespace OSF::Scene
 			ReleaseSlot(handle);  // play failed after mint — no events fired yet, just free it
 			return 0;
 		}
+		EngageDefaultPlayerLock(handle, "", a_participants);  // pack scene: no def to opt out via
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}
@@ -458,6 +481,7 @@ namespace OSF::Scene
 			ReleaseSlot(handle);
 			return 0;
 		}
+		EngageDefaultPlayerLock(handle, "", a_participants);  // files scene: no def to opt out via
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}
