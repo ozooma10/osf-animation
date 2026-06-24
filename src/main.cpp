@@ -1,4 +1,5 @@
 #include "Animation/GraphManager.h"
+#include "Animation/IdlePlayer.h"
 #include "Audio/SoundService.h"
 #include "Config/Settings.h"
 #include "Papyrus/OSFScript.h"
@@ -30,6 +31,8 @@ namespace
 			OSF::Audio::SoundService::GetSingleton().Init();
 			// Apply the user's safety toggles now that the services they configure exist.
 			OSF::Config::Settings::Load();
+			// Resolve the fixed idle-playback template/keyword refs
+			OSF::Animation::IdlePlayer::GetSingleton().Resolve();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
