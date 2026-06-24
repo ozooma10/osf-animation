@@ -30,10 +30,10 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
       "id": "author.pack.greet",             // unique id; referenced by scenes / StartScene / tags
       "name": "Friendly greeting",
       "tags": ["social", "greet"],           // free-form; used by StartSceneByTags* matchmaking
-      "actors": [                            // one entry per participant slot
-        { "gender": "any" },                 // gender: "male" | "female" | "any" (or "m"/"f")
+      "actors": [                            // OPTIONAL; one entry per participant slot.
+        { "gender": "any" },                 //   gender: "male" | "female" | "any" (or "m"/"f")
         { "gender": "any", "offset": { "y": 1.0, "heading": 180.0 } }  // default placement for this slot
-      ],
+      ],                                     // omit entirely to infer the actor count from stages[].clips[]
       "stages": [                            // one or more stages; advance by timer/loops
         {
           "timer": 0.0,                      // seconds; 0 = no auto-advance on time
@@ -49,8 +49,12 @@ be pure packs; anything with phases, immersion, or furniture anchoring is a scen
 }
 ```
 
+- **`actors`** is optional. When present it sets the actor count and per-slot gender/offset defaults.
+  When omitted, the actor count is inferred from the first stage's `clips[]`, and every actor defaults to
+  gender `"any"` with no offset.
 - **`clips`** entries are either a bare Data-relative path string, or `{ "file": ..., "offset": {...} }`
-  to override that slot's placement for that stage. Every stage must have exactly `actors.length` clips.
+  to override that slot's placement for that stage. Every stage must have the same number of clips — equal
+  to `actors.length` when `actors` is given, otherwise to the first stage's clip count.
 - **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A slot-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.

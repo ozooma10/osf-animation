@@ -41,27 +41,32 @@ namespace OSF::Registry
 				}
 			}
 
-			// actors[]: stage-invariant per-actor metadata only (no per-stage data).
-			// The clips an actor plays live in the top-level stages[].clips[].
-			const auto& actors = a_json.at("actors");
-			if (!actors.is_array() || actors.empty()) {
-				throw std::runtime_error("'actors' must be a non-empty array");
-			}
-			for (const auto& jActor : actors) {
-				// Reject the actor-major layout with a clear hint: clips live in the
-				// top-level stages[].clips[], not under actors[].stages[]/actors[].file.
-				if (jActor.contains("stages") || jActor.contains("file")) {
-					throw std::runtime_error("'" + def.id + "': actor-major layout is not supported — move each "
-						"actor's clips into the top-level stages[].clips[]");
+			// actors[]: optional, stage-invariant per-actor metadata only (no
+			// per-stage data). The clips an actor plays live in the top-level
+			// stages[].clips[]. When omitted, the actor count is inferred from the
+			// stages' clips[] and every actor defaults to gender "any" / no offset.
+			bool actorsGiven = false;
+			if (auto actorsIt = a_json.find("actors"); actorsIt != a_json.end()) {
+				const auto& actors = *actorsIt;
+				if (!actors.is_array() || actors.empty()) {
+					throw std::runtime_error("'actors' must be a non-empty array");
 				}
-				SlotDef slot;
-				slot.gender = ParseSlotGender(jActor.value("gender", "any"));
-				if (auto it = jActor.find("offset"); it != jActor.end()) {
-					slot.offset = ParseOffset(*it);
+				actorsGiven = true;
+				for (const auto& jActor : actors) {
+					// Reject the actor-major layout with a clear hint: clips live in the
+					// top-level stages[].clips[], not under actors[].stages[]/actors[].file.
+					if (jActor.contains("stages") || jActor.contains("file")) {
+						throw std::runtime_error("'" + def.id + "': actor-major layout is not supported — move each "
+							"actor's clips into the top-level stages[].clips[]");
+					}
+					SlotDef slot;
+					slot.gender = ParseSlotGender(jActor.value("gender", "any"));
+					if (auto it = jActor.find("offset"); it != jActor.end()) {
+						slot.offset = ParseOffset(*it);
+					}
+					def.actors.push_back(std::move(slot));
 				}
-				def.actors.push_back(std::move(slot));
 			}
-			const size_t actorCount = def.actors.size();
 
 			// stages[]: the timeline. Required and non-empty; every stage carries its
 			// timing plus one clip per actor (clips[], in actor order). Any content
@@ -70,6 +75,9 @@ namespace OSF::Registry
 			if (stagesIt == a_json.end() || !stagesIt->is_array() || stagesIt->empty()) {
 				throw std::runtime_error("'" + def.id + "': 'stages' must be a non-empty array");
 			}
+			// When actors[] was omitted, the first stage's clip count defines the
+			// actor count; every subsequent stage must match it (checked below).
+			size_t actorCount = def.actors.size();
 			for (const auto& jStage : *stagesIt) {
 				StageDef info;
 				info.timer = jStage.value("timer", 0.0f);
@@ -98,11 +106,24 @@ namespace OSF::Registry
 					}
 					info.clips.push_back(std::move(clip));
 				}
+				if (info.clips.empty()) {
+					throw std::runtime_error("'" + def.id + "': every stage needs at least one clip");
+				}
+				if (!actorsGiven && actorCount == 0) {
+					// First stage seen with no actors[] block: it sets the count.
+					actorCount = info.clips.size();
+				}
 				if (info.clips.size() != actorCount) {
 					throw std::runtime_error("'" + def.id + "': stage has " + std::to_string(info.clips.size()) +
 						" clip(s) but the scene has " + std::to_string(actorCount) + " actor(s)");
 				}
 				def.stages.push_back(std::move(info));
+			}
+
+			// Synthesize default actor slots when actors[] was omitted, so downstream
+			// code (BuildPlan) can index def.actors[] uniformly.
+			if (!actorsGiven) {
+				def.actors.assign(actorCount, SlotDef{});
 			}
 
 			return def;

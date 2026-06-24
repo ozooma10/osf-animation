@@ -47,6 +47,27 @@ OSF_TEST_CASE(PackRegistry_parses_actors_and_genders)
 	}
 }
 
+OSF_TEST_CASE(PackRegistry_infers_actor_count_when_actors_omitted)
+{
+	// osf.test.noactors has no "actors" block; the count comes from the stages'
+	// clips[] (two here) and every slot defaults to gender "any" / no offset.
+	const auto* na = Find("osf.test.noactors");
+	CHECK(na != nullptr);
+	if (na) {
+		CHECK_EQ(na->actors.size(), static_cast<size_t>(2));
+		CHECK(na->actors[0].gender == SlotGender::kAny);
+		CHECK(na->actors[1].gender == SlotGender::kAny);
+		CHECK_EQ(na->stages.size(), static_cast<size_t>(2));
+	}
+	// BuildScenePlan resolves it like any other two-actor anim.
+	auto plan = PackRegistry::GetSingleton().BuildScenePlan("osf.test.noactors", 2);
+	CHECK(plan.has_value());
+	if (plan) {
+		CHECK_EQ(plan->stages.size(), static_cast<size_t>(2));
+		CHECK_EQ(plan->stages[0].files.size(), static_cast<size_t>(2));
+	}
+}
+
 OSF_TEST_CASE(PackRegistry_rejects_bad_schema_and_dupes)
 {
 	// pack_badschema.json (schema 99) contributes nothing; its anim id is absent.

@@ -32,6 +32,15 @@
       "stages": [
         { "clips": [ "OSF\\Anim\\s0.glb", "OSF\\Anim\\s1.glb" ] }
       ]
+    },
+    {
+      "id": "osf.test.noactors",
+      "name": "NoActors",
+      "tags": ["test"],
+      "stages": [
+        { "timer": 0, "loops": 0, "clips": [ "OSF\\Anim\\na0a.glb", "OSF\\Anim\\na0b.glb" ] },
+        { "timer": 1.5, "loops": 0, "clips": [ "OSF\\Anim\\na1a.glb", "OSF\\Anim\\na1b.glb" ] }
+      ]
     }
   ]
 }
