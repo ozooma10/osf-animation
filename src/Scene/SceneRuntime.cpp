@@ -22,6 +22,7 @@ namespace OSF::Scene
 		{
 			auto& rt = SceneRuntime::GetSingleton();
 			if (rt.GetNode(a_grant.handle).empty()) {
+				REX::INFO("SceneRuntime: input verb {} dropped — scene {:#010x} already ended", static_cast<int>(a_verb), a_grant.handle);
 				return;  // handle dead (scene ended / load) — do nothing
 			}
 			auto&              gm = Animation::GraphManager::GetSingleton();

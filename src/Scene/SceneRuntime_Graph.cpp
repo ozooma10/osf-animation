@@ -605,8 +605,16 @@ namespace OSF::Scene
 
 	bool SceneRuntime::Advance(std::int32_t a_scene)
 	{
+		// Read the node before the transition so we can name where we came from in the log.
+		// Empty => the handle is dead (scene ended / loaded) — the keypress hit nothing.
+		const std::string fromNode = GetNode(a_scene);
+		if (fromNode.empty()) {
+			REX::INFO("SceneRuntime: Advance scene {:#010x} ignored — no active scene on this handle", a_scene);
+			return false;
+		}
+
 		// The node's DEFAULT advance edge (never inferred).
-		return TakeEdge(a_scene, [](const Registry::SceneNode& a_node) -> const Registry::SceneEdge* {
+		const bool took = TakeEdge(a_scene, [](const Registry::SceneNode& a_node) -> const Registry::SceneEdge* {
 			for (const auto& e : a_node.edges) {
 				if (e.when == Registry::EdgeWhen::kAdvance && e.isDefault) {
 					return &e;
@@ -614,6 +622,17 @@ namespace OSF::Scene
 			}
 			return nullptr;
 		});
+
+		if (took) {
+			// After the transition the handle may be freed (edge targeted "$end") — empty node = scene ended.
+			const std::string toNode = GetNode(a_scene);
+			REX::INFO("SceneRuntime: Advance scene {:#010x} — node '{}' -> {}",
+				a_scene, fromNode, toNode.empty() ? "$end (scene ended)" : ("'" + toNode + "'"));
+		} else {
+			REX::INFO("SceneRuntime: Advance scene {:#010x} — node '{}' has no default advance edge (nothing to do)",
+				a_scene, fromNode);
+		}
+		return took;
 	}
 
 	bool SceneRuntime::Navigate(std::int32_t a_scene, std::string_view a_edgeId)
