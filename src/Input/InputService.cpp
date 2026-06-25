@@ -25,8 +25,15 @@ namespace OSF::Input
 		std::atomic_bool   g_captureMouse{ false };
 		std::atomic<float> g_mouseDx{ 0.0f };
 		std::atomic<float> g_mouseDy{ 0.0f };
+		std::atomic<float> g_mouseWheel{ 0.0f };  // net wheel ticks since the last drain (+ = up / zoom in)
 		// MouseMoveEvent is an IDEvent (0x38) subclass; the two raw axis deltas (int32 x,y) follow it.
 		constexpr std::ptrdiff_t kMouseMoveDeltaOffset = 0x38;
+		// The mouse wheel arrives as ButtonEvents on the kMouse device (confirmed in-game): idCode 0x800 =
+		// wheel up, 0x900 = wheel down, and value is the signed Windows WHEEL_DELTA (+120 up, -120 down) with
+		// a 0-value release event after each. We normalize by 120 so the accumulator counts notches.
+		constexpr std::int32_t kMouseWheelUpId = 0x800;
+		constexpr std::int32_t kMouseWheelDownId = 0x900;
+		constexpr float        kWheelNotch = 120.0f;
 
 		// Index of the BSInputEventReceiver vtable in RE::UI::VTABLE (AddressLib id 475439). The IDs_VTABLE array is NOT in base-declaration order;
 		constexpr std::size_t kReceiverVtblIndex = 10;
@@ -92,13 +99,26 @@ namespace OSF::Input
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
 			if (active || capture) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
-					if (active && event->eventType == RE::InputEvent::EventType::kButton) {
+					const auto et = event->eventType;
+					if (active && et == RE::InputEvent::EventType::kButton) {
 						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
-					} else if (capture && event->eventType == RE::InputEvent::EventType::kMouseMove) {
+					}
+					if (!capture) {
+						continue;
+					}
+					if (et == RE::InputEvent::EventType::kMouseMove) {
 						const auto* d = reinterpret_cast<const std::int32_t*>(
 							reinterpret_cast<const std::byte*>(event) + kMouseMoveDeltaOffset);
 						g_mouseDx.fetch_add(static_cast<float>(d[0]), std::memory_order_relaxed);
 						g_mouseDy.fetch_add(static_cast<float>(d[1]), std::memory_order_relaxed);
+					} else if (et == RE::InputEvent::EventType::kButton) {
+						const auto* btn = static_cast<const RE::ButtonEvent*>(event);
+						// Mouse wheel: value is already signed by direction (+up / -down), so accumulate it
+						// for either wheel idCode and normalize to notches. (The 0-value release adds nothing.)
+						if (btn->deviceType == RE::InputEvent::DeviceType::kMouse &&
+							(btn->idCode == kMouseWheelUpId || btn->idCode == kMouseWheelDownId)) {
+							g_mouseWheel.fetch_add(btn->value / kWheelNotch, std::memory_order_relaxed);
+						}
 					}
 				}
 			}
@@ -214,6 +234,7 @@ namespace OSF::Input
 		if (!a_on) {
 			g_mouseDx.store(0.0f, std::memory_order_relaxed);
 			g_mouseDy.store(0.0f, std::memory_order_relaxed);
+			g_mouseWheel.store(0.0f, std::memory_order_relaxed);
 		}
 	}
 
@@ -221,5 +242,10 @@ namespace OSF::Input
 	{
 		a_dx = g_mouseDx.exchange(0.0f, std::memory_order_relaxed);
 		a_dy = g_mouseDy.exchange(0.0f, std::memory_order_relaxed);
+	}
+
+	void InputService::DrainWheelDelta(float& a_wheel)
+	{
+		a_wheel = g_mouseWheel.exchange(0.0f, std::memory_order_relaxed);
 	}
 }

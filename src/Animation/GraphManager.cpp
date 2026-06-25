@@ -36,9 +36,18 @@ namespace OSF::Animation
 		constexpr size_t ModelNodeUpdateVFuncIdx = 2;
 
 		// Floor for a pinned actor's cull-sphere radius (meters)
-		// big enough to enclose any posed humanoid so a stale engine radius can't frustum-cull a participant. 
+		// big enough to enclose any posed humanoid so a stale engine radius can't frustum-cull a participant.
 		// Used by the compose-root pin when re-centering worldBound.
+		// NOTE: do NOT inflate this to "fix" culling — a larger sphere feeds the near-camera fade (a separate,
+		// distance-scaled mechanism) and makes a close orbit camera fade the actor out (8.0 was strictly worse
+		// than 2.5 in-game). The cull lever is the sphere CENTER (kept on the visible mesh), not the radius.
 		constexpr float kPinCullRadius = 2.5f;
+
+		// Lift the cull-sphere center from the compose-root (= the actor's feet/origin = pinWorld) up to the
+		// torso, where the visible posed mesh actually sits. The engine's own capsule-derived bound is centered
+		// near the torso; clobbering the center down to the feet mis-aims the sphere low, so at certain orbit
+		// angles it leaves the view frustum and the participant pops out. Meters along world +Z.
+		constexpr float kPinCullCenterUp = 1.0f;
 
 		// BSFadeNode near-camera fade flag (+0x1B4, a float: 1.0 = drawn, 0.0 = faded).
 		// The engine fades an actor out when the third-person camera orbits close; we hold it at 1.0 each frame so pinned participants don't vanish.
@@ -1071,6 +1080,13 @@ namespace OSF::Animation
 							root[13] = pinWorld.y;
 							root[14] = pinWorld.z;
 
+								// Co-locate the actor's tracked position with the pinned skeleton. The engine's
+								// third-person camera, the audio listener, and the scene-orbit camera all read
+								// data.location, which otherwise drifts with leaked root motion (the "capsule err")
+								// and frames empty space. We correct only the bookkeeping position the cameras
+								// follow; the havok capsule is left alone (it wins teleports) and restores on end.
+								refr->data.location = pinWorld;
+
 							// Pin compose-root ROTATION for the PLAYER only: in 3rd person the engine rewrites the player heading from camera yaw each frame
 							// (AI-driven doesn't suppress it on 1.16.244), so the rig spins as the camera orbits. 
 							// NPCs stay anim-owned. Rotation = NiMatrix3 at +0x00: three ROWS of 4 floats (4th pad), stride 4 -> root[r*4 + c].
@@ -1090,7 +1106,9 @@ namespace OSF::Animation
 							// Written pre-orig but after the bound pass, so culling sees it this frame.
 							auto* fadeNode = reinterpret_cast<RE::NiAVObject*>(
 								reinterpret_cast<std::byte*>(a_parentTransform) - offsetof(RE::NiAVObject, local));
-							fadeNode->worldBound.center = pinWorld;
+							// Center on the visible mesh (torso), not the feet/origin: a feet-centered sphere
+							// sits below the posed body and frustum-culls at certain orbit angles (see kPinCullCenterUp).
+							fadeNode->worldBound.center = { pinWorld.x, pinWorld.y, pinWorld.z + kPinCullCenterUp };
 							fadeNode->worldBound.radius = std::max(fadeNode->worldBound.radius, kPinCullRadius);
 
 							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0 so pinned participants don't fade out when the camera orbits close (see kFadeNodeVisFlagOff).

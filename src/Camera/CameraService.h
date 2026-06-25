@@ -67,12 +67,30 @@ namespace OSF::Camera
 		std::atomic<bool> orbitDriving{ false };  // gates Tick's scene-orbit self-drive
 		std::mutex        driveLock;              // serializes DriveSceneOrbit across job threads
 		std::int64_t      lastDriveMs = 0;        // wall-clock anchor for frame-rate-independent dt
+		// Smoothed (rendered) orbit params + their input-driven targets. Input nudges the targets; each
+		// frame the current values low-pass toward them, so look/zoom glide instead of stepping per tick.
 		float             orbitAzimuth = 0.0f;    // radians about world Z (camera position around center)
 		float             orbitElevation = 0.0f;  // radians, + = camera above the center looking down
 		float             orbitRadius = 0.0f;     // meters from the scene center
-		// Orbit center captured ONCE on enter (a pinned actor's live position wobbles per frame → jitter).
+		float             orbitTargetAzimuth = 0.0f;
+		float             orbitTargetElevation = 0.0f;
+		float             orbitTargetRadius = 0.0f;
+		// Orbit center: seeded on enter (a pinned actor's live position wobbles per frame → jitter, so we
+		// don't re-read it), then flown through the scene by WASD in DriveSceneOrbit.
 		float             orbitCenterX = 0.0f;
 		float             orbitCenterY = 0.0f;
 		float             orbitCenterZ = 0.0f;    // torso height; floor ≈ this minus the torso offset
+		// Diagnostic for the W/S "snap": the engine's free-fly Update runs once/frame on the game thread and
+		// may integrate movement into the position we own (+0x70). We record the pos we last wrote and, at the
+		// top of the next drive, compare it to what the engine left there — a non-zero delta IS the snap source.
+		float             lastWrittenX = 0.0f;
+		float             lastWrittenY = 0.0f;
+		float             lastWrittenZ = 0.0f;
+		float             lastWrittenQw = 0.0f;    // the +0x7c quaternion we last wrote (to detect engine re-rotation)
+		float             lastWrittenQx = 0.0f;
+		float             lastWrittenQy = 0.0f;
+		float             lastWrittenQz = 0.0f;
+		bool              hasWrittenPos = false;
+		std::int64_t      lastDiagMs = 0;          // rate-limit the drift log (wall clock)
 	};
 }

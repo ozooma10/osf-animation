@@ -31,8 +31,11 @@ namespace OSF::Input
 
 		// Raw mouse-look delta passthrough for the self-driven scene-orbit camera. While capture is on the
 		// input hook accumulates MouseMoveEvent deltas; DrainMouseDelta returns + resets the accumulator.
+		// The mouse WHEEL (carried as mouse ButtonEvents) is accumulated too for orbit zoom; DrainWheelDelta
+		// returns + resets the net wheel ticks (+ = wheel up / zoom in).
 		void SetMouseCapture(bool a_on);
 		void DrainMouseDelta(float& a_dx, float& a_dy);
+		void DrainWheelDelta(float& a_wheel);
 
 		// Load teardown: drop the grant + disarm. Mirrors Player/CameraService::OnStopAll.
 		void OnStopAll();

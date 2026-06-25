@@ -81,8 +81,10 @@ namespace OSF::Camera
 		constexpr float kOrbitMinRadius = 1.0f;
 		constexpr float kOrbitMaxRadius = 12.0f;
 		constexpr float kOrbitMouseSens = 0.004f;    // radians per raw mouse unit
-		constexpr float kOrbitZoomSpeed = 4.0f;      // meters/sec on W/S
+		constexpr float kOrbitPanSpeed = 5.0f;       // meters/sec the WASD keys fly the orbit center through the scene
+		constexpr float kOrbitWheelStep = 0.6f;      // meters of radius change per mouse-wheel notch (zoom)
 		constexpr float kOrbitElevLimit = 1.45f;     // ~83°, off the gimbal poles
+		constexpr float kOrbitSmoothTime = 0.07f;    // low-pass time constant (s): smaller = snappier, larger = floatier
 
 		bool KeyDown(int a_vk)
 		{
@@ -262,7 +264,12 @@ namespace OSF::Camera
 					orbitAzimuth = h;  // start framing the scene from the player's side
 					orbitElevation = kOrbitDefaultElev;
 					orbitRadius = kOrbitDefaultRadius;
+					orbitTargetAzimuth = orbitAzimuth;  // targets start matched so there's no opening glide
+					orbitTargetElevation = orbitElevation;
+					orbitTargetRadius = orbitRadius;
 					lastDriveMs = 0;
+					hasWrittenPos = false;  // no prior write to compare against yet
+					lastDiagMs = 0;
 				}
 				orbitDriving.store(true, std::memory_order_relaxed);
 				Input::InputService::GetSingleton().SetMouseCapture(true);
@@ -326,28 +333,81 @@ namespace OSF::Camera
 			return;
 		}
 
+		// DIAGNOSTIC: measure what the engine's once-per-frame free-fly Update did to the transform we own
+		// since our last write. posDrift = how far it moved +0x70 (translation; should be ~0 now that speed is
+		// zeroed). quatDrift = how much it rotated the +0x7c quaternion (the integrate composes a mouse-look
+		// delta into +0x7c at 0x140fa6b5f — if this is non-zero the engine is free-looking the camera, fighting
+		// our look-at-center re-aim → the "rotates in place, doesn't orbit" feel). Reported once/sec below.
+		float posDrift = 0.0f, quatDrift = 0.0f;
+		if (hasWrittenPos) {
+			auto* sb = reinterpret_cast<std::byte*>(state);
+			const float ex = *reinterpret_cast<float*>(sb + kFreeFlyPosOffset + 0) - lastWrittenX;
+			const float ey = *reinterpret_cast<float*>(sb + kFreeFlyPosOffset + 4) - lastWrittenY;
+			const float ez = *reinterpret_cast<float*>(sb + kFreeFlyPosOffset + 8) - lastWrittenZ;
+			posDrift = std::sqrt(ex * ex + ey * ey + ez * ez);
+			auto* q = reinterpret_cast<float*>(sb + kFreeFlyRotOffset);
+			quatDrift = std::abs(q[0] - lastWrittenQw) + std::abs(q[1] - lastWrittenQx) +
+						std::abs(q[2] - lastWrittenQy) + std::abs(q[3] - lastWrittenQz);
+		}
+
+		// Stop the engine's free-fly Update from moving the position we own. Disassembly of the integrate
+		// (FreeFlyCameraState::Update → 0x140fa6a00) shows the per-frame movement = SPEED(state+0xac) · dt ·
+		// direction, where SPEED is read and scaled BEFORE the +0x2dd gate picks the direction source (global
+		// vs the +0x9c.. accumulators). So zeroing only the accumulators couldn't help (the gate was clear →
+		// direction came from the live global, and the speed scalar was still non-zero → ~0.2 m/frame snap).
+		// Zeroing SPEED makes the movement zero in BOTH gate paths; speed is a persistent state field (not a
+		// per-frame INI read — see camera-orbit memory), so writing it here holds it at 0. Velocity (+0x68/+0x6c)
+		// and the accumulators (+0x9c..+0xa8) are zeroed too so nothing can integrate residual motion.
+		{
+			auto* sb = reinterpret_cast<std::byte*>(state);
+			*reinterpret_cast<float*>(sb + 0xac) = 0.0f;  // free-fly translation SPEED — the movement scalar
+			*reinterpret_cast<float*>(sb + 0x68) = 0.0f;  // velocity x
+			*reinterpret_cast<float*>(sb + 0x6c) = 0.0f;  // velocity y
+			*reinterpret_cast<float*>(sb + 0x9c) = 0.0f;  // WASD/look accumulators
+			*reinterpret_cast<float*>(sb + 0xa0) = 0.0f;
+			*reinterpret_cast<float*>(sb + 0xa4) = 0.0f;
+			*reinterpret_cast<float*>(sb + 0xa8) = 0.0f;
+		}
+
 		const std::int64_t now = NowMs();
 		float dt = (lastDriveMs == 0) ? 0.0f : static_cast<float>(now - lastDriveMs) / 1000.0f;
 		lastDriveMs = now;
 		dt = std::clamp(dt, 0.0f, 0.1f);
 
-		// Mouse steers the orbit; no auto-motion — it holds still when the mouse is idle.
-		float mdx = 0.0f, mdy = 0.0f;
-		Input::InputService::GetSingleton().DrainMouseDelta(mdx, mdy);
-		orbitAzimuth -= mdx * kOrbitMouseSens;
-		orbitElevation += mdy * kOrbitMouseSens;
-		orbitElevation = std::clamp(orbitElevation, -kOrbitElevLimit, kOrbitElevLimit);
+		// Control scheme (freecam-style orbit): MOUSE steers the orbit angle, WHEEL zooms the radius, and
+		// WASD flies the orbit CENTER through the scene (the camera keeps orbiting the moving pivot).
+		float mdx = 0.0f, mdy = 0.0f, wheel = 0.0f;
+		auto& input = Input::InputService::GetSingleton();
+		input.DrainMouseDelta(mdx, mdy);
+		input.DrainWheelDelta(wheel);
+		orbitTargetAzimuth -= mdx * kOrbitMouseSens;
+		orbitTargetElevation += mdy * kOrbitMouseSens;
+		orbitTargetElevation = std::clamp(orbitTargetElevation, -kOrbitElevLimit, kOrbitElevLimit);
+		orbitTargetRadius -= wheel * kOrbitWheelStep;  // wheel up (+) = zoom in = smaller radius
+		orbitTargetRadius = std::clamp(orbitTargetRadius, kOrbitMinRadius, kOrbitMaxRadius);
 
-		// W/S zoom in/out.
-		if (KeyDown('W')) {
-			orbitRadius -= kOrbitZoomSpeed * dt;
+		// WASD pans the center in its horizontal plane, relative to the current view: W/S along the camera's
+		// horizontal forward (toward/away from where it looks), A/D strafe. The center's height is unchanged.
+		const float ch = std::cos(orbitAzimuth), sh = std::sin(orbitAzimuth);
+		float panF = 0.0f, panR = 0.0f;
+		if (KeyDown('W')) panF += 1.0f;
+		if (KeyDown('S')) panF -= 1.0f;
+		if (KeyDown('D')) panR += 1.0f;
+		if (KeyDown('A')) panR -= 1.0f;
+		if (panF != 0.0f || panR != 0.0f) {
+			const float step = kOrbitPanSpeed * dt;
+			orbitCenterX += (-sh * panF + ch * panR) * step;  // forward=(-sin,cos), right=(cos,sin)
+			orbitCenterY += (ch * panF + sh * panR) * step;
 		}
-		if (KeyDown('S')) {
-			orbitRadius += kOrbitZoomSpeed * dt;
-		}
-		orbitRadius = std::clamp(orbitRadius, kOrbitMinRadius, kOrbitMaxRadius);
 
-		// Orbit the FIXED center captured on enter (stable → no jitter). Camera sits radius behind it.
+		// Low-pass the rendered values toward the targets (frame-rate-independent: alpha = 1 - e^(-dt/tau)).
+		// This is what turns raw per-tick input into a smooth glide and absorbs the ~7×/frame tick cadence.
+		const float alpha = (dt > 0.0f) ? (1.0f - std::exp(-dt / kOrbitSmoothTime)) : 1.0f;
+		orbitAzimuth += (orbitTargetAzimuth - orbitAzimuth) * alpha;
+		orbitElevation += (orbitTargetElevation - orbitElevation) * alpha;
+		orbitRadius += (orbitTargetRadius - orbitRadius) * alpha;
+
+		// Orbit the center (seeded on enter, then flown by WASD above). Camera sits radius behind it.
 		const RE::NiPoint3 center{ orbitCenterX, orbitCenterY, orbitCenterZ };
 		const RE::NiPoint3 fwd = LookDirection(orbitAzimuth, -orbitElevation);
 		RE::NiPoint3       pos{
@@ -366,6 +426,29 @@ namespace OSF::Camera
 		const float yaw = std::atan2(-dx, dy);
 		const float pitch = std::atan2(dz, std::sqrt(dx * dx + dy * dy));
 		WriteFreeFlyTransform(state, pos, yaw, pitch);
+
+		// Once/sec: dump the full orbit state so we can see whether the position is actually sweeping (pos vs
+		// center + radius), whether the input is reaching us (mdx/mdy, azimuth), and whether the engine is
+		// fighting our transform (posDrift = engine translation, quatDrift = engine rotation of +0x7c).
+		const std::int64_t nowDiag = NowMs();
+		if (nowDiag - lastDiagMs > 1000) {
+			lastDiagMs = nowDiag;
+			REX::INFO("Scene orbit diag: az={:.2f} el={:.2f} r={:.2f} | pos=({:.2f},{:.2f},{:.2f}) "
+					  "center=({:.2f},{:.2f},{:.2f}) | mouse=({:.0f},{:.0f}) | engine posDrift={:.3f}m quatDrift={:.3f}",
+				orbitAzimuth, orbitElevation, orbitRadius, pos.x, pos.y, pos.z,
+				center.x, center.y, center.z, mdx, mdy, posDrift, quatDrift);
+		}
+
+		// Record what we just wrote so the next drive can measure the engine's contribution (see diag above).
+		lastWrittenX = pos.x;
+		lastWrittenY = pos.y;
+		lastWrittenZ = pos.z;
+		const RE::NiQuaternion lastQ = OrientationQuat(yaw, pitch);
+		lastWrittenQw = lastQ.w;
+		lastWrittenQx = lastQ.x;
+		lastWrittenQy = lastQ.y;
+		lastWrittenQz = lastQ.z;
+		hasWrittenPos = true;
 	}
 
 	void CameraService::ReleaseStateOverride()

@@ -19,13 +19,11 @@ namespace OSF::Player
 			RE::OTHER_EVENT_FLAG::HandScanner |
 			RE::OTHER_EVENT_FLAG::Favorites;
 
-		// Sets/clears the player's AI-driven flag via the Papyrus VM (Game.SetPlayerAIDriven). 
-		// AI-driven DECOUPLES the player body from the camera: in third person the engine otherwise yaws the actor's heading to follow mouse-look, dragging the rig off a pinned mesh. 
-		// Engaged alongside the input-disable lock so the camera still orbits freely but the body stays put.
-		//
-		// CAVEAT — the flag is PERSISTENT (serialized into the save), unlike the runtime input-disable layer.
-		// A save made while it is set reloads with the player AI-driven, so OnStopAll clears it UNCONDITIONALLY on every load.
-		// There is no native binding for it. Queued via SFSE task; safe from any thread.
+		// Clears the player's AI-driven flag via the Papyrus VM (Game.SetPlayerAIDriven). The lock NO LONGER
+		// engages AI-driven — it blocked camera look (an AI-driven actor is non-controllable) WITHOUT decoupling
+		// the rig (GraphManager's compose-root rotation pin does that). This remains only to clear a STALE flag:
+		// AI-driven is PERSISTENT (serialized into saves), so a save made by an older build that set it would
+		// reload AI-driven; OnStopAll clears it on every load. No native binding; queued via SFSE task, any-thread.
 		void SetPlayerAIDriven(bool a_driven)
 		{
 			SFSE::GetTaskInterface()->AddTask([a_driven]() {
@@ -63,10 +61,10 @@ namespace OSF::Player
 
 	void PlayerControlService::OnStopAll()
 	{
-		// Release the PERSISTENT AI-driven flag UNCONDITIONALLY, even when this  process holds no lock.
-		// OnStopAll runs only on a load (every GraphManager::StopAll caller is a save-load/revert/manual-load sink),
-		// the AI-driven flag set by SetStandaloneLock is serialized into the save, so a save made mid-lock reloads the player AI-driven with NO in-process memory of the lock. 
-		// The runtime input-disable layer below is non-persistent and gated on standaloneActive.
+		// Defensively clear the PERSISTENT AI-driven flag on every load. The lock no longer sets it, but a save
+		// made by an OLDER build (which did) would reload the player AI-driven with no in-process memory of it,
+		// leaving them non-controllable. OnStopAll runs only on a load (every GraphManager::StopAll caller is a
+		// save-load/revert/manual-load sink). The runtime input-disable layer below is non-persistent.
 		SetPlayerAIDriven(false);
 
 		SFSE::GetTaskInterface()->AddTask([this]() {
@@ -93,16 +91,17 @@ namespace OSF::Player
 				}
 				standaloneActive = true;
 				ApplyDisabled();
-				SetPlayerAIDriven(true);
-				REX::INFO("Player standalone control lock engaged (+ AI-driven)");
+				// No AI-driven: it blocked camera look (an AI-driven actor is non-controllable) without
+				// actually decoupling the rig — the GraphManager compose-root rotation pin handles rig-spin.
+				// The input layer disables Movement/Fighting/Sneaking/Activation only; Looking stays free.
+				REX::INFO("Player standalone control lock engaged (movement only — camera look stays free)");
 			} else {
 				if (!standaloneActive) {
 					return;  // not held — nothing to release
 				}
 				standaloneActive = false;
 				RestoreEnabled();
-				SetPlayerAIDriven(false);
-				REX::INFO("Player standalone control lock released (+ AI-driven off)");
+				REX::INFO("Player standalone control lock released");
 			}
 		});
 	}
