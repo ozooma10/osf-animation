@@ -3,6 +3,7 @@
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
+#include "Matchmaking/Matchmaker.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneEventRelay.h"
@@ -94,10 +95,18 @@ namespace OSF::Scene
 
 	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role, float a_volume)
 	{
-		// A '$'-prefixed spec is a sound-pool reference ("$seduce,female,moan,loud"): resolve it to a clip now (at fire time) so a repeated/per-loop cue re-rolls. 
-		// A plain path/event spec is played verbatim
+		// Resolve the role actor up front — it positions the sound AND supplies the {gender} substitution.
+		RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role);
+
+		// A '$'-prefixed spec is a sound-pool reference ("$seduce,{gender},moan,loud"): substitute the
+		// {gender} placeholder from the actor (empty -> the tag drops out, i.e. any gender), then resolve
+		// to a clip NOW (at fire time) so a repeated/per-loop cue re-rolls. A plain path/event spec plays verbatim.
 		std::string spec(a_spec);
 		if (!spec.empty() && spec.front() == '$') {
+			const std::string gender = actor ? Matchmaking::ActorGenderTag(actor) : std::string{};
+			for (std::size_t p = 0; (p = spec.find("{gender}", p)) != std::string::npos; p += gender.size()) {
+				spec.replace(p, 8, gender);  // 8 == len("{gender}")
+			}
 			auto resolved = Registry::SoundRegistry::GetSingleton().Resolve(spec);
 			if (!resolved) {
 				REX::WARN("SceneRuntime: scene {:#010x} sound pool '{}' (role '{}') matched no clip — skipped",
@@ -108,7 +117,7 @@ namespace OSF::Scene
 		}
 
 		RE::NiPoint3 pos{};
-		if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role)) {
+		if (actor) {
 			pos = actor->data.location;
 		} else if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 			pos = player->data.location;  // listener-centered fallback (full volume)

@@ -36,6 +36,9 @@ namespace OSF::Matchmaking
 	// Does a_actor satisfy a_role's filters (gender + any-of keyword + any-of race)? shared by matchmaking and SceneRuntime's per-start filter enforcement.
 	bool RoleAccepts(const Registry::SceneRole& a_role, RE::Actor* a_actor);
 
+	// gender as a lowercase tag: "male" / "female", or "" for kNone/unknown (creature, no actorbase).
+	std::string ActorGenderTag(RE::Actor* a_actor);
+
 	// Deterministic candidate id list for FindScenes / FindScenesForActorsQuery: priority descending, then id ascending. 
 	// If a_actors is empty this is the filter-UNAWARE discovery path (a_actorCount + tags only, no binding); 
 	// otherwise a scene def appears only if a complete filter-satisfying binding exists. 

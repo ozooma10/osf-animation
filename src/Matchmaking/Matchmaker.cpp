@@ -206,6 +206,18 @@ namespace OSF::Matchmaking
 		return true;
 	}
 
+	std::string ActorGenderTag(RE::Actor* a_actor)
+	{
+		switch (SexOf(a_actor)) {
+		case RE::SEX::kMale:
+			return "male";
+		case RE::SEX::kFemale:
+			return "female";
+		default:
+			return {};  // kNone / no actorbase -> gender-agnostic (the {gender} tag drops out)
+		}
+	}
+
 	std::vector<std::string> FindIds(std::int32_t a_actorCount, const TagQuery& a_query,
 		const std::vector<RE::Actor*>& a_actors)
 	{
