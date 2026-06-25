@@ -80,17 +80,5 @@ namespace OSF::Camera
 		float             orbitCenterX = 0.0f;
 		float             orbitCenterY = 0.0f;
 		float             orbitCenterZ = 0.0f;    // torso height; floor ≈ this minus the torso offset
-		// Diagnostic for the W/S "snap": the engine's free-fly Update runs once/frame on the game thread and
-		// may integrate movement into the position we own (+0x70). We record the pos we last wrote and, at the
-		// top of the next drive, compare it to what the engine left there — a non-zero delta IS the snap source.
-		float             lastWrittenX = 0.0f;
-		float             lastWrittenY = 0.0f;
-		float             lastWrittenZ = 0.0f;
-		float             lastWrittenQw = 0.0f;    // the +0x7c quaternion we last wrote (to detect engine re-rotation)
-		float             lastWrittenQx = 0.0f;
-		float             lastWrittenQy = 0.0f;
-		float             lastWrittenQz = 0.0f;
-		bool              hasWrittenPos = false;
-		std::int64_t      lastDiagMs = 0;          // rate-limit the drift log (wall clock)
 	};
 }

@@ -268,8 +268,6 @@ namespace OSF::Camera
 					orbitTargetElevation = orbitElevation;
 					orbitTargetRadius = orbitRadius;
 					lastDriveMs = 0;
-					hasWrittenPos = false;  // no prior write to compare against yet
-					lastDiagMs = 0;
 				}
 				orbitDriving.store(true, std::memory_order_relaxed);
 				Input::InputService::GetSingleton().SetMouseCapture(true);
@@ -331,23 +329,6 @@ namespace OSF::Camera
 		void* state = camera->cameraStates[RE::CameraState::kFreeFly];
 		if (!state) {
 			return;
-		}
-
-		// DIAGNOSTIC: measure what the engine's once-per-frame free-fly Update did to the transform we own
-		// since our last write. posDrift = how far it moved +0x70 (translation; should be ~0 now that speed is
-		// zeroed). quatDrift = how much it rotated the +0x7c quaternion (the integrate composes a mouse-look
-		// delta into +0x7c at 0x140fa6b5f — if this is non-zero the engine is free-looking the camera, fighting
-		// our look-at-center re-aim → the "rotates in place, doesn't orbit" feel). Reported once/sec below.
-		float posDrift = 0.0f, quatDrift = 0.0f;
-		if (hasWrittenPos) {
-			auto* sb = reinterpret_cast<std::byte*>(state);
-			const float ex = *reinterpret_cast<float*>(sb + kFreeFlyPosOffset + 0) - lastWrittenX;
-			const float ey = *reinterpret_cast<float*>(sb + kFreeFlyPosOffset + 4) - lastWrittenY;
-			const float ez = *reinterpret_cast<float*>(sb + kFreeFlyPosOffset + 8) - lastWrittenZ;
-			posDrift = std::sqrt(ex * ex + ey * ey + ez * ez);
-			auto* q = reinterpret_cast<float*>(sb + kFreeFlyRotOffset);
-			quatDrift = std::abs(q[0] - lastWrittenQw) + std::abs(q[1] - lastWrittenQx) +
-						std::abs(q[2] - lastWrittenQy) + std::abs(q[3] - lastWrittenQz);
 		}
 
 		// Stop the engine's free-fly Update from moving the position we own. Disassembly of the integrate
@@ -426,29 +407,6 @@ namespace OSF::Camera
 		const float yaw = std::atan2(-dx, dy);
 		const float pitch = std::atan2(dz, std::sqrt(dx * dx + dy * dy));
 		WriteFreeFlyTransform(state, pos, yaw, pitch);
-
-		// Once/sec: dump the full orbit state so we can see whether the position is actually sweeping (pos vs
-		// center + radius), whether the input is reaching us (mdx/mdy, azimuth), and whether the engine is
-		// fighting our transform (posDrift = engine translation, quatDrift = engine rotation of +0x7c).
-		const std::int64_t nowDiag = NowMs();
-		if (nowDiag - lastDiagMs > 1000) {
-			lastDiagMs = nowDiag;
-			REX::INFO("Scene orbit diag: az={:.2f} el={:.2f} r={:.2f} | pos=({:.2f},{:.2f},{:.2f}) "
-					  "center=({:.2f},{:.2f},{:.2f}) | mouse=({:.0f},{:.0f}) | engine posDrift={:.3f}m quatDrift={:.3f}",
-				orbitAzimuth, orbitElevation, orbitRadius, pos.x, pos.y, pos.z,
-				center.x, center.y, center.z, mdx, mdy, posDrift, quatDrift);
-		}
-
-		// Record what we just wrote so the next drive can measure the engine's contribution (see diag above).
-		lastWrittenX = pos.x;
-		lastWrittenY = pos.y;
-		lastWrittenZ = pos.z;
-		const RE::NiQuaternion lastQ = OrientationQuat(yaw, pitch);
-		lastWrittenQw = lastQ.w;
-		lastWrittenQx = lastQ.x;
-		lastWrittenQy = lastQ.y;
-		lastWrittenQz = lastQ.z;
-		hasWrittenPos = true;
 	}
 
 	void CameraService::ReleaseStateOverride()

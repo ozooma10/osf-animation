@@ -42,6 +42,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "name": "My Content",                  // diagnostics only
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
+  "camera": "scene_orbit",               // pack-level default camera posture (default "scene_orbit"; "none" opts out)
   "scenes": [
     { "id": "author.one", "clip": "OSF/Anims/One.glb" },
     { "id": "author.two", "stages": [ { "loops": 0, "clips": ["OSF/Anims/Two.glb"] } ] }
@@ -257,13 +258,12 @@ wrapper object. Every track entry has a **position** (`at`) and optional **repea
 #### Camera `state` values
 
 Camera postures are **held**: ledger-tracked and auto-restored to the player's prior POV on any scene
-end. The only state currently supported by the runtime is **`thirdperson_hold`** (force and hold third
-person, bouncing the player back if they zoom to first person — the default posture, also engaged
-automatically by the player control lock).
+end. Supported states: `scene_orbit` (the default), `thirdperson_hold` (force and hold third person,
+bouncing the player back if they zoom to first person), `freefly`, and `vanity_orbit`.
 
-> `freefly` / `vanity_orbit` cinematic overrides are planned but not yet wired up; the camera state
-> machine path is runtime-OPEN / unverified — see `docs/RE.md`. Verify in-game before relying on any
-> camera override.
+A pack with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node. Use
+`"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
+node-level `camera` track on the entry node always wins over the pack default.
 
 ---
 
