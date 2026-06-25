@@ -450,6 +450,13 @@ namespace OSF::Registry
 					info.timer = jStage.value("timer", 0.0f);
 					info.loops = jStage.value("loops", 0);
 					timingGiven = jStage.contains("timer") || jStage.contains("loops");
+					// Optional per-stage `sound` lane, so a linear stage can carry audio without authoring the full nodes[] graph form.
+					if (auto soundIt = jStage.find("sound"); soundIt != jStage.end()) {
+						SceneNode scratch;
+						scratch.id = a_subject;  // diagnostics only
+						ParseSoundTrack(*soundIt, scratch);
+						info.sounds = std::move(scratch.sounds);
+					}
 					const auto clipsIt = jStage.find("clips");
 					if (clipsIt == jStage.end() || !clipsIt->is_array()) {
 						throw std::runtime_error(a_subject + ": every stage needs a 'clips' array (one clip per role)");
@@ -626,6 +633,7 @@ namespace OSF::Registry
 				SceneNode node;
 				node.id = "#s" + std::to_string(i);
 				node.stages = { st };
+				node.sounds = st.sounds;  // forward the stage's `sound` lane onto the node, where dispatch reads it
 				const std::string to = (i + 1 == n) ? std::string("$end") : ("#s" + std::to_string(i + 1));
 				auto autoEdge = [&](EdgeWhen a_when) {
 					SceneEdge e;

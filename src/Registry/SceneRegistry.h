@@ -33,22 +33,6 @@ namespace OSF::Registry
 	// Case-insensitive gender-string parse ("male"/"m" -> kMale, "female"/"f" -> kFemale, else kAny).
 	SlotGender ParseSlotGender(std::string_view a_str);
 
-	// One actor's clip for one stage (one per role in StageDef::clips, role order).
-	struct StageClip
-	{
-		std::string file;
-		std::optional<Animation::ParticipantPlacement> offset;  // overrides the role's default placement
-	};
-
-	// One stage of a timeline: timing + one clip per role. timer/loops 0 = no auto-advance (hold);
-	// a stage that specifies NEITHER gets the play-once default (loops=1) at parse time.
-	struct StageDef
-	{
-		float                  timer = 0.0f;  // seconds; 0 = no time-based auto-advance
-		std::int32_t           loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
-		std::vector<StageClip> clips;         // one per role, role order
-	};
-
 	enum class LoopMode : std::uint8_t
 	{
 		kOnce,   // play through, then the "end" edge
@@ -159,6 +143,23 @@ namespace OSF::Registry
 		float        fraction = 0.0f;
 		bool         everyLoop = false;
 		std::string  state;   // camera state id ("thirdperson_hold" / "freefly" / "vanity_orbit")
+	};
+
+	// One actor's clip for one stage (one per role in StageDef::clips, role order).
+	struct StageClip
+	{
+		std::string file;
+		std::optional<Animation::ParticipantPlacement> offset;  // overrides the role's default placement
+	};
+
+	// One stage of a timeline: timing + one clip per role. timer/loops 0 = no auto-advance (hold);
+	// a stage that specifies NEITHER gets the play-once default (loops=1) at parse time.
+	struct StageDef
+	{
+		float                   timer = 0.0f;  // seconds; 0 = no time-based auto-advance
+		std::int32_t            loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
+		std::vector<StageClip>  clips;         // one per role, role order
+		std::vector<SoundEntry> sounds;        // optional per-stage `sound` lane; DesugarLinear forwards it to the node's `sound` track
 	};
 
 	struct SceneNode
