@@ -35,13 +35,13 @@ namespace OSF::Animation
 		constexpr REL::ID ModelNodeUpdateFnID(48634);
 		constexpr size_t ModelNodeUpdateVFuncIdx = 2;
 
-		// Floor for a pinned actor's cull-sphere radius (meters)
-		// big enough to enclose any posed humanoid so a stale engine radius can't frustum-cull a participant.
-		// Used by the compose-root pin when re-centering worldBound.
-		// NOTE: do NOT inflate this to "fix" culling — a larger sphere feeds the near-camera fade (a separate,
-		// distance-scaled mechanism) and makes a close orbit camera fade the actor out (8.0 was strictly worse
-		// than 2.5 in-game). The cull lever is the sphere CENTER (kept on the visible mesh), not the radius.
-		constexpr float kPinCullRadius = 2.5f;
+		// CAP (not floor) for a pinned actor's cull-sphere radius (meters). The engine fades an actor out as the
+		// camera nears it — the SAME near-fade that hides the player in 3rd person when you zoom in — and that
+		// fade distance SCALES WITH THIS RADIUS. Inflating the sphere (the old max(...,2.5)) pushed the fade out
+		// to ~2.5 m, so zooming the orbit in vanished the partner. We now CAP the radius small so the camera can
+		// get close before any fade. Frustum safety comes from the CENTER (kept on the torso, where scene_orbit
+		// always points), not from a big radius. (Proven in-game: 8.0 was strictly worse than 2.5.)
+		constexpr float kPinCullRadius = 1.0f;
 
 		// Lift the cull-sphere center from the compose-root (= the actor's feet/origin = pinWorld) up to the
 		// torso, where the visible posed mesh actually sits. The engine's own capsule-derived bound is centered
@@ -1108,12 +1108,25 @@ namespace OSF::Animation
 								reinterpret_cast<std::byte*>(a_parentTransform) - offsetof(RE::NiAVObject, local));
 							// Center on the visible mesh (torso), not the feet/origin: a feet-centered sphere
 							// sits below the posed body and frustum-culls at certain orbit angles (see kPinCullCenterUp).
+							// CAP the radius small (min, not max) so the near-fade threshold stays close in.
 							fadeNode->worldBound.center = { pinWorld.x, pinWorld.y, pinWorld.z + kPinCullCenterUp };
-							fadeNode->worldBound.radius = std::max(fadeNode->worldBound.radius, kPinCullRadius);
+							fadeNode->worldBound.radius = std::min(fadeNode->worldBound.radius, kPinCullRadius);
 
-							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0 so pinned participants don't fade out when the camera orbits close (see kFadeNodeVisFlagOff).
-							*reinterpret_cast<float*>(
-								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff) = 1.0f;
+							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0. DIAGNOSTIC: read what the engine's
+							// render pass left here last frame first — our hold runs in the update pass, so if the
+							// render pass faded it (<1.0) when the camera is close, this read shows it (and confirms
+							// the small-bound lever above is the real fix, since our hold can't beat the render pass).
+							float* fadePtr = reinterpret_cast<float*>(
+								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff);
+							const float engineFade = *fadePtr;
+							if (engineFade < 0.99f) {
+								static int s_fadeLogThrottle = 0;
+								if ((s_fadeLogThrottle++ % 60) == 0) {
+									REX::INFO("Pin diag: engine near-fade on actor {:X} = {:.2f} (camera close; bound r={:.2f})",
+										refr->formID, engineFade, fadeNode->worldBound.radius);
+								}
+							}
+							*fadePtr = 1.0f;
 						}
 						break;
 					}
