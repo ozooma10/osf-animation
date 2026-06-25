@@ -855,9 +855,10 @@ namespace OSF::Registry
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			const bool stripDefault = a_json.value("stripActors", true);
 
-			// Optional pack-level default camera: "camera": "<state>" attaches that posture to each
-			// scene's entry node (unless that node already declares its own camera track).
-			std::string cameraDefault;
+			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
+			// entry node (unless that node already declares its own camera track). When omitted, the
+			// pack defaults to "scene_orbit".
+			std::string cameraDefault = "scene_orbit";
 			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
 				if (!cit->is_string()) {
 					a_errors.push_back("[error] '" + fileName + "': 'camera' must be a string");
@@ -865,9 +866,12 @@ namespace OSF::Registry
 					return;
 				}
 				cameraDefault = ToLower(cit->get<std::string>());
-				if (!IsKnownCameraState(cameraDefault)) {
+				// "none" opts a pack out of the default camera override entirely.
+				if (cameraDefault == "none") {
+					cameraDefault.clear();
+				} else if (!IsKnownCameraState(cameraDefault)) {
 					a_errors.push_back("[error] '" + fileName + "': unknown camera state '" + cit->get<std::string>() +
-						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit')");
+						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit', 'none')");
 					REX::ERROR("SceneRegistry: '{}' unknown camera state '{}' — skipped", fileName, cit->get<std::string>());
 					return;
 				}

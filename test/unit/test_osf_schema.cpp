@@ -375,6 +375,31 @@ OSF_TEST_CASE(Osf_pack_level_camera_attaches_to_entry_node)
 	}
 }
 
+OSF_TEST_CASE(Osf_pack_camera_defaults_to_scene_orbit)
+{
+	// No pack-level "camera": the entry node defaults to "scene_orbit".
+	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.camdefault");
+	CHECK(def != nullptr);
+	if (def) {
+		const auto* entry = def->FindNode(def->entry);
+		CHECK(entry != nullptr);
+		if (entry) {
+			CHECK_EQ(entry->cameras.size(), static_cast<size_t>(1));
+			CHECK_EQ(entry->cameras[0].state, std::string("scene_orbit"));
+		}
+	}
+	// "camera": "none" opts out — the entry node gets no camera track.
+	const auto* none = SceneRegistry::GetSingleton().Find("osf.u.camnone");
+	CHECK(none != nullptr);
+	if (none) {
+		const auto* entry = none->FindNode(none->entry);
+		CHECK(entry != nullptr);
+		if (entry) {
+			CHECK_EQ(entry->cameras.size(), static_cast<size_t>(0));
+		}
+	}
+}
+
 OSF_TEST_CASE(Osf_lock_and_strip_defaults_and_optout)
 {
 	auto& reg = SceneRegistry::GetSingleton();

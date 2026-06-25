@@ -51,8 +51,8 @@ target("OSF Animation")
             end
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
-            os.cp("dist/OSF/*.json", osf .. "/")
-            os.cp("dist/OSF/Animations", osf .. "/")
+            -- os.cp("dist/OSF/*.json", osf .. "/")
+            -- os.cp("dist/OSF/Animations", osf .. "/")
             if os.isdir("dist/OSF/Sounds") then
                 os.cp("dist/OSF/Sounds", osf .. "/")  -- sample sound cues, if any are present
             end

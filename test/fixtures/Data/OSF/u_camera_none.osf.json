@@ -1,0 +1,12 @@
+{
+  // "camera": "none" opts out of the default override: the entry node gets no camera track.
+  "schema": 1,
+  "camera": "none",
+  "scenes": [
+    { "id": "osf.u.camnone",
+      "entry": "n",
+      "nodes": [
+        { "id": "n", "stages": [ ["OSF/Anim/a.glb"] ], "loop": { "mode": "hold" }, "loopForever": true }
+      ] }
+  ]
+}
