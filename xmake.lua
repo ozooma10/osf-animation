@@ -90,6 +90,7 @@ target("osf-tests")
 
     -- "Real" files under test
     add_files("src/Registry/SceneRegistry.cpp")
+    add_files("src/Registry/SoundRegistry.cpp")
     add_files("src/Matchmaking/Matchmaker.cpp")
     -- Test-only files
     add_files("test/unit/*.cpp")

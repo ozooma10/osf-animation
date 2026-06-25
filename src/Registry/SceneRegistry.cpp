@@ -230,7 +230,8 @@ namespace OSF::Registry
 			for (const auto& s : a_entries) {
 				SoundEntry se;
 				// `spec` is the canonical key (unified *.osf.json); `sound`/`pool` are accepted
-				// aliases (name->clip resolution isn't wired up yet, so all are treated literally).
+				// aliases. A '$'-prefixed value is a SoundRegistry pool query resolved at fire time
+				// (SceneRuntime::PlaySound); a plain value is a literal file/event spec.
 				se.spec = s.value("spec", s.value("sound", s.value("pool", std::string{})));
 				if (se.spec.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound track entry is missing 'spec'/'sound'/'pool'");

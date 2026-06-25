@@ -4,6 +4,7 @@
 #include "Input/InputService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/SceneRegistry.h"
+#include "Registry/SoundRegistry.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/SaveSafety.h"
 #include "UI/CompatWarning.h"
@@ -25,6 +26,7 @@ namespace
 			break;
 		case SFSE::MessagingInterface::kPostDataLoad:
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
+			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
 			// Spin up the audio device now — it is slow — so the first sound cue doesn't stall a job thread.
 			OSF::Audio::SoundService::GetSingleton().Init();

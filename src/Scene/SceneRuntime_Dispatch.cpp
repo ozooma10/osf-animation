@@ -4,6 +4,7 @@
 #include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
 #include "Registry/SceneRegistry.h"
+#include "Registry/SoundRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
 #include "Util/StringUtil.h"
@@ -93,6 +94,19 @@ namespace OSF::Scene
 
 	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role, float a_volume)
 	{
+		// A '$'-prefixed spec is a sound-pool reference ("$seduce,female,moan,loud"): resolve it to a clip now (at fire time) so a repeated/per-loop cue re-rolls. 
+		// A plain path/event spec is played verbatim
+		std::string spec(a_spec);
+		if (!spec.empty() && spec.front() == '$') {
+			auto resolved = Registry::SoundRegistry::GetSingleton().Resolve(spec);
+			if (!resolved) {
+				REX::WARN("SceneRuntime: scene {:#010x} sound pool '{}' (role '{}') matched no clip — skipped",
+					a_handle, spec, a_role);
+				return;
+			}
+			spec = std::move(*resolved);
+		}
+
 		RE::NiPoint3 pos{};
 		if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role)) {
 			pos = actor->data.location;
@@ -100,8 +114,8 @@ namespace OSF::Scene
 			pos = player->data.location;  // listener-centered fallback (full volume)
 		}
 		REX::INFO("SceneRuntime: scene {:#010x} sound '{}' (role '{}') at ({:.0f},{:.0f},{:.0f}) vol {:.2f}",
-			a_handle, a_spec, a_role, pos.x, pos.y, pos.z, a_volume);
-		Audio::SoundService::GetSingleton().Play(std::string(a_spec), pos, a_volume);
+			a_handle, spec, a_role, pos.x, pos.y, pos.z, a_volume);
+		Audio::SoundService::GetSingleton().Play(spec, pos, a_volume);
 	}
 
 	void SceneRuntime::DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter)

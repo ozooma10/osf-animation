@@ -128,8 +128,8 @@ namespace OSF::Registry
 		kEnd
 	};
 
-	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed). 
-	// The schema's `pool` name -> clip resolution isn't wired up yet, so for now the value is taken as a literal spec.
+	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed).
+	// A spec starting with '$' is a SoundRegistry pool query ("$tag,tag,..." — all-of) resolved to ONE clip at fire time (SceneRuntime::PlaySound), so a repeated/per-loop cue re-rolls; otherwise the value is taken literally.
 	struct SoundEntry
 	{
 		SoundPos     pos = SoundPos::kFraction;

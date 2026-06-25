@@ -4,6 +4,7 @@
 #include "Audio/SoundService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/SceneRegistry.h"
+#include "Registry/SoundRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/AFImport.h"
@@ -29,6 +30,22 @@ namespace OSF::Papyrus
 			out.reserve(a_in.size());
 			for (const auto& s : a_in) {
 				out.emplace_back(s.c_str());
+			}
+			return out;
+		}
+
+		// Tag-query variant: lowercases each tag (satisfying Matchmaker's "query is
+		// already lowercased" precondition) and drops empty entries from unfilled
+		// Papyrus array slots that would otherwise poison an allOf match.
+		std::vector<std::string> ToTags(const std::vector<RE::BSFixedString>& a_in)
+		{
+			std::vector<std::string> out;
+			out.reserve(a_in.size());
+			for (const auto& s : a_in) {
+				auto t = Util::ToLower(s.c_str());
+				if (!t.empty()) {
+					out.push_back(std::move(t));
+				}
 			}
 			return out;
 		}
@@ -161,6 +178,7 @@ namespace OSF::Papyrus
 			REX::INFO("ReloadPacks: clip cache cleared");
 			auto& registry = Registry::SceneRegistry::GetSingleton();
 			registry.LoadAll();
+			Registry::SoundRegistry::GetSingleton().LoadAll();
 			return static_cast<int32_t>(registry.Size());
 		}
 
@@ -381,7 +399,7 @@ namespace OSF::Papyrus
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
 		{
 			Matchmaking::TagQuery q;
-			q.allOf = ToStrings(a_tags);
+			q.allOf = ToTags(a_tags);
 			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
 			if (anchor.set) {
 				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, "OSF.StartSceneByTags");
@@ -395,7 +413,7 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
 			std::vector<RE::BSFixedString> a_noneOf, SceneOptionsArg a_opts)
 		{
-			Matchmaking::TagQuery q{ ToStrings(a_allOf), ToStrings(a_anyOf), ToStrings(a_noneOf) };
+			Matchmaking::TagQuery q{ ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) };
 			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
 			if (anchor.set) {
 				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, "OSF.StartSceneByTagsQuery");

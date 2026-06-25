@@ -50,12 +50,18 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
   load (VM is rebuilt).
 - **Save-safety** (`src/Serialization/SaveSafety.*`) — `GraphManager::StopAll` drops ALL scene/graph
   state on a world-replacing load (SaveLoadEvent begin sink + TESLoadGameEvent backstop + manual).
-- **Startup** (`src/main.cpp`) — logs game-version vs RE build, loads packs+scenes, inits SoundService
-  + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
+- **Startup** (`src/main.cpp`) — logs game-version vs RE build, loads packs+scenes+sound pools, inits
+  SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 
 ### Layer B - scene runtime
 - **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads `*.scene.json` graphs (nodes + edges +
   roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
+- **SoundRegistry** (`src/Registry/SoundRegistry.*`) — loads tagged sound pools from
+  `Data/OSF/**/*.sounds.json` (`{ schema, pools:[{ name?, tags[], clips[] }] }`). A `sound`/`osf.voice.play`
+  spec starting with `$` is a pool query (`$tag,tag,…`, all-of); the runtime resolves it to ONE clip by
+  weighted-random AT FIRE TIME (`SceneRuntime::PlaySound`), so a per-loop/repeated cue re-rolls (the
+  per-hit variation a single literal path can't give). Plain specs stay literal. Content-neutral;
+  reloaded by `ReloadPacks`.
 - **SceneRuntime** (`src/Scene/SceneRuntime.*`) - generational handle table, lifecycle (`Fire`), navigation, timed-mark decode (`OnTimedMarks`, lane-ordered action→camera→sound→cue)
   `osf.*` action dispatch (`RunAction`), and the **per-handle undo ledger** (reverses every reversible
   mechanism in reverse order, once, idempotently, on ANY termination). Talks to Layer A only via its public surface, to Layer C via services.
