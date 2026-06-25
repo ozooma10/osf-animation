@@ -1,0 +1,5 @@
+# Normalize the volatile compilation timestamp out of compiled Papyrus .pex
+# so no-op rebuilds don't show as git modifications.
+# Requires the matching filter to be registered in this clone's git config:
+#   run  tools/git/setup-pex-filter.sh   once after cloning.
+dist/Scripts/*.pex filter=pexnorm -text
