@@ -156,10 +156,16 @@ namespace OSF::Registry
 	// a stage that specifies NEITHER gets the play-once default (loops=1) at parse time.
 	struct StageDef
 	{
-		float                   timer = 0.0f;  // seconds; 0 = no time-based auto-advance
-		std::int32_t            loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
-		std::vector<StageClip>  clips;         // one per role, role order
-		std::vector<SoundEntry> sounds;        // optional per-stage `sound` lane; DesugarLinear forwards it to the node's `sound` track
+		float                    timer = 0.0f;  // seconds; 0 = no time-based auto-advance
+		std::int32_t             loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
+		std::vector<StageClip>   clips;         // one per role, role order
+		// Optional per-stage track lanes. DesugarLinear forwards each onto the stage's synthetic node,
+		// where the runtime's dispatch reads them — so a linear stage can carry cues, actions, audio,
+		// and camera postures without dropping to the full nodes[] graph form.
+		std::vector<CueEntry>    cues;
+		std::vector<ActionEntry> actions;
+		std::vector<SoundEntry>  sounds;
+		std::vector<CameraEntry> cameras;
 	};
 
 	struct SceneNode

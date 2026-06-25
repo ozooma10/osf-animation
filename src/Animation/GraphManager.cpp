@@ -987,8 +987,6 @@ namespace OSF::Animation
 			const float ex = rootPos.x - world.x, ey = rootPos.y - world.y, ez = rootPos.z - world.z;
 			capsuleErr = std::sqrt(ex * ex + ey * ey + ez * ez);
 		}
-		REX::INFO("Scene diag [{} calls] actor {:X}: stage {}/{}, t={:.2f}s, capsule err {:.3f}m (rendered skeleton is pinned)",
-			frames, a_refr->formID, a_graph.appliedStage + 1, a_graph.scene->stages.size(), a_graph.localTime, capsuleErr);
 	}
 
 	void GraphManager::Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData)

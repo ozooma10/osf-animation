@@ -526,6 +526,10 @@ namespace OSF::Registry
 			}
 		}
 
+		// Forward decl: the cue-lane parser is defined below (with the other node-lane parsers), but
+		// ParseOsfStageList needs it so a linear stage can carry a `cue` lane like a node does.
+		void ParseOsfCueLane(const json& a_entries, SceneNode& a_node);
+
 		// Parse a stage list (timer/loops/clips, with the play-once default and the bare-array
 		// shorthand) — the unified equivalent of the pack stages[] parse. a_ioActorCount is the
 		// participant count: when a_fixed it is authoritative (every stage must match it); else the
@@ -548,12 +552,29 @@ namespace OSF::Registry
 					info.timer = jStage.value("timer", 0.0f);
 					info.loops = jStage.value("loops", 0);
 					timingGiven = jStage.contains("timer") || jStage.contains("loops");
-					// Optional per-stage `sound` lane, so a linear stage can carry audio without authoring the full nodes[] graph form.
-					if (auto soundIt = jStage.find("sound"); soundIt != jStage.end()) {
+					// Optional per-stage track lanes (cue/action/sound/camera): the lane parsers target a
+					// SceneNode, so parse into a scratch node and move them onto the stage. DesugarLinear
+					// forwards them to the stage's synthetic node, letting a linear stage carry cues,
+					// actions, audio, and camera postures without authoring the full nodes[] graph form.
+					{
 						SceneNode scratch;
 						scratch.id = a_subject;  // diagnostics only
-						ParseSoundTrack(*soundIt, scratch);
+						if (auto it = jStage.find("cue"); it != jStage.end()) {
+							ParseOsfCueLane(*it, scratch);
+						}
+						if (auto it = jStage.find("action"); it != jStage.end()) {
+							ParseActionTrack(*it, scratch);
+						}
+						if (auto it = jStage.find("sound"); it != jStage.end()) {
+							ParseSoundTrack(*it, scratch);
+						}
+						if (auto it = jStage.find("camera"); it != jStage.end()) {
+							ParseCameraTrack(*it, scratch);
+						}
+						info.cues = std::move(scratch.cues);
+						info.actions = std::move(scratch.actions);
 						info.sounds = std::move(scratch.sounds);
+						info.cameras = std::move(scratch.cameras);
 					}
 					const auto clipsIt = jStage.find("clips");
 					if (clipsIt == jStage.end() || !clipsIt->is_array()) {
@@ -731,7 +752,11 @@ namespace OSF::Registry
 				SceneNode node;
 				node.id = "#s" + std::to_string(i);
 				node.stages = { st };
-				node.sounds = st.sounds;  // forward the stage's `sound` lane onto the node, where dispatch reads it
+				// Forward the stage's track lanes onto the node, where the runtime's dispatch reads them.
+				node.cues = st.cues;
+				node.actions = st.actions;
+				node.sounds = st.sounds;
+				node.cameras = st.cameras;
 				const std::string to = (i + 1 == n) ? std::string("$end") : ("#s" + std::to_string(i + 1));
 				auto autoEdge = [&](EdgeWhen a_when) {
 					SceneEdge e;

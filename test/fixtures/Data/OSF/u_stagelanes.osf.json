@@ -1,0 +1,22 @@
+{
+  // Stage-level cue/action/camera lanes on a LINEAR scene. These lanes used to require the nodes[]
+  // graph form; DesugarLinear now forwards each onto the stage's synthetic node. Two stages ->
+  // two desugared nodes (#s0, #s1), each carrying its own lanes.
+  "schema": 1,
+  "id": "osf.u.stagelanes",
+  "name": "Stage Lanes",
+  "roles": [ { "name": "lead" } ],
+  "stages": [
+    {
+      "loops": 0,
+      "clips": ["OSF/Anim/x.glb"],
+      "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],
+      "cue":    [ { "at": 0.5, "repeat": "loop", "id": "beat" } ]
+    },
+    {
+      "loops": 0,
+      "clips": ["OSF/Anim/y.glb"],
+      "action": [ { "at": "enter", "type": "osf.voice.play", "role": "lead", "set": "OSF/Sounds/beep.wav" } ]
+    }
+  ]
+}

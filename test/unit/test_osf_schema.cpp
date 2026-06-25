@@ -259,6 +259,42 @@ OSF_TEST_CASE(Osf_sound_ladder_sugar_expands_marks)
 	CHECK(g[2].everyLoop);
 }
 
+OSF_TEST_CASE(Osf_stage_lanes_forward_to_desugared_nodes)
+{
+	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.stagelanes");
+	CHECK(def != nullptr);
+	if (!def) {
+		return;
+	}
+	// Two linear stages -> two desugared nodes, each carrying its own cue/action/camera lanes
+	// (the lanes that used to require the nodes[] graph form, now forwarded by DesugarLinear).
+	CHECK_EQ(def->nodes.size(), static_cast<size_t>(2));
+	if (def->nodes.size() != 2) {
+		return;
+	}
+	// Stage 0: camera posture at enter + a clip-timed cue (fraction 0.5, every loop); no action.
+	const auto& s0 = def->nodes[0];
+	CHECK_EQ(s0.cameras.size(), static_cast<size_t>(1));
+	CHECK_EQ(s0.cameras[0].state, std::string("thirdperson_hold"));  // authored lane wins over the scene_orbit pack default
+	CHECK(s0.cameras[0].pos == CameraPos::kEnter);
+	CHECK_EQ(s0.cues.size(), static_cast<size_t>(1));
+	CHECK_EQ(s0.cues[0].id, std::string("beat"));
+	CHECK(s0.cues[0].pos == CuePos::kFraction);
+	CHECK_NEAR(s0.cues[0].fraction, 0.5f, 1e-4f);
+	CHECK(s0.cues[0].everyLoop);
+	CHECK_EQ(s0.actions.size(), static_cast<size_t>(0));
+
+	// Stage 1: an osf.voice.play action at enter; no camera (the pack default attaches to #s0 only).
+	const auto& s1 = def->nodes[1];
+	CHECK_EQ(s1.actions.size(), static_cast<size_t>(1));
+	CHECK_EQ(s1.actions[0].type, std::string("osf.voice.play"));
+	CHECK_EQ(s1.actions[0].role, std::string("lead"));
+	CHECK_EQ(s1.actions[0].set, std::string("OSF/Sounds/beep.wav"));
+	CHECK(s1.actions[0].pos == ActionPos::kEnter);
+	CHECK_EQ(s1.cameras.size(), static_cast<size_t>(0));
+	CHECK_EQ(s1.cues.size(), static_cast<size_t>(0));
+}
+
 OSF_TEST_CASE(Osf_graph_roles_and_policy)
 {
 	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.graph");
