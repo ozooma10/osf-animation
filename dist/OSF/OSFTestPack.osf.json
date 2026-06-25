@@ -5,6 +5,7 @@
   // pose / manual-jump entries below do). See solo.playthrough for the new default.
   "schema": 1,
   "name": "OSF Animation Test Pack",
+  "stripActors": false,
   "scenes": [
     {
       "id": "solo",
