@@ -5,8 +5,9 @@ namespace OSF::Camera
 	// Alternate scene camera postures beyond the default third-person hold.
 	enum class CameraMode : std::uint8_t
 	{
-		kFreeFly,     // engine-native free cam (the `tfc` path): ToggleFreeCameraMode; engine routes WASD/mouse
-		kVanityOrbit  // automatic slow orbit, needs no input (RE::CameraState::kAutoVanity)
+		kFreeFly,      // engine-native free cam (the `tfc` path): ToggleFreeCameraMode; engine routes WASD/mouse
+		kVanityOrbit,  // automatic slow orbit, needs no input (RE::CameraState::kAutoVanity)
+		kSceneOrbit    // self-driven mouse-steered orbit around the scene center (we write the FreeFly transform)
 	};
 
 	// Standalone player-camera control. Two impositions compose:
@@ -47,6 +48,11 @@ namespace OSF::Camera
 		void NativeFreeCamEnter();
 		void NativeFreeCamExit();
 
+		// SCENE ORBIT (self-driven): per-frame from Tick (job threads) — places the camera on a ring around
+		// the scene center and aims it inward, writing the FreeFly state's transform. Mouse steers azimuth/
+		// elevation (drained from InputService), W/S zoom; holds still with no input.
+		void DriveSceneOrbit();
+
 		std::mutex lock;
 		std::atomic<bool> holdArmed{ false };       // gates Tick: a third-person hold is active
 		std::atomic<bool> suppressBounce{ false };  // a state override owns the camera — don't bounce
@@ -57,5 +63,16 @@ namespace OSF::Camera
 		int  overrideCount = 0;  // state-override holders (free-fly / vanity-orbit scenes)
 
 		std::atomic<bool> nativeFreeCamActive{ false };  // engine-native free cam is toggled on
+
+		std::atomic<bool> orbitDriving{ false };  // gates Tick's scene-orbit self-drive
+		std::mutex        driveLock;              // serializes DriveSceneOrbit across job threads
+		std::int64_t      lastDriveMs = 0;        // wall-clock anchor for frame-rate-independent dt
+		float             orbitAzimuth = 0.0f;    // radians about world Z (camera position around center)
+		float             orbitElevation = 0.0f;  // radians, + = camera above the center looking down
+		float             orbitRadius = 0.0f;     // meters from the scene center
+		// Orbit center captured ONCE on enter (a pinned actor's live position wobbles per frame → jitter).
+		float             orbitCenterX = 0.0f;
+		float             orbitCenterY = 0.0f;
+		float             orbitCenterZ = 0.0f;    // torso height; floor ≈ this minus the torso offset
 	};
 }

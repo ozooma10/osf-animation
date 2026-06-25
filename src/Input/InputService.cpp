@@ -19,6 +19,15 @@ namespace OSF::Input
 		Grant                                   g_grant;
 		std::function<void(Verb, const Grant&)> g_verbHandler;
 
+		// Mouse-look delta passthrough for the self-driven scene-orbit camera. While capture is on, the
+		// hook accumulates MouseMoveEvent deltas for CameraService to drain (the engine won't route input
+		// to a self-driven free-fly state while the player is a pinned scene participant).
+		std::atomic_bool   g_captureMouse{ false };
+		std::atomic<float> g_mouseDx{ 0.0f };
+		std::atomic<float> g_mouseDy{ 0.0f };
+		// MouseMoveEvent is an IDEvent (0x38) subclass; the two raw axis deltas (int32 x,y) follow it.
+		constexpr std::ptrdiff_t kMouseMoveDeltaOffset = 0x38;
+
 		// Index of the BSInputEventReceiver vtable in RE::UI::VTABLE (AddressLib id 475439). The IDs_VTABLE array is NOT in base-declaration order;
 		constexpr std::size_t kReceiverVtblIndex = 10;
 
@@ -79,10 +88,17 @@ namespace OSF::Input
 
 		void Thunk(RE::BSInputEventReceiver* a_this, const RE::InputEvent* a_queueHead)
 		{
-			if (g_active.load(std::memory_order_relaxed)) {
+			const bool active = g_active.load(std::memory_order_relaxed);
+			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
+			if (active || capture) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
-					if (event->eventType == RE::InputEvent::EventType::kButton) {
+					if (active && event->eventType == RE::InputEvent::EventType::kButton) {
 						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
+					} else if (capture && event->eventType == RE::InputEvent::EventType::kMouseMove) {
+						const auto* d = reinterpret_cast<const std::int32_t*>(
+							reinterpret_cast<const std::byte*>(event) + kMouseMoveDeltaOffset);
+						g_mouseDx.fetch_add(static_cast<float>(d[0]), std::memory_order_relaxed);
+						g_mouseDy.fetch_add(static_cast<float>(d[1]), std::memory_order_relaxed);
 					}
 				}
 			}
@@ -189,5 +205,21 @@ namespace OSF::Input
 			g_grant = Grant{};
 		}
 		g_active.store(false, std::memory_order_relaxed);
+		SetMouseCapture(false);
+	}
+
+	void InputService::SetMouseCapture(bool a_on)
+	{
+		g_captureMouse.store(a_on, std::memory_order_relaxed);
+		if (!a_on) {
+			g_mouseDx.store(0.0f, std::memory_order_relaxed);
+			g_mouseDy.store(0.0f, std::memory_order_relaxed);
+		}
+	}
+
+	void InputService::DrainMouseDelta(float& a_dx, float& a_dy)
+	{
+		a_dx = g_mouseDx.exchange(0.0f, std::memory_order_relaxed);
+		a_dy = g_mouseDy.exchange(0.0f, std::memory_order_relaxed);
 	}
 }

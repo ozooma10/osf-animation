@@ -247,7 +247,8 @@ namespace OSF::Registry
 		// aren't wired yet.)
 		bool IsKnownCameraState(std::string_view a_stateLower)
 		{
-			return a_stateLower == "thirdperson_hold" || a_stateLower == "freefly" || a_stateLower == "vanity_orbit";
+			return a_stateLower == "thirdperson_hold" || a_stateLower == "freefly" ||
+			       a_stateLower == "vanity_orbit" || a_stateLower == "scene_orbit";
 		}
 
 		void ParseCameraTrack(const json& a_entries, SceneNode& a_node_out)
@@ -263,7 +264,7 @@ namespace OSF::Registry
 				}
 				if (!IsKnownCameraState(ToLower(ce.state))) {
 					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + ce.state +
-						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit')");
+						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit')");
 				}
 				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + ce.state + "'", /*a_atRequired*/ false);
 				a_node_out.cameras.push_back(std::move(ce));
@@ -866,7 +867,7 @@ namespace OSF::Registry
 				cameraDefault = ToLower(cit->get<std::string>());
 				if (!IsKnownCameraState(cameraDefault)) {
 					a_errors.push_back("[error] '" + fileName + "': unknown camera state '" + cit->get<std::string>() +
-						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit')");
+						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit')");
 					REX::ERROR("SceneRegistry: '{}' unknown camera state '{}' — skipped", fileName, cit->get<std::string>());
 					return;
 				}

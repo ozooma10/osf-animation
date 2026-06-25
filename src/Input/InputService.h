@@ -29,6 +29,11 @@ namespace OSF::Input
 		void Engage(const Grant& a_grant);
 		void Release(std::int32_t a_handle);
 
+		// Raw mouse-look delta passthrough for the self-driven scene-orbit camera. While capture is on the
+		// input hook accumulates MouseMoveEvent deltas; DrainMouseDelta returns + resets the accumulator.
+		void SetMouseCapture(bool a_on);
+		void DrainMouseDelta(float& a_dx, float& a_dy);
+
 		// Load teardown: drop the grant + disarm. Mirrors Player/CameraService::OnStopAll.
 		void OnStopAll();
 	};

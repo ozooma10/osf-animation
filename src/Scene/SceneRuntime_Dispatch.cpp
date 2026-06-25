@@ -138,6 +138,9 @@ namespace OSF::Scene
 		} else if (state == "freefly") {
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — free-fly engaged (native, ToggleFreeCameraMode)", a_handle, a_state);
 			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kFreeFly);
+		} else if (state == "scene_orbit") {
+			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — scene orbit engaged (mouse-steered)", a_handle, a_state);
+			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kSceneOrbit);
 		} else if (state == "vanity_orbit") {
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — vanity orbit engaged", a_handle, a_state);
 			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kVanityOrbit);
