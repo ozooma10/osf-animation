@@ -203,6 +203,62 @@ OSF_TEST_CASE(Osf_graph_track_lanes_and_at_lowering)
 	CHECK(main->cameras[0].pos == CameraPos::kEnter);
 }
 
+OSF_TEST_CASE(Osf_sound_ladder_sugar_expands_marks)
+{
+	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.soundladder");
+	CHECK(def != nullptr);
+	if (!def) {
+		return;
+	}
+	// Two linear stages -> two desugared nodes, each carrying its expanded sound lane.
+	CHECK_EQ(def->nodes.size(), static_cast<size_t>(2));
+	if (def->nodes.size() != 2) {
+		return;
+	}
+	const auto& s = def->nodes[0].sounds;  // stage 0: ARRAY form
+	CHECK_EQ(s.size(), static_cast<size_t>(4));
+	if (s.size() != 4) {
+		return;
+	}
+	// [0] [0.1,"low"] -> base + ",low"; inherits lane role + repeat:loop. {gender} stays for fire time.
+	CHECK_EQ(s[0].spec, std::string("$seduce,{gender},moan,low"));
+	CHECK_EQ(s[0].role, std::string("bottom"));
+	CHECK(s[0].pos == SoundPos::kFraction);
+	CHECK_NEAR(s[0].fraction, 0.1f, 1e-4f);
+	CHECK(s[0].everyLoop);
+	// [1] [0.5,"loud","wet"] -> appends every extra element as a tag.
+	CHECK_EQ(s[1].spec, std::string("$seduce,{gender},moan,loud,wet"));
+	CHECK_NEAR(s[1].fraction, 0.5f, 1e-4f);
+	CHECK(s[1].everyLoop);
+	// [2] bare 0.9 -> the base spec, lane repeat:loop.
+	CHECK_EQ(s[2].spec, std::string("$seduce,{gender},moan"));
+	CHECK_NEAR(s[2].fraction, 0.9f, 1e-4f);
+	CHECK(s[2].everyLoop);
+	// [3] object override: tags appended, role + repeat overridden (one-shot on a different role).
+	CHECK_EQ(s[3].spec, std::string("$seduce,{gender},moan,climax"));
+	CHECK_EQ(s[3].role, std::string("top"));
+	CHECK_NEAR(s[3].fraction, 0.95f, 1e-4f);
+	CHECK(!s[3].everyLoop);
+
+	// stage 1: GROUPED form { "loud":[0.8], "med":[0.2,0.6] } -> one entry per (tag, position),
+	// inheriting lane role + repeat:loop. JSON object keys iterate sorted (std::map): "loud" before "med".
+	const auto& g = def->nodes[1].sounds;
+	CHECK_EQ(g.size(), static_cast<size_t>(3));
+	if (g.size() != 3) {
+		return;
+	}
+	CHECK_EQ(g[0].spec, std::string("$seduce,{gender},moan,loud"));
+	CHECK_NEAR(g[0].fraction, 0.8f, 1e-4f);
+	CHECK_EQ(g[0].role, std::string("bottom"));
+	CHECK(g[0].everyLoop);
+	CHECK_EQ(g[1].spec, std::string("$seduce,{gender},moan,med"));
+	CHECK_NEAR(g[1].fraction, 0.2f, 1e-4f);
+	CHECK(g[1].everyLoop);
+	CHECK_EQ(g[2].spec, std::string("$seduce,{gender},moan,med"));
+	CHECK_NEAR(g[2].fraction, 0.6f, 1e-4f);
+	CHECK(g[2].everyLoop);
+}
+
 OSF_TEST_CASE(Osf_graph_roles_and_policy)
 {
 	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.graph");

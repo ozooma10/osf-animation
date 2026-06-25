@@ -55,13 +55,19 @@ Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
 
 ### Layer B - scene runtime
 - **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads `*.scene.json` graphs (nodes + edges +
-  roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
+  roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`). The `sound`
+  lane also accepts a ladder-sugar OBJECT `{ role?, spec, repeat?, marks }` (shared defaults that expand
+  to one entry per mark, appending each mark's tag(s) to the base `spec`). `marks` is either GROUPED —
+  `{ "low":[0.1,0.3], "loud":[0.8] }` (key = tag(s) to append, value = positions; terse for repeated
+  tiers) — or an ARRAY of `[at, tag…]` pairs / bare `at` / `{ at, … }` overrides (ordered, heterogeneous).
 - **SoundRegistry** (`src/Registry/SoundRegistry.*`) — loads tagged sound pools from
   `Data/OSF/**/*.sounds.json` (`{ schema, pools:[{ name?, tags[], clips[] }] }`). A `sound`/`osf.voice.play`
   spec starting with `$` is a pool query (`$tag,tag,…`, all-of); the runtime resolves it to ONE clip by
   weighted-random AT FIRE TIME (`SceneRuntime::PlaySound`), so a per-loop/repeated cue re-rolls (the
-  per-hit variation a single literal path can't give). Plain specs stay literal. Content-neutral;
-  reloaded by `ReloadPacks`.
+  per-hit variation a single literal path can't give). A `{gender}` token in the query is substituted
+  from the role actor (`male`/`female` via `Matchmaking::ActorGenderTag`; empty→the tag drops out, i.e.
+  any gender), so one spec like `$seduce,{gender},moan,loud` plays the matching-gender pool. Plain specs
+  stay literal. Content-neutral; reloaded by `ReloadPacks`.
 - **SceneRuntime** (`src/Scene/SceneRuntime.*`) - generational handle table, lifecycle (`Fire`), navigation, timed-mark decode (`OnTimedMarks`, lane-ordered action→camera→sound→cue)
   `osf.*` action dispatch (`RunAction`), and the **per-handle undo ledger** (reverses every reversible
   mechanism in reverse order, once, idempotently, on ANY termination). Talks to Layer A only via its public surface, to Layer C via services.

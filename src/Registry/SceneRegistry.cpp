@@ -222,10 +222,108 @@ namespace OSF::Registry
 			}
 		}
 
+		// Expand the `sound` ladder sugar: an object { role?, spec, repeat?, volume?, marks } whose shared
+		// fields apply to every mark, appending each mark's tag(s) to the base `spec`. `{gender}` in the
+		// base stays for fire-time substitution (SceneRuntime::PlaySound). `marks` is one of two shapes:
+		//
+		//   GROUPED (terse for repeated tiers) — keyed by the tag(s) to append, value = the positions:
+		//     "marks": { "low": [0.1, 0.3], "loud": [0.8] }
+		//
+		//   ARRAY (ordered, heterogeneous, per-mark overrides) — each mark is:
+		//     0.5                  -> at 0.5, the base spec, lane defaults
+		//     [0.5, "loud"]        -> at 0.5, spec = base + ",loud"   (extra elements append more tags)
+		//     { at, tags?, spec?, role?, repeat?, volume? }  -> per-mark overrides (spec replaces the base)
+		void ExpandSoundLadder(const json& a_lane, SceneNode& a_node_out)
+		{
+			const std::string baseSpec = a_lane.value("spec", a_lane.value("sound", a_lane.value("pool", std::string{})));
+			const std::string laneRole = a_lane.value("role", std::string{});
+			const float laneVolume = a_lane.value("volume", 1.0f);
+			const std::string laneRepeat = ToLower(a_lane.value("repeat", "none"));  // ladders opt in with "loop"
+
+			// Emit one entry; timing (at/repeat) reuses the shared track-timing parse + validation.
+			const auto emit = [&](const std::string& a_spec, const json& a_at, const std::string& a_repeat,
+				const std::string& a_role, float a_volume) {
+				if (a_spec.empty()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': a sound mark has no spec (set the lane 'spec' or a per-mark 'spec')");
+				}
+				SoundEntry se;
+				se.spec = a_spec;
+				se.role = a_role;
+				se.volume = a_volume;
+				json timing = json::object();
+				timing["at"] = a_at;
+				timing["repeat"] = a_repeat;
+				ParseTrackTiming(timing, se, a_node_out.id, "sound '" + se.spec + "'", /*a_atRequired*/ true);
+				a_node_out.sounds.push_back(std::move(se));
+			};
+
+			const auto marksIt = a_lane.find("marks");
+			if (marksIt == a_lane.end()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder needs 'marks'");
+			}
+			const json& marks = *marksIt;
+
+			if (marks.is_object()) {
+				if (marks.empty()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': sound 'marks' object is empty");
+				}
+				for (auto it = marks.begin(); it != marks.end(); ++it) {
+					if (!it.value().is_array()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': sound mark group '" + it.key() + "' must be an array of positions");
+					}
+					std::string spec = baseSpec;
+					if (!it.key().empty()) {
+						spec += "," + it.key();  // the group key is the tag(s) appended to the base
+					}
+					for (const auto& at : it.value()) {
+						emit(spec, at, laneRepeat, laneRole, laneVolume);
+					}
+				}
+				return;
+			}
+			if (!marks.is_array() || marks.empty()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': sound 'marks' must be a non-empty array or an object keyed by tag");
+			}
+			for (const auto& m : marks) {
+				if (m.is_number() || m.is_string()) {
+					emit(baseSpec, m, laneRepeat, laneRole, laneVolume);  // bare position -> base spec
+				} else if (m.is_array()) {
+					if (m.empty()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': an empty sound mark array");
+					}
+					std::string spec = baseSpec;
+					for (std::size_t i = 1; i < m.size(); i++) {
+						if (!m[i].is_string()) {
+							throw std::runtime_error("node '" + a_node_out.id + "': sound mark tags must be strings");
+						}
+						spec += "," + m[i].get<std::string>();
+					}
+					emit(spec, m[0], laneRepeat, laneRole, laneVolume);
+				} else if (m.is_object()) {
+					std::string spec = baseSpec;
+					if (auto it = m.find("spec"); it != m.end()) {
+						spec = it->get<std::string>();  // per-mark spec replaces the base
+					}
+					if (auto it = m.find("tags"); it != m.end()) {
+						spec += "," + it->get<std::string>();
+					}
+					const json at = m.contains("at") ? m.at("at") : json();
+					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole), m.value("volume", laneVolume));
+				} else {
+					throw std::runtime_error("node '" + a_node_out.id + "': a sound mark must be a number, [at, tags...] array, or { at, ... } object");
+				}
+			}
+		}
+
 		void ParseSoundTrack(const json& a_entries, SceneNode& a_node_out)
 		{
+			// Ladder sugar: a single object { spec, marks:[...] } expands to many entries (see above).
+			if (a_entries.is_object()) {
+				ExpandSoundLadder(a_entries, a_node_out);
+				return;
+			}
 			if (!a_entries.is_array()) {
-				throw std::runtime_error("node '" + a_node_out.id + "': 'sound' track must be an array");
+				throw std::runtime_error("node '" + a_node_out.id + "': 'sound' track must be an array of entries or a { spec, marks } ladder object");
 			}
 			for (const auto& s : a_entries) {
 				SoundEntry se;
