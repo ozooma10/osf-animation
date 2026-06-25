@@ -5,10 +5,12 @@
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
+#include "UI/HudMessage.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>
 #include <charconv>
+#include <format>
 #include <optional>
 
 // SceneRuntime — graph / playback slice (one class, split across translation units; see SceneRuntime.cpp). 
@@ -365,9 +367,19 @@ namespace OSF::Scene
 			StopGraph(a_participants);  // cleanup after NODE_EXIT, before SCENE_END
 			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");
 			ReleaseSlot(a_handle);  // generation 0 → invalidates the handle
+			UI::HudMessage::Debug("OSF: scene ended");
 		} else {
 			PlayNodeAnim(a_participants, a_sceneId, a_newNode);
 			Fire(a_handle, Event::kNodeEnter, a_newNode, "enter");
+			// Opt-in debug popup naming the stage we just entered (covers manual advance, navigate, SetNode, and timer/loop auto-advance, every path funnels here). 
+			// A linear scene shows "stage N/M"; a branching node has no stage number, so it shows the node id alone. DebugEnabled() gate avoids formatting when off.
+			if (UI::HudMessage::DebugEnabled()) {
+				const auto*        def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+				const std::int32_t stage = def ? def->LinearStageOf(a_newNode) : -1;
+				UI::HudMessage::Show(stage >= 0
+						? std::format("OSF: stage {}/{} - {}", stage + 1, def->linearStages.size(), a_newNode)
+						: std::format("OSF: -> {}", a_newNode));
+			}
 		}
 	}
 

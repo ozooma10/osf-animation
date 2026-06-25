@@ -1,6 +1,7 @@
 #include "Config/Settings.h"
 
 #include "Audio/SoundService.h"
+#include "UI/HudMessage.h"
 
 #include <fstream>
 
@@ -59,6 +60,8 @@ namespace OSF::Config::Settings
 		floatKey("soundVolume", [](float v) { Audio::SoundService::GetSingleton().SetVolume(v); });
 
 		boolKey("wwiseSelfTest", [](bool v) { if (v) Audio::SoundService::GetSingleton().RunWwiseSelfTest(); });
+
+		boolKey("debugNotifications", [](bool v) { UI::HudMessage::SetDebugEnabled(v); });
 
 		for (const auto& [key, value] : json.items()) {
 			REX::WARN("Settings: unrecognized key '{}' — ignored (typo, or a newer OSF Animation?)", key);
