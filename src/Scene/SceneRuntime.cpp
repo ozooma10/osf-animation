@@ -5,6 +5,7 @@
 #include "Registry/SceneRegistry.h"
 
 #include <algorithm>
+#include <chrono>
 
 // SceneRuntime is one class implemented across several translation units, grouped by concern:
 //   - SceneRuntime.cpp           — this file: the handle table, lookups, snapshots, GraphManager registration, and the linear-stage accessors.
@@ -31,9 +32,28 @@ namespace OSF::Scene
 			constexpr float    kMax = 5.0f;
 			constexpr float    kMin = 0.1f;
 			switch (a_verb) {
-			case Input::Verb::kAdvance:
-				rt.Advance(a_grant.handle);
+			case Input::Verb::kAdvance: {
+				// Debounce manual advance. A press starts a node teardown+rebuild whose ~0.4s crossfade plays out over the following frames; 
+				// without a floor, mashing space restarts that blend every press and stutter-skips through stages
+				// NODE_ENTER fires synchronously inside Advance so it can't gate re-entry., a short time floor on the INPUT path does.
+				using clock = std::chrono::steady_clock;
+				constexpr auto      kAdvanceCooldown = std::chrono::milliseconds(250);
+				static std::int32_t s_lastAdvanceHandle = 0;  // game-thread only
+				static clock::time_point s_lastAdvance{};
+				const auto               now = clock::now();
+				if (a_grant.handle == s_lastAdvanceHandle && now - s_lastAdvance < kAdvanceCooldown) {
+					REX::INFO("SceneRuntime: Advance scene {:#010x} debounced (within {}ms floor)",
+						a_grant.handle,
+						std::chrono::duration_cast<std::chrono::milliseconds>(kAdvanceCooldown).count());
+					break;
+				}
+				// Arm the floor only on a real transition; a no-op press leaves the next genuine advance free to fire immediately.
+				if (rt.Advance(a_grant.handle)) {
+					s_lastAdvanceHandle = a_grant.handle;
+					s_lastAdvance = now;
+				}
 				break;
+			}
 			case Input::Verb::kEnd:
 				rt.Stop(a_grant.handle);  // Grant.locked was already enforced in the InputService
 				break;
