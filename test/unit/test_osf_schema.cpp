@@ -348,6 +348,33 @@ OSF_TEST_CASE(Osf_rejects_unknown_camera_state)
 	CHECK(AnyErrorContains("unknown camera state"));
 }
 
+OSF_TEST_CASE(Osf_pack_level_camera_attaches_to_entry_node)
+{
+	// File-level "camera": "vanity_orbit" attaches to the desugared entry node (#s0).
+	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.packcam");
+	CHECK(def != nullptr);
+	if (def) {
+		const auto* entry = def->FindNode(def->entry);
+		CHECK(entry != nullptr);
+		if (entry) {
+			CHECK_EQ(entry->cameras.size(), static_cast<size_t>(1));
+			CHECK_EQ(entry->cameras[0].state, std::string("vanity_orbit"));
+			CHECK(entry->cameras[0].pos == CameraPos::kEnter);
+		}
+	}
+	// A node-level camera track on the entry node wins over the pack default (not overwritten).
+	const auto* over = SceneRegistry::GetSingleton().Find("osf.u.packcam.override");
+	CHECK(over != nullptr);
+	if (over) {
+		const auto* fly = over->FindNode("fly");
+		CHECK(fly != nullptr);
+		if (fly) {
+			CHECK_EQ(fly->cameras.size(), static_cast<size_t>(1));
+			CHECK_EQ(fly->cameras[0].state, std::string("freefly"));
+		}
+	}
+}
+
 OSF_TEST_CASE(Osf_lock_and_strip_defaults_and_optout)
 {
 	auto& reg = SceneRegistry::GetSingleton();

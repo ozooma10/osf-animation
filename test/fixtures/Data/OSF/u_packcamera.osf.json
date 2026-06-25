@@ -1,0 +1,16 @@
+{
+  // Pack-level default camera: "camera" at the file root attaches that posture to each scene's
+  // entry node. First scene inherits it on the desugared #s0; second scene's entry node declares
+  // its own camera track, so the pack default must NOT override it.
+  "schema": 1,
+  "camera": "vanity_orbit",
+  "scenes": [
+    { "id": "osf.u.packcam",
+      "stages": [ ["OSF/Anim/a.glb"] ] },
+    { "id": "osf.u.packcam.override", "entry": "fly",
+      "nodes": [
+        { "id": "fly", "stages": [ ["OSF/Anim/b.glb"] ], "loop": { "mode": "hold" }, "loopForever": true,
+          "camera": [ { "at": "enter", "state": "freefly" } ] }
+      ] }
+  ]
+}

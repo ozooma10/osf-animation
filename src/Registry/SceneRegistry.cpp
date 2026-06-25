@@ -242,6 +242,14 @@ namespace OSF::Registry
 			}
 		}
 
+		// The camera postures the runtime understands — shared by node `camera` tracks and the
+		// pack-level `camera` default. (Tethered orbit / photo mode / cinematic between-actor shots
+		// aren't wired yet.)
+		bool IsKnownCameraState(std::string_view a_stateLower)
+		{
+			return a_stateLower == "thirdperson_hold" || a_stateLower == "freefly" || a_stateLower == "vanity_orbit";
+		}
+
 		void ParseCameraTrack(const json& a_entries, SceneNode& a_node_out)
 		{
 			if (!a_entries.is_array()) {
@@ -253,10 +261,7 @@ namespace OSF::Registry
 				if (ce.state.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a camera track entry is missing 'state'");
 				}
-				// Supported camera postures: the default third-person hold, plus the PlayerCamera state overrides free-fly and vanity orbit. 
-				//@TODO: (Tethered orbit / photo mode / cinematic between-actor shots aren't wired yet.)
-				const auto stateLower = ToLower(ce.state);
-				if (stateLower != "thirdperson_hold" && stateLower != "freefly" && stateLower != "vanity_orbit") {
+				if (!IsKnownCameraState(ToLower(ce.state))) {
 					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + ce.state +
 						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit')");
 				}
@@ -693,7 +698,8 @@ namespace OSF::Registry
 		}
 
 		// Parse one unified scene. a_lockDefault/a_stripDefault are the file-level policy defaults.
-		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault)
+		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
+			std::string_view a_cameraDefault)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -804,6 +810,24 @@ namespace OSF::Registry
 				}
 				DesugarLinear(def, stages);
 			}
+
+			// Pack-level default camera (file-level "camera": "<state>"): attach that posture to the
+			// entry node's enter so a scene picks it up without authoring a per-node camera track. The
+			// state override is held by the ledger until scene-stop, so engaging it on the entry node
+			// holds it across every stage. An explicit node-level camera track on the entry node wins.
+			if (!a_cameraDefault.empty()) {
+				const std::string entryLower = ToLower(def.entry);
+				for (auto& nd : def.nodes) {
+					if (ToLower(nd.id) == entryLower) {
+						if (nd.cameras.empty()) {
+							CameraEntry ce;
+							ce.state = std::string(a_cameraDefault);  // already validated + lowercased by the caller
+							nd.cameras.push_back(std::move(ce));
+						}
+						break;
+					}
+				}
+			}
 			return def;
 		}
 
@@ -830,6 +854,24 @@ namespace OSF::Registry
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			const bool stripDefault = a_json.value("stripActors", true);
 
+			// Optional pack-level default camera: "camera": "<state>" attaches that posture to each
+			// scene's entry node (unless that node already declares its own camera track).
+			std::string cameraDefault;
+			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
+				if (!cit->is_string()) {
+					a_errors.push_back("[error] '" + fileName + "': 'camera' must be a string");
+					REX::ERROR("SceneRegistry: '{}' 'camera' must be a string — skipped", fileName);
+					return;
+				}
+				cameraDefault = ToLower(cit->get<std::string>());
+				if (!IsKnownCameraState(cameraDefault)) {
+					a_errors.push_back("[error] '" + fileName + "': unknown camera state '" + cit->get<std::string>() +
+						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit')");
+					REX::ERROR("SceneRegistry: '{}' unknown camera state '{}' — skipped", fileName, cit->get<std::string>());
+					return;
+				}
+			}
+
 			// A file holds a single bare scene, or { schema, scenes: [...] }.
 			std::vector<const json*> sceneJsons;
 			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
@@ -848,7 +890,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, cameraDefault);
 					def.sourceFile = a_file;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {

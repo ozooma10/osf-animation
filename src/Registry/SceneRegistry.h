@@ -149,15 +149,16 @@ namespace OSF::Registry
 		kEnd
 	};
 
-	// One `camera` track entry: a held camera state, auto-restored on cleanup. 
-	// For now the only state is "thirdperson_hold" (force and hold third person via the standalone camera lock);
-	// free-fly/orbit/matrix states aren't supported yet.
+	// One `camera` track entry: a held camera state, auto-restored on cleanup. States:
+	// "thirdperson_hold" (force/hold third person via the standalone camera lock), "freefly" and
+	// "vanity_orbit" (PlayerCamera state overrides). Also synthesized from a pack-level `camera`
+	// default, attached to a scene's entry node.
 	struct CameraEntry
 	{
 		CameraPos    pos = CameraPos::kEnter;
 		float        fraction = 0.0f;
 		bool         everyLoop = false;
-		std::string  state;   // camera state id ("thirdperson_hold")
+		std::string  state;   // camera state id ("thirdperson_hold" / "freefly" / "vanity_orbit")
 	};
 
 	struct SceneNode
