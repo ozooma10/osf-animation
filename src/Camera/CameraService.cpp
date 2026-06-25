@@ -23,13 +23,13 @@ namespace OSF::Camera
 
 		void* FreeCamInputMgr()
 		{
-			static REL::Relocation<void**> slot{ REL::ID(938003) };
+			static REL::Relocation<void**> slot{ RE::ID::FreeCameraInputContext::Manager };
 			return *slot;
 		}
 
 		void* FreeCamInputDescriptor()
 		{
-			static REL::Relocation<std::uintptr_t> desc{ REL::ID(894502) };
+			static REL::Relocation<std::uintptr_t> desc{ RE::ID::FreeCameraInputContext::Descriptor };
 			return reinterpret_cast<void*>(desc.address());  // the handler passes &descriptor (lea r8)
 		}
 
@@ -39,7 +39,7 @@ namespace OSF::Camera
 			if (!mgr) {
 				return;
 			}
-			static REL::Relocation<InputCtx_t> push{ REL::ID(124144) };
+			static REL::Relocation<InputCtx_t> push{ RE::ID::FreeCameraInputContext::PushContext };
 			push(mgr, kFreeCamInputCtxId, FreeCamInputDescriptor());
 			REX::INFO("Native free cam: input context pushed");
 		}
@@ -50,7 +50,7 @@ namespace OSF::Camera
 			if (!mgr) {
 				return;
 			}
-			static REL::Relocation<InputCtx_t> pop{ REL::ID(124143) };
+			static REL::Relocation<InputCtx_t> pop{ RE::ID::FreeCameraInputContext::PopContext };
 			pop(mgr, kFreeCamInputCtxId, FreeCamInputDescriptor());
 			REX::INFO("Native free cam: input context popped");
 		}
