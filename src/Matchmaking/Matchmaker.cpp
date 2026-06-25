@@ -4,6 +4,7 @@
 #include "Util/StringUtil.h"
 
 #include <algorithm>
+#include <format>
 #include <random>
 #include <unordered_set>
 
@@ -120,8 +121,7 @@ namespace OSF::Matchmaking
 
 		// Build the unified candidate pool. a_actors non-empty => filter-aware with a complete binding (Candidate::order filled); 
 		// empty => count + tags only (discovery, no binding).
-		std::vector<Candidate> BuildPool(std::int32_t a_count, const TagQuery& a_query,
-			const std::vector<RE::Actor*>& a_actors)
+		std::vector<Candidate> BuildPool(std::int32_t a_count, const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors)
 		{
 			const bool haveActors = !a_actors.empty();
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
@@ -151,6 +151,22 @@ namespace OSF::Matchmaking
 			});
 
 			return pool;
+		}
+
+		// Compact, log-friendly rendering of a tag query, e.g. "all=[a,b] any=[c] none=[d]".
+		std::string DescribeQuery(const TagQuery& a_query)
+		{
+			auto join = [](const std::vector<std::string>& a_in) {
+				std::string out;
+				for (std::size_t i = 0; i < a_in.size(); i++) {
+					if (i) {
+						out += ',';
+					}
+					out += a_in[i];
+				}
+				return out;
+			};
+			return std::format("all=[{}] any=[{}] none=[{}]", join(a_query.allOf), join(a_query.anyOf), join(a_query.noneOf));
 		}
 	}
 
@@ -210,11 +226,15 @@ namespace OSF::Matchmaking
 
 	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query)
 	{
+		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
+		REX::INFO("Pick: searching for {} actor(s), tags {}", actorCount, DescribeQuery(a_query));
 		if (a_actors.empty()) {
+			REX::INFO("Pick: no match (no actors supplied)");
 			return std::nullopt;
 		}
-		auto pool = BuildPool(static_cast<std::int32_t>(a_actors.size()), a_query, a_actors);
+		auto pool = BuildPool(actorCount, a_query, a_actors);
 		if (pool.empty()) {
+			REX::INFO("Pick: no match (no scene def fit {} role(s) + tags + a complete actor binding)", actorCount);
 			return std::nullopt;
 		}
 		// Top priority tier.
@@ -230,17 +250,23 @@ namespace OSF::Matchmaking
 				total += static_cast<std::uint64_t>(std::max(1, c.weight));
 			}
 		}
+		REX::INFO("Pick: {} candidate(s) in pool, {} in top priority tier {} (total weight {})",
+			pool.size(), tier.size(), maxPriority, total);
 		// Weight-proportional random within the tier (uint64 sum is overflow-safe for the [1,1e6] cap).
 		std::mt19937 rng{ std::random_device{}() };
 		std::uniform_int_distribution<std::uint64_t> dist(1, total);
 		auto roll = dist(rng);
+		REX::INFO("Pick: weighted roll {} of {}", roll, total);
 		for (const auto* c : tier) {
 			const auto w = static_cast<std::uint64_t>(std::max(1, c->weight));
 			if (roll <= w) {
+				REX::INFO("Pick: chose '{}' (priority {}, weight {})", c->id, c->priority, c->weight);
 				return *c;
 			}
 			roll -= w;
 		}
+		REX::INFO("Pick: chose '{}' (priority {}, weight {}) [tail guard]",
+			tier.back()->id, tier.back()->priority, tier.back()->weight);
 		return *tier.back();  // numerical guard; not normally reached
 	}
 }

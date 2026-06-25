@@ -378,8 +378,7 @@ namespace OSF::Papyrus
 		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs), pick by priority tier + weighted-random, and start it with the matchmade binding.
 		// Returns the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
 		// akOpts.Anchor world-anchors the matchmade scene at a ref (furniture/bed/marker) instead of co-locating at actor[0].
-		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
-			std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
+		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
 		{
 			Matchmaking::TagQuery q;
 			q.allOf = ToStrings(a_tags);
