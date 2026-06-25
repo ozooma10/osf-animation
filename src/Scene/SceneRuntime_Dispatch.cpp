@@ -136,7 +136,7 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — third-person hold engaged", a_handle, a_state);
 			GetSingleton().RecordMechanism(a_handle, Mechanism::kCamera);
 		} else if (state == "freefly") {
-			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — free-fly state engaged", a_handle, a_state);
+			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — free-fly engaged (native, ToggleFreeCameraMode)", a_handle, a_state);
 			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kFreeFly);
 		} else if (state == "vanity_orbit") {
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — vanity orbit engaged", a_handle, a_state);

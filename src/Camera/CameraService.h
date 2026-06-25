@@ -2,10 +2,10 @@
 
 namespace OSF::Camera
 {
-	// Alternate scene camera postures beyond the default third-person hold. Each maps to a Starfield PlayerCamera state in the .cpp (kFreeFly / kAutoVanity). 
+	// Alternate scene camera postures beyond the default third-person hold.
 	enum class CameraMode : std::uint8_t
 	{
-		kFreeFly,     // player-piloted free camera (RE::CameraState::kFreeFly)
+		kFreeFly,     // engine-native free cam (the `tfc` path): ToggleFreeCameraMode; engine routes WASD/mouse
 		kVanityOrbit  // automatic slow orbit, needs no input (RE::CameraState::kAutoVanity)
 	};
 
@@ -43,6 +43,10 @@ namespace OSF::Camera
 		// Restore the prior POV on the game thread, only if no imposition remains and the live camera differs from the baseline.
 		void RestoreBaseline();
 
+		// engine native freecam (`tfc`). ToggleFreeCameraMode enters kFreeWalk + seeds the pose from the current view + routes input
+		void NativeFreeCamEnter();
+		void NativeFreeCamExit();
+
 		std::mutex lock;
 		std::atomic<bool> holdArmed{ false };       // gates Tick: a third-person hold is active
 		std::atomic<bool> suppressBounce{ false };  // a state override owns the camera — don't bounce
@@ -51,5 +55,7 @@ namespace OSF::Camera
 		bool baselineWasFirstPerson = false;
 		int  holdCount = 0;      // third-person-hold holders (control lock + thirdperson_hold tracks)
 		int  overrideCount = 0;  // state-override holders (free-fly / vanity-orbit scenes)
+
+		std::atomic<bool> nativeFreeCamActive{ false };  // engine-native free cam is toggled on
 	};
 }

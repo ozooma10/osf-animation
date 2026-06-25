@@ -4,16 +4,55 @@ namespace OSF::Camera
 {
 	namespace
 	{
-		// Map an OSF posture to the Starfield camera state machine.
-		RE::CameraState ToCameraState(CameraMode a_mode)
+		constexpr std::uint32_t kNativeFreeCamState = 13;  // RE::CameraState::kFreeWalk (== plain `tfc`)
+		using ToggleFreeCam_t = void (*)(RE::PlayerCamera*, std::uint32_t, bool);
+
+		void NativeToggleFreeCam()
 		{
-			switch (a_mode) {
-			case CameraMode::kVanityOrbit:
-				return RE::CameraState::kAutoVanity;
-			case CameraMode::kFreeFly:
-			default:
-				return RE::CameraState::kFreeFly;
+			auto* camera = RE::PlayerCamera::GetSingleton();
+			if (!camera) {
+				return;
 			}
+
+			camera->ToggleFreeCameraMode(kNativeFreeCamState, false);
+		}
+
+		// Free-cam INPUT CONTEXT. The console `tfc` handler pushes this right after ToggleFreeCameraMode (and pops it on exit). 
+		using InputCtx_t = void (*)(void*, std::uint32_t, void*);
+		constexpr std::uint32_t kFreeCamInputCtxId = 0x13;
+
+		void* FreeCamInputMgr()
+		{
+			static REL::Relocation<void**> slot{ REL::ID(938003) };
+			return *slot;
+		}
+
+		void* FreeCamInputDescriptor()
+		{
+			static REL::Relocation<std::uintptr_t> desc{ REL::ID(894502) };
+			return reinterpret_cast<void*>(desc.address());  // the handler passes &descriptor (lea r8)
+		}
+
+		void PushFreeCamInputContext()
+		{
+			void* mgr = FreeCamInputMgr();
+			if (!mgr) {
+				return;
+			}
+			static REL::Relocation<InputCtx_t> push{ REL::ID(124144) };
+			push(mgr, kFreeCamInputCtxId, FreeCamInputDescriptor());
+			REX::INFO("Native free cam: input context pushed");
+		}
+
+		void PopFreeCamInputContext()
+		{
+			void* mgr = FreeCamInputMgr();
+			if (!mgr) {
+				return;
+			}
+			static REL::Relocation<InputCtx_t> pop{ REL::ID(124143) };
+			pop(mgr, kFreeCamInputCtxId, FreeCamInputDescriptor());
+			REX::INFO("Native free cam: input context popped");
 		}
 	}
 
@@ -25,7 +64,7 @@ namespace OSF::Camera
 
 	void CameraService::CaptureBaseline()
 	{
-		// Game thread: record the prior POV once so any imposition restores to it. 
+		// Game thread: record the prior POV once so any imposition restores to it.
 		// A second engage (overlapping scene) finds baselineCaptured already set and keeps the original POV.
 		SFSE::GetTaskInterface()->AddTask([this]() {
 			auto* camera = RE::PlayerCamera::GetSingleton();
@@ -125,18 +164,48 @@ namespace OSF::Camera
 
 	void CameraService::SetLiveCameraState(CameraMode a_mode)
 	{
-		const RE::CameraState state = ToCameraState(a_mode);
-		SFSE::GetTaskInterface()->AddTask([this, state]() {
-			// Drive the camera only while an override is held (a late task after release is a no-op).
+		if (a_mode == CameraMode::kFreeFly) {
+			NativeFreeCamEnter();  // engine-native free cam (the `tfc` path): engine owns camera + input
+			return;
+		}
+		// kVanityOrbit: a plain PlayerCamera state override (auto orbit, needs no input).
+		SFSE::GetTaskInterface()->AddTask([this]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
-				return;
+				return;  // the override was released before this task ran
 			}
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!camera) {
 				return;  // fail-soft: no camera, no change
 			}
-			camera->SetCameraState(state);
-			REX::INFO("Player camera set to scene state {}", static_cast<std::uint32_t>(state));
+			camera->SetCameraState(RE::CameraState::kAutoVanity);
+			REX::INFO("Player camera set to vanity orbit");
+		});
+	}
+
+	void CameraService::NativeFreeCamEnter()
+	{
+		SFSE::GetTaskInterface()->AddTask([this]() {
+			if (!suppressBounce.load(std::memory_order_relaxed)) {
+				return;  // the override was released before this task ran
+			}
+			if (nativeFreeCamActive.exchange(true, std::memory_order_relaxed)) {
+				return;  // already on — toggling again would exit it
+			}
+			NativeToggleFreeCam();      // enter free cam; the engine seeds the pose from the current view
+			PushFreeCamInputContext();  // the input context the console handler pushes
+			REX::INFO("Native free camera entered (ToggleFreeCameraMode, state {})", kNativeFreeCamState);
+		});
+	}
+
+	void CameraService::NativeFreeCamExit()
+	{
+		SFSE::GetTaskInterface()->AddTask([this]() {
+			if (!nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
+				return;  // not on — nothing to toggle
+			}
+			PopFreeCamInputContext();  // release the free-cam input context (reverse of enter)
+			NativeToggleFreeCam();     // toggles off; the engine restores the prior camera
+			REX::INFO("Native free camera exited");
 		});
 	}
 
@@ -157,6 +226,14 @@ namespace OSF::Camera
 		if (!released) {
 			return;
 		}
+		if (nativeFreeCamActive.load(std::memory_order_relaxed)) {
+			{
+				std::scoped_lock l{ lock };
+				baselineCaptured = false;  // ToggleFreeCameraMode restores the camera itself; drop our baseline
+			}
+			NativeFreeCamExit();
+			return;  // engine owns the restore — skip our baseline/handback
+		}
 		if (holdArmed.load(std::memory_order_relaxed)) {
 			// A third-person hold is still active — hand the camera back to it instead of restoring.
 			SFSE::GetTaskInterface()->AddTask([this]() {
@@ -176,6 +253,10 @@ namespace OSF::Camera
 
 	void CameraService::OnStopAll()
 	{
+		if (nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
+			// Toggle the native free cam off so a save/load doesn't strand the player in it.
+			SFSE::GetTaskInterface()->AddTask([]() { PopFreeCamInputContext(); NativeToggleFreeCam(); });
+		}
 		std::scoped_lock l{ lock };
 		holdCount = 0;
 		overrideCount = 0;

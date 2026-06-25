@@ -79,18 +79,14 @@ namespace OSF::Input
 
 		void Thunk(RE::BSInputEventReceiver* a_this, const RE::InputEvent* a_queueHead)
 		{
-			const bool active = g_active.load(std::memory_order_relaxed);
-			if ( active) {
+			if (g_active.load(std::memory_order_relaxed)) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					if (event->eventType == RE::InputEvent::EventType::kButton) {
-						const auto* be = static_cast<const RE::ButtonEvent*>(event);
-						if (active) {
-							MaybeDispatch(be);
-						}
+						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
 					}
 				}
 			}
-			// ALWAYS forward the unmodified queue. This hook reads input; v1 never consumes / injects.
+			// ALWAYS forward the unmodified queue. This hook reads input; it never consumes / injects.
 			g_original(a_this, a_queueHead);
 		}
 	}
