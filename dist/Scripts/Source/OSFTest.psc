@@ -5,6 +5,10 @@ ScriptName OSFTest
 ; build [player, npc] for you. Pass the NPC's RefID as hex (click it in the
 ; console to read its RefID, or type it). The player is always actors[0].
 ;
+; Solo (player only) by animation PATH — a single clip that loops forever:
+;   cgf "OSFTest.Solo" "OSF\Animations\OSF_Test\TestSway01.glb"   play+loop a clip on the player
+;   cgf "OSFTest.StopPlay"             stop a solo OSF.Play clip on the player
+;
 ; Pair animations (baked-in OSF_Test GLBs — no animation pack needed):
 ;   cgf "OSFTest.Pair" <npc>            player + npc, scene id "pair"
 ;   cgf "OSFTest.PairId" <npc> "test.stages"   player + npc, any scene id
@@ -24,6 +28,21 @@ ScriptName OSFTest
 ; NOTE: console `cgf` does NOT apply Papyrus default arguments (those are filled by
 ; the compiler at the call site, which cgf bypasses). So console entry points must
 ; take no optional params — that's why Pair hardcodes the id and PairId is separate.
+
+; Solo: play one clip on the player by PATH. A single clip loops forever (the graph
+; wraps its clock), so this is the simplest "solo scene that just loops" test — no JSON,
+; no scene id, no NPC. asFile is Data-relative, e.g. "OSF\Animations\OSF_Test\TestSway01.glb".
+Function Solo(string file) global
+    bool ok = OSF.Play(Game.GetPlayer(), file)
+    Debug.Notification("OSF: Play '" + file + "' on player -> " + ok)
+EndFunction
+
+; Stop a solo OSF.Play clip. (OSFTest.Stop is for SCENES; a raw Play has no handle, so it
+; needs OSF.Stop, not StopSceneForActor.)
+Function StopPlay() global
+    bool ok = OSF.Stop(Game.GetPlayer())
+    Debug.Notification("OSF: StopPlay -> " + ok)
+EndFunction
 
 Function Pair(Actor npc) global
     Start(npc, "pair")
