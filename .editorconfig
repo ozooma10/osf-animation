@@ -1,0 +1,25 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# C++ sources are tab-indented.
+[*.{cpp,h,hpp,c}]
+indent_style = tab
+indent_size = 4
+
+[*.psc]
+indent_style = space
+indent_size = 4
+
+[*.{json,jsonc,xml,lua,ps1,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown can use trailing spaces for hard line breaks.
+[*.md]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false

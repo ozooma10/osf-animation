@@ -77,9 +77,9 @@ path. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full field reference and th
 
 ### d. Verify
 ```bat
-cgf "OSFTest.SceneLoadTest"           ; reload + dump any load problems
-cgf "OSFTest.IntrospectScene" "mypack.scenes.greet"
-cgf "OSFTest.MatchTags" "greet"       ; matchmake on a tag (crosshair actor / player)
+cgf "OSFTest.Reload"                          ; rescan Data/OSF/**.osf.json and register scenes
+cgf "OSFTest.PairId" <npc-refid> "mypack.scenes.greet"  ; start your scene on player + the clicked NPC
+cgf "OSFTest.Stop"                            ; stop the scene the player is in
 ```
 Iterate without restarting: edit the JSON/GLB, then `cgf "OSFTest.Reload"` (or `OSF.ReloadPacks()`).
 

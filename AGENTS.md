@@ -47,9 +47,6 @@ Each entry: **system** (`path`) — role.
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
 - **Scene** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
-- **PackRegistry** (`src/Registry/PackRegistry.*`) — loads SLAL-shaped JSON animation packs from
-  `Data/OSF/**` (mechanical schema; content fields ignored). Carries the `stripActors`/`lockPlayer`
-  default-mechanism opt-outs (resolved pack top-level → per-animation); richer policy lives in `*.scene.json`.
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —
   standalone locks (input-disable + AI-driven + third-person hold).
   Engaged **by default at scene start when the player is a participant** (the runtime calls
@@ -63,8 +60,9 @@ Each entry: **system** (`path`) — role.
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 
 ### Layer B - scene runtime
-- **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads `*.scene.json` graphs (nodes + edges +
-  roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`). The `sound`
+- **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
+  edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`); also
+  carries the `stripActors`/`lockPlayer` default-mechanism opt-outs (top-level → per-role). The `sound`
   lane also accepts a ladder-sugar OBJECT `{ role?, spec, repeat?, marks }` (shared defaults that expand
   to one entry per mark, appending each mark's tag(s) to the base `spec`). `marks` is either GROUPED —
   `{ "low":[0.1,0.3], "loud":[0.8] }` (key = tag(s) to append, value = positions; terse for repeated
@@ -87,8 +85,8 @@ Each entry: **system** (`path`) — role.
   passes the booleans in; a files scene has no field, so both stay on.
 - **SceneEventRelay** (`src/Scene/SceneEventRelay.*`) - token registry + async C++->Papyrus dispatch of
   the `OSFEvent:SceneEvent` struct.
-- **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `SceneRegistry` defs
-  + `PackRegistry` packs; deterministic role-binding; `roles[].filters` gender/keyword/race with
+- **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `SceneRegistry` defs;
+  deterministic role-binding; `roles[].filters` gender/keyword/race with
   `"Plugin.esm|0xID"` form-refs resolved at load (RE-sensitive — needs in-game verification).
 
 ### Layer-C - services 

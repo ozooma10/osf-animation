@@ -1,15 +1,13 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-  Assemble the OSF Animation FOMOD release archive from build/ (DLL) + dist/ (scripts + content).
-  Filters out test/dev files from Core; the test harness + demo content go to the optional
-  Examples component.
+  Assemble the OSF Animation FOMOD release archive from build/ (DLL) + dist/ (scripts).
 .EXAMPLE
-  packaging\build-archive.ps1 -Version 0.1.0-beta
-  # -> packaging\out\OSF Animation v0.1.0-beta.zip
+  packaging\build-archive.ps1 -Version 0.1.0
+  # -> packaging\out\OSF Animation v0.1.0.zip
 .NOTES
-  Run AFTER a verified `xmake` build. Ship the flavor you tested in-game (default releasedbg);
-  the .pdb is never included.
+  Run AFTER a verified `xmake` build and a Papyrus compile (so dist/Scripts/*.pex exist).
+  Ship the flavor you tested in-game (default releasedbg); the .pdb is never included.
 #>
 [CmdletBinding()]
 param(
@@ -24,23 +22,19 @@ $dll  = Join-Path $repo "build\windows\x64\$DllFlavor\OSF Animation.dll"
 $dist = Join-Path $repo 'dist'
 if (-not (Test-Path $dll)) { throw "DLL not found: $dll  (run xmake first; -DllFlavor $DllFlavor)" }
 
-# --- stage Core / Examples ---
+# --- stage Core ---
 $stage = Join-Path $env:TEMP "osfanim-pkg-$(Get-Random)"
-$core = "$stage\Core"; $ex = "$stage\Examples"
-@("$core\SFSE\Plugins", "$core\Scripts\Source", "$ex\Scripts\Source", "$ex\OSF") |
+$core = "$stage\Core"
+@("$core\SFSE\Plugins", "$core\Scripts\Source") |
     ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 
-# Core: the DLL (no .pdb) + the OSF* API scripts/sources (a consumer needs the .psc to compile against).
+# Core: the DLL (no .pdb) + the OSF API scripts/sources. A consumer needs the .psc to compile
+# against; OSFTest is the console smoke-test harness referenced by docs/GETTING_STARTED.md.
 Copy-Item $dll "$core\SFSE\Plugins\"
-foreach ($s in @('OSF', 'OSFCompat', 'OSFEvent')) {
+foreach ($s in @('OSF', 'OSFTypes', 'OSFTest')) {
     if (Test-Path "$dist\Scripts\$s.pex")        { Copy-Item "$dist\Scripts\$s.pex" "$core\Scripts\" }
     if (Test-Path "$dist\Scripts\Source\$s.psc") { Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\" }
 }
-
-# Examples: the OSFTest harness + every demo pack/scene/clip under dist/OSF.
-Copy-Item "$dist\Scripts\OSFTest.pex" "$ex\Scripts\"
-Copy-Item "$dist\Scripts\Source\OSFTest.psc" "$ex\Scripts\Source\"
-Copy-Item "$dist\OSF\*" "$ex\OSF\" -Recurse
 
 # fomod/ + stamp the version into info.xml.
 Copy-Item "$PSScriptRoot\fomod" "$stage\fomod" -Recurse

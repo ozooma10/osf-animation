@@ -62,3 +62,15 @@ osf-import-test.exe <file.glb>
 ```
 
 The harness exercises the offline GLTF import path without launching the game.
+
+## License & Credits
+
+OSF Animation is licensed under the **GNU General Public License v3.0** ([LICENSE](LICENSE)),
+with an additional modding/linking exception — see [EXCEPTIONS](EXCEPTIONS).
+
+It adapts and builds on several open-source projects; full attributions and licenses are in
+[THIRD_PARTY.md](THIRD_PARTY.md). Most notably:
+
+- **[NativeAnimationFrameworkSF](https://github.com/Deweh/NativeAnimationFrameworkSF)** (Deweh, GPL-3.0) — the ozz playback/graph plumbing OSF is adapted from.
+- **[CALUMI.Animation](https://github.com/Calaverah/CALUMI.Animation)** (Calaverah, LGPL-3.0) — the engine-native `.af` / `skeleton.rig` decoder.
+- **[CommonLibSF](https://github.com/libxse/commonlibsf)**, fastgltf, ozz-animation, zlib, nlohmann/json, and miniaudio.

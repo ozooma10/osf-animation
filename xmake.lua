@@ -8,8 +8,8 @@ set_warnings("allextra")
 
 add_requires("fastgltf v0.9.0")
 add_requires("ozz-animation 0.16.0")
-add_requires("zlib")
-add_requires("nlohmann_json")
+add_requires("zlib 1.3.1")
+add_requires("nlohmann_json 3.11.3")
 add_requires("miniaudio 0.11.25")  -- plays loose-file sound cues
 
 add_rules("mode.debug", "mode.releasedbg")
@@ -32,7 +32,7 @@ target("OSF Animation")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
-    -- Copy the compiled DLL, Papyrus scripts, and animation JSON into the mod folder.
+    -- Copy the compiled DLL and Papyrus scripts into the mod folder.
     after_build(function (target)
         local mods = os.getenv("XSE_SF_MODS_PATH")
         if mods then
@@ -40,22 +40,15 @@ target("OSF Animation")
             local plugins = path.join(mods, target:name(), "SFSE", "Plugins")
             local scripts = path.join(mods, target:name(), "Scripts")
             local source = path.join(scripts, "Source")
-            local osf = path.join(mods, target:name(), "OSF")
             os.mkdir(plugins)
             os.mkdir(scripts)
             os.mkdir(source)
-            os.mkdir(osf)
             os.cp(target:targetfile(), plugins .. "/")
             if os.isfile(target:symbolfile()) then
                 os.cp(target:symbolfile(), plugins .. "/")  -- .pdb for crash-log symbolication
             end
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
-            -- os.cp("dist/OSF/*.json", osf .. "/")
-            -- os.cp("dist/OSF/Animations", osf .. "/")
-            if os.isdir("dist/OSF/Sounds") then
-                os.cp("dist/OSF/Sounds", osf .. "/")  -- sample sound cues, if any are present
-            end
         end
     end)
 
@@ -77,4 +70,3 @@ target("osf-af-import-test")
     add_packages("ozz-animation", "zlib")
     add_files("src/Serialization/AFImport.cpp", "src/Util/Ba2.cpp", "test/AFImportTest.cpp")
     add_includedirs("src")
-
