@@ -131,7 +131,7 @@ defaulting to gender `"any"` and no offset.
 ]
 ```
 
-Each role is `{ name?, gender?, keywords?[], races?[], offset? }`:
+Each role is `{ name?, gender?, keywords?[], races?[], offset?, equip? }`:
 
 - **`name`** is **OPTIONAL**. Omit it for an anonymous positional slot (`{}`); name it to bind via
   `StartSceneRoles` and to reference from track entries (`"role": "lead"`).
@@ -139,11 +139,43 @@ Each role is `{ name?, gender?, keywords?[], races?[], offset? }`:
 - **`keywords`**: a form-ref string or array of them; the actor's base **or race** must carry any one.
 - **`races`**: a form-ref string or array; the actor's race must equal any one.
 - **`offset`**: the role's default placement for all stages.
+- **`equip`**: an item to equip onto this role's actor for the scene's duration, **auto-removed on
+  every end path**. Either a bare form-ref string (any gender) or an object keyed by the actor's
+  gender — `{ "male": ..., "female": ..., "any"?: ... }` (the bound actor's gender picks the ref;
+  `any` is the fallback). If the actor didn't already own the item a copy is added and **destroyed on
+  cleanup** (no inventory residue); a form the actor already wears is left untouched both ways.
+
+  ```jsonc
+  "roles": [
+    { "name": "bottom" },
+    { "name": "top", "equip": { "male": "Robert S Body Replacer.esm|0x804", "female": "Dick.esm|0x81D" } }
+  ]
+  ```
 
 A role's bound actor must satisfy **every present** constraint; within `keywords`/`races` the match is
-**any-of**. **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0021A8D7"`). Resolved
-once at scene load; an unresolvable / wrong-type ref **rejects** the scene (see
-`GetSceneValidationErrors`).
+**any-of**. **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0021A8D7"`). `keywords`
+/ `races` resolve **once at scene load** — an unresolvable / wrong-type ref **rejects** the scene (see
+`GetSceneValidationErrors`). `equip` refs resolve **at scene start** instead — one naming an
+uninstalled plugin is **warned + skipped**, not a load error (they usually target optional body
+replacers), so only the `"Plugin|0xLocal"` shape is checked at load.
+
+### Pack-level roles
+
+In a multi-scene file (`{ schema, "scenes": [ ... ] }`) a **file-level `roles`** is a pack default:
+every scene in `scenes` that omits its own `roles` inherits it (names, filters, offsets, **and
+`equip`**). A scene that declares its own `roles` overrides the pack roles entirely. (In a bare
+single-scene file the top-level `roles` is simply that scene's roles.)
+
+```jsonc
+{
+  "schema": 1,
+  "roles": [ { "name": "bottom" }, { "name": "top", "equip": { "male": "...|0x804", "female": "...|0x81D" } } ],
+  "scenes": [
+    { "id": "author.scene.a", "stages": [ { "clips": ["A0.glb", "A1.glb"] } ] },   // inherits both roles + equip
+    { "id": "author.scene.b", "stages": [ { "clips": ["B0.glb", "B1.glb"] } ] }
+  ]
+}
+```
 
 ---
 

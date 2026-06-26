@@ -1,0 +1,21 @@
+{
+  // Pack-level roles + per-role gender-keyed `equip`. The file-level `roles` apply to every scene in
+  // `scenes` that doesn't declare its own; `equip` is parsed (shape-checked) here but resolved at fire
+  // time, so these refs need no plugin loaded offline. One scene overrides the roles with its own.
+  "schema": 1,
+  "roles": [
+    { "name": "bottom" },
+    { "name": "top", "equip": { "male": "Robert S Body Replacer.esm|0x804", "female": "Dick.esm|0x81D" } }
+  ],
+  "scenes": [
+    {
+      "id": "osf.u.equip.inherit",
+      "stages": [ { "clips": ["OSF/Anim/a.glb", "OSF/Anim/b.glb"] } ]
+    },
+    {
+      "id": "osf.u.equip.override",
+      "roles": [ { "name": "solo", "equip": "Starfield.esm|0x123" } ],
+      "clip": "OSF/Anim/a.glb"
+    }
+  ]
+}

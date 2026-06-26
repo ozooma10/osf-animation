@@ -1,0 +1,26 @@
+{
+  // Per-role gender-keyed `equip` + PACK-LEVEL roles. The file-level `roles` here apply to every scene
+  // in `scenes` that doesn't declare its own. On start, the actor bound to a role with `equip` gets the
+  // item matching its gender equipped for the scene's duration; on ANY end (stop / interrupt / load) the
+  // ledger takes it back off and DESTROYS any copy OSF added — no inventory residue, no authored undo.
+  //
+  // EDIT the item refs to real items on your install ("<Plugin>|0xLOCAL"; the load-order byte is ignored,
+  // so a FormID pasted whole from xEdit resolves). A ref naming an uninstalled plugin is warned + skipped
+  // (the scene still plays) — it does NOT reject the pack.
+  "schema": 1,
+  "roles": [
+    { "name": "lead", "equip": { "male": "Starfield.esm|0x0021B937", "female": "Starfield.esm|0x0021B937" } }
+  ],
+  "scenes": [
+    {
+      // Inherits the pack `roles` (so the player, bound to 'lead', gets the gender-matched item).
+      "id": "author.scenes.roleequiptest",
+      "name": "Role Equip Test (pack roles + gender)",
+      "tags": ["test", "solo"],
+      "entry": "main",
+      "nodes": [
+        { "id": "main", "use": "solo", "loop": { "mode": "hold" }, "loopForever": true }
+      ]
+    }
+  ]
+}

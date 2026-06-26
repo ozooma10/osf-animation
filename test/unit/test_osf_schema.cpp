@@ -525,3 +525,38 @@ OSF_TEST_CASE(Osf_rejects_unresolved_formref)
 	CHECK(SceneRegistry::GetSingleton().Find("osf.u.formref") == nullptr);
 	CHECK(AnyErrorContains("filters.keyword"));
 }
+
+OSF_TEST_CASE(Osf_pack_roles_inherited_with_gender_equip)
+{
+	// A scene that omits `roles` inherits the file-level pack roles, including the gender-keyed equip.
+	// equip refs are shape-checked but NOT resolved at load, so this parses offline (no data handler).
+	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.equip.inherit");
+	CHECK(def != nullptr);
+	if (!def) {
+		return;
+	}
+	CHECK_EQ(def->roles.size(), static_cast<size_t>(2));
+	CHECK_EQ(def->roles[0].name, std::string("bottom"));
+	CHECK(def->roles[0].equip.Empty());
+	CHECK_EQ(def->roles[1].name, std::string("top"));
+	CHECK_EQ(def->roles[1].equip.male, std::string("Robert S Body Replacer.esm|0x804"));
+	CHECK_EQ(def->roles[1].equip.female, std::string("Dick.esm|0x81D"));
+	// ForGender selects by gender tag; an agnostic tag falls back to `any` (empty here).
+	CHECK_EQ(def->roles[1].equip.ForGender("male"), std::string("Robert S Body Replacer.esm|0x804"));
+	CHECK_EQ(def->roles[1].equip.ForGender("female"), std::string("Dick.esm|0x81D"));
+	CHECK(def->roles[1].equip.ForGender("").empty());
+}
+
+OSF_TEST_CASE(Osf_scene_roles_override_pack_roles_and_string_equip)
+{
+	// A scene declaring its own `roles` overrides the pack roles; a bare-string equip targets any gender.
+	const auto* def = SceneRegistry::GetSingleton().Find("osf.u.equip.override");
+	CHECK(def != nullptr);
+	if (!def) {
+		return;
+	}
+	CHECK_EQ(def->roles.size(), static_cast<size_t>(1));
+	CHECK_EQ(def->roles[0].name, std::string("solo"));
+	CHECK_EQ(def->roles[0].equip.any, std::string("Starfield.esm|0x123"));
+	CHECK_EQ(def->roles[0].equip.ForGender("male"), std::string("Starfield.esm|0x123"));
+}
