@@ -1,15 +1,6 @@
 #pragma once
 
 // Delivers scene-runtime events to registered Papyrus callbacks.
-//
-// There's no synchronous C++->Papyrus path: the only entries available
-// (DispatchStaticCall / DispatchMethodCall) queue a Papyrus stack on the VM scheduler and
-// return immediately, so the receiver runs later, off this stack. That rules out a
-// "dispatch-time getter" model, so instead we snapshot the payload into an
-// `OSFTypes:SceneEvent` struct argument (receiver signature
-// `Function MyFn(OSFTypes:SceneEvent akEvent)`). The async dispatch also gives us,
-// for free, the guarantee that callbacks aren't reentrant and any mutations they make
-// land later.
 
 namespace OSF::Scene
 {
@@ -21,13 +12,12 @@ namespace OSF::Scene
 		inline constexpr std::int32_t kCue = 0x04;
 		inline constexpr std::int32_t kAction = 0x08;
 		inline constexpr std::int32_t kSceneEnd = 0x10;
+		inline constexpr std::int32_t kSceneBegin = 0x20;
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 
-	// One scene event, snapshotted and dispatched to registered Papyrus callbacks as an
-	// OSFTypes:SceneEvent struct. Member names are frozen with the ABI; PackPayload maps
-	// those names to the compiler-reordered struct slots. Fields irrelevant to a given event
-	// keep their defaults.
+	// One scene event, snapshotted and dispatched to registered Papyrus callbacks as an OSFTypes:SceneEvent struct. 
+	// Member names are frozen with the ABI; PackPayload maps those names to the compiler-reordered struct slots.
 	struct SceneEvent
 	{
 		std::int32_t scene = 0;        // [0] scene handle
@@ -44,36 +34,29 @@ namespace OSF::Scene
 		std::int32_t result = 0;       // [11] RESULT_*
 	};
 
-	// Token-based registry of Papyrus scene-event callbacks + the C++->Papyrus dispatch
-	// path. Thread-safe; every receiver runs later on the VM scheduler.
+	// Token-based registry of Papyrus scene-event callbacks. Thread-safe;
 	class SceneEventRelay
 	{
 	public:
 		static SceneEventRelay& GetSingleton();
 
-		// Register a_receiver.a_fn(OSFTypes:SceneEvent) for events whose bit is set in
-		// a_eventMask and (when a_sceneFilter != 0) whose scene == a_sceneFilter. Returns a
-		// generational token (0 = failed: null receiver or no VM).
-		std::int32_t Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn,
-			std::int32_t a_sceneFilter, std::int32_t a_eventMask);
+		// Register a_receiver.a_fn(OSFTypes:SceneEvent) for events whose bit is set in a_eventMask and (when a_sceneFilter != 0) whose scene == a_sceneFilter. 
+		// Returns a generational token (0 = failed: null receiver or no VM).
+		std::int32_t Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn, std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
-		// Instance-free variant: register the GLOBAL function a_script.a_fn(OSFTypes:SceneEvent),
-		// dispatched via DispatchStaticCall. For Papyrus script libraries (global functions, no
-		// `self`) that can't be passed as a receiver Object. Same filter/mask/token semantics as
-		// Register. Returns a generational token (0 = failed: empty script/fn).
+		// Instance-free variant: For Papyrus script libraries (global functions, no `self`) that can't be passed as a receiver Object.
+		//  Same filter/mask/token semantics as Register. Returns a generational token (0 = failed: empty script/fn).
 		std::int32_t RegisterStatic(std::string_view a_script, std::string_view a_fn,
 			std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
 		// Remove the registration for a_token. False if the token is stale/invalid.
 		bool Unregister(std::int32_t a_token);
 
-		// Snapshot a_event into an OSFTypes:SceneEvent and DispatchMethodCall every matching
-		// receiver, in registration order. Safe from any thread.
+		// Snapshot a_event into an OSFTypes:SceneEvent and DispatchMethodCall every matching receiver, in registration order. Safe from any thread.
 		void Dispatch(const SceneEvent& a_event);
 
-		// DEBUG/no-instance transport probe: DispatchStaticCall a_script.a_fn(SceneEvent)
-		// with a_event's payload (no registration needed). Proves the struct marshalling
-		// without a scripted form. Returns false if the VM is unavailable.
+		// DEBUG/no-instance transport probe: DispatchStaticCall a_script.a_fn(SceneEvent) with a_event's payload (no registration needed). 
+		// Proves the struct marshalling without a scripted form. Returns false if the VM is unavailable.
 		bool DispatchStatic(std::string_view a_script, std::string_view a_fn, const SceneEvent& a_event);
 
 		// Drop every registration (load teardown).
@@ -91,8 +74,7 @@ namespace OSF::Scene
 		};
 
 		// Shared slot allocation + token mint for Register / RegisterStatic. Assumes _lock held.
-		std::int32_t AddEntry(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver,
-			RE::BSFixedString a_scriptName, std::string_view a_fn, std::int32_t a_sceneFilter, std::int32_t a_eventMask);
+		std::int32_t AddEntry(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, RE::BSFixedString a_scriptName, std::string_view a_fn, std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
 		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen>=1 -> nonzero).
 		static std::int32_t MakeToken(std::uint16_t a_gen, std::uint16_t a_slot)

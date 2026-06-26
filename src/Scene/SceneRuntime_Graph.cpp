@@ -549,6 +549,9 @@ namespace OSF::Scene
 		FadeSceneStart(handle, fade, a_participants);             // screen curtain on start when the player participates
 		// Recorded AFTER lock + strip so the ledger undoes the input channel FIRST (release the wheel before unlocking/redressing).
 		EngageDefaultPlayerControl(handle, a_id, a_participants);
+		
+		// SCENE_BEGIN is scenes first lifecycle event, after everything setup
+		Fire(handle, Event::kSceneBegin, a_entryNode, "");
 		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
 		return handle;
 	}
@@ -661,6 +664,7 @@ namespace OSF::Scene
 		StripDefaultActors(handle, true, a_participants);        // files scene: always strips participants
 		FadeSceneStart(handle, false, a_participants);           // files scene: start curtain off by default
 		EngageDefaultPlayerControl(handle, "", a_participants);  // files scene: default-on input (all capabilities)
+		Fire(handle, Event::kSceneBegin, "main", "");  // first lifecycle event, before the entry node's NODE_ENTER
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}

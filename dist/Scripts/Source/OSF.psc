@@ -143,6 +143,9 @@ EndFunction
 int Function EVENT_SCENE_END() Global
     return 16
 EndFunction
+int Function EVENT_SCENE_BEGIN() Global
+    return 32
+EndFunction
 int Function EVENT_ALL() Global
     return 65535
 EndFunction

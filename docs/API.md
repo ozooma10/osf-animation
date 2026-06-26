@@ -146,7 +146,17 @@ EndFunction
 | `OSF.EVENT_CUE()` | 4 | a `cue` track entry fires |
 | `OSF.EVENT_ACTION()` | 8 | a custom (non-`osf.*`) action fires |
 | `OSF.EVENT_SCENE_END()` | 16 | the scene ended (normal end or `Stop()`) |
+| `OSF.EVENT_SCENE_BEGIN()` | 32 | the scene started (fires once, before the entry node's `NODE_ENTER`) |
 | `OSF.EVENT_ALL()` | 65535 | every type |
+
+`SCENE_BEGIN` is the lifecycle-open bookend of `SCENE_END`: it fires exactly once per scene as the
+first event, after OSF has engaged the scene's default mechanisms (player lock, strip, equip, fade,
+input channel) and the entry node's animation is playing — so the scene is fully live. Its `node`
+field carries the entry node; like `SCENE_END` it carries no `actorRef`. The handle is live when
+`SCENE_BEGIN` is dispatched; because dispatch is async (the callback runs on a later VM tick), it
+carries the same roster-survival guarantee as `SCENE_END` — `GetSceneParticipants(akEvent.sceneHandle)`
+stays readable for the callback, but a getter may return empty for a very short (`once`/0-duration)
+scene that already ended before the queued callback ran.
 
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode
 `akEvent.result`.

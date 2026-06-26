@@ -70,7 +70,7 @@ OSF's own RFC anticipates "a thin **adult** wrapper [that] will likely ship alon
 | Selection by tag boolean query + role/gender/keyword/race filters | `StartSceneByTagsQuery(allOf, anyOf, noneOf)` |
 | Registry + hot reload + per-file load-error reporting | `ReloadPacks()` (→ `Reload()` post-RFC) |
 | Save-safety teardown + the per-handle undo ledger | automatic on world-replacing load; `OnStopAll` |
-| Scene lifecycle events → Papyrus | `RegisterSceneCallback` + `SceneEvent` (`EVENT_NODE_ENTER/EXIT/CUE/ACTION/SCENE_END`) |
+| Scene lifecycle events → Papyrus | `RegisterSceneCallback` + `SceneEvent` (`EVENT_SCENE_BEGIN/NODE_ENTER/EXIT/CUE/ACTION/SCENE_END`) |
 
 **Critical:** ASF starts scenes **by tag query, never by hardcoded id**, and reacts via `RegisterSceneCallback`. This insulates ASF from OSF's mid-flight schema migration: the RFC guarantees the `Start*ByTags*` + `EVENT_*` surface is stable across that migration. ASF binds to *that* surface and treats registry internals as opaque.
 
