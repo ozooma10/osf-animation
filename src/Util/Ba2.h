@@ -5,16 +5,11 @@
 #include <string_view>
 #include <vector>
 
-// Minimal reader for Starfield BA2 "GNRL" (general) archives — enough to pull a single file
-// (e.g. the human skeleton.rig the .af importer needs) out of the base game archives at runtime,
-// so OSF doesn't have to ship/redistribute the vanilla asset. Texture (DX10) archives are skipped.
-// Format ported from glb2af/tools/ba2extract.py (validated against the shipped archives). Uses zlib.
+// Minimal reader for Starfield BA2 "GNRL" (general) archives 
 
 namespace OSF::Util::Ba2
 {
-	// Searches every `<cwd>\Data\*.ba2` GNRL archive for `a_relPath` (case-insensitive, separators
-	// normalized) and returns its decompressed bytes, or nullopt if no archive contains it.
-	// a_relPath is archive-relative with forward slashes, e.g.
-	// "meshes/actors/human/characterassets/skeleton.rig".
-	std::optional<std::vector<std::uint8_t>> ReadGameFile(std::string_view a_relPath);
+	// If `a_preferredArchive` is given (like "Starfield - Animations.ba2"), tried first as a fast path. Falls back to a full scan if it isn't there
+	std::optional<std::vector<std::uint8_t>> ReadGameFile(std::string_view a_relPath,
+		std::string_view a_preferredArchive = {});
 }

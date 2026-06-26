@@ -130,7 +130,7 @@ namespace OSF::Util::Ba2
 		}
 	}
 
-	std::optional<std::vector<std::uint8_t>> ReadGameFile(std::string_view a_relPath)
+	std::optional<std::vector<std::uint8_t>> ReadGameFile(std::string_view a_relPath, std::string_view a_preferredArchive)
 	{
 		const std::string want = Normalize(a_relPath);
 		std::error_code ec;
@@ -138,6 +138,15 @@ namespace OSF::Util::Ba2
 		if (!std::filesystem::is_directory(dataDir, ec)) {
 			return std::nullopt;
 		}
+
+		// Fast path: a caller that knows which base archive holds the asset skips the directory walk straight to it.
+		if (!a_preferredArchive.empty()) {
+			if (auto bytes = ReadFromArchive(dataDir / a_preferredArchive, want)) {
+				return bytes;
+			}
+			// Not there — fall through to a full scan (covers archive renames/splits in game updates).
+		}
+
 		for (const auto& entry : std::filesystem::directory_iterator(dataDir, ec)) {
 			if (ec) {
 				break;

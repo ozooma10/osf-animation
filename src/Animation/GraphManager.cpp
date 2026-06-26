@@ -98,7 +98,7 @@ namespace OSF::Animation
 					}
 				}
 			}
-			if (auto b = Util::Ba2::ReadGameFile("meshes/actors/human/characterassets/skeleton.rig")) {
+			if (auto b = Util::Ba2::ReadGameFile("meshes/actors/human/characterassets/skeleton.rig", "Starfield - Animations.ba2")) {
 				REX::INFO("AFImport rig: read from BA2 ({} bytes)", b->size());
 				return b;
 			}
