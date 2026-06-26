@@ -1,0 +1,42 @@
+{
+  // Voice lane test (the spoken-line / "dialogue box" path). A two-role held scene that exercises
+  // every shape of a `voice` entry plus the osf.voice.play action form:
+  //   - "lead"  speaks at enter:      audio (testbeep.wav) + subtitle text         -> box + sound
+  //   - "other" caption at fraction:  text only, no audio                          -> box only
+  //   - "lead"  VO at 0.8 every loop: audio only, no text                          -> sound only
+  //   - "other" osf.voice.play enter: action form with `set` (audio) + `say` text  -> box + sound
+  // Audio rides the SoundService per-actor voice channel; text shows in the subtitle box (a Phase-1
+  // placeholder renderer today — the engine-native box is a pending OSF RE pass; see docs/SCENE_SCHEMA.md).
+  // stripActors/fade off so the test stays focused on the voice output.
+  "schema": 1,
+  "id": "author.scenes.voicetest",
+  "name": "Voice Lane Test",
+  "tags": ["test", "paired"],
+  "stripActors": false,
+  "fade": false,
+  "roles": [
+    { "name": "lead",  "gender": "any" },
+    { "name": "other", "gender": "any", "offset": { "y": 1.0, "heading": 180.0 } }
+  ],
+  "entry": "main",
+  "nodes": [
+    {
+      "id": "main",
+      "stages": [ { "loops": 0, "clips": [
+        "OSF/Animations/OSF_Test/TestSway01.glb",
+        "OSF/Animations/OSF_Test/TestSway01.glb"
+      ] } ],
+      "loop": { "mode": "hold" },
+      "loopForever": true,
+      "voice": [
+        { "at": "enter", "role": "lead",  "audio": "OSF/Sounds/testbeep.wav", "text": "Hey — glad you made it.", "duration": 3.5 },
+        { "at": 0.5,     "role": "other", "text": "(she nods, saying nothing)" },
+        { "at": 0.8, "repeat": "loop", "role": "lead", "audio": "OSF/Sounds/testbeep.wav" }
+      ],
+      "action": [
+        { "at": "enter", "type": "osf.voice.play", "role": "other",
+          "set": "OSF/Sounds/testbeep.wav", "say": "Likewise. Shall we begin?", "duration": 3.0 }
+      ]
+    }
+  ]
+}

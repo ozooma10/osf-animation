@@ -163,6 +163,14 @@ namespace OSF::Scene
 			// mutating/lifecycle path (Resolve, default) rejects the handle. MintSlot reclaims
 			// ended slots lazily (resetting them + bumping generation, which kills the handle).
 			bool                    ended = false;
+			// One-transition-at-a-time guard. ApplyTransition runs OUTSIDE _lock (it enters the VM
+			// and drives the GraphManager), so two transition triggers on one scene (a Papyrus
+			// AdvanceScene racing the game-thread auto-end, or two spammed advances) could overlap —
+			// one ending the scene while the other starts a fresh node graph, orphaning that graph and
+			// freezing the player. Each trigger claims this under _lock at its decision point; a loser
+			// bails. Cleared at the end of a non-terminal transition (a terminal end retires the slot,
+			// which clears it with the slot).
+			bool                    transitioning = false;
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
@@ -252,6 +260,16 @@ namespace OSF::Scene
 		// Play one content-neutral sound spec, positioned at a_role's actor (or the player when
 		// the role resolves nothing). Shared by the sound lane + osf.voice.play.
 		static void PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role, float a_volume);
+
+		// Play a node's enter (a_enter) or exit voice-track entries. Numeric/end-timed voices fire via
+		// OnTimedMarks instead. Call OUTSIDE _lock. No-op for a non-def scene.
+		static void DispatchLifecycleVoices(std::int32_t a_handle, std::string_view a_node, bool a_enter);
+
+		// Speak one line: optional a_audio through the SoundService (positioned at a_role) AND/OR
+		// optional a_text in the subtitle box (attributed to a_role's actor) for a_durationSecs. The
+		// data-driven "voice" path, shared by the voice lane + osf.voice.play.
+		static void PlayVoice(std::int32_t a_handle, std::string_view a_audio, std::string_view a_text,
+			std::string_view a_role, float a_volume, float a_durationSecs);
 
 		// Engage a node's enter (a_enter) or exit camera-track entries. Numeric/end-timed camera
 		// entries engage via OnTimedMarks instead. Call OUTSIDE _lock. No-op for a non-def scene.
@@ -354,6 +372,12 @@ namespace OSF::Scene
 		// fire NODE_ENTER. Call OUTSIDE _lock with the slot's id + participants already snapshotted.
 		void ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
 			bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
+
+		// Release the Slot::transitioning guard at the end of a NON-terminal transition (a terminal end
+		// retires the slot in ReleaseSlot, which clears the guard with the slot). Takes _lock itself;
+		// no-op if the handle was retired. The decision sites (TakeEdge / OnGraphAutoEnd / OnTimedMarks /
+		// SetNode / Stop) claim the guard under _lock; this is the single matching release.
+		void EndTransition(std::int32_t a_handle);
 
 		// Shared body of Advance / Navigate. Under _lock: resolve the def node and let a_selectEdge
 		// pick an outgoing edge; on a hit, snapshot the transition args (mutating the slot's node for

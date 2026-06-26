@@ -8,6 +8,7 @@
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
+#include "UI/Subtitle.h"
 #include "Util/FormRef.h"
 #include "Util/StringUtil.h"
 #include "Weapon/WeaponService.h"
@@ -31,11 +32,12 @@ namespace OSF::Scene
 		}
 
 		// "exit" track entries run before the structural NODE_EXIT; within the tick they run in
-		// the fixed cross-lane order action -> (camera) -> sound -> cue.
+		// the fixed cross-lane order action -> (camera) -> sound -> voice -> cue.
 		if (a_event == Event::kNodeExit) {
 			DispatchLifecycleActions(a_handle, a_node, false);
 			DispatchLifecycleCamera(a_handle, a_node, false);
 			DispatchLifecycleSounds(a_handle, a_node, false);
+			DispatchLifecycleVoices(a_handle, a_node, false);
 			DispatchLifecycleCues(a_handle, a_node, false);
 		}
 
@@ -51,11 +53,12 @@ namespace OSF::Scene
 		SceneEventRelay::GetSingleton().Dispatch(e);
 
 		// "enter" track entries run after the structural NODE_ENTER, in the same cross-lane
-		// order action -> (camera) -> sound -> cue.
+		// order action -> (camera) -> sound -> voice -> cue.
 		if (a_event == Event::kNodeEnter) {
 			DispatchLifecycleActions(a_handle, a_node, true);
 			DispatchLifecycleCamera(a_handle, a_node, true);
 			DispatchLifecycleSounds(a_handle, a_node, true);
+			DispatchLifecycleVoices(a_handle, a_node, true);
 			DispatchLifecycleCues(a_handle, a_node, true);
 		}
 	}
@@ -149,6 +152,43 @@ namespace OSF::Scene
 		for (const auto& snd : node->sounds) {
 			if (snd.pos == wantPos) {
 				PlaySound(a_handle, snd.spec, snd.role, snd.volume);
+			}
+		}
+	}
+
+	void SceneRuntime::PlayVoice(std::int32_t a_handle, std::string_view a_audio, std::string_view a_text,
+		std::string_view a_role, float a_volume, float a_durationSecs)
+	{
+		// Audio half: reuse PlaySound so a voice line rides the exact same machinery as a `sound` entry —
+		// $pool resolution, {gender} substitution, listener positioning, and the per-actor voice channel
+		// (a new line cuts that actor's prior clip). Skipped for a text-only (silent) line.
+		if (!a_audio.empty()) {
+			PlaySound(a_handle, a_audio, a_role, a_volume);
+		}
+		// Subtitle half: show the spoken text in the box, attributed to the role's actor (the speaker).
+		// Resolve the actor only when there is text — a sound-only line needs no name.
+		if (!a_text.empty()) {
+			RE::Actor* speaker = GetSingleton().ResolveRoleActor(a_handle, a_role);
+			REX::INFO("SceneRuntime: scene {:#010x} voice (role '{}') text \"{}\"", a_handle, a_role, a_text);
+			UI::Subtitle::Show(speaker, a_text, a_durationSecs);
+		}
+	}
+
+	void SceneRuntime::DispatchLifecycleVoices(std::int32_t a_handle, std::string_view a_node, bool a_enter)
+	{
+		const std::string id = GetSingleton().GetId(a_handle);  // "" for pack/files -> no voices
+		if (id.empty()) {
+			return;
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto* node = def ? def->FindNode(a_node) : nullptr;
+		if (!node) {
+			return;
+		}
+		const auto wantPos = a_enter ? Registry::VoicePos::kEnter : Registry::VoicePos::kExit;
+		for (const auto& v : node->voices) {
+			if (v.pos == wantPos) {
+				PlayVoice(a_handle, v.audio, v.text, v.role, v.volume, v.duration);
 			}
 		}
 	}
@@ -332,6 +372,8 @@ namespace OSF::Scene
 			// Equip an arbitrary item on the role's actor for the scene; record it so cleanup (or
 			// osf.equipment.unequip) takes it back off + removes any copy we added. The form ref is
 			// "<plugin>|0xLOCAL" (resolved at fire time; the local id's load-order byte is ignored).
+			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.equip — attempting (role '{}', item '{}')",
+				a_handle, a_action.role, a_action.item);
 			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
 				if (auto* object = Util::ResolveFormRef<RE::TESBoundObject>(a_action.item)) {
 					auto record = Equipment::EquipmentService::GetSingleton().EquipItem(actor, object);
@@ -374,13 +416,15 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kWeapon);
 		} else if (type == "osf.voice.play") {
-			// Fire-and-forget voice line: play the `set` spec at the role's actor. Not reversible
-			// (a one-shot sound has nothing to undo), so no ledger entry.
+			// Fire-and-forget voice line: play the `set` spec at the role's actor and, if `say` is
+			// present, show that text in the subtitle box. Not reversible (a one-shot line has nothing
+			// to undo), so no ledger entry.
 			if (a_action.set.empty()) {
 				REX::WARN("SceneRuntime: scene {:#010x} osf.voice.play — missing 'set' spec, skipped", a_handle);
 			} else {
-				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play (role '{}', set '{}')", a_handle, a_action.role, a_action.set);
-				PlaySound(a_handle, a_action.set, a_action.role, 1.0f);
+				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play (role '{}', set '{}'{})",
+					a_handle, a_action.role, a_action.set, a_action.say.empty() ? "" : ", +subtitle");
+				PlayVoice(a_handle, a_action.set, a_action.say, a_action.role, 1.0f, a_action.duration);
 			}
 		} else if (type.rfind("osf.", 0) == 0) {
 			// recognised built-in mechanism we don't execute yet.

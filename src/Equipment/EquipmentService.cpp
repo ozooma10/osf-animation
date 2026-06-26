@@ -150,7 +150,13 @@ namespace OSF::Equipment
 	EquippedItem EquipmentService::EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object)
 	{
 		EquippedItem record;
-		if (!a_actor || !a_object || !Available()) {
+		if (!a_actor || !a_object) {
+			REX::WARN("EquipItem: null {} — nothing equipped", !a_actor ? "actor" : "object");
+			return record;
+		}
+		if (!Available()) {
+			REX::WARN("Actor {:X}: cannot equip item {:X} — equip/unequip unavailable on this runtime",
+				a_actor->formID, a_object->GetFormID());
 			return record;
 		}
 		record.object = a_object;
@@ -160,6 +166,8 @@ namespace OSF::Equipment
 		// cleanup) — so we never disturb a copy/equip-state the actor brought into the scene.
 		const bool hadItem = LiveInstance(a_actor, a_object) != nullptr;
 		const bool wasEquipped = a_actor->IsObjectEquipped(a_object);
+		REX::INFO("Actor {:X}: equipping item {:X} (hadItem={}, wasEquipped={})",
+			a_actor->formID, a_object->GetFormID(), hadItem, wasEquipped);
 
 		if (!hadItem) {
 			// Transient copy (count 1), tagged kScriptAddItem like the engine's own add-if-missing branch.

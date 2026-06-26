@@ -25,11 +25,12 @@ namespace OSF::Scene
 	{
 		// Timed-mark lane ids. The playback layer treats these as opaque; this runtime assigns
 		// the meaning and the same-tick ordering — sorting fired marks by lane ascending yields
-		// the fixed order action -> camera -> sound -> cue.
+		// the fixed order action -> camera -> sound -> cue -> voice.
 		constexpr std::uint8_t kLaneAction = 0;
 		constexpr std::uint8_t kLaneCamera = 1;
 		constexpr std::uint8_t kLaneSound = 2;
 		constexpr std::uint8_t kLaneCue = 3;
+		constexpr std::uint8_t kLaneVoice = 4;
 
 		// Schedule a node's timed-track entries (numeric `at` -> a fraction mark; `end` -> an end mark) onto a_marks as opaque lane+token marks.
 		// a_token maps an entry + its list index to the mark token.
@@ -115,6 +116,7 @@ namespace OSF::Scene
 			ScheduleMarks(marks, a_node.actions, Registry::ActionPos::kFraction, Registry::ActionPos::kEnd, kLaneAction, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.sounds, Registry::SoundPos::kFraction, Registry::SoundPos::kEnd, kLaneSound, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.cameras, Registry::CameraPos::kFraction, Registry::CameraPos::kEnd, kLaneCamera, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
+			ScheduleMarks(marks, a_node.voices, Registry::VoicePos::kFraction, Registry::VoicePos::kEnd, kLaneVoice, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 		}
 
 		// The outgoing auto-edge of a_node whose `when` matches: highest priority wins, ties keep declaration order. nullptr if the node has no such edge.
@@ -172,7 +174,7 @@ namespace OSF::Scene
 
 		// Decode each mark by lane (already lane-ordered). Action-lane marks run their mechanism
 		// now; cue-lane ids are collected for EVENT_CUE + the trigger pass after the tick's
-		// entries have run. The camera and sound lanes run their marks here too.
+		// entries have run. The camera, sound, and voice lanes run their marks here too.
 		std::vector<std::string> cueIds;
 		for (const auto& m : marks) {
 			if (m.lane == kLaneCue) {
@@ -195,6 +197,13 @@ namespace OSF::Scene
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->cameras.size(), idx)) {
 					RunCamera(handle, node->cameras[idx].state, hasPlayer);
+				}
+			} else if (m.lane == kLaneVoice && node) {
+				// token = index into node->voices (set by ApplyNodeMarks).
+				std::size_t idx = 0;
+				if (ParseIndexToken(m.token, node->voices.size(), idx)) {
+					const auto& v = node->voices[idx];
+					PlayVoice(handle, v.audio, v.text, v.role, v.volume, v.duration);
 				}
 			}
 		}
@@ -346,16 +355,22 @@ namespace OSF::Scene
 		for (std::size_t i = 0; i < def->roles.size() && i < a_participants.size(); i++) {
 			const auto& role = def->roles[i];
 			if (role.equip.Empty()) {
-				continue;
+				continue;  // role authored no equip — not logged (the common case)
 			}
 			RE::Actor* actor = a_participants[i];
 			if (!actor) {
+				REX::WARN("SceneRuntime: scene {:#010x} role '{}' has equip but bound no actor — skipped", a_handle, role.name);
 				continue;
 			}
-			const std::string& ref = role.equip.ForGender(Matchmaking::ActorGenderTag(actor));
+			const std::string gender = Matchmaking::ActorGenderTag(actor);
+			const std::string& ref = role.equip.ForGender(gender);
 			if (ref.empty()) {
-				continue;  // nothing authored for this actor's gender
+				REX::INFO("SceneRuntime: scene {:#010x} role '{}' (actor {:08X}, gender '{}') has equip but none for that gender — skipped",
+					a_handle, role.name, actor->formID, gender.empty() ? "any" : gender);
+				continue;
 			}
+			REX::INFO("SceneRuntime: scene {:#010x} role '{}' (actor {:08X}, gender '{}') equipping '{}'",
+				a_handle, role.name, actor->formID, gender.empty() ? "any" : gender, ref);
 			auto* object = Util::ResolveFormRef<RE::TESBoundObject>(ref);
 			if (!object) {
 				REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' did not resolve to a loaded form — skipped",
@@ -364,8 +379,12 @@ namespace OSF::Scene
 			}
 			auto record = svc.EquipItem(actor, object);
 			if (record.object) {
-				REX::INFO("SceneRuntime: scene {:#010x} role '{}' equipped '{}'", a_handle, role.name, ref);
+				REX::INFO("SceneRuntime: scene {:#010x} role '{}' equipped '{}' (added={}, equipped={})",
+					a_handle, role.name, ref, record.addedToInventory, record.equipped);
 				RecordEquippedItem(a_handle, actor, std::move(record));
+			} else {
+				REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' — EquipItem did nothing (feature unavailable on this build?)",
+					a_handle, role.name, ref);
 			}
 		}
 	}
@@ -442,11 +461,11 @@ namespace OSF::Scene
 		if (end) {
 			StopGraph(a_participants);  // cleanup after NODE_EXIT, before SCENE_END (also tears the old graph when a failed play left it up)
 			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");  // SCENE_END dispatch is async (later VM tick)
-			ReleaseSlot(a_handle);  // retires the handle: roster stays readable for the async SCENE_END handler, actors freed now
+			ReleaseSlot(a_handle);  // retires the handle (clears the transitioning guard with the slot): roster stays readable for the async SCENE_END handler, actors freed now
 			UI::HudMessage::Debug("OSF: scene ended");
 		} else {
 			Fire(a_handle, Event::kNodeEnter, a_newNode, "enter");
-			// Opt-in debug popup naming the stage we just entered (covers manual advance, navigate, SetNode, and timer/loop auto-advance, every path funnels here). 
+			// Opt-in debug popup naming the stage we just entered (covers manual advance, navigate, SetNode, and timer/loop auto-advance, every path funnels here).
 			// A linear scene shows "stage N/M"; a branching node has no stage number, so it shows the node id alone. DebugEnabled() gate avoids formatting when off.
 			if (UI::HudMessage::DebugEnabled()) {
 				const auto*        def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
@@ -455,6 +474,15 @@ namespace OSF::Scene
 						? std::format("OSF: stage {}/{} - {}", stage + 1, def->linearStages.size(), a_newNode)
 						: std::format("OSF: -> {}", a_newNode));
 			}
+			EndTransition(a_handle);  // scene still live — release the guard so the next advance / auto-end can run
+		}
+	}
+
+	void SceneRuntime::EndTransition(std::int32_t a_handle)
+	{
+		std::lock_guard l{ _lock };
+		if (Slot* s = Resolve(a_handle)) {
+			s->transitioning = false;
 		}
 	}
 
@@ -500,7 +528,7 @@ namespace OSF::Scene
 		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key).
 		bool lockPlayer = true;
 		bool stripActors = true;
-		bool fade = true;
+		bool fade = false;
 		if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id)) {
 			lockPlayer = def->lockPlayer;
 			stripActors = def->stripActors;
@@ -608,7 +636,7 @@ namespace OSF::Scene
 		}
 		EngageDefaultPlayerLock(handle, true, a_participants);   // files scene: no field to opt out via
 		StripDefaultActors(handle, true, a_participants);        // files scene: always strips participants
-		FadeSceneStart(handle, true, a_participants);            // files scene: default-on start curtain
+		FadeSceneStart(handle, false, a_participants);           // files scene: start curtain off by default
 		EngageDefaultPlayerControl(handle, "", a_participants);  // files scene: default-on input (all capabilities)
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;

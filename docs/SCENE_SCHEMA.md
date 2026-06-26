@@ -102,11 +102,11 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a
   bare path or a `{ "file", "offset" }` object. Mix shorthand and full-object stages freely.
-- **Track lanes on a stage:** a full-object stage may carry `cue`, `action`, `sound`, and `camera`
-  lanes (same shape as on a node — see *Track lanes*); they run while that stage plays, forwarded
-  onto the stage's desugared node. So a linear scene can fire cues, run actions, play sound, and hold
-  a camera posture **without** dropping to the `nodes[]` graph form. The bare-array shorthand is
-  clips-only — use the `{ … }` object form to attach a lane.
+- **Track lanes on a stage:** a full-object stage may carry `cue`, `action`, `sound`, `camera`, and
+  `voice` lanes (same shape as on a node — see *Track lanes*); they run while that stage plays,
+  forwarded onto the stage's desugared node. So a linear scene can fire cues, run actions, play sound,
+  speak voice lines, and hold a camera posture **without** dropping to the `nodes[]` graph form. The
+  bare-array shorthand is clips-only — use the `{ … }` object form to attach a lane.
 - **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A role-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.
@@ -277,9 +277,9 @@ Authoring **both, or neither**, is a hard load error.
 
 ---
 
-## Track lanes (`cue` / `action` / `sound` / `camera`)
+## Track lanes (`cue` / `action` / `sound` / `camera` / `voice`)
 
-Track lanes are **flat keys** (`cue`, `action`, `sound`, `camera`) — there is no `tracks` wrapper
+Track lanes are **flat keys** (`cue`, `action`, `sound`, `camera`, `voice`) — there is no `tracks` wrapper
 object. They attach to a graph **node** or, equally, to a linear **stage** (a stage's lanes are
 forwarded onto its desugared node), so a linear scene gets the full lane vocabulary without `nodes[]`.
 Every track entry has a **position** (`at`) and optional **repeat**:
@@ -292,9 +292,10 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
-| `action` | `{ "at", "type", "role", "hold", "duration", "set", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
+| `action` | `{ "at", "type", "role", "hold", "duration", "set", "say", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
 | `sound` | `{ "at", "spec", "role", "volume", "repeat" }` | `spec` is a Data-relative file or `"event:<name>"` Wwise spec; `role` positions it (else player). One **voice channel per actor** — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
+| `voice` | `{ "at", "role", "audio", "text", "duration", "volume", "repeat" }` | A **spoken line** = `audio` + subtitle `text`, both on `role`'s actor. At least one of the two is required — see below. |
 
 #### Sound: one voice channel per actor
 
@@ -305,6 +306,41 @@ stacks over itself and a one-shot line cuts an ongoing loop. Different actors pl
 miniaudio fallback cuts the prior clip outright today; the engine-native Wwise path tracks the prior
 voice and cuts it once the AK stop entry is runtime-proven — until then a Wwise clip is tracked but
 not yet cut.)
+
+#### Voice: spoken lines + the subtitle box
+
+The `voice` lane is the **dialogue / spoken-line** path: one entry pairs an audio clip with subtitle
+text, both attributed to a speaker. It's how you author a line where a box appears on screen *and* a
+voice plays, data-driven from JSON.
+
+```jsonc
+"voice": [
+  { "at": "enter", "role": "lead",  "audio": "OSF/Voice/hi.wav", "text": "Glad you came.", "duration": 3.5 },
+  { "at": 0.5,     "role": "other", "text": "(a silent thought — subtitle only)" },
+  { "at": "end",   "role": "lead",  "audio": "event:MyVO_Bye" }                       // audio only, no box
+]
+```
+
+- **`audio`** (optional): a sound spec — a Data-relative file, an `"event:<name>"` Wwise spec, or a
+  `"$pool"` SoundRegistry query. It plays through the **same path and per-actor voice channel as a
+  `sound` entry** (so a new line cuts that actor's prior clip; `{gender}`/`$pool` resolve at fire time).
+- **`text`** (optional): the subtitle string shown in the box, attributed to `role`'s actor.
+- **At least one of `audio` / `text` is required** (a parse error otherwise). Use `audio` alone for an
+  un-subtitled VO, `text` alone for a silent caption, or both for a normal spoken line.
+- **`role`** names the **speaker**: it positions the audio and labels the subtitle (defaults to the
+  player when no role resolves). An undeclared role is a load error.
+- **`duration`** (optional): how long the subtitle holds, in seconds (`0`/omitted → a default hold).
+- **`volume`**, **`at`**, **`repeat`** behave exactly as on the `sound` lane.
+
+The equivalent **action** form is `osf.voice.play` (`{ "type": "osf.voice.play", "role", "set", "say",
+"duration" }`) — `set` is the audio spec (required) and `say` the optional subtitle text.
+
+> **Subtitle renderer — staged.** The **audio** half is fully engine-native today. The **box** half is
+> a placeholder in this build: the line is logged and posted through the engine HUD-message channel so
+> the data-driven pipeline is visible and testable end-to-end, but it is not yet the vanilla subtitle
+> box. Rendering into the real subtitle UI (positioned on the speaker) is a pending OSF RE pass; the
+> authoring format above is final and won't change when that lands (`UI/Subtitle.cpp` is the one-spot
+> swap). So you can author `voice` lanes now — only the on-screen styling will upgrade later.
 
 #### Camera `state` values
 
@@ -391,7 +427,7 @@ All are **recorded in the per-handle undo ledger and auto-reversed on any scene 
 | `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A copy is added if the actor doesn't own one and **destroyed on cleanup** (no inventory residue); a form the actor already wears is left untouched both ways. | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
-| `osf.voice.play` | Play a sound spec positioned at the role. | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
+| `osf.voice.play` | Speak a line at the role: play a sound spec positioned at the role and, with `say`, show it in the subtitle box. (The richer `voice` track lane is the preferred form.) | ✓ | `set` (required: Data-relative path or `"event:<name>"`), `say` (optional subtitle text), `duration` (subtitle hold secs) |
 
 > **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/fade in
 > reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — none of the
@@ -423,3 +459,5 @@ See `dist/OSF/` for runnable references:
   `timerSec` + `timer`→`$end` auto-advance (the auto-end pattern).
 - `soundtest.osf.json` — node-level `action` (`osf.voice.play`) + `sound` track lanes, including a
   `repeat:"loop"` numeric entry.
+- `voicetest.osf.json` — the `voice` lane: spoken lines (audio + subtitle `text`) on a two-role scene,
+  plus a `text`-only caption and an `audio`-only VO, and the `osf.voice.play` action with `say`.

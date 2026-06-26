@@ -195,6 +195,7 @@ namespace OSF::Registry
 				ae.hold = a.value("hold", false);          // osf.fade.out: stay faded on cleanup
 				ae.duration = a.value("duration", 0.0f);   // osf.fade.*: ramp secs (0 = default)
 				ae.set = a.value("set", std::string{});    // osf.voice.play: sound spec
+				ae.say = a.value("say", a.value("text", std::string{}));  // osf.voice.play: optional subtitle text
 				ae.item = a.value("item", std::string{});  // osf.equipment.equip: item form ref
 				const auto typeLower = ToLower(ae.type);
 				if (typeLower.rfind("osf.", 0) == 0) {
@@ -344,6 +345,32 @@ namespace OSF::Registry
 				se.volume = s.value("volume", 1.0f);
 				ParseTrackTiming(s, se, a_node_out.id, "sound '" + se.spec + "'", /*a_atRequired*/ false);
 				a_node_out.sounds.push_back(std::move(se));
+			}
+		}
+
+		// Parse the `voice` lane: an array of spoken-line entries. Each is { at?, role?, audio?, text?,
+		// volume?, duration?, repeat? } and must carry `audio` and/or `text` (a line with neither is
+		// nothing). `audio` accepts the same aliases as a sound spec (`audio`/`sound`/`spec`); `text`
+		// accepts `text`/`say`. Timing reuses the shared track-timing model (named anchor or numeric
+		// fraction; repeat:"loop" on numeric only).
+		void ParseVoiceTrack(const json& a_entries, SceneNode& a_node_out)
+		{
+			if (!a_entries.is_array()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': 'voice' track must be an array of entries");
+			}
+			for (const auto& v : a_entries) {
+				VoiceEntry ve;
+				ve.audio = v.value("audio", v.value("sound", v.value("spec", std::string{})));
+				ve.text = v.value("text", v.value("say", std::string{}));
+				if (ve.audio.empty() && ve.text.empty()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': a voice track entry needs 'audio' and/or 'text'");
+				}
+				ve.role = v.value("role", std::string{});
+				ve.volume = v.value("volume", 1.0f);
+				ve.duration = v.value("duration", 0.0f);
+				const std::string subject = "voice '" + (ve.text.empty() ? ve.audio : ve.text) + "'";
+				ParseTrackTiming(v, ve, a_node_out.id, subject, /*a_atRequired*/ false);
+				a_node_out.voices.push_back(std::move(ve));
 			}
 		}
 
@@ -607,10 +634,14 @@ namespace OSF::Registry
 						if (auto it = jStage.find("camera"); it != jStage.end()) {
 							ParseCameraTrack(*it, scratch);
 						}
+						if (auto it = jStage.find("voice"); it != jStage.end()) {
+							ParseVoiceTrack(*it, scratch);
+						}
 						info.cues = std::move(scratch.cues);
 						info.actions = std::move(scratch.actions);
 						info.sounds = std::move(scratch.sounds);
 						info.cameras = std::move(scratch.cameras);
+						info.voices = std::move(scratch.voices);
 					}
 					const auto clipsIt = jStage.find("clips");
 					if (clipsIt == jStage.end() || !clipsIt->is_array()) {
@@ -754,6 +785,9 @@ namespace OSF::Registry
 			if (auto it = a_node.find("camera"); it != a_node.end()) {
 				ParseCameraTrack(*it, n);
 			}
+			if (auto it = a_node.find("voice"); it != a_node.end()) {
+				ParseVoiceTrack(*it, n);
+			}
 
 			// A trigger:<cueId> edge must reference a cue emitted on this same node.
 			for (const auto& e : n.edges) {
@@ -793,6 +827,7 @@ namespace OSF::Registry
 				node.actions = st.actions;
 				node.sounds = st.sounds;
 				node.cameras = st.cameras;
+				node.voices = st.voices;
 				const std::string to = (i + 1 == n) ? std::string("$end") : ("#s" + std::to_string(i + 1));
 				auto autoEdge = [&](EdgeWhen a_when) {
 					SceneEdge e;
@@ -856,6 +891,12 @@ namespace OSF::Registry
 					if (!s.role.empty() && !roleNames.count(ToLower(s.role))) {
 						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' sound '" + s.spec +
 							"' references undeclared role '" + s.role + "'");
+					}
+				}
+				for (const auto& v : nd.voices) {
+					if (!v.role.empty() && !roleNames.count(ToLower(v.role))) {
+						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' voice '" +
+							(v.text.empty() ? v.audio : v.text) + "' references undeclared role '" + v.role + "'");
 					}
 				}
 				for (const auto& e : nd.edges) {
@@ -1027,7 +1068,7 @@ namespace OSF::Registry
 
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			const bool stripDefault = a_json.value("stripActors", true);
-			const bool fadeDefault = a_json.value("fade", true);
+			const bool fadeDefault = a_json.value("fade", false);
 
 			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
 			// entry node (unless that node already declares its own camera track). When omitted, the
