@@ -22,8 +22,9 @@ namespace OSF::Camera
 		// THIRD-PERSON HOLD. Ref-counted across owners; engages on the first holder, restores the prior POV on the last. Each true must be matched by one false.
 		void SetStandaloneLock(bool a_enable);
 
-		// THIRD-PERSON START ZOOM (glide). Seeds the third-person camera's TARGET zoom to an authored pull-back distance.
-		// this is so a thirdperson_hold doesn't open pinned on the player's back when entering from first person. 
+		// THIRD-PERSON START ZOOM (glide). Seeds the third-person camera's TARGET zoom so a thirdperson_hold
+		// doesn't open pinned on the player's back. a_distance: 0 (default) = open as far OUT as possible;
+		// > 0 = a specific framing (clamped); < 0 = don't seed. The engine eases current -> target (the glide).
 		void SeedThirdPersonZoom(float a_distance);
 
 		// STATE OVERRIDE. Acquire on the first holder captures the baseline POV and suppresses the third-person bounce; 

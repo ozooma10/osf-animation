@@ -369,22 +369,22 @@ A pack with no `"camera"` key defaults to **`scene_orbit`** on each scene's entr
 `"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
 node-level `camera` track on the entry node always wins over the pack default.
 
-**`thirdperson_hold` opening distance.** A `thirdperson_hold` entry accepts an optional numeric
-`distance` that seeds the opening third-person zoom (pull-back), so the camera doesn't start pinned
-on the player's back when the scene forces third person from first person:
+**`thirdperson_hold` opening distance.** By default `thirdperson_hold` opens the camera **as far
+zoomed out as the third-person axis allows**, so the scene doesn't start pinned on the player's back
+when it forces third person from first person. The engine glides the camera out over ~1–2 s, and the
+player can scroll-zoom freely afterward.
+
+To open at a **specific** framing instead of fully out, author an optional numeric `distance`:
 
 ```json
-"camera": [ { "at": "enter", "state": "thirdperson_hold", "distance": 2.5 } ]
+"camera": [ { "at": "enter", "state": "thirdperson_hold", "distance": 1.5 } ]
 ```
 
-Omit it (or `0`) for the engine default — existing packs are unaffected. The value only sets the
-**opening** pose: the engine glides the camera out to it, and the player can scroll-zoom freely
-afterward. It is ignored by `freefly` / `vanity_orbit` / `scene_orbit` (those set their own framing).
-Units are the engine's third-person zoom axis; calibrate in-game.
-
-> **Status:** the `distance` seed is wired end-to-end but is a **hard no-op until the Starfield
-> third-person zoom offset is reverse-engineered** (`osf-re camera.state_machine`). Until then,
-> authoring `distance` parses and validates but does not move the camera.
+`distance` is on the engine's **normalized third-person zoom axis `[0 .. 2]`** (not meters): ~`0` is
+closest (pinned on the back), `2` is the farthest. It is **clamped** into range, and very small values
+may cull the player's head, so prefer `~1.0` or higher. Omitting it (or `0`) means "fully out" — the
+default. It is ignored by `freefly` / `vanity_orbit` / `scene_orbit` (those set their own framing). The
+seed is applied per scene start and does not permanently change the player's own zoom.
 
 ---
 

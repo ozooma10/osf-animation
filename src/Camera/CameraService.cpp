@@ -72,15 +72,15 @@ namespace OSF::Camera
 		constexpr std::ptrdiff_t kFreeFlyPosOffset = 0x70;
 		constexpr std::ptrdiff_t kFreeFlyRotOffset = 0x7c;
 
-		// --- Third-person START ZOOM seed. ALL THREE values are UNKNOWN until reverse-engineered in-game
-		// (osf-re camera.state_machine): the F4 layout (ThirdPersonState::targetZoomOffset @0xE8) does NOT
-		// transfer — SF's TESCamera base is 0x48 vs F4's 0x38, so the whole derived struct is shifted/re-laid.
-		// Discover via the dump-and-watch + single-scroll multi-frame ramp probe (the float that JUMPS on a
-		// scroll is target; the one that RAMPS is current — leave current alone so the engine glides to target).
-		// While the offset is 0x0, SeedThirdPersonZoom is a HARD NO-OP and never writes. Fill all three to arm it.
-		constexpr std::ptrdiff_t kThirdPersonTargetZoomOffset = 0x0;  // <-- RE: float, the zoom SETPOINT (target)
-		constexpr float          kThirdPersonZoomMin = 0.0f;          // <-- RE: closest safe seed (keep player's head un-culled)
-		constexpr float          kThirdPersonZoomMax = 1.0f;          // <-- RE: farthest third-person zoom (axis max)
+		// The engine auto-lerps current(+0x228) -> target(+0x224) each frame (~fMouseWheelZoomSpeed 3.0/s, ~1-2 s), so write the TARGET once and the camera glides; 
+		// ForceThirdPerson resets zoom to 0.0 so seed a pull-back right after it.
+		constexpr std::ptrdiff_t kThirdPersonTargetZoomOffset = 0x224;  // float — the zoom SETPOINT (write this)
+		constexpr std::ptrdiff_t kThirdPersonStateIdOffset = 0x50;      // std::uint32_t — must == kThirdPerson(20)
+		constexpr std::uint32_t  kThirdPersonStateId = 20;              // RE::CameraState::kThirdPerson
+
+		// Normalized zoom axis [0 .. 2] (NOT meters). Keep above the 0.0 floor (<= floor trips ForceFirstPerson); clamp the authored value into range.
+		constexpr float kThirdPersonZoomMin = 0.1f;
+		constexpr float kThirdPersonZoomMax = 2.0f;
 
 		// Orbit framing + control tunables (calibration expected on first run).
 		constexpr float kOrbitCenterFwd = 0.5f;      // meters ahead of the player toward the partner (~pair midpoint)
@@ -234,36 +234,40 @@ namespace OSF::Camera
 
 	void CameraService::SeedThirdPersonZoom(float a_distance)
 	{
-		if (a_distance <= 0.0f) {
-			return;  // unset / non-positive = engine default; nothing to seed (default scenes unchanged).
+		if (a_distance < 0.0f) {
+			return;  // sentinel (< 0): caller asked NOT to seed (e.g. a node-exit teardown pass).
 		}
-		// Hard no-op until the SF third-person zoom offset is pinned in-game. Never write at 0x0 — that
-		// would clobber the state's vtable pointer. Filling the constant block above arms the seed.
-		if (kThirdPersonTargetZoomOffset == 0) {
-			REX::DEBUG("[Camera] SeedThirdPersonZoom({}) requested, but the SF third-person zoom offset is not yet RE'd — no-op", a_distance);
-			return;
-		}
-		SFSE::GetTaskInterface()->AddTask([this, a_distance]() {
+		// Default (a_distance == 0, the common case): open as far OUT as the third-person axis allows.
+		// A positive authored "distance" overrides with a specific framing, clamped into range.
+		const float seed = (a_distance > 0.0f)
+			? std::clamp(a_distance, kThirdPersonZoomMin, kThirdPersonZoomMax)
+			: kThirdPersonZoomMax;
+		SFSE::GetTaskInterface()->AddTask([this, seed]() {
 			if (suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // a state override (free-fly / orbit) owns the camera — don't fight it.
 			}
 			auto* camera = RE::PlayerCamera::GetSingleton();
-			// QCameraEquals(kThirdPerson) confirms third person is the LIVE state, so cameraStates[kThirdPerson]
-			// is a valid ThirdPersonState (this is the same guard DriveSceneOrbit uses for kFreeFly, and it
-			// subsumes a vtable/stateId check — the engine's own currentState == cameraStates[kThirdPerson]).
-			// We're posted after the hold's ForceThirdPerson task, so the force has landed by here; if the engine
-			// isn't in third person we skip rather than write into a cold/wrong state.
-			if (!camera || !camera->QCameraEquals(RE::CameraState::kThirdPerson)) {
+			if (!camera) {
 				return;
 			}
+			// seed the third-person state object target directly rather than gating on the camera being SETTLED in third person
+			// the hold's ForceThirdPerson task ran first (FIFO), and a tween frame must not make us skip the write.
 			void* state = camera->cameraStates[RE::CameraState::kThirdPerson];
 			if (!state) {
 				return;
 			}
-			const float seed = std::clamp(a_distance, kThirdPersonZoomMin, kThirdPersonZoomMax);
-			// Target ONLY — leave currentZoomOffset where it is so the engine eases current -> target (the glide).
+			// Hard safety before any raw write (a mis-offset write here frees a live state / corrupts the camera): confirm the object is really ThirdPersonState — vtable match AND internal stateId == 20.
+			static const REL::Relocation<std::uintptr_t> tpsVtbl{ RE::VTABLE::ThirdPersonState[0] };
+			auto* base = reinterpret_cast<std::byte*>(state);
+			if (*reinterpret_cast<std::uintptr_t*>(base) != tpsVtbl.address()) {
+				return;
+			}
+			if (*reinterpret_cast<std::uint32_t*>(base + kThirdPersonStateIdOffset) != kThirdPersonStateId) {
+				return;
+			}
+			// Target ONLY — leave current(+0x228) so the engine glides it out to target (writing current snaps).
 			// Raw-offset write on the game thread, same idiom as WriteFreeFlyTransform.
-			*reinterpret_cast<float*>(reinterpret_cast<std::byte*>(state) + kThirdPersonTargetZoomOffset) = seed;
+			*reinterpret_cast<float*>(base + kThirdPersonTargetZoomOffset) = seed;
 			REX::TRACE("[Camera] third-person start zoom seeded to {} (target-only; engine glides current -> target)", seed);
 		});
 	}
