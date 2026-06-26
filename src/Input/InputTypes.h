@@ -52,6 +52,7 @@ namespace OSF::Input
 		kSpeedDown,   // -> slower                        (cap kSpeed)
 		kSpeedReset,  // -> 1.0                           (cap kSpeed)
 		kPause,       // -> freeze / resume               (cap kSpeed)
+		kFreecam,     // -> toggle native free camera     (cap kFreecam)
 		kEnd,         // -> SceneRuntime::Stop            (cap kEnd, blocked if Grant.locked)
 	};
 
@@ -64,6 +65,7 @@ namespace OSF::Input
 		case Verb::kSpeedDown:  return "SpeedDown";
 		case Verb::kSpeedReset: return "SpeedReset";
 		case Verb::kPause:      return "Pause";
+		case Verb::kFreecam:    return "Freecam";
 		case Verb::kEnd:        return "End";
 		default:                return "None";
 		}
@@ -80,6 +82,8 @@ namespace OSF::Input
 		case Verb::kSpeedReset:
 		case Verb::kPause:
 			return static_cast<std::uint32_t>(Capability::kSpeed);
+		case Verb::kFreecam:
+			return static_cast<std::uint32_t>(Capability::kFreecam);
 		case Verb::kEnd:
 			return static_cast<std::uint32_t>(Capability::kEnd);
 		default:

@@ -1,6 +1,7 @@
 #include "Scene/SceneRuntime.h"
 
 #include "Animation/GraphManager.h"
+#include "Camera/CameraService.h"
 #include "Input/InputService.h"
 #include "Registry/SceneRegistry.h"
 
@@ -54,6 +55,9 @@ namespace OSF::Scene
 				}
 				break;
 			}
+			case Input::Verb::kFreecam:
+				Camera::CameraService::GetSingleton().ToggleFreeCam();  // MMB toggle; cap kFreecam already enforced in the InputService
+				break;
 			case Input::Verb::kEnd:
 				rt.Stop(a_grant.handle);  // Grant.locked was already enforced in the InputService
 				break;

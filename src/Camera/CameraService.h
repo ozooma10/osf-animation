@@ -30,6 +30,12 @@ namespace OSF::Camera
 		void SetLiveCameraState(CameraMode a_mode);
 		void ReleaseStateOverride();
 
+		// PLAYER-DRIVEN FREE CAM (the MMB toggle, routed from InputService::kFreecam). Toggles engine-native
+		// free cam on/off as one paired state override: the first toggle Acquires + enters free-fly, the second
+		// Releases (handing the camera back to any scene posture / third-person hold / baseline). Composes with
+		// scene-driven overrides via the same ref count. Game-thread only (the verb dispatch posts it there).
+		void ToggleFreeCam();
+
 		// Rides the update-hook call stream (job threads). POVSwitch stays enabled while the hold is held so vanilla scroll-zoom works;
 		// if the player zooms/keys into first person, queue a game-thread bounce back to third person. 
 		// Atomic early-out when no hold is held OR a state override is suppressing the bounce.
@@ -63,6 +69,7 @@ namespace OSF::Camera
 		int  overrideCount = 0;  // state-override holders (free-fly / vanity-orbit scenes)
 
 		std::atomic<bool> nativeFreeCamActive{ false };  // engine-native free cam is toggled on
+		std::atomic<bool> playerFreeCamHeld{ false };    // the MMB player toggle owns one state-override hold
 
 		std::atomic<bool> orbitDriving{ false };  // gates Tick's scene-orbit self-drive
 		std::mutex        driveLock;              // serializes DriveSceneOrbit across job threads

@@ -454,6 +454,21 @@ namespace OSF::Camera
 		}
 	}
 
+	void CameraService::ToggleFreeCam()
+	{
+		// Re-entrant-safe alternation: the flag flips exactly once per press, so the on/off paths can't
+		// double-acquire or double-release the override even if presses land back-to-back.
+		if (!playerFreeCamHeld.exchange(true, std::memory_order_relaxed)) {
+			AcquireStateOverride();                 // capture baseline + suppress the bounce on the first holder
+			SetLiveCameraState(CameraMode::kFreeFly);  // engine-native free cam (the `tfc` path)
+			REX::INFO("Player free camera toggled ON (MMB)");
+			return;
+		}
+		playerFreeCamHeld.store(false, std::memory_order_relaxed);
+		ReleaseStateOverride();  // hands the camera back to any scene posture / third-person hold / baseline
+		REX::INFO("Player free camera toggled OFF (MMB)");
+	}
+
 	void CameraService::OnStopAll()
 	{
 		if (orbitDriving.exchange(false, std::memory_order_relaxed)) {
@@ -463,6 +478,7 @@ namespace OSF::Camera
 			// Toggle the native free cam off so a save/load doesn't strand the player in it.
 			SFSE::GetTaskInterface()->AddTask([]() { PopFreeCamInputContext(); NativeToggleFreeCam(); });
 		}
+		playerFreeCamHeld.store(false, std::memory_order_relaxed);
 		std::scoped_lock l{ lock };
 		holdCount = 0;
 		overrideCount = 0;

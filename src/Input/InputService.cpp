@@ -34,6 +34,9 @@ namespace OSF::Input
 		constexpr std::int32_t kMouseWheelUpId = 0x800;
 		constexpr std::int32_t kMouseWheelDownId = 0x900;
 		constexpr float        kWheelNotch = 120.0f;
+		// Mouse buttons arrive as ButtonEvents on the kMouse device with idCode = button index
+		// (0 = left, 1 = right, 2 = middle, 3/4 = X1/X2), distinct from the 0x800/0x900 wheel codes.
+		constexpr std::int32_t kMouseMiddleId = 2;  // MMB -> toggle free camera
 
 		// Index of the BSInputEventReceiver vtable in RE::UI::VTABLE (AddressLib id 475439). The IDs_VTABLE array is NOT in base-declaration order;
 		constexpr std::size_t kReceiverVtblIndex = 10;
@@ -59,15 +62,18 @@ namespace OSF::Input
 		// Keeps the input hot path lock-free: the thunk only copies the grant + posts a task; the heavy scene work runs on the game thread.
 		void MaybeDispatch(const RE::ButtonEvent* a_event)
 		{
-			if (a_event->deviceType != RE::InputEvent::DeviceType::kKeyboard) {
-				return;  // v1 keyboard-only; gamepad idCodes pending capture
-			}
 			if (a_event->value == 0.0f || a_event->heldDownSecs != 0.0f) {
 				return;  // press edge only (no release / held-repeat verbs in v1)
 			}
-			const Verb verb = VerbForKeyboard(a_event->idCode);
+			Verb verb = Verb::kNone;
+			if (a_event->deviceType == RE::InputEvent::DeviceType::kKeyboard) {
+				verb = VerbForKeyboard(a_event->idCode);
+			} else if (a_event->deviceType == RE::InputEvent::DeviceType::kMouse &&
+					   a_event->idCode == kMouseMiddleId) {
+				verb = Verb::kFreecam;  // MMB toggles native free camera while a scene grants it
+			}
 			if (verb == Verb::kNone) {
-				return;
+				return;  // unmapped key/button (gamepad idCodes still pending capture)
 			}
 
 			Grant                                   grant;

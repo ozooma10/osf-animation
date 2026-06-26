@@ -100,6 +100,11 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a
   bare path or a `{ "file", "offset" }` object. Mix shorthand and full-object stages freely.
+- **Track lanes on a stage:** a full-object stage may carry `cue`, `action`, `sound`, and `camera`
+  lanes (same shape as on a node — see *Track lanes*); they run while that stage plays, forwarded
+  onto the stage's desugared node. So a linear scene can fire cues, run actions, play sound, and hold
+  a camera posture **without** dropping to the `nodes[]` graph form. The bare-array shorthand is
+  clips-only — use the `{ … }` object form to attach a lane.
 - **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A role-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.
@@ -240,8 +245,10 @@ Authoring **both, or neither**, is a hard load error.
 
 ## Track lanes (`cue` / `action` / `sound` / `camera`)
 
-Track lanes are **node-level flat keys** (`cue`, `action`, `sound`, `camera`) — there is no `tracks`
-wrapper object. Every track entry has a **position** (`at`) and optional **repeat**:
+Track lanes are **flat keys** (`cue`, `action`, `sound`, `camera`) — there is no `tracks` wrapper
+object. They attach to a graph **node** or, equally, to a linear **stage** (a stage's lanes are
+forwarded onto its desugared node), so a linear scene gets the full lane vocabulary without `nodes[]`.
+Every track entry has a **position** (`at`) and optional **repeat**:
 
 - **`at`**: a lifecycle anchor `"enter"` | `"exit"` | `"end"`, **or** a numeric **clip-fraction in
   `[0,1)`** (e.g. `0.6` = 60% through the clip). `at` is **not** wall-clock seconds.
