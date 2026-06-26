@@ -356,13 +356,14 @@ All are **recorded in the per-handle undo ledger and auto-reversed on any scene 
 |---------------|--------|:---:|---|
 | `osf.control.lock` / `osf.control.release` | Player input-disable + AI-driven lock (ref-counted). **On by default when the player participates** — see *Player input lock*; author these only to override. | ✓ | |
 | `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). **All participants are stripped by default** — see *Actor strip*; author these only to override. | ✓ | |
+| `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A copy is added if the actor doesn't own one and **destroyed on cleanup** (no inventory residue); a form the actor already wears is left untouched both ways. | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
 | `osf.voice.play` | Play a sound spec positioned at the role. | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
 
-> **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/fade in reverse order
-> on *every* end path (normal end, `StopScene`, interrupt, save-load) — none of the `*.osf.json`
-> fixtures author a restore.
+> **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/fade in
+> reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — none of the
+> `*.osf.json` fixtures author a restore.
 
 ---
 

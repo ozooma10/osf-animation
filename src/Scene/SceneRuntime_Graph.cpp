@@ -7,6 +7,7 @@
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
 #include "UI/HudMessage.h"
+#include "Util/FormRef.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>
@@ -247,21 +248,21 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId)
+	bool SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId)
 	{
 		if (a_participants.empty()) {
-			return;  // synthetic scene with no participants — nothing to play
+			return false;  // synthetic scene with no participants — nothing to play
 		}
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
 		if (!node || (node->use.empty() && node->stages.empty())) {
-			return;  // not def-backed, or the node has no playable
+			return false;  // not def-backed, or the node has no playable
 		}
 		// Resolve the node's playable: inline `stages`, or a `use` reference, in the scene registry.
 		auto plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(*def, *node, a_participants.size());
 		if (!plan) {
 			REX::WARN("SceneRuntime: node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
-			return;
+			return false;
 		}
 		// StartSceneAt: if the owning scene carries an explicit world anchor, every node plays
 		// anchored there instead of at participant[0]. Read it fresh from the slot so all the
@@ -282,8 +283,9 @@ namespace OSF::Scene
 		ApplyNodePolicy(*plan, *node);
 		ApplyNodeMarks(*plan, *node);  // node's timed cues + actions -> the played stage (Scene fires them)
 		// Re-playing on actors already in a scene tears the old node's scene first, so a
-		// node transition is just a fresh PlaySceneStaged.
-		Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0);
+		// node transition is just a fresh PlaySceneStaged. Its bool result is the node's play
+		// status (false = clip load failed) — propagated so ApplyTransition can end cleanly.
+		return Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0);
 	}
 
 	void SceneRuntime::StopGraph(const std::vector<RE::Actor*>& a_participants)
@@ -327,6 +329,45 @@ namespace OSF::Scene
 			}
 		}
 		REX::INFO("SceneRuntime: scene {:#010x} default actor strip applied to {} participant(s)", a_handle, a_participants.size());
+	}
+
+	void SceneRuntime::EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
+	{
+		if (a_defId.empty()) {
+			return;  // files / ad-hoc scene — no roles, nothing to equip
+		}
+		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId);
+		if (!def) {
+			return;
+		}
+		auto& svc = Equipment::EquipmentService::GetSingleton();
+		// participants are in role-declaration order (StartFromDefRoles reorders before Start), so
+		// role[i] binds participant[i].
+		for (std::size_t i = 0; i < def->roles.size() && i < a_participants.size(); i++) {
+			const auto& role = def->roles[i];
+			if (role.equip.Empty()) {
+				continue;
+			}
+			RE::Actor* actor = a_participants[i];
+			if (!actor) {
+				continue;
+			}
+			const std::string& ref = role.equip.ForGender(Matchmaking::ActorGenderTag(actor));
+			if (ref.empty()) {
+				continue;  // nothing authored for this actor's gender
+			}
+			auto* object = Util::ResolveFormRef<RE::TESBoundObject>(ref);
+			if (!object) {
+				REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' did not resolve to a loaded form — skipped",
+					a_handle, role.name, ref);
+				continue;
+			}
+			auto record = svc.EquipItem(actor, object);
+			if (record.object) {
+				REX::INFO("SceneRuntime: scene {:#010x} role '{}' equipped '{}'", a_handle, role.name, ref);
+				RecordEquippedItem(a_handle, actor, std::move(record));
+			}
+		}
 	}
 
 	void SceneRuntime::FadeSceneStart(std::int32_t a_handle, bool a_fade, const std::vector<RE::Actor*>& a_participants)
@@ -385,13 +426,25 @@ namespace OSF::Scene
 		bool a_end, std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
 	{
 		Fire(a_handle, Event::kNodeExit, a_oldNode, "exit");
-		if (a_end) {
-			StopGraph(a_participants);  // cleanup after NODE_EXIT, before SCENE_END
+
+		// A non-end transition whose target node can't start (dangling `use`, plan build fail, or a
+		// clip that failed to load) must NOT strand the scene — no animation playing, yet the slot
+		// still live with the player lock held. Collapse it to a clean end so SCENE_END fires and the
+		// ledger releases the lock. (Validation guarantees every node has a playable, so a false here
+		// is always a real failure, never an intentional marker node.)
+		bool end = a_end;
+		if (!end && !PlayNodeAnim(a_participants, a_sceneId, a_newNode)) {
+			REX::WARN("SceneRuntime: scene {:#010x} transition '{}' -> '{}' could not play the target node — ending scene",
+				a_handle, a_oldNode, a_newNode);
+			end = true;
+		}
+
+		if (end) {
+			StopGraph(a_participants);  // cleanup after NODE_EXIT, before SCENE_END (also tears the old graph when a failed play left it up)
 			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");  // SCENE_END dispatch is async (later VM tick)
 			ReleaseSlot(a_handle);  // retires the handle: roster stays readable for the async SCENE_END handler, actors freed now
 			UI::HudMessage::Debug("OSF: scene ended");
 		} else {
-			PlayNodeAnim(a_participants, a_sceneId, a_newNode);
 			Fire(a_handle, Event::kNodeEnter, a_newNode, "enter");
 			// Opt-in debug popup naming the stage we just entered (covers manual advance, navigate, SetNode, and timer/loop auto-advance, every path funnels here). 
 			// A linear scene shows "stage N/M"; a branching node has no stage number, so it shows the node id alone. DebugEnabled() gate avoids formatting when off.
@@ -435,7 +488,15 @@ namespace OSF::Scene
 				s->anchor = a_anchor;
 			}
 		}
-		PlayNodeAnim(a_participants, a_id, a_entryNode);
+		// If the entry node can't play (dangling `use`, plan build fail, clip load fail), don't mint a
+		// live handle for a scene that never animates — it would hold no graph (the stall watchdog only
+		// sees live graph scenes, so it couldn't recover it) yet still engage the player lock below.
+		// Retire the slot and fail the start cleanly; nothing was locked yet.
+		if (!PlayNodeAnim(a_participants, a_id, a_entryNode)) {
+			REX::WARN("SceneRuntime: start '{}' entry node '{}' could not play — aborting start", a_id, a_entryNode);
+			ReleaseSlot(handle);
+			return 0;
+		}
 		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key).
 		bool lockPlayer = true;
 		bool stripActors = true;
@@ -448,6 +509,7 @@ namespace OSF::Scene
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
 		StripDefaultActors(handle, stripActors, a_participants);  // hide every participant's apparel by default
+		EquipRoleItems(handle, a_id, a_participants);             // then equip each role's authored per-gender item (on top of the strip)
 		FadeSceneStart(handle, fade, a_participants);             // screen curtain on start when the player participates
 		// Recorded AFTER lock + strip so the ledger undoes the input channel FIRST (release the wheel before unlocking/redressing).
 		EngageDefaultPlayerControl(handle, a_id, a_participants);
@@ -724,7 +786,9 @@ namespace OSF::Scene
 			// (vs returning false and letting GraphManager stop it silently, which would leak it).
 			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
 			const auto* node = def ? def->FindNode(s->node) : nullptr;
-			if (!node) {
+			if (a_reason == Animation::SceneEndReason::kInterrupted) {
+				end = true;  // engine stopped ticking the scene (unloaded / AI-disabled) — end it, never advance an edge.
+			} else if (!node) {
 				end = true;  // files scene, or the def/node vanished — end defensively.
 			} else {
 				// Map the fired condition to the node's edge semantics: a timer arms a
@@ -750,9 +814,10 @@ namespace OSF::Scene
 			}
 		}
 
+		const char* reasonStr = a_reason == Animation::SceneEndReason::kTimer ? "timer"
+			: (a_reason == Animation::SceneEndReason::kInterrupted ? "interrupted" : "loops");
 		REX::INFO("SceneRuntime: scene {:#010x} auto-end (reason={}) node '{}' -> {}{}",
-			handle, a_reason == Animation::SceneEndReason::kTimer ? "timer" : "loops",
-			oldNode, end ? "$end" : newNode, tookEdge ? "" : " (terminal, no edge)");
+			handle, reasonStr, oldNode, end ? "$end" : newNode, tookEdge ? "" : " (terminal, no edge)");
 
 		ApplyTransition(handle, oldNode, newNode, end, sceneId, participants);
 		return true;

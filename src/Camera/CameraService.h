@@ -36,6 +36,12 @@ namespace OSF::Camera
 		// scene-driven overrides via the same ref count. Game-thread only (the verb dispatch posts it there).
 		void ToggleFreeCam();
 
+		// Force the player-driven free cam OFF if it's currently held (no-op otherwise). The MMB hold lives
+		// OUTSIDE the scene's undo ledger, so without this it can outlive the scene that granted it — leaving
+		// the player in free-fly (WASD drives the camera, not the character) after the scene ends. The scene
+		// runtime calls this when the player's input grant is released, so a free cam can't survive its scene.
+		void ForcePlayerFreeCamOff();
+
 		// Rides the update-hook call stream (job threads). POVSwitch stays enabled while the hold is held so vanilla scroll-zoom works;
 		// if the player zooms/keys into first person, queue a game-thread bounce back to third person. 
 		// Atomic early-out when no hold is held OR a state override is suppressing the bounce.

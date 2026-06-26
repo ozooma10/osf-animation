@@ -101,6 +101,7 @@ namespace OSF::Registry
 		bool         hold = false;       // osf.fade.out: end faded (opt out of the cleanup fade-in)
 		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
 		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
+		std::string  item;   // osf.equipment.equip: form ref "<plugin>|0xLOCAL" of the item to equip
 	};
 
 	// Where a `sound` track entry fires — same time model as cues and actions. kEnter/kExit are lifecycle anchors; kFraction/kEnd are clip-timed.
@@ -185,6 +186,33 @@ namespace OSF::Registry
 		std::vector<CameraEntry> cameras;       // `camera` track
 	};
 
+	// Item(s) to equip onto a role's bound actor at scene start, keyed by the actor's gender, and
+	// auto-removed on every end path (the kEquipItem ledger). Authored as `equip` on the role: a bare
+	// form-ref string (any gender) or an object { male?, female?, any? }. Stored as "<Plugin>|0xLOCAL"
+	// refs and resolved at FIRE time (game thread): a ref naming an uninstalled plugin warns + is
+	// skipped, it does NOT reject the scene — these usually point at optional body-replacer plugins.
+	struct RoleEquip
+	{
+		std::string male;
+		std::string female;
+		std::string any;  // fallback when the bound actor's gendered key is absent (and for a bare string)
+
+		[[nodiscard]] bool Empty() const noexcept { return male.empty() && female.empty() && any.empty(); }
+
+		// The ref to equip for an actor whose gender tag is a_gender ("male"/"female"/"" agnostic):
+		// the gendered key if present, else `any`. The returned ref may be "" (caller skips).
+		[[nodiscard]] const std::string& ForGender(std::string_view a_gender) const noexcept
+		{
+			if (a_gender == "male" && !male.empty()) {
+				return male;
+			}
+			if (a_gender == "female" && !female.empty()) {
+				return female;
+			}
+			return any;
+		}
+	};
+
 	struct SceneRole
 	{
 		std::string name;  // "" = an anonymous positional slot (unified *.osf.json; clips index-align to role order)
@@ -196,6 +224,7 @@ namespace OSF::Registry
 		std::vector<RE::BGSKeyword*> keywords;  // empty = no keyword constraint
 		std::vector<RE::TESRace*>    races;     // empty = no race constraint
 		Animation::ParticipantPlacement offset{};  // default placement for this slot
+		RoleEquip                    equip;     // optional per-gender item equipped for the scene's duration
 	};
 
 	// Per-scene player-input grant. Input control is ENABLED BY DEFAULT: with no `playerControl` block the player gets every capability while participating. 

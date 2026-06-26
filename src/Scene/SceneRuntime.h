@@ -147,6 +147,7 @@ namespace OSF::Scene
 			kControlLock,   // player control + camera lock (ref-counted across scenes)
 			kFade,          // screen fade-to-black (undo = fade back in)
 			kEquipment,     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
+			kEquipItem,     // arbitrary items equipped for the scene (undo = unequip + remove-if-added; per-actor records in the Slot)
 			kCamera,        // held third-person camera lock (undo = release the standalone camera lock)
 			kCameraState,   // alt camera posture: free-fly / vanity orbit (undo = release the state override)
 			kWeapon,        // sheathed weapons (undo = re-draw; per-actor list in the Slot)
@@ -173,6 +174,9 @@ namespace OSF::Scene
 			// here (not the ledger entry) so the ledger stays a plain ordered type list — same
 			// pattern as control-lock keeping its count in _controlLockCount.
 			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenEquip;
+			// kEquipItem's per-actor state: arbitrary items this scene equipped (unequipped + removed-if-added
+			// on undo). Same out-of-ledger pattern as hiddenEquip.
+			std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equippedItems;
 			// kWeapon's per-actor state: actors this scene sheathed (re-drawn on undo). Same
 			// out-of-ledger pattern as hiddenEquip.
 			std::vector<RE::Actor*> sheathedWeapon;
@@ -291,6 +295,10 @@ namespace OSF::Scene
 		// ledger entry. Call OUTSIDE _lock (it locks). a_snapshot moved in.
 		void RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
 
+		// Record an item this scene equipped on a_actor (osf.equipment.equip), adding the kEquipItem
+		// ledger entry. Call OUTSIDE _lock (it locks). a_item moved in.
+		void RecordEquippedItem(std::int32_t a_handle, RE::Actor* a_actor, Equipment::EquippedItem a_item);
+
 		// Record a weapon this scene sheathed for a_actor (osf.weapon.sheathe), adding the
 		// kWeapon ledger entry. Call OUTSIDE _lock (it locks).
 		void RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor);
@@ -306,9 +314,10 @@ namespace OSF::Scene
 		// already snapshotted. PlayNodeAnim resolves the node's playable (inline `stages` or a `use`
 		// reference, via SceneRegistry::BuildNodePlan) and copies the node's loop policy and timerSec
 		// onto the last stage of the plan it plays, so the GraphManager auto-ends it and reports the
-		// timer/loops back through OnGraphAutoEnd. If the scene has no playable, or it won't play, it
-		// does nothing.
-		static void PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId);
+		// timer/loops back through OnGraphAutoEnd. Returns true if a scene was started; false if the
+		// node has no playable or it failed to play (ApplyTransition collapses that to a clean end so
+		// the scene is never stranded animation-less with the player lock still held).
+		static bool PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId);
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);
 
@@ -318,6 +327,14 @@ namespace OSF::Scene
 
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
 		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants);
+
+		// Equip each role's authored per-gender item (SceneRole::equip) onto its bound participant at
+		// scene start, recorded via kEquipItem so it's taken back off + removed on every end path. The
+		// binding is role-declaration order (a_participants[i] <-> def->roles[i]); the bound actor's
+		// gender selects the male/female ref (falling back to `any`). The form ref is resolved here on
+		// the game thread — one naming an uninstalled plugin warns + is skipped. No-op for a
+		// non-def / files scene (a_defId empty) or a def whose roles declare no `equip`.
+		void EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
 
 		// Player director-input on scene start: when the def declares a `playerControl` block and the player is a participant, hand the InputService a Grant (ledger-tracked via kInputChannel so it releases on any termination).
 		// No-op for non-def / no playerControl / player-absent scenes.

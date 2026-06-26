@@ -107,6 +107,17 @@ namespace OSF::Animation
 		void QueueFadeRemovalIfDone(Graph& a_graph);                  // fade-out elapsed -> RemoveFadedGraph
 		void LogSceneDiag(Graph& a_graph, RE::TESObjectREFR* a_refr);  // throttled scene diagnostics
 
+		// Defer a scene's end to the game thread: the runtime auto-end handler takes over (advance/end +
+		// ledger replay), else we stop it ourselves. Idempotent via Scene::endQueued; the shared_ptr keeps
+		// the Scene alive across the deferral. Shared by QueueAutoEndIfFinished and the stall watchdog.
+		void QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene);
+
+		// Stall watchdog: runs from the update hook every call. Finds live scenes the engine stopped
+		// ticking (lastAdvanceMs gone stale while the game runs) and ends them cleanly as kInterrupted, so
+		// an unloaded/AI-disabled/interrupted scene can't strand its participants with the player lock held.
+		// Pause/resume-filtered (the hook itself stalls when the game pauses) and throttled (fires ~7x/frame).
+		void StallWatchTick();
+
 		// AnimationManager::Update (vfunc 4). Runs per graph ~7x per render frame on job threads with subdivided dt (timeDelta @ +0x60). 
 		// Used for clock advance + pose sampling ONLY - rig writes here dont work, the engine's snapshot applier (vfunc 7) rewrites rig locals right after every update.
 		static void Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData);
@@ -135,8 +146,13 @@ namespace OSF::Animation
 		// Timed-mark hook (see SetSceneTimedMarkHandler). Empty = marks are dropped.
 		SceneTimedMarkHandler _timedMarkHandler;
 
-		// Mirror of graphs.size(), refreshed after every mutation under unique stateLock. 
+		// Mirror of graphs.size(), refreshed after every mutation under unique stateLock.
 		// Both hooks run for EVERY skeleton/manager in the game, game-wide, forever - this lets the idle case (no OSF playback) early out without touching stateLock at all.
 		std::atomic<size_t> graphCount{ 0 };
+
+		// Stall watchdog bookkeeping (see StallWatchTick), all steady-clock ms, lock-free.
+		std::atomic<std::int64_t> _stallLastHookMs{ 0 };  // last time the hook ran (a big jump = the game was paused/loading)
+		std::atomic<std::int64_t> _stallArmedMs{ 0 };     // don't flag stalls before this time (post-resume grace)
+		std::atomic<std::int64_t> _stallLastScanMs{ 0 };  // last scene scan (throttles the per-call work)
 	};
 }

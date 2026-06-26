@@ -32,12 +32,15 @@ namespace OSF::Animation
 		};
 	}
 
-	// Why an auto-advancing scene reached its final stage. 
+	// Why an auto-advancing scene reached its final stage.
 	// Reported back to the scene runtime's auto-advance handler so it can pick the matching auto-edge: kTimer -> a `timer` edge; kLoops -> a `loops`/`end` edge.
+	// kInterrupted is NOT a natural completion: the stall watchdog sets it when the engine stopped ticking
+	// the scene (actor unloaded / AI-disabled / interrupted), and the handler force-ends (takes no edge).
 	enum class SceneEndReason : std::uint8_t
 	{
 		kTimer,
-		kLoops
+		kLoops,
+		kInterrupted
 	};
 
 	// A timed mark on a stage's clip timeline - basically "fire this opaque token at time  T, on lane L". 
@@ -142,6 +145,12 @@ namespace OSF::Animation
 		// Advance sets `ended` after the last stage; the hook consumes `endQueued` once and defers StopScene to the game thread.
 		std::atomic<bool> ended{ false };
 		std::atomic<bool> endQueued{ false };
+
+		// Steady-clock (ms) of the last frame ANY participant ticked this scene (written at the top of
+		// Advance). 0 = not yet ticked. The stall watchdog reads it: a live scene whose timestamp goes
+		// stale while the game is running has been interrupted (the engine stops AnimationManager::Update
+		// for unloaded / AI-disabled actors), so it ends cleanly instead of stranding participants + locks.
+		std::atomic<std::int64_t> lastAdvanceMs{ 0 };
 
 		// Why the terminal stage ended (only meaningful once `ended` is set). 
 		// Set under `lock` in Advance; read by the deferred auto-end task to pick the auto-edge.

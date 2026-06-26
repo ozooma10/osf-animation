@@ -15,6 +15,22 @@ namespace OSF::Equipment
 			0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41,
 			0x57, 0x48, 0x8D, 0x6C, 0x24, 0xF9, 0x48, 0x81, 0xEC
 		};
+
+		// The engine re-instances items while they sit unequipped (outfit/skin pass), so the live
+		// inventory instanceData is the authoritative one to equip/unequip against. Returns null when
+		// the object isn't in the actor's inventory (then equip uses the base instance).
+		RE::TBO_InstanceData* LiveInstance(RE::Actor* a_actor, RE::TESBoundObject* a_object)
+		{
+			const auto guard = a_actor->inventoryList.LockRead();
+			if (const RE::BGSInventoryList* list = *guard) {
+				for (const auto& item : list->data) {
+					if (item.object == a_object) {
+						return item.instanceData.get();
+					}
+				}
+			}
+			return nullptr;
+		}
 	}
 
 	EquipmentService& EquipmentService::GetSingleton()
@@ -129,5 +145,66 @@ namespace OSF::Equipment
 			mgr->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
 		}
 		REX::INFO("Actor {:X}: restored {} worn item(s)", a_actor->formID, a_snapshot.stripped.size());
+	}
+
+	EquippedItem EquipmentService::EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object)
+	{
+		EquippedItem record;
+		if (!a_actor || !a_object || !Available()) {
+			return record;
+		}
+		record.object = a_object;
+
+		// Whether the actor already owns / already wears this exact form decides what we have to undo:
+		// only add a copy if absent (remove it on cleanup), only equip if not already worn (unequip on
+		// cleanup) — so we never disturb a copy/equip-state the actor brought into the scene.
+		const bool hadItem = LiveInstance(a_actor, a_object) != nullptr;
+		const bool wasEquipped = a_actor->IsObjectEquipped(a_object);
+
+		if (!hadItem) {
+			// Transient copy (count 1), tagged kScriptAddItem like the engine's own add-if-missing branch.
+			a_actor->AddObjectToContainer(a_object, {}, 1, nullptr, RE::ITEM_TRANSFER_REASON::kScriptAddItem);
+			record.addedToInventory = true;
+		}
+
+		if (!wasEquipped) {
+			// Re-resolve the instance AFTER the add (the engine instantiates the freshly-added copy).
+			RE::BGSObjectInstance instance{ a_object, LiveInstance(a_actor, a_object) };
+			// Same silent flags as Restore: queueEquip=false (immediate), forceEquip=true (skip the AI veto),
+			// playSounds=false, applyNow=true, locked=false (the actor's outfit logic still owns it afterwards).
+			RE::ActorEquipManager::GetSingleton()->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
+			record.equipped = true;
+		}
+
+		REX::INFO("Actor {:X}: equipped item {:X} (added={}, equipped={})",
+			a_actor->formID, a_object->GetFormID(), record.addedToInventory, record.equipped);
+		return record;
+	}
+
+	void EquipmentService::UnequipItem(RE::Actor* a_actor, const EquippedItem& a_item)
+	{
+		if (!a_actor || !a_item.object || !Available()) {
+			return;
+		}
+
+		if (a_item.equipped) {
+			RE::BGSObjectInstance instance{ a_item.object, LiveInstance(a_actor, a_item.object) };
+			// forceUnequip=true clears any equip lock; queueUnequip=false (immediate), silent, applyNow=true.
+			RE::ActorEquipManager::GetSingleton()->UnequipObject(a_actor, instance, nullptr, false, true, false, true, nullptr);
+		}
+
+		if (a_item.addedToInventory) {
+			// Destroy the transient copy we added (reason kNone = destroy, inventoryIndex -1 = identify by object).
+			std::uint32_t outHandle = 0;
+			RE::RemoveItemRequest request;
+			request.object = a_item.object;
+			request.inventoryIndex = -1;
+			request.count = 1;
+			request.reason = RE::ITEM_TRANSFER_REASON::kNone;
+			a_actor->RemoveItem(outHandle, request);
+		}
+
+		REX::INFO("Actor {:X}: removed scene item {:X} (unequipped={}, destroyed={})",
+			a_actor->formID, a_item.object->GetFormID(), a_item.equipped, a_item.addedToInventory);
 	}
 }

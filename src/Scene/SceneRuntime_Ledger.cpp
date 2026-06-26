@@ -50,6 +50,7 @@ namespace OSF::Scene
 		bool disengageLock = false;
 		std::int32_t remaining = 0;
 		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;  // moved out for kEquipment
+		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;  // moved out for kEquipItem
 		std::vector<RE::Actor*> weapon;                                 // moved out for kWeapon
 		{
 			std::lock_guard l{ _lock };
@@ -70,6 +71,8 @@ namespace OSF::Scene
 				remaining = _controlLockCount;
 			} else if (a_mech == Mechanism::kEquipment) {
 				equip.swap(s->hiddenEquip);  // take this scene's hidden apparel out for restore
+			} else if (a_mech == Mechanism::kEquipItem) {
+				equipItems.swap(s->equippedItems);  // take this scene's equipped items out for removal
 			} else if (a_mech == Mechanism::kWeapon) {
 				weapon.swap(s->sheathedWeapon);  // take this scene's sheathed actors out for re-draw
 			}
@@ -96,6 +99,12 @@ namespace OSF::Scene
 				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
 			}
 			break;
+		case Mechanism::kEquipItem:
+			REX::INFO("SceneRuntime: scene {:#010x} equip-item undo — removing {} item(s)", a_handle, equipItems.size());
+			for (auto& [actor, item] : equipItems) {
+				Equipment::EquipmentService::GetSingleton().UnequipItem(actor, item);
+			}
+			break;
 		case Mechanism::kCamera:
 			REX::INFO("SceneRuntime: scene {:#010x} camera undo — releasing the camera hold", a_handle);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
@@ -113,6 +122,11 @@ namespace OSF::Scene
 		case Mechanism::kInputChannel:
 			REX::INFO("SceneRuntime: scene {:#010x} input channel undo — releasing the director grant", a_handle);
 			Input::InputService::GetSingleton().Release(a_handle);
+			// The player free cam (MMB) is only reachable while a scene grants the input channel, so the
+			// grant release is the right scope to drop it: a player-driven free cam must not outlive its
+			// scene. No-op unless the player currently holds one. (Runs before the control-lock undo, so
+			// the camera hands back to the still-armed third-person hold; see ForcePlayerFreeCamOff.)
+			Camera::CameraService::GetSingleton().ForcePlayerFreeCamOff();
 			break;
 		}
 	}
@@ -146,6 +160,19 @@ namespace OSF::Scene
 		s->hiddenEquip.emplace_back(a_actor, std::move(a_snapshot));
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipment) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kEquipment);  // one ledger entry; the snapshots accumulate
+		}
+	}
+
+	void SceneRuntime::RecordEquippedItem(std::int32_t a_handle, RE::Actor* a_actor, Equipment::EquippedItem a_item)
+	{
+		std::lock_guard l{ _lock };
+		Slot* s = Resolve(a_handle);
+		if (!s) {
+			return;
+		}
+		s->equippedItems.emplace_back(a_actor, std::move(a_item));
+		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipItem) == s->ledger.end()) {
+			s->ledger.push_back(Mechanism::kEquipItem);  // one ledger entry; the items accumulate
 		}
 	}
 

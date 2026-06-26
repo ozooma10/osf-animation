@@ -502,6 +502,20 @@ namespace OSF::Camera
 		REX::INFO("Player free camera toggled OFF (MMB)");
 	}
 
+	void CameraService::ForcePlayerFreeCamOff()
+	{
+		// Same release the MMB OFF-toggle does, but driven by scene teardown instead of a keypress: only
+		// acts if the player toggle currently owns a hold (exchange guards against double-release). Without
+		// it, a free cam toggled on mid-scene would survive SCENE_END (its override is not ledger-tracked),
+		// stranding the player in free-fly. Ordering note: the scene runtime calls this from the input-grant
+		// undo, which runs BEFORE the control-lock undo, so the third-person hold is still armed here and
+		// ReleaseStateOverride hands the camera cleanly back to it (then the lock undo restores the baseline).
+		if (playerFreeCamHeld.exchange(false, std::memory_order_relaxed)) {
+			ReleaseStateOverride();
+			REX::INFO("Player free camera force-exited (scene ended)");
+		}
+	}
+
 	void CameraService::OnStopAll()
 	{
 		if (orbitDriving.exchange(false, std::memory_order_relaxed)) {

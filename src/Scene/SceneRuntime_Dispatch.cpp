@@ -8,6 +8,7 @@
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
+#include "Util/FormRef.h"
 #include "Util/StringUtil.h"
 #include "Weapon/WeaponService.h"
 
@@ -327,6 +328,32 @@ namespace OSF::Scene
 			// it. (Restores the whole scene's hidden apparel; per-role restore isn't done yet.)
 			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipment);
+		} else if (type == "osf.equipment.equip") {
+			// Equip an arbitrary item on the role's actor for the scene; record it so cleanup (or
+			// osf.equipment.unequip) takes it back off + removes any copy we added. The form ref is
+			// "<plugin>|0xLOCAL" (resolved at fire time; the local id's load-order byte is ignored).
+			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
+				if (auto* object = Util::ResolveFormRef<RE::TESBoundObject>(a_action.item)) {
+					auto record = Equipment::EquipmentService::GetSingleton().EquipItem(actor, object);
+					if (record.object) {
+						REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.equip (role '{}', item '{}')",
+							a_handle, a_action.role, a_action.item);
+						GetSingleton().RecordEquippedItem(a_handle, actor, std::move(record));
+					} else {
+						REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.equip — unavailable on this build, skipped", a_handle);
+					}
+				} else {
+					REX::WARN("SceneRuntime: scene {:#010x} osf.equipment.equip — item '{}' did not resolve to a loaded form, skipped",
+						a_handle, a_action.item);
+				}
+			} else {
+				REX::WARN("SceneRuntime: scene {:#010x} osf.equipment.equip — role '{}' resolved no actor, skipped",
+					a_handle, a_action.role);
+			}
+		} else if (type == "osf.equipment.unequip") {
+			// Take back off everything this scene equipped + drop the debt so cleanup won't redo it.
+			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.unequip", a_handle);
+			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipItem);
 		} else if (type == "osf.weapon.sheathe") {
 			// Holster the role's actor's weapon; record it so cleanup (or osf.weapon.restore)
 			// re-draws it. Symmetric pair (see WeaponService): re-draw on cleanup is unconditional,

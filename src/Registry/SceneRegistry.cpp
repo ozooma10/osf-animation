@@ -127,6 +127,7 @@ namespace OSF::Registry
 			static const std::unordered_set<std::string> kKnown{
 				"osf.control.lock", "osf.control.release",
 				"osf.equipment.hide", "osf.equipment.restore",
+				"osf.equipment.equip", "osf.equipment.unequip",
 				"osf.weapon.sheathe", "osf.weapon.restore",
 				"osf.fade.out", "osf.fade.in",
 				"osf.voice.play"
@@ -194,15 +195,17 @@ namespace OSF::Registry
 				ae.hold = a.value("hold", false);          // osf.fade.out: stay faded on cleanup
 				ae.duration = a.value("duration", 0.0f);   // osf.fade.*: ramp secs (0 = default)
 				ae.set = a.value("set", std::string{});    // osf.voice.play: sound spec
+				ae.item = a.value("item", std::string{});  // osf.equipment.equip: item form ref
 				const auto typeLower = ToLower(ae.type);
 				if (typeLower.rfind("osf.", 0) == 0) {
 					if (!IsKnownBuiltinAction(typeLower)) {
 						throw std::runtime_error("node '" + a_node_out.id + "': unknown built-in action '" + ae.type + "'");
 					}
-					// Per-action required fields. Role-targeted mechanisms need a role; voice
-					// also needs its sound set. Fade takes no required field.
+					// Per-action required fields. Role-targeted mechanisms need a role; voice also
+					// needs its sound set, equip its item. Fade takes no required field.
 					const bool needsRole = typeLower == "osf.control.lock" || typeLower == "osf.control.release" ||
 						typeLower == "osf.equipment.hide" || typeLower == "osf.equipment.restore" ||
+						typeLower == "osf.equipment.equip" || typeLower == "osf.equipment.unequip" ||
 						typeLower == "osf.weapon.sheathe" || typeLower == "osf.weapon.restore" ||
 						typeLower == "osf.voice.play";
 					if (needsRole && ae.role.empty()) {
@@ -210,6 +213,9 @@ namespace OSF::Registry
 					}
 					if (typeLower == "osf.voice.play" && ae.set.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.voice.play' requires 'set'");
+					}
+					if (typeLower == "osf.equipment.equip" && ae.item.empty()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.equipment.equip' requires 'item'");
 					}
 				} else if (a.value("required", false)) {
 					// Custom actions are best-effort notifications; `required` is reserved.
@@ -432,6 +438,29 @@ namespace OSF::Registry
 			// Optional default placement for this slot (unified *.osf.json roles).
 			if (auto oit = a_role.find("offset"); oit != a_role.end()) {
 				r.offset = ParseOffsetField(*oit);
+			}
+			// Optional per-gender item to equip for the scene (resolved at fire time). A bare string
+			// applies to any gender; an object keys it by male/female (with an optional `any` fallback).
+			// Only the form-ref SHAPE is checked here ("Plugin|0xLocal") — the form is resolved on the
+			// game thread at scene start, so an uninstalled plugin is a skipped equip, not a load error.
+			if (auto qit = a_role.find("equip"); qit != a_role.end()) {
+				auto checkRef = [&](const std::string& a_ref, const char* a_key) -> std::string {
+					if (!a_ref.empty() && a_ref.find('|') == std::string::npos) {
+						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': equip." + a_key +
+							" '" + a_ref + "' must be a form ref \"Plugin.esm|0xLocalID\"");
+					}
+					return a_ref;
+				};
+				if (qit->is_string()) {
+					r.equip.any = checkRef(qit->get<std::string>(), "any");
+				} else if (qit->is_object()) {
+					r.equip.male = checkRef(qit->value("male", std::string{}), "male");
+					r.equip.female = checkRef(qit->value("female", std::string{}), "female");
+					r.equip.any = checkRef(qit->value("any", std::string{}), "any");
+				} else {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': 'equip' must be a form-ref string or an object { male?, female?, any? }");
+				}
 			}
 			return r;
 		}
@@ -837,9 +866,10 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault are the file-level policy defaults.
+		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault are the file-level policy
+		// defaults; a_packRoles are the file-level `roles` (inherited by a scene that omits its own).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
-			bool a_fadeDefault, std::string_view a_cameraDefault)
+			bool a_fadeDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -853,7 +883,8 @@ namespace OSF::Registry
 					def.tags.push_back(t.get<std::string>());
 				}
 			}
-			// roles[]: unified participant list; `name` optional (anonymous positional slot).
+			// roles[]: unified participant list; `name` optional (anonymous positional slot). A scene's
+			// own `roles` overrides the pack-level `roles`; a scene that omits the key inherits them.
 			bool rolesGiven = false;
 			if (const auto it = a_json.find("roles"); it != a_json.end()) {
 				if (!it->is_array()) {
@@ -863,6 +894,9 @@ namespace OSF::Registry
 				for (const auto& jRole : *it) {
 					def.roles.push_back(ParseRole(jRole, def.id));
 				}
+			} else if (!a_packRoles.empty()) {
+				def.roles = a_packRoles;  // inherit the pack-level roles (names, filters, offsets, equip)
+				rolesGiven = true;
 			}
 
 			const bool hasNodes = a_json.contains("nodes");
@@ -1017,13 +1051,32 @@ namespace OSF::Registry
 				}
 			}
 
-			// A file holds a single bare scene, or { schema, scenes: [...] }.
+			// A file holds a single bare scene, or { schema, scenes: [...] }. In the multi-scene form a
+			// file-level `roles` is a PACK default inherited by every scene that omits its own `roles`
+			// (a bare file's top-level `roles` is just that one scene's roles, parsed by ParseOsfScene).
 			std::vector<const json*> sceneJsons;
+			std::vector<SceneRole>   packRoles;
 			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
 				if (!sit->is_array()) {
 					a_errors.push_back("[error] '" + fileName + "': 'scenes' must be an array");
 					REX::ERROR("SceneRegistry: '{}' 'scenes' must be an array — skipped", fileName);
 					return;
+				}
+				if (auto rit = a_json.find("roles"); rit != a_json.end()) {
+					if (!rit->is_array()) {
+						a_errors.push_back("[error] '" + fileName + "': pack-level 'roles' must be an array");
+						REX::ERROR("SceneRegistry: '{}' pack-level 'roles' must be an array — skipped", fileName);
+						return;
+					}
+					try {
+						for (const auto& jRole : *rit) {
+							packRoles.push_back(ParseRole(jRole, "<pack:" + fileName + ">"));
+						}
+					} catch (const std::exception& e) {
+						a_errors.push_back("[error] '" + fileName + "': pack-level roles: " + e.what());
+						REX::ERROR("SceneRegistry: '{}' pack-level roles rejected: {} — skipped", fileName, e.what());
+						return;
+					}
 				}
 				for (const auto& s : *sit) {
 					sceneJsons.push_back(&s);
@@ -1035,7 +1088,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault, packRoles);
 					def.sourceFile = a_file;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {

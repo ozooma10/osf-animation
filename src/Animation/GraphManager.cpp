@@ -873,10 +873,12 @@ namespace OSF::Animation
 
 	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph)
 	{
-		// The last timed/loop-counted stage ran out. StopScene needs stateLock unique (the hook holds it shared), so defer to the game thread;
-		// capturing the shared_ptr keeps the Scene alive and makes the pointer ABA-safe, StopSceneByPtr no-ops if the scene was already stopped.
+		// The last timed/loop-counted stage ran out. Defer the stop to the game thread (StopScene needs
+		// stateLock unique; the hook holds it shared). The endQueued load here is a cheap early-out; the
+		// authoritative once-only gate is the exchange inside QueueSceneEndDeferred. Capturing the
+		// shared_ptr keeps the Scene alive + ABA-safe.
 		if (!a_graph.scene || !a_graph.scene->ended.load(std::memory_order_relaxed) ||
-			a_graph.scene->endQueued.exchange(true, std::memory_order_relaxed)) {
+			a_graph.scene->endQueued.load(std::memory_order_relaxed)) {
 			return;
 		}
 		std::shared_ptr<Scene> keepAlive;
@@ -891,7 +893,16 @@ namespace OSF::Animation
 			return;
 		}
 		REX::INFO("Scene finished its last stage — queueing stop task (from job thread)");
-		SFSE::GetTaskInterface()->AddTask([keepAlive]() {
+		QueueSceneEndDeferred(std::move(keepAlive));
+	}
+
+	void GraphManager::QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene)
+	{
+		// Fire once: a concurrent caller (auto-end vs stall watchdog) that loses the exchange no-ops.
+		if (!a_scene || a_scene->endQueued.exchange(true, std::memory_order_relaxed)) {
+			return;
+		}
+		SFSE::GetTaskInterface()->AddTask([keepAlive = std::move(a_scene)]() {
 			// SetStage between the queue and now revives the scene (clears `ended`)
 			// a revived scene must not be killed by this stale task.
 			if (!keepAlive->ended.load(std::memory_order_relaxed)) {
@@ -901,8 +912,8 @@ namespace OSF::Animation
 			REX::INFO("Scene end task executing on game thread");
 			auto& gm = GetSingleton();
 
-			// The scene runtime gets first refusal: a graph-driven scene takes the matching auto-edge (advance to the next node / end its scene) and owns the teardown. 
-			// A standalone scene (a direct StartScene* with no graph) isn't claimed, we stop it ourselves. 
+			// The scene runtime gets first refusal: a graph-driven scene takes the matching auto-edge (advance to the next node / end its scene) and owns the teardown.
+			// A standalone scene (a direct StartScene* with no graph) isn't claimed, we stop it ourselves.
 			// No manager lock is held here, so the handler is free to call PlaySceneStaged/StopScene.
 			bool handled = false;
 			if (gm._autoEndHandler) {
@@ -919,6 +930,63 @@ namespace OSF::Animation
 				gm.StopSceneByPtr(keepAlive.get());
 			}
 		});
+	}
+
+	void GraphManager::StallWatchTick()
+	{
+		// Thresholds (steady-clock ms). Set well above a frame so a playable-FPS hitch can't trip it; the
+		// scene must look dead for kSceneStallMs of CONTINUOUS engine-running time after any resume grace.
+		constexpr std::int64_t kStallHookResumeGapMs = 500;   // gap since our last call that means a global pause/load
+		constexpr std::int64_t kStallGraceMs         = 2000;  // after a resume, don't judge scenes (let them re-stamp)
+		constexpr std::int64_t kSceneStallMs         = 1500;  // a live scene unticked this long (game running) = interrupted
+		constexpr std::int64_t kStallScanIntervalMs  = 250;   // throttle the scene scan (this runs ~7x/frame)
+
+		using namespace std::chrono;
+		const std::int64_t now = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+
+		// Pause/resume filter. This hook stops being called when the game pauses (focus loss, menus,
+		// loading). On resume every scene's lastAdvanceMs looks ancient though nothing died — so when the
+		// gap since our previous call is large, (re)arm a grace window and let live scenes re-stamp before
+		// we judge. The first-ever call (prev == 0) arms it too.
+		const std::int64_t prev = _stallLastHookMs.exchange(now, std::memory_order_relaxed);
+		if (prev == 0 || now - prev > kStallHookResumeGapMs) {
+			_stallArmedMs.store(now + kStallGraceMs, std::memory_order_relaxed);
+			return;
+		}
+		if (now < _stallArmedMs.load(std::memory_order_relaxed)) {
+			return;  // inside the post-resume grace window
+		}
+
+		// Throttle the scan (a few checks/sec suffice; the bookkeeping above already ran this call).
+		if (now - _stallLastScanMs.load(std::memory_order_relaxed) < kStallScanIntervalMs) {
+			return;
+		}
+		_stallLastScanMs.store(now, std::memory_order_relaxed);
+
+		// Collect stalled scenes under the shared lock; act on them OUTSIDE it.
+		std::vector<std::shared_ptr<Scene>> stalled;
+		{
+			std::shared_lock l{ stateLock };
+			if (scenes.empty()) {
+				return;
+			}
+			for (const auto& s : scenes) {
+				if (!s || s->ended.load(std::memory_order_relaxed) || s->endQueued.load(std::memory_order_relaxed)) {
+					continue;  // already terminal / queued — leave it to the normal path
+				}
+				const std::int64_t lastAdv = s->lastAdvanceMs.load(std::memory_order_relaxed);
+				if (lastAdv != 0 && now - lastAdv > kSceneStallMs) {
+					stalled.push_back(s);
+				}
+			}
+		}
+		for (auto& s : stalled) {
+			REX::WARN("Scene stalled {}ms (engine stopped ticking it — actor unloaded / AI-disabled / interrupted) — ending it as interrupted",
+				now - s->lastAdvanceMs.load(std::memory_order_relaxed));
+			s->endReason.store(SceneEndReason::kInterrupted, std::memory_order_relaxed);
+			s->ended.store(true, std::memory_order_relaxed);  // hand to the normal deferred-end machinery
+			QueueSceneEndDeferred(s);
+		}
 	}
 
 	void GraphManager::QueueTimedMarksIfFired(Graph& a_graph)
@@ -1005,6 +1073,7 @@ namespace OSF::Animation
 		Camera::CameraService::GetSingleton().Tick();
 		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
 		Audio::SoundService::GetSingleton().Tick();  // moves the listener to the player + reaps finished sounds
+		gm.StallWatchTick();  // end scenes the engine quietly stopped ticking (so the player lock never leaks)
 
 		// Idle early-out: this hook fires ~7x per render frame for every AnimationManager in the game; 
 		// with no managed graphs there is nothing else to do.

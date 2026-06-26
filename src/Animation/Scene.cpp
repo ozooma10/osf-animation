@@ -1,12 +1,22 @@
 #include "Scene.h"
 
 #include <algorithm>
+#include <chrono>
 
 namespace OSF::Animation
 {
 	Scene::Tick Scene::Advance(const void* a_token, float a_deltaTime)
 	{
 		std::scoped_lock l{ lock };
+
+		// Liveness heartbeat for the stall watchdog: stamp on EVERY tick (any participant, not just the
+		// clock owner — the Scene clock never re-elects, so an owner that stops while others tick must
+		// still read as alive). When the engine stops ticking the whole scene, this stops updating.
+		lastAdvanceMs.store(
+			std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now().time_since_epoch())
+				.count(),
+			std::memory_order_relaxed);
 
 		if (!ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token)) {
 			const float step = a_deltaTime * speed.load(std::memory_order_relaxed);
