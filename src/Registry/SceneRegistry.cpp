@@ -332,6 +332,12 @@ namespace OSF::Registry
 				throw std::runtime_error("node '" + a_node_out.id + "': 'sound' track must be an array of entries or a { spec, marks } ladder object");
 			}
 			for (const auto& s : a_entries) {
+				// An array element that carries `marks` is itself a ladder (one per role, e.g. a bottom lane and a top lane); expand it. 
+				// Elements without `marks` stay flat single cues. This lets `sound` be a list of role ladders without per-mark role overrides.
+				if (s.is_object() && s.contains("marks")) {
+					ExpandSoundLadder(s, a_node_out);
+					continue;
+				}
 				SoundEntry se;
 				// `spec` is the canonical key (unified *.osf.json); `sound`/`pool` are accepted
 				// aliases. A '$'-prefixed value is a SoundRegistry pool query resolved at fire time
