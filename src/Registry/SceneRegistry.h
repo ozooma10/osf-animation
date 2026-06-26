@@ -217,6 +217,7 @@ namespace OSF::Registry
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
+		bool                     fade = true;  // Screen fade-to-black on start when the player participates (self-releasing curtain); opt out with `fade:false`
 		PlayerControl            playerControl;  // director-input grant; ENABLED by default, scene opts out/narrows
 		std::vector<std::string> tags;
 		std::vector<SceneRole>   roles;

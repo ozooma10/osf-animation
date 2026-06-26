@@ -8,10 +8,19 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): do NOT compile.** When you edit a `.psc`,
-  update the source (and any docs) and stop — leave the stale `.pex` as-is. The user recompiles the
-  Papyrus scripts manually before in-game testing. Don't extract base scripts or invoke
-  PapyrusCompiler; just note in your summary that the `.pex` needs a manual recompile.
+- **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): recompile after editing a `.psc`, THEN `xmake`
+  to deploy the fresh `.pex`.** A stale `.pex` (source edited but not recompiled) makes any new/changed
+  native fail to bind at link time — e.g. `error: Native static function X could find no matching
+  static function on linked type OSF. Function will not be bound.` Compile with the CK Papyrus
+  compiler (`OSFTypes.psc` sits in the import path so `OSFTypes:*` signatures resolve):
+  ```powershell
+  & "C:\Program Files (x86)\Steam\steamapps\common\Starfield\Tools\Papyrus Compiler\PapyrusCompiler.exe" `
+    "dist\Scripts\Source" `
+    -i="dist\Scripts\Source;C:\Modding\Starfield\PapyrusSource" `
+    -o="dist\Scripts" -f="C:\Modding\Starfield\PapyrusSource\Starfield_Papyrus_Flags.flg" -all
+  ```
+  Output lands in `dist/Scripts/*.pex`; `xmake` copies it into `MO2/mods/OSF Animation/Scripts/`.
+  Never edit base/vanilla Papyrus sources under `PapyrusSource/` — it is a read-only import path.
 
 ## Architecture
 

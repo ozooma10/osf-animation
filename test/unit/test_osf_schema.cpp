@@ -495,19 +495,21 @@ OSF_TEST_CASE(Osf_pack_camera_defaults_to_scene_orbit)
 OSF_TEST_CASE(Osf_lock_and_strip_defaults_and_optout)
 {
 	auto& reg = SceneRegistry::GetSingleton();
-	// Defaults: a scene with neither key locks the player and strips apparel.
+	// Defaults: a scene with neither key locks the player, strips apparel, and fades on start.
 	const auto* def = reg.Find("osf.u.minimal");
 	CHECK(def != nullptr);
 	if (def) {
 		CHECK(def->lockPlayer);
 		CHECK(def->stripActors);
+		CHECK(def->fade);
 	}
-	// Opt-out: lockPlayer:false parses through; stripActors stays default-on.
+	// Opt-out: lockPlayer:false parses through; stripActors / fade stay default-on.
 	const auto* off = reg.Find("osf.u.lockoff");
 	CHECK(off != nullptr);
 	if (off) {
 		CHECK(!off->lockPlayer);
 		CHECK(off->stripActors);
+		CHECK(off->fade);
 	}
 }
 

@@ -319,9 +319,17 @@ namespace OSF::Scene
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
 		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants);
 
-		// Player director-input on scene start: when the def declares a `playerControl` block and the player is a participant, hand the InputService a Grant (ledger-tracked via kInputChannel so it releases on any termination). 
+		// Player director-input on scene start: when the def declares a `playerControl` block and the player is a participant, hand the InputService a Grant (ledger-tracked via kInputChannel so it releases on any termination).
 		// No-op for non-def / no playerControl / player-absent scenes.
 		void EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+
+		// Default screen fade on scene start: when the player is among a_participants and policy keeps it on (a_fade,
+		// resolved from the scene def `fade` / pack default). Posts a self-releasing FadeToBlack (bounded hold, auto
+		// fade-in via FadeService::Tick) — NOT ledger-recorded, so it un-fades on its own a beat into the scene rather
+		// than holding black until the scene ends. NOTE: the fade is async (UI queue) while the scene's teleport/strip
+		// run synchronously this frame, so this is a cinematic curtain, not a snap-hider (hiding the frame-0 snap would
+		// need a deferred start). No-op when the player isn't a participant or fades are unavailable on this runtime.
+		void FadeSceneStart(std::int32_t a_handle, bool a_fade, const std::vector<RE::Actor*>& a_participants);
 
 		// The node-transition lifecycle, shared by every transition path (SetNode / Advance /
 		// Navigate / OnGraphAutoEnd / cue-trigger): fire NODE_EXIT for a_oldNode, then either end

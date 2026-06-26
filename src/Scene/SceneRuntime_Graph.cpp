@@ -5,6 +5,7 @@
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
+#include "UI/FadeService.h"
 #include "UI/HudMessage.h"
 #include "Util/StringUtil.h"
 
@@ -328,6 +329,27 @@ namespace OSF::Scene
 		REX::INFO("SceneRuntime: scene {:#010x} default actor strip applied to {} participant(s)", a_handle, a_participants.size());
 	}
 
+	void SceneRuntime::FadeSceneStart(std::int32_t a_handle, bool a_fade, const std::vector<RE::Actor*>& a_participants)
+	{
+		auto*      player = RE::PlayerCharacter::GetSingleton();
+		const bool hasPlayer = player &&
+			std::find(a_participants.begin(), a_participants.end(), static_cast<RE::Actor*>(player)) != a_participants.end();
+		if (!hasPlayer) {
+			return;  // NPC-only scene — never black out the player's screen for a scene they're not in.
+		}
+		// A def scene / pack can decline the default (e.g. a quick idle that shouldn't blink).
+		if (!a_fade) {
+			REX::INFO("SceneRuntime: scene {:#010x} default start fade skipped — opted out (fade:false)", a_handle);
+			return;
+		}
+		// Self-releasing curtain: fade to black with a bounded hold; FadeService::Tick posts the fade-in once the
+		// hold deadline passes. Deliberately NOT ledger-recorded (no kFade) — a start fade un-fades a beat into the
+		// scene, it does NOT hold black until the scene ends. The fade is async (UI queue) while this frame's
+		// teleport/strip already ran, so it reads as a cinematic curtain rather than hiding the frame-0 snap.
+		const bool posted = UI::FadeService::GetSingleton().FadeToBlack(/*fadeSecs*/ 0.5f, /*holdMaxSecs*/ 1.0f);
+		REX::INFO("SceneRuntime: scene {:#010x} default start fade — {}", a_handle, posted ? "posted" : "unavailable");
+	}
+
 	void SceneRuntime::EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
 	{
 		// Input control is ENABLED BY DEFAULT (like lockPlayer/stripActors). A def scene can opt out / narrow via its playerControl block; 
@@ -414,16 +436,19 @@ namespace OSF::Scene
 			}
 		}
 		PlayNodeAnim(a_participants, a_id, a_entryNode);
-		// Resolve the def's opt-outs (both default-on when the scene has no def / omits the key).
+		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key).
 		bool lockPlayer = true;
 		bool stripActors = true;
+		bool fade = true;
 		if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id)) {
 			lockPlayer = def->lockPlayer;
 			stripActors = def->stripActors;
+			fade = def->fade;
 		}
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
 		StripDefaultActors(handle, stripActors, a_participants);  // hide every participant's apparel by default
+		FadeSceneStart(handle, fade, a_participants);             // screen curtain on start when the player participates
 		// Recorded AFTER lock + strip so the ledger undoes the input channel FIRST (release the wheel before unlocking/redressing).
 		EngageDefaultPlayerControl(handle, a_id, a_participants);
 		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
@@ -521,6 +546,7 @@ namespace OSF::Scene
 		}
 		EngageDefaultPlayerLock(handle, true, a_participants);   // files scene: no field to opt out via
 		StripDefaultActors(handle, true, a_participants);        // files scene: always strips participants
+		FadeSceneStart(handle, true, a_participants);            // files scene: default-on start curtain
 		EngageDefaultPlayerControl(handle, "", a_participants);  // files scene: default-on input (all capabilities)
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;

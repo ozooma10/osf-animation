@@ -436,10 +436,10 @@ namespace OSF::Registry
 			return r;
 		}
 
-		// Top-level metadata (name/priority/weight/lockPlayer/stripActors/playerControl). id, tags,
+		// Top-level metadata (name/priority/weight/lockPlayer/stripActors/fade/playerControl). id, tags,
 		// roles, and the playable (clip/stages/nodes) are parsed by the caller. a_lockDefault/
-		// a_stripDefault seed the policy opt-outs (the file-level defaults).
-		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault)
+		// a_stripDefault/a_fadeDefault seed the policy opt-outs (the file-level defaults).
+		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault, bool a_fadeDefault)
 		{
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", 0);
@@ -466,6 +466,13 @@ namespace OSF::Registry
 					throw std::runtime_error("scene '" + def.id + "': 'stripActors' must be a boolean");
 				}
 				def.stripActors = it->get<bool>();
+			}
+			def.fade = a_fadeDefault;
+			if (auto it = a_json.find("fade"); it != a_json.end()) {
+				if (!it->is_boolean()) {
+					throw std::runtime_error("scene '" + def.id + "': 'fade' must be a boolean");
+				}
+				def.fade = it->get<bool>();
 			}
 			// Input control is enabled-by-default (def.playerControl starts enabled with all capabilities).
 			// `"playerControl": false` turns it off; an object narrows it via `disable`/`locked`.
@@ -830,9 +837,9 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse one unified scene. a_lockDefault/a_stripDefault are the file-level policy defaults.
+		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault are the file-level policy defaults.
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
-			std::string_view a_cameraDefault)
+			bool a_fadeDefault, std::string_view a_cameraDefault)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -840,7 +847,7 @@ namespace OSF::Registry
 				throw std::runtime_error("scene missing 'id'");
 			}
 			RejectReservedId(def.id, "scene");
-			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault);
+			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_fadeDefault);
 			if (const auto it = a_json.find("tags"); it != a_json.end()) {
 				for (const auto& t : *it) {
 					def.tags.push_back(t.get<std::string>());
@@ -986,6 +993,7 @@ namespace OSF::Registry
 
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			const bool stripDefault = a_json.value("stripActors", true);
+			const bool fadeDefault = a_json.value("fade", true);
 
 			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
 			// entry node (unless that node already declares its own camera track). When omitted, the
@@ -1027,7 +1035,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, cameraDefault);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault);
 					def.sourceFile = a_file;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {

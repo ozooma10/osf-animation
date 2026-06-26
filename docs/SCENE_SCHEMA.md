@@ -42,6 +42,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "name": "My Content",                  // diagnostics only
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
+  "fade": true,                          // file-level default; each scene may override
   "camera": "scene_orbit",               // pack-level default camera posture (default "scene_orbit"; "none" opts out)
   "scenes": [
     { "id": "author.one", "clip": "OSF/Anims/One.glb" },
@@ -50,7 +51,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 }
 ```
 
-- File-level `lockPlayer` / `stripActors` are optional **defaults** every scene in the file may
+- File-level `lockPlayer` / `stripActors` / `fade` are optional **defaults** every scene in the file may
   override (the old pack file-default → per-entry override convenience).
 - Every scene needs a unique `id`. Within the one namespace, a duplicate id is **first-loaded-wins**
   plus a logged warning.
@@ -71,6 +72,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "weight": 1,                                 // weighted-random sampling within the top priority tier
   "lockPlayer": true,                          // disable player input while participating (false to opt out)
   "stripActors": true,                         // hide every participant's apparel (false to opt out)
+  "fade": true,                                // screen fade-to-black curtain on start when player participates (false to opt out)
   "roles": [                                   // OPTIONAL; else inferred from the first stage's clips
     {},
     { "offset": { "y": 1.0, "heading": 180.0 } }
@@ -286,7 +288,7 @@ node-level `camera` track on the entry node always wins over the pack default.
 
 ## Policy
 
-Set on a scene (or as a file-level default for `lockPlayer` / `stripActors`):
+Set on a scene (or as a file-level default for `lockPlayer` / `stripActors` / `fade`):
 
 ### Player input lock (`lockPlayer`, default-on)
 
@@ -309,6 +311,21 @@ ledger-tracked, so each actor is re-dressed on every end path.
   selective stripping).
 - Unlike the player lock, this applies to **all** participants, including NPC-only scenes.
 - Authored `osf.equipment.hide` / `osf.equipment.restore` still work.
+
+### Screen fade (`fade`, default-on)
+
+When the **player is a participant**, the scene posts a screen fade-to-black curtain at start — a
+**self-releasing** fade (short ramp + bounded hold, then an automatic fade back in via the per-frame
+tick). It is *not* ledger-held, so it un-fades a beat into the scene rather than staying black until the
+end; you do **not** need to author `osf.fade.out`.
+
+- Set **`"fade": false`** to start without the curtain (e.g. a quick idle that shouldn't blink).
+- The default never engages for an **NPC-only** scene (the player's screen is never blacked out for a
+  scene they're not in), and is a no-op where screen fades are unavailable on the runtime.
+- **Caveat — this is a curtain, not a snap-hider.** The fade is posted to the UI queue (async) while the
+  scene's actor teleport/strip/camera-cut run synchronously *this* frame, so the initial snap is already
+  on screen before black arrives. The default gives a cinematic dip + settle, not a hidden start.
+- Authored `osf.fade.out` / `osf.fade.in` still work (e.g. a held end-fade), independent of this default.
 
 ### Director input grant (`playerControl`)
 
