@@ -7,7 +7,6 @@
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/SaveSafety.h"
-#include "UI/CompatWarning.h"
 #include "Util/CrashHandler.h"
 
 #include <REX/W32/KERNEL32.h>
@@ -20,10 +19,6 @@ namespace
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
 	{
 		switch (a_msg->type) {
-		case SFSE::MessagingInterface::kPostLoad:
-			// Every SFSE plugin's load handler has run by now, so an incompatible framework's DLL (if any) is in-process for the module probe.
-			OSF::UI::CompatWarning::ProbeIncompatibilities();
-			break;
 		case SFSE::MessagingInterface::kPostDataLoad:
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();

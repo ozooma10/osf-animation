@@ -57,8 +57,7 @@ namespace OSF::Serialization
 			return result;
 		}
 
-		// Reads the whole file; if it is gzip-compressed (NAF animation packs
-		// usually ship gzipped GLBs), decompresses it transparently.
+		// Reads the whole file; if it is gzip-compressed, decompresses it transparently.
 		std::optional<std::vector<std::byte>> ReadFileMaybeGzip(const std::filesystem::path& a_file)
 		{
 			std::error_code ec;
@@ -110,10 +109,8 @@ namespace OSF::Serialization
 			return out;
 		}
 
-		// Strips `min`/`max` from all accessors in a glTF JSON document. NAF's
-		// exporter writes min/max arrays whose length doesn't match the accessor
-		// type (spec violation), which strict parsers reject. We never use
-		// min/max, so dropping them is safe.
+		// Strips `min`/`max` from all accessors in a glTF JSON document. NAF's exporter writes min/max arrays whose length doesn't match the accessor type (spec violation), which strict parsers reject. 
+		// We never use min/max, so dropping them is safe.
 		bool SanitizeGltfJson(std::string_view a_json, std::string& a_out)
 		{
 			auto doc = nlohmann::json::parse(a_json, nullptr, false);

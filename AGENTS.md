@@ -105,7 +105,7 @@ file). Two rules keep it cohesive:
   - `ERROR` — an operation the user/author can fix failed (bad `settings.json`, native bind failed,
     scene/pack failed validation, referenced asset missing, hook couldn't install).
   - `WARN` — degraded but continuing (unsupported game version, a feature self-disabled on prologue
-    mismatch, NAF/SAF conflict, unknown settings key).
+    mismatch, unknown settings key).
   - `INFO` — a few lifecycle milestones only: load banner, the `FEATURE:` report, registry load
     summaries, save-load teardown, `Load complete`, and scene **start/end** (id + handle).
   - `DEBUG` — author-debugging detail: scene advance/navigate, action dispatch, matchmaking results,
