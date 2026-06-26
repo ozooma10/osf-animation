@@ -9,8 +9,7 @@ allowed):
 | `*.osf.json` | **SceneRegistry** | **Scenes** — id → roles + a clip timeline (linear) or a node graph, plus matchmaking and policy. |
 
 All `*.osf.json` files are scanned recursively under `Data/OSF`. Bad files/entries are skipped and
-reported via `OSF.GetSceneLoadErrors()` (and the `OSF Animation.log`). The current schema version is
-**1** (`"schema": 1`).
+reported in `OSF Animation.log`. The current schema version is **1** (`"schema": 1`).
 
 A **scene** is the unified content entity an author writes (`SceneDef`). There is no separate "pack" or
 "animation" content noun anymore — a clip is just a `.glb`/`.af` file, and the thing that sequences
@@ -42,8 +41,8 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "name": "My Content",                  // diagnostics only
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
-  "fade": true,                          // file-level default; each scene may override
-  "camera": "scene_orbit",               // pack-level default camera posture (default "scene_orbit"; "none" opts out)
+  "fade": false,                         // optional file-level start-curtain default; each scene may override
+  "camera": "scene_orbit",               // file-level default camera posture (default "scene_orbit"; "none" opts out)
   "scenes": [
     { "id": "author.one", "clip": "OSF/Anims/One.glb" },
     { "id": "author.two", "stages": [ { "loops": 0, "clips": ["OSF/Anims/Two.glb"] } ] }
@@ -52,7 +51,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 ```
 
 - File-level `lockPlayer` / `stripActors` / `fade` are optional **defaults** every scene in the file may
-  override (the old pack file-default → per-entry override convenience).
+  override.
 - Every scene needs a unique `id`. Within the one namespace, a duplicate id is **first-loaded-wins**
   plus a logged warning.
 - Authored ids may **not** contain `#` (reserved for synthetic desugar nodes) — such an id is a load
@@ -72,7 +71,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "weight": 1,                                 // weighted-random sampling within the top priority tier
   "lockPlayer": true,                          // disable player input while participating (false to opt out)
   "stripActors": true,                         // hide every participant's apparel (false to opt out)
-  "fade": true,                                // screen fade-to-black curtain on start when player participates (false to opt out)
+  "fade": true,                                // opt into a start fade-to-black curtain when the player participates
   "roles": [                                   // OPTIONAL; else inferred from the first stage's clips
     {},
     { "offset": { "y": 1.0, "heading": 180.0 } }
@@ -154,16 +153,16 @@ Each role is `{ name?, gender?, keywords?[], races?[], offset?, equip? }`:
 
 A role's bound actor must satisfy **every present** constraint; within `keywords`/`races` the match is
 **any-of**. **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0021A8D7"`). `keywords`
-/ `races` resolve **once at scene load** — an unresolvable / wrong-type ref **rejects** the scene (see
-`GetSceneValidationErrors`). `equip` refs resolve **at scene start** instead — one naming an
+/ `races` resolve **once at scene load** — an unresolvable / wrong-type ref **rejects** the scene and
+is logged. `equip` refs resolve **at scene start** instead — one naming an
 uninstalled plugin is **warned + skipped**, not a load error (they usually target optional body
 replacers), so only the `"Plugin|0xLocal"` shape is checked at load.
 
-### Pack-level roles
+### File-level roles
 
-In a multi-scene file (`{ schema, "scenes": [ ... ] }`) a **file-level `roles`** is a pack default:
+In a multi-scene file (`{ schema, "scenes": [ ... ] }`) a **file-level `roles`** block is a default:
 every scene in `scenes` that omits its own `roles` inherits it (names, filters, offsets, **and
-`equip`**). A scene that declares its own `roles` overrides the pack roles entirely. (In a bare
+`equip`**). A scene that declares its own `roles` overrides the file-level roles entirely. (In a bare
 single-scene file the top-level `roles` is simply that scene's roles.)
 
 ```jsonc
@@ -272,8 +271,7 @@ Authoring **both, or neither**, is a hard load error.
 
 - A `use` only splices the target's **entry node's stages**, so only a **single-node inline-stage
   scene** is a valid `use` target. A multi-way graph target is a load error.
-- A **dangling `use`** (target id in no file) is a **load error**, surfaced via
-  `OSF.GetSceneLoadErrors()`.
+- A **dangling `use`** (target id in no file) is a **load error** and is logged.
 
 ---
 
@@ -365,9 +363,9 @@ Camera postures are **held**: ledger-tracked and auto-restored to the player's p
 end. Supported states: `scene_orbit` (the default), `thirdperson_hold` (force and hold third person,
 bouncing the player back if they zoom to first person), `freefly`, and `vanity_orbit`.
 
-A pack with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node. Use
+A file with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node. Use
 `"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
-node-level `camera` track on the entry node always wins over the pack default.
+node-level `camera` track on the entry node always wins over the file-level default.
 
 **`thirdperson_hold` opening distance.** By default `thirdperson_hold` opens the camera **as far
 zoomed out as the third-person axis allows**, so the scene doesn't start pinned on the player's back
@@ -414,14 +412,15 @@ ledger-tracked, so each actor is re-dressed on every end path.
 - Unlike the player lock, this applies to **all** participants, including NPC-only scenes.
 - Authored `osf.equipment.hide` / `osf.equipment.restore` still work.
 
-### Screen fade (`fade`, default-on)
+### Screen fade (`fade`, default-off)
 
-When the **player is a participant**, the scene posts a screen fade-to-black curtain at start — a
-**self-releasing** fade (short ramp + bounded hold, then an automatic fade back in via the per-frame
-tick). It is *not* ledger-held, so it un-fades a beat into the scene rather than staying black until the
-end; you do **not** need to author `osf.fade.out`.
+When **`"fade": true`** and the player is a participant, the scene posts a screen fade-to-black curtain
+at start — a **self-releasing** fade (short ramp + bounded hold, then an automatic fade back in via the
+per-frame tick). It is *not* ledger-held, so it un-fades a beat into the scene rather than staying
+black until the end.
 
-- Set **`"fade": false`** to start without the curtain (e.g. a quick idle that shouldn't blink).
+- Omit `fade` or set **`"fade": false`** to start without the curtain.
+- Set **`"fade": true`** on a scene or at the file root to opt in for player-participant scenes.
 - The default never engages for an **NPC-only** scene (the player's screen is never blacked out for a
   scene they're not in), and is a no-op where screen fades are unavailable on the runtime.
 - **Caveat — this is a curtain, not a snap-hider.** The fade is posted to the UI queue (async) while the
@@ -471,7 +470,7 @@ All are **recorded in the per-handle undo ledger and auto-reversed on any scene 
 
 ## Validation (at load)
 
-Surfaced via `OSF.GetSceneLoadErrors()` (`[error]`/`[warn]` prefixed):
+Surfaced in `OSF Animation.log`:
 
 - A node with **both** `use` and `stages`, or **neither**, is a hard load error.
 - A **dangling `use`** (target id in no file) is a load error.

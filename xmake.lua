@@ -10,13 +10,12 @@ add_requires("fastgltf v0.9.0")
 add_requires("ozz-animation 0.16.0")
 add_requires("zlib 1.3.1")
 add_requires("nlohmann_json 3.11.3")
-add_requires("miniaudio 0.11.25")  -- plays loose-file sound cues
+add_requires("miniaudio 0.11.25") 
 
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 
--- The target name doubles as the MO2 mod folder, so a build deploys
--- straight to XSE_SF_MODS_PATH\OSF Animation.
+-- The target name doubles as the MO2 mod folder, so a build deploys straight to XSE_SF_MODS_PATH\OSF Animation.
 target("OSF Animation")
     add_rules("commonlibsf.plugin", {
         name = "OSF Animation",

@@ -22,14 +22,14 @@ String v = OSF.GetVersion()         ; semver "major.minor.patch"
 
 Every `Start*` returns an opaque **scene handle** (`Int`): `0` = failed (bad id, no match, or an
 actor already in a live scene — one live scene per actor is enforced). A nonzero handle drives
-navigation, callbacks, stop, and the state getters. When the scene ends, the handle goes invalid and
-getters return sentinels (`""` / `0`).
+navigation, callbacks, stop, participant lookup, and linear-stage getters. When the scene ends, the
+handle goes invalid except for the short roster-survival window described under callbacks.
 
 ## Starting scenes
 
-There are **four ways to pick a scene** — one function per selection method. Each takes an optional
-trailing `SceneOptions` struct (`None` = all defaults) that folds in anchoring, role binding, start
-stage, and files playback, so the common case stays a one-liner.
+There are **three public ways to start a registry scene**. Each takes an optional trailing
+`SceneOptions` struct (`None` = all defaults) for anchoring and per-start policy overrides, so the
+common case stays a one-liner.
 
 ```papyrus
 Actor[] actors = new Actor[2]
@@ -47,10 +47,9 @@ int h2 = OSF.StartSceneByTags(actors, tags)
 
 ; Boolean query form (allOf / anyOf / noneOf — pass real empty arrays, never None):
 int h3 = OSF.StartSceneByTagsQuery(actors, allOf, anyOf, noneOf)
-
-; Ad-hoc from raw clip paths (one file per actor):
-int h4 = OSF.StartSceneFiles(actors, files)
 ```
+
+For raw one-actor clip playback outside the scene registry, use the primitive `OSF.Play(actor, file)`.
 
 `SceneOptions` carries the optional modifiers (set only the fields you need; each `Start*` reads only
 the ones that apply to it):
@@ -60,18 +59,18 @@ the ones that apply to it):
 | `Anchor` | `ObjectReference` | StartScene, StartSceneByTags(Query) | world-anchor at a ref (furniture/bed/marker) instead of co-locating at `actors[0]` |
 | `HeadingDeg` | `Float` | (with `Anchor`) | anchor facing in degrees; `< 0` = the ref's own heading |
 | `StripMode` | `Int` | StartScene, StartSceneByTags(Query) | override the scene's strip-actors policy: `OSF.INHERIT()`/`OFF()`/`ON()` |
-| `LockPlayerMode` | `Int` | StartScene, StartSceneByTags(Query) | override the player-input lock: `INHERIT`/`OFF`/`ON` |
-| `FadeMode` | `Int` | StartScene, StartSceneByTags(Query) | override the start fade-to-black curtain: `INHERIT`/`OFF`/`ON` |
+| `LockPlayerMode` | `Int` | StartScene, StartSceneByTags(Query) | override the player-input lock: `OSF.INHERIT()`/`OFF()`/`ON()` |
+| `FadeMode` | `Int` | StartScene, StartSceneByTags(Query) | override the optional start fade-to-black curtain: `OSF.INHERIT()`/`OFF()`/`ON()` |
 | `LoopScale` | `Float` | StartScene, StartSceneByTags(Query) | multiply every loop-driven stage's loop count (`1.0` = unchanged); see below |
 | `Stage` | `Int` | — | **not wired** for graph scenes in this build; use `SetSceneStageForActor()` after start |
-| `Speed` / `BlendIn` | `Float` | — | `StartSceneFiles` only; no `StartSceneFiles` native is bound in this build, so currently **no-ops** |
+| `Speed` / `BlendIn` | `Float` | — | reserved for an internal files-start path; currently **no-ops** for public callers |
 
 `SceneOptions` holds only scalar/ref fields — **Papyrus structs can't have array members**, so named-role
 binding stays its own function, `StartSceneRoles` (which therefore takes no `SceneOptions` — overrides
 don't apply to the roles path yet).
 
 **Per-start overrides (`StripMode` / `LockPlayerMode` / `FadeMode`).** These are tri-state: write them with
-the `OSF.INHERIT()` (= -1, leave the scene's pack default), `OSF.OFF()` (= 0, force off), and `OSF.ON()`
+the `OSF.INHERIT()` (= -1, leave the scene/file default), `OSF.OFF()` (= 0, force off), and `OSF.ON()`
 (= 1, force on) helpers — **not** bare `0`/`1`, because `0` means *force off*, not "leave default". An unset
 field (default `-1`) inherits the scene's authored value. Disabling strip is undo-safe (nothing recorded →
 nothing restored).
@@ -88,7 +87,7 @@ value can't mint a stage that never auto-advances. Re-applied on every node entr
 
 ```papyrus
 ; World-anchored at a ref (the old StartSceneByTagsAt / StartSceneAt):
-OSF:SceneOptions opts = new OSF:SceneOptions
+OSFTypes:SceneOptions opts = new OSFTypes:SceneOptions
 opts.Anchor = akBed                                           ; opts.HeadingDeg stays -1.0 = bed's heading
 int h5 = OSF.StartScene(actors, "author.scenes.demo", opts)   ; by id, anchored
 int h6 = OSF.StartSceneByTags(actors, tags, opts)             ; matchmade, anchored
@@ -107,9 +106,7 @@ int h7 = OSF.StartSceneRoles(actors, "author.scenes.demo", roleNames)
 OSF.StopScene(h)                 ; by handle (fires SCENE_END + runs the undo ledger)
 OSF.StopSceneForActor(akActor)   ; by actor; false if it's in no scene
 Bool playing = OSF.IsPlaying(akActor)
-int  scene   = OSF.GetSceneForActor(akActor)   ; 0 if none
-String id    = OSF.GetSceneId(h)
-String node  = OSF.GetSceneNode(h)
+Actor[] roster = OSF.GetSceneParticipants(h)
 ```
 
 Stopping always runs the **undo ledger**, which reverses every mechanism the scene engaged
@@ -171,7 +168,7 @@ EndFunction
 | `OSF.EVENT_ALL()` | 65535 | every type |
 
 `SCENE_BEGIN` is the lifecycle-open bookend of `SCENE_END`: it fires exactly once per scene as the
-first event, after OSF has engaged the scene's default mechanisms (player lock, strip, equip, fade,
+first event, after OSF has applied start setup (player lock, strip, role equip, optional fade,
 input channel) and the entry node's animation is playing — so the scene is fully live. Its `node`
 field carries the entry node; like `SCENE_END` it carries no `actorRef`. The handle is live when
 `SCENE_BEGIN` is dispatched; because dispatch is async (the callback runs on a later VM tick), it
@@ -185,27 +182,18 @@ scene that already ended before the queued callback ran.
 ## Discovery & diagnostics
 
 ```papyrus
-string[] ids   = OSF.FindScenes(2, tags)                              ; filter-UNAWARE hint
-string[] ids2  = OSF.FindScenesForActorsQuery(actors, allOf, anyOf, noneOf)  ; filter-aware
-string[] roles = OSF.GetSceneRoles("author.scenes.demo")
-string gender  = OSF.GetSceneRoleGender("author.scenes.demo", "lead")
-string[] sTags = OSF.GetSceneTags("author.scenes.demo")
-int n          = OSF.GetSceneActorCount("author.scenes.demo")
-Bool valid     = OSF.ValidateScene("author.scenes.demo")
-string[] errs  = OSF.GetSceneLoadErrors()                            ; [error]/[warn] prefixed
-string[] e2    = OSF.GetSceneValidationErrors("author.scenes.demo")
-int count      = OSF.ReloadPacks()                                   ; rescan Data/OSF, return scene count
+int count = OSF.ReloadPacks()  ; rescan Data/OSF/**/*.osf.json and *.sounds.json
 ```
 
-`ReloadPacks()` rescans `Data/OSF/**/*.osf.json`, rebuilds the **one** scene registry, and returns the
-loaded scene count. The native keeps its `ReloadPacks` name for the existing Papyrus binding (renaming
-it would require regenerating `OSF.pex`); there are no separate "packs" anymore.
+`ReloadPacks()` rebuilds the **one** scene registry, reloads sound pools, clears clip import caches, and
+returns the loaded scene count. The native keeps its `ReloadPacks` name for the existing Papyrus
+binding; there are no separate "packs" anymore.
 
 ## Primitives (advanced)
 
 `Play` / `Stop` (solo clip), `SetSpeed` / `GetSpeed` (1.0 = authored, 0 = freeze),
-`SetAnchor` / `ClearAnchor` (pin a solo graph to a world point), `Sync` (frame-lock already-playing
-graphs), `PlaySequence` (solo multi-phase), `GetCurrentAnimation`.
+`SetAnchor` / `ClearAnchor` (pin a solo graph to a world point), `GetCurrentAnimation`, and linear
+scene stage getters/setters by handle or actor.
 
 ## API stability policy
 

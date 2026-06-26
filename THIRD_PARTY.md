@@ -5,12 +5,12 @@ It incorporates, adapts, or links against the open-source components below; each
 
 
 ### NativeAnimationFrameworkSF (NAFSF)
-- Author: Deweh — <https://github.com/Deweh/NativeAnimationFrameworkSF>
+- Author: Deweh - <https://github.com/Deweh/NativeAnimationFrameworkSF>
 - License: GPL-3.0
 
 
 ### CALUMI.Animation
-- Author: Calaverah — <https://github.com/Calaverah/CALUMI.Animation>
+- Author: Calaverah - <https://github.com/Calaverah/CALUMI.Animation>
 - License: LGPL-3.0 (© 2025–2026 Calaverah)
 
 ## Bundled dependencies (resolved via xmake / xrepo)

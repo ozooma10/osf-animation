@@ -16,7 +16,5 @@ __pycache__/
 *.zip
 compile_commands.json
 
-# vanilla Bethesda assets used locally for testing — never redistribute in the public repo.
-# The .af importer needs skeleton.rig on disk; provide it locally (extracted from the BA2).
 *.rig
 *.pex

@@ -1,18 +1,16 @@
 # OSF Animation
 
-OSF Animation is a fully native, Animation and Scene framework for Starfield.
-
-Inspired by NAFSF, it provides native external-format (GLTF/GLB) animation playback alongside a comprehensive data-driven scene runtime.
+OSF Animation is a native animation and scene-runtime framework for Starfield.
 
 Key Features:
-- Synced multi-actor GLTF/GLB playback
-- wWise Audio playback, with wav fallback support
-- actor anchoring/pinning within world
-- a shared registry of animations/scenes
-- Player Control/Camera Lock
-- Full Screen Fade effects
-- Equipment removal/adding
-- scene runtime providing graphs of nodes with cues, actions, callbacks and navigation
+- Synced multi-actor AF/GLTF/GLB playback
+- Wwise-backed loose-file audio playback, with a miniaudio fallback
+- Actor anchoring/pinning in the world
+- A shared scene registry loaded from `Data/OSF/**/*.osf.json`
+- Player-control and camera locks
+- Optional full-screen fade effects
+- Equipment hide/restore and scene-scoped equip
+- Scene graphs with nodes, cues, actions, callbacks, and navigation
 
 ## Documentation
 
@@ -20,7 +18,7 @@ Key Features:
   per-native reference in [dist/Scripts/Source/OSF.psc](dist/Scripts/Source/OSF.psc).
 
 - **Pack authors:** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
-  ship advanced animation scenes with JSON + GLB, no papyrus or scripting required; full schema in [docs/SCENE_SCHEMA.md](docs/SCENE_SCHEMA.md).
+  ship animation scenes with JSON plus GLB/AF clips, no Papyrus or scripting required; full schema in [docs/SCENE_SCHEMA.md](docs/SCENE_SCHEMA.md).
   
 
 ## Requirements
@@ -36,6 +34,7 @@ Key Features:
 ## Build
 
 ```bat
+xmake f -m releasedbg
 xmake
 ```
 
@@ -59,18 +58,21 @@ xmake project -k compile_commands
 ```bat
 xmake build osf-import-test
 osf-import-test.exe <file.glb>
+
+xmake build osf-af-import-test
+osf-af-import-test.exe <clip.af> <skeleton.rig>
 ```
 
-The harness exercises the offline GLTF import path without launching the game.
+These harnesses exercise the offline GLTF/GLB and AF import paths without launching the game.
 
 ## License & Credits
 
 OSF Animation is licensed under the **GNU General Public License v3.0** ([LICENSE](LICENSE)),
-with an additional modding/linking exception — see [EXCEPTIONS](EXCEPTIONS).
+with an additional modding/linking exception - see [EXCEPTIONS](EXCEPTIONS).
 
 It adapts and builds on several open-source projects; full attributions and licenses are in
 [THIRD_PARTY.md](THIRD_PARTY.md). Most notably:
 
-- **[NativeAnimationFrameworkSF](https://github.com/Deweh/NativeAnimationFrameworkSF)** (Deweh, GPL-3.0) — the ozz playback/graph plumbing OSF is adapted from.
-- **[CALUMI.Animation](https://github.com/Calaverah/CALUMI.Animation)** (Calaverah, LGPL-3.0) — the engine-native `.af` / `skeleton.rig` decoder.
+- **[NativeAnimationFrameworkSF](https://github.com/Deweh/NativeAnimationFrameworkSF)** (Deweh, GPL-3.0) - the ozz playback/graph plumbing OSF is adapted from.
+- **[CALUMI.Animation](https://github.com/Calaverah/CALUMI.Animation)** (Calaverah, LGPL-3.0) - the engine-native `.af` / `skeleton.rig` decoder.
 - **[CommonLibSF](https://github.com/libxse/commonlibsf)**, fastgltf, ozz-animation, zlib, nlohmann/json, and miniaudio.

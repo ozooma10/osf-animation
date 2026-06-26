@@ -5,9 +5,6 @@ namespace OSF::Weapon
 	namespace
 	{
 		// Actor::DrawWeaponMagicHands(bool) is virtual slot 0x136 on the Actor vtable
-		// (RE/A/Actor.h, hex index like its neighbours SetPosition 0x137 / Update 0x13F).
-		// We don't patch it — we just call it — but we resolve the AddressLib-mapped Actor
-		// vtable once to confirm the binding holds on this build before dispatching through it.
 		constexpr std::size_t kDrawWeaponMagicHandsVtableSlot = 0x136;
 	}
 
@@ -21,9 +18,7 @@ namespace OSF::Weapon
 	{
 		static const bool available = []() {
 			try {
-				// RE::Actor::VTABLE[0] is the AddressLib id of the primary Actor vtable. If the
-				// id isn't in this runtime's database, address() throws — caught below and the
-				// feature self-disables rather than dispatch through an unknown vtable.
+				// RE::Actor::VTABLE[0] is the AddressLib id of the primary Actor vtable. 
 				REL::Relocation<std::uintptr_t> vtbl{ RE::Actor::VTABLE[0] };
 				const auto slot = *reinterpret_cast<const std::uintptr_t*>(
 					vtbl.address() + kDrawWeaponMagicHandsVtableSlot * sizeof(std::uintptr_t));

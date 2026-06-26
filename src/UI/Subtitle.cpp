@@ -21,7 +21,7 @@ namespace OSF::UI::Subtitle
 		// ShowSubtitleEvent source and cleared by Notify()ing HideSubtitleEvent — the same event-source
 		// idiom UI::HudMessage uses for HUD popups. We resolve the two GetEventSource accessors by AddrLib
 		// ID and drive them through CommonLibSF's BSTEventSource<T>::Notify (which builds the engine's
-		// NotifyVisitor and calls BSTEventSource::Notify 123824). Self-contained on purpose, like
+		// NotifyVisitor and calls BSTEventSourcef 123824). Self-contained on purpose, like
 		// UI/FadeService.cpp + Audio/WwiseBackend.cpp: the binding lives here, not in a CLSF header.
 		//
 		// CommonLibSF previously left these accessors {0}, mislabelled 133631/133630 (those are unrelated
