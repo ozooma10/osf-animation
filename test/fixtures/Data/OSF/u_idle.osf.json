@@ -1,6 +1,0 @@
-{
-  // Held idle: an explicit loops:0 stage holds forever (desugars to a hold-forever node, no edge).
-  "schema": 1,
-  "id": "osf.u.idle",
-  "stages": [ { "loops": 0, "clips": ["OSF/Anim/idle.glb"] } ]
-}

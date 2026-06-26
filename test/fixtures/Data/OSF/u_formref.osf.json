@@ -1,8 +1,0 @@
-{
-  // A role with a keyword form-ref. Offline (no data handler) the ref can't resolve, so the role
-  // resolver rejects the scene fail-soft and records it.
-  "schema": 1,
-  "id": "osf.u.formref",
-  "roles": [ { "filters": { "keyword": "Starfield.esm|0x0021A8D7" } } ],
-  "clip": "OSF/Anim/a.glb"
-}

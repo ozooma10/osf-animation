@@ -1,9 +1,0 @@
-{
-  // Invalid: `entry` names a node that doesn't exist -> rejected (recorded).
-  "schema": 1,
-  "id": "osf.u.badentry",
-  "entry": "nope",
-  "nodes": [
-    { "id": "n", "stages": [ ["OSF/Anim/a.glb"] ], "loop": { "mode": "hold" }, "loopForever": true }
-  ]
-}

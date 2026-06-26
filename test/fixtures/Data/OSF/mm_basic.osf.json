@@ -1,9 +1,0 @@
-{
-  // Matchmaker fixture: a priority-0 paired scene (ties broken by id ascending).
-  "schema": 1,
-  "id": "osf.mm.basic",
-  "priority": 0,
-  "tags": ["pair", "scenetag"],
-  "roles": [ { "gender": "male" }, { "gender": "female" } ],
-  "stages": [ ["OSF/Anim/a.glb", "OSF/Anim/b.glb"] ]
-}

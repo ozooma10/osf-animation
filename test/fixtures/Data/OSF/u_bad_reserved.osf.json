@@ -1,6 +1,0 @@
-{
-  // Invalid: an authored id using the reserved '#' (synthetic stage-node) namespace -> rejected.
-  "schema": 1,
-  "id": "osf.u.bad#id",
-  "clip": "OSF/Anim/x.glb"
-}
