@@ -12,10 +12,11 @@ Full RE record: osf-re `tools/ghidra/context_repo/modules/gameplay.actor_transfo
 > **Policy-mechanism RE is now IN this repo (Phase C, 2026-06-17).** The scene engine merged back in,
 > so the Layer-C mechanism bindings — equipment equip/unequip (`ActorEquipManager` IDs 101949/101951),
 > weapon sheathe/draw (`Actor::DrawWeaponMagicHands` vtable slot 0x136),
-> the FaderMenu fade poster (114430), Wwise `PostEvent` (150391) — are **used by this repo** (see
-> `src/Equipment`, `src/Weapon`, `src/UI/FadeService`, `src/Audio`). Each prologue-gates before use, like every
+> the FaderMenu fade poster (114430), Wwise `PostEvent` (150391), the subtitle box
+> (`ShowSubtitleEvent::Event::GetEventSource` 86874 / `HideSubtitleEvent` 86875) — are **used by this repo** (see
+> `src/Equipment`, `src/Weapon`, `src/UI/FadeService`, `src/UI/Subtitle`, `src/Audio`). Each prologue-gates before use, like every
 > binding here. Canonical RE detail still lives in osf-re (`gameplay.actor_equipment`,
-> `engine.save_load`, `ui.fader_menu`, `wwise-audio-re-handoff.md`); this page keeps the core's ground
+> `engine.save_load`, `ui.fader_menu`, `wwise-audio-re-handoff.md`, `ui.subtitle`); this page keeps the core's ground
 > truth. **Still NOT in this repo:** cosave save-name hooks / aftermath persistence (deferred), and
 > free-fly/orbit camera (`camera.state_machine`, runtime-OPEN — the v1 camera lane uses only the
 > already-bound third-person force/hold).
@@ -146,6 +147,31 @@ capsule sits:
   is a **symmetric pair** — `restore` re-draws unconditionally (author sheathes only armed roles). A
   state-aware restore (re-draw only an actor that was drawn pre-sheathe) is deferred until the bit is
   proven: log `actorState1` for the player holstered-vs-drawn to find it, then gate restore on it.
+
+## Subtitle box (Layer-C `UI::Subtitle`)
+
+The spoken-line box is driven by an **event Notify**, not a method call — there is **no**
+`SubtitleManager::ShowSubtitle` (the singleton at `0x1462C0510` is touched only by its initializer).
+Runtime-proven on 1.16.244 (osf-re `ui.subtitle`, 2026-06-26; the `sub spk GLORP HELLOWORLD` probe
+rendered "GLORP: HELLOWORLD" live).
+
+- `ShowSubtitleEvent::Event::GetEventSource` = **86874** (`0x141495c90`); `HideSubtitleEvent::Event::
+  GetEventSource` = **86875** (`0x141495d00`). `UI::Subtitle` resolves each by AddrLib ID and drives it
+  through CLSF `BSTEventSource<T>::Notify` (the same idiom `UI::HudMessage` uses). An unresolved ID →
+  fall back to the HUD-message channel (never lost, never crashes).
+- **Payload** `ShowSubtitleEvent::Event` (sizeof 0x18): `{ const char* subtitleText @0x00; const char*
+  speakerName @0x08; bool isPlayer @0x10; }`. Fields are **raw UTF-8 `const char*`, NOT `BSFixedString`**
+  — the sink (`HUDSubtitleDataModel::ProcessEvent` 86881) runs its own byte-wise UTF-8 converter, so a
+  `BSFixedString` entry pointer renders mojibake. `HideSubtitleEvent::Event` is **empty** (Notify clears
+  the box). Field order + type were runtime-corrected (the static read had speaker/text reversed and
+  assumed `BSFixedString`).
+- Renders the **standard bottom-of-screen list** reading `speakerName: subtitleText` — **NOT**
+  3D-positioned on the speaker, and **bypasses** the user's `bDialogueSubtitles`/`showSubtitles` gate
+  (that check lives upstream in the vanilla producer 114395, not in the event path).
+- **No auto-hide** on the direct path (the vanilla producer carries the duration). `UI::Subtitle` arms a
+  hold deadline, `Tick()` Notify()s Hide once it passes, and `OnStopAll()` hides on save-load teardown.
+- **CLSF drift:** these accessors were left `{0}` mislabelled `133631`/`133630` (those are unrelated
+  tagged-object accessors). The real IDs are **86874**/**86875**.
 
 ## Matchmaking form-refs + role-filter predicates (`roles[].filters`)
 

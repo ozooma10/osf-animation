@@ -350,11 +350,14 @@ In a pool, the `clips` value may be the usual **array**, or — the shorthand fo
 - The same clip is still subject to the **one-voice-channel-per-actor** rule above, so a new line cuts
   that actor's previous one — line and box replace together.
 
-> **Subtitle renderer — staged.** The **audio** is fully engine-native today. The **box** is a
-> placeholder in this build: the line is logged and posted through the engine HUD-message channel so the
-> pipeline is visible and testable, but it is not yet the vanilla subtitle box. Rendering into the real
-> subtitle UI (positioned on the speaker) is a pending OSF RE pass; the authoring above is final and
-> won't change when that lands (`UI/Subtitle.cpp` is the one-spot swap).
+> **Subtitle renderer.** Both halves are engine-native now. The **audio** rides Wwise; the **box** renders
+> through the vanilla subtitle UI — `UI::Subtitle::Show` Notify()s the engine's `ShowSubtitleEvent`
+> (AddrLib 86874, runtime-proven on 1.16.244, osf-re `ui.subtitle`), so the line shows in the standard
+> bottom-of-screen list reading `speakerName: text` regardless of the user's subtitle settings. It is the
+> shared list, **not** 3D-positioned on the speaker. The line is hidden (`HideSubtitleEvent`, 86875) once
+> its hold elapses or on save-load teardown. If the event source can't resolve on a runtime, `Show` falls
+> back to the HUD-message channel so a line is never lost. The authoring above is unchanged either way
+> (`UI/Subtitle.cpp` is the one spot that knows how a line reaches the screen).
 
 #### Camera `state` values
 

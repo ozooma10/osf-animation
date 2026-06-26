@@ -5,6 +5,7 @@
 #include "Input/InputService.h"
 #include "Player/PlayerControlService.h"
 #include "UI/FadeService.h"
+#include "UI/Subtitle.h"
 #include "Serialization/AFImport.h"
 #include "Serialization/GLTFImport.h"
 #include "Util/Ba2.h"
@@ -533,6 +534,8 @@ namespace OSF::Animation
 
 		// Release any held/pending screen fade before the load (the stay-faded latch crashes the load path).
 		UI::FadeService::GetSingleton().OnStopAll();
+		// Clear any subtitle still in the box so it can't bleed into the loaded world.
+		UI::Subtitle::OnStopAll();
 		// Cut every live cue sound, a loaded save shouldn't have last-world sounds ringing over it.
 		Audio::SoundService::GetSingleton().StopAll();
 
@@ -1072,6 +1075,7 @@ namespace OSF::Animation
 		// Above the managed-graph filter — its own atomic early-out makes the idle case free, and a standalone lock with no live graph still bounces.
 		Camera::CameraService::GetSingleton().Tick();
 		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
+		UI::Subtitle::Tick();  // hides the subtitle box once a shown line's hold deadline passes
 		Audio::SoundService::GetSingleton().Tick();  // moves the listener to the player + reaps finished sounds
 		gm.StallWatchTick();  // end scenes the engine quietly stopped ticking (so the player lock never leaks)
 

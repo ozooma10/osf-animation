@@ -5,25 +5,23 @@
 // it plays (SceneRuntime::PlaySound -> SoundRegistry::TextForClip -> Show), so audio + box are driven
 // from one place with no separate lane — see docs/SCENE_SCHEMA.md.
 //
-// TWO-PHASE by design (the audio half is already engine-native; the box is the open RE):
+// Renders through the engine's OWN subtitle box (runtime-proven, osf-re ui.subtitle 2026-06-26). The
+// engine has NO SubtitleManager::ShowSubtitle method — the box is driven entirely by an event: Show()
+// Notify()s a ShowSubtitleEvent (AddrLib 86874) and the box reads "speakerName: text" in the standard
+// bottom-of-screen list (it is NOT 3D-positioned on the speaker), rendering regardless of the user's
+// subtitle settings (that gate lives upstream of the event). This is the exact event-source idiom
+// UI::HudMessage uses for HUD popups. If the subtitle source can't resolve on a given runtime, Show()
+// falls back to the HUD-message channel so a line is never silently lost.
 //
-//  * PHASE 1 (now): a content-neutral seam. Show() logs the line and posts it through the engine HUD
-//    message channel (UI::HudMessage) so the data-driven pipeline is visible and testable end-to-end
-//    immediately and NEVER crashes. This is a placeholder *renderer*, not the vanilla subtitle box.
+// EXPIRY / TEARDOWN: the direct-Notify path does NOT auto-hide on a timer (the vanilla producer carries
+// the duration; Notify-ing the source directly bypasses it). So Show() arms a hold deadline, Tick()
+// Notify()s a HideSubtitleEvent (AddrLib 86875) once it passes, and OnStopAll() hides immediately so a
+// line in the box can't bleed into a save-load. Both are wired in GraphManager next to the other
+// per-frame services (FadeService/SoundService).
 //
-//  * PHASE 2 (OSF RE): swap Show()'s body for the engine's own subtitle UI so the line renders in the
-//    real dialogue/subtitle box, positioned on the speaker. The injection point is unproven RE today.
-//    Leads traced statically on 1.16.244 (see Subtitle.cpp for the full note):
-//      - SubtitleManager vtable       AddrLib 460938 -> 0x144d0c408
-//      - HUDSubtitleDataModel vtable  AddrLib 437283 -> 0x144c5ed68  (the Flash data shuttle)
-//      - candidate show/dispatch fn   AddrLib 133631 -> 0x1426749b0  (CLSF mislabels this a magic-static
-//                                     event accessor; it is actually a `this`-method, currently {0}/unbound)
-//    The swap is a one-file change behind a FadeService-style prologue guard (AddrLib id + verified
-//    prologue bytes, self-disabling on a future patch); Tick()/Clear() get wired then for expiry.
-//
-// Threading: Show() is called from the scene dispatch (job threads, under the scene lock) and must not
-// block. The HUD post only enqueues an engine event (any-thread-safe); resolving the speaker name is a
-// cheap read of the ref. Cheap no-op when text is empty.
+// Threading: Show()/Tick() run from the scene dispatch (job threads, under the scene lock) and must not
+// block. The event Notify only drives the engine's subtitle data model (any-thread-safe, same as
+// UI::HudMessage); resolving the speaker name is a cheap read of the ref. Cheap no-op on empty text.
 
 #include <string_view>
 
@@ -37,4 +35,12 @@ namespace OSF::UI::Subtitle
 	// Show a spoken line `a_text` attributed to `a_speaker` (nullptr = unattributed) for `a_seconds`
 	// (<= 0 selects a default hold). Safe from any thread; a no-op on empty text.
 	void Show(RE::Actor* a_speaker, std::string_view a_text, float a_seconds = 0.0f);
+
+	// Hide the box once a shown line's hold elapses. Rides the update-hook call stream (job threads);
+	// atomic early-out when nothing is showing.
+	void Tick();
+
+	// Save-load / StopAll teardown: hide any line currently in the box right now. Called synchronously
+	// from GraphManager::StopAll.
+	void OnStopAll();
 }
