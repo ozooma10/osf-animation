@@ -32,6 +32,9 @@ namespace OSF::Audio
 		ma_sound sound{};
 		// Async loads that fail never reach "at end", reap by age as backstop.
 		std::chrono::steady_clock::time_point created = std::chrono::steady_clock::now();
+		// Voice-channel key this sound occupies (0 = unslotted). On reap we clear the matching slot so
+		// a later replace never dereferences this freed sound.
+		std::uint64_t slot = 0;
 	};
 
 	SoundService& SoundService::GetSingleton()
@@ -61,7 +64,7 @@ namespace OSF::Audio
 		REX::INFO("SoundService: audio engine ready ({} Hz, {} ch)", ma_engine_get_sample_rate(&g_engine), ma_engine_get_channels(&g_engine));
 	}
 
-	void SoundService::Play(const std::string& a_dataRelPath, const RE::NiPoint3& a_worldPos, float a_volume)
+	void SoundService::Play(std::uint64_t a_slot, const std::string& a_dataRelPath, const RE::NiPoint3& a_worldPos, float a_volume)
 	{
 		// "event:" specs post through the game's own Wwise engine as a baked event, engine-mixed (sliders/pause/ducking apply)
 		// fired on the player's game object so position and a_volume do not apply (the mix is engine-owned). See WwiseBackend.h.
@@ -70,7 +73,13 @@ namespace OSF::Audio
 			if (playingID == 0) {
 				REX::WARN("SoundService: Wwise rejected '{}' (event 0x{:08X} not in any loaded bank?)", a_dataRelPath, *eventID);
 			} else {
-				REX::DEBUG("SoundService: posted Wwise event '{}' (0x{:08X}) -> playingID {}", a_dataRelPath, *eventID, playingID);
+				// Replace any prior voice on this slot (cuts the prior Wwise voice once the AK stop is proven).
+				std::scoped_lock l{ lock };
+				ClearSlotLocked(a_slot);
+				if (a_slot != 0) {
+					slots[a_slot].wwisePlayingID = playingID;
+				}
+				REX::DEBUG("SoundService: posted Wwise event '{}' (0x{:08X}) -> playingID {} (slot {:#x})", a_dataRelPath, *eventID, playingID, a_slot);
 			}
 			return;
 		}
@@ -83,7 +92,13 @@ namespace OSF::Audio
 			// The backend opens this path itself (game-root-relative), prepares the bytes, and posts via pInMemory
 			const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
 			if (const auto playingID = Wwise::PostExternalFile(rel)) {
-				REX::INFO("SoundService: posted external '{}' -> playingID {} (engine-mixed)", a_dataRelPath, playingID);
+				// Replace any prior voice on this slot (cuts the prior Wwise voice once the AK stop is proven).
+				std::scoped_lock l{ lock };
+				ClearSlotLocked(a_slot);
+				if (a_slot != 0) {
+					slots[a_slot].wwisePlayingID = playingID;
+				}
+				REX::INFO("SoundService: posted external '{}' -> playingID {} (engine-mixed, slot {:#x})", a_dataRelPath, playingID, a_slot);
 				return;
 			}
 			REX::WARN("SoundService: Wwise external-source post rejected '{}' — falling back to the miniaudio device",
@@ -121,10 +136,48 @@ namespace OSF::Audio
 			ma_sound_uninit(&active->sound);
 			return;
 		}
-		REX::DEBUG("SoundService: playing '{}' at ({:.2f},{:.2f},{:.2f}) volume {:.2f}", a_dataRelPath, a_worldPos.x, a_worldPos.y, a_worldPos.z, a_volume);
+		REX::DEBUG("SoundService: playing '{}' at ({:.2f},{:.2f},{:.2f}) volume {:.2f} (slot {:#x})", a_dataRelPath, a_worldPos.x, a_worldPos.y, a_worldPos.z, a_volume, a_slot);
+
+		// Replace any prior sound on this slot (cuts the prior miniaudio sound AND any prior Wwise voice),
+		// then take ownership of the slot. The new sound is already started, so the channel never goes silent.
+		ClearSlotLocked(a_slot);
+		if (a_slot != 0) {
+			active->slot = a_slot;
+			slots[a_slot].miniSound = active.get();
+		}
 
 		sounds.push_back(std::move(active));
 		activeCount.store(static_cast<int>(sounds.size()), std::memory_order_relaxed);
+	}
+
+	void SoundService::ClearSlotLocked(std::uint64_t a_slot)
+	{
+		if (a_slot == 0) {
+			return;
+		}
+		const auto it = slots.find(a_slot);
+		if (it == slots.end()) {
+			return;
+		}
+		const SlotOwner owner = it->second;
+		slots.erase(it);
+
+		// Cut the prior Wwise voice (no-op until the AK stop entry is runtime-proven; harmless on a
+		// playingID the engine has already retired).
+		if (owner.wwisePlayingID != 0) {
+			Wwise::StopVoice(owner.wwisePlayingID);
+		}
+		// Cut the prior miniaudio sound and drop it from the live set.
+		if (owner.miniSound != nullptr) {
+			std::erase_if(sounds, [&](const std::unique_ptr<ActiveSound>& s) {
+				if (s.get() == owner.miniSound) {
+					ma_sound_uninit(&s->sound);
+					return true;
+				}
+				return false;
+			});
+			activeCount.store(static_cast<int>(sounds.size()), std::memory_order_relaxed);
+		}
 	}
 
 	void SoundService::Tick()
@@ -158,6 +211,12 @@ namespace OSF::Audio
 			const bool done = (oldEnoughForEnd && ma_sound_at_end(&s->sound)) ||
 			                  (!ma_sound_is_playing(&s->sound) && now - s->created > std::chrono::seconds(60));
 			if (done) {
+				// Release the voice slot this sound held so a later replace never touches the freed sound.
+				if (s->slot != 0) {
+					if (const auto it = slots.find(s->slot); it != slots.end() && it->second.miniSound == s.get()) {
+						slots.erase(it);
+					}
+				}
 				ma_sound_uninit(&s->sound);
 			}
 			return done;
@@ -176,6 +235,13 @@ namespace OSF::Audio
 	void SoundService::StopAll()
 	{
 		std::scoped_lock l{ lock };
+		// Cut any tracked Wwise voices too (no-op until the AK stop entry is proven), then drop all slots.
+		for (const auto& [key, owner] : slots) {
+			if (owner.wwisePlayingID != 0) {
+				Wwise::StopVoice(owner.wwisePlayingID);
+			}
+		}
+		slots.clear();
 		for (auto& s : sounds) {
 			ma_sound_uninit(&s->sound);
 		}

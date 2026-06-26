@@ -20,6 +20,16 @@ namespace OSF::Audio::Wwise
 	// Safe from any thread; no-op when !Available().
 	std::uint32_t PostEvent(std::uint32_t a_eventID);
 
+	// Stops a single posted voice by its AkPlayingID (the value PostEvent / PostExternalFile returned),
+	// for per-slot voice replacement. Safe from any thread; harmless on a playingID the engine already retired.
+	//
+	// PROOF-GATED: the AK stop entry point (AK::SoundEngine::StopPlayingID / ExecuteActionOnPlayingID) is not
+	// yet RE-proven on this build, so calling an unverified AK function with a playingID could corrupt the
+	// audio command queue. Until the rel_id is identified and proven in-game (see WwiseBackend.cpp
+	// kAkStopVoiceID + the OSF RE `wwise stopid` probe), this is a SAFE NO-OP. Returns true only if it
+	// actually issued a stop, so callers/telemetry can tell whether Wwise replace is live yet.
+	bool StopVoice(std::uint32_t a_playingID);
+
 	// --- external-source (.wem) path ---
 
 	// True for formats that ride the engine-mixed Wwise external-source path: a real .wem (posted as bytes) or a .wav/.mp3/.ogg/.flac (decoded to PCM and wrapped in a PCM .wem at runtime). 

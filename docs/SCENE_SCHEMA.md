@@ -259,8 +259,18 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
 | `action` | `{ "at", "type", "role", "hold", "duration", "set", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
-| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` | `spec` is a Data-relative file or `"event:<name>"` Wwise spec; `role` positions it (else player). |
+| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` | `spec` is a Data-relative file or `"event:<name>"` Wwise spec; `role` positions it (else player). One **voice channel per actor** — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
+
+#### Sound: one voice channel per actor
+
+A sound plays on the **voice channel of its `role`'s actor** (the player's channel when no role
+resolves). A channel plays **one sound at a time**: a new `sound`/`osf.voice.play` on an actor whose
+channel is busy **replaces** (cuts) that actor's prior clip, so a `repeat:"loop"` vocal cue never
+stacks over itself and a one-shot line cuts an ongoing loop. Different actors play independently. (The
+miniaudio fallback cuts the prior clip outright today; the engine-native Wwise path tracks the prior
+voice and cuts it once the AK stop entry is runtime-proven — until then a Wwise clip is tracked but
+not yet cut.)
 
 #### Camera `state` values
 

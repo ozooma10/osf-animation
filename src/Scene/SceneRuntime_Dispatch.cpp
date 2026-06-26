@@ -122,9 +122,15 @@ namespace OSF::Scene
 		} else if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 			pos = player->data.location;  // listener-centered fallback (full volume)
 		}
-		REX::INFO("SceneRuntime: scene {:#010x} sound '{}' (role '{}') at ({:.0f},{:.0f},{:.0f}) vol {:.2f}",
-			a_handle, spec, a_role, pos.x, pos.y, pos.z, a_volume);
-		Audio::SoundService::GetSingleton().Play(spec, pos, a_volume);
+		// Per-actor VOICE slot: a new sound on a channel replaces (cuts) the prior one so cues on the same
+		// actor never overlap. Key on the role actor's formID; with no actor, fall back to the scene handle so
+		// the scene still has a single channel. The high-bit tag keeps the actor and scene key spaces disjoint.
+		const std::uint64_t slot = actor
+			? ((1ull << 62) | static_cast<std::uint64_t>(actor->formID))
+			: ((2ull << 62) | static_cast<std::uint64_t>(static_cast<std::uint32_t>(a_handle)));
+		REX::INFO("SceneRuntime: scene {:#010x} sound '{}' (role '{}') at ({:.0f},{:.0f},{:.0f}) vol {:.2f} slot {:#x}",
+			a_handle, spec, a_role, pos.x, pos.y, pos.z, a_volume, slot);
+		Audio::SoundService::GetSingleton().Play(slot, spec, pos, a_volume);
 	}
 
 	void SceneRuntime::DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter)
