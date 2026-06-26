@@ -6,15 +6,11 @@ ScriptName OSFTest
 ; console to read its RefID, or type it). The player is always actors[0].
 ;
 ; Solo (player only) by animation PATH — a single clip that loops forever:
-;   cgf "OSFTest.Solo" "OSF\Animations\OSF_Test\TestSway01.glb"   play+loop a clip on the player
+;   cgf "OSFTest.Solo" "OSF\Animations\<YourPack>\<clip>.glb"   play+loop a clip on the player
 ;   cgf "OSFTest.StopPlay"             stop a solo OSF.Play clip on the player
 ;
-; Pair animations (baked-in OSF_Test GLBs — no animation pack needed):
-;   cgf "OSFTest.Pair" <npc>            player + npc, scene id "pair"
-;   cgf "OSFTest.PairId" <npc> "test.stages"   player + npc, any scene id
-;   cgf "OSFTest.PairSway" <npc>        scene id "pair.sway" (loops in lockstep)
-;   cgf "OSFTest.Demo" <npc>            scene id "author.scenes.demo" (graph w/ edges)
-;   cgf "OSFTest.Tags" <npc>            matchmake on tag "paired"
+; Pair a scene you authored (player + npc) by its scene id:
+;   cgf "OSFTest.PairId" <npc> "<your.scene.id>"   player + npc, any scene id
 ;
 ; Each Start* prints the scene HANDLE to the HUD. Use it to navigate:
 ;   cgf "OSFTest.Advance" <handle>      take the default advance edge
@@ -31,7 +27,7 @@ ScriptName OSFTest
 
 ; Solo: play one clip on the player by PATH. A single clip loops forever (the graph
 ; wraps its clock), so this is the simplest "solo scene that just loops" test — no JSON,
-; no scene id, no NPC. asFile is Data-relative, e.g. "OSF\Animations\OSF_Test\TestSway01.glb".
+; no scene id, no NPC. asFile is Data-relative, e.g. "OSF\Animations\<YourPack>\<clip>.glb".
 Function Solo(string file) global
     bool ok = OSF.Play(Game.GetPlayer(), file)
     Debug.Notification("OSF: Play '" + file + "' on player -> " + ok)
@@ -44,20 +40,8 @@ Function StopPlay() global
     Debug.Notification("OSF: StopPlay -> " + ok)
 EndFunction
 
-Function Pair(Actor npc) global
-    Start(npc, "pair")
-EndFunction
-
 Function PairId(Actor npc, string id) global
     Start(npc, id)
-EndFunction
-
-Function PairSway(Actor npc) global
-    Start(npc, "pair.sway")
-EndFunction
-
-Function Demo(Actor npc) global
-    Start(npc, "author.scenes.demo")
 EndFunction
 
 Function Start(Actor npc, string id) global
@@ -66,16 +50,6 @@ Function Start(Actor npc, string id) global
     a[1] = npc
     int h = OSF.StartScene(a, id)
     Debug.Notification("OSF: StartScene '" + id + "' -> handle " + h)
-EndFunction
-
-Function Tags(Actor npc) global
-    Actor[] a = new Actor[2]
-    a[0] = Game.GetPlayer()
-    a[1] = npc
-    string[] tags = new string[1]
-    tags[0] = "paired"
-    int h = OSF.StartSceneByTags(a, tags)
-    Debug.Notification("OSF: StartSceneByTags 'paired' -> handle " + h)
 EndFunction
 
 Function Advance(int handle) global

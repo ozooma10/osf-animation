@@ -369,6 +369,23 @@ A pack with no `"camera"` key defaults to **`scene_orbit`** on each scene's entr
 `"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
 node-level `camera` track on the entry node always wins over the pack default.
 
+**`thirdperson_hold` opening distance.** A `thirdperson_hold` entry accepts an optional numeric
+`distance` that seeds the opening third-person zoom (pull-back), so the camera doesn't start pinned
+on the player's back when the scene forces third person from first person:
+
+```json
+"camera": [ { "at": "enter", "state": "thirdperson_hold", "distance": 2.5 } ]
+```
+
+Omit it (or `0`) for the engine default — existing packs are unaffected. The value only sets the
+**opening** pose: the engine glides the camera out to it, and the player can scroll-zoom freely
+afterward. It is ignored by `freefly` / `vanity_orbit` / `scene_orbit` (those set their own framing).
+Units are the engine's third-person zoom axis; calibrate in-game.
+
+> **Status:** the `distance` seed is wired end-to-end but is a **hard no-op until the Starfield
+> third-person zoom offset is reverse-engineered** (`osf-re camera.state_machine`). Until then,
+> authoring `distance` parses and validates but does not move the camera.
+
 ---
 
 ## Policy
@@ -447,8 +464,8 @@ All are **recorded in the per-handle undo ledger and auto-reversed on any scene 
 | `osf.voice.play` | Play a sound spec positioned at the role. If that clip carries subtitle text in its pool, the line shows in the box (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
 
 > **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/fade in
-> reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — none of the
-> `*.osf.json` fixtures author a restore.
+> reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — you never
+> author a restore.
 
 ---
 
@@ -462,17 +479,3 @@ Surfaced via `OSF.GetSceneLoadErrors()` (`[error]`/`[warn]` prefixed):
 - An authored id containing **`#`** is a load error (reserved for synthetic desugar nodes).
 - A **duplicate id** within the one namespace → first-loaded-wins + a logged warning.
 
----
-
-## Worked examples (shipped fixtures)
-
-See `dist/OSF/` for runnable references:
-
-- `OSFTestPack.osf.json` — a `{ "schema": 1, "scenes": [...] }` multi-scene file: solo, paired,
-  multi-stage, timed, and loop-count **linear** scenes.
-- `demo.osf.json` — a branching graph with **inline-stage** nodes and branchable `advance` edges
-  (`finish` / `tease` self-loop).
-- `autotest.osf.json` — a graph whose nodes **`use`** other scenes (`solo` / `solo.cover`) with
-  `timerSec` + `timer`→`$end` auto-advance (the auto-end pattern).
-- `soundtest.osf.json` — node-level `action` (`osf.voice.play`) + `sound` track lanes, including a
-  `repeat:"loop"` numeric entry.
