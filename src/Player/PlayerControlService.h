@@ -19,6 +19,10 @@ namespace OSF::Player
 		// Released by the matching false call or OnStopAll. Idempotent.
 		void SetStandaloneLock(bool a_enable);
 
+		// Clears the persistent AI-driven flag WITHOUT touching the control lock. 
+		// The native free cam (tfc) sets AI-driven to freeze the player; toggling tfc back off doesn't reliably clear it for a pinned scene participant. T
+		void ClearAIDriven();
+
 	private:
 		PlayerControlService();
 

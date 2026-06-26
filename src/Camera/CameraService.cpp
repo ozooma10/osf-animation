@@ -1,6 +1,7 @@
 #include "Camera/CameraService.h"
 
 #include "Input/InputService.h"
+#include "Player/PlayerControlService.h"
 
 #include <algorithm>
 #include <chrono>
@@ -380,6 +381,9 @@ namespace OSF::Camera
 			PopFreeCamInputContext();  // release the free-cam input context (reverse of enter)
 			NativeToggleFreeCam();     // toggles off; the engine restores ITS prior camera (not OSF's hold)
 			REX::DEBUG("[Camera] native free camera exited");
+
+			// tfc set the player AI-driven (to freeze them while the camera flew) and toggling it off doesn't reliably clear it for a pinned scene participant. 
+			Player::PlayerControlService::GetSingleton().ClearAIDriven();
 
 			// Now restore OSF's own posture. A re-acquired override means another holder owns the camera —
 			// leave it. Otherwise hand back to the scene's third-person hold, or restore the saved baseline.

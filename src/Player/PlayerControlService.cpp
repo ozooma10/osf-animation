@@ -77,6 +77,12 @@ namespace OSF::Player
 		});
 	}
 
+	void PlayerControlService::ClearAIDriven()
+	{
+		// Decoupled from the control lock on purpose. Posts the same VM clear used on release/load.
+		SetPlayerAIDriven(false);
+	}
+
 	void PlayerControlService::SetStandaloneLock(bool a_enable)
 	{
 		SFSE::GetTaskInterface()->AddTask([this, a_enable]() {
