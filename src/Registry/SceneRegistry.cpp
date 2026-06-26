@@ -447,13 +447,18 @@ namespace OSF::Registry
 			}
 			// Optional per-gender item to equip for the scene (resolved at fire time). A bare string
 			// applies to any gender; an object keys it by male/female (with an optional `any` fallback).
-			// Only the form-ref SHAPE is checked here ("Plugin|0xLocal") — the form is resolved on the
-			// game thread at scene start, so an uninstalled plugin is a skipped equip, not a load error.
+			// equip is fully SOFT: it never blocks scene selection. The form is resolved on the game
+			// thread at scene start, so an uninstalled plugin is a skipped equip (warned), not a load
+			// error. A malformed ref shape ("Plugin|0xLocal" expected) is likewise dropped with a
+			// warning rather than rejecting the scene — so a typo'd or missing body mod still leaves
+			// the scene playable, just without the equip.
 			if (auto qit = a_role.find("equip"); qit != a_role.end()) {
 				auto checkRef = [&](const std::string& a_ref, const char* a_key) -> std::string {
 					if (!a_ref.empty() && a_ref.find('|') == std::string::npos) {
-						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': equip." + a_key +
-							" '" + a_ref + "' must be a form ref \"Plugin.esm|0xLocalID\"");
+						REX::WARN("SceneRegistry: scene '{}': role '{}': equip.{} '{}' is not a "
+							"\"Plugin.esm|0xLocalID\" form ref — equip dropped (scene still loads)",
+							a_sceneId, r.name, a_key, a_ref);
+						return std::string{};  // drop the bad ref; runtime treats empty as "no equip"
 					}
 					return a_ref;
 				};
