@@ -57,6 +57,13 @@ namespace OSF::Scene
 		std::int32_t Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn,
 			std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
+		// Instance-free variant: register the GLOBAL function a_script.a_fn(OSFTypes:SceneEvent),
+		// dispatched via DispatchStaticCall. For Papyrus script libraries (global functions, no
+		// `self`) that can't be passed as a receiver Object. Same filter/mask/token semantics as
+		// Register. Returns a generational token (0 = failed: empty script/fn).
+		std::int32_t RegisterStatic(std::string_view a_script, std::string_view a_fn,
+			std::int32_t a_sceneFilter, std::int32_t a_eventMask);
+
 		// Remove the registration for a_token. False if the token is stale/invalid.
 		bool Unregister(std::int32_t a_token);
 
@@ -76,11 +83,16 @@ namespace OSF::Scene
 		struct Entry
 		{
 			std::uint16_t                             generation = 0;  // 0 = empty slot
-			RE::BSTSmartPointer<RE::BSScript::Object> receiver;
+			RE::BSTSmartPointer<RE::BSScript::Object> receiver;        // instance target (DispatchMethodCall)
+			RE::BSFixedString                         scriptName;      // set => global target (DispatchStaticCall); receiver unused
 			RE::BSFixedString                         fn;
 			std::int32_t                              sceneFilter = 0;
 			std::int32_t                              eventMask = 0;
 		};
+
+		// Shared slot allocation + token mint for Register / RegisterStatic. Assumes _lock held.
+		std::int32_t AddEntry(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver,
+			RE::BSFixedString a_scriptName, std::string_view a_fn, std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
 		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen>=1 -> nonzero).
 		static std::int32_t MakeToken(std::uint16_t a_gen, std::uint16_t a_slot)

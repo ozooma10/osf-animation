@@ -84,16 +84,9 @@ namespace OSF::Scene
 		return singleton;
 	}
 
-	std::int32_t SceneEventRelay::Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn,
-		std::int32_t a_sceneFilter, std::int32_t a_eventMask)
+	std::int32_t SceneEventRelay::AddEntry(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver,
+		RE::BSFixedString a_scriptName, std::string_view a_fn, std::int32_t a_sceneFilter, std::int32_t a_eventMask)
 	{
-		if (!a_receiver.get() || a_fn.empty()) {
-			REX::WARN("SceneEventRelay::Register: null receiver or empty function name");
-			return 0;
-		}
-
-		std::lock_guard l{ _lock };
-
 		std::uint16_t slot = 0;
 		bool reused = false;
 		for (; slot < _slots.size(); slot++) {
@@ -104,7 +97,7 @@ namespace OSF::Scene
 		}
 		if (!reused) {
 			if (_slots.size() >= 0xFFFF) {
-				REX::ERROR("SceneEventRelay::Register: callback table full");
+				REX::ERROR("SceneEventRelay::AddEntry: callback table full");
 				return 0;
 			}
 			_slots.emplace_back();
@@ -118,14 +111,39 @@ namespace OSF::Scene
 		Entry& e = _slots[slot];
 		e.generation = gen;
 		e.receiver = a_receiver;
+		e.scriptName = a_scriptName;
 		e.fn = RE::BSFixedString(std::string(a_fn).c_str());
 		e.sceneFilter = a_sceneFilter;
 		e.eventMask = (a_eventMask == 0) ? Event::kAll : a_eventMask;
 
 		const std::int32_t token = MakeToken(gen, slot);
-		REX::INFO("SceneEventRelay: registered token {:#010x} -> {}(OSFTypes:SceneEvent) (mask {:#x}, scene {})",
-			token, e.fn.c_str(), e.eventMask, e.sceneFilter);
+		REX::INFO("SceneEventRelay: registered token {:#010x} -> {}{}(OSFTypes:SceneEvent) (mask {:#x}, scene {})",
+			token, a_scriptName.empty() ? "" : std::string(a_scriptName.c_str()) + ".", e.fn.c_str(), e.eventMask, e.sceneFilter);
 		return token;
+	}
+
+	std::int32_t SceneEventRelay::Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn,
+		std::int32_t a_sceneFilter, std::int32_t a_eventMask)
+	{
+		if (!a_receiver.get() || a_fn.empty()) {
+			REX::WARN("SceneEventRelay::Register: null receiver or empty function name");
+			return 0;
+		}
+
+		std::lock_guard l{ _lock };
+		return AddEntry(a_receiver, RE::BSFixedString(), a_fn, a_sceneFilter, a_eventMask);
+	}
+
+	std::int32_t SceneEventRelay::RegisterStatic(std::string_view a_script, std::string_view a_fn,
+		std::int32_t a_sceneFilter, std::int32_t a_eventMask)
+	{
+		if (a_script.empty() || a_fn.empty()) {
+			REX::WARN("SceneEventRelay::RegisterStatic: empty script or function name");
+			return 0;
+		}
+
+		std::lock_guard l{ _lock };
+		return AddEntry({}, RE::BSFixedString(std::string(a_script).c_str()), a_fn, a_sceneFilter, a_eventMask);
 	}
 
 	bool SceneEventRelay::Unregister(std::int32_t a_token)
@@ -149,11 +167,17 @@ namespace OSF::Scene
 	{
 		// Snapshot matching receivers under the lock; dispatch outside it (the VM call
 		// may re-enter us via a callback that (un)registers).
-		std::vector<std::pair<RE::BSTSmartPointer<RE::BSScript::Object>, RE::BSFixedString>> targets;
+		struct Target
+		{
+			RE::BSTSmartPointer<RE::BSScript::Object> receiver;    // null when scriptName is set
+			RE::BSFixedString                         scriptName;  // set => static (global) dispatch
+			RE::BSFixedString                         fn;
+		};
+		std::vector<Target> targets;
 		{
 			std::lock_guard l{ _lock };
 			for (const auto& e : _slots) {
-				if (e.generation == 0 || !e.receiver) {
+				if (e.generation == 0 || (!e.receiver && e.scriptName.empty())) {
 					continue;
 				}
 				if ((e.eventMask & a_event.event) == 0) {
@@ -162,7 +186,7 @@ namespace OSF::Scene
 				if (e.sceneFilter != 0 && e.sceneFilter != a_event.scene) {
 					continue;
 				}
-				targets.emplace_back(e.receiver, e.fn);
+				targets.emplace_back(e.receiver, e.scriptName, e.fn);
 			}
 		}
 		if (targets.empty()) {
@@ -180,8 +204,12 @@ namespace OSF::Scene
 		}
 
 		const RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> noCallback{};
-		for (auto& [receiver, fn] : targets) {
-			vm->DispatchMethodCall(receiver, fn, MakeArgs(payload), noCallback, 0);
+		for (auto& t : targets) {
+			if (!t.scriptName.empty()) {
+				vm->DispatchStaticCall(t.scriptName, t.fn, MakeArgs(payload), noCallback, 0);
+			} else {
+				vm->DispatchMethodCall(t.receiver, t.fn, MakeArgs(payload), noCallback, 0);
+			}
 		}
 	}
 

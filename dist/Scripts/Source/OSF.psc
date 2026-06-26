@@ -3,7 +3,7 @@ ScriptName OSF Native Hidden
 ; OSF Animation - native animation and scene framework for Starfield.
 
 ; Scene functions return an int handle (0 = failed to start, e.g. invalid id or actor binding; >0 = a live scene instance). 
-; The handle is used for scene-specific operations (navigation, callbacks, stop) and queries (id/node/participants). 
+; The handle is used for scene-specific operations (navigation, callbacks, stop) and queries (stage/edges/participants).
 ; A scene ends when its graph(s) finish or are stopped; the handle becomes invalid and queries return sentinels (e.g. "").
 
 
@@ -28,6 +28,11 @@ int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRole
 ; Returns a generational token (0 = failed).
 ; Function OnSceneEvent(OSFTypes:SceneEvent akEvent)   ; on akReceiver's script
 int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
+; Instance-free variant for Papyrus script LIBRARIES (global functions, with no `self` to pass as a receiver):
+; dispatches to the GLOBAL function asScript.asFn(OSFTypes:SceneEvent). Same scene-filter / event-mask /
+; token semantics as RegisterSceneCallback; release with UnregisterSceneCallback.
+; Function OnSceneEvent(OSFTypes:SceneEvent akEvent) global   ; on script asScript
+int Function RegisterSceneCallbackStatic(string asScript, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 
 

@@ -431,6 +431,18 @@ namespace OSF::Papyrus
 			return Scene::SceneEventRelay::GetSingleton().Register(a_receiver, a_fn.c_str(), a_scene, a_eventMask);
 		}
 
+		// Instance-free variant for Papyrus script libraries: dispatch to the GLOBAL function
+		// asScript.asFn(OSFTypes:SceneEvent). Same scene filter / event mask / token semantics as
+		// RegisterSceneCallback; use UnregisterSceneCallback to drop the token.
+		int32_t RegisterSceneCallbackStatic(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_script, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
+		{
+			if (a_script.empty()) {
+				REX::WARN("OSF.RegisterSceneCallbackStatic: empty script name");
+				return 0;
+			}
+			return Scene::SceneEventRelay::GetSingleton().RegisterStatic(a_script.c_str(), a_fn.c_str(), a_scene, a_eventMask);
+		}
+
 		bool UnregisterSceneCallback(OSFVM&, uint32_t, std::monostate, int32_t a_token)
 		{
 			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
@@ -499,6 +511,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallbackStatic", &RegisterSceneCallbackStatic, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "UnregisterSceneCallback", &UnregisterSceneCallback, true, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "AdvanceScene", &AdvanceScene, true, false);
