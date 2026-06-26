@@ -114,6 +114,14 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 [dist/Scripts/Source/OSFTypes.psc](../dist/Scripts/Source/OSFTypes.psc)). Dispatch is **asynchronous**
 — the payload is a snapshot struct (no dispatch-time getters).
 
+> **Participants at scene end:** the one exception to "no live getters" — the event's
+> `sceneHandle` stays *roster-queryable* through the `EVENT_SCENE_END` callback, so
+> `OSF.GetSceneParticipants(akEvent.sceneHandle)` returns who took part even though the scene has
+> ended (the slot is retired but not reclaimed until the next scene starts). `SCENE_END` carries no
+> `actorRef` itself, so this is how an end handler enumerates participants. Note `SCENE_END` fires on
+> *every* termination (normal finish, `Stop()`, save-load teardown) — gate on a completion cue if you
+> only want genuine finishes.
+
 ```papyrus
 ; aiScene 0 = any scene; aiEventMask is a bitmask of OSF.EVENT_*().
 int token = OSF.RegisterSceneCallback(Self, "OnSceneEvent", 0, OSF.EVENT_ALL())

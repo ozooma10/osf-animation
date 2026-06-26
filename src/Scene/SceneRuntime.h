@@ -127,8 +127,10 @@ namespace OSF::Scene
 		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only; else -1
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
-		// Participant roster of a live scene, in scene-internal (role-declaration) order.
-		// Empty if the handle is stale/invalid.
+		// Participant roster of a live — OR just-ended — scene, in scene-internal (role-declaration)
+		// order. The roster survives into the post-end SCENE_END callback (the handle stays
+		// roster-queryable until the slot is reclaimed), so an end handler can read who took part.
+		// Empty only if the handle is stale/invalid or its slot was already reclaimed.
 		std::vector<RE::Actor*> GetParticipants(std::int32_t a_scene);
 
 		// Drop all live scenes (load teardown). Invoked from GraphManager::StopAll via the
@@ -154,6 +156,12 @@ namespace OSF::Scene
 		struct Slot
 		{
 			std::uint16_t           generation = 0;  // 0 = empty
+			// Retired-but-not-reclaimed: ReleaseSlot keeps the roster + generation so the
+			// post-end ASYNC SCENE_END dispatch can still resolve GetParticipants(handle),
+			// while liveness queries (FindSlotForActor) treat the actors as free and every
+			// mutating/lifecycle path (Resolve, default) rejects the handle. MintSlot reclaims
+			// ended slots lazily (resetting them + bumping generation, which kills the handle).
+			bool                    ended = false;
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
@@ -193,15 +201,20 @@ namespace OSF::Scene
 			return (static_cast<std::int32_t>(a_gen) << 16) | a_slot;
 		}
 
-		// Caller holds _lock; null if the handle is stale/invalid.
-		Slot* Resolve(std::int32_t a_handle);
+		// Caller holds _lock; null if the handle is stale/invalid. An ENDED slot (post-SCENE_END,
+		// not yet reclaimed) is treated as invalid unless a_includeEnded — only the roster-read
+		// path (GetParticipants) passes true, so lifecycle/mutation never acts on an ended scene.
+		Slot* Resolve(std::int32_t a_handle, bool a_includeEnded = false);
 
 		// Allocate a slot (exclusivity-checked), record it, return the handle (0 = table full or an actor is already in a live scene). 
 		// Does NOT play or fire, the caller plays the animation + fires NODE_ENTER OUTSIDE _lock. Shared by every Start* entry point.
 		std::int32_t MintSlot(std::string_view a_id, std::string_view a_node, const std::vector<RE::Actor*>& a_participants);
 
-		// Free the slot a_handle names (no events). Rollback for a start whose playback failed
-		// after the handle was minted. Takes _lock itself.
+		// Retire the slot a_handle names (no events): mark it ended, keeping the generation +
+		// participant roster so the async SCENE_END dispatch can still read GetParticipants(handle),
+		// and freeing the actors for a new scene immediately. Reclaimed lazily by MintSlot. Used on
+		// scene end AND as rollback for a start whose playback failed after the handle was minted
+		// (there the empty roster just lingers harmlessly until reclaim). Takes _lock itself.
 		void ReleaseSlot(std::int32_t a_handle);
 
 		// Caller holds _lock. The live slot a_actor participates in (and its token via a_token if

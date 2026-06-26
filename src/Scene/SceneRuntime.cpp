@@ -110,7 +110,7 @@ namespace OSF::Scene
 			[](Input::Verb a_verb, const Input::Grant& a_grant) { DispatchInputVerb(a_verb, a_grant); });
 	}
 
-	SceneRuntime::Slot* SceneRuntime::Resolve(std::int32_t a_handle)
+	SceneRuntime::Slot* SceneRuntime::Resolve(std::int32_t a_handle, bool a_includeEnded)
 	{
 		if (a_handle == 0) {
 			return nullptr;
@@ -118,6 +118,11 @@ namespace OSF::Scene
 		const auto slot = static_cast<std::uint16_t>(a_handle & 0xFFFF);
 		const auto gen = static_cast<std::uint16_t>((a_handle >> 16) & 0xFFFF);
 		if (slot >= _slots.size() || _slots[slot].generation != gen) {
+			return nullptr;
+		}
+		// An ended slot still matches by generation (so its roster stays readable through the
+		// async SCENE_END dispatch) but is dead to everything except the explicit read path.
+		if (_slots[slot].ended && !a_includeEnded) {
 			return nullptr;
 		}
 		return &_slots[slot];
@@ -130,8 +135,8 @@ namespace OSF::Scene
 		}
 		for (std::uint16_t slot = 0; slot < _slots.size(); slot++) {
 			Slot& s = _slots[slot];
-			if (s.generation == 0) {
-				continue;
+			if (s.generation == 0 || s.ended) {
+				continue;  // empty, or retired (its actors are already free to re-scene)
 			}
 			if (std::find(s.participants.begin(), s.participants.end(), a_actor) != s.participants.end()) {
 				if (a_token) {
@@ -188,7 +193,10 @@ namespace OSF::Scene
 		std::uint16_t slot = 0;
 		bool reused = false;
 		for (; slot < _slots.size(); slot++) {
-			if (_slots[slot].generation == 0) {
+			// Reclaim empty slots and retired (ended) ones — the latter still hold a roster from
+			// their finished scene, which the reset below discards (and the new generation kills
+			// any lingering handle that was still reading it).
+			if (_slots[slot].generation == 0 || _slots[slot].ended) {
 				reused = true;
 				break;
 			}
@@ -207,6 +215,7 @@ namespace OSF::Scene
 		}
 
 		Slot& s = _slots[slot];
+		s = Slot{};  // clear any retained state from a reclaimed ended slot (roster/ledger/equip/grant)
 		s.generation = gen;
 		s.id = std::string(a_id);
 		s.node = std::string(a_node);
@@ -218,7 +227,17 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 		if (Slot* s = Resolve(a_handle)) {
+			// Retire, don't erase: keep the generation (handle still resolves) and the participant
+			// roster (the async SCENE_END dispatch reads it via GetParticipants), but drop every
+			// other field — the undo ledger already replayed before SCENE_END, so equipment/weapon/
+			// grant state is spent. The actors are freed for a new scene (FindSlotForActor skips
+			// ended). MintSlot reclaims this slot later, resetting it and bumping the generation.
+			const std::uint16_t gen = s->generation;
+			std::vector<RE::Actor*> roster = std::move(s->participants);
 			*s = Slot{};
+			s->generation = gen;
+			s->ended = true;
+			s->participants = std::move(roster);
 		}
 	}
 
@@ -246,7 +265,8 @@ namespace OSF::Scene
 	std::vector<RE::Actor*> SceneRuntime::GetParticipants(std::int32_t a_scene)
 	{
 		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_scene);
+		// includeEnded: the roster outlives the scene into its SCENE_END callback (see ReleaseSlot).
+		Slot* s = Resolve(a_scene, true);
 		return s ? s->participants : std::vector<RE::Actor*>{};
 	}
 

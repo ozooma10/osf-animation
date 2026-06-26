@@ -59,8 +59,10 @@ string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
 
 ; --- Participants -------------------------------------------------------------
 
-; The live scene's participants (by handle), in scene-internal (role-declaration) order.
-; Empty array if the handle is invalid/ended.
+; The scene's participants (by handle), in scene-internal (role-declaration) order.
+; Valid for a live scene AND for a just-ended one: the roster survives into the (async)
+; SCENE_END callback, so an end handler can call GetSceneParticipants(akEvent.sceneHandle)
+; to learn who took part. Empty array only if the handle is invalid or already reclaimed.
 Actor[] Function GetSceneParticipants(int aiScene) Global Native
 
 

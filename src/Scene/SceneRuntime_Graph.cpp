@@ -365,8 +365,8 @@ namespace OSF::Scene
 		Fire(a_handle, Event::kNodeExit, a_oldNode, "exit");
 		if (a_end) {
 			StopGraph(a_participants);  // cleanup after NODE_EXIT, before SCENE_END
-			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");
-			ReleaseSlot(a_handle);  // generation 0 → invalidates the handle
+			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");  // SCENE_END dispatch is async (later VM tick)
+			ReleaseSlot(a_handle);  // retires the handle: roster stays readable for the async SCENE_END handler, actors freed now
 			UI::HudMessage::Debug("OSF: scene ended");
 		} else {
 			PlayNodeAnim(a_participants, a_sceneId, a_newNode);
