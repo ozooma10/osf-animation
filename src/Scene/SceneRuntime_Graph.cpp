@@ -224,7 +224,9 @@ namespace OSF::Scene
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(handle);
-			if (s && s->node == oldNode) {
+			// Skip when a transition is already in flight (a concurrent advance / auto-end owns it) —
+			// a second transition here could orphan a graph and freeze the player.
+			if (s && s->node == oldNode && !s->transitioning) {
 				const auto* d = Registry::SceneRegistry::GetSingleton().Find(s->id);
 				const auto* n = d ? d->FindNode(s->node) : nullptr;
 				if (n) {
@@ -245,6 +247,7 @@ namespace OSF::Scene
 								s->node = edge->to;
 								newNode = edge->to;
 							}
+							s->transitioning = true;  // claim — released by ApplyTransition (non-end) or ReleaseSlot (end)
 							break;
 						}
 					}
@@ -371,10 +374,23 @@ namespace OSF::Scene
 			}
 			REX::INFO("SceneRuntime: scene {:#010x} role '{}' (actor {:08X}, gender '{}') equipping '{}'",
 				a_handle, role.name, actor->formID, gender.empty() ? "any" : gender, ref);
-			auto* object = Util::ResolveFormRef<RE::TESBoundObject>(ref);
-			if (!object) {
-				REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' did not resolve to a loaded form — skipped",
+			const auto composed = Util::ComposeFormID(ref);
+			if (!composed) {
+				REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' — plugin not loaded or ref malformed (no FormID composed); is the .esm active in the load order?",
 					a_handle, role.name, ref);
+				continue;
+			}
+			auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(*composed);
+			if (!object) {
+				if (auto* anyForm = RE::TESForm::LookupByID(*composed)) {
+					REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' resolved to FormID {:#010x} but it is a {} (formType {}), not an equippable bound object — skipped",
+						a_handle, role.name, ref, *composed,
+						anyForm->GetFormEditorID() ? anyForm->GetFormEditorID() : "?",
+						static_cast<std::uint32_t>(anyForm->GetFormType()));
+				} else {
+					REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' composed FormID {:#010x} but no such form is loaded — wrong local id? — skipped",
+						a_handle, role.name, ref, *composed);
+				}
 				continue;
 			}
 			auto record = svc.EquipItem(actor, object);
@@ -557,11 +573,15 @@ namespace OSF::Scene
 			if (!s) {
 				return false;
 			}
+			if (s->transitioning) {
+				return false;  // a transition is already in flight on this scene
+			}
 			oldNode = s->node;
 			s->node = std::string(a_node);
 			newNode = s->node;
 			sceneId = s->id;
 			participants = s->participants;
+			s->transitioning = true;  // claim — released by ApplyTransition (non-end)
 		}
 
 		ApplyTransition(a_scene, oldNode, newNode, /*a_end*/ false, sceneId, participants);
@@ -572,9 +592,20 @@ namespace OSF::Scene
 	{
 		// Snapshot keeps the handle valid through NODE_EXIT + SCENE_END: the exit cues resolve it to
 		// look up the node, and the handle stays read-only-valid during SCENE_END. Released right after.
+		// Claim the transition guard while snapshotting so an in-flight advance / auto-end (which would
+		// otherwise race this end and orphan a graph) is excluded — and so the Stop itself bails if one
+		// is already running (it owns the teardown; the scene stays stoppable once it settles).
 		SlotView view;
-		if (!SnapshotSlot(a_scene, view)) {
-			return false;
+		{
+			std::lock_guard l{ _lock };
+			Slot* s = Resolve(a_scene);
+			if (!s || s->transitioning) {
+				return false;
+			}
+			view.id = s->id;
+			view.node = s->node;
+			view.participants = s->participants;
+			s->transitioning = true;  // claim — released by ReleaseSlot (this is an end)
 		}
 
 		// Stop via the normal "end" transition (which trigers all the right events)
@@ -707,6 +738,10 @@ namespace OSF::Scene
 			if (!s) {
 				return false;
 			}
+			if (s->transitioning) {
+				REX::INFO("SceneRuntime: edge on scene {:#010x} ignored — a transition is already in flight", a_scene);
+				return false;  // a concurrent advance / auto-end owns the transition; don't start a second
+			}
 			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
 			const auto* node = def ? def->FindNode(s->node) : nullptr;
 			if (!node) {
@@ -725,6 +760,7 @@ namespace OSF::Scene
 				s->node = edge->to;
 				newNode = edge->to;
 			}
+			s->transitioning = true;  // claim — released by ApplyTransition (non-end) or ReleaseSlot (end)
 		}
 
 		ApplyTransition(a_scene, oldNode, newNode, end, sceneId, participants);
@@ -801,6 +837,13 @@ namespace OSF::Scene
 			if (!s) {
 				return false;  // standalone scene (e.g. PlaySequence) — GraphManager stops it
 			}
+			if (s->transitioning) {
+				// A manual advance / cue-trigger is mid-flight on this scene — it owns the teardown
+				// (its PlayNodeAnim replaces, or its end StopGraphs, the actors' current graph). Report
+				// handled so the GraphManager doesn't also StopSceneByPtr the finished stage.
+				REX::INFO("SceneRuntime: auto-end for scene {:#010x} skipped — a transition is already in flight", handle);
+				return true;
+			}
 
 			oldNode = s->node;
 			sceneId = s->id;
@@ -840,6 +883,7 @@ namespace OSF::Scene
 					end = true;
 				}
 			}
+			s->transitioning = true;  // claim — released by ApplyTransition (non-end) or ReleaseSlot (end)
 		}
 
 		const char* reasonStr = a_reason == Animation::SceneEndReason::kTimer ? "timer"

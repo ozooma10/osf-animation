@@ -101,7 +101,6 @@ namespace OSF::Registry
 		bool         hold = false;       // osf.fade.out: end faded (opt out of the cleanup fade-in)
 		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
 		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
-		std::string  say;    // osf.voice.play: optional spoken text -> shown in the subtitle box
 		std::string  item;   // osf.equipment.equip: form ref "<plugin>|0xLOCAL" of the item to equip
 	};
 
@@ -147,33 +146,6 @@ namespace OSF::Registry
 		std::string  state;   // camera state id ("thirdperson_hold" / "freefly" / "vanity_orbit")
 	};
 
-	// Where a `voice` track entry fires — same time model as the other lanes.
-	enum class VoicePos : std::uint8_t
-	{
-		kEnter,
-		kExit,
-		kFraction,
-		kEnd
-	};
-
-	// One `voice` track entry: a spoken line = optional audio + optional subtitle text, both attributed
-	// to / positioned at `role`'s actor (the player when the role resolves nothing). `audio` plays
-	// through the SoundService on that actor's voice channel exactly like a `sound` entry (a '$'-prefixed
-	// spec is a SoundRegistry pool query resolved at fire time); `text` shows in the subtitle box
-	// (UI::Subtitle) for `duration` seconds. At least one of the two is present (enforced at parse).
-	// This is the data-driven "voice"/dialogue path — see SceneRuntime::PlayVoice.
-	struct VoiceEntry
-	{
-		VoicePos     pos = VoicePos::kEnter;
-		float        fraction = 0.0f;
-		bool         everyLoop = false;
-		std::string  audio;   // optional sound spec (file path, "event:<name>", or "$pool" query)
-		std::string  text;    // optional subtitle text shown on the speaker
-		std::string  role;    // speaker: positions the audio + names the subtitle (else the player)
-		float        volume = 1.0f;
-		float        duration = 0.0f;  // subtitle hold seconds; 0 = the Subtitle default
-	};
-
 	// One actor's clip for one stage (one per role in StageDef::clips, role order).
 	struct StageClip
 	{
@@ -195,7 +167,6 @@ namespace OSF::Registry
 		std::vector<ActionEntry> actions;
 		std::vector<SoundEntry>  sounds;
 		std::vector<CameraEntry> cameras;
-		std::vector<VoiceEntry>  voices;
 	};
 
 	struct SceneNode
@@ -213,7 +184,6 @@ namespace OSF::Registry
 		std::vector<ActionEntry> actions;       // `action` track
 		std::vector<SoundEntry>  sounds;        // `sound` track
 		std::vector<CameraEntry> cameras;       // `camera` track
-		std::vector<VoiceEntry>  voices;        // `voice` track (spoken line: audio + subtitle)
 	};
 
 	// Item(s) to equip onto a role's bound actor at scene start, keyed by the actor's gender, and

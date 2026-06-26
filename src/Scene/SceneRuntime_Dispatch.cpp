@@ -32,12 +32,11 @@ namespace OSF::Scene
 		}
 
 		// "exit" track entries run before the structural NODE_EXIT; within the tick they run in
-		// the fixed cross-lane order action -> (camera) -> sound -> voice -> cue.
+		// the fixed cross-lane order action -> (camera) -> sound -> cue.
 		if (a_event == Event::kNodeExit) {
 			DispatchLifecycleActions(a_handle, a_node, false);
 			DispatchLifecycleCamera(a_handle, a_node, false);
 			DispatchLifecycleSounds(a_handle, a_node, false);
-			DispatchLifecycleVoices(a_handle, a_node, false);
 			DispatchLifecycleCues(a_handle, a_node, false);
 		}
 
@@ -135,6 +134,15 @@ namespace OSF::Scene
 		REX::INFO("SceneRuntime: scene {:#010x} sound '{}' (role '{}') at ({:.0f},{:.0f},{:.0f}) vol {:.2f} slot {:#x}",
 			a_handle, spec, a_role, pos.x, pos.y, pos.z, a_volume, slot);
 		Audio::SoundService::GetSingleton().Play(slot, spec, pos, a_volume);
+
+		// Voice/subtitle: if this clip carries text (authored alongside it in its sound pool), show it
+		// in the box, attributed to the speaking actor. The "voice" feature is folded into normal sound
+		// playback — any clip that plays renders its text. Keyed by the FINAL resolved spec, so a $pool
+		// pick shows the picked clip's line and a direct path shows its own.
+		const std::string text = Registry::SoundRegistry::GetSingleton().TextForClip(spec);
+		if (!text.empty()) {
+			UI::Subtitle::Show(actor, text, 0.0f);
+		}
 	}
 
 	void SceneRuntime::DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter)
@@ -152,43 +160,6 @@ namespace OSF::Scene
 		for (const auto& snd : node->sounds) {
 			if (snd.pos == wantPos) {
 				PlaySound(a_handle, snd.spec, snd.role, snd.volume);
-			}
-		}
-	}
-
-	void SceneRuntime::PlayVoice(std::int32_t a_handle, std::string_view a_audio, std::string_view a_text,
-		std::string_view a_role, float a_volume, float a_durationSecs)
-	{
-		// Audio half: reuse PlaySound so a voice line rides the exact same machinery as a `sound` entry —
-		// $pool resolution, {gender} substitution, listener positioning, and the per-actor voice channel
-		// (a new line cuts that actor's prior clip). Skipped for a text-only (silent) line.
-		if (!a_audio.empty()) {
-			PlaySound(a_handle, a_audio, a_role, a_volume);
-		}
-		// Subtitle half: show the spoken text in the box, attributed to the role's actor (the speaker).
-		// Resolve the actor only when there is text — a sound-only line needs no name.
-		if (!a_text.empty()) {
-			RE::Actor* speaker = GetSingleton().ResolveRoleActor(a_handle, a_role);
-			REX::INFO("SceneRuntime: scene {:#010x} voice (role '{}') text \"{}\"", a_handle, a_role, a_text);
-			UI::Subtitle::Show(speaker, a_text, a_durationSecs);
-		}
-	}
-
-	void SceneRuntime::DispatchLifecycleVoices(std::int32_t a_handle, std::string_view a_node, bool a_enter)
-	{
-		const std::string id = GetSingleton().GetId(a_handle);  // "" for pack/files -> no voices
-		if (id.empty()) {
-			return;
-		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
-		const auto* node = def ? def->FindNode(a_node) : nullptr;
-		if (!node) {
-			return;
-		}
-		const auto wantPos = a_enter ? Registry::VoicePos::kEnter : Registry::VoicePos::kExit;
-		for (const auto& v : node->voices) {
-			if (v.pos == wantPos) {
-				PlayVoice(a_handle, v.audio, v.text, v.role, v.volume, v.duration);
 			}
 		}
 	}

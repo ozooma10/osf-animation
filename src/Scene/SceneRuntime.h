@@ -258,18 +258,9 @@ namespace OSF::Scene
 		static void DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
 		// Play one content-neutral sound spec, positioned at a_role's actor (or the player when
-		// the role resolves nothing). Shared by the sound lane + osf.voice.play.
+		// the role resolves nothing). Shared by the sound lane + osf.voice.play. If the resolved clip
+		// carries subtitle text (SoundRegistry), it is shown in the box, attributed to that actor.
 		static void PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role, float a_volume);
-
-		// Play a node's enter (a_enter) or exit voice-track entries. Numeric/end-timed voices fire via
-		// OnTimedMarks instead. Call OUTSIDE _lock. No-op for a non-def scene.
-		static void DispatchLifecycleVoices(std::int32_t a_handle, std::string_view a_node, bool a_enter);
-
-		// Speak one line: optional a_audio through the SoundService (positioned at a_role) AND/OR
-		// optional a_text in the subtitle box (attributed to a_role's actor) for a_durationSecs. The
-		// data-driven "voice" path, shared by the voice lane + osf.voice.play.
-		static void PlayVoice(std::int32_t a_handle, std::string_view a_audio, std::string_view a_text,
-			std::string_view a_role, float a_volume, float a_durationSecs);
 
 		// Engage a node's enter (a_enter) or exit camera-track entries. Numeric/end-timed camera
 		// entries engage via OnTimedMarks instead. Call OUTSIDE _lock. No-op for a non-def scene.

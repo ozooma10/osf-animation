@@ -1,0 +1,17 @@
+{
+  // A voice entry with neither `audio` nor `text` is a hard parse error: the scene is rejected
+  // fail-soft and the error recorded (Osf_voice_requires_audio_or_text).
+  "schema": 1,
+  "id": "osf.u.voicebad",
+  "name": "Voice missing audio+text",
+  "roles": [ { "name": "lead" } ],
+  "entry": "main",
+  "nodes": [
+    {
+      "id": "main",
+      "stages": [ { "loops": 0, "clips": ["OSF/Anim/a.glb"] } ],
+      "loop": { "mode": "hold" },
+      "voice": [ { "at": "enter", "role": "lead", "duration": 1.0 } ]
+    }
+  ]
+}
