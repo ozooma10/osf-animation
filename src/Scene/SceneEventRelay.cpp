@@ -235,6 +235,9 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 		_slots.clear();
-		_nextGen = 1;
+		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a token
+		// minted before a save-load can never validate against a slot reused after the load (resetting
+		// to 1 would let a stale pre-load (slot, generation) pair alias a fresh post-load entry and drop
+		// a live registration). It already wraps past 0 in AddEntry, so never resetting stays safe.
 	}
 }

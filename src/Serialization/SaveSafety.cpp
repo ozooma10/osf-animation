@@ -2,6 +2,7 @@
 
 #include "Animation/GraphManager.h"
 #include "Papyrus/OSFScript.h"
+#include "Scene/SceneEventRelay.h"
 #include "Util/Hooking.h"
 
 #include <array>
@@ -31,6 +32,18 @@ namespace OSF::Serialization::SaveSafety
 			       a_opType == OpType::kLoadNamedFile;
 		}
 
+		// Ops that reset the Papyrus VM (and so free every live script Object): the world-replacing
+		// loads PLUS quit-to-menu / quit-to-desktop. Native code caching script-Object references must
+		// drop them at kBegin (VM still alive) before they dangle. Quit-to-menu also matters because it
+		// is the gateway to a New Game, which fires no SaveLoadEvent of its own.
+		bool IsVMEndingOp(RE::SaveLoadEvent::OpType a_opType)
+		{
+			using OpType = RE::SaveLoadEvent::OpType;
+			return IsWorldReplacingLoadOp(a_opType) ||
+			       a_opType == OpType::kExitSaveToMainMenu ||
+			       a_opType == OpType::kExitSaveToDesktop;
+		}
+
 		class SaveLoadSink : public RE::BSTEventSink<RE::SaveLoadEvent>
 		{
 		public:
@@ -43,8 +56,20 @@ namespace OSF::Serialization::SaveSafety
 			RE::BSEventNotifyControl ProcessEvent(const RE::SaveLoadEvent& a_event,
 				RE::BSTEventSource<RE::SaveLoadEvent>*) override
 			{
-				if (a_event.status == RE::SaveLoadEvent::Status::kBegin && IsWorldReplacingLoadOp(a_event.opType)) {
-					Animation::GraphManager::GetSingleton().StopAll("save-load begin");
+				if (a_event.status == RE::SaveLoadEvent::Status::kBegin) {
+					// Drop the relay's cached Papyrus Object receivers while the VM is still alive. kBegin
+					// fires on the main thread strictly before the VM teardown, so this is the only safe
+					// window: afterwards those BSTSmartPointer<Object> receivers dangle and crash when the
+					// slot is next dropped (UnregisterSceneCallback) or dispatched. Covers loads AND
+					// quit-to-menu/desktop — both reset the VM.
+					if (IsVMEndingOp(a_event.opType)) {
+						Scene::SceneEventRelay::GetSingleton().Clear();
+					}
+					// StopAll stays scoped to world-replacing loads: it releases the player-control lock /
+					// AI-driven flag, which must not be perturbed mid-save on a quit op.
+					if (IsWorldReplacingLoadOp(a_event.opType)) {
+						Animation::GraphManager::GetSingleton().StopAll("save-load begin");
+					}
 				}
 				return RE::BSEventNotifyControl::kContinue;
 			}
