@@ -34,18 +34,18 @@ namespace OSF::Scene
 			constexpr float    kMin = 0.1f;
 			switch (a_verb) {
 			case Input::Verb::kAdvance: {
-				// Debounce manual advance. A press starts a node teardown+rebuild whose ~0.4s crossfade plays out over the following frames; 
-				// without a floor, mashing space restarts that blend every press and stutter-skips through stages
-				// NODE_ENTER fires synchronously inside Advance so it can't gate re-entry., a short time floor on the INPUT path does.
+				// Debounce manual advance. A press starts a node teardown+rebuild; without a
+				// meaningful floor, mashing space can stutter-skip through several stages before
+				// the player has actually seen the newly entered one.
 				using clock = std::chrono::steady_clock;
-				constexpr auto      kAdvanceCooldown = std::chrono::milliseconds(250);
+				constexpr auto      kAdvanceCooldown = std::chrono::seconds(3);
 				static std::int32_t s_lastAdvanceHandle = 0;  // game-thread only
 				static clock::time_point s_lastAdvance{};
 				const auto               now = clock::now();
 				if (a_grant.handle == s_lastAdvanceHandle && now - s_lastAdvance < kAdvanceCooldown) {
-					REX::INFO("SceneRuntime: Advance scene {:#010x} debounced (within {}ms floor)",
+					REX::INFO("SceneRuntime: Advance scene {:#010x} debounced (within {}s cooldown)",
 						a_grant.handle,
-						std::chrono::duration_cast<std::chrono::milliseconds>(kAdvanceCooldown).count());
+						std::chrono::duration_cast<std::chrono::seconds>(kAdvanceCooldown).count());
 					break;
 				}
 				// Arm the floor only on a real transition; a no-op press leaves the next genuine advance free to fire immediately.
