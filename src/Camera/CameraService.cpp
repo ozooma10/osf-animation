@@ -316,13 +316,38 @@ namespace OSF::Camera
 
 	void CameraService::NativeFreeCamExit()
 	{
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		// Snapshot what we must hand the camera back TO before exiting freecam. ToggleFreeCameraMode's
+		// off-toggle restores the engine's notion of the "prior camera", but that doesn't match OSF's
+		// scene third-person HOLD (a bounce we drive in Tick, not a native camera state) — so without an
+		// explicit handback the player is stranded in a loose camera after MMB exits. We resolve the
+		// target here (game-thread state read of holdArmed) and apply it in the SAME task, AFTER the
+		// engine toggle-off, so the ordering is deterministic and Tick's bounce can't race us.
+		const bool handBackToHold = holdArmed.load(std::memory_order_relaxed);
+		SFSE::GetTaskInterface()->AddTask([this, handBackToHold]() {
 			if (!nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
 				return;  // not on — nothing to toggle
 			}
 			PopFreeCamInputContext();  // release the free-cam input context (reverse of enter)
-			NativeToggleFreeCam();     // toggles off; the engine restores the prior camera
+			NativeToggleFreeCam();     // toggles off; the engine restores ITS prior camera (not OSF's hold)
 			REX::INFO("Native free camera exited");
+
+			// Now restore OSF's own posture. A re-acquired override means another holder owns the camera —
+			// leave it. Otherwise hand back to the scene's third-person hold, or restore the saved baseline.
+			if (suppressBounce.load(std::memory_order_relaxed)) {
+				return;
+			}
+			auto* camera = RE::PlayerCamera::GetSingleton();
+			if (!camera) {
+				return;
+			}
+			if (handBackToHold) {
+				if (!camera->IsInThirdPerson()) {
+					camera->ForceThirdPerson();
+					REX::INFO("Player camera handed back to third-person hold after native free cam exit");
+				}
+				return;
+			}
+			RestoreBaseline();  // no scene hold active — restore the POV captured before the override
 		});
 	}
 
@@ -440,12 +465,10 @@ namespace OSF::Camera
 			Input::InputService::GetSingleton().SetMouseCapture(false);  // stop driving + reading mouse
 		}
 		if (nativeFreeCamActive.load(std::memory_order_relaxed)) {
-			{
-				std::scoped_lock l{ lock };
-				baselineCaptured = false;  // ToggleFreeCameraMode restores the camera itself; drop our baseline
-			}
+			// NativeFreeCamExit toggles the engine free cam off AND performs OSF's own handback
+			// (third-person hold, or baseline restore) in-order on the game thread — see there.
 			NativeFreeCamExit();
-			return;  // engine owns the restore — skip our baseline/handback
+			return;
 		}
 		if (holdArmed.load(std::memory_order_relaxed)) {
 			// A third-person hold is still active — hand the camera back to it instead of restoring.
