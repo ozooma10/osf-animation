@@ -31,6 +31,32 @@ namespace OSF::Equipment
 			}
 			return nullptr;
 		}
+
+		// Whether a_object is present in the actor's inventory list, and whether it's currently worn —
+		// in one inventory pass. Deliberately does NOT call RE::Actor::IsObjectEquipped: that entry is
+		// an unbound REL::ID(0) in this CommonLibSF (candidate AddrLib 106991, never wired), so calling
+		// it aborts with "Failed to find offset for Address Library ID". item.IsEquipped() is the same
+		// equipped flag Hide() reads, so this rides the already-proven strip/inventory path instead.
+		struct ItemPresence
+		{
+			bool present = false;
+			bool equipped = false;
+		};
+		ItemPresence FindItem(RE::Actor* a_actor, RE::TESBoundObject* a_object)
+		{
+			ItemPresence found;
+			const auto guard = a_actor->inventoryList.LockRead();
+			if (const RE::BGSInventoryList* list = *guard) {
+				for (const auto& item : list->data) {
+					if (item.object == a_object) {
+						found.present = true;
+						found.equipped = item.IsEquipped();
+						break;
+					}
+				}
+			}
+			return found;
+		}
 	}
 
 	EquipmentService& EquipmentService::GetSingleton()
@@ -163,9 +189,11 @@ namespace OSF::Equipment
 
 		// Whether the actor already owns / already wears this exact form decides what we have to undo:
 		// only add a copy if absent (remove it on cleanup), only equip if not already worn (unequip on
-		// cleanup) — so we never disturb a copy/equip-state the actor brought into the scene.
-		const bool hadItem = LiveInstance(a_actor, a_object) != nullptr;
-		const bool wasEquipped = a_actor->IsObjectEquipped(a_object);
+		// cleanup) — so we never disturb a copy/equip-state the actor brought into the scene. Both
+		// answers come from one inventory pass (NOT RE::Actor::IsObjectEquipped — unbound ID, see FindItem).
+		const ItemPresence existing = FindItem(a_actor, a_object);
+		const bool hadItem = existing.present;
+		const bool wasEquipped = existing.equipped;
 		REX::INFO("Actor {:X}: equipping item {:X} (hadItem={}, wasEquipped={})",
 			a_actor->formID, a_object->GetFormID(), hadItem, wasEquipped);
 
