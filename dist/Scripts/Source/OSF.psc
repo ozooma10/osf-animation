@@ -150,6 +150,18 @@ int Function EVENT_ALL() Global
     return 65535
 EndFunction
 
+; SceneOptions tri-state helpers (StripMode / LockPlayerMode / FadeMode). Pass these instead of
+; bare 0/1 so call sites read clearly and nobody mistakes 0 ("force off") for "leave default".
+int Function INHERIT() Global
+    return -1
+EndFunction
+int Function OFF() Global
+    return 0
+EndFunction
+int Function ON() Global
+    return 1
+EndFunction
+
 ; Result codes (decode OSFTypes:SceneEvent.result).
 int Function RESULT_OK() Global
     return 0

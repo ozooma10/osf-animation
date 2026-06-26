@@ -59,11 +59,32 @@ the ones that apply to it):
 |---|---|---|---|
 | `Anchor` | `ObjectReference` | StartScene, StartSceneByTags(Query) | world-anchor at a ref (furniture/bed/marker) instead of co-locating at `actors[0]` |
 | `HeadingDeg` | `Float` | (with `Anchor`) | anchor facing in degrees; `< 0` = the ref's own heading |
-| `Stage` | `Int` | StartScene (by-id) | start stage of a linear scene (ignored by graph scenes) |
-| `Speed` / `BlendIn` | `Float` | StartSceneFiles | playback speed / blend-in seconds |
+| `StripMode` | `Int` | StartScene, StartSceneByTags(Query) | override the scene's strip-actors policy: `OSF.INHERIT()`/`OFF()`/`ON()` |
+| `LockPlayerMode` | `Int` | StartScene, StartSceneByTags(Query) | override the player-input lock: `INHERIT`/`OFF`/`ON` |
+| `FadeMode` | `Int` | StartScene, StartSceneByTags(Query) | override the start fade-to-black curtain: `INHERIT`/`OFF`/`ON` |
+| `LoopScale` | `Float` | StartScene, StartSceneByTags(Query) | multiply every loop-driven stage's loop count (`1.0` = unchanged); see below |
+| `Stage` | `Int` | — | **not wired** for graph scenes in this build; use `SetSceneStageForActor()` after start |
+| `Speed` / `BlendIn` | `Float` | — | `StartSceneFiles` only; no `StartSceneFiles` native is bound in this build, so currently **no-ops** |
 
 `SceneOptions` holds only scalar/ref fields — **Papyrus structs can't have array members**, so named-role
-binding stays its own function, `StartSceneRoles`.
+binding stays its own function, `StartSceneRoles` (which therefore takes no `SceneOptions` — overrides
+don't apply to the roles path yet).
+
+**Per-start overrides (`StripMode` / `LockPlayerMode` / `FadeMode`).** These are tri-state: write them with
+the `OSF.INHERIT()` (= -1, leave the scene's pack default), `OSF.OFF()` (= 0, force off), and `OSF.ON()`
+(= 1, force on) helpers — **not** bare `0`/`1`, because `0` means *force off*, not "leave default". An unset
+field (default `-1`) inherits the scene's authored value. Disabling strip is undo-safe (nothing recorded →
+nothing restored).
+
+**`LoopScale`.** Multiplies the loop count of every *loop-driven* stage (`new = max(1, round(loops × scale))`),
+so a terminal-driven `GlobalVariable` can lengthen/shorten scenes. It affects only stages that already loop a
+fixed number of times; "loop until advance" (hold) and timer-only stages are untouched, so on a mixed graph
+the felt effect is uneven. Sanitized: `≤ 0` / NaN → `1.0` (no scaling); clamped to a ceiling so a runaway
+value can't mint a stage that never auto-advances. Re-applied on every node entry (never compounded).
+
+> **Capability note:** the DLL and a consumer's compiled scripts ship independently. A consumer compiled
+> against a newer `OSFTypes` but running an older DLL will have these fields silently ignored (the old native
+> doesn't read them). Gate on `OSF.GetVersion()` if you need to know the override fields are honored.
 
 ```papyrus
 ; World-anchored at a ref (the old StartSceneByTagsAt / StartSceneAt):

@@ -4,6 +4,7 @@
 #include "Input/InputTypes.h"            // Grant stored per-handle for the input channel
 
 #include <functional>
+#include <optional>
 
 // Tracks live scenes in a generational int-handle table and fires lifecycle events
 // (NODE_ENTER / NODE_EXIT / SCENE_END) through the SceneEventRelay. Each live scene is an id,
@@ -45,6 +46,15 @@ namespace OSF::Scene
 			float        heading = 0.0f;  // radians
 		};
 
+		// Per-start policy overrides a consumer supplies via OSFTypes:SceneOptions (StripMode/LockPlayerMode/FadeMode/LoopScale). 
+		struct StartOverrides
+		{
+			std::optional<bool> strip;
+			std::optional<bool> lockPlayer;
+			std::optional<bool> fade;
+			float               loopScale = 1.0f;  // multiplies loop-driven (loops>0) stages only, floored
+		};
+
 		// Wire this runtime up to the GraphManager.
 		void RegisterWithGraphManager();
 
@@ -66,7 +76,7 @@ namespace OSF::Scene
 		// and is stored on the slot so node transitions reuse it. Returns the handle (0 = failed:
 		// table full / an actor is already in a scene).
 		std::int32_t Start(std::string_view a_id, std::string_view a_entryNode, const std::vector<RE::Actor*>& a_participants,
-			const AnchorOverride& a_anchor = {});
+			const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
 
 		// Move to a different node: fire NODE_EXIT (old node) then NODE_ENTER (new node).
 		// False if the handle is invalid.
@@ -81,13 +91,14 @@ namespace OSF::Scene
 		// --- Navigation (def-backed scenes) ---
 		// Start a scene from its registered definition: enter at the def's `entry` node.
 		// Returns the handle (0 = no such scene def). Navigation works on these.
-		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants);
+		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
+			const StartOverrides& a_over = {});
 
 		// Like StartFromDef, but world-anchored at (a_anchorPos, a_anchorHeading in RADIANS)
 		// instead of at participant[0] (StartSceneAt). The anchor is stored on the slot so every
 		// node transition reuses it.
 		std::int32_t StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
-			RE::NiPoint3 a_anchorPos, float a_anchorHeading);
+			RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over = {});
 
 		// Start an ad-hoc files scene (what StartSceneFiles is built on): a single synthetic "main"
 		// node that holds, with the actors co-located and synced by the GraphManager. 0 = bad args,
@@ -175,6 +186,7 @@ namespace OSF::Scene
 			std::string             node;
 			std::vector<RE::Actor*> participants;
 			AnchorOverride          anchor;  // StartSceneAt world anchor (unset = anchor at participant[0])
+			float                   loopScale = 1.0f;  // per-start LoopScale, re-read per node in PlayNodeAnim (1.0 = no scaling)
 			// Ordered list of reversible mechanisms this scene engaged (at most one entry per
 			// Mechanism — record is idempotent). Replayed in reverse on termination.
 			std::vector<Mechanism>  ledger;

@@ -54,7 +54,7 @@ namespace OSF::Papyrus
 		// A struct parameter arrives as this wrapper; the `= None` default makes it optional.
 		using SceneOptionsArg = std::optional<RE::BSScript::structure_wrapper<"OSFTypes", "SceneOptions">>;
 
-		// SceneOption defaults. Keep in sync with OSF.psc
+		// SceneOption defaults. Keep in sync with OSFTypes.psc SceneOptions.
 		struct SceneOpts
 		{
 			RE::TESObjectREFR* anchor = nullptr;
@@ -62,6 +62,10 @@ namespace OSF::Papyrus
 			std::int32_t       stage = 0;
 			float              speed = 1.0f;
 			float              blendIn = 0.4f;
+			std::int32_t       stripMode = -1;       // tri-state override: -1 inherit, 0 off, 1 on
+			std::int32_t       lockPlayerMode = -1;  // tri-state override
+			std::int32_t       fadeMode = -1;        // tri-state override
+			float              loopScale = 1.0f;     // multiply loop-driven stage loop counts (1.0 = none)
 		};
 
 		// Read an OSF:SceneOptions: pull the raw struct proxy and map member name -> slot by ITERATING varNameIndexMap, rather than trusting structure_wrapper::find / varNameIndexMap.find
@@ -102,10 +106,22 @@ namespace OSF::Papyrus
 			if (const auto* v = member("BlendIn"); v && v->is<float>()) {
 				out.blendIn = RE::BSScript::get<float>(*v);
 			}
+			if (const auto* v = member("StripMode"); v && v->is<std::int32_t>()) {
+				out.stripMode = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (const auto* v = member("LockPlayerMode"); v && v->is<std::int32_t>()) {
+				out.lockPlayerMode = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (const auto* v = member("FadeMode"); v && v->is<std::int32_t>()) {
+				out.fadeMode = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (const auto* v = member("LoopScale"); v && v->is<float>()) {
+				out.loopScale = RE::BSScript::get<float>(*v);
+			}
 			return out;
 		}
 
-		// A SceneRuntime world-anchor from resolved options (unset when no Anchor). 
+		// A SceneRuntime world-anchor from resolved options (unset when no Anchor).
 		// Heading < 0 uses the ref's own facing; otherwise the explicit degrees, converted to radians.
 		Scene::SceneRuntime::AnchorOverride MakeAnchor(const SceneOpts& a_opts)
 		{
@@ -118,15 +134,46 @@ namespace OSF::Papyrus
 			return anchor;
 		}
 
+		// Upper bound for LoopScale
+		constexpr float kLoopScaleMax = 20.0f;
+
+		// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool> (1 = on, 0 = off, anything else incl. -1 = inherit the scene's pack default). 
+		// LoopScale is sanitized: <=0 or NaN -> 1.0 (no scaling); inf / overshoot -> clamped to kLoopScaleMax.
+		Scene::SceneRuntime::StartOverrides MakeOverrides(const SceneOpts& a_opts)
+		{
+			Scene::SceneRuntime::StartOverrides over{};
+			const auto triState = [](std::int32_t a_v) -> std::optional<bool> {
+				if (a_v == 1) {
+					return true;
+				}
+				if (a_v == 0) {
+					return false;
+				}
+				return std::nullopt;  // -1 and any out-of-range value = inherit
+			};
+			over.strip = triState(a_opts.stripMode);
+			over.lockPlayer = triState(a_opts.lockPlayerMode);
+			over.fade = triState(a_opts.fadeMode);
+			float ls = a_opts.loopScale;
+			if (!(ls > 0.0f)) {  // false for <=0 AND for NaN -> no-op
+				ls = 1.0f;
+			} else if (ls > kLoopScaleMax) {
+				ls = kLoopScaleMax;
+			}
+			over.loopScale = ls;
+			return over;
+		}
+
 		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the
 		// slot->actor order, so we never re-bind here). Binds by declaration order = the reordered actors.
-		int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors)
+		int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors,
+			const Scene::SceneRuntime::StartOverrides& a_over)
 		{
 			std::vector<RE::Actor*> ordered(a_pick.order.size());
 			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
 				ordered[slot] = a_actors[a_pick.order[slot]];
 			}
-			return Scene::SceneRuntime::GetSingleton().StartFromDef(a_pick.id, ordered);
+			return Scene::SceneRuntime::GetSingleton().StartFromDef(a_pick.id, ordered, a_over);
 		}
 
 		bool Play(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_file, RE::BSFixedString a_animId)
@@ -299,12 +346,14 @@ namespace OSF::Papyrus
 				REX::WARN("OSF.StartScene: no scene '{}'", sid);
 				return 0;
 			}
-			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
+			const auto opts = ReadSceneOptions(a_opts);
+			const auto anchor = MakeAnchor(opts);
+			const auto over = MakeOverrides(opts);
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			if (anchor.set) {
-				return rt.StartFromDefAt(sid, a_actors, anchor.pos, anchor.heading);  // anchored at the ref
+				return rt.StartFromDefAt(sid, a_actors, anchor.pos, anchor.heading, over);  // anchored at the ref
 			}
-			return rt.StartFromDef(sid, a_actors);
+			return rt.StartFromDef(sid, a_actors, over);
 		}
 
 		// Start a scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
@@ -329,7 +378,8 @@ namespace OSF::Papyrus
 		// Shared body of the StartSceneByTags* natives: validate the actor list, matchmake a_query across both registries (priority tier + weighted-random),
 		// and start the picked candidate with its matchmade binding. a_logTag is the native name for the warn/info lines.
 		// Returns  the scene handle (0 = no actors / null actor / no match / start failed).
-		int32_t StartMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query, const char* a_logTag)
+		int32_t StartMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
+			const Scene::SceneRuntime::StartOverrides& a_over, const char* a_logTag)
 		{
 			if (a_actors.empty()) {
 				REX::WARN("{}: no actors given", a_logTag);
@@ -346,7 +396,7 @@ namespace OSF::Papyrus
 				REX::WARN("{}: no matching animation found for the given tags/actors", a_logTag);
 				return 0;
 			}
-			const int32_t handle = StartCandidate(*pick, a_actors);
+			const int32_t handle = StartCandidate(*pick, a_actors, a_over);
 			if (handle) {
 				REX::INFO("{}: playing '{}' handle {:#010x}", a_logTag, pick->id, handle);
 			} else {
@@ -357,19 +407,20 @@ namespace OSF::Papyrus
 
 		// Anchored counterpart of StartCandidate: start the matchmade pick world-anchored at (a_pos,
 		// a_heading) instead of co-locating the actors at actor[0], so it can sit on a bed/furniture/marker.
-		int32_t StartCandidateAt(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors, const RE::NiPoint3& a_pos, float a_heading)
+		int32_t StartCandidateAt(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors, const RE::NiPoint3& a_pos, float a_heading,
+			const Scene::SceneRuntime::StartOverrides& a_over)
 		{
 			std::vector<RE::Actor*> ordered(a_pick.order.size());
 			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
 				ordered[slot] = a_actors[a_pick.order[slot]];
 			}
-			return Scene::SceneRuntime::GetSingleton().StartFromDefAt(a_pick.id, ordered, a_pos, a_heading);
+			return Scene::SceneRuntime::GetSingleton().StartFromDefAt(a_pick.id, ordered, a_pos, a_heading, a_over);
 		}
 
 		// Anchored counterpart of StartMatched: matchmake a_query, then start the pick anchored at (a_pos, a_heading).
 		// Shared body of the StartSceneByTags*At natives.
 		int32_t StartMatchedAt(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
-			const RE::NiPoint3& a_pos, float a_heading, const char* a_logTag)
+			const RE::NiPoint3& a_pos, float a_heading, const Scene::SceneRuntime::StartOverrides& a_over, const char* a_logTag)
 		{
 			if (a_actors.empty()) {
 				REX::WARN("{}: no actors given", a_logTag);
@@ -386,7 +437,7 @@ namespace OSF::Papyrus
 				REX::WARN("{}: no matching animation found for the given tags/actors", a_logTag);
 				return 0;
 			}
-			const int32_t handle = StartCandidateAt(*pick, a_actors, a_pos, a_heading);
+			const int32_t handle = StartCandidateAt(*pick, a_actors, a_pos, a_heading, a_over);
 			if (handle) {
 				REX::INFO("{}: playing '{}' handle {:#010x} (anchored)", a_logTag, pick->id, handle);
 			}
@@ -400,11 +451,13 @@ namespace OSF::Papyrus
 		{
 			Matchmaking::TagQuery q;
 			q.allOf = ToTags(a_tags);
-			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
+			const auto opts = ReadSceneOptions(a_opts);
+			const auto anchor = MakeAnchor(opts);
+			const auto over = MakeOverrides(opts);
 			if (anchor.set) {
-				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, "OSF.StartSceneByTags");
+				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, over, "OSF.StartSceneByTags");
 			}
-			return StartMatched(a_actors, q, "OSF.StartSceneByTags");
+			return StartMatched(a_actors, q, over, "OSF.StartSceneByTags");
 		}
 
 		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise identical (filter-aware matchmaking across both registries, priority + weighted pick).
@@ -414,11 +467,13 @@ namespace OSF::Papyrus
 			std::vector<RE::BSFixedString> a_noneOf, SceneOptionsArg a_opts)
 		{
 			Matchmaking::TagQuery q{ ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) };
-			const auto anchor = MakeAnchor(ReadSceneOptions(a_opts));
+			const auto opts = ReadSceneOptions(a_opts);
+			const auto anchor = MakeAnchor(opts);
+			const auto over = MakeOverrides(opts);
 			if (anchor.set) {
-				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, "OSF.StartSceneByTagsQuery");
+				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, over, "OSF.StartSceneByTagsQuery");
 			}
-			return StartMatched(a_actors, q, "OSF.StartSceneByTagsQuery");
+			return StartMatched(a_actors, q, over, "OSF.StartSceneByTagsQuery");
 		}
 
 		// --- Scene-event callbacks (OSFTypes:SceneEvent payload) --------------------

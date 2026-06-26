@@ -5,9 +5,17 @@ ScriptName OSFTypes
 Struct SceneOptions
     ObjectReference Anchor    ; world-anchor the scene at this ref (furniture/bed/marker) instead of co-locating at akActors[0]. Ignored by StartSceneFiles.
     float HeadingDeg = -1.0   ; anchor heading in DEGREES; < 0 = use Anchor's own heading
-    int Stage = 0             ; StartScene: start stage for a linear scene (ignored by graph scenes)
-    float Speed = 1.0         ; StartSceneFiles: playback speed
-    float BlendIn = 0.4       ; StartSceneFiles: blend-in seconds
+    int Stage = 0             ; NOT YET WIRED for graph scenes -- use SetSceneStageForActor() after start
+    float Speed = 1.0         ; StartSceneFiles only (no StartSceneFiles native is bound in this build -> currently a no-op)
+    float BlendIn = 0.4       ; StartSceneFiles only (see Speed) -> currently a no-op
+
+    ; --- Per-start overrides -------------------------------------------------
+    ; Tri-state ints; write them with the OSF.INHERIT()/OFF()/ON() helpers, NOT bare 0/1
+    ; (0 means force-OFF, NOT "leave default"). Default -1 = inherit the scene's pack value.
+    int StripMode = -1        ; override the scene's strip-actors policy: INHERIT/OFF/ON
+    int LockPlayerMode = -1   ; override player-input lock while the scene plays: INHERIT/OFF/ON
+    int FadeMode = -1          ; override the start fade-to-black curtain: INHERIT/OFF/ON
+    float LoopScale = 1.0     ; multiply every loop-driven stage's loop count (1.0 = unchanged). Affects only stages with a loop count (loops > 0);
 EndStruct
 
 ; The scene-event payload struct, delivered to a RegisterSceneCallback receiver. The native relay

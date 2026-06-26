@@ -270,13 +270,17 @@ namespace OSF::Scene
 		// StartSceneAt: if the owning scene carries an explicit world anchor, every node plays
 		// anchored there instead of at participant[0]. Read it fresh from the slot so all the
 		// transition paths (Advance/Navigate/auto-end/trigger) reuse it with no per-site plumbing.
+		float loopScale = 1.0f;
 		{
 			std::lock_guard l{ GetSingleton()._lock };
 			std::int32_t tok = 0;
-			if (Slot* s = GetSingleton().FindSlotForActor(a_participants.front(), &tok); s && s->anchor.set) {
-				plan->anchorExplicit = true;
-				plan->anchorPos = s->anchor.pos;
-				plan->anchorHeading = s->anchor.heading;
+			if (Slot* s = GetSingleton().FindSlotForActor(a_participants.front(), &tok); s) {
+				if (s->anchor.set) {
+					plan->anchorExplicit = true;
+					plan->anchorPos = s->anchor.pos;
+					plan->anchorHeading = s->anchor.heading;
+				}
+				loopScale = s->loopScale;  // per-start LoopScale (1.0 = none)
 			}
 		}
 		// Stamp the node's loop policy + timerSec onto the plan so the GraphManager auto-ends
@@ -284,6 +288,17 @@ namespace OSF::Scene
 		// the matching auto-edge). A `hold` node leaves the stage un-timed and holds for a
 		// manual AdvanceScene.
 		ApplyNodePolicy(*plan, *node);
+		// Per-start loop scaling (OSFTypes:SceneOptions.LoopScale). MUST run on every node entry:
+		// Scales the whole plan (so multi-stage nodes scale every loop-driven stage, not just ApplyNodePolicy's terminal one)
+		// leaves loops<=0 (hold / timer-only) stages untouched so an infinite-hold node is never silently converted to finite. 
+		// Floors at 1 so a loop-driven stage never drops to 0.
+		if (loopScale != 1.0f) {
+			for (auto& st : plan->stages) {
+				if (st.loops > 0) {
+					st.loops = std::max<std::int32_t>(1, static_cast<std::int32_t>(st.loops * loopScale + 0.5f));
+				}
+			}
+		}
 		ApplyNodeMarks(*plan, *node);  // node's timed cues + actions -> the played stage (Scene fires them)
 		// Re-playing on actors already in a scene tears the old node's scene first, so a
 		// node transition is just a fresh PlaySceneStaged. Its bool result is the node's play
@@ -495,7 +510,7 @@ namespace OSF::Scene
 	}
 
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
-		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor)
+		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor, const StartOverrides& a_over)
 	{
 		// Filter enforcement (every def start path funnels through here): a bound actor must satisfy
 		// its role's filters. Binding is role-declaration order (participants[i] <-> roles[i]); validate
@@ -516,12 +531,15 @@ namespace OSF::Scene
 		if (!handle) {
 			return 0;
 		}
-		// Store the explicit anchor on the slot BEFORE the first play so PlayNodeAnim (which
-		// reads it back from the slot) and every later node transition reuse it (StartSceneAt).
-		if (a_anchor.set) {
+		// Store the explicit anchor + per-start loop scale on the slot BEFORE the first play, so PlayNodeAnim and every later node transition reuse them.
+		//  loopScale must live on the slot because the plan is rebuilt fresh per node, so it re-applies on each entry rather than compounding.
+		if (a_anchor.set || a_over.loopScale != 1.0f) {
 			std::lock_guard l{ _lock };
 			if (Slot* s = Resolve(handle)) {
-				s->anchor = a_anchor;
+				if (a_anchor.set) {
+					s->anchor = a_anchor;
+				}
+				s->loopScale = a_over.loopScale;
 			}
 		}
 		// If the entry node can't play (dangling `use`, plan build fail, clip load fail), don't mint a
@@ -533,7 +551,7 @@ namespace OSF::Scene
 			ReleaseSlot(handle);
 			return 0;
 		}
-		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key).
+		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key), then let a per-start override win (StripMode/LockPlayerMode/FadeMode);
 		bool lockPlayer = true;
 		bool stripActors = true;
 		bool fade = false;
@@ -542,6 +560,9 @@ namespace OSF::Scene
 			stripActors = def->stripActors;
 			fade = def->fade;
 		}
+		lockPlayer = a_over.lockPlayer.value_or(lockPlayer);
+		stripActors = a_over.strip.value_or(stripActors);
+		fade = a_over.fade.value_or(fade);
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
 		StripDefaultActors(handle, stripActors, a_participants);  // hide every participant's apparel by default
@@ -620,7 +641,8 @@ namespace OSF::Scene
 		return Stop(handle);  // re-resolves under its own lock; fires NODE_EXIT + SCENE_END
 	}
 
-	std::int32_t SceneRuntime::StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants)
+	std::int32_t SceneRuntime::StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
+		const StartOverrides& a_over)
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
@@ -628,18 +650,18 @@ namespace OSF::Scene
 			return 0;
 		}
 		// Start mints the handle, records the instance, and fires NODE_ENTER for the entry.
-		return Start(def->id, def->entry, a_participants);
+		return Start(def->id, def->entry, a_participants, AnchorOverride{}, a_over);
 	}
 
 	std::int32_t SceneRuntime::StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
-		RE::NiPoint3 a_anchorPos, float a_anchorHeading)
+		RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over)
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
 			REX::WARN("SceneRuntime::StartFromDefAt: no scene def '{}'", a_sceneId);
 			return 0;
 		}
-		return Start(def->id, def->entry, a_participants, AnchorOverride{ true, a_anchorPos, a_anchorHeading });
+		return Start(def->id, def->entry, a_participants, AnchorOverride{ true, a_anchorPos, a_anchorHeading }, a_over);
 	}
 
 	std::int32_t SceneRuntime::StartFromFiles(const std::vector<RE::Actor*>& a_participants,
