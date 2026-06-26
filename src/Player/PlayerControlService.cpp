@@ -101,6 +101,13 @@ namespace OSF::Player
 				}
 				standaloneActive = false;
 				RestoreEnabled();
+				// Clear any persistent AI-driven flag at the player-unlock point. The lock itself never
+				// sets it, BUT the native free cam (MMB -> ToggleFreeCameraMode / `tfc`) does — to freeze
+				// the player while the camera flies — and toggling tfc back off doesn't reliably clear it
+				// for a pinned scene participant. Without this, that flag survives SCENE_END (it's only
+				// otherwise cleared on a game load via OnStopAll), leaving the player unlocked at OSF's
+				// level but still AI-driven (= unable to move). Idempotent: a no-op when nothing set it.
+				SetPlayerAIDriven(false);
 				REX::INFO("Player standalone control lock released");
 			}
 		});
