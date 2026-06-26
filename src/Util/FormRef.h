@@ -69,10 +69,67 @@ namespace OSF::Util
 
 	// Resolve a form ref to T*, or nullptr (malformed / unloaded plugin / not-found / wrong type).
 	// LookupByID<T> already returns null for not-found OR wrong-type. Callers that need a precise error message should resolve via ComposeFormID + LookupByID themselves.
+	// WARNING: T must be a CONCRETE leaf form type (one with its own FORMTYPE, e.g. BGSKeyword/TESRace).
+	// Do NOT pass an abstract base like RE::TESBoundObject — LookupByID<T>/As<T> test EXACT FormType
+	// equality (GetFormType() == T::FORMTYPE), and an abstract base has no concrete FormType of its own,
+	// so the cast NEVER matches and the call always returns null. For bound objects use ResolveBoundObject.
 	template <class T>
 	T* ResolveFormRef(const std::string& a_ref)
 	{
 		const auto id = ComposeFormID(a_ref);
 		return id ? RE::TESForm::LookupByID<T>(*id) : nullptr;
+	}
+
+	// True if a_type is a TESBoundObject-derived form type, i.e. a TESForm* of this type may be
+	// safely static_cast to TESBoundObject* (which lives at offset 0). TESBoundObject is an abstract
+	// base spanning many form types, so there is no single-FormType test for it — this is the set.
+	inline bool IsBoundObjectType(RE::FormType a_type)
+	{
+		using FT = RE::FormType;
+		switch (a_type) {
+		case FT::kACTI:
+		case FT::kTACT:
+		case FT::kARMO:
+		case FT::kBOOK:
+		case FT::kCONT:
+		case FT::kDOOR:
+		case FT::kINGR:
+		case FT::kLIGH:
+		case FT::kMISC:
+		case FT::kSTAT:
+		case FT::kSCOL:
+		case FT::kPKIN:
+		case FT::kMSTT:
+		case FT::kGRAS:
+		case FT::kFLOR:
+		case FT::kFURN:
+		case FT::kWEAP:
+		case FT::kAMMO:
+		case FT::kKEYM:
+		case FT::kALCH:
+		case FT::kIDLM:
+		case FT::kNOTE:
+		case FT::kPROJ:
+		case FT::kHAZD:
+		case FT::kBNDS:
+		case FT::kSLGM:
+		case FT::kTERM:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	// Resolve a "<plugin>|0xLOCAL" ref to a TESBoundObject* (equippable / inventory / placeable item),
+	// or nullptr. Looks up the raw form then verifies it is a bound-object type before the cast — the
+	// only correct way, since LookupByID<TESBoundObject> can never succeed (see ResolveFormRef warning).
+	inline RE::TESBoundObject* ResolveBoundObject(const std::string& a_ref)
+	{
+		const auto id = ComposeFormID(a_ref);
+		if (!id) {
+			return nullptr;
+		}
+		auto* form = RE::TESForm::LookupByID(*id);
+		return (form && IsBoundObjectType(form->GetFormType())) ? static_cast<RE::TESBoundObject*>(form) : nullptr;
 	}
 }

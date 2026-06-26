@@ -1,8 +1,8 @@
 #pragma once
 
 // Dependency-free builder for a Wwise 2021.1 PCM .wem (AkCodecID kPCM=1) from raw interleaved
-// 16-bit PCM. Kept free of CommonLibSF/miniaudio/RE on purpose so the byte layout is unit-testable
-// offline (no game, no WwiseConsole) by the osf-tests target. WwiseBackend.cpp wraps the bytes into a
+// 16-bit PCM. Kept free of CommonLibSF/miniaudio/RE on purpose so the byte layout is verifiable
+// offline (no game, no WwiseConsole). WwiseBackend.cpp wraps the bytes into a
 // 16-byte-aligned AK in-memory buffer for the actual external-source post.
 //
 // The format is RE-proven (module systems.audio_wwise: "external-source media MUST be a Wwise-encoded

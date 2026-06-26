@@ -371,9 +371,10 @@ namespace OSF::Scene
 					a_handle, role.name, ref);
 				continue;
 			}
-			auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(*composed);
+			auto* anyForm = RE::TESForm::LookupByID(*composed);
+			auto* object = (anyForm && Util::IsBoundObjectType(anyForm->GetFormType())) ? static_cast<RE::TESBoundObject*>(anyForm) : nullptr;
 			if (!object) {
-				if (auto* anyForm = RE::TESForm::LookupByID(*composed)) {
+				if (anyForm) {
 					REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' resolved to FormID {:#010x} but it is a {} (formType {}), not an equippable bound object — skipped",
 						a_handle, role.name, ref, *composed,
 						anyForm->GetFormEditorID() ? anyForm->GetFormEditorID() : "?",

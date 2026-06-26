@@ -1,0 +1,24 @@
+{
+  // Sound pools with subtitle text on clips — both authoring forms (Sound_clip_text test).
+  "schema": 1,
+  "pools": [
+    {
+      "name": "obj-form",
+      "tags": ["test", "objform"],
+      // object form: clip path -> spoken text ("" = that clip plays with no subtitle)
+      "clips": {
+        "Sound/OSF/Test/a.wav": "Line A spoken.",
+        "Sound/OSF/Test/silent.wav": ""
+      }
+    },
+    {
+      "name": "arr-form",
+      "tags": ["test", "arrform"],
+      // array form: `text` is optional per entry
+      "clips": [
+        { "spec": "Sound/OSF/Test/b.wav", "text": "Line B spoken.", "weight": 3 },
+        "Sound/OSF/Test/c.wav"
+      ]
+    }
+  ]
+}

@@ -345,7 +345,7 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.equip — attempting (role '{}', item '{}')",
 				a_handle, a_action.role, a_action.item);
 			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
-				if (auto* object = Util::ResolveFormRef<RE::TESBoundObject>(a_action.item)) {
+				if (auto* object = Util::ResolveBoundObject(a_action.item)) {
 					auto record = Equipment::EquipmentService::GetSingleton().EquipItem(actor, object);
 					if (record.object) {
 						REX::INFO("SceneRuntime: scene {:#010x} osf.equipment.equip (role '{}', item '{}')",
