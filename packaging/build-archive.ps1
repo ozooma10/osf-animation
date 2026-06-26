@@ -3,7 +3,7 @@
 .SYNOPSIS
   Assemble the OSF Animation FOMOD release archive from build/ (DLL) + dist/ (scripts + content).
   Filters out test/dev files from Core; the test harness + demo content go to the optional
-  Examples component. See docs/PACKAGING.md.
+  Examples component.
 .EXAMPLE
   packaging\build-archive.ps1 -Version 0.1.0-beta
   # -> packaging\out\OSF Animation v0.1.0-beta.zip

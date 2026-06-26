@@ -20,7 +20,7 @@ Key Features:
   per-native reference in [dist/Scripts/Source/OSF.psc](dist/Scripts/Source/OSF.psc).
 
 - **Pack authors:** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
-  ship advanced animation scenes with JSON + GLB, no papyrus or scripting required; full schema in [docs/PACK_SCHEMA.md](docs/PACK_SCHEMA.md).
+  ship advanced animation scenes with JSON + GLB, no papyrus or scripting required; full schema in [docs/SCENE_SCHEMA.md](docs/SCENE_SCHEMA.md).
   
 
 ## Requirements

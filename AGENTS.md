@@ -24,7 +24,7 @@ voice/sound, camera hold);
 
 ## Architecture
 
-Each entry: **system** (`path`) — role. RE detail lives in **docs/RE.md**.
+Each entry: **system** (`path`) — role.
 
 ### Layer A - core playback
 - **GLTFImport** (`src/Serialization/GLTFImport.*`) — fastgltf 0.9 → ozz skeleton + runtime anim;

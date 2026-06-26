@@ -15,7 +15,7 @@
 // them on any termination. It is therefore author-driven: only sheathe a role you know is
 // armed, exactly as you'd only osf.equipment.hide an actor you mean to strip. A state-aware
 // restore (skip re-drawing an actor that had nothing drawn) needs the actorState weapon-drawn
-// bit, which isn't verified on this build yet — tracked in docs/RE.md as a future refinement.
+// bit, which isn't verified on this build yet — a future refinement.
 
 namespace OSF::Weapon
 {

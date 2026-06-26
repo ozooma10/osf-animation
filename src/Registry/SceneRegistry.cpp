@@ -561,7 +561,7 @@ namespace OSF::Registry
 		}
 
 		// ============================================================================
-		// Scene parser — the one "scene" concept (RFC-unified-animation-schema.md).
+		// Scene parser — the one "scene" concept.
 		// ============================================================================
 
 		// Reject authored ids that collide with the synthetic desugar namespace.
