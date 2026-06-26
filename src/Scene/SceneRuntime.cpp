@@ -243,6 +243,13 @@ namespace OSF::Scene
 		return s ? s->node : std::string{};
 	}
 
+	std::vector<RE::Actor*> SceneRuntime::GetParticipants(std::int32_t a_scene)
+	{
+		std::lock_guard l{ _lock };
+		Slot* s = Resolve(a_scene);
+		return s ? s->participants : std::vector<RE::Actor*>{};
+	}
+
 	std::int32_t SceneRuntime::GetStage(std::int32_t a_scene)
 	{
 		SlotView view;

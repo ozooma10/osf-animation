@@ -471,6 +471,13 @@ namespace OSF::Papyrus
 		{
 			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeLabel(a_scene, a_index).c_str());
 		}
+
+		// Participant roster of the live scene named by the handle, in scene-internal
+		// (role-declaration) order. Empty array if the handle is invalid/ended.
+		std::vector<RE::Actor*> GetSceneParticipants(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().GetParticipants(a_scene);
+		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
@@ -499,6 +506,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeCount", &GetSceneEdgeCount, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeId", &GetSceneEdgeId, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneEdgeLabel", &GetSceneEdgeLabel, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneParticipants", &GetSceneParticipants, true, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsPlaying", &IsPlaying, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Play", &Play, true, false);

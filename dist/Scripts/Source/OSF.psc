@@ -52,6 +52,13 @@ string Function GetSceneEdgeId(int aiScene, int aiIndex) Global Native
 string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
 
 
+; --- Participants -------------------------------------------------------------
+
+; The live scene's participants (by handle), in scene-internal (role-declaration) order.
+; Empty array if the handle is invalid/ended.
+Actor[] Function GetSceneParticipants(int aiScene) Global Native
+
+
 ; --- Primitives ---------------------------------------------------------------
 
 ; True while akActor is in an animation or scene

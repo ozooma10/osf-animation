@@ -127,6 +127,10 @@ namespace OSF::Scene
 		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only; else -1
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
+		// Participant roster of a live scene, in scene-internal (role-declaration) order.
+		// Empty if the handle is stale/invalid.
+		std::vector<RE::Actor*> GetParticipants(std::int32_t a_scene);
+
 		// Drop all live scenes (load teardown). Invoked from GraphManager::StopAll via the
 		// registered clear handler, so a stashed handle reads as dead after a load.
 		void Clear();
