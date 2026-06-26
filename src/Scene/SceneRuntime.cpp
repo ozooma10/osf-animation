@@ -24,7 +24,7 @@ namespace OSF::Scene
 		{
 			auto& rt = SceneRuntime::GetSingleton();
 			if (rt.GetNode(a_grant.handle).empty()) {
-				REX::INFO("SceneRuntime: input verb {} dropped — scene {:#010x} already ended", static_cast<int>(a_verb), a_grant.handle);
+				REX::DEBUG("[Scene] input verb {} dropped — scene {:#010x} already ended", static_cast<int>(a_verb), a_grant.handle);
 				return;  // handle dead (scene ended / load) — do nothing
 			}
 			auto&              gm = Animation::GraphManager::GetSingleton();
@@ -43,7 +43,7 @@ namespace OSF::Scene
 				static clock::time_point s_lastAdvance{};
 				const auto               now = clock::now();
 				if (a_grant.handle == s_lastAdvanceHandle && now - s_lastAdvance < kAdvanceCooldown) {
-					REX::INFO("SceneRuntime: Advance scene {:#010x} debounced (within {}s cooldown)",
+					REX::DEBUG("[Scene] Advance scene {:#010x} debounced (within {}s cooldown)",
 						a_grant.handle,
 						std::chrono::duration_cast<std::chrono::seconds>(kAdvanceCooldown).count());
 					break;
@@ -168,12 +168,12 @@ namespace OSF::Scene
 		// Reject a null actor or the same actor passed twice in one call - both would break the one-actor-one-scene model the rest of the runtime relies on.
 		for (std::size_t i = 0; i < a_participants.size(); i++) {
 			if (!a_participants[i]) {
-				REX::WARN("SceneRuntime: null actor in start '{}'", a_id);
+				REX::ERROR("[Scene] null actor in start '{}'", a_id);
 				return 0;
 			}
 			for (std::size_t j = i + 1; j < a_participants.size(); j++) {
 				if (a_participants[i] == a_participants[j]) {
-					REX::WARN("SceneRuntime: actor {:X} passed twice in start '{}'", a_participants[i]->formID, a_id);
+					REX::ERROR("[Scene] actor {:X} passed twice in start '{}'", a_participants[i]->formID, a_id);
 					return 0;
 				}
 			}
@@ -184,7 +184,7 @@ namespace OSF::Scene
 		for (auto* a : a_participants) {
 			std::int32_t busy = 0;
 			if (FindSlotForActor(a, &busy)) {
-				REX::WARN("SceneRuntime: actor {:X} already in live scene {:#010x} — refusing start '{}' (Stop it first)",
+				REX::WARN("[Scene] actor {:X} already in live scene {:#010x} — refusing start '{}' (Stop it first)",
 					a->formID, busy, a_id);
 				return 0;
 			}
@@ -203,7 +203,7 @@ namespace OSF::Scene
 		}
 		if (!reused) {
 			if (_slots.size() >= 0xFFFF) {
-				REX::ERROR("SceneRuntime: handle table full");
+				REX::ERROR("[Scene] handle table full");
 				return 0;
 			}
 			_slots.emplace_back();

@@ -82,45 +82,45 @@ namespace OSF::Scene
 		switch (a_mech) {
 		case Mechanism::kControlLock:
 			if (disengageLock) {
-				REX::INFO("SceneRuntime: scene {:#010x} control lock released — player unlocked", a_handle);
+				REX::TRACE("[Scene] scene {:#010x} control lock released — player unlocked", a_handle);
 				Player::PlayerControlService::GetSingleton().SetStandaloneLock(false);
 				Camera::CameraService::GetSingleton().SetStandaloneLock(false);
 			} else {
-				REX::INFO("SceneRuntime: scene {:#010x} control lock released — {} scene(s) still hold it", a_handle, remaining);
+				REX::TRACE("[Scene] scene {:#010x} control lock released — {} scene(s) still hold it", a_handle, remaining);
 			}
 			break;
 		case Mechanism::kFade:
-			REX::INFO("SceneRuntime: scene {:#010x} fade undo — fading back in", a_handle);
+			REX::TRACE("[Scene] scene {:#010x} fade undo — fading back in", a_handle);
 			UI::FadeService::GetSingleton().FadeFromBlack(0.5f);
 			break;
 		case Mechanism::kEquipment:
-			REX::INFO("SceneRuntime: scene {:#010x} equipment undo — restoring {} actor(s)", a_handle, equip.size());
+			REX::TRACE("[Scene] scene {:#010x} equipment undo — restoring {} actor(s)", a_handle, equip.size());
 			for (auto& [actor, snap] : equip) {
 				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
 			}
 			break;
 		case Mechanism::kEquipItem:
-			REX::INFO("SceneRuntime: scene {:#010x} equip-item undo — removing {} item(s)", a_handle, equipItems.size());
+			REX::TRACE("[Scene] scene {:#010x} equip-item undo — removing {} item(s)", a_handle, equipItems.size());
 			for (auto& [actor, item] : equipItems) {
 				Equipment::EquipmentService::GetSingleton().UnequipItem(actor, item);
 			}
 			break;
 		case Mechanism::kCamera:
-			REX::INFO("SceneRuntime: scene {:#010x} camera undo — releasing the camera hold", a_handle);
+			REX::TRACE("[Scene] scene {:#010x} camera undo — releasing the camera hold", a_handle);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
 			break;
 		case Mechanism::kCameraState:
-			REX::INFO("SceneRuntime: scene {:#010x} camera-state undo — releasing the camera override", a_handle);
+			REX::TRACE("[Scene] scene {:#010x} camera-state undo — releasing the camera override", a_handle);
 			Camera::CameraService::GetSingleton().ReleaseStateOverride();
 			break;
 		case Mechanism::kWeapon:
-			REX::INFO("SceneRuntime: scene {:#010x} weapon undo — re-drawing {} actor(s)", a_handle, weapon.size());
+			REX::TRACE("[Scene] scene {:#010x} weapon undo — re-drawing {} actor(s)", a_handle, weapon.size());
 			for (auto* actor : weapon) {
 				Weapon::WeaponService::GetSingleton().Draw(actor);
 			}
 			break;
 		case Mechanism::kInputChannel:
-			REX::INFO("SceneRuntime: scene {:#010x} input channel undo — releasing the director grant", a_handle);
+			REX::TRACE("[Scene] scene {:#010x} input channel undo — releasing the director grant", a_handle);
 			Input::InputService::GetSingleton().Release(a_handle);
 			// The player free cam (MMB) is only reachable while a scene grants the input channel, so the
 			// grant release is the right scope to drop it: a player-driven free cam must not outlive its

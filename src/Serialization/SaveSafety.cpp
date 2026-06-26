@@ -63,7 +63,7 @@ namespace OSF::Serialization::SaveSafety
 				RE::BSTEventSource<RE::TESLoadGameEvent>*) override
 			{
 				if (!Papyrus::RegisterFunctions()) {
-					REX::WARN("SaveSafety: could not re-register OSF natives after load (GameVM unavailable); "
+					REX::ERROR("[Save] could not re-register OSF natives after load (GameVM unavailable); "
 						"OSF.* stays unbound until the next successful load");
 				}
 				Animation::GraphManager::GetSingleton().StopAll("save loaded (TESLoadGameEvent backstop)");
@@ -75,19 +75,19 @@ namespace OSF::Serialization::SaveSafety
 	void RegisterLoadEventSinks()
 	{
 		if (!SaveLoadEventSourcePrologueMatches()) {
-			REX::WARN("SaveSafety: SaveLoadEvent GetEventSource prologue mismatch; relying on TESLoadGameEvent backstop");
+			REX::WARN("[Save] SaveLoadEvent GetEventSource prologue mismatch; relying on TESLoadGameEvent backstop");
 		} else if (auto* saveLoadSrc = RE::SaveLoadEvent::GetEventSource(); saveLoadSrc) {
 			saveLoadSrc->RegisterSink(SaveLoadSink::GetSingleton());
-			REX::INFO("SaveSafety: registered SaveLoadEvent begin sink");
+			REX::DEBUG("[Save] registered SaveLoadEvent begin sink");
 		} else {
-			REX::WARN("SaveSafety: SaveLoadEvent source null; relying on TESLoadGameEvent backstop");
+			REX::WARN("[Save] SaveLoadEvent source null; relying on TESLoadGameEvent backstop");
 		}
 
 		if (auto* src = RE::TESLoadGameEvent::GetEventSource()) {
 			src->RegisterSink(LoadGameSink::GetSingleton());
-			REX::INFO("SaveSafety: registered TESLoadGameEvent backstop sink");
+			REX::DEBUG("[Save] registered TESLoadGameEvent backstop sink");
 		} else {
-			REX::WARN("SaveSafety: TESLoadGameEvent source null; Something very wrong");
+			REX::ERROR("[Save] TESLoadGameEvent source null; Something very wrong");
 		}
 	}
 }

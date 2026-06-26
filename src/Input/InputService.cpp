@@ -139,7 +139,7 @@ namespace OSF::Input
 	{
 		auto* ui = RE::UI::GetSingleton();
 		if (!ui) {
-			REX::ERROR("InputService: RE::UI singleton is null; layout unverifiable");
+			REX::ERROR("[Input] RE::UI singleton is null; layout unverifiable");
 			return false;
 		}
 
@@ -149,13 +149,13 @@ namespace OSF::Input
 		const auto liveVptr = *reinterpret_cast<const std::uintptr_t*>(receiver);
 		const REL::Relocation<std::uintptr_t> vtbl{ RE::UI::VTABLE[kReceiverVtblIndex] };
 		if (liveVptr != vtbl.address()) {
-			REX::ERROR("InputService: UI layout guard FAILED — live BSInputEventReceiver vptr {:#x} != "
+			REX::ERROR("[Input] UI layout guard FAILED — live BSInputEventReceiver vptr {:#x} != "
 					   "AddressLib UI::VTABLE[{}] {:#x} (CommonLibSF layout or address library stale for "
 					   "this game version); dumping all entries:",
 				liveVptr, kReceiverVtblIndex, vtbl.address());
 			for (std::size_t i = 0; i < RE::UI::VTABLE.size(); ++i) {
 				const REL::Relocation<std::uintptr_t> entry{ RE::UI::VTABLE[i] };
-				REX::ERROR("InputService:   UI::VTABLE[{:2}] (ID {}) = {:#x}{}",
+				REX::ERROR("[Input]   UI::VTABLE[{:2}] (ID {}) = {:#x}{}",
 					i, RE::UI::VTABLE[i].id(), entry.address(),
 					entry.address() == liveVptr ? "  <-- matches live vptr" : "");
 			}
@@ -170,7 +170,7 @@ namespace OSF::Input
 			return true;
 		}
 		if (!VerifyUiLayout()) {
-			REX::ERROR("InputService: refusing to install (UI layout guard failed) — native input channel unavailable");
+			REX::ERROR("[Input] refusing to install (UI layout guard failed) — native input channel unavailable");
 			return false;
 		}
 
@@ -179,7 +179,7 @@ namespace OSF::Input
 		const auto                      original = vtbl.write_vfunc(1, &Thunk);
 		g_original = reinterpret_cast<PerformInputProcessing_t*>(original);
 		g_installed = true;
-		REX::INFO("InputService: installed vfunc hook on UI::PerformInputProcessing");
+		REX::DEBUG("[Input] installed vfunc hook on UI::PerformInputProcessing");
 		return true;
 	}
 
@@ -201,7 +201,7 @@ namespace OSF::Input
 			g_grant = a_grant;
 		}
 		g_active.store(true, std::memory_order_relaxed);
-		REX::INFO("InputService: director channel engaged for scene {:#010x} (capabilities {:#x}, locked {})", a_grant.handle, a_grant.capabilities, a_grant.locked);
+		REX::DEBUG("[Input] director channel engaged for scene {:#010x} (capabilities {:#x}, locked {})", a_grant.handle, a_grant.capabilities, a_grant.locked);
 	}
 
 	void InputService::Release(std::int32_t a_handle)
@@ -216,7 +216,7 @@ namespace OSF::Input
 		}
 		if (cleared) {
 			g_active.store(false, std::memory_order_relaxed);
-			REX::INFO("InputService: director channel released for scene {:#010x}", a_handle);
+			REX::DEBUG("[Input] director channel released for scene {:#010x}", a_handle);
 		}
 	}
 

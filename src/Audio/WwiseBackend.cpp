@@ -109,12 +109,12 @@ namespace OSF::Audio::Wwise
 		{
 			std::ifstream file{ a_path, std::ios::binary | std::ios::ate };
 			if (!file) {
-				REX::WARN("WwiseBackend: cannot open .wem '{}'", std::filesystem::path(a_path).string());
+				REX::DEBUG("[Audio] cannot open .wem '{}'", std::filesystem::path(a_path).string());
 				return {};
 			}
 			const auto size = static_cast<std::size_t>(file.tellg());
 			if (size == 0 || size > kMaxMediaBytes) {
-				REX::WARN("WwiseBackend: .wem '{}' unusable size {}", std::filesystem::path(a_path).string(), size);
+				REX::DEBUG("[Audio] .wem '{}' unusable size {}", std::filesystem::path(a_path).string(), size);
 				return {};
 			}
 			void* buffer = _aligned_malloc(size, 16);
@@ -124,7 +124,7 @@ namespace OSF::Audio::Wwise
 			file.seekg(0);
 			if (!file.read(static_cast<char*>(buffer), static_cast<std::streamsize>(size))) {
 				_aligned_free(buffer);
-				REX::WARN("WwiseBackend: .wem read failed '{}'", std::filesystem::path(a_path).string());
+				REX::DEBUG("[Audio] .wem read failed '{}'", std::filesystem::path(a_path).string());
 				return {};
 			}
 			const auto bytes = static_cast<std::uint32_t>(size);
@@ -168,7 +168,7 @@ namespace OSF::Audio::Wwise
 			ma_decoder_config cfg = ma_decoder_config_init(ma_format_s16, 0, 0);
 			ma_decoder decoder;
 			if (ma_decoder_init_file_w(a_path.c_str(), &cfg, &decoder) != MA_SUCCESS) {
-				REX::WARN("WwiseBackend: cannot decode '{}'", std::filesystem::path(a_path).string());
+				REX::DEBUG("[Audio] cannot decode '{}'", std::filesystem::path(a_path).string());
 				return {};
 			}
 
@@ -178,7 +178,7 @@ namespace OSF::Audio::Wwise
 				ma_decoder_uninit(&decoder);
 				cfg = ma_decoder_config_init(ma_format_s16, 2, 0);
 				if (ma_decoder_init_file_w(a_path.c_str(), &cfg, &decoder) != MA_SUCCESS) {
-					REX::WARN("WwiseBackend: cannot re-open '{}' for stereo downmix",
+					REX::DEBUG("[Audio] cannot re-open '{}' for stereo downmix",
 						std::filesystem::path(a_path).string());
 					return {};
 				}
@@ -199,7 +199,7 @@ namespace OSF::Audio::Wwise
 						chunk.begin() + static_cast<std::ptrdiff_t>(got * channels));
 				}
 				if (pcm.size() * sizeof(std::int16_t) > kMaxMediaBytes) {
-					REX::WARN("WwiseBackend: decoded '{}' exceeds {} bytes — aborting",
+					REX::DEBUG("[Audio] decoded '{}' exceeds {} bytes — aborting",
 						std::filesystem::path(a_path).string(), kMaxMediaBytes);
 					ma_decoder_uninit(&decoder);
 					return {};
@@ -211,7 +211,7 @@ namespace OSF::Audio::Wwise
 			ma_decoder_uninit(&decoder);
 
 			if (pcm.empty()) {
-				REX::WARN("WwiseBackend: '{}' decoded to 0 frames", std::filesystem::path(a_path).string());
+				REX::DEBUG("[Audio] '{}' decoded to 0 frames", std::filesystem::path(a_path).string());
 				return {};
 			}
 			return BuildPcmWem(pcm.data(), pcm.size() / channels, channels, sampleRate);
@@ -274,7 +274,7 @@ namespace OSF::Audio::Wwise
 		}
 		auto body = a_spec.substr(kEventPrefix.size());
 		if (body.empty()) {
-			REX::WARN("WwiseBackend: empty 'event:' cue sound spec");
+			REX::WARN("[Audio] empty 'event:' cue sound spec");
 			return std::nullopt;
 		}
 		if (body.starts_with("0x") || body.starts_with("0X")) {
@@ -282,7 +282,7 @@ namespace OSF::Audio::Wwise
 			std::uint32_t id = 0;
 			const auto [ptr, ec] = std::from_chars(body.data(), body.data() + body.size(), id, 16);
 			if (ec != std::errc{} || ptr != body.data() + body.size()) {
-				REX::WARN("WwiseBackend: malformed event ID in cue sound spec 'event:0x{}'", body);
+				REX::WARN("[Audio] malformed event ID in cue sound spec 'event:0x{}'", body);
 				return std::nullopt;
 			}
 			return id;
@@ -295,10 +295,10 @@ namespace OSF::Audio::Wwise
 		static const bool available = []() {
 			const auto* code = reinterpret_cast<const std::uint8_t*>(kAkPostEventByID.address());
 			if (!code || std::memcmp(code, kPostEventPrologue.data(), kPostEventPrologue.size()) != 0) {
-				REX::WARN("Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime loose-file cues fall back to the legacy device", kAkPostEventByID.id());
+				REX::WARN("[Audio] Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime loose-file cues fall back to the legacy device", kAkPostEventByID.id());
 				return false;
 			}
-			REX::INFO("Wwise audio available: AK PostEvent prologue verified");
+			REX::DEBUG("[Audio] Wwise audio available: AK PostEvent prologue verified");
 			return true;
 		}();
 		return available;
@@ -350,10 +350,10 @@ namespace OSF::Audio::Wwise
 		static const ExecuteActionOnPlayingIDFn stop = []() -> ExecuteActionOnPlayingIDFn {
 			const auto* code = reinterpret_cast<const std::uint8_t*>(kAkStopVoiceID.address());
 			if (!code || std::memcmp(code, kStopPrologue.data(), kStopPrologue.size()) != 0) {
-				REX::WARN("Wwise StopVoice disabled: AK ExecuteActionOnPlayingID (ID {}) prologue mismatch on this runtime — per-slot voice replace will let the prior clip play out", kAkStopVoiceID.id());
+				REX::WARN("[Audio] Wwise StopVoice disabled: AK ExecuteActionOnPlayingID (ID {}) prologue mismatch on this runtime — per-slot voice replace will let the prior clip play out", kAkStopVoiceID.id());
 				return nullptr;
 			}
-			REX::INFO("Wwise StopVoice available: AK ExecuteActionOnPlayingID prologue verified");
+			REX::DEBUG("[Audio] Wwise StopVoice available: AK ExecuteActionOnPlayingID prologue verified");
 			return reinterpret_cast<ExecuteActionOnPlayingIDFn>(kAkStopVoiceID.address());
 		}();
 		if (stop == nullptr) {

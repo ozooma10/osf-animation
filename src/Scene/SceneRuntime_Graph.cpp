@@ -246,7 +246,7 @@ namespace OSF::Scene
 			}
 		}
 		if (triggered) {
-			REX::INFO("SceneRuntime: scene {:#010x} cue-trigger node '{}' -> {}", handle, oldNode, end ? "$end" : newNode);
+			REX::DEBUG("[Scene] scene {:#010x} cue-trigger node '{}' -> {}", handle, oldNode, end ? "$end" : newNode);
 			ApplyTransition(handle, oldNode, newNode, end, sceneId, participants);
 		}
 	}
@@ -264,7 +264,7 @@ namespace OSF::Scene
 		// Resolve the node's playable: inline `stages`, or a `use` reference, in the scene registry.
 		auto plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(*def, *node, a_participants.size());
 		if (!plan) {
-			REX::WARN("SceneRuntime: node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
+			REX::WARN("[Scene] node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
 			return false;
 		}
 		// StartSceneAt: if the owning scene carries an explicit world anchor, every node plays
@@ -323,17 +323,17 @@ namespace OSF::Scene
 		}
 		// A def scene / pack can decline the default (a scene the player only spectates)
 		if (!a_lockPlayer) {
-			REX::INFO("SceneRuntime: scene {:#010x} default player lock skipped — opted out (lockPlayer:false)", a_handle);
+			REX::DEBUG("[Scene] scene {:#010x} default player lock skipped — opted out (lockPlayer:false)", a_handle);
 			return;
 		}
-		REX::INFO("SceneRuntime: scene {:#010x} default player lock engaged — player is a participant", a_handle);
+		REX::DEBUG("[Scene] scene {:#010x} default player lock engaged — player is a participant", a_handle);
 		RecordMechanism(a_handle, Mechanism::kControlLock);
 	}
 
 	void SceneRuntime::StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants)
 	{
 		if (!a_stripActors) {
-			REX::INFO("SceneRuntime: scene {:#010x} default actor strip skipped — opted out (stripActors:false)", a_handle);
+			REX::DEBUG("[Scene] scene {:#010x} default actor strip skipped — opted out (stripActors:false)", a_handle);
 			return;
 		}
 		// Hide every participant's worn apparel
@@ -346,7 +346,7 @@ namespace OSF::Scene
 				RecordHiddenEquip(a_handle, actor, std::move(snap));
 			}
 		}
-		REX::INFO("SceneRuntime: scene {:#010x} default actor strip applied to {} participant(s)", a_handle, a_participants.size());
+		REX::DEBUG("[Scene] scene {:#010x} default actor strip applied to {} participant(s)", a_handle, a_participants.size());
 	}
 
 	void SceneRuntime::EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
@@ -368,21 +368,21 @@ namespace OSF::Scene
 			}
 			RE::Actor* actor = a_participants[i];
 			if (!actor) {
-				REX::WARN("SceneRuntime: scene {:#010x} role '{}' has equip but bound no actor — skipped", a_handle, role.name);
+				REX::WARN("[Scene] scene {:#010x} role '{}' has equip but bound no actor — skipped", a_handle, role.name);
 				continue;
 			}
 			const std::string gender = Matchmaking::ActorGenderTag(actor);
 			const std::string& ref = role.equip.ForGender(gender);
 			if (ref.empty()) {
-				REX::INFO("SceneRuntime: scene {:#010x} role '{}' (actor {:08X}, gender '{}') has equip but none for that gender — skipped",
+				REX::DEBUG("[Scene] scene {:#010x} role '{}' (actor {:08X}, gender '{}') has equip but none for that gender — skipped",
 					a_handle, role.name, actor->formID, gender.empty() ? "any" : gender);
 				continue;
 			}
-			REX::INFO("SceneRuntime: scene {:#010x} role '{}' (actor {:08X}, gender '{}') equipping '{}'",
+			REX::DEBUG("[Scene] scene {:#010x} role '{}' (actor {:08X}, gender '{}') equipping '{}'",
 				a_handle, role.name, actor->formID, gender.empty() ? "any" : gender, ref);
 			const auto composed = Util::ComposeFormID(ref);
 			if (!composed) {
-				REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' — plugin not loaded or ref malformed (no FormID composed); is the .esm active in the load order?",
+				REX::ERROR("[Scene] scene {:#010x} role '{}' equip '{}' — plugin not loaded or ref malformed (no FormID composed); is the .esm active in the load order?",
 					a_handle, role.name, ref);
 				continue;
 			}
@@ -390,23 +390,23 @@ namespace OSF::Scene
 			auto* object = (anyForm && Util::IsBoundObjectType(anyForm->GetFormType())) ? static_cast<RE::TESBoundObject*>(anyForm) : nullptr;
 			if (!object) {
 				if (anyForm) {
-					REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' resolved to FormID {:#010x} but it is a {} (formType {}), not an equippable bound object — skipped",
+					REX::ERROR("[Scene] scene {:#010x} role '{}' equip '{}' resolved to FormID {:#010x} but it is a {} (formType {}), not an equippable bound object — skipped",
 						a_handle, role.name, ref, *composed,
 						anyForm->GetFormEditorID() ? anyForm->GetFormEditorID() : "?",
 						static_cast<std::uint32_t>(anyForm->GetFormType()));
 				} else {
-					REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' composed FormID {:#010x} but no such form is loaded — wrong local id? — skipped",
+					REX::ERROR("[Scene] scene {:#010x} role '{}' equip '{}' composed FormID {:#010x} but no such form is loaded — wrong local id? — skipped",
 						a_handle, role.name, ref, *composed);
 				}
 				continue;
 			}
 			auto record = svc.EquipItem(actor, object);
 			if (record.object) {
-				REX::INFO("SceneRuntime: scene {:#010x} role '{}' equipped '{}' (added={}, equipped={})",
+				REX::DEBUG("[Scene] scene {:#010x} role '{}' equipped '{}' (added={}, equipped={})",
 					a_handle, role.name, ref, record.addedToInventory, record.equipped);
 				RecordEquippedItem(a_handle, actor, std::move(record));
 			} else {
-				REX::WARN("SceneRuntime: scene {:#010x} role '{}' equip '{}' — EquipItem did nothing (feature unavailable on this build?)",
+				REX::WARN("[Scene] scene {:#010x} role '{}' equip '{}' — EquipItem did nothing (feature unavailable on this build?)",
 					a_handle, role.name, ref);
 			}
 		}
@@ -422,7 +422,7 @@ namespace OSF::Scene
 		}
 		// A def scene / pack can decline the default (e.g. a quick idle that shouldn't blink).
 		if (!a_fade) {
-			REX::INFO("SceneRuntime: scene {:#010x} default start fade skipped — opted out (fade:false)", a_handle);
+			REX::DEBUG("[Scene] scene {:#010x} default start fade skipped — opted out (fade:false)", a_handle);
 			return;
 		}
 		// Self-releasing curtain: fade to black with a bounded hold; FadeService::Tick posts the fade-in once the
@@ -430,7 +430,7 @@ namespace OSF::Scene
 		// scene, it does NOT hold black until the scene ends. The fade is async (UI queue) while this frame's
 		// teleport/strip already ran, so it reads as a cinematic curtain rather than hiding the frame-0 snap.
 		const bool posted = UI::FadeService::GetSingleton().FadeToBlack(/*fadeSecs*/ 0.5f, /*holdMaxSecs*/ 1.0f);
-		REX::INFO("SceneRuntime: scene {:#010x} default start fade — {}", a_handle, posted ? "posted" : "unavailable");
+		REX::DEBUG("[Scene] scene {:#010x} default start fade — {}", a_handle, posted ? "posted" : "unavailable");
 	}
 
 	void SceneRuntime::EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
@@ -444,7 +444,7 @@ namespace OSF::Scene
 			}
 		}
 		if (!pc.enabled || pc.capabilities == 0) {
-			REX::INFO("SceneRuntime: scene {:#010x} playerControl disabled by scene config", a_handle);
+			REX::DEBUG("[Scene] scene {:#010x} playerControl disabled by scene config", a_handle);
 			return;  // scene opted out (or disabled every capability) — no input channel
 		}
 		// v1: the local human drives only when they're a participant (director mode — a non-participant
@@ -461,7 +461,7 @@ namespace OSF::Scene
 		grant.driver = player;
 		grant.locked = pc.locked;
 		RecordInputChannel(a_handle, grant);
-		REX::INFO("SceneRuntime: scene {:#010x} playerControl engaged (capabilities {:#x}, locked {})", a_handle, grant.capabilities, grant.locked);
+		REX::DEBUG("[Scene] scene {:#010x} playerControl engaged (capabilities {:#x}, locked {})", a_handle, grant.capabilities, grant.locked);
 	}
 
 	void SceneRuntime::ApplyTransition(std::int32_t a_handle, std::string_view a_oldNode, std::string_view a_newNode,
@@ -476,7 +476,7 @@ namespace OSF::Scene
 		// is always a real failure, never an intentional marker node.)
 		bool end = a_end;
 		if (!end && !PlayNodeAnim(a_participants, a_sceneId, a_newNode)) {
-			REX::WARN("SceneRuntime: scene {:#010x} transition '{}' -> '{}' could not play the target node — ending scene",
+			REX::WARN("[Scene] scene {:#010x} transition '{}' -> '{}' could not play the target node — ending scene",
 				a_handle, a_oldNode, a_newNode);
 			end = true;
 		}
@@ -520,7 +520,7 @@ namespace OSF::Scene
 			const std::size_t n = std::min(a_participants.size(), def->roles.size());
 			for (std::size_t i = 0; i < n; i++) {
 				if (!Matchmaking::RoleAccepts(def->roles[i], a_participants[i])) {
-					REX::WARN("SceneRuntime: start '{}' refused — actor {:X} fails role '{}' filters",
+					REX::WARN("[Scene] start '{}' refused — actor {:X} fails role '{}' filters",
 						a_id, a_participants[i] ? a_participants[i]->formID : 0, def->roles[i].name);
 					return 0;
 				}
@@ -547,7 +547,7 @@ namespace OSF::Scene
 		// sees live graph scenes, so it couldn't recover it) yet still engage the player lock below.
 		// Retire the slot and fail the start cleanly; nothing was locked yet.
 		if (!PlayNodeAnim(a_participants, a_id, a_entryNode)) {
-			REX::WARN("SceneRuntime: start '{}' entry node '{}' could not play — aborting start", a_id, a_entryNode);
+			REX::WARN("[Scene] start '{}' entry node '{}' could not play — aborting start", a_id, a_entryNode);
 			ReleaseSlot(handle);
 			return 0;
 		}
@@ -646,7 +646,7 @@ namespace OSF::Scene
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
-			REX::WARN("SceneRuntime::StartFromDef: no scene def '{}'", a_sceneId);
+			REX::ERROR("[Scene] StartFromDef: no scene def '{}'", a_sceneId);
 			return 0;
 		}
 		// Start mints the handle, records the instance, and fires NODE_ENTER for the entry.
@@ -658,7 +658,7 @@ namespace OSF::Scene
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
-			REX::WARN("SceneRuntime::StartFromDefAt: no scene def '{}'", a_sceneId);
+			REX::ERROR("[Scene] StartFromDefAt: no scene def '{}'", a_sceneId);
 			return 0;
 		}
 		return Start(def->id, def->entry, a_participants, AnchorOverride{ true, a_anchorPos, a_anchorHeading }, a_over);
@@ -696,15 +696,15 @@ namespace OSF::Scene
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
-			REX::WARN("StartSceneRoles: no scene def '{}'", a_sceneId);
+			REX::ERROR("[Scene] StartSceneRoles: no scene def '{}'", a_sceneId);
 			return 0;
 		}
 		if (a_actors.size() != a_roles.size()) {
-			REX::WARN("StartSceneRoles '{}': {} actor(s) vs {} role name(s)", a_sceneId, a_actors.size(), a_roles.size());
+			REX::ERROR("[Scene] StartSceneRoles '{}': {} actor(s) vs {} role name(s)", a_sceneId, a_actors.size(), a_roles.size());
 			return 0;
 		}
 		if (a_actors.size() != def->roles.size()) {
-			REX::WARN("StartSceneRoles '{}': scene declares {} role(s), got {}", a_sceneId, def->roles.size(), a_actors.size());
+			REX::ERROR("[Scene] StartSceneRoles '{}': scene declares {} role(s), got {}", a_sceneId, def->roles.size(), a_actors.size());
 			return 0;
 		}
 
@@ -713,7 +713,7 @@ namespace OSF::Scene
 		std::vector<RE::Actor*> ordered(def->roles.size(), nullptr);
 		for (std::size_t i = 0; i < a_actors.size(); i++) {
 			if (!a_actors[i]) {
-				REX::WARN("StartSceneRoles '{}': null actor for role '{}'", a_sceneId, a_roles[i]);
+				REX::ERROR("[Scene] StartSceneRoles '{}': null actor for role '{}'", a_sceneId, a_roles[i]);
 				return 0;
 			}
 			const auto want = Util::ToLower(a_roles[i]);
@@ -725,11 +725,11 @@ namespace OSF::Scene
 				}
 			}
 			if (roleIdx < 0) {
-				REX::WARN("StartSceneRoles '{}': unknown role '{}'", a_sceneId, a_roles[i]);
+				REX::ERROR("[Scene] StartSceneRoles '{}': unknown role '{}'", a_sceneId, a_roles[i]);
 				return 0;
 			}
 			if (ordered[roleIdx]) {
-				REX::WARN("StartSceneRoles '{}': role '{}' assigned twice", a_sceneId, a_roles[i]);
+				REX::ERROR("[Scene] StartSceneRoles '{}': role '{}' assigned twice", a_sceneId, a_roles[i]);
 				return 0;
 			}
 			ordered[roleIdx] = a_actors[i];
@@ -757,7 +757,7 @@ namespace OSF::Scene
 				return false;
 			}
 			if (s->transitioning) {
-				REX::INFO("SceneRuntime: edge on scene {:#010x} ignored — a transition is already in flight", a_scene);
+				REX::DEBUG("[Scene] edge on scene {:#010x} ignored — a transition is already in flight", a_scene);
 				return false;  // a concurrent advance / auto-end owns the transition; don't start a second
 			}
 			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
@@ -791,7 +791,7 @@ namespace OSF::Scene
 		// Empty => the handle is dead (scene ended / loaded) — the keypress hit nothing.
 		const std::string fromNode = GetNode(a_scene);
 		if (fromNode.empty()) {
-			REX::INFO("SceneRuntime: Advance scene {:#010x} ignored — no active scene on this handle", a_scene);
+			REX::DEBUG("[Scene] Advance scene {:#010x} ignored — no active scene on this handle", a_scene);
 			return false;
 		}
 
@@ -808,10 +808,10 @@ namespace OSF::Scene
 		if (took) {
 			// After the transition the handle may be freed (edge targeted "$end") — empty node = scene ended.
 			const std::string toNode = GetNode(a_scene);
-			REX::INFO("SceneRuntime: Advance scene {:#010x} — node '{}' -> {}",
+			REX::DEBUG("[Scene] Advance scene {:#010x} — node '{}' -> {}",
 				a_scene, fromNode, toNode.empty() ? "$end (scene ended)" : ("'" + toNode + "'"));
 		} else {
-			REX::INFO("SceneRuntime: Advance scene {:#010x} — node '{}' has no default advance edge (nothing to do)",
+			REX::DEBUG("[Scene] Advance scene {:#010x} — node '{}' has no default advance edge (nothing to do)",
 				a_scene, fromNode);
 		}
 		return took;
@@ -859,7 +859,7 @@ namespace OSF::Scene
 				// A manual advance / cue-trigger is mid-flight on this scene — it owns the teardown
 				// (its PlayNodeAnim replaces, or its end StopGraphs, the actors' current graph). Report
 				// handled so the GraphManager doesn't also StopSceneByPtr the finished stage.
-				REX::INFO("SceneRuntime: auto-end for scene {:#010x} skipped — a transition is already in flight", handle);
+				REX::DEBUG("[Scene] auto-end for scene {:#010x} skipped — a transition is already in flight", handle);
 				return true;
 			}
 
@@ -906,7 +906,7 @@ namespace OSF::Scene
 
 		const char* reasonStr = a_reason == Animation::SceneEndReason::kTimer ? "timer"
 			: (a_reason == Animation::SceneEndReason::kInterrupted ? "interrupted" : "loops");
-		REX::INFO("SceneRuntime: scene {:#010x} auto-end (reason={}) node '{}' -> {}{}",
+		REX::DEBUG("[Scene] scene {:#010x} auto-end (reason={}) node '{}' -> {}{}",
 			handle, reasonStr, oldNode, end ? "$end" : newNode, tookEdge ? "" : " (terminal, no edge)");
 
 		ApplyTransition(handle, oldNode, newNode, end, sceneId, participants);

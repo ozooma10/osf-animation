@@ -23,7 +23,7 @@ namespace OSF::Scene
 		{
 			RE::BSTSmartPointer<RE::BSScript::Struct> proxy;
 			if (!a_vm->CreateStruct("OSFTypes#SceneEvent", proxy) || !proxy || !proxy->type) {
-				REX::WARN("SceneEventRelay: OSFTypes:SceneEvent struct type not loaded");
+				REX::WARN("[Scene] OSFTypes:SceneEvent struct type not loaded");
 				return false;
 			}
 
@@ -38,7 +38,7 @@ namespace OSF::Scene
 				if (it != index.end() && it->second < count) {
 					proxy->variables[it->second] = a_val;
 				} else {
-					REX::WARN("SceneEventRelay: member '{}' not found in OSFTypes:SceneEvent", a_member);
+					REX::TRACE("[Scene] member '{}' not found in OSFTypes:SceneEvent", a_member);
 				}
 			};
 
@@ -97,7 +97,7 @@ namespace OSF::Scene
 		}
 		if (!reused) {
 			if (_slots.size() >= 0xFFFF) {
-				REX::ERROR("SceneEventRelay::AddEntry: callback table full");
+				REX::ERROR("[Scene] AddEntry: callback table full");
 				return 0;
 			}
 			_slots.emplace_back();
@@ -117,7 +117,7 @@ namespace OSF::Scene
 		e.eventMask = (a_eventMask == 0) ? Event::kAll : a_eventMask;
 
 		const std::int32_t token = MakeToken(gen, slot);
-		REX::INFO("SceneEventRelay: registered token {:#010x} -> {}{}(OSFTypes:SceneEvent) (mask {:#x}, scene {})",
+		REX::DEBUG("[Scene] registered token {:#010x} -> {}{}(OSFTypes:SceneEvent) (mask {:#x}, scene {})",
 			token, a_scriptName.empty() ? "" : std::string(a_scriptName.c_str()) + ".", e.fn.c_str(), e.eventMask, e.sceneFilter);
 		return token;
 	}
@@ -126,7 +126,7 @@ namespace OSF::Scene
 		std::int32_t a_sceneFilter, std::int32_t a_eventMask)
 	{
 		if (!a_receiver.get() || a_fn.empty()) {
-			REX::WARN("SceneEventRelay::Register: null receiver or empty function name");
+			REX::DEBUG("[Scene] Register: null receiver or empty function name");
 			return 0;
 		}
 
@@ -138,7 +138,7 @@ namespace OSF::Scene
 		std::int32_t a_sceneFilter, std::int32_t a_eventMask)
 	{
 		if (a_script.empty() || a_fn.empty()) {
-			REX::WARN("SceneEventRelay::RegisterStatic: empty script or function name");
+			REX::DEBUG("[Scene] RegisterStatic: empty script or function name");
 			return 0;
 		}
 
@@ -159,7 +159,7 @@ namespace OSF::Scene
 			return false;  // stale/invalid token
 		}
 		_slots[slot] = Entry{};  // generation 0 -> empty; drops the receiver smart pointer
-		REX::INFO("SceneEventRelay: unregistered token {:#010x}", a_token);
+		REX::DEBUG("[Scene] unregistered token {:#010x}", a_token);
 		return true;
 	}
 
@@ -195,7 +195,7 @@ namespace OSF::Scene
 
 		auto* vm = VM::GetSingleton();
 		if (!vm) {
-			REX::WARN("SceneEventRelay::Dispatch: no VM");
+			REX::WARN("[Scene] Dispatch: no VM");
 			return;
 		}
 		RE::BSScript::Variable payload;
@@ -217,7 +217,7 @@ namespace OSF::Scene
 	{
 		auto* vm = VM::GetSingleton();
 		if (!vm) {
-			REX::WARN("SceneEventRelay::DispatchStatic: no VM");
+			REX::WARN("[Scene] DispatchStatic: no VM");
 			return false;
 		}
 		RE::BSScript::Variable payload;

@@ -6,6 +6,7 @@
 
 // Recognized keys (flat; unknown keys warn):
 //   {
+//     "logLevel": "info",            // trace|debug|info|warn|error.
 //     "soundVolume": 1.0,            // master cue volume (clamped 0..2)
 //     "debugNotifications": true,    // top-right HUD popup on each stage transition (dev/test; default on)
 //   }

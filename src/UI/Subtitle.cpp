@@ -100,7 +100,7 @@ namespace OSF::UI::Subtitle
 		// Resolve the speaker's display name for the line prefix (GetDisplayFullName, REFR vtable 0xF2).
 		const char* speakerName = a_speaker ? a_speaker->GetDisplayFullName() : nullptr;
 
-		REX::INFO("Subtitle: [{}] \"{}\" ({:.1f}s)",
+		REX::DEBUG("[UI] subtitle [{}] \"{}\" ({:.1f}s)",
 			(speakerName && speakerName[0]) ? speakerName : "<narrator>", a_text, holdSecs);
 
 		auto* src = ShowSource();

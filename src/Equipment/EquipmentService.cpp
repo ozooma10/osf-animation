@@ -69,20 +69,20 @@ namespace OSF::Equipment
 	{
 		static const bool available = []() {
 			if (!RE::ActorEquipManager::GetSingleton()) {
-				REX::WARN("Undress/redress disabled: ActorEquipManager singleton resolved null");
+				REX::WARN("[Equip] undress/redress disabled: ActorEquipManager singleton resolved null");
 				return false;
 			}
 			// Make sure the two functions still look like what we expect on this game build.
 			// On a mismatch we disable the feature rather than call into the wrong code.
 			if (!Util::Hooking::PrologueMatches(RE::ID::ActorEquipManager::EquipObject, kExpectedPrologue) ||
 				!Util::Hooking::PrologueMatches(RE::ID::ActorEquipManager::UnequipObject, kExpectedPrologue)) {
-				REX::WARN("Undress/redress disabled: equip/unequip prologue mismatch on this runtime "
+				REX::WARN("[Equip] undress/redress disabled: equip/unequip prologue mismatch on this runtime "
 					"(IDs {}/{} do not match the verified bytes)",
 					RE::ID::ActorEquipManager::EquipObject.id(),
 					RE::ID::ActorEquipManager::UnequipObject.id());
 				return false;
 			}
-			REX::INFO("Undress/redress available: equip/unequip prologues verified");
+			REX::INFO("[Equip] undress/redress available: equip/unequip prologues verified");
 			return true;
 		}();
 		return available;
@@ -109,7 +109,7 @@ namespace OSF::Equipment
 			const RE::BGSInventoryList* list = *guard;
 			if (!list) {
 				// The list is lazy, null on NPCs whose inventory has never materialized. The player + interacted NPCs have one.
-				REX::INFO("Actor {:X}: inventory list not materialized — nothing hidden", a_actor->formID);
+				REX::DEBUG("[Equip] actor {:X}: inventory list not materialized — nothing hidden", a_actor->formID);
 				return snapshot;
 			}
 			for (const auto& item : list->data) {
@@ -134,9 +134,9 @@ namespace OSF::Equipment
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, true, nullptr);
 		}
 		if (skippedSkin > 0) {
-			REX::INFO("Actor {:X}: hid {} worn item(s) ({} skin piece(s) excluded)", a_actor->formID, snapshot.stripped.size(), skippedSkin);
+			REX::DEBUG("[Equip] actor {:X}: hid {} worn item(s) ({} skin piece(s) excluded)", a_actor->formID, snapshot.stripped.size(), skippedSkin);
 		} else {
-			REX::INFO("Actor {:X}: hid {} worn item(s)", a_actor->formID, snapshot.stripped.size());
+			REX::DEBUG("[Equip] actor {:X}: hid {} worn item(s)", a_actor->formID, snapshot.stripped.size());
 		}
 		return snapshot;
 	}
@@ -170,18 +170,18 @@ namespace OSF::Equipment
 			// locked=false so the actor's own outfit logic owns the items again after the scene; forceEquip=true skips the AI veto, silent.
 			mgr->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
 		}
-		REX::INFO("Actor {:X}: restored {} worn item(s)", a_actor->formID, a_snapshot.stripped.size());
+		REX::DEBUG("[Equip] actor {:X}: restored {} worn item(s)", a_actor->formID, a_snapshot.stripped.size());
 	}
 
 	EquippedItem EquipmentService::EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object)
 	{
 		EquippedItem record;
 		if (!a_actor || !a_object) {
-			REX::WARN("EquipItem: null {} — nothing equipped", !a_actor ? "actor" : "object");
+			REX::DEBUG("[Equip] equip item: null {} — nothing equipped", !a_actor ? "actor" : "object");
 			return record;
 		}
 		if (!Available()) {
-			REX::WARN("Actor {:X}: cannot equip item {:X} — equip/unequip unavailable on this runtime",
+			REX::WARN("[Equip] actor {:X}: cannot equip item {:X} — equip/unequip unavailable on this runtime",
 				a_actor->formID, a_object->GetFormID());
 			return record;
 		}
@@ -194,7 +194,7 @@ namespace OSF::Equipment
 		const ItemPresence existing = FindItem(a_actor, a_object);
 		const bool hadItem = existing.present;
 		const bool wasEquipped = existing.equipped;
-		REX::INFO("Actor {:X}: equipping item {:X} (hadItem={}, wasEquipped={})",
+		REX::TRACE("[Equip] actor {:X}: equipping item {:X} (hadItem={}, wasEquipped={})",
 			a_actor->formID, a_object->GetFormID(), hadItem, wasEquipped);
 
 		if (!hadItem) {
@@ -212,7 +212,7 @@ namespace OSF::Equipment
 			record.equipped = true;
 		}
 
-		REX::INFO("Actor {:X}: equipped item {:X} (added={}, equipped={})",
+		REX::TRACE("[Equip] actor {:X}: equipped item {:X} (added={}, equipped={})",
 			a_actor->formID, a_object->GetFormID(), record.addedToInventory, record.equipped);
 		return record;
 	}
@@ -240,7 +240,7 @@ namespace OSF::Equipment
 			a_actor->RemoveItem(outHandle, request);
 		}
 
-		REX::INFO("Actor {:X}: removed scene item {:X} (unequipped={}, destroyed={})",
+		REX::TRACE("[Equip] actor {:X}: removed scene item {:X} (unequipped={}, destroyed={})",
 			a_actor->formID, a_item.object->GetFormID(), a_item.equipped, a_item.addedToInventory);
 	}
 }

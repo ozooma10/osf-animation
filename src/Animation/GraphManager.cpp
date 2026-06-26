@@ -92,17 +92,17 @@ namespace OSF::Animation
 					if (f) {
 						std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
 						if (!bytes.empty()) {
-							REX::INFO("AFImport rig: loose {}", cand.string());
+							REX::TRACE("[Anim] rig: loose {}", cand.string());
 							return bytes;
 						}
 					}
 				}
 			}
 			if (auto b = Util::Ba2::ReadGameFile("meshes/actors/human/characterassets/skeleton.rig", "Starfield - Animations.ba2")) {
-				REX::INFO("AFImport rig: read from BA2 ({} bytes)", b->size());
+				REX::TRACE("[Anim] rig: read from BA2 ({} bytes)", b->size());
 				return b;
 			}
-			REX::ERROR("AFImport rig: no loose skeleton.rig and none found in any Data\\*.ba2");
+			REX::ERROR("[Anim] rig: no loose skeleton.rig and none found in any Data\\*.ba2");
 			return std::nullopt;
 		}
 
@@ -168,29 +168,29 @@ namespace OSF::Animation
 		bool ValidateScenePlanArgs(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage)
 		{
 			if (a_actors.empty()) {
-				REX::ERROR("PlayScene: need >= 1 actor (got 0)");
+				REX::ERROR("[Anim] PlayScene: need >= 1 actor (got 0)");
 				return false;
 			}
 			if (a_plan.stages.empty()) {
-				REX::ERROR("PlayScene: plan has no stages");
+				REX::ERROR("[Anim] PlayScene: plan has no stages");
 				return false;
 			}
 			if (a_startStage < 0 || static_cast<size_t>(a_startStage) >= a_plan.stages.size()) {
-				REX::ERROR("PlayScene: start stage {} out of range (plan has {} stages)", a_startStage, a_plan.stages.size());
+				REX::ERROR("[Anim] PlayScene: start stage {} out of range (plan has {} stages)", a_startStage, a_plan.stages.size());
 				return false;
 			}
 			for (size_t s = 0; s < a_plan.stages.size(); s++) {
 				const auto& stage = a_plan.stages[s];
 				if (stage.files.size() != a_actors.size() ||
 					(!stage.placements.empty() && stage.placements.size() != a_actors.size())) {
-					REX::ERROR("PlayScene: stage {} does not match the actor count ({} files, {} placements, {} actors)",
+					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} placements, {} actors)",
 						s, stage.files.size(), stage.placements.size(), a_actors.size());
 					return false;
 				}
 			}
 			for (size_t i = 0; i < a_actors.size(); i++) {
 				if (!a_actors[i]) {
-					REX::ERROR("PlayScene: null actor at index {}", i);
+					REX::ERROR("[Anim] PlayScene: null actor at index {}", i);
 					return false;
 				}
 			}
@@ -217,7 +217,7 @@ namespace OSF::Animation
 					auto file = ResolveClipPath(std::filesystem::path{ fileSpec });
 					auto load = LoadClip(file, "");
 					if (!load.ok) {
-						REX::ERROR("PlayScene: failed to load '{}' ({}) — scene not started",
+						REX::ERROR("[Anim] PlayScene: failed to load '{}' ({}) — scene not started",
 							file.string(), load.detail);
 						return nullptr;
 					}
@@ -261,7 +261,7 @@ namespace OSF::Animation
 
 		const uintptr_t slotValue = *reinterpret_cast<uintptr_t*>(vtbl.address() + UpdateVFuncIdx * sizeof(uintptr_t));
 		if (slotValue != expected.address()) {
-			REX::ERROR("AnimationManager vtable slot {} = {:X}, expected AnimationManager::Update at {:X} — "
+			REX::ERROR("[Anim] AnimationManager vtable slot {} = {:X}, expected AnimationManager::Update at {:X} — "
 				"AddressLib IDs stale for this game version, NOT patching (animations disabled)",
 				UpdateVFuncIdx, slotValue, expected.address());
 			return;
@@ -272,7 +272,7 @@ namespace OSF::Animation
 
 		const uintptr_t mnSlotValue = *reinterpret_cast<uintptr_t*>(mnVtbl.address() + ModelNodeUpdateVFuncIdx * sizeof(uintptr_t));
 		if (mnSlotValue != mnExpected.address()) {
-			REX::ERROR("BGSModelNode vtable slot {} = {:X}, expected BGSModelNode::Update at {:X} — "
+			REX::ERROR("[Anim] BGSModelNode vtable slot {} = {:X}, expected BGSModelNode::Update at {:X} — "
 				"AddressLib IDs stale for this game version, NOT patching (animations disabled)",
 				ModelNodeUpdateVFuncIdx, mnSlotValue, mnExpected.address());
 			return;
@@ -282,7 +282,7 @@ namespace OSF::Animation
 			vtbl.write_vfunc(UpdateVFuncIdx, &Hook_AnimGraphUpdate));
 		_origModelNodeUpdate = reinterpret_cast<ModelNodeUpdateFn*>(
 			mnVtbl.write_vfunc(ModelNodeUpdateVFuncIdx, &Hook_ModelNodeUpdate));
-		REX::INFO("Installed AnimationManager::Update and  BGSModelNode::Update Hooked",
+		REX::TRACE("[Anim] installed AnimationManager::Update (vfunc {}) + BGSModelNode::Update (vfunc {}) hooks",
 			UpdateVFuncIdx, ModelNodeUpdateVFuncIdx);
 	}
 
@@ -293,7 +293,7 @@ namespace OSF::Animation
 		}
 
 		if (!_origAnimGraphUpdate) {
-			REX::ERROR("Play refused: update hook is not installed");
+			REX::ERROR("[Anim] Play refused: update hook is not installed");
 			return false;
 		}
 
@@ -301,7 +301,7 @@ namespace OSF::Animation
 
 		auto loadResult = LoadClip(file, a_animId);
 		if (!loadResult.ok) {
-			REX::ERROR("Failed to load animation '{}' ({})", file.string(), loadResult.detail);
+			REX::ERROR("[Anim] Failed to load animation '{}' ({})", file.string(), loadResult.detail);
 			return false;
 		}
 
@@ -314,7 +314,7 @@ namespace OSF::Animation
 				// Mirror of StopAnimation's guard — use StopScene to end a scene first.
 				std::scoped_lock gl{ slot->stateLock };
 				if (slot->scene) {
-					REX::WARN("Play refused: actor {:X} is in a scene — use StopScene first", a_actor->formID);
+					REX::WARN("[Anim] Play refused: actor {:X} is in a scene — use StopScene first", a_actor->formID);
 					return false;
 				}
 			} else {
@@ -330,7 +330,7 @@ namespace OSF::Animation
 			g->SetAnimation(loadResult.skeleton, loadResult.anim, std::string(a_file));
 		}
 
-		REX::INFO("Playing '{}' on actor {:X}", file.filename().string(), a_actor->formID);
+		REX::DEBUG("[Anim] Playing '{}' on actor {:X}", file.filename().string(), a_actor->formID);
 		return true;
 	}
 
@@ -347,7 +347,7 @@ namespace OSF::Animation
 		}
 		std::scoped_lock gl{ iter->second->stateLock };
 		if (iter->second->scene) {
-			REX::WARN("Stop: actor {:X} is in a scene — use StopScene", a_actor->formID);
+			REX::WARN("[Anim] Stop: actor {:X} is in a scene — use StopScene", a_actor->formID);
 			return false;
 		}
 		iter->second->BeginFadeOut();
@@ -376,7 +376,7 @@ namespace OSF::Animation
 	bool GraphManager::PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage)
 	{
 		if (!_origAnimGraphUpdate) {
-			REX::ERROR("PlayScene refused: update hook is not installed");
+			REX::ERROR("[Anim] PlayScene refused: update hook is not installed");
 			return false;
 		}
 		if (!ValidateScenePlanArgs(a_actors, a_plan, a_startStage)) {
@@ -397,7 +397,7 @@ namespace OSF::Animation
 			// Re-playing on actors already in a scene: tear the old scene(s) down first so movement state is restored exactly once per scene.
 			for (auto* actor : a_actors) {
 				if (auto iter = graphs.find(actor); iter != graphs.end() && iter->second->scene) {
-					REX::INFO("PlayScene: actor {:X} already in a scene — stopping it first", actor->formID);
+					REX::DEBUG("[Anim] PlayScene: actor {:X} already in a scene — stopping it first", actor->formID);
 					StopSceneLocked(iter->second->scene);
 				}
 			}
@@ -437,7 +437,7 @@ namespace OSF::Animation
 			transforms->SetPosition(scene->participants[i]->target.get(), worldPos);
 			transforms->SetHeadingZ(scene->participants[i]->target.get(), scene->anchorHeading + pl.heading);
 			if (pl.x != 0.0f || pl.y != 0.0f || pl.z != 0.0f || pl.heading != 0.0f) {
-				REX::INFO("  placement[{}]: local ({:+.2f},{:+.2f},{:+.2f}) heading {:+.2f} -> world ({:.1f},{:.1f},{:.1f})",
+				REX::TRACE("[Anim] placement[{}]: local ({:+.2f},{:+.2f},{:+.2f}) heading {:+.2f} -> world ({:.1f},{:.1f},{:.1f})",
 					i, pl.x, pl.y, pl.z, pl.heading, worldPos.x, worldPos.y, worldPos.z);
 			}
 		}
@@ -452,18 +452,18 @@ namespace OSF::Animation
 				SFSE::GetTaskInterface()->AddTask([keepAlive]() {
 					auto* ctl = keepAlive->movementController;
 					if (!ctl) {
-						REX::WARN("Actor {:X} has no movement controller — skipping animation-driven switch",
+						REX::WARN("[Anim] Actor {:X} has no movement controller — skipping animation-driven switch",
 							keepAlive->formID);
 						return;
 					}
 					ctl->SetAnimationDriven();
-					REX::INFO("Actor {:X}: animation-driven requested (game thread, mode byte now {})",
+					REX::TRACE("[Anim] Actor {:X}: animation-driven requested (game thread, mode byte now {})",
 						keepAlive->formID, ctl->movementMode);
 				});
 			}
 		}
 
-		REX::INFO("Started synced scene: {} actors, {} stage(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
+		REX::INFO("[Anim] Started synced scene: {} actors, {} stage(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
 			"anchored at ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
 			a_actors.size(), scene->stages.size(), startStage, scene->duration,
 			scene->stages[startStage].timer, scene->stages[startStage].loops,
@@ -490,14 +490,14 @@ namespace OSF::Animation
 			scene = iter->second->scene;
 		}
 		if (!scene) {
-			REX::WARN("SetSceneStage: actor {:X} is not in a scene", a_actor->formID);
+			REX::WARN("[Anim] SetSceneStage: actor {:X} is not in a scene", a_actor->formID);
 			return false;
 		}
 		if (!scene->SetStage(a_stage)) {
-			REX::WARN("SetSceneStage: stage {} out of range ({} stages)", a_stage, scene->stages.size());
+			REX::WARN("[Anim] SetSceneStage: stage {} out of range ({} stages)", a_stage, scene->stages.size());
 			return false;
 		}
-		REX::INFO("Scene jumped to stage {}", a_stage);
+		REX::DEBUG("[Anim] Scene jumped to stage {}", a_stage);
 		return true;
 	}
 
@@ -550,7 +550,7 @@ namespace OSF::Animation
 		if (scenes.empty() && graphs.empty()) {
 			return;
 		}
-		REX::INFO("StopAll ({}): dropping {} scene(s) + {} graph(s)",
+		REX::INFO("[Anim] StopAll ({}): dropping {} scene(s) + {} graph(s)",
 			a_reason ? a_reason : "?", scenes.size(), graphs.size());
 
 		// We do NOT fade or revert movement here: on a save load the engine has already reset every actor to the saved state, and our graphs are anchored in the world that was just discarded. 
@@ -664,12 +664,12 @@ namespace OSF::Animation
 			std::shared_lock l{ stateLock };
 			auto iter = graphs.find(a_actor);
 			if (iter == graphs.end()) {
-				REX::WARN("SetAnchor: actor {:X} has no live graph", a_actor->formID);
+				REX::WARN("[Anim] SetAnchor: actor {:X} has no live graph", a_actor->formID);
 				return false;
 			}
 			std::scoped_lock gl{ iter->second->stateLock };
 			if (iter->second->scene) {
-				REX::WARN("SetAnchor: actor {:X} is a scene participant — anchoring is scene-driven (use the scene's placement offsets)",
+				REX::WARN("[Anim] SetAnchor: actor {:X} is a scene participant — anchoring is scene-driven (use the scene's placement offsets)",
 					a_actor->formID);
 				return false;
 			}
@@ -683,7 +683,7 @@ namespace OSF::Animation
 			transforms->SetPosition(a_actor, { a_x, a_y, a_z });
 			transforms->SetHeadingZ(a_actor, heading);
 		}
-		REX::INFO("SetAnchor: actor {:X} -> ({:.1f},{:.1f},{:.1f}) heading {:.2f} rootMode {}",
+		REX::TRACE("[Anim] SetAnchor: actor {:X} -> ({:.1f},{:.1f},{:.1f}) heading {:.2f} rootMode {}",
 			a_actor->formID, a_x, a_y, a_z, heading, a_rootMode);
 		return true;
 	}
@@ -706,7 +706,7 @@ namespace OSF::Animation
 	bool GraphManager::Sync(const std::vector<RE::Actor*>& a_actors, bool a_anchor)
 	{
 		if (a_actors.size() < 2) {
-			REX::WARN("Sync: need >= 2 actors (got {})", a_actors.size());
+			REX::WARN("[Anim] Sync: need >= 2 actors (got {})", a_actors.size());
 			return false;
 		}
 
@@ -728,16 +728,16 @@ namespace OSF::Animation
 					}
 					auto iter = graphs.find(actor);
 					if (iter == graphs.end()) {
-						REX::WARN("Sync: actor {:X} has no live graph — skipping", actor->formID);
+						REX::DEBUG("[Anim] Sync: actor {:X} has no live graph — skipping", actor->formID);
 						continue;
 					}
 					std::scoped_lock gl{ iter->second->stateLock };
 					if (iter->second->scene) {
-						REX::WARN("Sync: actor {:X} is already a scene participant — skipping", actor->formID);
+						REX::DEBUG("[Anim] Sync: actor {:X} is already a scene participant — skipping", actor->formID);
 						continue;
 					}
 					if (iter->second->currentFile.empty()) {
-						REX::WARN("Sync: actor {:X} has no clip to anchor — skipping", actor->formID);
+						REX::DEBUG("[Anim] Sync: actor {:X} has no clip to anchor — skipping", actor->formID);
 						continue;
 					}
 					if (!gotSpeed) {  // carry a pre-Sync SetSpeed over to the scene clock
@@ -749,7 +749,7 @@ namespace OSF::Animation
 				}
 			}
 			if (sceneActors.size() < 2) {
-				REX::WARN("Sync: fewer than 2 anchorable solo graphs ({}) — nothing synced "
+				REX::WARN("[Anim] Sync: fewer than 2 anchorable solo graphs ({}) — nothing synced "
 						  "(pass abAnchor=false for in-place clock sync)", sceneActors.size());
 				return false;
 			}
@@ -761,10 +761,10 @@ namespace OSF::Animation
 			stage.files = std::move(sceneFiles);
 			plan.stages.push_back(std::move(stage));
 			if (!PlaySceneStaged(sceneActors, plan, 0)) {
-				REX::WARN("Sync: anchored promotion failed; actors left unsynced");
+				REX::WARN("[Anim] Sync: anchored promotion failed; actors left unsynced");
 				return false;
 			}
-			REX::INFO("Sync: {} graphs promoted to one anchored scene (same-spot overlap at actor {:X})",
+			REX::DEBUG("[Anim] Sync: {} graphs promoted to one anchored scene (same-spot overlap at actor {:X})",
 				sceneActors.size(), sceneActors.front()->formID);
 			return true;
 		}
@@ -782,18 +782,18 @@ namespace OSF::Animation
 			}
 			auto iter = graphs.find(actor);
 			if (iter == graphs.end()) {
-				REX::WARN("Sync: actor {:X} has no live graph — skipping", actor->formID);
+				REX::DEBUG("[Anim] Sync: actor {:X} has no live graph — skipping", actor->formID);
 				continue;
 			}
 			std::scoped_lock gl{ iter->second->stateLock };
 			if (iter->second->scene) {
-				REX::WARN("Sync: actor {:X} is a scene participant (already clock-synced) — skipping", actor->formID);
+				REX::DEBUG("[Anim] Sync: actor {:X} is a scene participant (already clock-synced) — skipping", actor->formID);
 				continue;
 			}
 			targets.push_back(iter->second);
 		}
 		if (targets.size() < 2) {
-			REX::WARN("Sync: fewer than 2 playable solo graphs to sync ({})", targets.size());
+			REX::WARN("[Anim] Sync: fewer than 2 playable solo graphs to sync ({})", targets.size());
 			return false;
 		}
 		// Second pass: one shared clock for the whole group; each graph reads it under its own lock (the group lock is a leaf). 
@@ -810,7 +810,7 @@ namespace OSF::Animation
 			std::scoped_lock gl{ g->stateLock };
 			g->syncGroup = group;
 		}
-		REX::INFO("Sync: {} graphs frame-locked on one shared clock", targets.size());
+		REX::TRACE("[Anim] Sync: {} graphs frame-locked on one shared clock", targets.size());
 		return true;
 	}
 
@@ -820,7 +820,7 @@ namespace OSF::Animation
 			return false;
 		}
 		if (a_files.empty() || a_files.size() != a_loops.size() || a_files.size() != a_blends.size()) {
-			REX::WARN("PlaySequence: files/loops/blends must be non-empty and equal length ({}/{}/{})",
+			REX::WARN("[Anim] PlaySequence: files/loops/blends must be non-empty and equal length ({}/{}/{})",
 				a_files.size(), a_loops.size(), a_blends.size());
 			return false;
 		}
@@ -864,14 +864,14 @@ namespace OSF::Animation
 				SFSE::GetTaskInterface()->AddTask([keepAlive]() {
 					if (auto* ctl = keepAlive->movementController) {
 						ctl->SetMotionDriven();
-						REX::INFO("Actor {:X}: movement reverted motion-driven", keepAlive->formID);
+						REX::TRACE("[Anim] Actor {:X}: movement reverted motion-driven", keepAlive->formID);
 					}
 				});
 			}
 		}
 		scenes.erase(sceneIter);
 
-		REX::INFO("Stopped scene");
+		REX::INFO("[Anim] Stopped scene");
 	}
 
 	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph)
@@ -892,10 +892,10 @@ namespace OSF::Animation
 			}
 		}
 		if (!keepAlive) {
-			REX::ERROR("Scene end: scene not found in the live list — cannot stop (this should be impossible)");
+			REX::ERROR("[Anim] Scene end: scene not found in the live list — cannot stop (this should be impossible)");
 			return;
 		}
-		REX::INFO("Scene finished its last stage — queueing stop task (from job thread)");
+		REX::DEBUG("[Anim] Scene finished its last stage — queueing stop task (from job thread)");
 		QueueSceneEndDeferred(std::move(keepAlive));
 	}
 
@@ -909,10 +909,10 @@ namespace OSF::Animation
 			// SetStage between the queue and now revives the scene (clears `ended`)
 			// a revived scene must not be killed by this stale task.
 			if (!keepAlive->ended.load(std::memory_order_relaxed)) {
-				REX::INFO("Scene end task: scene was revived meanwhile — not stopping");
+				REX::DEBUG("[Anim] Scene end task: scene was revived meanwhile — not stopping");
 				return;
 			}
-			REX::INFO("Scene end task executing on game thread");
+			REX::DEBUG("[Anim] Scene end task executing on game thread");
 			auto& gm = GetSingleton();
 
 			// The scene runtime gets first refusal: a graph-driven scene takes the matching auto-edge (advance to the next node / end its scene) and owns the teardown.
@@ -984,7 +984,7 @@ namespace OSF::Animation
 			}
 		}
 		for (auto& s : stalled) {
-			REX::WARN("Scene stalled {}ms (engine stopped ticking it — actor unloaded / AI-disabled / interrupted) — ending it as interrupted",
+			REX::WARN("[Anim] Scene stalled {}ms (engine stopped ticking it — actor unloaded / AI-disabled / interrupted) — ending it as interrupted",
 				now - s->lastAdvanceMs.load(std::memory_order_relaxed));
 			s->endReason.store(SceneEndReason::kInterrupted, std::memory_order_relaxed);
 			s->ended.store(true, std::memory_order_relaxed);  // hand to the normal deferred-end machinery

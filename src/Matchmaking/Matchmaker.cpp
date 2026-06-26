@@ -239,14 +239,14 @@ namespace OSF::Matchmaking
 	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query)
 	{
 		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
-		REX::INFO("Pick: searching for {} actor(s), tags {}", actorCount, DescribeQuery(a_query));
+		REX::DEBUG("[Match] searching for {} actor(s), tags {}", actorCount, DescribeQuery(a_query));
 		if (a_actors.empty()) {
-			REX::INFO("Pick: no match (no actors supplied)");
+			REX::DEBUG("[Match] no match (no actors supplied)");
 			return std::nullopt;
 		}
 		auto pool = BuildPool(actorCount, a_query, a_actors);
 		if (pool.empty()) {
-			REX::INFO("Pick: no match (no scene def fit {} role(s) + tags + a complete actor binding)", actorCount);
+			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + a complete actor binding)", actorCount);
 			return std::nullopt;
 		}
 		// Top priority tier.
@@ -262,22 +262,22 @@ namespace OSF::Matchmaking
 				total += static_cast<std::uint64_t>(std::max(1, c.weight));
 			}
 		}
-		REX::INFO("Pick: {} candidate(s) in pool, {} in top priority tier {} (total weight {})",
+		REX::TRACE("[Match] {} candidate(s) in pool, {} in top priority tier {} (total weight {})",
 			pool.size(), tier.size(), maxPriority, total);
 		// Weight-proportional random within the tier (uint64 sum is overflow-safe for the [1,1e6] cap).
 		std::mt19937 rng{ std::random_device{}() };
 		std::uniform_int_distribution<std::uint64_t> dist(1, total);
 		auto roll = dist(rng);
-		REX::INFO("Pick: weighted roll {} of {}", roll, total);
+		REX::TRACE("[Match] weighted roll {} of {}", roll, total);
 		for (const auto* c : tier) {
 			const auto w = static_cast<std::uint64_t>(std::max(1, c->weight));
 			if (roll <= w) {
-				REX::INFO("Pick: chose '{}' (priority {}, weight {})", c->id, c->priority, c->weight);
+				REX::DEBUG("[Match] chose '{}' (priority {}, weight {})", c->id, c->priority, c->weight);
 				return *c;
 			}
 			roll -= w;
 		}
-		REX::INFO("Pick: chose '{}' (priority {}, weight {}) [tail guard]",
+		REX::DEBUG("[Match] chose '{}' (priority {}, weight {}) [tail guard]",
 			tier.back()->id, tier.back()->priority, tier.back()->weight);
 		return *tier.back();  // numerical guard; not normally reached
 	}

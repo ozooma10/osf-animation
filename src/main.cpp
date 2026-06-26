@@ -33,14 +33,14 @@ namespace
 			// Apply the user's safety toggles now that the services they configure exist.
 			OSF::Config::Settings::Load();
 			if (!OSF::Papyrus::RegisterFunctions()) {
-				REX::ERROR("GameVM not available at kPostDataLoad, papyrus natives not registered");
+				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
-			REX::INFO("FEATURE: Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
+			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
 			break;
 		case SFSE::MessagingInterface::kPostPostDataLoad:
-			REX::INFO("FEATURE: Input Hook {}", OSF::Input::InputService::GetSingleton().Install() ? "INSTALLED" : "UNAVAILABLE");
+			REX::INFO("[Feature] Input Hook {}", OSF::Input::InputService::GetSingleton().Install() ? "INSTALLED" : "UNAVAILABLE");
 			break;
 		default:
 			break;
@@ -64,11 +64,11 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	SFSE::Init(a_sfse);
 
 	const auto runtime = a_sfse->RuntimeVersion();
-	REX::INFO("{} v{} loading — supported game version {}, running on {}",
+	REX::INFO("[Boot] {} v{} loading — supported game version {}, running on {}",
 		SFSE::GetPluginName(), SFSE::GetPluginVersion().string(),
 		kVerifiedGameVersion.string(), runtime.string());
 	if (runtime != kVerifiedGameVersion) {
-		REX::WARN("Unsupported game version: OSF Animation was last tested against Starfield version {} only, but this is {}. "
+		REX::WARN("[Boot] Unsupported game version: OSF Animation was last tested against Starfield version {} only, but this is {}. "
 			"Not all features may be available",
 			kVerifiedGameVersion.string(), runtime.string(), kVerifiedGameVersion.string());
 	}
@@ -76,7 +76,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	OSF::Animation::GraphManager::GetSingleton().InstallHooks();
 	SFSE::GetMessagingInterface()->RegisterListener(MessageCallback);
 
-	REX::INFO("Load complete");
+	REX::INFO("[Boot] Load complete");
 
 	return true;
 }

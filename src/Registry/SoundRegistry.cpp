@@ -112,14 +112,14 @@ namespace OSF::Registry
 			const auto sit = a_json.find("schema");
 			if (sit == a_json.end() || !sit->is_number_integer()) {
 				a_errors.push_back("[error] '" + fileName + "': missing/non-integer 'schema'");
-				REX::ERROR("SoundRegistry: '{}' missing/non-integer 'schema' — skipped", fileName);
+				REX::ERROR("[Sound] '{}' missing/non-integer 'schema' — skipped", fileName);
 				return;
 			}
 			const auto schema = sit->get<std::int64_t>();
 			if (schema != kSoundSchemaVersion) {
 				a_errors.push_back("[error] '" + fileName + "': *.sounds.json schema " + std::to_string(schema) +
 					" unsupported (expected " + std::to_string(kSoundSchemaVersion) + ")");
-				REX::ERROR("SoundRegistry: '{}' declares sound schema {} but this build expects {} — skipped",
+				REX::ERROR("[Sound] '{}' declares sound schema {} but this build expects {} — skipped",
 					fileName, schema, kSoundSchemaVersion);
 				return;
 			}
@@ -127,18 +127,18 @@ namespace OSF::Registry
 			const auto pit = a_json.find("pools");
 			if (pit == a_json.end() || !pit->is_array()) {
 				a_errors.push_back("[error] '" + fileName + "': needs a 'pools' array");
-				REX::ERROR("SoundRegistry: '{}' needs a 'pools' array — skipped", fileName);
+				REX::ERROR("[Sound] '{}' needs a 'pools' array — skipped", fileName);
 				return;
 			}
 			for (const auto& jp : *pit) {
 				try {
 					auto pool = ParsePool(jp, a_file);
-					REX::INFO("SoundRegistry: loaded pool '{}' ({} clip(s), {} tag(s)) from '{}'",
+					REX::DEBUG("[Sound] loaded pool '{}' ({} clip(s), {} tag(s)) from '{}'",
 						pool.name.empty() ? "<unnamed>" : pool.name, pool.clips.size(), pool.tags.size(), fileName);
 					a_out.push_back(std::move(pool));
 				} catch (const std::exception& e) {
 					a_errors.push_back("[error] '" + fileName + "': " + e.what());
-					REX::ERROR("SoundRegistry: skipping pool in '{}': {}", fileName, e.what());
+					REX::ERROR("[Sound] skipping pool in '{}': {}", fileName, e.what());
 				}
 			}
 		}
@@ -176,7 +176,7 @@ namespace OSF::Registry
 					LoadSoundFile(j, file, loaded, errors);
 				} catch (const std::exception& e) {
 					errors.push_back("[error] '" + file.filename().string() + "': parse failed: " + e.what());
-					REX::ERROR("SoundRegistry: failed to parse '{}': {}", file.filename().string(), e.what());
+					REX::ERROR("[Sound] failed to parse '{}': {}", file.filename().string(), e.what());
 				}
 			}
 		}
@@ -202,7 +202,7 @@ namespace OSF::Registry
 			loadErrors = std::move(errors);
 			lastPick.clear();
 		}
-		REX::INFO("SoundRegistry: {} pool(s) loaded, {} subtitled clip(s), {} problem(s)", poolCount, textCount, problemCount);
+		REX::INFO("[Sound] {} pool(s) loaded, {} subtitled clip(s), {} problem(s)", poolCount, textCount, problemCount);
 	}
 
 	std::optional<std::string> SoundRegistry::Resolve(std::string_view a_ref) const

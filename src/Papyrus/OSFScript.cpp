@@ -179,11 +179,11 @@ namespace OSF::Papyrus
 		bool Play(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_file, RE::BSFixedString a_animId)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.Play: no actor given");
+				REX::DEBUG("[Papyrus] Play: no actor given");
 				return false;
 			}
 			if (!Animation::GraphManager::GetSingleton().PlayAnimation(a_actor, a_file.c_str(), a_animId.c_str())) {
-				REX::WARN("OSF.Play: could not find/play animation '{}' (id '{}')", a_file.c_str(), a_animId.c_str());
+				REX::DEBUG("[Papyrus] Play: could not find/play animation '{}' (id '{}')", a_file.c_str(), a_animId.c_str());
 				return false;
 			}
 			return true;
@@ -192,7 +192,7 @@ namespace OSF::Papyrus
 		bool Stop(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.Stop: no actor given");
+				REX::DEBUG("[Papyrus] Stop: no actor given");
 				return false;
 			}
 			return Animation::GraphManager::GetSingleton().StopAnimation(a_actor);
@@ -209,7 +209,7 @@ namespace OSF::Papyrus
 		bool SetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, int32_t a_stage)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.SetSceneStageForActor: no actor given");
+				REX::DEBUG("[Papyrus] SetSceneStageForActor: no actor given");
 				return false;
 			}
 			return Animation::GraphManager::GetSingleton().SetSceneStage(a_actor, a_stage);
@@ -222,7 +222,7 @@ namespace OSF::Papyrus
 		{
 			Serialization::GLTFImport::ClearCache();
 			Serialization::AFImport::ClearCache();
-			REX::INFO("ReloadPacks: clip cache cleared");
+			REX::DEBUG("[Papyrus] ReloadPacks: clip cache cleared");
 			auto& registry = Registry::SceneRegistry::GetSingleton();
 			registry.LoadAll();
 			Registry::SoundRegistry::GetSingleton().LoadAll();
@@ -261,7 +261,7 @@ namespace OSF::Papyrus
 		bool SetSpeed(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, float a_speed)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.SetSpeed: no actor given");
+				REX::DEBUG("[Papyrus] SetSpeed: no actor given");
 				return false;
 			}
 			return Animation::GraphManager::GetSingleton().SetSpeed(a_actor, a_speed);
@@ -282,7 +282,7 @@ namespace OSF::Papyrus
 			float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.SetAnchor: no actor given");
+				REX::DEBUG("[Papyrus] SetAnchor: no actor given");
 				return false;
 			}
 			return Animation::GraphManager::GetSingleton().SetAnchor(a_actor, a_x, a_y, a_z, a_headingDeg, a_rootMode);
@@ -308,7 +308,7 @@ namespace OSF::Papyrus
 		bool StopSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
-				REX::WARN("OSF.StopSceneForActor: no actor given");
+				REX::DEBUG("[Papyrus] StopSceneForActor: no actor given");
 				return false;
 			}
 			if (Scene::SceneRuntime::GetSingleton().StopForActor(a_actor)) {
@@ -338,12 +338,12 @@ namespace OSF::Papyrus
 			SceneOptionsArg a_opts)
 		{
 			if (a_actors.empty()) {
-				REX::WARN("OSF.StartScene: no actors given");
+				REX::DEBUG("[Papyrus] StartScene: no actors given");
 				return 0;
 			}
 			const std::string sid = a_id.c_str();
 			if (!Registry::SceneRegistry::GetSingleton().Find(sid)) {
-				REX::WARN("OSF.StartScene: no scene '{}'", sid);
+				REX::DEBUG("[Papyrus] StartScene: no scene '{}'", sid);
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
@@ -363,7 +363,7 @@ namespace OSF::Papyrus
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
 			if (a_actors.empty()) {
-				REX::WARN("OSF.StartSceneRoles: no actors given");
+				REX::DEBUG("[Papyrus] StartSceneRoles: no actors given");
 				return 0;
 			}
 			const std::string sid = a_id.c_str();
@@ -382,25 +382,25 @@ namespace OSF::Papyrus
 			const Scene::SceneRuntime::StartOverrides& a_over, const char* a_logTag)
 		{
 			if (a_actors.empty()) {
-				REX::WARN("{}: no actors given", a_logTag);
+				REX::DEBUG("[Papyrus] {}: no actors given", a_logTag);
 				return 0;
 			}
 			for (auto* actor : a_actors) {
 				if (!actor) {
-					REX::WARN("{}: null actor in list", a_logTag);
+					REX::DEBUG("[Papyrus] {}: null actor in list", a_logTag);
 					return 0;
 				}
 			}
 			auto pick = Matchmaking::Pick(a_actors, a_query);
 			if (!pick) {
-				REX::WARN("{}: no matching animation found for the given tags/actors", a_logTag);
+				REX::DEBUG("[Papyrus] {}: no matching animation found for the given tags/actors", a_logTag);
 				return 0;
 			}
 			const int32_t handle = StartCandidate(*pick, a_actors, a_over);
 			if (handle) {
-				REX::INFO("{}: playing '{}' handle {:#010x}", a_logTag, pick->id, handle);
+				REX::INFO("[Papyrus] {}: playing '{}' handle {:#010x}", a_logTag, pick->id, handle);
 			} else {
-				REX::WARN("{}: could not start matched scene '{}'", a_logTag, pick->id);
+				REX::WARN("[Papyrus] {}: could not start matched scene '{}'", a_logTag, pick->id);
 			}
 			return handle;
 		}
@@ -423,23 +423,23 @@ namespace OSF::Papyrus
 			const RE::NiPoint3& a_pos, float a_heading, const Scene::SceneRuntime::StartOverrides& a_over, const char* a_logTag)
 		{
 			if (a_actors.empty()) {
-				REX::WARN("{}: no actors given", a_logTag);
+				REX::DEBUG("[Papyrus] {}: no actors given", a_logTag);
 				return 0;
 			}
 			for (auto* actor : a_actors) {
 				if (!actor) {
-					REX::WARN("{}: null actor in list", a_logTag);
+					REX::DEBUG("[Papyrus] {}: null actor in list", a_logTag);
 					return 0;
 				}
 			}
 			auto pick = Matchmaking::Pick(a_actors, a_query);
 			if (!pick) {
-				REX::WARN("{}: no matching animation found for the given tags/actors", a_logTag);
+				REX::DEBUG("[Papyrus] {}: no matching animation found for the given tags/actors", a_logTag);
 				return 0;
 			}
 			const int32_t handle = StartCandidateAt(*pick, a_actors, a_pos, a_heading, a_over);
 			if (handle) {
-				REX::INFO("{}: playing '{}' handle {:#010x} (anchored)", a_logTag, pick->id, handle);
+				REX::INFO("[Papyrus] {}: playing '{}' handle {:#010x} (anchored)", a_logTag, pick->id, handle);
 			}
 			return handle;
 		}
@@ -480,7 +480,7 @@ namespace OSF::Papyrus
 		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
 		{
 			if (!a_receiver.get()) {
-				REX::WARN("OSF.RegisterSceneCallback: null receiver");
+				REX::DEBUG("[Papyrus] RegisterSceneCallback: null receiver");
 				return 0;
 			}
 			return Scene::SceneEventRelay::GetSingleton().Register(a_receiver, a_fn.c_str(), a_scene, a_eventMask);
@@ -492,7 +492,7 @@ namespace OSF::Papyrus
 		int32_t RegisterSceneCallbackStatic(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_script, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
 		{
 			if (a_script.empty()) {
-				REX::WARN("OSF.RegisterSceneCallbackStatic: empty script name");
+				REX::DEBUG("[Papyrus] RegisterSceneCallbackStatic: empty script name");
 				return 0;
 			}
 			return Scene::SceneEventRelay::GetSingleton().RegisterStatic(a_script.c_str(), a_fn.c_str(), a_scene, a_eventMask);
@@ -554,7 +554,7 @@ namespace OSF::Papyrus
 		{
 			RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> typesType;
 			if (!a_vm->GetScriptObjectType(RE::BSFixedString(TYPES_SCRIPT_NAME.data()), typesType) || !typesType) {
-				REX::WARN("RegisterFunctions: could not preload '{}' type info — struct-typed natives "
+				REX::ERROR("[Papyrus] could not preload '{}' type info — struct-typed natives "
 						  "(StartScene/StartSceneByTags/StartSceneByTagsQuery) may fail to register and "
 						  "scene-event callbacks may receive no payload", TYPES_SCRIPT_NAME);
 			}
@@ -595,7 +595,7 @@ namespace OSF::Papyrus
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
-		REX::INFO("Registered papyrus natives on script '{}'", SCRIPT_NAME);
+		REX::INFO("[Papyrus] registered natives on script '{}'", SCRIPT_NAME);
 	}
 
 	bool RegisterFunctions()

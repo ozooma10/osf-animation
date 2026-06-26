@@ -63,17 +63,17 @@ namespace OSF::Animation
 					const char* why = timerExpired ? "timer" : "loop target";
 					if (currentStage + 1 < stages.size()) {
 						ApplyStageLocked(currentStage + 1);
-						REX::INFO("Scene: stage {} expired — advanced to stage {}/{}", why, currentStage + 1, stages.size());
+						REX::DEBUG("[Anim] stage {} expired — advanced to stage {}/{}", why, currentStage + 1, stages.size());
 					} else if (loopWhole) {
 						ApplyStageLocked(0);  // PlaySequence whole-loop
-						REX::INFO("Scene: final stage {} expired — looping to stage 0", why);
+						REX::DEBUG("[Anim] final stage {} expired — looping to stage 0", why);
 					} else {
 						// Record which condition fired so the scene runtime's auto-advance handler can pick the matching auto-edge (timer vs loops/end). 
 						// Set before `ended` so a reader gated on `ended` sees the reason.
 						endReason.store(timerExpired ? SceneEndReason::kTimer : SceneEndReason::kLoops,
 							std::memory_order_relaxed);
 						ended.store(true, std::memory_order_relaxed);  // hook defers StopScene
-						REX::INFO("Scene: final stage {} expired — holding pose, requesting stop", why);
+						REX::DEBUG("[Anim] final stage {} expired — holding pose, requesting stop", why);
 					}
 					stageChanged = true;
 				}

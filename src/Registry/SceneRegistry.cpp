@@ -380,7 +380,7 @@ namespace OSF::Registry
 				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + ce.state + "'", /*a_atRequired*/ false);
 				ce.distance = c.value("distance", 0.0f);  // thirdperson_hold opening zoom; 0 = engine default
 				if (ce.distance != 0.0f && ToLower(ce.state) != "thirdperson_hold") {
-					REX::WARN("node '{}': camera 'distance' is only honored for 'thirdperson_hold' — state '{}' ignores it",
+					REX::DEBUG("[Registry] node '{}': camera 'distance' is only honored for 'thirdperson_hold' — state '{}' ignores it",
 						a_node_out.id, ce.state);
 				}
 				a_node_out.cameras.push_back(std::move(ce));
@@ -460,7 +460,7 @@ namespace OSF::Registry
 			if (auto qit = a_role.find("equip"); qit != a_role.end()) {
 				auto checkRef = [&](const std::string& a_ref, const char* a_key) -> std::string {
 					if (!a_ref.empty() && a_ref.find('|') == std::string::npos) {
-						REX::WARN("SceneRegistry: scene '{}': role '{}': equip.{} '{}' is not a "
+						REX::WARN("[Registry] scene '{}': role '{}': equip.{} '{}' is not a "
 							"\"Plugin.esm|0xLocalID\" form ref — equip dropped (scene still loads)",
 							a_sceneId, r.name, a_key, a_ref);
 						return std::string{};  // drop the bad ref; runtime treats empty as "no equip"
@@ -542,7 +542,7 @@ namespace OSF::Registry
 							const auto name = v.get<std::string>();
 							const auto bit = Input::CapabilityBit(name);
 							if (bit == 0) {
-								REX::WARN("scene '{}': unknown playerControl capability '{}' — ignored (typo, or a newer OSF Animation?)", def.id, name);
+								REX::WARN("[Registry] scene '{}': unknown playerControl capability '{}' — ignored (typo, or a newer OSF Animation?)", def.id, name);
 							}
 							def.playerControl.capabilities &= ~bit;  // remove from the default-all set
 						}
@@ -1029,14 +1029,14 @@ namespace OSF::Registry
 			const auto it = a_json.find("schema");
 			if (it == a_json.end() || !it->is_number_integer()) {
 				a_errors.push_back("[error] '" + fileName + "': missing/non-integer 'schema'");
-				REX::ERROR("SceneRegistry: '{}' missing/non-integer 'schema' — skipped", fileName);
+				REX::ERROR("[Registry] '{}' missing/non-integer 'schema' — skipped", fileName);
 				return;
 			}
 			const auto schema = it->get<std::int64_t>();
 			if (schema != kSchemaVersion) {
 				a_errors.push_back("[error] '" + fileName + "': *.osf.json schema " + std::to_string(schema) +
 					" unsupported (expected " + std::to_string(kSchemaVersion) + ")");
-				REX::ERROR("SceneRegistry: '{}' declares osf schema {} but this build expects {} — skipped",
+				REX::ERROR("[Registry] '{}' declares osf schema {} but this build expects {} — skipped",
 					fileName, schema, kSchemaVersion);
 				return;
 			}
@@ -1052,7 +1052,7 @@ namespace OSF::Registry
 			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
 				if (!cit->is_string()) {
 					a_errors.push_back("[error] '" + fileName + "': 'camera' must be a string");
-					REX::ERROR("SceneRegistry: '{}' 'camera' must be a string — skipped", fileName);
+					REX::ERROR("[Registry] '{}' 'camera' must be a string — skipped", fileName);
 					return;
 				}
 				cameraDefault = ToLower(cit->get<std::string>());
@@ -1062,7 +1062,7 @@ namespace OSF::Registry
 				} else if (!IsKnownCameraState(cameraDefault)) {
 					a_errors.push_back("[error] '" + fileName + "': unknown camera state '" + cit->get<std::string>() +
 						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit', 'none')");
-					REX::ERROR("SceneRegistry: '{}' unknown camera state '{}' — skipped", fileName, cit->get<std::string>());
+					REX::ERROR("[Registry] '{}' unknown camera state '{}' — skipped", fileName, cit->get<std::string>());
 					return;
 				}
 			}
@@ -1075,13 +1075,13 @@ namespace OSF::Registry
 			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
 				if (!sit->is_array()) {
 					a_errors.push_back("[error] '" + fileName + "': 'scenes' must be an array");
-					REX::ERROR("SceneRegistry: '{}' 'scenes' must be an array — skipped", fileName);
+					REX::ERROR("[Registry] '{}' 'scenes' must be an array — skipped", fileName);
 					return;
 				}
 				if (auto rit = a_json.find("roles"); rit != a_json.end()) {
 					if (!rit->is_array()) {
 						a_errors.push_back("[error] '" + fileName + "': pack-level 'roles' must be an array");
-						REX::ERROR("SceneRegistry: '{}' pack-level 'roles' must be an array — skipped", fileName);
+						REX::ERROR("[Registry] '{}' pack-level 'roles' must be an array — skipped", fileName);
 						return;
 					}
 					try {
@@ -1090,7 +1090,7 @@ namespace OSF::Registry
 						}
 					} catch (const std::exception& e) {
 						a_errors.push_back("[error] '" + fileName + "': pack-level roles: " + e.what());
-						REX::ERROR("SceneRegistry: '{}' pack-level roles rejected: {} — skipped", fileName, e.what());
+						REX::ERROR("[Registry] '{}' pack-level roles rejected: {} — skipped", fileName, e.what());
 						return;
 					}
 				}
@@ -1110,19 +1110,19 @@ namespace OSF::Registry
 					if (const auto f = a_out.find(key); f != a_out.end()) {
 						a_errors.push_back("[error] duplicate scene id '" + def.id + "' in '" + fileName +
 							"' (already from '" + f->second.sourceFile.filename().string() + "') — keeping the first");
-						REX::ERROR("SceneRegistry: duplicate scene id '{}' in '{}' — keeping first from '{}'",
+						REX::ERROR("[Registry] duplicate scene id '{}' in '{}' — keeping first from '{}'",
 							def.id, fileName, f->second.sourceFile.filename().string());
 						continue;
 					}
 					for (const auto& w : warnings) {
 						a_errors.push_back("[warn] " + w);
-						REX::WARN("SceneRegistry: {}", w);
+						REX::WARN("[Registry] {}", w);
 					}
-					REX::INFO("SceneRegistry: loaded scene '{}' ({} node(s)) from '{}'", def.id, def.nodes.size(), fileName);
+					REX::DEBUG("[Registry] loaded scene '{}' ({} node(s)) from '{}'", def.id, def.nodes.size(), fileName);
 					a_out[std::move(key)] = std::move(def);
 				} catch (const std::exception& e) {
 					a_errors.push_back("[error] '" + fileName + "': " + e.what());
-					REX::ERROR("SceneRegistry: skipping scene in '{}': {}", fileName, e.what());
+					REX::ERROR("[Registry] skipping scene in '{}': {}", fileName, e.what());
 				}
 			}
 		}
@@ -1140,14 +1140,14 @@ namespace OSF::Registry
 					if (tit == a_scenes.end()) {
 						a_errors.push_back("[error] scene '" + def.id + "' node '" + nd.id +
 							"': use references unknown scene '" + nd.use + "'");
-						REX::ERROR("SceneRegistry: scene '{}' node '{}' use references unknown scene '{}'", def.id, nd.id, nd.use);
+						REX::ERROR("[Registry] scene '{}' node '{}' use references unknown scene '{}'", def.id, nd.id, nd.use);
 						continue;
 					}
 					const auto& target = tit->second;
 					if (target.nodes.size() != 1 || target.nodes[0].stages.empty()) {
 						a_errors.push_back("[error] scene '" + def.id + "' node '" + nd.id + "': use target '" + nd.use +
 							"' is not a single inline-stage scene (use splices one node's stages)");
-						REX::ERROR("SceneRegistry: scene '{}' node '{}' use target '{}' is not single inline-stage", def.id, nd.id, nd.use);
+						REX::ERROR("[Registry] scene '{}' node '{}' use target '{}' is not single inline-stage", def.id, nd.id, nd.use);
 					}
 				}
 			}
@@ -1163,7 +1163,7 @@ namespace OSF::Registry
 				return std::nullopt;
 			}
 			if (a_roles.size() != a_actorCount) {
-				REX::WARN("SceneRegistry: '{}' needs {} role(s), got {}", a_id, a_roles.size(), a_actorCount);
+				REX::WARN("[Registry] '{}' needs {} role(s), got {}", a_id, a_roles.size(), a_actorCount);
 				return std::nullopt;
 			}
 			Animation::ScenePlan plan;
@@ -1171,7 +1171,7 @@ namespace OSF::Registry
 			plan.stages.reserve(a_stages.size());
 			for (const auto& sd : a_stages) {
 				if (sd.clips.size() != a_actorCount) {
-					REX::WARN("SceneRegistry: '{}' stage has {} clip(s) but {} role(s)", a_id, sd.clips.size(), a_actorCount);
+					REX::WARN("[Registry] '{}' stage has {} clip(s) but {} role(s)", a_id, sd.clips.size(), a_actorCount);
 					return std::nullopt;
 				}
 				Animation::ScenePlan::Stage stage;
@@ -1254,7 +1254,7 @@ namespace OSF::Registry
 					LoadOsfFile(j, file, loaded, errors);
 				} catch (const std::exception& e) {
 					errors.push_back("[error] '" + file.filename().string() + "': parse failed: " + e.what());
-					REX::ERROR("SceneRegistry: failed to parse '{}': {}", file.filename().string(), e.what());
+					REX::ERROR("[Registry] failed to parse '{}': {}", file.filename().string(), e.what());
 				}
 			}
 
@@ -1269,7 +1269,7 @@ namespace OSF::Registry
 			scenes = std::move(loaded);
 			loadErrors = std::move(errors);
 		}
-		REX::INFO("SceneRegistry: {} scene(s) loaded, {} problem(s)", sceneCount, problemCount);
+		REX::INFO("[Registry] {} scene(s) loaded, {} problem(s)", sceneCount, problemCount);
 	}
 
 	const SceneDef* SceneRegistry::Find(std::string_view a_id) const
@@ -1287,12 +1287,12 @@ namespace OSF::Registry
 			std::shared_lock l{ lock };
 			const auto it = scenes.find(ToLower(a_node.use));
 			if (it == scenes.end()) {
-				REX::WARN("SceneRegistry: node '{}' use '{}' references unknown scene", a_node.id, a_node.use);
+				REX::WARN("[Registry] node '{}' use '{}' references unknown scene", a_node.id, a_node.use);
 				return std::nullopt;
 			}
 			const auto& target = it->second;
 			if (target.nodes.size() != 1 || !target.nodes[0].use.empty() || target.nodes[0].stages.empty()) {
-				REX::WARN("SceneRegistry: node '{}' use target '{}' is not a single inline-stage scene", a_node.id, a_node.use);
+				REX::WARN("[Registry] node '{}' use target '{}' is not a single inline-stage scene", a_node.id, a_node.use);
 				return std::nullopt;
 			}
 			return BuildPlanFromStages(target.id, target.roles, target.nodes[0].stages, a_actorCount);

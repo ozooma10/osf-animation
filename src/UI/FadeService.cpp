@@ -52,12 +52,12 @@ namespace OSF::UI
 	{
 		static const bool available = []() {
 			if (!Util::Hooking::PrologueMatches(kFadeScreenPoster, kFadePosterPrologue)) {
-				REX::WARN("Screen fades disabled: fade poster (ID {}) prologue mismatch on this runtime "
+				REX::WARN("[UI] screen fades disabled: fade poster (ID {}) prologue mismatch on this runtime "
 				          "— osf.fade.* actions are no-ops",
 					kFadeScreenPoster.id());
 				return false;
 			}
-			REX::INFO("Screen fades available: fade poster prologue verified");
+			REX::DEBUG("[UI] screen fades available: fade poster prologue verified");
 			return true;
 		}();
 		return available;
@@ -117,7 +117,7 @@ namespace OSF::UI
 		// Posting only enqueues, so it's safe in the pre-load window.
 		if (releaseAtMs.exchange(0, std::memory_order_relaxed) != 0 && Available()) {
 			PostFade(/*fadingOut*/ false, 0.3f, /*stayFaded*/ false);
-			REX::INFO("Held screen fade released for save-load teardown");
+			REX::DEBUG("[UI] held screen fade released for save-load teardown");
 		}
 	}
 

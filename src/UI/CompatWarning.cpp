@@ -33,7 +33,7 @@ namespace OSF::UI
 		std::string detected;
 		for (const auto& framework : kIncompatibleFrameworks) {
 			if (REX::W32::GetModuleHandleW(framework.module) != nullptr) {
-				REX::WARN("Co-loaded incompatible animation framework: {}. Both write the engine rig buffer every frame and will fight over poses.", framework.displayName);
+				REX::WARN("[UI] co-loaded incompatible animation framework: {}. Both write the engine rig buffer every frame and will fight over poses.", framework.displayName);
 				if (!detected.empty()) {
 					detected += " and ";
 				}
@@ -42,7 +42,7 @@ namespace OSF::UI
 		}
 
 		if (detected.empty()) {
-			REX::INFO("No incompatibilities Detected.");
+			REX::DEBUG("[UI] no incompatible frameworks detected.");
 			return;
 		}
 
@@ -56,7 +56,7 @@ namespace OSF::UI
 
 		// Blocking Win32 box on the load thread — the game hasn't reached the title  screen yet, 
 		// so blocking here is harmless and guarantees the user sees it before any scene plays. nullptr owner = top-level (no game window yet).
-		REX::INFO("Posting co-load compatibility warning via Win32 MessageBox: {}", detected);
+		REX::DEBUG("[UI] posting co-load compatibility warning via Win32 MessageBox: {}", detected);
 		REX::W32::MessageBoxA(nullptr, body.c_str(), "OSF Animation — conflicting framework detected", kMessageBoxFlags);
 	}
 }

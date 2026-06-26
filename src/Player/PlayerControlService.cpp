@@ -42,7 +42,7 @@ namespace OSF::Player
 					},
 					RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor>(), 0);
 				if (!dispatched) {
-					REX::WARN("SetPlayerAIDriven: Game.SetPlayerAIDriven({}) dispatch failed (VM rebuilding mid-load?) — player AI-driven state may lag until the next load", a_driven);
+					REX::TRACE("[Player] Game.SetPlayerAIDriven({}) dispatch failed (VM rebuilding mid-load?) — player AI-driven state may lag until the next load", a_driven);
 				}
 			});
 		}
@@ -72,7 +72,7 @@ namespace OSF::Player
 			if (standaloneActive) {
 				standaloneActive = false;
 				RestoreEnabled();
-				REX::INFO("Player control lock restored for StopAll");
+				REX::DEBUG("[Player] control lock restored for StopAll");
 			}
 		});
 	}
@@ -86,7 +86,7 @@ namespace OSF::Player
 					return;  // already held — idempotent
 				}
 				if (!EnsureLayer()) {
-					REX::WARN("Player standalone control lock: failed to allocate input-disable layer");
+					REX::WARN("[Player] standalone control lock: failed to allocate input-disable layer");
 					return;
 				}
 				standaloneActive = true;
@@ -94,7 +94,7 @@ namespace OSF::Player
 				// No AI-driven: it blocked camera look (an AI-driven actor is non-controllable) without
 				// actually decoupling the rig — the GraphManager compose-root rotation pin handles rig-spin.
 				// The input layer disables Movement/Fighting/Sneaking/Activation only; Looking stays free.
-				REX::INFO("Player standalone control lock engaged (movement only — camera look stays free)");
+				REX::DEBUG("[Player] standalone control lock engaged (movement only — camera look stays free)");
 			} else {
 				if (!standaloneActive) {
 					return;  // not held — nothing to release
@@ -108,7 +108,7 @@ namespace OSF::Player
 				// otherwise cleared on a game load via OnStopAll), leaving the player unlocked at OSF's
 				// level but still AI-driven (= unable to move). Idempotent: a no-op when nothing set it.
 				SetPlayerAIDriven(false);
-				REX::INFO("Player standalone control lock released");
+				REX::DEBUG("[Player] standalone control lock released");
 			}
 		});
 	}

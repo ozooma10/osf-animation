@@ -94,3 +94,28 @@ Each entry: **system** (`path`) — role.
   content-neutral *mechanisms* with NO scene knowledge; each prologue-gates its engine calls and
   self-disables on mismatch. Whether a mechanism runs is driven by the scene/API alone — there is no
   user-settings feature toggle; `Data/OSF/settings.json` only tunes behaviour (e.g. `soundVolume`).
+
+## Logging
+
+All logging goes through `REX::{TRACE,DEBUG,INFO,WARN,ERROR}` (commonlib → spdlog → the SFSE log
+file). Two rules keep it cohesive:
+
+- **Tier by audience.** The default level is build-driven — `Info` in the shipped `releasedbg` build,
+  `Debug` in debug builds — so anything below `Info` is invisible to users by default.
+  - `ERROR` — an operation the user/author can fix failed (bad `settings.json`, native bind failed,
+    scene/pack failed validation, referenced asset missing, hook couldn't install).
+  - `WARN` — degraded but continuing (unsupported game version, a feature self-disabled on prologue
+    mismatch, NAF/SAF conflict, unknown settings key).
+  - `INFO` — a few lifecycle milestones only: load banner, the `FEATURE:` report, registry load
+    summaries, save-load teardown, `Load complete`, and scene **start/end** (id + handle).
+  - `DEBUG` — author-debugging detail: scene advance/navigate, action dispatch, matchmaking results,
+    sound resolution, mechanism engage/release (lock/strip/fade/equip), solo clip play/stop.
+  - `TRACE` — engine/RE internals: per-frame/per-mark, hook plumbing, RE offsets, AF/BA2/GLTF decode
+    steps, anchor/placement geometry, sync/frame-lock, ledger push/pop.
+- **Tag by subsystem.** Every line starts with one bracketed tag so the log greps cleanly:
+  `[Boot] [Feature] [Anim] [Scene] [Registry] [Sound] [Match] [Papyrus] [Audio] [Camera] [Player]
+  [Input] [Equip] [Weapon] [UI] [Save] [Config]`. Don't restate the subsystem in the message text.
+
+A dev gets the full firehose without recompiling via `Data/OSF/settings.json` `"logLevel": "trace"`
+(handled in `src/Config/Settings.cpp`). The crash handler (`src/Util/CrashHandler.cpp`) deliberately
+bypasses spdlog — never route it through REX.

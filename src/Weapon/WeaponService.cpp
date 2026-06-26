@@ -28,15 +28,15 @@ namespace OSF::Weapon
 				const auto slot = *reinterpret_cast<const std::uintptr_t*>(
 					vtbl.address() + kDrawWeaponMagicHandsVtableSlot * sizeof(std::uintptr_t));
 				if (slot == 0) {
-					REX::WARN("Weapon sheathe/draw disabled: Actor vtable slot {:#x} is null on this runtime",
+					REX::WARN("[Weapon] sheathe/draw disabled: Actor vtable slot {:#x} is null on this runtime",
 						kDrawWeaponMagicHandsVtableSlot);
 					return false;
 				}
-				REX::INFO("Weapon sheathe/draw available: Actor::DrawWeaponMagicHands resolved (vtable slot {:#x} -> {:X})",
+				REX::TRACE("[Weapon] sheathe/draw available: Actor::DrawWeaponMagicHands resolved (vtable slot {:#x} -> {:X})",
 					kDrawWeaponMagicHandsVtableSlot, slot);
 				return true;
 			} catch (...) {
-				REX::WARN("Weapon sheathe/draw disabled: Actor vtable binding did not resolve on this runtime");
+				REX::WARN("[Weapon] sheathe/draw disabled: Actor vtable binding did not resolve on this runtime");
 				return false;
 			}
 		}();
@@ -49,7 +49,7 @@ namespace OSF::Weapon
 			return false;
 		}
 		a_actor->DrawWeaponMagicHands(false);
-		REX::INFO("Actor {:X}: weapon sheathed", a_actor->formID);
+		REX::DEBUG("[Weapon] actor {:X}: weapon sheathed", a_actor->formID);
 		return true;
 	}
 
@@ -59,6 +59,6 @@ namespace OSF::Weapon
 			return;
 		}
 		a_actor->DrawWeaponMagicHands(true);
-		REX::INFO("Actor {:X}: weapon drawn", a_actor->formID);
+		REX::DEBUG("[Weapon] actor {:X}: weapon drawn", a_actor->formID);
 	}
 }

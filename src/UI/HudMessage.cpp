@@ -13,7 +13,7 @@ namespace OSF::UI::HudMessage
 	{
 		auto* source = RE::ShowHUDMessageEvent::GetEventSource();
 		if (!source) {
-			REX::WARN("HudMessage: no ShowHUDMessageEvent source yet — dropped '{}'", a_text);
+			REX::DEBUG("[UI] no ShowHUDMessageEvent source yet — dropped '{}'", a_text);
 			return;
 		}
 		// {text, sound = none, canThrottle = true, isWarning = false} — matches the Papyrus
@@ -30,7 +30,7 @@ namespace OSF::UI::HudMessage
 	void SetDebugEnabled(bool a_on)
 	{
 		g_debugEnabled.store(a_on, std::memory_order_relaxed);
-		REX::INFO("HudMessage: debug notifications {}", a_on ? "ENABLED" : "disabled");
+		REX::DEBUG("[UI] debug notifications {}", a_on ? "ENABLED" : "disabled");
 	}
 
 	bool DebugEnabled()

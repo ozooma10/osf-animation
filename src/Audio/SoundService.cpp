@@ -55,13 +55,13 @@ namespace OSF::Audio
 		// so they ride the game's Wwise mix with no bank to load. The miniaudio device below is the legacy fallback, used only for codecs the external source can't stream directly.
 
 		if (ma_engine_init(nullptr, &g_engine) != MA_SUCCESS) {
-			REX::WARN("SoundService: audio device init failed, cue sounds disabled (cue events still dispatch)");
+			REX::WARN("[Audio] audio device init failed, cue sounds disabled (cue events still dispatch)");
 			return;
 		}
 		// Starfield is Z-up; miniaudio defaults to Y-up. Panning reads the listener frame, so fix the world up once here (position/direction follow the player every Tick).
 		ma_engine_listener_set_world_up(&g_engine, 0, 0.0f, 0.0f, 1.0f);
 		engineReady = true;
-		REX::INFO("SoundService: audio engine ready ({} Hz, {} ch)", ma_engine_get_sample_rate(&g_engine), ma_engine_get_channels(&g_engine));
+		REX::DEBUG("[Audio] audio engine ready ({} Hz, {} ch)", ma_engine_get_sample_rate(&g_engine), ma_engine_get_channels(&g_engine));
 	}
 
 	void SoundService::Play(std::uint64_t a_slot, const std::string& a_dataRelPath, const RE::NiPoint3& a_worldPos, float a_volume)
@@ -71,7 +71,7 @@ namespace OSF::Audio
 		if (const auto eventID = Wwise::ParseEventSpec(a_dataRelPath)) {
 			const auto playingID = Wwise::PostEvent(*eventID);
 			if (playingID == 0) {
-				REX::WARN("SoundService: Wwise rejected '{}' (event 0x{:08X} not in any loaded bank?)", a_dataRelPath, *eventID);
+				REX::WARN("[Audio] Wwise rejected '{}' (event 0x{:08X} not in any loaded bank?)", a_dataRelPath, *eventID);
 			} else {
 				// Replace any prior voice on this slot (cuts the prior Wwise voice once the AK stop is proven).
 				std::scoped_lock l{ lock };
@@ -79,7 +79,7 @@ namespace OSF::Audio
 				if (a_slot != 0) {
 					slots[a_slot].wwisePlayingID = playingID;
 				}
-				REX::DEBUG("SoundService: posted Wwise event '{}' (0x{:08X}) -> playingID {} (slot {:#x})", a_dataRelPath, *eventID, playingID, a_slot);
+				REX::DEBUG("[Audio] posted Wwise event '{}' (0x{:08X}) -> playingID {} (slot {:#x})", a_dataRelPath, *eventID, playingID, a_slot);
 			}
 			return;
 		}
@@ -98,10 +98,10 @@ namespace OSF::Audio
 				if (a_slot != 0) {
 					slots[a_slot].wwisePlayingID = playingID;
 				}
-				REX::INFO("SoundService: posted external '{}' -> playingID {} (engine-mixed, slot {:#x})", a_dataRelPath, playingID, a_slot);
+				REX::DEBUG("[Audio] posted external '{}' -> playingID {} (engine-mixed, slot {:#x})", a_dataRelPath, playingID, a_slot);
 				return;
 			}
-			REX::WARN("SoundService: Wwise external-source post rejected '{}' — falling back to the miniaudio device",
+			REX::WARN("[Audio] Wwise external-source post rejected '{}' — falling back to the miniaudio device",
 				a_dataRelPath);
 		}
 
@@ -120,7 +120,7 @@ namespace OSF::Audio
 		// Do not use MA_SOUND_FLAG_DECODE here; that creates a decode-only sound which opens successfully but is not routed to the engine for playback.
 		constexpr ma_uint32 flags = MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_ASYNC;
 		if (ma_sound_init_from_file(&g_engine, path.c_str(), flags, nullptr, nullptr, &active->sound) != MA_SUCCESS) {
-			REX::WARN("SoundService: cannot open '{}'", path);
+			REX::WARN("[Audio] cannot open '{}'", path);
 			return;
 		}
 
@@ -132,11 +132,11 @@ namespace OSF::Audio
 		ma_sound_set_doppler_factor(&active->sound, 0.0f);  // engine-paced clips, no pitch warble
 		ma_sound_set_volume(&active->sound, std::clamp(a_volume, 0.0f, 2.0f));
 		if (ma_sound_start(&active->sound) != MA_SUCCESS) {
-			REX::WARN("SoundService: failed to start '{}'", path);
+			REX::WARN("[Audio] failed to start '{}'", path);
 			ma_sound_uninit(&active->sound);
 			return;
 		}
-		REX::DEBUG("SoundService: playing '{}' at ({:.2f},{:.2f},{:.2f}) volume {:.2f} (slot {:#x})", a_dataRelPath, a_worldPos.x, a_worldPos.y, a_worldPos.z, a_volume, a_slot);
+		REX::DEBUG("[Audio] playing '{}' at ({:.2f},{:.2f},{:.2f}) volume {:.2f} (slot {:#x})", a_dataRelPath, a_worldPos.x, a_worldPos.y, a_worldPos.z, a_volume, a_slot);
 
 		// Replace any prior sound on this slot (cuts the prior miniaudio sound AND any prior Wwise voice),
 		// then take ownership of the slot. The new sound is already started, so the channel never goes silent.

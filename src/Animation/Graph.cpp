@@ -242,7 +242,7 @@ namespace OSF::Animation
 
 		if (!loggedBind) {
 			loggedBind = true;
-			REX::INFO("Graph: rig bind — {}/{} mapped body bones matched skeleton joints ({} faceBone_/morph nodes skipped)", binding.size(), cachedBoneCount, skippedFaceBones);
+			REX::DEBUG("[Anim] rig bind — {}/{} mapped body bones matched skeleton joints ({} faceBone_/morph nodes skipped)", binding.size(), cachedBoneCount, skippedFaceBones);
 		}
 
 		return !binding.empty();
@@ -354,7 +354,7 @@ namespace OSF::Animation
 		if (!job.Run()) {
 			if (!loggedSampleFail) {
 				loggedSampleFail = true;
-				REX::ERROR("Graph: ozz SamplingJob failed validation (anim tracks={}, context max={}, output soa={})",
+				REX::ERROR("[Anim] ozz SamplingJob failed validation (anim tracks={}, context max={}, output soa={})",
 					anim->data->num_tracks(), samplingContext.max_tracks(), localPose.size());
 			}
 			return;
@@ -385,7 +385,7 @@ namespace OSF::Animation
 
 		if (!loggedFirstApply) {
 			loggedFirstApply = true;
-			REX::INFO("Graph: first pose stamped pre-compose ({} bones)", binding.size());
+			REX::TRACE("[Anim] first pose stamped pre-compose ({} bones)", binding.size());
 		}
 	}
 }
