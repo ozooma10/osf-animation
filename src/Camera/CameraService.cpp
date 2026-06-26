@@ -250,6 +250,12 @@ namespace OSF::Camera
 				if (!camera) {
 					return;
 				}
+				// Leave first person FIRST: SetCameraState(kFreeFly) from a first-person view keeps the
+				// 1st-person model skin, so the player would see floating hands instead of the full body.
+				// ForceThirdPerson swaps to the 3rd-person skeleton/skin before we seize the camera.
+				if (camera->IsInFirstPerson()) {
+					camera->ForceThirdPerson();
+				}
 				camera->SetCameraState(RE::CameraState::kFreeFly);  // we drive its +0x70/+0x7c transform
 				auto* player = RE::PlayerCharacter::GetSingleton();
 				{
@@ -283,6 +289,10 @@ namespace OSF::Camera
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!camera) {
 				return;  // fail-soft: no camera, no change
+			}
+			// Leave first person first (see kSceneOrbit) so the player renders as a full third-person body.
+			if (camera->IsInFirstPerson()) {
+				camera->ForceThirdPerson();
 			}
 			camera->SetCameraState(RE::CameraState::kAutoVanity);
 			REX::INFO("Player camera set to vanity orbit");
