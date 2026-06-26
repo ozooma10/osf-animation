@@ -41,10 +41,4 @@ namespace OSF::Audio::Wwise
 	// a .wem is cached as-is; a .wav/.mp3/.ogg/.flac is decoded to PCM and wrapped in a PCM .wem. Posted via pInMemory (codec from the .wem fmt tag, or PCM for a built one).
 	// The caller manages no memory and may free a_path immediately. Returns the AkPlayingID (0 = rejected / load failed / !Available()). Safe from any thread. Gate on IsWwiseExternalSource first.
 	std::uint32_t PostExternalFile(const std::wstring& a_path);
-
-
-	//==== DEBUG TEST =====
-	// Self-test: posts a_file (a Data-relative .wem or decodable .wav/.mp3/.ogg/.flac) as an external source on the shipped event Dialogue_6_Combat and logs the playingID. 
-	// Lets the external-source path be confirmed at boot before any scene runs. Nonzero playingID = accepted (AUDIBLE by ear).
-	void RunSelfTest(const std::wstring& a_file);
 }

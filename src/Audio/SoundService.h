@@ -55,9 +55,6 @@ namespace OSF::Audio
 		// (Only reaches the miniaudio fallback sounds; Wwise posts are fire-and-forget short cues the engine owns.)
 		void StopAll();
 
-		// DEBUG TEST: for trying to get wwise to actually work....
-		void RunWwiseSelfTest();
-
 	private:
 		struct ActiveSound;
 

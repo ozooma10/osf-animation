@@ -379,20 +379,4 @@ namespace OSF::Audio::Wwise
 		}
 		return PostExternalOn(kExternalSourceEvent, a_path, RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
 	}
-
-	void RunSelfTest(const std::wstring& a_file)
-	{
-		if (!Available()) {
-			REX::WARN("WwiseBackend self-test: AK PostEvent unavailable on this runtime — skipped");
-			return;
-		}
-		REX::INFO("WwiseBackend self-test: posting '{}' as an external source (pInMemory) on the shipped "
-		          "event Dialogue_6_Combat. playingID != 0 = the engine ACCEPTED it; AUDIBLE must still be "
-		          "confirmed by ear in-world (a dialogue event may be quiet at the main menu).",
-			std::filesystem::path(a_file).string());
-
-		const auto playingID = PostExternalOn(kExternalSourceEvent, a_file, RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
-		REX::INFO("WwiseBackend self-test: '{}' on Dialogue_6_Combat (0x{:08X}) -> playingID {} ({})",
-			std::filesystem::path(a_file).string(), kExternalSourceEvent, playingID, playingID ? "ACCEPTED" : "REJECTED");
-	}
 }

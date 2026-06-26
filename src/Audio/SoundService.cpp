@@ -248,14 +248,4 @@ namespace OSF::Audio
 		sounds.clear();
 		activeCount.store(0, std::memory_order_relaxed);
 	}
-
-	void SoundService::RunWwiseSelfTest()
-	{
-		// Fired by Data/OSF/settings.json "wwiseSelfTest": true.
-		const auto beep = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testbeep.wav").make_preferred().wstring();
-		Wwise::RunSelfTest(beep);
-
-		const auto wem = (std::filesystem::path("Data") / "OSF" / "Sounds" / "testvoice.wem").make_preferred().wstring();
-		Wwise::RunSelfTest(wem);
-	}
 }
