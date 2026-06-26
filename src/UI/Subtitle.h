@@ -1,8 +1,9 @@
 #pragma once
 
-// Spoken-line subtitle ("the dialogue box"). The voice system (the `voice` track lane and the
-// osf.voice.play action) plays audio through the SoundService and shows the spoken TEXT here, so an
-// author drives both halves of a line from one JSON entry — see docs/SCENE_SCHEMA.md.
+// Spoken-line subtitle ("the dialogue box"). A "voice" line is just a normal sound clip that carries
+// text: a clip authored with subtitle text in its *.sounds.json pool renders that text here whenever
+// it plays (SceneRuntime::PlaySound -> SoundRegistry::TextForClip -> Show), so audio + box are driven
+// from one place with no separate lane — see docs/SCENE_SCHEMA.md.
 //
 // TWO-PHASE by design (the audio half is already engine-native; the box is the open RE):
 //

@@ -292,10 +292,9 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
-| `action` | `{ "at", "type", "role", "hold", "duration", "set", "say", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
-| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` | `spec` is a Data-relative file or `"event:<name>"` Wwise spec; `role` positions it (else player). One **voice channel per actor** — see below. |
+| `action` | `{ "at", "type", "role", "hold", "duration", "set", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
+| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` | `spec` is a Data-relative file or `"event:<name>"` Wwise spec; `role` positions it (else player). One **voice channel per actor** — see below. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
-| `voice` | `{ "at", "role", "audio", "text", "duration", "volume", "repeat" }` | A **spoken line** = `audio` + subtitle `text`, both on `role`'s actor. At least one of the two is required — see below. |
 
 #### Sound: one voice channel per actor
 

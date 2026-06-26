@@ -30,7 +30,6 @@
       "action": [ { "at": "enter", "type": "osf.fade.in" } ],
       "sound":  [ { "at": 0.5,     "spec": "event:Music", "role": "lead" } ],
       "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],
-      "voice":  [ { "at": 0.7,     "role": "lead", "audio": "OSF/Voice/line.wav", "text": "Listen.", "duration": 2.0 } ],
       "edges": [
         { "id": "finish", "label": "Finish", "to": "$end", "when": "advance", "default": true },
         { "id": "tease",  "label": "Tease",  "to": "main", "when": "advance" }

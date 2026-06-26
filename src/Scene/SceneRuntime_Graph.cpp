@@ -25,12 +25,11 @@ namespace OSF::Scene
 	{
 		// Timed-mark lane ids. The playback layer treats these as opaque; this runtime assigns
 		// the meaning and the same-tick ordering — sorting fired marks by lane ascending yields
-		// the fixed order action -> camera -> sound -> cue -> voice.
+		// the fixed order action -> camera -> sound -> cue.
 		constexpr std::uint8_t kLaneAction = 0;
 		constexpr std::uint8_t kLaneCamera = 1;
 		constexpr std::uint8_t kLaneSound = 2;
 		constexpr std::uint8_t kLaneCue = 3;
-		constexpr std::uint8_t kLaneVoice = 4;
 
 		// Schedule a node's timed-track entries (numeric `at` -> a fraction mark; `end` -> an end mark) onto a_marks as opaque lane+token marks.
 		// a_token maps an entry + its list index to the mark token.
@@ -116,7 +115,6 @@ namespace OSF::Scene
 			ScheduleMarks(marks, a_node.actions, Registry::ActionPos::kFraction, Registry::ActionPos::kEnd, kLaneAction, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.sounds, Registry::SoundPos::kFraction, Registry::SoundPos::kEnd, kLaneSound, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.cameras, Registry::CameraPos::kFraction, Registry::CameraPos::kEnd, kLaneCamera, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
-			ScheduleMarks(marks, a_node.voices, Registry::VoicePos::kFraction, Registry::VoicePos::kEnd, kLaneVoice, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 		}
 
 		// The outgoing auto-edge of a_node whose `when` matches: highest priority wins, ties keep declaration order. nullptr if the node has no such edge.
@@ -174,7 +172,7 @@ namespace OSF::Scene
 
 		// Decode each mark by lane (already lane-ordered). Action-lane marks run their mechanism
 		// now; cue-lane ids are collected for EVENT_CUE + the trigger pass after the tick's
-		// entries have run. The camera, sound, and voice lanes run their marks here too.
+		// entries have run. The camera and sound lanes run their marks here too.
 		std::vector<std::string> cueIds;
 		for (const auto& m : marks) {
 			if (m.lane == kLaneCue) {
@@ -197,13 +195,6 @@ namespace OSF::Scene
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->cameras.size(), idx)) {
 					RunCamera(handle, node->cameras[idx].state, hasPlayer);
-				}
-			} else if (m.lane == kLaneVoice && node) {
-				// token = index into node->voices (set by ApplyNodeMarks).
-				std::size_t idx = 0;
-				if (ParseIndexToken(m.token, node->voices.size(), idx)) {
-					const auto& v = node->voices[idx];
-					PlayVoice(handle, v.audio, v.text, v.role, v.volume, v.duration);
 				}
 			}
 		}

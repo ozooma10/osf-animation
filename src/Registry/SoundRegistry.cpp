@@ -23,7 +23,8 @@ namespace OSF::Registry
 			return static_cast<std::int32_t>(std::clamp<std::int64_t>(a_w, 1, 1000000));
 		}
 
-		// One clip: a bare "path" string (weight 1) or a { spec|file, weight } object.
+		// One clip in the ARRAY form: a bare "path" string (weight 1, no text) or a
+		// { spec|file, weight?, text? } object. `text` is the optional subtitle shown when it plays.
 		SoundClip ParseClip(const json& a_clip, const std::string& a_subject)
 		{
 			SoundClip clip;
@@ -36,8 +37,9 @@ namespace OSF::Registry
 					clip.spec = fit->get<std::string>();
 				}
 				clip.weight = ClampWeight(a_clip.value("weight", std::int64_t{ 1 }));
+				clip.text = a_clip.value("text", std::string{});  // optional subtitle line
 			} else {
-				throw std::runtime_error(a_subject + ": a clip must be a path string or a { spec/file, weight } object");
+				throw std::runtime_error(a_subject + ": a clip must be a path string or a { spec/file, weight, text } object");
 			}
 			if (clip.spec.empty()) {
 				throw std::runtime_error(a_subject + ": empty clip spec");
@@ -63,12 +65,40 @@ namespace OSF::Registry
 				pool.tags.push_back(ToLower(t.get<std::string>()));
 			}
 
+			// `clips` is EITHER an array (paths / { spec, weight, text } objects) OR a terse object
+			// mapping each clip path -> its spoken text ({ "Sound/.../x.wav": "the line", ... }), the
+			// shorthand for "give these clips subtitles". Object-form clips are weight 1.
 			const auto cit = a_pool.find("clips");
-			if (cit == a_pool.end() || !cit->is_array() || cit->empty()) {
-				throw std::runtime_error(subject + ": needs a non-empty 'clips' array");
+			if (cit == a_pool.end()) {
+				throw std::runtime_error(subject + ": needs 'clips' (a non-empty array, or a { path: text } object)");
 			}
-			for (const auto& c : *cit) {
-				pool.clips.push_back(ParseClip(c, subject));
+			if (cit->is_object()) {
+				if (cit->empty()) {
+					throw std::runtime_error(subject + ": 'clips' object is empty");
+				}
+				for (auto it = cit->begin(); it != cit->end(); ++it) {
+					SoundClip clip;
+					clip.spec = it.key();
+					if (clip.spec.empty()) {
+						throw std::runtime_error(subject + ": a 'clips' entry has an empty path key");
+					}
+					// value = the subtitle text; null / "" means "this clip, no subtitle".
+					if (it.value().is_string()) {
+						clip.text = it.value().get<std::string>();
+					} else if (!it.value().is_null()) {
+						throw std::runtime_error(subject + ": clip '" + clip.spec + "': value must be a subtitle string (or null)");
+					}
+					pool.clips.push_back(std::move(clip));
+				}
+			} else if (cit->is_array()) {
+				if (cit->empty()) {
+					throw std::runtime_error(subject + ": 'clips' array is empty");
+				}
+				for (const auto& c : *cit) {
+					pool.clips.push_back(ParseClip(c, subject));
+				}
+			} else {
+				throw std::runtime_error(subject + ": 'clips' must be a non-empty array or a { path: text } object");
 			}
 			return pool;
 		}
@@ -151,15 +181,28 @@ namespace OSF::Registry
 			}
 		}
 
+		// Flatten clip spec -> subtitle text across every pool (first-wins on a duplicate path) so a
+		// played clip can render its line by spec, regardless of which pool it came from.
+		std::unordered_map<std::string, std::string> textMap;
+		for (const auto& p : loaded) {
+			for (const auto& c : p.clips) {
+				if (!c.text.empty()) {
+					textMap.emplace(c.spec, c.text);
+				}
+			}
+		}
+
 		const auto poolCount = loaded.size();
 		const auto problemCount = errors.size();
+		const auto textCount = textMap.size();
 		{
 			std::unique_lock l{ lock };
 			pools = std::move(loaded);
+			clipText = std::move(textMap);
 			loadErrors = std::move(errors);
 			lastPick.clear();
 		}
-		REX::INFO("SoundRegistry: {} pool(s) loaded, {} problem(s)", poolCount, problemCount);
+		REX::INFO("SoundRegistry: {} pool(s) loaded, {} subtitled clip(s), {} problem(s)", poolCount, textCount, problemCount);
 	}
 
 	std::optional<std::string> SoundRegistry::Resolve(std::string_view a_ref) const
@@ -252,6 +295,13 @@ namespace OSF::Registry
 		}
 		lastPick = chosen->spec;
 		return chosen->spec;
+	}
+
+	std::string SoundRegistry::TextForClip(std::string_view a_spec) const
+	{
+		std::shared_lock l{ lock };
+		const auto it = clipText.find(std::string(a_spec));
+		return it != clipText.end() ? it->second : std::string{};
 	}
 
 	std::size_t SoundRegistry::Size() const

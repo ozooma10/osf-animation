@@ -16,7 +16,6 @@ using OSF::Registry::CuePos;
 using OSF::Registry::ActionPos;
 using OSF::Registry::SoundPos;
 using OSF::Registry::CameraPos;
-using OSF::Registry::VoicePos;
 
 namespace
 {
@@ -202,21 +201,6 @@ OSF_TEST_CASE(Osf_graph_track_lanes_and_at_lowering)
 	CHECK_EQ(main->cameras.size(), static_cast<size_t>(1));
 	CHECK_EQ(main->cameras[0].state, std::string("thirdperson_hold"));
 	CHECK(main->cameras[0].pos == CameraPos::kEnter);
-	// voice: audio + text + role, numeric `at` -> kFraction(0.7), duration carried.
-	CHECK_EQ(main->voices.size(), static_cast<size_t>(1));
-	CHECK_EQ(main->voices[0].audio, std::string("OSF/Voice/line.wav"));
-	CHECK_EQ(main->voices[0].text, std::string("Listen."));
-	CHECK_EQ(main->voices[0].role, std::string("lead"));
-	CHECK(main->voices[0].pos == VoicePos::kFraction);
-	CHECK_NEAR(main->voices[0].fraction, 0.7f, 1e-4f);
-	CHECK_NEAR(main->voices[0].duration, 2.0f, 1e-4f);
-}
-
-OSF_TEST_CASE(Osf_voice_requires_audio_or_text)
-{
-	// A voice entry with neither audio nor text is a hard parse error (the scene is rejected + recorded).
-	CHECK(SceneRegistry::GetSingleton().Find("osf.u.voicebad") == nullptr);
-	CHECK(AnyErrorContains("voice track entry needs"));
 }
 
 OSF_TEST_CASE(Osf_sound_ladder_sugar_expands_marks)

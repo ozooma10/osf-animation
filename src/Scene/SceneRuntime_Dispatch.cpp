@@ -52,12 +52,11 @@ namespace OSF::Scene
 		SceneEventRelay::GetSingleton().Dispatch(e);
 
 		// "enter" track entries run after the structural NODE_ENTER, in the same cross-lane
-		// order action -> (camera) -> sound -> voice -> cue.
+		// order action -> (camera) -> sound -> cue.
 		if (a_event == Event::kNodeEnter) {
 			DispatchLifecycleActions(a_handle, a_node, true);
 			DispatchLifecycleCamera(a_handle, a_node, true);
 			DispatchLifecycleSounds(a_handle, a_node, true);
-			DispatchLifecycleVoices(a_handle, a_node, true);
 			DispatchLifecycleCues(a_handle, a_node, true);
 		}
 	}
@@ -387,15 +386,14 @@ namespace OSF::Scene
 			REX::INFO("SceneRuntime: scene {:#010x} osf.weapon.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kWeapon);
 		} else if (type == "osf.voice.play") {
-			// Fire-and-forget voice line: play the `set` spec at the role's actor and, if `say` is
-			// present, show that text in the subtitle box. Not reversible (a one-shot line has nothing
-			// to undo), so no ledger entry.
+			// Fire-and-forget voice line: play the `set` spec at the role's actor. Not reversible
+			// (a one-shot sound has nothing to undo), so no ledger entry. If the clip carries text in
+			// its sound pool, PlaySound shows it in the subtitle box.
 			if (a_action.set.empty()) {
 				REX::WARN("SceneRuntime: scene {:#010x} osf.voice.play — missing 'set' spec, skipped", a_handle);
 			} else {
-				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play (role '{}', set '{}'{})",
-					a_handle, a_action.role, a_action.set, a_action.say.empty() ? "" : ", +subtitle");
-				PlayVoice(a_handle, a_action.set, a_action.say, a_action.role, 1.0f, a_action.duration);
+				REX::INFO("SceneRuntime: scene {:#010x} osf.voice.play (role '{}', set '{}')", a_handle, a_action.role, a_action.set);
+				PlaySound(a_handle, a_action.set, a_action.role, 1.0f);
 			}
 		} else if (type.rfind("osf.", 0) == 0) {
 			// recognised built-in mechanism we don't execute yet.
