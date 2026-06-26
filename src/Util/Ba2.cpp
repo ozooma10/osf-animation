@@ -100,6 +100,18 @@ namespace OSF::Util::Ba2
 			}
 
 			const std::uint32_t storedSize = packed != 0 ? packed : unpacked;
+
+			// Reject absurd records rather than allocating gigabytes from a corrupt or foreign archive 
+			constexpr std::uint32_t kMaxReasonable = 64u * 1024 * 1024;  // 64 MiB ceiling
+			if (unpacked > kMaxReasonable || packed > kMaxReasonable) {
+				return std::nullopt;
+			}
+			std::error_code sizeEc;
+			const auto fileSize = std::filesystem::file_size(a_archive, sizeEc);
+			if (!sizeEc && dataOffset + storedSize > fileSize) {
+				return std::nullopt;
+			}
+
 			std::vector<std::uint8_t> stored(storedSize);
 			f.seekg(static_cast<std::streamoff>(dataOffset));
 			if (!f.read(reinterpret_cast<char*>(stored.data()), storedSize)) {
