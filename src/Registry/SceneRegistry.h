@@ -143,7 +143,8 @@ namespace OSF::Registry
 		CameraPos    pos = CameraPos::kEnter;
 		float        fraction = 0.0f;
 		bool         everyLoop = false;
-		std::string  state;   // camera state id ("thirdperson_hold" / "freefly" / "vanity_orbit")
+		std::string  state;      // camera state id ("thirdperson_hold" / "freefly" / "vanity_orbit")
+		float        distance = 0.0f;  // thirdperson_hold opening zoom pull-back (0 = engine default); ignored by other states
 	};
 
 	// One actor's clip for one stage (one per role in StageDef::clips, role order).

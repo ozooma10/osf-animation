@@ -22,6 +22,10 @@ namespace OSF::Camera
 		// THIRD-PERSON HOLD. Ref-counted across owners; engages on the first holder, restores the prior POV on the last. Each true must be matched by one false.
 		void SetStandaloneLock(bool a_enable);
 
+		// THIRD-PERSON START ZOOM (glide). Seeds the third-person camera's TARGET zoom to an authored pull-back distance.
+		// this is so a thirdperson_hold doesn't open pinned on the player's back when entering from first person. 
+		void SeedThirdPersonZoom(float a_distance);
+
 		// STATE OVERRIDE. Acquire on the first holder captures the baseline POV and suppresses the third-person bounce; 
 		// Release on the last restores the baseline (or hands the camera back to the hold if one is still held). 
 		// SetLiveCameraState retargets the live camera WITHOUT touching the ref-count, so a scene can switch postures per node (e.g. vanity on the intro, free-fly on a later beat). 

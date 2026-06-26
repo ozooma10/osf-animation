@@ -163,7 +163,7 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneRuntime::RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer)
+	void SceneRuntime::RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer, float a_distance)
 	{
 		// Camera affects the player's view, so an NPC-only scene must not seize it.
 		if (!a_hasPlayer) {
@@ -175,6 +175,11 @@ namespace OSF::Scene
 		if (state == "thirdperson_hold") {
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — third-person hold engaged", a_handle, a_state);
 			GetSingleton().RecordMechanism(a_handle, Mechanism::kCamera);
+			// Seed the opening zoom AFTER the lock: SetStandaloneLock posts its ForceThirdPerson task first,
+			// so it lands first and the seed writes into the now-live third-person state. No-op for a_distance
+			// <= 0 (default scenes unchanged) and a hard no-op until the SF zoom offset is RE'd. Fire-and-forget,
+			// not ledger-tracked — scene end's ForceThirdPerson + the engine's savedZoomOffset govern the rest.
+			Camera::CameraService::GetSingleton().SeedThirdPersonZoom(a_distance);
 		} else if (state == "freefly") {
 			REX::INFO("SceneRuntime: scene {:#010x} camera '{}' — free-fly engaged (native, ToggleFreeCameraMode)", a_handle, a_state);
 			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kFreeFly);
@@ -208,7 +213,8 @@ namespace OSF::Scene
 		const auto wantPos = a_enter ? Registry::CameraPos::kEnter : Registry::CameraPos::kExit;
 		for (const auto& cam : node->cameras) {
 			if (cam.pos == wantPos) {
-				RunCamera(a_handle, cam.state, hasPlayer);
+				// Seed the zoom only when ENTERING the hold — never during a node-exit teardown pass.
+				RunCamera(a_handle, cam.state, hasPlayer, a_enter ? cam.distance : 0.0f);
 			}
 		}
 	}

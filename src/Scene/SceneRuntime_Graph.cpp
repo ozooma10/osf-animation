@@ -194,7 +194,7 @@ namespace OSF::Scene
 				// token = index into node->cameras (set by ApplyNodeMarks).
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->cameras.size(), idx)) {
-					RunCamera(handle, node->cameras[idx].state, hasPlayer);
+					RunCamera(handle, node->cameras[idx].state, hasPlayer, node->cameras[idx].distance);
 				}
 			}
 		}

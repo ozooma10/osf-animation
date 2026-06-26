@@ -378,6 +378,11 @@ namespace OSF::Registry
 						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit')");
 				}
 				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + ce.state + "'", /*a_atRequired*/ false);
+				ce.distance = c.value("distance", 0.0f);  // thirdperson_hold opening zoom; 0 = engine default
+				if (ce.distance != 0.0f && ToLower(ce.state) != "thirdperson_hold") {
+					REX::WARN("node '{}': camera 'distance' is only honored for 'thirdperson_hold' — state '{}' ignores it",
+						a_node_out.id, ce.state);
+				}
 				a_node_out.cameras.push_back(std::move(ce));
 			}
 		}

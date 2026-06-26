@@ -268,7 +268,8 @@ namespace OSF::Scene
 
 		// Engage one camera state (held, ledger-tracked, auto-restored).
 		// "thirdperson_hold" -> the standalone camera lock (kCamera); "freefly" / "vanity_orbit" -> a PlayerCamera state override (kCameraState).
-		static void RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer);
+		// a_distance (> 0) seeds the opening third-person zoom pull-back for "thirdperson_hold"; ignored by the other states.
+		static void RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer, float a_distance = 0.0f);
 
 		// Run a node's enter (a_enter) or exit action-track entries (the lifecycle anchors).
 		// Numeric/end-timed actions run via OnTimedMarks instead. Call OUTSIDE _lock. No-op for
