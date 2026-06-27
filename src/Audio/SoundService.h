@@ -38,9 +38,9 @@ namespace OSF::Audio
 		// a_slot is a VOICE-CHANNEL key (per-actor, computed by the caller from the role actor's formID;
 		// 0 = unslotted/always layer). When nonzero, a new Play for a slot REPLACES that slot's currently
 		// playing sound: the prior clip is cut so cues on the same channel never overlap. The miniaudio
-		// fallback stops the prior sound outright; the Wwise path stops the prior voice via Wwise::StopVoice
-		// (a no-op until the AK stop entry is runtime-proven — see WwiseBackend), so until then a slotted
-		// Wwise clip is tracked but not yet cut. Two different slots play independently.
+		// fallback stops the prior sound outright; the Wwise path cuts the prior voice via Wwise::StopVoice
+		// (runtime-proven AK ExecuteActionOnPlayingID — see WwiseBackend; self-disables only on a future patch).
+		// Two different slots play independently.
 		void Play(std::uint64_t a_slot, const std::string& a_dataRelPath, const RE::NiPoint3& a_worldPos, float a_volume = 1.0f);
 
 		// Per-frame upkeep, called from the graph update hook: moves the listener to the player and reaps finished sounds. 

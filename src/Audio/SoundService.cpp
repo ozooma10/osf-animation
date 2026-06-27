@@ -73,7 +73,7 @@ namespace OSF::Audio
 			if (playingID == 0) {
 				REX::WARN("[Audio] Wwise rejected '{}' (event 0x{:08X} not in any loaded bank?)", a_dataRelPath, *eventID);
 			} else {
-				// Replace any prior voice on this slot (cuts the prior Wwise voice once the AK stop is proven).
+				// Replace any prior voice on this slot — cuts the prior Wwise voice (Wwise::StopVoice is runtime-proven).
 				std::scoped_lock l{ lock };
 				ClearSlotLocked(a_slot);
 				if (a_slot != 0) {
@@ -92,7 +92,7 @@ namespace OSF::Audio
 			// The backend opens this path itself (game-root-relative), prepares the bytes, and posts via pInMemory
 			const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
 			if (const auto playingID = Wwise::PostExternalFile(rel)) {
-				// Replace any prior voice on this slot (cuts the prior Wwise voice once the AK stop is proven).
+				// Replace any prior voice on this slot — cuts the prior Wwise voice (Wwise::StopVoice is runtime-proven).
 				std::scoped_lock l{ lock };
 				ClearSlotLocked(a_slot);
 				if (a_slot != 0) {
@@ -162,8 +162,8 @@ namespace OSF::Audio
 		const SlotOwner owner = it->second;
 		slots.erase(it);
 
-		// Cut the prior Wwise voice (no-op until the AK stop entry is runtime-proven; harmless on a
-		// playingID the engine has already retired).
+		// Cut the prior Wwise voice (Wwise::StopVoice is runtime-proven — AK ExecuteActionOnPlayingID 150360;
+		// harmless on a playingID the engine has already retired).
 		if (owner.wwisePlayingID != 0) {
 			Wwise::StopVoice(owner.wwisePlayingID);
 		}
@@ -235,7 +235,7 @@ namespace OSF::Audio
 	void SoundService::StopAll()
 	{
 		std::scoped_lock l{ lock };
-		// Cut any tracked Wwise voices too (no-op until the AK stop entry is proven), then drop all slots.
+		// Cut any tracked Wwise voices too (Wwise::StopVoice is runtime-proven), then drop all slots.
 		for (const auto& [key, owner] : slots) {
 			if (owner.wwisePlayingID != 0) {
 				Wwise::StopVoice(owner.wwisePlayingID);
