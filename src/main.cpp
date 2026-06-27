@@ -71,7 +71,5 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	OSF::Animation::GraphManager::GetSingleton().InstallHooks();
 	SFSE::GetMessagingInterface()->RegisterListener(MessageCallback);
 
-	REX::INFO("[Boot] Load complete");
-
 	return true;
 }
