@@ -58,12 +58,12 @@ declarative immersion (camera/weapon/control/fade) with **automatic cleanup**. E
   "nodes": [
     {
       "id": "main",
-      "stages": [ { "loops": 0, "clips": [          // inline; or "use": "mypack.greet"
-        "OSF/Animations/MyPack/greet_a.glb",
+      "stages": [ [                                 // inline timeline (bare-array stage = clips only)
+        "OSF/Animations/MyPack/greet_a.glb",        // or "use": "mypack.greet"
         "OSF/Animations/MyPack/greet_b.glb"
-      ] } ],
-      "loop": { "mode": "hold" },
-      "timerSec": 8.0,
+      ] ],
+      "loops": 0,                                   // hold (same key/meaning as a linear stage)
+      "timer": 8.0,                                 // seconds; armed by the `timer` edge below
       "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],   // track lanes are flat keys
       "action": [ { "at": "enter", "type": "osf.control.lock", "role": "lead" } ],
       "edges": [ { "to": "$end", "when": "timer" } ]   // auto-end after 8s; ledger reverses camera+lock

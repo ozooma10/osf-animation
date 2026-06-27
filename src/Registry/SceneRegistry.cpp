@@ -129,30 +129,6 @@ namespace OSF::Registry
 			ApplyClipRoot(clip, a_clipRoot);
 			return clip;
 		}
-		LoopMode ParseLoop(const json& a_node, std::int32_t& a_count)
-		{
-			a_count = 0;
-			const auto it = a_node.find("loop");
-			if (it == a_node.end() || !it->is_object()) {
-				throw std::runtime_error("missing object 'loop' { mode, ... }");
-			}
-			const auto mode = ToLower(it->value("mode", std::string{}));
-			if (mode == "once") {
-				return LoopMode::kOnce;
-			}
-			if (mode == "hold") {
-				return LoopMode::kHold;
-			}
-			if (mode == "count") {
-				a_count = it->value("count", 0);
-				if (a_count <= 0) {
-					throw std::runtime_error("loop mode 'count' requires integer count > 0");
-				}
-				return LoopMode::kCount;
-			}
-			throw std::runtime_error("unknown loop.mode '" + mode + "'");
-		}
-
 		EdgeWhen ParseWhen(const std::string& a_when, std::string& a_trigger)
 		{
 			if (a_when == "end") {
@@ -302,17 +278,18 @@ namespace OSF::Registry
 			}
 		}
 
-		// Expand the `sound` ladder sugar: an object { role?, spec, repeat?, volume?, marks } whose shared
-		// fields apply to every mark, appending each mark's tag(s) to the base `spec`. `{gender}` in the
-		// base stays for fire-time substitution (SceneRuntime::PlaySound). `marks` is one of two shapes:
+		// Expand the `sound` ladder sugar: an object { role?, spec, repeat?, volume?, at } whose shared
+		// fields apply to every hit, appending each hit's tag(s) to the base `spec`. `{gender}` in the base
+		// stays for fire-time substitution (SceneRuntime::PlaySound). The lane's `at` holds many positions
+		// (vs. a flat entry's single scalar `at`), in one of two shapes:
 		//
 		//   GROUPED (terse for repeated tiers) — keyed by the tag(s) to append, value = the positions:
-		//     "marks": { "low": [0.1, 0.3], "loud": [0.8] }
+		//     "at": { "low": [0.1, 0.3], "loud": [0.8] }
 		//
-		//   ARRAY (ordered, heterogeneous, per-mark overrides) — each mark is:
+		//   ARRAY (ordered, heterogeneous, per-hit overrides) — each entry is:
 		//     0.5                  -> at 0.5, the base spec, lane defaults
 		//     [0.5, "loud"]        -> at 0.5, spec = base + ",loud"   (extra elements append more tags)
-		//     { at, tags?, spec?, role?, repeat?, volume? }  -> per-mark overrides (spec replaces the base)
+		//     { at, tags?, spec?, role?, repeat?, volume? }  -> per-hit overrides (spec replaces the base)
 		void ExpandSoundLadder(const json& a_lane, SceneNode& a_node_out)
 		{
 			const std::string baseSpec = a_lane.value("spec", a_lane.value("sound", a_lane.value("pool", std::string{})));
@@ -337,19 +314,19 @@ namespace OSF::Registry
 				a_node_out.sounds.push_back(std::move(se));
 			};
 
-			const auto marksIt = a_lane.find("marks");
-			if (marksIt == a_lane.end()) {
-				throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder needs 'marks'");
+			const auto positionsIt = a_lane.find("at");
+			if (positionsIt == a_lane.end()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder needs 'at' (an array or tag-keyed object of positions)");
 			}
-			const json& marks = *marksIt;
+			const json& positions = *positionsIt;
 
-			if (marks.is_object()) {
-				if (marks.empty()) {
-					throw std::runtime_error("node '" + a_node_out.id + "': sound 'marks' object is empty");
+			if (positions.is_object()) {
+				if (positions.empty()) {
+					throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'at' object is empty");
 				}
-				for (auto it = marks.begin(); it != marks.end(); ++it) {
+				for (auto it = positions.begin(); it != positions.end(); ++it) {
 					if (!it.value().is_array()) {
-						throw std::runtime_error("node '" + a_node_out.id + "': sound mark group '" + it.key() + "' must be an array of positions");
+						throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'at' group '" + it.key() + "' must be an array of positions");
 					}
 					std::string spec = baseSpec;
 					if (!it.key().empty()) {
@@ -361,20 +338,20 @@ namespace OSF::Registry
 				}
 				return;
 			}
-			if (!marks.is_array() || marks.empty()) {
-				throw std::runtime_error("node '" + a_node_out.id + "': sound 'marks' must be a non-empty array or an object keyed by tag");
+			if (!positions.is_array() || positions.empty()) {
+				throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'at' must be a non-empty array or an object keyed by tag");
 			}
-			for (const auto& m : marks) {
+			for (const auto& m : positions) {
 				if (m.is_number() || m.is_string()) {
 					emit(baseSpec, m, laneRepeat, laneRole, laneVolume);  // bare position -> base spec
 				} else if (m.is_array()) {
 					if (m.empty()) {
-						throw std::runtime_error("node '" + a_node_out.id + "': an empty sound mark array");
+						throw std::runtime_error("node '" + a_node_out.id + "': an empty sound ladder position");
 					}
 					std::string spec = baseSpec;
 					for (std::size_t i = 1; i < m.size(); i++) {
 						if (!m[i].is_string()) {
-							throw std::runtime_error("node '" + a_node_out.id + "': sound mark tags must be strings");
+							throw std::runtime_error("node '" + a_node_out.id + "': sound ladder tags must be strings");
 						}
 						spec += "," + m[i].get<std::string>();
 					}
@@ -382,7 +359,7 @@ namespace OSF::Registry
 				} else if (m.is_object()) {
 					std::string spec = baseSpec;
 					if (auto it = m.find("spec"); it != m.end()) {
-						spec = it->get<std::string>();  // per-mark spec replaces the base
+						spec = it->get<std::string>();  // per-hit spec replaces the base
 					}
 					if (auto it = m.find("tags"); it != m.end()) {
 						spec += "," + it->get<std::string>();
@@ -390,27 +367,30 @@ namespace OSF::Registry
 					const json at = m.contains("at") ? m.at("at") : json();
 					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole), m.value("volume", laneVolume));
 				} else {
-					throw std::runtime_error("node '" + a_node_out.id + "': a sound mark must be a number, [at, tags...] array, or { at, ... } object");
+					throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder hit must be a number, [at, tags...] array, or { at, ... } object");
 				}
 			}
 		}
 
 		void ParseSoundTrack(const json& a_entries, SceneNode& a_node_out)
 		{
-			// Ladder sugar: a single object { spec, marks:[...] } expands to many entries (see above).
+			// Ladder sugar: a single object { spec, at:[...] } expands to many entries (see above).
 			if (a_entries.is_object()) {
 				ExpandSoundLadder(a_entries, a_node_out);
 				return;
 			}
 			if (!a_entries.is_array()) {
-				throw std::runtime_error("node '" + a_node_out.id + "': 'sound' track must be an array of entries or a { spec, marks } ladder object");
+				throw std::runtime_error("node '" + a_node_out.id + "': 'sound' track must be an array of entries or a { spec, at } ladder object");
 			}
 			for (const auto& s : a_entries) {
-				// An array element that carries `marks` is itself a ladder (one per role, e.g. a bottom lane and a top lane); expand it. 
-				// Elements without `marks` stay flat single cues. This lets `sound` be a list of role ladders without per-mark role overrides.
-				if (s.is_object() && s.contains("marks")) {
-					ExpandSoundLadder(s, a_node_out);
-					continue;
+				// An element whose `at` is an array (or tag-keyed object) is a ladder — many tagged hits on
+				// one lane (e.g. a per-role vocal ladder). A scalar `at` (a fraction or "enter"/"exit"/"end")
+				// is a single flat cue. This lets `sound` mix flat cues and role ladders in one list.
+				if (s.is_object()) {
+					if (auto it = s.find("at"); it != s.end() && (it->is_array() || it->is_object())) {
+						ExpandSoundLadder(s, a_node_out);
+						continue;
+					}
 				}
 				SoundEntry se;
 				// `spec` is the canonical key (unified *.osf.json); `sound`/`pool` are accepted
@@ -776,12 +756,28 @@ namespace OSF::Registry
 				n.stages = ParseOsfStageList(a_node.at("stages"), "node '" + n.id + "'", ac, /*a_fixed*/ false, a_clipRoot);
 			}
 
-			// loop is optional; absent -> hold (the SceneNode default).
-			if (a_node.contains("loop")) {
-				n.loopMode = ParseLoop(a_node, n.loopCount);
+			// Node loop policy — one `loops` int, identical to a linear stage:
+			//   omitted -> once (play through, then take a `when:"end"` edge)
+			//   0       -> hold (loop until advanced; the explicit terminal hold)
+			//   N >= 1  -> loop N times, then take a `when:"loops"` edge
+			if (const auto it = a_node.find("loops"); it != a_node.end()) {
+				if (!it->is_number_integer()) {
+					throw std::runtime_error("node '" + n.id + "': 'loops' must be an integer (omit = once, 0 = hold, N = loop N)");
+				}
+				const int loops = it->get<int>();
+				if (loops < 0) {
+					throw std::runtime_error("node '" + n.id + "': 'loops' must be >= 0 (0 = hold forever)");
+				}
+				if (loops == 0) {
+					n.loopMode = LoopMode::kHold;
+				} else {
+					n.loopMode = LoopMode::kCount;
+					n.loopCount = loops;
+				}
+			} else {
+				n.loopMode = LoopMode::kOnce;  // default: play through once
 			}
-			n.timerSec = a_node.value("timerSec", 0.0f);
-			n.loopForever = a_node.value("loopForever", false);
+			n.timerSec = a_node.value("timer", 0.0f);
 
 			std::unordered_set<std::string> edgeIds;
 			int defaults = 0;
@@ -790,10 +786,10 @@ namespace OSF::Registry
 				for (const auto& jEdge : *it) {
 					auto e = ParseEdge(jEdge, n.id);
 					if (e.when == EdgeWhen::kEnd && n.loopMode == LoopMode::kHold) {
-						throw std::runtime_error("node '" + n.id + "': an 'end' edge on a hold node can never fire");
+						throw std::runtime_error("node '" + n.id + "': an 'end' edge on a hold node (loops:0) can never fire");
 					}
 					if (e.when == EdgeWhen::kLoops && n.loopMode != LoopMode::kCount) {
-						throw std::runtime_error("node '" + n.id + "': a 'loops' edge needs loop mode 'count'");
+						throw std::runtime_error("node '" + n.id + "': a 'loops' edge needs a counted loop (loops:N, N >= 1)");
 					}
 					if (e.when == EdgeWhen::kTimer) {
 						hasTimerEdge = true;
@@ -811,10 +807,10 @@ namespace OSF::Registry
 				throw std::runtime_error("node '" + n.id + "': more than one default advance edge");
 			}
 			if (hasTimerEdge && n.timerSec <= 0.0f) {
-				throw std::runtime_error("node '" + n.id + "': has a 'timer' edge but timerSec <= 0");
+				throw std::runtime_error("node '" + n.id + "': has a 'timer' edge but 'timer' <= 0");
 			}
 			if (!hasTimerEdge && n.timerSec > 0.0f) {
-				a_warnings.push_back("scene '" + a_sceneId + "' node '" + n.id + "': timerSec set but no 'timer' edge");
+				a_warnings.push_back("scene '" + a_sceneId + "' node '" + n.id + "': 'timer' set but no 'timer' edge");
 			}
 
 			// Node-level track lanes (flat keys, not a `tracks` block).
@@ -891,8 +887,7 @@ namespace OSF::Registry
 					node.loopCount = st.loops;
 					node.edges.push_back(autoEdge(EdgeWhen::kLoops));
 				} else {
-					node.loopMode = LoopMode::kHold;
-					node.loopForever = true;  // explicit hold (timer:0, loops:0): hold here until the player advances
+					node.loopMode = LoopMode::kHold;  // explicit hold (timer:0, loops:0): hold until the player advances
 				}
 				// Every linear stage also gets a DEFAULT advance edge so the player can step to the next
 				// stage manually (space / AdvanceScene), independent of any timer/loops auto-end above.
@@ -1017,23 +1012,8 @@ namespace OSF::Registry
 						def.linearStages.push_back(std::move(nid));
 					}
 				}
-				// A hold node with no advance/timer/trigger edge never ends (unless loopForever is set).
-				for (const auto& nd : def.nodes) {
-					if (nd.loopMode != LoopMode::kHold || nd.loopForever) {
-						continue;
-					}
-					bool hasExit = false;
-					for (const auto& e : nd.edges) {
-						if (e.when == EdgeWhen::kAdvance || e.when == EdgeWhen::kTimer || e.when == EdgeWhen::kTrigger) {
-							hasExit = true;
-							break;
-						}
-					}
-					if (!hasExit) {
-						a_warnings.push_back("scene '" + def.id + "' node '" + nd.id +
-							"': hold node with no advance/timer/trigger edge never ends (set loopForever:true if intended)");
-					}
-				}
+				// A hold node (loops:0) with no advance/timer/trigger edge holds until the consumer calls
+				// StopScene — that is the explicit, intentional terminal-hold pattern, so it is not flagged.
 				ValidateGraph(def, nodeIds);
 			} else {
 				// Linear scene: top-level clip/stages -> a synthetic node chain (desugar).

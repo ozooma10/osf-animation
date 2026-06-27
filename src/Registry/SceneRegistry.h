@@ -177,10 +177,9 @@ namespace OSF::Registry
 		// A node carries EXACTLY ONE playable:
 		std::string              use;          //   reference another scene by id, OR
 		std::vector<StageDef>    stages;       //   an inline clip timeline (one-off, no separate file)
-		LoopMode                 loopMode = LoopMode::kHold;
-		std::int32_t             loopCount = 0;  // when loopMode == kCount
-		float                    timerSec = 0.0f;
-		bool                     loopForever = false;
+		LoopMode                 loopMode = LoopMode::kOnce;  // JSON `loops`: omit=once, 0=hold, N=count
+		std::int32_t             loopCount = 0;              // when loopMode == kCount
+		float                    timerSec = 0.0f;            // JSON `timer` (seconds)
 		std::vector<SceneEdge>   edges;
 		std::vector<CueEntry>    cues;          // `cue` track
 		std::vector<ActionEntry> actions;       // `action` track

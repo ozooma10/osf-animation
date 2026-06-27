@@ -17,12 +17,20 @@ A **scene** is the unified content entity an author writes (`SceneDef`). There i
 clips is a scene. A *running* instance is also called a scene (a handle + anchor + participants + undo
 ledger). `StartScene` starts an instance from a definition.
 
-A scene is **minimal by default** (just clips) and **expands into graph features** (nodes, edges,
-tracks, roles, policy) only when needed. By shape, not by type:
+A scene is **minimal by default** (just clips) and **expands into graph features** (branches, tracks,
+roles, policy) only when needed. The two shapes share **one vocabulary** — a graph **node** is just a
+linear **stage** that can also branch:
 
-- **Linear** (the common case): a top-level `clip` or `stages[]`, no `nodes[]`. Desugars internally
-  into a single auto-advancing node chain.
-- **Graph**: top-level `nodes[]` (+ `entry`). The presence of `nodes[]` is the discriminator.
+- **Linear** (the common case): a top-level `clip` or `stages[]`, no `nodes[]`. A stage is a clip
+  timeline with `timer`/`loops` timing; stages auto-advance in order and the last one ends the scene.
+  Desugars internally into a node chain.
+- **Graph**: top-level `nodes[]` (+ `entry`). A node carries the **same** clips and the **same**
+  `timer` / `loops` timing and `cue` / `action` / `sound` / `camera` lanes as a stage — it just adds
+  `edges` (explicit transitions between nodes). The presence of `nodes[]` is the discriminator.
+
+The keys never change meaning between the two forms: **`timer` is always seconds, `loops` is always the
+clip-loop count** (`0` = hold, omit = play once). You learn the timeline vocabulary once on the linear
+form and add `edges` only when you need branching.
 
 ---
 
@@ -92,12 +100,21 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   to override that role's placement for that stage. Every stage must have the same number of clips —
   equal to `roles.length` when `roles` is given, otherwise to the first stage's clip count. Clips
   **index-align** to role order.
-- **Stage advance & the play-once default:** a stage advances when its `timer` elapses (`timer > 0`,
-  seconds) or its clip has looped `loops` times (`loops > 0`). **A stage that specifies _neither_ plays
-  through once and then advances** — so a multi-stage scene progresses linearly and the scene **ends
-  after its final stage**. To make a stage hold a pose or loop forever (until a manual
-  `SetSceneStage`/stop), give it an explicit **`"loops": 0`** (or `"timer": 0`). A single-stage looping
-  idle therefore needs `"loops": 0`, or it will play once and end.
+- **Timing — the one timeline rule (linear _and_ graph).** A stage (linear) or a node (graph)
+  specifies `timer` and/or `loops`; this table is the whole vocabulary, with identical meaning in both
+  forms:
+
+  | You write | Behaviour | Auto-advance when | (Graph) arm an edge with |
+  |---|---|---|---|
+  | *omit `timer` & `loops`* | play through once | the clip ends | `"when": "end"` |
+  | `"loops": N`  (N ≥ 1) | loop N times | the Nth loop completes | `"when": "loops"` |
+  | `"loops": 0` | **hold** — loop forever | never (manual advance/stop only) | `"when": "advance"` / `"timer"` / `"trigger:…"` |
+  | `"timer": S` | run for S seconds | S seconds elapse | `"when": "timer"` |
+
+  `timer` and `loops` may combine (whichever fires first wins). In a **linear** scene these conditions
+  advance the stages automatically and the scene **ends after its final stage**; in a **graph** scene you
+  wire the matching `edges` yourself (right column). A single-stage looping idle needs `"loops": 0`, or
+  it plays once and ends.
 - **Stage shorthand:** a stage may be written as a bare array of clips instead of a
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a
@@ -209,13 +226,13 @@ and an `entry` node id:
   "nodes": [
     { "id": "approach",
       "use": "author.shared.walkin",             // REUSE: play another scene by id
-      "loop": { "mode": "once" },
+      // no `loops` -> play once, then take the `end` edge
       "edges": [ { "to": "main", "when": "end" } ] },
 
     { "id": "main",
-      "stages": [ { "loops": 0, "clips": ["Main.glb", "Main2.glb"] } ],  // INLINE (the default)
-      "loop": { "mode": "hold" },
-      "cue":    [ { "at": 0.5,     "id": "beat" } ],                      // track lanes are flat keys
+      "stages": [ ["Main.glb", "Main2.glb"] ],   // INLINE timeline (bare-array stage = clips only)
+      "loops": 0,                                // hold — same key/meaning as a linear stage
+      "cue":    [ { "at": 0.5,     "id": "beat" } ],                     // track lanes are flat keys
       "action": [ { "at": "enter", "type": "osf.fade.in" } ],
       "sound":  [ { "at": 0.5,     "spec": "event:Music", "role": "lead" } ],
       "camera": [ { "at": "enter", "state": "thirdperson_hold" } ],
@@ -224,10 +241,10 @@ and an `entry` node id:
         { "id": "tease",  "label": "Tease",  "to": "main",   "when": "advance" }    // self-loop
       ] },
 
-    { "id": "climax", "use": "author.shared.peak", "loop": { "mode": "count", "count": 3 },
+    { "id": "climax", "use": "author.shared.peak", "loops": 3,           // loop 3x -> take the `loops` edge
       "edges": [ { "to": "cooldown", "when": "loops" } ] },
 
-    { "id": "cooldown", "use": "author.shared.winddown", "loop": { "mode": "once" } }
+    { "id": "cooldown", "use": "author.shared.winddown" }                // no `loops` -> play once -> ends
   ]
 }
 ```
@@ -240,24 +257,26 @@ A node has **EXACTLY ONE playable**:
   scene's stages; **or**
 - **`use: "<sceneId>"`** — reference another scene by id (see *Reuse* below).
 
-Authoring **both, or neither**, is a hard load error.
+Authoring **both, or neither**, is a hard load error. Beyond the playable, a node uses the **same
+`timer` / `loops` timing keys as a linear stage** (the timing table under *Linear scenes* applies
+verbatim) and adds `edges`:
 
 ```jsonc
 {
   "id": "main",
   "stages": [ /* inline timeline */ ],   // OR "use": "<sceneId>"
-  "loop": { "mode": "hold", "count": 0 },   // mode: "once" | "hold" | "count" (count uses "count")
-  "loopForever": false,
-  "timerSec": 0.0,                          // arms a node timer; pair with a {"when":"timer"} edge
+  "loops": 0,                            // omit = once, 0 = hold, N = loop N  (same as a linear stage)
+  "timer": 0.0,                          // seconds; arms a node timer — pair with a {"when":"timer"} edge
   "edges": [ /* see below */ ],
   "cue": [], "action": [], "sound": [], "camera": []   // track lanes (flat keys)
 }
 ```
 
-- **`loop.mode`**: `once` (play through → `end` edge), `hold` (loop until advanced), `count` (loop
-  `count` times → `loops` edge).
-- **`timerSec`** only fires when the node also carries a `"when": "timer"` edge (a bare `timerSec` is a
-  warning). This is the auto-advance / auto-end timer.
+- **`loops`** is the node's loop count, identical to a linear stage: **omit** = play once (→ `end`
+  edge), **`0`** = hold (loop until advanced), **`N`** = loop N times (→ `loops` edge). For a
+  multi-stage inline node it bounds the **final** stage; earlier stages keep their own timing.
+- **`timer`** (seconds) only fires when the node also carries a `"when": "timer"` edge (a bare `timer`
+  is a warning). This is the auto-advance / auto-end timer.
 
 ### Edges
 
@@ -267,8 +286,8 @@ Authoring **both, or neither**, is a hard load error.
 ```
 
 - **`to`**: a node id in this scene, or `"$end"` to end the scene. (Edges cannot target another scene.)
-- **`when`**: `end` (clip finished, `once`), `loops` (loop count reached, `count`), `timer` (node
-  `timerSec` elapsed), `advance` (manual via `AdvanceScene`/`NavigateScene`), or **`trigger:<cueId>`**
+- **`when`**: `end` (clip finished — the play-once case, `loops` omitted), `loops` (loop count reached,
+  `loops: N`), `timer` (node `timer` elapsed), `advance` (manual via `AdvanceScene`/`NavigateScene`), or **`trigger:<cueId>`**
   (fires when that cue fires — the cue id is part of the `when` string, e.g. `"when": "trigger:beat"`;
   there is **no** separate `trigger` field, and a bare `"when": "trigger"` is a load error).
 - **Branchable** (`advance`) edges need `id` + `label` (for menus). `default: true` marks the edge
@@ -314,7 +333,7 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
 | `action` | `{ "at", "type", "role", "hold", "duration", "set", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
-| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` _or_ a **ladder** (`marks`, see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (the key may also be written `sound` or `pool`); `role` positions it (else player). One **voice channel per actor** — see below. A clip can carry **subtitle text** (a spoken line) — see below. |
+| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` — an **array/object `at`** makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases); `role` positions it (else player). One **voice channel per actor** — see below. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
 #### Sound: one voice channel per actor
@@ -323,25 +342,29 @@ A sound plays on the **voice channel of its `role`'s actor** (the player's chann
 resolves). A channel plays **one sound at a time**: a new `sound`/`osf.voice.play` on an actor whose
 channel is busy **replaces** (cuts) that actor's prior clip, so a `repeat:"loop"` vocal cue never
 stacks over itself and a one-shot line cuts an ongoing loop. Different actors play independently. (The
-engine-native Wwise path tracks each voice's `AkPlayingID` and cuts it via the runtime-proven AK stop
-entry — `ExecuteActionOnPlayingID` — so the replace is an instant hard cut.)
+engine-native Wwise path tracks each voice's `AkPlayingID` and cuts it via the AK stop
+entry - `ExecuteActionOnPlayingID` - so the replace is an instant hard cut.)
 
-#### Sound ladders (`marks`): one lane, many tagged hits
+#### Sound ladders: one lane fires at many positions
 
-Instead of a single `at`, a `sound` entry may fire **multiple** times via a `marks` field — a "ladder".
-The lane's `spec` / `role` / `volume` / `repeat` are shared defaults, and each mark appends its tag(s) to
-the base `spec` (so a tag/pool spec picks an intensity-tagged variant per hit). `marks` has two shapes:
+A `sound` entry's `at` is normally a single position. Make `at` an **array** (or a tag-keyed **object**)
+instead and the entry becomes a **ladder** — one lane that fires at **many** positions. The lane's
+`spec` / `role` / `volume` / `repeat` are shared defaults, and each hit appends its tag(s) to the base
+`spec` (so a tag/pool spec picks an intensity-tagged variant per hit). The array/object `at` is exactly
+what distinguishes a ladder from a flat entry (whose `at` is a scalar fraction or
+`"enter"`/`"exit"`/`"end"`). Two shapes:
 
 ```jsonc
-// GROUPED — keyed by the tag to append, value = the clip-fraction positions:
-{ "spec": "event:Vocal", "role": "lead", "marks": { "low": [0.1, 0.3], "loud": [0.8] } }
+// GROUPED - the `at` object is keyed by the tag to append, value = the clip-fraction positions:
+{ "spec": "event:Vocal", "role": "lead", "at": { "low": [0.1, 0.3], "loud": [0.8] } }
 
-// ARRAY — ordered, heterogeneous; each entry is a bare position, [pos, "tag", …], or a per-mark object:
+// ARRAY - ordered, heterogeneous; each entry is a bare position, [pos, "tag", …], or a per-hit object:
 { "spec": "event:Vocal", "role": "lead",
-  "marks": [ 0.2, [0.5, "loud"], { "at": 0.9, "tags": ["loud"], "volume": 1.2 } ] }
+  "at": [ 0.2, [0.5, "loud"], { "at": 0.9, "tags": ["loud"], "volume": 1.2 } ] }
 ```
 
-A ladder entry has no top-level `at` (the marks carry the positions); a per-mark `spec` replaces the base.
+The lane's `at` carries the positions; inside a per-hit object the inner `at` is that one hit's position,
+and a per-hit `spec` replaces the base.
 
 #### Sound pools (`*.sounds.json`) and `$` specs
 
@@ -362,7 +385,7 @@ A scene draws from a pool with a **`$`-prefixed, comma-separated tag spec** in a
 `spec` — e.g. `"$seduce,{gender},moan"`. At **fire time** OSF substitutes `{gender}` (the role actor's
 gender), finds the pool whose tags cover the query, and picks a clip **weighted-random** — so a looping or
 repeated cue re-rolls each time. A plain path or `"event:<name>"` spec plays verbatim (no pool lookup). A
-clip's path key may be `spec`, `file`, or `path`.
+pool clip's path key is `spec` (canonical), or `file` as an alias.
 
 #### Voice lines: text on a sound clip
 
