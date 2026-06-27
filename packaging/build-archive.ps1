@@ -28,13 +28,18 @@ $core = "$stage\Core"
 @("$core\SFSE\Plugins", "$core\Scripts\Source") |
     ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 
-# Core: the DLL (no .pdb) + the OSF API scripts/sources. A consumer needs the .psc to compile
-# against; OSFTest is the console smoke-test harness referenced by docs/GETTING_STARTED.md.
+# Core: the DLL (no .pdb) + the public OSF API scripts/sources (consumers need the .psc to compile
+# against). OSFTest (the console smoke-test harness) is DEV-ONLY and deliberately excluded from release.
 Copy-Item $dll "$core\SFSE\Plugins\"
-foreach ($s in @('OSF', 'OSFTypes', 'OSFTest')) {
+foreach ($s in @('OSF', 'OSFTypes', 'OSFAdvanced')) {
     if (Test-Path "$dist\Scripts\$s.pex")        { Copy-Item "$dist\Scripts\$s.pex" "$core\Scripts\" }
     if (Test-Path "$dist\Scripts\Source\$s.psc") { Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\" }
 }
+
+# Release settings.json -> Data/OSF/settings.json on install. The DEV profile (settings.dev.json:
+# verbose logging + debug HUD) is NOT shipped — only the quiet release defaults.
+New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
+Copy-Item "$dist\settings.release.json" "$core\OSF\settings.json"
 
 # fomod/ + stamp the version into info.xml.
 Copy-Item "$PSScriptRoot\fomod" "$stage\fomod" -Recurse

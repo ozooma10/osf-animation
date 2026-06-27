@@ -50,6 +50,7 @@ target("OSF Animation")
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
             os.cp("dist/OSF/**", osfDir .. "/")
+            os.cp("dist/settings.dev.json", path.join(osfDir, "settings.json"))
         end
     end)
 
