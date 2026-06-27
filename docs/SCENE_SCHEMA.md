@@ -1,12 +1,13 @@
 # OSF scene schema (`*.osf.json`)
 
-OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. There is now
-**one file kind** and **one content concept** — a **scene** — both plain JSON (`//` line comments are
-allowed):
+OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. The primary content
+concept is a **scene** (`*.osf.json`); a secondary `*.sounds.json` file declares reusable **sound pools**.
+Both are plain JSON (`//` line comments are allowed):
 
 | File | Loaded by | Purpose |
 |------|-----------|---------|
 | `*.osf.json` | **SceneRegistry** | **Scenes** — id → roles + a clip timeline (linear) or a node graph, plus matchmaking and policy. |
+| `*.sounds.json` | **SoundRegistry** | **Sound pools** — tagged, weighted clip sets a scene `sound`/`osf.voice.play` spec can draw from by tag (`$…`), optionally carrying subtitle text. See *Sound pools*. |
 
 All `*.osf.json` files are scanned recursively under `Data/OSF`. Bad files/entries are skipped and
 reported in `OSF Animation.log`. The current schema version is **1** (`"schema": 1`).
@@ -342,6 +343,27 @@ the base `spec` (so a tag/pool spec picks an intensity-tagged variant per hit). 
 ```
 
 A ladder entry has no top-level `at` (the marks carry the positions); a per-mark `spec` replaces the base.
+
+#### Sound pools (`*.sounds.json`) and `$` specs
+
+A `*.sounds.json` file (loaded by **SoundRegistry**, `"schema": 1`) declares reusable **sound pools** —
+tagged, weighted clip sets a `sound` lane or `osf.voice.play` can draw from by tag instead of naming a file:
+
+```jsonc
+{ "schema": 1, "pools": [
+  { "name": "seduce-f",                      // optional, diagnostics only
+    "tags": ["seduce", "female", "moan"],    // REQUIRED; lowercased; how specs find this pool
+    "clips": [                               // array (or the path -> text object form, see below)
+      { "spec": "Sound/OSF/Seduce/F/a.wav", "weight": 2, "text": "Mmm..." },  // weight: sampling weight (default 1)
+      "Sound/OSF/Seduce/F/b.wav"                                              // bare path = weight 1, no subtitle
+    ] } ] }
+```
+
+A scene draws from a pool with a **`$`-prefixed, comma-separated tag spec** in any `sound`/`osf.voice.play`
+`spec` — e.g. `"$seduce,{gender},moan"`. At **fire time** OSF substitutes `{gender}` (the role actor's
+gender), finds the pool whose tags cover the query, and picks a clip **weighted-random** — so a looping or
+repeated cue re-rolls each time. A plain path or `"event:<name>"` spec plays verbatim (no pool lookup). A
+clip's path key may be `spec`, `file`, or `path`.
 
 #### Voice lines: text on a sound clip
 
