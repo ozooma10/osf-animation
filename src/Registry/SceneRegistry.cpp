@@ -55,6 +55,80 @@ namespace OSF::Registry
 			return p;
 		}
 
+		std::string NormalizeClipRoot(std::string_view a_root, const std::string& a_subject)
+		{
+			std::string root = ToLower(std::string(a_root));
+			if (root.empty()) {
+				return {};
+			}
+			if (root == "naf") {
+				return root;
+			}
+			throw std::runtime_error(a_subject + ": unknown clipRoot '" + std::string(a_root) + "' (supported: 'NAF')");
+		}
+
+		bool IsLikelyGltfPath(std::string_view a_path)
+		{
+			const auto ext = ToLower(std::filesystem::path{ std::string(a_path) }.extension().string());
+			return ext == ".glb" || ext == ".gltf";
+		}
+
+		void SplitAnimSuffix(StageClip& a_clip)
+		{
+			const auto pos = a_clip.file.rfind(':');
+			if (pos == std::string::npos || pos + 1 >= a_clip.file.size()) {
+				return;
+			}
+			const std::string pathPart = a_clip.file.substr(0, pos);
+			if (!IsLikelyGltfPath(pathPart)) {
+				return;
+			}
+			a_clip.animId = a_clip.file.substr(pos + 1);
+			a_clip.file = pathPart;
+		}
+
+		void ApplyClipRoot(StageClip& a_clip, std::string_view a_clipRoot)
+		{
+			if (a_clipRoot.empty() || a_clip.file.empty()) {
+				return;
+			}
+			const auto lower = ToLower(a_clip.file);
+			if (lower.starts_with("naf:") || lower.starts_with("naf/") || lower.starts_with("naf\\") ||
+				std::filesystem::path{ a_clip.file }.is_absolute()) {
+				return;
+			}
+			if (a_clipRoot == "naf") {
+				a_clip.file = "naf:" + a_clip.file;
+			}
+		}
+
+		StageClip ParseStageClip(const json& a_clip, std::string_view a_clipRoot, const std::string& a_subject)
+		{
+			StageClip clip;
+			if (a_clip.is_string()) {
+				clip.file = a_clip.get<std::string>();
+				SplitAnimSuffix(clip);
+			} else if (a_clip.is_object()) {
+				clip.file = a_clip.at("file").get<std::string>();
+				SplitAnimSuffix(clip);
+				if (auto ait = a_clip.find("anim"); ait != a_clip.end()) {
+					if (!ait->is_string()) {
+						throw std::runtime_error(a_subject + ": clip 'anim' must be a string");
+					}
+					clip.animId = ait->get<std::string>();
+				}
+				if (auto oit = a_clip.find("offset"); oit != a_clip.end()) {
+					clip.offset = ParseOffsetField(*oit);
+				}
+			} else {
+				throw std::runtime_error(a_subject + ": a clip must be a file string or a { file, anim?, offset? } object");
+			}
+			if (clip.file.empty()) {
+				throw std::runtime_error(a_subject + ": empty clip file");
+			}
+			ApplyClipRoot(clip, a_clipRoot);
+			return clip;
+		}
 		LoopMode ParseLoop(const json& a_node, std::int32_t& a_count)
 		{
 			a_count = 0;
@@ -587,7 +661,7 @@ namespace OSF::Registry
 		// participant count: when a_fixed it is authoritative (every stage must match it); else the
 		// first stage's clip count sets it.
 		std::vector<StageDef> ParseOsfStageList(const json& a_stages, const std::string& a_subject,
-			size_t& a_ioActorCount, bool a_fixed)
+			size_t& a_ioActorCount, bool a_fixed, std::string_view a_clipRoot)
 		{
 			if (!a_stages.is_array() || a_stages.empty()) {
 				throw std::runtime_error(a_subject + ": 'stages' must be a non-empty array");
@@ -640,21 +714,7 @@ namespace OSF::Registry
 					info.loops = 1;  // untimed -> play once, then advance / end
 				}
 				for (const auto& jClip : *clipsNode) {
-					StageClip clip;
-					if (jClip.is_string()) {
-						clip.file = jClip.get<std::string>();
-					} else if (jClip.is_object()) {
-						clip.file = jClip.at("file").get<std::string>();
-						if (auto oit = jClip.find("offset"); oit != jClip.end()) {
-							clip.offset = ParseOffsetField(*oit);
-						}
-					} else {
-						throw std::runtime_error(a_subject + ": a clip must be a file string or a { file, offset } object");
-					}
-					if (clip.file.empty()) {
-						throw std::runtime_error(a_subject + ": empty clip file");
-					}
-					info.clips.push_back(std::move(clip));
+					info.clips.push_back(ParseStageClip(jClip, a_clipRoot, a_subject));
 				}
 				if (info.clips.empty()) {
 					throw std::runtime_error(a_subject + ": every stage needs at least one clip");
@@ -691,7 +751,7 @@ namespace OSF::Registry
 
 		// A unified graph node: `use` XOR inline `stages`, optional loop policy, edges, and the four
 		// node-level track lanes (cue/action/sound/camera, flat — not nested under a `tracks` block).
-		SceneNode ParseOsfNode(const json& a_node, std::vector<std::string>& a_warnings, const std::string& a_sceneId)
+		SceneNode ParseOsfNode(const json& a_node, std::vector<std::string>& a_warnings, const std::string& a_sceneId, std::string_view a_clipRoot)
 		{
 			SceneNode n;
 			n.id = a_node.value("id", std::string{});
@@ -713,7 +773,7 @@ namespace OSF::Registry
 				n.use = useIt->get<std::string>();
 			} else {
 				size_t ac = 0;
-				n.stages = ParseOsfStageList(a_node.at("stages"), "node '" + n.id + "'", ac, /*a_fixed*/ false);
+				n.stages = ParseOsfStageList(a_node.at("stages"), "node '" + n.id + "'", ac, /*a_fixed*/ false, a_clipRoot);
 			}
 
 			// loop is optional; absent -> hold (the SceneNode default).
@@ -885,7 +945,7 @@ namespace OSF::Registry
 		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault are the file-level policy
 		// defaults; a_packRoles are the file-level `roles` (inherited by a scene that omits its own).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
-			bool a_fadeDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles)
+			bool a_fadeDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles, std::string_view a_packClipRoot)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -893,6 +953,9 @@ namespace OSF::Registry
 				throw std::runtime_error("scene missing 'id'");
 			}
 			RejectReservedId(def.id, "scene");
+			const std::string clipRoot = a_json.contains("clipRoot") ?
+				NormalizeClipRoot(a_json.value("clipRoot", std::string{}), "scene '" + def.id + "'") :
+				std::string(a_packClipRoot);
 			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_fadeDefault);
 			if (const auto it = a_json.find("tags"); it != a_json.end()) {
 				for (const auto& t : *it) {
@@ -939,7 +1002,7 @@ namespace OSF::Registry
 				}
 				std::unordered_set<std::string> nodeIds;
 				for (const auto& jNode : jNodes) {
-					auto nd = ParseOsfNode(jNode, a_warnings, def.id);
+					auto nd = ParseOsfNode(jNode, a_warnings, def.id, clipRoot);
 					if (!nodeIds.insert(ToLower(nd.id)).second) {
 						throw std::runtime_error("scene '" + def.id + "': duplicate node id '" + nd.id + "'");
 					}
@@ -978,22 +1041,17 @@ namespace OSF::Registry
 				std::vector<StageDef> stages;
 				if (hasClip) {
 					const auto& clip = a_json.at("clip");
-					if (!clip.is_string() || clip.get<std::string>().empty()) {
-						throw std::runtime_error("scene '" + def.id + "': 'clip' must be a non-empty file string");
-					}
 					if (actorCount != 0 && actorCount != 1) {
 						throw std::runtime_error("scene '" + def.id + "': 'clip' is single-actor but " +
 							std::to_string(actorCount) + " role(s) declared (use 'stages' for multi-actor)");
 					}
 					StageDef st;
 					st.loops = 1;  // play once, then end
-					StageClip c;
-					c.file = clip.get<std::string>();
-					st.clips.push_back(std::move(c));
+					st.clips.push_back(ParseStageClip(clip, clipRoot, "scene '" + def.id + "'"));
 					actorCount = 1;
 					stages.push_back(std::move(st));
 				} else {
-					stages = ParseOsfStageList(a_json.at("stages"), "scene '" + def.id + "'", actorCount, rolesGiven);
+					stages = ParseOsfStageList(a_json.at("stages"), "scene '" + def.id + "'", actorCount, rolesGiven, clipRoot);
 				}
 				if (!rolesGiven) {
 					def.roles.assign(actorCount, SceneRole{});  // synthesize anonymous slots
@@ -1044,6 +1102,21 @@ namespace OSF::Registry
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			const bool stripDefault = a_json.value("stripActors", true);
 			const bool fadeDefault = a_json.value("fade", false);
+			std::string packClipRoot;
+			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
+				if (!crit->is_string()) {
+					a_errors.push_back("[error] '" + fileName + "': 'clipRoot' must be a string");
+					REX::ERROR("[Registry] '{}' 'clipRoot' must be a string — skipped", fileName);
+					return;
+				}
+				try {
+					packClipRoot = NormalizeClipRoot(crit->get<std::string>(), "'" + fileName + "'");
+				} catch (const std::exception& e) {
+					a_errors.push_back(std::string("[error] ") + e.what());
+					REX::ERROR("[Registry] {} — skipped", e.what());
+					return;
+				}
+			}
 
 			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
 			// entry node (unless that node already declares its own camera track). When omitted, the
@@ -1104,7 +1177,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault, packRoles);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault, packRoles, packClipRoot);
 					def.sourceFile = a_file;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {
@@ -1180,6 +1253,7 @@ namespace OSF::Registry
 				for (size_t a = 0; a < a_actorCount; a++) {
 					const auto& clip = sd.clips[a];
 					stage.files.push_back(clip.file);
+					stage.animIds.push_back(clip.animId);
 					stage.placements.push_back(clip.offset.value_or(a_roles[a].offset));
 				}
 				plan.stages.push_back(std::move(stage));
@@ -1319,5 +1393,48 @@ namespace OSF::Registry
 	{
 		std::shared_lock l{ lock };
 		return loadErrors;
+	}
+
+	std::vector<std::string> SceneRegistry::MissingClipRefs() const
+	{
+		namespace fs = std::filesystem;
+		const auto exists = [](const fs::path& a_path) {
+			std::error_code ec;
+			return fs::exists(a_path, ec);
+		};
+		const auto resolved = [&](const std::string& a_spec) {
+			const auto data = fs::current_path() / "Data";
+			const auto lower = ToLower(a_spec);
+			if (lower.starts_with("naf:")) {
+				return exists(data / "NAF" / a_spec.substr(4));
+			}
+			const fs::path specPath{ a_spec };
+			if (specPath.is_absolute()) {
+				return exists(specPath);
+			}
+			if (exists(data / specPath)) {
+				return true;
+			}
+			if (exists(data / "NAF" / specPath)) {
+				return true;
+			}
+			return exists(data / "OSF" / "Animations" / specPath.filename());
+		};
+
+		std::vector<std::string> out;
+		std::shared_lock l{ lock };
+		for (const auto& [key, def] : scenes) {
+			for (const auto& node : def.nodes) {
+				for (const auto& stage : node.stages) {
+					for (const auto& clip : stage.clips) {
+						if (!resolved(clip.file)) {
+							out.push_back(def.id + " node '" + node.id + "': missing clip '" + clip.file +
+								(clip.animId.empty() ? "" : (":" + clip.animId)) + "'");
+						}
+					}
+				}
+			}
+		}
+		return out;
 	}
 }

@@ -16,6 +16,8 @@
 #include "RE/S/Struct.h"
 #include "RE/S/StructTypeInfo.h"
 
+#include <algorithm>
+#include <filesystem>
 #include <format>
 
 namespace OSF::Papyrus
@@ -545,6 +547,153 @@ namespace OSF::Papyrus
 		{
 			return Scene::SceneRuntime::GetSingleton().GetParticipants(a_scene);
 		}
+
+		bool IsGltfPath(std::string_view a_path)
+		{
+			const auto ext = Util::ToLower(std::filesystem::path{ std::string(a_path) }.extension().string());
+			return ext == ".glb" || ext == ".gltf";
+		}
+
+		std::pair<std::string, std::string> SplitRuntimeClipSpec(std::string a_spec)
+		{
+			const auto pos = a_spec.rfind(':');
+			if (pos == std::string::npos || pos + 1 >= a_spec.size()) {
+				return { std::move(a_spec), {} };
+			}
+			std::string pathPart = a_spec.substr(0, pos);
+			if (!IsGltfPath(pathPart)) {
+				return { std::move(a_spec), {} };
+			}
+			std::string animId = a_spec.substr(pos + 1);
+			return { std::move(pathPart), std::move(animId) };
+		}
+
+		Animation::ScenePlan::Stage MakeStageFromFiles(const std::vector<RE::BSFixedString>& a_files, std::size_t a_begin, std::size_t a_count)
+		{
+			Animation::ScenePlan::Stage stage;
+			stage.files.reserve(a_count);
+			stage.animIds.reserve(a_count);
+			for (std::size_t i = 0; i < a_count; i++) {
+				auto [file, animId] = SplitRuntimeClipSpec(a_files[a_begin + i].c_str());
+				stage.files.push_back(std::move(file));
+				stage.animIds.push_back(std::move(animId));
+			}
+			return stage;
+		}
+
+		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_files, SceneOptionsArg a_opts)
+		{
+			if (a_actors.empty() || a_actors.size() != a_files.size()) {
+				REX::DEBUG("[Papyrus] StartSceneFiles: actor/file count mismatch ({}/{})", a_actors.size(), a_files.size());
+				return 0;
+			}
+			const auto opts = ReadSceneOptions(a_opts);
+			Animation::ScenePlan plan;
+			plan.stages.push_back(MakeStageFromFiles(a_files, 0, a_files.size()));
+			plan.stages[0].loops = 0;
+			plan.speed = opts.speed;
+			plan.blendIn = opts.blendIn;
+			return Scene::SceneRuntime::GetSingleton().StartFromPlan(a_actors, std::move(plan), 0, MakeAnchor(opts), MakeOverrides(opts));
+		}
+
+		int32_t StartSceneStages(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_files, std::vector<float> a_timers, std::vector<int32_t> a_loops,
+			std::vector<float> a_blends, SceneOptionsArg a_opts)
+		{
+			if (a_actors.empty() || a_files.empty() || (a_files.size() % a_actors.size()) != 0) {
+				REX::DEBUG("[Papyrus] StartSceneStages: files must be stage-major and divisible by actor count ({}/{})", a_files.size(), a_actors.size());
+				return 0;
+			}
+			const std::size_t stageCount = a_files.size() / a_actors.size();
+			const auto validLen = [stageCount](std::size_t n) { return n == 0 || n == stageCount; };
+			if (!validLen(a_timers.size()) || !validLen(a_loops.size()) || !validLen(a_blends.size())) {
+				REX::DEBUG("[Papyrus] StartSceneStages: timers/loops/blends must be empty or length {}", stageCount);
+				return 0;
+			}
+			const auto opts = ReadSceneOptions(a_opts);
+			Animation::ScenePlan plan;
+			plan.speed = opts.speed;
+			plan.blendIn = opts.blendIn;
+			plan.stages.reserve(stageCount);
+			const bool timingGiven = !a_timers.empty() || !a_loops.empty();
+			for (std::size_t s = 0; s < stageCount; s++) {
+				auto stage = MakeStageFromFiles(a_files, s * a_actors.size(), a_actors.size());
+				stage.timer = a_timers.empty() ? 0.0f : a_timers[s];
+				stage.loops = a_loops.empty() ? (timingGiven ? 0 : 1) : a_loops[s];
+				stage.blendIn = a_blends.empty() ? opts.blendIn : a_blends[s];
+				plan.stages.push_back(std::move(stage));
+			}
+			return Scene::SceneRuntime::GetSingleton().StartFromPlan(a_actors, std::move(plan), opts.stage, MakeAnchor(opts), MakeOverrides(opts));
+		}
+
+		int32_t StartSceneRolesEx(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles, SceneOptionsArg a_opts)
+		{
+			if (a_actors.empty()) {
+				REX::DEBUG("[Papyrus] StartSceneRolesEx: no actors given");
+				return 0;
+			}
+			const auto opts = ReadSceneOptions(a_opts);
+			const int32_t handle = Scene::SceneRuntime::GetSingleton().StartFromDefRoles(
+				a_id.c_str(), a_actors, ToStrings(a_roles), MakeAnchor(opts), MakeOverrides(opts));
+			if (handle && opts.stage > 0) {
+				Scene::SceneRuntime::GetSingleton().SetStage(handle, opts.stage);
+			}
+			return handle;
+		}
+
+		bool PlaySequence(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
+			std::vector<RE::BSFixedString> a_files, std::vector<int32_t> a_loops, std::vector<float> a_blends, bool a_loopWhole)
+		{
+			return Animation::GraphManager::GetSingleton().PlaySequence(a_actor, ToStrings(a_files), a_loops, a_blends, a_loopWhole);
+		}
+
+		int32_t StopAllForActors(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors)
+		{
+			std::vector<int32_t> handles;
+			int32_t stopped = 0;
+			for (auto* actor : a_actors) {
+				if (!actor) {
+					continue;
+				}
+				const int32_t h = Scene::SceneRuntime::GetSingleton().GetSceneForActor(actor);
+				if (h && std::find(handles.begin(), handles.end(), h) == handles.end()) {
+					handles.push_back(h);
+				}
+			}
+			for (const int32_t h : handles) {
+				if (Scene::SceneRuntime::GetSingleton().Stop(h)) {
+					stopped++;
+				}
+			}
+			for (auto* actor : a_actors) {
+				if (actor && Animation::GraphManager::GetSingleton().IsPlaying(actor)) {
+					if (Animation::GraphManager::GetSingleton().StopScene(actor) || Animation::GraphManager::GetSingleton().StopAnimation(actor)) {
+						stopped++;
+					}
+				}
+			}
+			return stopped;
+		}
+
+		std::vector<RE::BSFixedString> GetSceneLoadErrors(OSFVM&, uint32_t, std::monostate)
+		{
+			std::vector<RE::BSFixedString> out;
+			for (const auto& e : Registry::SceneRegistry::GetSingleton().LoadErrors()) {
+				out.emplace_back(e.c_str());
+			}
+			return out;
+		}
+
+		std::vector<RE::BSFixedString> GetMissingClipRefs(OSFVM&, uint32_t, std::monostate)
+		{
+			std::vector<RE::BSFixedString> out;
+			for (const auto& e : Registry::SceneRegistry::GetSingleton().MissingClipRefs()) {
+				out.emplace_back(e.c_str());
+			}
+			return out;
+		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
@@ -564,6 +713,14 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
+
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneRolesEx", &StartSceneRolesEx, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneStages", &StartSceneStages, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "PlaySequence", &PlaySequence, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StopAllForActors", &StopAllForActors, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "GetMissingClipRefs", &GetMissingClipRefs, true, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallbackStatic", &RegisterSceneCallbackStatic, true, false);

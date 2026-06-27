@@ -54,11 +54,16 @@ namespace OSF::Animation
 		// The engine fades an actor out when the third-person camera orbits close; we hold it at 1.0 each frame so pinned participants don't vanish.
 		constexpr std::ptrdiff_t kFadeNodeVisFlagOff = 0x1B4;
 
-		// Resolve a pack clip spec to an absolute path: absolute passes through;
-		// a  relative spec tries Data/<spec>, then Data/OSF/Animations/<filename>. 
+		// Resolve a clip spec to an absolute path: absolute passes through; `naf:foo.glb`
+		// maps to Data/NAF/foo.glb; relative specs try Data/<spec>, Data/NAF/<spec>,
+		// then Data/OSF/Animations/<filename>.
 		// Returns the primary Data path if neither exists, so the load-failure log names what the author wrote.
 		std::filesystem::path ResolveClipPath(const std::filesystem::path& a_spec)
 		{
+			const std::string raw = a_spec.string();
+			if (Util::ToLower(raw).starts_with("naf:")) {
+				return std::filesystem::current_path() / "Data" / "NAF" / raw.substr(4);
+			}
 			if (a_spec.is_absolute()) {
 				return a_spec;
 			}
@@ -66,6 +71,10 @@ namespace OSF::Animation
 			std::error_code ec;
 			if (std::filesystem::exists(primary, ec)) {
 				return primary;
+			}
+			auto nafFallback = std::filesystem::current_path() / "Data" / "NAF" / a_spec;
+			if (std::filesystem::exists(nafFallback, ec)) {
+				return nafFallback;
 			}
 			auto fallback = std::filesystem::current_path() / "Data" / "OSF" / "Animations" / a_spec.filename();
 			if (std::filesystem::exists(fallback, ec)) {
@@ -205,9 +214,10 @@ namespace OSF::Animation
 			for (size_t s = 0; s < a_plan.stages.size(); s++) {
 				const auto& stage = a_plan.stages[s];
 				if (stage.files.size() != a_actors.size() ||
+					(!stage.animIds.empty() && stage.animIds.size() != stage.files.size()) ||
 					(!stage.placements.empty() && stage.placements.size() != a_actors.size())) {
-					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} placements, {} actors)",
-						s, stage.files.size(), stage.placements.size(), a_actors.size());
+					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} anim ids, {} placements, {} actors)",
+						s, stage.files.size(), stage.animIds.size(), stage.placements.size(), a_actors.size());
 					return false;
 				}
 			}
@@ -236,9 +246,12 @@ namespace OSF::Animation
 				                       std::vector<ParticipantPlacement>(a_actors.size()) :
 				                       planStage.placements;
 				stage.marks = planStage.marks;
-				for (const auto& fileSpec : planStage.files) {
+				for (std::size_t clipIdx = 0; clipIdx < planStage.files.size(); clipIdx++) {
+					const auto& fileSpec = planStage.files[clipIdx];
+					const std::string_view animId =
+						(clipIdx < planStage.animIds.size()) ? std::string_view{ planStage.animIds[clipIdx] } : std::string_view{};
 					auto file = ResolveClipPath(std::filesystem::path{ fileSpec });
-					auto load = LoadClip(file, "");
+					auto load = LoadClip(file, animId);
 					if (!load.ok) {
 						REX::ERROR("[Anim] PlayScene: failed to load '{}' ({}) — scene not started",
 							file.string(), load.detail);
@@ -864,6 +877,7 @@ namespace OSF::Animation
 		for (size_t i = 0; i < a_files.size(); i++) {
 			ScenePlan::Stage stage;
 			stage.files = { a_files[i] };
+			stage.animIds = { "" };
 			stage.loops = a_loops[i];    // loop-count advance; <= 0 = hold this phase
 			stage.timer = 0.0f;
 			stage.blendIn = a_blends[i];

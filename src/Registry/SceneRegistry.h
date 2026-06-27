@@ -151,6 +151,7 @@ namespace OSF::Registry
 	struct StageClip
 	{
 		std::string file;
+		std::string animId;
 		std::optional<Animation::ParticipantPlacement> offset;  // overrides the role's default placement
 	};
 
@@ -287,6 +288,9 @@ namespace OSF::Registry
 
 		// Problems (errors + warnings) from the last LoadAll, for OSF.GetSceneLoadErrors().
 		std::vector<std::string> LoadErrors() const;
+
+		// Data-relative clip references from loaded scenes whose resolved file does not currently exist.
+		std::vector<std::string> MissingClipRefs() const;
 
 	private:
 		mutable std::shared_mutex        lock;

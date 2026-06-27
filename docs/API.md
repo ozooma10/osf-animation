@@ -51,6 +51,22 @@ int h3 = OSF.StartSceneByTagsQuery(actors, allOf, anyOf, noneOf)
 
 For raw one-actor clip playback outside the scene registry, use the primitive `OSF.Play(actor, file)`.
 
+### Advanced / porting API
+
+The primary `OSF.psc` script is kept small for common “start a registered scene” consumers. Porting-oriented dynamic starts live on `OSFAdvanced.psc`:
+
+```papyrus
+int hFiles = OSFAdvanced.StartSceneFiles(actors, files, opts)
+int hRoles = OSFAdvanced.StartSceneRolesEx(actors, "author.scene", roles, opts)
+int hStages = OSFAdvanced.StartSceneStages(actors, stageMajorFiles, timers, loops, blends, opts)
+bool ok = OSFAdvanced.PlaySequence(actor, files, loops, blends, false)
+int stopped = OSFAdvanced.StopAllForActors(actors)
+string[] loadProblems = OSFAdvanced.GetSceneLoadErrors()
+string[] missingClips = OSFAdvanced.GetMissingClipRefs()
+```
+
+Dynamic file specs accept the same compatibility shortcuts as scene JSON: `naf:Path.glb` resolves under `Data/NAF`, and `File.glb:AnimName` selects a named GLB animation.
+
 `SceneOptions` carries the optional modifiers (set only the fields you need; each `Start*` reads only
 the ones that apply to it):
 

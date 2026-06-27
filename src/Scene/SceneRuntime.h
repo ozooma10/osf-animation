@@ -15,6 +15,7 @@ namespace OSF::Animation
 {
 	enum class SceneEndReason : std::uint8_t;  // Animation/Scene.h
 	struct FiredMark;                          // Animation/Scene.h
+	struct ScenePlan;                          // Animation/Scene.h
 }
 
 namespace OSF::Registry
@@ -104,14 +105,21 @@ namespace OSF::Scene
 		// node that holds, with the actors co-located and synced by the GraphManager. 0 = bad args,
 		// play failure, or an actor is already in a scene.
 		std::int32_t StartFromFiles(const std::vector<RE::Actor*>& a_participants,
-			const std::vector<std::string>& a_files, float a_speed, float a_blendIn);
+			const std::vector<std::string>& a_files, float a_speed, float a_blendIn,
+			const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
+
+		// Start an ad-hoc staged scene built by a Papyrus caller. The plan is already actor-aligned
+		// and may carry multiple stages; otherwise it behaves like StartFromFiles (synthetic handle,
+		// callbacks, default mechanisms, and the undo ledger).
+		std::int32_t StartFromPlan(const std::vector<RE::Actor*>& a_participants, Animation::ScenePlan a_plan,
+			std::int32_t a_startStage, const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
 
 		// Start a def-backed scene with actors bound to NAMED roles (a_roles[i] = role for
 		// a_actors[i]). Validates the binding (unknown/duplicate role, null/duplicate actor, role
 		// count, every declared role filled) and reorders actors into role-declaration order
 		// before entering. 0 = no such scene def, a validation failure, or an actor is busy.
 		std::int32_t StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
-			const std::vector<std::string>& a_roles);
+			const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
 
 		// Jump a linear scene to stage a_stage: an ad-hoc files scene (delegates to the GraphManager's
 		// stage jump) or a registry scene declaring `linearStages` (transitions to the indexed node).

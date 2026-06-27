@@ -665,34 +665,59 @@ namespace OSF::Scene
 	}
 
 	std::int32_t SceneRuntime::StartFromFiles(const std::vector<RE::Actor*>& a_participants,
-		const std::vector<std::string>& a_files, float a_speed, float a_blendIn)
+		const std::vector<std::string>& a_files, float a_speed, float a_blendIn,
+		const AnchorOverride& a_anchor, const StartOverrides& a_over)
 	{
 		if (a_participants.empty() || a_participants.size() != a_files.size()) {
 			return 0;
+		}
+		Animation::ScenePlan plan;
+		Animation::ScenePlan::Stage stage;
+		stage.files = a_files;
+		stage.animIds.assign(a_files.size(), "");
+		stage.loops = 0;  // one stage, holds
+		plan.stages.push_back(std::move(stage));
+		plan.speed = a_speed;
+		plan.blendIn = a_blendIn;
+		return StartFromPlan(a_participants, std::move(plan), 0, a_anchor, a_over);
+	}
+
+	std::int32_t SceneRuntime::StartFromPlan(const std::vector<RE::Actor*>& a_participants, Animation::ScenePlan a_plan,
+		std::int32_t a_startStage, const AnchorOverride& a_anchor, const StartOverrides& a_over)
+	{
+		if (a_participants.empty() || a_plan.stages.empty()) {
+			return 0;
+		}
+		if (a_startStage < 0 || static_cast<std::size_t>(a_startStage) >= a_plan.stages.size()) {
+			return 0;
+		}
+		if (a_anchor.set) {
+			a_plan.anchorExplicit = true;
+			a_plan.anchorPos = a_anchor.pos;
+			a_plan.anchorHeading = a_anchor.heading;
 		}
 		const std::int32_t handle = MintSlot("", "main", a_participants);
 		if (!handle) {
 			return 0;  // actor already in a scene
 		}
-		Animation::ScenePlan plan;
-		plan.stages.push_back({ a_files, {}, 0.0f });  // one stage, holds (loop mode hold)
-		plan.speed = a_speed;
-		plan.blendIn = a_blendIn;
-		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, plan, 0)) {
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, a_plan, a_startStage)) {
 			ReleaseSlot(handle);
 			return 0;
 		}
-		EngageDefaultPlayerLock(handle, true, a_participants);   // files scene: no field to opt out via
-		StripDefaultActors(handle, true, a_participants);        // files scene: always strips participants
-		FadeSceneStart(handle, false, a_participants);           // files scene: start curtain off by default
-		EngageDefaultPlayerControl(handle, "", a_participants);  // files scene: default-on input (all capabilities)
+		const bool lockPlayer = a_over.lockPlayer.value_or(true);
+		const bool stripActors = a_over.strip.value_or(true);
+		const bool fade = a_over.fade.value_or(false);
+		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
+		StripDefaultActors(handle, stripActors, a_participants);
+		FadeSceneStart(handle, fade, a_participants);
+		EngageDefaultPlayerControl(handle, "", a_participants);  // ad-hoc scene: default-on input (all capabilities)
 		Fire(handle, Event::kSceneBegin, "main", "");  // first lifecycle event, before the entry node's NODE_ENTER
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;
 	}
 
 	std::int32_t SceneRuntime::StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
-		const std::vector<std::string>& a_roles)
+		const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor, const StartOverrides& a_over)
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
@@ -739,7 +764,7 @@ namespace OSF::Scene
 
 		// Bind by role-declaration order, then enter at the def's entry (MintSlot enforces
 		// actor exclusivity + the duplicate-actor reject).
-		return Start(def->id, def->entry, ordered);
+		return Start(def->id, def->entry, ordered, a_anchor, a_over);
 	}
 
 	bool SceneRuntime::TakeEdge(std::int32_t a_scene,

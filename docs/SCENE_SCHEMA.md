@@ -112,6 +112,11 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 - **Clip paths are Data-relative** and load directly (they do **not** have to live under `Data/OSF` —
   e.g. `OSF/Animations/...` resolves to `Data/OSF/Animations/...`). Only *scene JSON discovery* is
   restricted to `Data/OSF`.
+- **NAF compatibility shortcuts:** a clip spec starting `naf:` resolves under `Data/NAF`, and if `Data/<path>`
+  is missing OSF also tries `Data/NAF/<path>`. A file or scene may set `"clipRoot": "NAF"` so bare clip paths
+  in that scope are treated as NAF-relative.
+- **GLB animation ids:** a clip object may include `{ "file": "NAF/Gangbang.glb", "anim": "COM.001" }`.
+  The shorthand `"NAF/Gangbang.glb:COM.001"` is also accepted for `.glb`/`.gltf` paths.
 - A multi-stage linear scene supports `OSF.GetSceneStage`/`SetSceneStage` (by handle) for manual
   stage jumps.
 

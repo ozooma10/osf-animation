@@ -3,11 +3,11 @@ ScriptName OSFTypes
 ; --- Scene options ------------------------------------------------------------
 ; Optional modifiers shared by the Start* functions. Pass None (the default) for the common case; 
 Struct SceneOptions
-    ObjectReference Anchor    ; world-anchor the scene at this ref (furniture/bed/marker) instead of co-locating at akActors[0]. Ignored by StartSceneFiles.
+    ObjectReference Anchor    ; world-anchor the scene at this ref (furniture/bed/marker) instead of co-locating at akActors[0].
     float HeadingDeg = -1.0   ; anchor heading in DEGREES; < 0 = use Anchor's own heading
-    int Stage = 0             ; NOT YET WIRED for graph scenes -- use SetSceneStageForActor() after start
-    float Speed = 1.0         ; StartSceneFiles only (no StartSceneFiles native is bound in this build -> currently a no-op)
-    float BlendIn = 0.4       ; StartSceneFiles only (see Speed) -> currently a no-op
+    int Stage = 0             ; start stage for OSFAdvanced.StartSceneStages; for registry graph scenes use SetSceneStage* after start
+    float Speed = 1.0         ; OSFAdvanced dynamic file/stage starts
+    float BlendIn = 0.4       ; OSFAdvanced dynamic file/stage starts
 
     ; --- Per-start overrides -------------------------------------------------
     ; Tri-state ints; write them with the OSF.INHERIT()/OFF()/ON() helpers, NOT bare 0/1

@@ -69,6 +69,7 @@ namespace OSF::Animation
 		struct Stage
 		{
 			std::vector<std::string> files;                // one per actor
+			std::vector<std::string> animIds;              // optional, parallel to files; empty string = first/default animation
 			std::vector<ParticipantPlacement> placements;  // empty = all zero
 			float timer = 0.0f;                            // seconds; <= 0 = no auto-advance
 			int32_t loops = 0;                             // clip loops; <= 0 = no auto-advance
