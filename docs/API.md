@@ -166,9 +166,14 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 
 ```papyrus
 ; aiScene 0 = any scene; aiEventMask is a bitmask of OSF.EVENT_*().
+; Instance form — handler is an instance method on the receiver ScriptObject:
 int token = OSF.RegisterSceneCallback(Self, "OnSceneEvent", 0, OSF.EVENT_ALL())
-...
-OSF.UnregisterSceneCallback(token)
+
+; Static form — register a GLOBAL function on a named script (no instance needed); the handler
+; must be `Function OnSceneEvent(OSFTypes:SceneEvent akEvent) Global` on the script `asScript`:
+int token2 = OSF.RegisterSceneCallbackStatic("MyQuestScript", "OnSceneEvent", 0, OSF.EVENT_ALL())
+
+OSF.UnregisterSceneCallback(token)   ; same unregister for either form
 
 Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
     If akEvent.eventType == OSF.EVENT_SCENE_END()
