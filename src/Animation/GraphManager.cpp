@@ -858,14 +858,14 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool GraphManager::PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole)
+	bool GraphManager::PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<std::string>& a_animIds, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole)
 	{
 		if (!a_actor) {
 			return false;
 		}
-		if (a_files.empty() || a_files.size() != a_loops.size() || a_files.size() != a_blends.size()) {
-			REX::WARN("[Anim] PlaySequence: files/loops/blends must be non-empty and equal length ({}/{}/{})",
-				a_files.size(), a_loops.size(), a_blends.size());
+		if (a_files.empty() || a_files.size() != a_animIds.size() || a_files.size() != a_loops.size() || a_files.size() != a_blends.size()) {
+			REX::WARN("[Anim] PlaySequence: files/animIds/loops/blends must be non-empty and equal length ({}/{}/{}/{})",
+				a_files.size(), a_animIds.size(), a_loops.size(), a_blends.size());
 			return false;
 		}
 		ScenePlan plan;
@@ -874,7 +874,7 @@ namespace OSF::Animation
 		for (size_t i = 0; i < a_files.size(); i++) {
 			ScenePlan::Stage stage;
 			stage.files = { a_files[i] };
-			stage.animIds = { "" };
+			stage.animIds = { a_animIds[i] };
 			stage.loops = a_loops[i];    // loop-count advance; <= 0 = hold this phase
 			stage.timer = 0.0f;
 			stage.blendIn = a_blends[i];

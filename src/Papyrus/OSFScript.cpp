@@ -646,7 +646,16 @@ namespace OSF::Papyrus
 		bool PlaySequence(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			std::vector<RE::BSFixedString> a_files, std::vector<int32_t> a_loops, std::vector<float> a_blends, bool a_loopWhole)
 		{
-			return Animation::GraphManager::GetSingleton().PlaySequence(a_actor, ToStrings(a_files), a_loops, a_blends, a_loopWhole);
+			std::vector<std::string> files;
+			std::vector<std::string> animIds;
+			files.reserve(a_files.size());
+			animIds.reserve(a_files.size());
+			for (const auto& spec : a_files) {
+				auto [file, animId] = SplitRuntimeClipSpec(spec.c_str());
+				files.push_back(std::move(file));
+				animIds.push_back(std::move(animId));
+			}
+			return Animation::GraphManager::GetSingleton().PlaySequence(a_actor, files, animIds, a_loops, a_blends, a_loopWhole);
 		}
 
 		int32_t StopAllForActors(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors)
