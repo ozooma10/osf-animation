@@ -6,7 +6,9 @@ All notable changes to OSF Animation are documented here. The format is based on
 
 ## [Unreleased]
 
-First alpha — in progress, not yet released. Stamp the version (`0.1.0`) and date here on launch.
+## [0.1.0] - 2026-06-27
+
+First alpha.
 
 ### Added
 - Native GLTF/GLB animation playback with synced multi-actor scenes and a shared frame clock.
