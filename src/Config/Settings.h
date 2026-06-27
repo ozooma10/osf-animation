@@ -8,7 +8,7 @@
 //   {
 //     "logLevel": "info",            // trace|debug|info|warn|error.
 //     "soundVolume": 1.0,            // master cue volume (clamped 0..2)
-//     "debugNotifications": true,    // top-right HUD popup on each stage transition (dev/test; default on)
+//     "debugNotifications": false,    // top-right HUD popup on each stage transition (dev/test; default off)
 //   }
 
 namespace OSF::Config::Settings

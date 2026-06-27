@@ -6,7 +6,7 @@ namespace OSF::UI::HudMessage
 {
 	namespace
 	{
-		std::atomic_bool g_debugEnabled{ true };
+		std::atomic_bool g_debugEnabled{ false };
 	}
 
 	void Show(std::string_view a_text)
