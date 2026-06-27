@@ -1047,8 +1047,8 @@ namespace OSF::Registry
 
 			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
 			// entry node (unless that node already declares its own camera track). When omitted, the
-			// pack defaults to "scene_orbit".
-			std::string cameraDefault = "scene_orbit";
+			// pack defaults to "thirdperson_hold".
+			std::string cameraDefault = "thirdperson_hold";
 			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
 				if (!cit->is_string()) {
 					a_errors.push_back("[error] '" + fileName + "': 'camera' must be a string");

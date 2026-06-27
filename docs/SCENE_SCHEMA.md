@@ -42,7 +42,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
   "fade": false,                         // optional file-level start-curtain default; each scene may override
-  "camera": "scene_orbit",               // file-level default camera posture (default "scene_orbit"; "none" opts out)
+  "camera": "thirdperson_hold",          // file-level default camera posture (default "thirdperson_hold"; "none" opts out)
   "scenes": [
     { "id": "author.one", "clip": "OSF/Anims/One.glb" },
     { "id": "author.two", "stages": [ { "loops": 0, "clips": ["OSF/Anims/Two.glb"] } ] }
@@ -360,10 +360,10 @@ In a pool, the `clips` value may be the usual **array**, or — the shorthand fo
 #### Camera `state` values
 
 Camera postures are **held**: ledger-tracked and auto-restored to the player's prior POV on any scene
-end. Supported states: `scene_orbit` (the default), `thirdperson_hold` (force and hold third person,
-bouncing the player back if they zoom to first person), `freefly`, and `vanity_orbit`.
+end. Supported states: `thirdperson_hold` (the default; force and hold third person, bouncing
+the player back if they zoom to first person), `scene_orbit` (mouse-steered orbit), `freefly`, and `vanity_orbit`.
 
-A file with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node. Use
+A file with no `"camera"` key defaults to **`thirdperson_hold`** on each scene's entry node. Use
 `"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
 node-level `camera` track on the entry node always wins over the file-level default.
 
