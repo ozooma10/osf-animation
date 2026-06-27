@@ -45,14 +45,18 @@ target("OSF Animation")
             os.mkdir(plugins)
             os.mkdir(scripts)
             os.mkdir(source)
-            os.cp(target:targetfile(), plugins .. "/")
-            if os.isfile(target:symbolfile()) then
-                os.cp(target:symbolfile(), plugins .. "/")  -- .pdb for crash-log symbolication
-            end
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
             os.cp("dist/OSF/**", osfDir .. "/", { rootdir = "dist/OSF" })
             os.cp("dist/settings.dev.json", path.join(osfDir, "settings.json"))
+            local ok = try { function() os.cp(target:targetfile(), plugins .. "/"); return true end }
+            if ok then
+                if os.isfile(target:symbolfile()) then
+                    os.cp(target:symbolfile(), plugins .. "/")  -- .pdb for crash-log symbolication
+                end
+            else
+                print("[OSF] DLL is busy (game running?) — scripts/scenes deployed, DLL NOT updated. Close the game and rebuild to update the DLL.")
+            end
         end
     end)
 

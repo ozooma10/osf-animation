@@ -44,6 +44,15 @@ Function StopPlay() global
     Debug.Notification("OSF: StopPlay -> " + ok)
 EndFunction
 
+; Solo SCENE (player-only, no NPC) — the minimal base-framework playback check. Plays the
+; shipped scene id "solo" on just the player; it holds (loops forever) until OSFTest.Stop.
+Function SoloScene() global
+    Actor[] a = new Actor[1]
+    a[0] = Game.GetPlayer()
+    int h = OSF.StartScene(a, "solo")
+    Debug.Notification("OSF: StartScene 'solo' -> handle " + h)
+EndFunction
+
 Function Pair(Actor npc) global
     Start(npc, "pair")
 EndFunction
