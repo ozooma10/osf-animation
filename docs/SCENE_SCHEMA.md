@@ -131,17 +131,20 @@ defaulting to gender `"any"` and no offset.
 ```jsonc
 "roles": [
   { "name": "lead",  "gender": "any" },
-  { "name": "other", "races": ["Starfield.esm|0x0021A8D7"], "offset": { "y": 1.0, "heading": 180.0 } }
+  { "name": "other", "filters": { "race": ["Starfield.esm|0x0021A8D7"] }, "offset": { "y": 1.0, "heading": 180.0 } }
 ]
 ```
 
-Each role is `{ name?, gender?, keywords?[], races?[], offset?, equip? }`:
+Each role is `{ name?, gender?, filters?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`:
 
 - **`name`** is **OPTIONAL**. Omit it for an anonymous positional slot (`{}`); name it to bind via
   `StartSceneRoles` and to reference from track entries (`"role": "lead"`).
-- **`gender`**: `"male"` | `"female"` | `"any"` (shorthand; or `"m"`/`"f"`).
-- **`keywords`**: a form-ref string or array of them; the actor's base **or race** must carry any one.
-- **`races`**: a form-ref string or array; the actor's race must equal any one.
+- **`gender`**: `"male"` | `"female"` | `"any"` (shorthand; or `"m"`/`"f"`). May be set directly on the
+  role (as shown above) **or** nested as `filters.gender`.
+- **`filters.keyword`**: a form-ref string or array of them; the actor's base **or race** must carry any
+  one. **Note the singular key, nested under `filters`** (a bare top-level `keywords` is not read).
+- **`filters.race`**: a form-ref string or array; the actor's race must equal any one. Singular, under
+  `filters` (a bare top-level `races` is not read).
 - **`offset`**: the role's default placement for all stages.
 - **`equip`**: an item to equip onto this role's actor for the scene's duration, **auto-removed on
   every end path**. Either a bare form-ref string (any gender) or an object keyed by the actor's
@@ -156,10 +159,10 @@ Each role is `{ name?, gender?, keywords?[], races?[], offset?, equip? }`:
   ]
   ```
 
-A role's bound actor must satisfy **every present** constraint; within `keywords`/`races` the match is
-**any-of**. **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0021A8D7"`). `keywords`
-/ `races` resolve **once at scene load** — an unresolvable / wrong-type ref **rejects** the scene and
-is logged. `equip` refs resolve **at scene start** instead — one naming an
+A role's bound actor must satisfy **every present** constraint; within `filters.keyword`/`filters.race`
+the match is **any-of**. **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0021A8D7"`).
+`filters.keyword` / `filters.race` resolve **once at scene load** — an unresolvable / wrong-type ref
+**rejects** the scene and is logged. `equip` refs resolve **at scene start** instead — one naming an
 uninstalled plugin is **warned + skipped**, not a load error (they usually target optional body
 replacers), so only the `"Plugin|0xLocal"` shape is checked at load.
 
@@ -259,13 +262,14 @@ Authoring **both, or neither**, is a hard load error.
 
 ```jsonc
 { "id": "finish", "label": "Finish", "labelKey": "", "to": "climax",
-  "when": "advance", "trigger": "", "default": true, "priority": 0 }
+  "when": "advance", "default": true, "priority": 0 }
 ```
 
 - **`to`**: a node id in this scene, or `"$end"` to end the scene. (Edges cannot target another scene.)
 - **`when`**: `end` (clip finished, `once`), `loops` (loop count reached, `count`), `timer` (node
-  `timerSec` elapsed), `advance` (manual via `AdvanceScene`/`NavigateScene`), `trigger` (a cue fired —
-  set `"trigger": "<cueId>"`).
+  `timerSec` elapsed), `advance` (manual via `AdvanceScene`/`NavigateScene`), or **`trigger:<cueId>`**
+  (fires when that cue fires — the cue id is part of the `when` string, e.g. `"when": "trigger:beat"`;
+  there is **no** separate `trigger` field, and a bare `"when": "trigger"` is a load error).
 - **Branchable** (`advance`) edges need `id` + `label` (for menus). `default: true` marks the edge
   `AdvanceScene` takes.
 
@@ -277,6 +281,19 @@ Authoring **both, or neither**, is a hard load error.
 - A `use` only splices the target's **entry node's stages**, so only a **single-node inline-stage
   scene** is a valid `use` target. A multi-way graph target is a load error.
 - A **dangling `use`** (target id in no file) is a **load error** and is logged.
+
+### Linear stage getters on a graph scene (`linearStages`)
+
+A graph scene can opt into the linear stage API (`OSF.GetSceneStage`/`SetSceneStage`,
+`GetSceneStageForActor`/`SetSceneStageForActor`) by listing the node ids that act as its sequential
+"stages":
+
+```jsonc
+"linearStages": ["approach", "main", "climax"]
+```
+
+Each id must be a node in this scene; the list defines the stage-index ↔ node mapping the getters/setters
+use. It's optional — only needed when a graph scene wants the linear stage controls.
 
 ---
 
@@ -296,7 +313,7 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
 | `action` | `{ "at", "type", "role", "hold", "duration", "set", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
-| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` | `spec` is a Data-relative file or `"event:<name>"` Wwise spec; `role` positions it (else player). One **voice channel per actor** — see below. A clip can carry **subtitle text** (a spoken line) — see below. |
+| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` _or_ a **ladder** (`marks`, see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (the key may also be written `sound` or `pool`); `role` positions it (else player). One **voice channel per actor** — see below. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
 #### Sound: one voice channel per actor
@@ -308,6 +325,23 @@ stacks over itself and a one-shot line cuts an ongoing loop. Different actors pl
 miniaudio fallback cuts the prior clip outright today; the engine-native Wwise path tracks the prior
 voice and cuts it once the AK stop entry is runtime-proven — until then a Wwise clip is tracked but
 not yet cut.)
+
+#### Sound ladders (`marks`): one lane, many tagged hits
+
+Instead of a single `at`, a `sound` entry may fire **multiple** times via a `marks` field — a "ladder".
+The lane's `spec` / `role` / `volume` / `repeat` are shared defaults, and each mark appends its tag(s) to
+the base `spec` (so a tag/pool spec picks an intensity-tagged variant per hit). `marks` has two shapes:
+
+```jsonc
+// GROUPED — keyed by the tag to append, value = the clip-fraction positions:
+{ "spec": "event:Vocal", "role": "lead", "marks": { "low": [0.1, 0.3], "loud": [0.8] } }
+
+// ARRAY — ordered, heterogeneous; each entry is a bare position, [pos, "tag", …], or a per-mark object:
+{ "spec": "event:Vocal", "role": "lead",
+  "marks": [ 0.2, [0.5, "loud"], { "at": 0.9, "tags": ["loud"], "volume": 1.2 } ] }
+```
+
+A ladder entry has no top-level `at` (the marks carry the positions); a per-mark `spec` replaces the base.
 
 #### Voice lines: text on a sound clip
 
@@ -440,6 +474,10 @@ black until the end.
 (`"playerControl": false`) or narrows it: `{ "disable": ["speed", "end"], "locked": true }`. Capabilities
 are advance / navigate / speed / reposition / freecam / end; `locked: true` means the player may not end
 the scene via the input channel (story scenes).
+
+The object form also accepts **`"enabled": <bool>`** (an explicit on/off toggle — same effect as the
+boolean `"playerControl": true|false` form) and **`"controlRole": "<roleName>"`** (advanced — names the
+participant role the input grant is bound to; defaults to the player).
 
 ### Matchmaking (`tags`, `priority`, `weight`)
 
