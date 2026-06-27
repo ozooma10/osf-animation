@@ -463,7 +463,7 @@ namespace OSF::Animation
 					slot->scene = scene.get();
 					slot->participantIndex = static_cast<int>(i);
 					slot->appliedStage = startStage;
-					slot->sceneFrames = 0;    // restart the LogSceneDiag cadence for this scene
+					slot->sceneFrames = 0;    // restart the HoldAnchoredParticipant re-assert cadence for this scene
 					slot->hasAnchor = false;  // the scene drives positioning; drop any solo SetAnchor
 					slot->syncGroup.reset();  // the scene clock supersedes any Sync group
 
@@ -474,7 +474,12 @@ namespace OSF::Animation
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}
 
-		//Initial placement + movement lockout... game thread per participant.
+		// Initial placement, dispatched to the GAME THREAD per participant (charController teleports + AI/flag writes
+		// don't take from the Papyrus thread that calls PlaySceneStaged). Per anchored participant: move the actor
+		// FOR REAL to its placement (SetPosition updateCharController=true moves the havok CAPSULE — the position the
+		// body-skin render cull reads), set heading, and set Actor::boolFlags2 kAnimationDriven so the AI keeps the
+		// anim running but stops walking the actor back to its post (re-asserted each frame by HoldAnchoredParticipant,
+		// cleared in StopSceneLocked). See OSF RE module gameplay.actor_animation_driven.
 		for (size_t i = 0; scene->anchored && i < scene->participants.size(); i++) {
 			const auto& pl = scene->placements[i];
 			auto* refr = scene->participants[i]->target.get();
@@ -485,21 +490,10 @@ namespace OSF::Animation
 			const float heading = scene->anchorHeading + pl.heading;
 			RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(refr) };
 			SFSE::GetTaskInterface()->AddTask([keepAlive, worldPos, heading]() {
-				const RE::NiPoint3 before = keepAlive->data.location;
-				keepAlive->SetPosition(worldPos, true);  // true = move the havok capsule (the cull's input), not just tracked pos
-				const RE::NiPoint3 after = keepAlive->data.location;
-				// DIAG: did SetPosition move the tracked position toward the request?
-				REX::INFO("[Anim] moveActor {:X}: req ({:.1f},{:.1f},{:.1f})  data.loc ({:.1f},{:.1f},{:.1f}) -> ({:.1f},{:.1f},{:.1f})",
-					keepAlive->formID, worldPos.x, worldPos.y, worldPos.z,
-					before.x, before.y, before.z, after.x, after.y, after.z);
+				keepAlive->SetPosition(worldPos, true);  // move the havok capsule to the anchor (the cull's position input)
+				keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);  // animation-driven: AI runs the anim but won't walk it back
 				if (auto* transforms = RE::TransformService::GetSingleton()) {
 					transforms->SetHeadingZ(keepAlive.get(), heading);
-				}
-				if (auto* ctl = keepAlive->movementController) {
-					ctl->SetAnimationDriven();
-					REX::INFO("[Anim] moveActor {:X}: movementMode after SetAnimationDriven = {}", keepAlive->formID, ctl->movementMode);
-				} else {
-					REX::WARN("[Anim] Actor {:X} has no movement controller — skipping animation-driven switch", keepAlive->formID);
 				}
 			});
 			if (pl.x != 0.0f || pl.y != 0.0f || pl.z != 0.0f || pl.heading != 0.0f) {
@@ -913,9 +907,12 @@ namespace OSF::Animation
 				// participants are always Actors (PlayScene takes Actor*)
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
 				SFSE::GetTaskInterface()->AddTask([keepAlive]() {
+					// Clear the animation-driven hold (Actor boolFlags2 bit 19) set during the scene, so the NPC
+					// resumes normal AI movement from where the scene left it. (SetMotionDriven is a suspect CLSF
+					// binding on 1.16.244 — see OSF RE gameplay.actor_animation_driven — kept harmlessly.)
+					keepAlive->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
 					if (auto* ctl = keepAlive->movementController) {
 						ctl->SetMotionDriven();
-						REX::TRACE("[Anim] Actor {:X}: movement reverted motion-driven", keepAlive->formID);
 					}
 				});
 			}
@@ -1088,56 +1085,27 @@ namespace OSF::Animation
 		});
 	}
 
-	void GraphManager::LogSceneDiag(Graph& a_graph, RE::TESObjectREFR* a_refr)
+	// Per-update-call tick for a scene participant: keep an anchored NPC ANIMATION-DRIVEN so its AI keeps the anim
+	// running but stops pathing the body off the scene anchor. The body-skin render cull reads the havok CAPSULE; a
+	// motion-driven NPC walks its capsule back to its package post (~4 u/s) and the body clips at orbit angles that
+	// no longer line up with the drifting capsule. The working lever is Actor::boolFlags2 kAnimationDriven (bit 19)
+	// set DIRECTLY — MovementControllerNPC::SetAnimationDriven is a no-op on 1.16.244. Re-asserted ~every 18
+	// update-calls on the game thread (the AI package re-asserts motion each update); cleared in StopSceneLocked so
+	// the NPC resumes normal movement from where the scene left it. Player excluded (movement-locked, doesn't drift).
+	// OSF RE module: gameplay.actor_animation_driven.
+	void GraphManager::HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr)
 	{
-		// Update calls arrive ~7x per render frame (subdivided dt), so cadences are in update-calls, not frames: ~240 calls ≈ 0.5s.
-		// NOTE: the root-node world transform is the physics capsule position, NOT the rendered skeleton
-		// the compose-root pin redirects the rig compose input, and mapped bones get their worlds from the rig buffers.
-		// ~0.3m capsule offset  per co-located actor is expected (and lines up correctly on screen); a jump beyond ~0.5m means physics dragged the actor.
-		if (!a_graph.scene || a_graph.participantIndex < 0) {
+		if (!a_graph.scene || !a_graph.scene->anchored || a_graph.participantIndex < 0 || !a_refr ||
+			a_refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
 			return;
 		}
-		const auto frames = ++a_graph.sceneFrames;
-
-		//Reassert the set movement mode flag
-		if (a_graph.scene->anchored && a_refr &&
-			a_refr != static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton()) && frames % 18 == 0) {
-			RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(a_refr) };
-			SFSE::GetTaskInterface()->AddTask([keepAlive]() {
-				// Force the engine's animation-driven indicator directly: SetAnimationDriven() (CLSF REL 135316)
-				// is a dead binding here (moveMode never changed), so set Actor::boolFlags2 kAnimationDriven (bit 19,
-				// the exact "bit 19" OSF saw stay clear) ourselves, and still call the controller fn in case it helps.
-				keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
-				if (auto* ctl = keepAlive->movementController) {
-					ctl->SetAnimationDriven();
-				}
-			});
-		}
-
-		if (frames % 120 != 0) {  // DIAG: ~every 0.5s of update time, so a short scene still logs a timeline
+		if (++a_graph.sceneFrames % 18 != 0) {  // ~every 0.075s of update time
 			return;
 		}
-		const auto& pl = a_graph.scene->placements[a_graph.participantIndex];
-		const RE::NiPoint3 anchor = PlacementToWorld(a_graph.scene->anchorPos, a_graph.scene->anchorHeading, pl);
-		const RE::NiPoint3 dataLoc = a_refr ? a_refr->data.location : RE::NiPoint3{};
-		RE::NiPoint3 physRoot{};
-		float capsuleErr = -1.0f;
-		if (a_graph.lastRoot) {
-			physRoot = a_graph.lastRoot->world.translate;  // per the note above: the PHYSICS capsule position
-			const float ex = physRoot.x - anchor.x, ey = physRoot.y - anchor.y, ez = physRoot.z - anchor.z;
-			capsuleErr = std::sqrt(ex * ex + ey * ey + ez * ez);
-		}
-		// capsuleErr small => capsule at the anchor; large/growing => capsule drifting back to the NPC's original  spot. moveMode should read 1 (animation-driven) if the re-assert is sticking; 2 = motion-driven (AI walks).
-		int moveMode = -1;
-		if (a_refr) {
-			if (auto* ctl = static_cast<RE::Actor*>(a_refr)->movementController) {
-				moveMode = ctl->movementMode;
-			}
-		}
-		REX::INFO("[Anim] sceneDiag {:X} f{}: anchor ({:.1f},{:.1f},{:.1f}) | data.loc ({:.1f},{:.1f},{:.1f}) | physRoot ({:.1f},{:.1f},{:.1f}) capsuleErr {:.2f} moveMode {}",
-			a_refr ? a_refr->formID : 0u, frames,
-			anchor.x, anchor.y, anchor.z, dataLoc.x, dataLoc.y, dataLoc.z,
-			physRoot.x, physRoot.y, physRoot.z, capsuleErr, moveMode);
+		RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(a_refr) };
+		SFSE::GetTaskInterface()->AddTask([keepAlive]() {
+			keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
+		});
 	}
 
 	void GraphManager::Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData)
@@ -1188,7 +1156,7 @@ namespace OSF::Animation
 		gm.QueueAutoEndIfFinished(*g);
 		gm.QueueTimedMarksIfFired(*g);
 		gm.QueueFadeRemovalIfDone(*g);
-		gm.LogSceneDiag(*g, refr);
+		gm.HoldAnchoredParticipant(*g, refr);
 	}
 
 	uint64_t GraphManager::Hook_ModelNodeUpdate(RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData)

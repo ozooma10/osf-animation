@@ -89,7 +89,7 @@ namespace OSF::Animation
 
 
 		// Solo multi-stage sequence (no anchor)
-		bool PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole);
+		bool PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<std::string>& a_animIds, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole);
 
 		// Stops a scene by pointer if it is still live (no-op otherwise). Used by the deferred auto-end task; 
 		// the caller keeps the Scene alive via shared_ptr so the pointer can never be stale.
@@ -109,7 +109,7 @@ namespace OSF::Animation
 		void QueueAutoEndIfFinished(Graph& a_graph);                   // last stage ran out -> StopScene
 		void QueueTimedMarksIfFired(Graph& a_graph);                   // stage fired timed marks -> mark handler
 		void QueueFadeRemovalIfDone(Graph& a_graph);                  // fade-out elapsed -> RemoveFadedGraph
-		void LogSceneDiag(Graph& a_graph, RE::TESObjectREFR* a_refr);  // throttled scene diagnostics
+		void HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr);  // keep an anchored scene NPC animation-driven (no AI walk-back)
 
 		// Defer a scene's end to the game thread: the runtime auto-end handler takes over (advance/end +
 		// ledger replay), else we stop it ourselves. Idempotent via Scene::endQueued; the shared_ptr keeps

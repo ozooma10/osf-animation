@@ -58,7 +58,7 @@ namespace OSF::Animation
 		Scene* scene = nullptr;
 		int participantIndex = -1;   // index into scene->placements/participants; const while in the scene
 		uint32_t appliedStage = 0;   // stage this graph's clip matches; Sample swaps on a stage change
-		uint32_t sceneFrames = 0;    // update-call counter, diag cadence only (LogSceneDiag)
+		uint32_t sceneFrames = 0;    // update-call counter for the HoldAnchoredParticipant re-assert cadence
 
 		// Handle cross fade timing. blend-in from previous pose (sampled or engines live rig)
 		// blend-out at BeginFadeOut: keep sampling while weight ramps to 0 (lands on the live pose), then the hook queues RemoveFadedGraph.	
