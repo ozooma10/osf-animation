@@ -1,6 +1,5 @@
 #include "Config/Settings.h"
 
-#include "Audio/SoundService.h"
 #include "UI/HudMessage.h"
 
 #include <cctype>
@@ -83,17 +82,6 @@ namespace OSF::Config::Settings
 				json.erase(it);
 			}
 		};
-		auto floatKey = [&](const char* a_key, auto&& a_apply) {
-			if (auto it = json.find(a_key); it != json.end()) {
-				if (it->is_number()) {
-					a_apply(it->get<float>());
-					applied++;
-				} else {
-					REX::ERROR("[Config] '{}' must be a number — ignored", a_key);
-				}
-				json.erase(it);
-			}
-		};
 		auto stringKey = [&](const char* a_key, auto&& a_apply) {
 			if (auto it = json.find(a_key); it != json.end()) {
 				if (it->is_string()) {
@@ -108,8 +96,6 @@ namespace OSF::Config::Settings
 
 		// logLevel first, so the rest of startup honours the chosen verbosity.
 		stringKey("logLevel", [](const std::string& v) { SetLogLevel(v); });
-
-		floatKey("soundVolume", [](float v) { Audio::SoundService::GetSingleton().SetVolume(v); });
 
 		boolKey("debugNotifications", [](bool v) { UI::HudMessage::SetDebugEnabled(v); });
 

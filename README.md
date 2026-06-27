@@ -4,7 +4,7 @@ OSF Animation is a native animation and scene-runtime framework for Starfield.
 
 Key Features:
 - Synced multi-actor AF/GLTF/GLB playback
-- Wwise-backed loose-file audio playback, with a miniaudio fallback
+- Engine-native Wwise loose-file audio playback (rides the game mix; no private-device fallback)
 - Actor anchoring/pinning in the world
 - A shared scene registry loaded from `Data/OSF/**/*.osf.json`
 - Player-control and camera locks

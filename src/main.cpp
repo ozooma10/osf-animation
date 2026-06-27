@@ -1,5 +1,4 @@
 #include "Animation/GraphManager.h"
-#include "Audio/SoundService.h"
 #include "Config/Settings.h"
 #include "Input/InputService.h"
 #include "Papyrus/OSFScript.h"
@@ -23,8 +22,6 @@ namespace
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
-			// Spin up the audio device now — it is slow — so the first sound cue doesn't stall a job thread.
-			OSF::Audio::SoundService::GetSingleton().Init();
 			// Apply the user's safety toggles now that the services they configure exist.
 			OSF::Config::Settings::Load();
 			if (!OSF::Papyrus::RegisterFunctions()) {

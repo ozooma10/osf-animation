@@ -1124,7 +1124,6 @@ namespace OSF::Animation
 		Camera::CameraService::GetSingleton().Tick();
 		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
 		UI::Subtitle::Tick();  // hides the subtitle box once a shown line's hold deadline passes
-		Audio::SoundService::GetSingleton().Tick();  // moves the listener to the player + reaps finished sounds
 		gm.StallWatchTick();  // end scenes the engine quietly stopped ticking (so the player lock never leaks)
 
 		// Idle early-out: this hook fires ~7x per render frame for every AnimationManager in the game; 

@@ -14,12 +14,16 @@
 #include <unordered_map>
 #include <vector>
 
-// miniaudio decoder, DECLARATIONS ONLY: the implementation TU is SoundService.cpp (#define MINIAUDIO_IMPLEMENTATION). 
-// We mirror the same MA_NO_* config so the shared struct definitions are identical across the two TUs. 
-// Used here to decode an arbitrary .wav/.mp3/.ogg/.flac to raw PCM, which BuildPcmWem then wraps into a Wwise PCM .wem.
+// This TU compiles the miniaudio implementation (#define MINIAUDIO_IMPLEMENTATION). We use ONLY the decoder
+// (ma_decoder) to turn an arbitrary .wav/.mp3/.ogg/.flac into raw PCM, which BuildPcmWem then wraps into a
+// Wwise PCM .wem for the engine-mixed external-source post. The output-device backends are compiled out
+// (MA_NO_DEVICE_IO): OSF never plays audio through its own device — everything rides the game's Wwise mix.
+// The implementation is C and not /Wall-clean, drop it from our warning level.
 #pragma warning(push, 0)
+#define MINIAUDIO_IMPLEMENTATION
 #define MA_NO_ENCODING
 #define MA_NO_GENERATION
+#define MA_NO_DEVICE_IO
 #include <miniaudio.h>
 #pragma warning(pop)
 
@@ -161,7 +165,7 @@ namespace OSF::Audio::Wwise
 		}
 
 		// Decodes any miniaudio-supported file (.wav/.mp3/.ogg/.flac) to interleaved 16-bit PCM and wraps it in a PCM .wem, so a vanilla audio file rides the SAME engine-mixed external-source path as a real .wem. 
-		// Returns an empty buffer on any decode failure; the caller then falls back to the miniaudio device.
+		// Returns an empty buffer on any decode failure; the cue is then skipped (no private-device fallback).
 		MediaBuffer DecodeToPcmWem(const std::wstring& a_path)
 		{
 			// Phase 1: open with native channels/rate (s16 output) to learn the channel count.
@@ -295,7 +299,7 @@ namespace OSF::Audio::Wwise
 		static const bool available = []() {
 			const auto* code = reinterpret_cast<const std::uint8_t*>(kAkPostEventByID.address());
 			if (!code || std::memcmp(code, kPostEventPrologue.data(), kPostEventPrologue.size()) != 0) {
-				REX::WARN("[Audio] Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime loose-file cues fall back to the legacy device", kAkPostEventByID.id());
+				REX::WARN("[Audio] Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime — cue sounds are skipped (no private-device fallback)", kAkPostEventByID.id());
 				return false;
 			}
 			REX::DEBUG("[Audio] Wwise audio available: AK PostEvent prologue verified");
@@ -367,7 +371,7 @@ namespace OSF::Audio::Wwise
 	{
 		// Formats that ride the engine-mixed Wwise external-source path. A real .wem is posted as-is;
 		// .wav/.mp3/.ogg/.flac are decoded to PCM and wrapped in a PCM .wem at runtime.
-		// Anything else (a codec miniaudio can't decode) returns false and SoundService::Play uses the legacy miniaudio device.
+		// Anything else (a codec miniaudio can't decode) returns false and SoundService::Play skips the cue.
 		const std::string ext = LowerExtension(a_path);
 		return ext == "wem" || ext == "wav" || ext == "mp3" || ext == "ogg" || ext == "flac";
 	}

@@ -323,9 +323,8 @@ A sound plays on the **voice channel of its `role`'s actor** (the player's chann
 resolves). A channel plays **one sound at a time**: a new `sound`/`osf.voice.play` on an actor whose
 channel is busy **replaces** (cuts) that actor's prior clip, so a `repeat:"loop"` vocal cue never
 stacks over itself and a one-shot line cuts an ongoing loop. Different actors play independently. (The
-miniaudio fallback cuts the prior clip outright today; the engine-native Wwise path tracks the prior
-voice and cuts it once the AK stop entry is runtime-proven — until then a Wwise clip is tracked but
-not yet cut.)
+engine-native Wwise path tracks each voice's `AkPlayingID` and cuts it via the runtime-proven AK stop
+entry — `ExecuteActionOnPlayingID` — so the replace is an instant hard cut.)
 
 #### Sound ladders (`marks`): one lane, many tagged hits
 

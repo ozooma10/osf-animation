@@ -15,5 +15,5 @@ First alpha — in progress, not yet released. Stamp the version (`0.1.0`) and d
 - Data-driven scene runtime: node graphs with cues, actions, callbacks, and navigation
   (`*.osf.json`), discovered from `Data/OSF/**`.
 - Layer-C mechanisms: player-control / camera lock, full-screen fade, equipment hide/restore,
-  Wwise audio (with loose-file WAV fallback), subtitles, and HUD messages.
+  engine-native Wwise loose-file audio (no private-device fallback), subtitles, and HUD messages.
 - Papyrus API (`OSF.*`) plus the `OSFTest` console smoke-test harness.
