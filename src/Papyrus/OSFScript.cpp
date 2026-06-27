@@ -9,6 +9,7 @@
 #include "Scene/SceneRuntime.h"
 #include "Serialization/AFImport.h"
 #include "Serialization/GLTFImport.h"
+#include "UI/HudMessage.h"
 #include "Util/Math.h"
 #include "Util/StringUtil.h"
 
@@ -396,6 +397,7 @@ namespace OSF::Papyrus
 			auto pick = Matchmaking::Pick(a_actors, a_query);
 			if (!pick) {
 				REX::DEBUG("[Papyrus] {}: no matching animation found for the given tags/actors", a_logTag);
+				UI::HudMessage::Error("no matching animation for the given tags/actors");
 				return 0;
 			}
 			const int32_t handle = StartCandidate(*pick, a_actors, a_over);
@@ -403,6 +405,7 @@ namespace OSF::Papyrus
 				REX::INFO("[Papyrus] {}: playing '{}' handle {:#010x}", a_logTag, pick->id, handle);
 			} else {
 				REX::WARN("[Papyrus] {}: could not start matched scene '{}'", a_logTag, pick->id);
+				UI::HudMessage::Error(std::format("could not start scene '{}'", pick->id));
 			}
 			return handle;
 		}

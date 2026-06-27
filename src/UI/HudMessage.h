@@ -16,4 +16,9 @@ namespace OSF::UI::HudMessage
 
 	// Fire a HUD popup ONLY when debug popups are enabled (callers don't gate themselves).
 	void Debug(std::string_view a_text);
+
+	// Fire a HUD popup for a user-facing error. ALWAYS shown, regardless of the debug
+	// setting — errors mean "the thing you asked for didn't happen", so the player must
+	// see them. Rendered as a warning (isWarning) and prefixed "OSF error: ".
+	void Error(std::string_view a_text);
 }

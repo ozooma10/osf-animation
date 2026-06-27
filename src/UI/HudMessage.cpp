@@ -9,22 +9,32 @@ namespace OSF::UI::HudMessage
 		std::atomic_bool g_debugEnabled{ false };
 	}
 
+	namespace
+	{
+		// Build and fire the ShowHUDMessageEvent. a_isWarning routes the HUD to its warning
+		// styling (used for errors). canThrottle lets the HUD coalesce a burst.
+		void Fire(std::string_view a_text, bool a_isWarning)
+		{
+			auto* source = RE::ShowHUDMessageEvent::GetEventSource();
+			if (!source) {
+				REX::DEBUG("[UI] no ShowHUDMessageEvent source yet — dropped '{}'", a_text);
+				return;
+			}
+			// {text, sound = none, canThrottle = true, isWarning} — matches the Papyrus
+			// Debug.Notification native (1.16.244).
+			const std::string       text{ a_text };
+			RE::ShowHUDMessageEvent  ev{};
+			ev.text = RE::BSFixedString(text.c_str());
+			ev.sound = RE::BSFixedString();
+			ev.canThrottle = true;
+			ev.isWarning = a_isWarning;
+			source->Notify(ev);
+		}
+	}
+
 	void Show(std::string_view a_text)
 	{
-		auto* source = RE::ShowHUDMessageEvent::GetEventSource();
-		if (!source) {
-			REX::DEBUG("[UI] no ShowHUDMessageEvent source yet — dropped '{}'", a_text);
-			return;
-		}
-		// {text, sound = none, canThrottle = true, isWarning = false} — matches the Papyrus
-		// Debug.Notification native (1.16.244). canThrottle lets the HUD coalesce a burst.
-		const std::string  text{ a_text };
-		RE::ShowHUDMessageEvent ev{};
-		ev.text = RE::BSFixedString(text.c_str());
-		ev.sound = RE::BSFixedString();
-		ev.canThrottle = true;
-		ev.isWarning = false;
-		source->Notify(ev);
+		Fire(a_text, false);
 	}
 
 	void SetDebugEnabled(bool a_on)
@@ -43,5 +53,12 @@ namespace OSF::UI::HudMessage
 		if (g_debugEnabled.load(std::memory_order_relaxed)) {
 			Show(a_text);
 		}
+	}
+
+	void Error(std::string_view a_text)
+	{
+		// Always shown — bypasses the debug gate. A player needs to know when something
+		// they asked for failed, even with diagnostics off.
+		Fire("OSF error: " + std::string{ a_text }, true);
 	}
 }

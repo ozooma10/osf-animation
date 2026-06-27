@@ -478,6 +478,7 @@ namespace OSF::Scene
 		if (!end && !PlayNodeAnim(a_participants, a_sceneId, a_newNode)) {
 			REX::WARN("[Scene] scene {:#010x} transition '{}' -> '{}' could not play the target node — ending scene",
 				a_handle, a_oldNode, a_newNode);
+			UI::HudMessage::Error(std::format("could not play '{}' — scene ended", a_newNode));
 			end = true;
 		}
 
