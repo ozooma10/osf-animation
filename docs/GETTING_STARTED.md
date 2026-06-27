@@ -1,11 +1,11 @@
+> WARNING: This file was AI-generated and is likely incorrect. Treat it as a rough draft, not authoritative documentation.
+
 # Getting started with OSF
 
-Two kinds of mod build on OSF:
+Two kinds of mods build on OSF:
 
-1. **Content mods** — ship scenes as JSON (`*.osf.json`) + GLB. **No Papyrus, no scripting, no ESP
-   required.** Drop files under `Data/OSF/**` and they're discovered.
-2. **Trigger / consumer mods** — Papyrus (and usually an ESP) that decides *when* to start an OSF
-   scene in response to gameplay. They call the [`OSF.*` API](API.md).
+1. **Content mods** — ship scenes as JSON (`*.osf.json`) + GLB. **No Papyrus, no scripting, no ESP required.** Drop files under `Data/OSF/**` and they're discovered.
+2. **Trigger / consumer mods** — Papyrus that decides *when* to start an OSF scene in response to gameplay. They call the [`OSF.*` API](API.md).
 
 The split is deliberate: OSF is content-neutral, so animation **data** lives in JSON and gameplay
 **policy** lives in your mod.

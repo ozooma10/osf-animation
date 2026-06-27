@@ -1,3 +1,5 @@
+> WARNING: This file was AI-generated and is likely incorrect. Treat it as a rough draft, not authoritative documentation.
+
 # OSF Papyrus API
 
 OSF exposes its surface as the global Papyrus script `OSF` (declared in

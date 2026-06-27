@@ -1,7 +1,8 @@
+> WARNING: This file was AI-generated and is likely incorrect. Treat it as a rough draft, not authoritative documentation.
+
 # OSF scene schema (`*.osf.json`)
 
-OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. The primary content
-concept is a **scene** (`*.osf.json`); a secondary `*.sounds.json` file declares reusable **sound pools**.
+OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. The primary content concept is a **scene** (`*.osf.json`); a secondary `*.sounds.json` file declares reusable **sound pools**.
 Both are plain JSON (`//` line comments are allowed):
 
 | File | Loaded by | Purpose |
