@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "name": "OSF Animation Test",
+  "scenes": [
+    {
+      "id": "pair",
+      "name": "Pair",
+      "tags": ["pair"],
+      "stages": [
+        {
+         "timer": 20.0,
+          "clips": ["OSF/OSF_TEST/StandCover01.af", "OSF/OSF_TEST/StandCover01.af"],
+        }
+      ]
+    }
+  ]
+}
