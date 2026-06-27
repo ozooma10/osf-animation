@@ -49,7 +49,7 @@ target("OSF Animation")
             end
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
-            os.cp("dist/OSF/**", osfDirss .. "/")
+            os.cp("dist/OSF/**", osfDir .. "/")
         end
     end)
 

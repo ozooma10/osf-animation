@@ -4,12 +4,17 @@
   "scenes": [
     {
       "id": "pair",
-      "name": "Pair",
+      "name": "pair",
       "tags": ["pair"],
       "stages": [
         {
-         "timer": 20.0,
-          "clips": ["OSF/OSF_TEST/StandCover01.af", "OSF/OSF_TEST/StandCover01.af"],
+          "timer": 20.0,
+          "clips": [
+            "OSF/OSF_TEST/StandSurrender01.af",
+            {
+              "file": "OSF/OSF_TEST/StandSurrender01.af"
+            }
+          ]
         }
       ]
     }
