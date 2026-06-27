@@ -38,6 +38,7 @@ target("OSF Animation")
             -- SFSE loads plugins from <mod>\SFSE\Plugins\*.dll.
             local plugins = path.join(mods, target:name(), "SFSE", "Plugins")
             local scripts = path.join(mods, target:name(), "Scripts")
+            local osfDir = path.join(mods, target:name(), "OSF")
             local source = path.join(scripts, "Source")
             os.mkdir(plugins)
             os.mkdir(scripts)
@@ -48,6 +49,7 @@ target("OSF Animation")
             end
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
+            os.cp("dist/OSF/**", osfDirss .. "/")
         end
     end)
 
