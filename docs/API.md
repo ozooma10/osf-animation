@@ -62,6 +62,8 @@ int hRoles = OSFAdvanced.StartSceneRolesEx(actors, "author.scene", roles, opts)
 int hStages = OSFAdvanced.StartSceneStages(actors, stageMajorFiles, timers, loops, blends, opts)
 int hStagesPlaced = OSFAdvanced.StartSceneStagesPlaced(actors, stageMajorFiles, timers, loops, blends, x, y, z, headingDeg, opts)
 bool ok = OSFAdvanced.PlaySequence(actor, files, loops, blends, false)
+bool hidden = OSFAdvanced.HideEquipment(hFiles, actors[0], -1)
+bool restored = OSFAdvanced.RestoreEquipment(hFiles)
 int stopped = OSFAdvanced.StopAllForActors(actors)
 string[] loadProblems = OSFAdvanced.GetSceneLoadErrors()
 string[] missingClips = OSFAdvanced.GetMissingClipRefs()
@@ -70,6 +72,8 @@ string[] missingClips = OSFAdvanced.GetMissingClipRefs()
 Dynamic file specs accept the same compatibility shortcuts as scene JSON: `naf:Path.glb` resolves under `Data/NAF`, and `File.glb:AnimName` selects a named GLB animation.
 
 `StartSceneFilesPlaced` / `StartSceneStagesPlaced` add dynamic participant placement offsets without JSON. `x`/`y`/`z` are local offsets relative to the scene anchor, and `headingDeg` is relative facing in degrees. Each placement array may be empty, which means zero for that component. For `StartSceneFilesPlaced`, non-empty placement arrays must be actor-count length. For `StartSceneStagesPlaced`, non-empty placement arrays may be actor-count length (reused for every stage) or stage-major length matching `stageMajorFiles`.
+
+`HideEquipment(scene, actor, slotMask)` is a ledger-safe ad-hoc strip helper for dynamic starts. The actor must be a participant in `scene`; `slotMask` uses Starfield ARMO biped slot bits, `-1` hides all apparel, and `0` hides nothing. Hidden items are restored automatically when the scene ends, or early with `RestoreEquipment(scene)`.
 
 `SceneOptions` carries the optional modifiers (set only the fields you need; each `Start*` reads only
 the ones that apply to it):

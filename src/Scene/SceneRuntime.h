@@ -152,6 +152,12 @@ namespace OSF::Scene
 		// Empty only if the handle is stale/invalid or its slot was already reclaimed.
 		std::vector<RE::Actor*> GetParticipants(std::int32_t a_scene);
 
+		// Ledger-safe ad-hoc apparel controls for dynamic callers. HideEquipment records the
+		// snapshot on a_handle so every scene end path restores it; RestoreHiddenEquipment
+		// replays that equipment debt early. a_slotMask uses ARMO biped slot bits; 0 hides nothing.
+		bool HideEquipment(std::int32_t a_handle, RE::Actor* a_actor, std::uint32_t a_slotMask);
+		bool RestoreHiddenEquipment(std::int32_t a_handle);
+
 		// Drop all live scenes (load teardown). Invoked from GraphManager::StopAll via the
 		// registered clear handler, so a stashed handle reads as dead after a load.
 		void Clear();

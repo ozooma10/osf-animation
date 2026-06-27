@@ -759,6 +759,16 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().PlaySequence(a_actor, files, animIds, a_loops, a_blends, a_loopWhole);
 		}
 
+		bool HideEquipment(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::Actor* a_actor, int32_t a_slotMask)
+		{
+			return Scene::SceneRuntime::GetSingleton().HideEquipment(a_scene, a_actor, static_cast<std::uint32_t>(a_slotMask));
+		}
+
+		bool RestoreEquipment(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().RestoreHiddenEquipment(a_scene);
+		}
+
 		int32_t StopAllForActors(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors)
 		{
 			std::vector<int32_t> handles;
@@ -830,6 +840,8 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneStages", &StartSceneStages, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneStagesPlaced", &StartSceneStagesPlaced, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "PlaySequence", &PlaySequence, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "HideEquipment", &HideEquipment, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "RestoreEquipment", &RestoreEquipment, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StopAllForActors", &StopAllForActors, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "GetMissingClipRefs", &GetMissingClipRefs, true, false);

@@ -51,6 +51,10 @@ namespace OSF::Equipment
 		// Empty snapshot = nothing hidden (nothing to restore later).
 		Snapshot Hide(RE::Actor* a_actor);
 
+		// GAME THREAD. Like Hide(), but only strips equipped ARMO whose biped slot bits overlap a_slotMask.
+		// a_slotMask == 0 hides nothing; 0xFFFFFFFF preserves Hide()'s all-apparel behavior.
+		Snapshot Hide(RE::Actor* a_actor, std::uint32_t a_slotMask);
+
 		// GAME THREAD. Re-equips the apparel recorded in a_snapshot (idempotent, re-equipping an item the actor already wears is a no-op).
 		void Restore(RE::Actor* a_actor, const Snapshot& a_snapshot);
 

@@ -25,6 +25,13 @@ int Function StartSceneStagesPlaced(Actor[] akActors, string[] asFiles, float[] 
 ; Solo multi-stage sequence on one actor. Arrays must be equal length.
 bool Function PlaySequence(Actor akActor, string[] asFiles, int[] aiLoops, float[] afBlends, bool abLoopWhole = false) Global Native
 
+; Hide selected equipped apparel on akActor for aiScene's lifetime. aiSlotMask uses ARMO biped slot bits;
+; -1 hides all apparel, 0 hides nothing. Returns true if anything was hidden and ledger-recorded.
+bool Function HideEquipment(int aiScene, Actor akActor, int aiSlotMask = -1) Global Native
+
+; Restore all apparel hidden through aiScene's equipment ledger before scene end.
+bool Function RestoreEquipment(int aiScene) Global Native
+
 ; Stops every unique scene represented by akActors, then any remaining solo playback. Returns stop operation count.
 int Function StopAllForActors(Actor[] akActors) Global Native
 

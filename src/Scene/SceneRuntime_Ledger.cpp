@@ -150,6 +150,37 @@ namespace OSF::Scene
 		}
 	}
 
+	bool SceneRuntime::HideEquipment(std::int32_t a_handle, RE::Actor* a_actor, std::uint32_t a_slotMask)
+	{
+		if (!a_handle || !a_actor || a_slotMask == 0) {
+			return false;
+		}
+		if (GetSceneForActor(a_actor) != a_handle) {
+			REX::DEBUG("[Scene] scene {:#010x} HideEquipment: actor {:X} is not a participant", a_handle, a_actor->formID);
+			return false;
+		}
+		auto snap = Equipment::EquipmentService::GetSingleton().Hide(a_actor, a_slotMask);
+		REX::DEBUG("[Scene] scene {:#010x} HideEquipment: actor {:X}, mask {:#010x}, hid {} item(s)",
+			a_handle, a_actor->formID, a_slotMask, snap.stripped.size());
+		if (snap.Empty()) {
+			return false;
+		}
+		RecordHiddenEquip(a_handle, a_actor, std::move(snap));
+		return true;
+	}
+
+	bool SceneRuntime::RestoreHiddenEquipment(std::int32_t a_handle)
+	{
+		{
+			std::lock_guard l{ _lock };
+			if (!Resolve(a_handle)) {
+				return false;
+			}
+		}
+		UndoMechanism(a_handle, Mechanism::kEquipment);
+		return true;
+	}
+
 	void SceneRuntime::RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot)
 	{
 		std::lock_guard l{ _lock };

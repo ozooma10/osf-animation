@@ -2,6 +2,8 @@
 
 #include "Util/Hooking.h"
 
+#include "RE/T/TESObjectARMO.h"
+
 #include <array>
 
 namespace OSF::Equipment
@@ -90,8 +92,13 @@ namespace OSF::Equipment
 
 	Snapshot EquipmentService::Hide(RE::Actor* a_actor)
 	{
+		return Hide(a_actor, 0xFFFFFFFFu);
+	}
+
+	Snapshot EquipmentService::Hide(RE::Actor* a_actor, std::uint32_t a_slotMask)
+	{
 		Snapshot snapshot;
-		if (!a_actor || !Available()) {
+		if (!a_actor || a_slotMask == 0 || !Available()) {
 			return snapshot;
 		}
 
@@ -119,6 +126,10 @@ namespace OSF::Equipment
 					item.object->GetFormID() != 0) {
 					if (skin && item.object == skin) {
 						skippedSkin++;
+						continue;
+					}
+					auto* armor = static_cast<RE::TESObjectARMO*>(item.object);
+					if ((armor->bipedModelData.bipedObjectSlots & a_slotMask) == 0) {
 						continue;
 					}
 					snapshot.stripped.push_back({ item.object, item.instanceData });
