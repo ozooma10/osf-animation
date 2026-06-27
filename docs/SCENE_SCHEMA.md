@@ -150,7 +150,7 @@ defaulting to gender `"any"` and no offset.
 ```jsonc
 "roles": [
   { "name": "lead",  "gender": "any" },
-  { "name": "other", "filters": { "race": ["Starfield.esm|0x0021A8D7"] }, "offset": { "y": 1.0, "heading": 180.0 } }
+  { "name": "other", "filters": { "race": ["Starfield.esm|0x0000347D"] }, "offset": { "y": 1.0, "heading": 180.0 } }
 ]
 ```
 
@@ -179,7 +179,7 @@ Each role is `{ name?, gender?, filters?, offset?, equip? }`, where `filters` is
   ```
 
 A role's bound actor must satisfy **every present** constraint; within `filters.keyword`/`filters.race`
-the match is **any-of**. **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0021A8D7"`).
+the match is **any-of**. **Form-ref format:** `"Plugin.esm|0xLOCAL"` (e.g. `"Starfield.esm|0x0000347D"`).
 `filters.keyword` / `filters.race` resolve **once at scene load** — an unresolvable / wrong-type ref
 **rejects** the scene and is logged. `equip` refs resolve **at scene start** instead — one naming an
 uninstalled plugin is **warned + skipped**, not a load error (they usually target optional body
