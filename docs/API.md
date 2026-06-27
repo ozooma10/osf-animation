@@ -57,8 +57,10 @@ The primary `OSF.psc` script is kept small for common “start a registered scen
 
 ```papyrus
 int hFiles = OSFAdvanced.StartSceneFiles(actors, files, opts)
+int hFilesPlaced = OSFAdvanced.StartSceneFilesPlaced(actors, files, x, y, z, headingDeg, opts)
 int hRoles = OSFAdvanced.StartSceneRolesEx(actors, "author.scene", roles, opts)
 int hStages = OSFAdvanced.StartSceneStages(actors, stageMajorFiles, timers, loops, blends, opts)
+int hStagesPlaced = OSFAdvanced.StartSceneStagesPlaced(actors, stageMajorFiles, timers, loops, blends, x, y, z, headingDeg, opts)
 bool ok = OSFAdvanced.PlaySequence(actor, files, loops, blends, false)
 int stopped = OSFAdvanced.StopAllForActors(actors)
 string[] loadProblems = OSFAdvanced.GetSceneLoadErrors()
@@ -66,6 +68,8 @@ string[] missingClips = OSFAdvanced.GetMissingClipRefs()
 ```
 
 Dynamic file specs accept the same compatibility shortcuts as scene JSON: `naf:Path.glb` resolves under `Data/NAF`, and `File.glb:AnimName` selects a named GLB animation.
+
+`StartSceneFilesPlaced` / `StartSceneStagesPlaced` add dynamic participant placement offsets without JSON. `x`/`y`/`z` are local offsets relative to the scene anchor, and `headingDeg` is relative facing in degrees. Each placement array may be empty, which means zero for that component. For `StartSceneFilesPlaced`, non-empty placement arrays must be actor-count length. For `StartSceneStagesPlaced`, non-empty placement arrays may be actor-count length (reused for every stage) or stage-major length matching `stageMajorFiles`.
 
 `SceneOptions` carries the optional modifiers (set only the fields you need; each `Start*` reads only
 the ones that apply to it):

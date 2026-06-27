@@ -581,6 +581,50 @@ namespace OSF::Papyrus
 			return stage;
 		}
 
+		bool PlacementArrayLenOk(std::size_t a_len, std::size_t a_actorCount, std::size_t a_totalCount)
+		{
+			return a_len == 0 || a_len == a_actorCount || a_len == a_totalCount;
+		}
+
+		bool PlacementArraysValid(const char* a_tag, std::size_t a_actorCount, std::size_t a_totalCount,
+			const std::vector<float>& a_x, const std::vector<float>& a_y, const std::vector<float>& a_z, const std::vector<float>& a_headingDeg)
+		{
+			if (PlacementArrayLenOk(a_x.size(), a_actorCount, a_totalCount) &&
+				PlacementArrayLenOk(a_y.size(), a_actorCount, a_totalCount) &&
+				PlacementArrayLenOk(a_z.size(), a_actorCount, a_totalCount) &&
+				PlacementArrayLenOk(a_headingDeg.size(), a_actorCount, a_totalCount)) {
+				return true;
+			}
+			REX::DEBUG("[Papyrus] {}: placement arrays must be empty, actor-count ({}), or stage-major file-count ({}) (x/y/z/heading = {}/{}/{}/{})",
+				a_tag, a_actorCount, a_totalCount, a_x.size(), a_y.size(), a_z.size(), a_headingDeg.size());
+			return false;
+		}
+
+		float PlacementValue(const std::vector<float>& a_values, std::size_t a_stage, std::size_t a_actor, std::size_t a_actorCount)
+		{
+			if (a_values.empty()) {
+				return 0.0f;
+			}
+			const std::size_t index = (a_values.size() == a_actorCount) ? a_actor : (a_stage * a_actorCount + a_actor);
+			return a_values[index];
+		}
+
+		std::vector<Animation::ParticipantPlacement> MakePlacements(std::size_t a_actorCount, std::size_t a_stage,
+			const std::vector<float>& a_x, const std::vector<float>& a_y, const std::vector<float>& a_z, const std::vector<float>& a_headingDeg)
+		{
+			std::vector<Animation::ParticipantPlacement> placements;
+			placements.reserve(a_actorCount);
+			for (std::size_t i = 0; i < a_actorCount; i++) {
+				Animation::ParticipantPlacement p;
+				p.x = PlacementValue(a_x, a_stage, i, a_actorCount);
+				p.y = PlacementValue(a_y, a_stage, i, a_actorCount);
+				p.z = PlacementValue(a_z, a_stage, i, a_actorCount);
+				p.heading = PlacementValue(a_headingDeg, a_stage, i, a_actorCount) * Util::kDegToRadF;
+				placements.push_back(p);
+			}
+			return placements;
+		}
+
 		int32_t StartSceneFiles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_files, SceneOptionsArg a_opts)
 		{
@@ -592,6 +636,28 @@ namespace OSF::Papyrus
 			Animation::ScenePlan plan;
 			plan.stages.push_back(MakeStageFromFiles(a_files, 0, a_files.size()));
 			plan.stages[0].loops = 0;
+			plan.speed = opts.speed;
+			plan.blendIn = opts.blendIn;
+			return Scene::SceneRuntime::GetSingleton().StartFromPlan(a_actors, std::move(plan), 0, MakeAnchor(opts), MakeOverrides(opts));
+		}
+
+		int32_t StartSceneFilesPlaced(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_files, std::vector<float> a_x, std::vector<float> a_y, std::vector<float> a_z,
+			std::vector<float> a_headingDeg, SceneOptionsArg a_opts)
+		{
+			if (a_actors.empty() || a_actors.size() != a_files.size()) {
+				REX::DEBUG("[Papyrus] StartSceneFilesPlaced: actor/file count mismatch ({}/{})", a_actors.size(), a_files.size());
+				return 0;
+			}
+			if (!PlacementArraysValid("StartSceneFilesPlaced", a_actors.size(), a_files.size(), a_x, a_y, a_z, a_headingDeg)) {
+				return 0;
+			}
+			const auto opts = ReadSceneOptions(a_opts);
+			Animation::ScenePlan plan;
+			auto stage = MakeStageFromFiles(a_files, 0, a_files.size());
+			stage.placements = MakePlacements(a_actors.size(), 0, a_x, a_y, a_z, a_headingDeg);
+			stage.loops = 0;
+			plan.stages.push_back(std::move(stage));
 			plan.speed = opts.speed;
 			plan.blendIn = opts.blendIn;
 			return Scene::SceneRuntime::GetSingleton().StartFromPlan(a_actors, std::move(plan), 0, MakeAnchor(opts), MakeOverrides(opts));
@@ -619,6 +685,41 @@ namespace OSF::Papyrus
 			const bool timingGiven = !a_timers.empty() || !a_loops.empty();
 			for (std::size_t s = 0; s < stageCount; s++) {
 				auto stage = MakeStageFromFiles(a_files, s * a_actors.size(), a_actors.size());
+				stage.timer = a_timers.empty() ? 0.0f : a_timers[s];
+				stage.loops = a_loops.empty() ? (timingGiven ? 0 : 1) : a_loops[s];
+				stage.blendIn = a_blends.empty() ? opts.blendIn : a_blends[s];
+				plan.stages.push_back(std::move(stage));
+			}
+			return Scene::SceneRuntime::GetSingleton().StartFromPlan(a_actors, std::move(plan), opts.stage, MakeAnchor(opts), MakeOverrides(opts));
+		}
+
+		int32_t StartSceneStagesPlaced(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_files, std::vector<float> a_timers, std::vector<int32_t> a_loops,
+			std::vector<float> a_blends, std::vector<float> a_x, std::vector<float> a_y, std::vector<float> a_z,
+			std::vector<float> a_headingDeg, SceneOptionsArg a_opts)
+		{
+			if (a_actors.empty() || a_files.empty() || (a_files.size() % a_actors.size()) != 0) {
+				REX::DEBUG("[Papyrus] StartSceneStagesPlaced: files must be stage-major and divisible by actor count ({}/{})", a_files.size(), a_actors.size());
+				return 0;
+			}
+			const std::size_t stageCount = a_files.size() / a_actors.size();
+			const auto validLen = [stageCount](std::size_t n) { return n == 0 || n == stageCount; };
+			if (!validLen(a_timers.size()) || !validLen(a_loops.size()) || !validLen(a_blends.size())) {
+				REX::DEBUG("[Papyrus] StartSceneStagesPlaced: timers/loops/blends must be empty or length {}", stageCount);
+				return 0;
+			}
+			if (!PlacementArraysValid("StartSceneStagesPlaced", a_actors.size(), a_files.size(), a_x, a_y, a_z, a_headingDeg)) {
+				return 0;
+			}
+			const auto opts = ReadSceneOptions(a_opts);
+			Animation::ScenePlan plan;
+			plan.speed = opts.speed;
+			plan.blendIn = opts.blendIn;
+			plan.stages.reserve(stageCount);
+			const bool timingGiven = !a_timers.empty() || !a_loops.empty();
+			for (std::size_t s = 0; s < stageCount; s++) {
+				auto stage = MakeStageFromFiles(a_files, s * a_actors.size(), a_actors.size());
+				stage.placements = MakePlacements(a_actors.size(), s, a_x, a_y, a_z, a_headingDeg);
 				stage.timer = a_timers.empty() ? 0.0f : a_timers[s];
 				stage.loops = a_loops.empty() ? (timingGiven ? 0 : 1) : a_loops[s];
 				stage.blendIn = a_blends.empty() ? opts.blendIn : a_blends[s];
@@ -724,8 +825,10 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
 
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFilesPlaced", &StartSceneFilesPlaced, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneRolesEx", &StartSceneRolesEx, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneStages", &StartSceneStages, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneStagesPlaced", &StartSceneStagesPlaced, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "PlaySequence", &PlaySequence, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StopAllForActors", &StopAllForActors, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
