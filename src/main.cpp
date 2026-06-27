@@ -36,6 +36,7 @@ namespace
 			break;
 		case SFSE::MessagingInterface::kPostPostDataLoad:
 			REX::INFO("[Feature] Input Hook {}", OSF::Input::InputService::GetSingleton().Install() ? "INSTALLED" : "UNAVAILABLE");
+			OSF::Animation::GraphManager::GetSingleton().RegisterConsolePauseSink();
 			break;
 		default:
 			break;

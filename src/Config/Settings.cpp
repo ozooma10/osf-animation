@@ -14,9 +14,7 @@ namespace OSF::Config::Settings
 	namespace
 	{
 		// "trace" | "debug" | "info" | "warn" | "error" -> spdlog level, applied to the live logger.
-		// The default (no settings.json) is build-driven: Debug in debug builds, Info in the shipped
-		// releasedbg/release build (SFSE::InitInfo::logLevel). Set "logLevel":"trace" for the full
-		// dev-verbose firehose without recompiling; users on the default Info level never see it.
+		// The default (no settings.json) is build-driven: Debug in debug builds, Info in the shipped  releasedbg/release build (SFSE::InitInfo::logLevel).
 		void SetLogLevel(std::string_view a_level)
 		{
 			std::string s;

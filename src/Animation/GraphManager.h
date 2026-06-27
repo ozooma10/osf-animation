@@ -35,6 +35,10 @@ namespace OSF::Animation
 		// Installs the AnimationManager::Update vtable hook.
 		void InstallHooks();
 
+		// Registers a MenuOpenCloseEvent sink that freezes playback while the console is open.
+		// console pauses the world but does NOT set Main::isGameMenuPaused, Call once after the UI singleton exists (kPostPostDataLoad).
+		void RegisterConsolePauseSink();
+
 		// True when both vtable hooks verified and patched (the core playback path is live).
 		bool HooksInstalled() const { return _origAnimGraphUpdate && _origModelNodeUpdate; }
 

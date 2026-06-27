@@ -150,9 +150,32 @@ namespace OSF::Animation
 			return false;
 		}
 
+		//flag for if console is open.
+		std::atomic<bool> g_consoleOpen{ false };
+
+		class ConsoleMenuSink : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
+		{
+		public:
+			static ConsoleMenuSink* GetSingleton()
+			{
+				static ConsoleMenuSink instance;
+				return &instance;
+			}
+
+			RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent& a_event,
+				RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
+			{
+				if (a_event.menuName == RE::Console::MENU_NAME) {
+					g_consoleOpen.store(a_event.opening, std::memory_order_relaxed);
+				}
+				return RE::BSEventNotifyControl::kContinue;
+			}
+		};
+
 		float PlaybackDelta(const RE::BSAnimationUpdateData& a_updateData)
 		{
-			if (IsGameMenuPaused()) {
+			//Freeze playback if menu open (or console which doesnt set flag)
+			if (IsGameMenuPaused() || g_consoleOpen.load(std::memory_order_relaxed)) {
 				return 0.0f;
 			}
 
@@ -284,6 +307,17 @@ namespace OSF::Animation
 			mnVtbl.write_vfunc(ModelNodeUpdateVFuncIdx, &Hook_ModelNodeUpdate));
 		REX::TRACE("[Anim] installed AnimationManager::Update (vfunc {}) + BGSModelNode::Update (vfunc {}) hooks",
 			UpdateVFuncIdx, ModelNodeUpdateVFuncIdx);
+	}
+
+	void GraphManager::RegisterConsolePauseSink()
+	{
+		auto* ui = RE::UI::GetSingleton();
+		if (!ui) {
+			REX::WARN("[Anim] console-pause sink not registered: RE::UI singleton null — the console will NOT freeze playback");
+			return;
+		}
+		ui->RegisterSink<RE::MenuOpenCloseEvent>(ConsoleMenuSink::GetSingleton());
+		REX::DEBUG("[Anim] registered console MenuOpenCloseEvent sink (freezes playback while the console is open)");
 	}
 
 	bool GraphManager::PlayAnimation(RE::Actor* a_actor, std::string_view a_file, std::string_view a_animId)
