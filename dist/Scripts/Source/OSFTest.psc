@@ -73,9 +73,9 @@ Function Tags(Actor npc) global
     a[0] = Game.GetPlayer()
     a[1] = npc
     string[] tags = new string[1]
-    tags[0] = "paired"
+    tags[0] = "pair"
     int h = OSF.StartSceneByTags(a, tags)
-    Debug.Notification("OSF: StartSceneByTags 'paired' -> handle " + h)
+    Debug.Notification("OSF: StartSceneByTags 'pair' -> handle " + h)
 EndFunction
 
 Function Advance(int handle) global
@@ -101,4 +101,34 @@ EndFunction
 Function Reload() global
     int n = OSF.ReloadPacks()
     Debug.Notification("OSF: reloaded, " + n + " scenes registered")
+EndFunction
+
+; --- Alpha smoke test: matchmaking form-ref resolution (Item 1) ---------------
+; Needs the throwaway pack Data/OSF/OSF_Test/filter_test.osf.json (delete before release).
+; Click a HUMAN npc in the console to read its RefID, then:
+;   cgf "OSFTest.FilterHuman" <npc>   matchmake tag "filterhuman"; role filtered on the
+;                                     ActorTypeHuman keyword -> a human BINDS -> non-zero handle.
+;   cgf "OSFTest.FilterRobot" <npc>   matchmake tag "filterrobot"; role filtered on the
+;                                     ActorTypeRobot keyword -> a human can't bind -> handle 0.
+; PASS = FilterHuman non-zero AND FilterRobot zero, with NO "[Registry]/[Match] form-ref ...
+; failed/rejected" at load (a load rejection would also give 0, so check the log to disambiguate).
+
+Function FilterHuman(Actor npc) global
+    Actor[] a = new Actor[2]
+    a[0] = Game.GetPlayer()
+    a[1] = npc
+    string[] tags = new string[1]
+    tags[0] = "filterhuman"
+    int h = OSF.StartSceneByTags(a, tags)
+    Debug.Notification("OSF: FilterHuman (ActorTypeHuman) -> handle " + h + " (expect non-zero = bound)")
+EndFunction
+
+Function FilterRobot(Actor npc) global
+    Actor[] a = new Actor[2]
+    a[0] = Game.GetPlayer()
+    a[1] = npc
+    string[] tags = new string[1]
+    tags[0] = "filterrobot"
+    int h = OSF.StartSceneByTags(a, tags)
+    Debug.Notification("OSF: FilterRobot (ActorTypeRobot) -> handle " + h + " (expect 0 = gated)")
 EndFunction
