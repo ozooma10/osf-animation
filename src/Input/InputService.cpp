@@ -2,6 +2,8 @@
 
 #include "RE/B/BSInputEventReceiver.h"
 #include "RE/B/BSInputEventUser.h"
+#include "RE/C/Console.h"
+#include "RE/M/Main.h"
 #include "RE/U/UI.h"
 
 namespace OSF::Input
@@ -94,12 +96,24 @@ namespace OSF::Input
 			}
 			SFSE::GetTaskInterface()->AddTask([handler, verb, grant]() { handler(verb, grant); });
 		}
+		// if menu/console owns input
+		bool MenuOwnsInput()
+		{
+			if (auto* main = RE::Main::GetSingleton(); main && main->isGameMenuPaused) {
+				return true;
+			}
+			if (auto* ui = RE::UI::GetSingleton()) {
+				return ui->IsMenuOpen(RE::Console::MENU_NAME);
+			}
+			return false;
+		}
 
 		void Thunk(RE::BSInputEventReceiver* a_this, const RE::InputEvent* a_queueHead)
 		{
 			const bool active = g_active.load(std::memory_order_relaxed);
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
-			if (active || capture) {
+			// don't route any input while a menu/console owns it. The engine still receives the unmodified queue below.
+			if ((active || capture) && !MenuOwnsInput()) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
 					if (active && et == RE::InputEvent::EventType::kButton) {
