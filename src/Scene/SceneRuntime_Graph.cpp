@@ -330,6 +330,35 @@ namespace OSF::Scene
 		RecordMechanism(a_handle, Mechanism::kControlLock);
 	}
 
+	void SceneRuntime::EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
+		bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants)
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		const bool hasPlayer = player &&
+			std::find(a_participants.begin(), a_participants.end(), static_cast<RE::Actor*>(player)) != a_participants.end();
+		if (!hasPlayer) {
+			return;  // NPC-only scene — the player's camera is never seized.
+		}
+		// Tie the default camera to the same gate as the player lock: a scene that opts OUT of locking the player keeps its own free camera too.
+		if (!a_lockPlayer) {
+			REX::DEBUG("[Scene] scene {:#010x} default camera skipped — player not locked (lockPlayer:false)", a_handle);
+			return;
+		}
+		// An authored enter-camera on the entry node wins — DispatchLifecycleCamera engages it on NODE_ENTER.
+		// Only impose the default when the scene specified no camera at all (the common case; also files/ad-hoc).
+		if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId)) {
+			if (const auto* node = def->FindNode(a_entryNode)) {
+				for (const auto& cam : node->cameras) {
+					if (cam.pos == Registry::CameraPos::kEnter) {
+						return;  // authored — leave it to the lifecycle dispatch
+					}
+				}
+			}
+		}
+		REX::DEBUG("[Scene] scene {:#010x} default camera engaged — no authored camera, holding third person", a_handle);
+		RunCamera(a_handle, "thirdperson_hold", hasPlayer, 0.0f);  // distance 0 = open as far OUT as possible
+	}
+
 	void SceneRuntime::StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants)
 	{
 		if (!a_stripActors) {
@@ -566,6 +595,7 @@ namespace OSF::Scene
 		fade = a_over.fade.value_or(fade);
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
+		EngageDefaultCamera(handle, a_id, a_entryNode, lockPlayer, a_participants);  // no authored camera => thirdperson_hold
 		StripDefaultActors(handle, stripActors, a_participants);  // hide every participant's apparel by default
 		EquipRoleItems(handle, a_id, a_participants);             // then equip each role's authored per-gender item (on top of the strip)
 		FadeSceneStart(handle, fade, a_participants);             // screen curtain on start when the player participates
@@ -709,6 +739,7 @@ namespace OSF::Scene
 		const bool stripActors = a_over.strip.value_or(true);
 		const bool fade = a_over.fade.value_or(false);
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
+		EngageDefaultCamera(handle, "", "main", lockPlayer, a_participants);  // ad-hoc scene: no authored camera => thirdperson_hold
 		StripDefaultActors(handle, stripActors, a_participants);
 		FadeSceneStart(handle, fade, a_participants);
 		EngageDefaultPlayerControl(handle, "", a_participants);  // ad-hoc scene: default-on input (all capabilities)

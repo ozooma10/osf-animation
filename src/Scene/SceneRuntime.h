@@ -361,6 +361,9 @@ namespace OSF::Scene
 		// The caller resolves a_lockPlayer from the scene def (`lockPlayer`) or pack;
 		void EngageDefaultPlayerLock(std::int32_t a_handle, bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants);
 
+		// Default camera when player participant and no camera specified by scene. defaults to thirdperson_hold
+		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants);
+
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
 		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants);
 
