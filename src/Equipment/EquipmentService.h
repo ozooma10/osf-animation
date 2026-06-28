@@ -47,24 +47,23 @@ namespace OSF::Equipment
 
 		bool Available();
 
-		// GAME THREAD. Snapshots + unequips the actor's worn apparel (all equipped ARMO except the base skin).
+		//G AME THREAD. Snapshots + unequips the actor's worn apparel (including weapon)
 		// Empty snapshot = nothing hidden (nothing to restore later).
 		Snapshot Hide(RE::Actor* a_actor);
 
 		// GAME THREAD. Like Hide(), but only strips equipped ARMO whose biped slot bits overlap a_slotMask.
-		// a_slotMask == 0 hides nothing; 0xFFFFFFFF preserves Hide()'s all-apparel behavior.
+		// a_slotMask == 0 hides nothing; 0xFFFFFFFF full-strip (incl. weapon).
 		Snapshot Hide(RE::Actor* a_actor, std::uint32_t a_slotMask);
 
-		// GAME THREAD. Re-equips the apparel recorded in a_snapshot (idempotent, re-equipping an item the actor already wears is a no-op).
+		// GAME THREAD. Re-equips the apparel recorded in a_snapshot
 		void Restore(RE::Actor* a_actor, const Snapshot& a_snapshot);
 
-		// GAME THREAD. Equips a_object on a_actor for the scene's duration. Adds a transient copy if the
-		// actor doesn't already own one. Returns the record describing what was done (object null = failed
-		// / unavailable); pass it to UnequipItem to reverse exactly that (and nothing the actor already had).
+		// GAME THREAD. Equips a_object on a_actor for the scene's duration. Adds a transient copy if the actor doesn't already own one. 
+		// Returns the record describing what was done (object null = failed / unavailable); 
+		// pass it to UnequipItem to reverse exactly that (and nothing the actor already had).
 		EquippedItem EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object);
 
-		// GAME THREAD. Reverses EquipItem: unequips the item if we equipped it, then destroys the added
-		// copy if we added it. No-op for a default/failed record.
+		// GAME THREAD. Reverses EquipItem: unequips the item if we equipped it, then destroys the added copy if we added it. No-op for a default/failed record.
 		void UnequipItem(RE::Actor* a_actor, const EquippedItem& a_item);
 	};
 }

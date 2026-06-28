@@ -119,11 +119,19 @@ namespace OSF::Equipment
 				REX::DEBUG("[Equip] actor {:X}: inventory list not materialized — nothing hidden", a_actor->formID);
 				return snapshot;
 			}
+			// Weapons are only stripped on a FULL strip (mask == all). A slot mask describes biped armor slots, which a weapon has none of, so a masked call stays apparel-only
+			const bool stripWeapons = (a_slotMask == 0xFFFFFFFFu);
 			for (const auto& item : list->data) {
-				// equipped ARMO with a real form. ARMO covers apparel + spacesuit pieces;
-				// weapons stay holstered.
-				if (item.object && item.object->IsArmor() && item.IsEquipped() &&
-					item.object->GetFormID() != 0) {
+				if (!item.object || !item.IsEquipped() || item.object->GetFormID() == 0) {
+					continue;
+				}
+				// ARMO covers apparel + spacesuit pieces; WEAP only on a full strip (see above).
+				const bool isArmor = item.object->IsArmor();
+				const bool isWeapon = stripWeapons && item.object->IsWeapon();
+				if (!isArmor && !isWeapon) {
+					continue;
+				}
+				if (isArmor) {
 					if (skin && item.object == skin) {
 						skippedSkin++;
 						continue;
@@ -132,8 +140,8 @@ namespace OSF::Equipment
 					if ((armor->bipedModelData.bipedObjectSlots & a_slotMask) == 0) {
 						continue;
 					}
-					snapshot.stripped.push_back({ item.object, item.instanceData });
 				}
+				snapshot.stripped.push_back({ item.object, item.instanceData });
 			}
 		}
 
