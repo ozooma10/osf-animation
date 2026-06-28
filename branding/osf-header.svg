@@ -86,9 +86,11 @@
 </g>
 
 <text x="628" y="272" font-size="104" font-weight="700" letter-spacing="3"><tspan fill="url(#hosf)">OSF </tspan><tspan fill="url(#hanim)">ANIMATION</tspan></text>
-<line x1="632" y1="300" x2="1190" y2="300" stroke="#c2622f" stroke-opacity="0.55" stroke-width="2"/>
-<g stroke="#4d9aa8" stroke-opacity="0.6" stroke-width="1.4"><line x1="632" y1="332" x2="660" y2="332"/></g>
-<text x="674" y="338" font-size="26" letter-spacing="6" font-weight="500" fill="#aeb6bf">ANIMATION AND SCENE FRAMEWORK</text>
+<g stroke="#c2622f" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round">
+  <line x1="635" y1="300" x2="1402" y2="300"/>
+  <line x1="635" y1="294" x2="635" y2="306"/><line x1="1402" y1="294" x2="1402" y2="306"/>
+</g>
+<text x="1018" y="338" font-size="26" letter-spacing="6" font-weight="500" fill="#aeb6bf" text-anchor="middle">ANIMATION AND SCENE FRAMEWORK</text>
 
 <rect width="1600" height="520" fill="url(#hvig)"/>
 </svg>
