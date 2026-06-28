@@ -55,9 +55,21 @@ namespace OSF::Scene
 				}
 				break;
 			}
-			case Input::Verb::kFreecam:
+			case Input::Verb::kFreecam: {
+				//Debounce the free-cam toggle
+				using clock = std::chrono::steady_clock;
+				constexpr auto           kFreecamCooldown = std::chrono::milliseconds(500);
+				static clock::time_point s_lastFreecam{};  // game-thread only
+				const auto               now = clock::now();
+				if (now - s_lastFreecam < kFreecamCooldown) {
+					REX::DEBUG("[Scene] freecam toggle debounced (within {}ms cooldown)",
+						std::chrono::duration_cast<std::chrono::milliseconds>(kFreecamCooldown).count());
+					break;
+				}
+				s_lastFreecam = now;
 				Camera::CameraService::GetSingleton().ToggleFreeCam();  // MMB toggle; cap kFreecam already enforced in the InputService
 				break;
+			}
 			case Input::Verb::kEnd:
 				rt.Stop(a_grant.handle);  // Grant.locked was already enforced in the InputService
 				break;
