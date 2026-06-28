@@ -211,6 +211,15 @@ namespace OSF::Animation
 			return !binding.empty();
 		}
 
+		// DIAG: a rebind to a DIFFERENT non-null modelNode after the first bind means the actor's 3D was
+		// rebuilt under us (e.g. equipment restore at scene end). Tells us whether a FADING graph re-binds to
+		// the freshly-built skeleton and could keep stamping it. Once per swap.
+		if (cachedModelNode && cachedModelNode != modelNode) {
+			REX::TRACE("[Anim] rig REBIND — modelNode {} -> {} (3d rebuilt; blendPhase {})",
+				static_cast<const void*>(cachedModelNode), static_cast<const void*>(modelNode),
+				static_cast<int>(blendPhase));
+		}
+
 		// build the rigIndex -> jointIndex binding from the bone map
 		cachedModelNode = modelNode;
 		cachedRig = rig;
