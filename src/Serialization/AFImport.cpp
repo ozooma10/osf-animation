@@ -613,6 +613,15 @@ namespace OSF::Serialization
 			return *cache;
 		}
 
+		std::string LowerKey(std::string_view a_key)
+		{
+			std::string s{ a_key };
+			for (auto& ch : s) {
+				ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+			}
+			return s;
+		}
+
 		std::string NormKey(const std::filesystem::path& a_path)
 		{
 			std::error_code ec;
@@ -620,11 +629,7 @@ namespace OSF::Serialization
 			if (ec) {
 				norm = a_path.lexically_normal();
 			}
-			auto s = norm.string();
-			for (auto& ch : s) {
-				ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-			}
-			return s;
+			return LowerKey(norm.string());
 		}
 	}
 
@@ -637,13 +642,26 @@ namespace OSF::Serialization
 	AFLoadResult AFImport::LoadAnimation(const std::filesystem::path& a_afFile, std::string_view a_rigKey,
 		const RigBytesProvider& a_rigProvider)
 	{
+		auto afBytes = ReadFile(a_afFile);
+		if (!afBytes) {
+			AFLoadResult result;
+			result.error = AFError::kAfReadFailed;
+			result.detail = ".af missing or unreadable";
+			return result;
+		}
+		return LoadAnimation(NormKey(a_afFile), *afBytes, a_rigKey, a_rigProvider);
+	}
+
+	AFLoadResult AFImport::LoadAnimation(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_afBytes,
+		std::string_view a_rigKey, const RigBytesProvider& a_rigProvider)
+	{
 		const std::string rigKey{ a_rigKey };
-		const std::string clipKey = NormKey(a_afFile) + '|' + rigKey;
+		const std::string cacheKey = LowerKey(a_clipKey) + '|' + rigKey;
 
 		{
 			std::scoped_lock l{ g_cacheLock };
 			auto& cc = ClipCache();
-			if (auto it = cc.find(clipKey); it != cc.end()) {
+			if (auto it = cc.find(cacheKey); it != cc.end()) {
 				return it->second;
 			}
 		}
@@ -687,15 +705,8 @@ namespace OSF::Serialization
 			RigCache().emplace(rigKey, RigEntry{ rig, skeleton });
 		}
 
-		// Clip.
-		auto afBytes = ReadFile(a_afFile);
-		if (!afBytes) {
-			result.error = AFError::kAfReadFailed;
-			result.detail = ".af missing or unreadable";
-			return result;
-		}
 		AfClip clip;
-		if (!ParseAf(*afBytes, clip, result.detail)) {
+		if (!ParseAf(a_afBytes, clip, result.detail)) {
 			result.error = AFError::kAfParseFailed;
 			return result;
 		}
@@ -711,10 +722,9 @@ namespace OSF::Serialization
 		result.error = AFError::kSuccess;
 
 		std::scoped_lock l{ g_cacheLock };
-		ClipCache().emplace(clipKey, result);
+		ClipCache().emplace(cacheKey, result);
 		return result;
 	}
-
 	void AFImport::ClearCache()
 	{
 		std::scoped_lock l{ g_cacheLock };

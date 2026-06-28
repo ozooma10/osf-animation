@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "Animation/OzzTypes.h"
 
@@ -44,11 +46,18 @@ namespace OSF::Serialization
 		// play in a session; ClearCache() drops them all.
 		static LoadResult LoadAnimation(const std::filesystem::path& a_file, std::string_view a_animId);
 
+		// Same import path, but the caller has already acquired the bytes. `a_cacheKey` is the
+		// stable clip identity; `a_parentPath` is used by fastgltf if a text .gltf references buffers.
+		static LoadResult LoadAnimation(std::string_view a_cacheKey, std::vector<std::byte> a_bytes,
+			const std::filesystem::path& a_parentPath, std::string_view a_animId);
+
 		// Drops the clip cache. Called by OSF.ReloadPacks — the dev edit loop
 		// where GLBs may have changed on disk under the same path.
 		static void ClearCache();
 
 	private:
 		static LoadResult LoadAnimationUncached(const std::filesystem::path& a_file, std::string_view a_animId);
+		static LoadResult LoadAnimationUncached(std::vector<std::byte> a_bytes,
+			const std::filesystem::path& a_parentPath, std::string_view a_animId);
 	};
 }

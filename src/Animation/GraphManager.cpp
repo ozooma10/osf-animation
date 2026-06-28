@@ -8,15 +8,16 @@
 #include "UI/Subtitle.h"
 #include "Serialization/AFImport.h"
 #include "Serialization/GLTFImport.h"
-#include "Util/Ba2.h"
 #include "Util/Math.h"
 #include "Util/StringUtil.h"
 
+#include "RE/S/StreamBase.h"
+
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <cstddef>
 #include <format>
-#include <fstream>
 
 namespace OSF::Animation
 {
@@ -54,64 +55,158 @@ namespace OSF::Animation
 		// The engine fades an actor out when the third-person camera orbits close; we hold it at 1.0 each frame so pinned participants don't vanish.
 		constexpr std::ptrdiff_t kFadeNodeVisFlagOff = 0x1B4;
 
-		// Resolve a clip spec to an absolute path: absolute passes through; `naf:foo.glb`
-		// maps to Data/NAF/foo.glb; relative specs try Data/<spec>, Data/NAF/<spec>,
-		// then Data/OSF/Animations/<filename>.
-		// Returns the primary Data path if neither exists, so the load-failure log names what the author wrote.
-		std::filesystem::path ResolveClipPath(const std::filesystem::path& a_spec)
+		class ResourceBinaryStream
 		{
-			const std::string raw = a_spec.string();
-			if (Util::ToLower(raw).starts_with("naf:")) {
-				return std::filesystem::current_path() / "Data" / "NAF" / raw.substr(4);
+		public:
+			ResourceBinaryStream() = delete;
+
+			explicit ResourceBinaryStream(const char* a_path)
+			{
+				using func_t = void (*)(ResourceBinaryStream*, const char*);
+				static REL::Relocation<func_t> func{ REL::ID(147134) };  // BSResourceNiBinaryStream ctor
+				func(this, a_path);
 			}
-			if (a_spec.is_absolute()) {
-				return a_spec;
+
+			ResourceBinaryStream(const ResourceBinaryStream&) = delete;
+			ResourceBinaryStream& operator=(const ResourceBinaryStream&) = delete;
+
+			virtual ~ResourceBinaryStream()
+			{
+				using func_t = void (*)(ResourceBinaryStream*);
+				static REL::Relocation<func_t> func{ REL::ID(147137) };  // BSResourceNiBinaryStream dtor
+				func(this);
 			}
-			auto primary = std::filesystem::current_path() / "Data" / a_spec;
-			std::error_code ec;
-			if (std::filesystem::exists(primary, ec)) {
-				return primary;
+
+			[[nodiscard]] bool good() const noexcept { return stream != nullptr; }
+			[[nodiscard]] std::uint32_t size() const noexcept { return stream ? stream->totalSize : 0; }
+
+			std::uint64_t read(void* a_buffer, std::uint64_t a_bytes)
+			{
+				using func_t = std::uint64_t (*)(ResourceBinaryStream*, void*, std::uint64_t);
+				static REL::Relocation<func_t> func{ REL::ID(147139) };  // BSResourceNiBinaryStream::DoRead
+				return func(this, a_buffer, a_bytes);
 			}
-			auto nafFallback = std::filesystem::current_path() / "Data" / "NAF" / a_spec;
-			if (std::filesystem::exists(nafFallback, ec)) {
-				return nafFallback;
+
+			std::uint64_t                absolutePos = 0;  // NiBinaryStream base
+			RE::BSResource::StreamBase* stream = nullptr;
+			void*                        buffer = nullptr;
+			std::uint64_t                streamPos = 0;
+			RE::BSResource::ErrorCode    lastError = RE::BSResource::ErrorCode::kNone;
+		};
+		static_assert(sizeof(ResourceBinaryStream) == 0x30);
+
+		std::string NormalizeResourcePath(std::string_view a_path)
+		{
+			std::string s{ a_path };
+			std::replace(s.begin(), s.end(), '/', '\\');
+			while (!s.empty() && (s.front() == '\\' || s.front() == '/')) {
+				s.erase(s.begin());
 			}
-			auto fallback = std::filesystem::current_path() / "Data" / "OSF" / "Animations" / a_spec.filename();
-			if (std::filesystem::exists(fallback, ec)) {
-				return fallback;
+
+			const auto lower = Util::ToLower(s);
+			if (lower.starts_with("data\\")) {
+				s.erase(0, 5);
 			}
-			return primary;
+			return s;
 		}
 
-		// Raw bytes of the human skeleton.rig for the .af importer. Prefers a loose file (dev / extracted),
-		// otherwise reads it straight out of the base game BA2 (Starfield - Animations.ba2) so OSF needs
-		// no shipped vanilla asset. Runs once per session — AFImport caches the parsed rig + skeleton.
-		std::optional<std::vector<std::uint8_t>> LoadHumanRigBytes()
+		std::optional<std::string> DataRelativePath(const std::filesystem::path& a_path)
 		{
-			const auto data = std::filesystem::current_path() / "Data";
-			const std::filesystem::path looseCandidates[] = {
-				data / "OSF" / "skeleton.rig",
-				data / "OSF" / "Animations" / "skeleton.rig",
-				data / "meshes" / "actors" / "human" / "characterassets" / "skeleton.rig",  // vanilla path, if extracted loose
-			};
-			std::error_code ec;
-			for (const auto& cand : looseCandidates) {
-				if (std::filesystem::exists(cand, ec)) {
-					std::ifstream f(cand, std::ios::binary);
-					if (f) {
-						std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-						if (!bytes.empty()) {
-							REX::TRACE("[Anim] rig: loose {}", cand.string());
-							return bytes;
-						}
-					}
+			if (!a_path.is_absolute()) {
+				return NormalizeResourcePath(a_path.string());
+			}
+
+			auto data = (std::filesystem::current_path() / "Data").lexically_normal();
+			auto path = a_path.lexically_normal();
+			auto rel = path.lexically_relative(data);
+			if (rel.empty() || rel.string().starts_with("..")) {
+				return std::nullopt;
+			}
+			return NormalizeResourcePath(rel.string());
+		}
+
+		std::optional<std::vector<std::uint8_t>> ReadResourceFile(std::string_view a_relPath)
+		{
+			const auto relPath = NormalizeResourcePath(a_relPath);
+			if (relPath.empty()) {
+				return std::nullopt;
+			}
+
+			ResourceBinaryStream stream{ relPath.c_str() };
+			if (!stream.good()) {
+				return std::nullopt;
+			}
+
+			std::vector<std::uint8_t> bytes(stream.size());
+			if (!bytes.empty()) {
+				const auto read = stream.read(bytes.data(), bytes.size());
+				if (read != bytes.size()) {
+					return std::nullopt;
 				}
 			}
-			if (auto b = Util::Ba2::ReadGameFile("meshes/actors/human/characterassets/skeleton.rig", "Starfield - Animations.ba2")) {
-				REX::TRACE("[Anim] rig: read from BA2 ({} bytes)", b->size());
-				return b;
+			return bytes;
+		}
+
+		struct ClipCandidate
+		{
+			std::string           resourcePath;
+			std::filesystem::path filePath;
+			bool                  resource = true;
+		};
+
+		struct ClipSpec
+		{
+			std::string                display;
+			std::vector<ClipCandidate> candidates;
+		};
+
+		ClipSpec ResolveClipSpec(const std::filesystem::path& a_spec)
+		{
+			ClipSpec out;
+			const std::string raw = a_spec.string();
+			if (Util::ToLower(raw).starts_with("naf:")) {
+				auto rel = NormalizeResourcePath(std::string{ "NAF\\" } + raw.substr(4));
+				out.display = rel;
+				out.candidates.push_back({ rel, std::filesystem::current_path() / "Data" / rel, true });
+				return out;
 			}
-			REX::ERROR("[Anim] rig: no loose skeleton.rig and none found in any Data\\*.ba2");
+
+			if (a_spec.is_absolute()) {
+				out.display = a_spec.string();
+				if (auto rel = DataRelativePath(a_spec)) {
+					out.candidates.push_back({ *rel, std::filesystem::current_path() / "Data" / *rel, true });
+				} else {
+					out.candidates.push_back({ {}, a_spec, false });
+				}
+				return out;
+			}
+
+			auto primary = NormalizeResourcePath(raw);
+			out.display = primary;
+			out.candidates.push_back({ primary, std::filesystem::current_path() / "Data" / primary, true });
+			out.candidates.push_back({ NormalizeResourcePath(std::string{ "NAF\\" } + primary),
+				std::filesystem::current_path() / "Data" / "NAF" / primary, true });
+			out.candidates.push_back({ NormalizeResourcePath(std::string{ "OSF\\Animations\\" } + a_spec.filename().string()),
+				std::filesystem::current_path() / "Data" / "OSF" / "Animations" / a_spec.filename(), true });
+			return out;
+		}
+
+		// Raw bytes of the human skeleton.rig for the .af importer. BSResource preserves the
+		// engine's loose-file-over-archive precedence, so an extracted rig still overrides BA2.
+		std::optional<std::vector<std::uint8_t>> LoadHumanRigBytes()
+		{
+			const char* candidates[] = {
+				"OSF\\skeleton.rig",
+				"OSF\\Animations\\skeleton.rig",
+				"meshes\\actors\\human\\characterassets\\skeleton.rig",
+			};
+			for (const auto* rel : candidates) {
+				if (auto bytes = ReadResourceFile(rel); bytes && !bytes->empty()) {
+					REX::TRACE("[Anim] rig: resource {} ({} bytes)", rel, bytes->size());
+					return bytes;
+				}
+			}
+			REX::ERROR("[Anim] rig: skeleton.rig unavailable through BSResource");
 			return std::nullopt;
 		}
 
@@ -121,33 +216,90 @@ namespace OSF::Animation
 			std::shared_ptr<const OzzAnimation> anim;
 			bool                                ok = false;
 			std::string                         detail;
+			std::string                         source;
 		};
+
+		std::vector<std::byte> ToByteVector(const std::vector<std::uint8_t>& a_bytes)
+		{
+			std::vector<std::byte> out(a_bytes.size());
+			if (!a_bytes.empty()) {
+				std::memcpy(out.data(), a_bytes.data(), a_bytes.size());
+			}
+			return out;
+		}
 
 		// Unified clip load for the ozz path: a `.af` goes through AFImport (engine-native clip decoded
 		// against the shipped human rig); anything else (`.glb`/`.gltf`) through GLTFImport. Both yield
 		// an ozz {skeleton, anim} the Graph sampler consumes identically.
-		ClipLoad LoadClip(const std::filesystem::path& a_file, std::string_view a_animId)
+		ClipLoad LoadClip(const ClipSpec& a_spec, std::string_view a_animId)
 		{
 			ClipLoad out;
-			if (Util::ToLower(a_file.extension().string()) == ".af") {
-				auto r = Serialization::AFImport::LoadAnimation(a_file, "human-skeleton", &LoadHumanRigBytes);
-				if (r.error != Serialization::AFError::kSuccess) {
-					out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
+			for (const auto& cand : a_spec.candidates) {
+				const auto extPath = cand.resource ? std::filesystem::path{ cand.resourcePath } : cand.filePath;
+				const bool isAf = Util::ToLower(extPath.extension().string()) == ".af";
+
+				if (!cand.resource) {
+					if (isAf) {
+						auto r = Serialization::AFImport::LoadAnimation(cand.filePath, "human-skeleton", &LoadHumanRigBytes);
+						if (r.error != Serialization::AFError::kSuccess) {
+							out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
+							out.source = cand.filePath.string();
+							return out;
+						}
+						out.skeleton = std::move(r.skeleton);
+						out.anim = std::move(r.anim);
+					} else {
+						auto r = Serialization::GLTFImport::LoadAnimation(cand.filePath, a_animId);
+						if (r.error != Serialization::GLTFError::kSuccess) {
+							out.detail = std::format("gltf error {}: {}", static_cast<int>(r.error), r.detail);
+							out.source = cand.filePath.string();
+							return out;
+						}
+						out.skeleton = std::move(r.skeleton);
+						out.anim = std::move(r.anim);
+					}
+					out.ok = true;
+					out.source = cand.filePath.string();
 					return out;
 				}
-				out.skeleton = std::move(r.skeleton);
-				out.anim = std::move(r.anim);
+
+				auto bytes = ReadResourceFile(cand.resourcePath);
+				if (!bytes) {
+					continue;
+				}
+
+				if (isAf) {
+					auto r = Serialization::AFImport::LoadAnimation(cand.resourcePath, *bytes, "human-skeleton", &LoadHumanRigBytes);
+					if (r.error != Serialization::AFError::kSuccess) {
+						out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
+						out.source = cand.resourcePath;
+						return out;
+					}
+					out.skeleton = std::move(r.skeleton);
+					out.anim = std::move(r.anim);
+				} else {
+					auto r = Serialization::GLTFImport::LoadAnimation(cand.resourcePath, ToByteVector(*bytes), cand.filePath.parent_path(), a_animId);
+					if (r.error != Serialization::GLTFError::kSuccess) {
+						out.detail = std::format("gltf error {}: {}", static_cast<int>(r.error), r.detail);
+						out.source = cand.resourcePath;
+						return out;
+					}
+					out.skeleton = std::move(r.skeleton);
+					out.anim = std::move(r.anim);
+				}
 				out.ok = true;
+				out.source = cand.resourcePath;
 				return out;
 			}
-			auto r = Serialization::GLTFImport::LoadAnimation(a_file, a_animId);
-			if (r.error != Serialization::GLTFError::kSuccess) {
-				out.detail = std::format("gltf error {}: {}", static_cast<int>(r.error), r.detail);
-				return out;
+
+			const auto ext = a_spec.candidates.empty() ? std::string{} :
+				Util::ToLower(std::filesystem::path{ a_spec.candidates.front().resourcePath }.extension().string());
+			out.source = a_spec.display;
+			if (ext == ".af") {
+				out.detail = std::format("af error {}: .af missing or unreadable", static_cast<int>(Serialization::AFError::kAfReadFailed));
+			} else {
+				out.detail = std::format("gltf error {}: file missing, unreadable or gzip decompression failed", static_cast<int>(Serialization::GLTFError::kFileReadFailed));
 			}
-			out.skeleton = std::move(r.skeleton);
-			out.anim = std::move(r.anim);
-			out.ok = true;
 			return out;
 		}
 
@@ -250,11 +402,11 @@ namespace OSF::Animation
 					const auto& fileSpec = planStage.files[clipIdx];
 					const std::string_view animId =
 						(clipIdx < planStage.animIds.size()) ? std::string_view{ planStage.animIds[clipIdx] } : std::string_view{};
-					auto file = ResolveClipPath(std::filesystem::path{ fileSpec });
+					auto file = ResolveClipSpec(std::filesystem::path{ fileSpec });
 					auto load = LoadClip(file, animId);
 					if (!load.ok) {
 						REX::ERROR("[Anim] PlayScene: failed to load '{}' ({}) — scene not started",
-							file.string(), load.detail);
+							load.source.empty() ? file.display : load.source, load.detail);
 						return nullptr;
 					}
 					stage.participants.push_back({ std::move(load.skeleton), std::move(load.anim), fileSpec });
@@ -344,11 +496,11 @@ namespace OSF::Animation
 			return false;
 		}
 
-		auto file = ResolveClipPath(std::filesystem::path{ a_file });
+		auto file = ResolveClipSpec(std::filesystem::path{ a_file });
 
 		auto loadResult = LoadClip(file, a_animId);
 		if (!loadResult.ok) {
-			REX::ERROR("[Anim] Failed to load animation '{}' ({})", file.string(), loadResult.detail);
+			REX::ERROR("[Anim] Failed to load animation '{}' ({})", loadResult.source.empty() ? file.display : loadResult.source, loadResult.detail);
 			return false;
 		}
 
@@ -377,7 +529,7 @@ namespace OSF::Animation
 			g->SetAnimation(loadResult.skeleton, loadResult.anim, std::string(a_file));
 		}
 
-		REX::DEBUG("[Anim] Playing '{}' on actor {:X}", file.filename().string(), a_actor->formID);
+		REX::DEBUG("[Anim] Playing '{}' on actor {:X}", loadResult.source.empty() ? file.display : loadResult.source, a_actor->formID);
 		return true;
 	}
 

@@ -60,6 +60,11 @@ namespace OSF::Serialization
 		static AFLoadResult LoadAnimation(const std::filesystem::path& a_afFile, std::string_view a_rigKey,
 			const RigBytesProvider& a_rigProvider);
 
+		// Same import path, but the caller has already acquired the clip bytes (for example through
+		// the game's resource system). `a_clipKey` is the stable cache/log identity for those bytes.
+		static AFLoadResult LoadAnimation(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_afBytes,
+			std::string_view a_rigKey, const RigBytesProvider& a_rigProvider);
+
 		// Drops the clip + rig caches (the OSF.ReloadPacks dev edit loop).
 		static void ClearCache();
 	};

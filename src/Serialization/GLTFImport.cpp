@@ -57,6 +57,42 @@ namespace OSF::Serialization
 			return result;
 		}
 
+		// If the buffer is gzip-compressed, decompresses it transparently.
+		std::optional<std::vector<std::byte>> MaybeGunzip(std::vector<std::byte> a_buffer)
+		{
+			const bool isGzip = a_buffer.size() >= 2 &&
+				a_buffer[0] == std::byte{ 0x1F } && a_buffer[1] == std::byte{ 0x8B };
+			if (!isGzip) {
+				return a_buffer;
+			}
+
+			z_stream strm{};
+			// 15 = max window, +16 = expect a gzip header
+			if (inflateInit2(&strm, 15 + 16) != Z_OK) {
+				return std::nullopt;
+			}
+
+			std::vector<std::byte> out;
+			std::byte chunk[65536];
+			strm.next_in = reinterpret_cast<Bytef*>(a_buffer.data());
+			strm.avail_in = static_cast<uInt>(a_buffer.size());
+
+			int ret = Z_OK;
+			do {
+				strm.next_out = reinterpret_cast<Bytef*>(chunk);
+				strm.avail_out = sizeof(chunk);
+				ret = inflate(&strm, Z_NO_FLUSH);
+				if (ret != Z_OK && ret != Z_STREAM_END) {
+					inflateEnd(&strm);
+					return std::nullopt;
+				}
+				out.insert(out.end(), chunk, chunk + (sizeof(chunk) - strm.avail_out));
+			} while (ret != Z_STREAM_END);
+
+			inflateEnd(&strm);
+			return out;
+		}
+
 		// Reads the whole file; if it is gzip-compressed, decompresses it transparently.
 		std::optional<std::vector<std::byte>> ReadFileMaybeGzip(const std::filesystem::path& a_file)
 		{
@@ -76,37 +112,7 @@ namespace OSF::Serialization
 				return std::nullopt;
 			}
 
-			const bool isGzip = buffer.size() >= 2 &&
-				buffer[0] == std::byte{ 0x1F } && buffer[1] == std::byte{ 0x8B };
-			if (!isGzip) {
-				return buffer;
-			}
-
-			z_stream strm{};
-			// 15 = max window, +16 = expect a gzip header
-			if (inflateInit2(&strm, 15 + 16) != Z_OK) {
-				return std::nullopt;
-			}
-
-			std::vector<std::byte> out;
-			std::byte chunk[65536];
-			strm.next_in = reinterpret_cast<Bytef*>(buffer.data());
-			strm.avail_in = static_cast<uInt>(buffer.size());
-
-			int ret = Z_OK;
-			do {
-				strm.next_out = reinterpret_cast<Bytef*>(chunk);
-				strm.avail_out = sizeof(chunk);
-				ret = inflate(&strm, Z_NO_FLUSH);
-				if (ret != Z_OK && ret != Z_STREAM_END) {
-					inflateEnd(&strm);
-					return std::nullopt;
-				}
-				out.insert(out.end(), chunk, chunk + (sizeof(chunk) - strm.avail_out));
-			} while (ret != Z_STREAM_END);
-
-			inflateEnd(&strm);
-			return out;
+			return MaybeGunzip(std::move(buffer));
 		}
 
 		// Strips `min`/`max` from all accessors in a glTF JSON document. NAF's exporter writes min/max arrays whose length doesn't match the accessor type (spec violation), which strict parsers reject. 
@@ -193,12 +199,13 @@ namespace OSF::Serialization
 		// Sets a_error + a_detail and returns nullopt on failure. The read/sanitize stages report
 		// kFileReadFailed; the fastgltf stages report kParseFailed. (Previously the caller recovered
 		// the category by sniffing a_detail's prefix — control flow keyed on log prose.)
-		std::optional<fastgltf::Asset> LoadAsset(const std::filesystem::path& a_file, GLTFError& a_error, std::string& a_detail)
+		std::optional<fastgltf::Asset> LoadAssetFromBytes(std::vector<std::byte> a_bytes,
+			const std::filesystem::path& a_parentPath, GLTFError& a_error, std::string& a_detail)
 		{
-			auto bytes = ReadFileMaybeGzip(a_file);
+			auto bytes = MaybeGunzip(std::move(a_bytes));
 			if (!bytes) {
 				a_error = GLTFError::kFileReadFailed;
-				a_detail = "file missing, unreadable or gzip decompression failed";
+				a_detail = "gzip decompression failed";
 				return std::nullopt;
 			}
 
@@ -227,7 +234,7 @@ namespace OSF::Serialization
 				fastgltf::Category::BufferViews |
 				fastgltf::Category::Accessors;
 
-			auto gltf = parser.loadGltf(data.get(), a_file.parent_path(), gltfOptions, gltfCategories);
+			auto gltf = parser.loadGltf(data.get(), a_parentPath, gltfOptions, gltfCategories);
 			if (gltf.error() != fastgltf::Error::None) {
 				a_error = GLTFError::kParseFailed;
 				a_detail = std::format("fastgltf parse error: {}", fastgltf::getErrorMessage(gltf.error()));
@@ -237,6 +244,16 @@ namespace OSF::Serialization
 			return std::move(gltf.get());
 		}
 
+		std::optional<fastgltf::Asset> LoadAsset(const std::filesystem::path& a_file, GLTFError& a_error, std::string& a_detail)
+		{
+			auto bytes = ReadFileMaybeGzip(a_file);
+			if (!bytes) {
+				a_error = GLTFError::kFileReadFailed;
+				a_detail = "file missing, unreadable or gzip decompression failed";
+				return std::nullopt;
+			}
+			return LoadAssetFromBytes(std::move(*bytes), a_file.parent_path(), a_error, a_detail);
+		}
 		// Builds an ozz skeleton from the asset's full node hierarchy. Root nodes
 		// are nodes that are not referenced as a child of any other node, so the
 		// Scenes category is not required.
@@ -389,6 +406,65 @@ namespace OSF::Serialization
 		}
 	}
 
+	LoadResult BuildLoadResult(fastgltf::Asset& a_asset, std::string_view a_animId)
+	{
+		LoadResult result;
+
+		if (a_asset.animations.empty()) {
+			result.error = GLTFError::kNoAnimations;
+			result.detail = "file contains no animations";
+			return result;
+		}
+
+		const fastgltf::Animation* anim = nullptr;
+		if (a_animId.empty()) {
+			anim = &a_asset.animations[0];
+		} else if (std::all_of(a_animId.begin(), a_animId.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); })) {
+			// from_chars (not stoull): an over-long all-digit id (> ULLONG_MAX)
+			// makes stoull THROW std::out_of_range, which would propagate out of
+			// the Papyrus native and crash the game. from_chars reports overflow
+			// as result_out_of_range, leaving anim null -> kInvalidAnimationIdentifier.
+			size_t idx = 0;
+			const auto* first = a_animId.data();
+			const auto* last = first + a_animId.size();
+			if (std::from_chars(first, last, idx).ec == std::errc{} && idx < a_asset.animations.size()) {
+				anim = &a_asset.animations[idx];
+			}
+		} else {
+			for (const auto& a : a_asset.animations) {
+				if (std::string_view{ a.name } == a_animId) {
+					anim = &a;
+					break;
+				}
+			}
+		}
+
+		if (!anim) {
+			result.error = GLTFError::kInvalidAnimationIdentifier;
+			result.detail = std::format("no animation '{}' in file ({} animations present)", a_animId, a_asset.animations.size());
+			return result;
+		}
+
+		auto skeleton = BuildSkeleton(a_asset);
+		if (!skeleton) {
+			result.error = GLTFError::kFailedToBuildSkeleton;
+			result.detail = std::format("ozz skeleton build failed ({} nodes)", a_asset.nodes.size());
+			return result;
+		}
+
+		auto runtimeAnim = BuildAnimation(a_asset, *anim, *skeleton->data);
+		if (!runtimeAnim) {
+			result.error = GLTFError::kFailedToMakeClip;
+			result.detail = "ozz animation build failed";
+			return result;
+		}
+
+		result.skeleton = std::move(skeleton);
+		result.anim = std::move(runtimeAnim);
+		result.error = GLTFError::kSuccess;
+		return result;
+		}
+
 	namespace
 	{
 		// Clip cache (successes only). Note: no logging in this file — it also
@@ -403,6 +479,11 @@ namespace OSF::Serialization
 			return *cache;
 		}
 
+		std::string ClipCacheKey(std::string_view a_cacheKey, std::string_view a_animId)
+		{
+			return ToLower(std::string(a_cacheKey)) + '|' + std::string(a_animId);
+		}
+
 		std::string ClipCacheKey(const std::filesystem::path& a_file, std::string_view a_animId)
 		{
 			std::error_code ec;
@@ -410,8 +491,10 @@ namespace OSF::Serialization
 			if (ec) {
 				norm = a_file.lexically_normal();
 			}
-			return ToLower(norm.string()) + '|' + std::string(a_animId);
+			auto normString = norm.string();
+			return ClipCacheKey(std::string_view{ normString }, a_animId);
 		}
+
 	}
 
 	LoadResult GLTFImport::LoadAnimation(const std::filesystem::path& a_file, std::string_view a_animId)
@@ -429,6 +512,26 @@ namespace OSF::Serialization
 		if (result.error == GLTFError::kSuccess) {
 			// Two threads importing the same file concurrently both pay the
 			// import and one insert wins — benign (identical immutable data).
+			std::scoped_lock l{ g_clipCacheLock };
+			ClipCache().emplace(key, result);
+		}
+		return result;
+	}
+
+	LoadResult GLTFImport::LoadAnimation(std::string_view a_cacheKey, std::vector<std::byte> a_bytes,
+		const std::filesystem::path& a_parentPath, std::string_view a_animId)
+	{
+		const auto key = ClipCacheKey(a_cacheKey, a_animId);
+		{
+			std::scoped_lock l{ g_clipCacheLock };
+			auto& cache = ClipCache();
+			if (auto it = cache.find(key); it != cache.end()) {
+				return it->second;
+			}
+		}
+
+		auto result = LoadAnimationUncached(std::move(a_bytes), a_parentPath, a_animId);
+		if (result.error == GLTFError::kSuccess) {
 			std::scoped_lock l{ g_clipCacheLock };
 			ClipCache().emplace(key, result);
 		}
@@ -454,58 +557,23 @@ namespace OSF::Serialization
 			return result;
 		}
 
-		if (asset->animations.empty()) {
-			result.error = GLTFError::kNoAnimations;
-			result.detail = "file contains no animations";
+		return BuildLoadResult(*asset, a_animId);
+	}
+
+	LoadResult GLTFImport::LoadAnimationUncached(std::vector<std::byte> a_bytes,
+		const std::filesystem::path& a_parentPath, std::string_view a_animId)
+	{
+		LoadResult result;
+
+		GLTFError loadError = GLTFError::kFileReadFailed;
+		std::string detail;
+		auto asset = LoadAssetFromBytes(std::move(a_bytes), a_parentPath, loadError, detail);
+		if (!asset) {
+			result.error = loadError;
+			result.detail = std::move(detail);
 			return result;
 		}
 
-		const fastgltf::Animation* anim = nullptr;
-		if (a_animId.empty()) {
-			anim = &asset->animations[0];
-		} else if (std::all_of(a_animId.begin(), a_animId.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); })) {
-			// from_chars (not stoull): an over-long all-digit id (> ULLONG_MAX)
-			// makes stoull THROW std::out_of_range, which would propagate out of
-			// the Papyrus native and crash the game. from_chars reports overflow
-			// as result_out_of_range, leaving anim null -> kInvalidAnimationIdentifier.
-			size_t idx = 0;
-			const auto* first = a_animId.data();
-			const auto* last = first + a_animId.size();
-			if (std::from_chars(first, last, idx).ec == std::errc{} && idx < asset->animations.size()) {
-				anim = &asset->animations[idx];
-			}
-		} else {
-			for (const auto& a : asset->animations) {
-				if (std::string_view{ a.name } == a_animId) {
-					anim = &a;
-					break;
-				}
-			}
-		}
-
-		if (!anim) {
-			result.error = GLTFError::kInvalidAnimationIdentifier;
-			result.detail = std::format("no animation '{}' in file ({} animations present)", a_animId, asset->animations.size());
-			return result;
-		}
-
-		auto skeleton = BuildSkeleton(*asset);
-		if (!skeleton) {
-			result.error = GLTFError::kFailedToBuildSkeleton;
-			result.detail = std::format("ozz skeleton build failed ({} nodes)", asset->nodes.size());
-			return result;
-		}
-
-		auto runtimeAnim = BuildAnimation(*asset, *anim, *skeleton->data);
-		if (!runtimeAnim) {
-			result.error = GLTFError::kFailedToMakeClip;
-			result.detail = "ozz animation build failed";
-			return result;
-		}
-
-		result.skeleton = std::move(skeleton);
-		result.anim = std::move(runtimeAnim);
-		result.error = GLTFError::kSuccess;
-		return result;
+		return BuildLoadResult(*asset, a_animId);
 	}
 }
