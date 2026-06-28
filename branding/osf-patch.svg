@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="32 32 616 616" width="1024" height="1024" role="img" font-family="Bahnschrift, 'DIN Next', 'Oswald', 'Segoe UI Semibold', sans-serif">
+<title>OSF Animation mission patch</title>
+<desc>A circular embroidered mission patch. Amber merrowed border with EST MMXXVI curved across the top and OPEN SCENE FRAMEWORK across the bottom, flanked by amber stars. In the center, the bold wordmark OSF in brushed steel over ANIMATION in amber with an amber accent bar. Below it, a gently eased amber animation playback curve carrying diamond keyframe nodes and a glowing ringed playhead star, over a faint timeline baseline and a dark Starfield planet limb, on near-black with a faint starfield.</desc>
+<defs>
+  <clipPath id="scene"><circle cx="340" cy="340" r="238"/></clipPath>
+  <path id="topArc" d="M116.61 221.22 A253 253 0 0 1 563.39 221.22" fill="none"/>
+  <path id="botArc" d="M111.03 483.08 A270 270 0 0 0 568.97 483.08" fill="none"/>
+</defs>
+
+<circle cx="340" cy="340" r="296" fill="#cf7b38"/>
+<circle cx="340" cy="340" r="289" fill="none" stroke="#8a4a23" stroke-width="3"/>
+<circle cx="340" cy="340" r="283" fill="#0c1118"/>
+<circle cx="340" cy="340" r="238" fill="#0a0d12"/>
+
+<g clip-path="url(#scene)">
+  <g fill="#ece6d9">
+    <circle cx="168" cy="196" r="1.2" opacity="0.45"/><circle cx="200" cy="158" r="0.9" opacity="0.38"/>
+    <circle cx="512" cy="168" r="1.1" opacity="0.45"/><circle cx="486" cy="206" r="0.9" opacity="0.4"/>
+    <circle cx="150" cy="262" r="1" opacity="0.4"/><circle cx="540" cy="262" r="1.1" opacity="0.44"/>
+    <circle cx="498" cy="402" r="0.9" opacity="0.36"/><circle cx="178" cy="372" r="0.9" opacity="0.36"/>
+    <circle cx="158" cy="216" r="0.8" opacity="0.32"/><circle cx="524" cy="232" r="0.8" opacity="0.34"/>
+  </g>
+  <circle cx="340" cy="845" r="360" fill="#161d2a"/>
+  <circle cx="340" cy="845" r="360" fill="none" stroke="#c2622f" stroke-width="2.5" opacity="0.6"/>
+  <circle cx="340" cy="845" r="347" fill="none" stroke="#e0a05c" stroke-width="1" opacity="0.28"/>
+</g>
+
+<circle cx="340" cy="340" r="272" fill="none" stroke="#b9c0c9" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="2 7"/>
+<circle cx="340" cy="340" r="239" fill="none" stroke="#b9c0c9" stroke-opacity="0.2" stroke-width="1"/>
+<g stroke="#b9c0c9" stroke-opacity="0.38" stroke-width="1.6" stroke-linecap="round">
+  <line x1="340" y1="98" x2="340" y2="104" transform="rotate(45 340 340)"/>
+  <line x1="340" y1="98" x2="340" y2="104" transform="rotate(135 340 340)"/>
+  <line x1="340" y1="98" x2="340" y2="104" transform="rotate(225 340 340)"/>
+  <line x1="340" y1="98" x2="340" y2="104" transform="rotate(315 340 340)"/>
+</g>
+
+<text font-size="15" letter-spacing="7" font-weight="600" text-anchor="middle" fill="#9aa3ad">
+  <textPath href="#topArc" startOffset="50%">EST · MMXXVI</textPath>
+</text>
+<text font-size="15.5" letter-spacing="4.5" font-weight="500" text-anchor="middle" fill="#aeb6bf">
+  <textPath href="#botArc" startOffset="50%">OPEN SCENE FRAMEWORK</textPath>
+</text>
+
+<text x="340" y="252" text-anchor="middle" font-size="74" letter-spacing="16" font-weight="700" fill="#cdd3da">OSF</text>
+<g stroke="#c2622f" stroke-width="2.4" stroke-linecap="round">
+  <line x1="288" y1="270" x2="392" y2="270"/>
+  <line x1="288" y1="266" x2="288" y2="274"/><line x1="392" y1="266" x2="392" y2="274"/>
+</g>
+<text x="340" y="298" text-anchor="middle" font-size="25" letter-spacing="11" font-weight="600" fill="#d98a4a">ANIMATION</text>
+
+<g stroke="#b9c0c9" stroke-opacity="0.16">
+  <line x1="224" y1="468" x2="480" y2="468" stroke-width="1" stroke-dasharray="2 6"/>
+  <line x1="252" y1="464" x2="252" y2="472" stroke-width="1"/><line x1="312" y1="464" x2="312" y2="472" stroke-width="1"/>
+  <line x1="372" y1="464" x2="372" y2="472" stroke-width="1"/><line x1="432" y1="464" x2="432" y2="472" stroke-width="1"/>
+</g>
+
+<path d="M232 448 C316 448 388 360 472 360" fill="none" stroke="#d98a4a" stroke-width="3.4" stroke-linecap="round"/>
+
+<g fill="#e8a45a">
+  <path d="M232 442 L238 448 L232 454 L226 448 Z"/>
+  <path d="M293 429.5 L297.5 434 L293 438.5 L288.5 434 Z"/>
+  <path d="M411 369.5 L415.5 374 L411 378.5 L406.5 374 Z"/>
+</g>
+<path d="M472 349 L476.4 357 L484 360 L476.4 363 L472 371 L467.6 363 L460 360 L467.6 357 Z" fill="#e8a45a"/>
+
+<g fill="none" stroke="#c2622f">
+  <circle cx="352" cy="404" r="15" stroke-opacity="0.5" stroke-width="1.4"/>
+  <circle cx="352" cy="404" r="24" stroke-opacity="0.3" stroke-width="1.2"/>
+  <circle cx="352" cy="404" r="33" stroke-opacity="0.18" stroke-width="1"/>
+</g>
+<circle cx="352" cy="404" r="6.6" fill="#0a0d12" stroke="#e0a05c" stroke-width="2.3"/>
+<circle cx="352" cy="404" r="2.7" fill="#f3ddc2"/>
+
+<g fill="#e8a45a">
+  <path d="M78 328 L81.1 336.9 L90 340 L81.1 343.1 L78 352 L74.9 343.1 L66 340 L74.9 336.9 Z"/>
+  <path d="M602 328 L605.1 336.9 L614 340 L605.1 343.1 L602 352 L598.9 343.1 L590 340 L594.9 336.9 Z"/>
+</g>
+</svg>

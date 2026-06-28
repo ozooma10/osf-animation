@@ -1,17 +1,21 @@
-<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img">
-<title>OSF armature emblem</title>
-<desc>The OSF mark alone: an amber articulated armature figure mid-stride with brushed-steel joints, no ring, transparent background.</desc>
-<!-- Square icon (transparent). Armature only, centered + scaled to fill. -->
-<g transform="translate(250.4,253.3) scale(3.6)">
-  <g fill="none" stroke="#d2722f" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M -6.2 -39.5 L 6.2 1.55"/>
-    <path d="M 32.6 -35.7 L 20.2 -21.7 L 0 -31 L -15 -16 L -29.5 -12"/>
-    <path d="M 17 48 L 23.3 20.2 L 6.2 1.55 L -10.9 18 L -26.4 30"/>
-    <circle cx="-6.2" cy="-46.5" r="7.1"/>
-  </g>
-  <g fill="#f0ece2">
-    <circle cx="0" cy="-31" r="2.9"/><circle cx="20.2" cy="-21.7" r="2.6"/><circle cx="-15" cy="-16" r="2.6"/>
-    <circle cx="6.2" cy="1.55" r="2.9"/><circle cx="23.3" cy="20.2" r="2.6"/><circle cx="-10.9" cy="18" r="2.6"/>
-  </g>
+<svg viewBox="0 0 512 512" width="512" height="512" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>OSF playback-curve emblem</title>
+<desc>The OSF mark alone, transparent: an eased amber animation playback curve rising diagonally with diamond keyframe nodes, a 4-point target-keyframe star at the top, and a glowing ringed playhead star at the centre.</desc>
+<g fill="none" stroke="#c2622f">
+  <circle cx="266" cy="280" r="22" stroke-opacity="0.5" stroke-width="2"/>
+  <circle cx="266" cy="280" r="35" stroke-opacity="0.3" stroke-width="1.6"/>
+  <circle cx="266" cy="280" r="48" stroke-opacity="0.18" stroke-width="1.3"/>
 </g>
+
+<path d="M118 392 C250 392 286 168 404 168" fill="none" stroke="#d98a4a" stroke-width="5" stroke-linecap="round"/>
+
+<g fill="#e8a45a">
+  <path d="M118 384 L126 392 L118 400 L110 392 Z"/>
+  <path d="M202 349 L209 357 L202 365 L195 357 Z"/>
+  <path d="M328 195 L335 203 L328 211 L321 203 Z"/>
+</g>
+<path d="M404 152 L410 165 L423 168 L410 171 L404 184 L398 171 L385 168 L398 165 Z" fill="#e8a45a"/>
+
+<circle cx="266" cy="280" r="10" fill="none" stroke="#e0a05c" stroke-width="3.4"/>
+<circle cx="266" cy="280" r="4" fill="#f3ddc2"/>
 </svg>

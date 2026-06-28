@@ -1,0 +1,68 @@
+[size=2][i]Nexus description in BBCode. Set the mission patch (branding/osf-patch.png) as the mod's
+main/thumbnail image in the Nexus UI. Upload branding/osf-header.png (the banner below) and your in-game
+screenshots to the mod's image gallery, then paste each one's Nexus-hosted URL into the [img] tags below
+(the file paths here are placeholders — Nexus only renders images it hosts).[/i][/size]
+
+[center][img]REPLACE-WITH-NEXUS-URL/osf-header.png[/img][/center]
+
+[center][size=5][b]The animation & scene engine for Starfield.[/b][/size][/center]
+
+[center][i]OSF Animation is a framework, not a content mod. On its own it adds no scenes — it powers other mods that do.[/i][/center]
+
+[line]
+
+[size=5][b]What it is[/b][/size]
+OSF — [b]Open Scene Framework[/b] — is the engine that plays and synchronises animations on actors in the world. It hosts native GLTF/GLB and Starfield-native [font=Courier New].af[/font] playback, a shared frame clock for tight multi-actor sync, world anchoring, and a data-driven [b]scene runtime[/b]: graphs of nodes with cues, actions, callbacks and branching — all authored in JSON, no scripting required.
+
+It is [b]content-neutral[/b]. The engine ships the [i]mechanisms[/i] (playback, sync, camera & control locks, fades, equipment hide/restore, audio, subtitles); it ships [b]no[/b] adult content. Specific content lives in separate mods built on top of it.
+
+[size=5][b]Features[/b][/size]
+[list]
+[*]Synced multi-actor [b]AF / GLTF / GLB[/b] playback on one shared clock
+[*]Data-driven scene graphs — nodes, cues, actions, callbacks, navigation — from JSON
+[*]Engine-native [b]Wwise[/b] audio (rides the game mix) with subtitles
+[*]Actor anchoring / pinning, player-control & camera locks, full-screen fades
+[*]Equipment hide/restore and scene-scoped equip
+[*]A [b]Papyrus API[/b] ([font=Courier New]OSF.*[/font]) for quest and consumer mods
+[/list]
+
+[size=5][b]Requirements[/b][/size]
+[list]
+[*][url=https://www.nexusmods.com/starfield/mods/106]SFSE[/url] matching your game version
+[*][url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE Plugins[/url]
+[/list]
+
+[size=5][b]Installation[/b][/size]
+Install with a mod manager (Mod Organizer 2 / Vortex) and enable it. A FOMOD installer is included.
+[b]This mod does nothing on its own[/b] — install a content mod that requires it, or try the bundled test scene below.
+
+[size=5][b]Try it (30 seconds)[/b][/size]
+Open the console (~) and run:
+[code]cgf "OSFTest.SoloScene"[/code]
+Your character plays a looping test animation — proof the engine is live. Stop it with:
+[code]cgf "OSFTest.Stop"[/code]
+
+[size=5][b]For mod authors[/b][/size]
+[list]
+[*][b]Pack authors:[/b] ship animation scenes as JSON + GLB/AF clips. No Papyrus, no scripting.
+[*][b]Quest / consumer mods:[/b] drive scenes from Papyrus via the [font=Courier New]OSF.*[/font] API (start/advance/navigate scenes, callbacks, locks).
+[/list]
+Full documentation — Getting Started, Scene Schema, and the Papyrus API — is on [url=https://github.com/ozooma10/osf-animation]GitHub[/url].
+
+[size=5][b]Compatibility & content policy[/b][/size]
+[list]
+[*][b]SFW.[/b] The engine itself is content-neutral and contains no adult assets.
+[*]Adapted from [b]NativeAnimationFrameworkSF (NAF)[/b]; it is its own framework, not a drop-in NAF/SAF replacement.
+[*]Built for the current Starfield + SFSE; it logs a clear warning and self-disables features on an unsupported game version rather than crashing.
+[/list]
+
+[size=5][b]Source, permissions & license[/b][/size]
+OSF Animation is [b]open source[/b] (GPL-3.0 with a modding/linking exception). Full source, build instructions, and issue tracker: [url=https://github.com/ozooma10/osf-animation]github.com/ozooma10/osf-animation[/url]. Bug reports and pull requests welcome.
+
+[size=5][b]Credits[/b][/size]
+[list]
+[*][b]Deweh[/b] — [url=https://github.com/Deweh/NativeAnimationFrameworkSF]NativeAnimationFrameworkSF[/url] (GPL-3.0), the ozz playback/graph foundation OSF is adapted from
+[*][b]Calaverah[/b] — [url=https://github.com/Calaverah/CALUMI.Animation]CALUMI.Animation[/url] (LGPL-3.0), the engine-native .af / skeleton.rig decoder
+[*][b]CommonLibSF[/b], fastgltf, ozz-animation, zlib, nlohmann/json, and miniaudio
+[/list]
+Full attributions and licenses are in THIRD_PARTY.md in the repository.
