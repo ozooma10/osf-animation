@@ -83,9 +83,6 @@ namespace OSF::Animation
 			BeginFadeOut();
 		}
 
-		// Last resolved 3d root.
-		RE::NiPointer<RE::BSFadeNode> lastRoot;
-
 		// modelNode identity the stamp hook matches against (set by Sample's bind).
 		const RE::BGSModelNode* StampTarget() const { return cachedModelNode; }
 

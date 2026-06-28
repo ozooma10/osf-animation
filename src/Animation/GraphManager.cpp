@@ -1137,6 +1137,11 @@ namespace OSF::Animation
 
 	void GraphManager::StallWatchTick()
 	{
+		//shortcircuit if there are no active graphs
+		if (graphCount.load(std::memory_order_relaxed) == 0) {
+			return;
+		}
+
 		// Thresholds (steady-clock ms). Set well above a frame so a playable-FPS hitch can't trip it; the
 		// scene must look dead for kSceneStallMs of CONTINUOUS engine-running time after any resume grace.
 		constexpr std::int64_t kStallHookResumeGapMs = 500;   // gap since our last call that means a global pause/load

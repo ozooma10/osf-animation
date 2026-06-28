@@ -173,7 +173,6 @@ namespace OSF::Animation
 		//failure invalidates the binding cache.
 		//cachedModelNode is the stamp hooks match key. Once chain stops resolving (3d detatched), the cached address can be freed and reused.
 		const auto fail = [this]() {
-			lastRoot = nullptr;
 			cachedModelNode = nullptr;
 			cachedRig = nullptr;
 			cachedBoneCount = 0;
@@ -198,7 +197,6 @@ namespace OSF::Animation
 		if (!root) {
 			return fail();
 		}
-		lastRoot = root;
 
 		auto* modelNode = root->bgsModelNode.get();
 		if (!modelNode) {
