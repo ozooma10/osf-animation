@@ -62,23 +62,22 @@
   </g>
   <text font-size="15" letter-spacing="7" font-weight="600" text-anchor="middle" fill="#9aa3ad"><textPath href="#htopArc" startOffset="50%">EST · MMXXVI</textPath></text>
   <text font-size="15.5" letter-spacing="4.5" font-weight="500" text-anchor="middle" fill="#aeb6bf"><textPath href="#hbotArc" startOffset="50%">OPEN SCENE FRAMEWORK</textPath></text>
-  <text x="340" y="252" text-anchor="middle" font-size="74" letter-spacing="16" font-weight="700" fill="#cdd3da">OSF</text>
-  <g stroke="#c2622f" stroke-width="2.4" stroke-linecap="round">
-    <line x1="288" y1="270" x2="392" y2="270"/><line x1="288" y1="266" x2="288" y2="274"/><line x1="392" y1="266" x2="392" y2="274"/>
+  <g transform="translate(74,60)">
+    <g fill="none" stroke="#c2622f">
+      <circle cx="266" cy="280" r="22" stroke-opacity="0.5" stroke-width="2"/>
+      <circle cx="266" cy="280" r="35" stroke-opacity="0.3" stroke-width="1.6"/>
+      <circle cx="266" cy="280" r="48" stroke-opacity="0.18" stroke-width="1.3"/>
+    </g>
+    <path d="M118 392 C250 392 286 168 404 168" fill="none" stroke="#d98a4a" stroke-width="4.4" stroke-linecap="round"/>
+    <g fill="#e8a45a">
+      <path d="M118 384 L126 392 L118 400 L110 392 Z"/>
+      <path d="M202 349 L209 357 L202 365 L195 357 Z"/>
+      <path d="M328 195 L335 203 L328 211 L321 203 Z"/>
+    </g>
+    <path d="M404 152 L410 165 L423 168 L410 171 L404 184 L398 171 L385 168 L398 165 Z" fill="#e8a45a"/>
+    <circle cx="266" cy="280" r="10" fill="none" stroke="#e0a05c" stroke-width="3.4"/>
+    <circle cx="266" cy="280" r="4" fill="#f3ddc2"/>
   </g>
-  <text x="340" y="298" text-anchor="middle" font-size="25" letter-spacing="11" font-weight="600" fill="#d98a4a">ANIMATION</text>
-  <g stroke="#b9c0c9" stroke-opacity="0.16">
-    <line x1="224" y1="468" x2="480" y2="468" stroke-width="1" stroke-dasharray="2 6"/>
-  </g>
-  <path d="M232 448 C316 448 388 360 472 360" fill="none" stroke="#d98a4a" stroke-width="3.4" stroke-linecap="round"/>
-  <g fill="#e8a45a">
-    <path d="M232 442 L238 448 L232 454 L226 448 Z"/><path d="M293 429.5 L297.5 434 L293 438.5 L288.5 434 Z"/><path d="M411 369.5 L415.5 374 L411 378.5 L406.5 374 Z"/>
-  </g>
-  <path d="M472 349 L476.4 357 L484 360 L476.4 363 L472 371 L467.6 363 L460 360 L467.6 357 Z" fill="#e8a45a"/>
-  <g fill="none" stroke="#c2622f">
-    <circle cx="352" cy="404" r="15" stroke-opacity="0.5" stroke-width="1.4"/><circle cx="352" cy="404" r="24" stroke-opacity="0.3" stroke-width="1.2"/>
-  </g>
-  <circle cx="352" cy="404" r="6.6" fill="#0a0d12" stroke="#e0a05c" stroke-width="2.3"/><circle cx="352" cy="404" r="2.7" fill="#f3ddc2"/>
   <g fill="#e8a45a">
     <path d="M78 328 L81.1 336.9 L90 340 L81.1 343.1 L78 352 L74.9 343.1 L66 340 L74.9 336.9 Z"/>
     <path d="M602 328 L605.1 336.9 L614 340 L605.1 343.1 L602 352 L598.9 343.1 L590 340 L594.9 336.9 Z"/>
