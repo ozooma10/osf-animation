@@ -124,8 +124,46 @@ int Function ReloadPacks() Global Native
 ; True once OSF is loaded + initialized (hooks installed).
 bool Function IsReady() Global Native
 
-; Framework version 
+; Framework version
 string Function GetVersion() Global Native
+
+; --- Diagnostic ---------------------------------------------------------------
+
+; One-shot self-test of the whole playback pipeline. Confirms OSF is initialized, then plays the built-in player-only "solo" scene 
+;   cgf "OSF.Health"
+bool Function Health() Global
+    if !IsReady()
+        Debug.Notification("OSF Health: FAIL - framework not ready (hooks not installed)")
+        Debug.Trace("[OSF] Health FAIL: IsReady() == False")
+        return False
+    endif
+
+    Actor player = Game.GetPlayer()
+    Actor[] actors = new Actor[1]
+    actors[0] = player
+
+    int handle = StartScene(actors, "solo")
+    if handle == 0
+        Debug.Notification("OSF Health: FAIL - could not start 'solo' scene (clip load or registry error)")
+        Debug.Trace("[OSF] Health FAIL: StartScene('solo') returned handle 0")
+        return False
+    endif
+
+    Utility.Wait(5.0)
+
+    bool animating = IsPlaying(player)
+    StopSceneForActor(player)
+
+    if animating
+        Debug.Notification("OSF Health: PASS - all systems nominal (v" + GetVersion() + ")")
+        Debug.Trace("[OSF] Health PASS: 'solo' played 5s, player animating (handle " + handle + ")")
+        return True
+    endif
+
+    Debug.Notification("OSF Health: FAIL - scene started but player never animated")
+    Debug.Trace("[OSF] Health FAIL: IsPlaying() == False after StartScene (handle " + handle + ")")
+    return False
+EndFunction
 
 ; Event-type bits (compose into aiEventMask; EVENT_ALL = every type). 
 int Function EVENT_NODE_ENTER() Global

@@ -21,6 +21,9 @@ ScriptName OSFTest
 ;   cgf "OSFTest.Nav" <handle> "tease"  take a named branch edge
 ;   cgf "OSFTest.Stage" <stage>         jump a LINEAR scene the player is in
 ;
+; Quick health check (player-only, self-contained — no NPC, runs ~5s then cleans up):
+;   cgf "OSF.Health"               canonical self-test on the main OSF API (see OSF.psc)
+
 ; Stop / housekeeping:
 ;   cgf "OSFTest.Stop"                  stop the scene the player is in
 ;   cgf "OSFTest.Reload"               rescan Data/OSF/**.osf.json
