@@ -650,10 +650,14 @@ namespace OSF::Animation
 			}
 			const RE::NiPoint3 worldPos = PlacementToWorld(scene->anchorPos, scene->anchorHeading, pl);
 			const float heading = scene->anchorHeading + pl.heading;
+			// The PLAYER is never made animation-driven. Can get them stuck in a bad state
+			const bool isPlayer = refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton());
 			RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(refr) };
-			SFSE::GetTaskInterface()->AddTask([keepAlive, worldPos, heading]() {
+			SFSE::GetTaskInterface()->AddTask([keepAlive, worldPos, heading, isPlayer]() {
 				keepAlive->SetPosition(worldPos, true);  // move the havok capsule to the anchor (the cull's position input)
-				keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);  // animation-driven: AI runs the anim but won't walk it back
+				if (!isPlayer) {
+					keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);  // anchored NPC: AI runs the anim but won't walk it back
+				}
 				if (auto* transforms = RE::TransformService::GetSingleton()) {
 					transforms->SetHeadingZ(keepAlive.get(), heading);
 				}
