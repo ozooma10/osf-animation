@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "name": "OSF Animation Test",
+  "name": "OSF Internal (system scenes: solo health-check, pair smoke-test)",
   "scenes": [
     {
       "id": "solo",
       "name": "solo (base-framework playback check)",
-      "tags": ["solo"],
+      "tags": ["test"],
       "stripActors": false,
       "stages": [
         {
@@ -19,7 +19,7 @@
     {
       "id": "pair",
       "name": "pair",
-      "tags": ["pair"],
+      "tags": ["test"],
       "stages": [
         {
           "timer": 20.0,
