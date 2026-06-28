@@ -1077,9 +1077,6 @@ namespace OSF::Animation
 				// participants are always Actors (PlayScene takes Actor*)
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
 				SFSE::GetTaskInterface()->AddTask([keepAlive]() {
-					// Clear the animation-driven hold (Actor boolFlags2 bit 19) set during the scene, so the NPC
-					// resumes normal AI movement from where the scene left it. (SetMotionDriven is a suspect CLSF
-					// binding on 1.16.244 — see OSF RE gameplay.actor_animation_driven — kept harmlessly.)
 					keepAlive->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
 					if (auto* ctl = keepAlive->movementController) {
 						ctl->SetMotionDriven();

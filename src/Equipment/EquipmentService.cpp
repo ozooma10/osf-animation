@@ -119,15 +119,15 @@ namespace OSF::Equipment
 				REX::DEBUG("[Equip] actor {:X}: inventory list not materialized — nothing hidden", a_actor->formID);
 				return snapshot;
 			}
-			// Weapons are only stripped on a FULL strip (mask == all). A slot mask describes biped armor slots, which a weapon has none of, so a masked call stays apparel-only
-			const bool stripWeapons = (a_slotMask == 0xFFFFFFFFu);
+			// a_slotMask == all => FULL strip (every worn non-skin ARMO + weapons);
+			const bool fullStrip = (a_slotMask == 0xFFFFFFFFu);
 			for (const auto& item : list->data) {
 				if (!item.object || !item.IsEquipped() || item.object->GetFormID() == 0) {
 					continue;
 				}
 				// ARMO covers apparel + spacesuit pieces; WEAP only on a full strip (see above).
 				const bool isArmor = item.object->IsArmor();
-				const bool isWeapon = stripWeapons && item.object->IsWeapon();
+				const bool isWeapon = fullStrip && item.object->IsWeapon();
 				if (!isArmor && !isWeapon) {
 					continue;
 				}
@@ -136,9 +136,12 @@ namespace OSF::Equipment
 						skippedSkin++;
 						continue;
 					}
-					auto* armor = static_cast<RE::TESObjectARMO*>(item.object);
-					if ((armor->bipedModelData.bipedObjectSlots & a_slotMask) == 0) {
-						continue;
+					if (!fullStrip) {
+						const auto bipedSlots = *reinterpret_cast<const std::uint64_t*>(
+							reinterpret_cast<std::uintptr_t>(item.object) + 0x208);
+						if ((bipedSlots & a_slotMask) == 0) {
+							continue;
+						}
 					}
 				}
 				snapshot.stripped.push_back({ item.object, item.instanceData });
@@ -148,15 +151,10 @@ namespace OSF::Equipment
 		auto* mgr = RE::ActorEquipManager::GetSingleton();
 		for (const auto& w : snapshot.stripped) {
 			RE::BGSObjectInstance instance{ w.object, w.instanceData.get() };
-			// Verified silent-strip flags: queueUnequip=false (immediate, not via the AI-tick list), forceUnequip=true (unequips despite any lock and clears it), 
-			// playSounds= false (fully silent), applyNow=true, slotBeingReplaced=nullptr.
-			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, true, nullptr);
+			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
 		}
-		if (skippedSkin > 0) {
-			REX::DEBUG("[Equip] actor {:X}: hid {} worn item(s) ({} skin piece(s) excluded)", a_actor->formID, snapshot.stripped.size(), skippedSkin);
-		} else {
-			REX::DEBUG("[Equip] actor {:X}: hid {} worn item(s)", a_actor->formID, snapshot.stripped.size());
-		}
+		
+		REX::DEBUG("[Equip] actor {:X}: hid {} worn item(s)", a_actor->formID, snapshot.stripped.size());
 		return snapshot;
 	}
 
