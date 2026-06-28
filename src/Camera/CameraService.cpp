@@ -18,52 +18,40 @@ namespace OSF::Camera
 		constexpr std::uint32_t kNativeFreeCamState = 13;  // RE::CameraState::kFreeWalk (== plain `tfc`)
 		using ToggleFreeCam_t = void (*)(RE::PlayerCamera*, std::uint32_t, bool);
 
-		void NativeToggleFreeCam()
+		// The engine's two native free-cam flags on PlayerCamera
+		//   +0x2dd "gate"    - the AUTHORITATIVE free-cam-active flag the console handler reads to pick enter vs exit.
+		//   +0x2e5 "entered" — set on enter / cleared on exit; (WASD drives the cam, not the player), even after the view is third-person.
+		constexpr std::ptrdiff_t kFreeCamGateOffset = 0x2dd;
+		constexpr std::ptrdiff_t kFreeCamEnteredOffset = 0x2e5;
+
+		std::uint8_t* FreeCamFlag(std::ptrdiff_t a_off)
+		{
+			auto* camera = RE::PlayerCamera::GetSingleton();
+			return camera ? reinterpret_cast<std::uint8_t*>(reinterpret_cast<std::byte*>(camera) + a_off) : nullptr;
+		}
+
+		// Drive the engine free cam to a desired on/off state.
+		//   ENTER: call ToggleFreeCameraMode - the engine sets up the FreeWalk state + flags properly. (Safe.)
+		//   EXIT:  DO NOT call ToggleFreeCameraMode's exit. The camera itself is returned to third person by the caller's ForceThirdPerson / RestoreBaseline handback
+		void SetNativeFreeCam(bool a_on)
 		{
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!camera) {
 				return;
 			}
-
-			camera->ToggleFreeCameraMode(kNativeFreeCamState, false);
-		}
-
-		// Free-cam INPUT CONTEXT. The console `tfc` handler pushes this right after ToggleFreeCameraMode (and pops it on exit). 
-		using InputCtx_t = void (*)(void*, std::uint32_t, void*);
-		constexpr std::uint32_t kFreeCamInputCtxId = 0x13;
-
-		void* FreeCamInputMgr()
-		{
-			static REL::Relocation<void**> slot{ RE::ID::FreeCameraInputContext::Manager };
-			return *slot;
-		}
-
-		void* FreeCamInputDescriptor()
-		{
-			static REL::Relocation<std::uintptr_t> desc{ RE::ID::FreeCameraInputContext::Descriptor };
-			return reinterpret_cast<void*>(desc.address());  // the handler passes &descriptor (lea r8)
-		}
-
-		void PushFreeCamInputContext()
-		{
-			void* mgr = FreeCamInputMgr();
-			if (!mgr) {
+			auto* gate = FreeCamFlag(kFreeCamGateOffset);
+			auto* entered = FreeCamFlag(kFreeCamEnteredOffset);
+			if (!gate || !entered) {
 				return;
 			}
-			static REL::Relocation<InputCtx_t> push{ RE::ID::FreeCameraInputContext::PushContext };
-			push(mgr, kFreeCamInputCtxId, FreeCamInputDescriptor());
-			REX::TRACE("[Camera] free cam input context pushed");
-		}
-
-		void PopFreeCamInputContext()
-		{
-			void* mgr = FreeCamInputMgr();
-			if (!mgr) {
+			if (a_on) {
+				if (*entered == 0) {
+					camera->ToggleFreeCameraMode(kNativeFreeCamState, false);  // enter (gate==0 -> ENTER branch)
+				}
 				return;
 			}
-			static REL::Relocation<InputCtx_t> pop{ RE::ID::FreeCameraInputContext::PopContext };
-			pop(mgr, kFreeCamInputCtxId, FreeCamInputDescriptor());
-			REX::TRACE("[Camera] free cam input context popped");
+			*gate = 0;     // engine no longer considers free cam active...
+			*entered = 0;  // ...nor entered -> input routes back to the current (about-to-be third-person) state.
 		}
 
 		// --- Scene-orbit self-drive. We place the camera on a ring around the scene center and aim it
@@ -75,7 +63,8 @@ namespace OSF::Camera
 
 		// The engine auto-lerps current(+0x228) -> target(+0x224) each frame (~fMouseWheelZoomSpeed 3.0/s, ~1-2 s), so write the TARGET once and the camera glides; 
 		// ForceThirdPerson resets zoom to 0.0 so seed a pull-back right after it.
-		constexpr std::ptrdiff_t kThirdPersonTargetZoomOffset = 0x224;  // float — the zoom SETPOINT (write this)
+		constexpr std::ptrdiff_t kThirdPersonTargetZoomOffset = 0x224;   // float — the zoom SETPOINT (write this)
+		constexpr std::ptrdiff_t kThirdPersonCurrentZoomOffset = 0x228;  // float — the eased/rendered zoom (writing snaps)
 		constexpr std::ptrdiff_t kThirdPersonStateIdOffset = 0x50;      // std::uint32_t — must == kThirdPerson(20)
 		constexpr std::uint32_t  kThirdPersonStateId = 20;              // RE::CameraState::kThirdPerson
 
@@ -233,7 +222,7 @@ namespace OSF::Camera
 		}
 	}
 
-	void CameraService::SeedThirdPersonZoom(float a_distance)
+	void CameraService::SeedThirdPersonZoom(float a_distance, bool a_snapCurrent)
 	{
 		if (a_distance < 0.0f) {
 			return;  // sentinel (< 0): caller asked NOT to seed (e.g. a node-exit teardown pass).
@@ -243,7 +232,7 @@ namespace OSF::Camera
 		const float seed = (a_distance > 0.0f)
 			? std::clamp(a_distance, kThirdPersonZoomMin, kThirdPersonZoomMax)
 			: kThirdPersonZoomMax;
-		SFSE::GetTaskInterface()->AddTask([this, seed]() {
+		SFSE::GetTaskInterface()->AddTask([this, seed, a_snapCurrent]() {
 			if (suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // a state override (free-fly / orbit) owns the camera — don't fight it.
 			}
@@ -266,10 +255,12 @@ namespace OSF::Camera
 			if (*reinterpret_cast<std::uint32_t*>(base + kThirdPersonStateIdOffset) != kThirdPersonStateId) {
 				return;
 			}
-			// Target ONLY — leave current(+0x228) so the engine glides it out to target (writing current snaps).
-			// Raw-offset write on the game thread, same idiom as WriteFreeFlyTransform.
+			// Normally write the TARGET only and let the engine glide current -> target. But when the caller asks  to SNAP, also write the CURRENT so it never sits at 0 and re-triggers the 3rd->1st collapse. 
 			*reinterpret_cast<float*>(base + kThirdPersonTargetZoomOffset) = seed;
-			REX::TRACE("[Camera] third-person start zoom seeded to {} (target-only; engine glides current -> target)", seed);
+			if (a_snapCurrent) {
+				*reinterpret_cast<float*>(base + kThirdPersonCurrentZoomOffset) = seed;
+			}
+			REX::TRACE("[Camera] third-person start zoom seeded to {} (snapCurrent={})", seed, a_snapCurrent);
 		});
 	}
 
@@ -359,8 +350,7 @@ namespace OSF::Camera
 			if (nativeFreeCamActive.exchange(true, std::memory_order_relaxed)) {
 				return;  // already on — toggling again would exit it
 			}
-			NativeToggleFreeCam();      // enter free cam; the engine seeds the pose from the current view
-			PushFreeCamInputContext();  // the input context the console handler pushes
+			SetNativeFreeCam(true);  // enter free cam (state-driven); the engine seeds the pose from the current view
 			REX::DEBUG("[Camera] native free camera entered (ToggleFreeCameraMode, state {})", kNativeFreeCamState);
 		});
 	}
@@ -376,32 +366,26 @@ namespace OSF::Camera
 		const bool handBackToHold = holdArmed.load(std::memory_order_relaxed);
 		SFSE::GetTaskInterface()->AddTask([this, handBackToHold]() {
 			if (!nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
-				return;  // not on — nothing to toggle
+				return;  // not on — nothing to do
 			}
-			PopFreeCamInputContext();  // release the free-cam input context (reverse of enter)
-			NativeToggleFreeCam();     // toggles off; the engine restores ITS prior camera (not OSF's hold)
-			REX::DEBUG("[Camera] native free camera exited");
-
-			// tfc set the player AI-driven (to freeze them while the camera flew) and toggling it off doesn't reliably clear it for a pinned scene participant. 
+			SetNativeFreeCam(false);  // clear the engine free-cam status flags 
+			// tfc set the player AI-driven (to freeze them while the camera flew) and toggling it off doesn't reliably clear it for a pinned scene participant.
 			Player::PlayerControlService::GetSingleton().ClearAIDriven();
 
-			// Now restore OSF's own posture. A re-acquired override means another holder owns the camera —
-			// leave it. Otherwise hand back to the scene's third-person hold, or restore the saved baseline.
-			if (suppressBounce.load(std::memory_order_relaxed)) {
-				return;
-			}
 			auto* camera = RE::PlayerCamera::GetSingleton();
-			if (!camera) {
-				return;
-			}
-			if (handBackToHold) {
-				if (!camera->IsInThirdPerson()) {
-					camera->ForceThirdPerson();
-					REX::DEBUG("[Camera] handed back to third-person hold after native free cam exit");
+			if (!suppressBounce.load(std::memory_order_relaxed) && camera) {
+				if (handBackToHold) {
+					if (!camera->IsInThirdPerson()) {
+						camera->ForceThirdPerson();
+						REX::DEBUG("[Camera] handed back to third-person hold after native free cam exit");
+					}
+					SeedThirdPersonZoom(0.0f, /*snapCurrent*/ true);
+				} else {
+					RestoreBaseline();  // no scene hold active — restore the POV captured before the override
 				}
-				return;
 			}
-			RestoreBaseline();  // no scene hold active — restore the POV captured before the override
+
+			REX::DEBUG("[Camera] native free camera exited");
 		});
 	}
 
@@ -576,8 +560,8 @@ namespace OSF::Camera
 			Input::InputService::GetSingleton().SetMouseCapture(false);
 		}
 		if (nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
-			// Toggle the native free cam off so a save/load doesn't strand the player in it.
-			SFSE::GetTaskInterface()->AddTask([]() { PopFreeCamInputContext(); NativeToggleFreeCam(); });
+			// Drive the native free cam off so a save/load doesn't strand the player in it.
+			SFSE::GetTaskInterface()->AddTask([]() { SetNativeFreeCam(false); });
 		}
 		playerFreeCamHeld.store(false, std::memory_order_relaxed);
 		std::scoped_lock l{ lock };
