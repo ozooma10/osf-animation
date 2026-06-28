@@ -562,13 +562,23 @@ namespace OSF::Animation
 		}
 		auto g = iter->second;  // keep alive past the erase
 		bool faded = false;
+		bool sceneSet = false;
+		bool fadedOut = false;
 		{
 			std::scoped_lock gl{ g->stateLock };
-			faded = !g->scene && g->IsFadedOut();  // replayed meanwhile? keep it
+			sceneSet = (g->scene != nullptr);
+			fadedOut = g->IsFadedOut();
+			faded = !sceneSet && fadedOut;  // replayed meanwhile? keep it
 		}
 		if (faded) {
 			graphs.erase(iter);
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
+			REX::DEBUG("[Anim] fade-removal DONE — actor {:X} graph removed (graphs now {})",
+				a_refr ? a_refr->formID : 0, graphs.size());
+		} else {
+			// DIAG: removal task ran but DECLINED to remove — this is the "never returns to vanilla" smoking gun.
+			REX::DEBUG("[Anim] fade-removal KEPT — actor {:X} (scene={} fadedOut={})",
+				a_refr ? a_refr->formID : 0, sceneSet, fadedOut);
 		}
 	}
 
@@ -1054,6 +1064,10 @@ namespace OSF::Animation
 				std::scoped_lock gl{ p->stateLock };
 				p->DetachAndFadeOut();
 			}
+			// DIAG: confirm the per-participant detach ran and scene was cleared, so we can tell a "never removed"
+			// graph apart from a "never detached" one.
+			REX::DEBUG("[Anim] scene-end detach: actor {:X} — scene cleared, fade-out begun (blendDur {:.2f}s)",
+				p->target ? p->target->formID : 0, p->blendDuration);
 			// Revert the animation-driven movement switch from PlaySceneStaged (anchored scenes only). Game-thread only.
 			if (anchored && p->target) {
 				// participants are always Actors (PlayScene takes Actor*)
@@ -1236,6 +1250,7 @@ namespace OSF::Animation
 			return;
 		}
 		a_graph.removalQueued = true;
+		REX::DEBUG("[Anim] fade-removal QUEUED for actor {:X}", a_graph.target ? a_graph.target->formID : 0);
 		RE::NiPointer<RE::TESObjectREFR> keepAlive{ a_graph.target };
 		SFSE::GetTaskInterface()->AddTask([keepAlive]() {
 			GetSingleton().RemoveFadedGraph(keepAlive.get());
@@ -1355,24 +1370,20 @@ namespace OSF::Animation
 							root[13] = pinWorld.y;
 							root[14] = pinWorld.z;
 
-								// Co-locate the actor's tracked position with the pinned skeleton. The engine's
-								// third-person camera, the audio listener, and the scene-orbit camera all read
-								// data.location, which otherwise drifts with leaked root motion (the "capsule err")
-								// and frames empty space. We correct only the bookkeeping position the cameras
-								// follow; the havok capsule is left alone (it wins teleports) and restores on end.
-								refr->data.location = pinWorld;
+							//Set actor position to skeleton position
+							refr->data.location = pinWorld;
 
-							// Pin compose-root ROTATION for the PLAYER only: in 3rd person the engine rewrites the player heading from camera yaw each frame
-							// (AI-driven doesn't suppress it on 1.16.244), so the rig spins as the camera orbits. 
-							// NPCs stay anim-owned. Rotation = NiMatrix3 at +0x00: three ROWS of 4 floats (4th pad), stride 4 -> root[r*4 + c].
-							// Write a Z-up yaw; leave the pad lanes (root[3],[7],[11]) alone.
-							if (hasPinHeading &&
-								refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
+							//Pin root rotation for participants. Overrides player rotate to camera heading and npc lookat targets
+							// Rotation = NiMatrix3 at +0x00: three ROWS of 4 floats (4th pad), stride 4 -> root[r*4 + c].
+							if (hasPinHeading) {
 								const float c = std::cos(pinHeading);
 								const float s = std::sin(pinHeading);
 								root[0] = c;    root[1] = -s;   root[2] = 0.0f;   // row0
 								root[4] = s;    root[5] = c;    root[6] = 0.0f;   // row1
 								root[8] = 0.0f; root[9] = 0.0f; root[10] = 1.0f;  // row2
+
+								// Also pin the LOGICAL heading. (root is just rendering)
+								refr->data.angle.z = pinHeading;
 							}
 
 							// Keep the CULL SPHERE on the pinned render position. The engine derives worldBound from the physics capsule (~0.3 m off), 
