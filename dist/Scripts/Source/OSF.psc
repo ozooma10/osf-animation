@@ -77,6 +77,9 @@ bool Function Play(Actor akActor, string asFile, string asAnim = "") Global Nati
 ; Stops playback on the given actor and returns control to the game.
 bool Function Stop(Actor akActor) Global Native
 
+; Groups actors that were each played solo (Play) onto one shared clock. With abAnchor=true (default) it also promotes them into a single anchored, co-located scene at akActors[0]'s transform
+bool Function Sync(Actor[] akActors, bool abAnchor = true) Global Native
+
 
 ; ---- Advanced API ------
 

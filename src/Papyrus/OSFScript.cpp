@@ -2,7 +2,9 @@
 
 #include "Animation/GraphManager.h"
 #include "Audio/SoundService.h"
+#include "Camera/CameraService.h"
 #include "Matchmaking/Matchmaker.h"
+#include "Player/PlayerControlService.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneEventRelay.h"
@@ -199,6 +201,15 @@ namespace OSF::Papyrus
 				return false;
 			}
 			return Animation::GraphManager::GetSingleton().StopAnimation(a_actor);
+		}
+
+		// Group the actors' independently-played solo graphs onto one clock. With abAnchor=true (default) it also
+		// promotes them into a single anchored, co-located scene at actor[0]'s transform, so each clip's baked root
+		// offset arranges the actors about one shared origin+heading (the NAF/SAF "play each solo, then sync" pattern).
+		// abAnchor=false is the legacy clock-only merge (actors stay at their own world positions). Needs >= 2 actors.
+		bool Sync(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, bool a_anchor)
+		{
+			return Animation::GraphManager::GetSingleton().Sync(a_actors, a_anchor);
 		}
 
 		// Jump a linear scene (by handle) to a given stage. False on a non-linear graph, an out-of-range stage, or an invalid handle.
@@ -817,6 +828,46 @@ namespace OSF::Papyrus
 			}
 			return out;
 		}
+
+		// --- Compatibility-only natives (bound on OSFCompat) ---------------------------------------
+		// The SAF shim's non-Scene Play+Sync path freezes the player via these standalone locks; the
+		// core never applies them on its own (the scene runtime drives its own control/camera policy).
+
+		// Standalone control lock: input-disable layer + AI-driven. false releases.
+		void SetPlayerControlLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
+		{
+			Player::PlayerControlService::GetSingleton().SetStandaloneLock(a_locked);
+		}
+
+		// Standalone camera lock: force/hold third person (bounces on zoom-in). false restores the prior POV.
+		void SetPlayerCameraLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
+		{
+			Camera::CameraService::GetSingleton().SetStandaloneLock(a_locked);
+		}
+
+		// Engine crosshair target: the reference under the reticle / activate prompt.
+		// Reads PlayerCharacter->commandTarget. Any ref kind, or null when the crosshair is on nothing.
+		RE::TESObjectREFR* CrosshairTarget()
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			return player ? player->commandTarget : nullptr;
+		}
+
+		// The raw engine crosshair reference, or None. Restores SAF's native crosshairRef the
+		// pure-Papyrus shim had no way to read.
+		RE::TESObjectREFR* GetCrosshairRef(OSFVM&, uint32_t, std::monostate)
+		{
+			return CrosshairTarget();
+		}
+
+		// The crosshair reference cast to Actor, or None when the crosshair is on nothing or a
+		// non-actor ref. Backs the SAF shim's crosshair pickers (which otherwise approximate
+		// selection with a pure-Papyrus heading-angle cone search).
+		RE::Actor* GetCrosshairActor(OSFVM&, uint32_t, std::monostate)
+		{
+			auto* target = CrosshairTarget();
+			return (target && target->IsActor()) ? static_cast<RE::Actor*>(target) : nullptr;
+		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
@@ -863,6 +914,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsPlaying", &IsPlaying, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Play", &Play, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "Stop", &Stop, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "Sync", &Sync, true, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSpeed", &SetSpeed, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSpeed", &GetSpeed, true, false);
@@ -880,6 +932,15 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		REX::INFO("[Papyrus] registered natives on script '{}'", SCRIPT_NAME);
+
+		// Non-public compat natives (script 'OSFCompat'): the standalone player/camera lock the SAF
+		// shim's primitive Play+Sync path uses, and the engine crosshair the pure-Papyrus shim can't
+		// read. Kept off the public OSF surface; harmless when no SAF shim is installed to call them.
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
+		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
+		REX::INFO("[Papyrus] registered compat natives on script '{}'", COMPAT_SCRIPT_NAME);
 	}
 
 	bool RegisterFunctions()
