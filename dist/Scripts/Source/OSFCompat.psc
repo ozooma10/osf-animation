@@ -18,3 +18,6 @@ ObjectReference Function GetCrosshairRef() Global Native
 
 ; The crosshair reference cast to Actor, or None when it's on nothing / a non-actor ref.
 Actor Function GetCrosshairActor() Global Native
+
+; The actors current scene partner: the first OTHER participant in the live scene akActor is in, or None.
+Actor Function GetScenePartner(Actor akActor) Global Native

@@ -1024,6 +1024,35 @@ namespace OSF::Animation
 		return true;
 	}
 
+	RE::Actor* GraphManager::GetScenePartner(RE::Actor* a_actor)
+	{
+		if (!a_actor) {
+			return nullptr;
+		}
+		// stateLock (shared) keeps the scene alive while we read it: StopSceneLocked takes stateLock unique,
+		// so the Scene* can't be freed and participants (const after publish) can't change under us.
+		std::shared_lock l{ stateLock };
+		auto iter = graphs.find(a_actor);
+		if (iter == graphs.end()) {
+			return nullptr;
+		}
+		Scene* scene = nullptr;
+		{
+			std::scoped_lock gl{ iter->second->stateLock };
+			scene = iter->second->scene;
+		}
+		if (!scene) {
+			return nullptr;
+		}
+		for (const auto& p : scene->participants) {
+			auto* t = p->target.get();
+			if (t && t != static_cast<RE::TESObjectREFR*>(a_actor)) {
+				return static_cast<RE::Actor*>(t);
+			}
+		}
+		return nullptr;
+	}
+
 	bool GraphManager::PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<std::string>& a_animIds, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole)
 	{
 		if (!a_actor) {

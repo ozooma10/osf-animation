@@ -87,6 +87,17 @@ Function SyncAnimations(Actor[] akTargets) Global
         n = akTargets.Length
     EndIf
     SAFLog("SyncAnimations count=" + n + " -> OSF.Sync(anchor)")
+    ; OSF drives playback through the engine's per-actor anim-graph update, which does NOT tick for an
+    ; AI-disabled actor — that actor freezes and the scene stalls. Some SAF mods disable a participant's AI
+    ; mid-scene (SnuSnu's oral poses, to hold the head for a face morph); re-enable it so OSF can pose the rig.
+    ; The actor still stays put via SetRestrained + the scene's animation-driven pin.
+    Int i = 0
+    While i < n
+        If akTargets[i] != None && akTargets[i].IsAIEnabled() == False
+            akTargets[i].EnableAI(true)
+        EndIf
+        i += 1
+    EndWhile
     If n >= 2
         OSF.Sync(akTargets, true)
     EndIf

@@ -46,6 +46,19 @@ Bool Function Ping() Global
     return ready
 EndFunction
 
+; --- Activate redirect ---
+; OSF's input hook calls this when the player presses Activate (E) during a SAF-compat scene.
+; Legacy SAF mods (SnuSnu) progress by having the player "Talk to" a participant, but OSF can't show the [E] prompt on a pinned, animation-driven, player-overlapping NPC
+; Activate fires the NPC's dialogue, which runs the mod's pose-advance fragment, exactly as a real "Talk to" would. No-op if the player isn't in a scene with a partner.
+Function OnCompatActivate() Global
+    Actor player = Game.GetPlayer()
+    Actor partner = OSFCompat.GetScenePartner(player)
+    SAFLog("OnCompatActivate player=" + player + " partner=" + partner)
+    If partner != None
+        partner.Activate(player as ObjectReference)
+    EndIf
+EndFunction
+
 ; --- Single-actor playback ---
 
 Bool Function PlayOnActor(Actor akActor, String animId, Float fSpeed = 1.0, Int animIndex = 0) Global
@@ -228,6 +241,14 @@ Function SyncGraphs(Actor[] akTargets) Global
         n = akTargets.Length
     EndIf
     SAFLog("SyncGraphs count=" + n + " -> OSF.Sync(anchor)")
+    ; OSF drives playback through the engine's per-actor anim-graph update, which does NOT tick for an AI-disabled actor
+    Int i = 0
+    While i < n
+        If akTargets[i] != None && akTargets[i].IsAIEnabled() == False
+            akTargets[i].EnableAI(true)
+        EndIf
+        i += 1
+    EndWhile
     If n >= 2
         OSF.Sync(akTargets, true)
     EndIf

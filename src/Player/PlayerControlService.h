@@ -33,7 +33,7 @@ namespace OSF::Player
 		std::mutex lock;
 		RE::BSInputEnableLayer* inputLayer = nullptr;
 		bool standaloneActive = false;
-		// The input events the lock disables, fixed at construction (kSceneUserEvents / kSceneOtherEvents). 
+		// The input events the lock disables, fixed at construction (kSceneUserEvents / kSceneOtherEvents).
 		// ApplyDisabled disables them; RestoreEnabled re-enables them.
 		const uint32_t userMask;
 		const uint32_t otherMask;
