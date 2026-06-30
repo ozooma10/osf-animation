@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   FOMOD installer for OSF Animation.
-  - Core is always installed (requiredInstallFiles): the SFSE plugin DLL plus the
-    OSF / OSFTypes / OSFTest Papyrus scripts + sources.
-  The <folder source="Core"> is staged by packaging/build-archive.ps1; destination=""
-  puts its internal SFSE/ + Scripts/ layout at the Data root.
+  - Core is always installed (requiredInstallFiles): the SFSE plugin DLL, the OSF Papyrus scripts + sources, the release settings.json, and the internal.osf.json system scenes (OSF.Health). 
+  - SAF Compatibility is an OPT-IN group (unchecked by default): the SAF / SAFScript backwards-compat shim (SafCompat folder).
+  The <folder source="..."> entries are staged by packaging/build-archive.ps1; destination="" puts each folder's internal SFSE/ + Scripts/ + OSF/ layout at the Data root.
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
@@ -13,4 +12,24 @@
   <requiredInstallFiles>
     <folder source="Core" destination="" priority="0"/>
   </requiredInstallFiles>
+
+  <installSteps order="Explicit">
+    <installStep name="Compatibility">
+      <optionalFileGroups order="Explicit">
+        <group name="SAF Compatibility" type="SelectAny">
+          <plugins order="Explicit">
+            <plugin name="SAF API shim">
+              <description>Installs SAF.pex / SAFScript.pex so mods written for the SAF (Starfield Animation Framework) Papyrus API run on OSF. Only enable this if you are using OSF INSTEAD of SAF — it shares SAF's script names and will conflict with a standalone SAF install. Leave unchecked otherwise.</description>
+              <files>
+                <folder source="SafCompat" destination="" priority="1"/>
+              </files>
+              <typeDescriptor>
+                <type name="Optional"/>
+              </typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+      </optionalFileGroups>
+    </installStep>
+  </installSteps>
 </config>

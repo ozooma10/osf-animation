@@ -31,15 +31,37 @@ $core = "$stage\Core"
 # Core: the DLL (no .pdb) + the public OSF API scripts/sources (consumers need the .psc to compile
 # against). OSFTest (the console smoke-test harness) is DEV-ONLY and deliberately excluded from release.
 Copy-Item $dll "$core\SFSE\Plugins\"
-foreach ($s in @('OSF', 'OSFTypes', 'OSFAdvanced')) {
+# OSFCompat is the non-public compat-natives script the DLL always binds; shipped in Core so the
+# SAF shim (opt-in below) can resolve OSFCompat.* at runtime. Harmless when the shim isn't installed.
+foreach ($s in @('OSF', 'OSFTypes', 'OSFAdvanced', 'OSFCompat')) {
     if (Test-Path "$dist\Scripts\$s.pex")        { Copy-Item "$dist\Scripts\$s.pex" "$core\Scripts\" }
     if (Test-Path "$dist\Scripts\Source\$s.psc") { Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\" }
+}
+
+# --- stage SAF Compatibility (opt-in FOMOD group) ---
+# The SAF/SAFScript backwards-compat shim: pure Papyrus that delegates to OSF's natives.
+# Installed only if the user picks the "SAF Compatibility" group; shares SAF's script names,
+# so it's mutually exclusive with a standalone SAF install. Both .pex are required (an empty
+# component would silently no-op), so fail loudly if the compile step was skipped.
+$safc = "$stage\SafCompat"
+New-Item -ItemType Directory -Force -Path "$safc\Scripts\Source" | Out-Null
+foreach ($s in @('SAF', 'SAFScript')) {
+    if (-not (Test-Path "$dist\Scripts\$s.pex")) {
+        throw "SAF shim missing: $dist\Scripts\$s.pex (compile dist\Scripts\Source\$s.psc first)"
+    }
+    Copy-Item "$dist\Scripts\$s.pex" "$safc\Scripts\"
+    Copy-Item "$dist\Scripts\Source\$s.psc" "$safc\Scripts\Source\"
 }
 
 # Release settings.json -> Data/OSF/settings.json on install. The DEV profile (settings.dev.json:
 # verbose logging + debug HUD) is NOT shipped — only the quiet release defaults.
 New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
 Copy-Item "$dist\settings.release.json" "$core\OSF\settings.json"
+
+# internal.osf.json -> Data/OSF/internal.osf.json. System scenes the framework needs at runtime:
+# the player-only "solo" scene backs OSF.Health, plus the "pair" smoke-test. Always shipped so the
+# health self-test works on a clean install (scenes are looked up by id, independent of filename).
+Copy-Item "$dist\OSF\internal.osf.json" "$core\OSF\internal.osf.json"
 
 # fomod/ + stamp the version into info.xml.
 Copy-Item "$PSScriptRoot\fomod" "$stage\fomod" -Recurse
