@@ -5,9 +5,10 @@
   - SAF Compatibility is an OPT-IN group (unchecked by default): the SAF / SAFScript backwards-compat shim (SafCompat folder).
   The <folder source="..."> entries are staged by packaging/build-archive.ps1; destination="" puts each folder's internal SFSE/ + Scripts/ + OSF/ layout at the Data root.
 -->
-<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <moduleName>OSF Animation</moduleName>
+
+  <moduleImage path="fomod\images\header.jpg"/>
 
   <requiredInstallFiles>
     <folder source="Core" destination="" priority="0"/>
@@ -16,15 +17,32 @@
   <installSteps order="Explicit">
     <installStep name="Compatibility">
       <optionalFileGroups order="Explicit">
-        <group name="SAF Compatibility" type="SelectAny">
+        <group name="SAF Backwards Compatibility" type="SelectAny">
           <plugins order="Explicit">
-            <plugin name="SAF API shim">
-              <description>Installs SAF.pex / SAFScript.pex so mods written for the SAF (Starfield Animation Framework) Papyrus API run on OSF. Only enable this if you are using OSF INSTEAD of SAF — it shares SAF's script names and will conflict with a standalone SAF install. Leave unchecked otherwise.</description>
+            <plugin name="SAF Backwards Compat (do not install SAF if enabled)">
+              <description>Some animation mods were built a framework called SAF (Starfield Animation Framework). This option lets those mods run on OSF instead, so you don't need to install SAF separately.
+
+Turn this ON if you have mods that ask for SAF and you want OSF to handle them. Do not install SAF if you have this enabled.
+
+Leave it OFF if you're also running the real SAF mod at the same time and do not want mods to use OSF.</description>
+              <image path="fomod\images\patch.jpg"/>
               <files>
                 <folder source="SafCompat" destination="" priority="1"/>
               </files>
               <typeDescriptor>
-                <type name="Optional"/>
+                <dependencyType>
+                  <!-- Pre-check the SAF shim when a known SAF-dependent plugin is present in the load order. -->
+                  <defaultType name="Optional"/>
+                  <patterns>
+                    <pattern>
+                      <dependencies operator="Or">
+                        <fileDependency file="SnuSnuField.esm" state="Active"/>
+                        <fileDependency file="GergelEbanex.esm" state="Active"/>
+                      </dependencies>
+                      <type name="Recommended"/>
+                    </pattern>
+                  </patterns>
+                </dependencyType>
               </typeDescriptor>
             </plugin>
           </plugins>

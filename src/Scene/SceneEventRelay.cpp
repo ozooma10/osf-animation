@@ -231,7 +231,7 @@ namespace OSF::Scene
 			MakeArgs(payload), noCallback, 0);
 	}
 
-	void SceneEventRelay:Clear()
+	void SceneEventRelay::Clear()
 	{
 		std::lock_guard l{ _lock };
 

@@ -380,7 +380,7 @@ Actor Function PickPairActorFromCrosshair(Actor firstActor, Actor secondActor, F
     arr[1] = secondActor
     return PickActorFromCrosshair(arr, maxAngle, maxDist)
 EndFunction
-
+                                                                                                                                            
 ; Furniture variants -- teleport + settle (plain Papyrus), then OSF playback.
 
 Function PlayOnActorAtFurniture(Actor akActor, ObjectReference akFurniture, String asAnim, \

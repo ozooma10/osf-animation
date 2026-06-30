@@ -63,7 +63,7 @@ Copy-Item "$dist\settings.release.json" "$core\OSF\settings.json"
 # health self-test works on a clean install (scenes are looked up by id, independent of filename).
 Copy-Item "$dist\OSF\internal.osf.json" "$core\OSF\internal.osf.json"
 
-# fomod/ + stamp the version into info.xml.
+# fomod/ (incl. fomod/images/ banner + plugin art referenced by ModuleConfig.xml) + stamp the version into info.xml.
 Copy-Item "$PSScriptRoot\fomod" "$stage\fomod" -Recurse
 $infoPath = "$stage\fomod\info.xml"
 $mver = ($Version -replace '[^0-9.].*$', '')   # 0.1.0-beta -> 0.1.0
