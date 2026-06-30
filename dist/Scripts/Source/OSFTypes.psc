@@ -13,8 +13,10 @@ Struct SceneOptions
     ; Tri-state ints; write them with the OSF.INHERIT()/OFF()/ON() helpers, NOT bare 0/1
     ; (0 means force-OFF, NOT "leave default"). Default -1 = inherit the scene's pack value.
     int StripMode = -1        ; override the scene's strip-actors policy: INHERIT/OFF/ON
-    int LockPlayerMode = -1   ; override player-input lock while the scene plays: INHERIT/OFF/ON
+    int LockPlayerMode = -1   ; override player-input lock (movement/combat) while the scene plays: INHERIT/OFF/ON
+    int PlayerControlMode = -1 ; override director-input (advance/navigate/end/freecam): INHERIT/OFF/ON. OFF = player can't advance or end the scene.
     int FadeMode = -1          ; override the start fade-to-black curtain: INHERIT/OFF/ON
+    string Camera = ""        ; override the entry camera STATE ("" = inherit the scene's): "thirdperson_hold" / "scene_orbit" / "vanity_orbit" / "freefly" / "none"
     float LoopScale = 1.0     ; multiply every loop-driven stage's loop count (1.0 = unchanged). Affects only stages with a loop count (loops > 0);
 EndStruct
 

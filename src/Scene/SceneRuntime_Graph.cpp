@@ -331,7 +331,7 @@ namespace OSF::Scene
 	}
 
 	void SceneRuntime::EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
-		bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants)
+		bool a_lockPlayer, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants)
 	{
 		auto* player = RE::PlayerCharacter::GetSingleton();
 		const bool hasPlayer = player &&
@@ -342,6 +342,13 @@ namespace OSF::Scene
 		// Tie the default camera to the same gate as the player lock: a scene that opts OUT of locking the player keeps its own free camera too.
 		if (!a_lockPlayer) {
 			REX::DEBUG("[Scene] scene {:#010x} default camera skipped — player not locked (lockPlayer:false)", a_handle);
+			return;
+		}
+
+		//camera override takes priorityssssssssssssssssssssssssssssssssssssssssssssssssssss
+		if (!a_cameraOverride.empty()) {
+			REX::DEBUG("[Scene] scene {:#010x} camera overridden at start -> '{}'", a_handle, a_cameraOverride);
+			RunCamera(a_handle, a_cameraOverride, hasPlayer, 0.0f);
 			return;
 		}
 		// An authored enter-camera on the entry node wins — DispatchLifecycleCamera engages it on NODE_ENTER.
@@ -462,15 +469,19 @@ namespace OSF::Scene
 		REX::DEBUG("[Scene] scene {:#010x} default start fade — {}", a_handle, posted ? "posted" : "unavailable");
 	}
 
-	void SceneRuntime::EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
+	void SceneRuntime::EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants)
 	{
-		// Input control is ENABLED BY DEFAULT (like lockPlayer/stripActors). A def scene can opt out / narrow via its playerControl block; 
+		// Input control is ENABLED BY DEFAULT (like lockPlayer/stripActors). A def scene can opt out / narrow via its playerControl block;
 		// pack/files scenes (empty defId) always get the default.
 		Registry::PlayerControl pc;  // enabled, all capabilities, not locked
 		if (!a_defId.empty()) {
 			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId)) {
 				pc = def->playerControl;
 			}
+		}
+		//playerControl override takes priortity
+		if (a_controlOverride.has_value()) {
+			pc.enabled = *a_controlOverride;
 		}
 		if (!pc.enabled || pc.capabilities == 0) {
 			REX::DEBUG("[Scene] scene {:#010x} playerControl disabled by scene config", a_handle);
@@ -593,14 +604,15 @@ namespace OSF::Scene
 		lockPlayer = a_over.lockPlayer.value_or(lockPlayer);
 		stripActors = a_over.strip.value_or(stripActors);
 		fade = a_over.fade.value_or(fade);
+		const std::string_view cameraOverride = a_over.camera.has_value() ? std::string_view(*a_over.camera) : std::string_view{};
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
-		EngageDefaultCamera(handle, a_id, a_entryNode, lockPlayer, a_participants);  // no authored camera => thirdperson_hold
+		EngageDefaultCamera(handle, a_id, a_entryNode, lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else authored, else thirdperson_hold
 		StripDefaultActors(handle, stripActors, a_participants);  // hide every participant's apparel by default
 		EquipRoleItems(handle, a_id, a_participants);             // then equip each role's authored per-gender item (on top of the strip)
 		FadeSceneStart(handle, fade, a_participants);             // screen curtain on start when the player participates
 		// Recorded AFTER lock + strip so the ledger undoes the input channel FIRST (release the wheel before unlocking/redressing).
-		EngageDefaultPlayerControl(handle, a_id, a_participants);
+		EngageDefaultPlayerControl(handle, a_id, a_over.playerControl, a_participants);
 		
 		// SCENE_BEGIN is scenes first lifecycle event, after everything setup
 		Fire(handle, Event::kSceneBegin, a_entryNode, "");
@@ -738,11 +750,12 @@ namespace OSF::Scene
 		const bool lockPlayer = a_over.lockPlayer.value_or(true);
 		const bool stripActors = a_over.strip.value_or(true);
 		const bool fade = a_over.fade.value_or(false);
+		const std::string_view cameraOverride = a_over.camera.has_value() ? std::string_view(*a_over.camera) : std::string_view{};
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
-		EngageDefaultCamera(handle, "", "main", lockPlayer, a_participants);  // ad-hoc scene: no authored camera => thirdperson_hold
+		EngageDefaultCamera(handle, "", "main", lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else thirdperson_hold
 		StripDefaultActors(handle, stripActors, a_participants);
 		FadeSceneStart(handle, fade, a_participants);
-		EngageDefaultPlayerControl(handle, "", a_participants);  // ad-hoc scene: default-on input (all capabilities)
+		EngageDefaultPlayerControl(handle, "", a_over.playerControl, a_participants);  // ad-hoc scene: default-on input unless overridden OFF
 		Fire(handle, Event::kSceneBegin, "main", "");  // first lifecycle event, before the entry node's NODE_ENTER
 		Fire(handle, Event::kNodeEnter, "main", "enter");
 		return handle;

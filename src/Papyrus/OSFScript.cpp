@@ -69,10 +69,12 @@ namespace OSF::Papyrus
 			std::int32_t       stage = 0;
 			float              speed = 1.0f;
 			float              blendIn = 0.4f;
-			std::int32_t       stripMode = -1;       // tri-state override: -1 inherit, 0 off, 1 on
-			std::int32_t       lockPlayerMode = -1;  // tri-state override
-			std::int32_t       fadeMode = -1;        // tri-state override
-			float              loopScale = 1.0f;     // multiply loop-driven stage loop counts (1.0 = none)
+			std::int32_t       stripMode = -1;          // tri-state override: -1 inherit, 0 off, 1 on
+			std::int32_t       lockPlayerMode = -1;     // tri-state override
+			std::int32_t       playerControlMode = -1;  // tri-state override of the director-input grant (OFF = no advance/end)
+			std::int32_t       fadeMode = -1;           // tri-state override
+			std::string        camera;                  // entry camera state override ("" = inherit the scene's)
+			float              loopScale = 1.0f;        // multiply loop-driven stage loop counts (1.0 = none)
 		};
 
 		// Read an OSF:SceneOptions: pull the raw struct proxy and map member name -> slot by ITERATING varNameIndexMap, rather than trusting structure_wrapper::find / varNameIndexMap.find
@@ -119,8 +121,14 @@ namespace OSF::Papyrus
 			if (const auto* v = member("LockPlayerMode"); v && v->is<std::int32_t>()) {
 				out.lockPlayerMode = RE::BSScript::get<std::int32_t>(*v);
 			}
+			if (const auto* v = member("PlayerControlMode"); v && v->is<std::int32_t>()) {
+				out.playerControlMode = RE::BSScript::get<std::int32_t>(*v);
+			}
 			if (const auto* v = member("FadeMode"); v && v->is<std::int32_t>()) {
 				out.fadeMode = RE::BSScript::get<std::int32_t>(*v);
+			}
+			if (const auto* v = member("Camera"); v && v->is<RE::BSFixedString>()) {
+				out.camera = RE::BSScript::get<RE::BSFixedString>(*v).c_str();
 			}
 			if (const auto* v = member("LoopScale"); v && v->is<float>()) {
 				out.loopScale = RE::BSScript::get<float>(*v);
@@ -193,7 +201,11 @@ namespace OSF::Papyrus
 			};
 			over.strip = triState(a_opts.stripMode);
 			over.lockPlayer = triState(a_opts.lockPlayerMode);
+			over.playerControl = triState(a_opts.playerControlMode);
 			over.fade = triState(a_opts.fadeMode);
+			if (!a_opts.camera.empty()) {
+				over.camera = a_opts.camera;
+			}
 			float ls = a_opts.loopScale;
 			if (!(ls > 0.0f)) {  // false for <=0 AND for NaN -> no-op
 				ls = 1.0f;

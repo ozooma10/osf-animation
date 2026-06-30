@@ -47,12 +47,14 @@ namespace OSF::Scene
 			float        heading = 0.0f;  // radians
 		};
 
-		// Per-start policy overrides a consumer supplies via OSFTypes:SceneOptions (StripMode/LockPlayerMode/FadeMode/LoopScale). 
+		// Per-start policy overrides a consumer supplies via OSFTypes:SceneOptions, or a native consumer sets directly.
 		struct StartOverrides
 		{
 			std::optional<bool> strip;
 			std::optional<bool> lockPlayer;
 			std::optional<bool> fade;
+			std::optional<bool> playerControl;  // override the director-input grant (false = revoke advance/end/navigate/etc.)
+			std::optional<std::string> camera;  // override the entry camera STATE (e.g. "scene_orbit"); unset = inherit the scene's
 			float               loopScale = 1.0f;  // multiplies loop-driven (loops>0) stages only, floored
 		};
 
@@ -361,8 +363,8 @@ namespace OSF::Scene
 		// The caller resolves a_lockPlayer from the scene def (`lockPlayer`) or pack;
 		void EngageDefaultPlayerLock(std::int32_t a_handle, bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants);
 
-		// Default camera when player participant and no camera specified by scene. defaults to thirdperson_hold
-		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants);
+		// Default camera when player participant and no camera specified by scene. defaults to thirdperson_hold.
+		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
 		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants);
@@ -376,8 +378,7 @@ namespace OSF::Scene
 		void EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
 
 		// Player director-input on scene start: when the def declares a `playerControl` block and the player is a participant, hand the InputService a Grant (ledger-tracked via kInputChannel so it releases on any termination).
-		// No-op for non-def / no playerControl / player-absent scenes.
-		void EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+		void EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants);
 
 		// Default screen fade on scene start: when the player is among a_participants and policy keeps it on (a_fade,
 		// resolved from the scene def `fade` / pack default). Posts a self-releasing FadeToBlack (bounded hold, auto
