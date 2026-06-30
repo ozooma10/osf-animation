@@ -45,14 +45,34 @@ namespace OSF::Serialization
 	{
 		using OSF::Util::ToLower;
 
+		// glTF (NAF/SAF) clips are authored in METERS; the game rig is in game units (Bethesda
+		// 1 unit = 0.0142875 m). Without this scale the whole skeleton imports ~70x too small, the
+		// bones collapse onto the root and the skinned mesh fans out from a point ("fly away really
+		// far"). .af content is native game units via AFImport and is unaffected by this path.
+		constexpr float kUnitsPerMeter = 1.0f / 0.0142875f;  // ~69.996
+
+		// NAF/SAF clips bake the actor's authoring-space placement into the export-root nodes
+		// ("HumanExportRoot"/"Root"). OSF positions the actor via the scene anchor + compose-root pin,
+		// so applying the clip root too would double-position and shove the body off the anchor. Drop
+		// the root TRANSLATION (rotation is kept) — this is what SAF does (its log: skippedRoot=2);
+		// COM and the bones below it carry the actual pose/offset.
+		bool IsExportRootNode(std::string_view a_lowerName)
+		{
+			return a_lowerName == "humanexportroot" || a_lowerName == "root";
+		}
+
 		ozz::math::Transform GetNodeLocalTransform(const fastgltf::Node& a_node)
 		{
 			ozz::math::Transform result = ozz::math::Transform::identity();
 			if (std::holds_alternative<fastgltf::TRS>(a_node.transform)) {
 				const auto& trs = std::get<fastgltf::TRS>(a_node.transform);
 				result.rotation = { trs.rotation[0], trs.rotation[1], trs.rotation[2], trs.rotation[3] };
-				result.translation = { trs.translation[0], trs.translation[1], trs.translation[2] };
 				result.scale = { trs.scale[0], trs.scale[1], trs.scale[2] };
+				if (IsExportRootNode(ToLower(a_node.name.c_str()))) {
+					result.translation = { 0.0f, 0.0f, 0.0f };  // anchor owns root placement
+				} else {
+					result.translation = { trs.translation[0] * kUnitsPerMeter, trs.translation[1] * kUnitsPerMeter, trs.translation[2] * kUnitsPerMeter };
+				}
 			}
 			return result;
 		}
@@ -344,6 +364,9 @@ namespace OSF::Serialization
 				if (jointIdx == SIZE_MAX)
 					continue;
 
+				// Export-root translation is dropped (placement is anchor-owned); rotation still applies.
+				const bool isExportRoot = IsExportRootNode(ToLower(a_asset.nodes[c.nodeIndex.value()].name.c_str()));
+
 				if (c.samplerIndex >= a_anim.samplers.size())
 					continue;
 
@@ -367,9 +390,14 @@ namespace OSF::Serialization
 					case fastgltf::AnimationPath::Rotation:
 						track.rotations.push_back({ t, fastgltf::getAccessorElement<ozz::math::Quaternion>(a_asset, dataAccessor, i) });
 						break;
-					case fastgltf::AnimationPath::Translation:
-						track.translations.push_back({ t, fastgltf::getAccessorElement<ozz::math::Float3>(a_asset, dataAccessor, i) });
+					case fastgltf::AnimationPath::Translation: {
+						const auto tRaw = fastgltf::getAccessorElement<ozz::math::Float3>(a_asset, dataAccessor, i);
+						const ozz::math::Float3 tr = isExportRoot ?
+							ozz::math::Float3(0.0f, 0.0f, 0.0f) :
+							ozz::math::Float3(tRaw.x * kUnitsPerMeter, tRaw.y * kUnitsPerMeter, tRaw.z * kUnitsPerMeter);
+						track.translations.push_back({ t, tr });
 						break;
+					}
 					case fastgltf::AnimationPath::Scale:
 						track.scales.push_back({ t, fastgltf::getAccessorElement<ozz::math::Float3>(a_asset, dataAccessor, i) });
 						break;
