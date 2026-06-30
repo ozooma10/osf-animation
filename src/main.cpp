@@ -1,3 +1,4 @@
+#include "API/SceneAPIControl.h"
 #include "Animation/GraphManager.h"
 #include "Config/Settings.h"
 #include "Input/InputService.h"
@@ -27,6 +28,7 @@ namespace
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
+			OSF::API::MarkReady();
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
