@@ -3,8 +3,8 @@
 .SYNOPSIS
   Assemble the OSF Animation FOMOD release archive from build/ (DLL) + dist/ (scripts).
 .EXAMPLE
-  packaging\build-archive.ps1 -Version 0.1.0
-  # -> packaging\out\OSF Animation v0.1.0.zip
+  packaging\build-archive.ps1 -Version 0.2.0
+  # -> packaging\out\OSF Animation v0.2.0.zip
 .NOTES
   Run AFTER a verified `xmake` build and a Papyrus compile (so dist/Scripts/*.pex exist).
   Ship the flavor you tested in-game (default releasedbg); the .pdb is never included.

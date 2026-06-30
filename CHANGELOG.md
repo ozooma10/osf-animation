@@ -4,6 +4,8 @@ All notable changes to OSF Animation are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-30
+
 ### Added
 - SAF backwards-compatibility shim (opt-in FOMOD component): `SAF.pex` / `SAFScript.pex` that expose SAF API and route to OSF's natives, so SAF-targeting content runs on OSF. 
 
