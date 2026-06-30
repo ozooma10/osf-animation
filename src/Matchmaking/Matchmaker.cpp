@@ -119,9 +119,11 @@ namespace OSF::Matchmaking
 			return std::nullopt;
 		}
 
-		// Build the unified candidate pool. a_actors non-empty => filter-aware with a complete binding (Candidate::order filled); 
-		// empty => count + tags only (discovery, no binding).
-		std::vector<Candidate> BuildPool(std::int32_t a_count, const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors)
+		// Build the unified candidate pool. a_actors non-empty => filter-aware with a complete binding (Candidate::order filled);
+		// empty => count + tags only (discovery, no binding). a_anchor + a_mode add anchor filtering (see AnchorMode;
+		// kIgnore = no filter, the discovery default).
+		std::vector<Candidate> BuildPool(std::int32_t a_count, const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors,
+			RE::TESObjectREFR* a_anchor = nullptr, AnchorMode a_mode = AnchorMode::kIgnore)
 		{
 			const bool haveActors = !a_actors.empty();
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
@@ -134,6 +136,17 @@ namespace OSF::Matchmaking
 				}
 				if (!TagsMatch(a_def.tags, q)) {
 					return;
+				}
+				// Anchor filtering: an anchor-bound scene needs a ref that satisfies it; kRequire (anchor-first)
+				// additionally drops free scenes. kIgnore (discovery) skips this entirely.
+				if (a_mode != AnchorMode::kIgnore) {
+					if (a_def.RequiresAnchor()) {
+						if (!a_anchor || !AnchorAccepts(a_def, a_anchor)) {
+							return;
+						}
+					} else if (a_mode == AnchorMode::kRequire) {
+						return;
+					}
 				}
 				Candidate c;
 				c.id = a_def.id;
@@ -206,6 +219,27 @@ namespace OSF::Matchmaking
 		return true;
 	}
 
+	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref)
+	{
+		if (!a_ref) {
+			return false;
+		}
+		if (auto base = a_ref->GetBaseObject()) {
+			const auto id = base->GetFormID();
+			for (const auto b : a_def.anchorBaseForms) {
+				if (b == id) {
+					return true;
+				}
+			}
+		}
+		for (auto* kw : a_def.anchorKeywords) {
+			if (kw && a_ref->HasKeyword(kw)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	std::string ActorGenderTag(RE::Actor* a_actor)
 	{
 		switch (SexOf(a_actor)) {
@@ -236,7 +270,8 @@ namespace OSF::Matchmaking
 		return ids;
 	}
 
-	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query)
+	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query,
+		RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
 	{
 		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
 		REX::DEBUG("[Match] searching for {} actor(s), tags {}", actorCount, DescribeQuery(a_query));
@@ -244,7 +279,7 @@ namespace OSF::Matchmaking
 			REX::DEBUG("[Match] no match (no actors supplied)");
 			return std::nullopt;
 		}
-		auto pool = BuildPool(actorCount, a_query, a_actors);
+		auto pool = BuildPool(actorCount, a_query, a_actors, a_anchor, a_mode);
 		if (pool.empty()) {
 			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + a complete actor binding)", actorCount);
 			return std::nullopt;

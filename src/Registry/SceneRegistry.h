@@ -254,7 +254,15 @@ namespace OSF::Registry
 		std::string              entry;
 		std::vector<SceneNode>   nodes;
 		std::vector<std::string> linearStages;  // optional: stage i -> node id (GetSceneStage/SetSceneStage)
+
 		std::filesystem::path    sourceFile;
+
+		// When anchorKeywords/anchorBaseForms set, the scene is ANCHOR-BOUND. can only start anchored to ref with base form OR has keyword.
+		std::vector<RE::BGSKeyword*>    anchorKeywords;   // resolved at load (any-of); empty = no keyword match
+		std::vector<RE::TESFormID>      anchorBaseForms;  // resolved at load (any-of); empty = no base match
+		Animation::ParticipantPlacement anchorOffset{};
+
+		[[nodiscard]] bool RequiresAnchor() const noexcept { return !anchorKeywords.empty() || !anchorBaseForms.empty(); }
 
 		const SceneNode* FindNode(std::string_view a_id) const;
 

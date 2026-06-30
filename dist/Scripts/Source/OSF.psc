@@ -18,6 +18,12 @@ int Function StartScene(Actor[] akActors, string asSceneId, OSFTypes:SceneOption
 ; Boolean-query form of StartSceneByTags: asAllOf (every tag must match) + asAnyOf (at least one; empty = ignored) + asNoneOf (none may match).
 int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, OSFTypes:SceneOptions akOpts = None) Global Native
 
+; Anchor-FIRST matchmaking: start a scene BUILT for akFurniture, matched by the scene's anchor keyword/base.
+; Only anchor-bound scenes that fit the furniture are surfaced (free/standing scenes are NOT, use StartSceneByTags for those);
+; asTags optionally narrows the pool (empty = any fit). akOpts is read for overrides/heading; its Anchor field is ignored (akFurniture is the anchor).
+; Returns the scene handle (0 = no furniture / no actors / no fitting scene / start failed).
+int Function StartSceneAtAnchor(Actor[] akActors, ObjectReference akFurniture, string[] asTags, OSFTypes:SceneOptions akOpts = None) Global Native
+
 ; Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i] (equal lengths; every declared role must be filled exactly once).
 ; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
 int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles) Global Native

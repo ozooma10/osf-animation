@@ -16,6 +16,16 @@ ScriptName OSFTest
 ;   cgf "OSFTest.Demo" <npc>            scene id "author.scenes.demo" (graph w/ edges)
 ;   cgf "OSFTest.Tags" <npc>            matchmake on tag "paired"
 ;
+; Furniture anchor (the actor-origin-at-furniture smoke test):
+;   cgf "OSFTest.Furniture" <npc> <furn>       player + npc on "pair", anchored AT ref <furn>
+;   cgf "OSFTest.FurnitureId" <npc> <furn> <id>  same, any scene id
+;   cgf "OSFTest.Furniture2" <npc1> <npc2> <furn>      TWO npcs (no player), on "pair", anchored AT <furn>
+;   cgf "OSFTest.Furniture2Id" <npc1> <npc2> <furn> <id>  same, any scene id
+;     Click each ref in the console to read its RefID, and pass them as hex.
+;
+; Anchor-FIRST matchmaking (pick a scene BUILT for the furniture, by its anchor keyword/base):
+;   cgf "OSFTest.AtAnchor" <npc> <furn>        player + npc; matchmake an anchor-bound scene that fits <furn>
+;
 ; Each Start* prints the scene HANDLE to the HUD. Use it to navigate:
 ;   cgf "OSFTest.Advance" <handle>      take the default advance edge
 ;   cgf "OSFTest.Nav" <handle> "tease"  take a named branch edge
@@ -88,6 +98,62 @@ Function Tags(Actor npc) global
     tags[0] = "pair"
     int h = OSF.StartSceneByTags(a, tags)
     Debug.Notification("OSF: StartSceneByTags 'pair' -> handle " + h)
+EndFunction
+
+; Furniture: player + npc on scene id "pair" (two vanilla cower_idle clips), anchored at the
+; furniture/bed/marker ref `furn` via SceneOptions.Anchor — so both actors' origins land at the
+; furniture's position+heading instead of co-locating at the player. Heading -1 = use furn's own facing.
+; NOTE: with the current drop-clip-root engine the two actors STACK at the furniture origin (the same
+; cower_idle on both bakes the same root). That's the expected baseline — proving the anchor path. The
+; clip-root/placement work is what spreads them onto the furniture. cower_idle is a standing pose, so
+; expect two cowering actors AT the furniture, not seated in it (a real furniture clip is authored for it).
+Function Furniture(Actor npc, ObjectReference furn) global
+    FurnitureId(npc, furn, "pair")
+EndFunction
+
+Function FurnitureId(Actor npc, ObjectReference furn, string id) global
+    Actor[] a = new Actor[2]
+    a[0] = Game.GetPlayer()
+    a[1] = npc
+    OSFTypes:SceneOptions opts = new OSFTypes:SceneOptions
+    opts.Anchor = furn
+    int h = OSF.StartScene(a, id, opts)
+    Debug.Notification("OSF: furniture '" + id + "' @ " + furn + " -> handle " + h)
+EndFunction
+
+; Furniture2: same as Furniture but with TWO npcs and no player participant. Lets you watch from a
+; free camera (the player isn't in the scene, so there's no control lock; both npcs are still
+; stripped + anchored). Stop it with OSFTest.Stop2 (the player-keyed OSFTest.Stop won't reach an
+; NPC-only scene), or click an npc and use OSF.StopSceneForActor on it.
+Function Furniture2(Actor npc1, Actor npc2, ObjectReference furn) global
+    Furniture2Id(npc1, npc2, furn, "pair")
+EndFunction
+
+Function Furniture2Id(Actor npc1, Actor npc2, ObjectReference furn, string id) global
+    Actor[] a = new Actor[2]
+    a[0] = npc1
+    a[1] = npc2
+    OSFTypes:SceneOptions opts = new OSFTypes:SceneOptions
+    opts.Anchor = furn
+    int h = OSF.StartScene(a, id, opts)
+    Debug.Notification("OSF: furniture2 '" + id + "' @ " + furn + " -> handle " + h)
+EndFunction
+
+; Anchor-FIRST: matchmake an anchor-bound scene whose anchor keyword/base matches <furn>, for player+npc,
+; anchored at <furn>. No tag filter (empty asTags). Verifies StartSceneAtAnchor + the kRequire pool filter.
+Function AtAnchor(Actor npc, ObjectReference furn) global
+    Actor[] a = new Actor[2]
+    a[0] = Game.GetPlayer()
+    a[1] = npc
+    string[] tags = new string[1]   ; "" element -> dropped by the native = no tag filter
+    int h = OSF.StartSceneAtAnchor(a, furn, tags)
+    Debug.Notification("OSF: AtAnchor @ " + furn + " -> handle " + h)
+EndFunction
+
+; Stop an NPC-only furniture scene by one of its participants (OSFTest.Stop is player-keyed).
+Function Stop2(Actor npc) global
+    bool ok = OSF.StopSceneForActor(npc)
+    Debug.Notification("OSF: Stop2 -> " + ok)
 EndFunction
 
 Function Advance(int handle) global

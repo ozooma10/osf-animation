@@ -937,10 +937,88 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault are the file-level policy
-		// defaults; a_packRoles are the file-level `roles` (inherited by a scene that omits its own).
+		// The parsed `anchor` block (a scene's own, or a file-level default). given=false when the key is absent. 
+		// keyword/base are resolved to forms (any-of within each); offset corrects the ref transform.
+		struct AnchorReq
+		{
+			std::vector<RE::BGSKeyword*>    keywords;
+			std::vector<RE::TESFormID>      baseForms;
+			Animation::ParticipantPlacement offset{};
+			bool                            given = false;
+		};
+
+		// Parse an `anchor` block: { keyword?: <ref|[refs]>, base?: <ref|[refs]>, offset?: { x, y, z, heading } }.
+		// keyword/base parse exactly like a role's filters.keyword/filters.race; resolved now (any-of within each), and an unresolvable ref REJECTS the scene. 
+		// At least one of keyword/base is required (else nothing could satisfy the requirement). a_subject labels diagnostics (a scene id, or a file label).
+		AnchorReq ParseAnchorBlock(const json& a_json, const std::string& a_subject)
+		{
+			AnchorReq req;
+			const auto it = a_json.find("anchor");
+			if (it == a_json.end()) {
+				return req;  // given = false
+			}
+			if (!it->is_object()) {
+				throw std::runtime_error(a_subject + ": 'anchor' must be an object { keyword?, base?, offset? }");
+			}
+			const json& anchor = *it;
+			req.given = true;
+
+			// keyword/base: a single string or an array of strings; resolved to forms now.
+			auto parseRefs = [&](const char* a_key, auto a_push) {
+				auto kit = anchor.find(a_key);
+				if (kit == anchor.end()) {
+					return;
+				}
+				if (kit->is_string()) {
+					a_push(kit->get<std::string>());
+				} else if (kit->is_array()) {
+					for (const auto& e : *kit) {
+						if (!e.is_string()) {
+							throw std::runtime_error(a_subject + ": anchor." + a_key + " entries must be strings");
+						}
+						a_push(e.get<std::string>());
+					}
+				} else {
+					throw std::runtime_error(a_subject + ": anchor." + a_key + " must be a string or array of strings");
+				}
+			};
+			parseRefs("keyword", [&](const std::string& a_ref) {
+				auto* kw = Util::ResolveFormRef<RE::BGSKeyword>(a_ref);
+				if (!kw) {
+					throw std::runtime_error(a_subject + ": anchor.keyword '" + a_ref +
+						"' is malformed, names an unloaded plugin, or isn't a Keyword (KYWD) (use \"Plugin.esm|0xLocalID\")");
+				}
+				req.keywords.push_back(kw);
+			});
+			parseRefs("base", [&](const std::string& a_ref) {
+				const auto id = Util::ComposeFormID(a_ref);
+				if (!id) {
+					throw std::runtime_error(a_subject + ": anchor.base '" + a_ref +
+						"' is malformed or names an unloaded plugin (use \"Plugin.esm|0xLocalID\")");
+				}
+				if (!RE::TESForm::LookupByID(*id)) {
+					throw std::runtime_error(a_subject + ": anchor.base '" + a_ref + "' did not resolve to a form");
+				}
+				req.baseForms.push_back(*id);
+			});
+			if (req.keywords.empty() && req.baseForms.empty()) {
+				throw std::runtime_error(a_subject + ": 'anchor' needs at least one 'keyword' or 'base' (else nothing can satisfy it)");
+			}
+			if (auto oit = anchor.find("offset"); oit != anchor.end()) {
+				if (!oit->is_object()) {
+					throw std::runtime_error(a_subject + ": anchor.offset must be an { x, y, z, heading } object");
+				}
+				req.offset = ParseOffsetField(*oit);
+			}
+			return req;
+		}
+
+		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault are the file-level policy defaults; 
+		// a_packRoles are the file-level `roles` (inherited by a scene that omits its own);
+		// a_anchorDefault is the file-level `anchor` (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
-			bool a_fadeDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles, std::string_view a_packClipRoot)
+			bool a_fadeDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles, std::string_view a_packClipRoot,
+			const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -971,6 +1049,17 @@ namespace OSF::Registry
 			} else if (!a_packRoles.empty()) {
 				def.roles = a_packRoles;  // inherit the pack-level roles (names, filters, offsets, equip)
 				rolesGiven = true;
+			}
+
+			// Anchor requirement: the scene's own `anchor` block overrides the file-level default entirely (mirrors roles).
+			{
+				AnchorReq anchorReq = ParseAnchorBlock(a_json, "scene '" + def.id + "'");
+				if (!anchorReq.given && a_anchorDefault.given) {
+					anchorReq = a_anchorDefault;
+				}
+				def.anchorKeywords = anchorReq.keywords;
+				def.anchorBaseForms = anchorReq.baseForms;
+				def.anchorOffset = anchorReq.offset;
 			}
 
 			const bool hasNodes = a_json.contains("nodes");
@@ -1125,10 +1214,18 @@ namespace OSF::Registry
 			// (a bare file's top-level `roles` is just that one scene's roles, parsed by ParseOsfScene).
 			std::vector<const json*> sceneJsons;
 			std::vector<SceneRole>   packRoles;
+			AnchorReq                packAnchor;  // file-level `anchor` default (multi-scene envelope only)
 			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
 				if (!sit->is_array()) {
 					a_errors.push_back("[error] '" + fileName + "': 'scenes' must be an array");
 					REX::ERROR("[Registry] '{}' 'scenes' must be an array — skipped", fileName);
+					return;
+				}
+				try {
+					packAnchor = ParseAnchorBlock(a_json, "'" + fileName + "' file-level anchor");
+				} catch (const std::exception& e) {
+					a_errors.push_back(std::string("[error] ") + e.what());
+					REX::ERROR("[Registry] {} — skipped", e.what());
 					return;
 				}
 				if (auto rit = a_json.find("roles"); rit != a_json.end()) {
@@ -1157,7 +1254,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault, packRoles, packClipRoot);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
 					def.sourceFile = a_file;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {

@@ -1,6 +1,7 @@
 #include "OSFScript.h"
 
 #include "Animation/GraphManager.h"
+#include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Input/InputService.h"
@@ -140,6 +141,39 @@ namespace OSF::Papyrus
 			return anchor;
 		}
 
+		// Compose the scene's `anchor.offset` onto a base ref transform (pos, heading in radians): rotate x/y into the ref's heading frame (PlacementToWorld) and add the offset heading.
+		// (Slice 1 anchors at the ref origin; marker-relative anchoring will shift the base later.)
+		Scene::SceneRuntime::AnchorOverride ComposeAnchor(RE::NiPoint3 a_basePos, float a_baseHeading, const Animation::ParticipantPlacement& a_offset)
+		{
+			RE::NiPoint3 pos = Animation::PlacementToWorld(a_basePos, a_baseHeading, a_offset);
+			return Scene::SceneRuntime::AnchorOverride{ true, pos, a_baseHeading + a_offset.heading };
+		}
+
+		// Resolve + ENFORCE a def-backed start's anchor requirement. Returns the AnchorOverride to start with, or nullopt to ABORT (the scene is anchor-bound but the supplied SceneOptions.Anchor is missing / the wrong furniture ). 
+		// A FREE scene passes the optional anchor through unchanged, so an explicit anchor on a free scene still world-anchors it.
+		std::optional<Scene::SceneRuntime::AnchorOverride> ResolveSceneAnchor(const std::string& a_sceneId, const SceneOpts& a_opts)
+		{
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+			if (!def || !def->RequiresAnchor()) {
+				return MakeAnchor(a_opts);  // free scene: anchor optional, pass through
+			}
+			if (!a_opts.anchor) {
+				REX::WARN("[Papyrus] scene '{}' is anchor-bound but no SceneOptions.Anchor was supplied — start aborted", a_sceneId);
+				UI::HudMessage::Error(std::format("scene '{}' needs a furniture anchor to play", a_sceneId));
+				return std::nullopt;
+			}
+			if (!Matchmaking::AnchorAccepts(*def, a_opts.anchor)) {
+				REX::WARN("[Papyrus] scene '{}' anchor ref {:#010x} isn't the furniture this scene requires — start aborted",
+					a_sceneId, a_opts.anchor->GetFormID());
+				UI::HudMessage::Error("that object isn't the right furniture for this scene");
+				return std::nullopt;
+			}
+			// Base ref transform: its origin + facing (an explicit headingDeg override is honored, like MakeAnchor).
+			const RE::NiPoint3 basePos = a_opts.anchor->data.location;
+			const float baseHeading = (a_opts.headingDeg < 0.0f) ? a_opts.anchor->data.angle.z : (a_opts.headingDeg * Util::kDegToRadF);
+			return ComposeAnchor(basePos, baseHeading, def->anchorOffset);
+		}
+
 		// Upper bound for LoopScale
 		constexpr float kLoopScaleMax = 20.0f;
 
@@ -170,16 +204,20 @@ namespace OSF::Papyrus
 			return over;
 		}
 
-		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the
-		// slot->actor order, so we never re-bind here). Binds by declaration order = the reordered actors.
+		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the slot->actor order, so we never re-bind here) at an already-resolved anchor.
+		// Binds by declaration sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssorder = the reordered actors. anchor unset => co-located at actor[0]; set => world-anchored.
 		int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors,
-			const Scene::SceneRuntime::StartOverrides& a_over)
+			const Scene::SceneRuntime::AnchorOverride& a_anchor, const Scene::SceneRuntime::StartOverrides& a_over)
 		{
 			std::vector<RE::Actor*> ordered(a_pick.order.size());
 			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
 				ordered[slot] = a_actors[a_pick.order[slot]];
 			}
-			return Scene::SceneRuntime::GetSingleton().StartFromDef(a_pick.id, ordered, a_over);
+			auto& rt = Scene::SceneRuntime::GetSingleton();
+			if (a_anchor.set) {
+				return rt.StartFromDefAt(a_pick.id, ordered, a_anchor.pos, a_anchor.heading, a_over);
+			}
+			return rt.StartFromDef(a_pick.id, ordered, a_over);
 		}
 
 		bool Play(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_file, RE::BSFixedString a_animId)
@@ -362,11 +400,14 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
-			const auto anchor = MakeAnchor(opts);
+			const auto anchor = ResolveSceneAnchor(sid, opts);  // enforces an anchor-bound scene's furniture requirement
+			if (!anchor) {
+				return 0;  // anchor-bound scene with no / incompatible anchor ref (logged in ResolveSceneAnchor)
+			}
 			const auto over = MakeOverrides(opts);
 			auto& rt = Scene::SceneRuntime::GetSingleton();
-			if (anchor.set) {
-				return rt.StartFromDefAt(sid, a_actors, anchor.pos, anchor.heading, over);  // anchored at the ref
+			if (anchor->set) {
+				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over);  // anchored at the ref
 			}
 			return rt.StartFromDef(sid, a_actors, over);
 		}
@@ -382,6 +423,13 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const std::string sid = a_id.c_str();
+			// StartSceneRoles carries no SceneOptions, so it can't supply the anchor an anchor-bound scene
+			// needs. Reject early with a clear pointer to StartScene rather than failing the placement later.
+			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(sid); def && def->RequiresAnchor()) {
+				REX::WARN("[Papyrus] StartSceneRoles: scene '{}' is anchor-bound — use StartScene with SceneOptions.Anchor", sid);
+				UI::HudMessage::Error(std::format("scene '{}' needs a furniture anchor (use StartScene)", sid));
+				return 0;
+			}
 			std::vector<std::string> roles;
 			roles.reserve(a_roles.size());
 			for (const auto& r : a_roles) {
@@ -390,11 +438,10 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
 		}
 
-		// Shared body of the StartSceneByTags* natives: validate the actor list, matchmake a_query across both registries (priority tier + weighted-random),
-		// and start the picked candidate with its matchmade binding. a_logTag is the native name for the warn/info lines.
-		// Returns  the scene handle (0 = no actors / null actor / no match / start failed).
-		int32_t StartMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
-			const Scene::SceneRuntime::StartOverrides& a_over, const char* a_logTag)
+		// Shared body of the StartSceneByTags* / StartSceneAtAnchor natives: validate the actor list, matchmake a_query across the scene registry (priority tier + weighted-random) with anchor filtering (a_mode + a_opts.anchor), 
+		// ENFORCE the picked scene's anchor requirement (ResolveSceneAnchor), and start the pick with its matchmade binding at the resolved anchor. 
+		// Returns the scene handle (0 = no actors / null actor / no match / anchor rejected / start failed).
+		int32_t StartMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query, const SceneOpts& a_opts, const Scene::SceneRuntime::StartOverrides& a_over, const char* a_logTag, Matchmaking::AnchorMode a_mode = Matchmaking::AnchorMode::kAllow)
 		{
 			if (a_actors.empty()) {
 				REX::DEBUG("[Papyrus] {}: no actors given", a_logTag);
@@ -406,57 +453,22 @@ namespace OSF::Papyrus
 					return 0;
 				}
 			}
-			auto pick = Matchmaking::Pick(a_actors, a_query);
+			auto pick = Matchmaking::Pick(a_actors, a_query, a_opts.anchor, a_mode);
 			if (!pick) {
 				REX::DEBUG("[Papyrus] {}: no matching animation found for the given tags/actors", a_logTag);
 				UI::HudMessage::Error("no matching animation for the given tags/actors");
 				return 0;
 			}
-			const int32_t handle = StartCandidate(*pick, a_actors, a_over);
+			const auto anchor = ResolveSceneAnchor(pick->id, a_opts);
+			if (!anchor) {
+				return 0;  // anchor-bound pick without a compatible anchor (logged in ResolveSceneAnchor)
+			}
+			const int32_t handle = StartCandidate(*pick, a_actors, *anchor, a_over);
 			if (handle) {
-				REX::INFO("[Papyrus] {}: playing '{}' handle {:#010x}", a_logTag, pick->id, handle);
+				REX::INFO("[Papyrus] {}: playing '{}' handle {:#010x}{}", a_logTag, pick->id, handle, anchor->set ? " (anchored)" : "");
 			} else {
 				REX::WARN("[Papyrus] {}: could not start matched scene '{}'", a_logTag, pick->id);
 				UI::HudMessage::Error(std::format("could not start scene '{}'", pick->id));
-			}
-			return handle;
-		}
-
-		// Anchored counterpart of StartCandidate: start the matchmade pick world-anchored at (a_pos,
-		// a_heading) instead of co-locating the actors at actor[0], so it can sit on a bed/furniture/marker.
-		int32_t StartCandidateAt(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors, const RE::NiPoint3& a_pos, float a_heading,
-			const Scene::SceneRuntime::StartOverrides& a_over)
-		{
-			std::vector<RE::Actor*> ordered(a_pick.order.size());
-			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
-				ordered[slot] = a_actors[a_pick.order[slot]];
-			}
-			return Scene::SceneRuntime::GetSingleton().StartFromDefAt(a_pick.id, ordered, a_pos, a_heading, a_over);
-		}
-
-		// Anchored counterpart of StartMatched: matchmake a_query, then start the pick anchored at (a_pos, a_heading).
-		// Shared body of the StartSceneByTags*At natives.
-		int32_t StartMatchedAt(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
-			const RE::NiPoint3& a_pos, float a_heading, const Scene::SceneRuntime::StartOverrides& a_over, const char* a_logTag)
-		{
-			if (a_actors.empty()) {
-				REX::DEBUG("[Papyrus] {}: no actors given", a_logTag);
-				return 0;
-			}
-			for (auto* actor : a_actors) {
-				if (!actor) {
-					REX::DEBUG("[Papyrus] {}: null actor in list", a_logTag);
-					return 0;
-				}
-			}
-			auto pick = Matchmaking::Pick(a_actors, a_query);
-			if (!pick) {
-				REX::DEBUG("[Papyrus] {}: no matching animation found for the given tags/actors", a_logTag);
-				return 0;
-			}
-			const int32_t handle = StartCandidateAt(*pick, a_actors, a_pos, a_heading, a_over);
-			if (handle) {
-				REX::INFO("[Papyrus] {}: playing '{}' handle {:#010x} (anchored)", a_logTag, pick->id, handle);
 			}
 			return handle;
 		}
@@ -469,12 +481,8 @@ namespace OSF::Papyrus
 			Matchmaking::TagQuery q;
 			q.allOf = ToTags(a_tags);
 			const auto opts = ReadSceneOptions(a_opts);
-			const auto anchor = MakeAnchor(opts);
 			const auto over = MakeOverrides(opts);
-			if (anchor.set) {
-				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, over, "OSF.StartSceneByTags");
-			}
-			return StartMatched(a_actors, q, over, "OSF.StartSceneByTags");
+			return StartMatched(a_actors, q, opts, over, "OSF.StartSceneByTags");
 		}
 
 		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise identical (filter-aware matchmaking across both registries, priority + weighted pick).
@@ -485,12 +493,32 @@ namespace OSF::Papyrus
 		{
 			Matchmaking::TagQuery q{ ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) };
 			const auto opts = ReadSceneOptions(a_opts);
-			const auto anchor = MakeAnchor(opts);
 			const auto over = MakeOverrides(opts);
-			if (anchor.set) {
-				return StartMatchedAt(a_actors, q, anchor.pos, anchor.heading, over, "OSF.StartSceneByTagsQuery");
+			return StartMatched(a_actors, q, opts, over, "OSF.StartSceneByTagsQuery");
+		}
+
+		// Anchor-FIRST matchmaking: given a furniture/object ref, start a scene BUILT for it. 
+		// Restricts the pool to anchor-bound scenes whose keyword/base matcher akFurniture satisfies AND whose roles/tags/gender fit the actors,
+		// asTags optionally narrows the pool (empty = any fit).
+		// akOpts is read for overrides + heading; its Anchor field is ignored (akFurniture is the anchor).
+		// Returns the scene handle (0 = no furniture / no actors / no fitting scene / start failed).
+		int32_t StartSceneAtAnchor(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::TESObjectREFR* a_furniture, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
+		{
+			if (a_actors.empty()) {
+				REX::DEBUG("[Papyrus] StartSceneAtAnchor: no actors given");
+				return 0;
 			}
-			return StartMatched(a_actors, q, over, "OSF.StartSceneByTagsQuery");
+			if (!a_furniture) {
+				REX::DEBUG("[Papyrus] StartSceneAtAnchor: no furniture given");
+				UI::HudMessage::Error("no furniture given");
+				return 0;
+			}
+			Matchmaking::TagQuery q;
+			q.allOf = ToTags(a_tags);
+			auto opts = ReadSceneOptions(a_opts);
+			opts.anchor = a_furniture;  // the anchor-first ref drives BOTH the matchmaking filter and the compose
+			const auto over = MakeOverrides(opts);
+			return StartMatched(a_actors, q, opts, over, "OSF.StartSceneAtAnchor", Matchmaking::AnchorMode::kRequire);
 		}
 
 		// --- Scene-event callbacks (OSFTypes:SceneEvent payload) --------------------
@@ -898,6 +926,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneAtAnchor", &StartSceneAtAnchor, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, true, false);
 
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, true, false);
