@@ -231,13 +231,18 @@ namespace OSF::Scene
 			MakeArgs(payload), noCallback, 0);
 	}
 
-	void SceneEventRelay::Clear()
+	void SceneEventRelay:Clear()
 	{
 		std::lock_guard l{ _lock };
+
+		// VM is being reset and maybe already freed, so cached receiver pointers are potentially dangling
+		// Dont run release, just forget about them instead by overwriting to a null pointer.
+		// Expectation is vm owns the objects and manages lifetime/frees so shouldnt be any leaks
+		for (auto& e : _slots) {
+			std::construct_at(std::addressof(e.receiver));  // overwrite _ptr=null, skip Release
+		}
 		_slots.clear();
-		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a token
-		// minted before a save-load can never validate against a slot reused after the load (resetting
-		// to 1 would let a stale pre-load (slot, generation) pair alias a fresh post-load entry and drop
-		// a live registration). It already wraps past 0 in AddEntry, so never resetting stays safe.
+
+		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a tokenwwwwwwwwwwww minted before a save-load can never validate against a slot reused after the load 
 	}
 }

@@ -59,7 +59,7 @@ namespace OSF::Scene
 		// Proves the struct marshalling without a scripted form. Returns false if the VM is unavailable.
 		bool DispatchStatic(std::string_view a_script, std::string_view a_fn, const SceneEvent& a_event);
 
-		// Drop every registration (load teardown).
+		//Drop registrations without releasing objects (papyrus vm may have alreadyt freed, so forget the references instead)
 		void Clear();
 
 	private:
