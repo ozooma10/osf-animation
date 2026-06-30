@@ -94,6 +94,9 @@ namespace OSF::Matchmaking
 			return true;
 		}
 
+		std::string DescribeAnchorRef(RE::TESObjectREFR* a_ref);
+		std::string DescribeAnchorRequirement(const Registry::SceneDef& a_def);
+
 		// Deterministic complete assignment of a_n actors to a_n slots: perm[slot] = actor index.
 		// Iterates permutations in lexicographic order and returns the first one where every slot is compatible (so the result is the lexicographically smallest binding by slot order). 
 		// nullopt if no complete assignment exists. a_n is small (party size), so brute force is fine, this is what the pack matcher already does.
@@ -141,10 +144,14 @@ namespace OSF::Matchmaking
 				// additionally drops free scenes. kIgnore (discovery) skips this entirely.
 				if (a_mode != AnchorMode::kIgnore) {
 					if (a_def.RequiresAnchor()) {
-						if (!a_anchor || !AnchorAccepts(a_def, a_anchor)) {
+						const bool anchorOk = a_anchor && AnchorAccepts(a_def, a_anchor);
+						REX::TRACE("[Match] scene '{}' anchor requirement {} vs {} -> {}",
+							a_def.id, DescribeAnchorRequirement(a_def), DescribeAnchorRef(a_anchor), anchorOk ? "accept" : "reject");
+						if (!anchorOk) {
 							return;
 						}
 					} else if (a_mode == AnchorMode::kRequire) {
+						REX::TRACE("[Match] scene '{}' rejected: anchorMode=require needs an anchor-bound scene", a_def.id);
 						return;
 					}
 				}
@@ -180,6 +187,67 @@ namespace OSF::Matchmaking
 				return out;
 			};
 			return std::format("all=[{}] any=[{}] none=[{}]", join(a_query.allOf), join(a_query.anyOf), join(a_query.noneOf));
+		}
+
+		const char* DescribeAnchorMode(AnchorMode a_mode)
+		{
+			switch (a_mode) {
+			case AnchorMode::kIgnore:
+				return "ignore";
+			case AnchorMode::kAllow:
+				return "allow";
+			case AnchorMode::kRequire:
+				return "require";
+			default:
+				return "?";
+			}
+		}
+
+		std::string DescribeForm(RE::TESForm* a_form)
+		{
+			if (!a_form) {
+				return "none";
+			}
+			const char* editorId = a_form->GetFormEditorID();
+			return std::format("{:08X} '{}'", a_form->GetFormID(), editorId ? editorId : "");
+		}
+
+		std::string DescribeAnchorRef(RE::TESObjectREFR* a_ref)
+		{
+			if (!a_ref) {
+				return "none";
+			}
+			auto base = a_ref->GetBaseObject();
+			return std::format("ref {} base {}", DescribeForm(a_ref), DescribeForm(base.get()));
+		}
+
+		std::string DescribeAnchorRequirement(const Registry::SceneDef& a_def)
+		{
+			if (!a_def.RequiresAnchor()) {
+				return "free";
+			}
+
+			std::string out = "base=[";
+			for (std::size_t i = 0; i < a_def.anchorBaseForms.size(); i++) {
+				if (i) {
+					out += ',';
+				}
+				out += std::format("{:08X}", a_def.anchorBaseForms[i]);
+			}
+			out += "] keyword=[";
+			for (std::size_t i = 0; i < a_def.anchorKeywords.size(); i++) {
+				if (i) {
+					out += ',';
+				}
+				out += DescribeForm(a_def.anchorKeywords[i]);
+			}
+			out += ']';
+			return out;
+		}
+
+		std::string DescribeAnchorSearch(RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
+		{
+			return std::format("anchorMode={} anchor={}", DescribeAnchorMode(a_mode), DescribeAnchorRef(a_anchor));
 		}
 	}
 
@@ -274,14 +342,16 @@ namespace OSF::Matchmaking
 		RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
 	{
 		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
-		REX::DEBUG("[Match] searching for {} actor(s), tags {}", actorCount, DescribeQuery(a_query));
+		REX::DEBUG("[Match] searching for {} actor(s), tags {}, {}",
+			actorCount, DescribeQuery(a_query), DescribeAnchorSearch(a_anchor, a_mode));
 		if (a_actors.empty()) {
 			REX::DEBUG("[Match] no match (no actors supplied)");
 			return std::nullopt;
 		}
 		auto pool = BuildPool(actorCount, a_query, a_actors, a_anchor, a_mode);
 		if (pool.empty()) {
-			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + a complete actor binding)", actorCount);
+			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + anchor filters + a complete actor binding; {})",
+				actorCount, DescribeAnchorSearch(a_anchor, a_mode));
 			return std::nullopt;
 		}
 		// Top priority tier.
