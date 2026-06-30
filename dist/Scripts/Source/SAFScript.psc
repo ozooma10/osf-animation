@@ -67,7 +67,9 @@ Bool Function PlayOnActor(Actor akActor, String animId, Float fSpeed = 1.0, Int 
         return false
     EndIf
     Bool ok = OSF.Play(akActor, ResolveAnim(animId))
-    If ok && fSpeed != 1.0
+    ; fSpeed is a multiplier (1.0 = authored). Skip <= 0: unset SAF/NAF speed passes 0,
+    ; which OSF.SetSpeed treats as a freeze.
+    If ok && fSpeed > 0.0 && fSpeed != 1.0
         OSF.SetSpeed(akActor, fSpeed)
     EndIf
     return ok
@@ -151,7 +153,11 @@ Bool Function PlayScene(Actor akActor1, Actor akActor2, String asAnim1, String a
     OSF.StopSceneForActor(akActor1)
     OSF.StopSceneForActor(akActor2)
     OSFTypes:SceneOptions opts = new OSFTypes:SceneOptions
-    opts.Speed = fSpeed
+    ; fSpeed is a multiplier (1.0 = authored). <= 0 means "use authored speed": leave the
+    ; SceneOptions default (1.0) so unset SAF/NAF speed (0) doesn't freeze the scene.
+    If fSpeed > 0.0
+        opts.Speed = fSpeed
+    EndIf
     ; Don't lock the player here: the scene runtime locks a player participant's control +
     ; camera on start and releases both on scene end (the ledger). The camera hold is
     ; ref-counted, so a duplicate acquire from this shim would leak past scene end.

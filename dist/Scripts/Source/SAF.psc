@@ -65,13 +65,7 @@ Bool Function StopAnimation(Actor akTarget, Float fTransitionSeconds = 1.0) Glob
     If akTarget == None
         return false
     EndIf
-    ; Release any standalone lock this shim engaged directly (solo PlayOnActorLocked /
-    ; LockActorForAnimationRestrained). Idempotent + ref-count-guarded, so it's a no-op when the
-    ; player wasn't locked; for a scene, the runtime's own lock is released by the stop below.
     ReleasePlayerLockIfPlayer(akTarget)
-    ; Stop a scene first: StopSceneForActor reaches ANY scene the actor is in (linear OR graph)
-    ; plus a PlaySequence solo sequence -- OSF.Stop would refuse the participant. Falls back to a
-    ; solo Stop when the actor is in no scene.
     If OSF.StopSceneForActor(akTarget)
         SAFLog("StopAnimation target=" + akTarget + " (scene)")
         return true
@@ -87,9 +81,8 @@ Function SyncAnimations(Actor[] akTargets) Global
         n = akTargets.Length
     EndIf
     SAFLog("SyncAnimations count=" + n + " -> OSF.Sync(anchor)")
-    ; OSF drives playback through the engine's per-actor anim-graph update, which does NOT tick for an
-    ; AI-disabled actor — that actor freezes and the scene stalls. Some SAF mods disable a participant's AI
-    ; mid-scene (SnuSnu's oral poses, to hold the head for a face morph); re-enable it so OSF can pose the rig.
+    ; OSF drives playback through the engine's per-actor anim-graph update, which does NOT tick for an AI-disabled actor, that actor freezes and the scene stalls. 
+    ; Some SAF mods disable a participant's AI mid-scene (SnuSnu's oral poses, to hold the head for a face morph); re-enable it so OSF can pose the rig.
     ; The actor still stays put via SetRestrained + the scene's animation-driven pin.
     Int i = 0
     While i < n
@@ -110,8 +103,7 @@ Function StopSyncing(Actor akTarget) Global
 EndFunction
 
 ; Maps to OSFAdvanced.PlaySequence.
-; SequencePhase.numLoops: -1 = loop forever (hold until AdvanceSequence), 0 = play once then advance,
-; N = N loops then advance.
+; SequencePhase.numLoops: -1 = loop forever (hold until AdvanceSequence), 0 = play once then advance, N = N loops then advance.
 Function StartSequence(Actor akTarget, SequencePhase[] sPhases, Bool bLoop) Global
     Int phaseCount = 0
     If sPhases != None
@@ -195,10 +187,11 @@ EndFunction
 
 Function PlayOnActorLocked(Actor akActor, String asAnim, Float fSpeed = 1.0, Int animIndex = 0) Global
     SAFLog("PlayOnActorLocked actor=" + akActor + " anim=" + asAnim + " speed=" + fSpeed)
-    ; animIndex dropped (single-clip GLBs); fSpeed is a multiplier (1.0 = authored).
+    ; animIndex dropped (single-clip GLBs); fSpeed is a multiplier (1.0 = authored; <= 0 = use authored speed).
     If akActor != None
         If OSF.Play(akActor, ResolveAnim(asAnim))
-            If fSpeed != 1.0
+            ; Skip <= 0: SAF/NAF content that leaves speed unset passes 0, which OSF.SetSpeed treats as a freeze.
+            If fSpeed > 0.0 && fSpeed != 1.0
                 OSF.SetSpeed(akActor, fSpeed)
             EndIf
             EngagePlayerLockIfPlayer(akActor)
@@ -225,15 +218,16 @@ Function PlaySceneLocked(Actor akActor1, Actor akActor2, String asAnim1, String 
     String[] files = new String[2]
     files[0] = ResolveAnim(asAnim1)
     files[1] = ResolveAnim(asAnim2)
-    ; OSF now enforces actor-exclusivity (one live scene per actor); SAF replayed freely,
-    ; so stop any existing scene on these actors first to preserve replace-on-replay.
+    ; OSF now enforces actor-exclusivity (one live scene per actor); SAF replayed freely, so stop any existing scene on these actors first to preserve replace-on-replay.
     OSF.StopSceneForActor(akActor1)
     OSF.StopSceneForActor(akActor2)
     OSFTypes:SceneOptions opts = new OSFTypes:SceneOptions
-    opts.Speed = fSpeed
-    ; Don't lock the player here: the scene runtime locks a player participant's control +
-    ; camera on start and releases both on scene end (the ledger). The camera hold is
-    ; ref-counted, so a duplicate acquire from this shim would leak past scene end.
+    ; fSpeed is a multiplier (1.0 = authored). <= 0 means "use authored speed": leave the
+    ; SceneOptions default (1.0) so unset SAF/NAF speed (0) doesn't freeze the scene.
+    If fSpeed > 0.0
+        opts.Speed = fSpeed
+    EndIf
+    ; Don't lock the player here: the scene runtime locks a player participant's control + camera on start and releases both on scene end
     OSFAdvanced.StartSceneFiles(actors, files, opts)
 EndFunction
 
@@ -340,11 +334,7 @@ Function UnregisterForSequenceEnd(ScriptObject sScript) Global
     SAFLog("UnregisterForSequenceEnd (SHIM-GAP, no-op)")
 EndFunction
 
-; Crosshair pickers -- native fast-path (OSFCompat.GetCrosshairActor reads the
-; engine crosshair target, PlayerCharacter->commandTarget) restores SAF's native
-; crosshairRef behavior; the pure-Papyrus cone search (heading angle + distance)
-; remains as a forgiving fallback when the reticle is not directly on a listed actor.
-
+; Crosshair pickers -- native fast-path (OSFCompat.GetCrosshairActor reads the engine crosshair target, PlayerCharacter->commandTarget) 
 Actor Function PickActorFromCrosshair(Actor[] sceneActors, Float maxAngle = 20.0, Float maxDist = 500.0) Global
     If sceneActors == None || sceneActors.Length == 0
         SAFLog("PickActorFromCrosshair empty list -> None")
