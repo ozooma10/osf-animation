@@ -45,12 +45,6 @@ namespace OSF::Serialization
 	{
 		using OSF::Util::ToLower;
 
-		// glTF (NAF/SAF) clips are authored in METERS; the game rig is in game units (Bethesda
-		// 1 unit = 0.0142875 m). Without this scale the whole skeleton imports ~70x too small, the
-		// bones collapse onto the root and the skinned mesh fans out from a point ("fly away really
-		// far"). .af content is native game units via AFImport and is unaffected by this path.
-		constexpr float kUnitsPerMeter = 1.0f / 0.0142875f;  // ~69.996
-
 		// NAF/SAF clips bake the actor's authoring-space placement into the export-root nodes
 		// ("HumanExportRoot"/"Root"). OSF positions the actor via the scene anchor + compose-root pin,
 		// so applying the clip root too would double-position and shove the body off the anchor. Drop
@@ -71,7 +65,7 @@ namespace OSF::Serialization
 				if (IsExportRootNode(ToLower(a_node.name.c_str()))) {
 					result.translation = { 0.0f, 0.0f, 0.0f };  // anchor owns root placement
 				} else {
-					result.translation = { trs.translation[0] * kUnitsPerMeter, trs.translation[1] * kUnitsPerMeter, trs.translation[2] * kUnitsPerMeter };
+					result.translation = { trs.translation[0], trs.translation[1], trs.translation[2] };
 				}
 			}
 			return result;
@@ -394,7 +388,7 @@ namespace OSF::Serialization
 						const auto tRaw = fastgltf::getAccessorElement<ozz::math::Float3>(a_asset, dataAccessor, i);
 						const ozz::math::Float3 tr = isExportRoot ?
 							ozz::math::Float3(0.0f, 0.0f, 0.0f) :
-							ozz::math::Float3(tRaw.x * kUnitsPerMeter, tRaw.y * kUnitsPerMeter, tRaw.z * kUnitsPerMeter);
+							ozz::math::Float3(tRaw.x, tRaw.y, tRaw.z);
 						track.translations.push_back({ t, tr });
 						break;
 					}
