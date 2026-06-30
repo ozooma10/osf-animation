@@ -9,6 +9,7 @@
 #include "Player/PlayerControlService.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
+#include "Scene/AnchorResolve.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/AFImport.h"
@@ -136,50 +137,22 @@ namespace OSF::Papyrus
 			return out;
 		}
 
+		// Optional explicit heading (radians) from SceneOptions: HeadingDeg < 0 => use the ref's own facing.
+		std::optional<float> OptHeadingRad(const SceneOpts& a_opts)
+		{
+			return (a_opts.headingDeg < 0.0f) ? std::nullopt : std::optional<float>(a_opts.headingDeg * Util::kDegToRadF);
+		}
+
 		// A SceneRuntime world-anchor from resolved options (unset when no Anchor).
-		// Heading < 0 uses the ref's own facing; otherwise the explicit degrees, converted to radians.
 		Scene::SceneRuntime::AnchorOverride MakeAnchor(const SceneOpts& a_opts)
 		{
-			Scene::SceneRuntime::AnchorOverride anchor{};
-			if (a_opts.anchor) {
-				anchor.set = true;
-				anchor.pos = a_opts.anchor->data.location;
-				anchor.heading = (a_opts.headingDeg < 0.0f) ? a_opts.anchor->data.angle.z : (a_opts.headingDeg * Util::kDegToRadF);
-			}
-			return anchor;
+			return Scene::MakeAnchorAt(a_opts.anchor, OptHeadingRad(a_opts));
 		}
 
-		// Compose the scene's `anchor.offset` onto a base ref transform (pos, heading in radians): rotate x/y into the ref's heading frame (PlacementToWorld) and add the offset heading.
-		// (Slice 1 anchors at the ref origin; marker-relative anchoring will shift the base later.)
-		Scene::SceneRuntime::AnchorOverride ComposeAnchor(RE::NiPoint3 a_basePos, float a_baseHeading, const Animation::ParticipantPlacement& a_offset)
-		{
-			RE::NiPoint3 pos = Animation::PlacementToWorld(a_basePos, a_baseHeading, a_offset);
-			return Scene::SceneRuntime::AnchorOverride{ true, pos, a_baseHeading + a_offset.heading };
-		}
-
-		// Resolve + ENFORCE a def-backed start's anchor requirement. Returns the AnchorOverride to start with, or nullopt to ABORT (the scene is anchor-bound but the supplied SceneOptions.Anchor is missing / the wrong furniture ). 
-		// A FREE scene passes the optional anchor through unchanged, so an explicit anchor on a free scene still world-anchors it.
+		// Resolve + ENFORCE a start's anchor requirement
 		std::optional<Scene::SceneRuntime::AnchorOverride> ResolveSceneAnchor(const std::string& a_sceneId, const SceneOpts& a_opts)
 		{
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
-			if (!def || !def->RequiresAnchor()) {
-				return MakeAnchor(a_opts);  // free scene: anchor optional, pass through
-			}
-			if (!a_opts.anchor) {
-				REX::WARN("[Papyrus] scene '{}' is anchor-bound but no SceneOptions.Anchor was supplied — start aborted", a_sceneId);
-				UI::HudMessage::Error(std::format("scene '{}' needs a furniture anchor to play", a_sceneId));
-				return std::nullopt;
-			}
-			if (!Matchmaking::AnchorAccepts(*def, a_opts.anchor)) {
-				REX::WARN("[Papyrus] scene '{}' anchor ref {:#010x} isn't the furniture this scene requires — start aborted",
-					a_sceneId, a_opts.anchor->GetFormID());
-				UI::HudMessage::Error("that object isn't the right furniture for this scene");
-				return std::nullopt;
-			}
-			// Base ref transform: its origin + facing (an explicit headingDeg override is honored, like MakeAnchor).
-			const RE::NiPoint3 basePos = a_opts.anchor->data.location;
-			const float baseHeading = (a_opts.headingDeg < 0.0f) ? a_opts.anchor->data.angle.z : (a_opts.headingDeg * Util::kDegToRadF);
-			return ComposeAnchor(basePos, baseHeading, def->anchorOffset);
+			return Scene::ResolveSceneAnchor(a_sceneId, a_opts.anchor, OptHeadingRad(a_opts), /*a_emitHud*/ true);
 		}
 
 		// Upper bound for LoopScale
