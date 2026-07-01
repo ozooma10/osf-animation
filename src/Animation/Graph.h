@@ -108,6 +108,8 @@ namespace OSF::Animation
 		const RE::BGSModelNode* cachedModelNode = nullptr;
 		const RE::BGSModelNode::Rig* cachedRig = nullptr;
 		uint32_t cachedBoneCount = 0;
+		const void* cachedLocalData = nullptr;  // rig->local->data at bind time; a reused modelNode with a fresh buffer invalidates the cache
+		uint16_t cachedRigBoneCount = 0;         // rigBoneCount (modelNode+0x78) at bind time; part of the cache identity so a rebuilt rig re-binds
 		std::vector<std::pair<uint16_t, uint16_t>> binding;  // {rigIndex, jointIndex}
 
 		FrameClock blendClock;  // blend ramps; owner-token gated, reset at SetAnimation/BeginFadeOut

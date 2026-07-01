@@ -21,6 +21,14 @@ namespace OSF::Animation
 
 		// Write bone slot in engines NiTransform layout. Rotation as 3 rows of 4 floats (0x00,0x10,0x20), translation +0x30, scale +0x3C 
 		// row-vector convention so rows are transpose of standard column-vec matrix (byte identical to ozz's column-major)
+		// BGSModelNode+0x78 = u16 rigBoneCount: element count of rig->local/world/prevWorld.
+		constexpr std::uintptr_t kModelNodeRigBoneCountOffset = 0x78;
+		inline uint16_t GetRigBoneCount(const RE::BGSModelNode* a_modelNode)
+		{
+			return *reinterpret_cast<const uint16_t*>(
+				reinterpret_cast<std::uintptr_t>(a_modelNode) + kModelNodeRigBoneCountOffset);
+		}
+
 		void WriteNiTransformRows(float* a_slot, const ozz::math::Float4x4& a_matrix)
 		{
 			const float* m = reinterpret_cast<const float*>(&a_matrix);
@@ -164,6 +172,8 @@ namespace OSF::Animation
 		cachedModelNode = nullptr;
 		cachedRig = nullptr;
 		cachedBoneCount = 0;
+		cachedLocalData = nullptr;
+		cachedRigBoneCount = 0;
 		binding.clear();
 	}
 
@@ -176,6 +186,8 @@ namespace OSF::Animation
 			cachedModelNode = nullptr;
 			cachedRig = nullptr;
 			cachedBoneCount = 0;
+			cachedLocalData = nullptr;
+			cachedRigBoneCount = 0;
 			binding.clear();
 			return false;
 		};
@@ -207,7 +219,13 @@ namespace OSF::Animation
 			return fail();
 		}
 
-		if (modelNode == cachedModelNode && rig == cachedRig && modelNode->nodes.size() == cachedBoneCount) {
+		// Cache identity includes the buffer base (rig->local->data) and rigBoneCount so a modelNode
+		// that was freed and reused at the same address with a fresh/smaller rig buffer forces a rebind
+		// instead of reusing stale rigIndices that now point past the live buffer.
+		if (modelNode == cachedModelNode && rig == cachedRig
+			&& rig->local->data == cachedLocalData
+			&& modelNode->nodes.size() == cachedBoneCount
+			&& GetRigBoneCount(modelNode) == cachedRigBoneCount) {
 			return !binding.empty();
 		}
 
@@ -224,6 +242,8 @@ namespace OSF::Animation
 		cachedModelNode = modelNode;
 		cachedRig = rig;
 		cachedBoneCount = modelNode->nodes.size();
+		cachedLocalData = rig->local->data;
+		cachedRigBoneCount = GetRigBoneCount(modelNode);
 		binding.clear();
 		binding.reserve(cachedBoneCount);
 
@@ -243,6 +263,9 @@ namespace OSF::Animation
 				continue;
 			}
 			if (auto iter = jointMap.find(lowerName); iter != jointMap.end()) {
+				if (entry.rigIndex >= cachedRigBoneCount) {
+					continue;  // node maps to a rig slot outside the live buffer; never stamp it
+				}
 				binding.emplace_back(entry.rigIndex, iter->second);
 			}
 		}
@@ -375,13 +398,22 @@ namespace OSF::Animation
 		}
 		float* buf = reinterpret_cast<float*>(rig->local->data);
 
+		// Bound every write to the LIVE buffer. binding.rigIndex was validated when the binding was built, but the rig can be rebuilt (smaller) between bind and stamp on the anim job thread;
+		const uint16_t rigBoneCount = GetRigBoneCount(a_modelNode);
+
 		if (weight >= 1.0f) {
 			for (const auto& [rigIdx, jointIdx] : binding) {
+				if (rigIdx >= rigBoneCount) {
+					continue;
+				}
 				WriteNiTransformRows(buf + static_cast<size_t>(rigIdx) * 16, outputPose[jointIdx]);
 			}
 		} else {
 			const bool fromSnapshot = blendPhase == BlendPhase::kIn && blendFromValid;
 			for (const auto& [rigIdx, jointIdx] : binding) {
+				if (rigIdx >= rigBoneCount) {
+					continue;
+				}
 				float* slot = buf + static_cast<size_t>(rigIdx) * 16;
 				const float* from = fromSnapshot ?
 				                        reinterpret_cast<const float*>(&blendFromPose[jointIdx]) :
