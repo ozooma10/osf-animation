@@ -285,6 +285,12 @@ function castSlot(role, who, onDrop, isPlayer) {
 }
 
 function renderFurniture() {
+  const s = sceneById(state.selectedId);
+  // Only offer the furniture picker for scenes that are anchor-restricted (need furniture).
+  const needsFurniture = !!(s && s.requiresFurniture);
+  $("furnTray").classList.toggle("hidden", !needsFurniture);
+  // Drop any stale pick so a non-furniture scene never launches with a furniture token.
+  if (!needsFurniture) state.furniture = null;
   const slot = $("furnSlot");
   if (state.furniture) {
     slot.innerHTML = `<span class="who">${esc(state.furniture.name)}</span>`;

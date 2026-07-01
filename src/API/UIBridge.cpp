@@ -432,30 +432,11 @@ namespace OSF::API
 			reply["kind"] = kind;
 			reply["items"] = json::array();
 
-			auto*              player = RE::PlayerCharacter::GetSingleton();
-			RE::TESObjectCELL* cell = player ? player->parentCell : nullptr;
-			if (!player || !cell || !cell->IsAttached()) {
-				REX::DEBUG("[UI] osf.scanNearby kind={} -> no attached player cell", kind);
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!player) {
+				REX::DEBUG("[UI] osf.scanNearby kind={} -> no player", kind);
 				SendJson(a_srcView, "osf.scanResults", reply);
 				return;
-			}
-
-			// Furniture is anything a usable anchor-bound scene accepts: the selected scene if it is anchor-bound, else every installed anchor-bound scene. 
-			std::vector<const Registry::SceneDef*> anchorDefs;
-			if (!wantActor) {
-				auto& reg = Registry::SceneRegistry::GetSingleton();
-				if (!sceneId.empty()) {
-					if (const auto* def = reg.Find(sceneId); def && def->RequiresAnchor()) {
-						anchorDefs.push_back(def);
-					}
-				}
-				if (anchorDefs.empty()) {
-					reg.ForEachDef([&anchorDefs](const Registry::SceneDef& d) {
-						if (d.RequiresAnchor()) {
-							anchorDefs.push_back(&d);
-						}
-					});
-				}
 			}
 
 			const RE::NiPoint3 origin = player->GetPosition();
@@ -467,33 +448,69 @@ namespace OSF::API
 				float              distSq;
 			};
 			std::vector<Hit> hits;
-			// Collect candidate references under the cell read lock, keeping the work
-			// minimal: pointers + distance only, then serialize (GetDisplayFullName /
-			// token minting) afterwards. We walk the array ourselves rather than through
-			// TESObjectCELL::ForEachReference so we can null-check the backing store first:
-			// an attached cell should never expose size>0 over a null data pointer, but the
-			// header's loop would access-violate if it ever did, and this call is
-			// user-triggered at arbitrary moments (mid-load, ship transitions) where the
-			// cell can be racier than IsAttached() alone reveals.
-			{
-				const RE::BSAutoReadLock locker(cell->lock);
-				const auto&              refs = cell->references;
-				const std::size_t        count = refs.size();
-				const auto* const        slots = refs.data();
-				for (std::size_t i = 0; slots && i < count; ++i) {
-					RE::TESObjectREFR* ref = slots[i].get();
-					if (!ref || ref->IsPlayerRef() || ref->IsDeleted()) {
-						continue;
+			// Collect candidate pointers + distance only; serialize (GetDisplayFullName /
+			// token minting) afterwards so the heavy work stays out of any engine lock.
+
+			if (wantActor) {
+				// NPCs are NOT reliably in player->parentCell: nearby actors usually sit in
+				// adjacent loaded cells, so a single-cell walk returns nothing outdoors or in
+				// multi-cell interiors (the "no results with a ton of NPCs around" symptom).
+				// The process lists hold every loaded actor regardless of cell, which is what
+				// "nearby actors" actually means here.
+				if (auto* pl = RE::ProcessLists::GetSingleton()) {
+					const auto scanActors = [&](const RE::BSTArray<RE::BSPointerHandle<RE::Actor>>& a_list) {
+						const std::size_t count = a_list.size();
+						const auto* const slots = a_list.data();  // null-guarded, mirroring the cell walk
+						for (std::size_t i = 0; slots && i < count; ++i) {
+							RE::Actor* actor = slots[i].get().get();
+							if (!actor || actor->IsDead() || actor->IsPlayerRef() || actor->IsDeleted()) {
+								continue;
+							}
+							const float distSq = origin.GetSquaredDistance(actor->GetPosition());
+							if (distSq <= radiusSq) {
+								hits.push_back({ actor, distSq });
+							}
+						}
+					};
+					scanActors(pl->highActorHandles);
+					scanActors(pl->middleHighActorHandles);
+					scanActors(pl->middleLowActorHandles);
+					scanActors(pl->lowActorHandles);
+				}
+			} else {
+				// Furniture is static: anchor-bound refs live in the player's own cell, so the
+				// cell reference list is the right (and cheap) source. Gather the usable anchor
+				// defs first — the selected scene if it is anchor-bound, else every installed one.
+				RE::TESObjectCELL* cell = player->parentCell;
+				if (cell && cell->IsAttached()) {
+					std::vector<const Registry::SceneDef*> anchorDefs;
+					auto&                                  reg = Registry::SceneRegistry::GetSingleton();
+					if (!sceneId.empty()) {
+						if (const auto* def = reg.Find(sceneId); def && def->RequiresAnchor()) {
+							anchorDefs.push_back(def);
+						}
 					}
-					const float distSq = origin.GetSquaredDistance(ref->GetPosition());
-					if (distSq > radiusSq) {
-						continue;
+					if (anchorDefs.empty()) {
+						reg.ForEachDef([&anchorDefs](const Registry::SceneDef& d) {
+							if (d.RequiresAnchor()) {
+								anchorDefs.push_back(&d);
+							}
+						});
 					}
-					if (wantActor) {
-						if (!ref->IsActor() || static_cast<RE::Actor*>(ref)->IsDead()) {
+
+					// Walk the array ourselves rather than via TESObjectCELL::ForEachReference so
+					// we can null-check the backing store: an attached cell should never expose
+					// size>0 over a null data pointer, but the header's loop would access-violate
+					// if it did, and this call is user-triggered at arbitrary moments (mid-load).
+					const RE::BSAutoReadLock locker(cell->lock);
+					const auto&              refs = cell->references;
+					const std::size_t        count = refs.size();
+					const auto* const        slots = refs.data();
+					for (std::size_t i = 0; slots && i < count; ++i) {
+						RE::TESObjectREFR* ref = slots[i].get();
+						if (!ref || ref->IsPlayerRef() || ref->IsDeleted()) {
 							continue;
 						}
-					} else {
 						bool ok = false;
 						for (const auto* d : anchorDefs) {
 							if (Matchmaking::AnchorAccepts(*d, ref)) {
@@ -504,8 +521,11 @@ namespace OSF::API
 						if (!ok) {
 							continue;
 						}
+						const float distSq = origin.GetSquaredDistance(ref->GetPosition());
+						if (distSq <= radiusSq) {
+							hits.push_back({ ref, distSq });
+						}
 					}
-					hits.push_back({ ref, distSq });
 				}
 			}
 
