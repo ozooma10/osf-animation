@@ -18,3 +18,13 @@
 /* 1280x720 toolbar fit: search + view on row one, cast/anchor tools below. */
 .browser-tools{grid-template-columns:minmax(190px,1fr) auto auto;align-items:end;overflow:hidden}.browser-tools .search-field{grid-column:1}.browser-tools #viewFilter{grid-column:2/4;justify-self:end}.browser-tools #countFilter{grid-column:1}.browser-tools #anchorFilter{grid-column:2}.browser-tools #unlistedField{grid-column:3}.browser-panel,.brief-panel{overflow-x:hidden}.brief-panel{overflow-y:auto}.opt-row,.opt,.options{min-width:0}.select{width:100%}
 .options,.opt-row,.opt{overflow-x:hidden}.opt-row{gap:6px}
+/* Animations list — each stage of a sequence as a browsable/playable animation */
+.anim-list{display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto;padding-right:2px}
+.anim-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;min-height:34px;padding:5px 8px;border:1px solid var(--line);background:var(--panel-2)}
+.anim-row:hover{border-color:var(--line-strong)}
+.anim-main{min-width:0;display:flex;flex-direction:column;gap:3px}
+.anim-name{font-family:var(--mono);font-size:11px;letter-spacing:.4px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.anim-tags{display:flex;flex-wrap:wrap;gap:3px}
+.anim-play{width:26px;height:26px;border:1px solid var(--line-strong);background:transparent;color:var(--amber);font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.anim-play:hover:not(:disabled){background:var(--amber);color:var(--bg);border-color:var(--amber)}
+.anim-play:disabled{color:var(--muted-2);border-color:var(--line);opacity:.5}

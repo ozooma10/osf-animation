@@ -190,6 +190,14 @@ namespace OSF::API
 		// Serialize the live scene registry to the osf.catalog.data array. Copies the fields out from under the registry read lock, then builds JSON afterwards
 		json BuildCatalog()
 		{
+			struct StageCard
+			{
+				std::int32_t             index = 0;
+				std::string              name;   // stage label ("" = unlabeled)
+				std::vector<std::string> tags;
+				std::int32_t             clipCount = 0;
+				std::string              sig;    // clip-set signature (files joined) for de-dup
+			};
 			struct Card
 			{
 				std::string              id;
@@ -199,6 +207,7 @@ namespace OSF::API
 				std::vector<std::string> genders;
 				bool                     requiresFurniture = false;
 				bool                     unlisted = false;
+				std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
 			};
 			std::vector<Card> cards;
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards](const Registry::SceneDef& d) {
@@ -213,6 +222,25 @@ namespace OSF::API
 				}
 				c.requiresFurniture = d.RequiresAnchor();
 				c.unlisted = d.unlisted;
+				// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef). 
+				c.stages.reserve(d.linearStages.size());
+				for (std::size_t i = 0; i < d.linearStages.size(); ++i) {
+					const auto* node = d.FindNode(d.linearStages[i]);
+					if (!node || node->stages.empty()) {
+						continue;
+					}
+					const auto& st = node->stages.front();
+					StageCard sc;
+					sc.index = static_cast<std::int32_t>(i);
+					sc.name = st.name;
+					sc.tags = st.tags;
+					sc.clipCount = static_cast<std::int32_t>(st.clips.size());
+					for (const auto& clip : st.clips) {
+						sc.sig += clip.file;
+						sc.sig += '\n';
+					}
+					c.stages.push_back(std::move(sc));
+				}
 				cards.push_back(std::move(c));
 			});
 
@@ -223,6 +251,16 @@ namespace OSF::API
 
 			json arr = json::array();
 			for (const auto& c : cards) {
+				json stages = json::array();
+				for (const auto& s : c.stages) {
+					stages.push_back({
+						{ "index", s.index },
+						{ "name", s.name },
+						{ "tags", s.tags },
+						{ "clipCount", s.clipCount },
+						{ "sig", s.sig },
+					});
+				}
 				arr.push_back({
 					{ "id", c.id },
 					{ "title", c.title },
@@ -231,6 +269,8 @@ namespace OSF::API
 					{ "genders", c.genders },
 					{ "requiresFurniture", c.requiresFurniture },
 					{ "unlisted", c.unlisted },
+					{ "stageCount", static_cast<std::int32_t>(c.stages.size()) },
+					{ "stages", std::move(stages) },
 				});
 			}
 			REX::DEBUG("[UI] catalog built -> {} scene(s)", cards.size());
@@ -345,6 +385,8 @@ namespace OSF::API
 			o.playerControlMode = OptTri(opts, "playerControl");
 			o.fadeMode = OptTri(opts, "fade");
 			o.speed = opts.value("speed", 1.0f);
+			// Enter the scene on a specific linear stage. 0 = the scene's entry; ApplyDefPostStart jumps to it after start.
+			o.startStage = opts.value("stage", 0);
 			if (const auto it = opts.find("camera"); it != opts.end() && it->is_string()) {
 				std::snprintf(o.camera, sizeof(o.camera), "%s", it->get<std::string>().c_str());
 			}

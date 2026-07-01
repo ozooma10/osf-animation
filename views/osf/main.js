@@ -155,7 +155,21 @@ function normalizeScene(raw) {
     sourceFile: String(raw.sourceFile || raw.source || ""),
     shape: normalizeShape(raw, actorCount),
     policy: normalizePolicy(raw),
+    stages: normalizeStages(raw.stages),
   };
+}
+
+// Each stage is a browsable animation: { index, name, tags, clipCount }. The native de-dup `sig` is
+// kept so identical clip-sets could be collapsed later; the UI shows every stage in order for now.
+function normalizeStages(stages) {
+  if (!Array.isArray(stages)) return [];
+  return stages.map((st, i) => ({
+    index: Number.isInteger(st.index) ? st.index : i,
+    name: String(st.name || ""),
+    tags: Array.isArray(st.tags) ? st.tags.map((t) => String(t)) : [],
+    clipCount: Number(st.clipCount || 0),
+    sig: String(st.sig || ""),
+  }));
 }
 
 function clampCount(actorCount, roles) {
@@ -387,7 +401,23 @@ function renderBrief() {
   const brief = $("brief");
   if (!s) { brief.innerHTML = `<div class="brief-empty">Select a scene slate.</div>`; return; }
   const fit = sceneFit(s);
-  brief.innerHTML = `<div class="brief-head"><span class="fit-badge ${fit.tone}">${esc(fit.label)}</span><h2>${esc(s.title)}</h2><div class="brief-id">${esc(s.id)}</div></div><div class="brief-section"><div class="section-label">ROLE SOCKETS</div><div class="role-sockets">${renderRoleSockets(s)}</div></div><div class="brief-section"><div class="section-label">ANCHOR</div>${renderAnchorRequirement(s)}</div><div class="brief-section"><div class="section-label">SHAPE</div><div class="shape-readout"><span>${esc(shapeLabel(s))}</span>${timelinePips(s)}</div></div><div class="brief-section"><div class="section-label">TAGS</div><div class="brief-tags">${s.tags.map((t) => `<span class="pill">${esc(t)}</span>`).join("") || "<span class='muted'>none</span>"}</div></div>${state.filters.authorMode ? renderAuthorBlock(s) : ""}<div class="brief-reason ${fit.tone}">${esc(fit.reason)}</div>`;
+  brief.innerHTML = `<div class="brief-head"><span class="fit-badge ${fit.tone}">${esc(fit.label)}</span><h2>${esc(s.title)}</h2><div class="brief-id">${esc(s.id)}</div></div><div class="brief-section"><div class="section-label">ROLE SOCKETS</div><div class="role-sockets">${renderRoleSockets(s)}</div></div><div class="brief-section"><div class="section-label">ANCHOR</div>${renderAnchorRequirement(s)}</div><div class="brief-section"><div class="section-label">SHAPE</div><div class="shape-readout"><span>${esc(shapeLabel(s))}</span>${timelinePips(s)}</div></div>${renderAnimations(s, fit)}<div class="brief-section"><div class="section-label">TAGS</div><div class="brief-tags">${s.tags.map((t) => `<span class="pill">${esc(t)}</span>`).join("") || "<span class='muted'>none</span>"}</div></div>${state.filters.authorMode ? renderAuthorBlock(s) : ""}<div class="brief-reason ${fit.tone}">${esc(fit.reason)}</div>`;
+  brief.querySelectorAll("[data-play-stage]").forEach((btn) => { btn.onclick = () => doLaunch(Number(btn.dataset.playStage)); });
+}
+
+// Each stage is an individually browsable/playable animation. Listed in order; the play button enters
+// the scene directly on that stage (SceneOptions.Stage). Enabled only when the scene itself is ready
+// to launch (same cast/anchor requirements). A scene with no stage list (a non-linear graph) shows nothing.
+function renderAnimations(s, fit) {
+  const stages = s.stages || [];
+  if (!stages.length) return "";
+  const disabled = !state.ready || fit.state !== "ready";
+  const rows = stages.map((st) => {
+    const label = st.name || `Stage ${st.index}`;
+    const tags = st.tags.slice(0, 3).map((t) => `<span class="pill">${esc(t)}</span>`).join("");
+    return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div><button class="anim-play" type="button" data-play-stage="${escAttr(String(st.index))}" ${disabled ? "disabled" : ""} title="Play this animation">▶</button></div>`;
+  }).join("");
+  return `<div class="brief-section"><div class="section-label">ANIMATIONS <span class="muted">${stages.length}</span></div><div class="anim-list">${rows}</div></div>`;
 }
 
 function renderRoleSockets(s) {
@@ -435,16 +465,26 @@ function updateLaunch() {
   $("launchReason").textContent = reason;
 }
 
-function doLaunch() {
+function doLaunch(stageIndex) {
   const s = sceneById(state.selectedId);
   if (!s) return;
   const opts = { strip: Number($("optStrip").value), lockPlayer: Number($("optLock").value), camera: $("optCamera").value, speed: Number($("optSpeed").value) };
+  // Optional: enter directly on one browsable animation (a stage of the sequence). 0 = the whole scene.
+  const stage = Number.isInteger(stageIndex) ? stageIndex : 0;
+  if (stage > 0) opts.stage = stage;
   const payload = { sceneId: s.id, castTokens: castTokens(), opts };
   const roleNames = launchRoleNames(s);
   if (roleNames.length === castTokens().length) payload.roleNames = roleNames;
   if (s.requiresFurniture && state.furniture) payload.furnitureToken = state.furniture.token;
-  notice("info", `Launching "${s.title}"...`);
+  const what = stage > 0 ? `${s.title} · ${stageLabel(s, stage)}` : s.title;
+  notice("info", `Launching "${what}"...`);
   send("osf.launch", payload);
+}
+
+// Display label for a stage index within a scene (its `name`, else a positional fallback).
+function stageLabel(s, index) {
+  const st = (s.stages || []).find((x) => x.index === index);
+  return st && st.name ? st.name : `stage ${index}`;
 }
 
 function launchRoleNames(s) {
@@ -567,7 +607,7 @@ function init() {
   $("scanActorsMini").onclick = () => scanNearby("actor");
   $("scanFurniture").onclick = () => scanNearby("furniture");
   $("scanFurnitureMini").onclick = () => scanNearby("furniture");
-  $("play").onclick = doLaunch;
+  $("play").onclick = () => doLaunch();
   $("stop").onclick = doStop;
   $("optSpeed").addEventListener("input", (e) => { $("speedVal").textContent = `${Number(e.target.value).toFixed(1)}x`; });
   renderAll();
@@ -594,8 +634,8 @@ document.addEventListener("mousemove", (e) => {
 
 const MOCK_CATALOG = [
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, sourceFile: "Data/OSF/Scenes/test.osf.json" },
-  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, shape: { kind: "linear", stages: 4, nodes: 4, branches: 0 }, priority: 20, weight: 4, sourceFile: "Data/OSF/GE/chair.osf.json" },
-  { id: "ge.akbunk.sequence", title: "GE AkBunkBed Sequence", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, shape: { kind: "graph", stages: 5, nodes: 5, branches: 2, edges: [{ id: "finish", label: "Finish" }] }, priority: 30, weight: 2, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
+  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2 }], priority: 20, weight: 4, sourceFile: "Data/OSF/GE/chair.osf.json" },
+  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2 }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2 }], priority: 30, weight: 2, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
   { id: "pair.freeform", title: "Pair Freeform", tags: ["paired", "free", "demo"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false, shape: { kind: "linear", stages: 3, nodes: 3, branches: 0 }, sourceFile: "Data/OSF/Scenes/demo.osf.json" },
   { id: "author.quest.finale", title: "Quest Finale Branch Test", tags: ["finale", "story", "branching"], actorCount: 2, roles: [{ name: "lead", gender: "any" }, { name: "partner", gender: "any" }], requiresFurniture: false, unlisted: true, shape: { kind: "graph", stages: 3, nodes: 4, branches: 3 }, policy: { stripActors: false, lockPlayer: true, fade: true, camera: "thirdperson_hold" }, sourceFile: "Data/OSF/Author/finale.osf.json" },
 ];
@@ -615,7 +655,7 @@ function mockNative(command, fields) {
   if (command === "osf.catalog.get") setTimeout(() => handleCatalog(MOCK_CATALOG), 60);
   else if (command === "osf.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
   else if (command === "osf.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
-  else if (command === "osf.launch") setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId }), 80);
+  else if (command === "osf.launch") setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
   else if (command === "osf.stop") setTimeout(() => notice("ok", "Scene stopped."), 40);
 }
 
