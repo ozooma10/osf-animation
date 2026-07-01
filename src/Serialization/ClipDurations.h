@@ -21,13 +21,16 @@ namespace OSF::Serialization::ClipDurations
 	// string exactly as it appears in scene JSON ("naf:" prefix and Data-relative forms both fine).
 	std::optional<float> Lookup(std::string_view a_fileSpec, std::string_view a_animId);
 
-	// Record the exact duration of a successfully decoded clip. Persists only on change, so the
-	// common case (probe already matched) costs a map lookup.
+	// Record the exact duration of a successfully decoded clip. Writes the cache file only for
+	// genuinely new information — a probe-confirming value just flips the exact flag in memory,
+	// so a scene preloading all its stages never pays one file rewrite per clip.
 	void Record(std::string_view a_fileSpec, std::string_view a_animId, float a_seconds);
 
 	// Probe every clip referenced by the loaded scene registry on a background thread (engine-free
-	// file IO only), refresh stale cache entries, and persist. a_onChanged runs on the GAME MAIN
-	// THREAD (SFSE task) when at least one duration changed — the UI catalog re-push hook.
-	// A no-op if a scan is already running.
+	// file IO only), refresh stale cache entries, prune entries nothing references any more, and
+	// persist. a_onChanged runs on the GAME MAIN THREAD (SFSE task) when at least one duration
+	// changed — the UI catalog re-push hook. Called while a scan is already running (ReloadPacks
+	// during the startup scan), the request folds into the running worker as one more pass over
+	// the reloaded registry instead of being dropped.
 	void ScanSceneClipsAsync(std::function<void()> a_onChanged);
 }

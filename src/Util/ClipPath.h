@@ -35,4 +35,9 @@ namespace OSF::Util
 	// "naf:X" -> Data\NAF\X only; absolute paths as-is; relative paths try the path itself,
 	// then Data\NAF\<path>, then Data\OSF\Animations\<filename>.
 	ClipSpec ResolveClipSpec(const std::filesystem::path& a_spec);
+
+	// The display/identity form of an authored spec — ResolveClipSpec().display without building
+	// candidates or touching the filesystem (string-only, no syscalls, nothing to throw beyond
+	// allocation). The clip-duration cache keys on this.
+	std::string ClipSpecDisplay(const std::filesystem::path& a_spec);
 }

@@ -270,6 +270,9 @@ namespace OSF::API
 					case Registry::LoopMode::kOnce:
 						sc.loops = -1;
 						sc.estSec = sc.loopSec;  // one pass ends the stage
+						if (sc.timerSec > 0.0f) {  // hand-authored node: a timer edge can cut the pass short
+							sc.estSec = sc.estSec >= 0.0f ? std::min(sc.estSec, sc.timerSec) : sc.timerSec;
+						}
 						break;
 					case Registry::LoopMode::kCount:
 						sc.loops = node->loopCount;

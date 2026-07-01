@@ -31,21 +31,32 @@ namespace OSF::Serialization::ClipDurations
 			bool          exact = false;  // true = from a real ozz decode (Record), not a metadata probe
 		};
 
-		std::mutex g_lock;  // guards g_map, g_loaded, g_dirty and the save
+		std::mutex g_lock;  // guards g_map, g_loaded, g_dirty, g_scanRunning, g_rescanPending and the save
 		std::unordered_map<std::string, Entry> g_map;
 		bool g_loaded = false;
 		bool g_dirty = false;
-		std::atomic<bool> g_scanRunning{ false };
+		bool g_scanRunning = false;
+		bool g_rescanPending = false;  // a scan was requested while one ran — the worker folds in another pass
 
 		// A probe within this of an exact decode value confirms it — keep the decode's number.
 		constexpr float kExactConfirmTolerance = 0.05f;
 
-		// Cache key: the authored spec collapsed through the SAME resolution as playback (so
-		// "naf:X", "Data/NAF/X" and "NAF\X" all land on one entry), lowercased, + the anim id.
+		// Values outside (0, 1h] are treated as garbage (corrupt header / bogus accessor max)
+		// rather than persisted and shown.
+		constexpr float kMaxPlausibleSec = 3600.0f;
+
+		bool PlausibleSec(float a_sec)
+		{
+			return std::isfinite(a_sec) && a_sec > 0.0f && a_sec <= kMaxPlausibleSec;
+		}
+
+		// Cache key: the authored spec collapsed to its display form — the SAME identity playback
+		// uses (so "naf:X", "Data/NAF/X" and "NAF\X" all land on one entry) — lowercased, + the
+		// anim id. String-only (no filesystem), so it is safe inside the noexcept UI handlers.
 		std::string KeyFor(std::string_view a_fileSpec, std::string_view a_animId)
 		{
-			const auto spec = Util::ResolveClipSpec(std::filesystem::path{ std::string{ a_fileSpec } });
-			return Util::ToLower(spec.display) + '|' + std::string{ a_animId };
+			return Util::ToLower(Util::ClipSpecDisplay(std::filesystem::path{ std::string{ a_fileSpec } })) +
+			       '|' + std::string{ a_animId };
 		}
 
 		// <Documents>\My Games\Starfield\OSF\clip-durations.json, or empty (no persistence).
@@ -77,24 +88,32 @@ namespace OSF::Serialization::ClipDurations
 			if (!in) {
 				return;  // first run
 			}
-			const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false);
-			const auto clips = doc.is_object() ? doc.find("clips") : doc.end();
-			if (clips == doc.end() || !clips->is_object()) {
-				REX::WARN("[ClipDur] {} unreadable — starting with an empty duration cache", file.string());
+			// Tolerate a corrupt/hand-edited file: bad entries are skipped, never thrown
+			// (Lookup runs inside noexcept UI handlers).
+			try {
+				const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false);
+				const auto clips = doc.is_object() ? doc.find("clips") : doc.end();
+				if (clips == doc.end() || !clips->is_object()) {
+					REX::WARN("[ClipDur] {} unreadable — starting with an empty duration cache", file.string());
+					return;
+				}
+				for (const auto& [key, v] : clips->items()) {
+					if (!v.is_object() || !v.value("sec", json{}).is_number()) {
+						continue;
+					}
+					Entry e;
+					e.sec = v["sec"].get<float>();
+					e.size = v.value("size", json{}).is_number_unsigned() ? v["size"].get<std::uint64_t>() : 0;
+					e.mtime = v.value("mtime", json{}).is_number_integer() ? v["mtime"].get<std::int64_t>() : 0;
+					e.exact = v.value("exact", json{}).is_boolean() ? v["exact"].get<bool>() : false;
+					if (PlausibleSec(e.sec)) {
+						g_map.emplace(key, e);
+					}
+				}
+			} catch (const std::exception& e) {
+				g_map.clear();
+				REX::WARN("[ClipDur] failed reading {} ({}) — starting with an empty duration cache", file.string(), e.what());
 				return;
-			}
-			for (const auto& [key, v] : clips->items()) {
-				if (!v.is_object()) {
-					continue;
-				}
-				Entry e;
-				e.sec = v.value("sec", 0.0f);
-				e.size = v.value("size", std::uint64_t{ 0 });
-				e.mtime = v.value("mtime", std::int64_t{ 0 });
-				e.exact = v.value("exact", false);
-				if (e.sec > 0.0f && std::isfinite(e.sec)) {
-					g_map.emplace(key, e);
-				}
 			}
 			REX::DEBUG("[ClipDur] loaded {} cached duration(s) from {}", g_map.size(), file.string());
 		}
@@ -124,7 +143,9 @@ namespace OSF::Serialization::ClipDurations
 					REX::WARN("[ClipDur] cannot write {} — durations won't persist this session", tmp.string());
 					return;
 				}
-				out << doc.dump(1, '\t');
+				// replace error handler: keys are Windows file paths in the ACP narrow encoding,
+				// which need not be valid UTF-8 — the default dump() THROWS on such bytes.
+				out << doc.dump(1, '\t', false, json::error_handler_t::replace);
 			}
 			std::filesystem::rename(tmp, file, ec);
 			if (ec) {
@@ -318,10 +339,11 @@ namespace OSF::Serialization::ClipDurations
 
 		enum class ProbeOutcome : std::uint8_t
 		{
-			kFresh,     // cache entry matched the file identity — nothing to do
-			kChanged,   // new or updated duration stored
-			kMissing,   // no readable source found
-			kUnprobed   // bytes found but no duration extractable
+			kFresh,        // cache entry matched the file identity — nothing to do
+			kChanged,      // new or updated duration stored
+			kInvalidated,  // source changed but yielded no duration — stale entry dropped
+			kMissing,      // no readable source found
+			kUnprobed      // bytes found but no duration extractable (and nothing cached to drop)
 		};
 
 		// Probe one clip ref against the cache. Runs on the scan thread; touches no engine state
@@ -330,6 +352,12 @@ namespace OSF::Serialization::ClipDurations
 		{
 			const auto spec = Util::ResolveClipSpec(std::filesystem::path{ a_fileSpec });
 			const bool isAf = Util::ToLower(std::filesystem::path{ a_fileSpec }.extension().string()) == ".af";
+
+			const auto cacheFresh = [&a_key](std::uint64_t a_size, std::int64_t a_mtime) {
+				std::scoped_lock l{ g_lock };
+				const auto it = g_map.find(a_key);
+				return it != g_map.end() && it->second.size == a_size && it->second.mtime == a_mtime;
+			};
 
 			// Locate the source: first loose file across the candidates (mirrors the engine's
 			// loose-over-archive precedence), then — for .af only — the game BA2s. GLBs packed
@@ -347,12 +375,8 @@ namespace OSF::Serialization::ClipDurations
 				}
 				size = std::filesystem::file_size(cand.filePath, ec);
 				mtime = ec ? 0 : std::filesystem::last_write_time(cand.filePath, ec).time_since_epoch().count();
-				{
-					std::scoped_lock l{ g_lock };
-					const auto it = g_map.find(a_key);
-					if (it != g_map.end() && it->second.size == size && it->second.mtime == mtime) {
-						return ProbeOutcome::kFresh;
-					}
+				if (cacheFresh(size, mtime)) {
+					return ProbeOutcome::kFresh;
 				}
 				if (auto b = ReadWholeFile(cand.filePath)) {
 					bytes = std::move(*b);
@@ -377,12 +401,8 @@ namespace OSF::Serialization::ClipDurations
 						break;
 					}
 				}
-				if (found) {
-					std::scoped_lock l{ g_lock };
-					const auto it = g_map.find(a_key);
-					if (it != g_map.end() && it->second.size == size && it->second.mtime == 0) {
-						return ProbeOutcome::kFresh;
-					}
+				if (found && cacheFresh(size, 0)) {
+					return ProbeOutcome::kFresh;
 				}
 			}
 
@@ -391,11 +411,12 @@ namespace OSF::Serialization::ClipDurations
 			}
 
 			const auto sec = isAf ? ProbeAfBytes(bytes) : ProbeGltfBytes(std::move(bytes), a_animId);
-			if (!sec || !std::isfinite(*sec) || *sec <= 0.0f) {
+			if (!sec || !PlausibleSec(*sec)) {
 				// The source changed AND we can't read a duration out of it — drop any stale value.
 				std::scoped_lock l{ g_lock };
 				if (g_map.erase(a_key) > 0) {
 					g_dirty = true;
+					return ProbeOutcome::kInvalidated;
 				}
 				return ProbeOutcome::kUnprobed;
 			}
@@ -413,6 +434,73 @@ namespace OSF::Serialization::ClipDurations
 			g_dirty = true;  // identity refresh persists even when the value held
 			return valueChanged ? ProbeOutcome::kChanged : ProbeOutcome::kFresh;
 		}
+
+		// One full pass: gather refs from the live registry (its own read lock, NEVER under
+		// g_lock — BuildCatalog nests g_lock inside the registry lock, so nesting the other way
+		// around here could deadlock through a queued LoadAll writer), probe them, prune, save.
+		// Returns the number of catalog-visible changes.
+		std::size_t ScanPass()
+		{
+			const auto t0 = std::chrono::steady_clock::now();
+
+			std::vector<std::pair<std::string, std::string>> refs;
+			Registry::SceneRegistry::GetSingleton().ForEachDef([&refs](const Registry::SceneDef& d) {
+				for (const auto& n : d.nodes) {
+					for (const auto& st : n.stages) {
+						for (const auto& c : st.clips) {
+							if (!c.file.empty()) {
+								refs.emplace_back(c.file, c.animId);
+							}
+						}
+					}
+				}
+			});
+
+			{
+				std::scoped_lock l{ g_lock };
+				LoadLocked();
+			}
+
+			std::unordered_set<std::string> seen;
+			std::size_t fresh = 0, changed = 0, missing = 0, unprobed = 0;
+			for (const auto& [file, animId] : refs) {
+				auto key = KeyFor(file, animId);
+				if (!seen.insert(key).second) {
+					continue;
+				}
+				switch (ProbeOne(file, animId, key)) {
+				case ProbeOutcome::kFresh:       fresh++; break;
+				case ProbeOutcome::kChanged:     changed++; break;
+				case ProbeOutcome::kInvalidated: changed++; unprobed++; break;
+				case ProbeOutcome::kMissing:     missing++; break;
+				case ProbeOutcome::kUnprobed:    unprobed++; break;
+				}
+			}
+
+			std::size_t pruned = 0;
+			{
+				std::scoped_lock l{ g_lock };
+				// Prune probe entries no clip reference uses any more (uninstalled/renamed packs)
+				// so the cache tracks the install instead of growing forever. Exact entries stay:
+				// they may belong to ad-hoc plays (OSF.Play with a bare path) outside any scene.
+				for (auto it = g_map.begin(); it != g_map.end();) {
+					if (!it->second.exact && !seen.contains(it->first)) {
+						it = g_map.erase(it);
+						g_dirty = true;
+						pruned++;
+					} else {
+						++it;
+					}
+				}
+				SaveLocked();
+			}
+
+			const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now() - t0).count();
+			REX::INFO("[ClipDur] duration scan: {} unique clip(s) — {} fresh, {} updated, {} missing, {} unprobeable, {} pruned ({} ms)",
+				seen.size(), fresh, changed, missing, unprobed, pruned, ms);
+			return changed;
+		}
 	}
 
 	std::optional<float> Lookup(std::string_view a_fileSpec, std::string_view a_animId)
@@ -429,76 +517,68 @@ namespace OSF::Serialization::ClipDurations
 
 	void Record(std::string_view a_fileSpec, std::string_view a_animId, float a_seconds)
 	{
-		if (!(a_seconds > 0.0f) || !std::isfinite(a_seconds)) {
+		if (!PlausibleSec(a_seconds)) {
 			return;
 		}
 		const auto key = KeyFor(a_fileSpec, a_animId);
 		std::scoped_lock l{ g_lock };
 		LoadLocked();
-		auto& e = g_map[key];
-		if (e.exact && e.sec == a_seconds) {
-			return;
+		const auto it = g_map.find(key);
+		if (it != g_map.end()) {
+			auto& e = it->second;
+			const bool close = std::abs(e.sec - a_seconds) <= kExactConfirmTolerance;
+			if (e.exact && close) {
+				return;  // already have this number
+			}
+			e.sec = a_seconds;
+			e.exact = true;
+			g_dirty = true;
+			if (close) {
+				return;  // probe confirmed, value unchanged — persist lazily (next scan save),
+				         // not one whole-file rewrite per clip while a scene preloads its stages
+			}
+		} else {
+			auto& e = g_map[key];
+			e.sec = a_seconds;
+			e.exact = true;
+			g_dirty = true;
 		}
-		e.sec = a_seconds;
-		e.exact = true;  // keeps size/mtime: the probe's identity still describes this source
-		g_dirty = true;
-		SaveLocked();
+		SaveLocked();  // genuinely new information — worth the write
 	}
 
 	void ScanSceneClipsAsync(std::function<void()> a_onChanged)
 	{
-		if (g_scanRunning.exchange(true)) {
-			REX::DEBUG("[ClipDur] scan already running — skipped");
-			return;
+		{
+			std::scoped_lock l{ g_lock };
+			if (g_scanRunning) {
+				// Fold into the running scan: its worker re-gathers from the (possibly reloaded)
+				// registry and runs another pass before finishing, using its own callback.
+				g_rescanPending = true;
+				REX::DEBUG("[ClipDur] scan already running — queued a follow-up pass");
+				return;
+			}
+			g_scanRunning = true;
 		}
 
-		// Gather the refs on the caller's thread (cheap string copies under the registry read
-		// lock); the probe IO then runs detached so load/reload never stalls on disk.
-		std::vector<std::pair<std::string, std::string>> refs;
-		Registry::SceneRegistry::GetSingleton().ForEachDef([&refs](const Registry::SceneDef& d) {
-			for (const auto& n : d.nodes) {
-				for (const auto& st : n.stages) {
-					for (const auto& c : st.clips) {
-						if (!c.file.empty()) {
-							refs.emplace_back(c.file, c.animId);
-						}
-					}
+		std::thread([onChanged = std::move(a_onChanged)]() {
+			std::size_t changed = 0;
+			for (;;) {
+				// A detached thread must not leak exceptions (std::terminate). Failures here
+				// only cost estimates, never the game.
+				try {
+					changed += ScanPass();
+				} catch (const std::exception& e) {
+					REX::ERROR("[ClipDur] duration scan failed: {}", e.what());
+				} catch (...) {
+					REX::ERROR("[ClipDur] duration scan failed (non-std exception)");
 				}
-			}
-		});
-
-		std::thread([refs = std::move(refs), onChanged = std::move(a_onChanged)]() mutable {
-			const auto t0 = std::chrono::steady_clock::now();
-			{
 				std::scoped_lock l{ g_lock };
-				LoadLocked();
-			}
-
-			std::unordered_set<std::string> seen;
-			std::size_t fresh = 0, changed = 0, missing = 0, unprobed = 0;
-			for (const auto& [file, animId] : refs) {
-				auto key = KeyFor(file, animId);
-				if (!seen.insert(key).second) {
-					continue;
+				if (!g_rescanPending) {
+					g_scanRunning = false;
+					break;
 				}
-				switch (ProbeOne(file, animId, key)) {
-				case ProbeOutcome::kFresh:    fresh++; break;
-				case ProbeOutcome::kChanged:  changed++; break;
-				case ProbeOutcome::kMissing:  missing++; break;
-				case ProbeOutcome::kUnprobed: unprobed++; break;
-				}
+				g_rescanPending = false;
 			}
-			{
-				std::scoped_lock l{ g_lock };
-				SaveLocked();
-			}
-
-			const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-				std::chrono::steady_clock::now() - t0).count();
-			REX::INFO("[ClipDur] duration scan: {} unique clip(s) — {} fresh, {} updated, {} missing, {} unprobeable ({} ms)",
-				seen.size(), fresh, changed, missing, unprobed, ms);
-
-			g_scanRunning = false;
 			if (changed > 0 && onChanged) {
 				SFSE::GetTaskInterface()->AddTask([cb = std::move(onChanged)]() { cb(); });
 			}

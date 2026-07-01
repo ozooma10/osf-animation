@@ -42,8 +42,8 @@
 
 *,*::before,*::after{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden}
-body{background:transparent;color:var(--text-body);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;cursor:none}
-button,input,select{font:inherit;cursor:none;color:inherit}
+body{background:transparent;color:var(--text-body);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:var(--void-900)}
 ::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:5px}
@@ -340,12 +340,6 @@ button,input,select{font:inherit;cursor:none;color:inherit}
 .notice.info{color:var(--text-body);border-top-color:rgba(230,144,74,.4)}
 .notice.err{color:#e6b3a8;border-top-color:rgba(200,80,58,.5)}
 .notice:empty{display:none}
-
-/* ---- custom crosshair cursor (Ultralight has no OS cursor) - */
-.cursor{position:fixed;z-index:9999;left:0;top:0;width:16px;height:16px;margin:-8px 0 0 -8px;pointer-events:none}
-.cursor:before,.cursor:after{content:"";position:absolute;background:var(--accent)}
-.cursor:before{left:7px;top:0;width:2px;height:16px}
-.cursor:after{left:0;top:7px;width:16px;height:2px}
 
 /* ---- responsive fit (in-game 1280x720 and narrower) ------- */
 @media(max-width:1180px){

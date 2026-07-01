@@ -36,19 +36,30 @@ namespace OSF::Util
 		return NormalizeResourcePath(rel.string());
 	}
 
+	std::string ClipSpecDisplay(const std::filesystem::path& a_spec)
+	{
+		const std::string raw = a_spec.string();
+		if (ToLower(raw).starts_with("naf:")) {
+			return NormalizeResourcePath(std::string{ "NAF\\" } + raw.substr(4));
+		}
+		if (a_spec.is_absolute()) {
+			return raw;
+		}
+		return NormalizeResourcePath(raw);
+	}
+
 	ClipSpec ResolveClipSpec(const std::filesystem::path& a_spec)
 	{
 		ClipSpec out;
+		out.display = ClipSpecDisplay(a_spec);
 		const std::string raw = a_spec.string();
+
 		if (ToLower(raw).starts_with("naf:")) {
-			auto rel = NormalizeResourcePath(std::string{ "NAF\\" } + raw.substr(4));
-			out.display = rel;
-			out.candidates.push_back({ rel, std::filesystem::current_path() / "Data" / rel, true });
+			out.candidates.push_back({ out.display, std::filesystem::current_path() / "Data" / out.display, true });
 			return out;
 		}
 
 		if (a_spec.is_absolute()) {
-			out.display = a_spec.string();
 			if (auto rel = DataRelativePath(a_spec)) {
 				out.candidates.push_back({ *rel, std::filesystem::current_path() / "Data" / *rel, true });
 			} else {
@@ -57,8 +68,7 @@ namespace OSF::Util
 			return out;
 		}
 
-		auto primary = NormalizeResourcePath(raw);
-		out.display = primary;
+		const std::string& primary = out.display;
 		out.candidates.push_back({ primary, std::filesystem::current_path() / "Data" / primary, true });
 		out.candidates.push_back({ NormalizeResourcePath(std::string{ "NAF\\" } + primary),
 			std::filesystem::current_path() / "Data" / "NAF" / primary, true });

@@ -634,10 +634,10 @@ function launchReason(s, ev) {
 }
 
 /* ---- durations ----------------------------------------------------------- */
-// "45s" under a minute, "2:30" over — instrument-panel terse.
+// "45s" under a minute, "2:30" over — instrument-panel terse. Sub-second clips read "1s", not "0s".
 function fmtDur(sec) {
   if (sec == null || !Number.isFinite(sec) || sec < 0) return "";
-  const s = Math.round(sec);
+  const s = Math.max(1, Math.round(sec));
   if (s < 60) return `${s}s`;
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
@@ -807,17 +807,10 @@ function onInput(e) {
   if (sv) sv.textContent = `${Number(e.target.value).toFixed(1)}x`;
 }
 
-function onCursor(e) {
-  const c = $("cursor");
-  c.style.left = `${e.clientX}px`;
-  c.style.top = `${e.clientY}px`;
-}
-
 function init() {
   document.addEventListener("click", onClick);
   document.addEventListener("change", onChange);
   document.addEventListener("input", onInput);
-  document.addEventListener("mousemove", onCursor);
   $("refresh").addEventListener("click", () => { notice("info", "Refreshing catalog…"); requestCatalog(true); });
   $("authorToggle").addEventListener("click", () => { state.filters.authorMode = !state.filters.authorMode; renderAll(); });
   $("search").addEventListener("input", (e) => { state.filters.search = e.target.value.trim().toLowerCase(); renderAll(); });
