@@ -1,4 +1,5 @@
 #include "API/SceneAPIControl.h"
+#include "API/UIBridge.h"
 #include "Animation/GraphManager.h"
 #include "Config/Settings.h"
 #include "Input/InputService.h"
@@ -29,6 +30,9 @@ namespace
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
 			OSF::API::MarkReady();
+			// Register the osf.* scene-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
+			// Runs after the registry is loaded and the scene API is ready, so catalog/launch answer live.
+			OSF::API::InstallUIBridge();
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");

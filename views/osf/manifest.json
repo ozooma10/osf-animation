@@ -1,0 +1,14 @@
+{
+  "id": "osf",
+  "title": "OSF Animation",
+  "entry": "index.html",
+  "width": 1280,
+  "height": 720,
+  "transparent": true,
+  "interactive": true,
+  "permissions": {
+    "nativeBridge": true,
+    "filesystem": false,
+    "network": false
+  }
+}
