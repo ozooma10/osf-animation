@@ -49,6 +49,15 @@ layout/logic in a normal browser. A preview server is configured in
 
 ## Aesthetic
 
-Starfield "NASA-punk": burnt orange + bone on warm near-black, DIN-ish sans for
-chrome, monospace for data, instrument panels with corner ticks. Amber armature
-glyph = the Animation module accent in the OSF family. No gradients/glow.
+Starfield "NASA-punk" maintenance-HUD, aligned to the shared **OSF design system**
+(burnt amber `--accent` + brushed steel on a near-black void, teal HUD signal):
+one framed **console** with amber corner brackets and a faint scan grid, a **slate**
+header (cast / anchor / readiness + author toggle), three **bays** (READY NOW /
+NEEDS ONE THING / LIBRARY) of spine-numbered scene cards with per-gate pips, and an
+instrument **brief** module (registry id, requirements, seats, launch). Saira Semi
+Condensed (Bahnschrift stand-in) for chrome, JetBrains Mono / Cascadia for data.
+Restrained glows and gradients are intentional here — every glow signals state.
+
+The design-system tokens are inlined into `style.css` (the view ships self-contained;
+OSF UI serves no network, so webfonts fall back to Bahnschrift/Segoe). Source design:
+Claude Design "Scene Director" wireframe.

@@ -1,13 +1,16 @@
-// OSF Animation - Scene Director. Keeps the existing OSF UI bridge contract.
+// OSF Animation - Scene Director. NASA-punk maintenance-HUD console.
+// Visual redesign of the in-game view (Claude Design "Scene Director"), wired to the
+// unchanged OSF UI bridge contract: only JSON text crosses window.osfui.
 "use strict";
 
 const BRIDGE_PROTOCOL = "0.1";
 const PLAYER_TOKEN = -1;
-const PLAYER_CAST = { token: PLAYER_TOKEN, name: "You", kind: "player" };
+const PLAYER_CAST = { token: PLAYER_TOKEN, name: "Player", kind: "player" };
 
 const state = {
   ready: false,
   catalog: [],
+  allUnlisted: false,
   selectedId: null,
   partners: [],
   furniture: null,
@@ -15,12 +18,17 @@ const state = {
   nearbyFurniture: [],
   lastHandle: 0,
   lastSceneId: "",
-  filters: { search: "", view: "all", count: "any", anchor: "any", showUnlisted: false, tags: new Set(), authorMode: false },
+  showAnim: false,
+  opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
+  filters: { search: "", tags: new Set(), authorMode: false },
   catalogReceived: false,
 };
 
 const $ = (id) => document.getElementById(id);
 
+/* =========================================================================
+   BRIDGE  (unchanged contract — osf.* over window.osfui)
+   ========================================================================= */
 function bridgeAvailable() {
   return typeof window.osfui === "object" && typeof window.osfui.postMessage === "function";
 }
@@ -28,10 +36,7 @@ function bridgeAvailable() {
 function send(command, fields = {}) {
   const msg = JSON.stringify({ type: "ui.command", payload: { command, ...fields } });
   if (bridgeAvailable()) window.osfui.postMessage(msg);
-  else {
-    console.log("(standalone) ->", msg);
-    mockNative(command, fields);
-  }
+  else { console.log("(standalone) ->", msg); mockNative(command, fields); }
 }
 
 let catalogTimer = null;
@@ -72,13 +77,13 @@ function handleReady(p) {
   const bv = p && p.bridgeVersion;
   if (!bv || !bv.startsWith("0.")) {
     setLamp("off");
-    $("statusText").textContent = `UNSUPPORTED BRIDGE ${bv || "?"}`;
+    $("statusText").textContent = `unsupported bridge ${bv || "?"}`;
     notice("err", `This view needs bridge protocol ${BRIDGE_PROTOCOL}; runtime reports ${bv || "?"}.`);
     return;
   }
   state.ready = true;
   setLamp("ok");
-  $("statusText").textContent = `${(p.plugin || "OSF UI").toUpperCase()} v${p.version || "?"}`;
+  $("statusText").textContent = `${(p.plugin || "OSF").toUpperCase()} v${p.version || "?"} · stage online`;
   notice("ok", `Bridge online. Protocol ${bv}.`);
   requestCatalog(true);
 }
@@ -86,12 +91,9 @@ function handleReady(p) {
 function handleCatalog(list) {
   state.catalogReceived = true;
   clearTimeout(catalogTimer);
-  state.catalog = Array.isArray(list) ? list.map(normalizeScene) : [];
-  $("sceneCount").textContent = `${state.catalog.length} SCENES`;
-  syncUnlistedFilter();
-  buildTagCloud();
-  if (state.selectedId && !state.catalog.some((s) => s.id === state.selectedId)) state.selectedId = null;
-  if (!state.selectedId && state.catalog.length) state.selectedId = bestInitialScene();
+  state.catalog = Array.isArray(list) ? list.map(safeNormalize).filter(Boolean) : [];
+  state.allUnlisted = state.catalog.length > 0 && state.catalog.every((s) => s.unlisted);
+  ensureSelection();
   renderAll();
 }
 
@@ -134,6 +136,15 @@ function handleLaunchResult(p) {
   renderAll();
 }
 
+/* =========================================================================
+   NORMALIZE  (unchanged — the shape main.js consumes from the registry)
+   ========================================================================= */
+// One malformed record must never blank the whole catalog: drop it, keep the rest.
+function safeNormalize(raw) {
+  try { return raw ? normalizeScene(raw) : null; }
+  catch (e) { console.warn("OSF: skipped malformed scene", e); return null; }
+}
+
 function normalizeScene(raw) {
   const id = String(raw.id || "");
   const actorCount = clampCount(raw.actorCount, raw.roles);
@@ -159,17 +170,19 @@ function normalizeScene(raw) {
   };
 }
 
-// Each stage is a browsable animation: { index, name, tags, clipCount }. The native de-dup `sig` is
-// kept so identical clip-sets could be collapsed later; the UI shows every stage in order for now.
+// Each stage is a browsable animation: { index, name, tags, clipCount }.
 function normalizeStages(stages) {
   if (!Array.isArray(stages)) return [];
-  return stages.map((st, i) => ({
-    index: Number.isInteger(st.index) ? st.index : i,
-    name: String(st.name || ""),
-    tags: Array.isArray(st.tags) ? st.tags.map((t) => String(t)) : [],
-    clipCount: Number(st.clipCount || 0),
-    sig: String(st.sig || ""),
-  }));
+  return stages.map((raw, i) => {
+    const st = raw || {};
+    return {
+      index: Number.isInteger(st.index) ? st.index : i,
+      name: String(st.name || ""),
+      tags: Array.isArray(st.tags) ? st.tags.map((t) => String(t)) : [],
+      clipCount: Number(st.clipCount || 0),
+      sig: String(st.sig || ""),
+    };
+  });
 }
 
 function clampCount(actorCount, roles) {
@@ -180,12 +193,15 @@ function clampCount(actorCount, roles) {
 
 function normalizeRoles(roles, genders, actorCount) {
   if (Array.isArray(roles) && roles.length) {
-    return roles.map((role, index) => ({
-      name: String(role.name || `role ${index + 1}`),
-      gender: String(role.gender || (role.filters && role.filters.gender) || "any"),
-      filters: role.filters || {},
-      equip: !!role.equip,
-    }));
+    return roles.map((raw, index) => {
+      const role = raw || {};
+      return {
+        name: String(role.name || `role ${index + 1}`),
+        gender: String(role.gender || (role.filters && role.filters.gender) || "any"),
+        filters: role.filters || {},
+        equip: !!role.equip,
+      };
+    });
   }
   const total = actorCount || genders.length || 0;
   return Array.from({ length: total }, (_, index) => ({
@@ -230,10 +246,13 @@ function boolText(primary, fallback, emptyValue) {
   return emptyValue;
 }
 
+/* =========================================================================
+   STATE MUTATIONS
+   ========================================================================= */
 function applyPick(slot, token, name, distance) {
   if (slot === "furniture") {
     state.furniture = { token, name: name || "anchor", distance: distance || null };
-    notice("info", `Anchor selected: ${state.furniture.name}.`);
+    notice("info", `Anchor keyed: ${state.furniture.name}.`);
   } else if (token === PLAYER_TOKEN || state.partners.some((c) => c.token === token)) {
     notice("info", `${name || "Actor"} is already in the cast.`);
   } else {
@@ -243,43 +262,105 @@ function applyPick(slot, token, name, distance) {
   renderAll();
 }
 
-function removePartner(index) {
-  state.partners.splice(index, 1);
+function toggleActor(token) {
+  const idx = state.partners.findIndex((p) => p.token === token);
+  if (idx >= 0) { state.partners.splice(idx, 1); notice("info", "Cast member removed."); }
+  else {
+    const a = state.nearbyActors.find((x) => x.token === token);
+    if (a) { state.partners.push({ token: a.token, name: a.name, distance: a.distance }); notice("info", `Cast added: ${a.name}.`); }
+  }
   renderAll();
 }
 
+function toggleAnchor(token) {
+  if (state.furniture && state.furniture.token === token) { state.furniture = null; notice("info", "Anchor cleared."); }
+  else {
+    const an = state.nearbyFurniture.find((x) => x.token === token);
+    if (an) { state.furniture = { token: an.token, name: an.name, distance: an.distance }; notice("info", `Anchor keyed: ${an.name}.`); }
+  }
+  renderAll();
+}
+
+function toggleTag(t) {
+  if (state.filters.tags.has(t)) state.filters.tags.delete(t);
+  else state.filters.tags.add(t);
+  renderAll();
+}
+
+function removePartner(index) { state.partners.splice(index, 1); renderAll(); }
+
 function scanNearby(kind) {
-  notice("info", `Scanning nearby ${kind === "furniture" ? "anchors" : "actors"}...`);
+  notice("info", `Scanning nearby ${kind === "furniture" ? "anchors" : "actors"}…`);
   send("osf.scanNearby", { kind, sceneId: state.selectedId || "" });
 }
 
-function selectScene(id) { state.selectedId = id; renderAll(); }
+function selectScene(id) { state.selectedId = id; state.showAnim = false; renderAll(); }
 function sceneById(id) { return state.catalog.find((s) => s.id === id) || null; }
 function sceneTitle(id) { const s = sceneById(id); return s ? s.title : (id || "scene"); }
 function castTokens() { return [PLAYER_TOKEN, ...state.partners.map((c) => c.token)]; }
 function castMembers() { return [PLAYER_CAST, ...state.partners]; }
 
-function bestInitialScene() {
-  const visible = state.catalog.filter(unlistedVisible);
-  const ready = visible.find((s) => sceneFit(s).state === "ready");
-  return (ready || visible[0] || state.catalog[0]).id;
+function unlistedVisible(s) { return !!s && (!s.unlisted || state.filters.authorMode || state.allUnlisted); }
+
+function ensureSelection() {
+  // Track the fully-filtered pool (search + tags + unlisted) so the brief never
+  // inspects a scene that no bay shows. Re-pick to the top visible scene if the
+  // current selection is filtered out.
+  const vis = state.catalog.filter(matchesFilters);
+  if (state.selectedId && vis.some((s) => s.id === state.selectedId)) return;
+  const best = bestInitialScene();
+  if (best) { state.selectedId = best; return; }
+  // Nothing matches the active filters — keep a valid selection so the brief isn't blank.
+  if (!state.selectedId || !state.catalog.some((s) => s.id === state.selectedId)) {
+    const fallback = state.catalog.find(unlistedVisible) || state.catalog[0];
+    state.selectedId = fallback ? fallback.id : null;
+  }
 }
 
-function sceneFit(s) {
+function bestInitialScene() {
+  const g = groupedScenes();
+  const first = g.ready[0] || g.need[0] || g.library[0];
+  return first ? first.scene.id : null;
+}
+
+/* =========================================================================
+   EVALUATION  (readiness gates derived from live registry data)
+   ========================================================================= */
+function evalScene(s) {
   const castCount = castTokens().length;
+  const actorCount = s.actorCount || 0;
+  const hasRoles = actorCount > 0;
+  const rolesGate = hasRoles && castCount >= actorCount;
+  const overCast = hasRoles && castCount > actorCount;
+  const anchorGate = s.requiresFurniture ? !!state.furniture : true;
+  const seated = hasRoles ? Math.min(castCount, actorCount) : 0;
   const issues = [];
   const blockers = [];
-  const actorCount = s.actorCount || 0;
-  if (actorCount > 0 && castCount < actorCount) issues.push(`needs ${actorCount - castCount} actor${actorCount - castCount === 1 ? "" : "s"}`);
-  if (actorCount > 0 && castCount > actorCount) blockers.push(`remove ${castCount - actorCount} cast`);
-  if (s.requiresFurniture && !state.furniture) issues.push("needs anchor");
-  if (!issues.length && !blockers.length) return { state: "ready", label: "READY", tone: "ready", reason: "Ready with current context." };
-  if (!blockers.length && issues.length === 1) return { state: "need", label: "NEEDS ONE", tone: "need", reason: sentenceCase(issues[0]) + "." };
-  return { state: "library", label: blockers.length ? "BLOCKED" : "LIBRARY", tone: blockers.length ? "blocked" : "library", reason: [...issues, ...blockers].map(sentenceCase).join(". ") + "." };
+  // A scene with no fillable roles is never READY — it can't be seated or launched.
+  if (!hasRoles) blockers.push("scene defines no roles");
+  else if (!rolesGate) { const n = actorCount - castCount; issues.push(`needs ${n} more actor${n === 1 ? "" : "s"}`); }
+  if (overCast) { const n = castCount - actorCount; blockers.push(`remove ${n} cast member${n === 1 ? "" : "s"}`); }
+  if (!anchorGate) issues.push("needs an anchor");
+  const gaps = issues.length + blockers.length;
+  let cls, tone, label;
+  if (gaps === 0) { cls = "ready"; tone = "ready"; label = "READY"; }
+  else if (blockers.length) { cls = "library"; tone = "blocked"; label = "BLOCKED"; }
+  else if (issues.length === 1) { cls = "need"; tone = "need"; label = "NEEDS ONE"; }
+  else { cls = "library"; tone = "library"; label = "LIBRARY"; }
+  const reason = gaps === 0 ? "Ready with the current cast and anchor." : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
+  return { castCount, actorCount, hasRoles, rolesGate, overCast, anchorGate, seated, issues, blockers, gaps, cls, tone, label, reason };
 }
 
-function unlistedVisible(s) { return !!s && (state.filters.showUnlisted || !s.unlisted); }
+function needsText(s, ev) {
+  if (!ev.rolesGate) { const n = ev.actorCount - ev.castCount; return `needs ${n} more actor${n === 1 ? "" : "s"}`; }
+  if (!ev.anchorGate) return "needs an anchor";
+  if (ev.overCast) { const n = ev.castCount - ev.actorCount; return `remove ${n} cast member${n === 1 ? "" : "s"}`; }
+  return "";
+}
 
+/* =========================================================================
+   FILTER + GROUP
+   ========================================================================= */
 function matchesFilters(s) {
   const f = state.filters;
   if (!unlistedVisible(s)) return false;
@@ -288,188 +369,314 @@ function matchesFilters(s) {
     const hay = `${s.title} ${s.id} ${(s.tags || []).join(" ")} ${roleText} ${s.sourceFile}`.toLowerCase();
     if (!hay.includes(f.search)) return false;
   }
-  if (f.count !== "any") {
-    const n = s.actorCount || 0;
-    if (f.count === "3" ? n < 3 : n !== Number(f.count)) return false;
-  }
-  if (f.anchor === "yes" && !s.requiresFurniture) return false;
-  if (f.anchor === "no" && s.requiresFurniture) return false;
   if (f.tags.size) {
     const st = new Set((s.tags || []).map((t) => t.toLowerCase()));
     let hit = false;
     for (const t of f.tags) if (st.has(t)) { hit = true; break; }
     if (!hit) return false;
   }
-  const fit = sceneFit(s);
-  if (f.view !== "all" && fit.state !== f.view) return false;
   return true;
 }
 
 function groupedScenes() {
-  const all = state.catalog.filter(matchesFilters);
-  const byTitle = (a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
-  return {
-    all,
-    ready: all.filter((s) => sceneFit(s).state === "ready").sort(byTitle),
-    need: all.filter((s) => sceneFit(s).state === "need").sort(byTitle),
-    library: all.filter((s) => sceneFit(s).state === "library").sort(byTitle),
-  };
+  const pool = state.catalog.filter(matchesFilters);
+  const ready = [], need = [], library = [];
+  for (const scene of pool) {
+    const ev = evalScene(scene);
+    const item = { scene, ev, sel: scene.id === state.selectedId };
+    if (ev.cls === "ready") ready.push(item);
+    else if (ev.cls === "need") need.push(item);
+    else library.push(item);
+  }
+  const byRank = (a, b) => b.scene.priority - a.scene.priority || b.scene.weight - a.scene.weight || a.scene.title.localeCompare(b.scene.title);
+  ready.sort(byRank); need.sort(byRank); library.sort(byRank);
+  return { ready, need, library };
 }
 
+function catalogTags() {
+  const m = new Map();
+  for (const s of state.catalog) {
+    if (!unlistedVisible(s)) continue;
+    for (const t of s.tags || []) { const k = t.toLowerCase(); m.set(k, (m.get(k) || 0) + 1); }
+  }
+  return [...m.keys()].sort();
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
 function renderAll() {
-  renderContext();
-  renderWorld();
-  renderShelves();
-  renderBrief();
-  renderLiveDirector();
-  updateLaunch();
-}
-
-function renderContext() {
-  const members = castMembers();
-  $("castMetric").textContent = `${members.length} SELECTED`;
-  $("contextCast").innerHTML = members.map(contextCastPill).join("");
-  $("anchorMetric").textContent = state.furniture ? "SELECTED" : "NONE";
-  $("contextAnchor").innerHTML = state.furniture ? `<span class="anchor-name">${esc(state.furniture.name)}</span>${distanceText(state.furniture)}` : `<span class="slot-empty">No anchor selected</span>`;
-  $("clearFurniture").classList.toggle("hidden", !state.furniture);
-}
-
-function contextCastPill(member, index) {
-  const role = index === 0 ? "PLAYER" : `ACTOR ${index}`;
-  const drop = index === 0 ? "" : `<button class="pill-drop" type="button" data-drop="${index - 1}">x</button>`;
-  return `<span class="cast-pill ${index === 0 ? "is-player" : ""}"><span>${role}</span><b>${esc(member.name)}</b>${drop}</span>`;
-}
-
-function renderWorld() {
-  renderActorTokens();
-  renderAnchorTokens();
-  wireDynamicButtons();
-}
-
-function renderActorTokens() {
-  const list = $("actorTokens");
-  if (!state.nearbyActors.length) { list.innerHTML = `<div class="empty-mini">Scan nearby actors to build the cast.</div>`; return; }
-  list.innerHTML = state.nearbyActors.map((actor) => {
-    const added = state.partners.some((p) => p.token === actor.token);
-    return `<button class="world-token ${added ? "is-added" : ""}" data-add-actor="${actor.token}" type="button"><span class="token-name">${esc(actor.name)}</span><span class="token-meta">${added ? "ADDED" : distanceLabel(actor)}</span></button>`;
-  }).join("");
-}
-
-function renderAnchorTokens() {
-  const list = $("anchorTokens");
-  if (!state.nearbyFurniture.length) { list.innerHTML = `<div class="empty-mini">Scan nearby anchors for furniture-bound scenes.</div>`; return; }
-  list.innerHTML = state.nearbyFurniture.map((anchor) => {
-    const selected = state.furniture && state.furniture.token === anchor.token;
-    return `<button class="world-token ${selected ? "is-added" : ""}" data-add-anchor="${anchor.token}" type="button"><span class="token-name">${esc(anchor.name)}</span><span class="token-meta">${selected ? "SELECTED" : distanceLabel(anchor)}</span></button>`;
-  }).join("");
-}
-
-function wireDynamicButtons() {
-  document.querySelectorAll("[data-drop]").forEach((btn) => { btn.onclick = (e) => { e.stopPropagation(); removePartner(Number(btn.dataset.drop)); }; });
-  document.querySelectorAll("[data-add-actor]").forEach((btn) => { btn.onclick = () => { const actor = state.nearbyActors.find((a) => a.token === Number(btn.dataset.addActor)); if (actor) applyPick("actor", actor.token, actor.name, actor.distance); }; });
-  document.querySelectorAll("[data-add-anchor]").forEach((btn) => { btn.onclick = () => { const anchor = state.nearbyFurniture.find((a) => a.token === Number(btn.dataset.addAnchor)); if (anchor) applyPick("furniture", anchor.token, anchor.name, anchor.distance); }; });
-}
-
-function renderShelves() {
+  ensureSelection();
   const groups = groupedScenes();
-  const allVisible = groups.all;
-  $("resultCount").textContent = `${allVisible.length} MATCHES`;
+  renderSlate(groups);
+  renderWorld();
+  renderBays(groups);
+  renderBrief();
+}
+
+/* ---- slate -------------------------------------------------------------- */
+function renderSlate(groups) {
   $("readyCount").textContent = String(groups.ready.length);
-  $("needsCount").textContent = String(groups.need.length);
-  $("libraryCount").textContent = String(groups.library.length);
-  $("empty").classList.toggle("hidden", allVisible.length > 0);
-  const shelves = [];
-  if (state.filters.view === "all" || state.filters.view === "ready") shelves.push(renderShelf("READY NOW", "Scenes that can launch with this cast and anchor.", groups.ready));
-  if (state.filters.view === "all" || state.filters.view === "need") shelves.push(renderShelf("NEEDS ONE THING", "Close matches. Fill the missing slot and they become ready.", groups.need));
-  if (state.filters.view === "all" || state.filters.view === "library") shelves.push(renderShelf("LIBRARY", "Everything else matching your filters.", groups.library));
-  $("shelves").innerHTML = shelves.join("");
-  document.querySelectorAll("[data-scene-id]").forEach((card) => { card.onclick = () => selectScene(card.dataset.sceneId); });
+  $("needCount").textContent = String(groups.need.length);
+  $("libCount").textContent = String(groups.library.length);
+  $("authorToggle").classList.toggle("on", state.filters.authorMode);
+  $("slateCast").innerHTML = castMembers().map(castChip).join("");
+  $("slateAnchor").innerHTML = anchorSlotHTML();
 }
 
-function renderShelf(title, note, items) {
-  if (!items.length) return "";
-  return `<section class="shelf"><div class="shelf-head"><div><h2>${esc(title)}</h2><p>${esc(note)}</p></div><span>${items.length}</span></div><div class="scene-strip">${items.map(renderSceneCard).join("")}</div></section>`;
+function castChip(m, i) {
+  const key = String.fromCharCode(65 + i);
+  const player = m.kind === "player";
+  const sub = player ? "PLAYER" : (m.distance ? `${Math.max(1, Math.round(m.distance))}M` : "CAST");
+  const drop = player ? "" : `<button class="cast-drop" data-act="drop" data-i="${i - 1}" title="Remove from cast">×</button>`;
+  return `<span class="cast-chip"><span class="cast-key">${key}</span><div style="min-width:0"><div class="cast-name">${esc(m.name)}</div><div class="cast-sub">${esc(sub)}</div></div>${drop}</span>`;
 }
 
-function renderSceneCard(s) {
-  const fit = sceneFit(s);
-  return `<article class="scene-card ${s.id === state.selectedId ? "is-selected" : ""} ${fit.tone}" data-scene-id="${escAttr(s.id)}" role="listitem"><div class="card-topline"><span class="fit-badge ${fit.tone}">${esc(fit.label)}</span><span>${esc(shapeLabel(s))}</span></div><h3>${esc(s.title)}</h3><div class="scene-id ${state.filters.authorMode ? "" : "soft"}">${esc(s.id)}</div><div class="role-diagram">${esc(roleLine(s))}</div>${timelinePips(s)}<div class="card-tags">${s.tags.slice(0, 5).map((t) => `<span class="pill">${esc(t)}</span>`).join("")}</div><div class="card-foot"><span>${s.actorCount || "?"} CAST</span><span>${s.requiresFurniture ? "ANCHOR" : "FREE"}</span>${s.unlisted ? "<span>UNLISTED</span>" : ""}</div></article>`;
+function anchorSlotHTML() {
+  if (state.furniture) {
+    const d = state.furniture.distance ? ` ${Math.max(1, Math.round(state.furniture.distance))}m` : "";
+    return `<div class="anchor-slot keyed"><span class="dot" style="background:var(--signal-go);box-shadow:0 0 7px var(--signal-go)"></span><span class="anchor-name">${esc(state.furniture.name)}</span><span class="anchor-state">matched${d}</span><button class="anchor-chg" data-act="clear-anchor" title="Clear anchor">CLR▸</button></div>`;
+  }
+  return `<div class="anchor-slot"><span class="dot" style="background:var(--steel-500)"></span><span class="anchor-name">No anchor</span><span class="anchor-state">free-space</span></div>`;
 }
 
+/* ---- world -------------------------------------------------------------- */
+function renderWorld() {
+  $("worldBody").innerHTML = worldActors() + worldAnchors() + worldTags() + worldFoot();
+}
+
+function worldActors() {
+  const rows = state.nearbyActors.length
+    ? state.nearbyActors.map((a) => {
+        const added = state.partners.some((p) => p.token === a.token);
+        const meta = `${a.distance != null ? Math.max(1, Math.round(a.distance)) + "m · " : ""}actor`;
+        return `<button class="pick-row ${added ? "active" : ""}" data-act="toggle-actor" data-token="${a.token}"><span class="pick-av"></span><div class="pick-body"><span class="val">${esc(a.name)}</span><span class="mono">${esc(meta)}</span></div><span class="pick-tag ${added ? "added" : ""}">${added ? "ADDED" : "ADD▸"}</span></button>`;
+      }).join("")
+    : `<div class="empty-mini"><span class="mono">No actors in range. Scan, or move near someone.</span></div>`;
+  return `<div class="world-group"><div class="world-head"><p class="lbl">◐ NEARBY ACTORS · ${state.nearbyActors.length}</p><div class="world-tools"><button class="chip-btn" data-act="scan" data-kind="actor">SCAN</button><button class="chip-btn" data-act="pick" data-slot="actor">PICK</button></div></div><div class="world-list">${rows}</div></div>`;
+}
+
+function worldAnchors() {
+  const rows = state.nearbyFurniture.length
+    ? state.nearbyFurniture.map((an) => {
+        const active = state.furniture && state.furniture.token === an.token;
+        const meta = `${an.distance != null ? Math.max(1, Math.round(an.distance)) + "m · " : ""}anchor`;
+        return `<button class="pick-row ${active ? "active" : ""}" data-act="toggle-anchor" data-token="${an.token}"><span class="pick-av"></span><div class="pick-body"><span class="val">${esc(an.name)}</span><span class="mono">${esc(meta)}</span></div><span class="pick-tag ${active ? "active" : ""}">${active ? "ACTIVE" : "USE▸"}</span></button>`;
+      }).join("")
+    : `<div class="empty-mini"><span class="mono">No anchor in range — free-space scenes only.</span></div>`;
+  return `<div class="world-group"><div class="world-head"><p class="lbl">◫ NEARBY ANCHORS · ${state.nearbyFurniture.length}</p><div class="world-tools"><button class="chip-btn" data-act="scan" data-kind="furniture">SCAN</button><button class="chip-btn" data-act="pick" data-slot="furniture">PICK</button></div></div><div class="world-list">${rows}</div></div>`;
+}
+
+function worldTags() {
+  const tags = catalogTags();
+  const chips = tags.length
+    ? tags.map((t) => `<button class="tag ${state.filters.tags.has(t) ? "on" : ""}" data-act="toggle-tag" data-tag="${escAttr(t)}">${esc(t)}</button>`).join("")
+    : `<span class="mono">no tags</span>`;
+  return `<div class="world-group"><div class="world-head"><p class="lbl">⊞ TAGS · ${tags.length}</p></div><div class="tag-rail">${chips}</div></div>`;
+}
+
+function worldFoot() {
+  const active = state.filters.search || state.filters.tags.size;
+  if (active) {
+    const bits = [];
+    if (state.filters.search) bits.push(`“${state.filters.search}”`);
+    if (state.filters.tags.size) bits.push("tags " + [...state.filters.tags].join("+"));
+    return `<div class="world-foot"><button class="focus-clear" data-act="clear-filters"><span class="mono">Filtered by ${esc(bits.join(" + "))} — tap to clear</span></button></div>`;
+  }
+  return `<div class="world-foot"><div class="focus-hint"><span class="mono">Scan the world, add actors to the cast, key an anchor — the bays re-rank as readiness changes.</span></div></div>`;
+}
+
+/* ---- bays --------------------------------------------------------------- */
+function renderBays(groups) {
+  const { ready, need, library } = groups;
+  const readyBody = ready.length ? `<div class="scene-grid">${ready.map((i) => cardHTML(i, "ready")).join("")}</div>` : `<div class="scene-grid">${bayEmpty("Nothing seats with the current cast. Check NEEDS ONE THING below.")}</div>`;
+  const needBody = need.length ? `<div class="scene-grid">${need.map((i) => cardHTML(i, "need")).join("")}</div>` : `<div class="scene-grid">${bayEmpty("No near-misses right now.")}</div>`;
+  const libBody = library.length ? `<div class="library-strip">${library.map(libHTML).join("")}</div>` : `<div class="scene-grid">${bayEmpty("Everything else appears here as your cast changes.")}</div>`;
+  $("bays").innerHTML =
+    `<div>${bayHead("go", "BAY 1 · READY NOW", ready.length, "seats with current cast")}${readyBody}</div>` +
+    `<div>${bayHead("warn", "BAY 2 · NEEDS ONE THING", need.length, "one gap to seat")}${needBody}</div>` +
+    `<div>${bayHead("lib", "BAY 3 · LIBRARY", library.length, "")}${libBody}</div>`;
+}
+
+function bayHead(tone, label, count, note) {
+  const color = tone === "go" ? "var(--signal-go)" : tone === "warn" ? "var(--signal-warn)" : "var(--steel-500)";
+  const glow = tone === "lib" ? "" : `box-shadow:0 0 9px ${color}`;
+  const noteHTML = note ? `<span class="bay-note">${esc(note)}</span>` : "";
+  return `<div class="bay-head"><span class="dot" style="width:9px;height:9px;background:${color};${glow}"></span><p class="eb ${tone}">${esc(label)} · ${count}</p><span class="bay-rule ${tone}"></span>${noteHTML}</div>`;
+}
+
+function bayEmpty(msg) { return `<div class="bay-empty"><span class="mono">${esc(msg)}</span></div>`; }
+
+function cardHTML(item, cls) {
+  const { scene: s, ev, sel } = item;
+  const pips =
+    pipHTML(ev.rolesGate && !ev.overCast, `ROLES ${ev.actorCount ? ev.seated + "/" + ev.actorCount : "0"}`) +
+    pipHTML(ev.anchorGate, s.requiresFurniture ? "ANCHOR" : "FREE") +
+    pipHTML(true, contentPip(s));
+  const needs = cls === "need" ? `<div class="needs-text">${esc(needsText(s, ev))}</div>` : "";
+  const author = state.filters.authorMode
+    ? `<div class="card-author"><div class="mono wrap a-id">${esc(s.id)} · w${s.weight} p${s.priority}</div><div class="mono wrap a-src">${esc(s.sourceFile || "live registry")}</div></div>`
+    : "";
+  return `<div class="scene-card ${cls} ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><div class="card-spine"><span class="card-num">${displayNum(s)}</span></div><div class="card-body"><div class="card-nameline"><span class="card-name">${esc(s.title)}</span><span class="card-lamp ${cls === "need" ? "warn" : ""}"></span></div><div class="pip-row ${cls === "need" ? "need" : ""}">${pips}</div>${needs}${author}</div></div>`;
+}
+
+function pipHTML(pass, label) {
+  return `<span class="pip ${pass ? "pass" : "fail"}"><span class="pip-dot"></span><span class="pip-label">${esc(label)}</span></span>`;
+}
+
+function libHTML(item) {
+  const { scene: s, sel } = item;
+  const n = s.actorCount || (s.roles || []).length || 1;
+  const meta = state.filters.authorMode ? s.id : `${n} role${n === 1 ? "" : "s"}`;
+  return `<div class="lib-chip ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="lib-spine"></span><div class="lib-body"><div class="val">${esc(s.title)}</div><div class="mono">${esc(meta)}</div></div></div>`;
+}
+
+/* ---- brief -------------------------------------------------------------- */
 function renderBrief() {
-  const s = sceneById(state.selectedId);
   const brief = $("brief");
-  if (!s) { brief.innerHTML = `<div class="brief-empty">Select a scene slate.</div>`; return; }
-  const fit = sceneFit(s);
-  brief.innerHTML = `<div class="brief-head"><span class="fit-badge ${fit.tone}">${esc(fit.label)}</span><h2>${esc(s.title)}</h2><div class="brief-id">${esc(s.id)}</div></div><div class="brief-section"><div class="section-label">ROLE SOCKETS</div><div class="role-sockets">${renderRoleSockets(s)}</div></div><div class="brief-section"><div class="section-label">ANCHOR</div>${renderAnchorRequirement(s)}</div><div class="brief-section"><div class="section-label">SHAPE</div><div class="shape-readout"><span>${esc(shapeLabel(s))}</span>${timelinePips(s)}</div></div>${renderAnimations(s, fit)}<div class="brief-section"><div class="section-label">TAGS</div><div class="brief-tags">${s.tags.map((t) => `<span class="pill">${esc(t)}</span>`).join("") || "<span class='muted'>none</span>"}</div></div>${state.filters.authorMode ? renderAuthorBlock(s) : ""}<div class="brief-reason ${fit.tone}">${esc(fit.reason)}</div>`;
-  brief.querySelectorAll("[data-play-stage]").forEach((btn) => { btn.onclick = () => doLaunch(Number(btn.dataset.playStage)); });
-}
-
-// Each stage is an individually browsable/playable animation. Listed in order; the play button enters
-// the scene directly on that stage (SceneOptions.Stage). Enabled only when the scene itself is ready
-// to launch (same cast/anchor requirements). A scene with no stage list (a non-linear graph) shows nothing.
-function renderAnimations(s, fit) {
-  const stages = s.stages || [];
-  if (!stages.length) return "";
-  const disabled = !state.ready || fit.state !== "ready";
-  const rows = stages.map((st) => {
-    const label = st.name || `Stage ${st.index}`;
-    const tags = st.tags.slice(0, 3).map((t) => `<span class="pill">${esc(t)}</span>`).join("");
-    return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div><button class="anim-play" type="button" data-play-stage="${escAttr(String(st.index))}" ${disabled ? "disabled" : ""} title="Play this animation">▶</button></div>`;
-  }).join("");
-  return `<div class="brief-section"><div class="section-label">ANIMATIONS <span class="muted">${stages.length}</span></div><div class="anim-list">${rows}</div></div>`;
-}
-
-function renderRoleSockets(s) {
-  const members = castMembers();
-  const count = Math.max(s.actorCount || 0, s.roles.length, members.length);
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const role = s.roles[i] || { name: `extra ${i + 1}`, gender: "any" };
-    const member = members[i];
-    const over = i >= (s.actorCount || s.roles.length);
-    out.push(`<div class="role-socket ${member ? "filled" : ""} ${over ? "extra" : ""}"><span class="role-name">${esc(role.name || `role ${i + 1}`)}</span><span class="role-gender">${esc((role.gender || "any").toUpperCase())}</span><strong>${member ? esc(member.name) : "EMPTY"}</strong></div>`);
-  }
-  return out.join("");
-}
-
-function renderAnchorRequirement(s) {
-  if (!s.requiresFurniture) return `<div class="anchor-line ready">Free placement. No furniture anchor required.</div>`;
-  if (state.furniture) return `<div class="anchor-line ready">Using ${esc(state.furniture.name)}${distanceText(state.furniture)}</div>`;
-  return `<div class="anchor-line need">Furniture or marker anchor required.</div>`;
-}
-
-function renderAuthorBlock(s) {
-  return `<div class="brief-section author-block"><div class="section-label">AUTHOR DATA</div>${kv("SOURCE", s.sourceFile || "live registry")}${kv("PRIORITY", String(s.priority))}${kv("WEIGHT", String(s.weight))}${kv("MATCHMAKING", s.unlisted ? "unlisted" : "listed")}${kv("STRIP", s.policy.stripActors)}${kv("LOCK", s.policy.lockPlayer)}${kv("FADE", s.policy.fade)}${kv("CAMERA", s.policy.camera)}</div>`;
-}
-
-function renderLiveDirector() {
-  const el = $("liveDirector");
-  if (!state.lastHandle) { el.classList.add("hidden"); el.innerHTML = ""; return; }
-  const s = sceneById(state.lastSceneId) || sceneById(state.selectedId);
-  el.classList.remove("hidden");
-  el.innerHTML = `<div class="live-head"><span class="live-dot"></span><div><span>LIVE TAKE</span><strong>${esc(s ? s.title : state.lastSceneId)}</strong></div><b>#${state.lastHandle}</b></div><div class="live-grid"><span>Cast ${castTokens().length}</span><span>${s ? esc(shapeLabel(s)) : "Runtime"}</span><span>${state.furniture ? "Anchored" : "Free"}</span></div>`;
-}
-
-function updateLaunch() {
   const s = sceneById(state.selectedId);
-  let reason = "";
-  if (!state.ready) reason = "Engine not connected.";
-  else if (!s) reason = "Select a scene.";
-  else {
-    const fit = sceneFit(s);
-    if (fit.state !== "ready") reason = fit.reason;
+  if (!s) { brief.innerHTML = `<div class="brief-empty"><span class="mono">No scene selected. The catalog is empty.</span></div>`; return; }
+  const ev = evalScene(s);
+  const allMet = ev.gaps === 0;
+
+  const statusRow = `<div class="brief-status ${allMet ? "" : "warn"}"><span class="dot"></span><p class="eb">${allMet ? "SEATED IN BRIEF" : "INSPECTING · NOT SEATABLE"}</p></div>`;
+
+  const reqRows =
+    reqRow("ROLES", ev.rolesGate && !ev.overCast, ev.actorCount ? `${ev.seated}/${ev.actorCount}${ev.overCast ? " · over-cast" : ev.rolesGate ? " seated" : " short"}` : "no roles defined") +
+    reqRow("ANCHOR", ev.anchorGate, s.requiresFurniture ? (ev.anchorGate ? `${state.furniture.name} keyed` : "anchor required") : "free-space") +
+    reqRow("CONTENT", true, contentDetail(s));
+
+  const roleCount = Math.max(ev.actorCount || 0, (s.roles || []).length);
+  const members = castMembers();
+  let seatsHTML = "";
+  for (let i = 0; i < roleCount; i++) {
+    const role = (s.roles && s.roles[i]) || { name: `role ${i + 1}`, gender: "any" };
+    const m = members[i];
+    const key = String.fromCharCode(65 + i);
+    const name = m ? m.name : "— open —";
+    const sub = m ? "SEATED" : `NEEDS ${(role.gender || "any").toUpperCase()}`;
+    seatsHTML += `<div class="seat ${m ? "" : "open"}"><span class="seat-key">${key}</span><div style="min-width:0"><div class="seat-name">${esc(name)}</div><div class="seat-sub">${esc(sub)}</div></div></div>`;
   }
-  $("play").disabled = reason !== "";
-  $("stop").disabled = !state.lastHandle;
-  $("launchReason").textContent = reason;
+  const anchorChip = `<div class="anchor-mini"><span>◫ ${esc(s.requiresFurniture ? (state.furniture ? state.furniture.name : "anchor req") : "no anchor")}</span></div>`;
+
+  const module = `<div class="module ${allMet ? "seated" : ""}"><div class="module-spine"><span class="rivet"></span><span class="snum">SCN-${displayNum(s)}</span><span class="rivet"></span></div><div class="module-body"><div class="module-top"><div class="registry"><div class="r-label">REGISTRY</div><div class="r-id">${esc(s.id)}</div></div><div class="status-gauge"><div class="gauge-ring"><span class="gauge-lamp ${allMet ? "" : "warn"}"></span></div><span class="gauge-label ${allMet ? "" : "warn"}">${allMet ? "READY" : ev.gaps + " GAP"}</span></div></div><div class="module-name">${esc(s.title)}</div><div class="req-box"><div class="req-head"><span class="r-label">REQUIREMENTS</span><span class="req-met ${allMet ? "" : "warn"}">${allMet ? "ALL MET" : ev.gaps + " OPEN"}</span></div><div class="req-list">${reqRows}</div></div><div class="seat-row">${seatsHTML}${anchorChip}</div><div class="module-edge"><div class="edge-bar ${allMet ? "lit" : ""}"></div></div></div></div>`;
+
+  const live = state.lastHandle ? liveTakeHTML() : "";
+
+  const shapeBox = `<div class="info-box"><div class="lbl">SHAPE</div><div class="mono wrap">${esc(shapeText(s))}</div></div>`;
+
+  const diagBox = state.filters.authorMode
+    ? `<div class="info-box hud"><div class="lbl">MATCH DIAGNOSTICS</div><div class="kv-list">${diagRows(s, ev).map(([k, v]) => `<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("")}</div></div>`
+    : "";
+
+  const polBox = `<div class="info-box"><div class="lbl">POLICIES</div><div class="policy-list">${policyLines(s).map((p) => `<div class="mono wrap"><b>●</b> ${esc(p)}</div>`).join("")}</div></div>`;
+
+  const o = state.opts;
+  const overrides = `<div class="info-box"><div class="lbl">START OVERRIDES</div><div class="override-grid"><label class="override"><span class="lbl">STRIP</span><select class="select" data-field="strip">${optionTags([["-1", "Inherit"], ["1", "On"], ["0", "Off"]], o.strip)}</select></label><label class="override"><span class="lbl">LOCK PLAYER</span><select class="select" data-field="lock">${optionTags([["-1", "Inherit"], ["1", "On"], ["0", "Off"]], o.lock)}</select></label><label class="override"><span class="lbl">CAMERA</span><select class="select" data-field="camera">${optionTags([["", "Inherit"], ["thirdperson_hold", "Third person"], ["scene_orbit", "Scene orbit"], ["freefly", "Free fly"], ["vanity_orbit", "Vanity orbit"]], o.camera)}</select></label><label class="override"><span class="lbl">SPEED <b id="speedVal">${Number(o.speed).toFixed(1)}x</b></span><input id="optSpeed" class="range" type="range" min="0.1" max="3" step="0.1" value="${escAttr(o.speed)}"></label></div></div>`;
+
+  const stages = s.stages || [];
+  const canPlay = state.ready && ev.gaps === 0;
+  const animBox = state.showAnim && stages.length
+    ? `<div class="info-box"><div class="lbl">ANIMATIONS · ${stages.length}</div><div class="anim-list">${stages.map((st) => {
+        const label = st.name || `Stage ${st.index}`;
+        const tags = (st.tags || []).slice(0, 3).map((t) => `<span class="pill">${esc(t)}</span>`).join("");
+        return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div><button class="anim-play" data-act="play-stage" data-stage="${st.index}" ${canPlay ? "" : "disabled"} title="Play this animation">▶</button></div>`;
+      }).join("")}</div></div>`
+    : "";
+
+  const reason = launchReason(s, ev);
+  const launchBtn = canPlay
+    ? `<button class="launch-btn go" data-act="launch">▶ Launch Scene</button>`
+    : `<button class="launch-btn blocked" data-act="launch-blocked" disabled>${esc(canPlay ? "" : launchLabel(s, ev))}</button>`;
+  const previewBtn = stages.length ? `<button class="ghost-btn ${state.showAnim ? "on" : ""}" data-act="toggle-anim">${state.showAnim ? "Hide Shape" : "Preview Shape"}</button>` : "";
+  const stopBtn = state.lastHandle ? `<button class="stop-btn" data-act="stop">■ Stop Take #${state.lastHandle}</button>` : "";
+  const reasonHTML = reason ? `<div class="mono wrap" style="color:var(--text-faint);text-align:center">${esc(reason)}</div>` : "";
+  const launchStack = `<div class="launch-stack">${reasonHTML}${launchBtn}${previewBtn}${stopBtn}</div>`;
+
+  brief.innerHTML = statusRow + module + live + shapeBox + diagBox + polBox + overrides + animBox + launchStack;
 }
 
+function reqRow(label, pass, detail) {
+  return `<span class="req-row ${pass ? "" : "fail"}"><span class="rdot"></span><span class="rlabel">${esc(label)}</span><span class="req-fill"></span><span class="rdetail">${esc(detail)}</span></span>`;
+}
+
+function liveTakeHTML() {
+  const ls = sceneById(state.lastSceneId) || sceneById(state.selectedId);
+  const kind = ls ? shapeText(ls).split(" · ")[0] : "runtime";
+  return `<div class="live-take"><div class="live-head"><span class="live-dot"></span><div class="live-body"><span class="lbl">LIVE TAKE</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div><b>#${state.lastHandle}</b></div><div class="live-grid"><span>Cast ${castTokens().length}</span><span>${esc(kind)}</span><span>${state.furniture ? "Anchored" : "Free"}</span></div></div>`;
+}
+
+function launchLabel(s, ev) {
+  if (!state.ready) return "Engine Offline";
+  return `Launch Blocked · ${ev.gaps} gap${ev.gaps > 1 ? "s" : ""}`;
+}
+
+function launchReason(s, ev) {
+  if (!state.ready) return "Engine not connected.";
+  if (ev.gaps > 0) return ev.reason;
+  return "";
+}
+
+/* ---- brief value helpers ------------------------------------------------ */
+function contentPip(s) {
+  const n = (s.stages || []).length;
+  if (n) return `${n} STG`;
+  return String((s.shape && s.shape.kind) || "linear").toUpperCase();
+}
+
+function contentDetail(s) {
+  const stages = s.stages || [];
+  if (stages.length) {
+    const clips = stages.reduce((a, st) => a + (st.clipCount || 0), 0);
+    return `${stages.length} stage${stages.length === 1 ? "" : "s"}${clips ? ` · ${clips} clips` : ""}`;
+  }
+  return "clips resolved";
+}
+
+function shapeText(s) {
+  const sh = s.shape || {};
+  const kind = String(sh.kind || "linear");
+  const graph = kind === "graph";
+  const n = graph ? (sh.nodes || 1) : (sh.stages || 1);
+  const unit = graph ? "node" : "stage";
+  const parts = [kind, `${n} ${unit}${n === 1 ? "" : "s"}`];
+  if (sh.branches) parts.push(`${sh.branches} branch${sh.branches === 1 ? "" : "es"}`);
+  return parts.join(" · ");
+}
+
+function policyLines(s) {
+  const p = s.policy || {};
+  const out = [
+    `strip actors: ${p.stripActors}`,
+    `lock player: ${p.lockPlayer}`,
+    `fade: ${p.fade}`,
+    `camera: ${p.camera || "inherit"}`,
+  ];
+  if (p.playerControl) out.push("player control: custom");
+  return out;
+}
+
+function diagRows(s, ev) {
+  const rows = [["weight · priority", `${s.weight} · ${s.priority}`]];
+  (s.roles || []).forEach((r, i) => rows.push([`role ${String.fromCharCode(65 + i)} filter`, `${r.gender || "any"} · ${ev.seated > i ? "pass" : "open"}`]));
+  rows.push(["anchor", (s.requiresFurniture ? "required" : "free-space") + " · " + (ev.anchorGate ? "pass" : "fail")]);
+  rows.push(["stages · shape", `${(s.stages || []).length} · ${(s.shape && s.shape.kind) || "linear"}`]);
+  rows.push(["source", s.sourceFile || "live registry"]);
+  return rows;
+}
+
+function optionTags(pairs, val) {
+  return pairs.map(([v, l]) => `<option value="${escAttr(v)}" ${String(v) === String(val) ? "selected" : ""}>${esc(l)}</option>`).join("");
+}
+
+/* =========================================================================
+   LAUNCH
+   ========================================================================= */
 function doLaunch(stageIndex) {
   const s = sceneById(state.selectedId);
   if (!s) return;
-  const opts = { strip: Number($("optStrip").value), lockPlayer: Number($("optLock").value), camera: $("optCamera").value, speed: Number($("optSpeed").value) };
-  // Optional: enter directly on one browsable animation (a stage of the sequence). 0 = the whole scene.
+  const opts = { strip: Number(state.opts.strip), lockPlayer: Number(state.opts.lock), camera: state.opts.camera, speed: Number(state.opts.speed) };
+  // Optional: enter directly on one browsable animation (a stage of the sequence). 0 = whole scene.
   const stage = Number.isInteger(stageIndex) ? stageIndex : 0;
   if (stage > 0) opts.stage = stage;
   const payload = { sceneId: s.id, castTokens: castTokens(), opts };
@@ -477,11 +684,10 @@ function doLaunch(stageIndex) {
   if (roleNames.length === castTokens().length) payload.roleNames = roleNames;
   if (s.requiresFurniture && state.furniture) payload.furnitureToken = state.furniture.token;
   const what = stage > 0 ? `${s.title} · ${stageLabel(s, stage)}` : s.title;
-  notice("info", `Launching "${what}"...`);
+  notice("info", `Launching "${what}"…`);
   send("osf.launch", payload);
 }
 
-// Display label for a stage index within a scene (its `name`, else a positional fallback).
 function stageLabel(s, index) {
   const st = (s.stages || []).find((x) => x.index === index);
   return st && st.name ? st.name : `stage ${index}`;
@@ -497,92 +703,21 @@ function launchRoleNames(s) {
 function doStop() {
   if (!state.lastHandle) return;
   send("osf.stop", { handle: state.lastHandle });
-  notice("info", `Stopping handle ${state.lastHandle}...`);
+  notice("info", `Stopping handle ${state.lastHandle}…`);
   state.lastHandle = 0;
   renderAll();
 }
 
-function buildTagCloud() {
-  const counts = new Map();
-  for (const s of state.catalog) {
-    if (!unlistedVisible(s)) continue;
-    for (const t of s.tags || []) {
-      const k = t.toLowerCase();
-      counts.set(k, (counts.get(k) || 0) + 1);
-    }
-  }
-  const tags = [...counts.keys()].sort();
-  $("tagCount").textContent = String(tags.length);
-  $("tagCloud").innerHTML = tags.map((t) => `<button class="tag ${state.filters.tags.has(t) ? "is-on" : ""}" data-tag="${escAttr(t)}" type="button">${esc(t)}</button>`).join("");
-  $("tagCloud").querySelectorAll("[data-tag]").forEach((btn) => {
-    btn.onclick = () => {
-      const tag = btn.dataset.tag;
-      if (state.filters.tags.has(tag)) state.filters.tags.delete(tag);
-      else state.filters.tags.add(tag);
-      buildTagCloud();
-      renderAll();
-    };
-  });
+/* =========================================================================
+   UTIL
+   ========================================================================= */
+function displayNum(s) {
+  const id = s.id || s.title || "";
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return String(h % 1000).padStart(3, "0");
 }
 
-function wireFilters() {
-  $("search").addEventListener("input", (e) => { state.filters.search = e.target.value.trim().toLowerCase(); renderAll(); });
-  segGroup("viewFilter", "view", (v) => { state.filters.view = v; renderAll(); });
-  segGroup("countFilter", "count", (v) => { state.filters.count = v; renderAll(); });
-  segGroup("anchorFilter", "anchor", (v) => { state.filters.anchor = v; renderAll(); });
-  $("showUnlisted").addEventListener("change", (e) => {
-    state.filters.showUnlisted = e.target.checked;
-    buildTagCloud();
-    const selected = sceneById(state.selectedId);
-    if (selected && !unlistedVisible(selected)) state.selectedId = bestInitialScene();
-    renderAll();
-  });
-  $("authorMode").addEventListener("change", (e) => { state.filters.authorMode = e.target.checked; renderAll(); });
-}
-
-function syncUnlistedFilter() {
-  const anyUnlisted = state.catalog.some((s) => s.unlisted);
-  const anyListed = state.catalog.some((s) => !s.unlisted);
-  if (anyUnlisted && !anyListed) state.filters.showUnlisted = true;
-  $("unlistedField").classList.toggle("hidden", !anyUnlisted);
-  $("showUnlisted").checked = state.filters.showUnlisted;
-}
-
-function segGroup(id, attr, cb) {
-  const group = $(id);
-  group.querySelectorAll(".seg-btn").forEach((btn) => {
-    btn.onclick = () => {
-      group.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("is-on"));
-      btn.classList.add("is-on");
-      cb(btn.dataset[attr]);
-    };
-  });
-}
-
-function roleLine(s) {
-  if (!s.roles || !s.roles.length) return `${s.actorCount || "?"} positional roles`;
-  return s.roles.map((r) => `${r.name || "role"}${r.gender && r.gender !== "any" ? ":" + r.gender[0] : ""}`).join(" -> ");
-}
-
-function shapeLabel(s) {
-  const shape = s.shape || {};
-  const kind = String(shape.kind || "linear").toUpperCase();
-  const n = shape.kind === "graph" ? (shape.nodes || 0) : (shape.stages || 0);
-  const unit = shape.kind === "graph" ? "NODE" : "STAGE";
-  const branch = shape.branches ? ` / ${shape.branches} CHOICE${shape.branches === 1 ? "" : "S"}` : "";
-  return `${kind} ${n || 1} ${unit}${n === 1 ? "" : "S"}${branch}`;
-}
-
-function timelinePips(s) {
-  const shape = s.shape || {};
-  const count = Math.max(1, Math.min(8, shape.kind === "graph" ? (shape.nodes || 1) : (shape.stages || 1)));
-  const pips = Array.from({ length: count }, (_, i) => `<span class="${i === 0 ? "entry" : ""}"></span>`).join("");
-  return `<div class="timeline-pips">${pips}${shape.branches ? `<b>${shape.branches}</b>` : ""}</div>`;
-}
-
-function kv(label, value) { return `<div class="kv"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`; }
-function distanceLabel(item) { return typeof item.distance === "number" ? `${Math.max(1, Math.round(item.distance))}m` : ""; }
-function distanceText(item) { const label = distanceLabel(item); return label ? `<small>${label}</small>` : ""; }
 function sentenceCase(str) { const s = String(str || ""); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function escAttr(s) { return esc(s).replace(/`/g, "&#96;"); }
@@ -597,27 +732,69 @@ function notice(kind, text) {
   if (kind !== "err") noticeTimer = setTimeout(() => { el.className = "notice"; el.textContent = ""; }, 6000);
 }
 
+/* =========================================================================
+   WIRING
+   ========================================================================= */
+function onClick(e) {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  switch (el.dataset.act) {
+    case "select-scene": selectScene(el.dataset.id); break;
+    case "toggle-actor": toggleActor(Number(el.dataset.token)); break;
+    case "toggle-anchor": toggleAnchor(Number(el.dataset.token)); break;
+    case "toggle-tag": toggleTag(el.dataset.tag); break;
+    case "scan": scanNearby(el.dataset.kind); break;
+    case "pick": send("osf.pickCrosshair", { slot: el.dataset.slot }); break;
+    case "clear-filters": state.filters.search = ""; $("search").value = ""; state.filters.tags.clear(); renderAll(); break;
+    case "clear-anchor": state.furniture = null; renderAll(); break;
+    case "drop": removePartner(Number(el.dataset.i)); break;
+    case "toggle-anim": state.showAnim = !state.showAnim; renderBrief(); break;
+    case "launch": doLaunch(); break;
+    case "stop": doStop(); break;
+    case "play-stage": doLaunch(Number(el.dataset.stage)); break;
+    default: break;
+  }
+}
+
+function onChange(e) {
+  const f = e.target.dataset && e.target.dataset.field;
+  if (!f) return;
+  if (f === "strip") state.opts.strip = e.target.value;
+  else if (f === "lock") state.opts.lock = e.target.value;
+  else if (f === "camera") state.opts.camera = e.target.value;
+}
+
+function onInput(e) {
+  if (e.target.id !== "optSpeed") return;
+  state.opts.speed = e.target.value;
+  const sv = $("speedVal");
+  if (sv) sv.textContent = `${Number(e.target.value).toFixed(1)}x`;
+}
+
+function onCursor(e) {
+  const c = $("cursor");
+  c.style.left = `${e.clientX}px`;
+  c.style.top = `${e.clientY}px`;
+}
+
 function init() {
-  wireFilters();
-  $("refresh").onclick = () => { notice("info", "Refreshing catalog..."); requestCatalog(true); };
-  $("addActor").onclick = () => send("osf.pickCrosshair", { slot: "actor" });
-  $("pickFurniture").onclick = () => send("osf.pickCrosshair", { slot: "furniture" });
-  $("clearFurniture").onclick = () => { state.furniture = null; renderAll(); };
-  $("scanActors").onclick = () => scanNearby("actor");
-  $("scanActorsMini").onclick = () => scanNearby("actor");
-  $("scanFurniture").onclick = () => scanNearby("furniture");
-  $("scanFurnitureMini").onclick = () => scanNearby("furniture");
-  $("play").onclick = () => doLaunch();
-  $("stop").onclick = doStop;
-  $("optSpeed").addEventListener("input", (e) => { $("speedVal").textContent = `${Number(e.target.value).toFixed(1)}x`; });
+  document.addEventListener("click", onClick);
+  document.addEventListener("change", onChange);
+  document.addEventListener("input", onInput);
+  document.addEventListener("mousemove", onCursor);
+  $("refresh").addEventListener("click", () => { notice("info", "Refreshing catalog…"); requestCatalog(true); });
+  $("authorToggle").addEventListener("click", () => { state.filters.authorMode = !state.filters.authorMode; renderAll(); });
+  $("search").addEventListener("input", (e) => { state.filters.search = e.target.value.trim().toLowerCase(); renderAll(); });
+
   renderAll();
+
   if (bridgeAvailable()) {
     setLamp("wait");
-    $("statusText").textContent = "WAITING FOR RUNTIME...";
+    $("statusText").textContent = "waiting for runtime…";
     requestCatalog(true);
   } else {
     setLamp("ok");
-    $("statusText").textContent = "STANDALONE MOCK";
+    $("statusText").textContent = "standalone mock";
     state.ready = true;
     state.nearbyActors = MOCK_ACTORS.slice();
     state.nearbyFurniture = MOCK_ANCHORS.slice();
@@ -626,18 +803,15 @@ function init() {
   }
 }
 
-document.addEventListener("mousemove", (e) => {
-  const c = $("cursor");
-  c.style.left = `${e.clientX}px`;
-  c.style.top = `${e.clientY}px`;
-});
-
+/* =========================================================================
+   MOCK (standalone dev — exercises normalizeScene / the bridge stubs)
+   ========================================================================= */
 const MOCK_CATALOG = [
-  { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, sourceFile: "Data/OSF/Scenes/test.osf.json" },
-  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2 }], priority: 20, weight: 4, sourceFile: "Data/OSF/GE/chair.osf.json" },
-  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2 }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2 }], priority: 30, weight: 2, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
-  { id: "pair.freeform", title: "Pair Freeform", tags: ["paired", "free", "demo"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false, shape: { kind: "linear", stages: 3, nodes: 3, branches: 0 }, sourceFile: "Data/OSF/Scenes/demo.osf.json" },
-  { id: "author.quest.finale", title: "Quest Finale Branch Test", tags: ["finale", "story", "branching"], actorCount: 2, roles: [{ name: "lead", gender: "any" }, { name: "partner", gender: "any" }], requiresFurniture: false, unlisted: true, shape: { kind: "graph", stages: 3, nodes: 4, branches: 3 }, policy: { stripActors: false, lockPlayer: true, fade: true, camera: "thirdperson_hold" }, sourceFile: "Data/OSF/Author/finale.osf.json" },
+  { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
+  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2 }], priority: 2, weight: 40, sourceFile: "Data/OSF/GE/chair.osf.json" },
+  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2 }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2 }], priority: 3, weight: 25, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
+  { id: "pair.freeform", title: "Pair Freeform", tags: ["paired", "free", "demo"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false, shape: { kind: "linear", stages: 3, nodes: 3, branches: 0 }, priority: 1, weight: 22, sourceFile: "Data/OSF/Scenes/demo.osf.json" },
+  { id: "author.quest.finale", title: "Quest Finale Branch Test", tags: ["finale", "story", "branching"], actorCount: 2, roles: [{ name: "lead", gender: "any" }, { name: "partner", gender: "any" }], requiresFurniture: false, unlisted: true, shape: { kind: "graph", stages: 3, nodes: 4, branches: 3 }, policy: { stripActors: false, lockPlayer: true, fade: true, camera: "thirdperson_hold" }, priority: 2, weight: 14, sourceFile: "Data/OSF/Author/finale.osf.json" },
 ];
 const MOCK_ACTORS = [
   { token: 601, name: "Sarah Morgan", formId: 0x2, distance: 2, isActor: true },
