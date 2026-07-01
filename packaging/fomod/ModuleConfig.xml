@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  FOMOD installer for OSF Animation.
-  - Core is always installed (requiredInstallFiles): the SFSE plugin DLL, the OSF Papyrus scripts + sources, the release settings.json, and the internal.osf.json system scenes (OSF.Health). 
-  - SAF Compatibility is an OPT-IN group (unchecked by default): the SAF / SAFScript backwards-compat shim (SafCompat folder).
-  The <folder source="..."> entries are staged by packaging/build-archive.ps1; destination="" puts each folder's internal SFSE/ + Scripts/ + OSF/ layout at the Data root.
--->
-<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
   <moduleName>OSF Animation</moduleName>
 
   <moduleImage path="fomod\images\header.jpg"/>
@@ -25,13 +19,11 @@
 Turn this ON if you have mods that ask for SAF and you want OSF to handle them. Do not install SAF if you have this enabled.
 
 Leave it OFF if you're also running the real SAF mod at the same time and do not want mods to use OSF.</description>
-              <image path="fomod\images\patch.jpg"/>
               <files>
                 <folder source="SafCompat" destination="" priority="1"/>
               </files>
               <typeDescriptor>
                 <dependencyType>
-                  <!-- Pre-check the SAF shim when a known SAF-dependent plugin is present in the load order. -->
                   <defaultType name="Optional"/>
                   <patterns>
                     <pattern>
