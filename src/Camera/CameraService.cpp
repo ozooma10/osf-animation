@@ -572,6 +572,29 @@ namespace OSF::Camera
 		suppressBounce.store(false, std::memory_order_relaxed);
 	}
 
+	void CameraService::OnPostLoad()
+	{
+		// Runs after OnStopAll zeroed every imposition, so only the LIVE camera state is consulted: if the
+		// load left it in a state OSF imposes (scene_orbit=kFreeFly, native freecam=kFreeWalk,
+		// vanity_orbit=kAutoVanity), it's a leaked imposition nothing will ever release — recover it.
+		// Covers the in-process quickload AND loading a save that was written mid-scene.
+		SFSE::GetTaskInterface()->AddTask([]() {
+			auto* camera = RE::PlayerCamera::GetSingleton();
+			if (!camera) {
+				return;
+			}
+			const bool leaked = camera->QCameraEquals(RE::CameraState::kFreeFly) ||
+			                    camera->QCameraEquals(RE::CameraState::kFreeWalk) ||
+			                    camera->QCameraEquals(RE::CameraState::kAutoVanity);
+			if (!leaked) {
+				return;
+			}
+			SetNativeFreeCam(false);  // clear the engine free-cam flags too, in case the tfc path leaked
+			camera->ForceThirdPerson();
+			REX::INFO("[Camera] recovered a leaked scene-camera state after load (forced third person)");
+		});
+	}
+
 	void CameraService::Tick()
 	{
 		if (orbitDriving.load(std::memory_order_relaxed)) {

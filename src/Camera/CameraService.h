@@ -53,6 +53,13 @@ namespace OSF::Camera
 		// Save/load teardown: drops every imposition without forcing a mode (the loaded save is authoritative, matching GraphManager::StopAll).
 		void OnStopAll();
 
+		// Post-load recovery (TESLoadGameEvent backstop, AFTER OnStopAll): a load can complete with the
+		// camera still parked in an alt state imposed before the load — the engine doesn't reset it, and
+		// with the orbit driver stopped kFreeFly sits at a dead transform with no input routed to it
+		// (camera stuck in the ground at the origin). A load never legitimately lands in one of these
+		// states, so finding one here means a leaked imposition: force third person to hand it back.
+		void OnPostLoad();
+
 	private:
 		// Capture the prior POV once, on the game thread, when the first imposition engages.
 		void CaptureBaseline();

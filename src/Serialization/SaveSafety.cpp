@@ -1,6 +1,7 @@
 #include "Serialization/SaveSafety.h"
 
 #include "Animation/GraphManager.h"
+#include "Camera/CameraService.h"
 #include "Papyrus/OSFScript.h"
 #include "Scene/SceneEventRelay.h"
 #include "Util/Hooking.h"
@@ -117,6 +118,10 @@ namespace OSF::Serialization::SaveSafety
 						"OSF.* stays unbound until the next successful load");
 				}
 				Animation::GraphManager::GetSingleton().StopAll("save loaded (TESLoadGameEvent backstop)");
+				// AFTER StopAll (impositions zeroed): if the load still left the camera in an OSF-imposed
+				// alt state (e.g. scene_orbit's kFreeFly with its driver stopped — stuck at a dead
+				// transform), force it back to third person.
+				Camera::CameraService::GetSingleton().OnPostLoad();
 				return RE::BSEventNotifyControl::kContinue;
 			}
 		};
