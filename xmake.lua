@@ -49,6 +49,15 @@ target("OSF Animation")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
             os.cp("dist/OSF/**", osfDir .. "/", { rootdir = "dist/OSF" })
             os.cp("dist/settings.dev.json", path.join(osfDir, "settings.json"))
+
+
+            local view = path.join(plugins, "OSFUI", "views", "osf")
+            os.tryrm(view)
+            os.mkdir(view)
+            os.cp("views/osf/manifest.json", view .. "/")
+            os.cp("views/osf/index.html", view .. "/")
+            os.cp("views/osf/main.js", view .. "/")
+            os.cp("views/osf/style.css", view .. "/")
             local ok = try { function() os.cp(target:targetfile(), plugins .. "/"); return true end }
             if ok then
                 if os.isfile(target:symbolfile()) then

@@ -27,19 +27,21 @@ views/osf/ (this folder)  ──►  OSF UI  MessageBridge  ──►  OSF Anima
   **tokens** (player = `-1`), which the DLL maps back to `RE::*` refs and
   re-validates on the main thread before use.
 
-## Deployment (v1 disk-drop)
+## Deployment (VFS merge — no copy in OSF UI)
 
-OSF UI (v1) loads views only from its **own** data dir, so this folder is the
-authored source and a copy is shipped into OSF UI:
+OSF UI resolves its view dir relative to its own DLL
+(`<DLL dir>\OSFUI\views\`), which under MO2 is the **virtual**
+`Data\SFSE\Plugins\OSFUI\views\` — merged across all enabled mods. So this view
+ships from OSF Animation's own mod folder; **no copy lives in the OSF UI repo or
+mod**:
 
-- `C:\Modding\Starfield\OSF UI\data\OSFUI\views\osf\`  (OSF UI repo, deploys with OSF UI)
-- registered in `data\OSFUI\config.json`: `"view": "osf"`, `views` includes `"osf"`.
+- `xmake` (`after_build`) deploys this folder to
+  `MO2\mods\OSF Animation\SFSE\Plugins\OSFUI\views\osf\`.
+- OSF UI's `data\OSFUI\config.json` must still register it:
+  `"view": "osf"`, `views` includes `"osf"` (view *membership* is OSF UI config).
 
-Both are mirrored into the live `MO2\mods\OSF UI\SFSE\Plugins\OSFUI\...` deploy.
-
-> **v1.1:** OSF UI's planned `RegisterViewRoot` will let OSF Animation ship this
-> view under its **own** mod folder, removing the OSF UI copy. Until then keep
-> the two in sync (they are identical files).
+Caveat: the merge relies on MO2's USVFS; a non-MO2 (real loose files) install
+would need the folder placed next to `OSFUI.dll` manually.
 
 ## Standalone dev
 
