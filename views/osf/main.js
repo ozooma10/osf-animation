@@ -167,10 +167,13 @@ function normalizeScene(raw) {
     shape: normalizeShape(raw, actorCount),
     policy: normalizePolicy(raw),
     stages: normalizeStages(raw.stages),
+    estSec: numOrNull(raw.estSec),        // summed stage estimates (null = engine hasn't probed the clips yet)
+    estPartial: !!raw.estPartial,         // some stage contributed no estimate — treat estSec as "at least"
+    openEnded: !!raw.openEnded,           // holds a stage until advanced — wall time is the player's call
   };
 }
 
-// Each stage is a browsable animation: { index, name, tags, clipCount }.
+// Each stage is a browsable animation: { index, name, tags, clipCount, loopSec, estSec, … }.
 function normalizeStages(stages) {
   if (!Array.isArray(stages)) return [];
   return stages.map((raw, i) => {
@@ -181,9 +184,16 @@ function normalizeStages(stages) {
       tags: Array.isArray(st.tags) ? st.tags.map((t) => String(t)) : [],
       clipCount: Number(st.clipCount || 0),
       sig: String(st.sig || ""),
+      loopSec: numOrNull(st.loopSec),     // the clip's loop length (the honest per-animation number)
+      timerSec: numOrNull(st.timerSec),   // auto-advance timer, if any
+      loops: numOrNull(st.loops),         // null = play once, 0 = hold, N = loop count
+      openEnded: !!st.openEnded,
+      estSec: numOrNull(st.estSec),
     };
   });
 }
+
+function numOrNull(v) { const n = Number(v); return v == null || !Number.isFinite(n) ? null : n; }
 
 function clampCount(actorCount, roles) {
   if (Number.isFinite(Number(actorCount)) && Number(actorCount) > 0) return Number(actorCount);
@@ -517,7 +527,9 @@ function cardHTML(item, cls) {
   const author = state.filters.authorMode
     ? `<div class="card-author"><div class="mono wrap a-id">${esc(s.id)} · w${s.weight} p${s.priority}</div><div class="mono wrap a-src">${esc(s.sourceFile || "live registry")}</div></div>`
     : "";
-  return `<div class="scene-card ${cls} ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><div class="card-spine"><span class="card-num">${displayNum(s)}</span></div><div class="card-body"><div class="card-nameline"><span class="card-name">${esc(s.title)}</span><span class="card-lamp ${cls === "need" ? "warn" : ""}"></span></div><div class="pip-row ${cls === "need" ? "need" : ""}">${pips}</div>${needs}${author}</div></div>`;
+  const dur = fmtEst(s);
+  const durHTML = dur ? `<span class="card-dur">${esc(dur)}</span>` : "";
+  return `<div class="scene-card ${cls} ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><div class="card-spine"><span class="card-num">${displayNum(s)}</span></div><div class="card-body"><div class="card-nameline"><span class="card-name">${esc(s.title)}</span>${durHTML}<span class="card-lamp ${cls === "need" ? "warn" : ""}"></span></div><div class="pip-row ${cls === "need" ? "need" : ""}">${pips}</div>${needs}${author}</div></div>`;
 }
 
 function pipHTML(pass, label) {
@@ -527,7 +539,8 @@ function pipHTML(pass, label) {
 function libHTML(item) {
   const { scene: s, sel } = item;
   const n = s.actorCount || (s.roles || []).length || 1;
-  const meta = state.filters.authorMode ? s.id : `${n} role${n === 1 ? "" : "s"}`;
+  const dur = fmtEst(s);
+  const meta = state.filters.authorMode ? s.id : `${n} role${n === 1 ? "" : "s"}${dur ? ` · ${dur}` : ""}`;
   return `<div class="lib-chip ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="lib-spine"></span><div class="lib-body"><div class="val">${esc(s.title)}</div><div class="mono">${esc(meta)}</div></div></div>`;
 }
 
@@ -580,7 +593,10 @@ function renderBrief() {
     ? `<div class="info-box"><div class="lbl">ANIMATIONS · ${stages.length}</div><div class="anim-list">${stages.map((st) => {
         const label = st.name || `Stage ${st.index}`;
         const tags = (st.tags || []).slice(0, 3).map((t) => `<span class="pill">${esc(t)}</span>`).join("");
-        return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div><button class="anim-play" data-act="play-stage" data-stage="${st.index}" ${canPlay ? "" : "disabled"} title="Play this animation">▶</button></div>`;
+        const loop = fmtDur(st.loopSec);
+        const dur = loop || fmtDur(st.estSec);  // no loop length yet: fall back to the stage estimate (e.g. a timer)
+        const durHTML = dur ? `<span class="anim-dur" title="${loop ? "Loop length" : "Stage time"}">${esc(dur)}${st.openEnded ? "∞" : ""}</span>` : "";
+        return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div>${durHTML}<button class="anim-play" data-act="play-stage" data-stage="${st.index}" ${canPlay ? "" : "disabled"} title="Play this animation">▶</button></div>`;
       }).join("")}</div></div>`
     : "";
 
@@ -617,6 +633,23 @@ function launchReason(s, ev) {
   return "";
 }
 
+/* ---- durations ----------------------------------------------------------- */
+// "45s" under a minute, "2:30" over — instrument-panel terse.
+function fmtDur(sec) {
+  if (sec == null || !Number.isFinite(sec) || sec < 0) return "";
+  const s = Math.round(sec);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// Scene runtime estimate: always "~" (holds assume two loops), "+" = a stage is
+// unmeasured (read "at least"), trailing "∞" = holds until advanced.
+function fmtEst(s) {
+  const t = fmtDur(s.estSec);
+  if (!t) return s.openEnded ? "∞" : "";
+  return `~${t}${s.estPartial ? "+" : ""}${s.openEnded ? "∞" : ""}`;
+}
+
 /* ---- brief value helpers ------------------------------------------------ */
 function contentPip(s) {
   const n = (s.stages || []).length;
@@ -641,6 +674,8 @@ function shapeText(s) {
   const unit = graph ? "node" : "stage";
   const parts = [kind, `${n} ${unit}${n === 1 ? "" : "s"}`];
   if (sh.branches) parts.push(`${sh.branches} branch${sh.branches === 1 ? "" : "es"}`);
+  const dur = fmtEst(s);
+  if (dur) parts.push(dur);
   return parts.join(" · ");
 }
 
@@ -661,6 +696,7 @@ function diagRows(s, ev) {
   (s.roles || []).forEach((r, i) => rows.push([`role ${String.fromCharCode(65 + i)} filter`, `${r.gender || "any"} · ${ev.seated > i ? "pass" : "open"}`]));
   rows.push(["anchor", (s.requiresFurniture ? "required" : "free-space") + " · " + (ev.anchorGate ? "pass" : "fail")]);
   rows.push(["stages · shape", `${(s.stages || []).length} · ${(s.shape && s.shape.kind) || "linear"}`]);
+  rows.push(["est duration", fmtEst(s) || "unmeasured"]);
   rows.push(["source", s.sourceFile || "live registry"]);
   return rows;
 }
@@ -808,8 +844,8 @@ function init() {
    ========================================================================= */
 const MOCK_CATALOG = [
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
-  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2 }], priority: 2, weight: 40, sourceFile: "Data/OSF/GE/chair.osf.json" },
-  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2 }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2 }], priority: 3, weight: 25, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
+  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2, loopSec: 18.7, loops: 0, openEnded: true, estSec: 37.3 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2, loopSec: 16, loops: 0, openEnded: true, estSec: 32 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }], estSec: 149.3, estPartial: false, openEnded: true, priority: 2, weight: 40, sourceFile: "Data/OSF/GE/chair.osf.json" },
+  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2, loopSec: 18.7, loops: 2, estSec: 37.3 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2, loopSec: null, loops: 2, estSec: null }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2, timerSec: 30, loops: 0, estSec: 30 }], estSec: 147.3, estPartial: true, openEnded: false, priority: 3, weight: 25, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
   { id: "pair.freeform", title: "Pair Freeform", tags: ["paired", "free", "demo"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false, shape: { kind: "linear", stages: 3, nodes: 3, branches: 0 }, priority: 1, weight: 22, sourceFile: "Data/OSF/Scenes/demo.osf.json" },
   { id: "author.quest.finale", title: "Quest Finale Branch Test", tags: ["finale", "story", "branching"], actorCount: 2, roles: [{ name: "lead", gender: "any" }, { name: "partner", gender: "any" }], requiresFurniture: false, unlisted: true, shape: { kind: "graph", stages: 3, nodes: 4, branches: 3 }, policy: { stripActors: false, lockPlayer: true, fade: true, camera: "thirdperson_hold" }, priority: 2, weight: 14, sourceFile: "Data/OSF/Author/finale.osf.json" },
 ];

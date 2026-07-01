@@ -1,5 +1,6 @@
 #include "OSFScript.h"
 
+#include "API/UIBridge.h"  // PushCatalogUpdate (duration rescan on ReloadPacks)
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
 #include "Audio/SoundService.h"
@@ -13,6 +14,7 @@
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/AFImport.h"
+#include "Serialization/ClipDurations.h"
 #include "Serialization/GLTFImport.h"
 #include "UI/HudMessage.h"
 #include "Util/Math.h"
@@ -285,6 +287,9 @@ namespace OSF::Papyrus
 			auto& registry = Registry::SceneRegistry::GetSingleton();
 			registry.LoadAll();
 			Registry::SoundRegistry::GetSingleton().LoadAll();
+			// Re-probe clip durations: edited files fail the size/mtime check and get fresh values,
+			// then the catalog re-pushes so the browser's time estimates follow the edit loop.
+			Serialization::ClipDurations::ScanSceneClipsAsync(&API::PushCatalogUpdate);
 			return static_cast<int32_t>(registry.Size());
 		}
 

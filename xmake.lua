@@ -74,7 +74,7 @@ target("osf-import-test")
     set_kind("binary")
     set_default(false)
     add_packages("fastgltf", "ozz-animation", "zlib", "nlohmann_json")
-    add_files("src/Serialization/GLTFImport.cpp", "test/ImportTest.cpp")
+    add_files("src/Serialization/GLTFImport.cpp", "src/Util/Gzip.cpp", "test/ImportTest.cpp")
     add_includedirs("src")
 
 -- Standalone .af import tester (xmake build osf-af-import-test).

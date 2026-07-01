@@ -7,6 +7,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneRuntime.h"
+#include "Serialization/ClipDurations.h"
 #include "Serialization/SaveSafety.h"
 #include "Util/CrashHandler.h"
 
@@ -33,6 +34,8 @@ namespace
 			// Register the osf.* scene-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
 			// Runs after the registry is loaded and the scene API is ready, so catalog/launch answer live.
 			OSF::API::InstallUIBridge();
+			// Probe clip loop lengths for the catalog's time estimates After InstallUIBridge so the push hook exists.
+			OSF::Serialization::ClipDurations::ScanSceneClipsAsync(&OSF::API::PushCatalogUpdate);
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");

@@ -4,6 +4,7 @@
 #include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (usable-furniture filter for Scan Nearby)
 #include "Registry/SceneRegistry.h"
+#include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "Util/StringUtil.h"  // Util::ToLower
 
 #include <nlohmann/json.hpp>
@@ -25,6 +26,10 @@ namespace OSF::API
 
 		// The bridge, fetched once at Install; nullptr => OSF UI absent (UI disabled).
 		OSFUI::API::IOSFUIBridge* g_ui = nullptr;
+
+		// Set by OnBridgeReady; unsolicited pushes (PushCatalogUpdate) are dropped before then.
+		// Only touched on the game main thread (ready callback, command handlers, SFSE tasks).
+		bool g_uiReady = false;
 
 		// OSF Animation's own scene API, fetched lazily on first launch/stop.
 		IOSFSceneAPI* g_scene = nullptr;
@@ -187,6 +192,9 @@ namespace OSF::API
 
 		// ---- command handlers (GAME MAIN THREAD) -----------------------------
 
+		// How many loops an open-ended hold stage is assumed to run for the scene time estimate
+		constexpr float kHoldLoopEstimate = 2.0f;
+
 		// Serialize the live scene registry to the osf.catalog.data array. Copies the fields out from under the registry read lock, then builds JSON afterwards
 		json BuildCatalog()
 		{
@@ -197,6 +205,13 @@ namespace OSF::API
 				std::vector<std::string> tags;
 				std::int32_t             clipCount = 0;
 				std::string              sig;    // clip-set signature (files joined) for de-dup
+				// Timing. loopSec = the clip's loop length (the honest per-animation number);
+				// estSec folds in the stage's loops/timer; either < 0 = unknown (clip not probed yet).
+				float                    loopSec = -1.0f;
+				float                    timerSec = 0.0f;   // auto-advance timer (0 = none)
+				std::int32_t             loops = -1;        // -1 = play once, 0 = hold, N = loop count
+				bool                     openEnded = false; // hold with no timer: runs until advanced
+				float                    estSec = -1.0f;
 			};
 			struct Card
 			{
@@ -208,6 +223,9 @@ namespace OSF::API
 				bool                     requiresFurniture = false;
 				bool                     unlisted = false;
 				std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
+				float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
+				bool                     estPartial = false;  // at least one linear stage had no estimate
+				bool                     openEnded = false;   // some stage holds until advanced
 			};
 			std::vector<Card> cards;
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards](const Registry::SceneDef& d) {
@@ -222,11 +240,12 @@ namespace OSF::API
 				}
 				c.requiresFurniture = d.RequiresAnchor();
 				c.unlisted = d.unlisted;
-				// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef). 
+				// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 				c.stages.reserve(d.linearStages.size());
 				for (std::size_t i = 0; i < d.linearStages.size(); ++i) {
 					const auto* node = d.FindNode(d.linearStages[i]);
 					if (!node || node->stages.empty()) {
+						c.estPartial = true;  // a `use` node contributes unknown time
 						continue;
 					}
 					const auto& st = node->stages.front();
@@ -239,6 +258,49 @@ namespace OSF::API
 						sc.sig += clip.file;
 						sc.sig += '\n';
 					}
+
+					// Stage timing, from the node the desugar produce: loop length comes from clips[0]
+					if (!st.clips.empty()) {
+						if (const auto sec = Serialization::ClipDurations::Lookup(st.clips.front().file, st.clips.front().animId)) {
+							sc.loopSec = *sec;
+						}
+					}
+					sc.timerSec = node->timerSec;
+					switch (node->loopMode) {
+					case Registry::LoopMode::kOnce:
+						sc.loops = -1;
+						sc.estSec = sc.loopSec;  // one pass ends the stage
+						break;
+					case Registry::LoopMode::kCount:
+						sc.loops = node->loopCount;
+						if (sc.loopSec >= 0.0f) {
+							sc.estSec = static_cast<float>(node->loopCount) * sc.loopSec;
+							if (sc.timerSec > 0.0f) {
+								sc.estSec = std::min(sc.estSec, sc.timerSec);  // whichever fires first
+							}
+						} else if (sc.timerSec > 0.0f) {
+							sc.estSec = sc.timerSec;  // upper bound: the timer caps the stage
+						}
+						break;
+					case Registry::LoopMode::kHold:
+						sc.loops = 0;
+						if (sc.timerSec > 0.0f) {
+							sc.estSec = sc.timerSec;  // timed hold: exact
+						} else {
+							sc.openEnded = true;  // runs until advanced — assume a couple of loops
+							if (sc.loopSec >= 0.0f) {
+								sc.estSec = kHoldLoopEstimate * sc.loopSec;
+							}
+						}
+						break;
+					}
+
+					if (sc.estSec >= 0.0f) {
+						c.estSec = (c.estSec < 0.0f ? 0.0f : c.estSec) + sc.estSec;
+					} else {
+						c.estPartial = true;
+					}
+					c.openEnded = c.openEnded || sc.openEnded;
 					c.stages.push_back(std::move(sc));
 				}
 				cards.push_back(std::move(c));
@@ -248,6 +310,9 @@ namespace OSF::API
 				const auto la = Util::ToLower(a.title), lb = Util::ToLower(b.title);
 				return la != lb ? la < lb : a.id < b.id;
 			});
+
+			// Unknown durations serialize as null (never a sentinel the view could mistake for seconds).
+			const auto secOrNull = [](float a_sec) { return a_sec >= 0.0f ? json(a_sec) : json(nullptr); };
 
 			json arr = json::array();
 			for (const auto& c : cards) {
@@ -259,6 +324,11 @@ namespace OSF::API
 						{ "tags", s.tags },
 						{ "clipCount", s.clipCount },
 						{ "sig", s.sig },
+						{ "loopSec", secOrNull(s.loopSec) },
+						{ "timerSec", s.timerSec > 0.0f ? json(s.timerSec) : json(nullptr) },
+						{ "loops", s.loops >= 0 ? json(s.loops) : json(nullptr) },
+						{ "openEnded", s.openEnded },
+						{ "estSec", secOrNull(s.estSec) },
 					});
 				}
 				arr.push_back({
@@ -271,6 +341,9 @@ namespace OSF::API
 					{ "unlisted", c.unlisted },
 					{ "stageCount", static_cast<std::int32_t>(c.stages.size()) },
 					{ "stages", std::move(stages) },
+					{ "estSec", secOrNull(c.estSec) },
+					{ "estPartial", c.estPartial },
+					{ "openEnded", c.openEnded },
 				});
 			}
 			REX::DEBUG("[UI] catalog built -> {} scene(s)", cards.size());
@@ -611,8 +684,18 @@ namespace OSF::API
 		void OnBridgeReady(void*) noexcept
 		{
 			REX::DEBUG("[UI] OSF UI bridge ready — pushing catalog to view '{}'", kViewId);
+			g_uiReady = true;
 			SendJson(kViewId, "osf.catalog.data", BuildCatalog());
 		}
+	}
+
+	void PushCatalogUpdate()
+	{
+		if (!g_ui || !g_uiReady) {
+			return;  // OSF UI absent or not ready yet — the ready push will carry current data
+		}
+		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
+		SendJson(kViewId, "osf.catalog.data", BuildCatalog());
 	}
 
 	void InstallUIBridge()

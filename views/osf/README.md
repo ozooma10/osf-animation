@@ -26,6 +26,14 @@ views/osf/ (this folder)  ──►  OSF UI  MessageBridge  ──►  OSF Anima
   Targets are crosshair-picked; the view only ever holds opaque integer
   **tokens** (player = `-1`), which the DLL maps back to `RE::*` refs and
   re-validates on the main thread before use.
+- **Durations:** each stage card carries `loopSec` (clip loop length),
+  `timerSec`/`loops` (stage timing), `openEnded` and `estSec`; each scene carries
+  `estSec` (sum of stage estimates, holds counted as 2 loops), `estPartial`
+  (some stage unmeasured — read "at least") and `openEnded`. All are `null`
+  until the DLL's background clip probe has values
+  (`Serialization/ClipDurations`, persisted in `<Documents>\My Games\Starfield\OSF\`);
+  the DLL re-pushes `osf.catalog.data` unsolicited when the scan lands, so the
+  view must tolerate a second catalog push. The view renders `~2:30`, `+`, `∞`.
 
 ## Deployment (VFS merge — no copy in OSF UI)
 
