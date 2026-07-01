@@ -432,6 +432,15 @@ namespace OSF::Animation
 				scene->anchorPos = a_actors[0]->data.location;
 				scene->anchorHeading = a_actors[0]->data.angle.z;
 			}
+
+			// Arm the stall watchdog from birth. StallWatchTick skips lastAdvanceMs == 0, so a scene the
+			// engine never ticks even once (participant 3D dropped right after start) would otherwise be
+			// invisible to it and hold the player lock forever.
+			scene->lastAdvanceMs.store(
+				std::chrono::duration_cast<std::chrono::milliseconds>(
+					std::chrono::steady_clock::now().time_since_epoch())
+					.count(),
+				std::memory_order_relaxed);
 			return scene;
 		}
 	}
@@ -655,7 +664,8 @@ namespace OSF::Animation
 			RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(refr) };
 			SFSE::GetTaskInterface()->AddTask([keepAlive, worldPos, heading, isPlayer]() {
 				keepAlive->SetPosition(worldPos, true);  // move the havok capsule to the anchor (the cull's position input)
-				if (!isPlayer) {
+				// Save window: keep the bit clear while a save serializes actor state (the hold cadence sets it once the window closes).
+				if (!isPlayer && !GetSingleton()._saveWindow.load(std::memory_order_relaxed)) {
 					keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);  // anchored NPC: AI runs the anim but won't walk it back
 				}
 				if (auto* transforms = RE::TransformService::GetSingleton()) {
@@ -729,6 +739,9 @@ namespace OSF::Animation
 
 	void GraphManager::StopAll(const char* a_reason)
 	{
+		// A pending save window must not outlive the world it was opened for (a load can begin mid-save-op).
+		_saveWindow.store(false, std::memory_order_relaxed);
+
 		// Release the player standalone lock + the persistent AI-driven flag (set by the scene runtime's control lock).
 		// The AI-driven flag is serialized into saves, so it MUST be cleared on every load even when this process holds no in-memory lock;
 		// the input-disable layer is non-persistent.
@@ -758,11 +771,62 @@ namespace OSF::Animation
 		REX::INFO("[Anim] StopAll ({}): dropping {} scene(s) + {} graph(s)",
 			a_reason ? a_reason : "?", scenes.size(), graphs.size());
 
-		// We do NOT fade or revert movement here: on a save load the engine has already reset every actor to the saved state, and our graphs are anchored in the world that was just discarded. 
+		// We do NOT fade or revert movement here: on a save load the engine has already reset every actor to the saved state, and our graphs are anchored in the world that was just discarded.
 		// Stale graphs/scenes just stop existing; the engine's rig refresh owns the pose.
 		scenes.clear();
 		graphs.clear();
 		graphCount.store(0, std::memory_order_relaxed);
+	}
+
+	std::vector<RE::NiPointer<RE::Actor>> GraphManager::CollectAnchoredNpcParticipants()
+	{
+		std::vector<RE::NiPointer<RE::Actor>> out;
+		auto* player = static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton());
+		std::shared_lock l{ stateLock };
+		for (const auto& s : scenes) {
+			if (!s || !s->anchored) {
+				continue;  // only anchored scenes engage kAnimationDriven
+			}
+			for (const auto& p : s->participants) {
+				if (p && p->target && p->target.get() != player) {
+					out.emplace_back(static_cast<RE::Actor*>(p->target.get()));
+				}
+			}
+		}
+		return out;
+	}
+
+	void GraphManager::OnSaveBegin()
+	{
+		// Runs on the game thread (SaveLoadEvent kBegin fires there), the same thread every other
+		// boolFlags2 write lands on via the task queue — direct writes are ordered with them.
+		if (_saveWindow.exchange(true, std::memory_order_relaxed)) {
+			return;  // window already open (overlapping save ops) — the first opener did the strip
+		}
+		const auto participants = CollectAnchoredNpcParticipants();
+		for (const auto& a : participants) {
+			a->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
+		}
+		if (!participants.empty()) {
+			REX::DEBUG("[Anim] save begin — animation-driven bit stripped from {} anchored participant(s) so the save can't bake it in",
+				participants.size());
+		}
+	}
+
+	void GraphManager::OnSaveEnd()
+	{
+		if (!_saveWindow.exchange(false, std::memory_order_relaxed)) {
+			return;  // no window open (plain load events land here too) — nothing to restore
+		}
+		// Re-assert immediately rather than waiting for the hold cadence (~0.075s): the AI re-asserts
+		// motion every update, so the sooner the bit is back the less the capsule can drift.
+		const auto participants = CollectAnchoredNpcParticipants();
+		for (const auto& a : participants) {
+			a->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
+		}
+		if (!participants.empty()) {
+			REX::DEBUG("[Anim] save end — animation-driven bit re-asserted on {} anchored participant(s)", participants.size());
+		}
 	}
 
 	int32_t GraphManager::GetSceneStage(RE::Actor* a_actor)
@@ -1102,14 +1166,14 @@ namespace OSF::Animation
 			REX::DEBUG("[Anim] scene-end detach: actor {:X} — scene cleared, fade-out begun (blendDur {:.2f}s)",
 				p->target ? p->target->formID : 0, p->blendDuration);
 			// Revert the animation-driven movement switch from PlaySceneStaged (anchored scenes only). Game-thread only.
+			// The direct bit reset is the PROVEN lever; MovementControllerNPC::SetMotionDriven (REL 135315) is
+			// mis-bound on this build (no-op at best, unknown code at worst — RE module
+			// gameplay.actor_animation_driven) and is deliberately NOT called.
 			if (anchored && p->target) {
 				// participants are always Actors (PlayScene takes Actor*)
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
 				SFSE::GetTaskInterface()->AddTask([keepAlive]() {
 					keepAlive->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
-					if (auto* ctl = keepAlive->movementController) {
-						ctl->SetMotionDriven();
-					}
 				});
 			}
 		}
@@ -1301,11 +1365,20 @@ namespace OSF::Animation
 			a_refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
 			return;
 		}
+		// Save window: OnSaveBegin stripped the bit so the save can't serialize it; stand down until
+		// OnSaveEnd re-asserts. Checked again inside the task — a task queued just before the window
+		// opened must not race the bit back in while the save is being written.
+		if (_saveWindow.load(std::memory_order_relaxed)) {
+			return;
+		}
 		if (++a_graph.sceneFrames % 18 != 0) {  // ~every 0.075s of update time
 			return;
 		}
 		RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(a_refr) };
 		SFSE::GetTaskInterface()->AddTask([keepAlive]() {
+			if (GetSingleton()._saveWindow.load(std::memory_order_relaxed)) {
+				return;
+			}
 			keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
 		});
 	}

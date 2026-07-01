@@ -148,9 +148,10 @@ namespace OSF::Animation
 		std::atomic<bool> endQueued{ false };
 
 		// Steady-clock (ms) of the last frame ANY participant ticked this scene (written at the top of
-		// Advance). 0 = not yet ticked. The stall watchdog reads it: a live scene whose timestamp goes
-		// stale while the game is running has been interrupted (the engine stops AnimationManager::Update
-		// for unloaded / AI-disabled actors), so it ends cleanly instead of stranding participants + locks.
+		// Advance; seeded at build time by BuildSceneFromPlan so a never-ticked scene still stall-detects).
+		// The stall watchdog reads it: a live scene whose timestamp goes stale while the game is running
+		// has been interrupted (the engine stops AnimationManager::Update for unloaded / AI-disabled
+		// actors), so it ends cleanly instead of stranding participants + locks.
 		std::atomic<std::int64_t> lastAdvanceMs{ 0 };
 
 		// Why the terminal stage ended (only meaningful once `ended` is set). 

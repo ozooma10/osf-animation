@@ -103,9 +103,18 @@ namespace OSF::Animation
 		// dispatches end per torn-down scene (deferred, lands after load). Does not restore equipment/movement
 		void StopAll(const char* a_reason);
 
+		// We want to to a scrub of transient bits we set on actors that might persist in save.
+		// Right now largely remove ai-driven flags on anchored NPCs (kAnimationDriven) and the player (kPlayerAnimationDriven) so they dont get stuck in a save mid-scene.
+		void OnSaveBegin();
+		void OnSaveEnd();
+
 	private:
 		// Detaches all participants of a_scene (revert movement mode, drop graphs) and removes it from `scenes`. Caller holds stateLock unique.
 		void StopSceneLocked(Scene* a_scene);
+
+		// Every live anchored NPC participant (player excluded), NiPointer-pinned. Takes stateLock shared.
+		// The save-window strip/re-assert pair (OnSaveBegin/OnSaveEnd) acts on this set.
+		std::vector<RE::NiPointer<RE::Actor>> CollectAnchoredNpcParticipants();
 
 		// Per-graph upkeep run from Hook_AnimGraphUpdate right after sampling, while the caller holds stateLock (shared) and the graph's own lock.
 		// Each defers any game-thread-only follow-up via the SFSE task queue.
@@ -161,5 +170,8 @@ namespace OSF::Animation
 		std::atomic<std::int64_t> _stallLastHookMs{ 0 };  // last time the hook ran (a big jump = the game was paused/loading)
 		std::atomic<std::int64_t> _stallArmedMs{ 0 };     // don't flag stalls before this time (post-resume grace)
 		std::atomic<std::int64_t> _stallLastScanMs{ 0 };  // last scene scan (throttles the per-call work)
+
+		// True between OnSaveBegin and OnSaveEnd: engine bout to serialize, so every kAnimationDriven set-point (initial placement + the per-frame re-assert) stand down.
+		std::atomic<bool> _saveWindow{ false };
 	};
 }

@@ -44,6 +44,18 @@ namespace OSF::Serialization::SaveSafety
 			       a_opType == OpType::kExitSaveToDesktop;
 		}
 
+		// Ops that WRITE a save. kBegin fires ~2 frames before the save executes (autosave) or from the
+		// pause menu (manual/quicksave); the exit ops write an exit save before leaving the world.
+		bool IsSaveOp(RE::SaveLoadEvent::OpType a_opType)
+		{
+			using OpType = RE::SaveLoadEvent::OpType;
+			return a_opType == OpType::kAutosave ||
+			       a_opType == OpType::kQuicksave ||
+			       a_opType == OpType::kManualSave ||
+			       a_opType == OpType::kExitSaveToMainMenu ||
+			       a_opType == OpType::kExitSaveToDesktop;
+		}
+
 		class SaveLoadSink : public RE::BSTEventSink<RE::SaveLoadEvent>
 		{
 		public:
@@ -57,6 +69,14 @@ namespace OSF::Serialization::SaveSafety
 				RE::BSTEventSource<RE::SaveLoadEvent>*) override
 			{
 				if (a_event.status == RE::SaveLoadEvent::Status::kBegin) {
+					// Save window: strip the (plausibly persistent — the sibling player AI-driven flag is
+					// PROVEN persistent) kAnimationDriven bit from anchored NPC participants before the save
+					// serializes actor state, so loading a mid-scene save can't reload an NPC permanently
+					// animation-driven. Re-asserted on the terminal status below. Runs BEFORE the relay/
+					// StopAll handling so the exit-save ops write the scrubbed state too.
+					if (IsSaveOp(a_event.opType)) {
+						Animation::GraphManager::GetSingleton().OnSaveBegin();
+					}
 					// Drop the relay's cached Papyrus Object receivers while the VM is still alive. kBegin
 					// fires on the main thread strictly before the VM teardown, so this is the only safe
 					// window: afterwards those BSTSmartPointer<Object> receivers dangle and crash when the
@@ -70,6 +90,11 @@ namespace OSF::Serialization::SaveSafety
 					if (IsWorldReplacingLoadOp(a_event.opType)) {
 						Animation::GraphManager::GetSingleton().StopAll("save-load begin");
 					}
+				} else {
+					// Any terminal status (kSaveCompleted, or kFailed = failure/cancel of any op) closes the
+					// save window and re-asserts the hold. A cheap no-op when no window is open — load
+					// statuses land here too.
+					Animation::GraphManager::GetSingleton().OnSaveEnd();
 				}
 				return RE::BSEventNotifyControl::kContinue;
 			}
