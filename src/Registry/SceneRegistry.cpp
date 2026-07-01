@@ -535,10 +535,11 @@ namespace OSF::Registry
 			return r;
 		}
 
-		// Top-level metadata (name/priority/weight/lockPlayer/stripActors/fade/playerControl). id, tags,
+		// Top-level metadata (name/priority/weight/unlisted/lockPlayer/stripActors/fade/playerControl). id, tags,
 		// roles, and the playable (clip/stages/nodes) are parsed by the caller. a_lockDefault/
-		// a_stripDefault/a_fadeDefault seed the policy opt-outs (the file-level defaults).
-		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault, bool a_fadeDefault)
+		// a_stripDefault/a_fadeDefault/a_unlistedDefault seed the policy opt-outs (the file-level defaults).
+		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault, bool a_fadeDefault,
+			bool a_unlistedDefault)
 		{
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", 0);
@@ -551,6 +552,13 @@ namespace OSF::Registry
 					throw std::runtime_error("scene '" + def.id + "': 'weight' must be in [1, 1000000]");
 				}
 				def.weight = static_cast<std::int32_t>(w);
+			}
+			def.unlisted = a_unlistedDefault;
+			if (auto it = a_json.find("unlisted"); it != a_json.end()) {
+				if (!it->is_boolean()) {
+					throw std::runtime_error("scene '" + def.id + "': 'unlisted' must be a boolean");
+				}
+				def.unlisted = it->get<bool>();
 			}
 			def.lockPlayer = a_lockDefault;
 			if (auto it = a_json.find("lockPlayer"); it != a_json.end()) {
@@ -1013,12 +1021,12 @@ namespace OSF::Registry
 			return req;
 		}
 
-		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault are the file-level policy defaults; 
+		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault/a_unlistedDefault are the file-level policy defaults;
 		// a_packRoles are the file-level `roles` (inherited by a scene that omits its own);
 		// a_anchorDefault is the file-level `anchor` (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
-			bool a_fadeDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles, std::string_view a_packClipRoot,
-			const AnchorReq& a_anchorDefault)
+			bool a_fadeDefault, bool a_unlistedDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
+			std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -1029,7 +1037,7 @@ namespace OSF::Registry
 			const std::string clipRoot = a_json.contains("clipRoot") ?
 				NormalizeClipRoot(a_json.value("clipRoot", std::string{}), "scene '" + def.id + "'") :
 				std::string(a_packClipRoot);
-			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_fadeDefault);
+			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_fadeDefault, a_unlistedDefault);
 			if (const auto it = a_json.find("tags"); it != a_json.end()) {
 				for (const auto& t : *it) {
 					def.tags.push_back(t.get<std::string>());
@@ -1171,6 +1179,7 @@ namespace OSF::Registry
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			const bool stripDefault = a_json.value("stripActors", true);
 			const bool fadeDefault = a_json.value("fade", false);
+			const bool unlistedDefault = a_json.value("unlisted", false);
 			std::string packClipRoot;
 			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
 				if (!crit->is_string()) {
@@ -1254,7 +1263,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, unlistedDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
 					def.sourceFile = a_file;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {

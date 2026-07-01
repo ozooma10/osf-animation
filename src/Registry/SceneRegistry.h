@@ -245,6 +245,7 @@ namespace OSF::Registry
 		std::string              name;
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
+		bool                     unlisted = false;  // excluded from the matchmaking pool; only reachable by direct id
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
 		bool                     fade = false;  // Screen fade-to-black on start when the player participates (self-releasing curtain); OFF by default, opt in with `fade:true`

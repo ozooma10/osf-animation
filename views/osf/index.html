@@ -68,6 +68,11 @@
           <span>Fits my cast</span>
         </label>
 
+        <label class="check hidden" id="unlistedField" title="Unlisted scenes are excluded from matchmaking; show them here to launch by hand.">
+          <input id="showUnlisted" type="checkbox">
+          <span>Show unlisted</span>
+        </label>
+
         <div class="field grow">
           <span class="field-label">TAGS</span>
           <div id="tagCloud" class="tag-cloud"></div>
@@ -94,7 +99,8 @@
           <h3 class="tray-title">CAST</h3>
           <ul id="castList" class="cast-list"></ul>
           <div class="tray-actions">
-            <button id="addActor" class="btn btn-ghost" type="button">+ CROSSHAIR ACTOR</button>
+            <button id="scanActors" class="btn btn-ghost" type="button">SCAN NEARBY</button>
+            <button id="addActor" class="btn btn-ghost" type="button">+ CROSSHAIR</button>
           </div>
 
           <h3 class="tray-title">FURNITURE</h3>
@@ -102,7 +108,8 @@
             <span class="slot-empty">NONE</span>
           </div>
           <div class="tray-actions">
-            <button id="pickFurniture" class="btn btn-ghost" type="button">USE CROSSHAIR FURNITURE</button>
+            <button id="scanFurniture" class="btn btn-ghost" type="button">SCAN NEARBY</button>
+            <button id="pickFurniture" class="btn btn-ghost" type="button">CROSSHAIR</button>
             <button id="clearFurniture" class="btn btn-ghost hidden" type="button">CLEAR</button>
           </div>
         </div>
@@ -155,6 +162,20 @@
 
     <!-- Status / failure strip -->
     <footer id="notice" class="notice" aria-live="polite"></footer>
+  </div>
+
+  <!-- Scan-nearby results picker -->
+  <div id="scanModal" class="modal hidden">
+    <div class="modal-backdrop" id="scanBackdrop"></div>
+    <div class="modal-panel panel">
+      <div class="modal-head">
+        <h3 id="scanTitle" class="panel-title">NEARBY</h3>
+        <button id="scanClose" class="modal-x" type="button" aria-label="close">×</button>
+      </div>
+      <ul id="scanList" class="scan-list"></ul>
+      <p id="scanEmpty" class="scan-empty hidden">Nothing in range. Move closer, then scan again.</p>
+      <p class="scan-hint" id="scanHint"></p>
+    </div>
   </div>
 
   <!-- Software pointer (the OS cursor is hidden in-game). -->

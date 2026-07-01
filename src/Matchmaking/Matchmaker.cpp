@@ -134,6 +134,9 @@ namespace OSF::Matchmaking
 			std::vector<Candidate> pool;
 
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
+				if (a_def.unlisted) {
+					return;
+				}
 				if (static_cast<std::int32_t>(a_def.roles.size()) != a_count) {
 					return;
 				}

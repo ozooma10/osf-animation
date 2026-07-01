@@ -15,12 +15,12 @@ const PLAYER_TOKEN = -1;
 // ── State ─────────────────────────────────────────────────────────────────
 const state = {
   ready: false,
-  catalog: [],          // [{id,title,tags,actorCount,genders,requiresFurniture}]
+  catalog: [],          // [{id,title,tags,actorCount,genders,requiresFurniture,unlisted}]
   selectedId: null,
   partners: [],         // [{token,name}] picked via crosshair (player is implicit)
   furniture: null,      // {token,name} | null
   lastHandle: 0,
-  filters: { search: "", count: "any", furn: "any", fitsCast: false, tags: new Set() },
+  filters: { search: "", count: "any", furn: "any", fitsCast: false, showUnlisted: false, tags: new Set() },
   pendingPick: null,    // "actor" | "furniture" — which slot a pending osf.pick fills
   catalogReceived: false,
 };
@@ -70,6 +70,7 @@ function onNativeMessage(jsonText) {
     case "runtime.ready":   handleReady(payload); break;
     case "osf.catalog.data": handleCatalog(payload); break;
     case "osf.pick":         handlePick(payload); break;
+    case "osf.scanResults":  handleScanResults(payload); break;
     case "osf.launchResult": handleLaunchResult(payload); break;
     default: break; // unknown native messages: ignore, never eval
   }
@@ -100,6 +101,7 @@ function handleCatalog(list) {
   clearTimeout(catalogTimer);
   state.catalog = Array.isArray(list) ? list : [];
   $("sceneCount").textContent = `${state.catalog.length} SCENES`;
+  syncUnlistedFilter();
   buildTagCloud();
   renderGrid();
   if (state.selectedId && !state.catalog.some((s) => s.id === state.selectedId)) {
@@ -109,24 +111,62 @@ function handleCatalog(list) {
 }
 
 function handlePick(p) {
+  state.pendingPick = null;
   if (!p || !p.valid || !p.token) {
-    notice("err", `Nothing valid under the crosshair for the ${state.pendingPick || "target"} slot.`);
-    state.pendingPick = null;
+    notice("err", `Nothing valid under the crosshair for the ${(p && p.slot) || "target"} slot.`);
     return;
   }
-  if (p.slot === "furniture") {
-    state.furniture = { token: p.token, name: p.name || "furniture" };
+  applyPick(p.slot === "furniture" ? "furniture" : "actor", p.token, p.name);
+}
+
+// Shared by crosshair picks and Scan Nearby: put a token into a cast/furniture slot.
+function applyPick(slot, token, name) {
+  if (slot === "furniture") {
+    state.furniture = { token, name: name || "furniture" };
     notice("info", `Furniture: ${state.furniture.name}`);
+  } else if (state.partners.some((c) => c.token === token)) {
+    notice("info", `${name || "actor"} is already in the cast.`);
   } else {
-    // Avoid double-adding the exact same picked token.
-    if (!state.partners.some((c) => c.token === p.token)) {
-      state.partners.push({ token: p.token, name: p.name || "actor" });
-    }
-    notice("info", `Cast + ${p.name || "actor"}`);
+    state.partners.push({ token, name: name || "actor" });
+    notice("info", `Cast + ${name || "actor"}`);
   }
-  state.pendingPick = null;
   renderInspector();
 }
+
+function scanNearby(kind) {
+  notice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`);
+  send("osf.scanNearby", { kind, sceneId: state.selectedId || "" });
+}
+
+function handleScanResults(p) {
+  const kind = p && p.kind === "furniture" ? "furniture" : "actor";
+  const items = p && Array.isArray(p.items) ? p.items : [];
+  $("scanTitle").textContent = kind === "furniture" ? "NEARBY FURNITURE" : "NEARBY ACTORS";
+  $("scanHint").textContent = kind === "furniture"
+    ? `Furniture usable by ${state.selectedId ? "the selected scene" : "an installed scene"}.`
+    : "Click to add to the cast · closest first.";
+  const list = $("scanList");
+  list.innerHTML = "";
+  $("scanEmpty").classList.toggle("hidden", items.length > 0);
+  for (const it of items) {
+    const li = document.createElement("li");
+    li.className = "scan-item";
+    const already = kind === "furniture"
+      ? state.furniture && state.furniture.token === it.token
+      : state.partners.some((c) => c.token === it.token);
+    if (already) li.classList.add("is-added");
+    const dist = typeof it.distance === "number" ? `${Math.max(1, Math.round(it.distance))}m` : "";
+    li.innerHTML = `<span class="scan-name">${esc(it.name || "(unnamed)")}</span><span class="scan-dist">${dist}</span>`;
+    li.onclick = () => {
+      applyPick(kind === "furniture" ? "furniture" : "actor", it.token, it.name);
+      if (kind === "furniture") closeScan();
+      else li.classList.add("is-added");   // keep the list open to add more cast
+    };
+    list.appendChild(li);
+  }
+  $("scanModal").classList.remove("hidden");
+}
+function closeScan() { $("scanModal").classList.add("hidden"); }
 
 function handleLaunchResult(p) {
   if (p && p.ok && p.handle) {
@@ -142,8 +182,13 @@ function handleLaunchResult(p) {
 function sceneById(id) { return state.catalog.find((s) => s.id === id) || null; }
 function sceneTitle(id) { const s = sceneById(id); return s ? s.title : id; }
 
+// Unlisted scenes are hidden unless the "show unlisted" filter is on. The tag cloud
+// and grid share this gate so a hidden scene's tags don't clutter the cloud.
+function unlistedVisible(s) { return state.filters.showUnlisted || !s.unlisted; }
+
 function matchesFilters(s) {
   const f = state.filters;
+  if (!unlistedVisible(s)) return false;
   if (f.search) {
     const hay = `${s.title} ${s.id} ${(s.tags || []).join(" ")}`.toLowerCase();
     if (!hay.includes(f.search)) return false;
@@ -185,6 +230,7 @@ function renderGrid() {
         `<span class="badge cast">${s.actorCount || "?"}&nbsp;CAST</span>` +
         (genders ? `<span class="badge gender">${esc(genders)}</span>` : "") +
         (s.requiresFurniture ? `<span class="badge furn">FURNITURE</span>` : "") +
+        (s.unlisted ? `<span class="badge unlisted">UNLISTED</span>` : "") +
       `</div>`;
     grid.appendChild(card);
   }
@@ -205,6 +251,7 @@ function renderInspector() {
         row("CAST NEEDED", String(s.actorCount || "?")) +
         (genders ? row("GENDERS", genders) : "") +
         row("FURNITURE", s.requiresFurniture ? "REQUIRED" : "NONE") +
+        (s.unlisted ? row("MATCHMAKING", "UNLISTED · DIRECT ID ONLY") : "") +
       `</div>`;
   }
   renderCast();
@@ -296,9 +343,12 @@ function doStop() {
 // ── Filter UI ─────────────────────────────────────────────────────────────
 function buildTagCloud() {
   const counts = new Map();
-  for (const s of state.catalog) for (const t of s.tags || []) {
-    const k = t.toLowerCase();
-    counts.set(k, (counts.get(k) || 0) + 1);
+  for (const s of state.catalog) {
+    if (!unlistedVisible(s)) continue;
+    for (const t of s.tags || []) {
+      const k = t.toLowerCase();
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
   }
   const cloud = $("tagCloud");
   cloud.innerHTML = "";
@@ -326,6 +376,22 @@ function wireFilters() {
   $("fitsCast").addEventListener("change", (e) => {
     state.filters.fitsCast = e.target.checked; renderGrid();
   });
+  $("showUnlisted").addEventListener("change", (e) => {
+    state.filters.showUnlisted = e.target.checked;
+    buildTagCloud();   // hidden scenes' tags enter/leave the cloud with the toggle
+    renderGrid();
+  });
+}
+
+// Reveal the "show unlisted" control only when the catalog actually holds unlisted
+// scenes, and auto-enable it when there are NO listed scenes (so the browser is never
+// left empty). Only ever auto-enables — a user's manual choice is otherwise preserved.
+function syncUnlistedFilter() {
+  const anyUnlisted = state.catalog.some((s) => s.unlisted);
+  const anyListed = state.catalog.some((s) => !s.unlisted);
+  if (anyUnlisted && !anyListed) state.filters.showUnlisted = true;
+  $("unlistedField").classList.toggle("hidden", !anyUnlisted);
+  $("showUnlisted").checked = state.filters.showUnlisted;
 }
 
 function segGroup(id, attr, cb) {
@@ -370,6 +436,10 @@ function init() {
   $("addActor").onclick = () => { state.pendingPick = "actor"; send("osf.pickCrosshair", { slot: "actor" }); };
   $("pickFurniture").onclick = () => { state.pendingPick = "furniture"; send("osf.pickCrosshair", { slot: "furniture" }); };
   $("clearFurniture").onclick = () => { state.furniture = null; renderInspector(); };
+  $("scanActors").onclick = () => scanNearby("actor");
+  $("scanFurniture").onclick = () => scanNearby("furniture");
+  $("scanClose").onclick = closeScan;
+  $("scanBackdrop").onclick = closeScan;
   $("play").onclick = doLaunch;
   $("stop").onclick = doStop;
   $("optSpeed").addEventListener("input", (e) => { $("speedVal").textContent = `${Number(e.target.value).toFixed(1)}×`; });
@@ -405,11 +475,16 @@ const MOCK_CATALOG = [
   { id: "pair", title: "pair", tags: ["test"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false },
   { id: "ge.abb", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, genders: ["male", "female"], requiresFurniture: true },
   { id: "ge.chl", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, genders: ["male", "female"], requiresFurniture: true },
+  { id: "author.finale", title: "Quest Finale (scripted)", tags: ["finale", "story"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false, unlisted: true },
 ];
 function mockNative(command, fields) {
   if (command === "osf.catalog.get") setTimeout(() => handleCatalog(MOCK_CATALOG), 60);
   else if (command === "osf.pickCrosshair")
     setTimeout(() => handlePick({ slot: fields.slot, valid: true, token: Math.floor(Math.random() * 900 + 100), name: fields.slot === "furniture" ? "AkBunkBed" : "Sarah Morgan", formId: 0x12a57a }), 60);
+  else if (command === "osf.scanNearby")
+    setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture"
+      ? [{ token: 501, name: "Ak Bunk Bed", formId: 0x12a57a, distance: 3, isActor: false }, { token: 502, name: "Chair, Industrial", formId: 0x1234, distance: 6, isActor: false }]
+      : [{ token: 601, name: "Sarah Morgan", formId: 0x2, distance: 2, isActor: true }, { token: 602, name: "Andreja", formId: 0x3, distance: 5, isActor: true }, { token: 603, name: "Sam Coe", formId: 0x4, distance: 9, isActor: true }] }), 80);
   else if (command === "osf.launch")
     setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId }), 80);
 }

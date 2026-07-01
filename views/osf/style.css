@@ -203,6 +203,8 @@ html, body {
 .badge.cast { color: var(--amber); border-color: var(--line-2); }
 .badge.furn { color: var(--rust); border-color: var(--rust); }
 .badge.gender { color: var(--bone-dim); }
+/* Unlisted = out of the matchmaking pool: dashed border reads as "held back", not a warning. */
+.badge.unlisted { color: var(--bone-dim); border-color: var(--bone-dim); border-style: dashed; }
 
 .empty, .detail-empty {
   font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
@@ -289,6 +291,33 @@ html, body {
 }
 .cursor::before { left: 7px; top: 0; width: 2px; height: 16px; }
 .cursor::after  { top: 7px; left: 0; width: 16px; height: 2px; }
+
+/* ── Scan-nearby modal ───────────────────────────────────────────────── */
+.modal { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(8, 6, 5, 0.55); }
+.modal-panel {
+  position: relative; width: min(440px, 80vw); max-height: 70vh;
+  display: flex; flex-direction: column; background: var(--panel-2);
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; }
+.modal-x {
+  background: transparent; border: 1px solid var(--line); color: var(--muted);
+  font-size: 15px; line-height: 1; width: 24px; height: 24px; cursor: none;
+}
+.modal-x:hover { border-color: var(--danger); color: var(--danger); }
+.scan-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+.scan-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: #100d0a; border: 1px solid var(--line); border-left: 2px solid transparent;
+  padding: 9px 11px; cursor: none; transition: border-color 90ms;
+}
+.scan-item:hover { border-color: var(--line-2); border-left-color: var(--amber); }
+.scan-item.is-added { border-left-color: var(--ok); opacity: 0.65; }
+.scan-item.is-added .scan-name::after { content: " ✓"; color: var(--ok); }
+.scan-name { font-size: 12.5px; color: var(--bone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scan-dist { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.scan-empty { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; padding: 18px 4px; }
+.scan-hint { font-family: var(--mono); font-size: 9.5px; color: var(--muted-2); margin: 10px 0 0; letter-spacing: 0.5px; }
 
 .hidden { display: none !important; }
 

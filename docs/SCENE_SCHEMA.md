@@ -529,10 +529,11 @@ participant role the input grant is bound to; defaults to the player).
 - **`tags[]`**: free-form matchmaking tags (matched by `StartSceneByTags*`).
 - **`priority`** (int, default `0`): matchmaking tier — higher wins.
 - **`weight`** (int, default `1`): weighted-random sampling within the top priority tier.
+- **`unlisted`** (bool, default `false`): hold the scene **out of the matchmaking pool**.
 
 Matchmaking is over the one scene registry: a single query (tags + per-role gender/keyword/race fit)
 returns the best candidate, ranked purely by `priority` tier then `weight`. A richer scene simply sets
-a higher `priority` than a barer one.
+a higher `priority` than a barer one. An `unlisted` scene sits outside this entirely.
 
 ---
 

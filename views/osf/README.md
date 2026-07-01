@@ -16,8 +16,12 @@ views/osf/ (this folder)  ──►  OSF UI  MessageBridge  ──►  OSF Anima
   `src/API/OSFUI_API.h`). Registered in `src/main.cpp` at `kPostDataLoad`
   (`OSF::API::InstallUIBridge()`), a no-op when OSF UI is absent.
 - **Contract (`osf.*`):** `osf.catalog.get`→`osf.catalog.data`,
-  `osf.pickCrosshair`→`osf.pick`, `osf.launch`→`osf.launchResult`, `osf.stop`.
+  `osf.pickCrosshair`→`osf.pick`, `osf.scanNearby`→`osf.scanResults`,
+  `osf.launch`→`osf.launchResult`, `osf.stop`.
   The view gates its JS on `runtime.ready.bridgeVersion === "0.1"`.
+- **Targeting:** crosshair pick *or* **Scan Nearby** — a `parentCell` walk that
+  lists nearby actors (living, closest-first) and furniture *usable by the
+  selected scene* (via the anchor matcher), each as a clickable token.
 - Catalog = OSF Animation's **live** `SceneRegistry` (not a disk scan).
   Targets are crosshair-picked; the view only ever holds opaque integer
   **tokens** (player = `-1`), which the DLL maps back to `RE::*` refs and

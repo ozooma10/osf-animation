@@ -1,25 +1,10 @@
 // ============================================================================
 // OSFUI_API.h - OSF UI native bridge API.
-// Copyable SINGLE header. Drop it into your SFSE plugin; link NOTHING.
-//
-// Vendored verbatim from OSF UI (sdk/OSFUI_API.h). Do NOT edit locally: to
-// update, re-copy from the OSF UI repo. The surface is JSON-text-only, so the
-// commonlibsf pin difference between the two repos is irrelevant.
-//
-// THREADING:
-//   Status reads (GetInterfaceVersion/GetPluginVersion/GetBridgeProtocolVersion/
-//   IsBridgeReady) are callable from ANY thread.
-//   Mutating calls (RegisterCommand/UnregisterCommand/SetReadyCallback/SendToWeb)
-//   are thread-safe; their effect lands on the game main thread.
-//   CommandFn and ReadyFn ALWAYS run on the game main thread - keep them cheap.
-//
-// ABI: the surface carries only primitives, UTF-8 const char*, function
-//   pointers and void* user data - no STL, no nlohmann::json, no RE::* types.
-//   It is therefore independent of the CommonLibSF pin.
 // ============================================================================
+
 #pragma once
 
-#include "REX/W32/KERNEL32.h"  // GetModuleHandleW / GetProcAddress / HMODULE (no <Windows.h>)
+#include "REX/W32/KERNEL32.h"  // GetModuleHandleW / GetProcAddress / HMODULE
 #include <cstdint>
 
 namespace OSFUI::API

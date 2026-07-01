@@ -2,6 +2,7 @@
 
 #include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
 #include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
+#include "Matchmaking/Matchmaker.h"  // AnchorAccepts (usable-furniture filter for Scan Nearby)
 #include "Registry/SceneRegistry.h"
 #include "Util/StringUtil.h"  // Util::ToLower
 
@@ -13,9 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-// The in-process handle to OSF Animation's own exported scene API. Declared (not
-// dllexport here) so we resolve the definition in API/OSFSceneAPI.cpp and reuse
-// the exact validated start path other native consumers get.
+// The in-process handle to OSF Animation's own exported scene API.
 extern "C" OSF::API::IOSFSceneAPI* OSF_RequestSceneAPI(std::uint32_t a_abiVersion);
 
 namespace OSF::API
@@ -33,9 +32,8 @@ namespace OSF::API
 		// Last scene handle we launched, so an osf.stop with no handle can target it.
 		std::int32_t g_lastHandle = 0;
 
-		// token -> picked ref. All handlers run on the GAME MAIN THREAD (CommandFn
-		// contract), and the token map is only ever touched from a handler, so no
-		// locking is needed. token -1 is reserved for the player (never stored).
+		// token -> picked ref. All handlers run on the GAME MAIN THREAD (CommandFn contract), and the token map is only ever touched from a handler, so no locking is needed. 
+		// token -1 is reserved for the player (never stored).
 		struct Picked
 		{
 			RE::TESObjectREFR* ref;     // the pointer resolved AT PICK TIME (main thread)
@@ -44,9 +42,24 @@ namespace OSF::API
 		};
 		std::unordered_map<std::int32_t, Picked> g_tokens;
 		std::int32_t                             g_nextToken = 1;
+		// formID -> token, so a re-scan / re-pick of the same ref reuses its token instead of growing the table without bound.
+		std::unordered_map<RE::TESFormID, std::int32_t> g_formToken;
 
-		// Our view's manifest id — the SendToWeb target for pushes that aren't a
-		// direct reply (e.g. the catalog we push when the bridge becomes ready).
+		// Mint (or reuse) a token for a ref and record it. Main thread only.
+		std::int32_t AllocToken(RE::TESObjectREFR* a_ref)
+		{
+			const RE::TESFormID fid = a_ref->GetFormID();
+			if (const auto it = g_formToken.find(fid); it != g_formToken.end()) {
+				g_tokens[it->second] = Picked{ a_ref, fid, a_ref->IsActor() };  // refresh the pointer
+				return it->second;
+			}
+			const std::int32_t token = g_nextToken++;
+			g_tokens[token] = Picked{ a_ref, fid, a_ref->IsActor() };
+			g_formToken[fid] = token;
+			return token;
+		}
+
+		// Our view's manifest id; the SendToWeb target for pushes that aren't a direct reply (e.g. the catalog we push when the bridge becomes ready).
 		constexpr const char* kViewId = "osf";
 
 		// ---- helpers ---------------------------------------------------------
@@ -59,8 +72,7 @@ namespace OSF::API
 			return g_scene;
 		}
 
-		// Serialize a payload to the source view. Uses the replace error handler so a
-		// non-UTF-8 game name can never throw out of a noexcept handler.
+		// Serialize a payload to the source view. Uses the replace error handler so as non-UTF-8 game name can never throw out of a noexcept handler.
 		void SendJson(const char* a_view, const char* a_type, const json& a_payload)
 		{
 			if (!g_ui) {
@@ -70,8 +82,7 @@ namespace OSF::API
 			g_ui->SendToWeb(a_view, a_type, text.c_str());
 		}
 
-		// Parse an inbound payload without throwing (handlers are noexcept). Returns a
-		// discarded value on malformed input; callers treat non-objects as empty.
+		// Parse an inbound payload without throwing (handlers are noexcept). Returns a discarded value on malformed input; callers treat non-objects as empty.
 		json ParsePayload(const char* a_json)
 		{
 			return json::parse(a_json ? a_json : "", nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
@@ -89,9 +100,7 @@ namespace OSF::API
 			}
 		}
 
-		// Actor count for a card: the declared role count, else the first playable
-		// stage's clip count (anonymous positional scenes have no roles[]). Reads only
-		// the def, so it is safe under the registry read lock (ForEachDef).
+		// Actor count for a card: the declared role count, else the first playable stage's clip count (anonymous positional scenes have no roles[]). Reads only the def, so it is safe under the registry read lock (ForEachDef).
 		std::size_t ActorCountOf(const Registry::SceneDef& a_def)
 		{
 			if (!a_def.roles.empty()) {
@@ -107,9 +116,7 @@ namespace OSF::API
 			return 0;
 		}
 
-		// Re-resolve a token to a still-live ref on the main thread. token -1 = player.
-		// Guards against unload / formID reuse: the id must still resolve to the very
-		// same form we stored, and it must not be flagged deleted.
+		// Re-resolve a token to a still-live ref on the main thread. token -1 = player. Guards against unload / formID reuse: the id must still resolve to the very same form we stored, and it must not be flagged deleted.
 		RE::TESObjectREFR* ResolveToken(std::int32_t a_token)
 		{
 			if (a_token == -1) {
@@ -180,9 +187,7 @@ namespace OSF::API
 
 		// ---- command handlers (GAME MAIN THREAD) -----------------------------
 
-		// Serialize the live scene registry to the osf.catalog.data array. Copies the
-		// fields out from under the registry read lock, then builds JSON afterwards —
-		// the ForEachDef callback must NOT re-enter the registry.
+		// Serialize the live scene registry to the osf.catalog.data array. Copies the fields out from under the registry read lock, then builds JSON afterwards
 		json BuildCatalog()
 		{
 			struct Card
@@ -193,6 +198,7 @@ namespace OSF::API
 				std::uint32_t            actorCount = 0;
 				std::vector<std::string> genders;
 				bool                     requiresFurniture = false;
+				bool                     unlisted = false;
 			};
 			std::vector<Card> cards;
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards](const Registry::SceneDef& d) {
@@ -206,6 +212,7 @@ namespace OSF::API
 					c.genders.emplace_back(GenderTag(r.gender));
 				}
 				c.requiresFurniture = d.RequiresAnchor();
+				c.unlisted = d.unlisted;
 				cards.push_back(std::move(c));
 			});
 
@@ -223,6 +230,7 @@ namespace OSF::API
 					{ "actorCount", c.actorCount },
 					{ "genders", c.genders },
 					{ "requiresFurniture", c.requiresFurniture },
+					{ "unlisted", c.unlisted },
 				});
 			}
 			REX::DEBUG("[UI] catalog built -> {} scene(s)", cards.size());
@@ -248,10 +256,7 @@ namespace OSF::API
 			auto*              player = RE::PlayerCharacter::GetSingleton();
 			RE::TESObjectREFR* ref = player ? player->commandTarget : nullptr;
 
-			// commandTarget is NOT guaranteed to be an object reference — aiming at terrain
-			// or empty space yields the CELL (or nothing). Calling a TESObjectREFR virtual
-			// (GetDisplayFullName) on a non-REFR walks the wrong vtable and crashes, so gate
-			// on the non-virtual form type first (Is()/IsActor() only read the formType byte).
+			// commandTarget is NOT guaranteed to be an object reference; aiming at terrain or empty space yields the CELL (or nothing). 
 			const bool isRef = ref && (ref->Is(RE::FormType::kREFR) || ref->Is(RE::FormType::kACHR));
 			const bool accept = isRef && (!wantActor || ref->IsActor());
 
@@ -264,9 +269,8 @@ namespace OSF::API
 				reply["formId"] = 0;
 				REX::DEBUG("[UI] osf.pickCrosshair slot={} -> nothing valid under crosshair", slot);
 			} else {
-				const std::int32_t token = g_nextToken++;
+				const std::int32_t token = AllocToken(ref);
 				const char*        nm = ref->GetDisplayFullName();
-				g_tokens[token] = Picked{ ref, ref->GetFormID(), ref->IsActor() };
 				reply["valid"] = true;
 				reply["token"] = token;
 				reply["name"] = nm ? nm : "";
@@ -405,13 +409,129 @@ namespace OSF::API
 			REX::DEBUG("[UI] osf.stop handle={} -> {}", handle, ok);
 		}
 
+		void OnScanNearby(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json  j = ParsePayload(a_payload);
+			std::string kind = "actor";
+			std::string sceneId;
+			float       radius = 4096.0f;  // ~58m; a room / nearby area
+			if (j.is_object()) {
+				if (const auto it = j.find("kind"); it != j.end() && it->is_string()) {
+					kind = it->get<std::string>();
+				}
+				if (const auto it = j.find("sceneId"); it != j.end() && it->is_string()) {
+					sceneId = it->get<std::string>();
+				}
+				if (const auto it = j.find("radius"); it != j.end() && it->is_number()) {
+					radius = it->get<float>();
+				}
+			}
+			const bool wantActor = (kind != "furniture");
+
+			json reply;
+			reply["kind"] = kind;
+			reply["items"] = json::array();
+
+			auto*              player = RE::PlayerCharacter::GetSingleton();
+			RE::TESObjectCELL* cell = player ? player->parentCell : nullptr;
+			if (!player || !cell || !cell->IsAttached()) {
+				REX::DEBUG("[UI] osf.scanNearby kind={} -> no attached player cell", kind);
+				SendJson(a_srcView, "osf.scanResults", reply);
+				return;
+			}
+
+			// Furniture is anything a usable anchor-bound scene accepts: the selected scene if it is anchor-bound, else every installed anchor-bound scene. 
+			std::vector<const Registry::SceneDef*> anchorDefs;
+			if (!wantActor) {
+				auto& reg = Registry::SceneRegistry::GetSingleton();
+				if (!sceneId.empty()) {
+					if (const auto* def = reg.Find(sceneId); def && def->RequiresAnchor()) {
+						anchorDefs.push_back(def);
+					}
+				}
+				if (anchorDefs.empty()) {
+					reg.ForEachDef([&anchorDefs](const Registry::SceneDef& d) {
+						if (d.RequiresAnchor()) {
+							anchorDefs.push_back(&d);
+						}
+					});
+				}
+			}
+
+			const RE::NiPoint3 origin = player->GetPosition();
+			const float        radiusSq = (radius > 0.0f) ? radius * radius : 4096.0f * 4096.0f;
+
+			struct Hit
+			{
+				RE::TESObjectREFR* ref;
+				float              distSq;
+			};
+			std::vector<Hit> hits;
+			// Collect candidate references under the cell read lock, keeping the work
+			// minimal: pointers + distance only, then serialize (GetDisplayFullName /
+			// token minting) afterwards. We walk the array ourselves rather than through
+			// TESObjectCELL::ForEachReference so we can null-check the backing store first:
+			// an attached cell should never expose size>0 over a null data pointer, but the
+			// header's loop would access-violate if it ever did, and this call is
+			// user-triggered at arbitrary moments (mid-load, ship transitions) where the
+			// cell can be racier than IsAttached() alone reveals.
+			{
+				const RE::BSAutoReadLock locker(cell->lock);
+				const auto&              refs = cell->references;
+				const std::size_t        count = refs.size();
+				const auto* const        slots = refs.data();
+				for (std::size_t i = 0; slots && i < count; ++i) {
+					RE::TESObjectREFR* ref = slots[i].get();
+					if (!ref || ref->IsPlayerRef() || ref->IsDeleted()) {
+						continue;
+					}
+					const float distSq = origin.GetSquaredDistance(ref->GetPosition());
+					if (distSq > radiusSq) {
+						continue;
+					}
+					if (wantActor) {
+						if (!ref->IsActor() || static_cast<RE::Actor*>(ref)->IsDead()) {
+							continue;
+						}
+					} else {
+						bool ok = false;
+						for (const auto* d : anchorDefs) {
+							if (Matchmaking::AnchorAccepts(*d, ref)) {
+								ok = true;
+								break;
+							}
+						}
+						if (!ok) {
+							continue;
+						}
+					}
+					hits.push_back({ ref, distSq });
+				}
+			}
+
+			std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.distSq < b.distSq; });
+			constexpr std::size_t kMax = 40;
+			if (hits.size() > kMax) {
+				hits.resize(kMax);
+			}
+
+			for (const auto& h : hits) {
+				const std::int32_t token = AllocToken(h.ref);
+				const char*        nm = h.ref->GetDisplayFullName();
+				reply["items"].push_back({
+					{ "token", token },
+					{ "name", (nm && nm[0]) ? nm : "(unnamed)" },
+					{ "formId", h.ref->GetFormID() },
+					{ "distance", std::sqrt(h.distSq) / 70.0f },  // game units -> ~meters
+					{ "isActor", h.ref->IsActor() },
+				});
+			}
+			REX::DEBUG("[UI] osf.scanNearby kind={} radius={} -> {} hit(s)", kind, radius, hits.size());
+			SendJson(a_srcView, "osf.scanResults", reply);
+		}
+
 		void OnBridgeReady(void*) noexcept
 		{
-			// A nativeBridge view is live. Crucially, the view usually loads and asks for
-			// the catalog at the MAIN MENU — before OSF Animation registers its commands at
-			// kPostDataLoad — so that first request is rejected. This ready callback fires
-			// right after we register, so PUSH the catalog now to populate the already-open
-			// view without waiting for it to re-ask.
 			REX::DEBUG("[UI] OSF UI bridge ready — pushing catalog to view '{}'", kViewId);
 			SendJson(kViewId, "osf.catalog.data", BuildCatalog());
 		}
@@ -430,6 +550,7 @@ namespace OSF::API
 		g_ui->SetReadyCallback(&OnBridgeReady, nullptr);
 		g_ui->RegisterCommand("osf.catalog.get", &OnCatalogGet, nullptr);
 		g_ui->RegisterCommand("osf.pickCrosshair", &OnPickCrosshair, nullptr);
+		g_ui->RegisterCommand("osf.scanNearby", &OnScanNearby, nullptr);
 		g_ui->RegisterCommand("osf.launch", &OnLaunch, nullptr);
 		g_ui->RegisterCommand("osf.stop", &OnStop, nullptr);
 
