@@ -385,7 +385,8 @@ namespace OSF::API
 			o.playerControlMode = OptTri(opts, "playerControl");
 			o.fadeMode = OptTri(opts, "fade");
 			o.speed = opts.value("speed", 1.0f);
-			// Enter the scene on a specific linear stage. 0 = the scene's entry; ApplyDefPostStart jumps to it after start.
+			// Enter the scene on a specific linear stage. 0 = the scene's entry; resolved to the stage's
+			// node BEFORE the start (ResolveStartStageNode), so the scene opens directly on it.
 			o.startStage = opts.value("stage", 0);
 			if (const auto it = opts.find("camera"); it != opts.end() && it->is_string()) {
 				std::snprintf(o.camera, sizeof(o.camera), "%s", it->get<std::string>().c_str());

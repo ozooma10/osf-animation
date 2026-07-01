@@ -143,7 +143,10 @@ namespace OSF::UI::Subtitle
 		if (!g_hideAtMs.compare_exchange_strong(deadline, 0, std::memory_order_relaxed)) {
 			return;  // another thread won the hide (or a new line moved the window)
 		}
-		PostHide();
+		// Tick runs on the anim-update job threads, but Notify runs the HUD data-model sink
+		// synchronously on the calling thread — route the hide through the task queue so the engine
+		// write lands on the game thread like Show/OnStopAll (both game-thread callers) do.
+		SFSE::GetTaskInterface()->AddTask([]() { PostHide(); });
 	}
 
 	void OnStopAll()

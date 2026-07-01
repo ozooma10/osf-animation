@@ -189,8 +189,29 @@ namespace OSF::Papyrus
 			return over;
 		}
 
+		// SceneOptions.Stage (> 0) -> the linear-stage entry node for a def start, so the scene ENTERS on
+		// that stage instead of playing its entry first and jumping. Returns nullopt on a hard failure
+		// (stage out of range — the caller fails the start loudly); "" = enter at the scene's own entry
+		// (stage 0, or warn-and-ignore when the scene has no linear stages).
+		std::optional<std::string> ResolveStageEntryNode(const Registry::SceneDef& a_def, std::int32_t a_stage, const char* a_tag)
+		{
+			if (a_stage <= 0) {
+				return std::string{};
+			}
+			if (a_def.linearStages.empty()) {
+				REX::WARN("[Papyrus] {}: scene '{}' has no linear stages — SceneOptions.Stage {} ignored", a_tag, a_def.id, a_stage);
+				return std::string{};
+			}
+			if (a_stage >= static_cast<std::int32_t>(a_def.linearStages.size())) {
+				REX::WARN("[Papyrus] {}: stage {} out of range for scene '{}' ({} stages)", a_tag, a_stage, a_def.id, a_def.linearStages.size());
+				UI::HudMessage::Error(std::format("scene '{}' has no stage {}", a_def.id, a_stage));
+				return std::nullopt;
+			}
+			return a_def.linearStages[a_stage];
+		}
+
 		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the slot->actor order, so we never re-bind here) at an already-resolved anchor.
-		// Binds by declaration sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssorder = the reordered actors. anchor unset => co-located at actor[0]; set => world-anchored.
+		// Binds by declaration order = the reordered actors. anchor unset => co-located at actor[0]; set => world-anchored.
 		int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors,
 			const Scene::SceneRuntime::AnchorOverride& a_anchor, const Scene::SceneRuntime::StartOverrides& a_over)
 		{
@@ -386,19 +407,11 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
-			// SceneOptions.Stage: enter the scene directly on this linear stage instead of its entry (0 = the scene's own entry). 
+			// SceneOptions.Stage: enter the scene directly on this linear stage instead of its entry (0 = the scene's own entry).
 			// Lets a browser open a sequence on one animation. Out of range is a caller error → fail loudly; a non-linear graph has no stages → warn and ignore.
-			std::string entryNode;
-			if (opts.stage > 0) {
-				if (def->linearStages.empty()) {
-					REX::WARN("[Papyrus] StartScene: scene '{}' has no linear stages — SceneOptions.Stage {} ignored", sid, opts.stage);
-				} else if (opts.stage >= static_cast<std::int32_t>(def->linearStages.size())) {
-					REX::WARN("[Papyrus] StartScene: stage {} out of range for scene '{}' ({} stages)", opts.stage, sid, def->linearStages.size());
-					UI::HudMessage::Error(std::format("scene '{}' has no stage {}", sid, opts.stage));
-					return 0;
-				} else {
-					entryNode = def->linearStages[opts.stage];
-				}
+			const auto entryNode = ResolveStageEntryNode(*def, opts.stage, "OSF.StartScene");
+			if (!entryNode) {
+				return 0;
 			}
 			const auto anchor = ResolveSceneAnchor(sid, opts);  // enforces an anchor-bound scene's furniture requirement
 			if (!anchor) {
@@ -407,9 +420,9 @@ namespace OSF::Papyrus
 			const auto over = MakeOverrides(opts);
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			if (anchor->set) {
-				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over, entryNode);  // anchored at the ref
+				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over, *entryNode);  // anchored at the ref
 			}
-			return rt.StartFromDef(sid, a_actors, over, entryNode);
+			return rt.StartFromDef(sid, a_actors, over, *entryNode);
 		}
 
 		// Start a scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
@@ -779,12 +792,18 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
-			const int32_t handle = Scene::SceneRuntime::GetSingleton().StartFromDefRoles(
-				a_id.c_str(), a_actors, ToStrings(a_roles), MakeAnchor(opts), MakeOverrides(opts));
-			if (handle && opts.stage > 0) {
-				Scene::SceneRuntime::GetSingleton().SetStage(handle, opts.stage);
+			// SceneOptions.Stage enters directly on the stage node (same semantics as StartScene) instead of
+			// the old post-start SetStage jump, which played the entry node first (visible pop, double load).
+			std::string entryNode;
+			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str())) {
+				auto resolved = ResolveStageEntryNode(*def, opts.stage, "OSF.StartSceneRolesEx");
+				if (!resolved) {
+					return 0;
+				}
+				entryNode = std::move(*resolved);
 			}
-			return handle;
+			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(
+				a_id.c_str(), a_actors, ToStrings(a_roles), MakeAnchor(opts), MakeOverrides(opts), entryNode);
 		}
 
 		bool PlaySequence(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,

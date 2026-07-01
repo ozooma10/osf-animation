@@ -345,7 +345,7 @@ namespace OSF::Scene
 			return;
 		}
 
-		//camera override takes priorityssssssssssssssssssssssssssssssssssssssssssssssssssss
+		// A per-start camera override (SceneOptions.Camera) takes priority over authored/default cameras.
 		if (!a_cameraOverride.empty()) {
 			REX::DEBUG("[Scene] scene {:#010x} camera overridden at start -> '{}'", a_handle, a_cameraOverride);
 			RunCamera(a_handle, a_cameraOverride, hasPlayer, 0.0f);
@@ -776,7 +776,8 @@ namespace OSF::Scene
 	}
 
 	std::int32_t SceneRuntime::StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
-		const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor, const StartOverrides& a_over)
+		const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor, const StartOverrides& a_over,
+		std::string_view a_entryNode)
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
@@ -821,9 +822,9 @@ namespace OSF::Scene
 		// Every role filled (size match + each filled at most once => all filled); a duplicate
 		// actor across two roles is caught by MintSlot's same-actor-twice check.
 
-		// Bind by role-declaration order, then enter at the def's entry (MintSlot enforces
-		// actor exclusivity + the duplicate-actor reject).
-		return Start(def->id, def->entry, ordered, a_anchor, a_over);
+		// Bind by role-declaration order, then enter at the def's entry — or the caller's override
+		// (SceneOptions.Stage) — (MintSlot enforces actor exclusivity + the duplicate-actor reject).
+		return Start(def->id, ResolveEntryNode(*def, a_entryNode), ordered, a_anchor, a_over);
 	}
 
 	bool SceneRuntime::TakeEdge(std::int32_t a_scene,

@@ -117,9 +117,11 @@ namespace OSF::Scene
 		// Start a def-backed scene with actors bound to NAMED roles (a_roles[i] = role for
 		// a_actors[i]). Validates the binding (unknown/duplicate role, null/duplicate actor, role
 		// count, every declared role filled) and reorders actors into role-declaration order
-		// before entering. 0 = no such scene def, a validation failure, or an actor is busy.
+		// before entering. a_entryNode overrides the entry node as in StartFromDef.
+		// 0 = no such scene def, a validation failure, or an actor is busy.
 		std::int32_t StartFromDefRoles(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
-			const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
+			const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {},
+			std::string_view a_entryNode = {});
 
 		// Jump a linear scene to stage a_stage: an ad-hoc files scene (delegates to the GraphManager's
 		// stage jump) or a registry scene declaring `linearStages` (transitions to the indexed node).

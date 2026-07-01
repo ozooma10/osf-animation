@@ -137,6 +137,10 @@ namespace OSF::Equipment
 						continue;
 					}
 					if (!fullStrip) {
+						// Biped slot mask: u64 at ARMO+0x208 (live BGSBipedObjectForm sits at ARMO+0x200 on
+						// 1.16.244 — decompiled + runtime-proven, RE module gameplay.actor_equipment). CLSF's
+						// header (base 0x230, u32 FO4-style BIPED_MODEL) is WRONG for this build; do not
+						// "correct" this offset to match it.
 						const auto bipedSlots = *reinterpret_cast<const std::uint64_t*>(
 							reinterpret_cast<std::uintptr_t>(item.object) + 0x208);
 						if ((bipedSlots & a_slotMask) == 0) {

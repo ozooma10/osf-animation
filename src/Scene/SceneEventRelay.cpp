@@ -243,6 +243,7 @@ namespace OSF::Scene
 		}
 		_slots.clear();
 
-		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a tokenwwwwwwwwwwww minted before a save-load can never validate against a slot reused after the load 
+		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a token
+		// minted before a save-load can never validate against a slot reused after the load.
 	}
 }

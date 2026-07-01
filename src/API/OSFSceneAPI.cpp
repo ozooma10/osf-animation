@@ -120,7 +120,8 @@ namespace OSF::API
 			return false;
 		}
 
-		// Per-start speed/stage for a DEF scene: (Maybe can remove?)
+		// Per-start speed for a DEF scene (startStage is resolved to an entry node BEFORE the start now —
+		// see ResolveStartStageNode — so the scene enters on the stage instead of jumping after entry).
 		void ApplyDefPostStart(std::int32_t a_handle, const std::vector<RE::Actor*>& a_actors, const OSFStartOptions& a_opts)
 		{
 			if (!a_handle) {
@@ -129,9 +130,26 @@ namespace OSF::API
 			if (a_opts.speed != 1.0f && !a_actors.empty()) {
 				Animation::GraphManager::GetSingleton().SetSpeed(a_actors.front(), a_opts.speed);
 			}
-			if (a_opts.startStage > 0) {
-				Scene::SceneRuntime::GetSingleton().SetStage(a_handle, a_opts.startStage);
+		}
+
+		// OSFStartOptions.startStage (> 0) -> the def's linear-stage entry node. LENIENT on purpose (C ABI):
+		// an invalid stage warns and enters at the scene's own entry — the same effective behavior as the
+		// old post-start jump, where SetStage on a bad stage silently no-opped. "" = the scene's own entry.
+		std::string ResolveStartStageNode(std::string_view a_sceneId, std::int32_t a_stage, const char* a_tag)
+		{
+			if (a_stage <= 0) {
+				return {};
 			}
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+			if (!def) {
+				return {};  // unknown scene — the start itself will fail with the right log
+			}
+			if (def->linearStages.empty() || a_stage >= static_cast<std::int32_t>(def->linearStages.size())) {
+				REX::WARN("[API] {} '{}': startStage {} invalid ({} linear stages) — entering at the scene entry",
+					a_tag, def->id, a_stage, def->linearStages.size());
+				return {};
+			}
+			return def->linearStages[a_stage];
 		}
 
 		// --- POD layout guard: locks the ABI of OSFStartOptions at OSF build time. A field add/reorder/resize that would silently break a shipped consumer copy fails HERE.
@@ -179,6 +197,7 @@ namespace OSF::API
 				return 0;
 			}
 			const auto over = MakeOverrides(a_opts);
+			const std::string entryNode = ResolveStartStageNode(a_sceneId, a_opts.startStage, "StartScene");
 			auto&      rt = Scene::SceneRuntime::GetSingleton();
 			std::int32_t handle = 0;
 			if (RE::TESObjectREFR* ref = a_opts.anchorRef) {
@@ -187,7 +206,7 @@ namespace OSF::API
 				if (!resolved) {
 					return 0;  // anchor-bound scene, missing/incompatible furniture (logged in ResolveSceneAnchor)
 				}
-				handle = rt.StartFromDefAt(a_sceneId, actors, resolved->pos, resolved->heading, over);
+				handle = rt.StartFromDefAt(a_sceneId, actors, resolved->pos, resolved->heading, over, entryNode);
 			} else {
 				// No furniture ref: an anchor-bound scene can't be placed; otherwise free start with the optional raw WORLD anchor (hasAnchor) or co-located at actor[0].
 				if (AnchorBoundRefused(a_sceneId, "StartScene")) {
@@ -195,8 +214,8 @@ namespace OSF::API
 				}
 				const auto anchor = MakeAnchor(a_opts);
 				handle = anchor.set
-					? rt.StartFromDefAt(a_sceneId, actors, anchor.pos, anchor.heading, over)
-					: rt.StartFromDef(a_sceneId, actors, over);
+					? rt.StartFromDefAt(a_sceneId, actors, anchor.pos, anchor.heading, over, entryNode)
+					: rt.StartFromDef(a_sceneId, actors, over, entryNode);
 			}
 			ApplyDefPostStart(handle, actors, a_opts);
 			return handle;
@@ -231,8 +250,9 @@ namespace OSF::API
 			for (std::uint32_t i = 0; i < a_roleCount; i++) {
 				roles.emplace_back(a_roles[i] ? a_roles[i] : "");
 			}
+			const std::string entryNode = ResolveStartStageNode(a_sceneId, a_opts.startStage, "StartSceneRoles");
 			const std::int32_t handle = Scene::SceneRuntime::GetSingleton().StartFromDefRoles(
-				a_sceneId, actors, roles, anchor, MakeOverrides(a_opts));
+				a_sceneId, actors, roles, anchor, MakeOverrides(a_opts), entryNode);
 			ApplyDefPostStart(handle, actors, a_opts);
 			return handle;
 		}
