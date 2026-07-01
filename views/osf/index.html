@@ -2,17 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <!-- All assets local: no network, no external fonts (sandbox forbids both). -->
-  <title>OSF Animation</title>
+  <title>OSF Scene Director</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app" class="app" aria-hidden="false">
-
-    <!-- ── Instrument header ─────────────────────────────────────────── -->
     <header class="topbar">
       <div class="brand">
-        <!-- Amber "armature" glyph = the Animation module accent in the OSF family. -->
         <svg class="brand-glyph" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="5" cy="19" r="2.2"></circle>
           <circle cx="19" cy="5" r="2.2"></circle>
@@ -20,169 +16,117 @@
           <path d="M5 19 L12 12 L19 5"></path>
         </svg>
         <span class="brand-name">OSF<b>ANIMATION</b></span>
-        <span class="brand-tag">SCENE&nbsp;DIRECTOR</span>
+        <span class="brand-tag">SCENE DIRECTOR</span>
       </div>
-
       <div class="status">
         <span id="lamp" class="lamp" data-state="wait"></span>
-        <span id="statusText" class="status-text">CONNECTING…</span>
+        <span id="statusText" class="status-text">CONNECTING...</span>
         <span class="divider"></span>
-        <span id="sceneCount" class="metric">—&nbsp;SCENES</span>
+        <span id="sceneCount" class="metric">0 SCENES</span>
         <button id="refresh" class="btn btn-ghost" type="button">REFRESH</button>
+        <label id="authorToggle" class="switch" title="Show ids, source files, and author diagnostics.">
+          <input id="authorMode" type="checkbox">
+          <span>AUTHOR</span>
+        </label>
       </div>
     </header>
 
-    <!-- ── Main instrument grid ──────────────────────────────────────── -->
-    <main class="layout">
+    <section class="context-slate">
+      <div class="context-block cast-context">
+        <div class="block-head"><span class="eyebrow">CAST</span><span id="castMetric" class="block-metric">1 SELECTED</span></div>
+        <div id="contextCast" class="context-pills"></div>
+        <div class="context-actions">
+          <button id="scanActors" class="btn btn-ghost" type="button">SCAN ACTORS</button>
+          <button id="addActor" class="btn btn-ghost" type="button">CROSSHAIR</button>
+        </div>
+      </div>
 
-      <!-- Filter rail -->
-      <aside class="rail panel">
-        <h2 class="panel-title">FILTERS</h2>
+      <div class="context-block anchor-context">
+        <div class="block-head"><span class="eyebrow">ANCHOR</span><span id="anchorMetric" class="block-metric">NONE</span></div>
+        <div id="contextAnchor" class="anchor-readout"></div>
+        <div class="context-actions">
+          <button id="scanFurniture" class="btn btn-ghost" type="button">SCAN ANCHORS</button>
+          <button id="pickFurniture" class="btn btn-ghost" type="button">CROSSHAIR</button>
+          <button id="clearFurniture" class="btn btn-ghost hidden" type="button">CLEAR</button>
+        </div>
+      </div>
 
-        <label class="field">
-          <span class="field-label">SEARCH</span>
-          <input id="search" class="input" type="text" placeholder="title, id, tag…" autocomplete="off">
-        </label>
+      <div class="context-block readiness-context">
+        <div class="block-head"><span class="eyebrow">READINESS</span><span id="resultCount" class="block-metric">0 MATCHES</span></div>
+        <div class="readiness-grid">
+          <div><strong id="readyCount">0</strong><span>READY</span></div>
+          <div><strong id="needsCount">0</strong><span>NEED</span></div>
+          <div><strong id="libraryCount">0</strong><span>LIBRARY</span></div>
+        </div>
+      </div>
+    </section>
 
-        <div class="field">
-          <span class="field-label">CAST SIZE</span>
-          <div id="countFilter" class="seg" role="group">
-            <button class="seg-btn is-on" data-count="any" type="button">ANY</button>
+    <main class="director-layout">
+      <aside class="world-panel panel">
+        <section class="world-section">
+          <div class="panel-head"><h2 class="panel-title">WORLD PICKER</h2></div>
+          <div class="world-subhead"><span>Nearby Actors</span><button id="scanActorsMini" class="mini-btn" type="button">SCAN</button></div>
+          <div id="actorTokens" class="token-list"></div>
+        </section>
+        <section class="world-section">
+          <div class="world-subhead"><span>Nearby Anchors</span><button id="scanFurnitureMini" class="mini-btn" type="button">SCAN</button></div>
+          <div id="anchorTokens" class="token-list"></div>
+        </section>
+        <section class="world-section tag-section">
+          <div class="world-subhead"><span>Tags</span><span id="tagCount" class="mini-note">0</span></div>
+          <div id="tagCloud" class="tag-cloud"></div>
+        </section>
+      </aside>
+
+      <section class="browser-panel panel">
+        <div class="browser-tools">
+          <label class="search-field"><span class="field-label">SEARCH</span><input id="search" class="input" type="text" placeholder="scene, id, tag, role" autocomplete="off"></label>
+          <div id="viewFilter" class="seg compact" role="group" aria-label="scene fit filter">
+            <button class="seg-btn is-on" data-view="all" type="button">ALL</button>
+            <button class="seg-btn" data-view="ready" type="button">READY</button>
+            <button class="seg-btn" data-view="need" type="button">NEEDS</button>
+            <button class="seg-btn" data-view="library" type="button">LIBRARY</button>
+          </div>
+          <div id="countFilter" class="seg compact" role="group" aria-label="cast size filter">
+            <button class="seg-btn is-on" data-count="any" type="button">ANY CAST</button>
             <button class="seg-btn" data-count="1" type="button">1</button>
             <button class="seg-btn" data-count="2" type="button">2</button>
             <button class="seg-btn" data-count="3" type="button">3+</button>
           </div>
-        </div>
-
-        <div class="field">
-          <span class="field-label">FURNITURE</span>
-          <div id="furnFilter" class="seg" role="group">
-            <button class="seg-btn is-on" data-furn="any" type="button">ANY</button>
-            <button class="seg-btn" data-furn="yes" type="button">NEEDS</button>
-            <button class="seg-btn" data-furn="no" type="button">FREE</button>
+          <div id="anchorFilter" class="seg compact" role="group" aria-label="anchor filter">
+            <button class="seg-btn is-on" data-anchor="any" type="button">ANY</button>
+            <button class="seg-btn" data-anchor="yes" type="button">ANCHOR</button>
+            <button class="seg-btn" data-anchor="no" type="button">FREE</button>
           </div>
+          <label class="check hidden" id="unlistedField"><input id="showUnlisted" type="checkbox"><span>Unlisted</span></label>
         </div>
-
-        <label class="check">
-          <input id="fitsCast" type="checkbox">
-          <span>Fits my cast</span>
-        </label>
-
-        <label class="check hidden" id="unlistedField" title="Unlisted scenes are excluded from matchmaking; show them here to launch by hand.">
-          <input id="showUnlisted" type="checkbox">
-          <span>Show unlisted</span>
-        </label>
-
-        <div class="field grow">
-          <span class="field-label">TAGS</span>
-          <div id="tagCloud" class="tag-cloud"></div>
-        </div>
-      </aside>
-
-      <!-- Scene card grid -->
-      <section class="catalog panel">
-        <div class="catalog-head">
-          <h2 class="panel-title">SCENES</h2>
-          <span id="resultCount" class="panel-note"></span>
-        </div>
-        <div id="grid" class="grid-scroll" role="list"></div>
-        <div id="empty" class="empty hidden">NO SCENES MATCH THE CURRENT FILTERS.</div>
+        <div id="shelves" class="shelves" role="list"></div>
+        <div id="empty" class="empty hidden">NO SCENES MATCH THE CURRENT CONTEXT.</div>
       </section>
 
-      <!-- Inspector: detail + cast + options + launch -->
-      <aside class="inspector panel">
-        <div id="detail" class="detail">
-          <p class="detail-empty">SELECT A SCENE TO INSPECT.</p>
-        </div>
-
-        <div class="tray">
-          <h3 class="tray-title">CAST</h3>
-          <ul id="castList" class="cast-list"></ul>
-          <div class="tray-actions">
-            <button id="scanActors" class="btn btn-ghost" type="button">SCAN NEARBY</button>
-            <button id="addActor" class="btn btn-ghost" type="button">+ CROSSHAIR</button>
-          </div>
-
-          <div id="furnTray" class="hidden">
-            <h3 class="tray-title">FURNITURE</h3>
-            <div id="furnSlot" class="furn-slot">
-              <span class="slot-empty">NONE</span>
-            </div>
-            <div class="tray-actions">
-              <button id="scanFurniture" class="btn btn-ghost" type="button">SCAN NEARBY</button>
-              <button id="pickFurniture" class="btn btn-ghost" type="button">CROSSHAIR</button>
-              <button id="clearFurniture" class="btn btn-ghost hidden" type="button">CLEAR</button>
-            </div>
-          </div>
-        </div>
-
+      <aside class="brief-panel panel">
+        <div id="brief" class="brief"></div>
+        <div id="liveDirector" class="live-director hidden"></div>
         <div class="options">
-          <h3 class="tray-title">OPTIONS</h3>
+          <h3 class="tray-title">START OVERRIDES</h3>
           <div class="opt-row">
-            <label class="opt">
-              <span class="field-label">STRIP</span>
-              <select id="optStrip" class="select">
-                <option value="-1">Inherit</option>
-                <option value="1">On</option>
-                <option value="0">Off</option>
-              </select>
-            </label>
-            <label class="opt">
-              <span class="field-label">LOCK PLAYER</span>
-              <select id="optLock" class="select">
-                <option value="-1">Inherit</option>
-                <option value="1">On</option>
-                <option value="0">Off</option>
-              </select>
-            </label>
+            <label class="opt"><span class="field-label">STRIP</span><select id="optStrip" class="select"><option value="-1">Inherit</option><option value="1">On</option><option value="0">Off</option></select></label>
+            <label class="opt"><span class="field-label">LOCK PLAYER</span><select id="optLock" class="select"><option value="-1">Inherit</option><option value="1">On</option><option value="0">Off</option></select></label>
           </div>
           <div class="opt-row">
-            <label class="opt">
-              <span class="field-label">CAMERA</span>
-              <select id="optCamera" class="select">
-                <option value="">Inherit</option>
-                <option value="thirdperson_hold">Third person</option>
-                <option value="scene_orbit">Scene orbit</option>
-                <option value="freefly">Free fly</option>
-                <option value="vanity_orbit">Vanity orbit</option>
-              </select>
-            </label>
-            <label class="opt">
-              <span class="field-label">SPEED&nbsp;·&nbsp;<b id="speedVal">1.0×</b></span>
-              <input id="optSpeed" class="range" type="range" min="0.1" max="3" step="0.1" value="1">
-            </label>
+            <label class="opt"><span class="field-label">CAMERA</span><select id="optCamera" class="select"><option value="">Inherit</option><option value="thirdperson_hold">Third person</option><option value="scene_orbit">Scene orbit</option><option value="freefly">Free fly</option><option value="vanity_orbit">Vanity orbit</option></select></label>
+            <label class="opt"><span class="field-label">SPEED <b id="speedVal">1.0x</b></span><input id="optSpeed" class="range" type="range" min="0.1" max="3" step="0.1" value="1"></label>
           </div>
         </div>
-
-        <div class="launch">
-          <button id="play" class="btn btn-primary" type="button" disabled>PLAY</button>
-          <button id="stop" class="btn btn-danger" type="button" disabled>STOP</button>
-        </div>
+        <div class="launch"><button id="play" class="btn btn-primary" type="button" disabled>PLAY SCENE</button><button id="stop" class="btn btn-danger" type="button" disabled>STOP</button></div>
         <p id="launchReason" class="launch-reason"></p>
       </aside>
     </main>
 
-    <!-- Status / failure strip -->
     <footer id="notice" class="notice" aria-live="polite"></footer>
   </div>
 
-  <!-- Scan-nearby results picker -->
-  <div id="scanModal" class="modal hidden">
-    <div class="modal-backdrop" id="scanBackdrop"></div>
-    <div class="modal-panel panel">
-      <div class="modal-head">
-        <h3 id="scanTitle" class="panel-title">NEARBY</h3>
-        <button id="scanClose" class="modal-x" type="button" aria-label="close">×</button>
-      </div>
-      <ul id="scanList" class="scan-list"></ul>
-      <p id="scanEmpty" class="scan-empty hidden">Nothing in range. Move closer, then scan again.</p>
-      <p class="scan-hint" id="scanHint"></p>
-    </div>
-  </div>
-
-  <!-- Software pointer (the OS cursor is hidden in-game). -->
   <div id="cursor" class="cursor" aria-hidden="true"></div>
-
   <script src="main.js"></script>
 </body>
 </html>

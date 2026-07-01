@@ -409,6 +409,42 @@ namespace OSF::API
 			REX::DEBUG("[UI] osf.stop handle={} -> {}", handle, ok);
 		}
 
+		// ---- nearby-actor enumeration ----------------------------------------
+		// ProcessLists::highActorHandles (CommonLibSF, +0x60) is the primitive Scan Nearby wants: near-player, fully-3D actors that SPAN the loaded cell grid (interior + exterior neighbours)
+		// We ONLY touch the high list — lowActorHandles holds 600-1200 partially- loaded actors whose vfuncs __fastfail uncatchably.
+
+		std::uintptr_t VtableAddr(REL::ID a_id) { return REL::Relocation<std::uintptr_t>{ a_id }.address(); }
+		void EnumerateHighActors(std::vector<RE::Actor*>& a_out)
+		{
+			auto* pl = RE::ProcessLists::GetSingleton();
+			if (!pl) {
+				return;
+			}
+
+			auto&               handles = pl->highActorHandles;
+			const std::uint32_t size = handles.size();
+			if (size == 0 || size > 0x4000) {
+				return;
+			}
+
+			// The list can hold mixed TESObjectREFR*/Actor*, so confirm each resolved object is a real Actor by its primary vtable before use.
+			const std::uintptr_t actorVtbl = VtableAddr(REL::ID(451614));
+			a_out.reserve(a_out.size() + size);
+			for (std::uint32_t i = 0; i < size; ++i) {
+				RE::BSPointerHandle<RE::Actor>& h = handles[i];
+				if (!static_cast<bool>(h)) {
+					continue;
+				}
+				const RE::NiPointer<RE::Actor> p = h.get();  // GetSmartPointer ID 35638; self-guards bad handles
+				RE::Actor* const               a = p.get();
+				if (!a || *reinterpret_cast<std::uintptr_t*>(a) != actorVtbl) {
+					continue;
+				}
+				a_out.push_back(a);
+			}
+		}
+
+		// Distance math uses TESObjectREFR::GetPosition() (cached data.location), the same source the rest of OSF Animation uses for actor/anchor placement.
 		void OnScanNearby(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json  j = ParsePayload(a_payload);
@@ -448,39 +484,20 @@ namespace OSF::API
 				float              distSq;
 			};
 			std::vector<Hit> hits;
-			// Collect candidate pointers + distance only; serialize (GetDisplayFullName /
-			// token minting) afterwards so the heavy work stays out of any engine lock.
-
+			// Collect candidate pointers + distance only; serialize (GetDisplayFullName / token minting) afterwards so the heavy work stays out of any engine lock.
 			if (wantActor) {
-				// NPCs are NOT reliably in player->parentCell: nearby actors usually sit in
-				// adjacent loaded cells, so a single-cell walk returns nothing outdoors or in
-				// multi-cell interiors (the "no results with a ton of NPCs around" symptom).
-				// The process lists hold every loaded actor regardless of cell, which is what
-				// "nearby actors" actually means here.
-				if (auto* pl = RE::ProcessLists::GetSingleton()) {
-					const auto scanActors = [&](const RE::BSTArray<RE::BSPointerHandle<RE::Actor>>& a_list) {
-						const std::size_t count = a_list.size();
-						const auto* const slots = a_list.data();  // null-guarded, mirroring the cell walk
-						for (std::size_t i = 0; slots && i < count; ++i) {
-							RE::Actor* actor = slots[i].get().get();
-							if (!actor || actor->IsDead() || actor->IsPlayerRef() || actor->IsDeleted()) {
-								continue;
-							}
-							const float distSq = origin.GetSquaredDistance(actor->GetPosition());
-							if (distSq <= radiusSq) {
-								hits.push_back({ actor, distSq });
-							}
-						}
-					};
-					scanActors(pl->highActorHandles);
-					scanActors(pl->middleHighActorHandles);
-					scanActors(pl->middleLowActorHandles);
-					scanActors(pl->lowActorHandles);
+				std::vector<RE::Actor*> actors;
+				EnumerateHighActors(actors);
+				for (RE::Actor* actor : actors) {
+					if (!actor || actor->IsPlayerRef() || actor->IsDeleted() || actor->IsDead()) {
+						continue;
+					}
+					const float distSq = origin.GetSquaredDistance(actor->GetPosition());
+					if (distSq <= radiusSq) {
+						hits.push_back({ actor, distSq });
+					}
 				}
 			} else {
-				// Furniture is static: anchor-bound refs live in the player's own cell, so the
-				// cell reference list is the right (and cheap) source. Gather the usable anchor
-				// defs first — the selected scene if it is anchor-bound, else every installed one.
 				RE::TESObjectCELL* cell = player->parentCell;
 				if (cell && cell->IsAttached()) {
 					std::vector<const Registry::SceneDef*> anchorDefs;
@@ -498,10 +515,8 @@ namespace OSF::API
 						});
 					}
 
-					// Walk the array ourselves rather than via TESObjectCELL::ForEachReference so
-					// we can null-check the backing store: an attached cell should never expose
-					// size>0 over a null data pointer, but the header's loop would access-violate
-					// if it did, and this call is user-triggered at arbitrary moments (mid-load).
+					// Walk the array ourselves rather than via TESObjectCELL::ForEachReference so / we can null-check the backing stor
+					//  an attached cell should never expose size>0 over a null data pointer, but the header's loop would access-violate f it did, and this call is user-triggered at arbitrary moments (mid-load).
 					const RE::BSAutoReadLock locker(cell->lock);
 					const auto&              refs = cell->references;
 					const std::size_t        count = refs.size();
