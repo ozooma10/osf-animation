@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "name": "OSF Internal (system scenes: solo health-check, pair smoke-test)",
+  "unlisted": true,
   "scenes": [
     {
       "id": "solo",
