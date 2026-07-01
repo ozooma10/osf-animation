@@ -159,6 +159,8 @@ namespace OSF::Registry
 	// a stage that specifies NEITHER gets the play-once default (loops=1) at parse time.
 	struct StageDef
 	{
+		std::string              name;          // browser label for this stage's animation ("" = none)
+		std::vector<std::string> tags;          // per-stage tags (browse/filter); separate from scene tags
 		float                    timer = 0.0f;  // seconds; 0 = no time-based auto-advance
 		std::int32_t             loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
 		std::vector<StageClip>   clips;         // one per role, role order

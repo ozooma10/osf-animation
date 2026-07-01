@@ -92,16 +92,14 @@ namespace OSF::Scene
 		bool StopForActor(RE::Actor* a_actor);
 
 		// --- Navigation (def-backed scenes) ---
-		// Start a scene from its registered definition: enter at the def's `entry` node.
-		// Returns the handle (0 = no such scene def). Navigation works on these.
-		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
-			const StartOverrides& a_over = {});
+		// Start a scene from its registered definition. Enters at the def's `entry` node, or at a_entryNode when non-empty. 
+		// Returns the handle (0 = no such scene def, or a_entryNode names no node). Navigation works on these.
+		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
 
-		// Like StartFromDef, but world-anchored at (a_anchorPos, a_anchorHeading in RADIANS)
-		// instead of at participant[0] (StartSceneAt). The anchor is stored on the slot so every
-		// node transition reuses it.
+		// Like StartFromDef, but world-anchored at (a_anchorPos, a_anchorHeading in RADIANS) instead of at participant[0]. 
+		// The anchor is stored on the slot so every node transition reuses it. a_entryNode overrides the entry node as in StartFromDef.
 		std::int32_t StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
-			RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over = {});
+			RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
 
 		// Start an ad-hoc files scene (what StartSceneFiles is built on): a single synthetic "main"
 		// node that holds, with the actors co-located and synced by the GraphManager. 0 = bad args,

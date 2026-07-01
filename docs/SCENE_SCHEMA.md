@@ -125,6 +125,13 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   onto the stage's desugared node. So a linear scene can fire cues, run actions, play sound, and hold
   a camera posture **without** dropping to the `nodes[]` graph form. The bare-array shorthand is
   clips-only — use the `{ … }` object form to attach a lane.
+- **Stage identity (`name`, `tags`) — a browsable animation.** A full-object stage may carry an
+  optional `name` (a label) and `tags` (an array of strings). They don't affect playback; they let the
+  UI catalog surface **each stage as an individually browsable animation**, so a many-stage sequence
+  scene doubles as a de-duped list of its animations without minting a standalone scene per stage.
+  `"name": "Missionary06", "tags": ["missionary", "mf"]`. To then play just that one animation, start
+  the scene with **`SceneOptions.Stage = <index>`** — it enters directly on that stage (a `loops:0`
+  stage holds there). Stage `tags` are separate from the scene's `tags` (which drive matchmaking).
 - **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A role-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.

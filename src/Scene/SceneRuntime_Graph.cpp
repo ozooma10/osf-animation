@@ -684,8 +684,21 @@ namespace OSF::Scene
 		return Stop(handle);  // re-resolves under its own lock; fires NODE_EXIT + SCENE_END
 	}
 
+	// Resolve the entry node for a def start: a_entryNode when it names a real node, else the def's declared entry.
+	static std::string_view ResolveEntryNode(const Registry::SceneDef& a_def, std::string_view a_entryNode)
+	{
+		if (a_entryNode.empty()) {
+			return a_def.entry;
+		}
+		if (a_def.FindNode(a_entryNode)) {
+			return a_entryNode;
+		}
+		REX::WARN("[Scene] start '{}': entry node '{}' not found — using the scene's entry", a_def.id, a_entryNode);
+		return a_def.entry;
+	}
+
 	std::int32_t SceneRuntime::StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
-		const StartOverrides& a_over)
+		const StartOverrides& a_over, std::string_view a_entryNode)
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
@@ -693,18 +706,19 @@ namespace OSF::Scene
 			return 0;
 		}
 		// Start mints the handle, records the instance, and fires NODE_ENTER for the entry.
-		return Start(def->id, def->entry, a_participants, AnchorOverride{}, a_over);
+		return Start(def->id, ResolveEntryNode(*def, a_entryNode), a_participants, AnchorOverride{}, a_over);
 	}
 
 	std::int32_t SceneRuntime::StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
-		RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over)
+		RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over, std::string_view a_entryNode)
 	{
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
 			REX::ERROR("[Scene] StartFromDefAt: no scene def '{}'", a_sceneId);
 			return 0;
 		}
-		return Start(def->id, def->entry, a_participants, AnchorOverride{ true, a_anchorPos, a_anchorHeading }, a_over);
+		return Start(def->id, ResolveEntryNode(*def, a_entryNode), a_participants,
+			AnchorOverride{ true, a_anchorPos, a_anchorHeading }, a_over);
 	}
 
 	std::int32_t SceneRuntime::StartFromFiles(const std::vector<RE::Actor*>& a_participants,

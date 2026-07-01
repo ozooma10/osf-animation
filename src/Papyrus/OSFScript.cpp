@@ -380,11 +380,26 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const std::string sid = a_id.c_str();
-			if (!Registry::SceneRegistry::GetSingleton().Find(sid)) {
+			const auto* def = Registry::SceneRegistry::GetSingleton().Find(sid);
+			if (!def) {
 				REX::DEBUG("[Papyrus] StartScene: no scene '{}'", sid);
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
+			// SceneOptions.Stage: enter the scene directly on this linear stage instead of its entry (0 = the scene's own entry). 
+			// Lets a browser open a sequence on one animation. Out of range is a caller error → fail loudly; a non-linear graph has no stages → warn and ignore.
+			std::string entryNode;
+			if (opts.stage > 0) {
+				if (def->linearStages.empty()) {
+					REX::WARN("[Papyrus] StartScene: scene '{}' has no linear stages — SceneOptions.Stage {} ignored", sid, opts.stage);
+				} else if (opts.stage >= static_cast<std::int32_t>(def->linearStages.size())) {
+					REX::WARN("[Papyrus] StartScene: stage {} out of range for scene '{}' ({} stages)", opts.stage, sid, def->linearStages.size());
+					UI::HudMessage::Error(std::format("scene '{}' has no stage {}", sid, opts.stage));
+					return 0;
+				} else {
+					entryNode = def->linearStages[opts.stage];
+				}
+			}
 			const auto anchor = ResolveSceneAnchor(sid, opts);  // enforces an anchor-bound scene's furniture requirement
 			if (!anchor) {
 				return 0;  // anchor-bound scene with no / incompatible anchor ref (logged in ResolveSceneAnchor)
@@ -392,9 +407,9 @@ namespace OSF::Papyrus
 			const auto over = MakeOverrides(opts);
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			if (anchor->set) {
-				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over);  // anchored at the ref
+				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over, entryNode);  // anchored at the ref
 			}
-			return rt.StartFromDef(sid, a_actors, over);
+			return rt.StartFromDef(sid, a_actors, over, entryNode);
 		}
 
 		// Start a scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]

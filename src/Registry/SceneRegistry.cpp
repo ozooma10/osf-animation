@@ -666,6 +666,24 @@ namespace OSF::Registry
 					info.timer = jStage.value("timer", 0.0f);
 					info.loops = jStage.value("loops", 0);
 					timingGiven = jStage.contains("timer") || jStage.contains("loops");
+					// Optional stage identity (label + tags) for the browsable-animation catalog.
+					if (auto it = jStage.find("name"); it != jStage.end()) {
+						if (!it->is_string()) {
+							throw std::runtime_error(a_subject + ": stage 'name' must be a string");
+						}
+						info.name = it->get<std::string>();
+					}
+					if (auto it = jStage.find("tags"); it != jStage.end()) {
+						if (!it->is_array()) {
+							throw std::runtime_error(a_subject + ": stage 'tags' must be an array of strings");
+						}
+						for (const auto& t : *it) {
+							if (!t.is_string()) {
+								throw std::runtime_error(a_subject + ": stage 'tags' must be an array of strings");
+							}
+							info.tags.push_back(t.get<std::string>());
+						}
+					}
 					// Optional per-stage track lanes (cue/action/sound/camera): the lane parsers target a
 					// SceneNode, so parse into a scratch node and move them onto the stage. DesugarLinear
 					// forwards them to the stage's synthetic node, letting a linear stage carry cues,
