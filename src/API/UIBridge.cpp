@@ -2,7 +2,7 @@
 
 #include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
 #include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
-#include "Matchmaking/Matchmaker.h"  // AnchorAccepts (usable-furniture filter for Scan Nearby)
+#include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
@@ -706,25 +706,41 @@ namespace OSF::API
 					}
 				}
 			} else if (auto* tes = RE::TES::GetSingleton()) {
-				std::vector<const Registry::SceneDef*> anchorDefs;
-				auto&                                  reg = Registry::SceneRegistry::GetSingleton();
+				// Inverted anchor index, built fresh each scan: keyword -> accepting def indices and base form -> accepting def indices. 
+				// Matching a ref then costs one HasKeyword per UNIQUE keyword instead of per (def x keyword) 
+				std::vector<bool>                                               defCustom;  // def index -> custom (non-library) scene
+				std::unordered_map<RE::BGSKeyword*, std::vector<std::uint32_t>> kwDefs;
+				std::unordered_map<RE::TESFormID, std::vector<std::uint32_t>>   baseDefs;
+				const auto                                                      addDef = [&](const Registry::SceneDef& d) {
+					if (!d.RequiresAnchor()) {
+						return;
+					}
+					const auto idx = static_cast<std::uint32_t>(defCustom.size());
+					defCustom.push_back(!d.library);
+					for (auto* kw : d.anchorKeywords) {
+						if (kw) {
+							kwDefs[kw].push_back(idx);
+						}
+					}
+					for (const auto b : d.anchorBaseForms) {
+						baseDefs[b].push_back(idx);
+					}
+				};
+				auto& reg = Registry::SceneRegistry::GetSingleton();
 				if (!sceneId.empty()) {
-					if (const auto* def = reg.Find(sceneId); def && def->RequiresAnchor()) {
-						anchorDefs.push_back(def);
+					if (const auto* def = reg.Find(sceneId)) {
+						addDef(*def);
 					}
 				}
-				if (anchorDefs.empty()) {
-					reg.ForEachDef([&anchorDefs](const Registry::SceneDef& d) {
-						if (d.RequiresAnchor()) {
-							anchorDefs.push_back(&d);
-						}
-					});
+				if (defCustom.empty()) {
+					reg.ForEachDef(addDef);
 				}
 
 				RE::NiPoint3A originA{};
 				originA.x = origin.x;
 				originA.y = origin.y;
 				originA.z = origin.z;
+				std::vector<std::uint32_t> matched;  // accepting def indices for the ref under visit
 				// ForEachReferenceInRange spans the loaded interior cell or exterior grid and only
 				// visits refs already within radius; we just filter to furniture our scenes anchor to.
 				tes->ForEachReferenceInRange(originA, radius, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
@@ -732,22 +748,34 @@ namespace OSF::API
 					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted()) {
 						// Count every accepting def (not just the first): the view shows "unlocks N
 						// scenes" next to each nearby anchor so the pick is an informed one.
-						std::int32_t    accepts = 0;
-						std::int32_t    customAccepts = 0;
+						matched.clear();
 						RE::BGSKeyword* matchedKw = nullptr;
-						for (const auto* d : anchorDefs) {
-							RE::BGSKeyword* kw = nullptr;
-							if (Matchmaking::AnchorAccepts(*d, ref, &kw)) {
-								accepts++;
-								if (!d->library) {
-									customAccepts++;  // custom (authored) scene, vs a generated vanilla-library pack
-								}
-								if (!matchedKw && kw) {
-									matchedKw = kw;
+						if (!baseDefs.empty()) {
+							if (const auto base = ref->GetBaseObject()) {
+								if (const auto it = baseDefs.find(base->GetFormID()); it != baseDefs.end()) {
+									matched.insert(matched.end(), it->second.begin(), it->second.end());
 								}
 							}
 						}
-						if (accepts != 0) {
+						for (const auto& [kw, idxs] : kwDefs) {
+							if (ref->HasKeyword(kw)) {
+								if (!matchedKw) {
+									matchedKw = kw;  // labels unnamed markers; any matching keyword will do
+								}
+								matched.insert(matched.end(), idxs.begin(), idxs.end());
+							}
+						}
+						if (!matched.empty()) {
+							// A def can match via its base form AND several keywords — count it once.
+							std::sort(matched.begin(), matched.end());
+							matched.erase(std::unique(matched.begin(), matched.end()), matched.end());
+							const auto   accepts = static_cast<std::int32_t>(matched.size());
+							std::int32_t customAccepts = 0;
+							for (const auto i : matched) {
+								if (defCustom[i]) {
+									customAccepts++;  // custom (authored) scene, vs a generated vanilla-library pack
+								}
+							}
 							hits.push_back({ ref, origin.GetSquaredDistance(ref->GetPosition()), accepts, customAccepts, matchedKw });
 						}
 					}
