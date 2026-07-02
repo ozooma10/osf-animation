@@ -457,12 +457,12 @@ namespace OSF::API
 				REX::DEBUG("[UI] osf.pickCrosshair slot={} -> nothing valid under crosshair", slot);
 			} else {
 				const std::int32_t token = AllocToken(ref);
-				const char*        nm = ref->GetDisplayFullName();
+				const std::string  nm = ScanLabel(ref);
 				reply["valid"] = true;
 				reply["token"] = token;
-				reply["name"] = nm ? nm : "";
+				reply["name"] = nm;
 				reply["formId"] = ref->GetFormID();
-				REX::DEBUG("[UI] osf.pickCrosshair slot={} -> token {} '{}' ({:08X})", slot, token, nm ? nm : "", ref->GetFormID());
+				REX::DEBUG("[UI] osf.pickCrosshair slot={} -> token {} '{}' ({:08X})", slot, token, nm, ref->GetFormID());
 			}
 			SendJson(a_srcView, "osf.pick", reply);
 		}
@@ -543,6 +543,18 @@ namespace OSF::API
 			auto* api = SceneAPI();
 			if (!api) {
 				return fail("OSF Animation engine is not ready yet");
+			}
+
+			// Replace-in-place: if a cast member is already mid-scene, stop that scene first so this launch supersedes it 
+			for (RE::Actor* a : actors) {
+				const std::int32_t busy = api->GetSceneForActor(a);
+				if (busy != 0) {
+					api->StopScene(busy);
+					if (busy == g_lastHandle) {
+						g_lastHandle = 0;
+					}
+					REX::INFO("[UI] osf.launch '{}' superseding live scene {:#010x} (cast busy) — stopped it first", sceneId, busy);
+				}
 			}
 
 			// Named-role binding if the view supplied roleNames (one per cast token); else order-based auto-bind.
@@ -675,7 +687,9 @@ namespace OSF::API
 			{
 				RE::TESObjectREFR* ref;
 				float              distSq;
-				std::int32_t       sceneCount = -1;  // furniture only: how many anchor-bound scenes accept it (-1 = n/a)
+				std::int32_t       sceneCount = -1;      // furniture only: total anchor-bound scenes that accept it (-1 = n/a)
+				std::int32_t       customCount = -1;     // furniture only: of those, how many are custom (non-library) scenes
+				RE::BGSKeyword*    matchedKw = nullptr;  // furniture only: the anchor keyword that matched (labels unnamed markers)
 			};
 			std::vector<Hit> hits;
 			// Collect candidate pointers + distance only; serialize (GetDisplayFullName / token minting) afterwards so the heavy work stays out of any engine lock.
@@ -718,24 +732,23 @@ namespace OSF::API
 					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted()) {
 						// Count every accepting def (not just the first): the view shows "unlocks N
 						// scenes" next to each nearby anchor so the pick is an informed one.
-						std::int32_t accepts = 0;
+						std::int32_t    accepts = 0;
+						std::int32_t    customAccepts = 0;
+						RE::BGSKeyword* matchedKw = nullptr;
 						for (const auto* d : anchorDefs) {
-							if (Matchmaking::AnchorAccepts(*d, ref)) {
+							RE::BGSKeyword* kw = nullptr;
+							if (Matchmaking::AnchorAccepts(*d, ref, &kw)) {
 								accepts++;
+								if (!d->library) {
+									customAccepts++;  // custom (authored) scene, vs a generated vanilla-library pack
+								}
+								if (!matchedKw && kw) {
+									matchedKw = kw;
+								}
 							}
 						}
 						if (accepts != 0) {
-							hits.push_back({ ref, origin.GetSquaredDistance(ref->GetPosition()), accepts });
-						}
-						// DIAGNOSTIC (couch/bench hunt): log every FURN-type ref in radius, plus
-						// EVERYTHING within ~5m, so nearby non-FURN "furniture" shows up too. Base
-						// form IDs decode offline via osf-gergel-ebanex/furniture_dump.json.
-						const auto          base = ref->GetBaseObject();
-						const std::uint32_t type = base ? static_cast<std::uint32_t>(base->GetFormType()) : 0u;
-						const float         dSq = origin.GetSquaredDistance(ref->GetPosition());
-						if (type == 47 || dSq < (5.0f * 70.0f) * (5.0f * 70.0f)) {
-							REX::DEBUG("[UI] scan cand: dist={:.1f}m base={:#010x} type={} accepts={} label='{}'",
-								std::sqrt(dSq) / 70.0f, base ? base->GetFormID() : 0u, type, accepts, ScanLabel(ref));
+							hits.push_back({ ref, origin.GetSquaredDistance(ref->GetPosition()), accepts, customAccepts, matchedKw });
 						}
 					}
 					return RE::BSContainer::ForEachResult::kContinue;
@@ -743,22 +756,33 @@ namespace OSF::API
 			}
 
 			std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.distSq < b.distSq; });
-			constexpr std::size_t kMax = 40;
-			if (hits.size() > kMax) {
-				hits.resize(kMax);
-			}
 
+			// Cap named refs and unnamed AI markers SEPARATELY: markers are dense (every sandbox
+			// cell has dozens) and a single shared cap would crowd real furniture off the list.
+			constexpr std::size_t kMaxPerGroup = 40;
+			std::size_t           namedCount = 0, markerCount = 0;
 			for (const auto& h : hits) {
+				const char* nm = h.ref->GetDisplayFullName();
+				// Furniture with no display name = invisible AI/idle marker (or unnamed outpost
+				// piece) — still a legitimate anchor, but the view lists it under its own group.
+				const bool marker = !wantActor && !(nm && nm[0]);
+				auto&      count = marker ? markerCount : namedCount;
+				if (count >= kMaxPerGroup) {
+					continue;
+				}
+				count++;
 				const std::int32_t token = AllocToken(h.ref);
 				json               item = {
 					{ "token", token },
-					{ "name", ScanLabel(h.ref) },
+					{ "name", ScanLabel(h.ref, h.matchedKw) },
 					{ "formId", h.ref->GetFormID() },
 					{ "distance", std::sqrt(h.distSq) / 70.0f },  // game units -> ~meters
 					{ "isActor", h.ref->IsActor() },
+					{ "marker", marker },
 				};
 				if (h.sceneCount >= 0) {
 					item["sceneCount"] = h.sceneCount;
+					item["customCount"] = h.customCount;  // subset that is custom (authored), not vanilla library
 				}
 				reply["items"].push_back(std::move(item));
 			}
@@ -821,6 +845,41 @@ namespace OSF::API
 	bool UIBridgeInstalled()
 	{
 		return g_ui != nullptr;
+	}
+
+	bool OpenBrowser()
+	{
+		if (!g_ui) {
+			REX::WARN("[UI] OpenBrowser: OSF UI not present — nothing to open");
+			return false;
+		}
+		// RequestMenu is an appended vmethod (bridge MINOR >= 1). An OSF UI built before it
+		// has no such vtable slot; calling through it would be undefined. Gate on the live
+		// interface version rather than the header constant we compiled against.
+		if ((g_ui->GetInterfaceVersion() & 0xFFFFu) < 1u) {
+			REX::WARN("[UI] OpenBrowser: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to open the browser from the Data Slate");
+			return false;
+		}
+		// Close the game menus the slate can be equipped from FIRST, so the browser opens over
+		// the world, not over a still-open inventory. UIMessageQueue is main-thread-only and
+		// this native runs on a Papyrus VM thread, so the whole sequence rides an SFSE task;
+		// RequestMenu itself is thread-safe and queued, keeping the hide -> open order.
+		SFSE::GetTaskInterface()->AddTask([]() {
+			auto* ui = RE::UI::GetSingleton();
+			auto* queue = RE::UIMessageQueue::GetSingleton();
+			if (ui && queue) {
+				// BookMenu: the slate's reading pane — the OnRead trigger fires from inside it.
+				for (const char* menu : { "BookMenu", "InventoryMenu", "DataMenu" }) {
+					if (ui->IsMenuOpen(menu)) {
+						queue->AddMessage(menu, RE::UI_MESSAGE_TYPE::kHide);
+						REX::DEBUG("[UI] OpenBrowser: closing '{}' before the browser", menu);
+					}
+				}
+			}
+			const bool ok = g_ui->RequestMenu(kViewId, true);
+			REX::INFO("[UI] OpenBrowser: RequestMenu('{}', open) -> {}", kViewId, ok);
+		});
+		return true;
 	}
 
 	void InstallUIBridge()

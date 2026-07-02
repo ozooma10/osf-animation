@@ -10,8 +10,10 @@
 namespace OSFUI::API
 {
     // Packed (MAJOR << 16) | MINOR. MAJOR breaks ABI; MINOR bumps on an appended vmethod.
-    inline constexpr std::uint32_t kBridgeAPIVersion = (1u << 16) | 0u;
+    // MINOR 1: appended RequestMenu (open/close a surface by id from native code).
+    inline constexpr std::uint32_t kBridgeAPIVersion = (1u << 16) | 1u;
     inline constexpr std::uint32_t kBridgeAPIMajor   = kBridgeAPIVersion >> 16;
+    inline constexpr std::uint32_t kBridgeAPIMinor   = kBridgeAPIVersion & 0xFFFFu;
 
     inline constexpr const wchar_t* kModuleName        = L"OSFUI.dll";
     inline constexpr const char*    kRequestExportName = "OSFUI_RequestBridge";
@@ -38,6 +40,11 @@ namespace OSFUI::API
         virtual bool SendToWeb(const char* a_viewId, const char* a_type, const char* a_payloadJson) = 0;
 
         virtual void SetReadyCallback(ReadyFn a_callback, void* a_user) = 0;
+
+        // Open (a_open=true) / close a registered surface by id from native code (MINOR >= 1).
+        // GUARD: only present when GetInterfaceVersion()'s MINOR is >= 1 — a consumer built
+        // against this header may talk to an older OSFUI.dll whose vtable lacks this slot.
+        virtual bool RequestMenu(const char* a_viewId, bool a_open) = 0;
 
     protected:
         ~IOSFUIBridge() = default;

@@ -394,6 +394,14 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().HooksInstalled();
 		}
 
+		// Open the in-game scene browser (the OSF UI "osf" view), exactly as F10 would.
+		// Backs the Data Slate item so the browser is discoverable without knowing the hotkey.
+		// False if OSF UI is absent or too old to open a menu from native code.
+		bool OpenBrowser(OSFVM&, uint32_t, std::monostate)
+		{
+			return API::OpenBrowser();
+		}
+
 		// Start a scene by id, returning an opaque scene HANDLE (0 = failed).
 		// Routes through SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
 		// akOpts.Anchor world-anchors the scene at a ref instead of co-locating at actor[0].
@@ -996,6 +1004,7 @@ namespace OSF::Papyrus
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "OpenBrowser", &OpenBrowser, true, false);
 		REX::INFO("[Papyrus] registered natives on script '{}'", SCRIPT_NAME);
 
 		// Non-public compat natives (script 'OSFCompat'): the standalone player/camera lock the SAF

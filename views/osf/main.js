@@ -33,6 +33,10 @@ const state = {
   libraryReceived: false,
   libOpen: new Set(),  // expanded library pack groups
   libShowAll: false,   // library: false = focus on sets fitting the keyed anchor, true = all
+  markersOpen: false,  // anchor step: the collapsed "AI markers" group (invisible idle markers)
+  // Collapsible pre-flight steps: once cast/anchor are set they fold to a summary line so
+  // the browse list gets the dock's height back (the rail otherwise eats ~half the column).
+  stepOpen: { cast: true, anchor: true },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -160,11 +164,15 @@ function handleScanResults(p) {
     formId: it.formId || 0,
     distance: typeof it.distance === "number" ? it.distance : null,
     isActor: !!it.isActor,
-    sceneCount: typeof it.sceneCount === "number" ? it.sceneCount : null,  // furniture: scenes it unlocks
+    sceneCount: typeof it.sceneCount === "number" ? it.sceneCount : null,  // furniture: total scenes it unlocks
+    customCount: typeof it.customCount === "number" ? it.customCount : null,  // furniture: subset that is custom (authored), not vanilla library
+    marker: !!it.marker,  // invisible AI/idle marker — a usable anchor, listed in its own group
   }));
   if (kind === "furniture") {
     state.nearbyFurniture = normalized;
-    notice("info", `${normalized.length} usable anchor${normalized.length === 1 ? "" : "s"} found.`);
+    const markers = normalized.filter((x) => x.marker).length;
+    const named = normalized.length - markers;
+    notice("info", `${named} usable anchor${named === 1 ? "" : "s"} found${markers ? ` + ${markers} AI marker${markers === 1 ? "" : "s"}` : ""}.`);
   } else {
     state.nearbyActors = normalized;
     notice("info", `${normalized.length} nearby actor${normalized.length === 1 ? "" : "s"} found.`);
@@ -316,6 +324,7 @@ function keyAnchor(token, name, distance) {
   state.furniture = { token, name: name || "anchor", distance: distance || null };
   state.anchorMatch = null;               // stale until the engine answers for THIS token
   state.libShowAll = false;               // re-focus the library on what this anchor fits
+  state.stepOpen.anchor = false;          // step done — fold it, give the browse list the height back
   send("osf.anchorMatch", { token });     // which anchor-bound scenes does it fit?
   notice("info", `Anchor keyed: ${state.furniture.name}.`);
 }
@@ -332,6 +341,7 @@ function applyPick(slot, token, name, distance) {
     notice("info", `${name || "Actor"} is already in the cast.`);
   } else {
     state.partners.push({ token, name: name || "actor", distance: distance || null });
+    state.stepOpen.cast = false;  // partner added — fold, freeing the browse list's height (mirrors keyAnchor)
     notice("info", `Cast added: ${name || "actor"}.`);
   }
   renderAll();
@@ -342,7 +352,7 @@ function toggleActor(token) {
   if (idx >= 0) { state.partners.splice(idx, 1); notice("info", "Cast member removed."); }
   else {
     const a = state.nearbyActors.find((x) => x.token === token);
-    if (a) { state.partners.push({ token: a.token, name: a.name, distance: a.distance }); notice("info", `Cast added: ${a.name}.`); }
+    if (a) { state.partners.push({ token: a.token, name: a.name, distance: a.distance }); state.stepOpen.cast = false; notice("info", `Cast added: ${a.name}.`); }
   }
   renderAll();
 }
@@ -481,8 +491,21 @@ function renderRail() {
   $("rail").innerHTML = stepCastHTML() + stepAnchorHTML();
 }
 
+// Clickable step header; a collapsed step folds to this single line (note = the summary).
+function stepHeadHTML(step, num, title, note, open) {
+  return `<button class="step-head" data-act="step-toggle" data-step="${step}"><span class="step-num">${num}</span><span class="eb">${title}</span><span class="step-note">${note}</span><span class="chev">${open ? "▾" : "▸"}</span></button>`;
+}
+
 function stepCastHTML() {
   const members = castMembers();
+  const castCount = members.length;
+  const open = state.stepOpen.cast;
+  if (!open) {
+    // Folded: who's on set, still readable at a glance.
+    const names = members.map((m) => m.name).join(" + ");
+    return `<div class="step closed">${stepHeadHTML("cast", 1, "CAST", esc(castCount === 1 ? "Player only" : names), false)}</div>`;
+  }
+
   const chips = members.map((m, i) => {
     const player = m.kind === "player";
     const drop = player ? "" : `<button class="chip-x" data-act="drop" data-i="${i - 1}" title="Remove from cast">×</button>`;
@@ -496,7 +519,6 @@ function stepCastHTML() {
       }).join("")
     : `<div class="empty-mini"><span class="mono">Scan, or aim at someone and PICK.</span></div>`;
 
-  const castCount = members.length;
   const fit = state.catalog.filter((s) => unlistedVisible(s) && (s.actorCount || 0) === castCount).length;
   const libNote = castCount === 1 ? (state.libraryReceived ? ` · library ${state.library.length}` : " · + library") : "";
   const foot = state.catalogReceived
@@ -504,7 +526,7 @@ function stepCastHTML() {
     : "";
 
   return `<div class="step">
-    <div class="step-head"><span class="step-num">1</span><p class="eb">CAST</p><span class="step-note">${castCount} on set</span></div>
+    ${stepHeadHTML("cast", 1, "CAST", `${castCount} on set`, true)}
     <div class="cast-stack">${chips}</div>
     <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools"><button class="chip-btn" data-act="scan" data-kind="actor">SCAN</button><button class="chip-btn" data-act="pick" data-slot="actor">PICK</button></span></div>
     <div class="near-list">${rows}</div>
@@ -525,27 +547,54 @@ function anchorFitLabel() {
   return lib ? `${head}<span class="lib-note"> · library ${lib}</span>` : head;
 }
 
+function anchorRow(an, keyed) {
+  const active = keyed && keyed.token === an.token;
+  // Custom (authored) scenes are the headline count; the vanilla-library remainder trails as a
+  // muted, passive badge so it doesn't compete for attention. customCount may be null on an
+  // older bridge — fall back to the total so the row still shows something useful.
+  const total = an.sceneCount;
+  const custom = an.customCount != null ? an.customCount : total;
+  const lib = total != null && custom != null ? Math.max(0, total - custom) : 0;
+  let unlocks = "";
+  if (an.customCount != null) {
+    unlocks = `<span class="near-badge ${custom ? "" : "empty"}" title="Custom scenes this unlocks">⚓${custom}</span>`;
+    if (lib) unlocks += `<span class="near-badge lib" title="Vanilla library scenes this unlocks">+${lib}</span>`;
+  } else if (total != null) {
+    unlocks = `<span class="near-badge" title="Anchored scenes this unlocks">⚓${total}</span>`;
+  }
+  return `<button class="near-row ${active ? "active" : ""} ${an.marker ? "marker" : ""}" data-act="toggle-anchor" data-token="${an.token}"><span class="near-name">${esc(an.name)}</span>${unlocks}<span class="near-meta mono">${an.distance != null ? Math.max(1, Math.round(an.distance)) + "m" : ""}</span><span class="near-tag ${active ? "added" : ""}">${active ? "✓" : "USE"}</span></button>`;
+}
+
 function stepAnchorHTML() {
   const keyed = state.furniture;
   const matchKnown = !!(keyed && state.anchorMatch && state.anchorMatch.token === keyed.token);
+  if (!state.stepOpen.anchor) {
+    return `<div class="step closed">${stepHeadHTML("anchor", 2, "ANCHOR", keyed ? `⚓ ${esc(keyed.name)}` : "none", false)}</div>`;
+  }
   const slot = keyed
     ? `<div class="anchor-slot keyed"><span class="dot go"></span><span class="anchor-name">${esc(keyed.name)}</span><button class="chip-btn" data-act="clear-anchor">CLR</button></div>`
     : `<div class="anchor-slot"><span class="dot"></span><span class="anchor-name faint">none — free-space scenes only</span></div>`;
 
-  const rows = state.nearbyFurniture.length
-    ? state.nearbyFurniture.map((an) => {
-        const active = keyed && keyed.token === an.token;
-        const unlocks = an.sceneCount != null ? `<span class="near-badge" title="Anchored scenes this unlocks">⚓${an.sceneCount}</span>` : "";
-        return `<button class="near-row ${active ? "active" : ""}" data-act="toggle-anchor" data-token="${an.token}"><span class="near-name">${esc(an.name)}</span>${unlocks}<span class="near-meta mono">${an.distance != null ? Math.max(1, Math.round(an.distance)) + "m" : ""}</span><span class="near-tag ${active ? "added" : ""}">${active ? "✓" : "USE"}</span></button>`;
-      }).join("")
-    : `<div class="empty-mini"><span class="mono">Optional. Scan for usable furniture nearby.</span></div>`;
+  // Visible furniture leads; invisible AI/idle markers (unnamed sandbox spots — still real
+  // anchors, placed by level designers) trail in a collapsed group so they can't drown the list.
+  const furniture = state.nearbyFurniture.filter((an) => !an.marker);
+  const markers = state.nearbyFurniture.filter((an) => an.marker);
+  let rows = furniture.length
+    ? furniture.map((an) => anchorRow(an, keyed)).join("")
+    : `<div class="empty-mini"><span class="mono">${markers.length ? "No visible furniture — try the AI markers below." : "Optional. Scan for usable furniture nearby."}</span></div>`;
+  if (markers.length) {
+    // Keep the group open while the keyed anchor lives inside it, so the ✓ row stays visible.
+    const open = state.markersOpen || !!(keyed && markers.some((m) => m.token === keyed.token));
+    rows += `<button class="reveal ${open ? "on" : ""}" data-act="markers-toggle" title="Invisible AI idle spots — valid anchors, but you can't see them in the world">${open ? "▾" : "▸"} ${markers.length} AI marker${markers.length === 1 ? "" : "s"} (invisible)</button>`;
+    if (open) rows += markers.map((an) => anchorRow(an, keyed)).join("");
+  }
 
   const foot = keyed
     ? `<div class="step-foot"><span class="mono">${matchKnown ? anchorFitLabel() : "checking what fits…"}</span></div>`
     : "";
 
   return `<div class="step">
-    <div class="step-head"><span class="step-num">2</span><p class="eb">ANCHOR</p><span class="step-note">optional</span></div>
+    ${stepHeadHTML("anchor", 2, "ANCHOR", "optional", true)}
     ${slot}
     <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools"><button class="chip-btn" data-act="scan" data-kind="furniture">SCAN</button><button class="chip-btn" data-act="pick" data-slot="furniture">PICK</button></span></div>
     <div class="near-list">${rows}</div>
@@ -572,7 +621,10 @@ function scenesBrowserHTML() {
   const evald = searched.map((s) => ({ s, ev: evalScene(s) }));
   const playable = evald.filter((x) => x.ev.gaps === 0);
   const rest = evald.filter((x) => x.ev.gaps > 0);
-  const byRank = (a, b) => b.s.priority - a.s.priority || b.s.weight - a.s.weight || a.s.title.localeCompare(b.s.title);
+  // With an anchor keyed, float the scenes that actually fit that furniture above the
+  // free-space ones — so keying a chair surfaces the chair scenes first, not last.
+  const anchorFit = (x) => !!(state.furniture && x.s.requiresFurniture && x.ev.anchorGate);
+  const byRank = (a, b) => (anchorFit(b) - anchorFit(a)) || b.s.priority - a.s.priority || b.s.weight - a.s.weight || a.s.title.localeCompare(b.s.title);
   playable.sort(byRank); rest.sort(byRank);
 
   let html = `<div class="browse-note"><span class="dot go"></span><span class="lbl">PLAYABLE NOW · ${playable.length}</span></div>`;
@@ -834,6 +886,13 @@ function onClick(e) {
       break;
     }
     case "browse-all": state.browseAll = !state.browseAll; renderAll(); break;
+    case "markers-toggle": state.markersOpen = !state.markersOpen; renderAll(); break;
+    case "step-toggle": {
+      const k = el.dataset.step === "anchor" ? "anchor" : "cast";
+      state.stepOpen[k] = !state.stepOpen[k];
+      renderAll();
+      break;
+    }
     case "lib-showall": state.libShowAll = !state.libShowAll; renderAll(); break;
     case "toggle-actor": toggleActor(Number(el.dataset.token)); break;
     case "toggle-anchor": toggleAnchor(Number(el.dataset.token)); break;
@@ -913,11 +972,14 @@ const MOCK_ACTORS = [
   { token: 604, name: "Settled Systems Citizen", formId: 0x5, distance: 12, isActor: true },
 ];
 const MOCK_ANCHORS = [
-  { token: 501, name: "Industrial Chair", formId: 0x12a57a, distance: 3, isActor: false, sceneCount: 1 },
-  { token: 502, name: "Ak Bunk Bed", formId: 0x1234, distance: 6, isActor: false, sceneCount: 1 },
-  { token: 503, name: "Crew Quarters Marker", formId: 0x2234, distance: 11, isActor: false, sceneCount: 0 },
+  // sceneCount = total accepting scenes; customCount = the authored subset (rest are vanilla library).
+  { token: 501, name: "Industrial Chair", formId: 0x12a57a, distance: 3, isActor: false, sceneCount: 2, customCount: 1 },
+  { token: 502, name: "Ak Bunk Bed", formId: 0x1234, distance: 6, isActor: false, sceneCount: 1, customCount: 1 },
+  { token: 503, name: "Lean Wall", formId: 0x2234, distance: 4, isActor: false, sceneCount: 2, customCount: 1, marker: true },
+  { token: 504, name: "Ground Sit", formId: 0x2235, distance: 8, isActor: false, sceneCount: 1, customCount: 0, marker: true },
+  { token: 505, name: "Counter Work", formId: 0x2236, distance: 11, isActor: false, sceneCount: 0, customCount: 0, marker: true },
 ];
-const MOCK_ANCHOR_MATCH = { 501: ["ge.chair.love", "vanilla/furniture/chair"], 502: ["ge.akbunk.sequence"], 503: [] };
+const MOCK_ANCHOR_MATCH = { 501: ["ge.chair.love", "vanilla/furniture/chair"], 502: ["ge.akbunk.sequence"], 503: ["ge.chair.love", "vanilla/furniture/bench"], 504: ["vanilla/furniture/bench"], 505: [] };
 const MOCK_LIBRARY = [
   { id: "vanilla/furniture/chair", title: "Vanilla · Furniture / Chair", tags: ["vanilla", "furniture", "anchored"], actorCount: 1, genders: ["any"], requiresFurniture: true, sourceFile: "Data/OSF/vanilla/vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 2.7, loops: 0, openEnded: true, estSec: 5.4 }, { index: 1, name: "Idle_Flavor01", tags: ["transition"], clipCount: 1, loopSec: 11, loops: 0, openEnded: true, estSec: 22 }, { index: 2, name: "EnterFromStand", tags: ["transition", "rootmotion"], clipCount: 1, loopSec: 7.3, loops: 0, openEnded: true, estSec: 14.7 }], estSec: 42.1, estPartial: false, openEnded: true, priority: 0, weight: 1 },
   { id: "vanilla/furniture/bench", title: "Vanilla · Furniture / Bench", tags: ["vanilla", "furniture", "anchored"], actorCount: 1, genders: ["any"], requiresFurniture: true, sourceFile: "Data/OSF/vanilla/vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 3.1, loops: 0, openEnded: true, estSec: 6.2 }], estSec: 6.2, estPartial: false, openEnded: true, priority: 0, weight: 1 },

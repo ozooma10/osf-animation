@@ -50,6 +50,12 @@ target("OSF Animation")
             os.cp("dist/OSF/**", osfDir .. "/", { rootdir = "dist/OSF" })
             os.cp("dist/settings.dev.json", path.join(osfDir, "settings.json"))
 
+            -- The Data Slate plugin (built separately by Build-Plugin.ps1 via Spriggit).
+            -- Copy it if present; a source-only checkout without the built .esm still deploys.
+            if os.isfile("OSFAnimation.esm") then
+                os.cp("OSFAnimation.esm", path.join(mods, target:name()) .. "/")
+            end
+
 
             local view = path.join(plugins, "OSFUI", "views", "osf")
             os.tryrm(view)

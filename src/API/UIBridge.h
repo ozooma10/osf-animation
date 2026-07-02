@@ -12,4 +12,9 @@ namespace OSF::API
 
 	// True when OSF UI is present and the bridge was fetched (i.e. F10 actually opens something).
 	bool UIBridgeInstalled();
+
+	// Open the in-game scene browser (the "osf" view), as F10 would. Backs the OSF.OpenBrowser
+	// native so an in-game item (the Data Slate) can surface it. Returns false when OSF UI is
+	// absent or too old to support a native menu open (bridge MINOR < 1). Any thread.
+	bool OpenBrowser();
 }
