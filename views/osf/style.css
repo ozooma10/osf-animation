@@ -456,3 +456,20 @@ button,input,select{font:inherit;color:inherit}
   .rail{flex-direction:column}
 }
 @media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* ============================================================
+   Gamepad / keyboard focus ring
+   OSF UI maps the controller D-pad & stick to arrow keys and
+   A/Start to Enter; main.js turns those into directional focus
+   moves. The ring shows only while navigating by pad/key
+   (body.nav-kb), so mouse users never see a focus outline.
+   ============================================================ */
+.nav-kb :focus{outline:2px solid var(--accent);outline-offset:2px}
+.nav-kb .select:focus,.nav-kb .range:focus{outline-offset:1px}
+/* List rows sit inside overflow:auto columns where an outline clips — mark the
+   focused row with fill + border + inset ring instead, so it reads on a busy world. */
+.nav-kb .near-row:focus,.nav-kb .libx-row:focus,.nav-kb .step-head:focus,
+.nav-kb .libx-head:focus,.nav-kb .reveal:focus{
+  outline:none;border-color:var(--accent);background:var(--accent-quiet);
+  box-shadow:inset 0 0 0 1px var(--accent),0 0 10px rgba(230,144,74,.22)}
+.nav-kb .search-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-quiet)}

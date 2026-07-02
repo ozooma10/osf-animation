@@ -513,11 +513,15 @@ function browseVisible(s) {
    RENDER
    ========================================================================= */
 function renderAll() {
+  // Panels are rebuilt via innerHTML, which drops the focused control — capture where the
+  // gamepad/keyboard focus is, rebuild, then restore it to the equivalent control (see NAV).
+  const fk = navFocusKey(document.activeElement);
   ensureSelection();
   renderSlateTake();
   renderRail();
   renderBrowse();
   renderBrief();
+  navRestore(fk);
 }
 
 /* ---- slate: live take ----------------------------------------------------- */
@@ -975,6 +979,171 @@ function onInput(e) {
   if (sv) sv.textContent = `${Number(e.target.value).toFixed(1)}x`;
 }
 
+/* =========================================================================
+   GAMEPAD / KEYBOARD NAVIGATION
+   OSF UI maps the controller D-pad/stick to arrow keys and A/Start to Enter,
+   but the page had no keyboard-navigable focus model, so those keystrokes
+   landed on nothing. This adds directional (spatial) focus movement over the
+   console's controls, Enter-to-activate, per-control Left/Right semantics
+   (slider nudge, dropdown cycle, search caret), and a focus ring that shows
+   only while navigating by pad/key (body.nav-kb). Focus is kept stable across
+   the panel re-renders renderAll() drives (see navFocusKey / navRestore).
+   ========================================================================= */
+const NAV_SEL = 'button, a[href], select, input, [tabindex]';
+
+function navItems() {
+  return [...document.querySelectorAll(NAV_SEL)].filter(navVisible);
+}
+
+// Focusable = enabled, in the DOM, and actually on screen. .brief is absolutely
+// positioned so a plain offsetParent test is unreliable — test the rect directly.
+function navVisible(el) {
+  if (el.disabled || el.hidden) return false;
+  if (el.getAttribute("tabindex") === "-1") return false;
+  if (!el.getClientRects().length) return false;
+  const b = el.getBoundingClientRect();
+  if (b.width < 1 || b.height < 1) return false;
+  return b.bottom > 0 && b.right > 0 && b.top < innerHeight && b.left < innerWidth;
+}
+
+function navCenter(el) {
+  const b = el.getBoundingClientRect();
+  return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+}
+
+// Best focusable in a compass direction: minimise travel along the axis plus a
+// heavy penalty for cross-axis drift, so a list steps row-by-row and Left/Right
+// hops cleanly between the rail, browse and brief columns.
+function navMove(dir) {
+  const items = navItems();
+  if (!items.length) return;
+  const cur = document.activeElement;
+  if (!cur || cur === document.body || !items.includes(cur)) {
+    // First move with nothing focused: drop into the scene list rather than the top toolbar.
+    const entry = document.querySelector(".libx-row.selected") || document.querySelector(".libx-row");
+    navFocus(entry && navVisible(entry) ? entry : items[0]);
+    return;
+  }
+  const c = navCenter(cur);
+  let best = null, bestScore = Infinity;
+  for (const el of items) {
+    if (el === cur) continue;
+    const t = navCenter(el);
+    const dx = t.x - c.x, dy = t.y - c.y;
+    let along, cross;
+    if (dir === "up") { if (dy > -1) continue; along = -dy; cross = Math.abs(dx); }
+    else if (dir === "down") { if (dy < 1) continue; along = dy; cross = Math.abs(dx); }
+    else if (dir === "left") { if (dx > -1) continue; along = -dx; cross = Math.abs(dy); }
+    else { if (dx < 1) continue; along = dx; cross = Math.abs(dy); }
+    const score = along + cross * 2.2;
+    if (score < bestScore) { bestScore = score; best = el; }
+  }
+  if (best) navFocus(best);
+}
+
+function navFocus(el) {
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+// A gamepad can't drag a slider or open a native dropdown — Left/Right nudges/cycles instead.
+function navNudgeRange(el, dir) {
+  const step = Number(el.step) || 0.1, min = Number(el.min), max = Number(el.max);
+  let v = Number(el.value) + (dir === "right" ? step : -step);
+  v = Math.min(max, Math.max(min, Math.round(v / step) * step));
+  el.value = String(v);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function navCycleSelect(el, dir) {
+  const n = el.options.length;
+  if (!n) return;
+  el.selectedIndex = (el.selectedIndex + (dir === "left" ? -1 : 1) + n) % n;
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function isTextEntry(el) {
+  return !!el && el.tagName === "INPUT" && /^(?:text|search|url|email|tel|number|password|)$/.test(el.type);
+}
+
+function onNavKey(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;  // leave real-keyboard chords alone
+  const el = document.activeElement;
+  const dir = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
+
+  if (dir) {
+    document.body.classList.add("nav-kb");
+    if (dir === "left" || dir === "right") {
+      if (el && el.tagName === "INPUT" && el.type === "range") { e.preventDefault(); navNudgeRange(el, dir); return; }
+      if (el && el.tagName === "SELECT") { e.preventDefault(); navCycleSelect(el, dir); return; }
+      if (isTextEntry(el)) return;  // let the caret move inside the search box
+    }
+    e.preventDefault();  // don't also scroll the container
+    navMove(dir);
+    return;
+  }
+
+  if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+    if (!el || el === document.body || isTextEntry(el)) return;
+    document.body.classList.add("nav-kb");
+    if (el.tagName === "SELECT") { e.preventDefault(); navCycleSelect(el, "right"); return; }
+    if (el.tagName === "INPUT" && el.type === "range") return;
+    e.preventDefault();
+    el.click();  // route through the existing delegated click / addEventListener handlers
+    return;
+  }
+
+  if (e.key === "Tab") document.body.classList.add("nav-kb");
+}
+
+// Re-find the logically-equivalent control after a renderAll() rebuild: by id when it has
+// one, else by its data-act plus discriminators. Falls back to the nearest control by
+// geometry when the exact control is gone (a step folded, a row filtered out).
+function navFocusKey(el) {
+  if (!el || el === document.body) return null;
+  if (el.id) return { sel: `#${cssEsc(el.id)}` };
+  const act = el.dataset && el.dataset.act;
+  if (!act) return null;
+  const parts = [`[data-act="${attrEsc(act)}"]`];
+  for (const k of ["id", "token", "step", "mode", "kind", "slot", "key", "stage", "field", "i"]) {
+    const v = el.dataset[k];
+    if (v != null) parts.push(`[data-${k}="${attrEsc(v)}"]`);
+  }
+  const c = navCenter(el);
+  return { sel: parts.join(""), x: c.x, y: c.y };
+}
+
+function navRestore(fk) {
+  if (!fk) return;
+  let el = null;
+  try { el = document.querySelector(fk.sel); } catch { el = null; }
+  if (el) {
+    if (document.activeElement === el) return;   // static control (e.g. #search) never lost focus
+    if (navVisible(el)) { el.focus({ preventScroll: true }); return; }
+  }
+  if (fk.x == null) return;
+  let best = null, bestD = Infinity;
+  for (const it of navItems()) {
+    const c = navCenter(it);
+    const d = (c.x - fk.x) ** 2 + (c.y - fk.y) ** 2;
+    if (d < bestD) { bestD = d; best = it; }
+  }
+  if (best) best.focus({ preventScroll: true });
+}
+
+function cssEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/([^\w-])/g, "\\$1"); }
+function attrEsc(s) { return String(s).replace(/(["\\])/g, "\\$1"); }
+
+function initNav() {
+  document.addEventListener("keydown", onNavKey);
+  // A real pointer means the mouse is driving: drop the focus ring so it isn't shown to
+  // mouse users. (A gamepad arrives as key events, never as mousemove, so the ring stays.)
+  const mouseMode = () => document.body.classList.remove("nav-kb");
+  document.addEventListener("mousedown", mouseMode);
+  document.addEventListener("mousemove", mouseMode);
+}
+
 function init() {
   // Static browse skeleton: the search input must survive re-renders (focus + caret),
   // so only #modeSwitch and #browseBody are re-rendered.
@@ -983,6 +1152,7 @@ function init() {
   document.addEventListener("click", onClick);
   document.addEventListener("change", onChange);
   document.addEventListener("input", onInput);
+  initNav();  // gamepad/keyboard directional focus (OSF UI injects pad input as arrow keys/Enter)
 
   // Orbit drag (see the ORBIT DRAG block): LMB on the world area = steer, wheel there = zoom.
   document.addEventListener("mousedown", (e) => {
