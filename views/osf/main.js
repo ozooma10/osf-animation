@@ -13,6 +13,7 @@ const state = {
   catalog: [],
   allUnlisted: false,
   selectedId: null,
+  includePlayer: true,  // player is cast member A by default; can be dropped for NPC-only scenes (machinima / vignettes)
   partners: [],
   furniture: null,
   nearbyActors: [],
@@ -389,6 +390,12 @@ function toggleActor(token) {
   renderAll();
 }
 
+function togglePlayer() {
+  state.includePlayer = !state.includePlayer;
+  notice("info", state.includePlayer ? "Player added to the crew." : "Player removed — NPC-only cast.");
+  renderAll();
+}
+
 function toggleAnchor(token) {
   if (state.furniture && state.furniture.token === token) { clearAnchor(); notice("info", "Furniture cleared."); }
   else {
@@ -422,8 +429,8 @@ function applySelection(id) { state.selectedId = id; }
 function selectScene(id) { applySelection(id); renderAll(); }
 function sceneById(id) { return state.catalog.find((s) => s.id === id) || state.library.find((s) => s.id === id) || null; }
 function sceneTitle(id) { const s = sceneById(id); return s ? s.title : (id || "scene"); }
-function castTokens() { return [PLAYER_TOKEN, ...state.partners.map((c) => c.token)]; }
-function castMembers() { return [PLAYER_CAST, ...state.partners]; }
+function castTokens() { return castMembers().map((m) => m.token); }
+function castMembers() { return state.includePlayer ? [PLAYER_CAST, ...state.partners] : state.partners.slice(); }
 
 function unlistedVisible(s) { return !!s && (!s.unlisted || state.filters.authorMode || state.allUnlisted); }
 
@@ -552,15 +559,21 @@ function stepCastHTML() {
   const open = state.stepOpen.cast;
   if (!open) {
     // Folded: who's on set, still readable at a glance.
-    const names = members.map((m) => m.name).join(" + ");
-    return `<div class="step closed">${stepHeadHTML("cast", 1, "CREW", esc(castCount === 1 ? "Player only" : names), false)}</div>`;
+    const summary = castCount === 0 ? "No cast" : members.map((m) => m.name).join(" + ");
+    return `<div class="step closed">${stepHeadHTML("cast", 1, "CREW", esc(summary), false)}</div>`;
   }
 
+  const partnerBase = state.includePlayer ? 1 : 0;  // offset from member index to state.partners index
   const chips = members.map((m, i) => {
     const player = m.kind === "player";
-    const drop = player ? "" : `<button class="chip-x" data-act="drop" data-i="${i - 1}" title="Remove from crew">×</button>`;
+    // Player and partners are both droppable; the player toggles includePlayer rather than splicing partners.
+    const drop = player
+      ? `<button class="chip-x" data-act="toggle-player" title="Remove player (NPC-only scene)">×</button>`
+      : `<button class="chip-x" data-act="drop" data-i="${i - partnerBase}" title="Remove from crew">×</button>`;
     return `<span class="castline ${player ? "player" : ""}"><span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${drop}</span>`;
   }).join("");
+  // When the player has been dropped, offer a ghost chip to put them back.
+  const readd = state.includePlayer ? "" : `<button class="castline ghost" data-act="toggle-player" title="Add player back to the crew">＋ Player</button>`;
 
   const rows = state.nearbyActors.length
     ? state.nearbyActors.map((a) => {
@@ -577,7 +590,7 @@ function stepCastHTML() {
 
   return `<div class="step">
     ${stepHeadHTML("cast", 1, "CREW", `${castCount} on deck`, true)}
-    <div class="cast-stack">${chips}</div>
+    <div class="cast-stack">${chips}${readd}</div>
     <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools"><button class="chip-btn" data-act="scan" data-kind="actor">SCAN</button><button class="chip-btn" data-act="pick" data-slot="actor">PICK</button></span></div>
     <div class="near-list">${rows}</div>
     ${foot}
@@ -957,6 +970,7 @@ function onClick(e) {
     case "pick": send("osf.pickCrosshair", { slot: el.dataset.slot }); break;
     case "clear-anchor": clearAnchor(); renderAll(); break;
     case "drop": removePartner(Number(el.dataset.i)); break;
+    case "toggle-player": togglePlayer(); break;
     case "launch": doLaunch(); break;
     case "stop": doStop(); break;
     case "play-stage": doLaunch(Number(el.dataset.stage)); break;

@@ -181,6 +181,8 @@ button,input,select{font:inherit;color:inherit}
 .cast-stack{display:flex;flex-direction:column;gap:4px}
 .castline{display:flex;align-items:center;gap:8px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:4px 7px}
 .castline.player{border-left:2px solid var(--accent)}
+.castline.ghost{border-style:dashed;color:var(--text-faint);cursor:pointer;font:700 11px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;justify-content:center}
+.castline.ghost:hover{border-color:var(--accent);color:var(--text-bright)}
 .castline-name{font-size:12px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .chip-x{flex:none;border:0;background:none;color:var(--text-faint);font-size:13px;cursor:pointer;padding:0 3px}
 .chip-x:hover{color:var(--signal-stop)}
