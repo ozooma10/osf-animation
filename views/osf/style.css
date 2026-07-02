@@ -318,8 +318,10 @@ button,input,select{font:inherit;color:inherit}
 .libx-row .libx-meta{color:var(--text-faint)}
 
 /* ---- BRIEF panel (floating bottom-right over the world) ---- */
-.brief{position:absolute;right:14px;bottom:14px;z-index:5;width:380px;max-height:min(620px,80%);overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;
+.brief{position:absolute;right:14px;bottom:14px;z-index:5;width:380px;max-height:min(620px,80%);overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:12px;
   background:linear-gradient(180deg,rgba(17,21,27,.93),rgba(4,6,10,.95));border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow)}
+/* the header (status/title/cast) and launch stack stay put; only this middle band scrolls */
+.brief-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;margin:0 -4px;padding:0 4px}
 .brief-title{display:flex;align-items:baseline;gap:9px;font:600 15px var(--font-display,inherit);color:var(--text-bright);letter-spacing:.04em}
 .brief-src{white-space:normal;word-break:break-all}
 .brief-line{background:var(--void-900);border:1px solid var(--line);border-left:2px solid var(--signal-go);border-radius:2px;padding:7px 10px}
