@@ -6,6 +6,7 @@
   "height": 720,
   "transparent": true,
   "interactive": true,
+  "pausesGame": true,
   "permissions": {
     "nativeBridge": true,
     "filesystem": false,

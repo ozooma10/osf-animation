@@ -1,0 +1,434 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Playerinventory (generated, do not hand-edit)",
+  "section": "library",
+  "clipRoot": "meshes/actors/human/animations",
+  "scenes": [
+    {
+      "id": "vanilla/playerinventory",
+      "name": "Vanilla · Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Spin",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/spin.af",
+              "sec": 11.967
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/gripheavy/playerinventory",
+      "name": "Vanilla · Playerinventory / Gripheavy / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/gripheavy/playerinventory/idle.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "ArmorOffset",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/gripheavy/playerinventory/armoroffset.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/gripheavy/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Gripheavy / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/gripheavy/playerinventory/female/idle.af",
+              "sec": 2.9
+            }
+          ]
+        },
+        {
+          "name": "ArmorOffset",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/gripheavy/playerinventory/female/armoroffset.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/grippistol/playerinventory",
+      "name": "Vanilla · Playerinventory / Grippistol / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/grippistol/playerinventory/idle.af",
+              "sec": 11.467
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/grippistol/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Grippistol / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/grippistol/playerinventory/female/idle.af",
+              "sec": 2.9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripcompact/playerinventory",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripcompact / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripcompact/playerinventory/idle.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "ArmorOffset",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripcompact/playerinventory/armoroffset.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripcompact/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripcompact / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripcompact/playerinventory/female/idle.af",
+              "sec": 3.133
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripextended/playerinventory",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripextended / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextended/playerinventory/idle.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "ArmorOffset",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextended/playerinventory/armoroffset.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripextended/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripextended / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextended/playerinventory/female/idle.af",
+              "sec": 3.133
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripextendedlow/playerinventory",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripextendedlow / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextendedlow/playerinventory/idle.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "ArmorOffset",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextendedlow/playerinventory/armoroffset.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripextendedlow/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripextendedlow / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextendedlow/playerinventory/female/idle.af",
+              "sec": 3.133
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripextendedvertical/playerinventory",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripextendedvertical / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextendedvertical/playerinventory/idle.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "ArmorOffset",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextendedvertical/playerinventory/armoroffset.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/griprifle/gripextendedvertical/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Griprifle / Gripextendedvertical / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/griprifle/gripextendedvertical/playerinventory/female/idle.af",
+              "sec": 3.133
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/onehanded/playerinventory",
+      "name": "Vanilla · Playerinventory / Onehanded / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/onehanded/playerinventory/idle.af",
+              "sec": 11.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/onehanded/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Onehanded / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/onehanded/playerinventory/female/idle.af",
+              "sec": 2.9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/unarmed/playerinventory",
+      "name": "Vanilla · Playerinventory / Unarmed / Playerinventory",
+      "tags": [
+        "vanilla",
+        "playerinventory"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/unarmed/playerinventory/idle.af",
+              "sec": 11.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/playerinventory/unarmed/playerinventory/female",
+      "name": "Vanilla · Playerinventory / Unarmed / Playerinventory / Female",
+      "tags": [
+        "vanilla",
+        "playerinventory",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "playerinventory/unarmed/playerinventory/female/idle.af",
+              "sec": 2.9
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

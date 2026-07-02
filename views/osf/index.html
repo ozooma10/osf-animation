@@ -12,7 +12,7 @@
       <span class="bracket bl"></span><span class="bracket br"></span>
       <div class="grid-overlay"></div>
 
-      <!-- ===== SLATE ===== -->
+      <!-- ===== SLATE (slim: brand · live take · tools) ===== -->
       <div class="slate">
         <div class="slate-cell slate-brand">
           <div class="brand-emblem"><span></span></div>
@@ -21,42 +21,21 @@
             <div class="brand-sub"><span id="lamp" class="lamp" data-state="wait"></span><span id="statusText">connecting…</span></div>
           </div>
         </div>
-        <div class="slate-cell slate-cast">
-          <p class="eb">CAST · ON SET</p>
-          <div id="slateCast" class="cast-row"></div>
-        </div>
-        <div class="slate-cell slate-anchor">
-          <p class="eb">ANCHOR · KEYED</p>
-          <div id="slateAnchor"></div>
-        </div>
-        <div class="slate-cell slate-readiness">
-          <div class="readiness-head">
-            <p class="eb">READINESS</p>
-            <div class="author-wrap">
-              <button id="refresh" class="iconbtn" type="button" title="Refresh catalog">⟳</button>
-              <span class="lbl">AUTHOR</span>
-              <button id="authorToggle" class="switch" type="button" aria-label="Toggle author mode"><i></i></button>
-            </div>
-          </div>
-          <div class="readiness-metrics">
-            <div class="metric"><span class="dot" style="background:var(--signal-go);box-shadow:0 0 7px var(--signal-go)"></span><b id="readyCount">0</b><span class="lbl go">READY</span></div>
-            <div class="metric"><span class="dot" style="background:var(--signal-warn);box-shadow:0 0 7px var(--signal-warn)"></span><b id="needCount">0</b><span class="lbl warn">NEED</span></div>
-            <div class="metric lib"><span class="dot" style="background:var(--steel-500)"></span><b id="libCount">0</b><span class="lbl">LIB</span></div>
+        <div class="slate-cell slate-take" id="slateTake"></div>
+        <div class="slate-cell slate-tools">
+          <div class="author-wrap">
+            <button id="refresh" class="iconbtn" type="button" title="Refresh catalog">⟳</button>
+            <span class="lbl">AUTHOR</span>
+            <button id="authorToggle" class="switch" type="button" aria-label="Toggle author mode"><i></i></button>
           </div>
         </div>
       </div>
       <div class="stripe"><span></span><span></span><span></span></div>
 
-      <!-- ===== BODY ===== -->
+      <!-- ===== BODY: guided rail | browse | brief ===== -->
       <div class="director">
-        <aside class="world">
-          <div class="world-group">
-            <div class="world-head"><p class="lbl">⌕ SEARCH</p></div>
-            <div class="search-field"><input id="search" type="text" placeholder="scene · id · tag · role" autocomplete="off" spellcheck="false"></div>
-          </div>
-          <div id="worldBody" style="display:flex;flex-direction:column;gap:15px;flex:1;min-height:0"></div>
-        </aside>
-        <section id="bays" class="bays"></section>
+        <aside id="rail" class="rail"></aside>
+        <section id="browse" class="browse"></section>
         <aside id="brief" class="brief"></aside>
       </div>
 

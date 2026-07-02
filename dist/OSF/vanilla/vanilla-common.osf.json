@@ -1,0 +1,4994 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Common (generated, do not hand-edit)",
+  "section": "library",
+  "clipRoot": "meshes/actors/human/animations",
+  "scenes": [
+    {
+      "id": "vanilla/common",
+      "name": "Vanilla · Common",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
+        {
+          "name": "BleedOut_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_idle.af",
+              "sec": 5.8
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "BleedOut_Idle_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_idle_zerog.af",
+              "sec": 5.8
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Cower_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/cower_idle.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GiveWatch_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/givewatch_idle.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/idle_stun.af",
+              "sec": 4.533
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Knockdown_Backward_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/knockdown_backward_idle.af",
+              "sec": 6.567
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Knockdown_Forward_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/knockdown_forward_idle.af",
+              "sec": 2.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_ArmCrossed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_armcrossed.af",
+              "sec": 2.433
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Artifact",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_artifact.af",
+              "sec": 4.433
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_briefcase.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_coffeecup.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_DataSlate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_dataslate.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_dataslatereceiveandread.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_dufflebags.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_ArmCrossed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_armcrossed.af",
+              "sec": 3.033
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_Artifact",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_artifact.af",
+              "sec": 3.067
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_briefcase.af",
+              "sec": 5.233
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_coffeecup.af",
+              "sec": 5.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_DataSlate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_dataslate.af",
+              "sec": 12.633
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_dataslatereceiveandread.af",
+              "sec": 12.633
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_dufflebags.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_handcuffed.af",
+              "sec": 5.433
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_HandsBehind",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_handsbehind.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_quantumcalibrator.af",
+              "sec": 9.7
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_ShoppingBag",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_shoppingbag.af",
+              "sec": 5.233
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_TechReader",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_techreader.af",
+              "sec": 5.233
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_techreader2hands.af",
+              "sec": 8.267
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_TechReader2handsBulky",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_techreader2handsbulky.af",
+              "sec": 8.267
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_Wounded",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_wounded.af",
+              "sec": 29.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_briefcase.af",
+              "sec": 1.533
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_coffeecup.af",
+              "sec": 3.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_DataSlate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_dataslate.af",
+              "sec": 6.2
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_dataslatereceiveandread.af",
+              "sec": 6.2
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_dufflebags.af",
+              "sec": 2.033
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_handcuffed.af",
+              "sec": 5.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_quantumcalibrator.af",
+              "sec": 8.367
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_ShoppingBag",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_shoppingbag.af",
+              "sec": 1.533
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_TechReader",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_techreader.af",
+              "sec": 1.533
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor02_techreader2hands.af",
+              "sec": 10.467
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor03_briefcase.af",
+              "sec": 2.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor03_coffeecup.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor03_dufflebags.af",
+              "sec": 1.6
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor03_handcuffed.af",
+              "sec": 2.967
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor03_quantumcalibrator.af",
+              "sec": 8.133
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_ShoppingBag",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor03_shoppingbag.af",
+              "sec": 2.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_TechReader",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor03_techreader.af",
+              "sec": 2.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor04_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor04_coffeecup.af",
+              "sec": 3.7
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor04"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor04_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor04_handcuffed.af",
+              "sec": 6.867
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor04"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor04_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor04_quantumcalibrator.af",
+              "sec": 11.8
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor04"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor05_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor05_handcuffed.af",
+              "sec": 6.867
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor05"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor06_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor06_handcuffed.af",
+              "sec": 6.3
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor06"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_handcuffed.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_HandsBehind",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_handsbehind.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Point_Behind_LeftThumb01_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_point_behind_leftthumb01_techreader2hands.af",
+              "sec": 2.5
+            }
+          ],
+          "tags": [
+            "idlepartialbody_point_behind_leftthumb01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_quantumcalibrator.af",
+              "sec": 1.933
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_ShoppingBag",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_shoppingbag.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_ArmCrossed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_armcrossed.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_Artifact",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_artifact.af",
+              "sec": 3.1
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_briefcase.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_coffeecup.af",
+              "sec": 2.1
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_DataSlate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_dataslate.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_dataslatereceiveandread.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_dufflebags.af",
+              "sec": 2.867
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_handcuffed.af",
+              "sec": 4.167
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_HandsBehind",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_handsbehind.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_quantumcalibrator.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_ShoppingBag",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_shoppingbag.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_TechReader",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_techreader.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_techreader2hands.af",
+              "sec": 2.2
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_TechReader2handsBulky",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_techreader2handsbulky.af",
+              "sec": 2.2
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_Wounded",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_start_wounded.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_ArmCrossed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_armcrossed.af",
+              "sec": 1.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_Artifact",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_artifact.af",
+              "sec": 2.3
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_briefcase.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_coffeecup.af",
+              "sec": 2.167
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_DataSlate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_dataslate.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_dataslatereceiveandread.af",
+              "sec": 2.6
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_dufflebags.af",
+              "sec": 4.033
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_handcuffed.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_HandsBehind",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_handsbehind.af",
+              "sec": 1.6
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_quantumcalibrator.af",
+              "sec": 1.967
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_ShoppingBag",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_shoppingbag.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_TechReader",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_techreader.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_techreader2hands.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_TechReader2handsBulky",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_techreader2handsbulky.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_Wounded",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_stop_wounded.af",
+              "sec": 1.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_TechReader",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_techreader.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_techreader2hands.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_TechReader2handsBulky",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_techreader2handsbulky.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Wounded",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_wounded.af",
+              "sec": 29.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Swim_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_idle.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "ZeroG_Idle_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_idle_stun.af",
+              "sec": 4.533
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "ZeroG_IdlePartialBody_Flavor01_Surrender",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_idlepartialbody_flavor01_surrender.af",
+              "sec": 6.167
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01_surrender"
+          ]
+        },
+        {
+          "name": "ZeroG_IdlePartialBody_Flavor02_Surrender",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_idlepartialbody_flavor02_surrender.af",
+              "sec": 7.267
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02_surrender"
+          ]
+        },
+        {
+          "name": "ZeroG_IdlePartialBody_Flavor03_Surrender",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_idlepartialbody_flavor03_surrender.af",
+              "sec": 3.8
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03_surrender"
+          ]
+        },
+        {
+          "name": "ZeroG_IdlePartialBody_Start_Surrender",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_idlepartialbody_start_surrender.af",
+              "sec": 0.8
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start_surrender"
+          ]
+        },
+        {
+          "name": "ZeroG_IdlePartialBody_Stop_Surrender",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_idlepartialbody_stop_surrender.af",
+              "sec": 1.233
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop_surrender"
+          ]
+        },
+        {
+          "name": "ZeroG_IdlePartialBody_Surrender",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_idlepartialbody_surrender.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "idlepartialbody_surrender"
+          ]
+        },
+        {
+          "name": "BleedOut_BoostDown_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_boostdown_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "boostdown",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_Boostpack_Death01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_boostpack_death01.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "boostpack_death01"
+          ]
+        },
+        {
+          "name": "BleedOut_BoostUp_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_boostup_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "boostup",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_Death01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_death01.af",
+              "sec": 1.433
+            }
+          ],
+          "tags": [
+            "death01"
+          ]
+        },
+        {
+          "name": "BleedOut_RunBackward_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_runbackward_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "runbackward",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_RunForward_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_runforward_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "runforward",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_RunLeft_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_runleft_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "runleft",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_RunRight_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_runright_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "runright",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_start.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "start",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_Start_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_start_zerog.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "start",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_stop.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_Stop_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_stop_zerog.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnInPlace_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turninplace_left180.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "turninplace_left180",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnInPlace_Left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turninplace_left30.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "turninplace_left30",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnInPlace_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turninplace_left90.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "turninplace_left90",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnInPlace_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turninplace_right180.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "turninplace_right180",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnInPlace_Right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turninplace_right30.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "turninplace_right30",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnInPlace_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turninplace_right90.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "turninplace_right90",
+            "transition"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnLeft_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turnleft_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "turnleft",
+            "transition",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_TurnRight_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_turnright_zerog.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "turnright",
+            "transition",
+            "pose"
+          ]
+        },
+        {
+          "name": "BleedOut_WalkBackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_walkbackward.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "walkbackward"
+          ]
+        },
+        {
+          "name": "BleedOut_WalkForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_walkforward.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "walkforward"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common--2",
+      "name": "Vanilla · Common (2)",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
+        {
+          "name": "BleedOut_WalkLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_walkleft.af",
+              "sec": 0.833
+            }
+          ],
+          "tags": [
+            "walkleft"
+          ]
+        },
+        {
+          "name": "BleedOut_WalkRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_walkright.af",
+              "sec": 1.767
+            }
+          ],
+          "tags": [
+            "walkright"
+          ]
+        },
+        {
+          "name": "book_test",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/book_test.af",
+              "sec": 3.333
+            }
+          ]
+        },
+        {
+          "name": "Boxer_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/boxer_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "CameraHit_Back",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/camerahit_back.af",
+              "sec": 0.1
+            }
+          ],
+          "tags": [
+            "camerahit",
+            "transition"
+          ]
+        },
+        {
+          "name": "CameraHit_Front",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/camerahit_front.af",
+              "sec": 0.233
+            }
+          ],
+          "tags": [
+            "camerahit",
+            "transition"
+          ]
+        },
+        {
+          "name": "CameraHit_Left",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/camerahit_left.af",
+              "sec": 0.1
+            }
+          ],
+          "tags": [
+            "camerahit",
+            "transition"
+          ]
+        },
+        {
+          "name": "CameraHit_Right",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/camerahit_right.af",
+              "sec": 0.1
+            }
+          ],
+          "tags": [
+            "camerahit",
+            "transition"
+          ]
+        },
+        {
+          "name": "Captive_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/captive_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "CastSelf",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/castself.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "CastTarget",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/casttarget.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "CollectWater",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/collectwater.af",
+              "sec": 8.8
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Cower_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/cower_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Cower_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/cower_start.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Cower_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/cower_stop.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "stop",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Boostpack_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_01.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_02.af",
+              "sec": 2.867
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_03.af",
+              "sec": 2.733
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_04.af",
+              "sec": 2.333
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_05.af",
+              "sec": 1.867
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_06.af",
+              "sec": 1.867
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_07.af",
+              "sec": 5.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_Left_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_left_01.af",
+              "sec": 4.5
+            }
+          ]
+        },
+        {
+          "name": "Death_Boostpack_Right_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_boostpack_right_01.af",
+              "sec": 2.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Head_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_head_back_medium01.af",
+              "sec": 1.667
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Head_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_head_front_medium01.af",
+              "sec": 1.6
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Head_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_head_front_medium02.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Head_Front_Medium03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_head_front_medium03.af",
+              "sec": 1.767
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Head_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_head_left_medium01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Head_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_head_right_medium01.af",
+              "sec": 1.9
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftArm_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftarm_back_medium01.af",
+              "sec": 2.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftArm_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftarm_front_medium01.af",
+              "sec": 2.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftArm_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftarm_front_medium02.af",
+              "sec": 2.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftArm_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftarm_left_medium01.af",
+              "sec": 2.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftArm_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftarm_right_medium01.af",
+              "sec": 2.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftLeg_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftleg_back_medium01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftLeg_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftleg_front_medium01.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LeftLeg_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_leftleg_left_medium01.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_LefttLeg_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_lefttleg_right_medium01.af",
+              "sec": 1.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightArm_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightarm_back_medium01.af",
+              "sec": 1.667
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightArm_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightarm_front_medium01.af",
+              "sec": 1.733
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightArm_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightarm_front_medium02.af",
+              "sec": 1.6
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightArm_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightarm_left_medium01.af",
+              "sec": 1.733
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightArm_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightarm_right_medium01.af",
+              "sec": 1.6
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightLeg_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightleg_back_medium01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightLeg_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightleg_front_medium01.af",
+              "sec": 1.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightLeg_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightleg_left_medium01.af",
+              "sec": 1.867
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightLeg_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightleg_right_medium01.af",
+              "sec": 1.4
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_RightLeg_Right_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_rightleg_right_medium02.af",
+              "sec": 1.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Torso_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_torso_back_medium01.af",
+              "sec": 2.133
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Torso_Back_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_torso_back_medium02.af",
+              "sec": 2.267
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Torso_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_torso_front_medium01.af",
+              "sec": 1.3
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Torso_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_torso_left_medium01.af",
+              "sec": 1.633
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Torso_Left_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_torso_left_medium02.af",
+              "sec": 1.667
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Torso_Left_Medium03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_torso_left_medium03.af",
+              "sec": 1.4
+            }
+          ]
+        },
+        {
+          "name": "Death_Moving_Torso_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_moving_torso_right_medium01.af",
+              "sec": 1.8
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Back_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_back_large01.af",
+              "sec": 0.8
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Back_Large02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_back_large02.af",
+              "sec": 0.8
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Back_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_back_light01.af",
+              "sec": 1.933
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_back_medium01.af",
+              "sec": 1.567
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Front_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_front_large01.af",
+              "sec": 2.167
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Front_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_front_light01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Front_Light02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_front_light02.af",
+              "sec": 2.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_front_medium01.af",
+              "sec": 2.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_front_medium02.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Left_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_left_large01.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Left_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_left_light01.af",
+              "sec": 2.2
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_left_medium01.af",
+              "sec": 1.933
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Right_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_right_large01.af",
+              "sec": 2.4
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Right_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_right_light01.af",
+              "sec": 1.8
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Head_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_head_right_medium01.af",
+              "sec": 2.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Back_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_back_large01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Back_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_back_light01.af",
+              "sec": 1.933
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_back_medium01.af",
+              "sec": 1.567
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Front_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_front_large01.af",
+              "sec": 1.433
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Front_Large02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_front_large02.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Front_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_front_light01.af",
+              "sec": 1.7
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_front_medium01.af",
+              "sec": 1.733
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_front_medium02.af",
+              "sec": 1.567
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Left_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_left_large01.af",
+              "sec": 1.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Left_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_left_light01.af",
+              "sec": 1.5
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_left_medium01.af",
+              "sec": 2.7
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Right_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_right_large01.af",
+              "sec": 1.433
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Right_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_right_light01.af",
+              "sec": 1.7
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftArm_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftarm_right_medium01.af",
+              "sec": 1.633
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Back_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_back_large01.af",
+              "sec": 1.633
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Back_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_back_light01.af",
+              "sec": 1.267
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_back_medium01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Front_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_front_large01.af",
+              "sec": 1.8
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Front_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_front_light01.af",
+              "sec": 2.1
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_front_medium01.af",
+              "sec": 2.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_front_medium02.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Front_Medium03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_front_medium03.af",
+              "sec": 2.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Left_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_left_large01.af",
+              "sec": 1.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Left_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_left_light01.af",
+              "sec": 1.267
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_left_medium01.af",
+              "sec": 1.067
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Right_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_right_large01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Right_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_right_light01.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_LeftLeg_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_leftleg_right_medium01.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Back01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_back01.af",
+              "sec": 1.933
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Back02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_back02.af",
+              "sec": 2.333
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Front01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_front01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Front02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_front02.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Front_Left01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_front_left01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Front_Left02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_front_left02.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Front_Right01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_front_right01.af",
+              "sec": 2.267
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Front_Right02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_front_right02.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Left01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_left01.af",
+              "sec": 1.9
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Melee_Right01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_melee_right01.af",
+              "sec": 1.833
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Back_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_back_large01.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Back_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_back_light01.af",
+              "sec": 1.933
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_back_medium01.af",
+              "sec": 1.567
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Front_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_front_large01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Front_Large02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_front_large02.af",
+              "sec": 1.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Front_Large03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_front_large03.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Front_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_front_light01.af",
+              "sec": 1.767
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_front_medium01.af",
+              "sec": 2.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_front_medium02.af",
+              "sec": 2.5
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Left_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_left_large01.af",
+              "sec": 1.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Left_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_left_light01.af",
+              "sec": 1.767
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common--3",
+      "name": "Vanilla · Common (3)",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
+        {
+          "name": "Death_Standing_RightArm_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_left_medium01.af",
+              "sec": 2.5
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Right_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_right_large01.af",
+              "sec": 1.433
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Right_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_right_light01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightArm_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightarm_right_medium01.af",
+              "sec": 1.433
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Back_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_back_large01.af",
+              "sec": 1.633
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Back_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_back_light01.af",
+              "sec": 1.267
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_back_medium01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Front_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_front_large01.af",
+              "sec": 1.8
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Front_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_front_light01.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_front_medium01.af",
+              "sec": 2.067
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_front_medium02.af",
+              "sec": 1.4
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Left_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_left_large01.af",
+              "sec": 1.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Left_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_left_light01.af",
+              "sec": 1.267
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_left_medium01.af",
+              "sec": 2.233
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Right_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_right_large01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Right_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_right_light01.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_RightLeg_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_rightleg_right_medium01.af",
+              "sec": 2.067
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Back_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_back_large01.af",
+              "sec": 0.967
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Back_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_back_light01.af",
+              "sec": 1.7
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Back_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_back_medium01.af",
+              "sec": 1.667
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_large01.af",
+              "sec": 0.7
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Large02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_large02.af",
+              "sec": 1.4
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Large03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_large03.af",
+              "sec": 1.767
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_light01.af",
+              "sec": 2.367
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_medium01.af",
+              "sec": 2.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Medium02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_medium02.af",
+              "sec": 2.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Medium03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_medium03.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Front_Medium04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_front_medium04.af",
+              "sec": 1.533
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Left_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_left_large01.af",
+              "sec": 1.467
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Left_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_left_light01.af",
+              "sec": 1.7
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Left_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_left_medium01.af",
+              "sec": 1.633
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Right_Large01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_right_large01.af",
+              "sec": 1.433
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Right_Light01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_right_light01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Death_Standing_Torso_Right_Medium01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/death_standing_torso_right_medium01.af",
+              "sec": 1.433
+            }
+          ]
+        },
+        {
+          "name": "Flinch_Head",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/flinch_head.af",
+              "sec": 0.367
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Flinch_LeftArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/flinch_leftarm.af",
+              "sec": 0.467
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Flinch_LeftLeg",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/flinch_leftleg.af",
+              "sec": 0.467
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Flinch_RightArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/flinch_rightarm.af",
+              "sec": 0.467
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Flinch_RightLeg",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/flinch_rightleg.af",
+              "sec": 0.467
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Flinch_Torso",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/flinch_torso.af",
+              "sec": 0.333
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "GetUp_Back",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/getup_back.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Front",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/getup_front.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GiveWatch_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/givewatch_start.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "start",
+            "transition"
+          ]
+        },
+        {
+          "name": "GiveWatch_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/givewatch_stop.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "GravDash_Long",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/gravdash_long.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "GravDash_Medium",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/gravdash_medium.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "GravDash_Short",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/gravdash_short.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "HandsOnHips_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/handsonhips_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Into_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/into_stun.af",
+              "sec": 2.033
+            }
+          ],
+          "tags": [
+            "into",
+            "transition"
+          ]
+        },
+        {
+          "name": "Jump_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/jump_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "JumpInPlaceLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/jumpinplaceland.af",
+              "sec": 1.133
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Kneeling_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/kneeling_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Knockdown_Backward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/knockdown_backward_start.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Knockdown_Forward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/knockdown_forward_start.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_ClimbDown_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_climbdown_lefthand.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_ClimbDown_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_climbdown_righthand.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_ClimbUp_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_climbup_lefthand.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_ClimbUp_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_climbup_righthand.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Bottom_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_bottom_lefthand.af",
+              "sec": 1.9
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Bottom_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_bottom_righthand.af",
+              "sec": 2.067
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Left_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_left_lefthand.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Left_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_left_righthand.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Right_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_right_lefthand.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Right_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_right_righthand.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Top_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_top_lefthand.af",
+              "sec": 4.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Dismount_Top_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_dismount_top_righthand.af",
+              "sec": 4.767
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ladder_Mount_Bottom",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_mount_bottom.af",
+              "sec": 0.8
+            }
+          ]
+        },
+        {
+          "name": "Ladder_Mount_Left",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_mount_left.af",
+              "sec": 0.8
+            }
+          ],
+          "tags": [
+            "ladder_mount"
+          ]
+        },
+        {
+          "name": "Ladder_Mount_Right",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_mount_right.af",
+              "sec": 0.8
+            }
+          ],
+          "tags": [
+            "ladder_mount"
+          ]
+        },
+        {
+          "name": "Ladder_Mount_Top",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/ladder_mount_top.af",
+              "sec": 5.1
+            }
+          ]
+        },
+        {
+          "name": "LeanRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/leanright.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Out_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/out_stun.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "out",
+            "transition"
+          ]
+        },
+        {
+          "name": "PairedKill_Bite_Head_01_Victim",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pairedkill_bite_head_01_victim.af",
+              "sec": 3.2
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "PairedKill_Bite_Head_02_Victim",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pairedkill_bite_head_02_victim.af",
+              "sec": 3.2
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "PairedKill_Knife_UnderChin_01_Killer",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pairedkill_knife_underchin_01_killer.af",
+              "sec": 4.833
+            }
+          ]
+        },
+        {
+          "name": "PairedKill_Knife_UnderChin_01_Victim",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pairedkill_knife_underchin_01_victim.af",
+              "sec": 4.833
+            }
+          ]
+        },
+        {
+          "name": "PairedKill_Slam_Head_01_Victim",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pairedkill_slam_head_01_victim.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "PairedKill_Slam_Head_02_Victim",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pairedkill_slam_head_02_victim.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Player_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/player_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "PowerUp_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/powerup_start.af",
+              "sec": 10.0
+            }
+          ]
+        },
+        {
+          "name": "PowerUp_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/powerup_stop.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "Relaxed_Eye_ROM",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_eye_rom.af",
+              "sec": 10.933
+            }
+          ],
+          "tags": [
+            "eye_rom"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_lefthand.af",
+              "sec": 3.5
+            }
+          ],
+          "tags": [
+            "point_behind_lefthand"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_LeftThumb01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_leftthumb01.af",
+              "sec": 3.267
+            }
+          ],
+          "tags": [
+            "point_behind_leftthumb01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_LeftThumb02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_leftthumb02.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "point_behind_leftthumb02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_LeftThumb03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_leftthumb03.af",
+              "sec": 2.967
+            }
+          ],
+          "tags": [
+            "point_behind_leftthumb03"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_RightThumb01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_rightthumb01.af",
+              "sec": 4.633
+            }
+          ],
+          "tags": [
+            "point_behind_rightthumb01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_RightThumb02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_rightthumb02.af",
+              "sec": 4.033
+            }
+          ],
+          "tags": [
+            "point_behind_rightthumb02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_RightThumb03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_rightthumb03.af",
+              "sec": 5.067
+            }
+          ],
+          "tags": [
+            "point_behind_rightthumb03"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_LeftHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_lefthand01.af",
+              "sec": 3.3
+            }
+          ],
+          "tags": [
+            "point_forward_lefthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_LeftHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_lefthand02.af",
+              "sec": 2.233
+            }
+          ],
+          "tags": [
+            "point_forward_lefthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_RightHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_righthand01.af",
+              "sec": 3.133
+            }
+          ],
+          "tags": [
+            "point_forward_righthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_RightHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_righthand02.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "point_forward_righthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_LeftHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_lefthand01.af",
+              "sec": 3.867
+            }
+          ],
+          "tags": [
+            "point_left_lefthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_LeftHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_lefthand02.af",
+              "sec": 3.5
+            }
+          ],
+          "tags": [
+            "point_left_lefthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_RightHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_righthand01.af",
+              "sec": 3.967
+            }
+          ],
+          "tags": [
+            "point_left_righthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_RightHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_righthand02.af",
+              "sec": 3.533
+            }
+          ],
+          "tags": [
+            "point_left_righthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Right_LeftHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_right_lefthand01.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "point_right_lefthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Right_LeftHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_right_lefthand02.af",
+              "sec": 3.933
+            }
+          ],
+          "tags": [
+            "point_right_lefthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Right_RightHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_right_righthand01.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "point_right_righthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Right_RightHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_right_righthand02.af",
+              "sec": 2.967
+            }
+          ],
+          "tags": [
+            "point_right_righthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_PointLow_Behind_RightThumb",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_pointlow_behind_rightthumb.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "pointlow_behind_rightthumb"
+          ]
+        },
+        {
+          "name": "Relaxed_PointLow_Forward_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_pointlow_forward_righthand.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "pointlow_forward_righthand"
+          ]
+        },
+        {
+          "name": "Relaxed_PointLow_Left_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_pointlow_left_righthand.af",
+              "sec": 3.467
+            }
+          ],
+          "tags": [
+            "pointlow_left_righthand"
+          ]
+        },
+        {
+          "name": "Relaxed_PointLow_Right_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_pointlow_right_righthand.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "pointlow_right_righthand"
+          ]
+        },
+        {
+          "name": "SitOnGround_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/sitonground_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Sneak_Camera_JumpLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/sneak_camera_jumpland.af",
+              "sec": 0.633
+            }
+          ],
+          "tags": [
+            "camera_jumpland",
+            "transition"
+          ]
+        },
+        {
+          "name": "Sneak_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/sneak_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Spine_BoneWeights",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/spine_boneweights.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Swim_JumpInPlaceLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_jumpinplaceland.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "jumpinplaceland",
+            "transition"
+          ]
+        },
+        {
+          "name": "Swim_JumpRunLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_jumprunland.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "jumprunland",
+            "transition"
+          ]
+        },
+        {
+          "name": "Swim_RunBackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runbackward.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runbackward"
+          ]
+        },
+        {
+          "name": "Swim_RunBackwardLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runbackwardleft.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runbackwardleft"
+          ]
+        },
+        {
+          "name": "Swim_RunBackwardRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runbackwardright.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runbackwardright"
+          ]
+        },
+        {
+          "name": "Swim_RunForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runforward.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runforward"
+          ]
+        },
+        {
+          "name": "Swim_RunForward_TurnLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runforward_turnleft.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runforward_turnleft"
+          ]
+        },
+        {
+          "name": "Swim_RunForward_TurnRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runforward_turnright.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runforward_turnright"
+          ]
+        },
+        {
+          "name": "Swim_RunLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runleft.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runleft"
+          ]
+        },
+        {
+          "name": "Swim_RunRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_runright.af",
+              "sec": 1.267
+            }
+          ],
+          "tags": [
+            "runright"
+          ]
+        },
+        {
+          "name": "Swim_Sprint",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_sprint.af",
+              "sec": 1.067
+            }
+          ],
+          "tags": [
+            "sprint"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common--4",
+      "name": "Vanilla · Common (4)",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
+        {
+          "name": "Swim_Sprint_TurnLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_sprint_turnleft.af",
+              "sec": 1.067
+            }
+          ],
+          "tags": [
+            "sprint_turnleft"
+          ]
+        },
+        {
+          "name": "Swim_Sprint_TurnRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_sprint_turnright.af",
+              "sec": 1.067
+            }
+          ],
+          "tags": [
+            "sprint_turnright"
+          ]
+        },
+        {
+          "name": "Swim_TurnInPlace_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_turninplace_left90.af",
+              "sec": 1.067
+            }
+          ],
+          "tags": [
+            "turninplace_left90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Swim_TurnInPlace_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/swim_turninplace_right90.af",
+              "sec": 1.067
+            }
+          ],
+          "tags": [
+            "turninplace_right90",
+            "transition"
+          ]
+        },
+        {
+          "name": "TestROMLookAround",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/testromlookaround.af",
+              "sec": 7.667
+            }
+          ]
+        },
+        {
+          "name": "Traversal_PressButton",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/traversal_pressbutton.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "UpperBody_BoneWeights",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/upperbody_boneweights.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Wave_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/wave_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "WhatsUp_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/whatsup_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "ZeroG_Boneweights",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_boneweights.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Head_Front01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_head_front01.af",
+              "sec": 1.3
+            }
+          ],
+          "tags": [
+            "death_head_front01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Back01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_back01.af",
+              "sec": 1.933
+            }
+          ],
+          "tags": [
+            "death_standing_melee_back01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Back02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_back02.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "death_standing_melee_back02"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Front01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_front01.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "death_standing_melee_front01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Front02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_front02.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "death_standing_melee_front02"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Front_Left01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_front_left01.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "death_standing_melee_front_left01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Front_Left02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_front_left02.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "death_standing_melee_front_left02"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Front_Right01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_front_right01.af",
+              "sec": 2.267
+            }
+          ],
+          "tags": [
+            "death_standing_melee_front_right01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Front_Right02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_front_right02.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "death_standing_melee_front_right02"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Left01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_left01.af",
+              "sec": 1.9
+            }
+          ],
+          "tags": [
+            "death_standing_melee_left01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Standing_Melee_Right01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_standing_melee_right01.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "death_standing_melee_right01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Torso_Front01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_torso_front01.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "death_torso_front01"
+          ]
+        },
+        {
+          "name": "ZeroG_Death_Torso_Front02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_death_torso_front02.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "death_torso_front02"
+          ]
+        },
+        {
+          "name": "ZeroG_Flinch_Head",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_flinch_head.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "flinch",
+            "transition"
+          ]
+        },
+        {
+          "name": "ZeroG_Flinch_LeftArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_flinch_leftarm.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "flinch_leftarm",
+            "transition"
+          ]
+        },
+        {
+          "name": "ZeroG_Flinch_LeftLeg",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_flinch_leftleg.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "flinch_leftleg",
+            "transition"
+          ]
+        },
+        {
+          "name": "ZeroG_Flinch_RightArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_flinch_rightarm.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "flinch_rightarm",
+            "transition"
+          ]
+        },
+        {
+          "name": "ZeroG_Flinch_RightLeg",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_flinch_rightleg.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "flinch_rightleg",
+            "transition"
+          ]
+        },
+        {
+          "name": "ZeroG_Flinch_Torso",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_flinch_torso.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "flinch_torso",
+            "transition"
+          ]
+        },
+        {
+          "name": "ZeroG_GetUp_Front",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_getup_front.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "ZeroG_Into_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_into_stun.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "into",
+            "transition"
+          ]
+        },
+        {
+          "name": "ZeroG_Knockdown_Backward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_knockdown_backward_start.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "knockdown_backward_start",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "ZeroG_Out_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/zerog_out_stun.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "out",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/female",
+      "name": "Vanilla · Common / Female",
+      "tags": [
+        "vanilla",
+        "common",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/female/relaxed_idlepartialbody_flavor01_quantumcalibrator.af",
+              "sec": 9.7
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/female/relaxed_idlepartialbody_flavor02_quantumcalibrator.af",
+              "sec": 8.367
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor03_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/female/relaxed_idlepartialbody_flavor03_quantumcalibrator.af",
+              "sec": 8.133
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor03"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor04_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/female/relaxed_idlepartialbody_flavor04_quantumcalibrator.af",
+              "sec": 11.8
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor04"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/female/relaxed_idlepartialbody_quantumcalibrator.af",
+              "sec": 1.933
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/female/relaxed_idlepartialbody_start_quantumcalibrator.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/female/relaxed_idlepartialbody_stop_quantumcalibrator.af",
+              "sec": 1.967
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/pirate",
+      "name": "Vanilla · Common / Pirate",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
+        {
+          "name": "Relaxed_IdlePartialBody_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pirate/relaxed_idlepartialbody_dataslatereceiveandread.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pirate/relaxed_idlepartialbody_flavor01_dataslatereceiveandread.af",
+              "sec": 12.633
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor02_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pirate/relaxed_idlepartialbody_flavor02_dataslatereceiveandread.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor02"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Start_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pirate/relaxed_idlepartialbody_start_dataslatereceiveandread.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Stop_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/pirate/relaxed_idlepartialbody_stop_dataslatereceiveandread.af",
+              "sec": 2.6
+            }
+          ],
+          "tags": [
+            "idlepartialbody_stop",
+            "transition"
+          ]
+        }
+      ]
+    }
+  ]
+}

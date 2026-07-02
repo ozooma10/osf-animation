@@ -1,0 +1,1616 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Mq204a 030 Deathscene (generated, do not hand-edit)",
+  "section": "library",
+  "clipRoot": "meshes/actors/human/animations",
+  "scenes": [
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Femalevictim / Mq204a 030 Survivor",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle_dialogue01.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle_dialogue02.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle_dialogue03.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle_dialogue04.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle_dialogue05.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle_dialogue06.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/idle_dialogue07.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Sync_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/enterfromstand.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "EnterInstant",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/enterinstant.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "ExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/exittostand.af",
+              "sec": 13.833
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sync_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/sync_start.af",
+              "sec": 8.967
+            }
+          ],
+          "tags": [
+            "start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Femalevictim / Mq204a 030 Survivor / Animarchetypemq204a 030 Malereactstofemale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction01.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction02.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction03.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction04.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstofemale/reaction05.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Femalevictim / Mq204a 030 Survivor / Female",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle.af",
+              "sec": 2.333
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle_dialogue01.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle_dialogue02.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle_dialogue03.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle_dialogue04.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle_dialogue05.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle_dialogue06.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/idle_dialogue07.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Sync_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/enterfromstand.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "EnterInstant",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/enterinstant.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "ExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/exittostand.af",
+              "sec": 13.833
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sync_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/sync_start.af",
+              "sec": 8.967
+            }
+          ],
+          "tags": [
+            "start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Femalevictim / Mq204a 030 Survivor / Female / Animarchetypemq204a 030 Femalereactstofemale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction01.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction02.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction03.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction04.af",
+              "sec": 12.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstofemale/reaction05.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Femalevictim / Mq204a 030 Victim / Female",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle_dialogue01.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle_dialogue02.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle_dialogue03.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle_dialogue04.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle_dialogue05.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle_dialogue06.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/idle_dialogue07.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Sync_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_idle.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/enterfromstand.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "EnterInstant",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/enterinstant.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "ExitToDead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/exittodead.af",
+              "sec": 13.833
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sync_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/sync_start.af",
+              "sec": 8.967
+            }
+          ],
+          "tags": [
+            "start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Femalevictim / Mq204a 030 Victim / Female / Animarchetypemq204a 030 Femalereactstofemale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction01.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction02.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction03.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction04.af",
+              "sec": 12.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstofemale/reaction05.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Femalevictim / Mq204a 030 Victim / Female / Animarchetypemq204a 030 Femalereactstomale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction01.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction02.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction03.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction04.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_femalevictim/mq204a_030_victim/female/animarchetypemq204a_030_femalereactstomale/reaction05.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Malevictim / Mq204a 030 Survivor",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle.af",
+              "sec": 15.767
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle_dialogue01.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle_dialogue02.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle_dialogue03.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle_dialogue04.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle_dialogue05.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle_dialogue06.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/idle_dialogue07.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Sync_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_idle.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/enterfromstand.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "EnterInstant",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/enterinstant.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "ExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/exittostand.af",
+              "sec": 13.833
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sync_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/sync_start.af",
+              "sec": 8.967
+            }
+          ],
+          "tags": [
+            "start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Malevictim / Mq204a 030 Survivor / Animarchetypemq204a 030 Malereactstomale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction01.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction02.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction03.af",
+              "sec": 5.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction04.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/animarchetypemq204a_030_malereactstomale/reaction05.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Malevictim / Mq204a 030 Survivor / Female",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle.af",
+              "sec": 2.333
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle_dialogue01.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle_dialogue02.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle_dialogue03.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle_dialogue04.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle_dialogue05.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle_dialogue06.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/idle_dialogue07.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Sync_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_idle.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/enterfromstand.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "EnterInstant",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/enterinstant.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "ExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/exittostand.af",
+              "sec": 13.833
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sync_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/sync_start.af",
+              "sec": 8.967
+            }
+          ],
+          "tags": [
+            "start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Malevictim / Mq204a 030 Survivor / Female / Animarchetypemq204a 030 Femalereactstomale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction01.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction02.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction03.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_survivor/female/animarchetypemq204a_030_femalereactstomale/reaction04.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Malevictim / Mq204a 030 Victim",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle_dialogue01.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle_dialogue02.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle_dialogue03.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle_dialogue04.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle_dialogue05.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle_dialogue06.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/idle_dialogue07.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "Sync_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_idle.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/enterfromstand.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "EnterInstant",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/enterinstant.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion",
+            "pose"
+          ]
+        },
+        {
+          "name": "ExitToDead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/exittodead.af",
+              "sec": 13.833
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sync_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/sync_start.af",
+              "sec": 8.967
+            }
+          ],
+          "tags": [
+            "start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Malevictim / Mq204a 030 Victim / Animarchetypemq204a 030 Malereactstofemale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction01.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction02.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction03.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstofemale/reaction04.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale",
+      "name": "Vanilla · Mq204a 030 Deathscene / Mq204a 030 Malevictim / Mq204a 030 Victim / Animarchetypemq204a 030 Malereactstomale",
+      "tags": [
+        "vanilla",
+        "mq204a_030_deathscene"
+      ],
+      "stages": [
+        {
+          "name": "Reaction01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction01.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction02.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction03.af",
+              "sec": 5.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction04.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Reaction05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "mq204a_030_deathscene/mq204a_030_malevictim/mq204a_030_victim/animarchetypemq204a_030_malereactstomale/reaction05.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    }
+  ]
+}

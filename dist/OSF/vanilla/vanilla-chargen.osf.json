@@ -1,0 +1,483 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Chargen (generated, do not hand-edit)",
+  "section": "library",
+  "clipRoot": "meshes/actors/human/animations",
+  "scenes": [
+    {
+      "id": "vanilla/chargen",
+      "name": "Vanilla · Chargen",
+      "tags": [
+        "vanilla",
+        "chargen"
+      ],
+      "stages": [
+        {
+          "name": "Idle_Background",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_background.af",
+              "sec": 4.7
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_body.af",
+              "sec": 4.7
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Face",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_face.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Background",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor01_background.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor01_body.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Face",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor01_face.af",
+              "sec": 7.067
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor01_presets.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Background",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor02_background.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor02_body.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Face",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor02_face.af",
+              "sec": 7.067
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor02_presets.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor03_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_flavor03_presets.af",
+              "sec": 7.067
+            }
+          ],
+          "tags": [
+            "idle_flavor03",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_presets.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Traits",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/idle_traits.af",
+              "sec": 4.7
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "WalkForward_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/walkforward_body.af",
+              "sec": 2.733
+            }
+          ],
+          "tags": [
+            "walkforward",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "WalkForward_Start_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/walkforward_start_body.af",
+              "sec": 1.967
+            }
+          ],
+          "tags": [
+            "walkforward_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "WalkForward_Stop_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/walkforward_stop_body.af",
+              "sec": 2.2
+            }
+          ],
+          "tags": [
+            "walkforward_stop",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/chargen/female",
+      "name": "Vanilla · Chargen / Female",
+      "tags": [
+        "vanilla",
+        "chargen",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle_Background",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_background.af",
+              "sec": 4.7
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_body.af",
+              "sec": 2.9
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Face",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_face.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Background",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor01_background.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor01_body.af",
+              "sec": 6.8
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Face",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor01_face.af",
+              "sec": 7.0
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor01_presets.af",
+              "sec": 5.6
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Background",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor02_background.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor02_body.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Face",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor02_face.af",
+              "sec": 7.0
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor02_presets.af",
+              "sec": 5.6
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor03_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_flavor03_presets.af",
+              "sec": 7.067
+            }
+          ],
+          "tags": [
+            "idle_flavor03",
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Presets",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/idle_presets.af",
+              "sec": 7.067
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "WalkForward_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/walkforward_body.af",
+              "sec": 2.633
+            }
+          ],
+          "tags": [
+            "walkforward"
+          ]
+        },
+        {
+          "name": "WalkForward_Start_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/walkforward_start_body.af",
+              "sec": 1.967
+            }
+          ],
+          "tags": [
+            "walkforward_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "WalkForward_Stop_Body",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "chargen/female/walkforward_stop_body.af",
+              "sec": 1.367
+            }
+          ],
+          "tags": [
+            "walkforward_stop",
+            "transition"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,199 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Photomode (generated, do not hand-edit)",
+  "section": "library",
+  "clipRoot": "meshes/actors/human/animations",
+  "scenes": [
+    {
+      "id": "vanilla/photomode",
+      "name": "Vanilla · Photomode",
+      "tags": [
+        "vanilla",
+        "photomode"
+      ],
+      "stages": [
+        {
+          "name": "Vehicle_BackSeat",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/vehicle_backseat.af",
+              "sec": 0.3
+            }
+          ]
+        },
+        {
+          "name": "Vehicle_HangTen",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/vehicle_hangten.af",
+              "sec": 0.3
+            }
+          ]
+        },
+        {
+          "name": "Vehicle_NoHands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/vehicle_nohands.af",
+              "sec": 0.3
+            }
+          ]
+        },
+        {
+          "name": "Vehicle_ThumbsUp",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/vehicle_thumbsup.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/photomode/female",
+      "name": "Vanilla · Photomode / Female",
+      "tags": [
+        "vanilla",
+        "photomode",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "ArmsCrossed_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/armscrossed_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Boxer_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/boxer_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Captive_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/captive_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Cower_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/cower_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Jump_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/jump_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Kneeling_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/kneeling_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Player_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/player_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "SitOnGround_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/sitonground_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Sneak_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/sneak_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "WhatsUp_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/whatsup_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    }
+  ]
+}

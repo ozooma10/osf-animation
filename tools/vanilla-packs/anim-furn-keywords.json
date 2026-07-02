@@ -1,0 +1,902 @@
+{
+  "absorbpower": {
+    "name": "AnimFurnAbsorbPower",
+    "formid": "0x0EF961"
+  },
+  "alloweating": {
+    "name": "AnimFurnAllowEating",
+    "formid": "0x144A65"
+  },
+  "ambush": {
+    "name": "AnimFurnAmbush",
+    "formid": "0x21E738"
+  },
+  "ambushfromunderground": {
+    "name": "AnimFurnAmbushFromUnderground",
+    "formid": "0x022FC5"
+  },
+  "ambushjumpdown": {
+    "name": "AnimFurnAmbushJumpDown",
+    "formid": "0x0231F2"
+  },
+  "analyze": {
+    "name": "AnimFurnAnalyze",
+    "formid": "0x1EA293"
+  },
+  "analyzeangry": {
+    "name": "AnimFurnAnalyzeAngry",
+    "formid": "0x1EA294"
+  },
+  "armorworkbench": {
+    "name": "AnimFurnArmorWorkbench",
+    "formid": "0x12F2B8"
+  },
+  "arrested": {
+    "name": "AnimFurnArrested",
+    "formid": "0x003833"
+  },
+  "barberchair": {
+    "name": "AnimFurnBarberChair",
+    "formid": "0x0306FD"
+  },
+  "barstool": {
+    "name": "AnimFurnBarStool",
+    "formid": "0x074EC7"
+  },
+  "bartender": {
+    "name": "AnimFurnBartender",
+    "formid": "0x144A62"
+  },
+  "bask": {
+    "name": "AnimFurnBask",
+    "formid": "0x12530E"
+  },
+  "bed": {
+    "name": "AnimFurnBed",
+    "formid": "0x1FA760"
+  },
+  "bedanims": {
+    "name": "AnimFurnBedAnims",
+    "formid": "0x0BC262"
+  },
+  "bench": {
+    "name": "AnimFurnBench",
+    "formid": "0x3A2DF2"
+  },
+  "benchstraddle": {
+    "name": "AnimFurnBench_Straddle",
+    "formid": "0x251090"
+  },
+  "bookshelf": {
+    "name": "AnimFurnBookshelf",
+    "formid": "0x32CFC6"
+  },
+  "bored": {
+    "name": "AnimFurnBored",
+    "formid": "0x1EA295"
+  },
+  "chair": {
+    "name": "AnimFurnChair",
+    "formid": "0x021BF1"
+  },
+  "chairdjtest": {
+    "name": "AnimFurnChairDJTest",
+    "formid": "0x217CB6"
+  },
+  "chairexecutive": {
+    "name": "AnimFurnChair_Executive",
+    "formid": "0x25E8EC"
+  },
+  "chairleanback": {
+    "name": "AnimFurnChairLeanBack",
+    "formid": "0x0FB6DE"
+  },
+  "chairsitanims": {
+    "name": "AnimFurnChairSitAnims",
+    "formid": "0x030BB2"
+  },
+  "charactergen": {
+    "name": "AnimFurnCharacterGen",
+    "formid": "0x03F0F9"
+  },
+  "clipboard": {
+    "name": "AnimFurnClipboard",
+    "formid": "0x25EB10"
+  },
+  "comquestandrejaq01secretpanel": {
+    "name": "AnimFurnCOM_Quest_Andreja_Q01_SecretPanel",
+    "formid": "0x0389D6"
+  },
+  "comquestandrejaq01stage340andrejatomisarpart01": {
+    "name": "AnimFurnCOM_Quest_Andreja_Q01_Stage340_AndrejaTomisarPart01",
+    "formid": "0x16282E"
+  },
+  "comsamcoeq010510arrivedoutsidecicora": {
+    "name": "AnimFurnCOM_SamCoeQ01_0510_ArrivedOutsideCI_Cora",
+    "formid": "0x058195"
+  },
+  "consolesitting": {
+    "name": "AnimFurnConsoleSitting",
+    "formid": "0x3C2AC0"
+  },
+  "consolestanding": {
+    "name": "AnimFurnConsoleStanding",
+    "formid": "0x01762F"
+  },
+  "couch": {
+    "name": "AnimFurnCouch",
+    "formid": "0x10013D"
+  },
+  "cower": {
+    "name": "AnimFurnCower",
+    "formid": "0x255CB6"
+  },
+  "cowersitting": {
+    "name": "AnimFurnCower_Sitting",
+    "formid": "0x31EEA0"
+  },
+  "cowerstanding": {
+    "name": "AnimFurnCower_Standing",
+    "formid": "0x016FDD"
+  },
+  "crosslegs": {
+    "name": "AnimFurnCrossLegs",
+    "formid": "0x1EA296"
+  },
+  "crouchandwait": {
+    "name": "AnimFurnCrouchAndWait",
+    "formid": "0x25220C"
+  },
+  "crouchrummaging": {
+    "name": "AnimFurnCrouchRummaging",
+    "formid": "0x2D24FF"
+  },
+  "danceastrallounge00": {
+    "name": "AnimFurnDanceAstralLounge00",
+    "formid": "0x3B0E22"
+  },
+  "danceastrallounge01": {
+    "name": "AnimFurnDanceAstralLounge01",
+    "formid": "0x3B0E24"
+  },
+  "danceeuphorika00": {
+    "name": "AnimFurnDanceEuphorika00",
+    "formid": "0x3B0E25"
+  },
+  "danceeuphorika01": {
+    "name": "AnimFurnDanceEuphorika01",
+    "formid": "0x3B0E26"
+  },
+  "desklean": {
+    "name": "AnimFurnDeskLean",
+    "formid": "0x022854"
+  },
+  "deskleanfemale": {
+    "name": "AnimFurnDeskLeanFemale",
+    "formid": "0x022852"
+  },
+  "dialoguecfthekeyestablishingscene": {
+    "name": "AnimFurnDialogueCFTheKey_EstablishingScene",
+    "formid": "0x346C8E"
+  },
+  "dissection": {
+    "name": "AnimFurnDissection",
+    "formid": "0x0E4AB6"
+  },
+  "dj": {
+    "name": "AnimFurnDJ",
+    "formid": "0x1FE0A2"
+  },
+  "eyetest": {
+    "name": "AnimFurnEyeTest",
+    "formid": "0x24E7F1"
+  },
+  "feeding": {
+    "name": "AnimFurnFeeding",
+    "formid": "0x2A7D0B"
+  },
+  "feeding045": {
+    "name": "AnimFurnFeeding045",
+    "formid": "0x2F95EF"
+  },
+  "feeding090": {
+    "name": "AnimFurnFeeding090",
+    "formid": "0x2F95F0"
+  },
+  "floorbedanims": {
+    "name": "AnimFurnFloorBedAnims",
+    "formid": "0x03ADA2"
+  },
+  "foodstation": {
+    "name": "AnimFurnFoodStation",
+    "formid": "0x138E75"
+  },
+  "galleyworkbench": {
+    "name": "AnimFurnGalleyWorkbench",
+    "formid": "0x1702A1"
+  },
+  "graze": {
+    "name": "AnimFurnGraze",
+    "formid": "0x21ED60"
+  },
+  "grazelow": {
+    "name": "AnimFurnGrazeLow",
+    "formid": "0x12B4B0"
+  },
+  "grazetree": {
+    "name": "AnimFurnGrazeTree",
+    "formid": "0x14B500"
+  },
+  "hackerhightechstation": {
+    "name": "AnimFurnHackerHighTechStation",
+    "formid": "0x361FAB"
+  },
+  "hackerlaptop": {
+    "name": "AnimFurnHackerLaptop",
+    "formid": "0x361F95"
+  },
+  "industrialworkbench": {
+    "name": "AnimFurnIndustrialWorkbench",
+    "formid": "0x133371"
+  },
+  "injuredonground": {
+    "name": "AnimFurnInjuredOnGround",
+    "formid": "0x019274"
+  },
+  "inspectdistance": {
+    "name": "AnimFurnInspectDistance",
+    "formid": "0x02EFCF"
+  },
+  "inspecting": {
+    "name": "AnimFurnInspecting",
+    "formid": "0x26192B"
+  },
+  "jumpseat": {
+    "name": "AnimFurnJumpSeat",
+    "formid": "0x293842"
+  },
+  "kneeling": {
+    "name": "AnimFurnKneeling",
+    "formid": "0x019273"
+  },
+  "kneelingplanting": {
+    "name": "AnimFurnKneeling_Planting",
+    "formid": "0x125886"
+  },
+  "kneelingpraying": {
+    "name": "AnimFurnKneeling_Praying",
+    "formid": "0x0361AE"
+  },
+  "kneelsurrender": {
+    "name": "AnimFurnKneel_Surrender",
+    "formid": "0x043508"
+  },
+  "kneelweld": {
+    "name": "AnimFurnKneel_Weld",
+    "formid": "0x31E0FE"
+  },
+  "landingcrewinspector": {
+    "name": "AnimFurnLandingCrew_Inspector",
+    "formid": "0x07C008"
+  },
+  "landingcrewscanner": {
+    "name": "AnimFurnLandingCrew_Scanner",
+    "formid": "0x2519FC"
+  },
+  "leaningbartopback": {
+    "name": "AnimFurnLeaningBartopBack",
+    "formid": "0x06809D"
+  },
+  "leaningbartopbackdrink": {
+    "name": "AnimFurnLeaningBartopBack_Drink",
+    "formid": "0x1ECDED"
+  },
+  "leaningbartopfront": {
+    "name": "AnimFurnLeaningBartopFront",
+    "formid": "0x051520"
+  },
+  "leaningbartopleft": {
+    "name": "AnimFurnLeaningBartopLeft",
+    "formid": "0x04553E"
+  },
+  "leaningbartopleftdrink": {
+    "name": "AnimFurnLeaningBartopLeft_Drink",
+    "formid": "0x1FE928"
+  },
+  "leaningbartopright": {
+    "name": "AnimFurnLeaningBartopRight",
+    "formid": "0x02C0C2"
+  },
+  "medpodpatient": {
+    "name": "AnimFurnMedPodPatient",
+    "formid": "0x2DE254"
+  },
+  "merchant": {
+    "name": "AnimFurnMerchant",
+    "formid": "0x168184"
+  },
+  "mininglasercutter": {
+    "name": "AnimFurnMining_LaserCutter",
+    "formid": "0x03F472"
+  },
+  "mininglasercutterhigh": {
+    "name": "AnimFurnMining_LaserCutter_High",
+    "formid": "0x03F46F"
+  },
+  "mininglasercutterlow": {
+    "name": "AnimFurnMining_LaserCutter_Low",
+    "formid": "0x03F473"
+  },
+  "mq101001bminingwalkscenecalvert": {
+    "name": "AnimFurnMQ101_001b_MiningWalkScene_Calvert",
+    "formid": "0x00CC8A"
+  },
+  "mq101002linsupervisorscene": {
+    "name": "AnimFurnMQ101_002_LinSupervisorScene",
+    "formid": "0x2650AE"
+  },
+  "mq101010barrettscene": {
+    "name": "AnimFurnMQ101_010_BarrettScene",
+    "formid": "0x05B150"
+  },
+  "mq101010givewatch": {
+    "name": "AnimFurnMQ101_010_GiveWatch",
+    "formid": "0x049C1C"
+  },
+  "mq101039sarah": {
+    "name": "AnimFurnMQ101_039_Sarah",
+    "formid": "0x056D6F"
+  },
+  "mq101hellertechreader": {
+    "name": "AnimFurnMQ101_HellerTechReader",
+    "formid": "0x24E492"
+  },
+  "mq101matteo": {
+    "name": "AnimFurnMQ101_Matteo",
+    "formid": "0x095B4C"
+  },
+  "mq101minercalvert": {
+    "name": "AnimFurnMQ101_MinerCalvert",
+    "formid": "0x07C438"
+  },
+  "mq101minerisabellewithheller": {
+    "name": "AnimFurnMQ101_MinerIsabelleWithHeller",
+    "formid": "0x0544FB"
+  },
+  "mq101minerlaserdrillmale05": {
+    "name": "AnimFurnMQ101_MinerLaserDrillMale05",
+    "formid": "0x03BD82"
+  },
+  "mq101noelartifact": {
+    "name": "AnimFurnMQ101_NoelArtifact",
+    "formid": "0x001BE0"
+  },
+  "mq101playerwakeupfurniture1st": {
+    "name": "AnimFurnMQ101_PlayerWakeUpFurniture1st",
+    "formid": "0x05B88A"
+  },
+  "mq101playerwakeupfurniture3rd": {
+    "name": "AnimFurnMQ101_PlayerWakeUpFurniture3rd",
+    "formid": "0x05B889"
+  },
+  "mq101sarah": {
+    "name": "AnimFurnMQ101_Sarah",
+    "formid": "0x0008AA"
+  },
+  "mq101walter": {
+    "name": "AnimFurnMQ101_Walter",
+    "formid": "0x025262"
+  },
+  "mq105004issaintro": {
+    "name": "AnimFurnMQ105_004_IssaIntro",
+    "formid": "0x0B96C8"
+  },
+  "mq105014negotiationbriefcase": {
+    "name": "AnimFurnMQ105_014_NegotiationBriefcase",
+    "formid": "0x00AF31"
+  },
+  "mq202005petrovplayerscene": {
+    "name": "AnimFurnMQ202_005_PetrovPlayerScene",
+    "formid": "0x2448BC"
+  },
+  "mq202006petrovescortscene": {
+    "name": "AnimFurnMQ202_006_PetrovEscortScene",
+    "formid": "0x0638F3"
+  },
+  "mq204a008anoelpackup": {
+    "name": "AnimFurnMQ204A_008a_NoelPackUp",
+    "formid": "0x2477C2"
+  },
+  "mq204a030bdeathsamscenecora": {
+    "name": "AnimFurnMQ204A_030b_DeathSamScene_Cora",
+    "formid": "0x1388E7"
+  },
+  "mq204a030femalevictim": {
+    "name": "AnimFurnMQ204A_030_FemaleVictim",
+    "formid": "0x0C53A2"
+  },
+  "mq204a030malevictim": {
+    "name": "AnimFurnMQ204A_030_MaleVictim",
+    "formid": "0x06AAE1"
+  },
+  "mq204hunterwalter": {
+    "name": "AnimFurnMQ204_HunterWalter",
+    "formid": "0x38A70E"
+  },
+  "neurosurgery": {
+    "name": "AnimFurnNeurosurgery",
+    "formid": "0x3F44A7"
+  },
+  "ongroundwipefloor": {
+    "name": "AnimFurnOnGround_WipeFloor",
+    "formid": "0x081168"
+  },
+  "panhandle": {
+    "name": "AnimFurnPanhandle",
+    "formid": "0x3DAB97"
+  },
+  "perchstanding": {
+    "name": "AnimFurnPerchStanding",
+    "formid": "0x3DE5A8"
+  },
+  "pharmaworkbench": {
+    "name": "AnimFurnPharmaWorkbench",
+    "formid": "0x143CB0"
+  },
+  "pilotseat": {
+    "name": "AnimFurnPilotSeat",
+    "formid": "0x005AA6"
+  },
+  "pilotseatdeimos": {
+    "name": "AnimFurnPilotSeatDeimos",
+    "formid": "0x104768"
+  },
+  "pilotseathopetech": {
+    "name": "AnimFurnPilotSeatHopeTech",
+    "formid": "0x104767"
+  },
+  "pilotseatstarborn": {
+    "name": "AnimFurnPilotSeatStarborn",
+    "formid": "0x1AC2B4"
+  },
+  "pilotseatstroud": {
+    "name": "AnimFurnPilotSeatStroud",
+    "formid": "0x104766"
+  },
+  "pilotseattaiyo": {
+    "name": "AnimFurnPilotSeatTaiyo",
+    "formid": "0x104765"
+  },
+  "podium": {
+    "name": "AnimFurnPodium",
+    "formid": "0x107DD0"
+  },
+  "powercycle": {
+    "name": "AnimFurnPowerCycle",
+    "formid": "0x03607E"
+  },
+  "pushup": {
+    "name": "AnimFurnPushUp",
+    "formid": "0x025C4F"
+  },
+  "queenambushfromunderground": {
+    "name": "AnimFurnQueenAmbushFromUnderground",
+    "formid": "0x0180EB"
+  },
+  "railleanback": {
+    "name": "AnimFurnRailLeanBack",
+    "formid": "0x25E8E2"
+  },
+  "railleanfront": {
+    "name": "AnimFurnRailLeanFront",
+    "formid": "0x25E8D6"
+  },
+  "railleanhands": {
+    "name": "AnimFurnRailLeanHands",
+    "formid": "0x1AE519"
+  },
+  "repairtoolhammerstanding": {
+    "name": "AnimFurnRepair_Tool_HammerStanding",
+    "formid": "0x00A4AF"
+  },
+  "repairtoolkneeling": {
+    "name": "AnimFurnRepair_ToolKneeling",
+    "formid": "0x24E772"
+  },
+  "repairtoolstanding": {
+    "name": "AnimFurnRepair_ToolStanding",
+    "formid": "0x07BDA9"
+  },
+  "repairtoolwrenchstanding": {
+    "name": "AnimFurnRepair_Tool_WrenchStanding",
+    "formid": "0x3E94BF"
+  },
+  "researchworkbench": {
+    "name": "AnimFurnResearchWorkbench",
+    "formid": "0x1557F4"
+  },
+  "robotelevator": {
+    "name": "AnimFurnRobotElevator",
+    "formid": "0x07BB00"
+  },
+  "robotpod": {
+    "name": "AnimFurnRobotPod",
+    "formid": "0x16000E"
+  },
+  "robotpodlarge": {
+    "name": "AnimFurnRobotPodLarge",
+    "formid": "0x158913"
+  },
+  "robotpowereddown": {
+    "name": "AnimFurnRobotPoweredDown",
+    "formid": "0x146689"
+  },
+  "rummageinbox": {
+    "name": "AnimFurnRummageInBox",
+    "formid": "0x250F0F"
+  },
+  "sciencestation": {
+    "name": "AnimFurnScienceStation",
+    "formid": "0x2253C8"
+  },
+  "searchingcar": {
+    "name": "AnimFurnSearchingCar",
+    "formid": "0x23E690"
+  },
+  "searchingfloor": {
+    "name": "AnimFurnSearchingFloor",
+    "formid": "0x246AF5"
+  },
+  "securityguardcrossed": {
+    "name": "AnimFurnSecurityGuard_Crossed",
+    "formid": "0x25DE81"
+  },
+  "securityguardmilitary": {
+    "name": "AnimFurnSecurityGuard_Military",
+    "formid": "0x265331"
+  },
+  "shinyavosschair": {
+    "name": "AnimFurnShinyaVossChair",
+    "formid": "0x1C14A0"
+  },
+  "shipladder": {
+    "name": "AnimFurnShipLadder",
+    "formid": "0x061F90"
+  },
+  "sitcrosslegged": {
+    "name": "AnimFurnSitCrossLegged",
+    "formid": "0x0C4EFC"
+  },
+  "sitfloorcaptivekneeling": {
+    "name": "AnimFurnSitFloorCaptive_Kneeling",
+    "formid": "0x047706"
+  },
+  "sitfloorcaptivewalllean": {
+    "name": "AnimFurnSitFloorCaptive_WallLean",
+    "formid": "0x05747B"
+  },
+  "sitfloorcaptivewalllean2": {
+    "name": "AnimFurnSitFloorCaptive_WallLean2",
+    "formid": "0x0D6DDC"
+  },
+  "sitledge": {
+    "name": "AnimFurnSitLedge",
+    "formid": "0x0327AF"
+  },
+  "sitonground": {
+    "name": "AnimFurnSitOnGround",
+    "formid": "0x26A0B7"
+  },
+  "sitonground02": {
+    "name": "AnimFurnSitOnGround02",
+    "formid": "0x276885"
+  },
+  "sittable": {
+    "name": "AnimFurnSitTable",
+    "formid": "0x1433BE"
+  },
+  "sittablewrite": {
+    "name": "AnimFurnSitTable_Write",
+    "formid": "0x3235EC"
+  },
+  "sittingchemuse": {
+    "name": "AnimFurnSitting_ChemUse",
+    "formid": "0x2D28A9"
+  },
+  "sittingprisonrecline": {
+    "name": "AnimFurnSitting_Prison_Recline",
+    "formid": "0x144AC1"
+  },
+  "sitwallhopup": {
+    "name": "AnimFurnSitWall_HopUp",
+    "formid": "0x0A2F9C"
+  },
+  "sleep": {
+    "name": "AnimFurnSleep",
+    "formid": "0x245558"
+  },
+  "sleepfloor": {
+    "name": "AnimFurnSleep_Floor",
+    "formid": "0x00F666"
+  },
+  "standing": {
+    "name": "AnimFurnStanding",
+    "formid": "0x21FE53"
+  },
+  "standingarmscrossedcasual": {
+    "name": "AnimFurnStanding_ArmsCrossedCasual",
+    "formid": "0x0BD5EE"
+  },
+  "standingarmscrossedmilitary": {
+    "name": "AnimFurnStanding_ArmsCrossedMilitary",
+    "formid": "0x0BD5ED"
+  },
+  "standingbenchpress": {
+    "name": "AnimFurnStanding_BenchPress",
+    "formid": "0x119935"
+  },
+  "standingchemuse": {
+    "name": "AnimFurnStanding_ChemUse",
+    "formid": "0x2D28A5"
+  },
+  "standingconfident": {
+    "name": "AnimFurnStanding_Confident",
+    "formid": "0x2E75BB"
+  },
+  "standingdataslate": {
+    "name": "AnimFurnStanding_DataSlate",
+    "formid": "0x1389C3"
+  },
+  "standingdiplomat": {
+    "name": "AnimFurnStanding_Diplomat",
+    "formid": "0x37E757"
+  },
+  "standingdjtest": {
+    "name": "AnimFurnStandingDJTest",
+    "formid": "0x217CB8"
+  },
+  "standingdrink": {
+    "name": "AnimFurnStanding_Drink",
+    "formid": "0x05E8F7"
+  },
+  "standingemissary": {
+    "name": "AnimFurnStanding_Emissary",
+    "formid": "0x3C1BEE"
+  },
+  "standinghunter": {
+    "name": "AnimFurnStanding_Hunter",
+    "formid": "0x3C1BEF"
+  },
+  "standingintercom": {
+    "name": "AnimFurnStanding_Intercom",
+    "formid": "0x1967AA"
+  },
+  "standinginventory": {
+    "name": "AnimFurnStanding_Inventory",
+    "formid": "0x02EFF1"
+  },
+  "standinglookingatmap": {
+    "name": "AnimFurnStanding_LookingAtMap",
+    "formid": "0x10FAED"
+  },
+  "standinglookingatmapbartop": {
+    "name": "AnimFurnStanding_LookingAtMapBartop",
+    "formid": "0x06FDAD"
+  },
+  "standinglookingatmapnav": {
+    "name": "AnimFurnStanding_LookingAtMapNav",
+    "formid": "0x025498"
+  },
+  "standingmourn": {
+    "name": "AnimFurnStanding_Mourn",
+    "formid": "0x095B3B"
+  },
+  "standingpullup": {
+    "name": "AnimFurnStanding_Pullup",
+    "formid": "0x11D045"
+  },
+  "standingraking": {
+    "name": "AnimFurnStanding_Raking",
+    "formid": "0x3299B6"
+  },
+  "standingreadingbook": {
+    "name": "AnimFurnStanding_ReadingBook",
+    "formid": "0x0063CF"
+  },
+  "standingrummage": {
+    "name": "AnimFurnStanding_Rummage",
+    "formid": "0x122F05"
+  },
+  "standingsweep": {
+    "name": "AnimFurnStanding_Sweep",
+    "formid": "0x190D66"
+  },
+  "standingtakeoath": {
+    "name": "AnimFurnStanding_TakeOath",
+    "formid": "0x195715"
+  },
+  "standingtoughriflepose": {
+    "name": "AnimFurnStanding_ToughRiflePose",
+    "formid": "0x31F08E"
+  },
+  "standingweld": {
+    "name": "AnimFurnStanding_Weld",
+    "formid": "0x32ECA5"
+  },
+  "standingwipewall": {
+    "name": "AnimFurnStanding_WipeWall",
+    "formid": "0x03C41F"
+  },
+  "stool": {
+    "name": "AnimFurnStool",
+    "formid": "0x26AC99"
+  },
+  "suitcase": {
+    "name": "AnimFurnSuitcase",
+    "formid": "0x23CEB7"
+  },
+  "supervisorstation01": {
+    "name": "AnimFurnSupervisorStation01",
+    "formid": "0x254230"
+  },
+  "surgicalbed": {
+    "name": "AnimFurnSurgicalBed",
+    "formid": "0x0E4FB6"
+  },
+  "surgicalbedangle": {
+    "name": "AnimFurnSurgicalBed_Angle",
+    "formid": "0x0068A5"
+  },
+  "surgicalbedpatient": {
+    "name": "AnimFurnSurgicalBed_Patient",
+    "formid": "0x025AD8"
+  },
+  "surgicalbedwounded": {
+    "name": "AnimFurnSurgicalBed_Wounded",
+    "formid": "0x025AD6"
+  },
+  "surrender": {
+    "name": "AnimFurnSurrender",
+    "formid": "0x001261"
+  },
+  "table": {
+    "name": "AnimFurnTable",
+    "formid": "0x09B9A9"
+  },
+  "tableleanback": {
+    "name": "AnimFurnTableLeanBack",
+    "formid": "0x07FAF1"
+  },
+  "tendplants": {
+    "name": "AnimFurnTendPlants",
+    "formid": "0x3E2D98"
+  },
+  "terminalseated": {
+    "name": "AnimFurnTerminal_Seated",
+    "formid": "0x1EA292"
+  },
+  "terminalseatedbarstool": {
+    "name": "AnimFurnTerminal_SeatedBarstool",
+    "formid": "0x1445A1"
+  },
+  "terminalstanding": {
+    "name": "AnimFurnTerminal_Standing",
+    "formid": "0x25E8DE"
+  },
+  "terminalstandingtable": {
+    "name": "AnimFurnTerminal_StandingTable",
+    "formid": "0x090A2D"
+  },
+  "terrormorphreveal": {
+    "name": "AnimFurnTerrormorphReveal",
+    "formid": "0x159505"
+  },
+  "terrormorphspaceport": {
+    "name": "AnimFurnTerrormorphSpaceport",
+    "formid": "0x087C04"
+  },
+  "terrormorphtransformation": {
+    "name": "AnimFurnTerrormorphTransformation",
+    "formid": "0x03263B"
+  },
+  "tpose": {
+    "name": "AnimFurnTpose",
+    "formid": "0x09C688"
+  },
+  "triageprovider": {
+    "name": "AnimFurnTriageProvider",
+    "formid": "0x39FCCC"
+  },
+  "unityastronaut": {
+    "name": "AnimFurnUnityAstronaut",
+    "formid": "0x0CC6C5"
+  },
+  "videoonlycockpitdoor": {
+    "name": "AnimFurnVideoOnlyCockPitDoor",
+    "formid": "0x1C2C99"
+  },
+  "videoonlyladder": {
+    "name": "AnimFurnVideoOnlyLadder",
+    "formid": "0x1D480F"
+  },
+  "videoonlypilotseat": {
+    "name": "AnimFurnVideoOnlyPilotSeat",
+    "formid": "0x1C48C9"
+  },
+  "videoonlyshipsconsole": {
+    "name": "AnimFurnVideoOnlyShipsConsole",
+    "formid": "0x1CF570"
+  },
+  "videoonlytable": {
+    "name": "AnimFurnVideoOnlyTable",
+    "formid": "0x1CD9E2"
+  },
+  "wallidcardswipe": {
+    "name": "AnimFurnWallIDCardSwipe",
+    "formid": "0x00A328"
+  },
+  "wallleanback": {
+    "name": "AnimFurnWallLeanBack",
+    "formid": "0x252328"
+  },
+  "wallleanelbowleft": {
+    "name": "AnimFurnWallLeanElbowLeft",
+    "formid": "0x017D40"
+  },
+  "wallleanelbowright": {
+    "name": "AnimFurnWallLeanElbowRight",
+    "formid": "0x01B9F4"
+  },
+  "wallleanleftshoulder": {
+    "name": "AnimFurnWallLeanLeftShoulder",
+    "formid": "0x258032"
+  },
+  "wallleanshoulderleft": {
+    "name": "AnimFurnWallLeanShoulderLeft",
+    "formid": "0x0FF3ED"
+  },
+  "wallleanshoulderright": {
+    "name": "AnimFurnWallLeanShoulderRight",
+    "formid": "0x0A8808"
+  },
+  "wallow": {
+    "name": "AnimFurnWallow",
+    "formid": "0x120352"
+  },
+  "weaponworkbench": {
+    "name": "AnimFurnWeaponWorkbench",
+    "formid": "0x18E3F7"
+  },
+  "welder": {
+    "name": "AnimFurnWelder",
+    "formid": "0x25B9D2"
+  },
+  "welderhigh": {
+    "name": "AnimFurnWelderHigh",
+    "formid": "0x0B2E4E"
+  },
+  "welderkneeling": {
+    "name": "AnimFurnWelderKneeling",
+    "formid": "0x26D602"
+  },
+  "wipetable": {
+    "name": "AnimFurnWipeTable",
+    "formid": "0x3B2A65"
+  },
+  "wireboxtinker": {
+    "name": "AnimFurnWireboxTinker",
+    "formid": "0x004A48"
+  },
+  "workbench": {
+    "name": "AnimFurnWorkbench",
+    "formid": "0x01A21C"
+  },
+  "woundedlean": {
+    "name": "AnimFurnWoundedLean",
+    "formid": "0x02296B"
+  },
+  "woundedleanfemale": {
+    "name": "AnimFurnWoundedLeanFemale",
+    "formid": "0x022967"
+  }
+}

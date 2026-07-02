@@ -1,0 +1,6321 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Scenes (generated, do not hand-edit)",
+  "section": "library",
+  "clipRoot": "meshes/actors/human/animations",
+  "scenes": [
+    {
+      "id": "vanilla/scenes/cf01_stage130_kibwe_offerscene/reactions/npcmkibwe",
+      "name": "Vanilla · Scenes / Cf01 Stage130 Kibwe Offerscene / Reactions / Npcmkibwe",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "Reading",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/cf01_stage130_kibwe_offerscene/reactions/npcmkibwe/reading.af",
+              "sec": 31.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage070_andrejaatervin/female",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage070 Andrejaatervin / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "AndrejaAtEren",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage070_andrejaatervin/female/andrejaateren.af",
+              "sec": 39.567
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage340 Andrejatomisarpart01",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Tomisar_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/looseidleanimation_tomisar_01.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Tomisar_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/looseidleanimation_tomisar_02.af",
+              "sec": 13.8
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Tomisar_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/looseidleanimation_tomisar_03.af",
+              "sec": 16.6
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Tomisar_04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/looseidleanimation_tomisar_04.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Tomisar_05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/looseidleanimation_tomisar_05.af",
+              "sec": 14.633
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/female",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage340 Andrejatomisarpart01 / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Andreja_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/female/looseidleanimation_andreja_01.af",
+              "sec": 14.3
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Andreja_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/female/looseidleanimation_andreja_02.af",
+              "sec": 4.633
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Andreja_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/female/looseidleanimation_andreja_03.af",
+              "sec": 23.467
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Andreja_05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage340_andrejatomisarpart01/female/looseidleanimation_andreja_05.af",
+              "sec": 14.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage360_tomisarplayer",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage360 Tomisarplayer",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Tomisar_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/looseidleanimation_tomisar_01.af",
+              "sec": 13.1
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Tomisar_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/looseidleanimation_tomisar_02.af",
+              "sec": 8.733
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Tomisar_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/looseidleanimation_tomisar_03.af",
+              "sec": 10.933
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00458D26",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/00458d26.af",
+              "sec": 1.4
+            }
+          ]
+        },
+        {
+          "name": "005EE591",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/005ee591.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "005F56D8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/005f56d8.af",
+              "sec": 1.067
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage360_tomisarplayer/female",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage360 Tomisarplayer / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Andreja_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/female/looseidleanimation_andreja_01.af",
+              "sec": 5.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage360_tomisarplayer/starfield.esm/npcmtomisarkadic",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage360 Tomisarplayer / Starfield.esm / Npcmtomisarkadic",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00380332",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/starfield.esm/npcmtomisarkadic/00380332.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0086578F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/starfield.esm/npcmtomisarkadic/0086578f.af",
+              "sec": 3.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0096A557",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/starfield.esm/npcmtomisarkadic/0096a557.af",
+              "sec": 3.833
+            }
+          ]
+        },
+        {
+          "name": "00CE98B7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/starfield.esm/npcmtomisarkadic/00ce98b7.af",
+              "sec": 4.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00DC1C22",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage360_tomisarplayer/starfield.esm/npcmtomisarkadic/00dc1c22.af",
+              "sec": 1.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage370_andrejadecisionscene",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage370 Andrejadecisionscene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Tomisar_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/looseidleanimation_tomisar_01.af",
+              "sec": 5.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/female",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage370 Andrejadecisionscene / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Andreja_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/female/looseidleanimation_andreja_01.af",
+              "sec": 18.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/starfield.esm/npcfandreja",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage370 Andrejadecisionscene / Starfield.esm / Npcfandreja",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00212BCB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/starfield.esm/npcfandreja/00212bcb.af",
+              "sec": 11.0
+            }
+          ]
+        },
+        {
+          "name": "00236227",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/starfield.esm/npcfandreja/00236227.af",
+              "sec": 4.333
+            }
+          ]
+        },
+        {
+          "name": "00276837",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/starfield.esm/npcfandreja/00276837.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "00811A86",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/starfield.esm/npcfandreja/00811a86.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00B52D51",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/starfield.esm/npcfandreja/00b52d51.af",
+              "sec": 5.333
+            }
+          ]
+        },
+        {
+          "name": "00CAF077",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage370_andrejadecisionscene/starfield.esm/npcfandreja/00caf077.af",
+              "sec": 9.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage380_andrejalettomisarlive",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage380 Andrejalettomisarlive",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Tomisar_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage380_andrejalettomisarlive/looseidleanimation_tomisar_01.af",
+              "sec": 13.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage380_andrejalettomisarlive/female",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage380 Andrejalettomisarlive / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Andreja_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage380_andrejalettomisarlive/female/looseidleanimation_andreja_01.af",
+              "sec": 11.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_quest_andreja_q01_stage400_playerkilledtomisarstage399/starfield.esm/npcfandreja",
+      "name": "Vanilla · Scenes / Com Quest Andreja Q01 Stage400 Playerkilledtomisarstage399 / Starfield.esm / Npcfandreja",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0010E19D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage400_playerkilledtomisarstage399/starfield.esm/npcfandreja/0010e19d.af",
+              "sec": 2.333
+            }
+          ]
+        },
+        {
+          "name": "0072A35D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_quest_andreja_q01_stage400_playerkilledtomisarstage399/starfield.esm/npcfandreja/0072a35d.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_samcoeq01_0875_lilliancorareunion/child",
+      "name": "Vanilla · Scenes / Com Samcoeq01 0875 Lilliancorareunion / Child",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Cora_RXT_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/child/looseidleanimation_cora_rxt_01.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Cora_RXT_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/child/looseidleanimation_cora_rxt_02.af",
+              "sec": 7.0
+            }
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Cora_RXT_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/child/looseidleanimation_cora_rxt_03.af",
+              "sec": 7.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_samcoeq01_0875_lilliancorareunion/female",
+      "name": "Vanilla · Scenes / Com Samcoeq01 0875 Lilliancorareunion / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Lillian_RXT_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/female/looseidleanimation_lillian_rxt_01.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Lillian_RXT_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/female/looseidleanimation_lillian_rxt_02.af",
+              "sec": 6.833
+            }
+          ]
+        },
+        {
+          "name": "00C8DED7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/female/00c8ded7.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcfcoracoe",
+      "name": "Vanilla · Scenes / Com Samcoeq01 0875 Lilliancorareunion / Starfield.esm / Npcfcoracoe",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0027B74B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcfcoracoe/0027b74b.af",
+              "sec": 6.0
+            }
+          ]
+        },
+        {
+          "name": "00BC95E1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcfcoracoe/00bc95e1.af",
+              "sec": 4.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcflillianhart",
+      "name": "Vanilla · Scenes / Com Samcoeq01 0875 Lilliancorareunion / Starfield.esm / Npcflillianhart",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "000CE6AB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcflillianhart/000ce6ab.af",
+              "sec": 4.167
+            }
+          ]
+        },
+        {
+          "name": "004B96F8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcflillianhart/004b96f8.af",
+              "sec": 3.667
+            }
+          ]
+        },
+        {
+          "name": "004FA8F4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcflillianhart/004fa8f4.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "0055FA87",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/com_samcoeq01_0875_lilliancorareunion/starfield.esm/npcflillianhart/0055fa87.af",
+              "sec": 1.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder",
+      "name": "Vanilla · Scenes / Dialoguecfthekey Establishingscene / Looseidleanimation / Marauder",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Marauder_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder/looseidleanimation_marauder_01.af",
+              "sec": 11.867
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Marauder_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder/looseidleanimation_marauder_02.af",
+              "sec": 17.767
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Marauder_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder/looseidleanimation_marauder_03.af",
+              "sec": 10.967
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva",
+      "name": "Vanilla · Scenes / Dialoguecfthekey Establishingscene / Looseidleanimation / Naeva",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Naeva_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_01.af",
+              "sec": 11.367
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Naeva_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_02.af",
+              "sec": 13.267
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Naeva_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_03.af",
+              "sec": 4.967
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Naeva_04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_04.af",
+              "sec": 6.633
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Naeva_05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_05.af",
+              "sec": 6.633
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/dialoguecfthekey_establishingscene/looseidleanimation/reaver",
+      "name": "Vanilla · Scenes / Dialoguecfthekey Establishingscene / Looseidleanimation / Reaver",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Reaver_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/reaver/looseidleanimation_reaver_01.af",
+              "sec": 11.867
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Reaver_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/reaver/looseidleanimation_reaver_02.af",
+              "sec": 12.767
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/e3_video/videoonlyrun",
+      "name": "Vanilla · Scenes / E3 Video / Videoonlyrun",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseAnim_PlayerRunning",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/e3_video/videoonlyrun/looseanim_playerrunning.af",
+              "sec": 11.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/e3_video/videoonlyrun/female",
+      "name": "Vanilla · Scenes / E3 Video / Videoonlyrun / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseAnim_PlayerRunning",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/e3_video/videoonlyrun/female/looseanim_playerrunning.af",
+              "sec": 12.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/e3_video/videoonlywalk",
+      "name": "Vanilla · Scenes / E3 Video / Videoonlywalk",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseAnim_Shot26_PlayerWalking",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/e3_video/videoonlywalk/looseanim_shot26_playerwalking.af",
+              "sec": 10.933
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/e3_video/videoonlywalk/female",
+      "name": "Vanilla · Scenes / E3 Video / Videoonlywalk / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseAnim_Shot26_PlayerWalking",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/e3_video/videoonlywalk/female/looseanim_shot26_playerwalking.af",
+              "sec": 13.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_001_miningscene",
+      "name": "Vanilla · Scenes / Mq101 001 Miningscene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "AnimStart_Heller",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_001_miningscene/animstart_heller.af",
+              "sec": 112.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_001_miningscene/female",
+      "name": "Vanilla · Scenes / Mq101 001 Miningscene / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "AnimStart_Lin",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_001_miningscene/female/animstart_lin.af",
+              "sec": 112.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_002_linsupervisorscene/starfield.esm/npcflin",
+      "name": "Vanilla · Scenes / Mq101 002 Linsupervisorscene / Starfield.esm / Npcflin",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "003C79A5",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_002_linsupervisorscene/starfield.esm/npcflin/003c79a5.af",
+              "sec": 3.333
+            }
+          ]
+        },
+        {
+          "name": "006B5D19",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_002_linsupervisorscene/starfield.esm/npcflin/006b5d19.af",
+              "sec": 7.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0074A18F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_002_linsupervisorscene/starfield.esm/npcflin/0074a18f.af",
+              "sec": 2.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00882CF1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_002_linsupervisorscene/starfield.esm/npcflin/00882cf1.af",
+              "sec": 3.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_004_walldownscene/starfield.esm/npcflin",
+      "name": "Vanilla · Scenes / Mq101 004 Walldownscene / Starfield.esm / Npcflin",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00B2ACBA",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_004_walldownscene/starfield.esm/npcflin/00b2acba.af",
+              "sec": 4.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_005_facegenscene",
+      "name": "Vanilla · Scenes / Mq101 005 Facegenscene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "MQ101_005_FaceGenScene_Heller",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_005_facegenscene/mq101_005_facegenscene_heller.af",
+              "sec": 18.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_005_facegenscene/npcflin",
+      "name": "Vanilla · Scenes / Mq101 005 Facegenscene / Npcflin",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "MQ101_005_FaceGenScene_Lin",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_005_facegenscene/npcflin/mq101_005_facegenscene_lin.af",
+              "sec": 18.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_006_discoveryarrivesscene/starfield.esm/npcflin",
+      "name": "Vanilla · Scenes / Mq101 006 Discoveryarrivesscene / Starfield.esm / Npcflin",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00060640",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_006_discoveryarrivesscene/starfield.esm/npcflin/00060640.af",
+              "sec": 2.067
+            }
+          ]
+        },
+        {
+          "name": "0020302D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_006_discoveryarrivesscene/starfield.esm/npcflin/0020302d.af",
+              "sec": 3.4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_008_barrettscene",
+      "name": "Vanilla · Scenes / Mq101 008 Barrettscene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "MQ008_BarrettScene_LIN",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/mq008_barrettscene_lin.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_008_barrettscene/starfield.esm/npcflin",
+      "name": "Vanilla · Scenes / Mq101 008 Barrettscene / Starfield.esm / Npcflin",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0000D7FE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/0000d7fe.af",
+              "sec": 6.8
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00489EBB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/00489ebb.af",
+              "sec": 2.4
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "005577D9",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/005577d9.af",
+              "sec": 6.633
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0057AD43",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/0057ad43.af",
+              "sec": 2.4
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0068B946",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/0068b946.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "006A1095",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/006a1095.af",
+              "sec": 2.4
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00822FDB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/00822fdb.af",
+              "sec": 7.433
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0087EE82",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/0087ee82.af",
+              "sec": 7.967
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00B0E4F7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/00b0e4f7.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00DB9E1E",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/00db9e1e.af",
+              "sec": 7.367
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00EB9518",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/00eb9518.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00F1D87F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcflin/00f1d87f.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_008_barrettscene/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 008 Barrettscene / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00540965",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcmbarrett/00540965.af",
+              "sec": 2.833
+            }
+          ]
+        },
+        {
+          "name": "00C9A748",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcmbarrett/00c9a748.af",
+              "sec": 5.667
+            }
+          ]
+        },
+        {
+          "name": "00D4FCF3",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008_barrettscene/starfield.esm/npcmbarrett/00d4fcf3.af",
+              "sec": 9.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_008b_barrettplayerdialogue/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 008b Barrettplayerdialogue / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00371668",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008b_barrettplayerdialogue/starfield.esm/npcmbarrett/00371668.af",
+              "sec": 4.333
+            }
+          ]
+        },
+        {
+          "name": "003E365A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008b_barrettplayerdialogue/starfield.esm/npcmbarrett/003e365a.af",
+              "sec": 8.333
+            }
+          ]
+        },
+        {
+          "name": "0047CC4D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008b_barrettplayerdialogue/starfield.esm/npcmbarrett/0047cc4d.af",
+              "sec": 9.333
+            }
+          ]
+        },
+        {
+          "name": "00A9800B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008b_barrettplayerdialogue/starfield.esm/npcmbarrett/00a9800b.af",
+              "sec": 8.833
+            }
+          ]
+        },
+        {
+          "name": "00EEB5FF",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008b_barrettplayerdialogue/starfield.esm/npcmbarrett/00eeb5ff.af",
+              "sec": 3.333
+            }
+          ]
+        },
+        {
+          "name": "00FDECB0",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008b_barrettplayerdialogue/starfield.esm/npcmbarrett/00fdecb0.af",
+              "sec": 4.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_008c_barrettpiratesarrive",
+      "name": "Vanilla · Scenes / Mq101 008c Barrettpiratesarrive",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "Barrett_Phase_003",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008c_barrettpiratesarrive/barrett_phase_003.af",
+              "sec": 6.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_008c_barrettpiratesarrive/starfield.esm/npcflin",
+      "name": "Vanilla · Scenes / Mq101 008c Barrettpiratesarrive / Starfield.esm / Npcflin",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00106CF9",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008c_barrettpiratesarrive/starfield.esm/npcflin/00106cf9.af",
+              "sec": 6.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_008c_barrettpiratesarrive/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 008c Barrettpiratesarrive / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0096C0C4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008c_barrettpiratesarrive/starfield.esm/npcmbarrett/0096c0c4.af",
+              "sec": 4.833
+            }
+          ]
+        },
+        {
+          "name": "00B7196A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_008c_barrettpiratesarrive/starfield.esm/npcmbarrett/00b7196a.af",
+              "sec": 3.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010_barrettscene",
+      "name": "Vanilla · Scenes / Mq101 010 Barrettscene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "Barrett_Phase_000",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/barrett_phase_000.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Barrett_Phase_005",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/barrett_phase_005.af",
+              "sec": 10.5
+            }
+          ]
+        },
+        {
+          "name": "Barrett_Phase_006",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/barrett_phase_006.af",
+              "sec": 5.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010_barrettscene/starfield.esm",
+      "name": "Vanilla · Scenes / Mq101 010 Barrettscene / Starfield.esm",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "004BE9B7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/004be9b7.af",
+              "sec": 2.167
+            }
+          ]
+        },
+        {
+          "name": "00B9287B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/00b9287b.af",
+              "sec": 4.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010_barrettscene/starfield.esm/npcflin",
+      "name": "Vanilla · Scenes / Mq101 010 Barrettscene / Starfield.esm / Npcflin",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00281CF3",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcflin/00281cf3.af",
+              "sec": 10.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "004C414D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcflin/004c414d.af",
+              "sec": 6.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "008B2148",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcflin/008b2148.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0095F188",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcflin/0095f188.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00E43CBD",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcflin/00e43cbd.af",
+              "sec": 7.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 010 Barrettscene / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "000165D8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/000165d8.af",
+              "sec": 7.667
+            }
+          ]
+        },
+        {
+          "name": "002E82B6",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/002e82b6.af",
+              "sec": 12.667
+            }
+          ]
+        },
+        {
+          "name": "0039D8B4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/0039d8b4.af",
+              "sec": 5.333
+            }
+          ]
+        },
+        {
+          "name": "005B84CB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/005b84cb.af",
+              "sec": 6.667
+            }
+          ]
+        },
+        {
+          "name": "00721E7D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00721e7d.af",
+              "sec": 8.667
+            }
+          ]
+        },
+        {
+          "name": "0089B24B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/0089b24b.af",
+              "sec": 5.667
+            }
+          ]
+        },
+        {
+          "name": "008A6D87",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/008a6d87.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "00A295D6",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00a295d6.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "00A4C234",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00a4c234.af",
+              "sec": 7.667
+            }
+          ]
+        },
+        {
+          "name": "00D0DB35",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00d0db35.af",
+              "sec": 8.333
+            }
+          ]
+        },
+        {
+          "name": "00EE5D40",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00ee5d40.af",
+              "sec": 3.5
+            }
+          ]
+        },
+        {
+          "name": "00F7B03B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00f7b03b.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010a_toplevel_constellation/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 010a Toplevel Constellation / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0031DA3B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010a_toplevel_constellation/starfield.esm/npcmbarrett/0031da3b.af",
+              "sec": 9.0
+            }
+          ]
+        },
+        {
+          "name": "00A2E820",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010a_toplevel_constellation/starfield.esm/npcmbarrett/00a2e820.af",
+              "sec": 5.167
+            }
+          ]
+        },
+        {
+          "name": "00F63722",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010a_toplevel_constellation/starfield.esm/npcmbarrett/00f63722.af",
+              "sec": 5.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010b_toplevel_blackfleet/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 010b Toplevel Blackfleet / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0021CD6B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010b_toplevel_blackfleet/starfield.esm/npcmbarrett/0021cd6b.af",
+              "sec": 9.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010c_toplevel_artifact/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 010c Toplevel Artifact / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00FD3FE7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010c_toplevel_artifact/starfield.esm/npcmbarrett/00fd3fe7.af",
+              "sec": 7.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010d_toplevel_ship/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 010d Toplevel Ship / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0054E83E",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010d_toplevel_ship/starfield.esm/npcmbarrett/0054e83e.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "00BAF93F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010d_toplevel_ship/starfield.esm/npcmbarrett/00baf93f.af",
+              "sec": 4.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_010e_toplevel_whyme/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq101 010e Toplevel Whyme / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00052D0A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010e_toplevel_whyme/starfield.esm/npcmbarrett/00052d0a.af",
+              "sec": 9.0
+            }
+          ]
+        },
+        {
+          "name": "00843AF6",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010e_toplevel_whyme/starfield.esm/npcmbarrett/00843af6.af",
+              "sec": 4.333
+            }
+          ]
+        },
+        {
+          "name": "00B8520A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010e_toplevel_whyme/starfield.esm/npcmbarrett/00b8520a.af",
+              "sec": 10.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_018_cfcaptainscene/starfield.esm/crimsonfleetmale02",
+      "name": "Vanilla · Scenes / Mq101 018 Cfcaptainscene / Starfield.esm / Crimsonfleetmale02",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00C1065F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_018_cfcaptainscene/starfield.esm/crimsonfleetmale02/00c1065f.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_018_speech06/starfield.esm/crimsonfleetmale02",
+      "name": "Vanilla · Scenes / Mq101 018 Speech06 / Starfield.esm / Crimsonfleetmale02",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0001E5D4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_018_speech06/starfield.esm/crimsonfleetmale02/0001e5d4.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "00B23056",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_018_speech06/starfield.esm/crimsonfleetmale02/00b23056.af",
+              "sec": 4.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_035_sarahmorganscene/female",
+      "name": "Vanilla · Scenes / Mq101 035 Sarahmorganscene / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "ConstellationGreeting",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/female/constellationgreeting.af",
+              "sec": 5.167
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 035 Sarahmorganscene / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00094E94",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00094e94.af",
+              "sec": 3.667
+            }
+          ]
+        },
+        {
+          "name": "0027C359",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/0027c359.af",
+              "sec": 7.333
+            }
+          ]
+        },
+        {
+          "name": "003AEDBA",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/003aedba.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "0042F39A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/0042f39a.af",
+              "sec": 6.0
+            }
+          ]
+        },
+        {
+          "name": "005F9DF1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/005f9df1.af",
+              "sec": 12.167
+            }
+          ]
+        },
+        {
+          "name": "00605869",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00605869.af",
+              "sec": 6.167
+            }
+          ]
+        },
+        {
+          "name": "0072897A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/0072897a.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "00CFECFA",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00cfecfa.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "00DC7E1A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00dc7e1a.af",
+              "sec": 1.667
+            }
+          ]
+        },
+        {
+          "name": "00E619A1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00e619a1.af",
+              "sec": 12.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_036_sarahmorganscene02/reactions/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 036 Sarahmorganscene02 / Reactions / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_00EC6FC1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_036_sarahmorganscene02/reactions/npcfsarahmorgan/rxt_00ec6fc1.af",
+              "sec": 3.367
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_036_sarahmorganscene02/starfield.esm/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 036 Sarahmorganscene02 / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00DC6EBC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_036_sarahmorganscene02/starfield.esm/npcfsarahmorgan/00dc6ebc.af",
+              "sec": 5.167
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_036_sarahmorganscene02/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq101 036 Sarahmorganscene02 / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00DC052F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_036_sarahmorganscene02/starfield.esm/npcmwalterstroud/00dc052f.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "00EC6FC1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_036_sarahmorganscene02/starfield.esm/npcmwalterstroud/00ec6fc1.af",
+              "sec": 9.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_037_playergivesartifact/starfield.esm/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 037 Playergivesartifact / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "003D1A80",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_037_playergivesartifact/starfield.esm/npcfsarahmorgan/003d1a80.af",
+              "sec": 5.333
+            }
+          ]
+        },
+        {
+          "name": "007B0907",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_037_playergivesartifact/starfield.esm/npcfsarahmorgan/007b0907.af",
+              "sec": 4.8
+            }
+          ]
+        },
+        {
+          "name": "008E362C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_037_playergivesartifact/starfield.esm/npcfsarahmorgan/008e362c.af",
+              "sec": 6.267
+            }
+          ]
+        },
+        {
+          "name": "00C4DFE7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_037_playergivesartifact/starfield.esm/npcfsarahmorgan/00c4dfe7.af",
+              "sec": 6.333
+            }
+          ]
+        },
+        {
+          "name": "00F9DD48",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_037_playergivesartifact/starfield.esm/npcfsarahmorgan/00f9dd48.af",
+              "sec": 3.6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039_artifactstogetherscene/reactions/npcfnoel",
+      "name": "Vanilla · Scenes / Mq101 039 Artifactstogetherscene / Reactions / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_0069434A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039_artifactstogetherscene/reactions/npcfnoel/rxt_0069434a.af",
+              "sec": 3.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039_artifactstogetherscene/reactions/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq101 039 Artifactstogetherscene / Reactions / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_00287196",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039_artifactstogetherscene/reactions/npcmmatteokhatri/rxt_00287196.af",
+              "sec": 6.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039_artifactstogetherscene/starfield.esm/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq101 039 Artifactstogetherscene / Starfield.esm / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0069434A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039_artifactstogetherscene/starfield.esm/npcmmatteokhatri/0069434a.af",
+              "sec": 3.667
+            }
+          ]
+        },
+        {
+          "name": "00BC6F74",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039_artifactstogetherscene/starfield.esm/npcmmatteokhatri/00bc6f74.af",
+              "sec": 5.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039_artifactstogetherscene/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq101 039 Artifactstogetherscene / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00287196",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039_artifactstogetherscene/starfield.esm/npcmwalterstroud/00287196.af",
+              "sec": 6.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039b_artifactstogetherscene02/reactions/npcfnoel",
+      "name": "Vanilla · Scenes / Mq101 039b Artifactstogetherscene02 / Reactions / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_0036D429",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/reactions/npcfnoel/rxt_0036d429.af",
+              "sec": 3.533
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039b_artifactstogetherscene02/reactions/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 039b Artifactstogetherscene02 / Reactions / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_001F769D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/reactions/npcfsarahmorgan/rxt_001f769d.af",
+              "sec": 6.333
+            }
+          ]
+        },
+        {
+          "name": "RXT_008C5A41",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/reactions/npcfsarahmorgan/rxt_008c5a41.af",
+              "sec": 3.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039b_artifactstogetherscene02/reactions/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq101 039b Artifactstogetherscene02 / Reactions / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_009DF9A9",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/reactions/npcmmatteokhatri/rxt_009df9a9.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039b_artifactstogetherscene02/reactions/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq101 039b Artifactstogetherscene02 / Reactions / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_001F769D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/reactions/npcmwalterstroud/rxt_001f769d.af",
+              "sec": 6.333
+            }
+          ]
+        },
+        {
+          "name": "RXT_008C5A41",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/reactions/npcmwalterstroud/rxt_008c5a41.af",
+              "sec": 3.833
+            }
+          ]
+        },
+        {
+          "name": "RXT_009DF9A9",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/reactions/npcmwalterstroud/rxt_009df9a9.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039b_artifactstogetherscene02/starfield.esm/npcfnoel",
+      "name": "Vanilla · Scenes / Mq101 039b Artifactstogetherscene02 / Starfield.esm / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "001F769D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/starfield.esm/npcfnoel/001f769d.af",
+              "sec": 5.6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039b_artifactstogetherscene02/starfield.esm/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 039b Artifactstogetherscene02 / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0036D429",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/starfield.esm/npcfsarahmorgan/0036d429.af",
+              "sec": 3.533
+            }
+          ]
+        },
+        {
+          "name": "009D1671",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/starfield.esm/npcfsarahmorgan/009d1671.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "009DF9A9",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039b_artifactstogetherscene02/starfield.esm/npcfsarahmorgan/009df9a9.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/reactions/npcfnoel",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Reactions / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_00AF6F09",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/reactions/npcfnoel/rxt_00af6f09.af",
+              "sec": 3.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/reactions/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Reactions / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_00AF6F09",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/reactions/npcfsarahmorgan/rxt_00af6f09.af",
+              "sec": 3.5
+            }
+          ]
+        },
+        {
+          "name": "RXT_00E8288B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/reactions/npcfsarahmorgan/rxt_00e8288b.af",
+              "sec": 13.033
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/reactions/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Reactions / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_00E8288B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/reactions/npcmmatteokhatri/rxt_00e8288b.af",
+              "sec": 13.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/reactions/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Reactions / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "RXT_00AF6F09",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/reactions/npcmwalterstroud/rxt_00af6f09.af",
+              "sec": 3.5
+            }
+          ]
+        },
+        {
+          "name": "RXT_00E8288B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/reactions/npcmwalterstroud/rxt_00e8288b.af",
+              "sec": 13.033
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/starfield.esm/female",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Starfield.esm / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "NoelArtifact_00E8288B-00222599",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/female/noelartifact_00e8288b-00222599.af",
+              "sec": 15.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/starfield.esm/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0002B0D7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcfsarahmorgan/0002b0d7.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "009DF68A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcfsarahmorgan/009df68a.af",
+              "sec": 4.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/starfield.esm/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Starfield.esm / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00081437",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcmmatteokhatri/00081437.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "00AF6F09",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcmmatteokhatri/00af6f09.af",
+              "sec": 3.5
+            }
+          ]
+        },
+        {
+          "name": "00CD8836",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcmmatteokhatri/00cd8836.af",
+              "sec": 1.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_039c_artifactstogether03/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq101 039c Artifactstogether03 / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00127FFB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcmwalterstroud/00127ffb.af",
+              "sec": 5.333
+            }
+          ]
+        },
+        {
+          "name": "00A25BB4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcmwalterstroud/00a25bb4.af",
+              "sec": 4.5
+            }
+          ]
+        },
+        {
+          "name": "00CDB20F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcmwalterstroud/00cdb20f.af",
+              "sec": 5.667
+            }
+          ]
+        },
+        {
+          "name": "00DEB59B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_039c_artifactstogether03/starfield.esm/npcmwalterstroud/00deb59b.af",
+              "sec": 4.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq101 040 Sarahfinalscene / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0002E4BC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/0002e4bc.af",
+              "sec": 7.667
+            }
+          ]
+        },
+        {
+          "name": "0014C130",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/0014c130.af",
+              "sec": 7.5
+            }
+          ]
+        },
+        {
+          "name": "0039C12F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/0039c12f.af",
+              "sec": 6.667
+            }
+          ]
+        },
+        {
+          "name": "0041E5DE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/0041e5de.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "00425E50",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/00425e50.af",
+              "sec": 5.067
+            }
+          ]
+        },
+        {
+          "name": "0079DBC8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/0079dbc8.af",
+              "sec": 5.067
+            }
+          ]
+        },
+        {
+          "name": "008B0C69",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/008b0c69.af",
+              "sec": 8.667
+            }
+          ]
+        },
+        {
+          "name": "00A393A9",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/00a393a9.af",
+              "sec": 10.0
+            }
+          ]
+        },
+        {
+          "name": "00A70B09",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_040_sarahfinalscene/starfield.esm/npcfsarahmorgan/00a70b09.af",
+              "sec": 6.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq103_06_coeestateintroscene",
+      "name": "Vanilla · Scenes / Mq103 06 Coeestateintroscene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "NPCJacobCoe_CoeEstate_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_06_coeestateintroscene/npcjacobcoe_coeestate_01.af",
+              "sec": 36.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCSamCoe_CoeEstate_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_06_coeestateintroscene/npcsamcoe_coeestate_01.af",
+              "sec": 32.167
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq103_11a_jacobsamarguescene",
+      "name": "Vanilla · Scenes / Mq103 11a Jacobsamarguescene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_Jacob_IDLE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacob_idle.af",
+              "sec": 2.433
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_Sam_IDLE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_sam_idle.af",
+              "sec": 2.433
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase01.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase02.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase03.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase04.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase05.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase06.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase07.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase08",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase08.af",
+              "sec": 2.9
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase09",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase09.af",
+              "sec": 9.767
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase10",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase10.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase11",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase11.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase12",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase12.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase13",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase13.af",
+              "sec": 10.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase14",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase14.af",
+              "sec": 10.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase15",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase15.af",
+              "sec": 6.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase16",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase16.af",
+              "sec": 2.733
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase17",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase17.af",
+              "sec": 1.867
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase18",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase18.af",
+              "sec": 4.067
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase19",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase19.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase20",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase20.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase21",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase21.af",
+              "sec": 9.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase01.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase02.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase03.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase04.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase05.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase06.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase07.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase08",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase08.af",
+              "sec": 2.9
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase09",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase09.af",
+              "sec": 9.767
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase10",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase10.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase11",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase11.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase12",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase12.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase13",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase13.af",
+              "sec": 10.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase14",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase14.af",
+              "sec": 10.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase15",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase15.af",
+              "sec": 6.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase16",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase16.af",
+              "sec": 2.733
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase17",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase17.af",
+              "sec": 1.867
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase18",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase18.af",
+              "sec": 4.067
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase19",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase19.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase20",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase20.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_SamPhase21",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_samphase21.af",
+              "sec": 9.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCJacobCoe_Argument_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcjacobcoe_argument_01.af",
+              "sec": 117.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCJacobCoe_Argument_Part_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcjacobcoe_argument_part_01.af",
+              "sec": 23.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCJacobCoe_Argument_Part_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcjacobcoe_argument_part_02.af",
+              "sec": 19.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCJacobCoe_Argument_Part_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcjacobcoe_argument_part_03.af",
+              "sec": 25.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCJacobCoe_Argument_Part_04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcjacobcoe_argument_part_04.af",
+              "sec": 27.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCJacobCoe_Argument_Part_05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcjacobcoe_argument_part_05.af",
+              "sec": 21.467
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCSamCoe_Argument_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcsamcoe_argument_01.af",
+              "sec": 117.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCSamCoe_Argument_Part_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcsamcoe_argument_part_01.af",
+              "sec": 23.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCSamCoe_Argument_Part_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcsamcoe_argument_part_02.af",
+              "sec": 19.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCSamCoe_Argument_Part_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcsamcoe_argument_part_03.af",
+              "sec": 25.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCSamCoe_Argument_Part_04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcsamcoe_argument_part_04.af",
+              "sec": 27.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "NPCSamCoe_Argument_Part_05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/npcsamcoe_argument_part_05.af",
+              "sec": 21.467
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/andreja",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Andreja",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Andreja_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/andreja/looseidleanimation_andreja_01.af",
+              "sec": 5.067
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/barrett",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Barrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Barrett_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/barrett/looseidleanimation_barrett_01.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/matteokhatri",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Matteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Matteo_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/matteokhatri/looseidleanimation_matteo_01.af",
+              "sec": 5.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/noel",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Noel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Noel_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/noel/looseidleanimation_noel_01.af",
+              "sec": 4.633
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/samcoe",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Samcoe",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Sam_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/samcoe/looseidleanimation_sam_01.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/sarahmorgan",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Sarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Sarah_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/sarahmorgan/looseidleanimation_sarah_01.af",
+              "sec": 4.367
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/vladimir",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Vladimir",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Vladimir_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/vladimir/looseidleanimation_vladimir_01.af",
+              "sec": 4.3
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_011b_powerreaction/looseidleanimation/walterstroud",
+      "name": "Vanilla · Scenes / Mq104a 011b Powerreaction / Looseidleanimation / Walterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Walter_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_011b_powerreaction/looseidleanimation/walterstroud/looseidleanimation_walter_01.af",
+              "sec": 4.133
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_012_powerdemo/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq104a 012 Powerdemo / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00CD70AB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_012_powerdemo/starfield.esm/npcmbarrett/00cd70ab.af",
+              "sec": 4.267
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_012_powerdemo/starfield.esm/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq104a 012 Powerdemo / Starfield.esm / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "004B2C85",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_012_powerdemo/starfield.esm/npcmmatteokhatri/004b2c85.af",
+              "sec": 3.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq104a_012_powerdemo/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq104a 012 Powerdemo / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00ED496B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq104a_012_powerdemo/starfield.esm/npcmwalterstroud/00ed496b.af",
+              "sec": 4.7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_004_issaintro/starfield.esm/npcfissaeklund",
+      "name": "Vanilla · Scenes / Mq105 004 Issaintro / Starfield.esm / Npcfissaeklund",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0038D6F2",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_004_issaintro/starfield.esm/npcfissaeklund/0038d6f2.af",
+              "sec": 9.167
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_004_issaintro/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq105 004 Issaintro / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00B79530",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_004_issaintro/starfield.esm/npcmwalterstroud/00b79530.af",
+              "sec": 6.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_005_issaplayerdialogue",
+      "name": "Vanilla · Scenes / Mq105 005 Issaplayerdialogue",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Walter_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/looseidleanimation_walter_01.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Walter_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/looseidleanimation_walter_02.af",
+              "sec": 8.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Walter_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/looseidleanimation_walter_03.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "009389D6",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/009389d6.af",
+              "sec": 5.667
+            }
+          ]
+        },
+        {
+          "name": "00C4D41C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/00c4d41c.af",
+              "sec": 4.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_005_issaplayerdialogue/female",
+      "name": "Vanilla · Scenes / Mq105 005 Issaplayerdialogue / Female",
+      "tags": [
+        "vanilla",
+        "scenes",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Issa_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/female/looseidleanimation_issa_01.af",
+              "sec": 5.367
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Issa_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/female/looseidleanimation_issa_02.af",
+              "sec": 11.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00A717F2",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/female/00a717f2.af",
+              "sec": 6.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund",
+      "name": "Vanilla · Scenes / Mq105 005 Issaplayerdialogue / Starfield.esm / Npcfissaeklund",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00119ACD",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00119acd.af",
+              "sec": 2.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00138B3F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00138b3f.af",
+              "sec": 6.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0058C594",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/0058c594.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00625268",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00625268.af",
+              "sec": 3.733
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "006AC934",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/006ac934.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00746061",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00746061.af",
+              "sec": 4.533
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "008682FB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/008682fb.af",
+              "sec": 9.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00B0A286",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00b0a286.af",
+              "sec": 12.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00C22574",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00c22574.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00F45275",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00f45275.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00F81747",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcfissaeklund/00f81747.af",
+              "sec": 3.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_005_issaplayerdialogue/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq105 005 Issaplayerdialogue / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00685E77",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcmwalterstroud/00685e77.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0074D6E1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcmwalterstroud/0074d6e1.af",
+              "sec": 3.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "007D9C73",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcmwalterstroud/007d9c73.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "009ED259",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_005_issaplayerdialogue/starfield.esm/npcmwalterstroud/009ed259.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_013_negotiation/starfield.esm/npcmmusgrove",
+      "name": "Vanilla · Scenes / Mq105 013 Negotiation / Starfield.esm / Npcmmusgrove",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "001F0E75",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_013_negotiation/starfield.esm/npcmmusgrove/001f0e75.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0056D804",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_013_negotiation/starfield.esm/npcmmusgrove/0056d804.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "005C357C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_013_negotiation/starfield.esm/npcmmusgrove/005c357c.af",
+              "sec": 5.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00D0B742",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_013_negotiation/starfield.esm/npcmmusgrove/00d0b742.af",
+              "sec": 4.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_013_negotiation/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq105 013 Negotiation / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00BDF7B8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_013_negotiation/starfield.esm/npcmwalterstroud/00bdf7b8.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmmusgrove",
+      "name": "Vanilla · Scenes / Mq105 014 Negotiationbriefcase / Starfield.esm / Npcmmusgrove",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "003678A3",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmmusgrove/003678a3.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "008DCAD4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmmusgrove/008dcad4.af",
+              "sec": 4.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00A65686",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmmusgrove/00a65686.af",
+              "sec": 4.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq105 014 Negotiationbriefcase / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00384D1D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmwalterstroud/00384d1d.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "003A106B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmwalterstroud/003a106b.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "003B8AAE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmwalterstroud/003b8aae.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00D0876A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq105_014_negotiationbriefcase/starfield.esm/npcmwalterstroud/00d0876a.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 005 Petrovplayerscene / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00054794",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00054794.af",
+              "sec": 12.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "000A2CAC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/000a2cac.af",
+              "sec": 8.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "000E9F69",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/000e9f69.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "001CF5F7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/001cf5f7.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0037864F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0037864f.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0045B694",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0045b694.af",
+              "sec": 2.567
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0047DA7A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0047da7a.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0055401B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0055401b.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "006D8425",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/006d8425.af",
+              "sec": 5.033
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0075CA80",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0075ca80.af",
+              "sec": 16.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "007ADA16",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/007ada16.af",
+              "sec": 11.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "008836EC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/008836ec.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "008D686C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/008d686c.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "008FE69F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/008fe69f.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00A14416",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00a14416.af",
+              "sec": 5.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00A5AE9D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00a5ae9d.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00A90E0C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00a90e0c.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00ACB7E1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00acb7e1.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00AFCEE9",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00afcee9.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00B64B35",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00b64b35.af",
+              "sec": 4.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00C2EE33",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00c2ee33.af",
+              "sec": 5.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00C6CB13",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00c6cb13.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00DA8414",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00da8414.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00DF967E",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00df967e.af",
+              "sec": 14.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00EA35D4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00ea35d4.af",
+              "sec": 13.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_005a_customspeechchallenge01/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 005a Customspeechchallenge01 / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "002ED8A0",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge01/starfield.esm/npcmcaptainpetrov/002ed8a0.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "007734DC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge01/starfield.esm/npcmcaptainpetrov/007734dc.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_005a_customspeechchallenge02/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 005a Customspeechchallenge02 / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "005DB84F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge02/starfield.esm/npcmcaptainpetrov/005db84f.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00DBC74A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge02/starfield.esm/npcmcaptainpetrov/00dbc74a.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_005a_customspeechchallenge03/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 005a Customspeechchallenge03 / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00255EFC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge03/starfield.esm/npcmcaptainpetrov/00255efc.af",
+              "sec": 5.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00BA55EE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge03/starfield.esm/npcmcaptainpetrov/00ba55ee.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_005a_customspeechchallenge04/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 005a Customspeechchallenge04 / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "000C7B65",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge04/starfield.esm/npcmcaptainpetrov/000c7b65.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0062E3B7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge04/starfield.esm/npcmcaptainpetrov/0062e3b7.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_005a_customspeechchallenge05/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 005a Customspeechchallenge05 / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0069DBE0",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge05/starfield.esm/npcmcaptainpetrov/0069dbe0.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0087BEBB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005a_customspeechchallenge05/starfield.esm/npcmcaptainpetrov/0087bebb.af",
+              "sec": 7.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_006_petrovescortscene/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 006 Petrovescortscene / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00DEE12C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_006_petrovescortscene/starfield.esm/npcmcaptainpetrov/00dee12c.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_007_petrovplayerscene",
+      "name": "Vanilla · Scenes / Mq202 007 Petrovplayerscene",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00179DDC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/00179ddc.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0030FC9C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/0030fc9c.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00917711",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/00917711.af",
+              "sec": 12.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00A4EEC6",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/00a4eec6.af",
+              "sec": 7.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00CCBED0",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/00ccbed0.af",
+              "sec": 7.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00D3B385",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/00d3b385.af",
+              "sec": 12.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq202_007_petrovplayerscene/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq202 007 Petrovplayerscene / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00162096",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00162096.af",
+              "sec": 8.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "004ECF88",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/starfield.esm/npcmcaptainpetrov/004ecf88.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00847F58",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00847f58.af",
+              "sec": 9.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0092684F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0092684f.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00B30DDF",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_007_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00b30ddf.af",
+              "sec": 6.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq204a_008a_noelpackup/looseidleanimation",
+      "name": "Vanilla · Scenes / Mq204a 008a Noelpackup / Looseidleanimation",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "NoelGrabbingArtifact_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_008a_noelpackup/looseidleanimation/noelgrabbingartifact_01.af",
+              "sec": 5.333
+            }
+          ]
+        },
+        {
+          "name": "NoelGrabbingArtifact_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_008a_noelpackup/looseidleanimation/noelgrabbingartifact_02.af",
+              "sec": 5.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq204a_008a_noelpackup/starfield.esm/npcfnoel",
+      "name": "Vanilla · Scenes / Mq204a 008a Noelpackup / Starfield.esm / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0075C698",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_008a_noelpackup/starfield.esm/npcfnoel/0075c698.af",
+              "sec": 5.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq204a_008b_waltergrabbed/starfield.esm/npcfnoel",
+      "name": "Vanilla · Scenes / Mq204a 008b Waltergrabbed / Starfield.esm / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "000B9584",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_008b_waltergrabbed/starfield.esm/npcfnoel/000b9584.af",
+              "sec": 5.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq204a_010_artifactpackup/starfield.esm/npcfnoel",
+      "name": "Vanilla · Scenes / Mq204a 010 Artifactpackup / Starfield.esm / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00793518",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_010_artifactpackup/starfield.esm/npcfnoel/00793518.af",
+              "sec": 5.667
+            }
+          ]
+        },
+        {
+          "name": "0083B4DD",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_010_artifactpackup/starfield.esm/npcfnoel/0083b4dd.af",
+              "sec": 3.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq204a_011_noelruns/starfield.esm/npcfnoel",
+      "name": "Vanilla · Scenes / Mq204a 011 Noelruns / Starfield.esm / Npcfnoel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0064F57B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_011_noelruns/starfield.esm/npcfnoel/0064f57b.af",
+              "sec": 3.067
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq204a_030a_deathcorascene/starfield.esm/npcfcoracoe",
+      "name": "Vanilla · Scenes / Mq204a 030a Deathcorascene / Starfield.esm / Npcfcoracoe",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0019AB3A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_030a_deathcorascene/starfield.esm/npcfcoracoe/0019ab3a.af",
+              "sec": 9.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq204a_030b_deathsamscene/starfield.esm/npcfcoracoe",
+      "name": "Vanilla · Scenes / Mq204a 030b Deathsamscene / Starfield.esm / Npcfcoracoe",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "000DB58F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_030b_deathsamscene/starfield.esm/npcfcoracoe/000db58f.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "0036D36E",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_030b_deathsamscene/starfield.esm/npcfcoracoe/0036d36e.af",
+              "sec": 6.667
+            }
+          ]
+        },
+        {
+          "name": "006D4447",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq204a_030b_deathsamscene/starfield.esm/npcfcoracoe/006d4447.af",
+              "sec": 6.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan",
+      "name": "Vanilla · Scenes / Mq206a 007a Sarahspeech / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "004133EB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/004133eb.af",
+              "sec": 9.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "006DD0CF",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/006dd0cf.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00D64F47",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/00d64f47.af",
+              "sec": 6.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00E68E43",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/00e68e43.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq206a 007b Matteospeech / Starfield.esm / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0032248C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/0032248c.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "005FBE39",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/005fbe39.af",
+              "sec": 13.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0087E825",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/0087e825.af",
+              "sec": 9.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0095E0B1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/0095e0b1.af",
+              "sec": 17.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "009CDB0A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/009cdb0a.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00B2B0FD",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/00b2b0fd.af",
+              "sec": 13.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00BEB87F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/00beb87f.af",
+              "sec": 22.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206a_007c_walterspeech/starfield.esm/npcmwalterstroud",
+      "name": "Vanilla · Scenes / Mq206a 007c Walterspeech / Starfield.esm / Npcmwalterstroud",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0003D208",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007c_walterspeech/starfield.esm/npcmwalterstroud/0003d208.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "001F0317",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007c_walterspeech/starfield.esm/npcmwalterstroud/001f0317.af",
+              "sec": 13.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "002A21E3",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007c_walterspeech/starfield.esm/npcmwalterstroud/002a21e3.af",
+              "sec": 23.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "004A42E7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007c_walterspeech/starfield.esm/npcmwalterstroud/004a42e7.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00FE3547",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007c_walterspeech/starfield.esm/npcmwalterstroud/00fe3547.af",
+              "sec": 18.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Mq206a 007d Barrettspeech / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0008C639",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/0008c639.af",
+              "sec": 14.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0030AC84",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/0030ac84.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0076BA15",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/0076ba15.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00ABE4A0",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/00abe4a0.af",
+              "sec": 13.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00AEA51A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/00aea51a.af",
+              "sec": 4.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00D07649",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/00d07649.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00DA951B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/00da951b.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00DF029A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/00df029a.af",
+              "sec": 13.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00E9866B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/00e9866b.af",
+              "sec": 10.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00EFF275",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007d_barrettspeech/starfield.esm/npcmbarrett/00eff275.af",
+              "sec": 13.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206b_002_aquilusmatteoscene/starfield.esm/npcmkeeperaquilus",
+      "name": "Vanilla · Scenes / Mq206b 002 Aquilusmatteoscene / Starfield.esm / Npcmkeeperaquilus",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00C6B227",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_002_aquilusmatteoscene/starfield.esm/npcmkeeperaquilus/00c6b227.af",
+              "sec": 7.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206b_002_aquilusmatteoscene/starfield.esm/npcmmatteokhatri",
+      "name": "Vanilla · Scenes / Mq206b 002 Aquilusmatteoscene / Starfield.esm / Npcmmatteokhatri",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00089A9D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_002_aquilusmatteoscene/starfield.esm/npcmmatteokhatri/00089a9d.af",
+              "sec": 9.0
+            }
+          ]
+        },
+        {
+          "name": "004D18DB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_002_aquilusmatteoscene/starfield.esm/npcmmatteokhatri/004d18db.af",
+              "sec": 10.333
+            }
+          ]
+        },
+        {
+          "name": "005481FF",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_002_aquilusmatteoscene/starfield.esm/npcmmatteokhatri/005481ff.af",
+              "sec": 3.6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206b_003_keeperaquilus/starfield.esm/npcmkeeperaquilus",
+      "name": "Vanilla · Scenes / Mq206b 003 Keeperaquilus / Starfield.esm / Npcmkeeperaquilus",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "002F1EF0",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_003_keeperaquilus/starfield.esm/npcmkeeperaquilus/002f1ef0.af",
+              "sec": 9.333
+            }
+          ]
+        },
+        {
+          "name": "004DC9EA",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_003_keeperaquilus/starfield.esm/npcmkeeperaquilus/004dc9ea.af",
+              "sec": 3.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus",
+      "name": "Vanilla · Scenes / Mq206b 004 Inside / Starfield.esm / Npcmkeeperaquilus",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00091C3D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/00091c3d.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "001E8CB4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/001e8cb4.af",
+              "sec": 9.767
+            }
+          ]
+        },
+        {
+          "name": "003E9CB1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/003e9cb1.af",
+              "sec": 8.233
+            }
+          ]
+        },
+        {
+          "name": "006492BB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/006492bb.af",
+              "sec": 7.133
+            }
+          ]
+        },
+        {
+          "name": "00730267",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/00730267.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "008687F7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/008687f7.af",
+              "sec": 6.633
+            }
+          ]
+        },
+        {
+          "name": "0089EAE1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/0089eae1.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "00C11DAE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/00c11dae.af",
+              "sec": 13.333
+            }
+          ]
+        },
+        {
+          "name": "00F74CB4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/00f74cb4.af",
+              "sec": 6.467
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq207c_210_directorintro/looseidleanimation/directorpatel",
+      "name": "Vanilla · Scenes / Mq207c 210 Directorintro / Looseidleanimation / Directorpatel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_DirectorPatel_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq207c_210_directorintro/looseidleanimation/directorpatel/looseidleanimation_directorpatel_01.af",
+              "sec": 3.467
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq207c_210_directorintro/starfield.esm/npcfdirectorpatel",
+      "name": "Vanilla · Scenes / Mq207c 210 Directorintro / Starfield.esm / Npcfdirectorpatel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00EB89CB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq207c_210_directorintro/starfield.esm/npcfdirectorpatel/00eb89cb.af",
+              "sec": 7.1
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq207c_211_directoruniverse/starfield.esm/npcfdirectorpatel",
+      "name": "Vanilla · Scenes / Mq207c 211 Directoruniverse / Starfield.esm / Npcfdirectorpatel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0090041B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq207c_211_directoruniverse/starfield.esm/npcfdirectorpatel/0090041b.af",
+              "sec": 3.933
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq207c_213_directorartifact/starfield.esm/npcfdirectorpatel",
+      "name": "Vanilla · Scenes / Mq207c 213 Directorartifact / Starfield.esm / Npcfdirectorpatel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "002C4E36",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq207c_213_directorartifact/starfield.esm/npcfdirectorpatel/002c4e36.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00BE80FA",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq207c_213_directorartifact/starfield.esm/npcfdirectorpatel/00be80fa.af",
+              "sec": 2.4
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq207c_214_directorwrapup/starfield.esm/npcfdirectorpatel",
+      "name": "Vanilla · Scenes / Mq207c 214 Directorwrapup / Starfield.esm / Npcfdirectorpatel",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0035CB81",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq207c_214_directorwrapup/starfield.esm/npcfdirectorpatel/0035cb81.af",
+              "sec": 1.767
+            }
+          ]
+        },
+        {
+          "name": "00F5C52D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq207c_214_directorwrapup/starfield.esm/npcfdirectorpatel/00f5c52d.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov",
+      "name": "Vanilla · Scenes / Mq302 210 Scowscene01 / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "0005E817",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0005e817.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "00100A6D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/00100a6d.af",
+              "sec": 10.5
+            }
+          ]
+        },
+        {
+          "name": "003468B8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/003468b8.af",
+              "sec": 6.5
+            }
+          ]
+        },
+        {
+          "name": "0044CB26",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0044cb26.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0049BB63",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0049bb63.af",
+              "sec": 7.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0072631A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0072631a.af",
+              "sec": 4.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00863AC4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/00863ac4.af",
+              "sec": 5.667
+            }
+          ]
+        },
+        {
+          "name": "00865150",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/00865150.af",
+              "sec": 9.0
+            }
+          ]
+        },
+        {
+          "name": "00BF6D68",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/00bf6d68.af",
+              "sec": 10.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00D5DFFB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/00d5dffb.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/starfield.esm/npcmbarrett",
+      "name": "Vanilla · Scenes / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00E363FD",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/starfield.esm/npcmbarrett/00e363fd.af",
+              "sec": 6.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/uc03_441_lousharestheplan/starfield.esm/npcmlousaavedra",
+      "name": "Vanilla · Scenes / Uc03 441 Lousharestheplan / Starfield.esm / Npcmlousaavedra",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "00635F04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/uc03_441_lousharestheplan/starfield.esm/npcmlousaavedra/00635f04.af",
+              "sec": 8.767
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/uc07_200_hadrian_collectkaiserschematics/looseidleanimation",
+      "name": "Vanilla · Scenes / Uc07 200 Hadrian Collectkaiserschematics / Looseidleanimation",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "HadrianGrabbingItem",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/uc07_200_hadrian_collectkaiserschematics/looseidleanimation/hadriangrabbingitem.af",
+              "sec": 3.533
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/video_2021",
+      "name": "Vanilla · Scenes / Video 2021",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "Video_2021_LadderDisMount_RightHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/video_2021/video_2021_ladderdismount_righthand.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Video_2021_LadderMount",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/video_2021/video_2021_laddermount.af",
+              "sec": 9.9
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "video_2021_shipsckreference",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/video_2021/video_2021_shipsckreference.af",
+              "sec": 3.967
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/scenes/video_2021/ladderfurn",
+      "name": "Vanilla · Scenes / Video 2021 / Ladderfurn",
+      "tags": [
+        "vanilla",
+        "scenes"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/video_2021/ladderfurn/idle.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/video_2021/ladderfurn/enterfromstand.af",
+              "sec": 1.633
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "ExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/video_2021/ladderfurn/exittostand.af",
+              "sec": 8.367
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    }
+  ]
+}

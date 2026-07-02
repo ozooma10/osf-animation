@@ -1,0 +1,376 @@
+#!/usr/bin/env python3
+"""Generate OSF scene packs exposing the vanilla Starfield animation library.
+
+Walks `Starfield - Animations.ba2`, filters to third-person human `.af` clips,
+harvests per-clip metadata (duration from the .af header, display name / tag /
+loop-vs-transition / root-motion flags from the .afx XML companion), and emits
+one `*.osf.json` pack per top-level animation folder into `dist/OSF/vanilla/`.
+
+Each leaf folder becomes one scene whose labeled stages are the clips — the
+stage-as-browsable-animation model — so the whole library shows up in the
+catalog and plays through the normal scene player with zero engine changes.
+Every clip carries a pre-measured `sec` so the runtime never has to probe the
+game archive for durations.
+
+The output is static per game version: re-run after a game patch, diff, commit.
+
+Usage (from the repo root):
+    python tools/vanilla-packs/generate_vanilla_packs.py
+    python tools/vanilla-packs/generate_vanilla_packs.py --include-combat
+    python tools/vanilla-packs/generate_vanilla_packs.py --ba2 "D:\\path\\to\\Starfield - Animations.ba2" --out dist/OSF/vanilla
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import re
+import struct
+import sys
+import zlib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+AF_FPS = 30.0  # Creation-Engine convention; mirrors AFImport::kAfFps
+HUMAN_ANIMATED_BONES = 82  # human skeleton.rig boneCountAnimated (af_animation_skeleton_spec.md)
+CLIP_ROOT = "meshes/actors/human/animations"
+MAX_STAGES_PER_SCENE = 120  # oversized leaf folders get split into "<id>--2", "<id>--3", ...
+
+# Subfolders under a furniture class that are variants/flavor, not a distinct class.
+FURN_DECORATORS = {"animflavor", "female", "male"}
+ANCHOR_MASTER = "Starfield.esm"  # every AnimFurn keyword is a base-game record
+
+# Top-level folders under meshes/actors/human/animations/ shipped by default.
+# gun/melee are weapon-pose layers (mostly meaningless standalone) — opt-in.
+DEFAULT_TOPS = (
+    "common",
+    "furniture",
+    "scenes",
+    "chargen",
+    "photomode",
+    "playerinventory",
+    "mq204a_030_deathscene",
+)
+COMBAT_TOPS = ("gun", "melee")
+
+
+# ---------------------------------------------------------------------------
+# BA2 (GNRL) reading — mirrors src/Util/Ba2.cpp
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Ba2Entry:
+    name: str          # archive-relative path, backslashes, original case
+    data_offset: int
+    packed: int        # 0 = stored uncompressed
+    unpacked: int
+
+
+class Ba2Reader:
+    def __init__(self, path: Path):
+        self.path = path
+        self.f = open(path, "rb")
+        magic = self.f.read(4)
+        if magic != b"BTDX":
+            raise ValueError(f"{path}: not a BA2 (magic {magic!r})")
+        (version,) = struct.unpack("<I", self.f.read(4))
+        typ = self.f.read(4)
+        if typ != b"GNRL":
+            raise ValueError(f"{path}: not a GNRL archive ({typ!r})")
+        (file_count,) = struct.unpack("<I", self.f.read(4))
+        (name_table_offset,) = struct.unpack("<Q", self.f.read(8))
+        rec_base = 0x20 if version >= 2 else 0x18
+
+        self.f.seek(name_table_offset)
+        blob = self.f.read()
+        self.entries: list[Ba2Entry] = []
+        p = 0
+        for i in range(file_count):
+            (nlen,) = struct.unpack_from("<H", blob, p)
+            p += 2
+            name = blob[p:p + nlen].decode("ascii", "replace").replace("/", "\\")
+            p += nlen
+            rec = rec_base + i * 36
+            self.f.seek(rec + 16)
+            data_offset, packed, unpacked = struct.unpack("<QII", self.f.read(16))
+            self.entries.append(Ba2Entry(name, data_offset, packed, unpacked))
+        self.by_name = {e.name.lower(): e for e in self.entries}
+
+    def read(self, entry: Ba2Entry, prefix: int | None = None) -> bytes:
+        """Read an entry, optionally only the first `prefix` decompressed bytes
+        (partial inflate — the .af header pass never decompresses whole clips)."""
+        self.f.seek(entry.data_offset)
+        if entry.packed == 0:
+            return self.f.read(entry.unpacked if prefix is None else min(prefix, entry.unpacked))
+        if prefix is None:
+            return zlib.decompress(self.f.read(entry.packed))
+        d = zlib.decompressobj()
+        out = b""
+        remaining = entry.packed
+        while len(out) < prefix and remaining > 0:
+            chunk = self.f.read(min(65536, remaining))
+            remaining -= len(chunk)
+            out += d.decompress(chunk, prefix - len(out))
+            if d.eof:
+                break
+        return out
+
+
+# ---------------------------------------------------------------------------
+# .af header / .afx companion
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AfxMeta:
+    display: str = ""          # <filename> stem, authored casing
+    tag: str = ""              # <tag>
+    is_state: bool | None = None
+    anim_driven: bool = False  # <flag>Animation Driven</flag> -> root motion
+
+
+def parse_af_header(buf: bytes) -> tuple[int, int] | None:
+    """(boneCount, frameCount) from the 64-byte .af header, or None if malformed."""
+    if len(buf) < 0x2E:
+        return None
+    (bone_count,) = struct.unpack_from("<H", buf, 0x2A)
+    (frame_count,) = struct.unpack_from("<H", buf, 0x2C)
+    return bone_count, frame_count
+
+
+def parse_afx(raw: bytes) -> AfxMeta:
+    """The .afx companions are tiny flat XML; regex keeps this stdlib-simple and
+    tolerant of the occasional stray byte."""
+    text = raw.decode("utf-8", "replace")
+    m = AfxMeta()
+    if g := re.search(r"<filename>([^<]+)</filename>", text, re.I):
+        m.display = re.sub(r"\.af$", "", g.group(1).strip(), flags=re.I)
+    if g := re.search(r"<tag>([^<]+)</tag>", text, re.I):
+        m.tag = g.group(1).strip()
+    if g := re.search(r"<is_state>(\d)</is_state>", text, re.I):
+        m.is_state = g.group(1) == "1"
+    if re.search(r"<flag>\s*Animation Driven\s*</flag>", text, re.I):
+        m.anim_driven = True
+    return m
+
+
+# ---------------------------------------------------------------------------
+# pack generation
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Clip:
+    rel: str            # path below CLIP_ROOT, forward slashes, original case
+    display: str
+    sec: float
+    tags: list[str] = field(default_factory=list)
+
+
+def humanize(segment: str) -> str:
+    """'mq101_010_barrettscene' -> 'Mq101 010 Barrettscene', 'animflavor' -> 'Animflavor'."""
+    return " ".join(w.capitalize() for w in re.split(r"[_\s]+", segment) if w)
+
+
+def collect_clips(ba2: Ba2Reader, tops: tuple[str, ...]) -> tuple[dict[str, list[Clip]], collections.Counter]:
+    """Group human third-person clips by leaf folder (path below CLIP_ROOT)."""
+    prefix = (CLIP_ROOT + "/").replace("/", "\\").lower()
+    skipped = collections.Counter()
+    scenes: dict[str, list[Clip]] = collections.defaultdict(list)
+
+    for e in ba2.entries:
+        low = e.name.lower()
+        if not low.startswith(prefix) or not low.endswith(".af"):
+            continue
+        rel_low = low[len(prefix):]
+        top = rel_low.split("\\")[0]
+        if top not in tops:
+            skipped["top:" + top] += 1
+            continue
+
+        hdr = parse_af_header(ba2.read(e, prefix=0x40))
+        if hdr is None:
+            skipped["malformed header"] += 1
+            continue
+        bone_count, frame_count = hdr
+        if bone_count == 0 or bone_count > HUMAN_ANIMATED_BONES:
+            skipped["bone count"] += 1
+            continue
+        if frame_count == 0:
+            skipped["zero frames"] += 1
+            continue
+
+        meta = AfxMeta()
+        afx = ba2.by_name.get(low[:-3] + ".afx")
+        if afx:
+            meta = parse_afx(ba2.read(afx))
+
+        stem = e.name.rsplit("\\", 1)[-1][:-3]
+        stem_low = stem.lower()
+        if meta.tag.lower() == "camera" or stem_low.startswith("camera_"):
+            skipped["camera clip"] += 1
+            continue
+        if "lookdirections" in stem_low:
+            skipped["look-direction blend data"] += 1
+            continue
+
+        tags = []
+        if meta.tag and meta.tag.lower() != stem_low:
+            tags.append(meta.tag.lower())
+        if meta.is_state is False:
+            tags.append("transition")
+        if meta.anim_driven:
+            tags.append("rootmotion")
+        if frame_count <= 2 and "pose" not in tags:
+            tags.append("pose")
+
+        rel = e.name[len(prefix):].replace("\\", "/")
+        leaf = rel.rsplit("/", 1)[0] if "/" in rel else ""
+        scenes[leaf].append(Clip(
+            rel=rel,
+            display=meta.display or stem,
+            sec=round(max(frame_count - 1, 1) / AF_FPS, 3),
+            tags=tags,
+        ))
+    return scenes, skipped
+
+
+def stage_sort_key(c: Clip) -> tuple[int, str]:
+    """Idles first, then enters, exits, the rest alphabetically — a browsable order."""
+    low = c.display.lower()
+    if "idle" in low:
+        rank = 0
+    elif "enter" in low:
+        rank = 1
+    elif "exit" in low:
+        rank = 2
+    else:
+        rank = 3
+    return rank, low
+
+
+def furniture_class_key(segments: list[str]) -> str | None:
+    """The furniture class a scene's folder belongs to (for anchor lookup), or None.
+    'furniture/chair/animflavor' -> 'chair'; 'furniture/scenes/mq101_010_barrettscene'
+    -> 'mq101_010_barrettscene'; non-furniture tops -> None."""
+    if not segments or segments[0] != "furniture":
+        return None
+    rest = [s for s in segments[1:] if s not in FURN_DECORATORS]
+    if not rest:
+        return None
+    if rest[0] == "scenes":
+        return rest[1] if len(rest) > 1 else None
+    return rest[0]
+
+
+def build_scene(scene_id: str, name: str, tags: list[str], clips: list[Clip],
+                anchor: dict | None = None) -> dict:
+    stages = []
+    for c in clips:
+        stage = {"name": c.display, "loops": 0,
+                 "clips": [{"file": c.rel, "sec": c.sec}]}
+        if c.tags:
+            stage["tags"] = c.tags
+        stages.append(stage)
+    scene = {"id": scene_id, "name": name, "tags": tags}
+    if anchor:
+        scene["anchor"] = anchor  # binds the scene to matching furniture (RequiresAnchor)
+    scene["stages"] = stages
+    return scene
+
+
+def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str, dict], collections.Counter]:
+    """One pack document per top folder, scenes sorted, oversized leaves split.
+    Furniture scenes gain a keyword `anchor` when their class maps to an AnimFurn keyword."""
+    packs: dict[str, dict] = {}
+    anchor_stats = collections.Counter()
+    for leaf in sorted(scenes):
+        clips = sorted(scenes[leaf], key=stage_sort_key)
+        segments = leaf.split("/") if leaf else ["misc"]
+        top = segments[0]
+        scene_id = "vanilla/" + "/".join(segments)
+        name = "Vanilla · " + " / ".join(humanize(s) for s in segments)
+        # Folder taxonomy lives in the id/name (the library view derives its tree from the
+        # id); tags stay a small filterable set so they don't flood the catalog tag cloud.
+        tags = ["vanilla", top.lower()]
+        if "female" in (s.lower() for s in segments[1:]):
+            tags.append("female")
+
+        # Furniture scenes anchor to the class keyword so they only offer on matching furniture
+        # (and the guided UI can count/surface them). Unmapped classes stay free-space.
+        anchor = None
+        cls = furniture_class_key(segments)
+        if cls is not None:
+            kw = furn_kw.get(cls.lower().replace("_", "").replace(" ", "").replace("-", ""))
+            if kw:
+                anchor = {"keyword": [f"{ANCHOR_MASTER}|{kw['formid']}"]}
+                tags.append("anchored")
+                anchor_stats["anchored"] += 1
+            else:
+                anchor_stats["unmapped:" + cls] += 1
+
+        doc = packs.setdefault(top, {
+            "schema": 1,
+            "name": f"OSF Vanilla — {humanize(top)} (generated, do not hand-edit)",
+            "section": "library",
+            "clipRoot": CLIP_ROOT,
+            "scenes": [],
+        })
+        chunks = [clips[i:i + MAX_STAGES_PER_SCENE]
+                  for i in range(0, len(clips), MAX_STAGES_PER_SCENE)]
+        for n, chunk in enumerate(chunks, start=1):
+            sid = scene_id if n == 1 else f"{scene_id}--{n}"
+            snm = name if n == 1 else f"{name} ({n})"
+            doc["scenes"].append(build_scene(sid, snm, tags, chunk, anchor))
+    return packs, anchor_stats
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--ba2", type=Path,
+        default=Path(r"C:\Program Files (x86)\Steam\steamapps\common\Starfield\Data\Starfield - Animations.ba2"))
+    ap.add_argument("--out", type=Path,
+        default=Path(__file__).resolve().parents[2] / "dist" / "OSF" / "vanilla")
+    ap.add_argument("--include-combat", action="store_true",
+        help="also generate gun/melee packs (weapon-pose layers; mostly odd standalone)")
+    ap.add_argument("--furn-keywords", type=Path,
+        default=Path(__file__).resolve().parent / "anim-furn-keywords.json",
+        help="AnimFurn keyword table from extract_furn_anchors.py (furniture anchoring)")
+    args = ap.parse_args()
+
+    furn_kw = {}
+    if args.furn_keywords.is_file():
+        furn_kw = json.loads(args.furn_keywords.read_text(encoding="utf-8"))
+    else:
+        print(f"WARNING: {args.furn_keywords.name} not found — furniture scenes will be free-space "
+              f"(run extract_furn_anchors.py first)")
+
+    tops = DEFAULT_TOPS + (COMBAT_TOPS if args.include_combat else ())
+    ba2 = Ba2Reader(args.ba2)
+    scenes, skipped = collect_clips(ba2, tops)
+    packs, anchor_stats = build_packs(scenes, furn_kw)
+
+    args.out.mkdir(parents=True, exist_ok=True)
+    total_clips = total_scenes = 0
+    for top, doc in sorted(packs.items()):
+        n_scenes = len(doc["scenes"])
+        n_clips = sum(len(s["stages"]) for s in doc["scenes"])
+        total_scenes += n_scenes
+        total_clips += n_clips
+        out_file = args.out / f"vanilla-{top}.osf.json"
+        with open(out_file, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(doc, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print(f"{out_file.name}: {n_scenes} scene(s), {n_clips} clip(s)")
+
+    print(f"\ntotal: {total_scenes} scene(s), {total_clips} clip(s)")
+    anchored = anchor_stats.pop("anchored", 0)
+    unmapped = sorted(k[len("unmapped:"):] for k in anchor_stats)
+    print(f"furniture anchors: {anchored} scene(s) keyed to a class"
+          + (f"; {len(unmapped)} class(es) left free-space: {', '.join(unmapped)}" if unmapped else ""))
+    if skipped:
+        print("skipped:", ", ".join(f"{k}={v}" for k, v in skipped.most_common()))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
