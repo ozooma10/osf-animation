@@ -5,7 +5,16 @@
    so the view ships self-contained (OSF UI serves no network).
    Implements the Claude Design "Scene Director" console.
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@400;500;600;700&family=Saira:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+/* Fonts bundled locally (in fonts/) so they render in-game — OSF UI's Ultralight
+   host has no network, so a Google Fonts @import would never load. Rajdhani (OFL) =
+   Starfield-HUD-ish condensed sans; JetBrains Mono (OFL) = data/label monospace. */
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/jetbrains-mono-400.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/jetbrains-mono-500.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/jetbrains-mono-700.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/rajdhani-400.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/rajdhani-500.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/rajdhani-600.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/rajdhani-700.woff2') format('woff2')}
 
 :root{
   /* Void / near-black surfaces */
@@ -14,16 +23,16 @@
   --steel-100:#eef1f4;--steel-200:#c8ced5;--steel-300:#9aa3ad;--steel-400:#828a93;--steel-500:#5c646e;--steel-600:#444b54;--steel-700:#2f353d;
   /* Bone / cream */
   --bone:#f0ece2;--bone-dim:#e6e2d8;
-  /* Burnt amber */
-  --amber-300:#f4ad6e;--amber-400:#e6904a;--amber-500:#d2722f;--amber-600:#c2622f;--amber-700:#9c4e26;
+  /* Starfield burnt orange (vivid coral-orange, the in-game menu accent) */
+  --amber-300:#f9a45f;--amber-400:#f07130;--amber-500:#dc5f22;--amber-600:#bf5020;--amber-700:#8f3a17;
   /* HUD teal */
   --teal-300:#7cc2cf;--teal-400:#4d9aa8;--teal-500:#3a7c89;--teal-600:#2b5d68;
   /* Semantic status */
   --signal-go:#6fae6a;--signal-warn:#e0a23c;--signal-stop:#c8503a;--signal-info:#4d9aa8;
   /* Text */
-  --text-bright:var(--bone);--text-body:var(--steel-200);--text-muted:var(--steel-300);--text-faint:var(--steel-400);--text-on-amber:var(--void-900);
+  --text-bright:#edf1f5;--text-body:var(--steel-200);--text-muted:var(--steel-300);--text-faint:var(--steel-400);--text-on-amber:var(--void-900);
   /* Accent / HUD */
-  --accent:var(--amber-400);--accent-strong:var(--amber-600);--accent-hover:var(--amber-300);--accent-quiet:rgba(230,144,74,.14);
+  --accent:var(--amber-400);--accent-strong:var(--amber-600);--accent-hover:var(--amber-300);--accent-quiet:rgba(240,113,48,.14);
   --hud:var(--teal-400);--hud-quiet:rgba(77,154,168,.16);
   /* Lines */
   --line:var(--steel-700);--line-strong:var(--steel-600);--line-hud:rgba(77,154,168,.45);
@@ -31,12 +40,14 @@
   --radius-sm:2px;--radius:4px;--radius-md:6px;--radius-pill:999px;
   --shadow-sm:0 1px 2px rgba(0,0,0,.45);--shadow:0 4px 14px rgba(0,0,0,.5);
   --inset-lit:inset 0 1px 0 rgba(200,206,213,.06);
-  --glow-accent:0 0 0 2px var(--accent-quiet),0 0 16px rgba(230,144,74,.28);
+  --glow-accent:0 0 0 2px var(--accent-quiet),0 0 16px rgba(240,113,48,.28);
   --glow-hud:0 0 0 2px var(--hud-quiet),0 0 16px rgba(77,154,168,.26);
   --ease-out:cubic-bezier(.2,.7,.2,1);--dur-fast:120ms;--dur:180ms;
   /* Type */
-  --font-display:'Saira Semi Condensed','Bahnschrift','DIN Next','Segoe UI',sans-serif;
-  --font-sans:'Saira','Segoe UI',system-ui,sans-serif;
+  /* Rajdhani = Starfield-HUD-ish condensed sci-fi sans; Bahnschrift is the in-game
+     fallback (OSF UI serves no network so webfonts don't load in Ultralight). */
+  --font-display:'Rajdhani','Bahnschrift','DIN Next','Segoe UI',sans-serif;
+  --font-sans:'Rajdhani','Bahnschrift','Segoe UI',system-ui,sans-serif;
   --font-mono:'JetBrains Mono','Cascadia Mono','Consolas',ui-monospace,monospace;
 }
 
@@ -56,7 +67,11 @@ button,input,select{font:inherit;color:inherit}
 .mono{font:500 11px var(--font-mono);color:var(--text-faint);white-space:nowrap}
 .mono.wrap{white-space:normal}
 .muted{color:var(--text-muted)}
-.dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+/* Starfield signature: rhombus/diamond bullets (Constellation mark, scanner markers) */
+.dot{width:6px;height:6px;border-radius:1px;transform:rotate(45deg);display:inline-block;flex:none}
+/* scanner-readout tick: a small orange diamond leading a section label */
+.step-sub .lbl::before,.info-box>.lbl::before{content:"";display:inline-block;width:5px;height:5px;margin-right:6px;
+  transform:rotate(45deg);background:var(--accent);vertical-align:middle;position:relative;top:-1px}
 
 /* ---- stage / console frame -------------------------------- */
 /* World-visible layout: the console docks LEFT and the rest of the screen stays
@@ -64,8 +79,8 @@ button,input,select{font:inherit;color:inherit}
    so the focal point you framed before opening remains in view while you browse. */
 .stage{position:relative;height:100%;padding:14px;display:flex;align-items:stretch}
 .console{position:relative;flex:none;width:min(540px,46%);min-width:380px;min-height:0;display:flex;flex-direction:column;
-  background:radial-gradient(720px 340px at 16% -16%,rgba(230,144,74,.09),transparent 68%),linear-gradient(180deg,rgba(17,21,27,.93),rgba(4,6,10,.95));
-  border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow),inset 0 1px 0 rgba(240,236,226,.05)}
+  background:rgba(6,9,13,.96);
+  border:1px solid var(--line-strong);border-radius:var(--radius);box-shadow:0 10px 44px rgba(0,0,0,.5)}
 .bracket{position:absolute;width:20px;height:20px;z-index:6;pointer-events:none}
 .bracket.tl{top:-4px;left:-4px;border-top:2px solid var(--accent);border-left:2px solid var(--accent)}
 .bracket.tr{top:-4px;right:-4px;border-top:2px solid var(--accent);border-right:2px solid var(--accent)}
@@ -80,8 +95,8 @@ button,input,select{font:inherit;color:inherit}
   border-bottom:1px solid var(--line-strong);background:linear-gradient(180deg,rgba(4,6,10,.7),rgba(4,6,10,.4))}
 .slate-cell{padding:11px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
 .slate-brand{flex-direction:row;align-items:center;gap:11px;padding:13px 18px}
-.brand-emblem{width:30px;height:30px;border:1px solid var(--accent);border-radius:3px;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:inset 0 0 10px rgba(230,144,74,.25)}
-.brand-emblem span{width:11px;height:11px;background:var(--accent);border-radius:1px;box-shadow:0 0 8px var(--accent)}
+.brand-emblem{width:30px;height:30px;border:1px solid var(--accent);border-radius:3px;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:inset 0 0 10px rgba(240,113,48,.25)}
+.brand-emblem span{width:10px;height:10px;background:var(--accent);border-radius:1px;transform:rotate(45deg);box-shadow:0 0 8px var(--accent)}
 .brand-title{font:700 13px var(--font-display);letter-spacing:.06em;text-transform:uppercase;color:var(--text-bright);white-space:nowrap}
 .brand-sub{font:500 10px var(--font-mono);color:var(--text-faint);margin-top:2px;display:flex;align-items:center;gap:6px}
 .lamp{width:8px;height:8px;border-radius:50%;background:var(--steel-500);flex:none}
@@ -95,7 +110,7 @@ button,input,select{font:inherit;color:inherit}
 .cast-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .cast-chip{display:flex;align-items:center;gap:8px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:5px 11px 5px 6px;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
 .cast-chip.open{border:1px dashed var(--line-strong)}
-.cast-key{width:26px;height:26px;border-radius:2px;display:flex;align-items:center;justify-content:center;font:700 10px var(--font-mono);flex:none;background:var(--accent);color:var(--text-on-amber);box-shadow:0 0 7px rgba(230,144,74,.5)}
+.cast-key{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font:700 10px var(--font-mono);flex:none;background:var(--accent);color:var(--text-on-amber);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
 .cast-chip.open .cast-key{background:none;border:1px dashed var(--line-strong);color:var(--text-faint);box-shadow:none}
 .cast-name{font:600 11px var(--font-sans);color:var(--text-bright);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cast-sub{font:500 7px var(--font-mono);letter-spacing:.12em;color:var(--signal-go)}
@@ -126,7 +141,7 @@ button,input,select{font:inherit;color:inherit}
 .author-wrap{display:flex;align-items:center;gap:8px}
 .switch{width:34px;height:18px;border-radius:9px;position:relative;border:1px solid var(--line-strong);background:var(--void-900);padding:0}
 .switch i{position:absolute;width:12px;height:12px;border-radius:50%;top:2px;left:2px;background:var(--steel-500);transition:all var(--dur) var(--ease-out)}
-.switch.on{border-color:var(--accent);background:rgba(230,144,74,.25)}
+.switch.on{border-color:var(--accent);background:rgba(240,113,48,.25)}
 .switch.on i{left:auto;right:2px;background:var(--accent);box-shadow:0 0 6px var(--accent)}
 .readiness-metrics{display:flex;gap:7px;flex-wrap:wrap}
 .metric{display:flex;align-items:center;gap:7px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:5px 10px;box-shadow:inset 0 1px 3px rgba(0,0,0,.5)}
@@ -156,7 +171,7 @@ button,input,select{font:inherit;color:inherit}
 .step-head .eb{color:var(--accent)}
 .step-head .chev{flex:none;font-size:9px;color:var(--text-faint);width:10px}
 .step-head:hover .chev{color:var(--text-body)}
-.step-num{width:20px;height:20px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:2px;background:var(--accent);color:var(--text-on-amber);font:700 12px var(--font-mono);box-shadow:0 0 7px rgba(230,144,74,.4)}
+.step-num{width:22px;height:22px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--text-on-amber);font:700 11px var(--font-mono);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
 .step-note{margin-left:auto;font:500 10px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);min-width:0;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .step-sub{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px}
 .step-tools{display:flex;gap:4px}
@@ -177,7 +192,7 @@ button,input,select{font:inherit;color:inherit}
 .near-meta{flex:none}
 .near-tag{flex:none;font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--hud)}
 .near-tag.added{color:var(--signal-go)}
-.near-badge{flex:none;font:600 10px var(--font-mono);color:var(--accent);background:rgba(230,144,74,.1);border:1px solid rgba(230,144,74,.35);border-radius:2px;padding:1px 5px}
+.near-badge{flex:none;font:600 10px var(--font-mono);color:var(--accent);background:rgba(240,113,48,.1);border:1px solid rgba(240,113,48,.35);border-radius:2px;padding:1px 5px}
 /* zero custom scenes: the furniture unlocks only vanilla library — de-emphasize the badge */
 .near-badge.empty{color:var(--text-faint);background:transparent;border-color:var(--line)}
 /* vanilla-library remainder: grey, passive — present but not competing with the custom count */
@@ -195,7 +210,7 @@ button,input,select{font:inherit;color:inherit}
 .search-field.grow{flex:1}
 .browse-body{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:2px}
 .browse-note{display:flex;align-items:center;gap:8px;margin:2px 0}
-.browse-note .dot{width:8px;height:8px;border-radius:50%;background:var(--steel-500);flex:none}
+.browse-note .dot{width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:var(--steel-500);flex:none}
 .row-list{display:flex;flex-direction:column;gap:4px}
 .row-list.dim{opacity:.62}
 .row-badge{flex:none;font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--text-faint);border:1px solid var(--line);border-radius:2px;padding:2px 6px;white-space:nowrap}
@@ -234,7 +249,7 @@ button,input,select{font:inherit;color:inherit}
 .tag-rail{display:flex;flex-wrap:wrap;gap:5px}
 .tag{font:600 9px var(--font-mono);letter-spacing:.08em;padding:3px 8px;border-radius:2px;border:1px solid var(--line);background:var(--void-900);color:var(--text-muted)}
 .tag:hover{border-color:var(--line-strong);color:var(--text-body)}
-.tag.on{border-color:var(--accent);background:rgba(230,144,74,.1);color:var(--accent)}
+.tag.on{border-color:var(--accent);background:rgba(240,113,48,.1);color:var(--accent)}
 .world-foot{margin-top:auto}
 .search-field{display:flex;align-items:center;gap:7px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:5px 9px}
 .search-field:focus-within{border-color:var(--accent)}
@@ -242,7 +257,7 @@ button,input,select{font:inherit;color:inherit}
 .search-field input::placeholder{color:var(--text-faint)}
 .focus-hint{background:var(--void-900);border:1px dashed var(--line-hud);border-radius:2px;padding:9px 10px;margin-top:9px}
 .focus-hint .mono{color:var(--text-muted);line-height:1.6;white-space:normal}
-.focus-clear{width:100%;background:rgba(230,144,74,.08);border:1px solid var(--accent);border-radius:2px;padding:8px 10px;text-align:left;margin-top:9px}
+.focus-clear{width:100%;background:rgba(240,113,48,.08);border:1px solid var(--accent);border-radius:2px;padding:8px 10px;text-align:left;margin-top:9px}
 .focus-clear .mono{color:var(--accent);white-space:normal}
 
 /* ---- BAYS column ------------------------------------------ */
@@ -313,7 +328,7 @@ button,input,select{font:inherit;color:inherit}
 .libx-list{display:flex;flex-direction:column;gap:3px;padding:6px}
 .libx-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:5px 9px 5px 0;cursor:pointer}
 .libx-row:hover{border-color:var(--line-strong)}
-.libx-row.selected{border-color:var(--accent)}
+.libx-row.selected{border-color:var(--accent);background:rgba(240,113,48,.08)}
 .libx-spine{width:4px;align-self:stretch;flex:none;background:var(--void-700);border-right:1px solid var(--line)}
 .libx-row.selected .libx-spine{background:var(--accent)}
 .libx-title{font-size:11px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -321,7 +336,7 @@ button,input,select{font:inherit;color:inherit}
 
 /* ---- BRIEF panel (floating bottom-right over the world) ---- */
 .brief{position:absolute;right:14px;bottom:14px;z-index:5;width:380px;max-height:min(620px,80%);overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:12px;
-  background:linear-gradient(180deg,rgba(17,21,27,.93),rgba(4,6,10,.95));border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow)}
+  background:rgba(6,9,13,.96);border:1px solid var(--line-strong);border-radius:var(--radius);box-shadow:0 10px 44px rgba(0,0,0,.5)}
 /* the header (status/title/cast) and launch stack stay put; only this middle band scrolls */
 .brief-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;margin:0 -4px;padding:0 4px}
 .brief-title{display:flex;align-items:baseline;gap:9px;font:600 15px var(--font-display,inherit);color:var(--text-bright);letter-spacing:.04em}
@@ -371,7 +386,7 @@ button,input,select{font:inherit;color:inherit}
 .seat-row{display:flex;gap:7px;margin:10px 0;flex-wrap:wrap}
 .seat{flex:1 1 90px;display:flex;align-items:center;gap:7px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:5px 8px;box-shadow:inset 0 1px 3px rgba(0,0,0,.5);min-width:0}
 .seat.open{border:1px dashed var(--line-strong)}
-.seat-key{width:15px;height:15px;border-radius:2px;flex:none;display:flex;align-items:center;justify-content:center;font:700 8px var(--font-mono);background:var(--accent);color:var(--text-on-amber);box-shadow:0 0 6px rgba(230,144,74,.5)}
+.seat-key{width:15px;height:15px;border-radius:2px;flex:none;display:flex;align-items:center;justify-content:center;font:700 8px var(--font-mono);background:var(--accent);color:var(--text-on-amber);box-shadow:0 0 6px rgba(240,113,48,.5)}
 .seat.open .seat-key{background:none;border:1px dashed var(--line-strong);color:var(--text-faint);box-shadow:none}
 .seat-name{font:600 9.5px var(--font-mono);white-space:nowrap;color:var(--text-body);overflow:hidden;text-overflow:ellipsis}
 .seat.open .seat-name{color:var(--text-faint)}
@@ -381,7 +396,7 @@ button,input,select{font:inherit;color:inherit}
 .anchor-mini span{font:600 9.5px var(--font-mono);color:var(--text-muted);white-space:nowrap}
 .module-edge{margin:0 -14px;background:var(--void-900);border-top:1px solid var(--line-strong);padding:3px 14px}
 .edge-bar{height:8px;border-radius:1px;background:repeating-linear-gradient(90deg,var(--steel-700) 0 6px,rgba(0,0,0,.35) 6px 10px)}
-.edge-bar.lit{background:repeating-linear-gradient(90deg,var(--amber-500) 0 6px,rgba(0,0,0,.35) 6px 10px);box-shadow:0 0 8px rgba(230,144,74,.35)}
+.edge-bar.lit{background:repeating-linear-gradient(90deg,var(--amber-500) 0 6px,rgba(0,0,0,.35) 6px 10px);box-shadow:0 0 8px rgba(240,113,48,.35)}
 
 .info-box{background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:8px 10px}
 .info-box.hud{border-color:var(--hud)}
@@ -444,7 +459,7 @@ button,input,select{font:inherit;color:inherit}
 .notice{position:relative;z-index:2;min-height:22px;display:flex;align-items:center;padding:5px 16px;border-top:1px solid var(--line);
   font:500 10px var(--font-mono);letter-spacing:.05em;color:var(--text-muted)}
 .notice.ok{color:var(--text-body);border-top-color:rgba(111,174,106,.4)}
-.notice.info{color:var(--text-body);border-top-color:rgba(230,144,74,.4)}
+.notice.info{color:var(--text-body);border-top-color:rgba(240,113,48,.4)}
 .notice.err{color:#e6b3a8;border-top-color:rgba(200,80,58,.5)}
 .notice:empty{display:none}
 
@@ -471,5 +486,5 @@ button,input,select{font:inherit;color:inherit}
 .nav-kb .near-row:focus,.nav-kb .libx-row:focus,.nav-kb .step-head:focus,
 .nav-kb .libx-head:focus,.nav-kb .reveal:focus{
   outline:none;border-color:var(--accent);background:var(--accent-quiet);
-  box-shadow:inset 0 0 0 1px var(--accent),0 0 10px rgba(230,144,74,.22)}
+  box-shadow:inset 0 0 0 1px var(--accent),0 0 10px rgba(240,113,48,.22)}
 .nav-kb .search-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-quiet)}
