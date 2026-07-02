@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace OSF::Registry
@@ -52,6 +53,22 @@ namespace OSF::Matchmaking
 	// Does a_ref satisfy a_def's anchor requirement (any-of: its base form is listed, OR it carries a listed keyword)? Shared by anchor-first matchmaking and the start-path anchor enforcement.
 	// a_matchedKeyword (optional) receives the keyword that matched — null on a base-form match (Scan Nearby labels unnamed markers by it).
 	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword = nullptr);
+
+	// AnchorAccepts for ONE fixed ref swept against MANY defs (pool build, anchor-match queries):
+	// memoizes ref->HasKeyword per UNIQUE keyword and resolves the ref's base form once, so the sweep costs one engine call per distinct keyword instead of per (def x keyword).
+	class AnchorMatchCache
+	{
+	public:
+		explicit AnchorMatchCache(RE::TESObjectREFR* a_ref);
+
+		// Same predicate as AnchorAccepts(a_def, ref); false when constructed with a null ref.
+		bool Accepts(const Registry::SceneDef& a_def);
+
+	private:
+		RE::TESObjectREFR*                        ref = nullptr;
+		RE::TESFormID                             baseId = 0;
+		std::unordered_map<RE::BGSKeyword*, bool> kwHits;
+	};
 
 	// gender as a lowercase tag: "male" / "female", or "" for kNone/unknown (creature, no actorbase).
 	std::string ActorGenderTag(RE::Actor* a_actor);

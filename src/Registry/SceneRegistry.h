@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace OSF::Registry
@@ -255,6 +256,9 @@ namespace OSF::Registry
 		bool                     fade = false;  // Screen fade-to-black on start when the player participates (self-releasing curtain); OFF by default, opt in with `fade:true`
 		PlayerControl            playerControl;  // director-input grant; ENABLED by default, scene opts out/narrows
 		std::vector<std::string> tags;
+		// Lowercased `tags`, built once at parse: matchmaking tag-matches EVERY loaded def per
+		// query, so the per-def lowering/set-build must not happen on that path.
+		std::unordered_set<std::string> tagSet;
 		std::vector<SceneRole>   roles;
 		std::string              entry;
 		std::vector<SceneNode>   nodes;

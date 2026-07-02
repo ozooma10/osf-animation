@@ -836,8 +836,9 @@ namespace OSF::API
 
 			RE::TESObjectREFR* ref = ResolveToken(token);
 			if (ref) {
-				Registry::SceneRegistry::GetSingleton().ForEachDef([&reply, ref](const Registry::SceneDef& d) {
-					if (d.RequiresAnchor() && Matchmaking::AnchorAccepts(d, ref)) {
+				Matchmaking::AnchorMatchCache cache(ref);  // one HasKeyword per unique keyword across the def sweep
+				Registry::SceneRegistry::GetSingleton().ForEachDef([&reply, &cache](const Registry::SceneDef& d) {
+					if (d.RequiresAnchor() && cache.Accepts(d)) {
 						reply["sceneIds"].push_back(d.id);
 					}
 				});

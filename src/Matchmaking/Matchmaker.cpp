@@ -61,23 +61,19 @@ namespace OSF::Matchmaking
 			return out;
 		}
 
-		// a_query is already lowercased. a_defTags is raw (lowered here).
-		bool TagsMatch(const std::vector<std::string>& a_defTags, const TagQuery& a_query)
+		// a_query is already lowercased. a_have is the def's PRECOMPUTED lowercase tag set
+		// (SceneDef::tagSet) — no per-def lowering/allocation on this every-def-per-query path.
+		bool TagsMatch(const std::unordered_set<std::string>& a_have, const TagQuery& a_query)
 		{
-			std::unordered_set<std::string> have;
-			have.reserve(a_defTags.size());
-			for (const auto& t : a_defTags) {
-				have.insert(ToLower(t));
-			}
 			for (const auto& t : a_query.allOf) {
-				if (!have.count(t)) {
+				if (!a_have.count(t)) {
 					return false;
 				}
 			}
 			if (!a_query.anyOf.empty()) {
 				bool any = false;
 				for (const auto& t : a_query.anyOf) {
-					if (have.count(t)) {
+					if (a_have.count(t)) {
 						any = true;
 						break;
 					}
@@ -87,7 +83,7 @@ namespace OSF::Matchmaking
 				}
 			}
 			for (const auto& t : a_query.noneOf) {
-				if (have.count(t)) {
+				if (a_have.count(t)) {
 					return false;
 				}
 			}
@@ -95,7 +91,6 @@ namespace OSF::Matchmaking
 		}
 
 		std::string DescribeAnchorRef(RE::TESObjectREFR* a_ref);
-		std::string DescribeAnchorRequirement(const Registry::SceneDef& a_def);
 
 		// Deterministic complete assignment of a_n actors to a_n slots: perm[slot] = actor index.
 		// Iterates permutations in lexicographic order and returns the first one where every slot is compatible (so the result is the lexicographically smallest binding by slot order). 
@@ -131,6 +126,9 @@ namespace OSF::Matchmaking
 			const bool haveActors = !a_actors.empty();
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
 
+			// One memoized matcher for the whole def sweep: each distinct anchor keyword costs a single engine HasKeyword no matter how many defs share it (the vanilla-library packs share a handful of AnimFurn* keywords across thousands of defs).
+			AnchorMatchCache anchorCache(a_mode != AnchorMode::kIgnore ? a_anchor : nullptr);
+
 			std::vector<Candidate> pool;
 
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
@@ -140,21 +138,17 @@ namespace OSF::Matchmaking
 				if (static_cast<std::int32_t>(a_def.roles.size()) != a_count) {
 					return;
 				}
-				if (!TagsMatch(a_def.tags, q)) {
+				if (!TagsMatch(a_def.tagSet, q)) {
 					return;
 				}
-				// Anchor filtering: an anchor-bound scene needs a ref that satisfies it; kRequire (anchor-first)
-				// additionally drops free scenes. kIgnore (discovery) skips this entirely.
+				// Anchor filtering: an anchor-bound scene needs a ref that satisfies it; kRequire (anchor-first) additionally drops free scenes. kIgnore (discovery) skips this entirely.
+				// No per-def logging here: REX log args are formatted eagerly (engine EditorID calls included) BEFORE the level check, and this loop covers every loaded def.
 				if (a_mode != AnchorMode::kIgnore) {
 					if (a_def.RequiresAnchor()) {
-						const bool anchorOk = a_anchor && AnchorAccepts(a_def, a_anchor);
-						REX::TRACE("[Match] scene '{}' anchor requirement {} vs {} -> {}",
-							a_def.id, DescribeAnchorRequirement(a_def), DescribeAnchorRef(a_anchor), anchorOk ? "accept" : "reject");
-						if (!anchorOk) {
+						if (!anchorCache.Accepts(a_def)) {
 							return;
 						}
 					} else if (a_mode == AnchorMode::kRequire) {
-						REX::TRACE("[Match] scene '{}' rejected: anchorMode=require needs an anchor-bound scene", a_def.id);
 						return;
 					}
 				}
@@ -224,30 +218,6 @@ namespace OSF::Matchmaking
 			return std::format("ref {} base {}", DescribeForm(a_ref), DescribeForm(base.get()));
 		}
 
-		std::string DescribeAnchorRequirement(const Registry::SceneDef& a_def)
-		{
-			if (!a_def.RequiresAnchor()) {
-				return "free";
-			}
-
-			std::string out = "base=[";
-			for (std::size_t i = 0; i < a_def.anchorBaseForms.size(); i++) {
-				if (i) {
-					out += ',';
-				}
-				out += std::format("{:08X}", a_def.anchorBaseForms[i]);
-			}
-			out += "] keyword=[";
-			for (std::size_t i = 0; i < a_def.anchorKeywords.size(); i++) {
-				if (i) {
-					out += ',';
-				}
-				out += DescribeForm(a_def.anchorKeywords[i]);
-			}
-			out += ']';
-			return out;
-		}
-
 		std::string DescribeAnchorSearch(RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
 		{
 			return std::format("anchorMode={} anchor={}", DescribeAnchorMode(a_mode), DescribeAnchorRef(a_anchor));
@@ -311,6 +281,43 @@ namespace OSF::Matchmaking
 				if (a_matchedKeyword) {
 					*a_matchedKeyword = kw;
 				}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	AnchorMatchCache::AnchorMatchCache(RE::TESObjectREFR* a_ref) :
+		ref(a_ref)
+	{
+		if (a_ref) {
+			if (const auto base = a_ref->GetBaseObject()) {
+				baseId = base->GetFormID();
+			}
+		}
+	}
+
+	bool AnchorMatchCache::Accepts(const Registry::SceneDef& a_def)
+	{
+		if (!ref) {
+			return false;
+		}
+		if (baseId != 0) {
+			for (const auto b : a_def.anchorBaseForms) {
+				if (b == baseId) {
+					return true;
+				}
+			}
+		}
+		for (auto* kw : a_def.anchorKeywords) {
+			if (!kw) {
+				continue;
+			}
+			auto it = kwHits.find(kw);
+			if (it == kwHits.end()) {
+				it = kwHits.emplace(kw, ref->HasKeyword(kw)).first;
+			}
+			if (it->second) {
 				return true;
 			}
 		}

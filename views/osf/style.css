@@ -402,7 +402,7 @@ button,input,select{font:inherit;color:inherit}
 .select{appearance:none;background:var(--void-900);border:1px solid var(--line);border-radius:2px;color:var(--text-body);padding:6px 8px;font:500 10px var(--font-mono);outline:none}
 .select:focus{border-color:var(--accent)}
 .range{accent-color:var(--accent)}
-.anim-list{display:flex;flex-direction:column;gap:4px;max-height:min(340px,44vh);overflow-y:auto;padding-right:2px}
+.anim-list{display:flex;flex-direction:column;gap:4px}
 .anim-row{display:flex;align-items:center;gap:8px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:6px 9px}
 .anim-row:hover{border-color:var(--line-strong)}
 .anim-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
@@ -425,8 +425,9 @@ button,input,select{font:inherit;color:inherit}
 .live-grid{display:flex;gap:10px;margin-top:8px}
 .live-grid span{font:500 9px var(--font-mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em}
 
-/* launch controls */
-.launch-stack{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+/* launch controls — pinned footer below the scrolling animations band */
+.brief-foot{flex:none;display:flex;flex-direction:column;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
+.launch-stack{display:flex;flex-direction:column;gap:8px}
 .launch-btn{width:100%;border-radius:var(--radius);padding:13px 0;font-family:var(--font-mono);text-transform:uppercase}
 .launch-btn.go{border:1px solid var(--amber-300);background:linear-gradient(180deg,var(--amber-400),var(--amber-600));color:var(--text-on-amber);font:700 12px var(--font-mono);letter-spacing:.2em;box-shadow:var(--glow-accent),inset 0 1px 0 rgba(255,255,255,.25)}
 .launch-btn.go:hover{background:linear-gradient(180deg,var(--amber-300),var(--amber-500))}

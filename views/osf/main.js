@@ -779,9 +779,12 @@ function renderBrief() {
   const reasonHTML = reason ? `<div class="mono wrap" style="color:var(--text-faint);text-align:center">${esc(reason)}</div>` : "";
   const launchStack = `<div class="launch-stack">${reasonHTML}${launchBtn}${stopBtn}</div>`;
 
-  // Only the middle (animations + overrides + diagnostics) scrolls; the header pins to the top and
-  // the launch stack to the bottom, so the ▶ Launch button is always in view no matter how many stages.
-  brief.innerHTML = head + summary + `<div class="brief-scroll">${animBox}${overrides}${authorBoxes}</div>` + launchStack;
+  // Fixed header (status/title/cast) + fixed footer (overrides + launch/stop); only the animations
+  // band between them scrolls. The ▶ Launch button and its overrides stay in view no matter how many
+  // stages a scene has — no more scrolling past a long list to reach the button.
+  brief.innerHTML = head + summary +
+    `<div class="brief-scroll">${animBox}${authorBoxes}</div>` +
+    `<div class="brief-foot">${overrides}${launchStack}</div>`;
 }
 
 function diagRows(s, ev) {

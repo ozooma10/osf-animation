@@ -1079,6 +1079,9 @@ namespace OSF::Registry
 					def.tags.push_back(t.get<std::string>());
 				}
 			}
+			for (const auto& t : def.tags) {
+				def.tagSet.insert(ToLower(t));
+			}
 			// roles[]: unified participant list; `name` optional (anonymous positional slot). A scene's
 			// own `roles` overrides the pack-level `roles`; a scene that omits the key inherits them.
 			bool rolesGiven = false;
