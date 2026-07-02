@@ -1,4 +1,4 @@
-# OSF Animation — scene director view
+# OSF Animation — scene browser view
 
 The in-game MVP scene browser/launcher. It is an HTML/CSS/JS view rendered by
 **OSF UI** (Ultralight overlay) and driven **natively** by OSF Animation's own

@@ -1,4 +1,4 @@
-// OSF Animation - Scene Director. NASA-punk maintenance-HUD console.
+// OSF Animation - Scene Browser. NASA-punk maintenance-HUD console.
 // Guided pre-flight flow: 1 · CAST (pick actors) → 2 · ANCHOR (optional furniture, shows what
 // it unlocks) → BROWSE (only what plays with the current selection, plus the vanilla library).
 // Wired to the unchanged OSF UI bridge contract: only JSON text crosses window.osfui.
@@ -370,21 +370,21 @@ function applyPick(slot, token, name, distance) {
   if (slot === "furniture") {
     keyAnchor(token, name, distance);
   } else if (token === PLAYER_TOKEN || state.partners.some((c) => c.token === token)) {
-    notice("info", `${name || "Actor"} is already in the cast.`);
+    notice("info", `${name || "Actor"} is already in the crew.`);
   } else {
     state.partners.push({ token, name: name || "actor", distance: distance || null });
     state.stepOpen.cast = false;  // partner added — fold, freeing the browse list's height (mirrors keyAnchor)
-    notice("info", `Cast added: ${name || "actor"}.`);
+    notice("info", `Crew added: ${name || "actor"}.`);
   }
   renderAll();
 }
 
 function toggleActor(token) {
   const idx = state.partners.findIndex((p) => p.token === token);
-  if (idx >= 0) { state.partners.splice(idx, 1); notice("info", "Cast member removed."); }
+  if (idx >= 0) { state.partners.splice(idx, 1); notice("info", "Crew member removed."); }
   else {
     const a = state.nearbyActors.find((x) => x.token === token);
-    if (a) { state.partners.push({ token: a.token, name: a.name, distance: a.distance }); state.stepOpen.cast = false; notice("info", `Cast added: ${a.name}.`); }
+    if (a) { state.partners.push({ token: a.token, name: a.name, distance: a.distance }); state.stepOpen.cast = false; notice("info", `Crew added: ${a.name}.`); }
   }
   renderAll();
 }
@@ -461,20 +461,20 @@ function evalScene(s) {
   // A scene with no fillable roles is never READY — it can't be seated or launched.
   if (!hasRoles) blockers.push("scene defines no roles");
   else if (!rolesGate) { const n = actorCount - castCount; issues.push(`needs ${n} more actor${n === 1 ? "" : "s"}`); }
-  if (overCast) { const n = castCount - actorCount; blockers.push(`remove ${n} cast member${n === 1 ? "" : "s"}`); }
+  if (overCast) { const n = castCount - actorCount; blockers.push(`remove ${n} crew member${n === 1 ? "" : "s"}`); }
   if (!anchorGate) {
     const a = anchorFull(s);
     issues.push(state.furniture ? `this furniture doesn't fit${a ? ` (needs ${a})` : ""}` : (a ? `needs ${a}` : "needs furniture"));
   }
   const gaps = issues.length + blockers.length;
-  const reason = gaps === 0 ? "Ready with the current cast and furniture." : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
+  const reason = gaps === 0 ? "Ready with the current crew and furniture." : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
   return { castCount, actorCount, hasRoles, rolesGate, overCast, anchorGate, seated, issues, blockers, gaps, reason };
 }
 
 function needsText(s, ev) {
   if (!ev.rolesGate) { const n = ev.actorCount - ev.castCount; return `+${n} actor${n === 1 ? "" : "s"}`; }
   if (!ev.anchorGate) { const a = anchorShort(s); return a ? `needs ${a}` : (state.furniture ? "other furniture" : "needs furniture"); }
-  if (ev.overCast) { const n = ev.castCount - ev.actorCount; return `-${n} cast`; }
+  if (ev.overCast) { const n = ev.castCount - ev.actorCount; return `-${n} crew`; }
   return "";
 }
 
@@ -530,9 +530,9 @@ function renderSlateTake() {
   const el = $("slateTake");
   if (state.lastHandle) {
     const ls = sceneById(state.lastSceneId);
-    el.innerHTML = `<div class="take-chip live"><span class="live-dot"></span><div class="take-body"><span class="lbl">LIVE TAKE #${state.lastHandle}</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div><button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button></div>`;
+    el.innerHTML = `<div class="take-chip live"><span class="live-dot"></span><div class="take-body"><span class="lbl">RUNNING · #${state.lastHandle}</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div><button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button></div>`;
   } else {
-    el.innerHTML = `<div class="take-chip"><span class="lbl">NO TAKE RUNNING</span><span class="mono">cast → furniture → launch</span></div>`;
+    el.innerHTML = `<div class="take-chip"><span class="lbl">NO SCENE RUNNING</span><span class="mono">crew → furniture → launch</span></div>`;
   }
 }
 
@@ -553,12 +553,12 @@ function stepCastHTML() {
   if (!open) {
     // Folded: who's on set, still readable at a glance.
     const names = members.map((m) => m.name).join(" + ");
-    return `<div class="step closed">${stepHeadHTML("cast", 1, "CAST", esc(castCount === 1 ? "Player only" : names), false)}</div>`;
+    return `<div class="step closed">${stepHeadHTML("cast", 1, "CREW", esc(castCount === 1 ? "Player only" : names), false)}</div>`;
   }
 
   const chips = members.map((m, i) => {
     const player = m.kind === "player";
-    const drop = player ? "" : `<button class="chip-x" data-act="drop" data-i="${i - 1}" title="Remove from cast">×</button>`;
+    const drop = player ? "" : `<button class="chip-x" data-act="drop" data-i="${i - 1}" title="Remove from crew">×</button>`;
     return `<span class="castline ${player ? "player" : ""}"><span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${drop}</span>`;
   }).join("");
 
@@ -576,7 +576,7 @@ function stepCastHTML() {
     : "";
 
   return `<div class="step">
-    ${stepHeadHTML("cast", 1, "CAST", `${castCount} on set`, true)}
+    ${stepHeadHTML("cast", 1, "CREW", `${castCount} on deck`, true)}
     <div class="cast-stack">${chips}</div>
     <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools"><button class="chip-btn" data-act="scan" data-kind="actor">SCAN</button><button class="chip-btn" data-act="pick" data-slot="actor">PICK</button></span></div>
     <div class="near-list">${rows}</div>
@@ -680,9 +680,9 @@ function scenesBrowserHTML() {
   let html = `<div class="browse-note"><span class="dot go"></span><span class="lbl">PLAYABLE NOW · ${playable.length}</span></div>`;
   html += playable.length
     ? `<div class="row-list">${playable.map((x) => sceneRow(x.s, x.ev, true)).join("")}</div>`
-    : bayEmpty(state.furniture || state.partners.length ? "Nothing fits this exact cast + furniture. Adjust the selection, or show the rest." : "Add cast or key furniture to unlock scenes.");
+    : bayEmpty(state.furniture || state.partners.length ? "Nothing fits this exact crew + furniture. Adjust the selection, or show the rest." : "Add crew or key furniture to unlock scenes.");
   if (rest.length) {
-    html += `<button class="reveal ${state.browseAll ? "on" : ""}" data-act="browse-all">${state.browseAll ? "▾" : "▸"} ${rest.length} more need a different cast or furniture</button>`;
+    html += `<button class="reveal ${state.browseAll ? "on" : ""}" data-act="browse-all">${state.browseAll ? "▾" : "▸"} ${rest.length} more need a different crew or furniture</button>`;
     if (state.browseAll) html += `<div class="row-list dim">${rest.map((x) => sceneRow(x.s, x.ev, false)).join("")}</div>`;
   }
   return html;
@@ -801,7 +801,7 @@ function renderBrief() {
         ? (ev.anchorGate ? `on ${state.furniture.name}` : `this furniture doesn't fit${anchorFull(s) ? ` (needs ${anchorFull(s)})` : ""}`)
         : (anchorFull(s) ? `needs ${anchorFull(s)}` : "needs furniture"))
     : "free-space";
-  const summary = `<div class="brief-line ${allMet ? "" : "warn"}"><span class="mono">${esc(`${ev.seated}/${ev.actorCount || "?"} cast · ${anchorBit}`)}</span></div>`;
+  const summary = `<div class="brief-line ${allMet ? "" : "warn"}"><span class="mono">${esc(`${ev.seated}/${ev.actorCount || "?"} crew · ${anchorBit}`)}</span></div>`;
 
   const stages = s.stages || [];
   const canPlay = state.ready && allMet;
@@ -827,7 +827,7 @@ function renderBrief() {
   const launchBtn = canPlay
     ? `<button class="launch-btn go" data-act="launch">▶ Launch Scene</button>`
     : `<button class="launch-btn blocked" disabled>${esc(!state.ready ? "Engine Offline" : `Blocked · ${ev.gaps} gap${ev.gaps > 1 ? "s" : ""}`)}</button>`;
-  const stopBtn = state.lastHandle ? `<button class="stop-btn" data-act="stop">■ Stop Take #${state.lastHandle}</button>` : "";
+  const stopBtn = state.lastHandle ? `<button class="stop-btn" data-act="stop">■ Stop #${state.lastHandle}</button>` : "";
   const reasonHTML = reason ? `<div class="mono wrap" style="color:var(--text-faint);text-align:center">${esc(reason)}</div>` : "";
   const launchStack = `<div class="launch-stack">${reasonHTML}${launchBtn}${stopBtn}</div>`;
 
