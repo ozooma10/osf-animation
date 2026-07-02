@@ -203,7 +203,7 @@ function handleScanResults(p) {
     state.nearbyFurniture = normalized;
     const markers = normalized.filter((x) => x.marker).length;
     const named = normalized.length - markers;
-    notice("info", `${named} usable anchor${named === 1 ? "" : "s"} found${markers ? ` + ${markers} AI marker${markers === 1 ? "" : "s"}` : ""}.`);
+    notice("info", `${named} usable furniture spot${named === 1 ? "" : "s"} found${markers ? ` + ${markers} AI marker${markers === 1 ? "" : "s"}` : ""}.`);
   } else {
     state.nearbyActors = normalized;
     notice("info", `${normalized.length} nearby actor${normalized.length === 1 ? "" : "s"} found.`);
@@ -254,6 +254,7 @@ function normalizeScene(raw) {
     genders,
     roles,
     requiresFurniture,
+    anchors: Array.isArray(raw.anchors) ? raw.anchors.map((a) => String(a)) : [],  // what it anchors to ("Barstool", …)
     unlisted: !!raw.unlisted,
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
     weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
@@ -352,12 +353,12 @@ function boolText(primary, fallback, emptyValue) {
    STATE MUTATIONS
    ========================================================================= */
 function keyAnchor(token, name, distance) {
-  state.furniture = { token, name: name || "anchor", distance: distance || null };
+  state.furniture = { token, name: name || "furniture", distance: distance || null };
   state.anchorMatch = null;               // stale until the engine answers for THIS token
   state.libShowAll = false;               // re-focus the library on what this anchor fits
   state.stepOpen.anchor = false;          // step done — fold it, give the browse list the height back
   send("osf.anchorMatch", { token });     // which anchor-bound scenes does it fit?
-  notice("info", `Anchor keyed: ${state.furniture.name}.`);
+  notice("info", `Furniture keyed: ${state.furniture.name}.`);
 }
 
 function clearAnchor() {
@@ -389,7 +390,7 @@ function toggleActor(token) {
 }
 
 function toggleAnchor(token) {
-  if (state.furniture && state.furniture.token === token) { clearAnchor(); notice("info", "Anchor cleared."); }
+  if (state.furniture && state.furniture.token === token) { clearAnchor(); notice("info", "Furniture cleared."); }
   else {
     const an = state.nearbyFurniture.find((x) => x.token === token);
     if (an) keyAnchor(an.token, an.name, an.distance);
@@ -400,7 +401,7 @@ function toggleAnchor(token) {
 function removePartner(index) { state.partners.splice(index, 1); renderAll(); }
 
 function scanNearby(kind) {
-  notice("info", `Scanning nearby ${kind === "furniture" ? "anchors" : "actors"}…`);
+  notice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`);
   send("osf.scanNearby", { kind, sceneId: state.selectedId || "" });
 }
 
@@ -461,17 +462,31 @@ function evalScene(s) {
   if (!hasRoles) blockers.push("scene defines no roles");
   else if (!rolesGate) { const n = actorCount - castCount; issues.push(`needs ${n} more actor${n === 1 ? "" : "s"}`); }
   if (overCast) { const n = castCount - actorCount; blockers.push(`remove ${n} cast member${n === 1 ? "" : "s"}`); }
-  if (!anchorGate) issues.push(state.furniture ? "keyed anchor doesn't fit" : "needs an anchor");
+  if (!anchorGate) {
+    const a = anchorFull(s);
+    issues.push(state.furniture ? `this furniture doesn't fit${a ? ` (needs ${a})` : ""}` : (a ? `needs ${a}` : "needs furniture"));
+  }
   const gaps = issues.length + blockers.length;
-  const reason = gaps === 0 ? "Ready with the current cast and anchor." : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
+  const reason = gaps === 0 ? "Ready with the current cast and furniture." : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
   return { castCount, actorCount, hasRoles, rolesGate, overCast, anchorGate, seated, issues, blockers, gaps, reason };
 }
 
 function needsText(s, ev) {
   if (!ev.rolesGate) { const n = ev.actorCount - ev.castCount; return `+${n} actor${n === 1 ? "" : "s"}`; }
-  if (!ev.anchorGate) return state.furniture ? "other anchor" : "needs anchor";
+  if (!ev.anchorGate) { const a = anchorShort(s); return a ? `needs ${a}` : (state.furniture ? "other furniture" : "needs furniture"); }
   if (ev.overCast) { const n = ev.castCount - ev.actorCount; return `-${n} cast`; }
   return "";
+}
+
+// What a furniture-bound scene anchors to. Short form = first name (+N when several,
+// badge/meta space is tight); full form joins them all for titles and the brief.
+function anchorShort(s) {
+  const a = s.anchors || [];
+  return a.length ? (a.length > 1 ? `${a[0]} +${a.length - 1}` : a[0]) : "";
+}
+function anchorFull(s) {
+  const a = s.anchors || [];
+  return a.length ? a.join(" / ") : "";
 }
 
 /* =========================================================================
@@ -513,7 +528,7 @@ function renderSlateTake() {
     const ls = sceneById(state.lastSceneId);
     el.innerHTML = `<div class="take-chip live"><span class="live-dot"></span><div class="take-body"><span class="lbl">LIVE TAKE #${state.lastHandle}</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div><button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button></div>`;
   } else {
-    el.innerHTML = `<div class="take-chip"><span class="lbl">NO TAKE RUNNING</span><span class="mono">cast → anchor → launch</span></div>`;
+    el.innerHTML = `<div class="take-chip"><span class="lbl">NO TAKE RUNNING</span><span class="mono">cast → furniture → launch</span></div>`;
   }
 }
 
@@ -588,10 +603,10 @@ function anchorRow(an, keyed) {
   const lib = total != null && custom != null ? Math.max(0, total - custom) : 0;
   let unlocks = "";
   if (an.customCount != null) {
-    unlocks = `<span class="near-badge ${custom ? "" : "empty"}" title="Custom scenes this unlocks">⚓${custom}</span>`;
-    if (lib) unlocks += `<span class="near-badge lib" title="Vanilla library scenes this unlocks">+${lib}</span>`;
+    unlocks = `<span class="near-badge ${custom ? "" : "empty"}" title="Custom scenes this furniture unlocks">${custom} fit</span>`;
+    if (lib) unlocks += `<span class="near-badge lib" title="Vanilla library scenes this furniture unlocks">+${lib}</span>`;
   } else if (total != null) {
-    unlocks = `<span class="near-badge" title="Anchored scenes this unlocks">⚓${total}</span>`;
+    unlocks = `<span class="near-badge" title="Scenes this furniture unlocks">${total} fit</span>`;
   }
   return `<button class="near-row ${active ? "active" : ""} ${an.marker ? "marker" : ""}" data-act="toggle-anchor" data-token="${an.token}"><span class="near-name">${esc(an.name)}</span>${unlocks}<span class="near-meta mono">${an.distance != null ? Math.max(1, Math.round(an.distance)) + "m" : ""}</span><span class="near-tag ${active ? "added" : ""}">${active ? "✓" : "USE"}</span></button>`;
 }
@@ -600,7 +615,7 @@ function stepAnchorHTML() {
   const keyed = state.furniture;
   const matchKnown = !!(keyed && state.anchorMatch && state.anchorMatch.token === keyed.token);
   if (!state.stepOpen.anchor) {
-    return `<div class="step closed">${stepHeadHTML("anchor", 2, "ANCHOR", keyed ? `⚓ ${esc(keyed.name)}` : "none", false)}</div>`;
+    return `<div class="step closed">${stepHeadHTML("anchor", 2, "FURNITURE", keyed ? esc(keyed.name) : "none", false)}</div>`;
   }
   const slot = keyed
     ? `<div class="anchor-slot keyed"><span class="dot go"></span><span class="anchor-name">${esc(keyed.name)}</span><button class="chip-btn" data-act="clear-anchor">CLR</button></div>`
@@ -616,7 +631,7 @@ function stepAnchorHTML() {
   if (markers.length) {
     // Keep the group open while the keyed anchor lives inside it, so the ✓ row stays visible.
     const open = state.markersOpen || !!(keyed && markers.some((m) => m.token === keyed.token));
-    rows += `<button class="reveal ${open ? "on" : ""}" data-act="markers-toggle" title="Invisible AI idle spots — valid anchors, but you can't see them in the world">${open ? "▾" : "▸"} ${markers.length} AI marker${markers.length === 1 ? "" : "s"} (invisible)</button>`;
+    rows += `<button class="reveal ${open ? "on" : ""}" data-act="markers-toggle" title="Invisible AI idle spots — usable like furniture, but you can't see them in the world">${open ? "▾" : "▸"} ${markers.length} AI marker${markers.length === 1 ? "" : "s"} (invisible)</button>`;
     if (open) rows += markers.map((an) => anchorRow(an, keyed)).join("");
   }
 
@@ -625,7 +640,7 @@ function stepAnchorHTML() {
     : "";
 
   return `<div class="step">
-    ${stepHeadHTML("anchor", 2, "ANCHOR", "optional", true)}
+    ${stepHeadHTML("anchor", 2, "FURNITURE", "optional", true)}
     ${slot}
     <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools"><button class="chip-btn" data-act="scan" data-kind="furniture">SCAN</button><button class="chip-btn" data-act="pick" data-slot="furniture">PICK</button></span></div>
     <div class="near-list">${rows}</div>
@@ -661,9 +676,9 @@ function scenesBrowserHTML() {
   let html = `<div class="browse-note"><span class="dot go"></span><span class="lbl">PLAYABLE NOW · ${playable.length}</span></div>`;
   html += playable.length
     ? `<div class="row-list">${playable.map((x) => sceneRow(x.s, x.ev, true)).join("")}</div>`
-    : bayEmpty(state.furniture || state.partners.length ? "Nothing fits this exact cast + anchor. Adjust the selection, or show the rest." : "Add cast or key an anchor to unlock scenes.");
+    : bayEmpty(state.furniture || state.partners.length ? "Nothing fits this exact cast + furniture. Adjust the selection, or show the rest." : "Add cast or key furniture to unlock scenes.");
   if (rest.length) {
-    html += `<button class="reveal ${state.browseAll ? "on" : ""}" data-act="browse-all">${state.browseAll ? "▾" : "▸"} ${rest.length} more need a different cast or anchor</button>`;
+    html += `<button class="reveal ${state.browseAll ? "on" : ""}" data-act="browse-all">${state.browseAll ? "▾" : "▸"} ${rest.length} more need a different cast or furniture</button>`;
     if (state.browseAll) html += `<div class="row-list dim">${rest.map((x) => sceneRow(x.s, x.ev, false)).join("")}</div>`;
   }
   return html;
@@ -674,7 +689,7 @@ function sceneRow(s, ev, playable) {
   const n = s.actorCount || 1;
   const dur = fmtEst(s);
   const bits = [`${n} role${n === 1 ? "" : "s"}`];
-  if (s.requiresFurniture) bits.push("anchor");
+  if (s.requiresFurniture) bits.push(`on ${anchorShort(s) || "furniture"}`);
   if (dur) bits.push(dur);
   const meta = state.filters.authorMode ? s.id : bits.join(" · ");
   const badge = playable ? `<span class="row-badge go">READY</span>` : `<span class="row-badge">${esc(needsText(s, ev))}</span>`;
@@ -724,7 +739,7 @@ function libraryBrowserHTML() {
   if (matchKnown) {
     // Count LIBRARY sets that fit (anchorMatch also covers scenes-lane scenes, which don't belong here).
     const fitCount = state.library.filter((s) => matchesSearch(s) && state.anchorMatch.ids.has(s.id)).length;
-    banner = `<div class="browse-note"><span class="dot go"></span><span class="lbl">⚓ ${esc(state.furniture.name)} · ${fitCount} SET${fitCount === 1 ? "" : "S"} FIT</span>` +
+    banner = `<div class="browse-note"><span class="dot go"></span><span class="lbl">${esc(state.furniture.name)} · ${fitCount} SET${fitCount === 1 ? "" : "S"} FIT</span>` +
       `<button class="reveal inline ${state.libShowAll ? "on" : ""}" data-act="lib-showall">${state.libShowAll ? "show fitting only" : "show all"}</button></div>`;
   } else {
     const total = state.library.length;
@@ -733,7 +748,7 @@ function libraryBrowserHTML() {
   }
 
   if (!groups.length) {
-    return banner + bayEmpty(fitFocus ? "No library sets fit the keyed anchor. Show all, or key different furniture." : "Nothing in the library matches the filter.");
+    return banner + bayEmpty(fitFocus ? "No library sets fit this furniture. Show all, or key a different piece." : "Nothing in the library matches the filter.");
   }
   const searching = !!state.filters.search;
   const body = groups.map(([key, list]) => {
@@ -753,10 +768,10 @@ function libxRow(s) {
   const n = (s.stages || []).length;
   const title = s.title.replace(/^Vanilla · /, "");
   const meta = state.filters.authorMode ? s.id : `${n} anim${n === 1 ? "" : "s"}`;
-  // ⚓ marks furniture-bound sets; when an anchor is keyed, tint by whether this set fits it.
+  // "FURN" marks furniture-bound sets; when furniture is keyed, tint by whether this set fits it.
   const fits = fitsKeyedAnchor(s);
   const anchorMark = s.requiresFurniture
-    ? `<span class="libx-anchor ${fits === true ? "fit" : fits === false ? "nofit" : ""}" title="Needs matching furniture">⚓</span>`
+    ? `<span class="libx-anchor ${fits === true ? "fit" : fits === false ? "nofit" : ""}" title="${escAttr(anchorFull(s) ? `Needs: ${anchorFull(s)}` : "Needs matching furniture")}">FURN</span>`
     : "";
   return `<button class="libx-row ${sel ? "selected" : ""} ${fits === false ? "dim" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(title)}</span>${anchorMark}<span class="libx-meta mono">${esc(meta)}</span></button>`;
 }
@@ -778,7 +793,9 @@ function renderBrief() {
 
   // One readable line instead of the gauge/req/seat instrument cluster.
   const anchorBit = s.requiresFurniture
-    ? (state.furniture ? (ev.anchorGate ? `anchored: ${state.furniture.name}` : `keyed anchor doesn't fit`) : "needs an anchor")
+    ? (state.furniture
+        ? (ev.anchorGate ? `on ${state.furniture.name}` : `this furniture doesn't fit${anchorFull(s) ? ` (needs ${anchorFull(s)})` : ""}`)
+        : (anchorFull(s) ? `needs ${anchorFull(s)}` : "needs furniture"))
     : "free-space";
   const summary = `<div class="brief-line ${allMet ? "" : "warn"}"><span class="mono">${esc(`${ev.seated}/${ev.actorCount || "?"} cast · ${anchorBit}`)}</span></div>`;
 
@@ -821,7 +838,7 @@ function renderBrief() {
 function diagRows(s, ev) {
   const rows = [["weight · priority", `${s.weight} · ${s.priority}`]];
   (s.roles || []).forEach((r, i) => rows.push([`role ${String.fromCharCode(65 + i)} filter`, `${r.gender || "any"} · ${ev.seated > i ? "pass" : "open"}`]));
-  rows.push(["anchor", (s.requiresFurniture ? "required" : "free-space") + " · " + (ev.anchorGate ? "pass" : "fail")]);
+  rows.push(["anchor", (s.requiresFurniture ? (anchorFull(s) || "required") : "free-space") + " · " + (ev.anchorGate ? "pass" : "fail")]);
   rows.push(["stages · shape", `${(s.stages || []).length} · ${(s.shape && s.shape.kind) || "linear"}`]);
   rows.push(["policies", `strip ${s.policy.stripActors} · lock ${s.policy.lockPlayer} · fade ${s.policy.fade} · cam ${s.policy.camera}`]);
   rows.push(["est duration", fmtEst(s) || "unmeasured"]);
@@ -1021,8 +1038,8 @@ function init() {
    ========================================================================= */
 const MOCK_CATALOG = [
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
-  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2, loopSec: 18.7, loops: 0, openEnded: true, estSec: 37.3 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2, loopSec: 16, loops: 0, openEnded: true, estSec: 32 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }], estSec: 149.3, estPartial: false, openEnded: true, priority: 2, weight: 40, sourceFile: "Data/OSF/GE/chair.osf.json" },
-  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2, loopSec: 18.7, loops: 2, estSec: 37.3 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2, loopSec: null, loops: 2, estSec: null }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2, timerSec: 30, loops: 0, estSec: 30 }], estSec: 147.3, estPartial: true, openEnded: false, priority: 3, weight: 25, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
+  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, anchors: ["Chair"], stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2, loopSec: 18.7, loops: 0, openEnded: true, estSec: 37.3 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2, loopSec: 16, loops: 0, openEnded: true, estSec: 32 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }], estSec: 149.3, estPartial: false, openEnded: true, priority: 2, weight: 40, sourceFile: "Data/OSF/GE/chair.osf.json" },
+  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, anchors: ["Ak Bunk Bed"], stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2, loopSec: 18.7, loops: 2, estSec: 37.3 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2, loopSec: null, loops: 2, estSec: null }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2, timerSec: 30, loops: 0, estSec: 30 }], estSec: 147.3, estPartial: true, openEnded: false, priority: 3, weight: 25, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
   { id: "pair.freeform", title: "Pair Freeform", tags: ["paired", "free", "demo"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false, shape: { kind: "linear", stages: 3, nodes: 3, branches: 0 }, priority: 1, weight: 22, sourceFile: "Data/OSF/Scenes/demo.osf.json" },
   { id: "author.quest.finale", title: "Quest Finale Branch Test", tags: ["finale", "story", "branching"], actorCount: 2, roles: [{ name: "lead", gender: "any" }, { name: "partner", gender: "any" }], requiresFurniture: false, unlisted: true, shape: { kind: "graph", stages: 3, nodes: 4, branches: 3 }, policy: { stripActors: false, lockPlayer: true, fade: true, camera: "thirdperson_hold" }, priority: 2, weight: 14, sourceFile: "Data/OSF/Author/finale.osf.json" },
 ];
@@ -1042,8 +1059,8 @@ const MOCK_ANCHORS = [
 ];
 const MOCK_ANCHOR_MATCH = { 501: ["ge.chair.love", "vanilla/furniture/chair"], 502: ["ge.akbunk.sequence"], 503: ["ge.chair.love", "vanilla/furniture/bench"], 504: ["vanilla/furniture/bench"], 505: [] };
 const MOCK_LIBRARY = [
-  { id: "vanilla/furniture/chair", title: "Vanilla · Furniture / Chair", tags: ["vanilla", "furniture", "anchored"], actorCount: 1, genders: ["any"], requiresFurniture: true, sourceFile: "Data/OSF/vanilla/vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 2.7, loops: 0, openEnded: true, estSec: 5.4 }, { index: 1, name: "Idle_Flavor01", tags: ["transition"], clipCount: 1, loopSec: 11, loops: 0, openEnded: true, estSec: 22 }, { index: 2, name: "EnterFromStand", tags: ["transition", "rootmotion"], clipCount: 1, loopSec: 7.3, loops: 0, openEnded: true, estSec: 14.7 }], estSec: 42.1, estPartial: false, openEnded: true, priority: 0, weight: 1 },
-  { id: "vanilla/furniture/bench", title: "Vanilla · Furniture / Bench", tags: ["vanilla", "furniture", "anchored"], actorCount: 1, genders: ["any"], requiresFurniture: true, sourceFile: "Data/OSF/vanilla/vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 3.1, loops: 0, openEnded: true, estSec: 6.2 }], estSec: 6.2, estPartial: false, openEnded: true, priority: 0, weight: 1 },
+  { id: "vanilla/furniture/chair", title: "Vanilla · Furniture / Chair", tags: ["vanilla", "furniture", "anchored"], actorCount: 1, genders: ["any"], requiresFurniture: true, anchors: ["Chair"], sourceFile: "Data/OSF/vanilla/vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 2.7, loops: 0, openEnded: true, estSec: 5.4 }, { index: 1, name: "Idle_Flavor01", tags: ["transition"], clipCount: 1, loopSec: 11, loops: 0, openEnded: true, estSec: 22 }, { index: 2, name: "EnterFromStand", tags: ["transition", "rootmotion"], clipCount: 1, loopSec: 7.3, loops: 0, openEnded: true, estSec: 14.7 }], estSec: 42.1, estPartial: false, openEnded: true, priority: 0, weight: 1 },
+  { id: "vanilla/furniture/bench", title: "Vanilla · Furniture / Bench", tags: ["vanilla", "furniture", "anchored"], actorCount: 1, genders: ["any"], requiresFurniture: true, anchors: ["Bench"], sourceFile: "Data/OSF/vanilla/vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 3.1, loops: 0, openEnded: true, estSec: 6.2 }], estSec: 6.2, estPartial: false, openEnded: true, priority: 0, weight: 1 },
   { id: "vanilla/photomode", title: "Vanilla · Photomode", tags: ["vanilla", "photomode"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-photomode.osf.json", stages: [{ index: 0, name: "Vehicle_BackSeat", tags: [], clipCount: 1, loopSec: 0.3, loops: 0, openEnded: true, estSec: 0.6 }, { index: 1, name: "Vehicle_HangTen", tags: [], clipCount: 1, loopSec: 0.3, loops: 0, openEnded: true, estSec: 0.6 }], estSec: 1.2, estPartial: false, openEnded: true, priority: 0, weight: 1 },
   { id: "vanilla/common", title: "Vanilla · Common", tags: ["vanilla", "common"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-common.osf.json", stages: [{ index: 0, name: "Cower_Idle", tags: ["idle"], clipCount: 1, loopSec: 6.3, loops: 0, openEnded: true, estSec: 12.7 }], estSec: 12.7, estPartial: false, openEnded: true, priority: 0, weight: 1 },
 ];

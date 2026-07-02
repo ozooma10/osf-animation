@@ -280,6 +280,7 @@ namespace OSF::API
 				std::uint32_t            actorCount = 0;
 				std::vector<std::string> genders;
 				bool                     requiresFurniture = false;
+				std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
 				bool                     unlisted = false;
 				std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
 				float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
@@ -301,6 +302,19 @@ namespace OSF::API
 					c.genders.emplace_back(GenderTag(r.gender));
 				}
 				c.requiresFurniture = d.RequiresAnchor();
+				// Name the anchor, not just the fact of one: keyword edids prettify well
+				// ("AnimFurnBarstool" -> "Barstool"); base-form anchors rarely retain an edid,
+				// so those fall back to the form id — still identifiable, never blank.
+				for (auto* kw : d.anchorKeywords) {
+					if (std::string lbl = KeywordLabel(kw); !lbl.empty()) {
+						c.anchorNames.push_back(std::move(lbl));
+					}
+				}
+				for (const auto b : d.anchorBaseForms) {
+					const auto* form = RE::TESForm::LookupByID(b);
+					const char* edid = form ? form->GetFormEditorID() : nullptr;
+					c.anchorNames.push_back(edid && edid[0] ? std::string{ edid } : std::format("{:#010x}", b));
+				}
 				c.unlisted = d.unlisted;
 				// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 				c.stages.reserve(d.linearStages.size());
@@ -407,6 +421,7 @@ namespace OSF::API
 					{ "actorCount", c.actorCount },
 					{ "genders", c.genders },
 					{ "requiresFurniture", c.requiresFurniture },
+					{ "anchors", c.anchorNames },
 					{ "unlisted", c.unlisted },
 					{ "stageCount", static_cast<std::int32_t>(c.stages.size()) },
 					{ "stages", std::move(stages) },
