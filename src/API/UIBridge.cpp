@@ -11,8 +11,11 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
+#include <format>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -63,6 +66,58 @@ namespace OSF::API
 			g_tokens[token] = Picked{ a_ref, fid, a_ref->IsActor() };
 			g_formToken[fid] = token;
 			return token;
+		}
+
+		// "AnimFurnChairScrappy" -> "Chair Scrappy": strip the AnimFurn prefix, split CamelCase.
+		// The anchor keyword is the only human-readable runtime name an invisible AI marker has
+		// (FURN base forms don't retain editor IDs; keywords do), and it names what the spot hosts.
+		std::string KeywordLabel(RE::BGSKeyword* a_kw)
+		{
+			const char* edid = a_kw ? a_kw->GetFormEditorID() : nullptr;
+			if (!edid || !edid[0]) {
+				return {};
+			}
+			std::string_view sv{ edid };
+			for (const std::string_view prefix : { "AnimFurn", "Anim" }) {
+				if (sv.starts_with(prefix)) {
+					sv.remove_prefix(prefix.size());
+					break;
+				}
+			}
+			std::string out;
+			out.reserve(sv.size() + 8);
+			for (std::size_t i = 0; i < sv.size(); ++i) {
+				const char c = sv[i];
+				// Break lower/digit->Upper ("ChairScrappy") and acronym->word ("HVACUnit" -> "HVAC Unit").
+				if (i > 0 && std::isupper(static_cast<unsigned char>(c)) &&
+					(!std::isupper(static_cast<unsigned char>(sv[i - 1])) ||
+						(i + 1 < sv.size() && std::islower(static_cast<unsigned char>(sv[i + 1]))))) {
+					out += ' ';
+				}
+				out += (c == '_') ? ' ' : c;
+			}
+			return out;
+		}
+
+		// A human label for a scanned ref. Invisible AI markers and outpost/dynamic furniture
+		// return an empty display name, so fall back to the matched anchor keyword, then the base
+		// object's EditorID, then a form-id tag, so a pick is never a bare "(unnamed)" the user
+		// cannot identify.
+		std::string ScanLabel(RE::TESObjectREFR* a_ref, RE::BGSKeyword* a_matchedKw = nullptr)
+		{
+			if (const char* nm = a_ref->GetDisplayFullName(); nm && nm[0]) {
+				return nm;
+			}
+			if (std::string kwLabel = KeywordLabel(a_matchedKw); !kwLabel.empty()) {
+				return kwLabel;
+			}
+			if (const auto base = a_ref->GetBaseObject()) {
+				if (const char* edid = base->GetFormEditorID(); edid && edid[0]) {
+					return edid;
+				}
+				return std::format("Furniture {:#010x}", base->GetFormID());
+			}
+			return std::format("Ref {:#010x}", a_ref->GetFormID());
 		}
 
 		// Our view's manifest id; the SendToWeb target for pushes that aren't a direct reply (e.g. the catalog we push when the bridge becomes ready).
@@ -658,18 +713,6 @@ namespace OSF::API
 				originA.z = origin.z;
 				// ForEachReferenceInRange spans the loaded interior cell or exterior grid and only
 				// visits refs already within radius; we just filter to furniture our scenes anchor to.
-				// DIAGNOSTIC: collect every visited ref so we can log the ones NEAREST the player
-				// (the chair/bench you're standing next to) rather than the first N in walk order.
-				struct DbgRef
-				{
-					float              distSq;
-					RE::TESObjectREFR* ref;
-					std::uint32_t      baseForm;
-					std::uint32_t      type;
-					std::int32_t       accepts;
-				};
-				std::vector<DbgRef> dbgRefs;
-				std::size_t         dbgTypeHist[256] = {};
 				tes->ForEachReferenceInRange(originA, radius, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
 					RE::TESObjectREFR* ref = a_ref.get();
 					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted()) {
@@ -681,39 +724,22 @@ namespace OSF::API
 								accepts++;
 							}
 						}
-						const auto          base = ref->GetBaseObject();
-						const std::uint32_t type = base ? static_cast<std::uint32_t>(base->GetFormType()) : 0u;
-						dbgTypeHist[type & 0xFF]++;
-						dbgRefs.push_back({ origin.GetSquaredDistance(ref->GetPosition()), ref,
-							base ? base->GetFormID() : 0u, type, accepts });
 						if (accepts != 0) {
 							hits.push_back({ ref, origin.GetSquaredDistance(ref->GetPosition()), accepts });
+						}
+						// DIAGNOSTIC (couch/bench hunt): log every FURN-type ref in radius, plus
+						// EVERYTHING within ~5m, so nearby non-FURN "furniture" shows up too. Base
+						// form IDs decode offline via osf-gergel-ebanex/furniture_dump.json.
+						const auto          base = ref->GetBaseObject();
+						const std::uint32_t type = base ? static_cast<std::uint32_t>(base->GetFormType()) : 0u;
+						const float         dSq = origin.GetSquaredDistance(ref->GetPosition());
+						if (type == 47 || dSq < (5.0f * 70.0f) * (5.0f * 70.0f)) {
+							REX::DEBUG("[UI] scan cand: dist={:.1f}m base={:#010x} type={} accepts={} label='{}'",
+								std::sqrt(dSq) / 70.0f, base ? base->GetFormID() : 0u, type, accepts, ScanLabel(ref));
 						}
 					}
 					return RE::BSContainer::ForEachResult::kContinue;
 				});
-				// Nearest refs first — whatever you're standing next to is at the top.
-				std::sort(dbgRefs.begin(), dbgRefs.end(),
-					[](const DbgRef& a, const DbgRef& b) { return a.distSq < b.distSq; });
-				const std::size_t dbgN = std::min<std::size_t>(dbgRefs.size(), 40);
-				for (std::size_t i = 0; i < dbgN; ++i) {
-					const auto& r = dbgRefs[i];
-					const char* nm = r.ref->GetDisplayFullName();
-					REX::DEBUG("[UI] scan near #{}: dist={:.1f}m base={:#010x} type={} accepts={} name='{}'",
-						i, std::sqrt(r.distSq) / 70.0f, r.baseForm, r.type, r.accepts,
-						(nm && nm[0]) ? nm : "(unnamed)");
-				}
-				// FormType histogram over ALL visited refs (type:count) — does any kFURN (47) exist near you?
-				std::string hist;
-				for (std::uint32_t t = 0; t < 256; ++t) {
-					if (dbgTypeHist[t]) {
-						hist += std::to_string(t) + ":" + std::to_string(dbgTypeHist[t]) + " ";
-					}
-				}
-				REX::DEBUG("[UI] scan furniture: visited {} ref(s); path={}; type-hist {}",
-					dbgRefs.size(),
-					tes->interiorCell ? "interior" : "exterior-grid",
-					hist);
 			}
 
 			std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.distSq < b.distSq; });
@@ -724,10 +750,9 @@ namespace OSF::API
 
 			for (const auto& h : hits) {
 				const std::int32_t token = AllocToken(h.ref);
-				const char*        nm = h.ref->GetDisplayFullName();
 				json               item = {
 					{ "token", token },
-					{ "name", (nm && nm[0]) ? nm : "(unnamed)" },
+					{ "name", ScanLabel(h.ref) },
 					{ "formId", h.ref->GetFormID() },
 					{ "distance", std::sqrt(h.distSq) / 70.0f },  // game units -> ~meters
 					{ "isActor", h.ref->IsActor() },

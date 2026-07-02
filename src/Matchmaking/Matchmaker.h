@@ -50,7 +50,8 @@ namespace OSF::Matchmaking
 	bool RoleAccepts(const Registry::SceneRole& a_role, RE::Actor* a_actor);
 
 	// Does a_ref satisfy a_def's anchor requirement (any-of: its base form is listed, OR it carries a listed keyword)? Shared by anchor-first matchmaking and the start-path anchor enforcement.
-	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref);
+	// a_matchedKeyword (optional) receives the keyword that matched — null on a base-form match (Scan Nearby labels unnamed markers by it).
+	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword = nullptr);
 
 	// gender as a lowercase tag: "male" / "female", or "" for kNone/unknown (creature, no actorbase).
 	std::string ActorGenderTag(RE::Actor* a_actor);

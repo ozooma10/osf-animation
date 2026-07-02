@@ -290,8 +290,11 @@ namespace OSF::Matchmaking
 		return true;
 	}
 
-	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref)
+	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword)
 	{
+		if (a_matchedKeyword) {
+			*a_matchedKeyword = nullptr;
+		}
 		if (!a_ref) {
 			return false;
 		}
@@ -305,6 +308,9 @@ namespace OSF::Matchmaking
 		}
 		for (auto* kw : a_def.anchorKeywords) {
 			if (kw && a_ref->HasKeyword(kw)) {
+				if (a_matchedKeyword) {
+					*a_matchedKeyword = kw;
+				}
 				return true;
 			}
 		}
