@@ -312,6 +312,9 @@ def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str,
             "schema": 1,
             "name": f"OSF Vanilla — {humanize(top)} (generated, do not hand-edit)",
             "section": "library",
+            # Reference shelf, not matchmaking fodder: browse/play by direct id only;
+            # the matchmaking pool belongs to custom mod scenes.
+            "unlisted": True,
             "clipRoot": CLIP_ROOT,
             "scenes": [],
         })

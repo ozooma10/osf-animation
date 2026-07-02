@@ -37,6 +37,10 @@ namespace OSF::Input
 		std::atomic<float> g_mouseDx{ 0.0f };
 		std::atomic<float> g_mouseDy{ 0.0f };
 		std::atomic<float> g_mouseWheel{ 0.0f };  // net wheel ticks since the last drain (+ = up / zoom in)
+		// UI-cursor mode (scene browser visible): look/wheel deltas only accumulate while the LEFT
+		// button is held (click-drag orbits; free movement steers the cursor, free wheel scrolls the UI).
+		std::atomic_bool   g_uiCursorVisible{ false };
+		std::atomic_bool   g_orbitDragHeld{ false };  // LMB is down (tracked only while capture is on)
 		// MouseMoveEvent is an IDEvent (0x38) subclass; the two raw axis deltas (int32 x,y) follow it.
 		constexpr std::ptrdiff_t kMouseMoveDeltaOffset = 0x38;
 		// The mouse wheel arrives as ButtonEvents on the kMouse device (confirmed in-game): idCode 0x800 =
@@ -47,6 +51,7 @@ namespace OSF::Input
 		constexpr float        kWheelNotch = 120.0f;
 		// Mouse buttons arrive as ButtonEvents on the kMouse device with idCode = button index
 		// (0 = left, 1 = right, 2 = middle, 3/4 = X1/X2), distinct from the 0x800/0x900 wheel codes.
+		constexpr std::int32_t kMouseLeftId = 0;    // LMB -> drag-to-orbit while a UI cursor is up
 		constexpr std::int32_t kMouseMiddleId = 2;  // MMB -> toggle free camera
 
 		// Index of the BSInputEventReceiver vtable in RE::UI::VTABLE (AddressLib id 475439). The IDs_VTABLE array is NOT in base-declaration order;
@@ -156,17 +161,29 @@ namespace OSF::Input
 					if (!capture) {
 						continue;
 					}
+					// UI-cursor mode: with the browser on screen, only a held LMB routes the mouse to the
+					// orbit (click-drag). Otherwise the mouse belongs to the UI cursor / list scroll.
+					const bool steer = !g_uiCursorVisible.load(std::memory_order_relaxed) ||
+					                   g_orbitDragHeld.load(std::memory_order_relaxed);
 					if (et == RE::InputEvent::EventType::kMouseMove) {
-						const auto* d = reinterpret_cast<const std::int32_t*>(
-							reinterpret_cast<const std::byte*>(event) + kMouseMoveDeltaOffset);
-						g_mouseDx.fetch_add(static_cast<float>(d[0]), std::memory_order_relaxed);
-						g_mouseDy.fetch_add(static_cast<float>(d[1]), std::memory_order_relaxed);
+						if (steer) {
+							const auto* d = reinterpret_cast<const std::int32_t*>(
+								reinterpret_cast<const std::byte*>(event) + kMouseMoveDeltaOffset);
+							g_mouseDx.fetch_add(static_cast<float>(d[0]), std::memory_order_relaxed);
+							g_mouseDy.fetch_add(static_cast<float>(d[1]), std::memory_order_relaxed);
+						}
 					} else if (et == RE::InputEvent::EventType::kButton) {
 						const auto* btn = static_cast<const RE::ButtonEvent*>(event);
+						if (btn->deviceType != RE::InputEvent::DeviceType::kMouse) {
+							continue;
+						}
+						// LMB edge tracking (press = value != 0; the release event carries value 0).
+						if (btn->idCode == kMouseLeftId) {
+							g_orbitDragHeld.store(btn->value != 0.0f, std::memory_order_relaxed);
+						}
 						// Mouse wheel: value is already signed by direction (+up / -down), so accumulate it
 						// for either wheel idCode and normalize to notches. (The 0-value release adds nothing.)
-						if (btn->deviceType == RE::InputEvent::DeviceType::kMouse &&
-							(btn->idCode == kMouseWheelUpId || btn->idCode == kMouseWheelDownId)) {
+						if (steer && (btn->idCode == kMouseWheelUpId || btn->idCode == kMouseWheelDownId)) {
 							g_mouseWheel.fetch_add(btn->value / kWheelNotch, std::memory_order_relaxed);
 						}
 					}
@@ -294,10 +311,21 @@ namespace OSF::Input
 	void InputService::SetMouseCapture(bool a_on)
 	{
 		g_captureMouse.store(a_on, std::memory_order_relaxed);
+		g_orbitDragHeld.store(false, std::memory_order_relaxed);  // never carry a held drag across engage/release
 		if (!a_on) {
 			g_mouseDx.store(0.0f, std::memory_order_relaxed);
 			g_mouseDy.store(0.0f, std::memory_order_relaxed);
 			g_mouseWheel.store(0.0f, std::memory_order_relaxed);
+		}
+	}
+
+	void InputService::SetUiCursorVisible(bool a_on)
+	{
+		g_uiCursorVisible.store(a_on, std::memory_order_relaxed);
+		if (a_on) {
+			// The cursor just appeared: any in-flight drag state is stale (the click that opened the
+			// browser must not start steering the camera).
+			g_orbitDragHeld.store(false, std::memory_order_relaxed);
 		}
 	}
 

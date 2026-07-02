@@ -100,9 +100,10 @@ function onNativeMessage(jsonText) {
     case "osf.scanResults": handleScanResults(payload); break;
     case "osf.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.launchResult": handleLaunchResult(payload); break;
-    // The runtime tells the focused view when the overlay shows; report each open so the
-    // plugin's first-run "press F10" hint can count real opens and retire itself.
-    case "ui.visibility": if (payload && payload.visible) send("osf.opened"); break;
+    // The runtime tells the focused view when the overlay shows/hides; report both so the
+    // plugin's first-run "press F10" hint can count real opens, and so the scene-orbit camera
+    // knows a cursor is on screen (visible = LMB-drag steers the orbit; hidden = free-look).
+    case "ui.visibility": send(payload && payload.visible ? "osf.opened" : "osf.closed"); break;
     default: break;
   }
 }

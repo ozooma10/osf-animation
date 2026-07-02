@@ -1,0 +1,6373 @@
+{
+  "schema": 1,
+  "name": "OSF Highlights — Curated Vanilla (generated, do not hand-edit)",
+  "unlisted": true,
+  "clipRoot": "meshes/actors/human/animations",
+  "scenes": [
+    {
+      "id": "highlights/dance-floor/furniture/cheer",
+      "name": "Dance Floor — Cheer",
+      "tags": [
+        "highlights",
+        "dance-floor"
+      ],
+      "stages": [
+        {
+          "name": "LooseAnim_FormalApplause01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalapplause01.af",
+              "sec": 6.233
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_FormalApplause02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalapplause02.af",
+              "sec": 6.233
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_FormalApplause03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalapplause03.af",
+              "sec": 9.767
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_FormalCheer01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalcheer01.af",
+              "sec": 4.1
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_FormalCheer02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalcheer02.af",
+              "sec": 5.767
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_FormalCheer03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalcheer03.af",
+              "sec": 6.2
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_FormalCheer04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalcheer04.af",
+              "sec": 9.0
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_FormalSalute",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cheer/looseanim_formalsalute.af",
+              "sec": 3.1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/dance-floor/furniture/dance/astrallounge/dance_01/female",
+      "name": "Dance Floor — Dance / Astrallounge / Dance 01 / Female",
+      "tags": [
+        "highlights",
+        "dance-floor",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/astrallounge/dance_01/female/idle.af",
+              "sec": 4.267
+            }
+          ]
+        },
+        {
+          "name": "Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/astrallounge/dance_01/female/idle_flavor01.af",
+              "sec": 21.633
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/astrallounge/dance_01/female/idle_flavor02.af",
+              "sec": 18.967
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/astrallounge/dance_01/female/idle_flavor03.af",
+              "sec": 20.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/dance-floor/furniture/dance/astrallounge/dance_02",
+      "name": "Dance Floor — Dance / Astrallounge / Dance 02",
+      "tags": [
+        "highlights",
+        "dance-floor"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/astrallounge/dance_02/idle.af",
+              "sec": 2.5
+            }
+          ]
+        },
+        {
+          "name": "Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/astrallounge/dance_02/idle_flavor01.af",
+              "sec": 14.533
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/astrallounge/dance_02/idle_flavor02.af",
+              "sec": 19.367
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/dance-floor/furniture/dance/euphorika/dance_01",
+      "name": "Dance Floor — Dance / Euphorika / Dance 01",
+      "tags": [
+        "highlights",
+        "dance-floor"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/euphorika/dance_01/idle.af",
+              "sec": 2.133
+            }
+          ]
+        },
+        {
+          "name": "Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/euphorika/dance_01/idle_flavor01.af",
+              "sec": 16.5
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/euphorika/dance_01/idle_flavor02.af",
+              "sec": 13.467
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/dance-floor/furniture/dance/euphorika/dance_02/female",
+      "name": "Dance Floor — Dance / Euphorika / Dance 02 / Female",
+      "tags": [
+        "highlights",
+        "dance-floor",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/euphorika/dance_02/female/idle.af",
+              "sec": 1.033
+            }
+          ]
+        },
+        {
+          "name": "Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/euphorika/dance_02/female/idle_flavor01.af",
+              "sec": 12.433
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dance/euphorika/dance_02/female/idle_flavor02.af",
+              "sec": 15.767
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/barstool",
+      "name": "Bar Life — Barstool",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x074EC7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/idle.af",
+              "sec": 3.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/barstool/animflavor",
+      "name": "Bar Life — Barstool / Animflavor",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x074EC7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Angry_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/angry_idle.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Angry_Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/angry_idle_dialogue01.af",
+              "sec": 7.3
+            }
+          ],
+          "tags": [
+            "idle_dialogue01"
+          ]
+        },
+        {
+          "name": "Angry_Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/angry_idle_dialogue02.af",
+              "sec": 5.967
+            }
+          ],
+          "tags": [
+            "idle_dialogue02"
+          ]
+        },
+        {
+          "name": "Angry_Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/angry_idle_dialogue03.af",
+              "sec": 6.633
+            }
+          ],
+          "tags": [
+            "idle_dialogue03"
+          ]
+        },
+        {
+          "name": "Confident_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/confident_idle.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Depressed_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/depressed_idle.af",
+              "sec": 2.267
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "DrinkBottle_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/drinkbottle_idle.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Eat_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/eat_idle.af",
+              "sec": 2.067
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Sandwich_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/sandwich_idle.af",
+              "sec": 1.567
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Angry_Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/animflavor/angry_talk_l01.af",
+              "sec": 6.633
+            }
+          ],
+          "tags": [
+            "talk_l01"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/barstool/female",
+      "name": "Bar Life — Barstool / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x074EC7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/female/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/bartender",
+      "name": "Bar Life — Bartender",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x144A62"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bartender/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/bartender/female",
+      "name": "Bar Life — Bartender / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x144A62"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bartender/female/idle.af",
+              "sec": 2.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/dj/female",
+      "name": "Bar Life — Dj / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1FE0A2"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/dj/female/idle.af",
+              "sec": 10.533
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopback",
+      "name": "Bar Life — Leaningbartopback",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x06809D"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopback/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopback/female",
+      "name": "Bar Life — Leaningbartopback / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x06809D"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopback/female/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopback_drink",
+      "name": "Bar Life — Leaningbartopback Drink",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1ECDED"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopback_drink/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopback_drink/female",
+      "name": "Bar Life — Leaningbartopback Drink / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1ECDED"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopback_drink/female/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopfront",
+      "name": "Bar Life — Leaningbartopfront",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x051520"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopfront/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopfront/female",
+      "name": "Bar Life — Leaningbartopfront / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x051520"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopfront/female/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopleft",
+      "name": "Bar Life — Leaningbartopleft",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x04553E"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopleft/idle.af",
+              "sec": 3.967
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopleft/female",
+      "name": "Bar Life — Leaningbartopleft / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x04553E"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopleft/female/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopleft_drink",
+      "name": "Bar Life — Leaningbartopleft Drink",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1FE928"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopleft_drink/idle.af",
+              "sec": 3.967
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopleft_drink/female",
+      "name": "Bar Life — Leaningbartopleft Drink / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1FE928"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopleft_drink/female/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopright",
+      "name": "Bar Life — Leaningbartopright",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x02C0C2"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopright/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/leaningbartopright/female",
+      "name": "Bar Life — Leaningbartopright / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x02C0C2"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/leaningbartopright/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/standing_drink",
+      "name": "Bar Life — Standing Drink",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x05E8F7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_drink/idle.af",
+              "sec": 3.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/standing_drink/female",
+      "name": "Bar Life — Standing Drink / Female",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x05E8F7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_drink/female/idle.af",
+              "sec": 3.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/bench",
+      "name": "Sit & Lounge — Bench",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/idle.af",
+              "sec": 2.7
+            }
+          ]
+        },
+        {
+          "name": "Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/talk_l01.af",
+              "sec": 6.5
+            }
+          ]
+        },
+        {
+          "name": "Talk_L02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/talk_l02.af",
+              "sec": 6.567
+            }
+          ]
+        },
+        {
+          "name": "Talk_L03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/talk_l03.af",
+              "sec": 6.3
+            }
+          ]
+        },
+        {
+          "name": "Talk_M01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/talk_m01.af",
+              "sec": 2.8
+            }
+          ]
+        },
+        {
+          "name": "Talk_M02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/talk_m02.af",
+              "sec": 3.567
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/chair",
+      "name": "Sit & Lounge — Chair",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/idle.af",
+              "sec": 2.7
+            }
+          ]
+        },
+        {
+          "name": "Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/talk_l01.af",
+              "sec": 6.5
+            }
+          ]
+        },
+        {
+          "name": "Talk_L02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/talk_l02.af",
+              "sec": 6.567
+            }
+          ]
+        },
+        {
+          "name": "Talk_L03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/talk_l03.af",
+              "sec": 6.3
+            }
+          ]
+        },
+        {
+          "name": "Talk_M01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/talk_m01.af",
+              "sec": 2.8
+            }
+          ]
+        },
+        {
+          "name": "Talk_M02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/talk_m02.af",
+              "sec": 3.567
+            }
+          ]
+        },
+        {
+          "name": "Talk_M03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/talk_m03.af",
+              "sec": 3.933
+            }
+          ]
+        },
+        {
+          "name": "Talk_S01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/talk_s01.af",
+              "sec": 1.967
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/chair/animflavor",
+      "name": "Sit & Lounge — Chair / Animflavor",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Analyze_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/analyze_idle.af",
+              "sec": 2.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "AnalyzeAngry_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/analyzeangry_idle.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "ArmsCrossedCasual_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/armscrossedcasual_idle.af",
+              "sec": 2.7
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Bored_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/bored_idle.af",
+              "sec": 2.433
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Confident_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/confident_idle.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "CrossLegs_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/crosslegs_idle.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "CrossLegs_Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/crosslegs_idle_dialogue01.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "idle_dialogue01",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CrossLegs_Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/crosslegs_idle_dialogue02.af",
+              "sec": 4.933
+            }
+          ],
+          "tags": [
+            "idle_dialogue02",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/chair_executive",
+      "name": "Sit & Lounge — Chair Executive",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25E8EC"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair_executive/idle.af",
+              "sec": 3.667
+            }
+          ]
+        },
+        {
+          "name": "Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair_executive/talk_l01.af",
+              "sec": 7.3
+            }
+          ]
+        },
+        {
+          "name": "Talk_M01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair_executive/talk_m01.af",
+              "sec": 3.3
+            }
+          ]
+        },
+        {
+          "name": "Talk_S01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair_executive/talk_s01.af",
+              "sec": 2.633
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/chairleanback",
+      "name": "Sit & Lounge — Chairleanback",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0FB6DE"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chairleanback/idle.af",
+              "sec": 3.167
+            }
+          ]
+        },
+        {
+          "name": "Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chairleanback/talk_l01.af",
+              "sec": 6.0
+            }
+          ]
+        },
+        {
+          "name": "Talk_M01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chairleanback/talk_m01.af",
+              "sec": 3.333
+            }
+          ]
+        },
+        {
+          "name": "Talk_S01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chairleanback/talk_s01.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/couch",
+      "name": "Sit & Lounge — Couch",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x10013D"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/couch/idle.af",
+              "sec": 2.7
+            }
+          ]
+        },
+        {
+          "name": "Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/couch/talk_l01.af",
+              "sec": 6.967
+            }
+          ]
+        },
+        {
+          "name": "Talk_M01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/couch/talk_m01.af",
+              "sec": 4.5
+            }
+          ]
+        },
+        {
+          "name": "Talk_S01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/couch/talk_s01.af",
+              "sec": 1.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sitledge",
+      "name": "Sit & Lounge — Sitledge",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0327AF"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitledge/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sitledge/female",
+      "name": "Sit & Lounge — Sitledge / Female",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0327AF"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitledge/female/idle.af",
+              "sec": 2.267
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sitonground",
+      "name": "Sit & Lounge — Sitonground",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x26A0B7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitonground/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sitonground/female",
+      "name": "Sit & Lounge — Sitonground / Female",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x26A0B7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitonground/female/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sittable",
+      "name": "Sit & Lounge — Sittable",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/idle.af",
+              "sec": 3.2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sittable/female",
+      "name": "Sit & Lounge — Sittable / Female",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/idle.af",
+              "sec": 1.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sitwall_hopup",
+      "name": "Sit & Lounge — Sitwall Hopup",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0A2F9C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitwall_hopup/idle.af",
+              "sec": 2.267
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/sitwall_hopup/female",
+      "name": "Sit & Lounge — Sitwall Hopup / Female",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0A2F9C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitwall_hopup/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/stool",
+      "name": "Sit & Lounge — Stool",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x26AC99"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/stool/idle.af",
+              "sec": 3.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/stool/female",
+      "name": "Sit & Lounge — Stool / Female",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x26AC99"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/stool/female/idle.af",
+              "sec": 6.9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/desklean",
+      "name": "Lean & Loiter — Desklean",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x022854"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/desklean/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/desklean/female",
+      "name": "Lean & Loiter — Desklean / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x022854"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/desklean/female/idle.af",
+              "sec": 2.467
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/railleanback",
+      "name": "Lean & Loiter — Railleanback",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25E8E2"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanback/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/railleanback/female",
+      "name": "Lean & Loiter — Railleanback / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25E8E2"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanback/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanback/female/talk_l01.af",
+              "sec": 6.3
+            }
+          ]
+        },
+        {
+          "name": "Talk_L02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanback/female/talk_l02.af",
+              "sec": 6.967
+            }
+          ]
+        },
+        {
+          "name": "Talk_M01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanback/female/talk_m01.af",
+              "sec": 3.3
+            }
+          ]
+        },
+        {
+          "name": "Talk_S01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanback/female/talk_s01.af",
+              "sec": 2.3
+            }
+          ]
+        },
+        {
+          "name": "Talk_S02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanback/female/talk_s02.af",
+              "sec": 1.967
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/railleanfront",
+      "name": "Lean & Loiter — Railleanfront",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25E8D6"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanfront/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/standing",
+      "name": "Lean & Loiter — Standing",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/standing/female",
+      "name": "Lean & Loiter — Standing / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/idle.af",
+              "sec": 2.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/standing_confident",
+      "name": "Lean & Loiter — Standing Confident",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x2E75BB"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_confident/idle.af",
+              "sec": 14.567
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/standing_confident/female",
+      "name": "Lean & Loiter — Standing Confident / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x2E75BB"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_confident/female/idle.af",
+              "sec": 3.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/tableleanback",
+      "name": "Lean & Loiter — Tableleanback",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x07FAF1"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/tableleanback/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanback",
+      "name": "Lean & Loiter — Wallleanback",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x252328"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanback/idle.af",
+              "sec": 2.333
+            }
+          ]
+        },
+        {
+          "name": "relaxed_talk_l01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanback/relaxed_talk_l01.af",
+              "sec": 5.333
+            }
+          ]
+        },
+        {
+          "name": "relaxed_talk_l02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanback/relaxed_talk_l02.af",
+              "sec": 6.333
+            }
+          ]
+        },
+        {
+          "name": "relaxed_talk_m01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanback/relaxed_talk_m01.af",
+              "sec": 3.667
+            }
+          ]
+        },
+        {
+          "name": "relaxed_talk_m02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanback/relaxed_talk_m02.af",
+              "sec": 2.333
+            }
+          ]
+        },
+        {
+          "name": "relaxed_talk_m03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanback/relaxed_talk_m03.af",
+              "sec": 3.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanelbowleft",
+      "name": "Lean & Loiter — Wallleanelbowleft",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x017D40"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanelbowleft/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanelbowleft/female",
+      "name": "Lean & Loiter — Wallleanelbowleft / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x017D40"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanelbowleft/female/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanelbowright",
+      "name": "Lean & Loiter — Wallleanelbowright",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01B9F4"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanelbowright/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanelbowright/female",
+      "name": "Lean & Loiter — Wallleanelbowright / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01B9F4"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanelbowright/female/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanshoulderleft",
+      "name": "Lean & Loiter — Wallleanshoulderleft",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0FF3ED"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanshoulderleft/idle.af",
+              "sec": 3.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanshoulderleft/female",
+      "name": "Lean & Loiter — Wallleanshoulderleft / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0FF3ED"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanshoulderleft/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanshoulderright",
+      "name": "Lean & Loiter — Wallleanshoulderright",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0A8808"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanshoulderright/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/wallleanshoulderright/female",
+      "name": "Lean & Loiter — Wallleanshoulderright / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0A8808"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wallleanshoulderright/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/clipboard",
+      "name": "Work Crew — Clipboard",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25EB10"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/clipboard/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/clipboard/female",
+      "name": "Work Crew — Clipboard / Female",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25EB10"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/clipboard/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/consolesitting",
+      "name": "Work Crew — Consolesitting",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3C2AC0"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/consolesitting/idle.af",
+              "sec": 2.233
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/consolestanding",
+      "name": "Work Crew — Consolestanding",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01762F"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/consolestanding/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/hackerlaptop",
+      "name": "Work Crew — Hackerlaptop",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x361F95"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/hackerlaptop/idle.af",
+              "sec": 2.467
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/mining_lasercutter",
+      "name": "Work Crew — Mining Lasercutter",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x03F472"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/mining_lasercutter/idle.af",
+              "sec": 3.333
+            }
+          ]
+        },
+        {
+          "name": "FireAuto",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/mining_lasercutter/fireauto.af",
+              "sec": 2.633
+            }
+          ]
+        },
+        {
+          "name": "Relaxed_Talk_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/mining_lasercutter/relaxed_talk_l01.af",
+              "sec": 6.633
+            }
+          ],
+          "tags": [
+            "talk_l01"
+          ]
+        },
+        {
+          "name": "Relaxed_Talk_L02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/mining_lasercutter/relaxed_talk_l02.af",
+              "sec": 5.1
+            }
+          ],
+          "tags": [
+            "talk_l02"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/repair_tool_hammerstanding",
+      "name": "Work Crew — Repair Tool Hammerstanding",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x00A4AF"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/repair_tool_hammerstanding/idle.af",
+              "sec": 8.4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/repair_tool_wrenchstanding",
+      "name": "Work Crew — Repair Tool Wrenchstanding",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3E94BF"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/repair_tool_wrenchstanding/idle.af",
+              "sec": 8.4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/repair_toolkneeling",
+      "name": "Work Crew — Repair Toolkneeling",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x24E772"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/repair_toolkneeling/idle.af",
+              "sec": 6.467
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/repair_toolkneeling/female",
+      "name": "Work Crew — Repair Toolkneeling / Female",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x24E772"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/repair_toolkneeling/female/idle.af",
+              "sec": 10.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/repair_toolstanding",
+      "name": "Work Crew — Repair Toolstanding",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x07BDA9"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/repair_toolstanding/idle.af",
+              "sec": 8.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/repair_toolstanding/female",
+      "name": "Work Crew — Repair Toolstanding / Female",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x07BDA9"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/repair_toolstanding/female/idle.af",
+              "sec": 9.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/standing_raking",
+      "name": "Work Crew — Standing Raking",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3299B6"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_raking/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/standing_sweep",
+      "name": "Work Crew — Standing Sweep",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x190D66"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_sweep/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/terminal_seated",
+      "name": "Work Crew — Terminal Seated",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1EA292"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/terminal_seated/idle.af",
+              "sec": 2.467
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/terminal_standing",
+      "name": "Work Crew — Terminal Standing",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25E8DE"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/terminal_standing/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/welder",
+      "name": "Work Crew — Welder",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25B9D2"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/welder/idle.af",
+              "sec": 1.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/welderkneeling",
+      "name": "Work Crew — Welderkneeling",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x26D602"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/welderkneeling/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/wipetable",
+      "name": "Work Crew — Wipetable",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3B2A65"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wipetable/idle.af",
+              "sec": 5.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/wireboxtinker",
+      "name": "Work Crew — Wireboxtinker",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x004A48"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/wireboxtinker/idle.af",
+              "sec": 1.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/armorworkbench",
+      "name": "Work Crew — Workbench / Armorworkbench",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/armorworkbench/idle.af",
+              "sec": 8.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/foodstation",
+      "name": "Work Crew — Workbench / Foodstation",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/foodstation/idle.af",
+              "sec": 8.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/galleyworkbench",
+      "name": "Work Crew — Workbench / Galleyworkbench",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/galleyworkbench/idle.af",
+              "sec": 68.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/industrialworkbench",
+      "name": "Work Crew — Workbench / Industrialworkbench",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/industrialworkbench/idle.af",
+              "sec": 8.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/pharmaworkbench",
+      "name": "Work Crew — Workbench / Pharmaworkbench",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/pharmaworkbench/idle.af",
+              "sec": 8.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/researchworkbench",
+      "name": "Work Crew — Workbench / Researchworkbench",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/researchworkbench/idle.af",
+              "sec": 8.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/sciencestation",
+      "name": "Work Crew — Workbench / Sciencestation",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/sciencestation/idle.af",
+              "sec": 20.0
+            }
+          ]
+        },
+        {
+          "name": "Idle_PoseB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/sciencestation/idle_poseb.af",
+              "sec": 24.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "PoseAToPoseB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/sciencestation/poseatoposeb.af",
+              "sec": 1.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/workbench/weaponworkbench",
+      "name": "Work Crew — Workbench / Weaponworkbench",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x01A21C"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/workbench/weaponworkbench/idle.af",
+              "sec": 8.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/cockpit/furniture/jumpseat",
+      "name": "Cockpit — Jumpseat",
+      "tags": [
+        "highlights",
+        "cockpit",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x293842"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/jumpseat/idle.af",
+              "sec": 3.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/cockpit/furniture/pilotseat",
+      "name": "Cockpit — Pilotseat",
+      "tags": [
+        "highlights",
+        "cockpit",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x005AA6"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseat/idle.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "Flinch01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseat/flinch01.af",
+              "sec": 1.833
+            }
+          ]
+        },
+        {
+          "name": "Flinch02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseat/flinch02.af",
+              "sec": 1.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/cockpit/furniture/pilotseatdeimos",
+      "name": "Cockpit — Pilotseatdeimos",
+      "tags": [
+        "highlights",
+        "cockpit",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x104768"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseatdeimos/idle.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "Flinch01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseatdeimos/flinch01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Flinch02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseatdeimos/flinch02.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/cockpit/furniture/pilotseathopetech",
+      "name": "Cockpit — Pilotseathopetech",
+      "tags": [
+        "highlights",
+        "cockpit",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x104767"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseathopetech/idle.af",
+              "sec": 5.5
+            }
+          ]
+        },
+        {
+          "name": "Flinch01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseathopetech/flinch01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Flinch02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseathopetech/flinch02.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/cockpit/furniture/pilotseatstroud",
+      "name": "Cockpit — Pilotseatstroud",
+      "tags": [
+        "highlights",
+        "cockpit",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x104766"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseatstroud/idle.af",
+              "sec": 4.333
+            }
+          ]
+        },
+        {
+          "name": "Flinch01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseatstroud/flinch01.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "Flinch02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseatstroud/flinch02.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/cockpit/furniture/pilotseattaiyo",
+      "name": "Cockpit — Pilotseattaiyo",
+      "tags": [
+        "highlights",
+        "cockpit",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x104765"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pilotseattaiyo/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/common",
+      "name": "Props & Business — Common",
+      "tags": [
+        "highlights",
+        "props-and-business"
+      ],
+      "stages": [
+        {
+          "name": "Relaxed_IdlePartialBody_ArmCrossed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_armcrossed.af",
+              "sec": 2.433
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Artifact",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_artifact.af",
+              "sec": 4.433
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_briefcase.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_coffeecup.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_DataSlate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_dataslate.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_dataslatereceiveandread.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_dufflebags.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "idlepartialbody"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_ArmCrossed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_armcrossed.af",
+              "sec": 3.033
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_Artifact",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_artifact.af",
+              "sec": 3.067
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_Briefcase",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_briefcase.af",
+              "sec": 5.233
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_CoffeeCup",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_coffeecup.af",
+              "sec": 5.833
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_DataSlate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_dataslate.af",
+              "sec": 12.633
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_DataSlateReceiveAndRead",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_dataslatereceiveandread.af",
+              "sec": 12.633
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_DuffleBags",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_dufflebags.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_HandCuffed",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_handcuffed.af",
+              "sec": 5.433
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_HandsBehind",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_handsbehind.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_QuantumCalibrator",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_quantumcalibrator.af",
+              "sec": 9.7
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_ShoppingBag",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_shoppingbag.af",
+              "sec": 5.233
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_TechReader",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_techreader.af",
+              "sec": 5.233
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Flavor01_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_flavor01_techreader2hands.af",
+              "sec": 8.267
+            }
+          ],
+          "tags": [
+            "idlepartialbody_flavor01"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/read",
+      "name": "Props & Business — Read",
+      "tags": [
+        "highlights",
+        "props-and-business"
+      ],
+      "stages": [
+        {
+          "name": "LooseAnim_Read_L01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/read/looseanim_read_l01.af",
+              "sec": 16.667
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_Read_M01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/read/looseanim_read_m01.af",
+              "sec": 11.667
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_Read_S01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/read/looseanim_read_s01.af",
+              "sec": 6.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_dataslate",
+      "name": "Props & Business — Standing Dataslate",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1389C3"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_dataslate/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_dataslate/female",
+      "name": "Props & Business — Standing Dataslate / Female",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1389C3"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_dataslate/female/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_lookingatmap",
+      "name": "Props & Business — Standing Lookingatmap",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x10FAED"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_lookingatmap/idle.af",
+              "sec": 1.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_lookingatmap/female",
+      "name": "Props & Business — Standing Lookingatmap / Female",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x10FAED"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_lookingatmap/female/idle.af",
+              "sec": 2.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_lookingatmapbartop",
+      "name": "Props & Business — Standing Lookingatmapbartop",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x06FDAD"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_lookingatmapbartop/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_lookingatmapnav",
+      "name": "Props & Business — Standing Lookingatmapnav",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x025498"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_lookingatmapnav/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_readingbook",
+      "name": "Props & Business — Standing Readingbook",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0063CF"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_readingbook/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business/furniture/standing_readingbook/female",
+      "name": "Props & Business — Standing Readingbook / Female",
+      "tags": [
+        "highlights",
+        "props-and-business",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0063CF"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_readingbook/female/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/common",
+      "name": "Gestures — Common",
+      "tags": [
+        "highlights",
+        "gestures"
+      ],
+      "stages": [
+        {
+          "name": "Relaxed_Point_Behind_LeftHand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_lefthand.af",
+              "sec": 3.5
+            }
+          ],
+          "tags": [
+            "point_behind_lefthand"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_LeftThumb01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_leftthumb01.af",
+              "sec": 3.267
+            }
+          ],
+          "tags": [
+            "point_behind_leftthumb01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_LeftThumb02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_leftthumb02.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "point_behind_leftthumb02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_LeftThumb03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_leftthumb03.af",
+              "sec": 2.967
+            }
+          ],
+          "tags": [
+            "point_behind_leftthumb03"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_RightThumb01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_rightthumb01.af",
+              "sec": 4.633
+            }
+          ],
+          "tags": [
+            "point_behind_rightthumb01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_RightThumb02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_rightthumb02.af",
+              "sec": 4.033
+            }
+          ],
+          "tags": [
+            "point_behind_rightthumb02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Behind_RightThumb03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_behind_rightthumb03.af",
+              "sec": 5.067
+            }
+          ],
+          "tags": [
+            "point_behind_rightthumb03"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_LeftHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_lefthand01.af",
+              "sec": 3.3
+            }
+          ],
+          "tags": [
+            "point_forward_lefthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_LeftHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_lefthand02.af",
+              "sec": 2.233
+            }
+          ],
+          "tags": [
+            "point_forward_lefthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_RightHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_righthand01.af",
+              "sec": 3.133
+            }
+          ],
+          "tags": [
+            "point_forward_righthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Forward_RightHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_forward_righthand02.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "point_forward_righthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_LeftHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_lefthand01.af",
+              "sec": 3.867
+            }
+          ],
+          "tags": [
+            "point_left_lefthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_LeftHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_lefthand02.af",
+              "sec": 3.5
+            }
+          ],
+          "tags": [
+            "point_left_lefthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_RightHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_righthand01.af",
+              "sec": 3.967
+            }
+          ],
+          "tags": [
+            "point_left_righthand01"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Left_RightHand02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_left_righthand02.af",
+              "sec": 3.533
+            }
+          ],
+          "tags": [
+            "point_left_righthand02"
+          ]
+        },
+        {
+          "name": "Relaxed_Point_Right_LeftHand01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_point_right_lefthand01.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "point_right_lefthand01"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/furniture/merchant",
+      "name": "Gestures — Merchant",
+      "tags": [
+        "highlights",
+        "gestures",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x168184"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/merchant/idle.af",
+              "sec": 7.267
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/furniture/merchant/female",
+      "name": "Gestures — Merchant / Female",
+      "tags": [
+        "highlights",
+        "gestures",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x168184"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/merchant/female/idle.af",
+              "sec": 7.267
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/furniture/podium",
+      "name": "Gestures — Podium",
+      "tags": [
+        "highlights",
+        "gestures",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x107DD0"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/podium/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/furniture/podium/female",
+      "name": "Gestures — Podium / Female",
+      "tags": [
+        "highlights",
+        "gestures",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x107DD0"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/podium/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/furniture/salute",
+      "name": "Gestures — Salute",
+      "tags": [
+        "highlights",
+        "gestures"
+      ],
+      "stages": [
+        {
+          "name": "LooseAnim_Salute01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/salute/looseanim_salute01.af",
+              "sec": 3.4
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_Salute02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/salute/looseanim_salute02.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "LooseAnim_Salute03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/salute/looseanim_salute03.af",
+              "sec": 3.1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/furniture/standing_intercom",
+      "name": "Gestures — Standing Intercom",
+      "tags": [
+        "highlights",
+        "gestures",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1967AA"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_intercom/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/gestures/furniture/standing_intercom/female",
+      "name": "Gestures — Standing Intercom / Female",
+      "tags": [
+        "highlights",
+        "gestures",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1967AA"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_intercom/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/poses/common",
+      "name": "Poses — Common",
+      "tags": [
+        "highlights",
+        "poses"
+      ],
+      "stages": [
+        {
+          "name": "Boxer_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/boxer_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Captive_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/captive_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Cower_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/cower_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "HandsOnHips_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/handsonhips_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Jump_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/jump_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Kneeling_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/kneeling_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Player_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/player_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "SitOnGround_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/sitonground_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Sneak_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/sneak_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Wave_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/wave_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "WhatsUp_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/whatsup_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/poses/photomode/female",
+      "name": "Poses — Female",
+      "tags": [
+        "highlights",
+        "poses",
+        "female"
+      ],
+      "stages": [
+        {
+          "name": "ArmsCrossed_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/armscrossed_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Boxer_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/boxer_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Captive_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/captive_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Cower_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/cower_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Jump_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/jump_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Kneeling_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/kneeling_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Player_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/player_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "SitOnGround_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/sitonground_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Sneak_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/sneak_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "WhatsUp_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomode/female/whatsup_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/common",
+      "name": "Distress & Drama — Common",
+      "tags": [
+        "highlights",
+        "distress-and-drama"
+      ],
+      "stages": [
+        {
+          "name": "BleedOut_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_idle.af",
+              "sec": 5.8
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "BleedOut_Idle_ZeroG",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/bleedout_idle_zerog.af",
+              "sec": 5.8
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Cower_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/cower_idle.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "idle",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/idle_stun.af",
+              "sec": 4.533
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/arrested",
+      "name": "Distress & Drama — Arrested",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x003833"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/arrested/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/arrested/female",
+      "name": "Distress & Drama — Arrested / Female",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x003833"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/arrested/female/idle.af",
+              "sec": 2.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/cower",
+      "name": "Distress & Drama — Cower",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x255CB6"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cower/idle.af",
+              "sec": 3.333
+            }
+          ]
+        },
+        {
+          "name": "IdleFlavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cower/idleflavor01.af",
+              "sec": 6.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/cower_sitting",
+      "name": "Distress & Drama — Cower Sitting",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x31EEA0"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cower_sitting/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/cower_standing",
+      "name": "Distress & Drama — Cower Standing",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x016FDD"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/cower_standing/idle.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/injuredonground",
+      "name": "Distress & Drama — Injuredonground",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x019274"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/injuredonground/idle.af",
+              "sec": 2.667
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/injuredonground/idle_dialogue01.af",
+              "sec": 2.633
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/injuredonground/idle_dialogue02.af",
+              "sec": 2.633
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/injuredonground/idle_dialogue03.af",
+              "sec": 2.633
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/injuredonground/idle_dialogue04.af",
+              "sec": 2.633
+            }
+          ]
+        },
+        {
+          "name": "Idle_Dialogue05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/injuredonground/idle_dialogue05.af",
+              "sec": 2.633
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/kneel_surrender",
+      "name": "Distress & Drama — Kneel Surrender",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x043508"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/kneel_surrender/idle.af",
+              "sec": 2.167
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/kneeling_praying",
+      "name": "Distress & Drama — Kneeling Praying",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0361AE"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/kneeling_praying/idle.af",
+              "sec": 4.6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/kneeling_praying/female",
+      "name": "Distress & Drama — Kneeling Praying / Female",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0361AE"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/kneeling_praying/female/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/medpodpatient",
+      "name": "Distress & Drama — Medpodpatient",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x2DE254"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/medpodpatient/idle.af",
+              "sec": 0.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/panhandle",
+      "name": "Distress & Drama — Panhandle",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3DAB97"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/panhandle/idle.af",
+              "sec": 1.833
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/sitfloorcaptive_kneeling",
+      "name": "Distress & Drama — Sitfloorcaptive Kneeling",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x047706"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitfloorcaptive_kneeling/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/sitfloorcaptive_kneeling/female",
+      "name": "Distress & Drama — Sitfloorcaptive Kneeling / Female",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x047706"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitfloorcaptive_kneeling/female/idle.af",
+              "sec": 3.6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/sitfloorcaptive_walllean",
+      "name": "Distress & Drama — Sitfloorcaptive Walllean",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x05747B"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitfloorcaptive_walllean/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/sitfloorcaptive_walllean2",
+      "name": "Distress & Drama — Sitfloorcaptive Walllean2",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x0D6DDC"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sitfloorcaptive_walllean2/idle.af",
+              "sec": 3.2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/standing_mourn",
+      "name": "Distress & Drama — Standing Mourn",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x095B3B"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_mourn/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/standing_mourn/female",
+      "name": "Distress & Drama — Standing Mourn / Female",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x095B3B"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_mourn/female/idle.af",
+              "sec": 3.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/surgicalbed_patient",
+      "name": "Distress & Drama — Surgicalbed Patient",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x025AD8"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/surgicalbed_patient/idle.af",
+              "sec": 4.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/surgicalbed_wounded",
+      "name": "Distress & Drama — Surgicalbed Wounded",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x025AD6"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/surgicalbed_wounded/idle.af",
+              "sec": 10.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/surrender",
+      "name": "Distress & Drama — Surrender",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x001261"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/surrender/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/fitness/furniture/powercycle",
+      "name": "Fitness — Powercycle",
+      "tags": [
+        "highlights",
+        "fitness",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x03607E"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Activate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/powercycle/activate.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/fitness/furniture/powercycle/female",
+      "name": "Fitness — Powercycle / Female",
+      "tags": [
+        "highlights",
+        "fitness",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x03607E"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Activate",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/powercycle/female/activate.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/fitness/furniture/pushup",
+      "name": "Fitness — Pushup",
+      "tags": [
+        "highlights",
+        "fitness",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x025C4F"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pushup/idle.af",
+              "sec": 2.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/fitness/furniture/pushup/female",
+      "name": "Fitness — Pushup / Female",
+      "tags": [
+        "highlights",
+        "fitness",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x025C4F"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/pushup/female/idle.af",
+              "sec": 2.067
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/fitness/furniture/standing_benchpress",
+      "name": "Fitness — Standing Benchpress",
+      "tags": [
+        "highlights",
+        "fitness",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x119935"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_benchpress/idle.af",
+              "sec": 7.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/fitness/furniture/standing_pullup",
+      "name": "Fitness — Standing Pullup",
+      "tags": [
+        "highlights",
+        "fitness",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x11D045"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_pullup/idle.af",
+              "sec": 2.667
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/fitness/furniture/standing_pullup/female",
+      "name": "Fitness — Standing Pullup / Female",
+      "tags": [
+        "highlights",
+        "fitness",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x11D045"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing_pullup/female/idle.af",
+              "sec": 2.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/furniture/scenes/mq105_014_negotiationbriefcase",
+      "name": "Story Moments — Scenes / Mq105 014 Negotiationbriefcase",
+      "tags": [
+        "highlights",
+        "story-moments",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x00AF31"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq105_014_negotiationbriefcase/idle.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq105_014_negotiationbriefcase/idle_dialogue01.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq105_014_negotiationbriefcase/idle_dialogue02.af",
+              "sec": 4.933
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq105_014_negotiationbriefcase/idle_dialogue03.af",
+              "sec": 7.067
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq105_014_negotiationbriefcase/idle_dialogue04.af",
+              "sec": 8.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/furniture/scenes/mq202_005_petrovplayerscene",
+      "name": "Story Moments — Scenes / Mq202 005 Petrovplayerscene",
+      "tags": [
+        "highlights",
+        "story-moments",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x2448BC"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq202_005_petrovplayerscene/idle.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq202_005_petrovplayerscene/idle_dialogue01.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq202_005_petrovplayerscene/idle_dialogue02.af",
+              "sec": 7.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq202_005_petrovplayerscene/idle_flavor01.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq202_005_petrovplayerscene/idle_flavor02.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/scenes/mq202_005_petrovplayerscene/enterfromstand.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder",
+      "name": "Story Moments — Dialoguecfthekey Establishingscene / Looseidleanimation / Marauder",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Marauder_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder/looseidleanimation_marauder_01.af",
+              "sec": 11.867
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Marauder_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder/looseidleanimation_marauder_02.af",
+              "sec": 17.767
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Marauder_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/marauder/looseidleanimation_marauder_03.af",
+              "sec": 10.967
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva",
+      "name": "Story Moments — Dialoguecfthekey Establishingscene / Looseidleanimation / Naeva",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "LooseIdleAnimation_Naeva_01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_01.af",
+              "sec": 11.367
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Naeva_02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_02.af",
+              "sec": 13.267
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LooseIdleAnimation_Naeva_03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/dialoguecfthekey_establishingscene/looseidleanimation/naeva/looseidleanimation_naeva_03.af",
+              "sec": 4.967
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett",
+      "name": "Story Moments — Mq101 010 Barrettscene / Starfield.esm / Npcmbarrett",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "000165D8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/000165d8.af",
+              "sec": 7.667
+            }
+          ]
+        },
+        {
+          "name": "002E82B6",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/002e82b6.af",
+              "sec": 12.667
+            }
+          ]
+        },
+        {
+          "name": "0039D8B4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/0039d8b4.af",
+              "sec": 5.333
+            }
+          ]
+        },
+        {
+          "name": "005B84CB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/005b84cb.af",
+              "sec": 6.667
+            }
+          ]
+        },
+        {
+          "name": "00721E7D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00721e7d.af",
+              "sec": 8.667
+            }
+          ]
+        },
+        {
+          "name": "0089B24B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/0089b24b.af",
+              "sec": 5.667
+            }
+          ]
+        },
+        {
+          "name": "008A6D87",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/008a6d87.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "00A295D6",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett/00a295d6.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan",
+      "name": "Story Moments — Mq101 035 Sarahmorganscene / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "00094E94",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00094e94.af",
+              "sec": 3.667
+            }
+          ]
+        },
+        {
+          "name": "0027C359",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/0027c359.af",
+              "sec": 7.333
+            }
+          ]
+        },
+        {
+          "name": "003AEDBA",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/003aedba.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "0042F39A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/0042f39a.af",
+              "sec": 6.0
+            }
+          ]
+        },
+        {
+          "name": "005F9DF1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/005f9df1.af",
+              "sec": 12.167
+            }
+          ]
+        },
+        {
+          "name": "00605869",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00605869.af",
+              "sec": 6.167
+            }
+          ]
+        },
+        {
+          "name": "0072897A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/0072897a.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "00CFECFA",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan/00cfecfa.af",
+              "sec": 1.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq103_11a_jacobsamarguescene",
+      "name": "Story Moments — Mq103 11a Jacobsamarguescene",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_Jacob_IDLE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacob_idle.af",
+              "sec": 2.433
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_Sam_IDLE",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_sam_idle.af",
+              "sec": 2.433
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase01.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase02.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase03.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase04.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase05.af",
+              "sec": 7.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase06",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase06.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase07",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase07.af",
+              "sec": 10.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MQ103_11a_JacobSamArgueScene_JacobPhase08",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq103_11a_jacobsamarguescene/mq103_11a_jacobsamarguescene_jacobphase08.af",
+              "sec": 2.9
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov",
+      "name": "Story Moments — Mq202 005 Petrovplayerscene / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "00054794",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/00054794.af",
+              "sec": 12.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "000A2CAC",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/000a2cac.af",
+              "sec": 8.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "000E9F69",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/000e9f69.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "001CF5F7",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/001cf5f7.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0037864F",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0037864f.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0045B694",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0045b694.af",
+              "sec": 2.567
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0047DA7A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0047da7a.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0055401B",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov/0055401b.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan",
+      "name": "Story Moments — Mq206a 007a Sarahspeech / Starfield.esm / Npcfsarahmorgan",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "004133EB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/004133eb.af",
+              "sec": 9.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "006DD0CF",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/006dd0cf.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00D64F47",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/00d64f47.af",
+              "sec": 6.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00E68E43",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007a_sarahspeech/starfield.esm/npcfsarahmorgan/00e68e43.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri",
+      "name": "Story Moments — Mq206a 007b Matteospeech / Starfield.esm / Npcmmatteokhatri",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "0032248C",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/0032248c.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "005FBE39",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/005fbe39.af",
+              "sec": 13.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0087E825",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/0087e825.af",
+              "sec": 9.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0095E0B1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/0095e0b1.af",
+              "sec": 17.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "009CDB0A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/009cdb0a.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "00B2B0FD",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206a_007b_matteospeech/starfield.esm/npcmmatteokhatri/00b2b0fd.af",
+              "sec": 13.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus",
+      "name": "Story Moments — Mq206b 004 Inside / Starfield.esm / Npcmkeeperaquilus",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "00091C3D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/00091c3d.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "001E8CB4",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/001e8cb4.af",
+              "sec": 9.767
+            }
+          ]
+        },
+        {
+          "name": "003E9CB1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/003e9cb1.af",
+              "sec": 8.233
+            }
+          ]
+        },
+        {
+          "name": "006492BB",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/006492bb.af",
+              "sec": 7.133
+            }
+          ]
+        },
+        {
+          "name": "00730267",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus/00730267.af",
+              "sec": 4.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/story-moments/scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov",
+      "name": "Story Moments — Mq302 210 Scowscene01 / Starfield.esm / Npcmcaptainpetrov",
+      "tags": [
+        "highlights",
+        "story-moments"
+      ],
+      "stages": [
+        {
+          "name": "0005E817",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0005e817.af",
+              "sec": 8.0
+            }
+          ]
+        },
+        {
+          "name": "00100A6D",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/00100a6d.af",
+              "sec": 10.5
+            }
+          ]
+        },
+        {
+          "name": "003468B8",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/003468b8.af",
+              "sec": 6.5
+            }
+          ]
+        },
+        {
+          "name": "0044CB26",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0044cb26.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0049BB63",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0049bb63.af",
+              "sec": 7.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "0072631A",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov/0072631a.af",
+              "sec": 4.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    }
+  ]
+}

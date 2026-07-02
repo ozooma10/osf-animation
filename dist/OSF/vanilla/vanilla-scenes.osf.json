@@ -2,6 +2,7 @@
   "schema": 1,
   "name": "OSF Vanilla — Scenes (generated, do not hand-edit)",
   "section": "library",
+  "unlisted": true,
   "clipRoot": "meshes/actors/human/animations",
   "scenes": [
     {

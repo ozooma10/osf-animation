@@ -78,7 +78,8 @@ namespace OSF::Camera
 
 		// SCENE ORBIT (self-driven): per-frame from Tick (job threads) — places the camera on a ring around
 		// the scene center and aims it inward, writing the FreeFly state's transform. Mouse steers azimuth/
-		// elevation (drained from InputService), W/S zoom; holds still with no input.
+		// elevation (drained from InputService; while the scene browser's cursor is up the hook only feeds
+		// deltas during an LMB drag), wheel zooms, WASD pans the center; holds still with no input.
 		void DriveSceneOrbit();
 
 		std::mutex lock;

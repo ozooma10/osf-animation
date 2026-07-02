@@ -1,0 +1,197 @@
+{
+  "_readme": [
+    "DRAFT curation manifest for the in-box 'Highlights' pack — the front page of the",
+    "scene browser on an empty install. A future generate_highlights.py consumes this",
+    "together with the vanilla pack output to emit dist/OSF/vanilla/highlights.osf.json.",
+    "",
+    "Selection semantics per include rule:",
+    "  scenes      — glob over generated vanilla scene ids (covers --2/--3 split chunks)",
+    "  namePattern — optional regex over stage display names (case-insensitive)",
+    "  max         — cap, taken in the generator's stage order (idles first), AFTER",
+    "                dropping stages carrying any tag in excludeTags",
+    "Collection-level excludeTags defaults to ['transition'] so only loopable stages",
+    "surface; the Poses collection inverts this and REQUIRES the 'pose' tag.",
+    "Anchored sources keep their anchor block — the browser badges them and the guided",
+    "UI surfaces them only when matching furniture is nearby.",
+    "",
+    "The emitted pack carries NO 'section' key: it lands in the MAIN catalog lane",
+    "(osf.catalog.data), which on an empty install is exactly the curated front page.",
+    "The full vanilla library stays in the section:'library' lane (osf.library.data).",
+    "The pack is emitted 'unlisted': highlights are a browsing shelf started by direct",
+    "id, never candidates in the matchmaking pool (that belongs to custom mod scenes).",
+    "",
+    "Open items (see docs discussion 2026-07-02):",
+    "  - male/female leaf pairs should merge into ONE entry with a sex-appropriate",
+    "    clip pick at start time; until then both leaves are listed where both exist",
+    "  - caps are eyeball guesses; tune after an in-game browsing pass",
+    "  - deathscene victim/survivor leaves are a natural PAIRED showcase once the",
+    "    highlights generator can emit two-actor scenes"
+  ],
+  "packName": "OSF Highlights — Curated Vanilla",
+  "collections": [
+    {
+      "id": "highlights/dance-floor",
+      "name": "Dance Floor",
+      "blurb": "Every club dance Bethesda shipped — Astral Lounge and Euphorika sets.",
+      "_note": "the Idle_Flavor clips ARE the dance variations but carry is_state=0 (tagged 'transition'), so this collection filters by name instead of tag",
+      "include": [
+        { "scenes": ["vanilla/furniture/dance/*"], "excludeTags": [], "excludeNames": ["EnterFromStand", "ExitToStand"] },
+        { "scenes": ["vanilla/furniture/cheer", "vanilla/furniture/cheer/pirate"], "max": 8 }
+      ]
+    },
+    {
+      "id": "highlights/bar-life",
+      "name": "Bar Life",
+      "blurb": "Patrons, bartenders, drinks and bartop leans — a cantina in a box.",
+      "include": [
+        { "scenes": ["vanilla/furniture/barstool", "vanilla/furniture/barstool/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/barstool/animflavor", "vanilla/furniture/barstool/female/animflavor"], "max": 10 },
+        { "scenes": ["vanilla/furniture/bartender", "vanilla/furniture/bartender/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/leaningbartop*"], "max": 12 },
+        { "scenes": ["vanilla/furniture/standing_drink", "vanilla/furniture/standing_drink/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/dj/female"] }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge",
+      "name": "Sit & Lounge",
+      "blurb": "Chairs, couches, benches, ledges and floors — the best seated loops.",
+      "include": [
+        { "scenes": ["vanilla/furniture/chair", "vanilla/furniture/chair/female"], "max": 8 },
+        { "scenes": ["vanilla/furniture/chair/animflavor*", "vanilla/furniture/chair/female/animflavor*"], "max": 8 },
+        { "scenes": ["vanilla/furniture/couch"], "max": 6 },
+        { "scenes": ["vanilla/furniture/chairleanback"], "max": 5 },
+        { "scenes": ["vanilla/furniture/chair_executive"], "max": 5 },
+        { "scenes": ["vanilla/furniture/bench", "vanilla/furniture/bench/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/sittable", "vanilla/furniture/sittable/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/stool", "vanilla/furniture/stool/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/sitledge", "vanilla/furniture/sitledge/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/sitonground", "vanilla/furniture/sitonground/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/sitwall_hopup", "vanilla/furniture/sitwall_hopup/female"], "max": 4 }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter",
+      "name": "Lean & Loiter",
+      "blurb": "Wall, rail, desk and table leans plus confident standing idles.",
+      "include": [
+        { "scenes": ["vanilla/furniture/wallleanback", "vanilla/furniture/wallleanback/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/wallleanelbow*", "vanilla/furniture/wallleanshoulder*"], "max": 8 },
+        { "scenes": ["vanilla/furniture/raillean*"], "max": 8 },
+        { "scenes": ["vanilla/furniture/desklean", "vanilla/furniture/desklean/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/tableleanback"], "max": 4 },
+        { "scenes": ["vanilla/furniture/standing", "vanilla/furniture/standing/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/standing_confident", "vanilla/furniture/standing_confident/female"], "max": 6 }
+      ]
+    },
+    {
+      "id": "highlights/work-crew",
+      "name": "Work Crew",
+      "blurb": "Workbenches, repairs, welding, terminals and consoles — industry loops.",
+      "include": [
+        { "scenes": ["vanilla/furniture/workbench/*"], "max": 12 },
+        { "scenes": ["vanilla/furniture/repair_tool*"], "max": 8 },
+        { "scenes": ["vanilla/furniture/welder", "vanilla/furniture/welderkneeling"], "max": 6 },
+        { "scenes": ["vanilla/furniture/mining_lasercutter*"], "max": 4 },
+        { "scenes": ["vanilla/furniture/terminal_seated", "vanilla/furniture/terminal_standing"], "max": 8 },
+        { "scenes": ["vanilla/furniture/consolesitting", "vanilla/furniture/consolestanding"], "max": 6 },
+        { "scenes": ["vanilla/furniture/hackerlaptop", "vanilla/furniture/hackerhightechstation"], "max": 6 },
+        { "scenes": ["vanilla/furniture/clipboard", "vanilla/furniture/clipboard/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/standing_sweep", "vanilla/furniture/standing_raking", "vanilla/furniture/wipetable"], "max": 6 },
+        { "scenes": ["vanilla/furniture/wireboxtinker"], "max": 3 }
+      ]
+    },
+    {
+      "id": "highlights/cockpit",
+      "name": "Cockpit",
+      "blurb": "Pilot seats across every manufacturer, plus jumpseats.",
+      "include": [
+        { "scenes": ["vanilla/furniture/pilotseat"], "max": 6 },
+        { "scenes": ["vanilla/furniture/pilotseatdeimos", "vanilla/furniture/pilotseathopetech", "vanilla/furniture/pilotseatstroud", "vanilla/furniture/pilotseattaiyo", "vanilla/furniture/pilotseatstarborn"], "max": 10 },
+        { "scenes": ["vanilla/furniture/jumpseat"], "max": 4 }
+      ]
+    },
+    {
+      "id": "highlights/props-and-business",
+      "name": "Props & Business",
+      "blurb": "Coffee cups, data slates, briefcases, crossed arms — machinima acting beats.",
+      "include": [
+        { "scenes": ["vanilla/common*"], "namePattern": "^Relaxed_IdlePartialBody_(?!Start_|Stop_)", "max": 20 },
+        { "scenes": ["vanilla/furniture/standing_dataslate", "vanilla/furniture/standing_dataslate/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/standing_readingbook", "vanilla/furniture/standing_readingbook/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/read", "vanilla/furniture/read/female"], "max": 3 },
+        { "scenes": ["vanilla/furniture/standing_lookingatmap*"], "max": 6 }
+      ]
+    },
+    {
+      "id": "highlights/gestures",
+      "name": "Gestures",
+      "blurb": "Pointing, waving, intercoms and podium delivery — dialogue-scene glue.",
+      "include": [
+        { "scenes": ["vanilla/common*"], "namePattern": "^Relaxed_Point", "max": 16 },
+        { "scenes": ["vanilla/furniture/podium", "vanilla/furniture/podium/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/standing_intercom", "vanilla/furniture/standing_intercom/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/salute"], "max": 3 },
+        { "scenes": ["vanilla/furniture/merchant", "vanilla/furniture/merchant/female"], "max": 6 }
+      ]
+    },
+    {
+      "id": "highlights/poses",
+      "name": "Poses",
+      "blurb": "Freeze-frame poses for the orbit camera — the NPC photo-mode shelf.",
+      "requireTags": ["pose"],
+      "excludeTags": [],
+      "include": [
+        { "scenes": ["vanilla/photomode", "vanilla/photomode/female"] },
+        { "scenes": ["vanilla/common*"], "namePattern": "_(Pose)$", "max": 16 }
+      ],
+      "excludeNames": ["BoneWeights", "Boneweights", "book_test", "TestROM"]
+    },
+    {
+      "id": "highlights/distress-and-drama",
+      "name": "Distress & Drama",
+      "blurb": "Cowering, surrender, captives, wounded and mourning — tension beats.",
+      "include": [
+        { "scenes": ["vanilla/furniture/cower", "vanilla/furniture/cower_sitting", "vanilla/furniture/cower_standing"], "max": 8 },
+        { "scenes": ["vanilla/furniture/surrender", "vanilla/furniture/kneel_surrender"], "max": 6 },
+        { "scenes": ["vanilla/furniture/arrested", "vanilla/furniture/arrested/female"], "max": 6 },
+        { "scenes": ["vanilla/furniture/sitfloorcaptive_*"], "max": 6 },
+        { "scenes": ["vanilla/furniture/injuredonground", "vanilla/furniture/woundedlean"], "max": 6 },
+        { "scenes": ["vanilla/furniture/surgicalbed_patient", "vanilla/furniture/surgicalbed_wounded", "vanilla/furniture/medpodpatient"], "max": 6 },
+        { "scenes": ["vanilla/furniture/standing_mourn", "vanilla/furniture/standing_mourn/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/kneeling_praying", "vanilla/furniture/kneeling_praying/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/panhandle"], "max": 3 },
+        { "scenes": ["vanilla/common*"], "namePattern": "^(BleedOut_Idle|Cower_Idle|Idle_Stun)", "max": 4 }
+      ]
+    },
+    {
+      "id": "highlights/fitness",
+      "name": "Fitness",
+      "blurb": "Push-ups, pull-ups, bench press and the exercise bike.",
+      "include": [
+        { "scenes": ["vanilla/furniture/pushup", "vanilla/furniture/pushup/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/standing_pullup", "vanilla/furniture/standing_pullup/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/standing_benchpress", "vanilla/furniture/standing_benchpress/female"], "max": 4 },
+        { "scenes": ["vanilla/furniture/powercycle", "vanilla/furniture/powercycle/female"], "excludeTags": [] }
+      ]
+    },
+    {
+      "id": "highlights/story-moments",
+      "name": "Story Moments",
+      "blurb": "One-off quest acting — Constellation speeches, Petrov, the Key, and more.",
+      "excludeTags": [],
+      "include": [
+        { "scenes": ["vanilla/scenes/mq101_010_barrettscene/starfield.esm/npcmbarrett"], "max": 8 },
+        { "scenes": ["vanilla/scenes/mq101_035_sarahmorganscene/starfield.esm/npcfsarahmorgan"], "max": 8 },
+        { "scenes": ["vanilla/scenes/mq202_005_petrovplayerscene/starfield.esm/npcmcaptainpetrov"], "max": 8 },
+        { "scenes": ["vanilla/scenes/mq302_210_scowscene01/starfield.esm/npcmcaptainpetrov"], "max": 6 },
+        { "scenes": ["vanilla/scenes/mq103_11a_jacobsamarguescene"], "max": 10 },
+        { "scenes": ["vanilla/scenes/mq206a_007*"], "max": 10 },
+        { "scenes": ["vanilla/scenes/mq206b_004_inside/starfield.esm/npcmkeeperaquilus"], "max": 5 },
+        { "scenes": ["vanilla/scenes/dialoguecfthekey_establishingscene/*"], "max": 6 },
+        { "scenes": ["vanilla/furniture/scenes/mq105_014_negotiationbriefcase"], "max": 5 },
+        { "scenes": ["vanilla/furniture/scenes/mq202_005_petrovplayerscene"], "max": 6 }
+      ]
+    }
+  ]
+}

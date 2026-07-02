@@ -2,6 +2,7 @@
 
 #include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
 #include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
+#include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
@@ -12,6 +13,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <format>
 #include <string>
@@ -652,6 +654,7 @@ namespace OSF::API
 		// Distance math uses TESObjectREFR::GetPosition() (cached data.location), the same source the rest of OSF Animation uses for actor/anchor placement.
 		void OnScanNearby(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
+			const auto  scanStart = std::chrono::steady_clock::now();
 			const json  j = ParsePayload(a_payload);
 			std::string kind = "actor";
 			std::string sceneId;
@@ -740,43 +743,58 @@ namespace OSF::API
 				originA.x = origin.x;
 				originA.y = origin.y;
 				originA.z = origin.z;
-				std::vector<std::uint32_t> matched;  // accepting def indices for the ref under visit
+				// Anchor keywords live on BASE records (the ESM extractor reads them from FURN/ACTI
+				// forms), so keyword probing is memoized PER UNIQUE BASE: a POI places the same chair
+				// or marker base dozens of times, and the unique-keyword set is ~150 strong with the
+				// vanilla packs — probing it per REF (refs x keywords engine calls) was still a hitch.
+				struct BaseMatch
+				{
+					std::int32_t    accepts = 0;
+					std::int32_t    customAccepts = 0;
+					RE::BGSKeyword* kw = nullptr;  // a matching keyword (labels unnamed markers)
+				};
+				std::unordered_map<RE::TESFormID, BaseMatch> baseCache;
+				std::vector<std::uint32_t>                   matched;  // scratch: accepting def indices
 				// ForEachReferenceInRange spans the loaded interior cell or exterior grid and only
 				// visits refs already within radius; we just filter to furniture our scenes anchor to.
 				tes->ForEachReferenceInRange(originA, radius, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
 					RE::TESObjectREFR* ref = a_ref.get();
 					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted()) {
-						// Count every accepting def (not just the first): the view shows "unlocks N
-						// scenes" next to each nearby anchor so the pick is an informed one.
-						matched.clear();
-						RE::BGSKeyword* matchedKw = nullptr;
-						if (!baseDefs.empty()) {
-							if (const auto base = ref->GetBaseObject()) {
-								if (const auto it = baseDefs.find(base->GetFormID()); it != baseDefs.end()) {
-									matched.insert(matched.end(), it->second.begin(), it->second.end());
+						const auto base = ref->GetBaseObject();
+						if (!base) {
+							return RE::BSContainer::ForEachResult::kContinue;  // anchors match by base form / base-record keywords
+						}
+						auto cit = baseCache.find(base->GetFormID());
+						if (cit == baseCache.end()) {
+							// First ref of this base: count every accepting def (not just the first) —
+							// the view shows "unlocks N scenes" next to each nearby anchor.
+							matched.clear();
+							BaseMatch m;
+							if (const auto it = baseDefs.find(base->GetFormID()); it != baseDefs.end()) {
+								matched.insert(matched.end(), it->second.begin(), it->second.end());
+							}
+							for (const auto& [kw, idxs] : kwDefs) {
+								if (ref->HasKeyword(kw)) {
+									if (!m.kw) {
+										m.kw = kw;  // any matching keyword will do
+									}
+									matched.insert(matched.end(), idxs.begin(), idxs.end());
 								}
 							}
-						}
-						for (const auto& [kw, idxs] : kwDefs) {
-							if (ref->HasKeyword(kw)) {
-								if (!matchedKw) {
-									matchedKw = kw;  // labels unnamed markers; any matching keyword will do
-								}
-								matched.insert(matched.end(), idxs.begin(), idxs.end());
-							}
-						}
-						if (!matched.empty()) {
 							// A def can match via its base form AND several keywords — count it once.
 							std::sort(matched.begin(), matched.end());
 							matched.erase(std::unique(matched.begin(), matched.end()), matched.end());
-							const auto   accepts = static_cast<std::int32_t>(matched.size());
-							std::int32_t customAccepts = 0;
+							m.accepts = static_cast<std::int32_t>(matched.size());
 							for (const auto i : matched) {
 								if (defCustom[i]) {
-									customAccepts++;  // custom (authored) scene, vs a generated vanilla-library pack
+									m.customAccepts++;  // custom (authored) scene, vs a generated vanilla-library pack
 								}
 							}
-							hits.push_back({ ref, origin.GetSquaredDistance(ref->GetPosition()), accepts, customAccepts, matchedKw });
+							cit = baseCache.emplace(base->GetFormID(), m).first;
+						}
+						const BaseMatch& m = cit->second;
+						if (m.accepts != 0) {
+							hits.push_back({ ref, origin.GetSquaredDistance(ref->GetPosition()), m.accepts, m.customAccepts, m.kw });
 						}
 					}
 					return RE::BSContainer::ForEachResult::kContinue;
@@ -814,7 +832,9 @@ namespace OSF::API
 				}
 				reply["items"].push_back(std::move(item));
 			}
-			REX::DEBUG("[UI] osf.scanNearby kind={} radius={} -> {} hit(s)", kind, radius, hits.size());
+			const auto scanMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now() - scanStart).count();
+			REX::DEBUG("[UI] osf.scanNearby kind={} radius={} -> {} hit(s) in {} ms", kind, radius, hits.size(), scanMs);
 			SendJson(a_srcView, "osf.scanResults", reply);
 		}
 
@@ -847,11 +867,18 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.anchorMatch", reply);
 		}
 
-		// The view reports each time it becomes visible (ui.visibility -> osf.opened), so the
-		// first-run F10 hint can count real opens and retire itself.
+		// The view reports every visibility change (ui.visibility -> osf.opened / osf.closed): the
+		// first-run F10 hint counts real opens, and the input hook learns whether a UI cursor is on
+		// screen (visible = the scene-orbit camera steers by LMB-drag; hidden = free-look).
 		void OnOpened(const char*, const char*, const char*, void*) noexcept
 		{
 			UI::FirstRunHint::OnMenuOpened();
+			Input::InputService::GetSingleton().SetUiCursorVisible(true);
+		}
+
+		void OnClosed(const char*, const char*, const char*, void*) noexcept
+		{
+			Input::InputService::GetSingleton().SetUiCursorVisible(false);
 		}
 
 		void OnBridgeReady(void*) noexcept
@@ -930,6 +957,7 @@ namespace OSF::API
 		g_ui->RegisterCommand("osf.launch", &OnLaunch, nullptr);
 		g_ui->RegisterCommand("osf.stop", &OnStop, nullptr);
 		g_ui->RegisterCommand("osf.opened", &OnOpened, nullptr);
+		g_ui->RegisterCommand("osf.closed", &OnClosed, nullptr);
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
 		g_ui->GetPluginVersion(mj, mn, pt);
