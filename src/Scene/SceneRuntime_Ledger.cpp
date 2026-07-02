@@ -226,11 +226,21 @@ namespace OSF::Scene
 	void SceneRuntime::RecordCameraState(std::int32_t a_handle, Camera::CameraMode a_mode)
 	{
 		bool firstForScene = false;
+		std::vector<std::uint32_t> cast;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
 			if (!s) {
 				return;
+			}
+			if (a_mode == Camera::CameraMode::kSceneOrbit) {
+				// Frame seed: the orbit centers/fits on the whole cast, not just the player. Form IDs, so
+				// the service resolves live (post-placement) positions on the game thread at enter time.
+				for (const auto* actor : s->participants) {
+					if (actor) {
+						cast.push_back(actor->formID);
+					}
+				}
 			}
 			if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kCameraState) == s->ledger.end()) {
 				s->ledger.push_back(Mechanism::kCameraState);  // one entry; the override is released once on undo
@@ -239,6 +249,9 @@ namespace OSF::Scene
 		}
 		// Drive the service OUTSIDE _lock (it takes its own lock + posts game-thread tasks).
 		auto& cam = Camera::CameraService::GetSingleton();
+		if (a_mode == Camera::CameraMode::kSceneOrbit) {
+			cam.SetOrbitFrameSubjects(std::move(cast));
+		}
 		if (firstForScene) {
 			cam.AcquireStateOverride();  // capture baseline + suppress the bounce on the first holder
 		}

@@ -25,13 +25,19 @@ namespace OSF::Camera
 		// Seeds the third-person camera's TARGET zoom so a thirdperson_hold doesn't open pinned on the player's back.
 		void SeedThirdPersonZoom(float a_distance, bool a_snapCurrent = false);
 
-		// STATE OVERRIDE. Acquire on the first holder captures the baseline POV and suppresses the third-person bounce; 
-		// Release on the last restores the baseline (or hands the camera back to the hold if one is still held). 
-		// SetLiveCameraState retargets the live camera WITHOUT touching the ref-count, so a scene can switch postures per node (e.g. vanity on the intro, free-fly on a later beat). 
+		// STATE OVERRIDE. Acquire on the first holder captures the baseline POV and suppresses the third-person bounce;
+		// Release on the last restores the baseline (or hands the camera back to the hold if one is still held).
+		// SetLiveCameraState retargets the live camera WITHOUT touching the ref-count, so a scene can switch postures per node (e.g. vanity on the intro, free-fly on a later beat).
 		// Each Acquire must be matched by one Release.
 		void AcquireStateOverride();
 		void SetLiveCameraState(CameraMode a_mode);
 		void ReleaseStateOverride();
+
+		// FRAME SEED for the next scene-orbit enter: the scene cast to frame and center (form IDs;
+		// resolved to live positions on the game thread AT ENTER TIME, after placement has moved the
+		// actors — not when the seed is set). Consumed by that enter. Without a seed (or when nothing
+		// resolves) the orbit falls back to centering on the player.
+		void SetOrbitFrameSubjects(std::vector<std::uint32_t> a_actorIds);
 
 		// PLAYER-DRIVEN FREE CAM (the MMB toggle, routed from InputService::kFreecam). Toggles engine-native
 		// free cam on/off as one paired state override: the first toggle Acquires + enters free-fly, the second
@@ -103,5 +109,7 @@ namespace OSF::Camera
 		float             orbitCenterX = 0.0f;
 		float             orbitCenterY = 0.0f;
 		float             orbitCenterZ = 0.0f;    // torso height; floor ≈ this minus the torso offset
+		// Cast to frame on the next orbit enter (SetOrbitFrameSubjects). Guarded by driveLock.
+		std::vector<std::uint32_t> frameSubjects;
 	};
 }

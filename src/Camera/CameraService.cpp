@@ -85,6 +85,15 @@ namespace OSF::Camera
 		constexpr float kOrbitWheelStep = 0.6f;      // meters of radius change per mouse-wheel notch (zoom)
 		constexpr float kOrbitElevLimit = 1.45f;     // ~83°, off the gimbal poles
 		constexpr float kOrbitSmoothTime = 0.07f;    // low-pass time constant (s): smaller = snappier, larger = floatier
+		constexpr float kOrbitFrameFit = 2.5f;       // radius per meter of cast spread — pulls back until the widest cast fits the frame
+		constexpr float kOrbitAxisMinSq = 0.04f;     // pair axis shorter than 20 cm = co-located; keep the heading-based azimuth
+		constexpr float kPi = 3.14159265f;
+
+		// Smallest absolute angle between two headings (radians, [0, π]).
+		float AngularGap(float a_a, float a_b)
+		{
+			return std::abs(std::remainder(a_a - a_b, 2.0f * kPi));
+		}
 
 		bool KeyDown(int a_vk)
 		{
@@ -302,16 +311,72 @@ namespace OSF::Camera
 				auto* player = RE::PlayerCharacter::GetSingleton();
 				{
 					std::scoped_lock l{ driveLock };
-					// Capture the orbit center ONCE — the player's torso, nudged toward the partner. A pinned
-					// actor's live position wobbles each frame, so reading it per-frame would jitter the camera.
+					// Capture the orbit framing ONCE — a pinned actor's live position wobbles each frame, so
+					// reading it per-frame would jitter the camera.
 					const float        h = player ? player->data.angle.z : 0.0f;
 					const RE::NiPoint3 loc = player ? player->data.location : RE::NiPoint3{};
-					orbitCenterX = loc.x - std::sin(h) * kOrbitCenterFwd;
-					orbitCenterY = loc.y + std::cos(h) * kOrbitCenterFwd;
-					orbitCenterZ = loc.z + kOrbitCenterUp;
-					orbitAzimuth = h;  // start framing the scene from the player's side
+					// With a cast seed (SetOrbitFrameSubjects): center on the SUBJECTS' midpoint, open the
+					// radius until their spread fits the frame, and open SIDE-ON to the cast's long axis so
+					// the subjects spread across the frame instead of stacking behind each other (the side
+					// nearest the player's heading, so the opening cut is the smallest camera move).
+					// Positions are resolved HERE — game thread, after placement moved the cast.
+					std::vector<RE::NiPoint3> pts;
+					pts.reserve(frameSubjects.size());
+					for (const std::uint32_t id : frameSubjects) {
+						if (const auto* subject = RE::TESForm::LookupByID<RE::Actor>(id)) {
+							pts.push_back(subject->data.location);
+						}
+					}
+					frameSubjects.clear();  // consumed (or dead) — never reused by a later enter
+					float azimuth = h;
+					float radius = kOrbitDefaultRadius;
+					if (pts.empty()) {
+						// No cast seed (direct API use): the player's torso, nudged toward the partner.
+						orbitCenterX = loc.x - std::sin(h) * kOrbitCenterFwd;
+						orbitCenterY = loc.y + std::cos(h) * kOrbitCenterFwd;
+						orbitCenterZ = loc.z + kOrbitCenterUp;
+					} else {
+						float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+						for (const auto& p : pts) {
+							cx += p.x;
+							cy += p.y;
+							cz += p.z;
+						}
+						const float n = static_cast<float>(pts.size());
+						cx /= n;
+						cy /= n;
+						cz /= n;
+						orbitCenterX = cx;
+						orbitCenterY = cy;
+						orbitCenterZ = cz + kOrbitCenterUp;
+						// Fit: widest horizontal reach from the center scales the pull-back.
+						float spread = 0.0f;
+						// Long axis: the most-separated pair (casts are tiny — O(n²) is fine).
+						float axX = 0.0f, axY = 0.0f, axLenSq = 0.0f;
+						for (std::size_t i = 0; i < pts.size(); i++) {
+							spread = std::max(spread, std::hypot(pts[i].x - cx, pts[i].y - cy));
+							for (std::size_t j = i + 1; j < pts.size(); j++) {
+								const float dx = pts[j].x - pts[i].x;
+								const float dy = pts[j].y - pts[i].y;
+								const float d2 = dx * dx + dy * dy;
+								if (d2 > axLenSq) {
+									axLenSq = d2;
+									axX = dx;
+									axY = dy;
+								}
+							}
+						}
+						radius = std::clamp(std::max(kOrbitDefaultRadius, spread * kOrbitFrameFit), kOrbitMinRadius, kOrbitMaxRadius);
+						if (axLenSq > kOrbitAxisMinSq) {
+							const float axisYaw = std::atan2(-axX, axY);  // heading whose forward runs along the pair axis
+							const float side1 = axisYaw + 0.5f * kPi;    // the two side-on views
+							const float side2 = axisYaw - 0.5f * kPi;
+							azimuth = (AngularGap(side1, h) <= AngularGap(side2, h)) ? side1 : side2;
+						}
+					}
+					orbitAzimuth = azimuth;
 					orbitElevation = kOrbitDefaultElev;
-					orbitRadius = kOrbitDefaultRadius;
+					orbitRadius = radius;
 					orbitTargetAzimuth = orbitAzimuth;  // targets start matched so there's no opening glide
 					orbitTargetElevation = orbitElevation;
 					orbitTargetRadius = orbitRadius;
@@ -339,6 +404,12 @@ namespace OSF::Camera
 			camera->SetCameraState(RE::CameraState::kAutoVanity);
 			REX::DEBUG("[Camera] set to vanity orbit");
 		});
+	}
+
+	void CameraService::SetOrbitFrameSubjects(std::vector<std::uint32_t> a_actorIds)
+	{
+		std::scoped_lock l{ driveLock };
+		frameSubjects = std::move(a_actorIds);  // consumed by the next scene-orbit enter (see SetLiveCameraState)
 	}
 
 	void CameraService::NativeFreeCamEnter()
@@ -558,6 +629,10 @@ namespace OSF::Camera
 	{
 		if (orbitDriving.exchange(false, std::memory_order_relaxed)) {
 			Input::InputService::GetSingleton().SetMouseCapture(false);
+		}
+		{
+			std::scoped_lock dl{ driveLock };
+			frameSubjects.clear();  // a seed staged for an orbit that never entered must not frame a post-load scene
 		}
 		if (nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
 			// Drive the native free cam off so a save/load doesn't strand the player in it.
