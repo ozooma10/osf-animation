@@ -11,6 +11,7 @@
 #include "Serialization/GLTFImport.h"
 #include "Util/ClipPath.h"
 #include "Util/Math.h"
+#include "Util/Species.h"
 #include "Util/StringUtil.h"
 
 #include "RE/S/StreamBase.h"
@@ -142,6 +143,19 @@ namespace OSF::Animation
 			return std::nullopt;
 		}
 
+		// A non-human species' skeleton.rig, at a_rigResPath (derived from the clip's own path by
+		// Util::RigResourcePathFromAnimPath). Falls back to the human rig if the species rig can't
+		// be read, so an unexpected path degrades to a (wrong-but-safe) bind instead of no clip.
+		std::optional<std::vector<std::uint8_t>> LoadSpeciesRigBytes(const std::string& a_rigResPath)
+		{
+			if (auto bytes = ReadResourceFile(a_rigResPath); bytes && !bytes->empty()) {
+				REX::TRACE("[Anim] rig: species resource {} ({} bytes)", a_rigResPath, bytes->size());
+				return bytes;
+			}
+			REX::WARN("[Anim] rig: species rig '{}' unavailable — falling back to human", a_rigResPath);
+			return LoadHumanRigBytes();
+		}
+
 		struct ClipLoad
 		{
 			std::shared_ptr<const OzzSkeleton>  skeleton;
@@ -170,9 +184,26 @@ namespace OSF::Animation
 				const auto extPath = cand.resource ? std::filesystem::path{ cand.resourcePath } : cand.filePath;
 				const bool isAf = Util::ToLower(extPath.extension().string()) == ".af";
 
+				// Pick the rig this .af decodes against from its OWN path. Creature/alien clips live
+				// under meshes\actors\<species>\animations and ship their own skeleton.rig (keyed by
+				// that rig path so the AFImport cache partitions per species). Human and any loose /
+				// unrecognized clip keeps the shipped human rig + its OSF loose-file overrides.
+				std::string                               rigKey = "human-skeleton";
+				Serialization::AFImport::RigBytesProvider rigProvider = &LoadHumanRigBytes;
+				if (isAf) {
+					const std::string animPath = cand.resource ? cand.resourcePath : cand.filePath.string();
+					const std::string species = Util::SpeciesFromAnimPath(animPath);
+					if (!species.empty() && species != "human" && Util::IsKnownSpecies(species)) {
+						if (std::string rigRes = Util::RigResourcePathFromAnimPath(animPath); !rigRes.empty()) {
+							rigKey = rigRes;
+							rigProvider = [rigRes]() { return LoadSpeciesRigBytes(rigRes); };
+						}
+					}
+				}
+
 				if (!cand.resource) {
 					if (isAf) {
-						auto r = Serialization::AFImport::LoadAnimation(cand.filePath, "human-skeleton", &LoadHumanRigBytes);
+						auto r = Serialization::AFImport::LoadAnimation(cand.filePath, rigKey, rigProvider);
 						if (r.error != Serialization::AFError::kSuccess) {
 							out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
 							out.source = cand.filePath.string();
@@ -202,7 +233,7 @@ namespace OSF::Animation
 				}
 
 				if (isAf) {
-					auto r = Serialization::AFImport::LoadAnimation(cand.resourcePath, *bytes, "human-skeleton", &LoadHumanRigBytes);
+					auto r = Serialization::AFImport::LoadAnimation(cand.resourcePath, *bytes, rigKey, rigProvider);
 					if (r.error != Serialization::AFError::kSuccess) {
 						out.detail = std::format("af error {}: {}", static_cast<int>(r.error), r.detail);
 						out.source = cand.resourcePath;

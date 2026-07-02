@@ -7,6 +7,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
+#include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
 #include "Util/StringUtil.h"  // Util::ToLower
 
 #include <nlohmann/json.hpp>
@@ -276,6 +277,7 @@ namespace OSF::API
 			{
 				std::string              id;
 				std::string              title;
+				std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
 				std::vector<std::string> tags;
 				std::uint32_t            actorCount = 0;
 				std::vector<std::string> genders;
@@ -295,6 +297,7 @@ namespace OSF::API
 				Card c;
 				c.id = d.id;
 				c.title = d.name.empty() ? d.id : d.name;
+				c.species = d.species.empty() ? std::string{ "human" } : d.species;
 				c.tags = d.tags;
 				c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
 				c.genders.reserve(d.roles.size());
@@ -417,6 +420,7 @@ namespace OSF::API
 				arr.push_back({
 					{ "id", c.id },
 					{ "title", c.title },
+					{ "species", c.species },
 					{ "tags", c.tags },
 					{ "actorCount", c.actorCount },
 					{ "genders", c.genders },
@@ -479,6 +483,9 @@ namespace OSF::API
 				reply["token"] = token;
 				reply["name"] = nm;
 				reply["formId"] = ref->GetFormID();
+				// Skeleton family, so the view can filter the library to what this actor can actually
+				// play (a creature gets its own animations, not human ones). "" for furniture picks.
+				reply["species"] = ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
 				REX::DEBUG("[UI] osf.pickCrosshair slot={} -> token {} '{}' ({:08X})", slot, token, nm, ref->GetFormID());
 			}
 			SendJson(a_srcView, "osf.pick", reply);
@@ -840,6 +847,7 @@ namespace OSF::API
 					{ "distance", std::sqrt(h.distSq) / 70.0f },  // game units -> ~meters
 					{ "isActor", h.ref->IsActor() },
 					{ "marker", marker },
+					{ "species", h.ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(h.ref)) : std::string{} },
 				};
 				if (h.sceneCount >= 0) {
 					item["sceneCount"] = h.sceneCount;

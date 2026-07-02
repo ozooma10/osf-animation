@@ -3,6 +3,7 @@
 #include "Input/InputTypes.h"
 #include "Util/FormRef.h"
 #include "Util/Math.h"
+#include "Util/Species.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>
@@ -1191,6 +1192,28 @@ namespace OSF::Registry
 						break;
 					}
 				}
+			}
+			// Species (skeleton family) = the first clip's actor folder. Derived, not authored, so
+			// every scene — vanilla creature pack or a hand-written mod scene — is classified the same
+			// way playback picks the rig. Empty / loose / NAF clips leave it "human" (the default lane).
+			for (const auto& nd : def.nodes) {
+				for (const auto& st : nd.stages) {
+					for (const auto& clip : st.clips) {
+						if (std::string sp = Util::SpeciesFromAnimPath(clip.file); !sp.empty()) {
+							def.species = std::move(sp);
+							break;
+						}
+					}
+					if (!def.species.empty()) {
+						break;
+					}
+				}
+				if (!def.species.empty()) {
+					break;
+				}
+			}
+			if (def.species.empty()) {
+				def.species = "human";
 			}
 			return def;
 		}
