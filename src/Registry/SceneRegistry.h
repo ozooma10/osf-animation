@@ -249,6 +249,7 @@ namespace OSF::Registry
 		std::string              name;
 
 		// Skeleton family the scenes clips target (Util::SpeciesFromAnimPath of the first clip): "human" (default / no creature clip), "terrormorph", etc...
+		std::string              species;
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     unlisted = false;  // excluded from the matchmaking pool; only reachable by direct id

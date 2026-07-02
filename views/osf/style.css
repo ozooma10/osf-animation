@@ -162,7 +162,10 @@ button,input,select{font:inherit;color:inherit}
 .director{position:relative;z-index:2;flex:1;min-height:0;display:flex;flex-direction:column}
 
 /* ---- GUIDED RAIL (step 1 cast · step 2 anchor) ------------- */
-.rail{flex:none;padding:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:row;gap:12px;background:rgba(4,6,10,.28)}
+/* flex:0 1 auto + min-height:0 + overflow: the rail takes its natural height when there's room, but
+   SHRINKS and scrolls internally rather than pushing the browse list off the bottom when the console
+   is short (the browse list below keeps a usable, scrollable minimum via .browse min-height). */
+.rail{flex:0 1 auto;min-height:0;overflow-y:auto;padding:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:row;gap:12px;background:rgba(4,6,10,.28)}
 .rail{align-items:flex-start}
 .step{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;border:1px solid var(--line);border-radius:2px;background:var(--void-800);padding:11px 12px}
 /* a folded step shrinks to its summary line; the open sibling takes the freed width */
@@ -193,6 +196,7 @@ button,input,select{font:inherit;color:inherit}
 .chip-move{flex:none;border:0;background:none;color:var(--text-faint);font-size:9px;line-height:1;cursor:pointer;padding:2px 3px;border-radius:2px}
 .chip-move:hover:not(:disabled){color:var(--accent);background:var(--void-700)}
 .chip-move:disabled{opacity:.28;cursor:default}
+.cast-order-hint{margin:3px 0 0;color:var(--text-faint);font-size:10px;letter-spacing:.02em}
 .castline-name{font-size:12px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 /* Detected skeleton family on a non-human cast member — the library filters to its animations. */
 .cast-species{flex:none;font:600 8px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);background:rgba(240,113,48,.1);border:1px solid rgba(240,113,48,.35);border-radius:2px;padding:1px 5px}
@@ -203,6 +207,11 @@ button,input,select{font:inherit;color:inherit}
 .near-row:hover{border-color:var(--line-strong)}
 .near-row.active{border-color:var(--signal-go)}
 .near-name{font-size:12px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+/* scan-row portrait: instrument-panel thumbnail — hard edges, hairline frame, no glow */
+.near-face{flex:none;width:26px;height:26px;border:1px solid var(--line-strong);border-radius:2px;object-fit:cover;background:var(--void-700)}
+.near-face.blank{display:flex;align-items:center;justify-content:center}
+.near-face.blank svg{width:16px;height:16px;fill:none;stroke:var(--text-faint);stroke-width:1.5}
+.near-row.active .near-face{border-color:var(--signal-go)}
 .near-meta{flex:none}
 .near-tag{flex:none;font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--hud)}
 .near-tag.added{color:var(--signal-go)}
@@ -219,10 +228,14 @@ button,input,select{font:inherit;color:inherit}
 .dot.go{background:var(--signal-go);box-shadow:0 0 7px var(--signal-go)}
 
 /* ---- BROWSE column ----------------------------------------- */
-.browse{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px 14px;gap:10px}
+.browse{flex:1;min-height:150px;display:flex;flex-direction:column;padding:12px 14px;gap:10px}
 .browse-head{display:flex;align-items:center;gap:10px;flex:none}
 .search-field.grow{flex:1}
 .browse-body{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:2px}
+/* browse-body is a flex column, so without this its children would SHRINK to fit its height instead of
+   overflowing — which, combined with .libx-group{overflow:hidden}, clipped an expanded Library pack and
+   left it unscrollable. Pin children to natural height so content overflows and overflow-y:auto scrolls. */
+.browse-body > *{flex-shrink:0}
 .browse-note{display:flex;align-items:center;gap:8px;margin:2px 0}
 .browse-note .dot{width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:var(--steel-500);flex:none}
 /* Species filter indicator: the cast is narrowing the list to a creature's own animations. */

@@ -7,6 +7,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
+#include "UI/PortraitService.h"  // scan-list actor portraits (osf.portraits.get / osf.portrait.data)
 #include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
 #include "Util/StringUtil.h"  // Util::ToLower
 
@@ -861,6 +862,39 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.scanResults", reply);
 		}
 
+		// Actor portraits for the scan list. The view sends the tokens of the rows it shows;
+		// whatever the portrait cache already holds comes back in ONE batch reply, and each
+		// miss is queued for capture (~1/frame) — those land later as single-item pushes
+		// through the PortraitService sink. Portraits are keyed by REF form id on the wire
+		// (stable across re-scans; tokens are only the validated resolve path).
+		void OnPortraitsGet(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			json       batch = json::array();
+			if (j.is_object()) {
+				if (const auto it = j.find("tokens"); it != j.end() && it->is_array()) {
+					for (const auto& t : *it) {
+						if (!t.is_number_integer()) {
+							continue;
+						}
+						RE::TESObjectREFR* ref = ResolveToken(t.get<std::int32_t>());
+						if (!ref || !ref->IsActor()) {
+							continue;
+						}
+						const std::string uri =
+							UI::Portraits::GetOrRequest(static_cast<RE::Actor*>(ref), ref->GetFormID());
+						if (!uri.empty()) {
+							batch.push_back({ { "formId", ref->GetFormID() }, { "dataUri", uri } });
+						}
+					}
+				}
+			}
+			REX::DEBUG("[UI] osf.portraits.get -> {} cached, rest queued", batch.size());
+			if (!batch.empty()) {
+				SendJson(a_srcView, "osf.portrait.data", json{ { "portraits", std::move(batch) } });
+			}
+		}
+
 		// Which anchor-bound scenes accept a keyed furniture ref. The view filters its browse
 		// list with this: free-space scenes always play; anchor-bound ones only via a match.
 		void OnAnchorMatch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
@@ -984,11 +1018,18 @@ namespace OSF::API
 		}
 
 		g_ui->SetReadyCallback(&OnBridgeReady, nullptr);
+		// Late portrait captures (queue-serviced, main thread) push straight to the view;
+		// it tolerates pushes for rows it no longer shows.
+		UI::Portraits::SetReadySink([](RE::TESFormID a_formID, const std::string& a_uri) {
+			SendJson(kViewId, "osf.portrait.data",
+				json{ { "portraits", json::array({ { { "formId", a_formID }, { "dataUri", a_uri } } }) } });
+		});
 		g_ui->RegisterCommand("osf.catalog.get", &OnCatalogGet, nullptr);
 		g_ui->RegisterCommand("osf.library.get", &OnLibraryGet, nullptr);
 		g_ui->RegisterCommand("osf.pickCrosshair", &OnPickCrosshair, nullptr);
 		g_ui->RegisterCommand("osf.scanNearby", &OnScanNearby, nullptr);
 		g_ui->RegisterCommand("osf.anchorMatch", &OnAnchorMatch, nullptr);
+		g_ui->RegisterCommand("osf.portraits.get", &OnPortraitsGet, nullptr);
 		g_ui->RegisterCommand("osf.launch", &OnLaunch, nullptr);
 		g_ui->RegisterCommand("osf.stop", &OnStop, nullptr);
 		g_ui->RegisterCommand("osf.opened", &OnOpened, nullptr);

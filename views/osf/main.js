@@ -20,6 +20,10 @@ const state = {
   furniture: null,
   nearbyActors: [],
   nearbyFurniture: [],
+  // Actor portraits, formId -> "data:image/png;base64,…". Filled lazily: a scan requests
+  // portraits for its rows (osf.portraits.get); cached ones come back in one batch, queued
+  // captures trickle in later as osf.portrait.data pushes. Survives re-scans (formId-stable).
+  portraits: new Map(),
   lastHandle: 0,
   lastSceneId: "",
   opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
@@ -129,6 +133,7 @@ function onNativeMessage(jsonText) {
     case "osf.library.data": handleLibrary(payload); break;
     case "osf.pick": handlePick(payload); break;
     case "osf.scanResults": handleScanResults(payload); break;
+    case "osf.portrait.data": handlePortraits(payload); break;
     case "osf.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.launchResult": handleLaunchResult(payload); break;
     // The runtime tells the focused view when the overlay shows/hides; report both so the
@@ -212,8 +217,31 @@ function handleScanResults(p) {
   } else {
     state.nearbyActors = normalized;
     notice("info", `${normalized.length} nearby actor${normalized.length === 1 ? "" : "s"} found.`);
+    requestPortraits(normalized);
   }
   renderAll();
+}
+
+// Ask the plugin for the faces of freshly scanned rows we don't have yet. Cached ones
+// return immediately in one osf.portrait.data batch; misses trickle in later pushes.
+function requestPortraits(rows) {
+  const tokens = rows.filter((a) => a.isActor && a.formId && !state.portraits.has(a.formId))
+    .map((a) => a.token);
+  if (tokens.length) send("osf.portraits.get", { tokens });
+}
+
+function handlePortraits(p) {
+  const list = p && Array.isArray(p.portraits) ? p.portraits : [];
+  let changed = false;
+  for (const it of list) {
+    // Only ever render bridge-supplied PNG data URIs (never an arbitrary string in src).
+    if (it && typeof it.formId === "number" && typeof it.dataUri === "string" &&
+        it.dataUri.startsWith("data:image/png;base64,")) {
+      state.portraits.set(it.formId, it.dataUri);
+      changed = true;
+    }
+  }
+  if (changed) renderAll();
 }
 
 function handleAnchorMatch(p) {
@@ -660,6 +688,15 @@ function stepHeadHTML(step, num, title, note, open) {
   return `<button class="step-head" data-act="step-toggle" data-step="${step}"><span class="step-num">${num}</span><span class="eb">${title}</span><span class="step-note">${note}</span><span class="chev">${open ? "▾" : "▸"}</span></button>`;
 }
 
+// Scan-row portrait: the cached headshot when the plugin has one, else a neutral
+// silhouette placeholder (a portrait may still be queued for capture — the row
+// upgrades in place when its osf.portrait.data push lands).
+function faceHTML(a) {
+  const uri = a.formId ? state.portraits.get(a.formId) : null;
+  if (uri) return `<img class="near-face" src="${uri}" alt="">`;
+  return `<span class="near-face blank" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 22c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>`;
+}
+
 function stepCastHTML() {
   const members = castMembers();
   const castCount = members.length;
@@ -670,19 +707,18 @@ function stepCastHTML() {
     return `<div class="step closed">${stepHeadHTML("cast", 1, "CREW", esc(summary), false)}</div>`;
   }
 
-  const reorderable = castCount > 1;
+  // CREW here is membership only (add / remove / re-add player). Order is DISPLAYED (A/B/C keys) but
+  // SET in the brief's ROLES map for the selected scene — see roleMapHTML.
   const chips = members.map((m, i) => {
     const player = m.kind === "player";
     // Player and partners are both droppable; the player's × toggles it out (keeps the re-add ghost).
     const drop = player
       ? `<button class="chip-x" data-act="toggle-player" title="Remove player (NPC-only scene)">×</button>`
       : `<button class="chip-x" data-act="drop" data-i="${i}" title="Remove from crew">×</button>`;
-    // Each line is draggable and focusable: drag to reorder (mouse), or focus + Alt+↑/↓ (key/pad).
-    const grip = reorderable ? `<span class="drag-grip" aria-hidden="true">⋮⋮</span>` : "";
     // Show the detected skeleton family for a non-human cast member so the species filter is legible.
     const sp = !player && m.species && m.species !== "human"
       ? `<span class="cast-species" title="Skeleton family — the library filters to its animations">${esc(speciesLabel(m.species))}</span>` : "";
-    return `<span class="castline ${player ? "player" : ""}" draggable="${reorderable}" data-i="${i}" tabindex="0" title="${reorderable ? "▲/▼, drag, or Alt+↑/↓ to set role order" : ""}">${grip}<span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${sp}${reorderBtns(i, castCount)}${drop}</span>`;
+    return `<span class="castline ${player ? "player" : ""}"><span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${sp}${drop}</span>`;
   }).join("");
   // When the player has been dropped, offer a ghost chip to put them back.
   const readd = hasPlayer() ? "" : `<button class="castline ghost" data-act="toggle-player" title="Add player back to the crew">＋ Player</button>`;
@@ -690,7 +726,7 @@ function stepCastHTML() {
   const rows = state.nearbyActors.length
     ? state.nearbyActors.map((a) => {
         const added = state.cast.some((m) => m.token === a.token);
-        return `<button class="near-row ${added ? "active" : ""}" data-act="toggle-actor" data-token="${a.token}"><span class="near-name">${esc(a.name)}</span><span class="near-meta mono">${a.distance != null ? Math.max(1, Math.round(a.distance)) + "m" : ""}</span><span class="near-tag ${added ? "added" : ""}">${added ? "✓" : "ADD"}</span></button>`;
+        return `<button class="near-row ${added ? "active" : ""}" data-act="toggle-actor" data-token="${a.token}">${faceHTML(a)}<span class="near-name">${esc(a.name)}</span><span class="near-meta mono">${a.distance != null ? Math.max(1, Math.round(a.distance)) + "m" : ""}</span><span class="near-tag ${added ? "added" : ""}">${added ? "✓" : "ADD"}</span></button>`;
       }).join("")
     : `<div class="empty-mini"><span class="mono">Scan, or aim at someone and PICK.</span></div>`;
 
@@ -703,6 +739,7 @@ function stepCastHTML() {
   return `<div class="step">
     ${stepHeadHTML("cast", 1, "CREW", `${castCount} on deck`, true)}
     <div class="cast-stack">${chips}${readd}</div>
+    ${castCount > 1 ? `<div class="cast-order-hint mono">A·B·C order sets roles — arrange in ROLES →</div>` : ""}
     <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools"><button class="chip-btn" data-act="scan" data-kind="actor">SCAN</button><button class="chip-btn" data-act="pick" data-slot="actor">PICK</button></span></div>
     <div class="near-list">${rows}</div>
     ${foot}
@@ -786,6 +823,27 @@ function renderBrowse() {
   $("browseBody").innerHTML = state.mode === "library" ? libraryBrowserHTML() : scenesBrowserHTML();
 }
 
+// Library animations that would play with the CURRENT crew (same readiness gate scenes use —
+// role count, species, anchor). Used to route from an empty scenes lane to the library.
+function libraryFitList() {
+  return state.library.filter((s) => unlistedVisible(s) && speciesVisible(s) && evalScene(s).gaps === 0);
+}
+
+// The scenes lane has nothing playable for this crew. Installed scene packs are commonly all
+// multi-actor, so a solo (player-only) crew looks empty here even though the vanilla animation
+// library — a separate lane — has hundreds that play right now. Surface it instead of telling the
+// user to "add crew". The library loads lazily; kick a one-shot fetch so the fit count fills in.
+function emptyScenesRouteHTML() {
+  if (!state.libraryReceived && libraryTries === 0) requestLibrary(false);
+  const note = state.furniture || partnerCount()
+    ? "No scene pack fits this exact crew + furniture."
+    : "No solo scenes in your installed packs.";
+  const n = state.libraryReceived ? libraryFitList().length : -1;
+  const label = n > 0 ? `${n} library animation${n === 1 ? "" : "s"} play with this crew ▸` : "OPEN LIBRARY ▸";
+  return `<div class="bay-empty"><span class="mono">${esc(note)}</span>` +
+    `<button class="chip-btn" data-act="mode" data-mode="library" style="margin-top:8px">${label}</button></div>`;
+}
+
 function scenesBrowserHTML() {
   if (!state.catalogReceived) return bayEmpty("Waiting for the catalog…");
   // Fresh install with no scene packs: the vanilla library IS the out-of-box content — route there.
@@ -806,7 +864,7 @@ function scenesBrowserHTML() {
   html += `<div class="browse-note"><span class="dot go"></span><span class="lbl">PLAYABLE NOW · ${playable.length}</span></div>`;
   html += playable.length
     ? `<div class="row-list">${playable.map((x) => sceneRow(x.s, x.ev, true)).join("")}</div>`
-    : bayEmpty(state.furniture || partnerCount() ? "Nothing fits this exact crew + furniture. Adjust the selection, or show the rest." : "Add crew or key furniture to unlock scenes.");
+    : emptyScenesRouteHTML();
   if (rest.length) {
     html += `<button class="reveal ${state.browseAll ? "on" : ""}" data-act="browse-all">${state.browseAll ? "▾" : "▸"} ${rest.length} more need a different crew or furniture</button>`;
     if (state.browseAll) html += `<div class="row-list dim">${rest.map((x) => sceneRow(x.s, x.ev, false)).join("")}</div>`;
@@ -1444,6 +1502,7 @@ function init() {
     state.ready = true;
     state.nearbyActors = MOCK_ACTORS.slice();
     state.nearbyFurniture = MOCK_ANCHORS.slice();
+    requestPortraits(state.nearbyActors);
     handleCatalog(MOCK_CATALOG);
     notice("info", "Standalone mode. Mock catalog, native calls are stubbed.");
   }
@@ -1483,12 +1542,36 @@ const MOCK_LIBRARY = [
   { id: "vanilla/creature/terrormorph", title: "Vanilla · Terrormorph", species: "terrormorph", tags: ["vanilla", "creature", "species:terrormorph"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-creature-terrormorph.osf.json", stages: [{ index: 0, name: "BleedOut_Idle", tags: ["idle"], clipCount: 1, loopSec: 8.3, loops: 0, openEnded: true, estSec: 16.6 }, { index: 1, name: "Attack_Lunge", tags: ["rootmotion"], clipCount: 1, loopSec: 2.1, loops: 0, openEnded: true, estSec: 4.2 }], estSec: 20.8, estPartial: false, openEnded: true, priority: 0, weight: 1 },
 ];
 
+// Fake headshots for SOME scanned rows (canvas-rendered PNG data URIs), so standalone
+// dev shows both states: portrait present and silhouette placeholder (Sam Coe + the
+// citizen stay blank, as rows whose capture never lands would).
+function mockPortraits(tokens) {
+  const out = [];
+  for (const t of Array.isArray(tokens) ? tokens : []) {
+    const a = MOCK_ACTORS.find((x) => x.token === t);
+    if (!a || a.token === 603 || a.token === 604) continue;
+    const c = document.createElement("canvas");
+    c.width = c.height = 48;
+    const g = c.getContext("2d");
+    g.fillStyle = `hsl(${(a.token * 47) % 360} 35% 28%)`;
+    g.fillRect(0, 0, 48, 48);
+    g.fillStyle = "#d8cfc2";
+    g.beginPath(); g.arc(24, 18, 9, 0, Math.PI * 2); g.fill();               // head
+    g.beginPath(); g.arc(24, 46, 15, Math.PI, 0); g.fill();                  // shoulders
+    g.fillStyle = "rgba(0,0,0,.35)";
+    g.font = "10px monospace"; g.fillText(a.name.slice(0, 2).toUpperCase(), 4, 44);
+    out.push({ formId: a.formId, dataUri: c.toDataURL("image/png") });
+  }
+  return out;
+}
+
 function mockNative(command, fields) {
   if (command === "osf.catalog.get") setTimeout(() => handleCatalog(MOCK_CATALOG), 60);
   else if (command === "osf.library.get") setTimeout(() => handleLibrary(MOCK_LIBRARY), 90);
   else if (command === "osf.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
   else if (command === "osf.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
   else if (command === "osf.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
+  else if (command === "osf.portraits.get") setTimeout(() => handlePortraits({ portraits: mockPortraits(fields.tokens) }), 120);
   else if (command === "osf.launch") setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
   else if (command === "osf.stop") setTimeout(() => notice("ok", "Scene stopped."), 40);
 }

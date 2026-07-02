@@ -18,6 +18,10 @@ views/osf/ (this folder)  ──►  OSF UI  MessageBridge  ──►  OSF Anima
 - **Contract (`osf.*`):** `osf.catalog.get`→`osf.catalog.data`,
   `osf.pickCrosshair`→`osf.pick`, `osf.scanNearby`→`osf.scanResults`,
   `osf.launch`→`osf.launchResult`, `osf.stop`.
+  `osf.portraits.get {tokens}`→`osf.portrait.data {portraits:[{formId,dataUri}]}` —
+  actor headshots for the scan list as PNG data URIs; cached ones return in one
+  batch, queued captures land later as unsolicited single-item pushes (the view
+  renders a silhouette placeholder until then, upgrading rows in place).
   The view gates its JS on `runtime.ready.bridgeVersion === "0.1"`.
 - **Targeting:** crosshair pick *or* **Scan Nearby** — a `parentCell` walk that
   lists nearby actors (living, closest-first) and furniture *usable by the
