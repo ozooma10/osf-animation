@@ -183,7 +183,19 @@ button,input,select{font:inherit;color:inherit}
 .castline.player{border-left:2px solid var(--accent)}
 .castline.ghost{border-style:dashed;color:var(--text-faint);cursor:pointer;font:700 11px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;justify-content:center}
 .castline.ghost:hover{border-color:var(--accent);color:var(--text-bright)}
+.castline[draggable="true"]{cursor:grab}
+.castline[draggable="true"]:active{cursor:grabbing}
+.castline.dragging{opacity:.4}
+.castline.drop-before{box-shadow:inset 0 2px 0 0 var(--accent)}
+.castline.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent)}
+.drag-grip{flex:none;color:var(--text-faint);font-size:11px;line-height:1;letter-spacing:-2px;cursor:grab;user-select:none}
+.chip-moves{display:inline-flex;flex:none;gap:1px}
+.chip-move{flex:none;border:0;background:none;color:var(--text-faint);font-size:9px;line-height:1;cursor:pointer;padding:2px 3px;border-radius:2px}
+.chip-move:hover:not(:disabled){color:var(--accent);background:var(--void-700)}
+.chip-move:disabled{opacity:.28;cursor:default}
 .castline-name{font-size:12px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+/* Detected skeleton family on a non-human cast member — the library filters to its animations. */
+.cast-species{flex:none;font:600 8px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);background:rgba(240,113,48,.1);border:1px solid rgba(240,113,48,.35);border-radius:2px;padding:1px 5px}
 .chip-x{flex:none;border:0;background:none;color:var(--text-faint);font-size:13px;cursor:pointer;padding:0 3px}
 .chip-x:hover{color:var(--signal-stop)}
 .near-list{display:flex;flex-direction:column;gap:4px;max-height:148px;overflow-y:auto}
@@ -213,6 +225,8 @@ button,input,select{font:inherit;color:inherit}
 .browse-body{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:2px}
 .browse-note{display:flex;align-items:center;gap:8px;margin:2px 0}
 .browse-note .dot{width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:var(--steel-500);flex:none}
+/* Species filter indicator: the cast is narrowing the list to a creature's own animations. */
+.browse-note.species .lbl{color:var(--accent)}
 .row-list{display:flex;flex-direction:column;gap:4px}
 .row-list.dim{opacity:.62}
 .row-badge{flex:none;font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--text-faint);border:1px solid var(--line);border-radius:2px;padding:2px 6px;white-space:nowrap}
@@ -404,6 +418,18 @@ button,input,select{font:inherit;color:inherit}
 .info-box.hud{border-color:var(--hud)}
 .info-box .lbl{margin-bottom:6px}
 .info-box.hud .lbl{color:var(--hud)}
+/* Role→actor map (brief): each row pairs a named role with the actor bound to that slot. */
+.role-map{display:flex;flex-direction:column;gap:5px;max-height:168px;overflow-y:auto}
+.role-row{display:flex;align-items:center;gap:8px}
+.role-row .castline{flex:1;min-width:0}
+.role-name{flex:none;min-width:64px;display:flex;align-items:center;gap:5px;font:600 10px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)}
+.role-g{color:var(--text-faint);font-weight:500}
+.role-arrow{flex:none;color:var(--text-faint)}
+.role-row.bench .role-name{color:var(--text-faint)}
+.role-row.unfilled{opacity:.75}
+.role-row.unfilled .role-name{color:var(--signal-warn)}
+.role-empty{flex:1;color:var(--text-faint)}
+.role-note{margin-top:6px;color:var(--text-faint);white-space:normal}
 .kv-list{display:flex;flex-direction:column;gap:4px}
 .kv{display:flex;justify-content:space-between;gap:8px}
 .kv .k{font:500 10px var(--font-mono);color:var(--text-muted)}

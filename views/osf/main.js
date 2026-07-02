@@ -6,15 +6,17 @@
 
 const BRIDGE_PROTOCOL = "0.1";
 const PLAYER_TOKEN = -1;
-const PLAYER_CAST = { token: PLAYER_TOKEN, name: "Player", kind: "player" };
+const PLAYER_CAST = { token: PLAYER_TOKEN, name: "Player", kind: "player", species: "human" };
 
 const state = {
   ready: false,
   catalog: [],
   allUnlisted: false,
   selectedId: null,
-  includePlayer: true,  // player is cast member A by default; can be dropped for NPC-only scenes (machinima / vignettes)
-  partners: [],
+  // Ordered cast. Role/slot binding is BY THIS ORDER (member 0 -> first role, etc.), so the list is
+  // reorderable (drag, or Alt+↑/↓). The player is an inline member (kind "player") that may be
+  // dropped for NPC-only scenes (machinima / vignettes) or moved out of the lead slot.
+  cast: [PLAYER_CAST],
   furniture: null,
   nearbyActors: [],
   nearbyFurniture: [],
@@ -27,6 +29,7 @@ const state = {
   // null until known; browse falls back to "any anchor present" while the reply is in flight.
   anchorMatch: null,  // { token, ids: Set<string> }
   browseAll: false,   // scenes mode: false = playable now only, true = everything
+  allSpecies: false,  // override the per-cast species filter (show human + every creature's animations)
   // Reference-library lane (osf.library.*): the generated vanilla packs. Static after load,
   // fetched once on demand when the LIBRARY mode is first opened, then cached for the session.
   mode: "scenes",  // "scenes" | "library"
@@ -184,7 +187,7 @@ function handlePick(p) {
     notice("err", `Nothing valid under the crosshair for the ${(p && p.slot) || "target"} slot.`);
     return;
   }
-  applyPick(p.slot === "furniture" ? "furniture" : "actor", p.token, p.name, p.distance);
+  applyPick(p.slot === "furniture" ? "furniture" : "actor", p.token, p.name, p.distance, p.species);
 }
 
 function handleScanResults(p) {
@@ -196,6 +199,7 @@ function handleScanResults(p) {
     formId: it.formId || 0,
     distance: typeof it.distance === "number" ? it.distance : null,
     isActor: !!it.isActor,
+    species: it.species ? String(it.species).toLowerCase() : "",  // actor: skeleton family (creature filtering)
     sceneCount: typeof it.sceneCount === "number" ? it.sceneCount : null,  // furniture: total scenes it unlocks
     customCount: typeof it.customCount === "number" ? it.customCount : null,  // furniture: subset that is custom (authored), not vanilla library
     marker: !!it.marker,  // invisible AI/idle marker — a usable anchor, listed in its own group
@@ -250,6 +254,7 @@ function normalizeScene(raw) {
   return {
     id,
     title: String(raw.title || raw.name || id || "Unnamed scene"),
+    species: String(raw.species || "human").toLowerCase(),  // skeleton family; drives the per-cast filter
     tags,
     actorCount,
     genders,
@@ -367,13 +372,13 @@ function clearAnchor() {
   state.anchorMatch = null;
 }
 
-function applyPick(slot, token, name, distance) {
+function applyPick(slot, token, name, distance, species) {
   if (slot === "furniture") {
     keyAnchor(token, name, distance);
-  } else if (token === PLAYER_TOKEN || state.partners.some((c) => c.token === token)) {
+  } else if (state.cast.some((c) => c.token === token)) {
     notice("info", `${name || "Actor"} is already in the crew.`);
   } else {
-    state.partners.push({ token, name: name || "actor", distance: distance || null });
+    state.cast.push(token === PLAYER_TOKEN ? PLAYER_CAST : { token, name: name || "actor", distance: distance || null, species: species || "human" });
     state.stepOpen.cast = false;  // partner added — fold, freeing the browse list's height (mirrors keyAnchor)
     notice("info", `Crew added: ${name || "actor"}.`);
   }
@@ -381,18 +386,19 @@ function applyPick(slot, token, name, distance) {
 }
 
 function toggleActor(token) {
-  const idx = state.partners.findIndex((p) => p.token === token);
-  if (idx >= 0) { state.partners.splice(idx, 1); notice("info", "Crew member removed."); }
+  const idx = state.cast.findIndex((m) => m.token === token);
+  if (idx >= 0) { state.cast.splice(idx, 1); notice("info", "Crew member removed."); }
   else {
     const a = state.nearbyActors.find((x) => x.token === token);
-    if (a) { state.partners.push({ token: a.token, name: a.name, distance: a.distance }); state.stepOpen.cast = false; notice("info", `Crew added: ${a.name}.`); }
+    if (a) { state.cast.push({ token: a.token, name: a.name, distance: a.distance, species: a.species || "human" }); state.stepOpen.cast = false; notice("info", `Crew added: ${a.name}.`); }
   }
   renderAll();
 }
 
 function togglePlayer() {
-  state.includePlayer = !state.includePlayer;
-  notice("info", state.includePlayer ? "Player added to the crew." : "Player removed — NPC-only cast.");
+  const idx = state.cast.findIndex((m) => m.kind === "player");
+  if (idx >= 0) { state.cast.splice(idx, 1); notice("info", "Player removed — NPC-only cast."); }
+  else { state.cast.unshift(PLAYER_CAST); notice("info", "Player added to the crew."); }  // re-add as the lead
   renderAll();
 }
 
@@ -405,7 +411,59 @@ function toggleAnchor(token) {
   renderAll();
 }
 
-function removePartner(index) { state.partners.splice(index, 1); renderAll(); }
+function removeMember(index) {
+  if (index < 0 || index >= state.cast.length) return;
+  state.cast.splice(index, 1);
+  renderAll();
+}
+
+// Move the cast member at `from` so it lands relative to the member at `to`. `after` = drop below
+// the target (else above). Role/slot binding follows this order, so this is how the user assigns
+// which actor plays which role. Returns true if the order actually changed.
+function moveMember(from, to, after) {
+  const n = state.cast.length;
+  if (from < 0 || from >= n || to < 0 || to >= n) return false;
+  const arr = state.cast.slice();
+  const [m] = arr.splice(from, 1);
+  let idx = to;
+  if (from < to) idx -= 1;   // removal shifted the target left by one
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(arr.length, idx));
+  if (idx === from) return false;   // no net move
+  arr.splice(idx, 0, m);
+  state.cast = arr;
+  return true;
+}
+
+// Nudge a member one slot up or down. Drives every reorder path: the ▲/▼ buttons, Alt+↑/↓, and drag.
+// scopeSel = the panel to keep focus in (crew list or brief role-map — they mirror each other);
+// focusAct = a data-act to re-focus at the new index (the ▲/▼ button) so repeated presses keep working.
+function nudgeMember(index, delta, scopeSel, focusAct) {
+  const to = index + delta;
+  if (to < 0 || to >= state.cast.length) return;
+  if (moveMember(index, to, delta > 0)) {
+    notice("info", "Cast order updated.");
+    renderAll();
+    requestAnimationFrame(() => {
+      const root = (scopeSel && document.querySelector(scopeSel)) || document;
+      // Prefer the same button at its new slot; fall back to the chip (the button may now be a
+      // disabled end-stop, e.g. after moving an item to the very top/bottom).
+      let el = focusAct ? root.querySelector(`[data-act="${focusAct}"][data-i="${to}"]:not([disabled])`) : null;
+      if (!el) el = root.querySelector(`.castline[data-i="${to}"]`);
+      if (el) el.focus({ preventScroll: true });
+    });
+  }
+}
+
+// Explicit up/down controls. The RELIABLE reorder path in hosts without HTML5 drag (in-game
+// Ultralight) and for mouse/keyboard/gamepad alike — drag is a nice-to-have on top. count =
+// number of reorderable members; end-stops are disabled.
+function reorderBtns(i, count) {
+  if (count < 2) return "";
+  const up = `<button class="chip-move" data-act="move-up" data-i="${i}" title="Move up (role earlier)" ${i === 0 ? "disabled" : ""}>▲</button>`;
+  const dn = `<button class="chip-move" data-act="move-down" data-i="${i}" title="Move down (role later)" ${i === count - 1 ? "disabled" : ""}>▼</button>`;
+  return `<span class="chip-moves">${up}${dn}</span>`;
+}
 
 function scanNearby(kind) {
   notice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`);
@@ -429,8 +487,10 @@ function applySelection(id) { state.selectedId = id; }
 function selectScene(id) { applySelection(id); renderAll(); }
 function sceneById(id) { return state.catalog.find((s) => s.id === id) || state.library.find((s) => s.id === id) || null; }
 function sceneTitle(id) { const s = sceneById(id); return s ? s.title : (id || "scene"); }
-function castTokens() { return castMembers().map((m) => m.token); }
-function castMembers() { return state.includePlayer ? [PLAYER_CAST, ...state.partners] : state.partners.slice(); }
+function castTokens() { return state.cast.map((m) => m.token); }
+function castMembers() { return state.cast; }
+function hasPlayer() { return state.cast.some((m) => m.kind === "player"); }
+function partnerCount() { return state.cast.reduce((n, m) => n + (m.kind === "player" ? 0 : 1), 0); }
 
 function unlistedVisible(s) { return !!s && (!s.unlisted || state.filters.authorMode || state.allUnlisted); }
 
@@ -509,11 +569,58 @@ function matchesSearch(s) {
   return hay.includes(f.search);
 }
 
+/* ---- species (skeleton family) filter ------------------------------------
+   Vanilla creature/alien clips live under their own skeleton, so a human animation
+   can't play on a terrormorph (and vice versa) — the engine binds ~19/128 bones and
+   the body spazzes. The browser therefore shows each cast member only the animations
+   that target its skeleton. The picked actor's species rides in on osf.pick/scan; a
+   scene's species is derived from its clips (UIBridge). allSpecies overrides. */
+function castSpeciesSet() {
+  const set = new Set();
+  for (const m of state.cast) set.add(m.kind === "player" ? "human" : (m.species || "human"));
+  return set;
+}
+
+// The cast contains a non-human skeleton — the filter is actively narrowing, so surface it.
+function castHasCreature() {
+  for (const m of state.cast) {
+    const sp = m.kind === "player" ? "human" : (m.species || "human");
+    if (sp && sp !== "human") return true;
+  }
+  return false;
+}
+
+function speciesLabel(sp) {
+  if (!sp || sp === "human") return "Human";
+  return sp.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+}
+
+// Does scene s target a skeleton family the current cast has? allSpecies shows everything.
+function speciesVisible(s) {
+  if (state.allSpecies) return true;
+  const set = castSpeciesSet();
+  if (set.size === 0) return true;
+  return set.has(s.species || "human");
+}
+
 // What the browse column shows for the current mode/filters (used by ensureSelection too).
 function browseVisible(s) {
   if (!matchesSearch(s)) return false;
+  if (!speciesVisible(s)) return false;
   if (state.mode === "scenes" && !state.browseAll) return evalScene(s).gaps === 0;
   return true;
+}
+
+// A one-line filter indicator + escape hatch, shown only when the cast narrows species.
+function speciesFilterBarHTML() {
+  if (!castHasCreature() && !state.allSpecies) return "";
+  const label = state.allSpecies
+    ? "ALL SPECIES"
+    : [...castSpeciesSet()].map(speciesLabel).join(" + ").toUpperCase() + " ONLY";
+  return `<div class="browse-note species"><span class="dot ${state.allSpecies ? "" : "go"}"></span>` +
+    `<span class="lbl">${esc(label)}</span>` +
+    `<button class="reveal inline ${state.allSpecies ? "on" : ""}" data-act="species-all">` +
+    `${state.allSpecies ? "match cast" : "show all species"}</button></div>`;
 }
 
 /* =========================================================================
@@ -563,21 +670,26 @@ function stepCastHTML() {
     return `<div class="step closed">${stepHeadHTML("cast", 1, "CREW", esc(summary), false)}</div>`;
   }
 
-  const partnerBase = state.includePlayer ? 1 : 0;  // offset from member index to state.partners index
+  const reorderable = castCount > 1;
   const chips = members.map((m, i) => {
     const player = m.kind === "player";
-    // Player and partners are both droppable; the player toggles includePlayer rather than splicing partners.
+    // Player and partners are both droppable; the player's × toggles it out (keeps the re-add ghost).
     const drop = player
       ? `<button class="chip-x" data-act="toggle-player" title="Remove player (NPC-only scene)">×</button>`
-      : `<button class="chip-x" data-act="drop" data-i="${i - partnerBase}" title="Remove from crew">×</button>`;
-    return `<span class="castline ${player ? "player" : ""}"><span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${drop}</span>`;
+      : `<button class="chip-x" data-act="drop" data-i="${i}" title="Remove from crew">×</button>`;
+    // Each line is draggable and focusable: drag to reorder (mouse), or focus + Alt+↑/↓ (key/pad).
+    const grip = reorderable ? `<span class="drag-grip" aria-hidden="true">⋮⋮</span>` : "";
+    // Show the detected skeleton family for a non-human cast member so the species filter is legible.
+    const sp = !player && m.species && m.species !== "human"
+      ? `<span class="cast-species" title="Skeleton family — the library filters to its animations">${esc(speciesLabel(m.species))}</span>` : "";
+    return `<span class="castline ${player ? "player" : ""}" draggable="${reorderable}" data-i="${i}" tabindex="0" title="${reorderable ? "▲/▼, drag, or Alt+↑/↓ to set role order" : ""}">${grip}<span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${sp}${reorderBtns(i, castCount)}${drop}</span>`;
   }).join("");
   // When the player has been dropped, offer a ghost chip to put them back.
-  const readd = state.includePlayer ? "" : `<button class="castline ghost" data-act="toggle-player" title="Add player back to the crew">＋ Player</button>`;
+  const readd = hasPlayer() ? "" : `<button class="castline ghost" data-act="toggle-player" title="Add player back to the crew">＋ Player</button>`;
 
   const rows = state.nearbyActors.length
     ? state.nearbyActors.map((a) => {
-        const added = state.partners.some((p) => p.token === a.token);
+        const added = state.cast.some((m) => m.token === a.token);
         return `<button class="near-row ${added ? "active" : ""}" data-act="toggle-actor" data-token="${a.token}"><span class="near-name">${esc(a.name)}</span><span class="near-meta mono">${a.distance != null ? Math.max(1, Math.round(a.distance)) + "m" : ""}</span><span class="near-tag ${added ? "added" : ""}">${added ? "✓" : "ADD"}</span></button>`;
       }).join("")
     : `<div class="empty-mini"><span class="mono">Scan, or aim at someone and PICK.</span></div>`;
@@ -680,7 +792,7 @@ function scenesBrowserHTML() {
   if (state.catalog.length === 0) {
     return `<div class="bay-empty"><span class="mono">No scene packs installed — the built-in animation library still has plenty to play.</span><button class="chip-btn" data-act="mode" data-mode="library" style="margin-top:8px">OPEN LIBRARY ▸</button></div>`;
   }
-  const searched = state.catalog.filter(matchesSearch);
+  const searched = state.catalog.filter((s) => matchesSearch(s) && speciesVisible(s));
   const evald = searched.map((s) => ({ s, ev: evalScene(s) }));
   const playable = evald.filter((x) => x.ev.gaps === 0);
   const rest = evald.filter((x) => x.ev.gaps > 0);
@@ -690,10 +802,11 @@ function scenesBrowserHTML() {
   const byRank = (a, b) => (anchorFit(b) - anchorFit(a)) || b.s.priority - a.s.priority || b.s.weight - a.s.weight || a.s.title.localeCompare(b.s.title);
   playable.sort(byRank); rest.sort(byRank);
 
-  let html = `<div class="browse-note"><span class="dot go"></span><span class="lbl">PLAYABLE NOW · ${playable.length}</span></div>`;
+  let html = speciesFilterBarHTML();
+  html += `<div class="browse-note"><span class="dot go"></span><span class="lbl">PLAYABLE NOW · ${playable.length}</span></div>`;
   html += playable.length
     ? `<div class="row-list">${playable.map((x) => sceneRow(x.s, x.ev, true)).join("")}</div>`
-    : bayEmpty(state.furniture || state.partners.length ? "Nothing fits this exact crew + furniture. Adjust the selection, or show the rest." : "Add crew or key furniture to unlock scenes.");
+    : bayEmpty(state.furniture || partnerCount() ? "Nothing fits this exact crew + furniture. Adjust the selection, or show the rest." : "Add crew or key furniture to unlock scenes.");
   if (rest.length) {
     html += `<button class="reveal ${state.browseAll ? "on" : ""}" data-act="browse-all">${state.browseAll ? "▾" : "▸"} ${rest.length} more need a different crew or furniture</button>`;
     if (state.browseAll) html += `<div class="row-list dim">${rest.map((x) => sceneRow(x.s, x.ev, false)).join("")}</div>`;
@@ -733,6 +846,7 @@ function libraryGroups(pred) {
   const m = new Map();
   for (const s of state.library) {
     if (!matchesSearch(s)) continue;
+    if (!speciesVisible(s)) continue;  // creature packs only appear for a matching creature cast
     if (pred && !pred(s)) continue;
     const key = packKey(s);
     if (!m.has(key)) m.set(key, []);
@@ -752,20 +866,25 @@ function libraryBrowserHTML() {
   const fitFocus = matchKnown && !state.libShowAll;
   const groups = libraryGroups(fitFocus ? (s) => state.anchorMatch.ids.has(s.id) : null);
 
-  let banner;
+  // Counts reflect the active species filter, so "N sets" matches what the list actually shows.
+  const speciesLib = state.library.filter(speciesVisible);
+  let banner = speciesFilterBarHTML();
   if (matchKnown) {
     // Count LIBRARY sets that fit (anchorMatch also covers scenes-lane scenes, which don't belong here).
-    const fitCount = state.library.filter((s) => matchesSearch(s) && state.anchorMatch.ids.has(s.id)).length;
-    banner = `<div class="browse-note"><span class="dot go"></span><span class="lbl">${esc(state.furniture.name)} · ${fitCount} SET${fitCount === 1 ? "" : "S"} FIT</span>` +
+    const fitCount = speciesLib.filter((s) => matchesSearch(s) && state.anchorMatch.ids.has(s.id)).length;
+    banner += `<div class="browse-note"><span class="dot go"></span><span class="lbl">${esc(state.furniture.name)} · ${fitCount} SET${fitCount === 1 ? "" : "S"} FIT</span>` +
       `<button class="reveal inline ${state.libShowAll ? "on" : ""}" data-act="lib-showall">${state.libShowAll ? "show fitting only" : "show all"}</button></div>`;
   } else {
-    const total = state.library.length;
-    const clips = state.library.reduce((a, s) => a + (s.stages || []).length, 0);
-    banner = `<div class="browse-note"><span class="dot"></span><span class="lbl">ANIMATION LIBRARY · ${clips} CLIPS IN ${total} SETS</span></div>`;
+    const total = speciesLib.length;
+    const clips = speciesLib.reduce((a, s) => a + (s.stages || []).length, 0);
+    banner += `<div class="browse-note"><span class="dot"></span><span class="lbl">ANIMATION LIBRARY · ${clips} CLIPS IN ${total} SETS</span></div>`;
   }
 
   if (!groups.length) {
-    return banner + bayEmpty(fitFocus ? "No library sets fit this furniture. Show all, or key a different piece." : "Nothing in the library matches the filter.");
+    const empty = castHasCreature() && !state.allSpecies
+      ? `No ${[...castSpeciesSet()].map(speciesLabel).join(" / ")} animations in the library. Show all species, or change the cast.`
+      : (fitFocus ? "No library sets fit this furniture. Show all, or key a different piece." : "Nothing in the library matches the filter.");
+    return banner + bayEmpty(empty);
   }
   const searching = !!state.filters.search;
   const body = groups.map(([key, list]) => {
@@ -847,9 +966,46 @@ function renderBrief() {
   // Fixed header (status/title/cast) + fixed footer (overrides + launch/stop); only the animations
   // band between them scrolls. The ▶ Launch button and its overrides stay in view no matter how many
   // stages a scene has — no more scrolling past a long list to reach the button.
+  const roleMap = roleMapHTML(s, ev);
+
   brief.innerHTML = head + summary +
-    `<div class="brief-scroll">${animBox}${authorBoxes}</div>` +
+    `<div class="brief-scroll">${roleMap}${animBox}${authorBoxes}</div>` +
     `<div class="brief-foot">${overrides}${launchStack}</div>`;
+}
+
+// Role→actor map for the SELECTED scene: pairs each named role with the cast member currently
+// bound to that slot (binding is by cast order). Reorderable here — same moveMember/drag/Alt+↑↓
+// machinery as the crew list, keyed by member index, so the two panels mirror each other.
+// Only shown when order actually matters (a multi-actor scene with someone to place).
+function roleMapHTML(s, ev) {
+  const members = castMembers();
+  const actorCount = ev.actorCount || 0;
+  if (actorCount < 2 || members.length === 0) return "";
+
+  const roles = s.roles || [];
+  const reorderable = members.length > 1;
+  const slots = Math.max(actorCount, members.length);
+  let rows = "";
+  for (let i = 0; i < slots; i++) {
+    const inScene = i < actorCount;
+    const role = inScene ? (roles[i] || {}) : null;
+    const roleName = inScene ? (role.name || `role ${i + 1}`) : "bench";
+    const gender = role && role.gender && role.gender !== "any" ? `<span class="role-g">${esc(role.gender)}</span>` : "";
+    const m = members[i];
+    if (m) {
+      const player = m.kind === "player";
+      const grip = reorderable ? `<span class="drag-grip" aria-hidden="true">⋮⋮</span>` : "";
+      rows += `<div class="role-row ${inScene ? "" : "bench"}"><span class="role-name">${esc(roleName)}${gender}</span><span class="role-arrow">→</span>` +
+        `<span class="castline ${player ? "player" : ""}" draggable="${reorderable}" data-i="${i}" tabindex="0" title="${reorderable ? "▲/▼, drag, or Alt+↑/↓ to reassign the role" : ""}">${grip}<span class="castline-name">${esc(m.name)}</span>${reorderBtns(i, members.length)}</span></div>`;
+    } else {
+      // Under-filled role: add another actor from the CREW panel on the left.
+      rows += `<div class="role-row unfilled"><span class="role-name">${esc(roleName)}${gender}</span><span class="role-arrow">→</span><span class="role-empty mono">add an actor →</span></div>`;
+    }
+  }
+  const over = members.length > actorCount
+    ? `<div class="role-note mono">${members.length - actorCount} extra beyond this scene's roles — trim in CREW</div>`
+    : "";
+  return `<div class="info-box"><div class="lbl">ROLES · ${actorCount}</div><div class="role-map">${rows}</div>${over}</div>`;
 }
 
 function diagRows(s, ev) {
@@ -956,6 +1112,7 @@ function onClick(e) {
       break;
     }
     case "browse-all": state.browseAll = !state.browseAll; renderAll(); break;
+    case "species-all": state.allSpecies = !state.allSpecies; renderAll(); break;
     case "markers-toggle": state.markersOpen = !state.markersOpen; renderAll(); break;
     case "step-toggle": {
       const k = el.dataset.step === "anchor" ? "anchor" : "cast";
@@ -969,8 +1126,10 @@ function onClick(e) {
     case "scan": scanNearby(el.dataset.kind); break;
     case "pick": send("osf.pickCrosshair", { slot: el.dataset.slot }); break;
     case "clear-anchor": clearAnchor(); renderAll(); break;
-    case "drop": removePartner(Number(el.dataset.i)); break;
+    case "drop": removeMember(Number(el.dataset.i)); break;
     case "toggle-player": togglePlayer(); break;
+    case "move-up": nudgeMember(Number(el.dataset.i), -1, el.closest(".role-map") ? ".role-map" : ".cast-stack", "move-up"); break;
+    case "move-down": nudgeMember(Number(el.dataset.i), 1, el.closest(".role-map") ? ".role-map" : ".cast-stack", "move-down"); break;
     case "launch": doLaunch(); break;
     case "stop": doStop(); break;
     case "play-stage": doLaunch(Number(el.dataset.stage)); break;
@@ -991,6 +1150,73 @@ function onInput(e) {
   state.opts.speed = e.target.value;
   const sv = $("speedVal");
   if (sv) sv.textContent = `${Number(e.target.value).toFixed(1)}x`;
+}
+
+/* =========================================================================
+   CAST REORDER  (drag-and-drop, plus Alt+↑/↓ for keyboard/gamepad)
+   The role/slot each actor plays is bound by cast order, so this is the
+   control for "who plays which role". Chips carry data-i = member index.
+   ========================================================================= */
+let dragFrom = -1;
+
+function castLineAt(el) {
+  const line = el && el.closest ? el.closest(".castline[draggable='true']") : null;
+  return line && !line.classList.contains("ghost") ? line : null;
+}
+
+function clearDropHints() {
+  document.querySelectorAll(".castline.drop-before, .castline.drop-after")
+    .forEach((el) => el.classList.remove("drop-before", "drop-after"));
+}
+
+function endDrag() {
+  dragFrom = -1;
+  clearDropHints();
+  document.querySelectorAll(".castline.dragging").forEach((el) => el.classList.remove("dragging"));
+}
+
+function onDragStart(e) {
+  const line = castLineAt(e.target);
+  if (!line) return;
+  dragFrom = Number(line.dataset.i);
+  e.dataTransfer.effectAllowed = "move";
+  try { e.dataTransfer.setData("text/plain", String(dragFrom)); } catch (_) { /* some hosts disallow setData */ }
+  line.classList.add("dragging");
+}
+
+function onDragOver(e) {
+  if (dragFrom < 0) return;
+  const line = castLineAt(e.target);
+  if (!line) return;
+  e.preventDefault();  // permit the drop
+  e.dataTransfer.dropEffect = "move";
+  const r = line.getBoundingClientRect();
+  const after = (e.clientY - r.top) > r.height / 2;
+  clearDropHints();
+  if (Number(line.dataset.i) !== dragFrom) line.classList.add(after ? "drop-after" : "drop-before");
+}
+
+function onDrop(e) {
+  if (dragFrom < 0) { endDrag(); return; }
+  const line = castLineAt(e.target);
+  if (!line) { endDrag(); return; }
+  e.preventDefault();
+  const to = Number(line.dataset.i);
+  const r = line.getBoundingClientRect();
+  const after = (e.clientY - r.top) > r.height / 2;
+  const from = dragFrom;
+  endDrag();
+  if (moveMember(from, to, after)) { notice("info", "Cast order updated."); renderAll(); }
+}
+
+// Alt+↑/↓ nudges the focused chip (the nav handler ignores Alt chords, so no conflict).
+function onReorderKey(e) {
+  if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+  const line = castLineAt(document.activeElement);
+  if (!line) return;
+  e.preventDefault();
+  const scopeSel = line.closest(".role-map") ? ".role-map" : ".cast-stack";
+  nudgeMember(Number(line.dataset.i), e.key === "ArrowDown" ? 1 : -1, scopeSel);
 }
 
 /* =========================================================================
@@ -1166,6 +1392,12 @@ function init() {
   document.addEventListener("click", onClick);
   document.addEventListener("change", onChange);
   document.addEventListener("input", onInput);
+  // Cast reorder: HTML5 drag for mouse, Alt+↑/↓ for keyboard/gamepad.
+  document.addEventListener("dragstart", onDragStart);
+  document.addEventListener("dragover", onDragOver);
+  document.addEventListener("drop", onDrop);
+  document.addEventListener("dragend", endDrag);
+  document.addEventListener("keydown", onReorderKey);
   initNav();  // gamepad/keyboard directional focus (OSF UI injects pad input as arrow keys/Enter)
 
   // Orbit drag (see the ORBIT DRAG block): LMB on the world area = steer, wheel there = zoom.
@@ -1228,10 +1460,11 @@ const MOCK_CATALOG = [
   { id: "author.quest.finale", title: "Quest Finale Branch Test", tags: ["finale", "story", "branching"], actorCount: 2, roles: [{ name: "lead", gender: "any" }, { name: "partner", gender: "any" }], requiresFurniture: false, unlisted: true, shape: { kind: "graph", stages: 3, nodes: 4, branches: 3 }, policy: { stripActors: false, lockPlayer: true, fade: true, camera: "thirdperson_hold" }, priority: 2, weight: 14, sourceFile: "Data/OSF/Author/finale.osf.json" },
 ];
 const MOCK_ACTORS = [
-  { token: 601, name: "Sarah Morgan", formId: 0x2, distance: 2, isActor: true },
-  { token: 602, name: "Andreja", formId: 0x3, distance: 5, isActor: true },
-  { token: 603, name: "Sam Coe", formId: 0x4, distance: 9, isActor: true },
-  { token: 604, name: "Settled Systems Citizen", formId: 0x5, distance: 12, isActor: true },
+  { token: 601, name: "Sarah Morgan", formId: 0x2, distance: 2, isActor: true, species: "human" },
+  { token: 602, name: "Andreja", formId: 0x3, distance: 5, isActor: true, species: "human" },
+  { token: 603, name: "Sam Coe", formId: 0x4, distance: 9, isActor: true, species: "human" },
+  { token: 605, name: "Terrormorph", formId: 0x6, distance: 7, isActor: true, species: "terrormorph" },
+  { token: 604, name: "Settled Systems Citizen", formId: 0x5, distance: 12, isActor: true, species: "human" },
 ];
 const MOCK_ANCHORS = [
   // sceneCount = total accepting scenes; customCount = the authored subset (rest are vanilla library).
@@ -1247,6 +1480,7 @@ const MOCK_LIBRARY = [
   { id: "vanilla/furniture/bench", title: "Vanilla · Furniture / Bench", tags: ["vanilla", "furniture", "anchored"], actorCount: 1, genders: ["any"], requiresFurniture: true, anchors: ["Bench"], sourceFile: "Data/OSF/vanilla/vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 3.1, loops: 0, openEnded: true, estSec: 6.2 }], estSec: 6.2, estPartial: false, openEnded: true, priority: 0, weight: 1 },
   { id: "vanilla/photomode", title: "Vanilla · Photomode", tags: ["vanilla", "photomode"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-photomode.osf.json", stages: [{ index: 0, name: "Vehicle_BackSeat", tags: [], clipCount: 1, loopSec: 0.3, loops: 0, openEnded: true, estSec: 0.6 }, { index: 1, name: "Vehicle_HangTen", tags: [], clipCount: 1, loopSec: 0.3, loops: 0, openEnded: true, estSec: 0.6 }], estSec: 1.2, estPartial: false, openEnded: true, priority: 0, weight: 1 },
   { id: "vanilla/common", title: "Vanilla · Common", tags: ["vanilla", "common"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-common.osf.json", stages: [{ index: 0, name: "Cower_Idle", tags: ["idle"], clipCount: 1, loopSec: 6.3, loops: 0, openEnded: true, estSec: 12.7 }], estSec: 12.7, estPartial: false, openEnded: true, priority: 0, weight: 1 },
+  { id: "vanilla/creature/terrormorph", title: "Vanilla · Terrormorph", species: "terrormorph", tags: ["vanilla", "creature", "species:terrormorph"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-creature-terrormorph.osf.json", stages: [{ index: 0, name: "BleedOut_Idle", tags: ["idle"], clipCount: 1, loopSec: 8.3, loops: 0, openEnded: true, estSec: 16.6 }, { index: 1, name: "Attack_Lunge", tags: ["rootmotion"], clipCount: 1, loopSec: 2.1, loops: 0, openEnded: true, estSec: 4.2 }], estSec: 20.8, estPartial: false, openEnded: true, priority: 0, weight: 1 },
 ];
 
 function mockNative(command, fields) {
