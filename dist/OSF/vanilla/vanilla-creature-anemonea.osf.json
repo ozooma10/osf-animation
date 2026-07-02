@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Anemonea (generated, do not hand-edit)",
+  "section": "library",
+  "unlisted": true,
+  "clipRoot": "meshes/actors/anemonea/animations",
+  "scenes": [
+    {
+      "id": "vanilla/creature/anemonea",
+      "name": "Vanilla · Anemonea",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:anemonea"
+      ],
+      "stages": [
+        {
+          "name": "scale_test",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "scale_test.af",
+              "sec": 3.967
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

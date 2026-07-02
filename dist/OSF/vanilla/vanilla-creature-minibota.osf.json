@@ -1,0 +1,712 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Minibota (generated, do not hand-edit)",
+  "section": "library",
+  "unlisted": true,
+  "clipRoot": "meshes/actors/minibota/animations",
+  "scenes": [
+    {
+      "id": "vanilla/creature/minibota",
+      "name": "Vanilla · Minibota",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:minibota"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor01.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor02.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Death_Backward01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "death_backward01.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Forward01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "death_forward01.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Left01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "death_left01.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Moving_Forward01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "death_moving_forward01.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Death_Right01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "death_right01.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Diversion01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "diversion01.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "FireSingle_Mouth1",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "firesingle_mouth1.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "GetUp_Back",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "getup_back.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Front",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "getup_front.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Left",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "getup_left.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Right",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "getup_right.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "JogForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jogforward.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "JumpRunForwardFall",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumprunforwardfall.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JumpRunForwardFallLoop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumprunforwardfallloop.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "Knockdown_Backward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "knockdown_backward.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "knockdown",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Knockdown_Forward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "knockdown_forward.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "knockdown",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "LookDirections",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "lookdirections.af",
+              "sec": 0.5
+            }
+          ]
+        },
+        {
+          "name": "MeleeAttack01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack01.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "RunDeparture_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "rundeparture_left180.af",
+              "sec": 1.833
+            }
+          ]
+        },
+        {
+          "name": "RunDeparture_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "rundeparture_left90.af",
+              "sec": 1.833
+            }
+          ]
+        },
+        {
+          "name": "RunDeparture_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "rundeparture_right180.af",
+              "sec": 1.833
+            }
+          ]
+        },
+        {
+          "name": "RunDeparture_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "rundeparture_right90.af",
+              "sec": 1.833
+            }
+          ]
+        },
+        {
+          "name": "RunForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "runforward.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "RunForward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "runforward_start.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "RunForward_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "runforward_stop.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "StaggerBackwardLarge",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "staggerbackwardlarge.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "StaggerBackwardMedium",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "staggerbackwardmedium.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "StaggerBackwardSmall",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "staggerbackwardsmall.af",
+              "sec": 0.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "StaggerForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "staggerforward.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "StaggerLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "staggerleft.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "StaggerRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "staggerright.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "TunnelStart",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "tunnelstart.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "TunnelStop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "tunnelstop.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "TurnInPlace_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "turninplace_left180.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "TurnInPlace_Left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "turninplace_left30.af",
+              "sec": 0.667
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "TurnInPlace_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "turninplace_left90.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "TurnInPlace_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "turninplace_right180.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "TurnInPlace_Right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "turninplace_right30.af",
+              "sec": 0.667
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "TurnInPlace_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "turninplace_right90.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "WalkBackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkbackward.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "WalkDeparture_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkdeparture_left180.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "WalkDeparture_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkdeparture_left90.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "WalkDeparture_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkdeparture_right180.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "WalkDeparture_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkdeparture_right90.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "WalkForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkforward.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "WalkForward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkforward_start.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "WalkForward_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkforward_stop.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "WalkLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkleft.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "WalkRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "walkright.af",
+              "sec": 1.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/minibota/furniture/ambush",
+      "name": "Vanilla · Minibota / Furniture / Ambush",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:minibota",
+        "furniture"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/ambush/idle.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/ambush/enterfromstand.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "ExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/ambush/exittostand.af",
+              "sec": 0.733
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    }
+  ]
+}

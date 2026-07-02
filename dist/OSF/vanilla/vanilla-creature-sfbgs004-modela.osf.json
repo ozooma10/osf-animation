@@ -1,0 +1,344 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Sfbgs004-modela (generated, do not hand-edit)",
+  "section": "library",
+  "unlisted": true,
+  "clipRoot": "meshes/actors/sfbgs004/modela/animations",
+  "scenes": [
+    {
+      "id": "vanilla/creature/sfbgs004-modela/furniture/rover",
+      "name": "Vanilla · Sfbgs004-modela / Furniture / Rover",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela",
+        "furniture"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle.af",
+              "sec": 0.3
+            }
+          ]
+        },
+        {
+          "name": "Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavor01.af",
+              "sec": 1.4
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavor02.af",
+              "sec": 2.733
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_Flavor03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavor03.af",
+              "sec": 2.733
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_FlavorLarge01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavorlarge01.af",
+              "sec": 9.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_FlavorLarge02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavorlarge02.af",
+              "sec": 9.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_FlavorLarge03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavorlarge03.af",
+              "sec": 9.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_FlavorLarge04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavorlarge04.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Idle_FlavorLarge05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idle_flavorlarge05.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "IdleWobble",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/idlewobble.af",
+              "sec": 7.967
+            }
+          ]
+        },
+        {
+          "name": "EnterFromStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/enterfromstand.af",
+              "sec": 2.533
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EnterInstant",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/enterinstant.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "ExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/exittostand.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "JigglePitchDown",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/jigglepitchdown.af",
+              "sec": 0.467
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JigglePitchUp",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/jigglepitchup.af",
+              "sec": 0.633
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JiggleRollLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/jigglerollleft.af",
+              "sec": 0.8
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JiggleRollRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/jigglerollright.af",
+              "sec": 0.8
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JumpRunForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/jumprunforward.af",
+              "sec": 0.667
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JumpRunForwardFallLoop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/jumprunforwardfallloop.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "JumpRunLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/jumprunland.af",
+              "sec": 0.867
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "LookDirections",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/lookdirections.af",
+              "sec": 0.5
+            }
+          ]
+        },
+        {
+          "name": "StaggerForward01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/staggerforward01.af",
+              "sec": 2.6
+            }
+          ]
+        },
+        {
+          "name": "StaggerForward02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/staggerforward02.af",
+              "sec": 2.6
+            }
+          ]
+        },
+        {
+          "name": "StaggerForward03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/staggerforward03.af",
+              "sec": 2.133
+            }
+          ]
+        },
+        {
+          "name": "StaggerForward04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/staggerforward04.af",
+              "sec": 2.133
+            }
+          ]
+        },
+        {
+          "name": "VehicleJostleDown",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/vehiclejostledown.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "VehicleJostleUp",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/rover/vehiclejostleup.af",
+              "sec": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

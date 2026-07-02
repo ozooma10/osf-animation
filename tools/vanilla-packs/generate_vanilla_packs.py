@@ -327,6 +327,153 @@ def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str,
     return packs, anchor_stats
 
 
+# ---------------------------------------------------------------------------
+# creature / alien packs — every non-human actor root under meshes\actors\
+# ---------------------------------------------------------------------------
+# Each non-human actor folder ships its OWN characterassets\skeleton.rig and its
+# own animation set (bone counts run 6 -> 123, unlike human's 82). The engine now
+# derives the rig to decode each .af against from the clip's own path (Util::Species),
+# so these packs need no special engine wiring — they just declare a per-species
+# clipRoot. `meshes\actors\human\animations` is owned by the human path above and
+# excluded here; DLC wrappers like sfbgs004\human / sfbgs004\modela ARE included
+# (they carry their own rig copy and map onto the human / modela skeleton).
+
+HUMAN_SPECIES_ROOT = "meshes\\actors\\human"  # owned by the human collect/build path
+
+
+def creature_species(path_low: str) -> tuple[str, str, int] | None:
+    """(species_root, family, anim_index) for a non-human actor .af path, or None.
+    species_root = the folder holding \\animations (backslashes, lowercase); family =
+    the skeleton family = the last segment before \\animations (bipeda, modela, human…).
+    'meshes\\actors\\bipeda\\animations\\x.af' -> ('meshes\\actors\\bipeda', 'bipeda', 3)
+    'meshes\\actors\\sfbgs004\\human\\animations\\x.af' -> ('…\\sfbgs004\\human', 'human', 4)."""
+    parts = path_low.split("\\")
+    if len(parts) < 4 or parts[0] != "meshes" or parts[1] != "actors" or "animations" not in parts:
+        return None
+    ai = parts.index("animations")
+    if ai < 3:
+        return None
+    species_root = "\\".join(parts[:ai])
+    # base human is the human path's job; its nested folders (human\_1stperson = viewmodel
+    # arms) are not full-body species and never bind to a real actor skeleton.
+    if species_root == HUMAN_SPECIES_ROOT or species_root.startswith(HUMAN_SPECIES_ROOT + "\\"):
+        return None
+    return species_root, parts[ai - 1], ai
+
+
+def rig_animated_bones(ba2: Ba2Reader, species_root_low: str) -> int | None:
+    """boneCountAnimated (@0x3A) from a species' skeleton.rig header — the accept cap
+    for that species' clips (mirrors AFImport::ParseRig). None if the rig is absent."""
+    e = ba2.by_name.get(species_root_low + "\\characterassets\\skeleton.rig")
+    if not e:
+        return None
+    buf = ba2.read(e, prefix=0x40)
+    if len(buf) < 0x3C:
+        return None
+    (bc_animated,) = struct.unpack_from("<H", buf, 0x3A)
+    return bc_animated or None
+
+
+def collect_creature_clips(ba2: Ba2Reader) -> tuple[dict[str, dict], collections.Counter]:
+    """species_root -> {family, clip_root (fwd), cap, leaves: {leaf: [Clip]}}."""
+    out: dict[str, dict] = {}
+    skipped = collections.Counter()
+    for e in ba2.entries:
+        low = e.name.lower()
+        if not low.endswith(".af"):
+            continue
+        info = creature_species(low)
+        if info is None:
+            continue
+        species_root_low, family, ai = info
+        sp = out.get(species_root_low)
+        if sp is None:
+            sp = out[species_root_low] = {
+                "family": family,
+                "clip_root": species_root_low.replace("\\", "/") + "/animations",
+                "cap": rig_animated_bones(ba2, species_root_low),
+                "leaves": collections.defaultdict(list),
+            }
+
+        hdr = parse_af_header(ba2.read(e, prefix=0x40))
+        if hdr is None:
+            skipped["malformed header"] += 1
+            continue
+        bone_count, frame_count = hdr
+        cap = sp["cap"]
+        if bone_count == 0 or (cap and bone_count > cap):
+            skipped["bone count"] += 1
+            continue
+        if frame_count == 0:
+            skipped["zero frames"] += 1
+            continue
+
+        meta = AfxMeta()
+        afx = ba2.by_name.get(low[:-3] + ".afx")
+        if afx:
+            meta = parse_afx(ba2.read(afx))
+
+        stem = e.name.rsplit("\\", 1)[-1][:-3]
+        stem_low = stem.lower()
+        if meta.tag.lower() == "camera" or stem_low.startswith("camera_"):
+            skipped["camera clip"] += 1
+            continue
+
+        tags = []
+        if meta.tag and meta.tag.lower() != stem_low:
+            tags.append(meta.tag.lower())
+        if meta.is_state is False:
+            tags.append("transition")
+        if meta.anim_driven:
+            tags.append("rootmotion")
+        if frame_count <= 2 and "pose" not in tags:
+            tags.append("pose")
+
+        parts = e.name.split("\\")
+        rel = "/".join(parts[ai + 1:])         # path below \animations (forward slashes)
+        leaf = "/".join(parts[ai + 1:-1])      # subfolder(s) below \animations, "" if none
+        sp["leaves"][leaf].append(Clip(
+            rel=rel,
+            display=meta.display or stem,
+            sec=round(max(frame_count - 1, 1) / AF_FPS, 3),
+            tags=tags,
+        ))
+    return out, skipped
+
+
+def build_creature_packs(species_map: dict[str, dict]) -> dict[str, dict]:
+    """One pack document per non-human species root; scenes are the leaf folders,
+    tagged `species:<family>` so the browser can filter to the picked creature."""
+    packs: dict[str, dict] = {}
+    for species_root_low, sp in sorted(species_map.items()):
+        species_id = "-".join(species_root_low.split("\\")[2:])  # bipeda | sfbgs004-human
+        family = sp["family"]
+        doc = {
+            "schema": 1,
+            "name": f"OSF Vanilla — {humanize(species_id)} (generated, do not hand-edit)",
+            "section": "library",
+            "unlisted": True,
+            "clipRoot": sp["clip_root"],
+            "scenes": [],
+        }
+        for leaf in sorted(sp["leaves"]):
+            clips = sorted(sp["leaves"][leaf], key=stage_sort_key)
+            leaf_segs = leaf.split("/") if leaf else []
+            scene_id = "vanilla/creature/" + "/".join([species_id] + leaf_segs)
+            name = "Vanilla · " + " / ".join(humanize(s) for s in [species_id] + leaf_segs)
+            tags = ["vanilla", "creature", f"species:{family}"]
+            if leaf_segs:
+                tags.append(leaf_segs[0].lower())  # furniture / weapon / photomode …
+            chunks = [clips[i:i + MAX_STAGES_PER_SCENE]
+                      for i in range(0, len(clips), MAX_STAGES_PER_SCENE)]
+            for n, chunk in enumerate(chunks, start=1):
+                sid = scene_id if n == 1 else f"{scene_id}--{n}"
+                snm = name if n == 1 else f"{name} ({n})"
+                doc["scenes"].append(build_scene(sid, snm, tags, chunk))
+        packs[species_id] = doc
+    return packs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ba2", type=Path,
@@ -335,6 +482,8 @@ def main() -> int:
         default=Path(__file__).resolve().parents[2] / "dist" / "OSF" / "vanilla")
     ap.add_argument("--include-combat", action="store_true",
         help="also generate gun/melee packs (weapon-pose layers; mostly odd standalone)")
+    ap.add_argument("--no-creatures", action="store_true",
+        help="skip the per-species creature/alien packs (every non-human actor root)")
     ap.add_argument("--furn-keywords", type=Path,
         default=Path(__file__).resolve().parent / "anim-furn-keywords.json",
         help="AnimFurn keyword table from extract_furn_anchors.py (furniture anchoring)")
@@ -364,6 +513,30 @@ def main() -> int:
             json.dump(doc, f, indent=2, ensure_ascii=False)
             f.write("\n")
         print(f"{out_file.name}: {n_scenes} scene(s), {n_clips} clip(s)")
+
+    # Per-species creature/alien packs (every non-human actor root).
+    if not args.no_creatures:
+        species_map, creature_skipped = collect_creature_clips(ba2)
+        creature_packs = build_creature_packs(species_map)
+        c_species = c_scenes = c_clips = 0
+        for species_id, doc in sorted(creature_packs.items()):
+            n_scenes = len(doc["scenes"])
+            n_clips = sum(len(s["stages"]) for s in doc["scenes"])
+            if n_scenes == 0:
+                continue
+            c_species += 1
+            c_scenes += n_scenes
+            c_clips += n_clips
+            total_scenes += n_scenes
+            total_clips += n_clips
+            out_file = args.out / f"vanilla-creature-{species_id}.osf.json"
+            with open(out_file, "w", encoding="utf-8", newline="\n") as f:
+                json.dump(doc, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            print(f"{out_file.name}: {n_scenes} scene(s), {n_clips} clip(s)")
+        print(f"creatures: {c_species} species, {c_scenes} scene(s), {c_clips} clip(s)")
+        for k, v in creature_skipped.most_common():
+            skipped[f"creature {k}"] += v
 
     print(f"\ntotal: {total_scenes} scene(s), {total_clips} clip(s)")
     anchored = anchor_stats.pop("anchored", 0)

@@ -1,0 +1,444 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Modelt (generated, do not hand-edit)",
+  "section": "library",
+  "unlisted": true,
+  "clipRoot": "meshes/actors/modelt/animations",
+  "scenes": [
+    {
+      "id": "vanilla/creature/modelt",
+      "name": "Vanilla · Modelt",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modelt"
+      ],
+      "stages": [
+        {
+          "name": "ready_idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_idle_flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor01.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "equip",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "equip.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "leanright",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "leanright.af",
+              "sec": 0.533
+            }
+          ]
+        },
+        {
+          "name": "meleeattack01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack01.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "meleeattack02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack02.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "ready_jogbackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_jogbackward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "ready_jogforward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_jogforward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "ready_runbackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_runbackward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "ready_runforward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_runforward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "ready_turninplace_left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left180.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "ready_turninplace_left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left30.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "ready_turninplace_left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left90.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "ready_turninplace_right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right180.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "ready_turninplace_right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right30.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "ready_turninplace_right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right90.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "ready_walkbackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkbackward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "ready_walkforward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkforward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_jogbackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_jogbackward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_jogforward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_jogforward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_runbackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_runbackward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_runforward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_runforward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_turninplace_left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left180.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_turninplace_left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left30.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_turninplace_left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left90.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_turninplace_right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right180.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_turninplace_right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right30.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_turninplace_right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right90.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_walkbackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkbackward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "relaxed_walkforward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforward.af",
+              "sec": 2.0
+            }
+          ]
+        },
+        {
+          "name": "traversal_door",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "traversal_door.af",
+              "sec": 4.5
+            }
+          ]
+        },
+        {
+          "name": "unequip",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "unequip.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "upperbody_boneweights",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "upperbody_boneweights.af",
+              "sec": 0.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modelt/furniture/debrisdropoff/loaderbucket",
+      "name": "Vanilla · Modelt / Furniture / Debrisdropoff / Loaderbucket",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modelt",
+        "furniture"
+      ],
+      "stages": [
+        {
+          "name": "idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/debrisdropoff/loaderbucket/idle.af",
+              "sec": 4.667
+            }
+          ]
+        },
+        {
+          "name": "enterfromstand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/debrisdropoff/loaderbucket/enterfromstand.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "exittostand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/debrisdropoff/loaderbucket/exittostand.af",
+              "sec": 1.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modelt/furniture/debrispickup/loaderbucket",
+      "name": "Vanilla · Modelt / Furniture / Debrispickup / Loaderbucket",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modelt",
+        "furniture"
+      ],
+      "stages": [
+        {
+          "name": "idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/debrispickup/loaderbucket/idle.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "enterfromstand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/debrispickup/loaderbucket/enterfromstand.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "exittostand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/debrispickup/loaderbucket/exittostand.af",
+              "sec": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

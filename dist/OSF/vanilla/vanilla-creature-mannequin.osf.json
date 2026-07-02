@@ -1,0 +1,295 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Mannequin (generated, do not hand-edit)",
+  "section": "library",
+  "unlisted": true,
+  "clipRoot": "meshes/actors/mannequin/animations",
+  "scenes": [
+    {
+      "id": "vanilla/creature/mannequin/pose00",
+      "name": "Vanilla · Mannequin / Pose00",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose00"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose00/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose01",
+      "name": "Vanilla · Mannequin / Pose01",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose01"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose01/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose02",
+      "name": "Vanilla · Mannequin / Pose02",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose02"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose02/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose03",
+      "name": "Vanilla · Mannequin / Pose03",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose03"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose03/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose04",
+      "name": "Vanilla · Mannequin / Pose04",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose04"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose04/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose05",
+      "name": "Vanilla · Mannequin / Pose05",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose05"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose05/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose06",
+      "name": "Vanilla · Mannequin / Pose06",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose06"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose06/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose07",
+      "name": "Vanilla · Mannequin / Pose07",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose07"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose07/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose08",
+      "name": "Vanilla · Mannequin / Pose08",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose08"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose08/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose09",
+      "name": "Vanilla · Mannequin / Pose09",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose09"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose09/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose10",
+      "name": "Vanilla · Mannequin / Pose10",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose10"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose10/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose11",
+      "name": "Vanilla · Mannequin / Pose11",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose11"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose11/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mannequin/pose12",
+      "name": "Vanilla · Mannequin / Pose12",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mannequin",
+        "pose12"
+      ],
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "pose12/idle.af",
+              "sec": 0.3
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

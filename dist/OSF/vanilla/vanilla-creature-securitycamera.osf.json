@@ -1,0 +1,231 @@
+{
+  "schema": 1,
+  "name": "OSF Vanilla — Securitycamera (generated, do not hand-edit)",
+  "section": "library",
+  "unlisted": true,
+  "clipRoot": "meshes/actors/securitycamera/animations",
+  "scenes": [
+    {
+      "id": "vanilla/creature/securitycamera",
+      "name": "Vanilla · Securitycamera",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:securitycamera"
+      ],
+      "stages": [
+        {
+          "name": "Alert_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "alert_idle.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Ready_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle.af",
+              "sec": 24.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Unconscious_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "unconscious_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Death01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "death01.af",
+              "sec": 1.033
+            }
+          ]
+        },
+        {
+          "name": "Death02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "death02.af",
+              "sec": 1.167
+            }
+          ]
+        },
+        {
+          "name": "FireAuto",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "fireauto.af",
+              "sec": 2.667
+            }
+          ]
+        },
+        {
+          "name": "FireSingle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "firesingle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Flinch01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "flinch01.af",
+              "sec": 0.6
+            }
+          ]
+        },
+        {
+          "name": "Flinch02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "flinch02.af",
+              "sec": 0.6
+            }
+          ]
+        },
+        {
+          "name": "Flinch03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "flinch03.af",
+              "sec": 0.6
+            }
+          ]
+        },
+        {
+          "name": "Flinch04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "flinch04.af",
+              "sec": 0.6
+            }
+          ]
+        },
+        {
+          "name": "LookDirections",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "lookdirections.af",
+              "sec": 0.5
+            }
+          ]
+        },
+        {
+          "name": "Unconscious_Into",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "unconscious_into.af",
+              "sec": 0.667
+            }
+          ],
+          "tags": [
+            "into",
+            "transition"
+          ]
+        },
+        {
+          "name": "Unconscious_Out",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "unconscious_out.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "out",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/securitycamera/wallmount",
+      "name": "Vanilla · Securitycamera / Wallmount",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:securitycamera",
+        "wallmount"
+      ],
+      "stages": [
+        {
+          "name": "Alert_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "wallmount/alert_idle.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "wallmount/relaxed_idle.af",
+              "sec": 22.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        }
+      ]
+    }
+  ]
+}
