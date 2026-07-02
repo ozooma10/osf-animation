@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8791", "--directory", "views/osf"],
       "port": 8791
+    },
+    {
+      "name": "osf-view-2",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8795", "--directory", "views/osf"],
+      "port": 8795
     }
   ]
 }
