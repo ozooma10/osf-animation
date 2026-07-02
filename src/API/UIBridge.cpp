@@ -881,6 +881,18 @@ namespace OSF::API
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
 		}
 
+		// World-area drag/wheel from the view (osf.orbit {dx,dy,wheel}) — the overlay consumes all
+		// game input while open, so this is the ONLY mouse path to the orbit camera while browsing.
+		void OnOrbit(const char*, const char* a_payloadJson, const char*, void*) noexcept
+		{
+			const json p = ParsePayload(a_payloadJson);
+			if (!p.is_object()) {
+				return;
+			}
+			Input::InputService::GetSingleton().InjectOrbitDelta(
+				p.value("dx", 0.0f), p.value("dy", 0.0f), p.value("wheel", 0.0f));
+		}
+
 		void OnBridgeReady(void*) noexcept
 		{
 			REX::DEBUG("[UI] OSF UI bridge ready — pushing catalog to view '{}'", kViewId);
@@ -958,6 +970,7 @@ namespace OSF::API
 		g_ui->RegisterCommand("osf.stop", &OnStop, nullptr);
 		g_ui->RegisterCommand("osf.opened", &OnOpened, nullptr);
 		g_ui->RegisterCommand("osf.closed", &OnClosed, nullptr);
+		g_ui->RegisterCommand("osf.orbit", &OnOrbit, nullptr);
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
 		g_ui->GetPluginVersion(mj, mn, pt);

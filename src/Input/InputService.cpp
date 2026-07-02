@@ -319,6 +319,19 @@ namespace OSF::Input
 		}
 	}
 
+	void InputService::InjectOrbitDelta(float a_dx, float a_dy, float a_wheel)
+	{
+		if (!g_captureMouse.load(std::memory_order_relaxed)) {
+			return;  // no scene-orbit camera driving — a stray UI drag must not bank deltas
+		}
+		// View CSS px -> raw-mouse-unit axis: the view is 1280 logical px wide and a full-width
+		// drag should read as roughly a half orbit (π / (1280 · kOrbitMouseSens 0.004) ≈ 0.6).
+		constexpr float kUiDragScale = 0.6f;
+		g_mouseDx.fetch_add(a_dx * kUiDragScale, std::memory_order_relaxed);
+		g_mouseDy.fetch_add(a_dy * kUiDragScale, std::memory_order_relaxed);
+		g_mouseWheel.fetch_add(a_wheel, std::memory_order_relaxed);  // already in notches
+	}
+
 	void InputService::SetUiCursorVisible(bool a_on)
 	{
 		g_uiCursorVisible.store(a_on, std::memory_order_relaxed);

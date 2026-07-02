@@ -54,6 +54,33 @@ function send(command, fields = {}) {
   else { console.log("(standalone) ->", msg); mockNative(command, fields); }
 }
 
+/* =========================================================================
+   ORBIT DRAG  (world-area click-drag steers the native scene-orbit camera)
+   While the overlay is open OSF UI consumes ALL game input, so the native
+   orbit camera never sees the mouse. The view forwards WORLD-AREA drags over
+   the bridge instead: LMB-drag anywhere outside the console/brief = steer,
+   wheel there = zoom (osf.orbit {dx,dy,wheel} in CSS px / notches, batched
+   per animation frame). Interactions that start ON the panels stay pure UI.
+   ========================================================================= */
+const orbit = { dragging: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, queued: false };
+
+function orbitWorldTarget(e) {
+  return !(e.target instanceof Element && e.target.closest(".console, .brief"));
+}
+
+function orbitFlush() {
+  orbit.queued = false;
+  if (!bridgeAvailable()) return;  // standalone: nothing to steer, don't spam the mock
+  if (orbit.dx || orbit.dy || orbit.wheel) {
+    send("osf.orbit", { dx: orbit.dx, dy: orbit.dy, wheel: orbit.wheel });
+    orbit.dx = orbit.dy = orbit.wheel = 0;
+  }
+}
+
+function orbitQueue() {
+  if (!orbit.queued) { orbit.queued = true; requestAnimationFrame(orbitFlush); }
+}
+
 let catalogTimer = null;
 let catalogTries = 0;
 const CATALOG_MAX_TRIES = 20;
@@ -103,7 +130,10 @@ function onNativeMessage(jsonText) {
     // The runtime tells the focused view when the overlay shows/hides; report both so the
     // plugin's first-run "press F10" hint can count real opens, and so the scene-orbit camera
     // knows a cursor is on screen (visible = LMB-drag steers the orbit; hidden = free-look).
-    case "ui.visibility": send(payload && payload.visible ? "osf.opened" : "osf.closed"); break;
+    case "ui.visibility":
+      if (!(payload && payload.visible)) orbit.dragging = false;  // never carry a drag across a hide
+      send(payload && payload.visible ? "osf.opened" : "osf.closed");
+      break;
     default: break;
   }
 }
@@ -936,6 +966,31 @@ function init() {
   document.addEventListener("click", onClick);
   document.addEventListener("change", onChange);
   document.addEventListener("input", onInput);
+
+  // Orbit drag (see the ORBIT DRAG block): LMB on the world area = steer, wheel there = zoom.
+  document.addEventListener("mousedown", (e) => {
+    if (e.button === 0 && orbitWorldTarget(e)) {
+      orbit.dragging = true;
+      orbit.x = e.clientX;
+      orbit.y = e.clientY;
+      e.preventDefault();  // no text selection while steering
+    }
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!orbit.dragging) return;
+    orbit.dx += e.clientX - orbit.x;
+    orbit.dy += e.clientY - orbit.y;
+    orbit.x = e.clientX;
+    orbit.y = e.clientY;
+    orbitQueue();
+  });
+  document.addEventListener("mouseup", (e) => { if (e.button === 0) orbit.dragging = false; });
+  document.addEventListener("wheel", (e) => {
+    if (e.deltaY && orbitWorldTarget(e)) {
+      orbit.wheel += e.deltaY < 0 ? 1 : -1;  // + = wheel up = zoom in (matches the native axis)
+      orbitQueue();
+    }
+  }, { passive: true });
   $("refresh").addEventListener("click", () => {
     notice("info", "Refreshing catalog…");
     requestCatalog(true);
