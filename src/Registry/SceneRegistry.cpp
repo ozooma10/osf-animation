@@ -64,7 +64,15 @@ namespace OSF::Registry
 			if (root == "naf") {
 				return root;
 			}
-			throw std::runtime_error(a_subject + ": unknown clipRoot '" + std::string(a_root) + "' (supported: 'NAF')");
+			// Any other value is a Data-relative path prefix joined ahead of each relative clip file (the generated vanilla packs use "meshes/actors/human/animations").
+			std::replace(root.begin(), root.end(), '\\', '/');
+			while (!root.empty() && root.back() == '/') {
+				root.pop_back();
+			}
+			if (root.find(':') != std::string::npos) {
+				throw std::runtime_error(a_subject + ": clipRoot '" + std::string(a_root) + "' may not contain ':' (use 'NAF' or a Data-relative folder)");
+			}
+			return root;
 		}
 
 		bool IsLikelyGltfPath(std::string_view a_path)
@@ -99,6 +107,8 @@ namespace OSF::Registry
 			}
 			if (a_clipRoot == "naf") {
 				a_clip.file = "naf:" + a_clip.file;
+			} else {
+				a_clip.file = std::string(a_clipRoot) + "/" + a_clip.file;
 			}
 		}
 
@@ -120,8 +130,16 @@ namespace OSF::Registry
 				if (auto oit = a_clip.find("offset"); oit != a_clip.end()) {
 					clip.offset = ParseOffsetField(*oit);
 				}
+				// Pre-measured duration (the generated vanilla packs carry these) — spares the
+				// duration scan a per-clip walk of the game archive.
+				if (auto sit = a_clip.find("sec"); sit != a_clip.end()) {
+					if (!sit->is_number() || sit->get<float>() <= 0.0f) {
+						throw std::runtime_error(a_subject + ": clip 'sec' must be a positive number");
+					}
+					clip.sec = sit->get<float>();
+				}
 			} else {
-				throw std::runtime_error(a_subject + ": a clip must be a file string or a { file, anim?, offset? } object");
+				throw std::runtime_error(a_subject + ": a clip must be a file string or a { file, anim?, offset?, sec? } object");
 			}
 			if (clip.file.empty()) {
 				throw std::runtime_error(a_subject + ": empty clip file");
@@ -1198,6 +1216,19 @@ namespace OSF::Registry
 			const bool stripDefault = a_json.value("stripActors", true);
 			const bool fadeDefault = a_json.value("fade", false);
 			const bool unlistedDefault = a_json.value("unlisted", false);
+
+			// File-level catalog lane. "library" = reference content (the generated vanilla packs):
+			bool library = false;
+			if (const auto secIt = a_json.find("section"); secIt != a_json.end()) {
+				const std::string section = secIt->is_string() ? ToLower(secIt->get<std::string>()) : std::string{};
+				if (section == "library") {
+					library = true;
+				} else {
+					a_errors.push_back("[error] '" + fileName + "': unknown 'section' value (supported: 'library')");
+					REX::ERROR("[Registry] '{}' unknown 'section' value — skipped", fileName);
+					return;
+				}
+			}
 			std::string packClipRoot;
 			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
 				if (!crit->is_string()) {
@@ -1283,6 +1314,7 @@ namespace OSF::Registry
 				try {
 					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, unlistedDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
 					def.sourceFile = a_file;
+					def.library = library;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {
 						a_errors.push_back("[error] duplicate scene id '" + def.id + "' in '" + fileName +

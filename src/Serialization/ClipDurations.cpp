@@ -41,8 +41,7 @@ namespace OSF::Serialization::ClipDurations
 		// A probe within this of an exact decode value confirms it — keep the decode's number.
 		constexpr float kExactConfirmTolerance = 0.05f;
 
-		// Values outside (0, 1h] are treated as garbage (corrupt header / bogus accessor max)
-		// rather than persisted and shown.
+		// Values outside (0, 1h] are treated as garbage (corrupt header / bogus accessor max) rather than persisted and shown.
 		constexpr float kMaxPlausibleSec = 3600.0f;
 
 		bool PlausibleSec(float a_sec)
@@ -50,9 +49,8 @@ namespace OSF::Serialization::ClipDurations
 			return std::isfinite(a_sec) && a_sec > 0.0f && a_sec <= kMaxPlausibleSec;
 		}
 
-		// Cache key: the authored spec collapsed to its display form — the SAME identity playback
-		// uses (so "naf:X", "Data/NAF/X" and "NAF\X" all land on one entry) — lowercased, + the
-		// anim id. String-only (no filesystem), so it is safe inside the noexcept UI handlers.
+		// Cache key: the authored spec collapsed to its display form, the SAME identity playback uses (so "naf:X", "Data/NAF/X" and "NAF\X" all land on one entry)
+		// lowercased, + the anim id. String-only (no filesystem), so it is safe inside the noexcept UI handlers.
 		std::string KeyFor(std::string_view a_fileSpec, std::string_view a_animId)
 		{
 			return Util::ToLower(Util::ClipSpecDisplay(std::filesystem::path{ std::string{ a_fileSpec } })) +
@@ -88,8 +86,7 @@ namespace OSF::Serialization::ClipDurations
 			if (!in) {
 				return;  // first run
 			}
-			// Tolerate a corrupt/hand-edited file: bad entries are skipped, never thrown
-			// (Lookup runs inside noexcept UI handlers).
+			// Tolerate a corrupt/hand-edited file: bad entries are skipped, never thrown 
 			try {
 				const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false);
 				const auto clips = doc.is_object() ? doc.find("clips") : doc.end();
@@ -143,8 +140,7 @@ namespace OSF::Serialization::ClipDurations
 					REX::WARN("[ClipDur] cannot write {} — durations won't persist this session", tmp.string());
 					return;
 				}
-				// replace error handler: keys are Windows file paths in the ACP narrow encoding,
-				// which need not be valid UTF-8 — the default dump() THROWS on such bytes.
+				// replace error handler: keys are Windows file paths in the ACP narrow encoding, which need not be valid UTF-8
 				out << doc.dump(1, '\t', false, json::error_handler_t::replace);
 			}
 			std::filesystem::rename(tmp, file, ec);
@@ -157,8 +153,7 @@ namespace OSF::Serialization::ClipDurations
 
 		// ---- probes (background thread, engine-free) -------------------------
 
-		// .af: the 64-byte header carries the clip's frame count (u16 @44 — after 8B magic, 16B
-		// rotation, 12B translation, 4B flags, 2B version, 2B boneCount; see AFImport::ParseAf).
+		// .af: the 64-byte header carries the clip's frame count (u16 @44 — after 8B magic, 16B rotation, 12B translation, 4B flags, 2B version, 2B boneCount; see AFImport::ParseAf).
 		// Keyframe indices run 0..frameCount-1 at kAfFps, so the last frame IS the duration.
 		std::optional<float> ProbeAfBytes(const std::vector<std::byte>& a_bytes)
 		{
@@ -448,7 +443,9 @@ namespace OSF::Serialization::ClipDurations
 				for (const auto& n : d.nodes) {
 					for (const auto& st : n.stages) {
 						for (const auto& c : st.clips) {
-							if (!c.file.empty()) {
+							// A pack-authored `sec` needs no probe — keeps the thousands of generated
+							// vanilla-pack refs from re-walking the game archive every scan.
+							if (!c.file.empty() && c.sec <= 0.0f) {
 								refs.emplace_back(c.file, c.animId);
 							}
 						}
@@ -563,8 +560,7 @@ namespace OSF::Serialization::ClipDurations
 		std::thread([onChanged = std::move(a_onChanged)]() {
 			std::size_t changed = 0;
 			for (;;) {
-				// A detached thread must not leak exceptions (std::terminate). Failures here
-				// only cost estimates, never the game.
+				// A detached thread must not leak exceptions (std::terminate). Failures here only cost estimates, never the game.
 				try {
 					changed += ScanPass();
 				} catch (const std::exception& e) {

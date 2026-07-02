@@ -195,8 +195,9 @@ namespace OSF::API
 		// How many loops an open-ended hold stage is assumed to run for the scene time estimate
 		constexpr float kHoldLoopEstimate = 2.0f;
 
-		// Serialize the live scene registry to the osf.catalog.data array. Copies the fields out from under the registry read lock, then builds JSON afterwards
-		json BuildCatalog()
+		// Serialize the live scene registry to the osf.catalog.data array (a_library=false) or the osf.library.data array (a_library=true — the reference-library lane, e.g. the generated vanilla packs). 
+		// Copies the fields out from under the registry read lock, then builds JSON afterwards
+		json BuildCatalog(bool a_library)
 		{
 			struct StageCard
 			{
@@ -228,7 +229,10 @@ namespace OSF::API
 				bool                     openEnded = false;   // some stage holds until advanced
 			};
 			std::vector<Card> cards;
-			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards](const Registry::SceneDef& d) {
+			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards, a_library](const Registry::SceneDef& d) {
+				if (d.library != a_library) {
+					return;  // each lane serializes only its own scenes
+				}
 				Card c;
 				c.id = d.id;
 				c.title = d.name.empty() ? d.id : d.name;
@@ -259,9 +263,13 @@ namespace OSF::API
 						sc.sig += '\n';
 					}
 
-					// Stage timing, from the node the desugar produce: loop length comes from clips[0]
+					// Stage timing, from the node the desugar produce: loop length comes from clips[0].
+					// A pack-authored duration wins over the probe cache (generated vanilla packs).
 					if (!st.clips.empty()) {
-						if (const auto sec = Serialization::ClipDurations::Lookup(st.clips.front().file, st.clips.front().animId)) {
+						const auto& first = st.clips.front();
+						if (first.sec > 0.0f) {
+							sc.loopSec = first.sec;
+						} else if (const auto sec = Serialization::ClipDurations::Lookup(first.file, first.animId)) {
 							sc.loopSec = *sec;
 						}
 					}
@@ -349,13 +357,20 @@ namespace OSF::API
 					{ "openEnded", c.openEnded },
 				});
 			}
-			REX::DEBUG("[UI] catalog built -> {} scene(s)", cards.size());
+			REX::DEBUG("[UI] {} built -> {} scene(s)", a_library ? "library" : "catalog", cards.size());
 			return arr;
 		}
 
 		void OnCatalogGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
-			SendJson(a_srcView, "osf.catalog.data", BuildCatalog());
+			SendJson(a_srcView, "osf.catalog.data", BuildCatalog(false));
+		}
+
+		// The library lane is static after load (generated packs, pack-authored durations), so the
+		// view fetches it once on demand and caches — it is never re-pushed by catalog updates.
+		void OnLibraryGet(const char*, const char*, const char* a_srcView, void*) noexcept
+		{
+			SendJson(a_srcView, "osf.library.data", BuildCatalog(true));
 		}
 
 		void OnPickCrosshair(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
@@ -563,6 +578,9 @@ namespace OSF::API
 			}
 		}
 
+		// Nearby-furniture enumeration goes through RE::TES::ForEachReferenceInRange (CommonLibSF),
+		// which spans the loaded interior cell or exterior grid — see OnScanNearby's furniture branch.
+
 		// Distance math uses TESObjectREFR::GetPosition() (cached data.location), the same source the rest of OSF Animation uses for actor/anchor placement.
 		void OnScanNearby(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
@@ -601,6 +619,7 @@ namespace OSF::API
 			{
 				RE::TESObjectREFR* ref;
 				float              distSq;
+				std::int32_t       sceneCount = -1;  // furniture only: how many anchor-bound scenes accept it (-1 = n/a)
 			};
 			std::vector<Hit> hits;
 			// Collect candidate pointers + distance only; serialize (GetDisplayFullName / token minting) afterwards so the heavy work stays out of any engine lock.
@@ -616,51 +635,84 @@ namespace OSF::API
 						hits.push_back({ actor, distSq });
 					}
 				}
-			} else {
-				RE::TESObjectCELL* cell = player->parentCell;
-				if (cell && cell->IsAttached()) {
-					std::vector<const Registry::SceneDef*> anchorDefs;
-					auto&                                  reg = Registry::SceneRegistry::GetSingleton();
-					if (!sceneId.empty()) {
-						if (const auto* def = reg.Find(sceneId); def && def->RequiresAnchor()) {
-							anchorDefs.push_back(def);
-						}
-					}
-					if (anchorDefs.empty()) {
-						reg.ForEachDef([&anchorDefs](const Registry::SceneDef& d) {
-							if (d.RequiresAnchor()) {
-								anchorDefs.push_back(&d);
-							}
-						});
-					}
-
-					// Walk the array ourselves rather than via TESObjectCELL::ForEachReference so / we can null-check the backing stor
-					//  an attached cell should never expose size>0 over a null data pointer, but the header's loop would access-violate f it did, and this call is user-triggered at arbitrary moments (mid-load).
-					const RE::BSAutoReadLock locker(cell->lock);
-					const auto&              refs = cell->references;
-					const std::size_t        count = refs.size();
-					const auto* const        slots = refs.data();
-					for (std::size_t i = 0; slots && i < count; ++i) {
-						RE::TESObjectREFR* ref = slots[i].get();
-						if (!ref || ref->IsPlayerRef() || ref->IsDeleted()) {
-							continue;
-						}
-						bool ok = false;
-						for (const auto* d : anchorDefs) {
-							if (Matchmaking::AnchorAccepts(*d, ref)) {
-								ok = true;
-								break;
-							}
-						}
-						if (!ok) {
-							continue;
-						}
-						const float distSq = origin.GetSquaredDistance(ref->GetPosition());
-						if (distSq <= radiusSq) {
-							hits.push_back({ ref, distSq });
-						}
+			} else if (auto* tes = RE::TES::GetSingleton()) {
+				std::vector<const Registry::SceneDef*> anchorDefs;
+				auto&                                  reg = Registry::SceneRegistry::GetSingleton();
+				if (!sceneId.empty()) {
+					if (const auto* def = reg.Find(sceneId); def && def->RequiresAnchor()) {
+						anchorDefs.push_back(def);
 					}
 				}
+				if (anchorDefs.empty()) {
+					reg.ForEachDef([&anchorDefs](const Registry::SceneDef& d) {
+						if (d.RequiresAnchor()) {
+							anchorDefs.push_back(&d);
+						}
+					});
+				}
+
+				RE::NiPoint3A originA{};
+				originA.x = origin.x;
+				originA.y = origin.y;
+				originA.z = origin.z;
+				// ForEachReferenceInRange spans the loaded interior cell or exterior grid and only
+				// visits refs already within radius; we just filter to furniture our scenes anchor to.
+				// DIAGNOSTIC: collect every visited ref so we can log the ones NEAREST the player
+				// (the chair/bench you're standing next to) rather than the first N in walk order.
+				struct DbgRef
+				{
+					float              distSq;
+					RE::TESObjectREFR* ref;
+					std::uint32_t      baseForm;
+					std::uint32_t      type;
+					std::int32_t       accepts;
+				};
+				std::vector<DbgRef> dbgRefs;
+				std::size_t         dbgTypeHist[256] = {};
+				tes->ForEachReferenceInRange(originA, radius, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
+					RE::TESObjectREFR* ref = a_ref.get();
+					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted()) {
+						// Count every accepting def (not just the first): the view shows "unlocks N
+						// scenes" next to each nearby anchor so the pick is an informed one.
+						std::int32_t accepts = 0;
+						for (const auto* d : anchorDefs) {
+							if (Matchmaking::AnchorAccepts(*d, ref)) {
+								accepts++;
+							}
+						}
+						const auto          base = ref->GetBaseObject();
+						const std::uint32_t type = base ? static_cast<std::uint32_t>(base->GetFormType()) : 0u;
+						dbgTypeHist[type & 0xFF]++;
+						dbgRefs.push_back({ origin.GetSquaredDistance(ref->GetPosition()), ref,
+							base ? base->GetFormID() : 0u, type, accepts });
+						if (accepts != 0) {
+							hits.push_back({ ref, origin.GetSquaredDistance(ref->GetPosition()), accepts });
+						}
+					}
+					return RE::BSContainer::ForEachResult::kContinue;
+				});
+				// Nearest refs first — whatever you're standing next to is at the top.
+				std::sort(dbgRefs.begin(), dbgRefs.end(),
+					[](const DbgRef& a, const DbgRef& b) { return a.distSq < b.distSq; });
+				const std::size_t dbgN = std::min<std::size_t>(dbgRefs.size(), 40);
+				for (std::size_t i = 0; i < dbgN; ++i) {
+					const auto& r = dbgRefs[i];
+					const char* nm = r.ref->GetDisplayFullName();
+					REX::DEBUG("[UI] scan near #{}: dist={:.1f}m base={:#010x} type={} accepts={} name='{}'",
+						i, std::sqrt(r.distSq) / 70.0f, r.baseForm, r.type, r.accepts,
+						(nm && nm[0]) ? nm : "(unnamed)");
+				}
+				// FormType histogram over ALL visited refs (type:count) — does any kFURN (47) exist near you?
+				std::string hist;
+				for (std::uint32_t t = 0; t < 256; ++t) {
+					if (dbgTypeHist[t]) {
+						hist += std::to_string(t) + ":" + std::to_string(dbgTypeHist[t]) + " ";
+					}
+				}
+				REX::DEBUG("[UI] scan furniture: visited {} ref(s); path={}; type-hist {}",
+					dbgRefs.size(),
+					tes->interiorCell ? "interior" : "exterior-grid",
+					hist);
 			}
 
 			std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.distSq < b.distSq; });
@@ -672,23 +724,55 @@ namespace OSF::API
 			for (const auto& h : hits) {
 				const std::int32_t token = AllocToken(h.ref);
 				const char*        nm = h.ref->GetDisplayFullName();
-				reply["items"].push_back({
+				json               item = {
 					{ "token", token },
 					{ "name", (nm && nm[0]) ? nm : "(unnamed)" },
 					{ "formId", h.ref->GetFormID() },
 					{ "distance", std::sqrt(h.distSq) / 70.0f },  // game units -> ~meters
 					{ "isActor", h.ref->IsActor() },
-				});
+				};
+				if (h.sceneCount >= 0) {
+					item["sceneCount"] = h.sceneCount;
+				}
+				reply["items"].push_back(std::move(item));
 			}
 			REX::DEBUG("[UI] osf.scanNearby kind={} radius={} -> {} hit(s)", kind, radius, hits.size());
 			SendJson(a_srcView, "osf.scanResults", reply);
+		}
+
+		// Which anchor-bound scenes accept a keyed furniture ref. The view filters its browse
+		// list with this: free-space scenes always play; anchor-bound ones only via a match.
+		void OnAnchorMatch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json   j = ParsePayload(a_payload);
+			std::int32_t token = 0;
+			if (j.is_object()) {
+				if (const auto it = j.find("token"); it != j.end() && it->is_number_integer()) {
+					token = it->get<std::int32_t>();
+				}
+			}
+
+			json reply;
+			reply["token"] = token;
+			reply["sceneIds"] = json::array();
+
+			RE::TESObjectREFR* ref = ResolveToken(token);
+			if (ref) {
+				Registry::SceneRegistry::GetSingleton().ForEachDef([&reply, ref](const Registry::SceneDef& d) {
+					if (d.RequiresAnchor() && Matchmaking::AnchorAccepts(d, ref)) {
+						reply["sceneIds"].push_back(d.id);
+					}
+				});
+			}
+			REX::DEBUG("[UI] osf.anchorMatch token={} -> {} scene(s)", token, reply["sceneIds"].size());
+			SendJson(a_srcView, "osf.anchorMatch", reply);
 		}
 
 		void OnBridgeReady(void*) noexcept
 		{
 			REX::DEBUG("[UI] OSF UI bridge ready — pushing catalog to view '{}'", kViewId);
 			g_uiReady = true;
-			SendJson(kViewId, "osf.catalog.data", BuildCatalog());
+			SendJson(kViewId, "osf.catalog.data", BuildCatalog(false));
 		}
 	}
 
@@ -698,7 +782,7 @@ namespace OSF::API
 			return;  // OSF UI absent or not ready yet — the ready push will carry current data
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
-		SendJson(kViewId, "osf.catalog.data", BuildCatalog());
+		SendJson(kViewId, "osf.catalog.data", BuildCatalog(false));
 	}
 
 	void InstallUIBridge()
@@ -713,8 +797,10 @@ namespace OSF::API
 
 		g_ui->SetReadyCallback(&OnBridgeReady, nullptr);
 		g_ui->RegisterCommand("osf.catalog.get", &OnCatalogGet, nullptr);
+		g_ui->RegisterCommand("osf.library.get", &OnLibraryGet, nullptr);
 		g_ui->RegisterCommand("osf.pickCrosshair", &OnPickCrosshair, nullptr);
 		g_ui->RegisterCommand("osf.scanNearby", &OnScanNearby, nullptr);
+		g_ui->RegisterCommand("osf.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui->RegisterCommand("osf.launch", &OnLaunch, nullptr);
 		g_ui->RegisterCommand("osf.stop", &OnStop, nullptr);
 

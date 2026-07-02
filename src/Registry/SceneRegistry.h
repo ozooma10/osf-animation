@@ -152,6 +152,7 @@ namespace OSF::Registry
 	{
 		std::string file;
 		std::string animId;
+		float       sec = 0.0f;  // pack-authored clip duration in seconds (0 = unknown, probe at runtime)
 		std::optional<Animation::ParticipantPlacement> offset;  // overrides the role's default placement
 	};
 
@@ -248,6 +249,7 @@ namespace OSF::Registry
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     unlisted = false;  // excluded from the matchmaking pool; only reachable by direct id
+		bool                     library = false;   // file-level `section:"library"`: reference-library lane (osf.library.data), kept out of the main catalog
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
 		bool                     fade = false;  // Screen fade-to-black on start when the player participates (self-releasing curtain); OFF by default, opt in with `fade:true`
