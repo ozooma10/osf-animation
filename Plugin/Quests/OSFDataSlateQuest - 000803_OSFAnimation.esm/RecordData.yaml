@@ -1,0 +1,27 @@
+FormKey: 000803:OSFAnimation.esm
+EditorID: OSFDataSlateQuest
+FormVersion: 582
+VirtualMachineAdapter:
+  Scripts:
+  - Name: OSFDataSlateManager
+    Properties:
+    - MutagenObjectType: ScriptObjectProperty
+      Name: OSFDataSlate
+      Object: 000804:OSFAnimation.esm
+  Versioning:
+  - Break0
+  ExtraBindDataVersion: 0
+  Script:
+    Name: ''
+Name:
+  TargetLanguage: English
+  Value: OSF Data Slate
+Data:
+  Flags:
+  - StartGameEnabled
+  - StartsEnabled
+  Priority: 50
+  Unused: 0x000000
+UnusedConditions: []
+NextAliasID: 0
+Aliases: []

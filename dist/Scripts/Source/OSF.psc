@@ -136,6 +136,9 @@ bool Function IsReady() Global Native
 ; Framework version
 string Function GetVersion() Global Native
 
+; Open the in-game scene browser (the OSF UI overlay)
+bool Function OpenBrowser() Global Native
+
 ; --- Diagnostic ---------------------------------------------------------------
 
 ; One-shot self-test of the whole playback pipeline. Confirms OSF is initialized, then plays the built-in player-only "solo" scene 
