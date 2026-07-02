@@ -1,5 +1,6 @@
 #include "Config/Settings.h"
 
+#include "UI/FirstRunHint.h"
 #include "UI/HudMessage.h"
 
 #include <cctype>
@@ -98,6 +99,8 @@ namespace OSF::Config::Settings
 		stringKey("logLevel", [](const std::string& v) { SetLogLevel(v); });
 
 		boolKey("debugNotifications", [](bool v) { UI::HudMessage::SetDebugEnabled(v); });
+
+		boolKey("firstRunHint", [](bool v) { UI::FirstRunHint::SetEnabled(v); });
 
 		for (const auto& [key, value] : json.items()) {
 			REX::WARN("[Config] unrecognized key '{}' — ignored (typo, or a newer OSF Animation?)", key);

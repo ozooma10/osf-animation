@@ -96,6 +96,9 @@ function onNativeMessage(jsonText) {
     case "osf.scanResults": handleScanResults(payload); break;
     case "osf.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.launchResult": handleLaunchResult(payload); break;
+    // The runtime tells the focused view when the overlay shows; report each open so the
+    // plugin's first-run "press F10" hint can count real opens and retire itself.
+    case "ui.visibility": if (payload && payload.visible) send("osf.opened"); break;
     default: break;
   }
 }

@@ -5,6 +5,7 @@
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (usable-furniture filter for Scan Nearby)
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
+#include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
 #include "Util/StringUtil.h"  // Util::ToLower
 
 #include <nlohmann/json.hpp>
@@ -768,6 +769,13 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.anchorMatch", reply);
 		}
 
+		// The view reports each time it becomes visible (ui.visibility -> osf.opened), so the
+		// first-run F10 hint can count real opens and retire itself.
+		void OnOpened(const char*, const char*, const char*, void*) noexcept
+		{
+			UI::FirstRunHint::OnMenuOpened();
+		}
+
 		void OnBridgeReady(void*) noexcept
 		{
 			REX::DEBUG("[UI] OSF UI bridge ready — pushing catalog to view '{}'", kViewId);
@@ -783,6 +791,11 @@ namespace OSF::API
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
 		SendJson(kViewId, "osf.catalog.data", BuildCatalog(false));
+	}
+
+	bool UIBridgeInstalled()
+	{
+		return g_ui != nullptr;
 	}
 
 	void InstallUIBridge()
@@ -803,6 +816,7 @@ namespace OSF::API
 		g_ui->RegisterCommand("osf.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui->RegisterCommand("osf.launch", &OnLaunch, nullptr);
 		g_ui->RegisterCommand("osf.stop", &OnStop, nullptr);
+		g_ui->RegisterCommand("osf.opened", &OnOpened, nullptr);
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
 		g_ui->GetPluginVersion(mj, mn, pt);
