@@ -2,6 +2,7 @@
   "schema": 1,
   "name": "OSF Highlights — Curated Vanilla (generated, do not hand-edit)",
   "unlisted": true,
+  "stripActors": false,
   "clipRoot": "meshes/actors/human/animations",
   "scenes": [
     {

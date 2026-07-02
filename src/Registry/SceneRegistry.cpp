@@ -1215,11 +1215,6 @@ namespace OSF::Registry
 				return;
 			}
 
-			const bool lockDefault = a_json.value("lockPlayer", true);
-			const bool stripDefault = a_json.value("stripActors", true);
-			const bool fadeDefault = a_json.value("fade", false);
-			const bool unlistedDefault = a_json.value("unlisted", false);
-
 			// File-level catalog lane. "library" = reference content (the generated vanilla packs):
 			bool library = false;
 			if (const auto secIt = a_json.find("section"); secIt != a_json.end()) {
@@ -1232,6 +1227,12 @@ namespace OSF::Registry
 					return;
 				}
 			}
+
+			const bool lockDefault = a_json.value("lockPlayer", true);
+			// Library packs default to NO strip
+			const bool stripDefault = a_json.value("stripActors", !library);
+			const bool fadeDefault = a_json.value("fade", false);
+			const bool unlistedDefault = a_json.value("unlisted", false);
 			std::string packClipRoot;
 			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
 				if (!crit->is_string()) {

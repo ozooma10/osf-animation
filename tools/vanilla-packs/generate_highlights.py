@@ -169,6 +169,10 @@ def main() -> int:
         # Browsing shelf, not matchmaking fodder: unlisted keeps every scene out of the
         # matchmaker pool (custom mod scenes own that); the browser starts them by id.
         "unlisted": True,
+        # These are vanilla game clips (idles/dances/furniture), not undress scenes, so don't
+        # strip the cast on start. This pack has no `section:"library"`, so it wouldn't inherit
+        # the library lane's no-strip default — set it explicitly. Matches the vanilla library.
+        "stripActors": False,
         "clipRoot": clip_root,
         "scenes": [],
     }
