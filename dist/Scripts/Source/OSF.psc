@@ -139,6 +139,12 @@ string Function GetVersion() Global Native
 ; Open the in-game scene browser (the OSF UI overlay)
 bool Function OpenBrowser() Global Native
 
+; Capture akActor's face to the scene-browser portrait cache, rendered on the LIVE inventory
+; paperdoll. REQUIRES the inventory/apparel (paperdoll) screen open + rendering: it hijacks the
+; doll, swaps in akActor's face, shoots a PNG, then restores the player. Async — returns true if
+; the capture STARTED (paperdoll open, valid NPC base), false otherwise. Result lands in the cache.
+bool Function CapturePortrait(Actor akActor) Global Native
+
 ; --- Diagnostic ---------------------------------------------------------------
 
 ; One-shot self-test of the whole playback pipeline. Confirms OSF is initialized, then plays the built-in player-only "solo" scene 

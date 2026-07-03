@@ -180,3 +180,14 @@ Function Reload() global
     int n = OSF.ReloadPacks()
     Debug.Notification("OSF: reloaded, " + n + " scenes registered")
 EndFunction
+
+; Portrait capture acceptance test. FIRST open your inventory and land on the apparel/
+; spacesuit (paperdoll) screen so the doll is rendering, THEN run this with the NPC's RefID
+; (click the NPC in console to read it, or bind this cgf to a hotkey):
+;   cgf "OSFTest.Portrait" <npc>
+; The doll briefly wears the NPC's face while a PNG is shot, then the player's face returns.
+; The image lands in <Documents>\My Games\Starfield\OSF\Portraits\ and shows on the scan row.
+Function Portrait(Actor npc) global
+    bool ok = OSF.CapturePortrait(npc)
+    Debug.Notification("OSF: CapturePortrait -> " + ok + " (paperdoll must be open)")
+EndFunction

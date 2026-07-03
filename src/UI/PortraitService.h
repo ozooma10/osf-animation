@@ -26,6 +26,17 @@ namespace OSF::UI::Portraits
 	// queues a capture that will announce itself through the ReadySink.
 	std::string GetOrRequest(RE::Actor* a_actor, RE::TESFormID a_refFormID);
 
+	// Arm/disarm the queue's REAL captures (default OFF = cache-only). While armed, queued
+	// misses are captured on the live inventory paperdoll one at a time whenever it is open;
+	// disarmed, the pipeline only serves already-cached portraits. Off by default because a
+	// capture visibly hijacks the player's paperdoll — it must be an explicit, bounded action.
+	void SetCaptureEnabled(bool a_on);
+
+	// Capture ONE actor's portrait right now (the acceptance-test / direct path), bypassing
+	// the queue. Requires the inventory paperdoll open (PortraitCapture::Available); returns
+	// false if the capture couldn't start. Result lands in the cache + sink like any other.
+	bool CaptureNow(RE::Actor* a_actor);
+
 	// Drop the session caches (memory + negative cache + queue); the disk cache stays.
 	// Lets a reload pick up externally added PNGs without relaunching.
 	void ResetSession();

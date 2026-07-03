@@ -1,6 +1,7 @@
 #include "UI/PortraitService.h"
 
 #include "Matchmaking/Matchmaker.h"  // ActorGenderTag (appearance-key ingredient)
+#include "UI/PortraitCapture.h"      // the async, menu-bound capture backend
 
 #include <algorithm>
 #include <deque>
@@ -131,78 +132,117 @@ namespace OSF::UI::Portraits
 			return "data:image/png;base64," + Base64(bytes);
 		}
 
-		// ---- capture backend ----------------------------------------------------
+		// ---- capture backend (async, menu-bound) --------------------------------
+		// The real backend renders on the LIVE inventory paperdoll (PortraitCapture), so a
+		// capture only runs while that screen is open, takes seconds, and mutates one shared
+		// doll. Two consequences for the queue: captures are ARMED explicitly (default off =
+		// cache-only, the safe shipped behaviour — auto-capturing would silently hijack the
+		// player's doll), and serviced one at a time when the paperdoll is actually open.
 
-		// The RE-pending piece: render ONE loaded actor's headshot to a_pngOut. The
-		// mechanism (BSMenu3D paperdoll retarget / ImageCapture 39202 + camera) is being
-		// proven in OSF RE (Requests/2026-07-02-actor-portrait-capture); until an anchor
-		// set lands here this always fails and the pipeline serves disk cache only.
-		bool CaptureHeadshot(RE::Actor* a_actor, const std::filesystem::path& a_pngOut)
+		void ArmPump();  // fwd (BeginCaptureFor's completion re-arms the pump)
+
+		bool g_captureArmed = false;  // SetCaptureEnabled; gates the queue's real captures
+		int  g_idleTicks = 0;         // armed but nothing capturable — auto-disarm after a while
+
+		// Armed-but-no-paperdoll: stop spinning a per-frame task after ~this long (the trigger
+		// re-arms when it next has a capture context).
+		constexpr int kMaxIdleTicks = 900;  // ~15 s
+
+		// Resolve a still-live ACHR from a set of ref form ids (pointers are never held across
+		// frames). 0 = none live.
+		RE::TESFormID FirstLiveRef(const std::vector<RE::TESFormID>& a_ids)
 		{
-			(void)a_actor;
-			(void)a_pngOut;
-			static bool logged = false;
-			if (!logged) {
-				logged = true;
-				REX::DEBUG("[UI] portrait capture backend not available yet — serving disk-cached portraits only");
+			for (const RE::TESFormID id : a_ids) {
+				auto* form = RE::TESForm::LookupByID(id);
+				if (form && form->Is(RE::FormType::kACHR) && !form->IsDeleted()) {
+					return id;
+				}
 			}
-			return false;
+			return 0;
 		}
 
-		// ---- queue pump (one capture per task ~= per frame) ---------------------
+		// Kick off one capture for a_key on behalf of a_notify refs. On completion (main
+		// thread) cache the PNG data URI and fan out to every waiting row. Returns false when
+		// the capture couldn't even start (caller keeps the key queued / negative-caches).
+		bool BeginCaptureFor(const std::string& a_key, RE::TESFormID a_ref,
+			std::vector<RE::TESFormID> a_notify)
+		{
+			const auto stem = PngPathFor(a_key);  // "<dir>/<key>.png"; PortraitCapture appends ".png"
+			if (stem.empty()) {
+				return false;
+			}
+			std::error_code ec;
+			std::filesystem::create_directories(stem.parent_path(), ec);
+			auto pngNoExt = stem;
+			pngNoExt.replace_extension();
 
-		void ArmPump();
+			return PortraitCapture::Begin(a_ref, pngNoExt,
+				[key = a_key, notify = std::move(a_notify)](bool a_ok) {
+					if (a_ok) {
+						if (std::string uri = LoadDataUri(PngPathFor(key)); !uri.empty()) {
+							g_memory[key] = uri;
+							if (g_sink) {
+								for (const RE::TESFormID id : notify) {
+									g_sink(id, uri);
+								}
+							}
+							REX::DEBUG("[UI] portrait {} captured ({} waiting row(s))", key, notify.size());
+						} else {
+							a_ok = false;
+						}
+					}
+					if (!a_ok) {
+						g_failed.insert(key);  // don't retry this session
+					}
+					ArmPump();  // service the next queued key
+				});
+		}
+
+		// ---- queue pump ---------------------------------------------------------
+		// One SFSE task ~= one frame. While armed it advances at most one capture start per
+		// tick (the capture itself is async and re-arms us when it finishes).
 
 		void ServiceOne()
 		{
 			g_pumpArmed = false;
-			if (g_queue.empty()) {
+			if (g_queue.empty() || !g_captureArmed) {
+				g_idleTicks = 0;
+				return;  // cache-only until armed; nothing to do
+			}
+			if (PortraitCapture::Busy()) {
+				ArmPump();  // a capture is mid-flight; wait for its done-callback
 				return;
 			}
-			const std::string key = std::move(g_queue.front());
-			g_queue.pop_front();
-			auto waiting = g_waiting.extract(key);
-
-			// Re-resolve a still-live actor from the refs that asked for this key —
-			// pointers are never held across frames (same discipline as ResolveToken).
-			RE::Actor* actor = nullptr;
-			if (!waiting.empty()) {
-				for (const RE::TESFormID id : waiting.mapped()) {
-					// Actors are ACHR refs; the type check guards form-id reuse since the request.
-					auto* form = RE::TESForm::LookupByID(id);
-					if (form && form->Is(RE::FormType::kACHR) && !form->IsDeleted()) {
-						actor = static_cast<RE::Actor*>(form);
-						break;
-					}
+			if (!PortraitCapture::Available()) {
+				// Armed, but the paperdoll isn't open (or the engine gate failed). Watch for a
+				// while, then stand down so we don't burn a task every frame indefinitely.
+				if (++g_idleTicks >= kMaxIdleTicks) {
+					g_captureArmed = false;
+					g_idleTicks = 0;
+					REX::DEBUG("[UI] portrait capture idle (paperdoll not open) — disarmed; re-arm to resume");
+					return;
 				}
-			}
-
-			const auto png = PngPathFor(key);
-			bool       ok = false;
-			if (actor && !png.empty()) {
-				std::error_code ec;
-				std::filesystem::create_directories(png.parent_path(), ec);
-				ok = !ec && CaptureHeadshot(actor, png);
-			}
-			if (ok) {
-				if (std::string uri = LoadDataUri(png); !uri.empty()) {
-					g_memory[key] = uri;
-					if (g_sink && !waiting.empty()) {
-						for (const RE::TESFormID id : waiting.mapped()) {
-							g_sink(id, uri);
-						}
-					}
-					REX::DEBUG("[UI] portrait {} captured ({} waiting row(s))", key,
-						waiting.empty() ? 0 : waiting.mapped().size());
-				} else {
-					ok = false;
-				}
-			}
-			if (!ok) {
-				g_failed.insert(key);  // don't retry this session; ResetSession clears
-			}
-			if (!g_queue.empty()) {
 				ArmPump();
+				return;
+			}
+			g_idleTicks = 0;
+
+			// Pop the next key that still has a live ref; drop dead ones.
+			while (!g_queue.empty()) {
+				const std::string key = std::move(g_queue.front());
+				g_queue.pop_front();
+				std::vector<RE::TESFormID> refs;
+				if (auto node = g_waiting.extract(key)) {
+					refs = std::move(node.mapped());
+				}
+				const RE::TESFormID ref = FirstLiveRef(refs);
+				if (ref == 0) {
+					continue;  // everyone who wanted it is gone; skip
+				}
+				if (BeginCaptureFor(key, ref, std::move(refs))) {
+					return;  // in flight; its done-callback re-arms the pump
+				}
+				g_failed.insert(key);  // couldn't start (bad target) — don't spin on it
 			}
 		}
 
@@ -214,6 +254,36 @@ namespace OSF::UI::Portraits
 			g_pumpArmed = true;
 			SFSE::GetTaskInterface()->AddTask([]() { ServiceOne(); });
 		}
+	}
+
+	void SetCaptureEnabled(bool a_on)
+	{
+		g_captureArmed = a_on;
+		g_idleTicks = 0;
+		REX::INFO("[UI] portrait capture {}", a_on ? "armed" : "disarmed");
+		if (a_on) {
+			ArmPump();
+		}
+	}
+
+	bool CaptureNow(RE::Actor* a_actor)
+	{
+		if (!a_actor) {
+			return false;
+		}
+		// This is reachable from the Papyrus VM thread (the CapturePortrait native), but every
+		// engine touch in PortraitCapture must run on the game main thread — so marshal there.
+		// Capture only the form id (re-resolved on the task); a raw actor pointer must not cross.
+		const RE::TESFormID ref = a_actor->GetFormID();
+		SFSE::GetTaskInterface()->AddTask([ref]() {
+			auto* form = RE::TESForm::LookupByID(ref);
+			if (!form || !form->Is(RE::FormType::kACHR) || form->IsDeleted()) {
+				return;
+			}
+			auto* actor = static_cast<RE::Actor*>(form);
+			BeginCaptureFor(KeyFor(actor), ref, { ref });
+		});
+		return true;  // request accepted; the capture runs (and reports to the cache) next frame
 	}
 
 	void SetReadySink(ReadySink a_sink)
