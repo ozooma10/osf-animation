@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "name": "Crew Life · Shared Moments",
+  "section": "Crew Life",
+
+  // Clip paths below are relative to this root (matches the vanilla furniture pack),
+  // so a bare "furniture/..." resolves to meshes/actors/human/animations/furniture/...
+  "clipRoot": "meshes/actors/human/animations",
+
+  // Wholesome crew moments: never undress the cast, no start curtain.
+  // lockPlayer defaults on (a seated/dancing player who can still walk looks broken);
+  // the meal scene overrides it because the CrewLifeMoments runner locks the player
+  // ONCE around the two solo halves rather than each half re-locking.
+  "stripActors": false,
+  "fade": false,
+  "camera": "scene_orbit",
+
+  "scenes": [
+
+    // ---- Shared meal -------------------------------------------------------
+    // One anchor per scene (SceneRuntime::AnchorOverride is a single transform),
+    // so a two-person meal is TWO solo anchored scenes the Papyrus runner starts
+    // on two adjacent seats. This half is unlisted so matchmaking never picks it
+    // directly; CrewLifeMoments starts it by id via StartSceneAtAnchor per seat.
+    {
+      "id": "crewlife.moment.meal.chair",
+      "name": "Shared meal (seat)",
+      "tags": ["crewlife", "crewlife.moment.meal.seat"],
+      "unlisted": true,
+      "lockPlayer": false,
+      "anchor": { "keyword": ["Starfield.esm|0x021BF1"] },  // vanilla Chair furniture keyword
+      "roles": [ { "name": "eater" } ],
+      "stages": [
+        { "name": "Sit",  "clips": [ { "file": "furniture/chair/enterfromstand.af", "sec": 7.333 } ] },
+        { "name": "Eat",  "loops": 8, "clips": [ { "file": "furniture/chair/animflavor/sandwich_idle.af", "sec": 1.567 } ] },
+        { "name": "Stand", "clips": [ { "file": "furniture/chair/exittostand.af", "sec": 6.667 } ] }
+      ]
+    },
+
+    // ---- Dance together ----------------------------------------------------
+    // Dance clips are authored free (no furniture marker), so a two-role free
+    // scene works anywhere. Partner faces the lead (heading 180) one step away.
+    // Gated to Friendship+ by CrewLifeMoments (tag crewlife.moment.dance.slow).
+    {
+      "id": "crewlife.moment.dance.together",
+      "name": "Dance together",
+      "tags": ["crewlife", "crewlife.moment.dance", "crewlife.moment.dance.slow"],
+      "priority": 5,
+      "roles": [
+        { "name": "lead" },
+        { "name": "partner", "offset": { "y": 55.0, "heading": 180.0 } }
+      ],
+      "entry": "in",
+      "nodes": [
+        { "id": "in",
+          "stages": [ [ "furniture/dance/astrallounge/dance_02/enterfromstand.af",
+                        "furniture/dance/astrallounge/dance_02/enterfromstand.af" ] ],
+          "edges": [ { "to": "sway", "when": "end" } ] },
+
+        { "id": "sway",
+          "stages": [ [ "furniture/dance/astrallounge/dance_02/idle_flavor01.af",
+                        "furniture/dance/astrallounge/dance_02/idle_flavor01.af" ] ],
+          "loops": 0,
+          "camera": [ { "at": "enter", "state": "scene_orbit" } ],
+          "edges": [ { "id": "stop", "label": "Step back", "to": "out", "when": "advance", "default": true } ] },
+
+        { "id": "out",
+          "stages": [ [ "furniture/dance/astrallounge/dance_02/exittostand.af",
+                        "furniture/dance/astrallounge/dance_02/exittostand.af" ] ] }
+      ]
+    },
+
+    // ---- Stargazing --------------------------------------------------------
+    // Sit side-by-side (partner offset +60 on x) anywhere planetside, hold ~45s
+    // on a free-fly camera, then stand. sitonground clips read fine free-standing.
+    {
+      "id": "crewlife.moment.stargaze",
+      "name": "Stargaze together",
+      "tags": ["crewlife", "crewlife.moment.stargaze"],
+      "roles": [
+        { "name": "a" },
+        { "name": "b", "offset": { "x": 60.0 } }
+      ],
+      "stages": [
+        { "name": "Sit", "clips": [ "furniture/sitonground/enterfromstand.af",
+                                    "furniture/sitonground/enterfromstand.af" ] },
+        { "name": "Gaze", "timer": 45.0, "loops": 0,
+          "clips": [ "furniture/sitonground/idle_flavor01.af",
+                     "furniture/sitonground/idle_flavor01.af" ],
+          "camera": [ { "at": "enter", "state": "freefly" } ] },
+        { "name": "Stand", "clips": [ "furniture/sitonground/exittostand.af",
+                                      "furniture/sitonground/exittostand.af" ] }
+      ]
+    }
+
+  ]
+}
