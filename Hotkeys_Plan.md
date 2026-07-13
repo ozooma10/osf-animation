@@ -24,8 +24,8 @@ This is step 2 of the launch foundations. Step 1 (SceneLauncher extraction) is
 
 - Read `AGENTS.md` first and follow it (log tags, style, no settings feature-toggles
   for modules — a `hotkeys` map is user config, not a module toggle, so it's allowed).
-- Build chain is Windows-only; this dev box is a Mac. **You cannot compile.** Keep
-  changes tight, re-read the diff, grep every symbol. The user compiles + tests.
+- Build with xmake per AGENTS.md (`xmake f -m releasedbg`, then `xmake`) and fix
+  compile errors before handing off. In-game testing is the user's.
 - The input hot path must stay lock-free: the hotkey table is read-only after startup
   (built before `InputService::Install()` runs), so the Thunk may read it without
   locks. No allocation, no logging in the hot path.
@@ -107,8 +107,12 @@ public:
   `toggleSceneTags` (required arg; lowercase it — Matchmaker queries are
   pre-lowercased, see `OSFScript.cpp` `ToTags`). Unknown → `[Config]` ERROR + skip.
 - Log tag for runtime messages: `[Hotkey]` (add to AGENTS.md's log-tag list).
-- Reserve/refuse keys the director channel uses (Space `0x20`, P, End, `+`, `-`, `0`)
-  with a `[Config]` ERROR — a grant-armed scene would otherwise double-handle them.
+- Reserve/refuse keys the input hook already claims, with a `[Config]` ERROR — an
+  armed scene would otherwise double-handle them. The full reserved set (all VK codes
+  from `VerbForKeyboard` + the SAF-compat activate key `kActivateKeyVK`):
+  Space `0x20`, P `0x50`, End `0x23`, `0` `0x30`, OEM `+` `0xBB`, Numpad `+` `0x6B`,
+  OEM `-` `0xBD`, Numpad `-` `0x6D`, and E `0x45` (compat activate — armed during
+  SAF-compat scenes, so a hotkey on E would double-fire).
 
 ### 2. Thunk integration (`src/Input/InputService.cpp`)
 
@@ -134,23 +138,27 @@ public:
   `UI::HudMessage::Error("emote wheel not available yet")`.** EmoteWheel_Plan.md
   replaces the body. This keeps the two plans independent.
 - `kToggleSceneTags`:
-  1. Player actor = `RE::PlayerCharacter::GetSingleton()` (or however SceneRuntime
-     obtains it elsewhere — grep and match the existing idiom).
-  2. **Live-scene check**: ask SceneRuntime for the player's live scene handle and its
-     scene id/tags (grep `SceneRuntime.h` for `GetSceneForActor` / `StopForActor` /
-     tag accessors — use what exists; if there is no "tags of live scene" accessor,
-     add a minimal `bool SceneRuntime::ActorInSceneWithTags(RE::Actor*, const
-     std::vector<std::string>&)` next to the existing per-actor lookups rather than
-     exposing internals).
-  3. If in a matching scene → end it the graceful way: prefer advancing to the exit
-     node if the runtime exposes it; otherwise `StopForActor` (ledger restores
-     control/camera either way). If in a NON-matching OSF scene → do nothing (log
-     debug) — never yank a scene the hotkey doesn't own.
+  1. Player actor = `RE::PlayerCharacter::GetSingleton()` (the existing idiom —
+     e.g. `UIBridge.cpp:188`, `OSFScript.cpp:829`).
+  2. **Live-scene check** — no new SceneRuntime API needed:
+     `GetSceneForActor(player)` (`SceneRuntime.h:149`) → if non-zero,
+     `GetId(handle)` (`SceneRuntime.h:146`) → look the def up in SceneRegistry and
+     test the hotkey tags against its pre-lowercased `tagSet`
+     (`SceneRegistry.h:264`, built at parse exactly for cheap matching).
+     A files/ad-hoc scene resolves to no def → treat as non-matching.
+  3. If in a matching scene → `StopForActor(player)` (`SceneRuntime.h:92`). This IS
+     the graceful end: the per-handle undo ledger restores control/camera/equipment
+     on every termination path, and the runtime exposes no "exit node" concept
+     (`Advance()` takes the default edge, which may be the next stage — do NOT use
+     it to end). If in a NON-matching OSF scene → do nothing (log debug) — never
+     yank a scene the hotkey doesn't own.
   4. Else → `Scene::LaunchOpts{}` (defaults), `Matchmaking::TagQuery{allOf = tags}`,
      `Scene::LaunchMatched(player, query, opts, MakeOverrides(opts),
-     "[Hotkey] toggleSceneTags")`. Guards before launching: not in combat
-     (match the idiom other code uses for combat checks), weapon drawn is fine to
-     allow in v1 (scene actions can sheathe).
+     "[Hotkey] toggleSceneTags")`. Combat guard before launching: no existing
+     combat-check idiom in src/ — use `player->IsInCombat()` (CommonLibSF virtual,
+     `lib/commonlibsf/include/RE/A/Actor.h:233`; unverified in this codebase, flag
+     for in-game verification) and skip + HUD-error ("can't start while in combat").
+     Weapon drawn is fine to allow in v1 (scene actions can sheathe).
 
 ### 4. Settings (`src/Config/Settings.{h,cpp}`)
 
@@ -196,11 +204,12 @@ public:
 6. AGENTS.md log-tag list gains `[Hotkey]`; Settings.h header comment documents the
    new key; CHANGELOG entry added.
 
-## Verification (user, on Windows)
+## Verification
 
-- Build via xmake; report compile errors back rather than guess-editing.
-- In-game: bind `"B": "openBrowser"`, `"N": "toggleSceneTags:test.sit"` in
+- Agent: build via xmake (`releasedbg`) until clean before handing off.
+- In-game (user): bind `"B": "openBrowser"`, `"N": "toggleSceneTags:test.sit"` in
   `Data/OSF/settings.json` (with a matching test scene tagged `test.sit`, or reuse an
   existing pack tag). Verify: browser hotkey; sit toggle on/off; no hotkey firing
   while console/browser open; `cgf "OSF.Health"` passes; a scene's Space/End director
-  keys still work while a scene runs.
+  keys still work while a scene runs; the combat guard (`IsInCombat`) blocks a launch
+  mid-fight (first in-game use of that RE virtual — confirm it reads sanely).

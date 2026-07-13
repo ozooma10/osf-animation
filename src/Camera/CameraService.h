@@ -59,6 +59,12 @@ namespace OSF::Camera
 		// Save/load teardown: drops every imposition without forcing a mode (the loaded save is authoritative, matching GraphManager::StopAll).
 		void OnStopAll();
 
+		// DIAGNOSTIC: one game-thread snapshot of the live player camera (state index, third-person
+		// zoom target/current, orbit yaw, player heading/pos) logged at DEBUG. a_tag must be a string
+		// literal (captured by pointer into the queued task). Used by GraphManager around scene
+		// start/pin/end to see what the engine camera does during scenes OSF's camera layer skips.
+		void LogCameraTelemetry(const char* a_tag);
+
 		// Post-load recovery (TESLoadGameEvent backstop, AFTER OnStopAll): a load can complete with the
 		// camera still parked in an alt state imposed before the load — the engine doesn't reset it, and
 		// with the orbit driver stopped kFreeFly sits at a dead transform with no input routed to it

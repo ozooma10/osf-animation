@@ -625,6 +625,40 @@ namespace OSF::Camera
 		}
 	}
 
+	void CameraService::LogCameraTelemetry(const char* a_tag)
+	{
+		SFSE::GetTaskInterface()->AddTask([a_tag]() {
+			auto* camera = RE::PlayerCamera::GetSingleton();
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!camera || !player) {
+				return;
+			}
+			int stateId = -1;
+			for (std::uint32_t i = 0; i < RE::CameraState::kTotal; i++) {
+				if (camera->QCameraEquals(static_cast<RE::CameraState>(i))) {
+					stateId = static_cast<int>(i);
+					break;
+				}
+			}
+			// Third-person internals, behind the same vtable+stateId guard as SeedThirdPersonZoom.
+			// -99 = state object missing/mismatched. Orbit yaw @+0x220 per OSF RE camera.state_machine.
+			float zoomTarget = -99.0f, zoomCurrent = -99.0f, orbitYaw = -99.0f;
+			if (void* state = camera->cameraStates[RE::CameraState::kThirdPerson]) {
+				static const REL::Relocation<std::uintptr_t> tpsVtbl{ RE::VTABLE::ThirdPersonState[0] };
+				auto* base = reinterpret_cast<std::byte*>(state);
+				if (*reinterpret_cast<std::uintptr_t*>(base) == tpsVtbl.address() &&
+					*reinterpret_cast<std::uint32_t*>(base + kThirdPersonStateIdOffset) == kThirdPersonStateId) {
+					zoomTarget = *reinterpret_cast<float*>(base + kThirdPersonTargetZoomOffset);
+					zoomCurrent = *reinterpret_cast<float*>(base + kThirdPersonCurrentZoomOffset);
+					orbitYaw = *reinterpret_cast<float*>(base + 0x220);
+				}
+			}
+			REX::DEBUG("[Camera] telemetry[{}]: state={} zoomTgt={:.3f} zoomCur={:.3f} orbitYaw={:.3f} heading={:.3f} pos=({:.2f},{:.2f},{:.2f})",
+				a_tag, stateId, zoomTarget, zoomCurrent, orbitYaw,
+				player->data.angle.z, player->data.location.x, player->data.location.y, player->data.location.z);
+		});
+	}
+
 	void CameraService::OnStopAll()
 	{
 		if (orbitDriving.exchange(false, std::memory_order_relaxed)) {

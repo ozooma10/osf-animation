@@ -643,6 +643,10 @@ namespace OSF::Animation
 			}
 		}
 
+		// DIAG: snapshot the live camera right after placement lands (queued after the placement
+		// tasks above, FIFO) — start point for the scene-camera investigation.
+		Camera::CameraService::GetSingleton().LogCameraTelemetry("scene-start");
+
 		REX::INFO("[Anim] Started synced scene: {} actors, {} stage(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
 			"anchored at ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
 			a_actors.size(), scene->stages.size(), startStage, scene->duration,
@@ -1117,6 +1121,9 @@ namespace OSF::Animation
 			return;
 		}
 
+		// DIAG: end point for the scene-camera investigation (queued; lands right after teardown).
+		Camera::CameraService::GetSingleton().LogCameraTelemetry("scene-end");
+
 		const bool anchored = (*sceneIter)->anchored;
 
 		auto& participants = (*sceneIter)->participants;
@@ -1452,6 +1459,15 @@ namespace OSF::Animation
 
 								// Also pin the LOGICAL heading. (root is just rendering)
 								refr->data.angle.z = pinHeading;
+							}
+
+							// DIAG: while the PLAYER is pinned in a scene, sample the live camera ~1/s
+							// (this hook runs once per skeleton per frame). sceneFrames is unused for the
+							// player (HoldAnchoredParticipant early-outs before its increment), so the
+							// counter is free here; NPC graphs skip via the short-circuit.
+							if (refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton()) &&
+								(++g->sceneFrames % 60) == 1) {
+								Camera::CameraService::GetSingleton().LogCameraTelemetry("pinned");
 							}
 
 							// Keep the CULL SPHERE on the pinned render position. The engine derives worldBound from the physics capsule (~0.3 m off), 

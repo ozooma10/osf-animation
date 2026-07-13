@@ -10,9 +10,10 @@
   "stripActors": false,
   "lockPlayer": false, // short flourishes — leave the player's controls alone
   "camera": "none",    // never touch the camera for an emote
-  // No `roles` block: each scene infers one anonymous slot from its single clip. The
-  // role-less sheathe action targets the first participant — the player when launched
-  // solo, or the crosshair NPC when the wheel targets one.
+  // No `roles` block: each scene infers one anonymous slot from its single clip —
+  // the player when launched solo, or the crosshair NPC when the wheel targets one.
+  // No weapon sheathe either (see the wave scene's note): emotes never touch weapon
+  // state, so the third-person camera framing stays exactly as the player had it.
   "scenes": [
     {
       "id": "immersion/emote/wave",
@@ -22,11 +23,13 @@
         {
           "timer": 4, // TUNE
           "loops": 0,
-          "clips": [ { "file": "common/wave_pose.af", "sec": 0.033 } ],
-          // Sheathe so the emote doesn't play around a drawn rifle; the ledger re-draws
-          // on end. CAVEAT: the cleanup re-draw is unconditional, so an unarmed player
-          // gets a draw call on end — TUNE: drop the action if that looks wrong.
-          "action": [ { "at": "enter", "type": "osf.weapon.sheathe" } ]
+          // NO osf.weapon.sheathe here (dropped 2026-07-13): the sheathe/re-draw pair flips
+          // the engine's armed/unarmed third-person camera framing — worst on an unarmed
+          // player, who got a spontaneous weapon DRAW (and the armed camera) on emote end
+          // because the ledger re-draw is unconditional. Emotes must leave the camera
+          // exactly as it was; a drawn weapon simply stays in hand during the flourish.
+          // Revisit if a verified weapon-drawn state read lands (then sheathe conditionally).
+          "clips": [ { "file": "common/wave_pose.af", "sec": 0.033 } ]
         }
       ]
     },
@@ -38,8 +41,7 @@
         {
           "timer": 4, // TUNE
           "loops": 0,
-          "clips": [ { "file": "common/whatsup_pose.af", "sec": 0.033 } ],
-          "action": [ { "at": "enter", "type": "osf.weapon.sheathe" } ]
+          "clips": [ { "file": "common/whatsup_pose.af", "sec": 0.033 } ]
         }
       ]
     },
@@ -51,8 +53,7 @@
         {
           "timer": 5, // TUNE
           "loops": 0,
-          "clips": [ { "file": "common/handsonhips_pose.af", "sec": 0.033 } ],
-          "action": [ { "at": "enter", "type": "osf.weapon.sheathe" } ]
+          "clips": [ { "file": "common/handsonhips_pose.af", "sec": 0.033 } ]
         }
       ]
     },
@@ -66,8 +67,7 @@
           "loops": 0,
           // TUNE: photomode pose lives under female/ — spike must confirm it plays on
           // male skeletons (same rig).
-          "clips": [ { "file": "photomode/female/armscrossed_pose.af", "sec": 0.033 } ],
-          "action": [ { "at": "enter", "type": "osf.weapon.sheathe" } ]
+          "clips": [ { "file": "photomode/female/armscrossed_pose.af", "sec": 0.033 } ]
         }
       ]
     },
@@ -83,8 +83,7 @@
         // Full-body standing dataslate chain: pull out the slate -> read -> put away.
         // Linear stages auto-advance (enter/exit play once; the read loops twice).
         {
-          "clips": [ { "file": "furniture/standing_dataslate/enterfromstand.af", "sec": 4.033 } ],
-          "action": [ { "at": "enter", "type": "osf.weapon.sheathe" } ]
+          "clips": [ { "file": "furniture/standing_dataslate/enterfromstand.af", "sec": 4.033 } ]
         },
         {
           "loops": 2, // TUNE: ~4.7s of reading

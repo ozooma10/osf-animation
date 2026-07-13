@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "name": "Gergel Ebanex bring-up test (export-root-drop repro vs controls, through native OSF scene flow)",
+  "_comment": "Diagnostic pack for the SAF furniture fly-away. Each scene declares two explicit gender-agnostic roles so positional binding (player->role0, npc->role1) never trips the gender filter (without this, omitted roles bound a gendered slot and OSF refused the start with 'actor 0 fails role filters'). LATENT BUG (verified by decode, separate from the scene-path fly-up): GLTFImport.cpp IsExportRootNode zeroes the Root/HumanExportRoot TRANSLATION; SAF/NAF MOUNTED-furniture clips bake 170-250u of gross placement into Root, so dropping it parks the body that far off HORIZONTALLY. Root=0 clips (Floor, AkBunkBed, AkCouch) are unaffected by THAT. REPRO scenes use Root-baked clips (BunkBed ~197u, ShipLadder ~253u); CONTROL scenes use Root=0 clips. Clips load via the same Data-relative 'SAF\\Animations\\...' path / same GLTFImport the SAF shim uses. All scenes are FREE: OSFTest.PairId co-locates at player; OSFTest.FurnitureId anchors at a furniture ref; OSFTest.Furniture2 uses two NPCs + free camera (removes the player-controller variable). loops:0 = hold forever. Gergel's quest drives the SOLO path (PlayAnimation -> OSF.Play); most faithful one-actor repro: cgf \"OSFTest.Solo\" \"SAF\\Animations\\GE\\ShL\\Blowjob02-ShipLadder-1.glb\"",
+  "roles": [
+    { "name": "a", "gender": "any" },
+    { "name": "b", "gender": "any" }
+  ],
+  "scenes": [
+    {
+      "id": "testglb",
+      "name": "CONTROL: SAF_Surrender test.glb (known-good baseline) on both actors -- should look correct",
+      "tags": ["test", "control", "baseline"],
+      "stripActors": false,
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "C:/Users/NICKLEBACK/Downloads/SAF_Surrender_1_2_EspVersion/Data/SAF/animations/test.glb",
+            "C:/Users/NICKLEBACK/Downloads/SAF_Surrender_1_2_EspVersion/Data/SAF/animations/test.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gergel.ladder",
+      "name": "REPRO: Gergel Blowjob02 @ ShipLadder (Root ~253u dropped) -- should fly away",
+      "tags": ["test", "gergel", "furniture", "repro"],
+      "stripActors": false,
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "SAF/Animations/GE/ShL/Blowjob02-ShipLadder-1.glb",
+            "SAF/Animations/GE/ShL/Blowjob02-ShipLadder-2.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gergel.bunkbed",
+      "name": "REPRO: Gergel Blowjob09 @ BunkBed Bb1 (Root ~197u dropped) -- should fly away",
+      "tags": ["test", "gergel", "furniture", "repro"],
+      "stripActors": false,
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "SAF/Animations/GE/Bb1/Blowjob09-BunkBed-1.glb",
+            "SAF/Animations/GE/Bb1/Blowjob09-BunkBed-2.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gergel.akbunkbed",
+      "name": "CONTROL: Gergel Blowjob09 @ AkBunkBed ABB (Root=0) -- should NOT fly from root-drop",
+      "tags": ["test", "gergel", "control"],
+      "stripActors": false,
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "SAF/Animations/GE/ABB/Blowjob09-AkBunkBed-1.glb",
+            "SAF/Animations/GE/ABB/Blowjob09-AkBunkBed-2.glb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gergel.floor",
+      "name": "CONTROL: Gergel Blowjob01 @ Floor (Root=0) -- baseline, should look fine",
+      "tags": ["test", "gergel", "control"],
+      "stripActors": false,
+      "stages": [
+        {
+          "loops": 0,
+          "clips": [
+            "SAF/Animations/GE/Flr/Blowjob01-Floor-1.glb",
+            "SAF/Animations/GE/Flr/Blowjob01-Floor-2.glb"
+          ]
+        }
+      ]
+    }
+  ]
+}
