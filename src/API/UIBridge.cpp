@@ -7,7 +7,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
-#include "UI/HudMessage.h"    // OpenWheel stub's "not available yet" popup
+#include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
 #include "UI/PortraitService.h"  // scan-list actor portraits (osf.portraits.get / osf.portrait.data)
 #include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
 #include "Util/StringUtil.h"  // Util::ToLower
@@ -45,6 +45,19 @@ namespace OSF::API
 
 		// Last scene handle we launched, so an osf.stop with no handle can target it.
 		std::int32_t g_lastHandle = 0;
+
+		// Pending emote-wheel open (OpenWheel): the osf.mode push must survive the open race,
+		// so it is re-sent from the osf.opened handler while this is active. Cleared on
+		// osf.closed and by OpenBrowser (a normal open must never land in wheel mode).
+		// Game main thread only, like g_tokens.
+		struct PendingWheel
+		{
+			bool         active = false;
+			std::string  tagPrefix;
+			std::int32_t targetToken = 0;  // 0 = player-only (no valid crosshair target at open)
+			std::string  targetName;
+		};
+		PendingWheel g_wheel;
 
 		// token -> picked ref. All handlers run on the GAME MAIN THREAD (CommandFn contract), and the token map is only ever touched from a handler, so no locking is needed. 
 		// token -1 is reserved for the player (never stored).
@@ -152,6 +165,29 @@ namespace OSF::API
 		json ParsePayload(const char* a_json)
 		{
 			return json::parse(a_json ? a_json : "", nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
+		}
+
+		// The player's crosshair/command target as a validated object reference, or nullptr.
+		// commandTarget is NOT guaranteed to be a ref: aiming at terrain or empty space yields
+		// the CELL (or nothing). Main thread only.
+		RE::TESObjectREFR* CrosshairRef()
+		{
+			auto*              player = RE::PlayerCharacter::GetSingleton();
+			RE::TESObjectREFR* ref = player ? player->commandTarget : nullptr;
+			return (ref && (ref->Is(RE::FormType::kREFR) || ref->Is(RE::FormType::kACHR))) ? ref : nullptr;
+		}
+
+		// Deliver the wheel-mode switch to the view. target:null = the wheel plays on the player.
+		// Idempotent on the view side, so the OpenWheel send and the osf.opened replay can both land.
+		void SendWheelMode()
+		{
+			json payload = { { "mode", "wheel" }, { "tagPrefix", g_wheel.tagPrefix } };
+			if (g_wheel.targetToken != 0) {
+				payload["target"] = { { "token", g_wheel.targetToken }, { "name", g_wheel.targetName } };
+			} else {
+				payload["target"] = nullptr;
+			}
+			SendJson(kViewId, "osf.mode", payload);
 		}
 
 		const char* GenderTag(Registry::SlotGender a_gender)
@@ -463,12 +499,8 @@ namespace OSF::API
 			}
 			const bool wantActor = (slot != "furniture");
 
-			auto*              player = RE::PlayerCharacter::GetSingleton();
-			RE::TESObjectREFR* ref = player ? player->commandTarget : nullptr;
-
-			// commandTarget is NOT guaranteed to be an object reference; aiming at terrain or empty space yields the CELL (or nothing). 
-			const bool isRef = ref && (ref->Is(RE::FormType::kREFR) || ref->Is(RE::FormType::kACHR));
-			const bool accept = isRef && (!wantActor || ref->IsActor());
+			RE::TESObjectREFR* ref = CrosshairRef();
+			const bool         accept = ref && (!wantActor || ref->IsActor());
 
 			json reply;
 			reply["slot"] = slot;
@@ -932,11 +964,30 @@ namespace OSF::API
 		{
 			UI::FirstRunHint::OnMenuOpened();
 			Input::InputService::GetSingleton().SetUiCursorVisible(true);
+			// A wheel open is pending: replay the mode switch. The immediate send from OpenWheel
+			// can race view creation; this resend makes delivery reliable (idempotent view-side).
+			if (g_wheel.active) {
+				SendWheelMode();
+			}
 		}
 
 		void OnClosed(const char*, const char*, const char*, void*) noexcept
 		{
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
+			g_wheel = {};  // any hide ends wheel mode; the next open starts clean
+		}
+
+		// The view cannot hide itself (visibility is host-driven); this is its close button.
+		// Generic — the wheel sends it on cancel and after a successful pick. Handlers already
+		// run on the game main thread and RequestMenu is thread-safe/queued, so no task hop.
+		void OnRequestClose(const char*, const char*, const char*, void*) noexcept
+		{
+			if ((g_ui->GetInterfaceVersion() & 0xFFFFu) < 1u) {
+				REX::WARN("[UI] osf.requestClose: installed OSF UI has no RequestMenu (bridge MINOR < 1) — ignored");
+				return;
+			}
+			const bool ok = g_ui->RequestMenu(kViewId, false);
+			REX::DEBUG("[UI] osf.requestClose -> RequestMenu('{}', close) -> {}", kViewId, ok);
 		}
 
 		// World-area drag/wheel from the view (osf.orbit {dx,dy,wheel}) — the overlay consumes all
@@ -991,6 +1042,12 @@ namespace OSF::API
 		// this native runs on a Papyrus VM thread, so the whole sequence rides an SFSE task;
 		// RequestMenu itself is thread-safe and queued, keeping the hide -> open order.
 		SFSE::GetTaskInterface()->AddTask([]() {
+			// A normal browser open must never land in wheel mode: drop any pending wheel
+			// state and, if the view is already up as the wheel, switch it back to the console.
+			if (g_wheel.active) {
+				g_wheel = {};
+				SendJson(kViewId, "osf.mode", json{ { "mode", "browser" } });
+			}
 			auto* ui = RE::UI::GetSingleton();
 			auto* queue = RE::UIMessageQueue::GetSingleton();
 			if (ui && queue) {
@@ -1010,10 +1067,67 @@ namespace OSF::API
 
 	bool OpenWheel(std::string_view a_tagPrefix)
 	{
-		// EmoteWheel_Plan.md replaces this body with the real wheel-mode open.
-		REX::WARN("[Hotkey] wheel UI not yet available (requested tag prefix '{}')", a_tagPrefix);
-		UI::HudMessage::Error("emote wheel not available yet");
-		return false;
+		if (!g_ui) {
+			REX::WARN("[UI] OpenWheel: OSF UI not present — nothing to open");
+			UI::HudMessage::Error("OSF UI not present or too old");
+			return false;
+		}
+		// Same live-interface gate as OpenBrowser: RequestMenu is an appended vmethod (MINOR >= 1).
+		if ((g_ui->GetInterfaceVersion() & 0xFFFFu) < 1u) {
+			REX::WARN("[UI] OpenWheel: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to use the emote wheel");
+			UI::HudMessage::Error("OSF UI not present or too old");
+			return false;
+		}
+		// Everything below touches refs and menus: ride an SFSE task so this stays callable
+		// from any thread (the hotkey verb is already on the game thread — the task just runs
+		// next frame).
+		SFSE::GetTaskInterface()->AddTask([prefix = std::string{ a_tagPrefix }]() {
+			g_wheel = {};
+			g_wheel.active = true;
+			g_wheel.tagPrefix = prefix.empty() ? std::string{ "player.emote." } : prefix;
+
+			// Capture the crosshair target, gated harder than a browser pick: the wheel plays
+			// on the target IMMEDIATELY on pick, so dead / fighting / non-human actors fall
+			// back to a player-only wheel (a downgrade, not an error).
+			if (RE::TESObjectREFR* ref = CrosshairRef(); ref && ref->IsActor()) {
+				auto*       actor = static_cast<RE::Actor*>(ref);
+				const char* reject = nullptr;
+				if (actor->IsDead()) {
+					reject = "dead";
+				} else if (actor->combatController != nullptr) {
+					// Combat via the member read, not the IsInCombat() virtual — that vtable
+					// slot proved unreliable (see HotkeyService's combat guard).
+					reject = "in combat";
+				} else if (Util::ActorSpecies(actor) != "human") {
+					reject = "non-human";  // no creature emote packs — human clips would T-pose them
+				}
+				if (reject) {
+					REX::DEBUG("[UI] OpenWheel: crosshair target '{}' rejected ({}) — player-only wheel", ScanLabel(ref), reject);
+				} else {
+					g_wheel.targetToken = AllocToken(ref);
+					g_wheel.targetName = ScanLabel(ref);
+				}
+			}
+
+			// Same open sequence as OpenBrowser: hide the menus the hotkey could fire over.
+			auto* ui = RE::UI::GetSingleton();
+			auto* queue = RE::UIMessageQueue::GetSingleton();
+			if (ui && queue) {
+				for (const char* menu : { "BookMenu", "InventoryMenu", "DataMenu" }) {
+					if (ui->IsMenuOpen(menu)) {
+						queue->AddMessage(menu, RE::UI_MESSAGE_TYPE::kHide);
+						REX::DEBUG("[UI] OpenWheel: closing '{}' before the wheel", menu);
+					}
+				}
+			}
+			// Immediate mode push covers a view that is already open (browser -> wheel switch);
+			// the osf.opened replay covers a fresh view creation racing this send.
+			SendWheelMode();
+			const bool ok = g_ui->RequestMenu(kViewId, true);
+			REX::INFO("[UI] OpenWheel: RequestMenu('{}', open) -> {} (prefix '{}', target: {})",
+				kViewId, ok, g_wheel.tagPrefix, g_wheel.targetToken != 0 ? g_wheel.targetName : "player-only");
+		});
+		return true;
 	}
 
 	void InstallUIBridge()
@@ -1044,6 +1158,7 @@ namespace OSF::API
 		g_ui->RegisterCommand("osf.opened", &OnOpened, nullptr);
 		g_ui->RegisterCommand("osf.closed", &OnClosed, nullptr);
 		g_ui->RegisterCommand("osf.orbit", &OnOrbit, nullptr);
+		g_ui->RegisterCommand("osf.requestClose", &OnRequestClose, nullptr);
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
 		g_ui->GetPluginVersion(mj, mn, pt);

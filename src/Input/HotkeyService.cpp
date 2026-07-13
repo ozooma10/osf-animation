@@ -263,7 +263,7 @@ namespace OSF::Input
 			}
 			break;
 		case HotkeyCommand::kOpenWheel:
-			API::OpenWheel(it->arg);  // stub until the wheel UI ships; logs + HUD-errors itself
+			API::OpenWheel(it->arg);  // logs + HUD-errors itself when OSF UI is absent/too old
 			break;
 		case HotkeyCommand::kToggleSceneTags:
 			ToggleSceneTags(it->arg);
