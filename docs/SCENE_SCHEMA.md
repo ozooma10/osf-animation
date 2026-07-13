@@ -152,7 +152,10 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 
 `roles[]` is the unified participant list (it replaces the old pack `actors` and scene `roles`). It is
 **optional**: omit it and the actor count is inferred from the first stage's clips, with every role
-defaulting to gender `"any"` and no offset.
+defaulting to gender `"any"` and no offset. This works for both forms — a linear scene infers from its
+first stage, a graph scene from its **entry node's** first inline stage. The one exception: a graph
+scene whose entry node is a `use` reference must declare `roles` explicitly (the target resolves after
+load, so there is no clip list to count).
 
 ```jsonc
 "roles": [
@@ -553,7 +556,11 @@ a higher `priority` than a barer one. An `unlisted` scene sits outside this enti
 All are **recorded in the per-handle undo ledger and auto-reversed on any scene termination** — you do
 **not** need to author the restore half.
 
-| Action `type` | Effect | Needs `role` | Extra fields |
+`role` is **optional on every action**: an omitted/empty `role` targets the scene's **first
+participant** (the same default as the `sound` lane). A named `role` must be declared in `roles[]`
+(an undeclared name is a load error). The ✓ below marks which actions act on a role's actor at all.
+
+| Action `type` | Effect | Targets a role | Extra fields |
 |---------------|--------|:---:|---|
 | `osf.control.lock` / `osf.control.release` | Player input-disable + AI-driven lock (ref-counted). **On by default when the player participates** — see *Player input lock*; author these only to override. | ✓ | |
 | `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). **All participants are stripped by default** — see *Actor strip*; author these only to override. | ✓ | |
@@ -577,4 +584,17 @@ Surfaced in `OSF Animation.log`:
 - A `use` target that is **not a single-node inline-stage scene** is a load error.
 - An authored id containing **`#`** is a load error (reserved for synthetic desugar nodes).
 - A **duplicate id** within the one namespace → first-loaded-wins + a logged warning.
+
+---
+
+## Well-known tags (the immersion tag contract)
+
+These tags are **matched by name** by the hotkey/wheel features, so third-party packs can join them
+by tagging their scenes the same way (the shipped set lives in `Data/OSF/immersion/`):
+
+| Tag | Consumed by | Contract |
+|-----|-------------|----------|
+| `player.sit`, `player.lean` | the `toggleSceneTags:<tag>` hotkey verb | **Solo** (one role — the hotkey launches with the player as the sole actor), hold-style (`loops:0` + an exit edge), and **listed** (not `unlisted` — the verb goes through matchmaking). Re-pressing the hotkey ends the scene. |
+| `player.emote.<name>` | the emote wheel (enumerated by the `player.emote.` tag prefix) | Solo, **self-terminating** (`timer`/`loops`, not an unbounded hold); the scene's `name` is the wheel slice label. The same scene is launched on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
+| `immersion` | — | Umbrella tag for the shipped immersion pack; free for browsing/filtering. |
 

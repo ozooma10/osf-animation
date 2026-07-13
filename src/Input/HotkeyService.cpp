@@ -159,9 +159,12 @@ namespace OSF::Input
 				return;
 			}
 
-			// IsInCombat is an RE virtual with no other caller in this codebase yet — flagged for
-			// in-game verification.
-			if (player->IsInCombat()) {
+			// Combat guard. The Actor::IsInCombat() virtual (vtable slot 0x16C) proved unreliable
+			// in-game — it read true out of combat, hard-blocking the toggle. Read the combat state
+			// from the stable, non-virtual member instead: combatController is allocated on combat
+			// start and freed on combat end, so a null controller = not in combat. A member read
+			// carries none of the vtable-slot fragility that region has a documented history of.
+			if (player->combatController != nullptr) {
 				REX::DEBUG("[Hotkey] toggleSceneTags '{}': player in combat — not starting", a_arg);
 				UI::HudMessage::Error("can't start while in combat");
 				return;

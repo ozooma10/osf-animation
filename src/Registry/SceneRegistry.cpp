@@ -270,16 +270,10 @@ namespace OSF::Registry
 					if (!IsKnownBuiltinAction(typeLower)) {
 						throw std::runtime_error("node '" + a_node_out.id + "': unknown built-in action '" + ae.type + "'");
 					}
-					// Per-action required fields. Role-targeted mechanisms need a role; voice also
-					// needs its sound set, equip its item. Fade takes no required field.
-					const bool needsRole = typeLower == "osf.control.lock" || typeLower == "osf.control.release" ||
-						typeLower == "osf.equipment.hide" || typeLower == "osf.equipment.restore" ||
-						typeLower == "osf.equipment.equip" || typeLower == "osf.equipment.unequip" ||
-						typeLower == "osf.weapon.sheathe" || typeLower == "osf.weapon.restore" ||
-						typeLower == "osf.voice.play";
-					if (needsRole && ae.role.empty()) {
-						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type + "' requires 'role'");
-					}
+					// Per-action required fields: voice needs its sound set, equip its item. `role` is
+					// OPTIONAL on every action — an omitted/empty role targets the scene's first
+					// participant (ResolveRoleActor), matching the sound lane's default. A NAMED role
+					// must still exist (ValidateGraph rejects undeclared references).
 					if (typeLower == "osf.voice.play" && ae.set.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.voice.play' requires 'set'");
 					}
@@ -1152,6 +1146,20 @@ namespace OSF::Registry
 				// A hold node (loops:0) with no advance/timer/trigger edge holds until the consumer calls
 				// StopScene — that is the explicit, intentional terminal-hold pattern, so it is not flagged.
 				ValidateGraph(def, nodeIds);
+				// Role inference, graph form: mirror the linear rule — a scene with no `roles` gets one
+				// anonymous slot per clip in the entry node's first inline stage. Without this a
+				// roles-less graph scene loads with ZERO roles and can never matchmake (the pool
+				// filters on roles.size() == actor count). A `use` entry resolves post-load, so it
+				// can't seed a count — those scenes must declare roles explicitly.
+				if (!rolesGiven) {
+					const std::string entryLower = ToLower(def.entry);
+					const auto entryIt = std::find_if(def.nodes.begin(), def.nodes.end(),
+						[&](const SceneNode& a_nd) { return ToLower(a_nd.id) == entryLower; });
+					if (entryIt == def.nodes.end() || entryIt->stages.empty()) {
+						throw std::runtime_error("scene '" + def.id + "': a graph scene whose entry node is a 'use' needs explicit 'roles'");
+					}
+					def.roles.assign(entryIt->stages.front().clips.size(), SceneRole{});
+				}
 			} else {
 				// Linear scene: top-level clip/stages -> a synthetic node chain (desugar).
 				size_t actorCount = rolesGiven ? def.roles.size() : 0;
