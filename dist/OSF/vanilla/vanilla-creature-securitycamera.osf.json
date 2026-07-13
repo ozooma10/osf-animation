@@ -54,39 +54,6 @@
           ]
         },
         {
-          "name": "Unconscious_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Death01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "death01.af",
-              "sec": 1.033
-            }
-          ]
-        },
-        {
-          "name": "Death02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "death02.af",
-              "sec": 1.167
-            }
-          ]
-        },
-        {
           "name": "FireAuto",
           "loops": 0,
           "clips": [
@@ -106,84 +73,6 @@
             }
           ],
           "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch01.af",
-              "sec": 0.6
-            }
-          ]
-        },
-        {
-          "name": "Flinch02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch02.af",
-              "sec": 0.6
-            }
-          ]
-        },
-        {
-          "name": "Flinch03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch03.af",
-              "sec": 0.6
-            }
-          ]
-        },
-        {
-          "name": "Flinch04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch04.af",
-              "sec": 0.6
-            }
-          ]
-        },
-        {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "Unconscious_Into",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_into.af",
-              "sec": 0.667
-            }
-          ],
-          "tags": [
-            "into",
-            "transition"
-          ]
-        },
-        {
-          "name": "Unconscious_Out",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_out.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "out",
             "transition"
           ]
         }

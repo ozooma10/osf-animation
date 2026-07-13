@@ -117,19 +117,6 @@
           ]
         },
         {
-          "name": "LeanRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "leanright.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "MeleeAttack_Claw01",
           "loops": 0,
           "clips": [
@@ -172,32 +159,6 @@
           ]
         },
         {
-          "name": "PitchDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "pitchdown.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "PitchUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "pitchup.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "RunForward",
           "loops": 0,
           "clips": [
@@ -205,19 +166,6 @@
               "file": "runforward.af",
               "sec": 0.867
             }
-          ]
-        },
-        {
-          "name": "RunForward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "runforward_start.af",
-              "sec": 2.967
-            }
-          ],
-          "tags": [
-            "transition"
           ]
         },
         {
@@ -309,60 +257,6 @@
           ]
         },
         {
-          "name": "TurnLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "turnleft.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "transition",
-            "pose"
-          ]
-        },
-        {
-          "name": "TurnRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "turnright.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "transition",
-            "pose"
-          ]
-        },
-        {
-          "name": "WalkBackward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "walkbackward.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "WalkBackward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "walkbackward_start.af",
-              "sec": 0.833
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "WalkForward",
           "loops": 0,
           "clips": [
@@ -370,71 +264,6 @@
               "file": "walkforward.af",
               "sec": 0.867
             }
-          ]
-        },
-        {
-          "name": "WalkForward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "walkforward_start.af",
-              "sec": 0.833
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "WalkLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "walkleft.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "WalkLeft_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "walkleft_start.af",
-              "sec": 0.833
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "WalkRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "walkright.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "WalkRight_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "walkright_start.af",
-              "sec": 0.833
-            }
-          ],
-          "tags": [
-            "transition"
           ]
         }
       ]

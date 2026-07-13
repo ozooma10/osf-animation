@@ -65,16 +65,6 @@
           ]
         },
         {
-          "name": "IdleWobble",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/idlewobble.af",
-              "sec": 8.0
-            }
-          ]
-        },
-        {
           "name": "EnterInstant",
           "loops": 0,
           "clips": [
@@ -145,71 +135,6 @@
           ]
         },
         {
-          "name": "JigglePitchDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglepitchdown.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JigglePitchUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglepitchup.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JiggleRollLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglerollleft.af",
-              "sec": 0.767
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JiggleRollRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglerollright.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JumpRunLand",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jumprunland.af",
-              "sec": 1.133
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "StaggerForward",
           "loops": 0,
           "clips": [
@@ -245,16 +170,6 @@
           ]
         },
         {
-          "name": "IdleWobble",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/player/idlewobble.af",
-              "sec": 8.0
-            }
-          ]
-        },
-        {
           "name": "EnterInstant",
           "loops": 0,
           "clips": [
@@ -275,71 +190,6 @@
             {
               "file": "furniture/rover/player/furnituredeath.af",
               "sec": 1.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JigglePitchDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/player/jigglepitchdown.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JigglePitchUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/player/jigglepitchup.af",
-              "sec": 0.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JiggleRollLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/player/jigglerollleft.af",
-              "sec": 0.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JiggleRollRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/player/jigglerollright.af",
-              "sec": 0.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JumpRunLand",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/player/jumprunland.af",
-              "sec": 1.3
             }
           ],
           "tags": [

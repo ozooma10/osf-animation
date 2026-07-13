@@ -97,46 +97,6 @@
           ]
         },
         {
-          "name": "Idle_FlavorLoop01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_flavorloop01.af",
-              "sec": 1.967
-            }
-          ]
-        },
-        {
-          "name": "Idle_FlavorLoop02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_flavorloop02.af",
-              "sec": 1.967
-            }
-          ]
-        },
-        {
-          "name": "Idle_FlavorLoop03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_flavorloop03.af",
-              "sec": 1.967
-            }
-          ]
-        },
-        {
-          "name": "Idle_FlavorLoop04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_flavorloop04.af",
-              "sec": 1.967
-            }
-          ]
-        },
-        {
           "name": "Ambush",
           "loops": 0,
           "clips": [

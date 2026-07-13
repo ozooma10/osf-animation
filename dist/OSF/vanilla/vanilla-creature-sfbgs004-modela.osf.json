@@ -130,16 +130,6 @@
           ]
         },
         {
-          "name": "IdleWobble",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/idlewobble.af",
-              "sec": 7.967
-            }
-          ]
-        },
-        {
           "name": "EnterFromStand",
           "loops": 0,
           "clips": [
@@ -181,58 +171,6 @@
           ]
         },
         {
-          "name": "JigglePitchDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglepitchdown.af",
-              "sec": 0.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JigglePitchUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglepitchup.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JiggleRollLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglerollleft.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JiggleRollRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/jigglerollright.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "JumpRunForward",
           "loops": 0,
           "clips": [
@@ -266,16 +204,6 @@
           ],
           "tags": [
             "transition"
-          ]
-        },
-        {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/lookdirections.af",
-              "sec": 0.5
-            }
           ]
         },
         {
@@ -315,26 +243,6 @@
             {
               "file": "furniture/rover/staggerforward04.af",
               "sec": 2.133
-            }
-          ]
-        },
-        {
-          "name": "VehicleJostleDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/vehiclejostledown.af",
-              "sec": 1.0
-            }
-          ]
-        },
-        {
-          "name": "VehicleJostleUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/rover/vehiclejostleup.af",
-              "sec": 1.0
             }
           ]
         }

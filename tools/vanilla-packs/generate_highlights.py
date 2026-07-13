@@ -34,10 +34,13 @@ CHUNK_RE = re.compile(r"--\d+$")
 
 
 def load_vanilla_scenes(packs_dir: Path) -> tuple[dict[str, dict], str]:
-    """id -> scene from every vanilla-*.osf.json; also the shared clipRoot."""
+    """id -> scene from every HUMAN vanilla-*.osf.json; also the shared clipRoot.
+    Creature packs (vanilla-creature-*) carry per-species clipRoots and are not
+    curated by the highlights manifest, so they are skipped."""
     scenes: dict[str, dict] = {}
     clip_root = None
-    files = sorted(packs_dir.glob("vanilla-*.osf.json"))
+    files = [f for f in sorted(packs_dir.glob("vanilla-*.osf.json"))
+             if not f.name.startswith("vanilla-creature-")]
     if not files:
         sys.exit(f"no vanilla-*.osf.json under {packs_dir} — run generate_vanilla_packs.py first")
     for f in files:

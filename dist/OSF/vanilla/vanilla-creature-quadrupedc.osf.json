@@ -576,46 +576,6 @@
           ]
         },
         {
-          "name": "Flinch_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head01.af",
-              "sec": 0.767
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Head02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head02.af",
-              "sec": 0.767
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso01.af",
-              "sec": 0.833
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso02.af",
-              "sec": 0.833
-            }
-          ]
-        },
-        {
           "name": "Getup_Left",
           "loops": 0,
           "clips": [
@@ -804,26 +764,6 @@
           "tags": [
             "knockdown",
             "transition"
-          ]
-        },
-        {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "LookDirections_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_head.af",
-              "sec": 0.5
-            }
           ]
         },
         {
@@ -1612,18 +1552,7 @@
           "tags": [
             "transition"
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/quadrupedc--2",
-      "name": "Vanilla · Quadrupedc (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:quadrupedc"
-      ],
-      "stages": [
+        },
         {
           "name": "WalkBackward",
           "loops": 0,

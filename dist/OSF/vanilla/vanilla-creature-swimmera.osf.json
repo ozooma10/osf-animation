@@ -189,16 +189,6 @@
           ]
         },
         {
-          "name": "LeanLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "leanleft.af",
-              "sec": 0.6
-            }
-          ]
-        },
-        {
           "name": "LeanRight",
           "loops": 0,
           "clips": [
@@ -244,32 +234,6 @@
             {
               "file": "meleeattackpower01.af",
               "sec": 2.167
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "PitchDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "pitchdown.af",
-              "sec": 0.6
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "PitchUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "pitchup.af",
-              "sec": 0.6
             }
           ],
           "tags": [

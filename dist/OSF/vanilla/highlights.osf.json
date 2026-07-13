@@ -348,45 +348,6 @@
           ]
         },
         {
-          "name": "Angry_Idle_Dialogue01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/barstool/animflavor/angry_idle_dialogue01.af",
-              "sec": 7.3
-            }
-          ],
-          "tags": [
-            "idle_dialogue01"
-          ]
-        },
-        {
-          "name": "Angry_Idle_Dialogue02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/barstool/animflavor/angry_idle_dialogue02.af",
-              "sec": 5.967
-            }
-          ],
-          "tags": [
-            "idle_dialogue02"
-          ]
-        },
-        {
-          "name": "Angry_Idle_Dialogue03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/barstool/animflavor/angry_idle_dialogue03.af",
-              "sec": 6.633
-            }
-          ],
-          "tags": [
-            "idle_dialogue03"
-          ]
-        },
-        {
           "name": "Confident_Idle",
           "loops": 0,
           "clips": [
@@ -450,19 +411,6 @@
           "tags": [
             "idle"
           ]
-        },
-        {
-          "name": "Angry_Talk_L01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/barstool/animflavor/angry_talk_l01.af",
-              "sec": 6.633
-            }
-          ],
-          "tags": [
-            "talk_l01"
-          ]
         }
       ]
     },
@@ -489,6 +437,75 @@
               "file": "furniture/barstool/female/idle.af",
               "sec": 3.0
             }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/bar-life/furniture/barstool/female/animflavor",
+      "name": "Bar Life — Barstool / Female / Animflavor",
+      "tags": [
+        "highlights",
+        "bar-life",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x074EC7"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Angry_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/female/animflavor/angry_idle.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Confident_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/female/animflavor/confident_idle.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Depressed_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/female/animflavor/depressed_idle.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "DrinkBottle_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/barstool/female/animflavor/drinkbottle_idle.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "idle"
           ]
         }
       ]
@@ -967,54 +984,31 @@
               "sec": 2.7
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "highlights/sit-and-lounge/furniture/bench/female",
+      "name": "Sit & Lounge — Bench / Female",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
         {
-          "name": "Talk_L01",
+          "name": "Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "furniture/bench/talk_l01.af",
-              "sec": 6.5
-            }
-          ]
-        },
-        {
-          "name": "Talk_L02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/talk_l02.af",
-              "sec": 6.567
-            }
-          ]
-        },
-        {
-          "name": "Talk_L03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/talk_l03.af",
-              "sec": 6.3
-            }
-          ]
-        },
-        {
-          "name": "Talk_M01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/talk_m01.af",
-              "sec": 2.8
-            }
-          ]
-        },
-        {
-          "name": "Talk_M02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/talk_m02.af",
-              "sec": 3.567
+              "file": "furniture/bench/female/idle.af",
+              "sec": 2.633
             }
           ]
         }
@@ -1041,76 +1035,6 @@
             {
               "file": "furniture/chair/idle.af",
               "sec": 2.7
-            }
-          ]
-        },
-        {
-          "name": "Talk_L01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/talk_l01.af",
-              "sec": 6.5
-            }
-          ]
-        },
-        {
-          "name": "Talk_L02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/talk_l02.af",
-              "sec": 6.567
-            }
-          ]
-        },
-        {
-          "name": "Talk_L03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/talk_l03.af",
-              "sec": 6.3
-            }
-          ]
-        },
-        {
-          "name": "Talk_M01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/talk_m01.af",
-              "sec": 2.8
-            }
-          ]
-        },
-        {
-          "name": "Talk_M02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/talk_m02.af",
-              "sec": 3.567
-            }
-          ]
-        },
-        {
-          "name": "Talk_M03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/talk_m03.af",
-              "sec": 3.933
-            }
-          ]
-        },
-        {
-          "name": "Talk_S01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/talk_s01.af",
-              "sec": 1.967
             }
           ]
         }
@@ -1239,6 +1163,33 @@
       ]
     },
     {
+      "id": "highlights/sit-and-lounge/furniture/chair/female",
+      "name": "Sit & Lounge — Chair / Female",
+      "tags": [
+        "highlights",
+        "sit-and-lounge",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/idle.af",
+              "sec": 2.633
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "highlights/sit-and-lounge/furniture/chair_executive",
       "name": "Sit & Lounge — Chair Executive",
       "tags": [
@@ -1259,36 +1210,6 @@
             {
               "file": "furniture/chair_executive/idle.af",
               "sec": 3.667
-            }
-          ]
-        },
-        {
-          "name": "Talk_L01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair_executive/talk_l01.af",
-              "sec": 7.3
-            }
-          ]
-        },
-        {
-          "name": "Talk_M01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair_executive/talk_m01.af",
-              "sec": 3.3
-            }
-          ]
-        },
-        {
-          "name": "Talk_S01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair_executive/talk_s01.af",
-              "sec": 2.633
             }
           ]
         }
@@ -1774,56 +1695,6 @@
               "sec": 2.0
             }
           ]
-        },
-        {
-          "name": "Talk_L01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/railleanback/female/talk_l01.af",
-              "sec": 6.3
-            }
-          ]
-        },
-        {
-          "name": "Talk_L02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/railleanback/female/talk_l02.af",
-              "sec": 6.967
-            }
-          ]
-        },
-        {
-          "name": "Talk_M01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/railleanback/female/talk_m01.af",
-              "sec": 3.3
-            }
-          ]
-        },
-        {
-          "name": "Talk_S01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/railleanback/female/talk_s01.af",
-              "sec": 2.3
-            }
-          ]
-        },
-        {
-          "name": "Talk_S02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/railleanback/female/talk_s02.af",
-              "sec": 1.967
-            }
-          ]
         }
       ]
     },
@@ -1847,6 +1718,86 @@
           "clips": [
             {
               "file": "furniture/railleanfront/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/railleanfront/female",
+      "name": "Lean & Loiter — Railleanfront / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x25E8D6"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanfront/female/idle.af",
+              "sec": 2.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/railleanhands",
+      "name": "Lean & Loiter — Railleanhands",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1AE519"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanhands/idle.af",
+              "sec": 2.333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/lean-and-loiter/furniture/railleanhands/female",
+      "name": "Lean & Loiter — Railleanhands / Female",
+      "tags": [
+        "highlights",
+        "lean-and-loiter",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1AE519"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/railleanhands/female/idle.af",
               "sec": 2.333
             }
           ]
@@ -2427,41 +2378,83 @@
               "sec": 3.333
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/mining_lasercutter/mining_lasercutter_high",
+      "name": "Work Crew — Mining Lasercutter / Mining Lasercutter High",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x03F472"
+        ]
+      },
+      "stages": [
         {
-          "name": "FireAuto",
+          "name": "Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "furniture/mining_lasercutter/fireauto.af",
-              "sec": 2.633
+              "file": "furniture/mining_lasercutter/mining_lasercutter_high/idle.af",
+              "sec": 3.333
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/mining_lasercutter/mining_lasercutter_low",
+      "name": "Work Crew — Mining Lasercutter / Mining Lasercutter Low",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x03F472"
+        ]
+      },
+      "stages": [
         {
-          "name": "Relaxed_Talk_L01",
+          "name": "Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "furniture/mining_lasercutter/relaxed_talk_l01.af",
-              "sec": 6.633
+              "file": "furniture/mining_lasercutter/mining_lasercutter_low/idle.af",
+              "sec": 3.333
             }
-          ],
-          "tags": [
-            "talk_l01"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "highlights/work-crew/furniture/mining_lasercutter/mining_lasercutter_low/mq101_minercalvert",
+      "name": "Work Crew — Mining Lasercutter / Mining Lasercutter Low / Mq101 Minercalvert",
+      "tags": [
+        "highlights",
+        "work-crew",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x03F472"
+        ]
+      },
+      "stages": [
         {
-          "name": "Relaxed_Talk_L02",
+          "name": "Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "furniture/mining_lasercutter/relaxed_talk_l02.af",
-              "sec": 5.1
+              "file": "furniture/mining_lasercutter/mining_lasercutter_low/mq101_minercalvert/idle.af",
+              "sec": 5.0
             }
-          ],
-          "tags": [
-            "talk_l02"
           ]
         }
       ]
@@ -3308,263 +3301,16 @@
       ],
       "stages": [
         {
-          "name": "Relaxed_IdlePartialBody_ArmCrossed",
+          "name": "Relaxed_IdlePartialBody_Point_Behind_LeftThumb01_TechReader2hands",
           "loops": 0,
           "clips": [
             {
-              "file": "common/relaxed_idlepartialbody_armcrossed.af",
-              "sec": 2.433
+              "file": "common/relaxed_idlepartialbody_point_behind_leftthumb01_techreader2hands.af",
+              "sec": 2.5
             }
           ],
           "tags": [
-            "idlepartialbody"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Artifact",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_artifact.af",
-              "sec": 4.433
-            }
-          ],
-          "tags": [
-            "idlepartialbody"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Briefcase",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_briefcase.af",
-              "sec": 4.4
-            }
-          ],
-          "tags": [
-            "idlepartialbody"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_CoffeeCup",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_coffeecup.af",
-              "sec": 4.4
-            }
-          ],
-          "tags": [
-            "idlepartialbody"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_DataSlate",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_dataslate.af",
-              "sec": 4.4
-            }
-          ],
-          "tags": [
-            "idlepartialbody"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_DataSlateReceiveAndRead",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_dataslatereceiveandread.af",
-              "sec": 4.4
-            }
-          ],
-          "tags": [
-            "idlepartialbody"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_DuffleBags",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_dufflebags.af",
-              "sec": 4.4
-            }
-          ],
-          "tags": [
-            "idlepartialbody"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_ArmCrossed",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_armcrossed.af",
-              "sec": 3.033
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_Artifact",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_artifact.af",
-              "sec": 3.067
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_Briefcase",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_briefcase.af",
-              "sec": 5.233
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_CoffeeCup",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_coffeecup.af",
-              "sec": 5.833
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_DataSlate",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_dataslate.af",
-              "sec": 12.633
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_DataSlateReceiveAndRead",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_dataslatereceiveandread.af",
-              "sec": 12.633
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_DuffleBags",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_dufflebags.af",
-              "sec": 4.667
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_HandCuffed",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_handcuffed.af",
-              "sec": 5.433
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_HandsBehind",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_handsbehind.af",
-              "sec": 8.0
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_QuantumCalibrator",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_quantumcalibrator.af",
-              "sec": 9.7
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_ShoppingBag",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_shoppingbag.af",
-              "sec": 5.233
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_TechReader",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_techreader.af",
-              "sec": 5.233
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Flavor01_TechReader2hands",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_flavor01_techreader2hands.af",
-              "sec": 8.267
-            }
-          ],
-          "tags": [
-            "idlepartialbody_flavor01"
+            "idlepartialbody_point_behind_leftthumb01"
           ]
         }
       ]
@@ -3763,277 +3509,6 @@
               "file": "furniture/standing_lookingatmapnav/idle.af",
               "sec": 2.667
             }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "highlights/props-and-business/furniture/standing_readingbook",
-      "name": "Props & Business — Standing Readingbook",
-      "tags": [
-        "highlights",
-        "props-and-business",
-        "anchored"
-      ],
-      "anchor": {
-        "keyword": [
-          "Starfield.esm|0x0063CF"
-        ]
-      },
-      "stages": [
-        {
-          "name": "Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing_readingbook/idle.af",
-              "sec": 2.667
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "highlights/props-and-business/furniture/standing_readingbook/female",
-      "name": "Props & Business — Standing Readingbook / Female",
-      "tags": [
-        "highlights",
-        "props-and-business",
-        "female",
-        "anchored"
-      ],
-      "anchor": {
-        "keyword": [
-          "Starfield.esm|0x0063CF"
-        ]
-      },
-      "stages": [
-        {
-          "name": "Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing_readingbook/female/idle.af",
-              "sec": 2.667
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "highlights/gestures/common",
-      "name": "Gestures — Common",
-      "tags": [
-        "highlights",
-        "gestures"
-      ],
-      "stages": [
-        {
-          "name": "Relaxed_Point_Behind_LeftHand",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_behind_lefthand.af",
-              "sec": 3.5
-            }
-          ],
-          "tags": [
-            "point_behind_lefthand"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Behind_LeftThumb01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_behind_leftthumb01.af",
-              "sec": 3.267
-            }
-          ],
-          "tags": [
-            "point_behind_leftthumb01"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Behind_LeftThumb02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_behind_leftthumb02.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "point_behind_leftthumb02"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Behind_LeftThumb03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_behind_leftthumb03.af",
-              "sec": 2.967
-            }
-          ],
-          "tags": [
-            "point_behind_leftthumb03"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Behind_RightThumb01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_behind_rightthumb01.af",
-              "sec": 4.633
-            }
-          ],
-          "tags": [
-            "point_behind_rightthumb01"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Behind_RightThumb02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_behind_rightthumb02.af",
-              "sec": 4.033
-            }
-          ],
-          "tags": [
-            "point_behind_rightthumb02"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Behind_RightThumb03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_behind_rightthumb03.af",
-              "sec": 5.067
-            }
-          ],
-          "tags": [
-            "point_behind_rightthumb03"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Forward_LeftHand01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_forward_lefthand01.af",
-              "sec": 3.3
-            }
-          ],
-          "tags": [
-            "point_forward_lefthand01"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Forward_LeftHand02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_forward_lefthand02.af",
-              "sec": 2.233
-            }
-          ],
-          "tags": [
-            "point_forward_lefthand02"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Forward_RightHand01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_forward_righthand01.af",
-              "sec": 3.133
-            }
-          ],
-          "tags": [
-            "point_forward_righthand01"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Forward_RightHand02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_forward_righthand02.af",
-              "sec": 2.467
-            }
-          ],
-          "tags": [
-            "point_forward_righthand02"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Left_LeftHand01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_left_lefthand01.af",
-              "sec": 3.867
-            }
-          ],
-          "tags": [
-            "point_left_lefthand01"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Left_LeftHand02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_left_lefthand02.af",
-              "sec": 3.5
-            }
-          ],
-          "tags": [
-            "point_left_lefthand02"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Left_RightHand01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_left_righthand01.af",
-              "sec": 3.967
-            }
-          ],
-          "tags": [
-            "point_left_righthand01"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Left_RightHand02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_left_righthand02.af",
-              "sec": 3.533
-            }
-          ],
-          "tags": [
-            "point_left_righthand02"
-          ]
-        },
-        {
-          "name": "Relaxed_Point_Right_LeftHand01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_point_right_lefthand01.af",
-              "sec": 3.167
-            }
-          ],
-          "tags": [
-            "point_right_lefthand01"
           ]
         }
       ]
@@ -4761,56 +4236,6 @@
               "sec": 2.667
             }
           ]
-        },
-        {
-          "name": "Idle_Dialogue01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/injuredonground/idle_dialogue01.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "Idle_Dialogue02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/injuredonground/idle_dialogue02.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "Idle_Dialogue03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/injuredonground/idle_dialogue03.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "Idle_Dialogue04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/injuredonground/idle_dialogue04.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "Idle_Dialogue05",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/injuredonground/idle_dialogue05.af",
-              "sec": 2.633
-            }
-          ]
         }
       ]
     },
@@ -5175,6 +4600,32 @@
           "clips": [
             {
               "file": "furniture/surrender/idle.af",
+              "sec": 3.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "highlights/distress-and-drama/furniture/woundedlean",
+      "name": "Distress & Drama — Woundedlean",
+      "tags": [
+        "highlights",
+        "distress-and-drama",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x02296B"
+        ]
+      },
+      "stages": [
+        {
+          "name": "Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/woundedlean/idle.af",
               "sec": 3.0
             }
           ]

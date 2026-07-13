@@ -263,16 +263,6 @@
           ]
         },
         {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
           "name": "MeleeAttack01",
           "loops": 0,
           "clips": [

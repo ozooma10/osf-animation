@@ -558,46 +558,6 @@
           ]
         },
         {
-          "name": "Flinch_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head01.af",
-              "sec": 0.8
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Head02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head02.af",
-              "sec": 0.8
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso01.af",
-              "sec": 1.333
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso02.af",
-              "sec": 1.333
-            }
-          ]
-        },
-        {
           "name": "Getup_Left",
           "loops": 0,
           "clips": [
@@ -768,16 +728,6 @@
           "tags": [
             "knockdown",
             "transition"
-          ]
-        },
-        {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
           ]
         },
         {
@@ -1572,16 +1522,6 @@
           ]
         },
         {
-          "name": "UpperBody_BoneWeights",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "upperbody_boneweights.af",
-              "sec": 0.333
-            }
-          ]
-        },
-        {
           "name": "WalkBackward",
           "loops": 0,
           "clips": [
@@ -1590,18 +1530,7 @@
               "sec": 3.2
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/quadrupedb--2",
-      "name": "Vanilla · Quadrupedb (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:quadrupedb"
-      ],
-      "stages": [
+        },
         {
           "name": "WalkDeparture_Left180",
           "loops": 0,
@@ -1661,7 +1590,18 @@
               "sec": 3.2
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedb--2",
+      "name": "Vanilla · Quadrupedb (2)",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedb"
+      ],
+      "stages": [
         {
           "name": "WalkForward_TurnLeftTight",
           "loops": 0,

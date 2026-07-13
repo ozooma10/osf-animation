@@ -138,6 +138,34 @@ def parse_af_header(buf: bytes) -> tuple[int, int] | None:
     return bone_count, frame_count
 
 
+# Real-coverage floor: a clip whose physically-present track count is below this
+# fraction of the rig's animated-bone cap is a LAYER (partial-body clip meant to
+# compose over another pose in the behavior graph). Played standalone, OSF stamps
+# its untracked bones at bind pose -> T-pose limbs, so layers are excluded from the
+# browsable library by default (--include-partial re-adds them, tagged "partial").
+# 0.85 clears the ~9 skippable helper bones (AnimObject*/Camera*: the full-body
+# idle_body tracks 73/82) while catching real layers (leanright: 5/82,
+# relaxed_idlepartialbody_*: ~25/82). ~26% of human clips are layers by this rule.
+PARTIAL_MIN_FRACTION = 0.85
+
+
+def real_track_count(ba2: "Ba2Reader", e: "Ba2Entry") -> int | None:
+    """Number of AnimationBlocks physically present = Σ(odd index-atlas runs).
+    The header boneCount (0x2A) is only the atlas PREFIX length; even runs are
+    identity/untracked bones (decoded to bind pose). Spec: OSF RE
+    docs/af_animation_skeleton_spec.md §1-2. None if unparsable."""
+    hdr = ba2.read(e, prefix=0x40)
+    if len(hdr) < 0x40:
+        return None
+    (atlas_n,) = struct.unpack_from("<H", hdr, 0x2E)
+    (preamble_off,) = struct.unpack_from("<H", hdr, 0x32)
+    buf = ba2.read(e, prefix=0x40 + preamble_off + atlas_n)
+    if len(buf) < 0x40 + preamble_off + atlas_n:
+        return None
+    atlas = buf[0x40 + preamble_off: 0x40 + preamble_off + atlas_n]
+    return sum(atlas[j] for j in range(1, len(atlas), 2))
+
+
 def parse_afx(raw: bytes) -> AfxMeta:
     """The .afx companions are tiny flat XML; regex keeps this stdlib-simple and
     tolerant of the occasional stray byte."""
@@ -171,7 +199,8 @@ def humanize(segment: str) -> str:
     return " ".join(w.capitalize() for w in re.split(r"[_\s]+", segment) if w)
 
 
-def collect_clips(ba2: Ba2Reader, tops: tuple[str, ...]) -> tuple[dict[str, list[Clip]], collections.Counter]:
+def collect_clips(ba2: Ba2Reader, tops: tuple[str, ...],
+                  include_partial: bool = False) -> tuple[dict[str, list[Clip]], collections.Counter]:
     """Group human third-person clips by leaf folder (path below CLIP_ROOT)."""
     prefix = (CLIP_ROOT + "/").replace("/", "\\").lower()
     skipped = collections.Counter()
@@ -198,6 +227,11 @@ def collect_clips(ba2: Ba2Reader, tops: tuple[str, ...]) -> tuple[dict[str, list
         if frame_count == 0:
             skipped["zero frames"] += 1
             continue
+        real = real_track_count(ba2, e)
+        partial = real is not None and real < PARTIAL_MIN_FRACTION * HUMAN_ANIMATED_BONES
+        if partial and not include_partial:
+            skipped["partial-coverage layer"] += 1
+            continue
 
         meta = AfxMeta()
         afx = ba2.by_name.get(low[:-3] + ".afx")
@@ -214,6 +248,8 @@ def collect_clips(ba2: Ba2Reader, tops: tuple[str, ...]) -> tuple[dict[str, list
             continue
 
         tags = []
+        if partial:
+            tags.append("partial")
         if meta.tag and meta.tag.lower() != stem_low:
             tags.append(meta.tag.lower())
         if meta.is_state is False:
@@ -374,7 +410,8 @@ def rig_animated_bones(ba2: Ba2Reader, species_root_low: str) -> int | None:
     return bc_animated or None
 
 
-def collect_creature_clips(ba2: Ba2Reader) -> tuple[dict[str, dict], collections.Counter]:
+def collect_creature_clips(ba2: Ba2Reader,
+                           include_partial: bool = False) -> tuple[dict[str, dict], collections.Counter]:
     """species_root -> {family, clip_root (fwd), cap, leaves: {leaf: [Clip]}}."""
     out: dict[str, dict] = {}
     skipped = collections.Counter()
@@ -407,6 +444,11 @@ def collect_creature_clips(ba2: Ba2Reader) -> tuple[dict[str, dict], collections
         if frame_count == 0:
             skipped["zero frames"] += 1
             continue
+        real = real_track_count(ba2, e) if cap else None
+        partial = real is not None and real < PARTIAL_MIN_FRACTION * cap
+        if partial and not include_partial:
+            skipped["partial-coverage layer"] += 1
+            continue
 
         meta = AfxMeta()
         afx = ba2.by_name.get(low[:-3] + ".afx")
@@ -420,6 +462,8 @@ def collect_creature_clips(ba2: Ba2Reader) -> tuple[dict[str, dict], collections
             continue
 
         tags = []
+        if partial:
+            tags.append("partial")
         if meta.tag and meta.tag.lower() != stem_low:
             tags.append(meta.tag.lower())
         if meta.is_state is False:
@@ -484,6 +528,9 @@ def main() -> int:
         help="also generate gun/melee packs (weapon-pose layers; mostly odd standalone)")
     ap.add_argument("--no-creatures", action="store_true",
         help="skip the per-species creature/alien packs (every non-human actor root)")
+    ap.add_argument("--include-partial", action="store_true",
+        help="keep partial-coverage layer clips (real tracks < 85%% of the rig), tagged \"partial\" — "
+             "these T-pose their untracked bones when played standalone")
     ap.add_argument("--furn-keywords", type=Path,
         default=Path(__file__).resolve().parent / "anim-furn-keywords.json",
         help="AnimFurn keyword table from extract_furn_anchors.py (furniture anchoring)")
@@ -498,7 +545,7 @@ def main() -> int:
 
     tops = DEFAULT_TOPS + (COMBAT_TOPS if args.include_combat else ())
     ba2 = Ba2Reader(args.ba2)
-    scenes, skipped = collect_clips(ba2, tops)
+    scenes, skipped = collect_clips(ba2, tops, include_partial=args.include_partial)
     packs, anchor_stats = build_packs(scenes, furn_kw)
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -516,7 +563,7 @@ def main() -> int:
 
     # Per-species creature/alien packs (every non-human actor root).
     if not args.no_creatures:
-        species_map, creature_skipped = collect_creature_clips(ba2)
+        species_map, creature_skipped = collect_creature_clips(ba2, include_partial=args.include_partial)
         creature_packs = build_creature_packs(species_map)
         c_species = c_scenes = c_clips = 0
         for species_id, doc in sorted(creature_packs.items()):

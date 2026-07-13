@@ -6,7 +6,10 @@ All notable changes to OSF Animation are documented here.
 
 ### Added
 - Global hotkeys: an optional `"hotkeys"` map in `Data/OSF/settings.json` binds keys to `openBrowser` (open the scene browser), `openWheel` (emote wheel — stub until the wheel UI ships), and `toggleSceneTags:<tag[,tag..]>` (start a tag-matched scene via matchmaking / end it on re-press).
-- Immersion content pack (`Data/OSF/immersion/`, pure JSON over vanilla `.af` clips): sit/lean-anywhere scenes on the `player.sit` / `player.lean` tags (hold pose, Space or hotkey re-press to stand) and self-terminating `player.emote.*` scenes (wave, what's up, hands on hips, arms crossed, coffee, data slate) for the emote wheel. Documents the well-known tag contract in `docs/SCENE_SCHEMA.md`.
+- Immersion content pack (`Data/OSF/immersion/`, pure JSON over vanilla `.af` clips): sit/lean-anywhere scenes on the `player.sit` / `player.lean` tags (full enter/idle/exit furniture chains for the leans; Space or hotkey re-press to stand) and self-terminating `player.emote.*` scenes (wave, what's up, hands on hips, arms crossed, data slate) for the emote wheel. Documents the well-known tag contract in `docs/SCENE_SCHEMA.md`.
+
+### Changed
+- Vanilla library packs now exclude **partial-coverage layer clips** (real tracked bones < 85% of the rig, measured from the `.af` index atlas — e.g. cover-lean or `*_idlepartialbody_*` layers with 5-25 of 82 bones): played standalone they T-pose every untracked bone. ~1,700 of ~14k clips dropped from the browsable catalog; regenerate with `generate_vanilla_packs.py --include-partial` to re-add them tagged `"partial"`.
 
 ## [0.2.0] - 2026-06-30
 

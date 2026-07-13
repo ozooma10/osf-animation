@@ -564,26 +564,6 @@
           ]
         },
         {
-          "name": "Flinch_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head01.af",
-              "sec": 0.9
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Head02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head02.af",
-              "sec": 0.9
-            }
-          ]
-        },
-        {
           "name": "Flinch_Torso01",
           "loops": 0,
           "clips": [
@@ -836,26 +816,6 @@
           "tags": [
             "knockdown",
             "transition"
-          ]
-        },
-        {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "LookDirections_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_head.af",
-              "sec": 0.5
-            }
           ]
         },
         {
@@ -1592,18 +1552,7 @@
             "transition",
             "rootmotion"
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/mantida--2",
-      "name": "Vanilla · Mantida (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:mantida"
-      ],
-      "stages": [
+        },
         {
           "name": "StaggerLeft",
           "loops": 0,
@@ -1657,7 +1606,18 @@
           "tags": [
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/mantida--2",
+      "name": "Vanilla · Mantida (2)",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:mantida"
+      ],
+      "stages": [
         {
           "name": "Threat_Curious01",
           "loops": 0,
@@ -1722,16 +1682,6 @@
           ],
           "tags": [
             "transition"
-          ]
-        },
-        {
-          "name": "UpperBody_BoneWeights",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "upperbody_boneweights.af",
-              "sec": 1.0
-            }
           ]
         },
         {

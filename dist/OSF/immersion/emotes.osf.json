@@ -71,28 +71,26 @@
         }
       ]
     },
-    {
-      "id": "immersion/emote/coffee",
-      "name": "Coffee break",
-      "tags": [ "player.emote.coffee", "immersion" ],
-      "stages": [
-        {
-          "loops": 2, // TUNE: ~8.8s total; spike must confirm the cup prop renders
-          "clips": [ { "file": "common/relaxed_idlepartialbody_coffeecup.af", "sec": 4.4 } ],
-          "action": [ { "at": "enter", "type": "osf.weapon.sheathe" } ]
-        }
-      ]
-    },
+    // NOTE: the plan's relaxed_idlepartialbody_* prop idles (coffee, data slate) are
+    // LAYER clips (~25 of 82 bones tracked) — standalone they T-pose the legs, so
+    // they're replaced by full-body furniture chains. The coffee emote moved to
+    // sit-lean.osf.json as the bar-lean drink variant (it needs a surface behind).
     {
       "id": "immersion/emote/dataslate",
       "name": "Data slate",
       "tags": [ "player.emote.dataslate", "immersion" ],
       "stages": [
+        // Full-body standing dataslate chain: pull out the slate -> read -> put away.
+        // Linear stages auto-advance (enter/exit play once; the read loops twice).
         {
-          "loops": 2, // TUNE: ~8.8s total; spike must confirm the slate prop renders
-          "clips": [ { "file": "common/relaxed_idlepartialbody_dataslate.af", "sec": 4.4 } ],
+          "clips": [ { "file": "furniture/standing_dataslate/enterfromstand.af", "sec": 4.033 } ],
           "action": [ { "at": "enter", "type": "osf.weapon.sheathe" } ]
-        }
+        },
+        {
+          "loops": 2, // TUNE: ~4.7s of reading
+          "clips": [ { "file": "furniture/standing_dataslate/idle.af", "sec": 2.367 } ]
+        },
+        { "clips": [ { "file": "furniture/standing_dataslate/exittostand.af", "sec": 4.367 } ] }
       ]
     }
     // Stretch (per Phase-0 spike results): boxer / jump / kneeling / cower from the

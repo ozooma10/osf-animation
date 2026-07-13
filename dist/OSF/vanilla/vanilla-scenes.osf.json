@@ -1156,26 +1156,6 @@
       ]
     },
     {
-      "id": "vanilla/scenes/mq101_008_barrettscene",
-      "name": "Vanilla · Scenes / Mq101 008 Barrettscene",
-      "tags": [
-        "vanilla",
-        "scenes"
-      ],
-      "stages": [
-        {
-          "name": "MQ008_BarrettScene_LIN",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "scenes/mq101_008_barrettscene/mq008_barrettscene_lin.af",
-              "sec": 2.333
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "vanilla/scenes/mq101_008_barrettscene/starfield.esm/npcflin",
       "name": "Vanilla · Scenes / Mq101 008 Barrettscene / Starfield.esm / Npcflin",
       "tags": [

@@ -70,6 +70,7 @@
       "id": "immersion/lean/wall",
       "name": "Lean on wall",
       "tags": [ "player.lean", "immersion" ],
+      "weight": 2, // TUNE: favour the plain wall lean over the bar-drink variant (2:1)
       "entry": "enter",
       "nodes": [
         {
@@ -94,6 +95,39 @@
         {
           "id": "exit",
           "stages": [ { "clips": [ { "file": "furniture/wallleanback/exittostand.af", "sec": 4.7 } ] } ],
+          "edges": [ { "to": "$end", "when": "end" } ]
+        }
+      ]
+    },
+    // Bar-lean drink: full-body leaningbartopback_drink chain (this replaced the
+    // "coffee" emote — its relaxed_idlepartialbody clip was a 25-bone layer that
+    // T-posed the legs). Looks right with a bar/rail/counter behind the player.
+    {
+      "id": "immersion/lean/bar",
+      "name": "Lean & drink",
+      "tags": [ "player.lean", "immersion" ],
+      "entry": "enter",
+      "nodes": [
+        {
+          "id": "enter",
+          "stages": [ { "clips": [ { "file": "furniture/leaningbartopback_drink/enterfromstand.af", "sec": 4.2 } ] } ],
+          "camera": [ { "at": "enter", "state": "thirdperson_hold", "distance": 1.0 } ], // TUNE
+          "edges": [
+            { "to": "hold", "when": "end" },
+            { "id": "skip", "label": "Settle in", "to": "hold", "when": "advance", "default": true }
+          ]
+        },
+        {
+          "id": "hold",
+          "loops": 0,
+          "stages": [ { "clips": [ { "file": "furniture/leaningbartopback_drink/idle.af", "sec": 3.0 } ] } ],
+          "edges": [
+            { "id": "stand", "label": "Push off", "to": "exit", "when": "advance", "default": true }
+          ]
+        },
+        {
+          "id": "exit",
+          "stages": [ { "clips": [ { "file": "furniture/leaningbartopback_drink/exittostand.af", "sec": 4.767 } ] } ],
           "edges": [ { "to": "$end", "when": "end" } ]
         }
       ]

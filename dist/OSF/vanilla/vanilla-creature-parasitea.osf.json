@@ -311,42 +311,6 @@
           ]
         },
         {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "LookDirections_Run",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_run.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "lookdirections"
-          ]
-        },
-        {
-          "name": "LookDirections_Walk",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_walk.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "lookdirections"
-          ]
-        },
-        {
           "name": "MeleeAttack01",
           "loops": 0,
           "clips": [

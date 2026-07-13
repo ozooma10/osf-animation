@@ -587,26 +587,6 @@
           ]
         },
         {
-          "name": "Flinch_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head01.af",
-              "sec": 0.8
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Head02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head02.af",
-              "sec": 0.8
-            }
-          ]
-        },
-        {
           "name": "Flinch_Torso01",
           "loops": 0,
           "clips": [
@@ -839,26 +819,6 @@
           "tags": [
             "knockdown",
             "transition"
-          ]
-        },
-        {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "LookDirections_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_head.af",
-              "sec": 0.5
-            }
           ]
         },
         {
@@ -1607,18 +1567,7 @@
           "tags": [
             "rootmotion"
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/bipeda--2",
-      "name": "Vanilla · Bipeda (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:bipeda"
-      ],
-      "stages": [
+        },
         {
           "name": "TunnelStart",
           "loops": 0,
@@ -1668,7 +1617,18 @@
           "tags": [
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/bipeda--2",
+      "name": "Vanilla · Bipeda (2)",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:bipeda"
+      ],
+      "stages": [
         {
           "name": "WalkDeparture_Right30",
           "loops": 0,

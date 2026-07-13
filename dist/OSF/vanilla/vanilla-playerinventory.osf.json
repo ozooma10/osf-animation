@@ -6,26 +6,6 @@
   "clipRoot": "meshes/actors/human/animations",
   "scenes": [
     {
-      "id": "vanilla/playerinventory",
-      "name": "Vanilla · Playerinventory",
-      "tags": [
-        "vanilla",
-        "playerinventory"
-      ],
-      "stages": [
-        {
-          "name": "Spin",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "playerinventory/spin.af",
-              "sec": 11.967
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "vanilla/playerinventory/gripheavy/playerinventory",
       "name": "Vanilla · Playerinventory / Gripheavy / Playerinventory",
       "tags": [
@@ -41,19 +21,6 @@
               "file": "playerinventory/gripheavy/playerinventory/idle.af",
               "sec": 8.0
             }
-          ]
-        },
-        {
-          "name": "ArmorOffset",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "playerinventory/gripheavy/playerinventory/armoroffset.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
           ]
         }
       ]
@@ -75,19 +42,6 @@
               "file": "playerinventory/gripheavy/playerinventory/female/idle.af",
               "sec": 2.9
             }
-          ]
-        },
-        {
-          "name": "ArmorOffset",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "playerinventory/gripheavy/playerinventory/female/armoroffset.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
           ]
         }
       ]
@@ -150,19 +104,6 @@
               "sec": 8.0
             }
           ]
-        },
-        {
-          "name": "ArmorOffset",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "playerinventory/griprifle/gripcompact/playerinventory/armoroffset.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
         }
       ]
     },
@@ -203,19 +144,6 @@
               "file": "playerinventory/griprifle/gripextended/playerinventory/idle.af",
               "sec": 8.0
             }
-          ]
-        },
-        {
-          "name": "ArmorOffset",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "playerinventory/griprifle/gripextended/playerinventory/armoroffset.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
           ]
         }
       ]
@@ -258,19 +186,6 @@
               "sec": 8.0
             }
           ]
-        },
-        {
-          "name": "ArmorOffset",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "playerinventory/griprifle/gripextendedlow/playerinventory/armoroffset.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
         }
       ]
     },
@@ -311,19 +226,6 @@
               "file": "playerinventory/griprifle/gripextendedvertical/playerinventory/idle.af",
               "sec": 8.0
             }
-          ]
-        },
-        {
-          "name": "ArmorOffset",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "playerinventory/griprifle/gripextendedvertical/playerinventory/armoroffset.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
           ]
         }
       ]

@@ -104,42 +104,6 @@
           ]
         },
         {
-          "name": "IdleFace",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idleface.af",
-              "sec": 1.0
-            }
-          ]
-        },
-        {
-          "name": "IdleFace_Flavor01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idleface_flavor01.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "IdleFace_Flavor02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idleface_flavor02.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "Knockdown_Backward_Idle",
           "loops": 0,
           "clips": [
@@ -567,111 +531,6 @@
           ]
         },
         {
-          "name": "FireAuto",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "fireauto.af",
-              "sec": 2.667
-            }
-          ]
-        },
-        {
-          "name": "FireSingle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "firesingle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_leftarm.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_LeftLeg",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_leftleg.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_rightarm.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_RightLeg",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_rightleg.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Torso01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso01.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso02.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso_Haunch",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso_haunch.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
           "name": "GetUp_Left",
           "loops": 0,
           "clips": [
@@ -825,26 +684,6 @@
           ]
         },
         {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "LookDirections_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_head.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
           "name": "LootSignal",
           "loops": 0,
           "clips": [
@@ -995,19 +834,6 @@
           "tags": [
             "transition",
             "rootmotion"
-          ]
-        },
-        {
-          "name": "Reload",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "reload.af",
-              "sec": 1.167
-            }
-          ],
-          "tags": [
-            "transition"
           ]
         },
         {
@@ -1470,16 +1296,6 @@
           ]
         },
         {
-          "name": "UpperBody_BoneWeights",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "upperbody_boneweights.af",
-              "sec": 0.333
-            }
-          ]
-        },
-        {
           "name": "WalkBackward",
           "loops": 0,
           "clips": [
@@ -1538,18 +1354,7 @@
               "sec": 1.4
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/models--2",
-      "name": "Vanilla · Models (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:models"
-      ],
-      "stages": [
+        },
         {
           "name": "WalkForward_Start",
           "loops": 0,

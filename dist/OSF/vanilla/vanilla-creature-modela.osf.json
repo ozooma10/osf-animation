@@ -15,16 +15,6 @@
       ],
       "stages": [
         {
-          "name": "AdditiveEyeIdle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "additiveeyeidle.af",
-              "sec": 23.967
-            }
-          ]
-        },
-        {
           "name": "BleedOut_Idle",
           "loops": 0,
           "clips": [
@@ -457,20 +447,6 @@
           ]
         },
         {
-          "name": "BleedOut_Flinch_Torso",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "bleedout_flinch_torso.af",
-              "sec": 0.733
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        },
-        {
           "name": "BleedOut_Start",
           "loops": 0,
           "clips": [
@@ -498,68 +474,6 @@
             "stop",
             "transition",
             "rootmotion"
-          ]
-        },
-        {
-          "name": "ChargeDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "chargedown.af",
-              "sec": 1.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "ChargeUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "chargeup.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "ChargeUp_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "chargeup_leftarm.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "ChargeUp_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "chargeup_rightarm.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Closed",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "closed.af",
-              "sec": 0.333
-            }
           ]
         },
         {
@@ -984,246 +898,6 @@
           ]
         },
         {
-          "name": "FireAuto",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "fireauto.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "FireAuto_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "fireauto_leftarm.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "FireAuto_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "fireauto_rightarm.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "FireSingle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "firesingle.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "FireSingle_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "firesingle_leftarm.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "FireSingle_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "firesingle_rightarm.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Head_Backward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head_backward.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "flinch_head",
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Head_Left",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head_left.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "flinch_head",
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Head_Right",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head_right.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "flinch_head",
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_leftarm.af",
-              "sec": 0.733
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_LeftArm_Backward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_leftarm_backward.af",
-              "sec": 0.733
-            }
-          ],
-          "tags": [
-            "flinch_leftarm",
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_rightarm.af",
-              "sec": 0.733
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_RightArm_Backward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_rightarm_backward.af",
-              "sec": 0.733
-            }
-          ],
-          "tags": [
-            "flinch_rightarm",
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Torso01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso01.af",
-              "sec": 0.733
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso02.af",
-              "sec": 0.733
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso_Backward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso_backward.af",
-              "sec": 0.7
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Torso_Left",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso_left.af",
-              "sec": 0.7
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        },
-        {
-          "name": "Flinch_Torso_Right",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso_right.af",
-              "sec": 0.7
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        },
-        {
           "name": "GetUp_Left",
           "loops": 0,
           "clips": [
@@ -1342,49 +1016,6 @@
           ]
         },
         {
-          "name": "LeanRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "leanright.af",
-              "sec": 0.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "LookDirections_Gun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_gun.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "LookDirections_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "lookdirections_head.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
           "name": "MeleeAttack01",
           "loops": 0,
           "clips": [
@@ -1497,16 +1128,6 @@
           ]
         },
         {
-          "name": "Opened",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "opened.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
           "name": "Ready_JogBackward",
           "loops": 0,
           "clips": [
@@ -1583,18 +1204,7 @@
           "tags": [
             "jogright"
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/modela--2",
-      "name": "Vanilla · Modela (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:modela"
-      ],
-      "stages": [
+        },
         {
           "name": "Ready_RunBackward",
           "loops": 0,
@@ -2017,7 +1627,18 @@
           "tags": [
             "walkforward"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela--2",
+      "name": "Vanilla · Modela (2)",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
         {
           "name": "Ready_WalkForward_Start",
           "loops": 0,
@@ -2243,32 +1864,6 @@
           ],
           "tags": [
             "jogright"
-          ]
-        },
-        {
-          "name": "Relaxed_LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_lookdirections.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "lookdirections"
-          ]
-        },
-        {
-          "name": "Relaxed_LookDirections_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_lookdirections_head.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "lookdirections"
           ]
         },
         {
@@ -2564,84 +2159,6 @@
           ],
           "tags": [
             "runright_stop_rightfoot"
-          ]
-        },
-        {
-          "name": "Relaxed_Talk_L01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_talk_l01.af",
-              "sec": 8.0
-            }
-          ],
-          "tags": [
-            "talk_l01"
-          ]
-        },
-        {
-          "name": "Relaxed_Talk_L02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_talk_l02.af",
-              "sec": 8.0
-            }
-          ],
-          "tags": [
-            "talk_l02"
-          ]
-        },
-        {
-          "name": "Relaxed_Talk_M01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_talk_m01.af",
-              "sec": 5.333
-            }
-          ],
-          "tags": [
-            "talk_m01"
-          ]
-        },
-        {
-          "name": "Relaxed_Talk_M02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_talk_m02.af",
-              "sec": 5.333
-            }
-          ],
-          "tags": [
-            "talk_m02"
-          ]
-        },
-        {
-          "name": "Relaxed_Talk_S01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_talk_s01.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "talk_s01"
-          ]
-        },
-        {
-          "name": "Relaxed_Talk_S02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_talk_s02.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "talk_s02"
           ]
         },
         {
@@ -3145,73 +2662,6 @@
           ]
         },
         {
-          "name": "Unconscious_Flinch_Torso",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_flinch_torso.af",
-              "sec": 0.733
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        },
-        {
-          "name": "Unconscious_Flinch_Torso_Backward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_flinch_torso_backward.af",
-              "sec": 0.7
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        },
-        {
-          "name": "Unconscious_Flinch_Torso_Left",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_flinch_torso_left.af",
-              "sec": 0.7
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        },
-        {
-          "name": "Unconscious_Flinch_Torso_Right",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_flinch_torso_right.af",
-              "sec": 0.7
-            }
-          ],
-          "tags": [
-            "flinch_torso",
-            "transition"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/modela--3",
-      "name": "Vanilla · Modela (3)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:modela"
-      ],
-      "stages": [
-        {
           "name": "Unconscious_Into",
           "loops": 0,
           "clips": [
@@ -3252,16 +2702,6 @@
           ],
           "tags": [
             "transition"
-          ]
-        },
-        {
-          "name": "UpperBody_BoneWeights",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "upperbody_boneweights.af",
-              "sec": 0.333
-            }
           ]
         },
         {
@@ -3939,41 +3379,6 @@
       ]
     },
     {
-      "id": "vanilla/creature/modela/modelamedic",
-      "name": "Vanilla · Modela / Modelamedic",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:modela",
-        "modelamedic"
-      ],
-      "stages": [
-        {
-          "name": "LookDirections_Gun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "modelamedic/lookdirections_gun.af",
-              "sec": 0.5
-            }
-          ]
-        },
-        {
-          "name": "Relaxed_LookDirections",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "modelamedic/relaxed_lookdirections.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "lookdirections"
-          ]
-        }
-      ]
-    },
-    {
       "id": "vanilla/creature/modela/photomode",
       "name": "Vanilla · Modela / Photomode",
       "tags": [
@@ -4133,58 +3538,6 @@
           ]
         },
         {
-          "name": "ChargeDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/chargedown.af",
-              "sec": 1.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "ChargeUp",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/chargeup.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "ChargeUp_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/chargeup_leftarm.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "ChargeUp_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/chargeup_rightarm.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "CriticalHit_LeftArm",
           "loops": 0,
           "clips": [
@@ -4333,49 +3686,6 @@
           ]
         },
         {
-          "name": "FireAuto",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/fireauto.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "FireAuto_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/fireauto_leftarm.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "FireAuto_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/fireauto_rightarm.af",
-              "sec": 2.633
-            }
-          ]
-        },
-        {
-          "name": "FireSingle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/firesingle.af",
-              "sec": 0.8
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
           "name": "FireSingle_LeftArm",
           "loops": 0,
           "clips": [
@@ -4399,16 +3709,6 @@
           ],
           "tags": [
             "transition"
-          ]
-        },
-        {
-          "name": "LookDirections_Gun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/lookdirections_gun.af",
-              "sec": 0.5
-            }
           ]
         },
         {
@@ -5340,50 +4640,6 @@
           ],
           "tags": [
             "transition"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/modela/weapon/armgun/modelamedic",
-      "name": "Vanilla · Modela / Weapon / Armgun / Modelamedic",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:modela",
-        "weapon"
-      ],
-      "stages": [
-        {
-          "name": "LookDirections_Gun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/modelamedic/lookdirections_gun.af",
-              "sec": 0.5
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/modela/weapon/common",
-      "name": "Vanilla · Modela / Weapon / Common",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:modela",
-        "weapon"
-      ],
-      "stages": [
-        {
-          "name": "LookDirections_Gun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/common/lookdirections_gun.af",
-              "sec": 0.5
-            }
           ]
         }
       ]

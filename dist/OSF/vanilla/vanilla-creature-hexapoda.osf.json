@@ -548,46 +548,6 @@
           ]
         },
         {
-          "name": "Flinch_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head01.af",
-              "sec": 0.833
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Head02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_head02.af",
-              "sec": 0.733
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso01.af",
-              "sec": 0.833
-            }
-          ]
-        },
-        {
-          "name": "Flinch_Torso02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "flinch_torso02.af",
-              "sec": 0.833
-            }
-          ]
-        },
-        {
           "name": "Getup_Left",
           "loops": 0,
           "clips": [
@@ -1607,18 +1567,7 @@
               "sec": 0.8
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/hexapoda--2",
-      "name": "Vanilla · Hexapoda (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:hexapoda"
-      ],
-      "stages": [
+        },
         {
           "name": "RunRight",
           "loops": 0,
@@ -1666,7 +1615,18 @@
             "transition",
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/hexapoda--2",
+      "name": "Vanilla · Hexapoda (2)",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:hexapoda"
+      ],
+      "stages": [
         {
           "name": "StaggerBackwardSmall",
           "loops": 0,
