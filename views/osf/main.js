@@ -140,11 +140,10 @@ function onNativeMessage(jsonText) {
     case "osf.portrait.data": handlePortraits(payload); break;
     case "osf.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.launchResult": handleLaunchResult(payload); break;
-    // Native mode switch: "wheel" enters the emote wheel; anything else restores the console.
-    // The native side resolves the mode on EVERY open (osf.opened -> wheel|browser push), so
-    // this also lifts the boot veil. Re-sent while a wheel open is pending — must be idempotent.
+    // Native mode switch (OpenWheel): "wheel" enters the emote wheel; anything else restores
+    // the console. Delivered pre-paint by OSF UI's message queue (bridge MINOR >= 2) and
+    // replayed on osf.opened while a wheel open is pending, so it must be idempotent.
     case "osf.mode":
-      endModeVeil();
       if (payload && payload.mode === "wheel") enterWheel(payload);
       else exitWheel();
       break;
@@ -152,10 +151,7 @@ function onNativeMessage(jsonText) {
     // plugin's first-run "press F10" hint can count real opens, and so the scene-orbit camera
     // knows a cursor is on screen (visible = LMB-drag steers the orbit; hidden = free-look).
     case "ui.visibility":
-      if (payload && payload.visible) {
-        beginModeVeil();  // hide the console until osf.mode says which face this open wears
-      } else {
-        endModeVeil();
+      if (!(payload && payload.visible)) {
         orbit.dragging = false;  // never carry a drag across a hide
         exitWheel();             // wheel mode never survives a hide — a reopen shows the console
       }
@@ -1186,30 +1182,6 @@ function doStop() {
 const WHEEL_MAX = 12;                    // slices shown; overflow is dropped with a "+N more" note
 const WHEEL_RX = 250, WHEEL_RY = 170;    // slice-track ellipse radii (px)
 
-/* ---- mode veil ------------------------------------------------------------
-   A wheel open races view creation: the view boots (or becomes visible) with
-   its default console face and the osf.mode {wheel} push lands only after the
-   osf.opened round-trip — so the browser flashed for a few frames before the
-   wheel appeared. Veil the console/brief from the moment the view becomes
-   visible until the mode is known; the native side resolves EVERY open with
-   an osf.mode push (wheel when pending, browser otherwise), so the veil lifts
-   after one bridge round-trip. The timeout is a fallback for an older DLL
-   that never pushes a mode. ---------------------------------------------- */
-let modeVeilTimer = null;
-
-function beginModeVeil() {
-  if (!bridgeAvailable()) return;  // standalone: mock mode pushes are synchronous, nothing races
-  document.body.classList.add("mode-wait");
-  clearTimeout(modeVeilTimer);
-  modeVeilTimer = setTimeout(endModeVeil, 500);
-}
-
-function endModeVeil() {
-  clearTimeout(modeVeilTimer);
-  modeVeilTimer = null;
-  document.body.classList.remove("mode-wait");
-}
-
 function enterWheel(p) {
   const t = p && p.target;
   const target = t && typeof t.token === "number" ? { token: t.token, name: String(t.name || "Target") } : null;
@@ -1699,7 +1671,6 @@ function init() {
   if (bridgeAvailable()) {
     setLamp("wait");
     $("statusText").textContent = "waiting for runtime…";
-    beginModeVeil();  // a wheel open may have CREATED this view — don't flash the console
     requestCatalog(true);
   } else {
     setLamp("ok");
