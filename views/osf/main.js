@@ -36,7 +36,10 @@ const state = {
   allSpecies: false,  // override the per-cast species filter (show human + every creature's animations)
   // Reference-library lane (osf.library.*): the generated vanilla packs. Static after load,
   // fetched once on demand when the LIBRARY mode is first opened, then cached for the session.
-  mode: "scenes",  // "scenes" | "library"
+  mode: "scenes",  // "scenes" | "library" | "wheel" (transient — see EMOTE WHEEL)
+  // Emote-wheel context while mode === "wheel" (osf.mode push from the native OpenWheel):
+  // { tagPrefix, target: {token,name}|null, focus, error, launching }. null otherwise.
+  wheel: null,
   library: [],
   libraryReceived: false,
   libOpen: new Set(),  // expanded library pack groups
@@ -73,6 +76,7 @@ function send(command, fields = {}) {
 const orbit = { dragging: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, queued: false };
 
 function orbitWorldTarget(e) {
+  if (state.wheel) return false;  // wheel mode: the world area is the wheel's cancel/pick surface
   return !(e.target instanceof Element && e.target.closest(".console, .brief"));
 }
 
@@ -136,11 +140,20 @@ function onNativeMessage(jsonText) {
     case "osf.portrait.data": handlePortraits(payload); break;
     case "osf.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.launchResult": handleLaunchResult(payload); break;
+    // Native mode switch (OpenWheel): "wheel" enters the emote wheel; anything else restores
+    // the console. Re-sent on osf.opened while a wheel open is pending, so it must be idempotent.
+    case "osf.mode":
+      if (payload && payload.mode === "wheel") enterWheel(payload);
+      else exitWheel();
+      break;
     // The runtime tells the focused view when the overlay shows/hides; report both so the
     // plugin's first-run "press F10" hint can count real opens, and so the scene-orbit camera
     // knows a cursor is on screen (visible = LMB-drag steers the orbit; hidden = free-look).
     case "ui.visibility":
-      if (!(payload && payload.visible)) orbit.dragging = false;  // never carry a drag across a hide
+      if (!(payload && payload.visible)) {
+        orbit.dragging = false;  // never carry a drag across a hide
+        exitWheel();             // wheel mode never survives a hide — a reopen shows the console
+      }
       send(payload && payload.visible ? "osf.opened" : "osf.closed");
       break;
     default: break;
@@ -253,6 +266,21 @@ function handleAnchorMatch(p) {
 }
 
 function handleLaunchResult(p) {
+  // Wheel pick: success closes the whole view (host-driven via osf.requestClose — exit lands
+  // when the host pushes ui.visibility hide); an error shows in the hub and the wheel stays open.
+  if (state.wheel) {
+    const launched = state.wheel.launching;
+    state.wheel.launching = "";
+    if (p && p.ok && p.handle) {
+      state.lastHandle = p.handle;
+      state.lastSceneId = p.sceneId || launched || "";
+      send("osf.requestClose");
+    } else {
+      state.wheel.error = (p && p.error) || "Launch failed.";
+      renderWheel();
+    }
+    return;
+  }
   if (p && p.ok && p.handle) {
     state.lastHandle = p.handle;
     state.lastSceneId = p.sceneId || state.selectedId || "";
@@ -655,6 +683,9 @@ function speciesFilterBarHTML() {
    RENDER
    ========================================================================= */
 function renderAll() {
+  // Wheel mode: the console/brief are hidden, so only the wheel needs (re)rendering — data
+  // pushes that land while it's open (catalog refresh, portraits) route here too.
+  if (state.wheel) { renderWheel(); return; }
   // Panels are rebuilt via innerHTML, which drops the focused control — capture where the
   // gamepad/keyboard focus is, rebuild, then restore it to the equivalent control (see NAV).
   const fk = navFocusKey(document.activeElement);
@@ -1137,6 +1168,137 @@ function doStop() {
 }
 
 /* =========================================================================
+   EMOTE WHEEL  (transient radial mode — EmoteWheel_Plan.md)
+   Opened natively (OpenWheel hotkey verb) via an osf.mode {mode:"wheel",
+   tagPrefix, target} push: the console/brief hide and a ring of solo scenes
+   tagged under tagPrefix appears around the untouched world center. A pick
+   launches on the player (-1) or the crosshair target captured at open time,
+   then asks the host to close (osf.requestClose — the view can't hide
+   itself). Cancel = Esc / right-click / hub click. Closing is host-driven:
+   exitWheel() runs off the ui.visibility hide relay, so wheel mode can never
+   leak into a normal browser open.
+   ========================================================================= */
+const WHEEL_MAX = 12;                    // slices shown; overflow is dropped with a "+N more" note
+const WHEEL_RX = 250, WHEEL_RY = 170;    // slice-track ellipse radii (px)
+
+function enterWheel(p) {
+  const t = p && p.target;
+  const target = t && typeof t.token === "number" ? { token: t.token, name: String(t.name || "Target") } : null;
+  const tagPrefix = String((p && p.tagPrefix) || "player.emote.").toLowerCase();
+  if (state.wheel) {  // idempotent re-send (the native side replays osf.mode on osf.opened)
+    state.wheel.tagPrefix = tagPrefix;
+    state.wheel.target = target;
+  } else {
+    state.wheel = { tagPrefix, target, focus: 0, error: "", launching: "" };
+    state.mode = "wheel";
+  }
+  document.body.classList.add("wheel-mode");
+  if (!state.catalogReceived) requestCatalog(false);  // open race: the catalog may not be in yet
+  renderWheel();
+}
+
+function exitWheel() {
+  if (!state.wheel) return;
+  state.wheel = null;
+  state.mode = "scenes";
+  document.body.classList.remove("wheel-mode");
+  $("wheel").innerHTML = "";
+  renderAll();
+}
+
+// Solo authored scenes carrying the wheel's tag prefix (player-facing: unlisted stays hidden).
+function wheelPool() {
+  const pre = state.wheel ? state.wheel.tagPrefix : "";
+  if (!pre) return [];
+  return state.catalog
+    .filter((s) => !s.unlisted && (s.actorCount || 0) === 1 &&
+      (s.tags || []).some((t) => t.toLowerCase().startsWith(pre)))
+    .sort((a, b) => b.priority - a.priority || b.weight - a.weight || a.title.localeCompare(b.title));
+}
+
+function renderWheel() {
+  const root = $("wheel");
+  const w = state.wheel;
+  if (!w) { root.innerHTML = ""; return; }
+  const pool = wheelPool();
+  const slices = pool.slice(0, WHEEL_MAX);
+  const extra = pool.length - slices.length;
+  if (w.focus >= slices.length) w.focus = Math.max(0, slices.length - 1);
+
+  let body;
+  if (!state.catalogReceived) {
+    body = `<div class="wheel-empty"><span class="mono">Loading emotes…</span><button class="chip-btn" data-act="wheel-cancel">CLOSE</button></div>`;
+  } else if (!slices.length) {
+    body = `<div class="wheel-empty"><span class="mono">No emotes installed — no solo scene carries a ${esc(w.tagPrefix)}* tag.</span><button class="chip-btn" data-act="wheel-cancel">CLOSE</button></div>`;
+  } else {
+    // Slices sit on an ellipse (wider than tall so labels never crowd at 16:9),
+    // clockwise from the top. Positions are inline — no CSS trig needed.
+    const items = slices.map((s, i) => {
+      const rad = ((-90 + (360 / slices.length) * i) * Math.PI) / 180;
+      const x = Math.round(Math.cos(rad) * WHEEL_RX);
+      const y = Math.round(Math.sin(rad) * WHEEL_RY);
+      return `<button class="wheel-slice ${i === w.focus ? "focused" : ""}" data-act="wheel-pick" data-i="${i}" style="transform:translate(-50%,-50%) translate(${x}px,${y}px)" title="${escAttr(s.title)}">${w.launching === s.id ? "▶ " : ""}${esc(s.title)}</button>`;
+    }).join("");
+    const status = w.error
+      ? `<span class="wheel-hub-status err">${esc(w.error)}</span>`
+      : `<span class="wheel-hub-status">${w.launching ? "launching…" : "click to close"}</span>`;
+    body = `<div class="wheel-dial"></div>${items}` +
+      `<button class="wheel-hub" data-act="wheel-cancel" title="Close (Esc)"><span class="wheel-hub-who">${esc(w.target ? `→ ${w.target.name}` : "You")}</span>${status}</button>` +
+      (extra > 0 ? `<div class="wheel-more mono">+${extra} more not shown</div>` : "");
+  }
+  root.innerHTML = `<div class="wheel-ring">${body}</div>` +
+    `<div class="wheel-caption mono">EMOTE WHEEL · ←→ SELECT · ENTER PLAY · ESC CLOSE</div>`;
+  const f = root.querySelector(".wheel-slice.focused");
+  if (f) f.focus({ preventScroll: true });
+}
+
+// Move the focused slice without a rebuild (arrow steps and mouse hover share this).
+function wheelSetFocus(i) {
+  const w = state.wheel;
+  if (!w) return;
+  const slices = [...document.querySelectorAll("#wheel .wheel-slice")];
+  if (!slices.length) return;
+  w.focus = ((i % slices.length) + slices.length) % slices.length;
+  slices.forEach((el, k) => el.classList.toggle("focused", k === w.focus));
+  slices[w.focus].focus({ preventScroll: true });
+}
+
+function wheelPick(i) {
+  const w = state.wheel;
+  if (!w || w.launching) return;  // one launch in flight at a time
+  const s = wheelPool().slice(0, WHEEL_MAX)[i];
+  if (!s) return;
+  w.error = "";
+  w.launching = s.id;
+  // No opts overrides — emote scenes carry their own camera/strip defaults.
+  send("osf.launch", { sceneId: s.id, castTokens: [w.target ? w.target.token : PLAYER_TOKEN] });
+  renderWheel();
+}
+
+function wheelCancel() {
+  send("osf.requestClose");  // host hides the view; exitWheel lands via the ui.visibility relay
+}
+
+// Wheel-mode keys (routed from onNavKey before the spatial-nav machinery):
+// arrows step the ring, Enter/Space picks, Escape cancels. Escape delivery
+// in-game is unverified — the hub click and right-click cover that gap.
+function onWheelKey(e) {
+  const w = state.wheel;
+  if (e.key === "Escape") { e.preventDefault(); wheelCancel(); return; }
+  const dir = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
+  if (dir) {
+    document.body.classList.add("nav-kb");
+    e.preventDefault();
+    wheelSetFocus(w.focus + dir);
+    return;
+  }
+  if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+    e.preventDefault();
+    wheelPick(w.focus);
+  }
+}
+
+/* =========================================================================
    UTIL
    ========================================================================= */
 function sentenceCase(str) { const s = String(str || ""); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
@@ -1191,6 +1353,8 @@ function onClick(e) {
     case "launch": doLaunch(); break;
     case "stop": doStop(); break;
     case "play-stage": doLaunch(Number(el.dataset.stage)); break;
+    case "wheel-pick": wheelPick(Number(el.dataset.i)); break;
+    case "wheel-cancel": wheelCancel(); break;
     default: break;
   }
 }
@@ -1367,6 +1531,7 @@ function isTextEntry(el) {
 
 function onNavKey(e) {
   if (e.altKey || e.ctrlKey || e.metaKey) return;  // leave real-keyboard chords alone
+  if (state.wheel) { onWheelKey(e); return; }      // wheel mode owns the keys (ring step, pick, cancel)
   const el = document.activeElement;
   const dir = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
 
@@ -1458,6 +1623,16 @@ function init() {
   document.addEventListener("keydown", onReorderKey);
   initNav();  // gamepad/keyboard directional focus (OSF UI injects pad input as arrow keys/Enter)
 
+  // Emote wheel: hover focuses a slice; right-click anywhere cancels (Escape's in-game
+  // delivery is unverified, so the wheel never depends on it alone).
+  document.addEventListener("mouseover", (e) => {
+    const slice = state.wheel && e.target instanceof Element && e.target.closest(".wheel-slice");
+    if (slice) wheelSetFocus(Number(slice.dataset.i));
+  });
+  document.addEventListener("contextmenu", (e) => {
+    if (state.wheel) { e.preventDefault(); wheelCancel(); }
+  });
+
   // Orbit drag (see the ORBIT DRAG block): LMB on the world area = steer, wheel there = zoom.
   document.addEventListener("mousedown", (e) => {
     if (e.button === 0 && orbitWorldTarget(e)) {
@@ -1504,14 +1679,33 @@ function init() {
     state.nearbyFurniture = MOCK_ANCHORS.slice();
     requestPortraits(state.nearbyActors);
     handleCatalog(MOCK_CATALOG);
-    notice("info", "Standalone mode. Mock catalog, native calls are stubbed.");
+    // Emote-wheel dev: W opens the wheel with a mock crosshair target, Shift+W player-only
+    // (also window.mockOpenWheel(withTarget) from the console). Feeds the same osf.mode
+    // path the native OpenWheel uses.
+    window.mockOpenWheel = (withTarget = true) => onNativeMessage(JSON.stringify({
+      type: "osf.mode",
+      payload: { mode: "wheel", tagPrefix: "player.emote.", target: withTarget ? { token: 601, name: "Sarah Morgan" } : null },
+    }));
+    document.addEventListener("keydown", (e) => {
+      if (isTextEntry(document.activeElement)) return;
+      if (e.key === "w") window.mockOpenWheel(true);
+      else if (e.key === "W") window.mockOpenWheel(false);
+    });
+    notice("info", "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target).");
   }
 }
 
 /* =========================================================================
    MOCK (standalone dev — exercises normalizeScene / the bridge stubs)
    ========================================================================= */
+// Solo free-space emotes for the wheel (player.emote.* tags) — 14 of them, so standalone
+// exercises the 12-slice cap (+2 more). Facepalm mock-fails its launch (the error path).
+const MOCK_EMOTES = ["Wave", "Cheer", "Clap", "Point", "Salute", "Shrug", "Facepalm", "Flex", "Dance", "Bow", "Thumbs Up", "Warm Hands", "Sit Ground", "Whistle"].map((name, i) => {
+  const slug = name.toLowerCase().replace(/\s+/g, "");
+  return { id: `emote.${slug}`, title: name, tags: [`player.emote.${slug}`, "emote"], actorCount: 1, genders: ["any"], requiresFurniture: false, estSec: 4 + (i % 5), priority: 0, weight: 1, sourceFile: "Data/OSF/Emotes/immersion.osf.json" };
+});
 const MOCK_CATALOG = [
+  ...MOCK_EMOTES,
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
   { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, anchors: ["Chair"], stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2, loopSec: 18.7, loops: 0, openEnded: true, estSec: 37.3 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2, loopSec: 16, loops: 0, openEnded: true, estSec: 32 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }], estSec: 149.3, estPartial: false, openEnded: true, priority: 2, weight: 40, sourceFile: "Data/OSF/GE/chair.osf.json" },
   { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, anchors: ["Ak Bunk Bed"], stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2, loopSec: 18.7, loops: 2, estSec: 37.3 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2, loopSec: null, loops: 2, estSec: null }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2, timerSec: 30, loops: 0, estSec: 30 }], estSec: 147.3, estPartial: true, openEnded: false, priority: 3, weight: 25, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
@@ -1572,8 +1766,14 @@ function mockNative(command, fields) {
   else if (command === "osf.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
   else if (command === "osf.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
   else if (command === "osf.portraits.get") setTimeout(() => handlePortraits({ portraits: mockPortraits(fields.tokens) }), 120);
-  else if (command === "osf.launch") setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
+  else if (command === "osf.launch") {
+    if (fields.sceneId === "emote.facepalm") setTimeout(() => handleLaunchResult({ ok: false, error: "No room in front of the actor (mock error)." }), 80);
+    else setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
+  }
   else if (command === "osf.stop") setTimeout(() => notice("ok", "Scene stopped."), 40);
+  // Host close: mimic OSF UI hiding the overlay so the real exit path runs (ui.visibility
+  // hide -> exitWheel + osf.closed relay). Standalone just lands back on the console.
+  else if (command === "osf.requestClose") setTimeout(() => onNativeMessage(JSON.stringify({ type: "ui.visibility", payload: { visible: false } })), 60);
 }
 
 init();

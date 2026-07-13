@@ -529,3 +529,40 @@ button,input,select{font:inherit;color:inherit}
   outline:none;border-color:var(--accent);background:var(--accent-quiet);
   box-shadow:inset 0 0 0 1px var(--accent),0 0 10px rgba(240,113,48,.22)}
 .nav-kb .search-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-quiet)}
+
+/* ============================================================
+   EMOTE WHEEL  (transient radial mode — EmoteWheel_Plan.md)
+   Opened via osf.mode {mode:"wheel"}: console/brief hide, a ring
+   of emote slices circles the untouched world center. Live
+   overlay (pausesGame:false) — no world-obscuring backdrop; only
+   the slices/hub take pointer events.
+   ============================================================ */
+body.wheel-mode .console,body.wheel-mode .brief{display:none}
+.wheel{position:absolute;inset:0;z-index:8;display:none;pointer-events:none}
+body.wheel-mode .wheel{display:block}
+.wheel-ring{position:absolute;left:50%;top:50%}
+/* decorative dashed ellipse tracing the slice track (radii match WHEEL_RX/RY in main.js) */
+.wheel-dial{position:absolute;left:0;top:0;width:470px;height:310px;transform:translate(-50%,-50%);
+  border:1px dashed var(--line-strong);border-radius:50%;opacity:.55}
+/* slices: inline transform (JS-computed ellipse position) — don't set transform here */
+.wheel-slice{position:absolute;left:0;top:0;max-width:170px;pointer-events:auto;cursor:pointer;
+  background:rgba(6,9,13,.88);border:1px solid var(--line-strong);border-radius:2px;padding:7px 13px;
+  font:600 12px var(--font-display);letter-spacing:.06em;text-transform:uppercase;color:var(--text-body);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:var(--shadow-sm)}
+.wheel-slice:hover{border-color:var(--steel-500);color:var(--text-bright)}
+.wheel-slice.focused{border-color:var(--accent);background:rgba(240,113,48,.16);color:var(--text-bright);box-shadow:var(--glow-accent)}
+.wheel-slice:focus{outline:none}  /* .focused carries the ring — no doubled outline under .nav-kb */
+.wheel-hub{position:absolute;left:0;top:0;width:128px;height:128px;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;border-radius:50%;
+  background:rgba(6,9,13,.55);border:1px solid var(--line-hud);box-shadow:inset 0 0 22px rgba(0,0,0,.55)}
+.wheel-hub:hover{border-color:var(--signal-stop)}
+.wheel-hub-who{font:700 13px var(--font-display);letter-spacing:.05em;text-transform:uppercase;color:var(--text-bright);
+  max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wheel-hub-status{font:500 8.5px var(--font-mono);color:var(--text-faint);max-width:104px;white-space:normal;text-align:center;line-height:1.35}
+.wheel-hub-status.err{color:#e6b3a8}
+.wheel-more{position:absolute;left:0;top:206px;transform:translateX(-50%);white-space:nowrap}
+.wheel-caption{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);letter-spacing:.12em;white-space:nowrap}
+.wheel-empty{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:auto;width:300px;
+  background:rgba(6,9,13,.92);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:18px;
+  display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.wheel-empty .mono{white-space:normal}

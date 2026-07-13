@@ -17,7 +17,11 @@ views/osf/ (this folder)  ──►  OSF UI  MessageBridge  ──►  OSF Anima
   (`OSF::API::InstallUIBridge()`), a no-op when OSF UI is absent.
 - **Contract (`osf.*`):** `osf.catalog.get`→`osf.catalog.data`,
   `osf.pickCrosshair`→`osf.pick`, `osf.scanNearby`→`osf.scanResults`,
-  `osf.launch`→`osf.launchResult`, `osf.stop`.
+  `osf.launch`→`osf.launchResult`, `osf.stop`, `osf.requestClose` (view asks the
+  host to hide it — the view can't close itself; used by the emote wheel).
+  Native→web `osf.mode {mode:"wheel", tagPrefix, target:{token,name}|null}`
+  switches the view into **emote-wheel mode** (see below); any other `mode`
+  restores the console.
   `osf.portraits.get {tokens}`→`osf.portrait.data {portraits:[{formId,dataUri}]}` —
   actor headshots for the scan list as PNG data URIs; cached ones return in one
   batch, queued captures land later as unsolicited single-item pushes (the view
@@ -55,11 +59,31 @@ mod**:
 Caveat: the merge relies on MO2's USVFS; a non-MO2 (real loose files) install
 would need the folder placed next to `OSFUI.dll` manually.
 
+## Emote wheel (transient mode)
+
+The `openWheel` hotkey verb (native `API::OpenWheel`) opens this same view in a
+radial **wheel mode**: `osf.mode {mode:"wheel", tagPrefix, target}` hides the
+console/brief and rings up to 12 solo scenes whose tags start with `tagPrefix`
+(default `player.emote.`; overflow shows "+N more"). The hub names who plays —
+the crosshair target captured at open time ("→ Sarah") or "You". Arrows/hover
+step the ring, Enter/click launches (`osf.launch` with `castTokens:[token]`, no
+opts), success sends `osf.requestClose`; a launch error shows in the hub and the
+wheel stays open. Cancel = Esc, right-click, or hub click. Exit is host-driven:
+the `ui.visibility` hide relay clears wheel mode, so a later F10 open always
+shows the normal console.
+
 ## Standalone dev
 
 The page detects a missing bridge and runs on a mock catalog, so you can iterate
 layout/logic in a normal browser. A preview server is configured in
 `.claude/launch.json` (`python -m http.server`, serves this folder).
+
+To exercise the **emote wheel** standalone: press `W` (mock crosshair target) or
+`Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
+console. The mock catalog carries 14 `player.emote.*` scenes so the 12-slice cap
+shows "+2 more"; picking **Facepalm** mock-fails to exercise the error path, any
+other pick "launches" and closes the wheel via the mocked `osf.requestClose` →
+`ui.visibility` hide round-trip.
 
 ## Aesthetic
 
