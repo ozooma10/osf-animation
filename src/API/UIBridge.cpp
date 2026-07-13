@@ -964,10 +964,15 @@ namespace OSF::API
 		{
 			UI::FirstRunHint::OnMenuOpened();
 			Input::InputService::GetSingleton().SetUiCursorVisible(true);
-			// A wheel open is pending: replay the mode switch. The immediate send from OpenWheel
-			// can race view creation; this resend makes delivery reliable (idempotent view-side).
+			// Resolve the mode on EVERY open: the view veils its console from the moment it
+			// becomes visible until this push lands (a wheel open would otherwise flash the
+			// browser for the few frames the osf.opened round-trip takes). The wheel replay
+			// also covers the immediate OpenWheel send racing view creation (idempotent
+			// view-side).
 			if (g_wheel.active) {
 				SendWheelMode();
+			} else {
+				SendJson(kViewId, "osf.mode", json{ { "mode", "browser" } });
 			}
 		}
 

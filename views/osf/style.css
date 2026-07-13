@@ -538,6 +538,10 @@ button,input,select{font:inherit;color:inherit}
    the slices/hub take pointer events.
    ============================================================ */
 body.wheel-mode .console,body.wheel-mode .brief{display:none}
+/* mode veil: the view just became visible and doesn't yet know which face this open wears
+   (console or wheel) — hold the console/brief invisible until osf.mode resolves it, so a
+   wheel open never flashes the browser. visibility (not display) keeps layout warm. */
+body.mode-wait .console,body.mode-wait .brief{visibility:hidden}
 .wheel{position:absolute;inset:0;z-index:8;display:none;pointer-events:none}
 body.wheel-mode .wheel{display:block}
 .wheel-ring{position:absolute;left:50%;top:50%}

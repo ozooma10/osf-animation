@@ -21,7 +21,10 @@ views/osf/ (this folder)  ──►  OSF UI  MessageBridge  ──►  OSF Anima
   host to hide it — the view can't close itself; used by the emote wheel).
   Native→web `osf.mode {mode:"wheel", tagPrefix, target:{token,name}|null}`
   switches the view into **emote-wheel mode** (see below); any other `mode`
-  restores the console.
+  restores the console. The DLL pushes a mode on **every** open (`osf.opened` →
+  wheel|browser): the view veils its console from `ui.visibility` show until
+  that push lands, so a wheel open never flashes the browser UI (500 ms
+  fallback timeout covers a DLL too old to push modes).
   `osf.portraits.get {tokens}`→`osf.portrait.data {portraits:[{formId,dataUri}]}` —
   actor headshots for the scan list as PNG data URIs; cached ones return in one
   batch, queued captures land later as unsolicited single-item pushes (the view
