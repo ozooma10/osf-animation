@@ -2,6 +2,7 @@
 #include "API/UIBridge.h"
 #include "Animation/GraphManager.h"
 #include "Config/Settings.h"
+#include "Input/HotkeyService.h"
 #include "Input/InputService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/SceneRegistry.h"
@@ -42,6 +43,11 @@ namespace
 			break;
 		case SFSE::MessagingInterface::kPostPostDataLoad:
 			REX::INFO("[Feature] Input Hook {}", OSF::Input::InputService::GetSingleton().Install() ? "INSTALLED" : "UNAVAILABLE");
+			if (const auto bound = OSF::Input::HotkeyService::GetSingleton().BindingCount(); bound > 0) {
+				REX::INFO("[Feature] Hotkeys ENABLED ({} bound)", bound);
+			} else {
+				REX::INFO("[Feature] Hotkeys DISABLED (none configured)");
+			}
 			OSF::Animation::GraphManager::GetSingleton().RegisterConsolePauseSink();
 			break;
 		default:

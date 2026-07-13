@@ -1,5 +1,6 @@
 #include "Config/Settings.h"
 
+#include "Input/HotkeyService.h"
 #include "UI/FirstRunHint.h"
 #include "UI/HudMessage.h"
 
@@ -101,6 +102,27 @@ namespace OSF::Config::Settings
 		boolKey("debugNotifications", [](bool v) { UI::HudMessage::SetDebugEnabled(v); });
 
 		boolKey("firstRunHint", [](bool v) { UI::FirstRunHint::SetEnabled(v); });
+
+		// "hotkeys": object of "KeyName": "command[:arg]" — collected here, validated (key names,
+		// commands, reserved keys) by HotkeyService::Configure with per-entry [Config] errors.
+		if (auto it = json.find("hotkeys"); it != json.end()) {
+			if (it->is_object()) {
+				std::vector<std::pair<std::string, std::string>> entries;
+				entries.reserve(it->size());
+				for (const auto& [key, value] : it->items()) {
+					if (value.is_string()) {
+						entries.emplace_back(key, value.get<std::string>());
+					} else {
+						REX::ERROR("[Config] hotkeys.'{}' must be a string command — ignored", key);
+					}
+				}
+				Input::HotkeyService::GetSingleton().Configure(entries);
+				applied++;
+			} else {
+				REX::ERROR("[Config] 'hotkeys' must be an object — ignored");
+			}
+			json.erase(it);
+		}
 
 		for (const auto& [key, value] : json.items()) {
 			REX::WARN("[Config] unrecognized key '{}' — ignored (typo, or a newer OSF Animation?)", key);

@@ -4,6 +4,9 @@ All notable changes to OSF Animation are documented here.
 
 ## [Unreleased]
 
+### Added
+- Global hotkeys: an optional `"hotkeys"` map in `Data/OSF/settings.json` binds keys to `openBrowser` (open the scene browser), `openWheel` (emote wheel — stub until the wheel UI ships), and `toggleSceneTags:<tag[,tag..]>` (start a tag-matched scene via matchmaking / end it on re-press).
+
 ## [0.2.0] - 2026-06-30
 
 ### Added

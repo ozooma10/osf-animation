@@ -7,6 +7,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
+#include "UI/HudMessage.h"    // OpenWheel stub's "not available yet" popup
 #include "UI/PortraitService.h"  // scan-list actor portraits (osf.portraits.get / osf.portrait.data)
 #include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
 #include "Util/StringUtil.h"  // Util::ToLower
@@ -1005,6 +1006,14 @@ namespace OSF::API
 			REX::INFO("[UI] OpenBrowser: RequestMenu('{}', open) -> {}", kViewId, ok);
 		});
 		return true;
+	}
+
+	bool OpenWheel(std::string_view a_tagPrefix)
+	{
+		// EmoteWheel_Plan.md replaces this body with the real wheel-mode open.
+		REX::WARN("[Hotkey] wheel UI not yet available (requested tag prefix '{}')", a_tagPrefix);
+		UI::HudMessage::Error("emote wheel not available yet");
+		return false;
 	}
 
 	void InstallUIBridge()

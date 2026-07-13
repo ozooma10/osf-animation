@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 // OSF Animation's consumer of the OSF UI native bridge (src/API/OSFUI_API.h).
 namespace OSF::API
 {
@@ -17,4 +19,9 @@ namespace OSF::API
 	// native so an in-game item (the Data Slate) can surface it. Returns false when OSF UI is
 	// absent or too old to support a native menu open (bridge MINOR < 1). Any thread.
 	bool OpenBrowser();
+
+	// Open the osf view in emote-wheel mode, filtered to scenes whose tags start with
+	// a_tagPrefix. STUB until the wheel UI lands (EmoteWheel_Plan.md replaces the body):
+	// logs + HUD-errors and returns false. Any thread.
+	bool OpenWheel(std::string_view a_tagPrefix);
 }

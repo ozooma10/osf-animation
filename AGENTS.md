@@ -114,7 +114,7 @@ file). Two rules keep it cohesive:
     steps, anchor/placement geometry, sync/frame-lock, ledger push/pop.
 - **Tag by subsystem.** Every line starts with one bracketed tag so the log greps cleanly:
   `[Boot] [Feature] [Anim] [Scene] [Registry] [Sound] [Match] [Papyrus] [API] [Audio] [Camera] [Player]
-  [Input] [Equip] [Weapon] [UI] [Save] [Config]`. Don't restate the subsystem in the message text.
+  [Input] [Hotkey] [Equip] [Weapon] [UI] [Save] [Config]`. Don't restate the subsystem in the message text.
   (`[API]` = the native C++ inter-plugin API in `src/API/`; see docs/RFC-native-api.md.)
 
 A dev gets the full firehose without recompiling via `Data/OSF/settings.json` `"logLevel": "trace"`
