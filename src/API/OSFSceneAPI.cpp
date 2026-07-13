@@ -22,7 +22,7 @@ namespace OSF::API
 {
 	namespace
 	{
-		// Mirror of OSFScript.cpp's MakeOverrides/MakeAnchor sanitization (kept in lockstep).
+		// Mirror of the canonical Scene::MakeOverrides/MakeAnchor sanitization (src/Scene/SceneLauncher.h — kept in lockstep).
 		constexpr float kLoopScaleMax = 20.0f;
 
 		// Tri-state: 1 = force on, 0 = force off, anything else (incl. -1) = inherit.
