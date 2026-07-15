@@ -1,8 +1,7 @@
 #include "API/SceneAPIControl.h"
 #include "API/UIBridge.h"
+#include "API/UISettings.h"
 #include "Animation/GraphManager.h"
-#include "Config/Settings.h"
-#include "Input/HotkeyService.h"
 #include "Input/InputService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/SceneRegistry.h"
@@ -26,8 +25,6 @@ namespace
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
-			// Apply the user's safety toggles now that the services they configure exist.
-			OSF::Config::Settings::Load();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
@@ -35,6 +32,10 @@ namespace
 			// Register the osf.* scene-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
 			// Runs after the registry is loaded and the scene API is ready, so catalog/launch answer live.
 			OSF::API::InstallUIBridge();
+			// Settings + hotkeys live in OSF UI's MCM (schema registration, change
+			// subscription, hotkey dispatch); degrades loudly to defaults when OSF UI
+			// is absent/too old. After InstallUIBridge: same bridge singleton.
+			OSF::API::InstallUISettings();
 			// Probe clip loop lengths for the catalog's time estimates After InstallUIBridge so the push hook exists.
 			OSF::Serialization::ClipDurations::ScanSceneClipsAsync(&OSF::API::PushCatalogUpdate);
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
@@ -43,11 +44,6 @@ namespace
 			break;
 		case SFSE::MessagingInterface::kPostPostDataLoad:
 			REX::INFO("[Feature] Input Hook {}", OSF::Input::InputService::GetSingleton().Install() ? "INSTALLED" : "UNAVAILABLE");
-			if (const auto bound = OSF::Input::HotkeyService::GetSingleton().BindingCount(); bound > 0) {
-				REX::INFO("[Feature] Hotkeys ENABLED ({} bound)", bound);
-			} else {
-				REX::INFO("[Feature] Hotkeys DISABLED (none configured)");
-			}
 			OSF::Animation::GraphManager::GetSingleton().RegisterConsolePauseSink();
 			break;
 		default:

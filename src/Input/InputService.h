@@ -24,13 +24,6 @@ namespace OSF::Input
 		// The runtime registers HOW a verb executes (it drives the active scene + clock). Called on the game thread.
 		void SetVerbHandler(std::function<void(Verb, const Grant&)> a_handler);
 
-		// Arms the always-on global-hotkey scan (HotkeyService::Configure calls this once at
-		// startup, before Install(), when >= 1 binding parsed). The hook only READS the queue —
-		// a bound key still reaches the game — and the hot path just probes HotkeyService's
-		// immutable table, so no locks. Skipped while a menu/console owns input or a UI cursor
-		// is up.
-		void SetHotkeysArmed(bool a_armed);
-
 		// --- SAF-compat activate redirect ----------------------------------------------------------
 		// Legacy SAF/NAF mods (e.g. SnuSnu) progress a scene by having the player "Talk to" a participant, While armed (SetCompatActivate(true), driven by the SAF-compat player lock),
 		// the input hook catches the Activate key press and posts a_handler on the game thread to trigger the activation directly.

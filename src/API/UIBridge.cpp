@@ -1099,7 +1099,7 @@ namespace OSF::API
 					reject = "dead";
 				} else if (actor->combatController != nullptr) {
 					// Combat via the member read, not the IsInCombat() virtual — that vtable
-					// slot proved unreliable (see HotkeyService's combat guard).
+					// slot proved unreliable (see UISettings' combat guard).
 					reject = "in combat";
 				} else if (Util::ActorSpecies(actor) != "human") {
 					reject = "non-human";  // no creature emote packs — human clips would T-pose them

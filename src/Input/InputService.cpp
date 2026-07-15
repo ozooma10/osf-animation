@@ -1,7 +1,5 @@
 #include "Input/InputService.h"
 
-#include "Input/HotkeyService.h"
-
 #include "RE/B/BSInputEventReceiver.h"
 #include "RE/B/BSInputEventUser.h"
 #include "RE/C/Console.h"
@@ -32,9 +30,6 @@ namespace OSF::Input
 		// key here. @TODO: keymap override (rebound Activate) + gamepad activate button.
 		constexpr std::int32_t kActivateKeyVK = 0x45;
 
-		// Global hotkeys (settings.json "hotkeys"): armed once at startup when >= 1 binding
-		// parsed; the table itself lives in HotkeyService and is immutable after Configure().
-		std::atomic_bool g_hotkeysArmed{ false };
 
 		// Mouse-look delta passthrough for the self-driven scene-orbit camera. While capture is on, the
 		// hook accumulates MouseMoveEvent deltas for CameraService to drain (the engine won't route input
@@ -63,8 +58,8 @@ namespace OSF::Input
 		// Index of the BSInputEventReceiver vtable in RE::UI::VTABLE (AddressLib id 475439). The IDs_VTABLE array is NOT in base-declaration order;
 		constexpr std::size_t kReceiverVtblIndex = 10;
 
-		// Default keyboard keymap. For device kKeyboard the idCode is a Windows VK code. 
-		// @TODO: a settings.json keymap override
+		// Default keyboard keymap. For device kKeyboard the idCode is a Windows VK code.
+		// @TODO: a keymap override (would live in the OSF UI settings schema, src/API/UISettings.cpp)
 		Verb VerbForKeyboard(std::int32_t a_idCode)
 		{
 			switch (a_idCode) {
@@ -137,25 +132,6 @@ namespace OSF::Input
 			}
 			SFSE::GetTaskInterface()->AddTask([handler]() { handler(); });
 		}
-		// On a keyboard PRESS edge with no UI cursor up, post the bound hotkey command to the game
-		// thread. Lock-free: the hotkey table is immutable after Configure(); no logging here.
-		void MaybeHotkey(const RE::ButtonEvent* a_event)
-		{
-			if (a_event->value == 0.0f || a_event->heldDownSecs != 0.0f) {
-				return;  // press edge only
-			}
-			if (a_event->deviceType != RE::InputEvent::DeviceType::kKeyboard) {
-				return;  // keyboard only in v1 (no gamepad hotkeys)
-			}
-			if (g_uiCursorVisible.load(std::memory_order_relaxed)) {
-				return;  // browser open — the overlay starves this hook anyway; belt-and-braces
-			}
-			const auto vk = static_cast<std::uint32_t>(a_event->idCode);
-			if (!HotkeyService::GetSingleton().Matches(vk)) {
-				return;
-			}
-			SFSE::GetTaskInterface()->AddTask([vk]() { HotkeyService::GetSingleton().Execute(vk); });
-		}
 		// if menu/console owns input
 		bool MenuOwnsInput()
 		{
@@ -173,16 +149,10 @@ namespace OSF::Input
 			const bool active = g_active.load(std::memory_order_relaxed);
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
 			const bool compat = g_compatActivate.load(std::memory_order_relaxed);
-			const bool hotkeys = g_hotkeysArmed.load(std::memory_order_relaxed);
 			// don't route any input while a menu/console owns it. The engine still receives the unmodified queue below.
-			if ((active || capture || compat || hotkeys) && !MenuOwnsInput()) {
+			if ((active || capture || compat) && !MenuOwnsInput()) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
-					// Hotkeys first (order is cosmetic: the reserved-key rule keeps the bound
-					// sets disjoint from the director/compat channels).
-					if (hotkeys && et == RE::InputEvent::EventType::kButton) {
-						MaybeHotkey(static_cast<const RE::ButtonEvent*>(event));
-					}
 					if (active && et == RE::InputEvent::EventType::kButton) {
 						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
 					}
@@ -294,12 +264,6 @@ namespace OSF::Input
 	{
 		std::scoped_lock l{ g_grantLock };
 		g_compatHandler = std::move(a_handler);
-	}
-
-	void InputService::SetHotkeysArmed(bool a_armed)
-	{
-		g_hotkeysArmed.store(a_armed, std::memory_order_relaxed);
-		REX::DEBUG("[Input] global hotkey scan {}", a_armed ? "ARMED" : "disarmed");
 	}
 
 	void InputService::SetCompatActivate(bool a_armed)

@@ -90,10 +90,12 @@ Each entry: **system** (`path`) — role.
   `"Plugin.esm|0xID"` form-refs resolved at load (RE-sensitive — needs in-game verification).
 
 ### Layer-C - services 
-- (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks, `src/Config/Settings.*`) -
+- (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
   content-neutral *mechanisms* with NO scene knowledge; each prologue-gates its engine calls and
   self-disables on mismatch. Whether a mechanism runs is driven by the scene/API alone — there is no
-  user-settings feature toggle; `Data/OSF/settings.json` only tunes behaviour (e.g. `logLevel`).
+  user-settings feature toggle; user settings (hotkeys, `logLevel`, HUD toggles) live in OSF UI's
+  in-game settings menu (`src/API/UISettings.cpp` registers the schema over the bridge; the old
+  `Data/OSF/settings.json` is no longer read).
 
 ## Logging
 
@@ -102,7 +104,7 @@ file). Two rules keep it cohesive:
 
 - **Tier by audience.** The default level is build-driven — `Info` in the shipped `releasedbg` build,
   `Debug` in debug builds — so anything below `Info` is invisible to users by default.
-  - `ERROR` — an operation the user/author can fix failed (bad `settings.json`, native bind failed,
+  - `ERROR` — an operation the user/author can fix failed (bad setting value, native bind failed,
     scene/pack failed validation, referenced asset missing, hook couldn't install).
   - `WARN` — degraded but continuing (unsupported game version, a feature self-disabled on prologue
     mismatch, unknown settings key).
@@ -117,6 +119,7 @@ file). Two rules keep it cohesive:
   [Input] [Hotkey] [Equip] [Weapon] [UI] [Save] [Config]`. Don't restate the subsystem in the message text.
   (`[API]` = the native C++ inter-plugin API in `src/API/`; see docs/RFC-native-api.md.)
 
-A dev gets the full firehose without recompiling via `Data/OSF/settings.json` `"logLevel": "trace"`
-(handled in `src/Config/Settings.cpp`). The crash handler (`src/Util/CrashHandler.cpp`) deliberately
-bypasses spdlog — never route it through REX.
+A dev gets the full firehose without recompiling via the in-game OSF UI settings menu — OSF
+Animation › Logging › Log level → Trace (handled in `src/API/UISettings.cpp`, persists across
+launches). The crash handler (`src/Util/CrashHandler.cpp`) deliberately bypasses spdlog — never
+route it through REX.

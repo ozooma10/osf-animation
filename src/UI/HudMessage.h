@@ -10,7 +10,7 @@ namespace OSF::UI::HudMessage
 	// Fire a HUD popup now. No-op if the event source isn't up yet. Safe from any thread.
 	void Show(std::string_view a_text);
 
-	// Opt-in diagnostic popups (settings.json "debugNotifications"; default off).
+	// Opt-in diagnostic popups (OSF UI settings menu, osf "debugNotifications"; default off).
 	void SetDebugEnabled(bool a_on);
 	bool DebugEnabled();
 

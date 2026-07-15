@@ -15,6 +15,6 @@ namespace OSF::UI::FirstRunHint
 	// The scene-browser view reported it became visible (osf.opened command, game main thread).
 	void OnMenuOpened();
 
-	// settings.json "firstRunHint" (default on).
+	// OSF UI settings menu, osf "firstRunHint" (default on; src/API/UISettings.cpp).
 	void SetEnabled(bool a_on);
 }

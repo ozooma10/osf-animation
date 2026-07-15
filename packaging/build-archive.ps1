@@ -53,10 +53,9 @@ foreach ($s in @('SAF', 'SAFScript')) {
     Copy-Item "$dist\Scripts\Source\$s.psc" "$safc\Scripts\Source\"
 }
 
-# Release settings.json -> Data/OSF/settings.json on install. The DEV profile (settings.dev.json:
-# verbose logging + debug HUD) is NOT shipped — only the quiet release defaults.
+# Settings + hotkeys live in OSF UI's in-game settings menu (schema registered at
+# runtime over the bridge) — no Data/OSF/settings.json ships anymore.
 New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
-Copy-Item "$dist\settings.release.json" "$core\OSF\settings.json"
 
 # internal.osf.json -> Data/OSF/internal.osf.json. System scenes the framework needs at runtime:
 # the player-only "solo" scene backs OSF.Health, plus the "pair" smoke-test. Always shipped so the

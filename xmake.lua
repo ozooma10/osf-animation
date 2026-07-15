@@ -48,7 +48,8 @@ target("OSF Animation")
             os.cp("dist/Scripts/*.pex", scripts .. "/")
             os.cp("dist/Scripts/Source/*.psc", source .. "/")
             os.cp("dist/OSF/**", osfDir .. "/", { rootdir = "dist/OSF" })
-            os.cp("dist/settings.dev.json", path.join(osfDir, "settings.json"))
+            -- No settings.json: settings + hotkeys live in OSF UI's settings menu
+            -- (UISettings.cpp registers the schema over the bridge at runtime).
 
             -- The Data Slate plugin (built separately by Build-Plugin.ps1 via Spriggit).
             -- Copy it if present; a source-only checkout without the built .esm still deploys.
