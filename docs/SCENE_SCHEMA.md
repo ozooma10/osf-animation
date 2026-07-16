@@ -594,7 +594,6 @@ by tagging their scenes the same way (the shipped set lives in `Data/OSF/immersi
 
 | Tag | Consumed by | Contract |
 |-----|-------------|----------|
-| `player.sit`, `player.lean` | the `toggleSceneTags:<tag>` hotkey verb | **Solo** (one role — the hotkey launches with the player as the sole actor), hold-style (`loops:0` + an exit edge), and **listed** (not `unlisted` — the verb goes through matchmaking). Re-pressing the hotkey ends the scene. |
 | `player.emote.<name>` | the emote wheel (enumerated by the `player.emote.` tag prefix) | Solo, **self-terminating** (`timer`/`loops`, not an unbounded hold); the scene's `name` is the wheel slice label. The same scene is launched on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
 | `immersion` | — | Umbrella tag for the shipped immersion pack; free for browsing/filtering. |
 

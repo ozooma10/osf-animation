@@ -53,11 +53,11 @@ does.
 
 - New install step "Modules" (before/after "Compatibility" — match existing style)
   with a `SelectAny` group **"Gameplay Modules"** containing plugin
-  **"Immersion Actions"**: description sells it ("emote wheel, sit or lean anywhere,
-  emote NPCs — press G / N in-game; configurable in OSF/settings.json"), image
-  optional, `folder` = `Immersion` → root, default **Recommended** (`Optional` if
-  the user prefers opt-in). This group is where "Ambient NPC Life" slots in later.
-- Install mapping: `Immersion\OSF\immersion\{sit-lean,emotes}.osf.json` →
+  **"Immersion Actions"**: description sells it ("emote wheel — emote in-game and
+  target the NPC in your crosshair"), image optional, `folder` = `Immersion` → root,
+  default **Recommended** (`Optional` if the user prefers opt-in). This group is
+  where "Ambient NPC Life" slots in later.
+- Install mapping: `Immersion\OSF\immersion\emotes.osf.json` →
   `Data/OSF/immersion/...`.
 
 ### 3. Archive script (`packaging/build-archive.ps1`)
@@ -87,9 +87,9 @@ matching scenes and HUD-error, which is acceptable; note it in the FOMOD descrip
 ### 5. Docs
 
 - `docs/API.md`: no new Papyrus natives this release (hotkeys/wheel are native-side)
-  — add a short "Hotkeys" section documenting the `settings.json` map, the three
-  verbs, and the key-name list; plus the tag contract (`player.sit`, `player.lean`,
-  `player.emote.<prefix>`) so third-party packs can join the wheel.
+  — add a short "Hotkeys" section documenting the open-browser / open-wheel verbs
+  and the key-name list; plus the tag contract (`player.emote.<prefix>`) so
+  third-party packs can join the wheel.
 - `docs/GETTING_STARTED.md`: add "add your own emote to the wheel" as a second
   worked example (a 10-line pack with one `player.emote.*` scene) — it's the
   smallest possible consumer demo.

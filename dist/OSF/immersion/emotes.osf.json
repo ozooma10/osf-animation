@@ -73,8 +73,8 @@
     },
     // NOTE: the plan's relaxed_idlepartialbody_* prop idles (coffee, data slate) are
     // LAYER clips (~25 of 82 bones tracked) — standalone they T-pose the legs, so
-    // they're replaced by full-body furniture chains. The coffee emote moved to
-    // sit-lean.osf.json as the bar-lean drink variant (it needs a surface behind).
+    // they're replaced by full-body furniture chains. The coffee/bar-lean drink
+    // variant was dropped (it needs a surface behind).
     {
       "id": "immersion/emote/dataslate",
       "name": "Data slate",
