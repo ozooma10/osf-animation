@@ -1,6 +1,7 @@
 {
   "id": "osf",
   "title": "OSF Animation Browser",
+  "mod": "osf",
   "entry": "index.html",
   "width": 1280,
   "height": 720,
