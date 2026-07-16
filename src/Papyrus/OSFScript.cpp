@@ -18,7 +18,6 @@
 #include "Serialization/ClipDurations.h"
 #include "Serialization/GLTFImport.h"
 #include "UI/HudMessage.h"
-#include "UI/PortraitService.h"  // CaptureNow (portrait acceptance-test native)
 #include "Util/Math.h"
 #include "Util/StringUtil.h"
 
@@ -325,21 +324,6 @@ namespace OSF::Papyrus
 		bool OpenBrowser(OSFVM&, uint32_t, std::monostate)
 		{
 			return API::OpenBrowser();
-		}
-
-		// Capture akActor's face to the portrait cache, rendered on the LIVE inventory
-		// paperdoll. REQUIRES the inventory/apparel (paperdoll) screen to be open and
-		// rendering — it hijacks that doll, swaps in akActor's face, shoots a PNG, then
-		// restores the player. Returns false if the capture couldn't start (paperdoll not
-		// open, engine gate failed, or the actor has no NPC base). The acceptance-test /
-		// manual entry point; the async result lands in the browser's portrait cache.
-		bool CapturePortrait(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
-		{
-			if (!a_actor) {
-				REX::DEBUG("[Papyrus] CapturePortrait: no actor given");
-				return false;
-			}
-			return UI::Portraits::CaptureNow(a_actor);
 		}
 
 		// Start a scene by id, returning an opaque scene HANDLE (0 = failed).
@@ -910,7 +894,6 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "OpenBrowser", &OpenBrowser, true, false);
-		a_vm->BindNativeMethod(SCRIPT_NAME, "CapturePortrait", &CapturePortrait, true, false);
 		REX::INFO("[Papyrus] registered natives on script '{}'", SCRIPT_NAME);
 
 		// Non-public compat natives (script 'OSFCompat'): the standalone player/camera lock the SAF

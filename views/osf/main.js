@@ -20,10 +20,6 @@ const state = {
   furniture: null,
   nearbyActors: [],
   nearbyFurniture: [],
-  // Actor portraits, formId -> "data:image/png;base64,…". Filled lazily: a scan requests
-  // portraits for its rows (osf.portraits.get); cached ones come back in one batch, queued
-  // captures trickle in later as osf.portrait.data pushes. Survives re-scans (formId-stable).
-  portraits: new Map(),
   lastHandle: 0,
   lastSceneId: "",
   opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
@@ -137,7 +133,6 @@ function onNativeMessage(jsonText) {
     case "osf.library.data": handleLibrary(payload); break;
     case "osf.pick": handlePick(payload); break;
     case "osf.scanResults": handleScanResults(payload); break;
-    case "osf.portrait.data": handlePortraits(payload); break;
     case "osf.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.launchResult": handleLaunchResult(payload); break;
     // Native mode switch (OpenWheel): "wheel" enters the emote wheel; anything else restores
@@ -231,32 +226,10 @@ function handleScanResults(p) {
   } else {
     state.nearbyActors = normalized;
     notice("info", `${normalized.length} nearby actor${normalized.length === 1 ? "" : "s"} found.`);
-    requestPortraits(normalized);
   }
   renderAll();
 }
 
-// Ask the plugin for the faces of freshly scanned rows we don't have yet. Cached ones
-// return immediately in one osf.portrait.data batch; misses trickle in later pushes.
-function requestPortraits(rows) {
-  const tokens = rows.filter((a) => a.isActor && a.formId && !state.portraits.has(a.formId))
-    .map((a) => a.token);
-  if (tokens.length) send("osf.portraits.get", { tokens });
-}
-
-function handlePortraits(p) {
-  const list = p && Array.isArray(p.portraits) ? p.portraits : [];
-  let changed = false;
-  for (const it of list) {
-    // Only ever render bridge-supplied PNG data URIs (never an arbitrary string in src).
-    if (it && typeof it.formId === "number" && typeof it.dataUri === "string" &&
-        it.dataUri.startsWith("data:image/png;base64,")) {
-      state.portraits.set(it.formId, it.dataUri);
-      changed = true;
-    }
-  }
-  if (changed) renderAll();
-}
 
 function handleAnchorMatch(p) {
   if (!p || typeof p.token !== "number") return;
@@ -685,7 +658,7 @@ function speciesFilterBarHTML() {
    ========================================================================= */
 function renderAll() {
   // Wheel mode: the console/brief are hidden, so only the wheel needs (re)rendering — data
-  // pushes that land while it's open (catalog refresh, portraits) route here too.
+  // pushes that land while it's open (catalog refresh) route here too.
   if (state.wheel) { renderWheel(); return; }
   // Panels are rebuilt via innerHTML, which drops the focused control — capture where the
   // gamepad/keyboard focus is, rebuild, then restore it to the equivalent control (see NAV).
@@ -720,12 +693,8 @@ function stepHeadHTML(step, num, title, note, open) {
   return `<button class="step-head" data-act="step-toggle" data-step="${step}"><span class="step-num">${num}</span><span class="eb">${title}</span><span class="step-note">${note}</span><span class="chev">${open ? "▾" : "▸"}</span></button>`;
 }
 
-// Scan-row portrait: the cached headshot when the plugin has one, else a neutral
-// silhouette placeholder (a portrait may still be queued for capture — the row
-// upgrades in place when its osf.portrait.data push lands).
-function faceHTML(a) {
-  const uri = a.formId ? state.portraits.get(a.formId) : null;
-  if (uri) return `<img class="near-face" src="${uri}" alt="">`;
+// Scan-row face: a neutral silhouette placeholder (the browser does not capture actor portraits).
+function faceHTML() {
   return `<span class="near-face blank" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 22c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>`;
 }
 
@@ -1678,7 +1647,6 @@ function init() {
     state.ready = true;
     state.nearbyActors = MOCK_ACTORS.slice();
     state.nearbyFurniture = MOCK_ANCHORS.slice();
-    requestPortraits(state.nearbyActors);
     handleCatalog(MOCK_CATALOG);
     // Emote-wheel dev: W opens the wheel with a mock crosshair target, Shift+W player-only
     // (also window.mockOpenWheel(withTarget) from the console). Feeds the same osf.mode
@@ -1737,36 +1705,12 @@ const MOCK_LIBRARY = [
   { id: "vanilla/creature/terrormorph", title: "Vanilla · Terrormorph", species: "terrormorph", tags: ["vanilla", "creature", "species:terrormorph"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-creature-terrormorph.osf.json", stages: [{ index: 0, name: "BleedOut_Idle", tags: ["idle"], clipCount: 1, loopSec: 8.3, loops: 0, openEnded: true, estSec: 16.6 }, { index: 1, name: "Attack_Lunge", tags: ["rootmotion"], clipCount: 1, loopSec: 2.1, loops: 0, openEnded: true, estSec: 4.2 }], estSec: 20.8, estPartial: false, openEnded: true, priority: 0, weight: 1 },
 ];
 
-// Fake headshots for SOME scanned rows (canvas-rendered PNG data URIs), so standalone
-// dev shows both states: portrait present and silhouette placeholder (Sam Coe + the
-// citizen stay blank, as rows whose capture never lands would).
-function mockPortraits(tokens) {
-  const out = [];
-  for (const t of Array.isArray(tokens) ? tokens : []) {
-    const a = MOCK_ACTORS.find((x) => x.token === t);
-    if (!a || a.token === 603 || a.token === 604) continue;
-    const c = document.createElement("canvas");
-    c.width = c.height = 48;
-    const g = c.getContext("2d");
-    g.fillStyle = `hsl(${(a.token * 47) % 360} 35% 28%)`;
-    g.fillRect(0, 0, 48, 48);
-    g.fillStyle = "#d8cfc2";
-    g.beginPath(); g.arc(24, 18, 9, 0, Math.PI * 2); g.fill();               // head
-    g.beginPath(); g.arc(24, 46, 15, Math.PI, 0); g.fill();                  // shoulders
-    g.fillStyle = "rgba(0,0,0,.35)";
-    g.font = "10px monospace"; g.fillText(a.name.slice(0, 2).toUpperCase(), 4, 44);
-    out.push({ formId: a.formId, dataUri: c.toDataURL("image/png") });
-  }
-  return out;
-}
-
 function mockNative(command, fields) {
   if (command === "osf.catalog.get") setTimeout(() => handleCatalog(MOCK_CATALOG), 60);
   else if (command === "osf.library.get") setTimeout(() => handleLibrary(MOCK_LIBRARY), 90);
   else if (command === "osf.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
   else if (command === "osf.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
   else if (command === "osf.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
-  else if (command === "osf.portraits.get") setTimeout(() => handlePortraits({ portraits: mockPortraits(fields.tokens) }), 120);
   else if (command === "osf.launch") {
     if (fields.sceneId === "emote.facepalm") setTimeout(() => handleLaunchResult({ ok: false, error: "No room in front of the actor (mock error)." }), 80);
     else setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);

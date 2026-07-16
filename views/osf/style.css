@@ -207,7 +207,7 @@ button,input,select{font:inherit;color:inherit}
 .near-row:hover{border-color:var(--line-strong)}
 .near-row.active{border-color:var(--signal-go)}
 .near-name{font-size:12px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-/* scan-row portrait: instrument-panel thumbnail — hard edges, hairline frame, no glow */
+/* scan-row face: silhouette placeholder — hard edges, hairline frame, no glow */
 .near-face{flex:none;width:26px;height:26px;border:1px solid var(--line-strong);border-radius:2px;object-fit:cover;background:var(--void-700)}
 .near-face.blank{display:flex;align-items:center;justify-content:center}
 .near-face.blank svg{width:16px;height:16px;fill:none;stroke:var(--text-faint);stroke-width:1.5}
