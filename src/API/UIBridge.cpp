@@ -1037,13 +1037,13 @@ namespace OSF::API
 		// has no such vtable slot; calling through it would be undefined. Gate on the live
 		// interface version rather than the header constant we compiled against.
 		if ((g_ui->GetInterfaceVersion() & 0xFFFFu) < 1u) {
-			REX::WARN("[UI] OpenBrowser: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to open the browser from the Data Slate");
+			REX::WARN("[UI] OpenBrowser: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to open the browser from native code");
 			return false;
 		}
-		// Close the game menus the slate can be equipped from FIRST, so the browser opens over
-		// the world, not over a still-open inventory. UIMessageQueue is main-thread-only and
-		// this native runs on a Papyrus VM thread, so the whole sequence rides an SFSE task;
-		// RequestMenu itself is thread-safe and queued, keeping the hide -> open order.
+		// Close any open game menus FIRST, so the browser opens over the world, not over a
+		// still-open inventory or book. UIMessageQueue is main-thread-only and this can run on
+		// a Papyrus VM thread, so the whole sequence rides an SFSE task; RequestMenu itself is
+		// thread-safe and queued, keeping the hide -> open order.
 		SFSE::GetTaskInterface()->AddTask([]() {
 			// A normal browser open must never land in wheel mode: drop any pending wheel
 			// state and, if the view is already up as the wheel, switch it back to the console.
@@ -1054,7 +1054,7 @@ namespace OSF::API
 			auto* ui = RE::UI::GetSingleton();
 			auto* queue = RE::UIMessageQueue::GetSingleton();
 			if (ui && queue) {
-				// BookMenu: the slate's reading pane — the OnRead trigger fires from inside it.
+				// Cover the menus the browser might be opened over (inventory, data, a book).
 				for (const char* menu : { "BookMenu", "InventoryMenu", "DataMenu" }) {
 					if (ui->IsMenuOpen(menu)) {
 						queue->AddMessage(menu, RE::UI_MESSAGE_TYPE::kHide);
@@ -1162,6 +1162,17 @@ namespace OSF::API
 		g_ui->RegisterCommand("osf.closed", &OnClosed, nullptr);
 		g_ui->RegisterCommand("osf.orbit", &OnOrbit, nullptr);
 		g_ui->RegisterCommand("osf.requestClose", &OnRequestClose, nullptr);
+
+		// Bridge ABI 1.5: register our shipped views/osf/ folder as an openable
+		// surface — OSF UI's shipped config.views lists only its built-ins, so
+		// without this call the view never loads. Idempotent (a user config that
+		// still lists "osf" is left untouched); older OSF UI runtimes lack the
+		// vmethod, so gate on the interface MINOR.
+		if ((g_ui->GetInterfaceVersion() & 0xFFFFu) >= 5u) {
+			g_ui->RegisterView(kViewId);
+		} else {
+			REX::WARN("[UI] this OSF UI predates bridge ABI 1.5 (RegisterView) — the '{}' view only opens if the user's OSF UI config.json lists it in `views`", kViewId);
+		}
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
 		g_ui->GetPluginVersion(mj, mn, pt);
