@@ -32,7 +32,7 @@ namespace OSF::API
     { "label": "Hotkeys", "settings": [
       { "key": "hotkeys.openBrowser", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open scene browser",
-        "hint": "Opens the scene browser anywhere (same view as the Data Slate)." },
+        "hint": "Opens the scene browser anywhere (the same view F10 opens)." },
       { "key": "hotkeys.openWheel", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open emote wheel",
         "hint": "Radial emote picker; targets the crosshair NPC when one is in reach." }

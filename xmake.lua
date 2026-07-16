@@ -51,13 +51,6 @@ target("OSF Animation")
             -- No settings.json: settings + hotkeys live in OSF UI's settings menu
             -- (UISettings.cpp registers the schema over the bridge at runtime).
 
-            -- The Data Slate plugin (built separately by Build-Plugin.ps1 via Spriggit).
-            -- Copy it if present; a source-only checkout without the built .esm still deploys.
-            if os.isfile("OSFAnimation.esm") then
-                os.cp("OSFAnimation.esm", path.join(mods, target:name()) .. "/")
-            end
-
-
             local view = path.join(plugins, "OSFUI", "views", "osf")
             os.tryrm(view)
             os.mkdir(view)

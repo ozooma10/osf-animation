@@ -82,22 +82,6 @@ if (-not (Test-Path "$dist\OSF\immersion\emotes.osf.json")) {
 }
 Copy-Item "$dist\OSF\immersion\emotes.osf.json" $imm
 
-# --- stage Data Slate (opt-in FOMOD group "Scene Browser Data Slate") ---
-# OSFAnimation.esm gives an equippable in-world item that opens the scene browser; its
-# manager/script .pex carry the logic. ESM -> Data root; scripts -> Data\Scripts. Fail loudly
-# if the .esm (Build-Plugin.ps1) or its compiled scripts are missing.
-$slate = "$stage\DataSlate"
-New-Item -ItemType Directory -Force -Path "$slate\Scripts\Source" | Out-Null
-if (-not (Test-Path "$repo\OSFAnimation.esm")) { throw "Data Slate ESM missing: $repo\OSFAnimation.esm (run Build-Plugin.ps1 first)" }
-Copy-Item "$repo\OSFAnimation.esm" "$slate\"
-foreach ($s in @('OSFDataSlateManager', 'OSFDataSlateScript')) {
-    if (-not (Test-Path "$dist\Scripts\$s.pex")) {
-        throw "Data Slate script missing: $dist\Scripts\$s.pex (compile dist\Scripts\Source\$s.psc first)"
-    }
-    Copy-Item "$dist\Scripts\$s.pex" "$slate\Scripts\"
-    Copy-Item "$dist\Scripts\Source\$s.psc" "$slate\Scripts\Source\"
-}
-
 # fomod/ (incl. fomod/images/ banner + plugin art referenced by ModuleConfig.xml) + stamp the version into info.xml.
 Copy-Item "$PSScriptRoot\fomod" "$stage\fomod" -Recurse
 $infoPath = "$stage\fomod\info.xml"

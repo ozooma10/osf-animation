@@ -320,7 +320,7 @@ namespace OSF::Papyrus
 		}
 
 		// Open the in-game scene browser (the OSF UI "osf" view), exactly as F10 would.
-		// Backs the Data Slate item so the browser is discoverable without knowing the hotkey.
+		// A public convenience for consumers that want to open the browser from Papyrus.
 		// False if OSF UI is absent or too old to open a menu from native code.
 		bool OpenBrowser(OSFVM&, uint32_t, std::monostate)
 		{
