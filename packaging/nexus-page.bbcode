@@ -1,65 +1,95 @@
 [size=2][i]Nexus description in BBCode. Set the mission patch (branding/osf-patch.png) as the mod's
-main/thumbnail image in the Nexus UI. Upload branding/osf-header.png (the banner below) and your in-game
-screenshots to the mod's image gallery, then paste each one's Nexus-hosted URL into the [img] tags below
-(the file paths here are placeholders — Nexus only renders images it hosts).[/i][/size]
+main/thumbnail image in the Nexus UI. Upload branding/osf-header.png, the five section headers
+(packaging/section-headers/0*.png), and your in-game screenshots to the mod's image gallery, then paste
+each one's Nexus-hosted URL into the [img] tags below (the file paths here are placeholders — Nexus only
+renders images it hosts). Screenshot shot-list: scene browser open in the world, the emote wheel radial,
+a synced multi-actor scene, a creature clip playing, the orbit camera framing a scene.
+Replace REPLACE-WITH-OSFUI-NEXUS-URL with OSF UI's mod page URL once it is live.[/i][/size]
 
 [center][img]REPLACE-WITH-NEXUS-URL/osf-header.png[/img][/center]
 
-[center][size=5][b]The animation & scene engine for Starfield.[/b][/size][/center]
+[center][size=5][b]Browse, play, and sync every animation in Starfield.[/b][/size][/center]
 
-[center][i]OSF Animation is a framework, not a content mod. On its own it adds no scenes — it powers other mods that do.[/i][/center]
+[center][i]An in-game scene browser over 4,600+ base-game animations — humans, creatures, robots — plus an emote wheel, synced multi-actor scenes, and the open scene engine underneath.[/i][/center]
 
 [line]
 
-[size=5][b]What it is[/b][/size]
-OSF — [b]Open Scene Framework[/b] — is the engine that plays and synchronises animations on actors in the world. It hosts native GLTF/GLB and Starfield-native [font=Courier New].af[/font] playback, a shared frame clock for tight multi-actor sync, world anchoring, and a data-driven [b]scene runtime[/b]: graphs of nodes with cues, actions, callbacks and branching — all authored in JSON, no scripting required.
+[center][img]REPLACE-WITH-NEXUS-URL/01-overview.png[/img][/center]
 
-It is [b]content-neutral[/b]. The engine ships the [i]mechanisms[/i] (playback, sync, camera & control locks, fades, equipment hide/restore, audio, subtitles); it ships [b]no[/b] adult content. Specific content lives in separate mods built on top of it.
+OSF — [b]Open Scene Framework[/b] — is an animation and scene engine with a player-facing front end. Out of the box:
 
-[size=5][b]Features[/b][/size]
 [list]
-[*]Synced multi-actor [b]AF / GLTF / GLB[/b] playback on one shared clock
-[*]Data-driven scene graphs — nodes, cues, actions, callbacks, navigation — from JSON
-[*]Engine-native [b]Wwise[/b] audio (rides the game mix) with subtitles
-[*]Actor anchoring / pinning, player-control & camera locks, full-screen fades
-[*]Equipment hide/restore and scene-scoped equip
+[*][b]Scene browser[/b] — an in-game overlay (press [b]F10[/b]). Pick a scene, cast yourself or nearby NPCs, play. Keyboard and gamepad navigable.
+[*][b]Animation library[/b] — 4,600+ animations from the base game, browsable and filterable: idles, furniture, combat, chargen poses, photo-mode idles, and 27 creature/robot species from Terrormorphs to security cameras. Furniture clips anchor to real furniture in the world.
+[*][b]Highlights[/b] — curated collections (300 hand-picked clips) so the first open is worth watching, not a wall of filenames.
+[*][b]Emote wheel[/b] — a radial menu of emotes (wave, what's up, hands on hips, arms crossed, data slate). Play them on yourself — or on the NPC in your crosshair.
+[*][b]Scene camera[/b] — an orbit camera that frames the cast automatically; mouse to orbit and zoom.
+[/list]
+
+Underneath sits the engine: synced multi-actor playback on one shared clock, world/furniture anchoring, JSON-authored scene graphs, and a Papyrus API. OSF is built to power other mods — machinima, dance packs, NPC vignettes, quest scenes.
+
+[line]
+
+[center][img]REPLACE-WITH-NEXUS-URL/02-features.png[/img][/center]
+
+[list]
+[*]Synced multi-actor [b]AF / GLTF / GLB[/b] playback on one shared frame clock
+[*]Data-driven [b]scene graphs[/b] — nodes, cues, actions, callbacks, branching — authored in JSON, no scripting required
+[*][b]World and furniture anchoring[/b] — scenes pin to chairs, beds, consoles, or any reference
+[*]Engine-native [b]Wwise[/b] audio (rides the game's mix) with real subtitle support
+[*]Player-control and camera locks, full-screen fades, equipment hide/restore — all reversed by an [b]undo ledger[/b] on any exit, including crashes-of-plan like combat or loading a save. Mid-scene saves are scrubbed safe.
+[*]Settings and rebindable hotkeys live in [b]OSF UI's in-game settings menu[/b] (browser and emote-wheel keys, log level, first-run hint)
 [*]A [b]Papyrus API[/b] ([font=Courier New]OSF.*[/font]) for quest and consumer mods
 [/list]
 
-[size=5][b]Requirements[/b][/size]
+[line]
+
+[center][img]REPLACE-WITH-NEXUS-URL/03-get-started.png[/img][/center]
+
+[size=4][b]Requirements[/b][/size]
 [list]
 [*][url=https://www.nexusmods.com/starfield/mods/106]SFSE[/url] matching your game version
 [*][url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE Plugins[/url]
+[*][url=REPLACE-WITH-OSFUI-NEXUS-URL]OSF UI[/url] — hosts the scene browser, emote wheel, settings, and hotkeys. The engine runs without it, but you lose the entire in-game UI; install it.
 [/list]
 
-[size=5][b]Installation[/b][/size]
-Install with a mod manager (Mod Organizer 2 / Vortex) and enable it. A FOMOD installer is included.
-[b]This mod does nothing on its own[/b] — install a content mod that requires it, or try the bundled test scene below.
-
-[size=5][b]Try it (30 seconds)[/b][/size]
-Open the console (~) and run:
-[code]cgf "OSFTest.SoloScene"[/code]
-Your character plays a looping test animation — proof the engine is live. Stop it with:
-[code]cgf "OSFTest.Stop"[/code]
-
-[size=5][b]For mod authors[/b][/size]
+[size=4][b]Installation[/b][/size]
+Install with a mod manager (Mod Organizer 2 / Vortex). The FOMOD installer offers two content options — keep both:
 [list]
-[*][b]Pack authors:[/b] ship animation scenes as JSON + GLB/AF clips. No Papyrus, no scripting.
-[*][b]Quest / consumer mods:[/b] drive scenes from Papyrus via the [font=Courier New]OSF.*[/font] API (start/advance/navigate scenes, callbacks, locks).
+[*][b]Animation Library[/b] — the browsable vanilla + creature catalog (pure JSON, a few MB, no plugin slot)
+[*][b]Emote Wheel Content[/b] — the emote pack the wheel shows
+[/list]
+
+[size=4][b]Try it (30 seconds)[/b][/size]
+Load a save, press [b]F10[/b], open the [b]Highlights[/b] collections, pick anything, hit play. Add a nearby NPC to the cast and play a paired scene. To verify the engine from the console (~):
+[code]cgf "OSF.Health"[/code]
+
+[size=4][b]Hotkeys[/b][/size]
+The emote wheel ships unbound — set its key (and rebind the browser) in OSF UI's settings menu, on the OSF Animation card. Keys never fire while the console or a text field has focus.
+
+[line]
+
+[center][img]REPLACE-WITH-NEXUS-URL/04-for-authors.png[/img][/center]
+
+[list]
+[*][b]Pack authors:[/b] ship scenes as JSON + GLB/AF clips. No Papyrus, no scripting. Tag a solo scene [font=Courier New]player.emote.*[/font] and it appears in the emote wheel automatically.
+[*][b]Quest / consumer mods:[/b] drive scenes from Papyrus via the [font=Courier New]OSF.*[/font] API — start scenes by tag query, advance and navigate graphs, receive callbacks, use the anchor system.
 [/list]
 Full documentation — Getting Started, Scene Schema, and the Papyrus API — is on [url=https://github.com/ozooma10/osf-animation]GitHub[/url].
 
-[size=5][b]Compatibility & content policy[/b][/size]
+[size=4][b]Compatibility & content policy[/b][/size]
 [list]
-[*][b]SFW.[/b] The engine itself is content-neutral and contains no adult assets.
+[*][b]SFW.[/b] The engine and all bundled content are content-neutral; no adult assets. Specific content lives in separate mods built on top.
 [*]Adapted from [b]NativeAnimationFrameworkSF (NAF)[/b]; it is its own framework, not a drop-in NAF/SAF replacement.
-[*]Built for the current Starfield + SFSE; it logs a clear warning and self-disables features on an unsupported game version rather than crashing.
+[*]Built for the current Starfield + SFSE; on an unsupported game version it logs a clear warning and self-disables features rather than crashing.
 [/list]
 
-[size=5][b]Source, permissions & license[/b][/size]
+[line]
+
+[center][img]REPLACE-WITH-NEXUS-URL/05-credits.png[/img][/center]
+
 OSF Animation is [b]open source[/b] (GPL-3.0 with a modding/linking exception). Full source, build instructions, and issue tracker: [url=https://github.com/ozooma10/osf-animation]github.com/ozooma10/osf-animation[/url]. Bug reports and pull requests welcome.
 
-[size=5][b]Credits[/b][/size]
 [list]
 [*][b]Deweh[/b] — [url=https://github.com/Deweh/NativeAnimationFrameworkSF]NativeAnimationFrameworkSF[/url] (GPL-3.0), the ozz playback/graph foundation OSF is adapted from
 [*][b]Calaverah[/b] — [url=https://github.com/Calaverah/CALUMI.Animation]CALUMI.Animation[/url] (LGPL-3.0), the engine-native .af / skeleton.rig decoder

@@ -278,6 +278,10 @@
       if (/^REPLACE-WITH-NEXUS-URL\/osf-emblem\.png$/i.test(trimmed)) {
         return "branding/osf-emblem.png";
       }
+      const sectionHeader = trimmed.match(/^REPLACE-WITH-NEXUS-URL\/(\d{2}-[a-z-]+\.png)$/i);
+      if (sectionHeader) {
+        return `section-headers/${sectionHeader[1]}`;
+      }
       if (/^(https?:|data:image\/|\.{0,2}\/|[a-z0-9_\-./ ]+\.(png|jpe?g|webp|gif|svg)$)/i.test(trimmed)) {
         return trimmed;
       }
