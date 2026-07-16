@@ -45,37 +45,5 @@ Recommended if you want the emote wheel to do anything out of the box.</descript
         </group>
       </optionalFileGroups>
     </installStep>
-    <installStep name="Compatibility">
-      <optionalFileGroups order="Explicit">
-        <group name="SAF Backwards Compatibility" type="SelectAny">
-          <plugins order="Explicit">
-            <plugin name="SAF Backwards Compat (do not install SAF if enabled)">
-              <description>Some animation mods were built a framework called SAF (Starfield Animation Framework). This option lets those mods run on OSF instead, so you don't need to install SAF separately.
-
-Turn this ON if you have mods that ask for SAF and you want OSF to handle them. Do not install SAF if you have this enabled.
-
-Leave it OFF if you're also running the real SAF mod at the same time and do not want mods to use OSF.</description>
-              <files>
-                <folder source="SafCompat" destination="" priority="1"/>
-              </files>
-              <typeDescriptor>
-                <dependencyType>
-                  <defaultType name="Optional"/>
-                  <patterns>
-                    <pattern>
-                      <dependencies operator="Or">
-                        <fileDependency file="SnuSnuField.esm" state="Active"/>
-                        <fileDependency file="GergelEbanex.esm" state="Active"/>
-                      </dependencies>
-                      <type name="Recommended"/>
-                    </pattern>
-                  </patterns>
-                </dependencyType>
-              </typeDescriptor>
-            </plugin>
-          </plugins>
-        </group>
-      </optionalFileGroups>
-    </installStep>
   </installSteps>
 </config>

@@ -21,16 +21,6 @@ namespace OSF::Input
 		Grant                                   g_grant;
 		std::function<void(Verb, const Grant&)> g_verbHandler;
 
-		// SAF-compat activate redirect: armed while the SAF-compat player lock holds, fires g_compatHandler
-		// on the Activate-key press edge so a legacy "Talk to a participant" mod can still drive its scene.
-		std::atomic_bool      g_compatActivate{ false };
-		std::function<void()> g_compatHandler;  // guarded by g_grantLock
-		// The default Activate key is keyboard 'E' (VK 0x45). The raw ButtonEvent reaches this hook even while
-		// the Activate control is disabled by the scene lock (same as Space->Advance), so we match the physical
-		// key here. @TODO: keymap override (rebound Activate) + gamepad activate button.
-		constexpr std::int32_t kActivateKeyVK = 0x45;
-
-
 		// Mouse-look delta passthrough for the self-driven scene-orbit camera. While capture is on, the
 		// hook accumulates MouseMoveEvent deltas for CameraService to drain (the engine won't route input
 		// to a self-driven free-fly state while the player is a pinned scene participant).
@@ -112,26 +102,6 @@ namespace OSF::Input
 			SFSE::GetTaskInterface()->AddTask([handler, verb, grant]() { handler(verb, grant); });
 		}
 
-		// On the Activate-key PRESS edge, post the compat handler (it triggers the partner activation on the
-		// game thread). Press-edge only, keyboard only for v1. Menu-ownership is gated by the caller.
-		void MaybeCompatActivate(const RE::ButtonEvent* a_event)
-		{
-			if (a_event->value == 0.0f || a_event->heldDownSecs != 0.0f) {
-				return;  // press edge only
-			}
-			if (a_event->deviceType != RE::InputEvent::DeviceType::kKeyboard || a_event->idCode != kActivateKeyVK) {
-				return;
-			}
-			std::function<void()> handler;
-			{
-				std::scoped_lock l{ g_grantLock };
-				if (!g_compatHandler) {
-					return;
-				}
-				handler = g_compatHandler;
-			}
-			SFSE::GetTaskInterface()->AddTask([handler]() { handler(); });
-		}
 		// if menu/console owns input
 		bool MenuOwnsInput()
 		{
@@ -148,16 +118,12 @@ namespace OSF::Input
 		{
 			const bool active = g_active.load(std::memory_order_relaxed);
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
-			const bool compat = g_compatActivate.load(std::memory_order_relaxed);
 			// don't route any input while a menu/console owns it. The engine still receives the unmodified queue below.
-			if ((active || capture || compat) && !MenuOwnsInput()) {
+			if ((active || capture) && !MenuOwnsInput()) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
 					if (active && et == RE::InputEvent::EventType::kButton) {
 						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
-					}
-					if (compat && et == RE::InputEvent::EventType::kButton) {
-						MaybeCompatActivate(static_cast<const RE::ButtonEvent*>(event));
 					}
 					if (!capture) {
 						continue;
@@ -260,18 +226,6 @@ namespace OSF::Input
 		g_verbHandler = std::move(a_handler);
 	}
 
-	void InputService::SetCompatActivateHandler(std::function<void()> a_handler)
-	{
-		std::scoped_lock l{ g_grantLock };
-		g_compatHandler = std::move(a_handler);
-	}
-
-	void InputService::SetCompatActivate(bool a_armed)
-	{
-		g_compatActivate.store(a_armed, std::memory_order_relaxed);
-		REX::DEBUG("[Input] SAF-compat activate redirect {}", a_armed ? "ARMED" : "released");
-	}
-
 	void InputService::Engage(const Grant& a_grant)
 	{
 		{
@@ -305,7 +259,6 @@ namespace OSF::Input
 			g_grant = Grant{};
 		}
 		g_active.store(false, std::memory_order_relaxed);
-		g_compatActivate.store(false, std::memory_order_relaxed);
 		SetMouseCapture(false);
 	}
 

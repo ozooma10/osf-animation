@@ -31,26 +31,9 @@ $core = "$stage\Core"
 # Core: the DLL (no .pdb) + the public OSF API scripts/sources (consumers need the .psc to compile
 # against). OSFTest (the console smoke-test harness) is DEV-ONLY and deliberately excluded from release.
 Copy-Item $dll "$core\SFSE\Plugins\"
-# OSFCompat is the non-public compat-natives script the DLL always binds; shipped in Core so the
-# SAF shim (opt-in below) can resolve OSFCompat.* at runtime. Harmless when the shim isn't installed.
-foreach ($s in @('OSF', 'OSFTypes', 'OSFAdvanced', 'OSFCompat')) {
+foreach ($s in @('OSF', 'OSFTypes', 'OSFAdvanced')) {
     if (Test-Path "$dist\Scripts\$s.pex")        { Copy-Item "$dist\Scripts\$s.pex" "$core\Scripts\" }
     if (Test-Path "$dist\Scripts\Source\$s.psc") { Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\" }
-}
-
-# --- stage SAF Compatibility (opt-in FOMOD group) ---
-# The SAF/SAFScript backwards-compat shim: pure Papyrus that delegates to OSF's natives.
-# Installed only if the user picks the "SAF Compatibility" group; shares SAF's script names,
-# so it's mutually exclusive with a standalone SAF install. Both .pex are required (an empty
-# component would silently no-op), so fail loudly if the compile step was skipped.
-$safc = "$stage\SafCompat"
-New-Item -ItemType Directory -Force -Path "$safc\Scripts\Source" | Out-Null
-foreach ($s in @('SAF', 'SAFScript')) {
-    if (-not (Test-Path "$dist\Scripts\$s.pex")) {
-        throw "SAF shim missing: $dist\Scripts\$s.pex (compile dist\Scripts\Source\$s.psc first)"
-    }
-    Copy-Item "$dist\Scripts\$s.pex" "$safc\Scripts\"
-    Copy-Item "$dist\Scripts\Source\$s.psc" "$safc\Scripts\Source\"
 }
 
 # Settings + hotkeys live in OSF UI's in-game settings menu (schema registered at

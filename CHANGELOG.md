@@ -10,6 +10,9 @@ All notable changes to OSF Animation are documented here.
 - Emote wheel: the `openWheel` hotkey opens the browser view in a radial mode listing solo scenes tagged under a prefix (default `player.emote.*`, so the immersion pack's emotes appear out of the box; `openWheel:<prefix>` overrides). Picking plays the emote on the player — or on the crosshair NPC captured at open time (dead / in-combat / non-human targets fall back to a player-only wheel) — then closes. Cancel with Esc, right-click, or the center hub. Adds the generic `osf.requestClose` bridge command (the view asks the host to hide it).
 - Immersion content pack (`Data/OSF/immersion/`, pure JSON over vanilla `.af` clips): self-terminating `player.emote.*` scenes (wave, what's up, hands on hips, arms crossed, data slate) for the emote wheel. Documents the well-known tag contract in `docs/SCENE_SCHEMA.md`.
 
+### Removed
+- SAF backwards-compatibility shim (the opt-in `SAF.pex`/`SAFScript.pex` FOMOD component from 0.2.0) and its supporting internals: the non-public `OSFCompat` natives, the Activate-key redirect in the input hook, and the FOMOD "Compatibility" install step. SAF-targeting content should use the real SAF, or be ported to the OSF API.
+
 ### Changed
 - Vanilla library packs now exclude **partial-coverage layer clips** (real tracked bones < 85% of the rig, measured from the `.af` index atlas — e.g. cover-lean or `*_idlepartialbody_*` layers with 5-25 of 82 bones): played standalone they T-pose every untracked bone. ~1,700 of ~14k clips dropped from the browsable catalog; regenerate with `generate_vanilla_packs.py --include-partial` to re-add them tagged `"partial"`.
 

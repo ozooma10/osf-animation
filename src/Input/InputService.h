@@ -24,12 +24,6 @@ namespace OSF::Input
 		// The runtime registers HOW a verb executes (it drives the active scene + clock). Called on the game thread.
 		void SetVerbHandler(std::function<void(Verb, const Grant&)> a_handler);
 
-		// --- SAF-compat activate redirect ----------------------------------------------------------
-		// Legacy SAF/NAF mods (e.g. SnuSnu) progress a scene by having the player "Talk to" a participant, While armed (SetCompatActivate(true), driven by the SAF-compat player lock),
-		// the input hook catches the Activate key press and posts a_handler on the game thread to trigger the activation directly.
-		void SetCompatActivateHandler(std::function<void()> a_handler);
-		void SetCompatActivate(bool a_armed);
-
 		// Engage/release the director channel for one scene. Engage stores the grant + arms dispatch;
 		// Release clears it if a_handle is the active grant. Driven by the undo ledger (Mechanism::kInputChannel), so the channel tracks the scene lock's lifecycle exactly.
 		void Engage(const Grant& a_grant);

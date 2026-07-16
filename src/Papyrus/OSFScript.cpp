@@ -4,10 +4,7 @@
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
 #include "Audio/SoundService.h"
-#include "Camera/CameraService.h"
-#include "Input/InputService.h"
 #include "Matchmaking/Matchmaker.h"
-#include "Player/PlayerControlService.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/AnchorResolve.h"
@@ -778,57 +775,6 @@ namespace OSF::Papyrus
 			}
 			return out;
 		}
-
-		// --- Compatibility-only natives (bound on OSFCompat) ---------------------------------------
-		// The SAF shim's non-Scene Play+Sync path freezes the player via these standalone locks; the
-		// core never applies them on its own (the scene runtime drives its own control/camera policy).
-
-		// Standalone control lock: input-disable layer + AI-driven. false releases.
-		// Also arms the input-hook "Activate -> talk to partner" redirect: legacy SAF/NAF mods (SnuSnu) drive
-		// progression by talking to a participant, but OSF can't show the [E] prompt on a pinned, animation-
-		// driven, player-overlapping NPC, so while this lock holds the Activate key is redirected (see InputService).
-		void SetPlayerControlLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
-		{
-			Player::PlayerControlService::GetSingleton().SetStandaloneLock(a_locked);
-			Input::InputService::GetSingleton().SetCompatActivate(a_locked);
-		}
-
-		// The player's current SAF-compat scene partner (first other participant), or None. Lets the input-hook
-		// redirect's Papyrus side (SAFScript.OnCompatActivate) find the actor to Activate.
-		RE::Actor* GetScenePartner(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
-		{
-			return Animation::GraphManager::GetSingleton().GetScenePartner(a_actor);
-		}
-
-		// Standalone camera lock: force/hold third person (bounces on zoom-in). false restores the prior POV.
-		void SetPlayerCameraLock(OSFVM&, uint32_t, std::monostate, bool a_locked)
-		{
-			Camera::CameraService::GetSingleton().SetStandaloneLock(a_locked);
-		}
-
-		// Engine crosshair target: the reference under the reticle / activate prompt.
-		// Reads PlayerCharacter->commandTarget. Any ref kind, or null when the crosshair is on nothing.
-		RE::TESObjectREFR* CrosshairTarget()
-		{
-			auto* player = RE::PlayerCharacter::GetSingleton();
-			return player ? player->commandTarget : nullptr;
-		}
-
-		// The raw engine crosshair reference, or None. Restores SAF's native crosshairRef the
-		// pure-Papyrus shim had no way to read.
-		RE::TESObjectREFR* GetCrosshairRef(OSFVM&, uint32_t, std::monostate)
-		{
-			return CrosshairTarget();
-		}
-
-		// The crosshair reference cast to Actor, or None when the crosshair is on nothing or a
-		// non-actor ref. Backs the SAF shim's crosshair pickers (which otherwise approximate
-		// selection with a pure-Papyrus heading-angle cone search).
-		RE::Actor* GetCrosshairActor(OSFVM&, uint32_t, std::monostate)
-		{
-			auto* target = CrosshairTarget();
-			return (target && target->IsActor()) ? static_cast<RE::Actor*>(target) : nullptr;
-		}
 	}
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
@@ -895,35 +841,6 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "OpenBrowser", &OpenBrowser, true, false);
 		REX::INFO("[Papyrus] registered natives on script '{}'", SCRIPT_NAME);
-
-		// Non-public compat natives (script 'OSFCompat'): the standalone player/camera lock the SAF
-		// shim's primitive Play+Sync path uses, and the engine crosshair the pure-Papyrus shim can't
-		// read. Kept off the public OSF surface; harmless when no SAF shim is installed to call them.
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerControlLock", &SetPlayerControlLock, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "SetPlayerCameraLock", &SetPlayerCameraLock, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairRef", &GetCrosshairRef, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetCrosshairActor", &GetCrosshairActor, true, false);
-		a_vm->BindNativeMethod(COMPAT_SCRIPT_NAME, "GetScenePartner", &GetScenePartner, true, false);
-		REX::INFO("[Papyrus] registered compat natives on script '{}'", COMPAT_SCRIPT_NAME);
-
-		// Wire the input-hook "Activate -> talk to partner" redirect to the Papyrus side: on the player's
-		// Activate keypress during a SAF-compat scene, run SAFScript.OnCompatActivate() (it finds the partner
-		// via GetScenePartner and calls partner.Activate(player), reproducing the legacy "Talk to" trigger).
-		Input::InputService::GetSingleton().SetCompatActivateHandler([]() {
-			auto* game = RE::GameVM::GetSingleton();
-			auto* vm = game ? game->GetVM() : nullptr;
-			if (!vm) {
-				return;
-			}
-			const RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> noCallback{};
-			vm->DispatchStaticCall(
-				"SAFScript", "OnCompatActivate",
-				[](RE::BSScrapArray<RE::BSScript::Variable>& a_args) {
-					a_args.clear();
-					return true;
-				},
-				noCallback, 0);
-		});
 	}
 
 	bool RegisterFunctions()

@@ -87,10 +87,6 @@ namespace OSF::Animation
 		// assumes the clips baked root offsets arange actors arouns same origin point. (if anchoring)
 		bool Sync(const std::vector<RE::Actor*>& a_actors, bool a_anchor = true);
 
-		// First OTHER participant in a_actor's live scene. null if a_actor has no live graph, is not in a scene, or is the only participant.
-		RE::Actor* GetScenePartner(RE::Actor* a_actor);
-
-
 		// Solo multi-stage sequence (no anchor)
 		bool PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<std::string>& a_animIds, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole);
 

@@ -15,18 +15,15 @@ plans have landed and been tested in-game.
   not run the build — keep changes reviewable and let the user produce/inspect the
   zip.
 - FOMOD layout convention: each source folder in the archive maps onto `Data/` at
-  install time (existing: `Core\OSF\settings.json`, `Core\Scripts\...`,
-  `SafCompat\Scripts\...`).
+  install time (existing: `Core\OSF\settings.json`, `Core\Scripts\...`).
 
 ## Verified current state
 
 - `packaging/fomod/ModuleConfig.xml`: `requiredInstallFiles` = folder `Core`
-  (L7-9); ONE install step "Compatibility" with one `SelectAny` group holding the
-  "SAF Backwards Compat" plugin (folder `SafCompat`, L22-24), auto-recommended when
-  `SnuSnuField.esm`/`GergelEbanex.esm` is active (L26-38). Also `info.xml` (version
-  stamped by the build script) and `images/`.
-- `packaging/build-archive.ps1` stages: the DLL (`Core\SFSE\Plugins\`), the four
-  release `.pex`/`.psc` (OSFTest excluded), the SAF shim scripts,
+  (L7-9). Also `info.xml` (version stamped by the build script) and `images/`.
+  (The SAF Backwards Compat step was removed along with the shim, 2026-07-16.)
+- `packaging/build-archive.ps1` stages: the DLL (`Core\SFSE\Plugins\`), the
+  release `.pex`/`.psc` (OSFTest excluded),
   `Core\OSF\settings.json` ← `dist/settings.release.json`, and
   **only `dist/OSF/internal.osf.json`** (L64). **It does NOT stage `dist/OSF/vanilla/`
   or any other pack folder — new content will silently not ship unless added here.**
@@ -63,7 +60,7 @@ does.
 ### 3. Archive script (`packaging/build-archive.ps1`)
 
 - Stage `dist/OSF/immersion/*.osf.json` → `$stage\Immersion\OSF\immersion\`
-  (fail loudly if the folder is missing, matching the SAF `.pex` throw style).
+  (fail loudly if the folder is missing).
 - Keep OSFTest/dev settings exclusions as-is; verify `CrewLife/` (in-progress, not
   part of this release) is NOT staged.
 
