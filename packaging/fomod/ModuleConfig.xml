@@ -9,6 +9,58 @@
   </requiredInstallFiles>
 
   <installSteps order="Explicit">
+    <installStep name="Content">
+      <optionalFileGroups order="Explicit">
+        <group name="Animation Library" type="SelectAny">
+          <plugins order="Explicit">
+            <plugin name="Vanilla + Creature Animation Library">
+              <description>Adds Starfield's built-in animations — humans plus 27 creature species — to the scene browser. This is what fills the browser's Library tab; without it the browser only shows any dedicated content packs you install.
+
+Recommended. Pure data (a few MB of JSON), no extra plugin slot used.</description>
+              <image path="fomod\images\header.jpg"/>
+              <files>
+                <folder source="Library" destination="" priority="1"/>
+              </files>
+              <typeDescriptor>
+                <defaultType name="Recommended"/>
+              </typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+        <group name="Immersion Actions" type="SelectAny">
+          <plugins order="Explicit">
+            <plugin name="Emote Wheel Content">
+              <description>Adds the emote pack (wave, what's up, hands on hips, arms crossed, data slate) that the emote wheel shows. Open the wheel with the hotkey you bind in OSF UI's settings menu; emotes can play on the NPC in your crosshair.
+
+Recommended if you want the emote wheel to do anything out of the box.</description>
+              <image path="fomod\images\header.jpg"/>
+              <files>
+                <folder source="Immersion" destination="" priority="1"/>
+              </files>
+              <typeDescriptor>
+                <defaultType name="Recommended"/>
+              </typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+        <group name="Scene Browser Data Slate" type="SelectAny">
+          <plugins order="Explicit">
+            <plugin name="Data Slate (in-world browser opener)">
+              <description>Adds an equippable "OSF Data Slate" item that opens the scene browser from your inventory — a discoverable alternative to binding a hotkey.
+
+Uses one plugin slot (OSFAnimation.esm). Leave this off if you'd rather open the browser only with a hotkey.</description>
+              <image path="fomod\images\header.jpg"/>
+              <files>
+                <folder source="DataSlate" destination="" priority="1"/>
+              </files>
+              <typeDescriptor>
+                <defaultType name="Recommended"/>
+              </typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+      </optionalFileGroups>
+    </installStep>
     <installStep name="Compatibility">
       <optionalFileGroups order="Explicit">
         <group name="SAF Backwards Compatibility" type="SelectAny">

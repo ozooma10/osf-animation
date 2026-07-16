@@ -62,6 +62,42 @@ New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
 # health self-test works on a clean install (scenes are looked up by id, independent of filename).
 Copy-Item "$dist\OSF\internal.osf.json" "$core\OSF\internal.osf.json"
 
+# --- stage Animation Library (opt-in FOMOD group "Animation Library") ---
+# The browsable vanilla + creature catalog: pure JSON packs that reference game-archive
+# .af clips (no baked animation data, ~2.3 MB). The browser's library lane is empty without
+# these, so fail loudly if the generated packs are missing.
+$lib = "$stage\Library\OSF\vanilla"
+New-Item -ItemType Directory -Force -Path $lib | Out-Null
+$libPacks = Get-ChildItem "$dist\OSF\vanilla" -Filter '*.osf.json' -ErrorAction SilentlyContinue
+if (-not $libPacks) { throw "Animation library packs missing: $dist\OSF\vanilla\*.osf.json (generate with tools/vanilla-packs first)" }
+$libPacks | ForEach-Object { Copy-Item $_.FullName $lib }
+
+# --- stage Immersion Actions (opt-in FOMOD group "Immersion Actions") ---
+# Emote-wheel content: the player.emote.* scenes the wheel enumerates. Required for the
+# group to be non-empty, so fail loudly if absent.
+$imm = "$stage\Immersion\OSF\immersion"
+New-Item -ItemType Directory -Force -Path $imm | Out-Null
+if (-not (Test-Path "$dist\OSF\immersion\emotes.osf.json")) {
+    throw "Immersion pack missing: $dist\OSF\immersion\emotes.osf.json"
+}
+Copy-Item "$dist\OSF\immersion\emotes.osf.json" $imm
+
+# --- stage Data Slate (opt-in FOMOD group "Scene Browser Data Slate") ---
+# OSFAnimation.esm gives an equippable in-world item that opens the scene browser; its
+# manager/script .pex carry the logic. ESM -> Data root; scripts -> Data\Scripts. Fail loudly
+# if the .esm (Build-Plugin.ps1) or its compiled scripts are missing.
+$slate = "$stage\DataSlate"
+New-Item -ItemType Directory -Force -Path "$slate\Scripts\Source" | Out-Null
+if (-not (Test-Path "$repo\OSFAnimation.esm")) { throw "Data Slate ESM missing: $repo\OSFAnimation.esm (run Build-Plugin.ps1 first)" }
+Copy-Item "$repo\OSFAnimation.esm" "$slate\"
+foreach ($s in @('OSFDataSlateManager', 'OSFDataSlateScript')) {
+    if (-not (Test-Path "$dist\Scripts\$s.pex")) {
+        throw "Data Slate script missing: $dist\Scripts\$s.pex (compile dist\Scripts\Source\$s.psc first)"
+    }
+    Copy-Item "$dist\Scripts\$s.pex" "$slate\Scripts\"
+    Copy-Item "$dist\Scripts\Source\$s.psc" "$slate\Scripts\Source\"
+}
+
 # fomod/ (incl. fomod/images/ banner + plugin art referenced by ModuleConfig.xml) + stamp the version into info.xml.
 Copy-Item "$PSScriptRoot\fomod" "$stage\fomod" -Recurse
 $infoPath = "$stage\fomod\info.xml"
