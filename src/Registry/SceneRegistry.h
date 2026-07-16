@@ -234,7 +234,7 @@ namespace OSF::Registry
 
 	// Per-scene player-input grant. Input control is ENABLED BY DEFAULT: with no `playerControl` block the player gets every capability while participating. 
 	// A scene opts out wholesale (`"playerControl": false`) or narrows it (`{ "disable": ["speed","end"], "locked": true }`).
-	// capabilities is an OR of OSF::Input::Capability bits (advance/navigate/speed/reposition/freecam/end).
+	// capabilities is an OR of OSF::Input::Capability bits (advance/navigate/speed/freecam/end).
 	struct PlayerControl
 	{
 		bool          enabled = true;                  // false => no input channel at all

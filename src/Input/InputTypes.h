@@ -16,8 +16,8 @@ namespace OSF::Input
 		kAdvance = 1u << 0,     // take the node's default advance edge
 		kNavigate = 1u << 1,    // branch edges
 		kSpeed = 1u << 2,       // faster / slower / reset / pause the shared scene clock
-		kReposition = 1u << 3,  // nudge / rotate / realign actors (not implemented yet)
-		kFreecam = 1u << 4,     // free camera (not implemented yet)
+		// bit 3 reserved (was kReposition — cut, never implemented)
+		kFreecam = 1u << 4,     // free camera (MMB toggle -> native free cam)
 		kEnd = 1u << 5,         // end the scene (subject to playerControl.locked)
 	};
 
@@ -26,7 +26,6 @@ namespace OSF::Input
 		static_cast<std::uint32_t>(Capability::kAdvance) |
 		static_cast<std::uint32_t>(Capability::kNavigate) |
 		static_cast<std::uint32_t>(Capability::kSpeed) |
-		static_cast<std::uint32_t>(Capability::kReposition) |
 		static_cast<std::uint32_t>(Capability::kFreecam) |
 		static_cast<std::uint32_t>(Capability::kEnd);
 
@@ -36,14 +35,14 @@ namespace OSF::Input
 		if (a_name == "advance") return static_cast<std::uint32_t>(Capability::kAdvance);
 		if (a_name == "navigate") return static_cast<std::uint32_t>(Capability::kNavigate);
 		if (a_name == "speed") return static_cast<std::uint32_t>(Capability::kSpeed);
-		if (a_name == "reposition") return static_cast<std::uint32_t>(Capability::kReposition);
 		if (a_name == "freecam") return static_cast<std::uint32_t>(Capability::kFreecam);
 		if (a_name == "end") return static_cast<std::uint32_t>(Capability::kEnd);
 		return 0;
 	}
 
 	// Fine-grained director verbs the input layer routes to runtime actions. v1 keyboard set;
-	// navigate/reposition/freecam verbs are deferred. Each verb requires its capability granted.
+	// the navigate verb is deferred (the kNavigate capability exists for authors). Each verb
+	// requires its capability granted.
 	enum class Verb : std::uint32_t
 	{
 		kNone = 0,
