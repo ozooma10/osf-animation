@@ -43,6 +43,13 @@ namespace OSF::API
 		// Only touched on the game main thread (ready callback, command handlers, SFSE tasks).
 		bool g_uiReady = false;
 
+		// Browser visibility as reported by the view (osf.opened / osf.closed). Gates OnOrbit:
+		// the view batches drag deltas per animation frame, so a flush queued during the last
+		// drag can arrive AFTER osf.closed — without the gate that late message would lazily
+		// RE-engage the browse orbit on a closed browser, and nothing would ever release it
+		// (the classic "camera stuck orbiting after closing the browser"). Game main thread only.
+		bool g_viewVisible = false;
+
 		// OSF Animation's own scene API, fetched lazily on first launch/stop.
 		IOSFSceneAPI* g_scene = nullptr;
 
@@ -932,6 +939,7 @@ namespace OSF::API
 		// screen (visible = the scene-orbit camera steers by LMB-drag; hidden = free-look).
 		void OnOpened(const char*, const char*, const char*, void*) noexcept
 		{
+			g_viewVisible = true;
 			UI::FirstRunHint::OnMenuOpened();
 			Input::InputService::GetSingleton().SetUiCursorVisible(true);
 			// A wheel open is pending: replay the mode switch (idempotent view-side). With an
@@ -946,6 +954,7 @@ namespace OSF::API
 
 		void OnClosed(const char*, const char*, const char*, void*) noexcept
 		{
+			g_viewVisible = false;
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
 			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();  // drag-to-look never outlives the browser
 			g_wheel = {};  // any hide ends wheel mode; the next open starts clean
@@ -970,6 +979,12 @@ namespace OSF::API
 		{
 			const json p = ParsePayload(a_payloadJson);
 			if (!p.is_object()) {
+				return;
+			}
+			if (!g_viewVisible) {
+				// A delta flush that raced the close (queued before osf.closed, delivered after).
+				// Engaging here would orbit a camera nobody can ever release — drop it.
+				REX::TRACE("[UI] osf.animation.orbit after close — dropped");
 				return;
 			}
 			// First world drag of this browser session: engage the BROWSE ORBIT so there is always

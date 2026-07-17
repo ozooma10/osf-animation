@@ -148,6 +148,9 @@ function onNativeMessage(jsonText) {
     case "ui.visibility":
       if (!(payload && payload.visible)) {
         orbit.dragging = false;  // never carry a drag across a hide
+        // Drop deltas a queued rAF flush hasn't sent yet: flushed after the close relay they'd
+        // re-engage the native browse orbit on a closed browser (stuck orbit camera).
+        orbit.dx = orbit.dy = orbit.wheel = 0;
         exitWheel();             // wheel mode never survives a hide — a reopen shows the console
       }
       send(payload && payload.visible ? "osf.animation.opened" : "osf.animation.closed");
