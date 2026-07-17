@@ -51,14 +51,17 @@ target("OSF Animation")
             -- No settings.json: settings + hotkeys live in OSF UI's settings menu
             -- (UISettings.cpp registers the schema over the bridge at runtime).
 
-            local view = path.join(plugins, "OSFUI", "views", "osf")
-            os.tryrm(view)
+            -- Nested namespace layout (OSF UI api-freeze item 1):
+            -- views/<modId>/<viewName>/ with the qualified id "osf.animation/browser".
+            os.tryrm(path.join(plugins, "OSFUI", "views", "osf"))  -- pre-rename leftover; OSF UI hard-rejects the dotless folder
+            local view = path.join(plugins, "OSFUI", "views", "osf.animation", "browser")
+            os.tryrm(path.join(plugins, "OSFUI", "views", "osf.animation"))
             os.mkdir(view)
-            os.cp("views/osf/manifest.json", view .. "/")
-            os.cp("views/osf/index.html", view .. "/")
-            os.cp("views/osf/main.js", view .. "/")
-            os.cp("views/osf/style.css", view .. "/")
-            os.cp("views/osf/osf-icon.svg", view .. "/")  -- Mods-surface badge (schema `icon`)
+            os.cp("views/osf.animation/browser/manifest.json", view .. "/")
+            os.cp("views/osf.animation/browser/index.html", view .. "/")
+            os.cp("views/osf.animation/browser/main.js", view .. "/")
+            os.cp("views/osf.animation/browser/style.css", view .. "/")
+            os.cp("views/osf.animation/browser/osf-icon.svg", view .. "/")  -- Mods-surface badge (schema `icon`)
             local ok = try { function() os.cp(target:targetfile(), plugins .. "/"); return true end }
             if ok then
                 if os.isfile(target:symbolfile()) then

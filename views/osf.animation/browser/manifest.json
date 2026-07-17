@@ -1,7 +1,8 @@
 {
-  "id": "osf",
+  "id": "browser",
   "title": "OSF Animation Browser",
-  "mod": "osf",
+  "description": "Scene browser and launcher",
+  "mod": "osf.animation",
   "entry": "index.html",
   "width": 1280,
   "height": 720,

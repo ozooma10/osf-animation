@@ -33,8 +33,11 @@ namespace OSF::API
 	{
 		using json = nlohmann::json;
 
-		// The bridge, fetched once at Install; nullptr => OSF UI absent (UI disabled).
-		OSFUI::API::IOSFUIBridge* g_ui = nullptr;
+		// The version-gated bridge wrapper (OSFUI::API::Client, header 1.6),
+		// initialized once at Install; unconnected => OSF UI absent (UI
+		// disabled) and every call degrades to a no-op. Static lifetime:
+		// registered handlers may fire for the remaining process life.
+		OSFUI::API::Client g_ui;
 
 		// Set by OnBridgeReady; unsolicited pushes (PushCatalogUpdate) are dropped before then.
 		// Only touched on the game main thread (ready callback, command handlers, SFSE tasks).
@@ -139,7 +142,7 @@ namespace OSF::API
 		}
 
 		// Our view's manifest id; the SendToWeb target for pushes that aren't a direct reply (e.g. the catalog we push when the bridge becomes ready).
-		constexpr const char* kViewId = "osf";
+		constexpr const char* kViewId = "osf.animation/browser";  // qualified "<modId>/<viewName>" (OSF UI api-freeze item 1)
 
 		// ---- helpers ---------------------------------------------------------
 
@@ -158,7 +161,7 @@ namespace OSF::API
 				return;
 			}
 			const std::string text = a_payload.dump(-1, ' ', false, json::error_handler_t::replace);
-			g_ui->SendToWeb(a_view, a_type, text.c_str());
+			g_ui.SendToWeb(a_view, a_type, text.c_str());
 		}
 
 		// Parse an inbound payload without throwing (handlers are noexcept). Returns a discarded value on malformed input; callers treat non-objects as empty.
@@ -187,7 +190,7 @@ namespace OSF::API
 			} else {
 				payload["target"] = nullptr;
 			}
-			SendJson(kViewId, "osf.mode", payload);
+			SendJson(kViewId, "osf.animation.mode", payload);
 		}
 
 		const char* GenderTag(Registry::SlotGender a_gender)
@@ -478,14 +481,14 @@ namespace OSF::API
 
 		void OnCatalogGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
-			SendJson(a_srcView, "osf.catalog.data", BuildCatalog(false));
+			SendJson(a_srcView, "osf.animation.catalog.data", BuildCatalog(false));
 		}
 
 		// The library lane is static after load (generated packs, pack-authored durations), so the
 		// view fetches it once on demand and caches — it is never re-pushed by catalog updates.
 		void OnLibraryGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
-			SendJson(a_srcView, "osf.library.data", BuildCatalog(true));
+			SendJson(a_srcView, "osf.animation.library.data", BuildCatalog(true));
 		}
 
 		void OnPickCrosshair(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
@@ -509,7 +512,7 @@ namespace OSF::API
 				reply["token"] = 0;
 				reply["name"] = "";
 				reply["formId"] = 0;
-				REX::DEBUG("[UI] osf.pickCrosshair slot={} -> nothing valid under crosshair", slot);
+				REX::DEBUG("[UI] osf.animation.pickCrosshair slot={} -> nothing valid under crosshair", slot);
 			} else {
 				const std::int32_t token = AllocToken(ref);
 				const std::string  nm = ScanLabel(ref);
@@ -520,9 +523,9 @@ namespace OSF::API
 				// Skeleton family, so the view can filter the library to what this actor can actually
 				// play (a creature gets its own animations, not human ones). "" for furniture picks.
 				reply["species"] = ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
-				REX::DEBUG("[UI] osf.pickCrosshair slot={} -> token {} '{}' ({:08X})", slot, token, nm, ref->GetFormID());
+				REX::DEBUG("[UI] osf.animation.pickCrosshair slot={} -> token {} '{}' ({:08X})", slot, token, nm, ref->GetFormID());
 			}
-			SendJson(a_srcView, "osf.pick", reply);
+			SendJson(a_srcView, "osf.animation.pick", reply);
 		}
 
 		void OnLaunch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
@@ -539,8 +542,8 @@ namespace OSF::API
 				reply["ok"] = false;
 				reply["handle"] = 0;
 				reply["error"] = a_reason;
-				REX::WARN("[UI] osf.launch '{}' refused: {}", sceneId, a_reason);
-				SendJson(a_srcView, "osf.launchResult", reply);
+				REX::WARN("[UI] osf.animation.launch '{}' refused: {}", sceneId, a_reason);
+				SendJson(a_srcView, "osf.animation.launchResult", reply);
 			};
 
 			if (sceneId.empty()) {
@@ -611,7 +614,7 @@ namespace OSF::API
 					if (busy == g_lastHandle) {
 						g_lastHandle = 0;
 					}
-					REX::INFO("[UI] osf.launch '{}' superseding live scene {:#010x} (cast busy) — stopped it first", sceneId, busy);
+					REX::INFO("[UI] osf.animation.launch '{}' superseding live scene {:#010x} (cast busy) — stopped it first", sceneId, busy);
 				}
 			}
 
@@ -642,9 +645,9 @@ namespace OSF::API
 			g_lastHandle = handle;
 			reply["ok"] = true;
 			reply["handle"] = handle;
-			REX::INFO("[UI] osf.launch '{}' -> handle {} ({} cast{})", sceneId, handle, actors.size(),
+			REX::INFO("[UI] osf.animation.launch '{}' -> handle {} ({} cast{})", sceneId, handle, actors.size(),
 				furniture ? ", anchored" : "");
-			SendJson(a_srcView, "osf.launchResult", reply);
+			SendJson(a_srcView, "osf.animation.launchResult", reply);
 		}
 
 		void OnStop(const char*, const char* a_payload, const char*, void*) noexcept
@@ -666,7 +669,7 @@ namespace OSF::API
 			if (handle == g_lastHandle && ok) {
 				g_lastHandle = 0;
 			}
-			REX::DEBUG("[UI] osf.stop handle={} -> {}", handle, ok);
+			REX::DEBUG("[UI] osf.animation.stop handle={} -> {}", handle, ok);
 		}
 
 		// ---- nearby-actor enumeration ----------------------------------------
@@ -734,8 +737,8 @@ namespace OSF::API
 
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			if (!player) {
-				REX::DEBUG("[UI] osf.scanNearby kind={} -> no player", kind);
-				SendJson(a_srcView, "osf.scanResults", reply);
+				REX::DEBUG("[UI] osf.animation.scanNearby kind={} -> no player", kind);
+				SendJson(a_srcView, "osf.animation.scanResults", reply);
 				return;
 			}
 
@@ -891,8 +894,8 @@ namespace OSF::API
 			}
 			const auto scanMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now() - scanStart).count();
-			REX::DEBUG("[UI] osf.scanNearby kind={} radius={} -> {} hit(s) in {} ms", kind, radius, hits.size(), scanMs);
-			SendJson(a_srcView, "osf.scanResults", reply);
+			REX::DEBUG("[UI] osf.animation.scanNearby kind={} radius={} -> {} hit(s) in {} ms", kind, radius, hits.size(), scanMs);
+			SendJson(a_srcView, "osf.animation.scanResults", reply);
 		}
 
 		// Which anchor-bound scenes accept a keyed furniture ref. The view filters its browse
@@ -920,8 +923,8 @@ namespace OSF::API
 					}
 				});
 			}
-			REX::DEBUG("[UI] osf.anchorMatch token={} -> {} scene(s)", token, reply["sceneIds"].size());
-			SendJson(a_srcView, "osf.anchorMatch", reply);
+			REX::DEBUG("[UI] osf.animation.anchorMatch token={} -> {} scene(s)", token, reply["sceneIds"].size());
+			SendJson(a_srcView, "osf.animation.anchorMatch", reply);
 		}
 
 		// The view reports every visibility change (ui.visibility -> osf.opened / osf.closed): the
@@ -953,12 +956,12 @@ namespace OSF::API
 		// run on the game main thread and RequestMenu is thread-safe/queued, so no task hop.
 		void OnRequestClose(const char*, const char*, const char*, void*) noexcept
 		{
-			if ((g_ui->GetInterfaceVersion() & 0xFFFFu) < 1u) {
-				REX::WARN("[UI] osf.requestClose: installed OSF UI has no RequestMenu (bridge MINOR < 1) — ignored");
+			if (!g_ui.Has(OSFUI::API::Feature::kRequestMenu)) {
+				REX::WARN("[UI] osf.animation.requestClose: installed OSF UI has no RequestMenu (bridge MINOR < 1) — ignored");
 				return;
 			}
-			const bool ok = g_ui->RequestMenu(kViewId, false);
-			REX::DEBUG("[UI] osf.requestClose -> RequestMenu('{}', close) -> {}", kViewId, ok);
+			const bool ok = g_ui.RequestMenu(kViewId, false);
+			REX::DEBUG("[UI] osf.animation.requestClose -> RequestMenu('{}', close) -> {}", kViewId, ok);
 		}
 
 		// World-area drag/wheel from the view (osf.orbit {dx,dy,wheel}) — the overlay consumes all
@@ -1000,7 +1003,7 @@ namespace OSF::API
 		{
 			REX::DEBUG("[UI] OSF UI bridge ready — pushing catalog to view '{}'", kViewId);
 			g_uiReady = true;
-			SendJson(kViewId, "osf.catalog.data", BuildCatalog(false));
+			SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
 		}
 	}
 
@@ -1010,12 +1013,12 @@ namespace OSF::API
 			return;  // OSF UI absent or not ready yet — the ready push will carry current data
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
-		SendJson(kViewId, "osf.catalog.data", BuildCatalog(false));
+		SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
 	}
 
 	bool UIBridgeInstalled()
 	{
-		return g_ui != nullptr;
+		return g_ui.IsConnected();
 	}
 
 	bool OpenBrowser()
@@ -1024,10 +1027,10 @@ namespace OSF::API
 			REX::WARN("[UI] OpenBrowser: OSF UI not present — nothing to open");
 			return false;
 		}
-		// RequestMenu is an appended vmethod (bridge MINOR >= 1). An OSF UI built before it
-		// has no such vtable slot; calling through it would be undefined. Gate on the live
-		// interface version rather than the header constant we compiled against.
-		if ((g_ui->GetInterfaceVersion() & 0xFFFFu) < 1u) {
+		// RequestMenu is an appended vmethod (bridge MINOR >= 1); the Client
+		// wrapper would no-op it on an older host — gate explicitly so the
+		// user gets an actionable message instead of a silent nothing.
+		if (!g_ui.Has(OSFUI::API::Feature::kRequestMenu)) {
 			REX::WARN("[UI] OpenBrowser: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to open the browser from native code");
 			return false;
 		}
@@ -1040,7 +1043,7 @@ namespace OSF::API
 			// state and, if the view is already up as the wheel, switch it back to the console.
 			if (g_wheel.active) {
 				g_wheel = {};
-				SendJson(kViewId, "osf.mode", json{ { "mode", "browser" } });
+				SendJson(kViewId, "osf.animation.mode", json{ { "mode", "browser" } });
 			}
 			auto* ui = RE::UI::GetSingleton();
 			auto* queue = RE::UIMessageQueue::GetSingleton();
@@ -1053,7 +1056,7 @@ namespace OSF::API
 					}
 				}
 			}
-			const bool ok = g_ui->RequestMenu(kViewId, true);
+			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::INFO("[UI] OpenBrowser: RequestMenu('{}', open) -> {}", kViewId, ok);
 		});
 		return true;
@@ -1066,8 +1069,8 @@ namespace OSF::API
 			UI::HudMessage::Error("OSF UI not present or too old");
 			return false;
 		}
-		// Same live-interface gate as OpenBrowser: RequestMenu is an appended vmethod (MINOR >= 1).
-		if ((g_ui->GetInterfaceVersion() & 0xFFFFu) < 1u) {
+		// Same gate as OpenBrowser: actionable message beats the wrapper's silent no-op.
+		if (!g_ui.Has(OSFUI::API::Feature::kRequestMenu)) {
 			REX::WARN("[UI] OpenWheel: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to use the emote wheel");
 			UI::HudMessage::Error("OSF UI not present or too old");
 			return false;
@@ -1117,7 +1120,7 @@ namespace OSF::API
 			// Immediate mode push covers a view that is already open (browser -> wheel switch);
 			// the osf.opened replay covers a fresh view creation racing this send.
 			SendWheelMode();
-			const bool ok = g_ui->RequestMenu(kViewId, true);
+			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::INFO("[UI] OpenWheel: RequestMenu('{}', open) -> {} (prefix '{}', target: {})",
 				kViewId, ok, g_wheel.tagPrefix, g_wheel.targetToken != 0 ? g_wheel.targetName : "player-only");
 		});
@@ -1128,39 +1131,37 @@ namespace OSF::API
 	{
 		using namespace OSFUI::API;
 
-		g_ui = RequestBridge();
-		if (!g_ui) {
+		if (!g_ui.Init()) {
 			REX::INFO("[UI] OSF UI not present — in-game scene-browser view disabled (this is fine)");
 			return;
 		}
 
-		g_ui->SetReadyCallback(&OnBridgeReady, nullptr);
-		g_ui->RegisterCommand("osf.catalog.get", &OnCatalogGet, nullptr);
-		g_ui->RegisterCommand("osf.library.get", &OnLibraryGet, nullptr);
-		g_ui->RegisterCommand("osf.pickCrosshair", &OnPickCrosshair, nullptr);
-		g_ui->RegisterCommand("osf.scanNearby", &OnScanNearby, nullptr);
-		g_ui->RegisterCommand("osf.anchorMatch", &OnAnchorMatch, nullptr);
-		g_ui->RegisterCommand("osf.launch", &OnLaunch, nullptr);
-		g_ui->RegisterCommand("osf.stop", &OnStop, nullptr);
-		g_ui->RegisterCommand("osf.opened", &OnOpened, nullptr);
-		g_ui->RegisterCommand("osf.closed", &OnClosed, nullptr);
-		g_ui->RegisterCommand("osf.orbit", &OnOrbit, nullptr);
-		g_ui->RegisterCommand("osf.requestClose", &OnRequestClose, nullptr);
+		g_ui.SetReadyCallback(&OnBridgeReady, nullptr);
+		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
+		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
+		g_ui.RegisterCommand("osf.animation.pickCrosshair", &OnPickCrosshair, nullptr);
+		g_ui.RegisterCommand("osf.animation.scanNearby", &OnScanNearby, nullptr);
+		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
+		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
+		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
+		g_ui.RegisterCommand("osf.animation.opened", &OnOpened, nullptr);
+		g_ui.RegisterCommand("osf.animation.closed", &OnClosed, nullptr);
+		g_ui.RegisterCommand("osf.animation.orbit", &OnOrbit, nullptr);
+		g_ui.RegisterCommand("osf.animation.requestClose", &OnRequestClose, nullptr);
 
-		// Bridge ABI 1.5: register our shipped views/osf/ folder as an openable
-		// surface — OSF UI's shipped config.views lists only its built-ins, so
-		// without this call the view never loads. Idempotent (a user config that
-		// still lists "osf" is left untouched); older OSF UI runtimes lack the
-		// vmethod, so gate on the interface MINOR.
-		if ((g_ui->GetInterfaceVersion() & 0xFFFFu) >= 5u) {
-			g_ui->RegisterView(kViewId);
+		// Bridge ABI 1.5: register our shipped views/osf.animation/browser/
+		// folder as an openable surface — OSF UI's shipped config.views lists
+		// only its built-ins, so without this call the view never loads.
+		// Idempotent; older OSF UI runtimes lack the vmethod (wrapper-gated).
+		if (g_ui.Has(Feature::kRegisterView)) {
+			g_ui.RegisterView(kViewId);
 		} else {
 			REX::WARN("[UI] this OSF UI predates bridge ABI 1.5 (RegisterView) — the '{}' view only opens if the user's OSF UI config.json lists it in `views`", kViewId);
 		}
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
-		g_ui->GetPluginVersion(mj, mn, pt);
-		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.* commands registered",
-			mj, mn, pt, g_ui->GetBridgeProtocolVersion());
+		g_ui.GetPluginVersion(mj, mn, pt);
+		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.animation.* commands registered",
+			mj, mn, pt, g_ui.GetBridgeProtocolVersion());
 	}
 }

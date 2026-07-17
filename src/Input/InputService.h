@@ -37,7 +37,7 @@ namespace OSF::Input
 		void DrainMouseDelta(float& a_dx, float& a_dy);
 		void DrainWheelDelta(float& a_wheel);
 
-		// A UI cursor is on screen (the scene browser reported visible via osf.opened/osf.closed).
+		// A UI cursor is on screen (the scene browser reported visible via osf.animation.opened/osf.animation.closed).
 		// While set, orbit capture only accumulates look/wheel deltas during an LMB DRAG, so plain
 		// mouse movement drives the cursor and plain wheel scrolls the UI; while clear (no cursor),
 		// the orbit free-looks as before. Sticky across scenes — it tracks the browser, not a scene.

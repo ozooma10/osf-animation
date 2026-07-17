@@ -16,18 +16,21 @@ namespace OSF::API
 {
 	namespace
 	{
-		// The MCM schema — the same document a settings/osf.json drop-in would
-		// hold (docs/schema/settings-schema.schema.json in the OSF UI repo).
-		// id "osf" matches the view folder and the osf.* command namespace
-		// (action buttons and per-view write scoping key off the mod id).
+		// The MCM schema — the same document a settings/osf.animation.json
+		// drop-in would hold (docs/schema/settings-schema.schema.json in the
+		// OSF UI repo). id "osf.animation" (item-1 grammar: author "osf",
+		// modname "animation") matches the views/osf.animation/ namespace
+		// folder and the osf.animation.* command namespace. NOTE the rename
+		// from the pre-1.0 id "osf": old osf.json values files are orphaned
+		// (hotkeys default unbound anyway; users rebind once).
 		// Hotkeys default UNBOUND ("" + allowUnbound): binding is the user's
 		// opt-in, exactly like the old empty hotkeys map — but now in-game,
 		// rebindable, and conflict-badged.
 		constexpr const char* kSchemaJson = R"json({
-  "id": "osf",
+  "id": "osf.animation",
   "title": "OSF Animation",
   "description": "Scene framework — browser, emote wheel, and scene hotkeys.",
-  "icon": "osf-icon.svg",
+  "icon": "browser/osf-icon.svg",
   "version": 1,
   "groups": [
     { "label": "Hotkeys", "settings": [
@@ -55,9 +58,10 @@ namespace OSF::API
   ]
 })json";
 
-		// Fetched once at install (the export returns OSF UI's singleton — the
-		// same object UIBridge caches). nullptr => OSF UI absent.
-		OSFUI::API::IOSFUIBridge* g_bridge = nullptr;
+		// The version-gated wrapper (header 1.6), initialized once at install
+		// (the export returns OSF UI's singleton — the same object UIBridge
+		// wraps). Unconnected => OSF UI absent; calls degrade to no-ops.
+		OSFUI::API::Client g_bridge;
 
 		// "trace" | "debug" | "info" | "warn" | "error" -> spdlog level, applied
 		// to the live logger (moved here from the retired Config::Settings).
@@ -140,33 +144,31 @@ namespace OSF::API
 
 		WarnLegacyFile();
 
-		g_bridge = RequestBridge();
-		if (!g_bridge) {
+		if (!g_bridge.Init()) {
 			REX::INFO("[Config] OSF UI not present — settings menu + hotkeys unavailable, defaults in effect");
 			return;
 		}
 
-		const auto minor = g_bridge->GetInterfaceVersion() & 0xFFFFu;
-		if (minor < 2u) {
-			REX::WARN("[Config] installed OSF UI has no settings surface (bridge MINOR {} < 2) — "
-			          "update OSF UI for the settings menu; defaults in effect", minor);
-			g_bridge = nullptr;
+		if (!g_bridge.Has(Feature::kSettings)) {
+			REX::WARN("[Config] installed OSF UI has no settings surface (bridge MINOR < 2) — "
+			          "update OSF UI for the settings menu; defaults in effect");
+			g_bridge.Attach(nullptr);
 			return;
 		}
 
-		if (!g_bridge->RegisterSettingsSchema(kSchemaJson)) {
+		if (!g_bridge.RegisterSettingsSchema(kSchemaJson)) {
 			REX::ERROR("[Config] OSF UI rejected the settings schema — defaults in effect");
-			g_bridge = nullptr;
+			g_bridge.Attach(nullptr);
 			return;
 		}
-		g_bridge->SubscribeSettings("osf", &OnSetting, nullptr);
+		g_bridge.SubscribeSettings("osf.animation", &OnSetting, nullptr);
 
-		if (minor >= 4u) {
-			g_bridge->SubscribeHotkey("osf", "hotkeys.openBrowser", &OnHotkey, nullptr);
-			g_bridge->SubscribeHotkey("osf", "hotkeys.openWheel", &OnHotkey, nullptr);
-			REX::INFO("[Feature] MCM settings CONNECTED (schema 'osf' registered, 2 hotkeys subscribed)");
+		if (g_bridge.Has(Feature::kHotkeys)) {
+			g_bridge.SubscribeHotkey("osf.animation", "hotkeys.openBrowser", &OnHotkey, nullptr);
+			g_bridge.SubscribeHotkey("osf.animation", "hotkeys.openWheel", &OnHotkey, nullptr);
+			REX::INFO("[Feature] MCM settings CONNECTED (schema 'osf.animation' registered, 2 hotkeys subscribed)");
 		} else {
-			REX::WARN("[Feature] MCM settings CONNECTED, but hotkey dispatch needs OSF UI bridge MINOR >= 4 (have {}) — hotkeys inert", minor);
+			REX::WARN("[Feature] MCM settings CONNECTED, but hotkey dispatch needs OSF UI bridge MINOR >= 4 — hotkeys inert");
 		}
 	}
 }

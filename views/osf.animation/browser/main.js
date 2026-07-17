@@ -80,7 +80,7 @@ function orbitFlush() {
   orbit.queued = false;
   if (!bridgeAvailable()) return;  // standalone: nothing to steer, don't spam the mock
   if (orbit.dx || orbit.dy || orbit.wheel) {
-    send("osf.orbit", { dx: orbit.dx, dy: orbit.dy, wheel: orbit.wheel });
+    send("osf.animation.orbit", { dx: orbit.dx, dy: orbit.dy, wheel: orbit.wheel });
     orbit.dx = orbit.dy = orbit.wheel = 0;
   }
 }
@@ -97,7 +97,7 @@ function requestCatalog(fresh) {
   if (fresh) { state.catalogReceived = false; catalogTries = 0; }
   clearTimeout(catalogTimer);
   if (state.catalogReceived) return;
-  send("osf.catalog.get");
+  send("osf.animation.catalog.get");
   if (catalogTries < CATALOG_MAX_TRIES) {
     catalogTries++;
     catalogTimer = setTimeout(() => requestCatalog(false), 1200);
@@ -114,7 +114,7 @@ function requestLibrary(fresh) {
   if (fresh) { state.libraryReceived = false; libraryTries = 0; }
   clearTimeout(libraryTimer);
   if (state.libraryReceived) return;
-  send("osf.library.get");
+  send("osf.animation.library.get");
   if (libraryTries < LIBRARY_MAX_TRIES) {
     libraryTries++;
     libraryTimer = setTimeout(() => requestLibrary(false), 1500);
@@ -129,16 +129,16 @@ function onNativeMessage(jsonText) {
   const { type, payload } = msg;
   switch (type) {
     case "runtime.ready": handleReady(payload); break;
-    case "osf.catalog.data": handleCatalog(payload); break;
-    case "osf.library.data": handleLibrary(payload); break;
-    case "osf.pick": handlePick(payload); break;
-    case "osf.scanResults": handleScanResults(payload); break;
-    case "osf.anchorMatch": handleAnchorMatch(payload); break;
-    case "osf.launchResult": handleLaunchResult(payload); break;
+    case "osf.animation.catalog.data": handleCatalog(payload); break;
+    case "osf.animation.library.data": handleLibrary(payload); break;
+    case "osf.animation.pick": handlePick(payload); break;
+    case "osf.animation.scanResults": handleScanResults(payload); break;
+    case "osf.animation.anchorMatch": handleAnchorMatch(payload); break;
+    case "osf.animation.launchResult": handleLaunchResult(payload); break;
     // Native mode switch (OpenWheel): "wheel" enters the emote wheel; anything else restores
     // the console. Delivered pre-paint by OSF UI's message queue (bridge MINOR >= 2) and
     // replayed on osf.opened while a wheel open is pending, so it must be idempotent.
-    case "osf.mode":
+    case "osf.animation.mode":
       if (payload && payload.mode === "wheel") enterWheel(payload);
       else exitWheel();
       break;
@@ -150,7 +150,7 @@ function onNativeMessage(jsonText) {
         orbit.dragging = false;  // never carry a drag across a hide
         exitWheel();             // wheel mode never survives a hide — a reopen shows the console
       }
-      send(payload && payload.visible ? "osf.opened" : "osf.closed");
+      send(payload && payload.visible ? "osf.animation.opened" : "osf.animation.closed");
       break;
     default: break;
   }
@@ -248,7 +248,7 @@ function handleLaunchResult(p) {
     if (p && p.ok && p.handle) {
       state.lastHandle = p.handle;
       state.lastSceneId = p.sceneId || launched || "";
-      send("osf.requestClose");
+      send("osf.animation.requestClose");
     } else {
       state.wheel.error = (p && p.error) || "Launch failed.";
       renderWheel();
@@ -393,7 +393,7 @@ function keyAnchor(token, name, distance) {
   state.anchorMatch = null;               // stale until the engine answers for THIS token
   state.libShowAll = false;               // re-focus the library on what this anchor fits
   state.stepOpen.anchor = false;          // step done — fold it, give the browse list the height back
-  send("osf.anchorMatch", { token });     // which anchor-bound scenes does it fit?
+  send("osf.animation.anchorMatch", { token });     // which anchor-bound scenes does it fit?
   notice("info", `Furniture keyed: ${state.furniture.name}.`);
 }
 
@@ -497,7 +497,7 @@ function reorderBtns(i, count) {
 
 function scanNearby(kind) {
   notice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`);
-  send("osf.scanNearby", { kind, sceneId: state.selectedId || "" });
+  send("osf.animation.scanNearby", { kind, sceneId: state.selectedId || "" });
 }
 
 function setMode(mode) {
@@ -1114,7 +1114,7 @@ function doLaunch(stageIndex) {
   if (s.requiresFurniture && state.furniture) payload.furnitureToken = state.furniture.token;
   const what = stage > 0 ? `${s.title} · ${stageLabel(s, stage)}` : s.title;
   notice("info", `Launching "${what}"…`);
-  send("osf.launch", payload);
+  send("osf.animation.launch", payload);
 }
 
 function stageLabel(s, index) {
@@ -1131,7 +1131,7 @@ function launchRoleNames(s) {
 
 function doStop() {
   if (!state.lastHandle) return;
-  send("osf.stop", { handle: state.lastHandle });
+  send("osf.animation.stop", { handle: state.lastHandle });
   notice("info", `Stopping handle ${state.lastHandle}…`);
   state.lastHandle = 0;
   renderAll();
@@ -1241,12 +1241,12 @@ function wheelPick(i) {
   w.error = "";
   w.launching = s.id;
   // No opts overrides — emote scenes carry their own camera/strip defaults.
-  send("osf.launch", { sceneId: s.id, castTokens: [w.target ? w.target.token : PLAYER_TOKEN] });
+  send("osf.animation.launch", { sceneId: s.id, castTokens: [w.target ? w.target.token : PLAYER_TOKEN] });
   renderWheel();
 }
 
 function wheelCancel() {
-  send("osf.requestClose");  // host hides the view; exitWheel lands via the ui.visibility relay
+  send("osf.animation.requestClose");  // host hides the view; exitWheel lands via the ui.visibility relay
 }
 
 // Wheel-mode keys (routed from onNavKey before the spatial-nav machinery):
@@ -1314,7 +1314,7 @@ function onClick(e) {
     case "toggle-actor": toggleActor(Number(el.dataset.token)); break;
     case "toggle-anchor": toggleAnchor(Number(el.dataset.token)); break;
     case "scan": scanNearby(el.dataset.kind); break;
-    case "pick": send("osf.pickCrosshair", { slot: el.dataset.slot }); break;
+    case "pick": send("osf.animation.pickCrosshair", { slot: el.dataset.slot }); break;
     case "clear-anchor": clearAnchor(); renderAll(); break;
     case "drop": removeMember(Number(el.dataset.i)); break;
     case "toggle-player": togglePlayer(); break;
@@ -1652,7 +1652,7 @@ function init() {
     // (also window.mockOpenWheel(withTarget) from the console). Feeds the same osf.mode
     // path the native OpenWheel uses.
     window.mockOpenWheel = (withTarget = true) => onNativeMessage(JSON.stringify({
-      type: "osf.mode",
+      type: "osf.animation.mode",
       payload: { mode: "wheel", tagPrefix: "player.emote.", target: withTarget ? { token: 601, name: "Sarah Morgan" } : null },
     }));
     document.addEventListener("keydown", (e) => {
@@ -1706,19 +1706,19 @@ const MOCK_LIBRARY = [
 ];
 
 function mockNative(command, fields) {
-  if (command === "osf.catalog.get") setTimeout(() => handleCatalog(MOCK_CATALOG), 60);
-  else if (command === "osf.library.get") setTimeout(() => handleLibrary(MOCK_LIBRARY), 90);
-  else if (command === "osf.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
-  else if (command === "osf.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
-  else if (command === "osf.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
-  else if (command === "osf.launch") {
+  if (command === "osf.animation.catalog.get") setTimeout(() => handleCatalog(MOCK_CATALOG), 60);
+  else if (command === "osf.animation.library.get") setTimeout(() => handleLibrary(MOCK_LIBRARY), 90);
+  else if (command === "osf.animation.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
+  else if (command === "osf.animation.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
+  else if (command === "osf.animation.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
+  else if (command === "osf.animation.launch") {
     if (fields.sceneId === "emote.facepalm") setTimeout(() => handleLaunchResult({ ok: false, error: "No room in front of the actor (mock error)." }), 80);
     else setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
   }
-  else if (command === "osf.stop") setTimeout(() => notice("ok", "Scene stopped."), 40);
+  else if (command === "osf.animation.stop") setTimeout(() => notice("ok", "Scene stopped."), 40);
   // Host close: mimic OSF UI hiding the overlay so the real exit path runs (ui.visibility
   // hide -> exitWheel + osf.closed relay). Standalone just lands back on the console.
-  else if (command === "osf.requestClose") setTimeout(() => onNativeMessage(JSON.stringify({ type: "ui.visibility", payload: { visible: false } })), 60);
+  else if (command === "osf.animation.requestClose") setTimeout(() => onNativeMessage(JSON.stringify({ type: "ui.visibility", payload: { visible: false } })), 60);
 }
 
 init();
