@@ -11,6 +11,8 @@ All notable changes to OSF Animation are documented here.
 - Immersion content pack (`Data/OSF/immersion/`, pure JSON over vanilla `.af` clips): self-terminating `player.emote.*` scenes (wave, what's up, hands on hips, arms crossed, data slate) for the emote wheel. Documents the well-known tag contract in `docs/SCENE_SCHEMA.md`.
 - Browse orbit: dragging the world area of the scene browser now always steers an orbit camera. With no scene camera live (no scene running, or a `camera:"none"` scene like an emote), the first drag engages an orbit around the player's scene cast (or the player); closing the browser restores the previous view. Previously the drag only worked while a `scene_orbit` scene was playing — with the browser open, OSF UI freezes all game input, so the camera was otherwise immovable.
 
+- Badge icon in OSF UI's Mods surface: the rail entry and Home cards now show the OSF playback-curve mark (`views/osf/osf-icon.svg`, schema `icon` field — a tiny-size cut of the branding emblem, bolded to stay legible at ~30px) instead of the "OA" initials monogram. Needs an OSF UI new enough to know the field; older versions ignore it and keep the initials.
+
 ### Removed
 - SAF backwards-compatibility shim (the opt-in `SAF.pex`/`SAFScript.pex` FOMOD component from 0.2.0) and its supporting internals: the non-public `OSFCompat` natives, the Activate-key redirect in the input hook, and the FOMOD "Compatibility" install step. SAF-targeting content should use the real SAF, or be ported to the OSF API.
 

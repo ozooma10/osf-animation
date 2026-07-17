@@ -58,6 +58,7 @@ target("OSF Animation")
             os.cp("views/osf/index.html", view .. "/")
             os.cp("views/osf/main.js", view .. "/")
             os.cp("views/osf/style.css", view .. "/")
+            os.cp("views/osf/osf-icon.svg", view .. "/")  -- Mods-surface badge (schema `icon`)
             local ok = try { function() os.cp(target:targetfile(), plugins .. "/"); return true end }
             if ok then
                 if os.isfile(target:symbolfile()) then
