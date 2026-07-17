@@ -556,16 +556,32 @@ namespace OSF::Camera
 	void CameraService::ReleaseStateOverride()
 	{
 		bool released = false;
+		bool browseHandback = false;
 		{
 			std::scoped_lock l{ lock };
 			if (overrideCount == 0) {
 				return;  // not held
 			}
 			if (--overrideCount != 0) {
-				return;  // still held by another scene
+				// Still held. If what remains is exactly the browse-orbit hold (scene browser open),
+				// a SCENE just released a non-orbit camera (vanity/freefly retargeted the live state
+				// away) — hand the camera back to a browse orbit so drag-to-look keeps working instead
+				// of leaving the scene's last state running ownerless. A live orbit needs no handback
+				// (the count never hit 0, so it just keeps driving), and ReleaseBrowseOrbit clears the
+				// flag before calling here, so the browse release itself can't trigger this.
+				browseHandback = overrideCount == 1 &&
+				                 browseOrbitHeld.load(std::memory_order_relaxed) &&
+				                 !orbitDriving.load(std::memory_order_relaxed) &&
+				                 !nativeFreeCamActive.load(std::memory_order_relaxed);
+			} else {
+				released = true;
+				suppressBounce.store(false, std::memory_order_relaxed);
 			}
-			released = true;
-			suppressBounce.store(false, std::memory_order_relaxed);
+		}
+		if (browseHandback) {
+			SetLiveCameraState(CameraMode::kSceneOrbit);  // no seed staged -> centers on the player
+			REX::DEBUG("[Camera] scene camera released while browsing — handed back to the browse orbit");
+			return;
 		}
 		if (!released) {
 			return;
@@ -625,6 +641,34 @@ namespace OSF::Camera
 		}
 	}
 
+	void CameraService::EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects)
+	{
+		if (browseOrbitHeld.exchange(true, std::memory_order_relaxed)) {
+			return;  // already engaged this browser session
+		}
+		AcquireStateOverride();
+		// If an OSF camera is already moving the mouse-steered orbit (a scene_orbit scene) or the
+		// engine free cam (MMB / an authored freefly node), the hold alone is enough — retargeting
+		// would re-frame the camera out from under the user mid-scene.
+		if (orbitDriving.load(std::memory_order_relaxed) || nativeFreeCamActive.load(std::memory_order_relaxed)) {
+			REX::DEBUG("[Camera] browse orbit hold taken (a scene camera is live — not retargeting)");
+			return;
+		}
+		SetOrbitFrameSubjects(std::move(a_frameSubjects));
+		SetLiveCameraState(CameraMode::kSceneOrbit);
+		REX::DEBUG("[Camera] browse orbit engaged (scene browser drag)");
+	}
+
+	void CameraService::ReleaseBrowseOrbit()
+	{
+		// Clear the flag BEFORE releasing so ReleaseStateOverride's browse handback (scene released,
+		// browse remains) can tell this release apart from a scene's and never self-triggers.
+		if (browseOrbitHeld.exchange(false, std::memory_order_relaxed)) {
+			ReleaseStateOverride();
+			REX::DEBUG("[Camera] browse orbit released (scene browser closed)");
+		}
+	}
+
 	void CameraService::LogCameraTelemetry(const char* a_tag)
 	{
 		SFSE::GetTaskInterface()->AddTask([a_tag]() {
@@ -673,6 +717,7 @@ namespace OSF::Camera
 			SFSE::GetTaskInterface()->AddTask([]() { SetNativeFreeCam(false); });
 		}
 		playerFreeCamHeld.store(false, std::memory_order_relaxed);
+		browseOrbitHeld.store(false, std::memory_order_relaxed);  // counts are dropped wholesale below
 		std::scoped_lock l{ lock };
 		holdCount = 0;
 		overrideCount = 0;

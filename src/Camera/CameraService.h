@@ -51,6 +51,18 @@ namespace OSF::Camera
 		// runtime calls this when the player's input grant is released, so a free cam can't survive its scene.
 		void ForcePlayerFreeCamOff();
 
+		// BROWSE ORBIT (the scene browser's drag-to-look). While the browser is open OSF UI freezes all
+		// game input, so with no scene camera live the player has no way to move the camera at all.
+		// Ensure engages a scene-orbit around a_frameSubjects (empty -> the player) the first time the
+		// view forwards a world-area drag (osf.orbit); it takes ONE state-override hold so it composes
+		// with scene cameras via the same ref count — a scene starting mid-browse retargets the live
+		// camera as usual, and a scene RELEASING while the browse hold remains hands the camera back to
+		// an orbit instead of snapping to baseline (see ReleaseStateOverride). Idempotent per browser
+		// session; Release (on browser close) restores like any other override release.
+		void EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects);
+		void ReleaseBrowseOrbit();
+		[[nodiscard]] bool BrowseOrbitHeld() const { return browseOrbitHeld.load(std::memory_order_relaxed); }
+
 		// Rides the update-hook call stream (job threads). POVSwitch stays enabled while the hold is held so vanilla scroll-zoom works;
 		// if the player zooms/keys into first person, queue a game-thread bounce back to third person. 
 		// Atomic early-out when no hold is held OR a state override is suppressing the bounce.
@@ -99,6 +111,7 @@ namespace OSF::Camera
 
 		std::atomic<bool> nativeFreeCamActive{ false };  // engine-native free cam is toggled on
 		std::atomic<bool> playerFreeCamHeld{ false };    // the MMB player toggle owns one state-override hold
+		std::atomic<bool> browseOrbitHeld{ false };      // the scene browser's drag-to-look owns one state-override hold
 
 		std::atomic<bool> orbitDriving{ false };  // gates Tick's scene-orbit self-drive
 		std::mutex        driveLock;              // serializes DriveSceneOrbit across job threads

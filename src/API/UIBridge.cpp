@@ -2,6 +2,7 @@
 
 #include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
 #include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
+#include "Camera/CameraService.h"  // browse orbit: osf.orbit engages drag-to-look when no scene camera is live
 #include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
 #include "Registry/SceneRegistry.h"
@@ -943,6 +944,7 @@ namespace OSF::API
 		void OnClosed(const char*, const char*, const char*, void*) noexcept
 		{
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
+			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();  // drag-to-look never outlives the browser
 			g_wheel = {};  // any hide ends wheel mode; the next open starts clean
 		}
 
@@ -966,6 +968,29 @@ namespace OSF::API
 			const json p = ParsePayload(a_payloadJson);
 			if (!p.is_object()) {
 				return;
+			}
+			// First world drag of this browser session: engage the BROWSE ORBIT so there is always
+			// something to steer — without it the deltas below are dropped unless a scene_orbit scene
+			// happens to be running (and the vanilla camera is frozen by the overlay regardless).
+			// Focal point: the player's live scene cast if they are mid-scene (e.g. an emote with
+			// camera "none"), else the player. Handlers run on the game main thread.
+			auto& cam = Camera::CameraService::GetSingleton();
+			if (!cam.BrowseOrbitHeld()) {
+				std::vector<std::uint32_t> cast;
+				auto* api = SceneAPI();
+				auto* player = RE::PlayerCharacter::GetSingleton();
+				if (api && player) {
+					if (const std::int32_t live = api->GetSceneForActor(player); live != 0) {
+						RE::Actor* buf[8] = {};
+						const auto n = std::min<std::uint32_t>(api->GetSceneParticipants(live, buf, 8), 8);
+						for (std::uint32_t i = 0; i < n; i++) {
+							if (buf[i]) {
+								cast.push_back(buf[i]->formID);
+							}
+						}
+					}
+				}
+				cam.EnsureBrowseOrbit(std::move(cast));
 			}
 			Input::InputService::GetSingleton().InjectOrbitDelta(
 				p.value("dx", 0.0f), p.value("dy", 0.0f), p.value("wheel", 0.0f));
