@@ -56,6 +56,14 @@ namespace OSF::API
 		// Last scene handle we launched, so an osf.stop with no handle can target it.
 		std::int32_t g_lastHandle = 0;
 
+		// Scenes launched from the browser console, aborted when the browser closes: once the
+		// UI is gone there is no stop button left, so a player mid-scene would be stuck.
+		// Wheel launches are NOT tracked — the wheel closes itself right after a successful
+		// pick, and the emote must survive that close. Stale entries are harmless (handles
+		// are generational; StopScene on an ended scene returns false) and the list is
+		// cleared on every close, so it never outgrows one browser session. Main thread only.
+		std::vector<std::int32_t> g_closeStops;
+
 		// Pending emote-wheel open (OpenWheel): the osf.mode push must survive the open race,
 		// so it is re-sent from the osf.opened handler while this is active. Cleared on
 		// osf.closed and by OpenBrowser (a normal open must never land in wheel mode).
@@ -618,6 +626,7 @@ namespace OSF::API
 				const std::int32_t busy = api->GetSceneForActor(a);
 				if (busy != 0) {
 					api->StopScene(busy);
+					std::erase(g_closeStops, busy);
 					if (busy == g_lastHandle) {
 						g_lastHandle = 0;
 					}
@@ -650,6 +659,9 @@ namespace OSF::API
 			}
 
 			g_lastHandle = handle;
+			if (!g_wheel.active) {  // console launch: abort on browser close (wheel emotes outlive it)
+				g_closeStops.push_back(handle);
+			}
 			reply["ok"] = true;
 			reply["handle"] = handle;
 			REX::INFO("[UI] osf.animation.launch '{}' -> handle {} ({} cast{})", sceneId, handle, actors.size(),
@@ -673,8 +685,11 @@ namespace OSF::API
 			if (auto* api = SceneAPI(); api && handle != 0) {
 				ok = api->StopScene(handle);
 			}
-			if (handle == g_lastHandle && ok) {
-				g_lastHandle = 0;
+			if (ok) {
+				std::erase(g_closeStops, handle);
+				if (handle == g_lastHandle) {
+					g_lastHandle = 0;
+				}
 			}
 			REX::DEBUG("[UI] osf.animation.stop handle={} -> {}", handle, ok);
 		}
@@ -958,6 +973,19 @@ namespace OSF::API
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
 			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();  // drag-to-look never outlives the browser
 			g_wheel = {};  // any hide ends wheel mode; the next open starts clean
+			// Abort console-launched scenes (see g_closeStops): the browser was the only stop
+			// button, so a scene outliving it would leave its cast — the player included — stuck.
+			if (!g_closeStops.empty()) {
+				if (auto* api = SceneAPI()) {
+					for (const std::int32_t h : g_closeStops) {
+						if (api->StopScene(h)) {
+							REX::INFO("[UI] browser closed — aborted live scene {:#010x}", h);
+						}
+					}
+				}
+				g_closeStops.clear();
+				g_lastHandle = 0;
+			}
 		}
 
 		// The view cannot hide itself (visibility is host-driven); this is its close button.
