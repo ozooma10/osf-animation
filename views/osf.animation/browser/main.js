@@ -1,10 +1,9 @@
 // OSF Animation - Scene Browser. NASA-punk maintenance-HUD console.
 // Guided pre-flight flow: 1 · CAST (pick actors) → 2 · ANCHOR (optional furniture, shows what
 // it unlocks) → BROWSE (only what plays with the current selection, plus the vanilla library).
-// Wired to the unchanged OSF UI bridge contract: only JSON text crosses window.osfui.
+// Wired to the OSF UI bridge contract (protocol 1.0): only JSON text crosses window.osfui.
 "use strict";
 
-const BRIDGE_PROTOCOL = "0.1";
 const PLAYER_TOKEN = -1;
 const PLAYER_CAST = { token: PLAYER_TOKEN, name: "Player", kind: "player", species: "human" };
 
@@ -49,7 +48,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 /* =========================================================================
-   BRIDGE  (unchanged contract — osf.* over window.osfui)
+   BRIDGE  (protocol 1.0 — osf.animation.* over window.osfui)
    ========================================================================= */
 function bridgeAvailable() {
   return typeof window.osfui === "object" && typeof window.osfui.postMessage === "function";
@@ -155,6 +154,12 @@ function onNativeMessage(jsonText) {
       }
       send(payload && payload.visible ? "osf.animation.opened" : "osf.animation.closed");
       break;
+    // The runtime rejected something we sent (protocol 1.0: stable machine `code`
+    // plus a human `message`). Surface it — a silently dropped command reads as
+    // "the button did nothing".
+    case "ui.error":
+      notice("err", `Bridge rejected a message: ${(payload && (payload.message || payload.code)) || "unknown error"}`);
+      break;
     default: break;
   }
 }
@@ -164,10 +169,14 @@ window.osfui.onMessage = onNativeMessage;
 
 function handleReady(p) {
   const bv = p && p.bridgeVersion;
-  if (!bv || !bv.startsWith("0.")) {
+  // Require a bridge to be present, but never gate on the protocol version
+  // string — it is informational, and the contract evolves additively (new
+  // capabilities, minor/major bumps). Feature-detect if a specific surface is
+  // ever needed; a hard version check here would reject every future OSF UI.
+  if (!bv) {
     setLamp("off");
     $("statusText").textContent = `unsupported bridge ${bv || "?"}`;
-    notice("err", `This view needs bridge protocol ${BRIDGE_PROTOCOL}; runtime reports ${bv || "?"}.`);
+    notice("err", `This view needs the OSF UI bridge; runtime reports ${bv || "?"}.`);
     return;
   }
   state.ready = true;
@@ -1594,7 +1603,10 @@ function init() {
   document.addEventListener("drop", onDrop);
   document.addEventListener("dragend", endDrag);
   document.addEventListener("keydown", onReorderKey);
-  initNav();  // gamepad/keyboard directional focus (OSF UI injects pad input as arrow keys/Enter)
+  // Gamepad/keyboard directional focus. The OSF UI runtime's default gamepad
+  // mapping (protocol 1.0) feeds this: D-pad/left stick → arrow keys, A → Enter,
+  // B → close, right stick → scroll. No raw ui.gamepad handling needed here.
+  initNav();
 
   // Emote wheel: hover focuses a slice; right-click anywhere cancels (Escape's in-game
   // delivery is unverified, so the wheel never depends on it alone).

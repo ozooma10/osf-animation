@@ -54,9 +54,9 @@
 //   * Strings returned BY the API (GetBridgeProtocolVersion) are static,
 //     valid for process lifetime.
 //
-// VERSIONS AT A GLANCE: this C ABI (kBridgeAPIVersion, currently 1.x) is
-//   the stable contract, even while the PLUGIN version and the WEB protocol
-//   version (GetBridgeProtocolVersion, 0.x = unstable) are pre-1.0. Gate
+// VERSIONS AT A GLANCE: three independent contracts — this C ABI
+//   (kBridgeAPIVersion, currently 1.x), the PLUGIN version, and the WEB
+//   protocol version (GetBridgeProtocolVersion, 1.0 — stable). Gate
 //   native code on the ABI MINOR (Client does it for you); never parse the
 //   protocol string - it belongs to the JS side's negotiation.
 // ============================================================================
@@ -120,7 +120,14 @@ namespace OSFUI::API
 	// Handler for one registered ui.command. Runs on the GAME (main) thread.
 	// The const char* arguments are valid only for the duration of the call.
 	//   a_command      : the command string registered (lets one fn serve many)
-	//   a_payloadJson  : the command payload object, serialized - e.g. "{\"id\":\"x\"}"
+	//   a_payloadJson  : the command payload object, serialized - e.g. "{\"id\":\"x\"}".
+	//                    It may carry a "requestId"
+	//                    field (the calling view's correlation id, injected by
+	//                    the host). After your handler returns, the host acks
+	//                    the caller with ui.result { ok:true } (= delivered);
+	//                    publish richer results as your own message types via
+	//                    SendToWeb, echoing the requestId in your payload if
+	//                    you want correlation.
 	//   a_sourceViewId : the view that sent it (your reply target)
 	//   a_user         : the opaque pointer you passed to RegisterCommand
 	using CommandFn = void (*)(const char* a_command,
@@ -155,10 +162,10 @@ namespace OSFUI::API
 		virtual void          GetPluginVersion(std::uint32_t& a_major,
 		                                       std::uint32_t& a_minor,
 		                                       std::uint32_t& a_patch) = 0;
-		// The native<->web protocol version, e.g. "0.4". INFORMATIONAL for
+		// The native<->web protocol version, e.g. "1.0". INFORMATIONAL for
 		// native code (log it for support) - gate on the ABI MINOR instead;
-		// the JS side negotiates against this via runtime.ready. Static
-		// string, valid for process lifetime.
+		// the JS side sees the host version in the runtime.ready handshake.
+		// Static string, valid for process lifetime.
 		virtual const char*   GetBridgeProtocolVersion() = 0;
 		virtual bool          IsBridgeReady() = 0;             // a nativeBridge view is live
 
@@ -220,9 +227,7 @@ namespace OSFUI::API
 		// FORWARD COMPAT (api-freeze-plan item 2): on a host that predates one
 		// of the schema's setting TYPES, the replay/getters deliver the schema
 		// DEFAULT for that setting (the user's saved value is preserved on
-		// disk, served only once they upgrade). A schema whose `requires`
-		// capabilities the host lacks is an inert stub: nothing replays and
-		// getters return false.
+		// disk, served only once they upgrade).
 		virtual std::uint32_t SubscribeSettings(const char* a_modId, SettingChangedFn a_fn, void* a_user) = 0;
 		virtual void          UnsubscribeSettings(std::uint32_t a_token) = 0;
 
