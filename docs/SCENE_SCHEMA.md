@@ -589,11 +589,11 @@ Surfaced in `OSF Animation.log`:
 
 ## Well-known tags (the immersion tag contract)
 
-These tags are **matched by name** by the hotkey/wheel features, so third-party packs can join them
-by tagging their scenes the same way (the shipped set lives in `Data/OSF/immersion/`):
+These tags are **matched by name** by the browser and hotkey/wheel features, so third-party packs
+can join them without another schema layer (the shipped set lives in `Data/OSF/immersion/`):
 
 | Tag | Consumed by | Contract |
 |-----|-------------|----------|
-| `player.emote.<name>` | the emote wheel (enumerated by the `player.emote.` tag prefix) | Solo, **self-terminating** (`timer`/`loops`, not an unbounded hold); the scene's `name` is the wheel slice label. The same scene is launched on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
+| `player.emote.<name>` | Animations → Emotes and the emote wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the emote's `name` is the wheel slice label. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
 | `immersion` | — | Umbrella tag for the shipped immersion pack; free for browsing/filtering. |
 

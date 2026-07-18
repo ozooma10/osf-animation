@@ -8,7 +8,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
-#include "Serialization/WheelPins.h"  // user-pinned emote-wheel scenes (catalog `pinned` + osf.animation.wheel.pin)
+#include "Serialization/WheelPins.h"  // ordered emote-wheel customization (catalog wheel fields + osf.animation.wheel.set)
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
 #include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
 #include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
@@ -371,11 +371,17 @@ namespace OSF::API
 
 		// How many loops an open-ended hold stage is assumed to run for the scene time estimate
 		constexpr float kHoldLoopEstimate = 2.0f;
+		bool IsEmote(const Registry::SceneDef& a_def)
+		{
+			return std::ranges::any_of(a_def.tagSet,
+				[](const std::string& a_tag) { return a_tag.starts_with("player.emote."); });
+		}
 
 		// Serialize the live scene registry to the osf.catalog.data array (a_library=false) or the osf.library.data array (a_library=true — the reference-library lane, e.g. the generated vanilla packs). 
 		// Copies the fields out from under the registry read lock, then builds JSON afterwards
 		json BuildCatalog(bool a_library)
 		{
+			const bool wheelCustomized = Serialization::WheelPins::Customized();
 			struct StageCard
 			{
 				std::int32_t             index = 0;
@@ -402,7 +408,7 @@ namespace OSF::API
 				bool                     requiresFurniture = false;
 				std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
 				bool                     unlisted = false;
-				std::int32_t             pinned = 0;  // 1-based emote-wheel pin order (0 = unpinned; library lane never pins)
+				std::int32_t             pinned = 0;  // 1-based explicit wheel order (0 = absent/default-derived)
 				std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
 				float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
 				bool                     estPartial = false;  // at least one linear stage had no estimate
@@ -547,6 +553,7 @@ namespace OSF::API
 					{ "requiresFurniture", c.requiresFurniture },
 					{ "anchors", c.anchorNames },
 					{ "unlisted", c.unlisted },
+					{ "wheelCustomized", wheelCustomized },
 					{ "pinned", c.pinned },
 					{ "stageCount", static_cast<std::int32_t>(c.stages.size()) },
 					{ "stages", std::move(stages) },
@@ -555,7 +562,7 @@ namespace OSF::API
 					{ "openEnded", c.openEnded },
 				});
 			}
-			REX::DEBUG("[UI] {} built -> {} scene(s)", a_library ? "library" : "catalog", cards.size());
+			REX::DEBUG("[UI] {} built -> {} entr{}", a_library ? "library" : "catalog", cards.size(), cards.size() == 1 ? "y" : "ies");
 			return arr;
 		}
 
@@ -771,23 +778,44 @@ namespace OSF::API
 			REX::DEBUG("[UI] osf.animation.stop handle={} -> {}", handle, ok);
 		}
 
-		// Browser pin toggle: persist the emote-wheel pin list and re-push the catalog —
-		// the refreshed `pinned` fields ARE the reply (the view already tolerates
-		// unsolicited catalog pushes and reconciles its optimistic local update).
-		void OnWheelPin(const char*, const char* a_payload, const char*, void*) noexcept
+		// Persist a complete, ordered emote-wheel loadout. The view materializes the
+		// installed defaults on the first edit, so adding/removing one emote never
+		// unexpectedly replaces the other defaults. `reset:true` returns to derivation.
+		void OnWheelSet(const char*, const char* a_payload, const char*, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
 			if (!j.is_object()) {
 				return;
 			}
-			const auto it = j.find("sceneId");
-			if (it == j.end() || !it->is_string()) {
+			if (j.value("reset", false)) {
+				if (Serialization::WheelPins::Reset()) {
+					REX::DEBUG("[UI] emote wheel reset to installed defaults");
+					PushCatalogUpdate();
+				}
 				return;
 			}
-			const auto sceneId = it->get<std::string>();
-			const bool pinned = j.value("pinned", false);
-			if (Serialization::WheelPins::Set(sceneId, pinned)) {
-				REX::DEBUG("[UI] osf.animation.wheel.pin '{}' -> {}", sceneId, pinned ? "pinned" : "unpinned");
+			const auto it = j.find("sceneIds");
+			if (it == j.end() || !it->is_array() || it->size() > 12) {
+				REX::WARN("[UI] osf.animation.wheel.set refused malformed/oversized loadout");
+				return;
+			}
+			std::vector<std::string> ids;
+			ids.reserve(it->size());
+			for (const auto& value : *it) {
+				if (!value.is_string()) {
+					REX::WARN("[UI] osf.animation.wheel.set refused a non-string entry");
+					return;
+				}
+				auto id = value.get<std::string>();
+				const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+				if (!def || def->library || def->unlisted || def->roles.size() != 1 || def->RequiresAnchor() || !IsEmote(*def)) {
+					REX::WARN("[UI] osf.animation.wheel.set refused ineligible emote '{}'", id);
+					return;
+				}
+				ids.push_back(std::move(id));
+			}
+			if (Serialization::WheelPins::SetEntries(ids)) {
+				REX::DEBUG("[UI] emote wheel customized with {} entr{}", ids.size(), ids.size() == 1 ? "y" : "ies");
 				PushCatalogUpdate();
 			}
 		}
@@ -1070,9 +1098,11 @@ namespace OSF::API
 			// anchor with it instead of defaulting to the player. Same capture PICK resolves
 			// (the engine has nulled the live slot by now); a furniture ref is only offered as
 			// an anchor if some scene actually accepts it, so aiming at a crate seeds nothing.
+			bool actorTargeted = false;
 			if (g_openPickToken != 0) {
 				if (RE::TESObjectREFR* ref = ResolveToken(g_openPickToken)) {
 					const bool isActor = ref->IsActor();
+					actorTargeted = isActor;
 					bool       usable = isActor;
 					if (!isActor) {
 						Matchmaking::AnchorMatchCache cache(ref);
@@ -1093,6 +1123,13 @@ namespace OSF::API
 						SendJson(a_srcView, "osf.animation.openTarget", p);
 					}
 				}
+			}
+			// No actor under the reticle at open -> the view defaults the cast to the PLAYER,
+			// and a first-person player can't see the body the browser is about to animate.
+			// One-shot kick to third person (nothing restored on close — the player zooms back
+			// in themself). The wheel is a quick pick overlay, not a browsing session — skip it.
+			if (!g_wheel.active && !actorTargeted) {
+				Camera::CameraService::GetSingleton().KickToThirdPerson();
 			}
 		}
 
@@ -1325,7 +1362,7 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
 		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
-		g_ui.RegisterCommand("osf.animation.wheel.pin", &OnWheelPin, nullptr);
+		g_ui.RegisterCommand("osf.animation.wheel.set", &OnWheelSet, nullptr);
 		g_ui.RegisterCommand("osf.animation.opened", &OnOpened, nullptr);
 		g_ui.RegisterCommand("osf.animation.closed", &OnClosed, nullptr);
 		g_ui.RegisterCommand("osf.animation.orbit", &OnOrbit, nullptr);

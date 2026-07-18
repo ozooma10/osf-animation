@@ -64,7 +64,7 @@ views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  �
   token. Scan rows draw a neutral silhouette (no portrait capture).
 - Catalog = OSF Animation's **live** `SceneRegistry` (not a disk scan). The browser
   projects its runtime entries into player-facing kinds: ordinary authored entries stay
-  under **Scenes**, while `presentation:"emote"` entries appear first under
+  under **Scenes**, while entries tagged `player.emote.*` appear first under
   **Animations → Emotes** with quick-action language. They remain scene-backed internally.
   The view only ever holds opaque integer **tokens** (player = `-1`), which
   the DLL maps back to `RE::*` refs and re-validates on the main thread
@@ -118,15 +118,16 @@ live in OSF UI's in-game settings menu under **OSF Animation**.
 
 The `openWheel` hotkey verb (native `API::OpenWheel`) opens this same view in a
 radial **wheel mode**: `osf.animation.mode {mode:"wheel", tagPrefix, target}`
-hides the console/brief and rings up to 12 `wheelEligible` emotes; the ring's
+hides the console/brief and rings up to 12 solo, free-space `player.emote.*` entries; the ring's
 ellipse is count-adaptive — near-circular for a handful, widening as it fills.
-Before customization the ordered pool is derived from installed `wheelDefault`
-emotes (the established `player.emote.*` tag remains a compatibility fallback),
-so it works out of the box. The first **Add to Wheel**, removal, or reorder
+Before customization the ordered pool is derived from installed emote tags, so it works out of
+the box. The first **Add to Wheel**, removal, or reorder
 materializes that whole default pool before applying the edit—customizing one
 entry never makes every other default disappear. The explicit loadout persists
 DLL-side in `<Documents>\My Games\Starfield\OSF\wheel-pins.json`, account-global,
-surviving ReloadPacks and reinstalls. The selected emote's brief offers removal,
+surviving ReloadPacks and reinstalls. It is simply an ordered JSON array of scene ids;
+deleting it restores installed defaults, while [] is an intentionally empty wheel.
+The selected emote's brief offers removal,
 earlier/later ordering, and **Reset Defaults**. Wheel membership shows as ◆ in
 the Emotes group. The hub names who plays—the crosshair target captured at open
 time ("→ Sarah") or "You".

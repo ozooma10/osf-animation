@@ -20,7 +20,7 @@ namespace OSF::API
 	// support a native menu open (bridge MINOR < 1). Any thread.
 	bool OpenBrowser();
 
-	// Open the osf view in emote-wheel mode, filtered to solo scenes whose tags start with
+	// Open the osf view in emote-wheel mode, filtered to solo free-space emotes whose tags start with
 	// a_tagPrefix ("" -> "player.emote."). Captures the crosshair NPC as the wheel's target
 	// (dead / in-combat / non-human fall back to a player-only wheel) and delivers
 	// osf.mode {mode:"wheel"} race-safely (immediate send + osf.opened replay). Returns false

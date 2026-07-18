@@ -1,24 +1,35 @@
 #pragma once
 
-// Persistent ordered list of scene ids the user pinned to the emote wheel from the
-// scene browser. When any pins exist the wheel shows exactly them, in pin order
-// (pool logic is view-side); with none, the wheel falls back to the tag-prefix pool.
+// Persistent ordered emote-wheel loadout. Before the user customizes it, the view
+// derives the wheel from installed `player.emote.*` entries. The first add/remove
+// materializes that complete default list and persists the edited result here.
 //
-// Lives in <Documents>\My Games\Starfield\OSF\wheel-pins.json. Stale ids (their pack
-// uninstalled) are kept, never pruned — they revive on reinstall; filtering happens
-// naturally because the catalog only stamps `pinned` on scenes that exist.
+// Lives in <Documents>\My Games\Starfield\OSF\wheel-pins.json as a plain ordered JSON
+// array. File absent means installed defaults; [] means an intentionally empty wheel.
+// Stale ids (their pack uninstalled) are kept, never pruned — they revive on reinstall;
+// filtering happens naturally because the catalog only stamps pinned on scenes that exist.
 //
 // Leaf lock: safe to call under the registry read lock (like ClipDurations::Lookup);
 // must never call back into the registry.
 
+#include <span>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace OSF::Serialization::WheelPins
 {
-	// 1-based pin position of the scene on the wheel, 0 = not pinned.
+	// Whether an explicit loadout exists. False means "derive installed defaults";
+	// true with zero entries is an intentionally empty wheel.
+	bool Customized();
+
+	// 1-based position in the explicit loadout, 0 = absent or not customized.
 	int Order(std::string_view a_sceneId);
 
-	// Pin (append at the end) or unpin (later pins shift up). Persists on change.
-	// Returns true when the list actually changed.
-	bool Set(std::string_view a_sceneId, bool a_pinned);
+	// Replace the explicit ordered loadout. Duplicate/empty ids are removed while
+	// preserving first occurrence. Persists on change; at most 12 entries.
+	bool SetEntries(std::span<const std::string> a_sceneIds);
+
+	// Delete the explicit loadout so installed player.emote.* entries become the wheel again.
+	bool Reset();
 }

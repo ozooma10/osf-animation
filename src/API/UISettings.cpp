@@ -36,8 +36,8 @@ namespace OSF::API
   "groups": [
     { "label": "Hotkeys", "settings": [
       { "key": "hotkeys.openBrowser", "type": "key", "default": "", "allowUnbound": true,
-        "label": "Open scene browser",
-        "hint": "Opens the scene browser." },
+        "label": "Open animation browser",
+        "hint": "Browse animations, emotes, and authored scenes." },
       { "key": "hotkeys.openWheel", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open emote wheel",
         "hint": "Radial emote picker; targets the crosshair NPC when one is in reach." }
@@ -48,7 +48,7 @@ namespace OSF::API
         "hint": "Debug HUD popup on each scene stage transition." },
       { "key": "firstRunHint", "type": "bool", "default": true,
         "label": "First-run hint",
-        "hint": "Show the browser hint until the scene browser has been opened a few times." }
+        "hint": "Show the browser hint until the animation browser has been opened a few times." }
     ] },
     { "label": "Logging", "settings": [
       { "key": "logLevel", "type": "enum", "default": "info",

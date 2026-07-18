@@ -346,8 +346,6 @@ function normalizeScene(raw) {
   const genders = Array.isArray(raw.genders) ? raw.genders : [];
   const roles = normalizeRoles(raw.roles, genders, actorCount);
   const tags = Array.isArray(raw.tags) ? raw.tags.map((t) => String(t)) : [];
-  const taggedEmote = tags.some((t) => t.toLowerCase().startsWith("player.emote."));
-  const presentation = String(raw.presentation || (taggedEmote ? "emote" : "scene")).toLowerCase();
   const requiresFurniture = !!(raw.requiresFurniture || raw.anchorRequired || raw.anchor);
   return {
     id,
@@ -360,9 +358,6 @@ function normalizeScene(raw) {
     requiresFurniture,
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map((a) => String(a)) : [],  // what it anchors to ("Barstool", …)
     unlisted: !!raw.unlisted,
-    presentation,
-    wheelEligible: raw.wheelEligible == null ? presentation === "emote" : !!raw.wheelEligible,
-    wheelDefault: raw.wheelDefault == null ? taggedEmote : !!raw.wheelDefault,
     wheelCustomized: !!raw.wheelCustomized,
     pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),  // 1-based explicit wheel order (0 = absent/default-derived)
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
@@ -584,7 +579,8 @@ function setMode(mode) {
   renderAll();
 }
 
-function isEmote(s) { return !!s && s.presentation === "emote"; }
+function isEmote(s) { return !!s && (s.tags || []).some((t) => t.toLowerCase().startsWith("player.emote.")); }
+function isWheelEmote(s) { return isEmote(s) && !s.unlisted && (s.actorCount || 0) === 1 && !s.requiresFurniture; }
 function sceneCatalog() { return state.catalog.filter((s) => !isEmote(s)); }
 function emoteCatalog() { return state.catalog.filter(isEmote); }
 function animationList() { return [...emoteCatalog(), ...state.library]; }
@@ -1311,14 +1307,14 @@ function renderBrief() {
   const reasonHTML = reason ? `<div class="mono wrap" style="color:var(--text-faint);text-align:center">${esc(reason)}</div>` : "";
   const launchStack = `<div class="launch-stack">${reasonHTML}${launchBtn}${stopBtn}</div>`;
 
-  const onWheel = s.wheelEligible && isOnWheel(s);
+  const onWheel = isWheelEmote(s) && isOnWheel(s);
   const wheelIds = wheelPool().map((x) => x.id);
   const wheelIndex = wheelIds.indexOf(s.id);
   const orderControls = onWheel && state.wheelCustomized
     ? `<span class="wheel-order mono">${wheelIndex + 1}/${wheelIds.length}</span><button class="pin-btn compact" data-act="wheel-up" data-id="${escAttr(s.id)}" ${wheelIndex <= 0 ? "disabled" : ""} title="Move earlier on wheel">←</button><button class="pin-btn compact" data-act="wheel-down" data-id="${escAttr(s.id)}" ${wheelIndex < 0 || wheelIndex >= wheelIds.length - 1 ? "disabled" : ""} title="Move later on wheel">→</button>`
     : "";
   const reset = state.wheelCustomized ? `<button class="pin-btn reset" data-act="wheel-reset" title="Restore installed default emotes">RESET DEFAULTS</button>` : "";
-  const pinRow = s.wheelEligible
+  const pinRow = isWheelEmote(s)
     ? `<div class="brief-pin"><button class="pin-btn ${onWheel ? "on" : ""}" data-act="pin-toggle" data-id="${escAttr(s.id)}" title="${onWheel ? "Remove from the emote wheel" : "Add to the emote wheel"}">${onWheel ? "◆ ON WHEEL" : "◇ ADD TO WHEEL"}</button>${orderControls}${reset}</div>`
     : "";
 
@@ -1446,7 +1442,7 @@ function setWheelIds(ids) {
 
 function togglePin(id) {
   const s = state.catalog.find((x) => x.id === id);
-  if (!s || !s.wheelEligible) return;
+  if (!s || !isWheelEmote(s)) return;
   const ids = wheelPool().slice(0, WHEEL_MAX).map((x) => x.id);
   const at = ids.indexOf(id);
   const adding = at < 0;
@@ -1548,14 +1544,12 @@ function exitWheel() {
 // that complete visible list is materialized into `pinned` order and remains explicit,
 // including the intentionally-empty case.
 function wheelPool() {
-  const eligible = state.catalog.filter((s) => !s.unlisted && s.wheelEligible);
+  const eligible = state.catalog.filter(isWheelEmote);
   const pins = eligible.filter((s) => s.pinned > 0).sort((a, b) => a.pinned - b.pinned);
   if (state.wheelCustomized) return pins.slice(0, WHEEL_MAX);
   const pre = state.wheel ? state.wheel.tagPrefix : "";
   return eligible
-    .filter((s) => pre
-      ? (s.tags || []).some((t) => t.toLowerCase().startsWith(pre))
-      : s.wheelDefault)
+    .filter((s) => (s.tags || []).some((t) => t.toLowerCase().startsWith(pre || "player.emote.")))
     .sort((a, b) => b.priority - a.priority || b.weight - a.weight || a.title.localeCompare(b.title))
     .slice(0, WHEEL_MAX);
 }

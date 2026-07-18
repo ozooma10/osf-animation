@@ -254,9 +254,6 @@ namespace OSF::Registry
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     unlisted = false;  // excluded from the matchmaking pool; only reachable by direct id
 		bool                     library = false;   // file-level `section:"library"`: reference-library lane (osf.library.data), kept out of the main catalog
-		std::string              presentation = "scene";  // browser-facing kind: "scene" or "emote" (runtime remains scene-backed)
-		bool                     wheelEligible = false;  // safe to expose as a finite emote-wheel quick action
-		bool                     wheelDefault = false;   // included in the derived wheel until the user customizes its loadout
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
 		bool                     fade = false;  // Screen fade-to-black on start when the player participates (self-releasing curtain); OFF by default, opt in with `fade:true`

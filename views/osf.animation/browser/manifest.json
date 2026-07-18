@@ -1,7 +1,7 @@
 {
   "id": "browser",
   "title": "OSF Animation Browser",
-  "description": "Scene browser and launcher",
+  "description": "Animation, emote, and scene browser",
   "entry": "index.html",
   "kind": "menu",
   "width": 1600,
