@@ -907,6 +907,30 @@ namespace OSF::API
 			REX::DEBUG("[UI] osf.animation.stop handle={} -> {}", handle, ok);
 		}
 
+		// Advance a running scene one stage (its default advance edge; past the last stage this
+		// ends the scene, same as the engine Space binding). The view is the ONLY advance channel
+		// for browser launches: while the OSF UI overlay captures input its WndProc swallow starves
+		// the engine of keyboard, so InputService never sees Space — and an NPC-only cast never
+		// engages a director grant at all. Handle 0 targets the last browser launch, like stop.
+		void OnAdvance(const char*, const char* a_payload, const char*, void*) noexcept
+		{
+			const json   j = ParsePayload(a_payload);
+			std::int32_t handle = 0;
+			if (j.is_object()) {
+				if (const auto it = j.find("handle"); it != j.end() && it->is_number_integer()) {
+					handle = it->get<std::int32_t>();
+				}
+			}
+			if (handle == 0) {
+				handle = g_lastHandle;
+			}
+			bool ok = false;
+			if (auto* api = SceneAPI(); api && handle != 0) {
+				ok = api->Advance(handle);
+			}
+			REX::DEBUG("[UI] osf.animation.advance handle={} -> {}", handle, ok);
+		}
+
 		void OnWheelGet(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
@@ -1514,6 +1538,7 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
 		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
+		g_ui.RegisterCommand("osf.animation.advance", &OnAdvance, nullptr);
 		g_ui.RegisterCommand("osf.animation.wheel.get", &OnWheelGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.wheel.set", &OnWheelSet, nullptr);
 		g_ui.RegisterCommand("osf.animation.opened", &OnOpened, nullptr);

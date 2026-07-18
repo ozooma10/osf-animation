@@ -136,6 +136,11 @@ button,input,select{font:inherit;color:inherit}
 .take-body strong{font-size:12px;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stop-mini{margin-left:auto;flex:none;border:1px solid var(--signal-stop);background:rgba(200,80,58,.12);color:var(--signal-stop);border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .stop-mini:hover{background:rgba(200,80,58,.22)}
+/* NEXT ▸ (advance one stage) — stop-mini geometry, go-signal accent. When it precedes a
+   stop-mini the auto margin moves here so the pair stays glued at the right edge. */
+.next-mini{margin-left:auto;flex:none;border:1px solid var(--line-strong);background:var(--void-700);color:var(--text-bright);border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
+.next-mini:hover{border-color:var(--signal-go);color:var(--signal-go)}
+.next-mini + .stop-mini{margin-left:8px}
 .take-cast{font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* the take body doubles as the "open the ACTIVE tab" button */
 .take-open{background:none;border:0;padding:0;text-align:left;cursor:pointer;flex:1;min-width:0}
@@ -399,6 +404,7 @@ button,input,select{font:inherit;color:inherit}
 .active-actor{font:500 10px var(--font-mono);color:var(--text-body);background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:2px 7px;white-space:nowrap}
 .active-actor.player{border-color:var(--accent);color:var(--accent)}
 .active-card .stop-mini{margin-left:0}
+.active-card .next-mini{margin-left:0}
 .reveal.inline.stop-all{color:var(--signal-stop);border-color:rgba(200,80,58,.5)}
 .reveal.inline.stop-all:hover{background:rgba(200,80,58,.12)}
 
@@ -603,6 +609,7 @@ body.wheel-mode .livebar{display:none}  /* the wheel owns the screen while it's 
 .livebar .take-chip{background:rgba(6,9,13,.88);box-shadow:var(--shadow-sm);max-width:440px}
 .livebar .take-body strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 .livebar .stop-mini{margin-left:8px}
+.livebar .next-mini{margin-left:8px}
 .expand-mini{margin-left:8px;flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);background:var(--void-700);color:var(--text-muted);
   border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .expand-mini:hover{border-color:var(--steel-500);color:var(--text-bright)}

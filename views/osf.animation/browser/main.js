@@ -796,8 +796,12 @@ function renderSlateTake() {
   if (live.length === 1) {
     const s = live[0];
     const cast = (s.cast || []).map((c) => c.name).join(" + ");
+    const def = sceneById(s.sceneId);
+    const next = def && (def.stages || []).length > 1
+      ? `<button class="next-mini" data-act="advance-scene" data-handle="${s.handle}" title="Advance to the next animation (Space)">NEXT ▸</button>` : "";
     el.innerHTML = `<div class="take-chip live"><span class="live-dot"></span>` +
       `<button class="take-body take-open" data-act="mode" data-mode="active" title="Manage in the ACTIVE tab"><span class="lbl">RUNNING · #${s.handle}${s.player ? " · YOU" : ""}</span><strong>${esc(sceneTitle(s.sceneId))}</strong>${cast ? `<span class="take-cast mono">${esc(cast)}</span>` : ""}</button>` +
+      next +
       `<button class="stop-mini" data-act="stop-scene" data-handle="${s.handle}" title="Stop this scene">■ STOP</button></div>`;
     return;
   }
@@ -829,13 +833,17 @@ function renderLivebar() {
   if (!state.minimized) { el.innerHTML = ""; return; }
   const running = !!state.lastHandle;
   const ls = sceneById(state.lastSceneId);
+  // NEXT only when there is a next animation to step to — on a single-stage scene the
+  // advance edge just ends the scene, and STOP already says that.
+  const multiStage = !!ls && (ls.stages || []).length > 1;
   const label = running
     ? `<span class="live-dot"></span><div class="take-body"><span class="lbl">RUNNING · #${state.lastHandle}</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div>`
     : `<div class="take-body"><span class="lbl">STANDBY</span><strong>No scene running</strong></div>`;
   el.innerHTML = `<div class="take-chip ${running ? "live" : ""}">${label}` +
+    (running && multiStage ? `<button class="next-mini" data-act="advance-scene" title="Next animation (Space)">NEXT ▸</button>` : "") +
     (running ? `<button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button>` : "") +
     `<button class="expand-mini" data-act="expand" title="Bring the browser back"><svg class="chev-ico" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 5l4-3.8L9 5"/></svg>BROWSER</button></div>` +
-    `<div class="livebar-hint mono">DRAG ORBIT · WHEEL ZOOM</div>`;
+    `<div class="livebar-hint mono">${running && multiStage ? "SPACE NEXT · " : ""}DRAG ORBIT · WHEEL ZOOM</div>`;
 }
 
 /* ---- guided rail ---------------------------------------------------------- */
@@ -1246,6 +1254,7 @@ function activeCardHTML(s) {
     stageLine +
     (cast ? `<div class="active-cast">${cast}</div>` : "") +
     `</button>` +
+    (stages.length > 1 ? `<button class="next-mini" data-act="advance-scene" data-handle="${s.handle}" title="Advance to the next animation">NEXT ▸</button>` : "") +
     `<button class="stop-mini" data-act="stop-scene" data-handle="${s.handle}" title="Stop this scene">■ STOP</button></div>`;
 }
 
@@ -1552,6 +1561,29 @@ function resetWheel() {
   renderAll();
 }
 
+// The scene Space (and a no-handle advance) targets: the one this session launched, else a
+// sole running scene. Several NPC scenes with no session launch = ambiguous -> 0 (use the
+// per-row NEXT buttons in the ACTIVE tab instead).
+function advanceTarget() {
+  if (state.lastHandle) return state.lastHandle;
+  const live = activeScenes();
+  return live.length === 1 ? live[0].handle : 0;
+}
+
+// Advance one stage (the scene's default advance edge; past the last stage this ends the
+// scene). The view owns this verb for browser launches: while the overlay captures input
+// the engine never sees the Space that InputService maps to kAdvance, and NPC-only casts
+// have no director grant at all — so the bridge command is the advance channel here.
+let lastAdvanceAt = 0;
+function doAdvance(handle) {
+  const h = Number(handle) || advanceTarget();
+  if (!h) return;
+  const now = Date.now();
+  if (now - lastAdvanceAt < 350) return;  // absorb key auto-repeat / double-clicks — one stage per press
+  lastAdvanceAt = now;
+  send("osf.animation.advance", { handle: h });
+}
+
 // Stop one scene by handle (the ACTIVE rows), or with no argument the last-launched one
 // (the legacy stop buttons in the brief/live bar).
 function doStop(handle) {
@@ -1772,6 +1804,7 @@ function onClick(e) {
     case "launch": doLaunch(); break;
     case "stop": doStop(); break;
     case "stop-scene": doStop(Number(el.dataset.handle)); break;
+    case "advance-scene": doAdvance(Number(el.dataset.handle)); break;
     case "stop-all": for (const s of activeScenes().slice()) doStop(s.handle); break;
     case "wheel-toggle": toggleWheelEntry(el.dataset.scene, el.dataset.stage === "" ? null : Number(el.dataset.stage)); break;
     case "wheel-move": moveWheelEntry(el.dataset.scene, el.dataset.stage === "" ? null : Number(el.dataset.stage), Number(el.dataset.dir)); break;
@@ -1970,6 +2003,16 @@ function onNavKey(e) {
     }
     e.preventDefault();  // don't also scroll the container
     navMove(dir);
+    return;
+  }
+
+  // SPACE = advance the running scene one stage, matching the in-game binding (which can't
+  // fire while the overlay captures input — the WndProc swallow starves the engine of the
+  // key). Enter keeps activating the focused control (gamepad A arrives as Enter), and the
+  // search box keeps its spaces. With no target scene, Space falls through to activation.
+  if ((e.key === " " || e.key === "Spacebar") && !isTextEntry(el) && advanceTarget()) {
+    e.preventDefault();
+    doAdvance();
     return;
   }
 
@@ -2263,6 +2306,19 @@ function mockNative(command, fields) {
   else if (command === "osf.animation.stop") {
     MOCK_ACTIVE = MOCK_ACTIVE.filter((s) => s.handle !== fields.handle);
     setTimeout(() => { notice("ok", "Scene stopped."); mockPushActive(); }, 40);
+  }
+  // Mirror the DLL's Advance: step the stage; past the last stage the default advance
+  // edge targets $end, so the scene disappears from the table.
+  else if (command === "osf.animation.advance") {
+    const sc = MOCK_ACTIVE.find((s) => s.handle === fields.handle);
+    if (sc) {
+      sc.stage = (sc.stage || 0) + 1;
+      const def = sceneById(sc.sceneId);
+      if (def && (def.stages || []).length && sc.stage >= def.stages.length) {
+        MOCK_ACTIVE = MOCK_ACTIVE.filter((s) => s !== sc);
+      }
+      setTimeout(() => mockPushActive(), 40);
+    }
   }
   // Visibility relays from the view itself: like the DLL, closing aborts only PLAYER
   // scenes (NPC-only ones persist for the next open), and opening re-pushes the list.
