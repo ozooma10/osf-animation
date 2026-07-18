@@ -236,7 +236,8 @@ namespace OSF::Scene
 						}
 						if (edge) {
 							triggered = true;
-							if (edge->to == "$end") {
+							// Single-stage posture: a cue trigger may not leave the entered stage either.
+							if (edge->to == "$end" || s->singleStage) {
 								end = true;  // freed after SCENE_END (handle valid through the events)
 							} else {
 								s->node = edge->to;
@@ -872,7 +873,8 @@ namespace OSF::Scene
 			oldNode = s->node;
 			sceneId = s->id;
 			participants = s->participants;
-			if (edge->to == "$end") {
+			// Single-stage posture: this stage is the whole experience — any edge out ends the scene.
+			if (edge->to == "$end" || s->singleStage) {
 				end = true;  // freed after SCENE_END (handle valid through the events)
 			} else {
 				s->node = edge->to;
@@ -988,7 +990,9 @@ namespace OSF::Scene
 				const Registry::SceneEdge* edge = SelectAutoEdge(*node, wantWhen);
 				if (edge) {
 					tookEdge = true;
-					if (edge->to == "$end") {
+					// Single-stage posture: the pack's auto loops/timer chain must not step to the
+					// next animation — the entered stage finishing ends the scene.
+					if (edge->to == "$end" || s->singleStage) {
 						end = true;
 					} else {
 						s->node = edge->to;

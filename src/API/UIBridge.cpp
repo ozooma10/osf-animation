@@ -800,8 +800,11 @@ namespace OSF::API
 			// hands-off settings regardless of which pack the animation came from — play it on the
 			// actor where they stand (no teleport / per-frame root+heading pin), never touch the
 			// camera (vanilla third person stays live; the pin fight was the emote camera judder),
-			// keep the player's controls, no strip, no fade. Enforced HERE (not per-pack policy) so
-			// stage-pinned library animations behave exactly like the installed emotes.
+			// keep the player's controls, no strip, no fade — and SINGLE-ANIMATION: the scene is
+			// pinned to the picked stage after launch (SetSingleStage below), so space cancels the
+			// emote instead of cycling the pack's stages and the pack's own stage chain can't step
+			// past it. Enforced HERE (not per-pack policy) so stage-pinned library animations
+			// behave exactly like the installed emotes.
 			if (g_wheel.active) {
 				o.inPlaceMode = 1;
 				o.lockPlayerMode = 0;
@@ -853,6 +856,13 @@ namespace OSF::API
 			}
 
 			g_lastHandle = handle;
+			// Wheel posture, part 2: pin the emote to its entered stage — every edge out (space,
+			// the pack's loops/timer chain) ends the scene instead of advancing to the next
+			// animation. Post-start on purpose: the launch runs through the public API POD, and
+			// this is engine posture, not a per-scene option worth an ABI append.
+			if (g_wheel.active) {
+				Scene::SceneRuntime::GetSingleton().SetSingleStage(handle);
+			}
 			// Console launch with the PLAYER in the cast: abort on browser close (see
 			// g_closeStops). NPC-only casts and wheel emotes outlive the close.
 			auto* player = RE::PlayerCharacter::GetSingleton();

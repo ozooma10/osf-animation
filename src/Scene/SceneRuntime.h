@@ -133,9 +133,16 @@ namespace OSF::Scene
 		// False if the handle is invalid or the node has no default advance edge (a default is never inferred).
 		bool Advance(std::int32_t a_scene);
 
-		// Take the current node's branchable advance edge whose id == a_edgeId. 
+		// Take the current node's branchable advance edge whose id == a_edgeId.
 		// False if the handle is invalid or no such edge on the current node.
 		bool Navigate(std::int32_t a_scene, std::string_view a_edgeId);
+
+		// SINGLE-ANIMATION posture (wheel emotes): pin the scene to the stage it entered on. Every
+		// edge out of the current node — the director advance verb (space), the pack's auto
+		// loops/timer chain, a cue trigger, Navigate — ends the scene instead of stepping to the
+		// next stage, so the launch reads as "play this one animation", and space becomes cancel.
+		void SetSingleStage(std::int32_t a_scene);
+		bool IsSingleStage(std::int32_t a_scene);
 
 		// Branchable (advance) edges of the current node, for menus. Count, then id/label by
 		// index (0..count). Sentinels: count 0 / id "" / label "" when invalid.
@@ -224,6 +231,7 @@ namespace OSF::Scene
 			AnchorOverride          anchor;  // StartSceneAt world anchor (unset = anchor at participant[0])
 			float                   loopScale = 1.0f;  // per-start LoopScale, re-read per node in PlayNodeAnim (1.0 = no scaling)
 			std::optional<bool>     inPlace;  // per-start inPlace override, re-read per node in PlayNodeAnim (unset = the def's posture)
+			bool                    singleStage = false;  // single-animation posture: any edge out of the current node ends the scene (see SetSingleStage)
 			bool                    cameraOverridden = false;  // a per-start camera override exists — authored node cameras stand down for the scene's lifetime
 			// Ordered list of reversible mechanisms this scene engaged (at most one entry per
 			// Mechanism — record is idempotent). Replayed in reverse on termination.

@@ -34,6 +34,15 @@ namespace OSF::Scene
 			constexpr float    kMin = 0.1f;
 			switch (a_verb) {
 			case Input::Verb::kAdvance: {
+				// SINGLE-ANIMATION posture (wheel emotes): the entered stage IS the whole
+				// experience — space cancels the emote instead of stepping to the pack's next
+				// animation. No debounce (cancel must land immediately); same locked gate as kEnd.
+				if (rt.IsSingleStage(a_grant.handle)) {
+					if (!a_grant.locked) {
+						rt.Stop(a_grant.handle);
+					}
+					break;
+				}
 				// Debounce manual advance. A press starts a node teardown+rebuild; without a
 				// meaningful floor, mashing space can stutter-skip through several stages before
 				// the player has actually seen the newly entered one.
@@ -273,6 +282,22 @@ namespace OSF::Scene
 		std::lock_guard l{ _lock };
 		Slot* s = Resolve(a_scene);
 		return s ? s->node : std::string{};
+	}
+
+	void SceneRuntime::SetSingleStage(std::int32_t a_scene)
+	{
+		std::lock_guard l{ _lock };
+		if (Slot* s = Resolve(a_scene)) {
+			s->singleStage = true;
+			REX::DEBUG("[Scene] scene {:#010x} pinned single-stage — any edge out of node '{}' ends it", a_scene, s->node);
+		}
+	}
+
+	bool SceneRuntime::IsSingleStage(std::int32_t a_scene)
+	{
+		std::lock_guard l{ _lock };
+		Slot* s = Resolve(a_scene);
+		return s && s->singleStage;
 	}
 
 	std::vector<RE::Actor*> SceneRuntime::GetParticipants(std::int32_t a_scene)
