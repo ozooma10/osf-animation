@@ -13,7 +13,10 @@ library stays behind `section:"library"` (osf.library.data).
 Output scenes are grouped per source scene (anchors are per-scene, so sources with
 different furniture keywords cannot merge); the browser tree derives grouping from
 the id, e.g. `highlights/bar-life/furniture/barstool`. Split chunks (`--2`, `--3`)
-of one source leaf are folded back into a single output scene.
+of one source leaf are folded back into a single output scene. Rules over leaves
+the pack generator sub-clustered by filename prefix (vanilla/common/death, ...)
+can set `"fold": true` to also fold those children back into the glob's static
+prefix — one curated card instead of one per sub-cluster.
 
 Usage (from the repo root, after generate_vanilla_packs.py):
     python tools/vanilla-packs/generate_highlights.py
@@ -95,6 +98,9 @@ def build_collection(coll: dict, scenes: dict[str, dict],
         taken = 0
         matched_any = False
         for glob in rule["scenes"]:
+            # "fold": true folds prefix-sub-clustered children (vanilla/common/death/...)
+            # back into the glob's static prefix — one curated card per rule glob.
+            fold_base = re.split(r"[*?\[]", glob, 1)[0].rstrip("/") if rule.get("fold") else None
             for src_id in sorted(scenes):
                 if not fnmatch.fnmatchcase(src_id, glob):
                     continue
@@ -113,11 +119,18 @@ def build_collection(coll: dict, scenes: dict[str, dict],
 
                     # Fold --2/--3 chunks back into one output scene per source leaf.
                     base_id = CHUNK_RE.sub("", src_id)
+                    src_name = CHUNK_RE.sub("", re.sub(r"\s*\(\d+\)$", "", src.get("name", base_id)))
+                    if fold_base and base_id.startswith(fold_base + "/"):
+                        extra = base_id[len(fold_base):].count("/")
+                        parts = src_name.split(" / ")
+                        if extra < len(parts):
+                            src_name = " / ".join(parts[:-extra])
+                        base_id = fold_base
                     rel = base_id[len(VANILLA_PREFIX):] if base_id.startswith(VANILLA_PREFIX) else base_id
                     out_id = f"{coll['id']}/{rel}"
                     dst = out.setdefault(out_id, {
                         "srcId": base_id,
-                        "srcName": CHUNK_RE.sub("", re.sub(r"\s*\(\d+\)$", "", src.get("name", base_id))),
+                        "srcName": src_name,
                         "srcTags": src.get("tags", []),
                         "anchor": src.get("anchor"),
                         "stages": [],

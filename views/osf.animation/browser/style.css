@@ -606,3 +606,15 @@ body.wheel-mode .wheel{display:block}
   background:rgba(6,9,13,.92);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:18px;
   display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
 .wheel-empty .mono{white-space:normal}
+
+/* standalone-only wheel debug strip (#wheeldbg, injected by main.js when no
+   bridge is present — never exists in-game); visible only while the wheel is up */
+.wheeldbg{position:fixed;left:14px;top:14px;z-index:9;display:none;align-items:center;gap:6px;
+  background:rgba(6,9,13,.88);border:1px solid var(--line-strong);border-radius:2px;padding:6px 10px;box-shadow:var(--shadow-sm)}
+body.wheel-mode .wheeldbg{display:flex}
+.wheeldbg-title{font:600 8.5px/1 var(--font-mono);letter-spacing:.15em;color:var(--text-faint);margin-right:2px}
+.wheeldbg-n{min-width:28px;text-align:center;font:600 11px var(--font-mono);color:var(--text-bright)}
+.wheeldbg button{border:1px solid var(--line-strong);background:none;color:var(--text-muted);border-radius:2px;
+  padding:3px 7px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
+.wheeldbg button:hover{border-color:var(--steel-500);color:var(--text-bright)}
+.wheeldbg button.on{border-color:var(--accent);background:var(--accent-quiet);color:var(--text-bright)}

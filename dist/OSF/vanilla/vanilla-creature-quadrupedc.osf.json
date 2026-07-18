@@ -6,8 +6,8 @@
   "clipRoot": "meshes/actors/quadrupedc/animations",
   "scenes": [
     {
-      "id": "vanilla/creature/quadrupedc",
-      "name": "Vanilla · Quadrupedc",
+      "id": "vanilla/creature/quadrupedc/bleedout",
+      "name": "Vanilla · Quadrupedc / Bleedout",
       "tags": [
         "vanilla",
         "creature",
@@ -25,215 +25,6 @@
           ],
           "tags": [
             "idle"
-          ]
-        },
-        {
-          "name": "Graze_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "graze_idle.af",
-              "sec": 6.167
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Hide_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "hide_idle.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle.af",
-              "sec": 2.667
-            }
-          ]
-        },
-        {
-          "name": "Idle_Howl01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_howl01.af",
-              "sec": 6.9
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Idle_LookingUp01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_lookingup01.af",
-              "sec": 13.667
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Idle_RakingGround01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_rakingground01.af",
-              "sec": 5.933
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle.af",
-              "sec": 2.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Taunt01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_taunt01.af",
-              "sec": 3.333
-            }
-          ],
-          "tags": [
-            "idle_taunt01",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle.af",
-              "sec": 4.9
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor01.af",
-              "sec": 8.667
-            }
-          ],
-          "tags": [
-            "idle_flavor01",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor02.af",
-              "sec": 6.333
-            }
-          ],
-          "tags": [
-            "idle_flavor02",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor03.af",
-              "sec": 13.333
-            }
-          ],
-          "tags": [
-            "idle_flavor03",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor04.af",
-              "sec": 16.433
-            }
-          ],
-          "tags": [
-            "idle_flavor04",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "FrontExitToRun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "frontexittorun.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "FrontExitToStand",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "frontexittostand.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "FrontExitToStand_JumpDown",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "frontexittostand_jumpdown.af",
-              "sec": 1.5
-            }
           ]
         },
         {
@@ -334,44 +125,18 @@
           "tags": [
             "walkforward"
           ]
-        },
-        {
-          "name": "CriticalHit_Head",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "criticalhit_head.af",
-              "sec": 2.333
-            }
-          ],
-          "tags": [
-            "criticalhit",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CriticalHit_Legs",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "criticalhit_legs.af",
-              "sec": 3.0
-            }
-          ]
-        },
-        {
-          "name": "CriticalHit_Torso",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "criticalhit_torso.af",
-              "sec": 3.0
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/death",
+      "name": "Vanilla · Quadrupedc / Death",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
         {
           "name": "Death_Backward01",
           "loops": 0,
@@ -457,6 +222,941 @@
             {
               "file": "death_right01.af",
               "sec": 1.733
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/idle",
+      "name": "Vanilla · Quadrupedc / Idle",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
+        {
+          "name": "idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle.af",
+              "sec": 2.667
+            }
+          ]
+        },
+        {
+          "name": "Idle_Howl01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle_howl01.af",
+              "sec": 6.9
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_LookingUp01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle_lookingup01.af",
+              "sec": 13.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_RakingGround01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle_rakingground01.af",
+              "sec": 5.933
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/meleeattack",
+      "name": "Vanilla · Quadrupedc / Meleeattack",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
+        {
+          "name": "MeleeAttack_Bite01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_bite01.af",
+              "sec": 2.133
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Bite02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_bite02.af",
+              "sec": 1.867
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Claw01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_claw01.af",
+              "sec": 1.467
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Claw02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_claw02.af",
+              "sec": 2.567
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Head01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_head01.af",
+              "sec": 2.133
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Head02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_head02.af",
+              "sec": 2.567
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_left180.af",
+              "sec": 2.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_left90.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_right180.af",
+              "sec": 2.033
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_right90.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Tail01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_tail01.af",
+              "sec": 1.7
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Tail02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_tail02.af",
+              "sec": 2.167
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/meleeattackpower",
+      "name": "Vanilla · Quadrupedc / Meleeattackpower",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
+        {
+          "name": "MeleeAttackPower_Bite01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattackpower_bite01.af",
+              "sec": 1.933
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttackPower_Claw01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattackpower_claw01.af",
+              "sec": 2.133
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttackPower_Head01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattackpower_head01.af",
+              "sec": 1.8
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttackPower_Tail01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattackpower_tail01.af",
+              "sec": 2.4
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/ready",
+      "name": "Vanilla · Quadrupedc / Ready",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
+        {
+          "name": "Ready_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle.af",
+              "sec": 2.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Taunt01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_taunt01.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "idle_taunt01",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ready_RunForward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_runforward_start.af",
+              "sec": 0.767
+            }
+          ],
+          "tags": [
+            "runforward_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left180.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "turninplace_left180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left30.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "turninplace_left30",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left90.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "turninplace_left90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right180.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "turninplace_right180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right30.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "turninplace_right30",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right90.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "turninplace_right90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_WalkForward_Stop_LeftFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkforward_stop_leftfoot.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_leftfoot",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ready_WalkForward_Stop_RightFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkforward_stop_rightfoot.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_rightfoot",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/relaxed",
+      "name": "Vanilla · Quadrupedc / Relaxed",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
+        {
+          "name": "Relaxed_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle.af",
+              "sec": 4.9
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor01.af",
+              "sec": 8.667
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor02.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor03.af",
+              "sec": 13.333
+            }
+          ],
+          "tags": [
+            "idle_flavor03",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor04.af",
+              "sec": 16.433
+            }
+          ],
+          "tags": [
+            "idle_flavor04",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left180.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "turninplace_left180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left30.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "turninplace_left30",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left90.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "turninplace_left90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right180.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "turninplace_right180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right30.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "turninplace_right30",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right90.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "turninplace_right90",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_left180.af",
+              "sec": 4.833
+            }
+          ],
+          "tags": [
+            "walkdeparture_left180",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_left90.af",
+              "sec": 2.567
+            }
+          ],
+          "tags": [
+            "walkdeparture_left90",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_right180.af",
+              "sec": 4.167
+            }
+          ],
+          "tags": [
+            "walkdeparture_right180",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_right90.af",
+              "sec": 2.567
+            }
+          ],
+          "tags": [
+            "walkdeparture_right90",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkForward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforward_start.af",
+              "sec": 1.433
+            }
+          ],
+          "tags": [
+            "walkforward_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkForward_Stop_LeftFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforward_stop_leftfoot.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_leftfoot"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkForward_Stop_RightFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforward_stop_rightfoot.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_rightfoot"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkForwardStart",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforwardstart.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "walkforwardstart"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/threat",
+      "name": "Vanilla · Quadrupedc / Threat",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
+        {
+          "name": "Threat_Assess01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_assess01.af",
+              "sec": 6.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Backdown01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_backdown01.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Curious01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_curious01.af",
+              "sec": 8.167
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Intimidate01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_intimidate01.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Listen01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_listen01.af",
+              "sec": 9.467
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/quadrupedc/misc",
+      "name": "Vanilla · Quadrupedc / Misc",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:quadrupedc"
+      ],
+      "stages": [
+        {
+          "name": "Graze_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "graze_idle.af",
+              "sec": 6.167
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Hide_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "hide_idle.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "FrontExitToRun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "frontexittorun.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "FrontExitToStand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "frontexittostand.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "FrontExitToStand_JumpDown",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "frontexittostand_jumpdown.af",
+              "sec": 1.5
+            }
+          ]
+        },
+        {
+          "name": "CriticalHit_Head",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "criticalhit_head.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "criticalhit",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CriticalHit_Legs",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "criticalhit_legs.af",
+              "sec": 3.0
+            }
+          ]
+        },
+        {
+          "name": "CriticalHit_Torso",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "criticalhit_torso.af",
+              "sec": 3.0
             }
           ],
           "tags": [
@@ -767,174 +1467,6 @@
           ]
         },
         {
-          "name": "MeleeAttack_Bite01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_bite01.af",
-              "sec": 2.133
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Bite02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_bite02.af",
-              "sec": 1.867
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Claw01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_claw01.af",
-              "sec": 1.467
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Claw02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_claw02.af",
-              "sec": 2.567
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_head01.af",
-              "sec": 2.133
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Head02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_head02.af",
-              "sec": 2.567
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_left180.af",
-              "sec": 2.033
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_left90.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_right180.af",
-              "sec": 2.033
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_right90.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Tail01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_tail01.af",
-              "sec": 1.7
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Tail02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_tail02.af",
-              "sec": 2.167
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
           "name": "MeleeAttackPower01",
           "loops": 0,
           "clips": [
@@ -946,385 +1478,6 @@
           "tags": [
             "transition",
             "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttackPower_Bite01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattackpower_bite01.af",
-              "sec": 1.933
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttackPower_Claw01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattackpower_claw01.af",
-              "sec": 2.133
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttackPower_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattackpower_head01.af",
-              "sec": 1.8
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttackPower_Tail01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattackpower_tail01.af",
-              "sec": 2.4
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_RunForward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_runforward_start.af",
-              "sec": 0.767
-            }
-          ],
-          "tags": [
-            "runforward_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_left180.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "turninplace_left180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Left30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_left30.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "turninplace_left30",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_left90.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "turninplace_left90",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_right180.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "turninplace_right180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Right30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_right30.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "turninplace_right30",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_right90.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "turninplace_right90",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_WalkForward_Stop_LeftFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkforward_stop_leftfoot.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_leftfoot",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_WalkForward_Stop_RightFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkforward_stop_rightfoot.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_rightfoot",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_left180.af",
-              "sec": 1.833
-            }
-          ],
-          "tags": [
-            "turninplace_left180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Left30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_left30.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "turninplace_left30",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_left90.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "turninplace_left90",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_right180.af",
-              "sec": 1.833
-            }
-          ],
-          "tags": [
-            "turninplace_right180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Right30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_right30.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "turninplace_right30",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_right90.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "turninplace_right90",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_left180.af",
-              "sec": 4.833
-            }
-          ],
-          "tags": [
-            "walkdeparture_left180",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_left90.af",
-              "sec": 2.567
-            }
-          ],
-          "tags": [
-            "walkdeparture_left90",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_right180.af",
-              "sec": 4.167
-            }
-          ],
-          "tags": [
-            "walkdeparture_right180",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_right90.af",
-              "sec": 2.567
-            }
-          ],
-          "tags": [
-            "walkdeparture_right90",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkForward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkforward_start.af",
-              "sec": 1.433
-            }
-          ],
-          "tags": [
-            "walkforward_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkForward_Stop_LeftFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkforward_stop_leftfoot.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_leftfoot"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkForward_Stop_RightFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkforward_stop_rightfoot.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_rightfoot"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkForwardStart",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkforwardstart.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "walkforwardstart"
           ]
         },
         {
@@ -1459,71 +1612,6 @@
               "file": "test_rom.af",
               "sec": 2.4
             }
-          ]
-        },
-        {
-          "name": "Threat_Assess01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_assess01.af",
-              "sec": 6.167
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Backdown01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_backdown01.af",
-              "sec": 5.0
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Curious01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_curious01.af",
-              "sec": 8.167
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Intimidate01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_intimidate01.af",
-              "sec": 3.333
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Listen01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_listen01.af",
-              "sec": 9.467
-            }
-          ],
-          "tags": [
-            "rootmotion"
           ]
         },
         {

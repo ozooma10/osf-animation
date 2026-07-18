@@ -6,8 +6,8 @@
   "clipRoot": "meshes/actors/human/animations",
   "scenes": [
     {
-      "id": "vanilla/common",
-      "name": "Vanilla · Common",
+      "id": "vanilla/common/bleedout",
+      "name": "Vanilla · Common / Bleedout",
       "tags": [
         "vanilla",
         "common"
@@ -33,111 +33,6 @@
             {
               "file": "common/bleedout_idle_zerog.af",
               "sec": 5.8
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Cower_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/cower_idle.af",
-              "sec": 6.333
-            }
-          ],
-          "tags": [
-            "idle",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "GiveWatch_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/givewatch_idle.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Idle_Stun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/idle_stun.af",
-              "sec": 4.533
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Knockdown_Backward_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/knockdown_backward_idle.af",
-              "sec": 6.567
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Knockdown_Forward_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/knockdown_forward_idle.af",
-              "sec": 2.5
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_IdlePartialBody_Point_Behind_LeftThumb01_TechReader2hands",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_idlepartialbody_point_behind_leftthumb01_techreader2hands.af",
-              "sec": 2.5
-            }
-          ],
-          "tags": [
-            "idlepartialbody_point_behind_leftthumb01"
-          ]
-        },
-        {
-          "name": "Swim_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/swim_idle.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "ZeroG_Idle_Stun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/zerog_idle_stun.af",
-              "sec": 4.533
             }
           ],
           "tags": [
@@ -361,79 +256,28 @@
           "tags": [
             "walkright"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/cower",
+      "name": "Vanilla · Common / Cower",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
-          "name": "book_test",
+          "name": "Cower_Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "common/book_test.af",
-              "sec": 3.333
-            }
-          ]
-        },
-        {
-          "name": "Boxer_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/boxer_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "Captive_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/captive_pose.af",
-              "sec": 0.033
+              "file": "common/cower_idle.af",
+              "sec": 6.333
             }
           ],
           "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "CastSelf",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/castself.af",
-              "sec": 1.833
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "CastTarget",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/casttarget.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "CollectWater",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/collectwater.af",
-              "sec": 8.8
-            }
-          ],
-          "tags": [
+            "idle",
             "rootmotion"
           ]
         },
@@ -479,7 +323,17 @@
             "transition",
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/death/boostpack",
+      "name": "Vanilla · Common / Death / Boostpack",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
           "name": "Death_Boostpack_01",
           "loops": 0,
@@ -569,7 +423,17 @@
               "sec": 2.533
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/death/moving",
+      "name": "Vanilla · Common / Death / Moving",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
           "name": "Death_Moving_Head_Back_Medium01",
           "loops": 0,
@@ -889,7 +753,17 @@
               "sec": 1.8
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/death/standing",
+      "name": "Vanilla · Common / Death / Standing",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
           "name": "Death_Standing_Head_Back_Large01",
           "loops": 0,
@@ -1329,17 +1203,7 @@
               "sec": 1.933
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/common--2",
-      "name": "Vanilla · Common (2)",
-      "tags": [
-        "vanilla",
-        "common"
-      ],
-      "stages": [
+        },
         {
           "name": "Death_Standing_Melee_Back02",
           "loops": 0,
@@ -1891,166 +1755,41 @@
               "sec": 1.433
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/knockdown",
+      "name": "Vanilla · Common / Knockdown",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
-          "name": "GetUp_Back",
+          "name": "Knockdown_Backward_Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "common/getup_back.af",
-              "sec": 1.0
+              "file": "common/knockdown_backward_idle.af",
+              "sec": 6.567
             }
           ],
           "tags": [
-            "transition",
             "rootmotion"
           ]
         },
         {
-          "name": "GetUp_Front",
+          "name": "Knockdown_Forward_Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "common/getup_front.af",
-              "sec": 1.0
+              "file": "common/knockdown_forward_idle.af",
+              "sec": 2.5
             }
           ],
           "tags": [
-            "transition",
             "rootmotion"
-          ]
-        },
-        {
-          "name": "GiveWatch_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/givewatch_start.af",
-              "sec": 9.667
-            }
-          ],
-          "tags": [
-            "start",
-            "transition"
-          ]
-        },
-        {
-          "name": "GiveWatch_Stop",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/givewatch_stop.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "stop",
-            "transition"
-          ]
-        },
-        {
-          "name": "GravDash_Long",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/gravdash_long.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "GravDash_Medium",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/gravdash_medium.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "GravDash_Short",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/gravdash_short.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsOnHips_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/handsonhips_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "Into_Stun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/into_stun.af",
-              "sec": 2.033
-            }
-          ],
-          "tags": [
-            "into",
-            "transition"
-          ]
-        },
-        {
-          "name": "Jump_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/jump_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "JumpInPlaceLand",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/jumpinplaceland.af",
-              "sec": 1.133
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "Kneeling_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/kneeling_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
           ]
         },
         {
@@ -2078,7 +1817,17 @@
           "tags": [
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/ladder",
+      "name": "Vanilla · Common / Ladder",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
           "name": "Ladder_ClimbDown_LeftHand",
           "loops": 0,
@@ -2284,21 +2033,17 @@
               "sec": 5.1
             }
           ]
-        },
-        {
-          "name": "Out_Stun",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/out_stun.af",
-              "sec": 4.267
-            }
-          ],
-          "tags": [
-            "out",
-            "transition"
-          ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/pairedkill",
+      "name": "Vanilla · Common / Pairedkill",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
           "name": "PairedKill_Bite_Head_01_Victim",
           "loops": 0,
@@ -2370,77 +2115,28 @@
           "tags": [
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/swim",
+      "name": "Vanilla · Common / Swim",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
-          "name": "Player_Pose",
+          "name": "Swim_Idle",
           "loops": 0,
           "clips": [
             {
-              "file": "common/player_pose.af",
-              "sec": 0.033
+              "file": "common/swim_idle.af",
+              "sec": 1.667
             }
           ],
           "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "PowerUp_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/powerup_start.af",
-              "sec": 10.0
-            }
-          ]
-        },
-        {
-          "name": "PowerUp_Stop",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/powerup_stop.af",
-              "sec": 4.0
-            }
-          ]
-        },
-        {
-          "name": "Relaxed_Eye_ROM",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/relaxed_eye_rom.af",
-              "sec": 10.933
-            }
-          ],
-          "tags": [
-            "eye_rom"
-          ]
-        },
-        {
-          "name": "SitOnGround_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/sitonground_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "Sneak_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/sneak_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
+            "idle"
           ]
         },
         {
@@ -2641,55 +2337,28 @@
             "turninplace_right90",
             "transition"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/zerog",
+      "name": "Vanilla · Common / Zerog",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
         {
-          "name": "TestROMLookAround",
+          "name": "ZeroG_Idle_Stun",
           "loops": 0,
           "clips": [
             {
-              "file": "common/testromlookaround.af",
-              "sec": 7.667
-            }
-          ]
-        },
-        {
-          "name": "Traversal_PressButton",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/traversal_pressbutton.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Wave_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/wave_pose.af",
-              "sec": 0.033
+              "file": "common/zerog_idle_stun.af",
+              "sec": 4.533
             }
           ],
           "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "WhatsUp_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/whatsup_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
+            "idle"
           ]
         },
         {
@@ -2743,17 +2412,7 @@
           "tags": [
             "death_standing_melee_front01"
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/common--3",
-      "name": "Vanilla · Common (3)",
-      "tags": [
-        "vanilla",
-        "common"
-      ],
-      "stages": [
+        },
         {
           "name": "ZeroG_Death_Standing_Melee_Front02",
           "loops": 0,
@@ -2925,6 +2584,427 @@
           "tags": [
             "out",
             "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/common/misc",
+      "name": "Vanilla · Common / Misc",
+      "tags": [
+        "vanilla",
+        "common"
+      ],
+      "stages": [
+        {
+          "name": "GiveWatch_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/givewatch_idle.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/idle_stun.af",
+              "sec": 4.533
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Relaxed_IdlePartialBody_Point_Behind_LeftThumb01_TechReader2hands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_idlepartialbody_point_behind_leftthumb01_techreader2hands.af",
+              "sec": 2.5
+            }
+          ],
+          "tags": [
+            "idlepartialbody_point_behind_leftthumb01"
+          ]
+        },
+        {
+          "name": "book_test",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/book_test.af",
+              "sec": 3.333
+            }
+          ]
+        },
+        {
+          "name": "Boxer_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/boxer_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Captive_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/captive_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "CastSelf",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/castself.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "CastTarget",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/casttarget.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "CollectWater",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/collectwater.af",
+              "sec": 8.8
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Back",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/getup_back.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Front",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/getup_front.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GiveWatch_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/givewatch_start.af",
+              "sec": 9.667
+            }
+          ],
+          "tags": [
+            "start",
+            "transition"
+          ]
+        },
+        {
+          "name": "GiveWatch_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/givewatch_stop.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "stop",
+            "transition"
+          ]
+        },
+        {
+          "name": "GravDash_Long",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/gravdash_long.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "GravDash_Medium",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/gravdash_medium.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "GravDash_Short",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/gravdash_short.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "HandsOnHips_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/handsonhips_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Into_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/into_stun.af",
+              "sec": 2.033
+            }
+          ],
+          "tags": [
+            "into",
+            "transition"
+          ]
+        },
+        {
+          "name": "Jump_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/jump_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "JumpInPlaceLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/jumpinplaceland.af",
+              "sec": 1.133
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "Kneeling_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/kneeling_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Out_Stun",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/out_stun.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "out",
+            "transition"
+          ]
+        },
+        {
+          "name": "Player_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/player_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "PowerUp_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/powerup_start.af",
+              "sec": 10.0
+            }
+          ]
+        },
+        {
+          "name": "PowerUp_Stop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/powerup_stop.af",
+              "sec": 4.0
+            }
+          ]
+        },
+        {
+          "name": "Relaxed_Eye_ROM",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/relaxed_eye_rom.af",
+              "sec": 10.933
+            }
+          ],
+          "tags": [
+            "eye_rom"
+          ]
+        },
+        {
+          "name": "SitOnGround_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/sitonground_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "Sneak_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/sneak_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "TestROMLookAround",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/testromlookaround.af",
+              "sec": 7.667
+            }
+          ]
+        },
+        {
+          "name": "Traversal_PressButton",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/traversal_pressbutton.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Wave_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/wave_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
+          "name": "WhatsUp_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/whatsup_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
           ]
         }
       ]

@@ -19,7 +19,7 @@ import os
 import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VIEW_DIR = os.path.join(REPO, "views", "osf.animation", "browser")
@@ -38,7 +38,7 @@ FRAME_TEMPLATE = """<!doctype html>
   #hud {{ position: fixed; left: 12px; bottom: 8px; color: #6d7880; font: 12px Consolas, monospace; z-index: 2;
          opacity: .8; transition: opacity .6s; pointer-events: none; }}
 </style></head><body>
-<iframe src="/"></iframe>
+<iframe src="/{Q}"></iframe>
 <div id="hud">{W}×{H} in-game viewport, stretched to fill · S = toggle stretch / 1:1</div>
 <script>
   const frame = document.querySelector("iframe");
@@ -59,13 +59,16 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path.rstrip("/") == "/frame":
-            qs = parse_qs(parsed.query)
+            qs = parse_qs(parsed.query, keep_blank_values=True)
             try:
                 w = int(qs.get("w", ["1600"])[0])
                 h = int(qs.get("h", ["900"])[0])
             except ValueError:
                 w, h = 1600, 900
-            body = FRAME_TEMPLATE.format(W=w, H=h).encode("utf-8")
+            # Forward the rest of the query to the view itself (e.g. /frame?wheel
+            # boots the standalone page straight into emote-wheel mode).
+            extra = urlencode({k: v for k, v in qs.items() if k not in ("w", "h")}, doseq=True)
+            body = FRAME_TEMPLATE.format(W=w, H=h, Q=f"?{extra}" if extra else "").encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -86,6 +89,7 @@ def main():
     print(f"live:  {LIVE_DIR}  ({'found' if os.path.isdir(LIVE_DIR) else 'missing - mock fallback'})")
     print(f"open:  http://localhost:{port}/")
     print(f"       http://localhost:{port}/frame  (fixed 1600x900 in-game viewport; ?w=&h= to override)")
+    print(f"       http://localhost:{port}/frame?wheel  (boot straight into the emote wheel + debug strip)")
     ThreadingHTTPServer(("127.0.0.1", port), handler).serve_forever()
 
 

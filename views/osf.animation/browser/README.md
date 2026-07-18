@@ -137,10 +137,22 @@ list that excludes `live/`.
 
 To exercise the **emote wheel** standalone: press `W` (mock crosshair target) or
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
-console. The mock catalog carries 14 `player.emote.*` scenes so the 12-slice cap
-shows "+2 more"; picking **Facepalm** mock-fails to exercise the error path, any
-other pick "launches" and closes the wheel via the mocked
-`osf.animation.requestClose` → `ui.visibility` hide round-trip.
+console; `?wheel` in the URL (`?wheel=solo` for no target, also on `/frame`)
+boots straight into wheel mode so a plain reload keeps you there. The mock
+catalog carries 14 `player.emote.*` scenes so the 12-slice cap shows "+2 more";
+picking **Facepalm** mock-fails to exercise the error path, any other pick
+"launches" and closes the wheel via the mocked `osf.animation.requestClose` →
+`ui.visibility` hide round-trip.
+
+While the wheel is up, a **WHEEL DEBUG strip** (top-left, standalone only —
+injected only when no bridge exists, so it can never surface in-game) drives
+every wheel state without in-game round-trips: `−`/`+` step a generated emote
+pool through wheelGeom's whole range (0 = the empty state, 1–3 = the tight
+ring, past 12 = "+N more" overflow, emotes cycle with numbered titles past 14);
+`PINS×3` pins the first three emotes in *reverse* order to prove pin-order
+sorting; `TARGET` flips the hub between "→ Sarah Morgan" and "You"; `ERROR`
+plants a hub launch error; `LOADING` shows the catalog-pending state; `RESET`
+returns to the real (snapshot/mock) catalog.
 
 **Pins standalone:** the `wheel.pin` round-trip is mocked with a session-local
 pin list applied on top of whichever catalog is served (mock or live snapshot —

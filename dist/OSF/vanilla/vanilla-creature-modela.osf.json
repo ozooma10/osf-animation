@@ -6,8 +6,8 @@
   "clipRoot": "meshes/actors/modela/animations",
   "scenes": [
     {
-      "id": "vanilla/creature/modela",
-      "name": "Vanilla · Modela",
+      "id": "vanilla/creature/modela/bleedout",
+      "name": "Vanilla · Modela / Bleedout",
       "tags": [
         "vanilla",
         "creature",
@@ -59,394 +59,6 @@
           ]
         },
         {
-          "name": "Idle_Marketing01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_marketing01.af",
-              "sec": 6.0
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "PhotoModeGift_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "photomodegift_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "PhotoModeHero_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "photomodehero_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "PhotoModeLookUp_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "photomodelookup_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "PhotoModeLove_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "photomodelove_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "PhotoModePropose_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "photomodepropose_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "PhotoModeThumbsUp_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "photomodethumbsup_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Ready_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle.af",
-              "sec": 12.0
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Flavor01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_flavor01.af",
-              "sec": 4.0
-            }
-          ],
-          "tags": [
-            "idle_flavor01",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Flavor02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_flavor02.af",
-              "sec": 4.667
-            }
-          ],
-          "tags": [
-            "idle_flavor02",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Flavor03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_flavor03.af",
-              "sec": 6.333
-            }
-          ],
-          "tags": [
-            "idle_flavor03",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Flavor04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_flavor04.af",
-              "sec": 6.0
-            }
-          ],
-          "tags": [
-            "idle_flavor04",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Flavor05",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_flavor05.af",
-              "sec": 5.5
-            }
-          ],
-          "tags": [
-            "idle_flavor05",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Taunt01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_taunt01.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "idle_taunt01",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Dialogue01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_dialogue01.af",
-              "sec": 4.667
-            }
-          ],
-          "tags": [
-            "idle_dialogue01"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Dialogue02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_dialogue02.af",
-              "sec": 6.333
-            }
-          ],
-          "tags": [
-            "idle_dialogue02"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Dialogue03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_dialogue03.af",
-              "sec": 6.333
-            }
-          ],
-          "tags": [
-            "idle_dialogue03"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor01.af",
-              "sec": 12.0
-            }
-          ],
-          "tags": [
-            "idle_flavor01",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor02.af",
-              "sec": 4.667
-            }
-          ],
-          "tags": [
-            "idle_flavor02",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor03.af",
-              "sec": 6.333
-            }
-          ],
-          "tags": [
-            "idle_flavor03",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor04.af",
-              "sec": 6.0
-            }
-          ],
-          "tags": [
-            "idle_flavor04",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor05",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor05.af",
-              "sec": 5.5
-            }
-          ],
-          "tags": [
-            "idle_flavor05",
-            "transition"
-          ]
-        },
-        {
-          "name": "Unconscious_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "unconscious_idle.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Vasco_Idle_Flavor01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "vasco_idle_flavor01.af",
-              "sec": 7.333
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Vasco_Idle_Flavor02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "vasco_idle_flavor02.af",
-              "sec": 4.333
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Vasco_Idle_Flavor03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "vasco_idle_flavor03.af",
-              "sec": 4.333
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Vasco_Idle_Flavor04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "vasco_idle_flavor04.af",
-              "sec": 6.667
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Vasco_Idle_Flavor05",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "vasco_idle_flavor05.af",
-              "sec": 6.667
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
           "name": "BleedOut_Start",
           "loops": 0,
           "clips": [
@@ -475,7 +87,18 @@
             "transition",
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/criticalhit",
+      "name": "Vanilla · Modela / Criticalhit",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
         {
           "name": "CriticalHit_LeftArm",
           "loops": 0,
@@ -540,7 +163,18 @@
           "tags": [
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/death",
+      "name": "Vanilla · Modela / Death",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
         {
           "name": "Death_Backward01",
           "loops": 0,
@@ -813,264 +447,18 @@
           "tags": [
             "rootmotion"
           ]
-        },
-        {
-          "name": "DodgeBack",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "dodgeback.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "DodgeLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "dodgeleft.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "DodgeRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "dodgeright.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Equip",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "equip.af",
-              "sec": 1.133
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "EvadeLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "evadeleft.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "EvadeRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "evaderight.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "GetUp_Left",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "getup_left.af",
-              "sec": 5.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "GetUp_Right",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "getup_right.af",
-              "sec": 5.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "HeartHands",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "hearthands.af",
-              "sec": 0.5
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "JumpInPlaceLand",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "jumpinplaceland.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JumpRunForward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "jumprunforward.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JumpRunForwardFall",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "jumprunforwardfall.af",
-              "sec": 0.467
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "JumpRunForwardFallLoop",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "jumprunforwardfallloop.af",
-              "sec": 1.0
-            }
-          ]
-        },
-        {
-          "name": "JumpRunLand",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "jumprunland.af",
-              "sec": 0.733
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "JumpTraversal",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "jumptraversal.af",
-              "sec": 0.633
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack01.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack02.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack03.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack04.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/meleeattack",
+      "name": "Vanilla · Modela / Meleeattack",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
         {
           "name": "MeleeAttack_Left180",
           "loops": 0,
@@ -1124,6 +512,114 @@
           ],
           "tags": [
             "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/ready",
+      "name": "Vanilla · Modela / Ready",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
+        {
+          "name": "Ready_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle.af",
+              "sec": 12.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_flavor01.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_flavor02.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Flavor03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_flavor03.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "idle_flavor03",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Flavor04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_flavor04.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "idle_flavor04",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Flavor05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_flavor05.af",
+              "sec": 5.5
+            }
+          ],
+          "tags": [
+            "idle_flavor05",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Taunt01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_taunt01.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idle_taunt01",
             "rootmotion"
           ]
         },
@@ -1627,18 +1123,7 @@
           "tags": [
             "walkforward"
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/modela--2",
-      "name": "Vanilla · Modela (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:modela"
-      ],
-      "stages": [
+        },
         {
           "name": "Ready_WalkForward_Start",
           "loops": 0,
@@ -1786,6 +1271,139 @@
           ],
           "tags": [
             "walkright_stop_rightfoot"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/relaxed",
+      "name": "Vanilla · Modela / Relaxed",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
+        {
+          "name": "Relaxed_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Dialogue01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_dialogue01.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "idle_dialogue01"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Dialogue02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_dialogue02.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "idle_dialogue02"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Dialogue03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_dialogue03.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "idle_dialogue03"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor01.af",
+              "sec": 12.0
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor02.af",
+              "sec": 4.667
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor03.af",
+              "sec": 6.333
+            }
+          ],
+          "tags": [
+            "idle_flavor03",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor04.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "idle_flavor04",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor05.af",
+              "sec": 5.5
+            }
+          ],
+          "tags": [
+            "idle_flavor05",
+            "transition"
           ]
         },
         {
@@ -2479,6 +2097,454 @@
           ],
           "tags": [
             "walkright"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/vasco",
+      "name": "Vanilla · Modela / Vasco",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
+        {
+          "name": "Vasco_Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "vasco_idle_flavor01.af",
+              "sec": 7.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Vasco_Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "vasco_idle_flavor02.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Vasco_Idle_Flavor03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "vasco_idle_flavor03.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Vasco_Idle_Flavor04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "vasco_idle_flavor04.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Vasco_Idle_Flavor05",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "vasco_idle_flavor05.af",
+              "sec": 6.667
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/misc",
+      "name": "Vanilla · Modela / Misc",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela"
+      ],
+      "stages": [
+        {
+          "name": "Idle_Marketing01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle_marketing01.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "PhotoModeGift_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomodegift_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "PhotoModeHero_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomodehero_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "PhotoModeLookUp_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomodelookup_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "PhotoModeLove_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomodelove_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "PhotoModePropose_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomodepropose_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "PhotoModeThumbsUp_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "photomodethumbsup_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Unconscious_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "unconscious_idle.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "DodgeBack",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "dodgeback.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "DodgeLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "dodgeleft.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "DodgeRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "dodgeright.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Equip",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "equip.af",
+              "sec": 1.133
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "EvadeLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "evadeleft.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EvadeRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "evaderight.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Left",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "getup_left.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "GetUp_Right",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "getup_right.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "HeartHands",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "hearthands.af",
+              "sec": 0.5
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "JumpInPlaceLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumpinplaceland.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JumpRunForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumprunforward.af",
+              "sec": 0.633
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JumpRunForwardFall",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumprunforwardfall.af",
+              "sec": 0.467
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "JumpRunForwardFallLoop",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumprunforwardfallloop.af",
+              "sec": 1.0
+            }
+          ]
+        },
+        {
+          "name": "JumpRunLand",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumprunland.af",
+              "sec": 0.733
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "JumpTraversal",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "jumptraversal.af",
+              "sec": 0.633
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack01.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack02.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack03.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack04.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
           ]
         },
         {
@@ -3431,8 +3497,153 @@
       ]
     },
     {
-      "id": "vanilla/creature/modela/weapon/armgun",
-      "name": "Vanilla · Modela / Weapon / Armgun",
+      "id": "vanilla/creature/modela/weapon/armgun/criticalhit",
+      "name": "Vanilla · Modela / Weapon / Armgun / Criticalhit",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela",
+        "weapon"
+      ],
+      "stages": [
+        {
+          "name": "CriticalHit_LeftArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/criticalhit_leftarm.af",
+              "sec": 3.467
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CriticalHit_LeftLeg",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/criticalhit_leftleg.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CriticalHit_RightArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/criticalhit_rightarm.af",
+              "sec": 3.467
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CriticalHit_RightLeg",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/criticalhit_rightleg.af",
+              "sec": 4.267
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CriticalHit_Torso",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/criticalhit_torso.af",
+              "sec": 3.467
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/weapon/armgun/meleeattack",
+      "name": "Vanilla · Modela / Weapon / Armgun / Meleeattack",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela",
+        "weapon"
+      ],
+      "stages": [
+        {
+          "name": "MeleeAttack_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack_left180.af",
+              "sec": 1.6
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack_left90.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack_right180.af",
+              "sec": 1.6
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack_right90.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/weapon/armgun/ready",
+      "name": "Vanilla · Modela / Weapon / Armgun / Ready",
       "tags": [
         "vanilla",
         "creature",
@@ -3534,292 +3745,6 @@
           ],
           "tags": [
             "idle_taunt01",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CriticalHit_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/criticalhit_leftarm.af",
-              "sec": 3.467
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CriticalHit_LeftLeg",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/criticalhit_leftleg.af",
-              "sec": 4.267
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CriticalHit_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/criticalhit_rightarm.af",
-              "sec": 3.467
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CriticalHit_RightLeg",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/criticalhit_rightleg.af",
-              "sec": 4.267
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CriticalHit_Torso",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/criticalhit_torso.af",
-              "sec": 3.467
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "DodgeBack",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/dodgeback.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "DodgeLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/dodgeleft.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "DodgeRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/dodgeright.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Equip",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/equip.af",
-              "sec": 1.133
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "EvadeLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/evadeleft.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "EvadeRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/evaderight.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "FireSingle_LeftArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/firesingle_leftarm.af",
-              "sec": 0.833
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "FireSingle_RightArm",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/firesingle_rightarm.af",
-              "sec": 0.833
-            }
-          ],
-          "tags": [
-            "transition"
-          ]
-        },
-        {
-          "name": "MeleeAttack01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack01.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack02.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack03.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack04.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack_left180.af",
-              "sec": 1.6
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack_left90.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack_right180.af",
-              "sec": 1.6
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "weapon/armgun/meleeattack_right90.af",
-              "sec": 1.5
-            }
-          ],
-          "tags": [
-            "transition",
             "rootmotion"
           ]
         },
@@ -4471,6 +4396,183 @@
           ],
           "tags": [
             "walkright_stop_rightfoot"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/modela/weapon/armgun/misc",
+      "name": "Vanilla · Modela / Weapon / Armgun / Misc",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:modela",
+        "weapon"
+      ],
+      "stages": [
+        {
+          "name": "DodgeBack",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/dodgeback.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "DodgeLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/dodgeleft.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "DodgeRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/dodgeright.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Equip",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/equip.af",
+              "sec": 1.133
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "EvadeLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/evadeleft.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "EvadeRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/evaderight.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "FireSingle_LeftArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/firesingle_leftarm.af",
+              "sec": 0.833
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "FireSingle_RightArm",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/firesingle_rightarm.af",
+              "sec": 0.833
+            }
+          ],
+          "tags": [
+            "transition"
+          ]
+        },
+        {
+          "name": "MeleeAttack01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack01.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack02.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack03.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "weapon/armgun/meleeattack04.af",
+              "sec": 1.5
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
           ]
         },
         {

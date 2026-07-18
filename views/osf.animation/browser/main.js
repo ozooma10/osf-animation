@@ -1795,14 +1795,24 @@ function init() {
       notice("info", live
         ? "Standalone mode. Snapshot catalog (live/catalog.json); pick/scan/launch are stubbed. W = emote wheel (Shift+W: no target)."
         : "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target).");
+      // ?wheel boots straight into wheel mode (?wheel=solo: no target), so a plain
+      // reload while iterating on the wheel doesn't need a W keypress every time.
+      const q = new URLSearchParams(location.search);
+      if (q.has("wheel")) window.mockOpenWheel(q.get("wheel") !== "solo");
     });
     // Emote-wheel dev: W opens the wheel with a mock crosshair target, Shift+W player-only
     // (also window.mockOpenWheel(withTarget) from the console). Feeds the same osf.mode
-    // path the native OpenWheel uses.
-    window.mockOpenWheel = (withTarget = true) => onNativeMessage(JSON.stringify({
-      type: "osf.animation.mode",
-      payload: { mode: "wheel", tagPrefix: "player.emote.", target: withTarget ? { token: 601, name: "Sarah Morgan" } : null },
-    }));
+    // path the native OpenWheel uses. The wheel-mode debug strip (top-left) drives the
+    // rest of the states — see WHEEL DEBUG below.
+    initWheelDebug();
+    window.mockOpenWheel = (withTarget = true) => {
+      wheelDbg.target = withTarget;
+      renderWheelDbg();
+      onNativeMessage(JSON.stringify({
+        type: "osf.animation.mode",
+        payload: { mode: "wheel", tagPrefix: "player.emote.", target: withTarget ? { token: 601, name: "Sarah Morgan" } : null },
+      }));
+    };
     document.addEventListener("keydown", (e) => {
       if (isTextEntry(document.activeElement)) return;
       if (e.key === "w") window.mockOpenWheel(true);
@@ -1873,7 +1883,10 @@ function fetchLiveSnapshot(name) {
 }
 
 function mockNative(command, fields) {
-  if (command === "osf.animation.catalog.get") fetchLiveSnapshot("catalog").then((live) => handleCatalog(applyMockPins(live || MOCK_CATALOG)));
+  if (command === "osf.animation.catalog.get") {
+    if (wheelDbg.active) handleCatalog(dbgCatalog());  // debug override holds until RESET
+    else fetchLiveSnapshot("catalog").then((live) => handleCatalog(applyMockPins(live || MOCK_CATALOG)));
+  }
   else if (command === "osf.animation.library.get") fetchLiveSnapshot("library").then((live) => handleLibrary(live || MOCK_LIBRARY));
   else if (command === "osf.animation.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
   else if (command === "osf.animation.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
@@ -1893,6 +1906,93 @@ function mockNative(command, fields) {
   // Host close: mimic OSF UI hiding the overlay so the real exit path runs (ui.visibility
   // hide -> exitWheel + osf.closed relay). Standalone just lands back on the console.
   else if (command === "osf.animation.requestClose") setTimeout(() => onNativeMessage(JSON.stringify({ type: "ui.visibility", payload: { visible: false } })), 60);
+}
+
+/* =========================================================================
+   WHEEL DEBUG (standalone only — the strip is injected only when no bridge
+   is present, so none of this can surface in-game)
+   A small strip shown while the wheel is up: step the slice count through
+   wheelGeom's whole range (0 = empty state, >12 = "+N more" overflow), toggle
+   the pinned-pool ordering, the target hub label, the hub error, and the
+   "Loading emotes…" state — every wheel state without in-game round-trips.
+   `?wheel` in the URL boots straight into wheel mode (see init).
+   ========================================================================= */
+const wheelDbg = { active: false, count: 12, target: true, pins: false, err: false, loading: false };
+
+// Debug pool: the 14 mock emotes, cycled with numbered titles past 14 so any
+// count is reachable (overflow, crowding at the 12-slice cap, single slice).
+function dbgEmotePool(n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const base = MOCK_EMOTES[i % MOCK_EMOTES.length];
+    out.push(i < MOCK_EMOTES.length ? base : { ...base, id: `${base.id}.${i}`, title: `${base.title} ${Math.floor(i / MOCK_EMOTES.length) + 1}` });
+  }
+  return out;
+}
+
+// PINS×3 pins the first three emotes in REVERSE catalog order (pinned 3,2,1),
+// so the wheel visibly re-sorts — proving the pin-order pool beats tag order.
+function dbgCatalog() {
+  const list = dbgEmotePool(wheelDbg.count);
+  return wheelDbg.pins ? list.map((s, i) => (i < 3 ? { ...s, pinned: 3 - i } : s)) : list;
+}
+
+function initWheelDebug() {
+  const el = document.createElement("div");
+  el.id = "wheeldbg";
+  el.className = "wheeldbg";
+  document.body.appendChild(el);
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dbg]");
+    if (!b) return;
+    e.stopPropagation();  // keep strip clicks out of the document-level wheel handlers
+    dbgAct(b.dataset.dbg);
+  });
+  renderWheelDbg();
+}
+
+function dbgAct(act) {
+  const w = state.wheel;
+  if (act === "less" || act === "more") {
+    if (!wheelDbg.active) { wheelDbg.active = true; wheelDbg.count = 12; }
+    else wheelDbg.count = Math.max(0, Math.min(24, wheelDbg.count + (act === "more" ? 1 : -1)));
+  } else if (act === "pins") {
+    wheelDbg.pins = !wheelDbg.pins;
+    if (wheelDbg.pins && !wheelDbg.active) { wheelDbg.active = true; wheelDbg.count = 14; }
+  } else if (act === "target") {
+    wheelDbg.target = !wheelDbg.target;
+    if (w) w.target = wheelDbg.target ? { token: 601, name: "Sarah Morgan" } : null;
+  } else if (act === "err") {
+    wheelDbg.err = !wheelDbg.err;
+    if (w) { w.error = wheelDbg.err ? "No room in front of the actor (debug)." : ""; w.launching = ""; }
+  } else if (act === "loading") {
+    wheelDbg.loading = !wheelDbg.loading;
+    if (!wheelDbg.loading) state.catalogReceived = true;  // the catalog is still in state
+  } else if (act === "reset") {
+    Object.assign(wheelDbg, { active: false, count: 12, pins: false, err: false, loading: false });
+    if (w) { w.error = ""; w.launching = ""; }
+    requestCatalog(true);  // back to the live snapshot / mock catalog
+  }
+  if (wheelDbg.active) handleCatalog(dbgCatalog());
+  state.catalogReceived = state.catalogReceived && !wheelDbg.loading;
+  if (state.wheel) renderWheel();
+  renderWheelDbg();
+}
+
+function renderWheelDbg() {
+  const el = $("wheeldbg");
+  if (!el) return;
+  const on = (b) => (b ? "on" : "");
+  el.innerHTML =
+    `<span class="wheeldbg-title">WHEEL DEBUG</span>` +
+    `<button data-dbg="less" title="Fewer slices">−</button>` +
+    `<span class="wheeldbg-n">${wheelDbg.active ? wheelDbg.count : "live"}</span>` +
+    `<button data-dbg="more" title="More slices (past 12 = overflow)">+</button>` +
+    `<button class="${on(wheelDbg.pins)}" data-dbg="pins" title="Pin the first 3 emotes in reverse order">PINS×3</button>` +
+    `<button class="${on(wheelDbg.target)}" data-dbg="target" title="Hub target: Sarah / You">TARGET</button>` +
+    `<button class="${on(wheelDbg.err)}" data-dbg="err" title="Hub launch error">ERROR</button>` +
+    `<button class="${on(wheelDbg.loading)}" data-dbg="loading" title="Catalog not yet received">LOADING</button>` +
+    `<button data-dbg="reset" title="Back to the real catalog">RESET</button>`;
 }
 
 init();

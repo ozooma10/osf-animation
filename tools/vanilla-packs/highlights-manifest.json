@@ -9,6 +9,8 @@
     "  namePattern — optional regex over stage display names (case-insensitive)",
     "  max         — cap, taken in the generator's stage order (idles first), AFTER",
     "                dropping stages carrying any tag in excludeTags",
+    "  fold        — fold prefix-sub-clustered children (vanilla/common/death/...) back",
+    "                into the glob's static prefix: one curated card, not one per child",
     "Collection-level excludeTags defaults to ['transition'] so only loopable stages",
     "surface; the Poses collection inverts this and REQUIRES the 'pose' tag.",
     "Anchored sources keep their anchor block — the browser badges them and the guided",
@@ -58,7 +60,7 @@
       "blurb": "Chairs, couches, benches, ledges and floors — the best seated loops.",
       "include": [
         { "scenes": ["vanilla/furniture/chair", "vanilla/furniture/chair/female"], "max": 8 },
-        { "scenes": ["vanilla/furniture/chair/animflavor*", "vanilla/furniture/chair/female/animflavor*"], "max": 8 },
+        { "scenes": ["vanilla/furniture/chair/animflavor*", "vanilla/furniture/chair/female/animflavor*"], "max": 8, "fold": true },
         { "scenes": ["vanilla/furniture/couch"], "max": 6 },
         { "scenes": ["vanilla/furniture/chairleanback"], "max": 5 },
         { "scenes": ["vanilla/furniture/chair_executive"], "max": 5 },
@@ -116,7 +118,7 @@
       "name": "Props & Business",
       "blurb": "Coffee cups, data slates, briefcases, crossed arms — machinima acting beats.",
       "include": [
-        { "scenes": ["vanilla/common*"], "namePattern": "^Relaxed_IdlePartialBody_(?!Start_|Stop_)", "max": 20 },
+        { "scenes": ["vanilla/common*"], "namePattern": "^Relaxed_IdlePartialBody_(?!Start_|Stop_)", "max": 20, "fold": true },
         { "scenes": ["vanilla/furniture/standing_dataslate", "vanilla/furniture/standing_dataslate/female"], "max": 4 },
         { "scenes": ["vanilla/furniture/standing_readingbook", "vanilla/furniture/standing_readingbook/female"], "max": 4 },
         { "scenes": ["vanilla/furniture/read", "vanilla/furniture/read/female"], "max": 3 },
@@ -128,7 +130,7 @@
       "name": "Gestures",
       "blurb": "Pointing, waving, intercoms and podium delivery — dialogue-scene glue.",
       "include": [
-        { "scenes": ["vanilla/common*"], "namePattern": "^Relaxed_Point", "max": 16 },
+        { "scenes": ["vanilla/common*"], "namePattern": "^Relaxed_Point", "max": 16, "fold": true },
         { "scenes": ["vanilla/furniture/podium", "vanilla/furniture/podium/female"], "max": 6 },
         { "scenes": ["vanilla/furniture/standing_intercom", "vanilla/furniture/standing_intercom/female"], "max": 6 },
         { "scenes": ["vanilla/furniture/salute"], "max": 3 },
@@ -143,7 +145,7 @@
       "excludeTags": [],
       "include": [
         { "scenes": ["vanilla/photomode", "vanilla/photomode/female"] },
-        { "scenes": ["vanilla/common*"], "namePattern": "_(Pose)$", "max": 16 }
+        { "scenes": ["vanilla/common*"], "namePattern": "_(Pose)$", "max": 16, "fold": true }
       ],
       "excludeNames": ["BoneWeights", "Boneweights", "book_test", "TestROM"]
     },
@@ -161,7 +163,7 @@
         { "scenes": ["vanilla/furniture/standing_mourn", "vanilla/furniture/standing_mourn/female"], "max": 4 },
         { "scenes": ["vanilla/furniture/kneeling_praying", "vanilla/furniture/kneeling_praying/female"], "max": 4 },
         { "scenes": ["vanilla/furniture/panhandle"], "max": 3 },
-        { "scenes": ["vanilla/common*"], "namePattern": "^(BleedOut_Idle|Cower_Idle|Idle_Stun)", "max": 4 }
+        { "scenes": ["vanilla/common*"], "namePattern": "^(BleedOut_Idle|Cower_Idle|Idle_Stun)", "max": 4, "fold": true }
       ]
     },
     {

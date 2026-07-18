@@ -9,6 +9,9 @@ one `*.osf.json` pack per top-level animation folder into `dist/OSF/vanilla/`.
 Each leaf folder becomes one scene whose labeled stages are the clips — the
 stage-as-browsable-animation model — so the whole library shows up in the
 catalog and plays through the normal scene player with zero engine changes.
+Oversized FLAT leaves (common, creature roots, animflavor variants) are
+sub-clustered into child scenes by filename prefix ("vanilla/common/death")
+rather than dumped as one 100+-stage scene.
 Every clip carries a pre-measured `sec` so the runtime never has to probe the
 game archive for durations.
 
@@ -35,7 +38,16 @@ from pathlib import Path
 AF_FPS = 30.0  # Creation-Engine convention; mirrors AFImport::kAfFps
 HUMAN_ANIMATED_BONES = 82  # human skeleton.rig boneCountAnimated (af_animation_skeleton_spec.md)
 CLIP_ROOT = "meshes/actors/human/animations"
-MAX_STAGES_PER_SCENE = 120  # oversized leaf folders get split into "<id>--2", "<id>--3", ...
+MAX_STAGES_PER_SCENE = 120  # still-oversized groups get split into "<id>--2", "<id>--3", ...
+
+# A handful of source folders are FLAT dumps of 60-250 clips (common, the creature
+# roots, furniture animflavor variants). Their filenames carry the taxonomy the
+# folder tree lacks (death_*, bleedout_*, zerog_* ...), so oversized leaves are
+# sub-clustered by the first "_"-separated filename token into child scenes
+# ("vanilla/common/death") instead of arbitrary alphabetical --N chunks.
+SUBSPLIT_MIN_CLIPS = 60      # only leaves larger than this get sub-clustered
+SUBSPLIT_MIN_GROUP = 4       # smaller prefix groups pool into a "misc" child
+SUBSPLIT_MAX_DOMINANCE = 0.8  # no split when one prefix owns most of the leaf
 
 # Subfolders under a furniture class that are variants/flavor, not a distinct class.
 FURN_DECORATORS = {"animflavor", "female", "male"}
@@ -284,6 +296,55 @@ def stage_sort_key(c: Clip) -> tuple[int, str]:
     return rank, low
 
 
+def clip_token(c: Clip, depth: int) -> str:
+    """The clip filename's `depth`-th "_"-separated token, lowercase ("" past the end)."""
+    stem = c.rel.rsplit("/", 1)[-1][:-len(".af")].lower()
+    toks = [t for t in stem.split("_") if t]
+    return toks[depth] if depth < len(toks) else ""
+
+
+def subcluster(clips: list[Clip], depth: int = 0) -> list[tuple[str, list[Clip]]]:
+    """Split an oversized flat clip list into filename-prefix groups: [(subpath, clips)],
+    or [("", clips)] when no split is warranted. Depth 0 splits leaves over
+    SUBSPLIT_MIN_CLIPS for browsability; deeper levels only re-split groups that
+    would otherwise overflow MAX_STAGES_PER_SCENE into arbitrary --N chunks
+    (common/death: 139 clips -> death/standing + death/moving + ...). Prefixes
+    smaller than SUBSPLIT_MIN_GROUP pool into "misc"; a leaf dominated by one
+    prefix stays whole (the split would rename it, not organize it)."""
+    limit = SUBSPLIT_MIN_CLIPS if depth == 0 else MAX_STAGES_PER_SCENE
+    if len(clips) <= limit:
+        return [("", clips)]
+    groups: dict[str, list[Clip]] = collections.defaultdict(list)
+    for c in clips:
+        groups[clip_token(c, depth)].append(c)
+    named = {k: v for k, v in groups.items() if k and len(v) >= SUBSPLIT_MIN_GROUP}
+    if len(named) < 2 or max(map(len, named.values())) > SUBSPLIT_MAX_DOMINANCE * len(clips):
+        return [("", clips)]  # unsplittable -> the caller's --N chunking still applies
+    out = []
+    for k in sorted(named):
+        for sub, cs in subcluster(named[k], depth + 1):
+            out.append((k + ("/" + sub if sub else ""), cs))
+    misc = [c for c in clips if clip_token(c, depth) not in named]
+    if misc:
+        out.append(("misc" if "misc" not in named else "misc-other", misc))
+    return out
+
+
+def append_scenes(doc: dict, scene_id: str, name: str, tags: list[str],
+                  clips: list[Clip], anchor: dict | None = None) -> None:
+    """Emit a leaf folder's scenes into `doc`: prefix sub-clusters for oversized
+    flat leaves, then --N chunks for anything still past MAX_STAGES_PER_SCENE."""
+    for sub, sub_clips in subcluster(clips):
+        sid = scene_id + ("/" + sub if sub else "")
+        snm = name + ("".join(" / " + humanize(s) for s in sub.split("/")) if sub else "")
+        chunks = [sub_clips[i:i + MAX_STAGES_PER_SCENE]
+                  for i in range(0, len(sub_clips), MAX_STAGES_PER_SCENE)]
+        for n, chunk in enumerate(chunks, start=1):
+            cid = sid if n == 1 else f"{sid}--{n}"
+            cnm = snm if n == 1 else f"{snm} ({n})"
+            doc["scenes"].append(build_scene(cid, cnm, tags, chunk, anchor))
+
+
 def furniture_class_key(segments: list[str]) -> str | None:
     """The furniture class a scene's folder belongs to (for anchor lookup), or None.
     'furniture/chair/animflavor' -> 'chair'; 'furniture/scenes/mq101_010_barrettscene'
@@ -354,12 +415,7 @@ def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str,
             "clipRoot": CLIP_ROOT,
             "scenes": [],
         })
-        chunks = [clips[i:i + MAX_STAGES_PER_SCENE]
-                  for i in range(0, len(clips), MAX_STAGES_PER_SCENE)]
-        for n, chunk in enumerate(chunks, start=1):
-            sid = scene_id if n == 1 else f"{scene_id}--{n}"
-            snm = name if n == 1 else f"{name} ({n})"
-            doc["scenes"].append(build_scene(sid, snm, tags, chunk, anchor))
+        append_scenes(doc, scene_id, name, tags, clips, anchor)
     return packs, anchor_stats
 
 
@@ -508,12 +564,7 @@ def build_creature_packs(species_map: dict[str, dict]) -> dict[str, dict]:
             tags = ["vanilla", "creature", f"species:{family}"]
             if leaf_segs:
                 tags.append(leaf_segs[0].lower())  # furniture / weapon / photomode …
-            chunks = [clips[i:i + MAX_STAGES_PER_SCENE]
-                      for i in range(0, len(clips), MAX_STAGES_PER_SCENE)]
-            for n, chunk in enumerate(chunks, start=1):
-                sid = scene_id if n == 1 else f"{scene_id}--{n}"
-                snm = name if n == 1 else f"{name} ({n})"
-                doc["scenes"].append(build_scene(sid, snm, tags, chunk))
+            append_scenes(doc, scene_id, name, tags, clips)
         packs[species_id] = doc
     return packs
 

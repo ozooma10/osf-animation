@@ -6,8 +6,8 @@
   "clipRoot": "meshes/actors/octopedea/animations",
   "scenes": [
     {
-      "id": "vanilla/creature/octopedea",
-      "name": "Vanilla · Octopedea",
+      "id": "vanilla/creature/octopedea/bleedout",
+      "name": "Vanilla · Octopedea / Bleedout",
       "tags": [
         "vanilla",
         "creature",
@@ -25,167 +25,6 @@
           ],
           "tags": [
             "idle"
-          ]
-        },
-        {
-          "name": "Graze_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "graze_idle.af",
-              "sec": 5.933
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Hide_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "hide_idle.af",
-              "sec": 1.533
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Idle_Howl01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_howl01.af",
-              "sec": 6.733
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Idle_LookingUp01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_lookingup01.af",
-              "sec": 11.833
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Idle_RakingGround01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "idle_rakingground01.af",
-              "sec": 5.8
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Ready_Idle_Taunt01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_idle_taunt01.af",
-              "sec": 3.067
-            }
-          ],
-          "tags": [
-            "idle_taunt01",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "idle"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor01.af",
-              "sec": 8.0
-            }
-          ],
-          "tags": [
-            "idle_flavor01",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor02.af",
-              "sec": 6.0
-            }
-          ],
-          "tags": [
-            "idle_flavor02",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor03.af",
-              "sec": 8.4
-            }
-          ],
-          "tags": [
-            "idle_flavor03",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_Idle_Flavor04",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_idle_flavor04.af",
-              "sec": 8.567
-            }
-          ],
-          "tags": [
-            "idle_flavor04",
-            "transition"
           ]
         },
         {
@@ -312,7 +151,18 @@
           "tags": [
             "walkforward"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/octopedea/criticalhit",
+      "name": "Vanilla · Octopedea / Criticalhit",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:octopedea"
+      ],
+      "stages": [
         {
           "name": "CriticalHit_Arms",
           "loops": 0,
@@ -365,7 +215,18 @@
           "tags": [
             "rootmotion"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/octopedea/death",
+      "name": "Vanilla · Octopedea / Death",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:octopedea"
+      ],
+      "stages": [
         {
           "name": "Death_Backward01",
           "loops": 0,
@@ -464,6 +325,849 @@
             {
               "file": "death_right01.af",
               "sec": 1.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/octopedea/meleeattack",
+      "name": "Vanilla · Octopedea / Meleeattack",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:octopedea"
+      ],
+      "stages": [
+        {
+          "name": "MeleeAttack_180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_180.af",
+              "sec": 0.8
+            }
+          ]
+        },
+        {
+          "name": "MeleeAttack_Claw01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_claw01.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Claw02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_claw02.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Claw03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_claw03.af",
+              "sec": 1.333
+            }
+          ]
+        },
+        {
+          "name": "MeleeAttack_Head01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_head01.af",
+              "sec": 1.4
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Head02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_head02.af",
+              "sec": 1.533
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_left180.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_left90.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_right180.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_right90.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Tail01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_tail01.af",
+              "sec": 1.133
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "MeleeAttack_Tail02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "meleeattack_tail02.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/octopedea/ready",
+      "name": "Vanilla · Octopedea / Ready",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:octopedea"
+      ],
+      "stages": [
+        {
+          "name": "Ready_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle.af",
+              "sec": 1.333
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Ready_Idle_Taunt01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_idle_taunt01.af",
+              "sec": 3.067
+            }
+          ],
+          "tags": [
+            "idle_taunt01",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ready_RunBackward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_runbackward_start.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "runbackward_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_RunForward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_runforward_start.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "runforward_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_RunLeft_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_runleft_start.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "runleft_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_RunRight_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_runright_start.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "runright_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left180.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "turninplace_left180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left30.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "turninplace_left30",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_left90.af",
+              "sec": 1.3
+            }
+          ],
+          "tags": [
+            "turninplace_left90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right180.af",
+              "sec": 1.833
+            }
+          ],
+          "tags": [
+            "turninplace_right180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right30.af",
+              "sec": 0.967
+            }
+          ],
+          "tags": [
+            "turninplace_right30",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_TurnInPlace_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_turninplace_right90.af",
+              "sec": 1.3
+            }
+          ],
+          "tags": [
+            "turninplace_right90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Ready_WalkBackward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkbackward.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "walkbackward"
+          ]
+        },
+        {
+          "name": "Ready_WalkForward",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkforward.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "walkforward"
+          ]
+        },
+        {
+          "name": "Ready_WalkForward_Stop_LeftFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkforward_stop_leftfoot.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_leftfoot",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ready_WalkForward_Stop_RightFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkforward_stop_rightfoot.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_rightfoot",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Ready_WalkLeft",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkleft.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "walkleft"
+          ]
+        },
+        {
+          "name": "Ready_WalkRight",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "ready_walkright.af",
+              "sec": 1.2
+            }
+          ],
+          "tags": [
+            "walkright"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/octopedea/relaxed",
+      "name": "Vanilla · Octopedea / Relaxed",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:octopedea"
+      ],
+      "stages": [
+        {
+          "name": "Relaxed_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor01.af",
+              "sec": 8.0
+            }
+          ],
+          "tags": [
+            "idle_flavor01",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor02.af",
+              "sec": 6.0
+            }
+          ],
+          "tags": [
+            "idle_flavor02",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor03",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor03.af",
+              "sec": 8.4
+            }
+          ],
+          "tags": [
+            "idle_flavor03",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_Idle_Flavor04",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_idle_flavor04.af",
+              "sec": 8.567
+            }
+          ],
+          "tags": [
+            "idle_flavor04",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left180.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "turninplace_left180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Left30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left30.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "turninplace_left30",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_left90.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "turninplace_left90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right180.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "turninplace_right180",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Right30",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right30.af",
+              "sec": 1.167
+            }
+          ],
+          "tags": [
+            "turninplace_right30",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_TurnInPlace_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_turninplace_right90.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "turninplace_right90",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Left180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_left180.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "walkdeparture_left180",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Left90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_left90.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "walkdeparture_left90",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Right180",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_right180.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "walkdeparture_right180",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkDeparture_Right90",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkdeparture_right90.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "walkdeparture_right90",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkForward_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforward_start.af",
+              "sec": 1.467
+            }
+          ],
+          "tags": [
+            "walkforward_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkForward_Stop_LeftFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforward_stop_leftfoot.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_leftfoot",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_WalkForward_Stop_RightFoot",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "relaxed_walkforward_stop_rightfoot.af",
+              "sec": 1.0
+            }
+          ],
+          "tags": [
+            "walkforward_stop_rightfoot",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/octopedea/threat",
+      "name": "Vanilla · Octopedea / Threat",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:octopedea"
+      ],
+      "stages": [
+        {
+          "name": "Threat_Assess01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_assess01.af",
+              "sec": 3.867
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Backdown01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_backdown01.af",
+              "sec": 4.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Curious01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_curious01.af",
+              "sec": 5.0
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Intimidate01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_intimidate01.af",
+              "sec": 3.067
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Threat_Listen01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "threat_listen01.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/creature/octopedea/misc",
+      "name": "Vanilla · Octopedea / Misc",
+      "tags": [
+        "vanilla",
+        "creature",
+        "species:octopedea"
+      ],
+      "stages": [
+        {
+          "name": "Graze_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "graze_idle.af",
+              "sec": 5.933
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Hide_Idle",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "hide_idle.af",
+              "sec": 1.533
+            }
+          ],
+          "tags": [
+            "idle"
+          ]
+        },
+        {
+          "name": "Idle_Howl01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle_howl01.af",
+              "sec": 6.733
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_LookingUp01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle_lookingup01.af",
+              "sec": 11.833
+            }
+          ],
+          "tags": [
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Idle_RakingGround01",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "idle_rakingground01.af",
+              "sec": 5.8
             }
           ],
           "tags": [
@@ -879,166 +1583,6 @@
           ]
         },
         {
-          "name": "MeleeAttack_180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_180.af",
-              "sec": 0.8
-            }
-          ]
-        },
-        {
-          "name": "MeleeAttack_Claw01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_claw01.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Claw02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_claw02.af",
-              "sec": 2.467
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Claw03",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_claw03.af",
-              "sec": 1.333
-            }
-          ]
-        },
-        {
-          "name": "MeleeAttack_Head01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_head01.af",
-              "sec": 1.4
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Head02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_head02.af",
-              "sec": 1.533
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_left180.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_left90.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_right180.af",
-              "sec": 1.333
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_right90.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Tail01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_tail01.af",
-              "sec": 1.133
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "MeleeAttack_Tail02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "meleeattack_tail02.af",
-              "sec": 2.333
-            }
-          ],
-          "tags": [
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
           "name": "MeleeAttackPower01",
           "loops": 0,
           "clips": [
@@ -1091,408 +1635,6 @@
           ],
           "tags": [
             "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_RunBackward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_runbackward_start.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "runbackward_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_RunForward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_runforward_start.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "runforward_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_RunLeft_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_runleft_start.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "runleft_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_RunRight_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_runright_start.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "runright_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_left180.af",
-              "sec": 1.833
-            }
-          ],
-          "tags": [
-            "turninplace_left180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Left30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_left30.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "turninplace_left30",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_left90.af",
-              "sec": 1.3
-            }
-          ],
-          "tags": [
-            "turninplace_left90",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_right180.af",
-              "sec": 1.833
-            }
-          ],
-          "tags": [
-            "turninplace_right180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Right30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_right30.af",
-              "sec": 0.967
-            }
-          ],
-          "tags": [
-            "turninplace_right30",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_TurnInPlace_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_turninplace_right90.af",
-              "sec": 1.3
-            }
-          ],
-          "tags": [
-            "turninplace_right90",
-            "transition"
-          ]
-        },
-        {
-          "name": "Ready_WalkBackward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkbackward.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "walkbackward"
-          ]
-        },
-        {
-          "name": "Ready_WalkForward",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkforward.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "walkforward"
-          ]
-        },
-        {
-          "name": "Ready_WalkForward_Stop_LeftFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkforward_stop_leftfoot.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_leftfoot",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_WalkForward_Stop_RightFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkforward_stop_rightfoot.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_rightfoot",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Ready_WalkLeft",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkleft.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "walkleft"
-          ]
-        },
-        {
-          "name": "Ready_WalkRight",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "ready_walkright.af",
-              "sec": 1.2
-            }
-          ],
-          "tags": [
-            "walkright"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_left180.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "turninplace_left180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Left30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_left30.af",
-              "sec": 1.167
-            }
-          ],
-          "tags": [
-            "turninplace_left30",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_left90.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "turninplace_left90",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_right180.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "turninplace_right180",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Right30",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_right30.af",
-              "sec": 1.167
-            }
-          ],
-          "tags": [
-            "turninplace_right30",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_TurnInPlace_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_turninplace_right90.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "turninplace_right90",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Left180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_left180.af",
-              "sec": 3.0
-            }
-          ],
-          "tags": [
-            "walkdeparture_left180",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Left90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_left90.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "walkdeparture_left90",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Right180",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_right180.af",
-              "sec": 3.0
-            }
-          ],
-          "tags": [
-            "walkdeparture_right180",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkDeparture_Right90",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkdeparture_right90.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "walkdeparture_right90",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkForward_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkforward_start.af",
-              "sec": 1.467
-            }
-          ],
-          "tags": [
-            "walkforward_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkForward_Stop_LeftFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkforward_stop_leftfoot.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_leftfoot",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_WalkForward_Stop_RightFoot",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "relaxed_walkforward_stop_rightfoot.af",
-              "sec": 1.0
-            }
-          ],
-          "tags": [
-            "walkforward_stop_rightfoot",
             "rootmotion"
           ]
         },
@@ -1607,18 +1749,7 @@
             "transition",
             "rootmotion"
           ]
-        }
-      ]
-    },
-    {
-      "id": "vanilla/creature/octopedea--2",
-      "name": "Vanilla · Octopedea (2)",
-      "tags": [
-        "vanilla",
-        "creature",
-        "species:octopedea"
-      ],
-      "stages": [
+        },
         {
           "name": "StaggerForward",
           "loops": 0,
@@ -1658,71 +1789,6 @@
           ],
           "tags": [
             "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Assess01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_assess01.af",
-              "sec": 3.867
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Backdown01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_backdown01.af",
-              "sec": 4.0
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Curious01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_curious01.af",
-              "sec": 5.0
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Intimidate01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_intimidate01.af",
-              "sec": 3.067
-            }
-          ],
-          "tags": [
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Threat_Listen01",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "threat_listen01.af",
-              "sec": 3.333
-            }
-          ],
-          "tags": [
             "rootmotion"
           ]
         },

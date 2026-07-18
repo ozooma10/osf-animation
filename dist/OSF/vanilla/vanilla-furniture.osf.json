@@ -2740,8 +2740,8 @@
       ]
     },
     {
-      "id": "vanilla/furniture/bench/animflavor",
-      "name": "Vanilla · Furniture / Bench / Animflavor",
+      "id": "vanilla/furniture/bench/animflavor/analyze",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Analyze",
       "tags": [
         "vanilla",
         "furniture",
@@ -2794,6 +2794,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Analyze_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/analyze_sit_start.af",
+              "sec": 5.267
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Analyze_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/analyze_stand_start.af",
+              "sec": 3.233
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/analyzeangry",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Analyzeangry",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
         {
           "name": "AnalyzeAngry_Idle",
           "loops": 0,
@@ -2850,6 +2896,65 @@
           ]
         },
         {
+          "name": "AnalyzeAngry_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/analyzeangry_sit_start.af",
+              "sec": 3.967
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "AnalyzeAngry_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/analyzeangry_stand_start.af",
+              "sec": 3.233
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "AnalyzeAngry_Talk_S02",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/analyzeangry_talk_s02.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "talk_s02"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/bored",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Bored",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
+        {
           "name": "Bored_Idle",
           "loops": 0,
           "clips": [
@@ -2904,6 +3009,51 @@
             "transition"
           ]
         },
+        {
+          "name": "Bored_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/bored_sit_start.af",
+              "sec": 3.267
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Bored_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/bored_stand_start.af",
+              "sec": 1.4
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/crosslegs",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Crosslegs",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
         {
           "name": "CrossLegs_Idle",
           "loops": 0,
@@ -2988,6 +3138,52 @@
           ]
         },
         {
+          "name": "CrossLegs_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/crosslegs_sit_start.af",
+              "sec": 2.833
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CrossLegs_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/crosslegs_stand_start.af",
+              "sec": 2.367
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/depressed",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Depressed",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
+        {
           "name": "Depressed_Idle",
           "loops": 0,
           "clips": [
@@ -3042,6 +3238,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Depressed_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/depressed_sit_start.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Depressed_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/depressed_stand_start.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/executive",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Executive",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
         {
           "name": "Executive_Idle",
           "loops": 0,
@@ -3112,6 +3354,52 @@
           ]
         },
         {
+          "name": "Executive_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/executive_sit_start.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Executive_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/executive_stand_start.af",
+              "sec": 2.167
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/fancy",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Fancy",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
+        {
           "name": "Fancy_Idle",
           "loops": 0,
           "clips": [
@@ -3166,6 +3454,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Fancy_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/fancy_sit_start.af",
+              "sec": 4.633
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Fancy_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/fancy_stand_start.af",
+              "sec": 3.233
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/sandwich",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Sandwich",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
         {
           "name": "Sandwich_Idle",
           "loops": 0,
@@ -3242,6 +3576,52 @@
           ]
         },
         {
+          "name": "Sandwich_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/sandwich_sit_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sandwich_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/sandwich_stand_start.af",
+              "sec": 2.8
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/slouched",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Slouched",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
+        {
           "name": "Slouched_Idle",
           "loops": 0,
           "clips": [
@@ -3296,6 +3676,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Slouched_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/slouched_sit_start.af",
+              "sec": 1.433
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Slouched_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/bench/animflavor/slouched_stand_start.af",
+              "sec": 2.1
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/bench/animflavor/tablet",
+      "name": "Vanilla · Furniture / Bench / Animflavor / Tablet",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x3A2DF2"
+        ]
+      },
+      "stages": [
         {
           "name": "Tablet_Idle",
           "loops": 0,
@@ -3363,288 +3789,6 @@
           "tags": [
             "idle_flavor04",
             "transition"
-          ]
-        },
-        {
-          "name": "Analyze_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/analyze_sit_start.af",
-              "sec": 5.267
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Analyze_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/analyze_stand_start.af",
-              "sec": 3.233
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "AnalyzeAngry_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/analyzeangry_sit_start.af",
-              "sec": 3.967
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "AnalyzeAngry_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/analyzeangry_stand_start.af",
-              "sec": 3.233
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "AnalyzeAngry_Talk_S02",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/analyzeangry_talk_s02.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "talk_s02"
-          ]
-        },
-        {
-          "name": "Bored_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/bored_sit_start.af",
-              "sec": 3.267
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Bored_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/bored_stand_start.af",
-              "sec": 1.4
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "CrossLegs_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/crosslegs_sit_start.af",
-              "sec": 2.833
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CrossLegs_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/crosslegs_stand_start.af",
-              "sec": 2.367
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Depressed_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/depressed_sit_start.af",
-              "sec": 3.167
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Depressed_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/depressed_stand_start.af",
-              "sec": 2.467
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Executive_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/executive_sit_start.af",
-              "sec": 3.0
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Executive_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/executive_stand_start.af",
-              "sec": 2.167
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Fancy_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/fancy_sit_start.af",
-              "sec": 4.633
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Fancy_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/fancy_stand_start.af",
-              "sec": 3.233
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/sandwich_sit_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/sandwich_stand_start.af",
-              "sec": 2.8
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Slouched_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/slouched_sit_start.af",
-              "sec": 1.433
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Slouched_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/bench/animflavor/slouched_stand_start.af",
-              "sec": 2.1
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
           ]
         },
         {
@@ -5408,8 +5552,8 @@
       ]
     },
     {
-      "id": "vanilla/furniture/chair/animflavor",
-      "name": "Vanilla · Furniture / Chair / Animflavor",
+      "id": "vanilla/furniture/chair/animflavor/analyze",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Analyze",
       "tags": [
         "vanilla",
         "furniture",
@@ -5462,6 +5606,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Analyze_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/analyze_sit_start.af",
+              "sec": 5.267
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Analyze_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/analyze_stand_start.af",
+              "sec": 3.233
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/analyzeangry",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Analyzeangry",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "AnalyzeAngry_Idle",
           "loops": 0,
@@ -5518,6 +5708,52 @@
           ]
         },
         {
+          "name": "AnalyzeAngry_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/analyzeangry_sit_start.af",
+              "sec": 3.967
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "AnalyzeAngry_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/analyzeangry_stand_start.af",
+              "sec": 3.233
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/armscrossedcasual",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Armscrossedcasual",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "ArmsCrossedCasual_Idle",
           "loops": 0,
           "clips": [
@@ -5573,6 +5809,52 @@
           ]
         },
         {
+          "name": "ArmsCrossedCasual_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/armscrossedcasual_sit_start.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "ArmsCrossedCasual_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/armscrossedcasual_stand_start.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/bored",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Bored",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Bored_Idle",
           "loops": 0,
           "clips": [
@@ -5627,6 +5909,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Bored_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/bored_sit_start.af",
+              "sec": 3.267
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Bored_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/bored_stand_start.af",
+              "sec": 1.4
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/confident",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Confident",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Confident_Idle",
           "loops": 0,
@@ -5781,6 +6109,52 @@
           ]
         },
         {
+          "name": "Confident_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/confident_sit_start.af",
+              "sec": 3.8
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Confident_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/confident_stand_start.af",
+              "sec": 3.267
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/crosslegs",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Crosslegs",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "CrossLegs_Idle",
           "loops": 0,
           "clips": [
@@ -5920,6 +6294,52 @@
           ]
         },
         {
+          "name": "CrossLegs_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/crosslegs_sit_start.af",
+              "sec": 2.833
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CrossLegs_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/crosslegs_stand_start.af",
+              "sec": 2.367
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/depressed",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Depressed",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Depressed_Idle",
           "loops": 0,
           "clips": [
@@ -5974,6 +6394,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Depressed_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/depressed_sit_start.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Depressed_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/depressed_stand_start.af",
+              "sec": 2.467
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/executive",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Executive",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Executive_Idle",
           "loops": 0,
@@ -6044,6 +6510,52 @@
           ]
         },
         {
+          "name": "Executive_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/executive_sit_start.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Executive_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/executive_stand_start.af",
+              "sec": 2.167
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/fancy",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Fancy",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Fancy_Idle",
           "loops": 0,
           "clips": [
@@ -6099,6 +6611,52 @@
           ]
         },
         {
+          "name": "Fancy_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/fancy_sit_start.af",
+              "sec": 4.633
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Fancy_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/fancy_stand_start.af",
+              "sec": 3.233
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/recline",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Recline",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Recline_Idle",
           "loops": 0,
           "clips": [
@@ -6125,6 +6683,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Recline_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/recline_sit_start.af",
+              "sec": 3.133
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Recline_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/recline_stand_start.af",
+              "sec": 3.067
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/relaxed",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Relaxed",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Relaxed_Idle",
           "loops": 0,
@@ -6209,6 +6813,52 @@
           ]
         },
         {
+          "name": "Relaxed_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/relaxed_sit_start.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Relaxed_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/relaxed_stand_start.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/sandwich",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Sandwich",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Sandwich_Idle",
           "loops": 0,
           "clips": [
@@ -6264,6 +6914,52 @@
           ]
         },
         {
+          "name": "Sandwich_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/sandwich_sit_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sandwich_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/sandwich_stand_start.af",
+              "sec": 2.8
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/slouched",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Slouched",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Slouched_Idle",
           "loops": 0,
           "clips": [
@@ -6318,6 +7014,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Slouched_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/slouched_sit_start.af",
+              "sec": 1.433
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Slouched_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/slouched_stand_start.af",
+              "sec": 2.1
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/tablet",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Tablet",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Tablet_Idle",
           "loops": 0,
@@ -6387,6 +7129,52 @@
             "transition"
           ]
         },
+        {
+          "name": "Tablet_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/tablet_sit_start.af",
+              "sec": 6.833
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Tablet_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/animflavor/tablet_stand_start.af",
+              "sec": 3.4
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/animflavor/thinking",
+      "name": "Vanilla · Furniture / Chair / Animflavor / Thinking",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Thinking_Idle",
           "loops": 0,
@@ -6496,426 +7284,6 @@
           "tags": [
             "idle_flavor07",
             "transition"
-          ]
-        },
-        {
-          "name": "Analyze_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/analyze_sit_start.af",
-              "sec": 5.267
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Analyze_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/analyze_stand_start.af",
-              "sec": 3.233
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "AnalyzeAngry_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/analyzeangry_sit_start.af",
-              "sec": 3.967
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "AnalyzeAngry_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/analyzeangry_stand_start.af",
-              "sec": 3.233
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "ArmsCrossedCasual_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/armscrossedcasual_sit_start.af",
-              "sec": 3.167
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "ArmsCrossedCasual_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/armscrossedcasual_stand_start.af",
-              "sec": 2.467
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Bored_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/bored_sit_start.af",
-              "sec": 3.267
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Bored_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/bored_stand_start.af",
-              "sec": 1.4
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Confident_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/confident_sit_start.af",
-              "sec": 3.8
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Confident_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/confident_stand_start.af",
-              "sec": 3.267
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CrossLegs_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/crosslegs_sit_start.af",
-              "sec": 2.833
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CrossLegs_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/crosslegs_stand_start.af",
-              "sec": 2.367
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Depressed_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/depressed_sit_start.af",
-              "sec": 3.167
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Depressed_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/depressed_stand_start.af",
-              "sec": 2.467
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Executive_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/executive_sit_start.af",
-              "sec": 3.0
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Executive_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/executive_stand_start.af",
-              "sec": 2.167
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Fancy_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/fancy_sit_start.af",
-              "sec": 4.633
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Fancy_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/fancy_stand_start.af",
-              "sec": 3.233
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Recline_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/recline_sit_start.af",
-              "sec": 3.133
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Recline_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/recline_stand_start.af",
-              "sec": 3.067
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/relaxed_sit_start.af",
-              "sec": 2.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Relaxed_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/relaxed_stand_start.af",
-              "sec": 3.667
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/sandwich_sit_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/sandwich_stand_start.af",
-              "sec": 2.8
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Slouched_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/slouched_sit_start.af",
-              "sec": 1.433
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Slouched_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/slouched_stand_start.af",
-              "sec": 2.1
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Tablet_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/tablet_sit_start.af",
-              "sec": 6.833
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Tablet_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/animflavor/tablet_stand_start.af",
-              "sec": 3.4
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
           ]
         },
         {
@@ -7226,8 +7594,8 @@
       ]
     },
     {
-      "id": "vanilla/furniture/chair/female/animflavor",
-      "name": "Vanilla · Furniture / Chair / Female / Animflavor",
+      "id": "vanilla/furniture/chair/female/animflavor/analyze",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Analyze",
       "tags": [
         "vanilla",
         "furniture",
@@ -7295,6 +7663,53 @@
             "transition"
           ]
         },
+        {
+          "name": "Analyze_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/analyze_sit_start.af",
+              "sec": 2.867
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Analyze_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/analyze_stand_start.af",
+              "sec": 2.2
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/analyzeangry",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Analyzeangry",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "AnalyzeAngry_Idle",
           "loops": 0,
@@ -7449,6 +7864,53 @@
           ]
         },
         {
+          "name": "AnalyzeAngry_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/analyzeangry_sit_start.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "AnalyzeAngry_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/analyzeangry_stand_start.af",
+              "sec": 2.267
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/bored",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Bored",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Bored_Idle",
           "loops": 0,
           "clips": [
@@ -7504,6 +7966,53 @@
           ]
         },
         {
+          "name": "Bored_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/bored_sit_start.af",
+              "sec": 5.2
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Bored_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/bored_stand_start.af",
+              "sec": 4.567
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/boredlegscrossed",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Boredlegscrossed",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "BoredLegsCrossed_Idle",
           "loops": 0,
           "clips": [
@@ -7544,6 +8053,53 @@
             "transition"
           ]
         },
+        {
+          "name": "BoredLegsCrossed_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/boredlegscrossed_sit_start.af",
+              "sec": 5.2
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "BoredLegsCrossed_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/boredlegscrossed_stand_start.af",
+              "sec": 4.567
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/confident",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Confident",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Confident_Idle",
           "loops": 0,
@@ -7698,6 +8254,53 @@
           ]
         },
         {
+          "name": "Confident_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/confident_sit_start.af",
+              "sec": 3.8
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Confident_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/confident_stand_start.af",
+              "sec": 3.267
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/crosslegs",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Crosslegs",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "CrossLegs_Idle",
           "loops": 0,
           "clips": [
@@ -7838,6 +8441,53 @@
           ]
         },
         {
+          "name": "CrossLegs_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/crosslegs_sit_start.af",
+              "sec": 3.033
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "CrossLegs_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/crosslegs_stand_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/fancy",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Fancy",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Fancy_Idle",
           "loops": 0,
           "clips": [
@@ -7892,6 +8542,53 @@
             "transition"
           ]
         },
+        {
+          "name": "Fancy_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/fancy_sit_start.af",
+              "sec": 3.633
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Fancy_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/fancy_stand_start.af",
+              "sec": 2.133
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/sandwich",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Sandwich",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Sandwich_Idle",
           "loops": 0,
@@ -7948,6 +8645,53 @@
           ]
         },
         {
+          "name": "Sandwich_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/sandwich_sit_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sandwich_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/sandwich_stand_start.af",
+              "sec": 2.8
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/slouched",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Slouched",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
+        {
           "name": "Slouched_Idle",
           "loops": 0,
           "clips": [
@@ -8002,6 +8746,53 @@
             "transition"
           ]
         },
+        {
+          "name": "Slouched_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/slouched_sit_start.af",
+              "sec": 3.9
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Slouched_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/chair/female/animflavor/slouched_stand_start.af",
+              "sec": 1.8
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/chair/female/animflavor/tablet",
+      "name": "Vanilla · Furniture / Chair / Female / Animflavor / Tablet",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x021BF1"
+        ]
+      },
+      "stages": [
         {
           "name": "Tablet_Idle",
           "loops": 0,
@@ -8069,276 +8860,6 @@
           "tags": [
             "idle_flavor04",
             "transition"
-          ]
-        },
-        {
-          "name": "Analyze_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/analyze_sit_start.af",
-              "sec": 2.867
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Analyze_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/analyze_stand_start.af",
-              "sec": 2.2
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "AnalyzeAngry_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/analyzeangry_sit_start.af",
-              "sec": 2.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "AnalyzeAngry_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/analyzeangry_stand_start.af",
-              "sec": 2.267
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Bored_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/bored_sit_start.af",
-              "sec": 5.2
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Bored_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/bored_stand_start.af",
-              "sec": 4.567
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "BoredLegsCrossed_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/boredlegscrossed_sit_start.af",
-              "sec": 5.2
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "BoredLegsCrossed_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/boredlegscrossed_stand_start.af",
-              "sec": 4.567
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Confident_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/confident_sit_start.af",
-              "sec": 3.8
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Confident_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/confident_stand_start.af",
-              "sec": 3.267
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CrossLegs_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/crosslegs_sit_start.af",
-              "sec": 3.033
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "CrossLegs_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/crosslegs_stand_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Fancy_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/fancy_sit_start.af",
-              "sec": 3.633
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Fancy_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/fancy_stand_start.af",
-              "sec": 2.133
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/sandwich_sit_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/sandwich_stand_start.af",
-              "sec": 2.8
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Slouched_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/slouched_sit_start.af",
-              "sec": 3.9
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Slouched_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/chair/female/animflavor/slouched_stand_start.af",
-              "sec": 1.8
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
           ]
         },
         {
@@ -27229,8 +27750,8 @@
       ]
     },
     {
-      "id": "vanilla/furniture/sittable/female/animflavor",
-      "name": "Vanilla · Furniture / Sittable / Female / Animflavor",
+      "id": "vanilla/furniture/sittable/female/animflavor/bored",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Bored",
       "tags": [
         "vanilla",
         "furniture",
@@ -27312,6 +27833,53 @@
             "transition"
           ]
         },
+        {
+          "name": "Bored_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/bored_sit_start.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Bored_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/bored_stand_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/drink",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Drink",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
         {
           "name": "Drink_Idle",
           "loops": 0,
@@ -27424,6 +27992,53 @@
           ]
         },
         {
+          "name": "Drink_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/drink_sit_start.af",
+              "sec": 2.833
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Drink_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/drink_stand_start.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/eat",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Eat",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
+        {
           "name": "Eat_Idle",
           "loops": 0,
           "clips": [
@@ -27478,6 +28093,53 @@
             "transition"
           ]
         },
+        {
+          "name": "Eat_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/eat_sit_start.af",
+              "sec": 3.667
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Eat_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/eat_stand_start.af",
+              "sec": 3.5
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/executivehandclasp",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Executivehandclasp",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
         {
           "name": "ExecutiveHandClasp_Idle",
           "loops": 0,
@@ -27561,6 +28223,53 @@
             "transition"
           ]
         },
+        {
+          "name": "ExecutiveHandClasp_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/executivehandclasp_sit_start.af",
+              "sec": 2.633
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "ExecutiveHandClasp_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/executivehandclasp_stand_start.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/executivelean",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Executivelean",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
         {
           "name": "ExecutiveLean_Idle",
           "loops": 0,
@@ -27673,6 +28382,53 @@
           ]
         },
         {
+          "name": "ExecutiveLean_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/executivelean_sit_start.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "ExecutiveLean_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/executivelean_stand_start.af",
+              "sec": 3.167
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/sandwich",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Sandwich",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
+        {
           "name": "Sandwich_Idle",
           "loops": 0,
           "clips": [
@@ -27727,6 +28483,53 @@
             "transition"
           ]
         },
+        {
+          "name": "Sandwich_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/sandwich_sit_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Sandwich_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/sandwich_stand_start.af",
+              "sec": 2.8
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/terminal",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Terminal",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
         {
           "name": "Terminal_Idle",
           "loops": 0,
@@ -27796,6 +28599,53 @@
             "transition"
           ]
         },
+        {
+          "name": "Terminal_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/terminal_sit_start.af",
+              "sec": 2.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "Terminal_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/terminal_stand_start.af",
+              "sec": 1.667
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/terminalrelaxed",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Terminalrelaxed",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
         {
           "name": "TerminalRelaxed_Idle",
           "loops": 0,
@@ -27922,6 +28772,53 @@
           ]
         },
         {
+          "name": "TerminalRelaxed_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/terminalrelaxed_sit_start.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition",
+            "rootmotion"
+          ]
+        },
+        {
+          "name": "TerminalRelaxed_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/sittable/female/animflavor/terminalrelaxed_stand_start.af",
+              "sec": 3.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition",
+            "rootmotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/sittable/female/animflavor/writing",
+      "name": "Vanilla · Furniture / Sittable / Female / Animflavor / Writing",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x1433BE"
+        ]
+      },
+      "stages": [
+        {
           "name": "Writing_Idle",
           "loops": 0,
           "clips": [
@@ -28002,246 +28899,6 @@
           "tags": [
             "idle_flavor05",
             "transition"
-          ]
-        },
-        {
-          "name": "Bored_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/bored_sit_start.af",
-              "sec": 3.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Bored_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/bored_stand_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Drink_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/drink_sit_start.af",
-              "sec": 2.833
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Drink_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/drink_stand_start.af",
-              "sec": 3.167
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Eat_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/eat_sit_start.af",
-              "sec": 3.667
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Eat_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/eat_stand_start.af",
-              "sec": 3.5
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "ExecutiveHandClasp_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/executivehandclasp_sit_start.af",
-              "sec": 2.633
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "ExecutiveHandClasp_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/executivehandclasp_stand_start.af",
-              "sec": 2.333
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "ExecutiveLean_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/executivelean_sit_start.af",
-              "sec": 3.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "ExecutiveLean_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/executivelean_stand_start.af",
-              "sec": 3.167
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/sandwich_sit_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Sandwich_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/sandwich_stand_start.af",
-              "sec": 2.8
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Terminal_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/terminal_sit_start.af",
-              "sec": 2.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "Terminal_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/terminal_stand_start.af",
-              "sec": 1.667
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "TerminalRelaxed_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/terminalrelaxed_sit_start.af",
-              "sec": 3.0
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition",
-            "rootmotion"
-          ]
-        },
-        {
-          "name": "TerminalRelaxed_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/sittable/female/animflavor/terminalrelaxed_stand_start.af",
-              "sec": 3.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition",
-            "rootmotion"
           ]
         },
         {
@@ -29658,8 +30315,8 @@
       ]
     },
     {
-      "id": "vanilla/furniture/standing/animflavor",
-      "name": "Vanilla · Furniture / Standing / Animflavor",
+      "id": "vanilla/furniture/standing/animflavor/armscrossedcasual",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Armscrossedcasual",
       "tags": [
         "vanilla",
         "furniture",
@@ -29769,6 +30426,50 @@
           ]
         },
         {
+          "name": "ArmsCrossedCasual_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armscrossedcasual_sit_start.af",
+              "sec": 5.233
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsCrossedCasual_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armscrossedcasual_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/armscrossedmilitary",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Armscrossedmilitary",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "ArmsCrossedMilitary_Idle",
           "loops": 0,
           "clips": [
@@ -29852,6 +30553,50 @@
           ]
         },
         {
+          "name": "ArmsCrossedMilitary_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armscrossedmilitary_sit_start.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsCrossedMilitary_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armscrossedmilitary_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/armsfrontcasual",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Armsfrontcasual",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "ArmsFrontCasual_Idle",
           "loops": 0,
           "clips": [
@@ -29934,6 +30679,50 @@
             "transition"
           ]
         },
+        {
+          "name": "ArmsFrontCasual_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armsfrontcasual_sit_start.af",
+              "sec": 4.6
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsFrontCasual_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armsfrontcasual_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/armsfrontmilitary",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Armsfrontmilitary",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "ArmsFrontMilitary_Idle",
           "loops": 0,
@@ -30032,6 +30821,50 @@
           ]
         },
         {
+          "name": "ArmsFrontMilitary_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armsfrontmilitary_sit_start.af",
+              "sec": 4.4
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsFrontMilitary_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/armsfrontmilitary_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/cryingstanding",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Cryingstanding",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "CryingStanding_Idle",
           "loops": 0,
           "clips": [
@@ -30072,6 +30905,50 @@
             "transition"
           ]
         },
+        {
+          "name": "CryingStanding_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/cryingstanding_sit_start.af",
+              "sec": 4.567
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "CryingStanding_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/cryingstanding_stand_start.af",
+              "sec": 3.567
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/handsbehindcasual",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Handsbehindcasual",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "HandsBehindCasual_Idle",
           "loops": 0,
@@ -30141,6 +31018,50 @@
             "transition"
           ]
         },
+        {
+          "name": "HandsBehindCasual_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/handsbehindcasual_sit_start.af",
+              "sec": 5.567
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "HandsBehindCasual_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/handsbehindcasual_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/handsbehindmilitary",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Handsbehindmilitary",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "HandsBehindMilitary_Idle",
           "loops": 0,
@@ -30225,6 +31146,50 @@
           ]
         },
         {
+          "name": "HandsBehindMilitary_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/handsbehindmilitary_sit_start.af",
+              "sec": 3.6
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "HandsBehindMilitary_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/handsbehindmilitary_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/oathtaker",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Oathtaker",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "OathTaker_Idle",
           "loops": 0,
           "clips": [
@@ -30279,6 +31244,50 @@
             "transition"
           ]
         },
+        {
+          "name": "OathTaker_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/oathtaker_sit_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "OathTaker_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/oathtaker_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/praying",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Praying",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "Praying_Idle",
           "loops": 0,
@@ -30348,6 +31357,50 @@
             "transition"
           ]
         },
+        {
+          "name": "Praying_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/praying_sit_start.af",
+              "sec": 4.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Praying_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/praying_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/thinking",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Thinking",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "Thinking_Idle",
           "loops": 0,
@@ -30473,6 +31526,50 @@
             "transition"
           ]
         },
+        {
+          "name": "Thinking_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/thinking_sit_start.af",
+              "sec": 5.133
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Thinking_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/animflavor/thinking_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/animflavor/windowshopping",
+      "name": "Vanilla · Furniture / Standing / Animflavor / Windowshopping",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "WindowShopping_Idle",
           "loops": 0,
@@ -30609,286 +31706,6 @@
           ],
           "tags": [
             "idle_flavor09",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedCasual_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armscrossedcasual_sit_start.af",
-              "sec": 5.233
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedCasual_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armscrossedcasual_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedMilitary_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armscrossedmilitary_sit_start.af",
-              "sec": 4.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedMilitary_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armscrossedmilitary_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontCasual_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armsfrontcasual_sit_start.af",
-              "sec": 4.6
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontCasual_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armsfrontcasual_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontMilitary_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armsfrontmilitary_sit_start.af",
-              "sec": 4.4
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontMilitary_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/armsfrontmilitary_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "CryingStanding_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/cryingstanding_sit_start.af",
-              "sec": 4.567
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "CryingStanding_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/cryingstanding_stand_start.af",
-              "sec": 3.567
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindCasual_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/handsbehindcasual_sit_start.af",
-              "sec": 5.567
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindCasual_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/handsbehindcasual_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindMilitary_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/handsbehindmilitary_sit_start.af",
-              "sec": 3.6
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindMilitary_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/handsbehindmilitary_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "OathTaker_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/oathtaker_sit_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "OathTaker_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/oathtaker_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Praying_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/praying_sit_start.af",
-              "sec": 4.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Praying_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/praying_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Thinking_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/thinking_sit_start.af",
-              "sec": 5.133
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Thinking_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/animflavor/thinking_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
             "transition"
           ]
         },
@@ -31093,8 +31910,8 @@
       ]
     },
     {
-      "id": "vanilla/furniture/standing/female/animflavor",
-      "name": "Vanilla · Furniture / Standing / Female / Animflavor",
+      "id": "vanilla/furniture/standing/female/animflavor/armscrossedcasual",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Armscrossedcasual",
       "tags": [
         "vanilla",
         "furniture",
@@ -31205,6 +32022,51 @@
           ]
         },
         {
+          "name": "ArmsCrossedCasual_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armscrossedcasual_sit_start.af",
+              "sec": 3.367
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsCrossedCasual_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armscrossedcasual_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/armscrossedmilitary",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Armscrossedmilitary",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "ArmsCrossedMilitary_Idle",
           "loops": 0,
           "clips": [
@@ -31288,6 +32150,51 @@
           ]
         },
         {
+          "name": "ArmsCrossedMilitary_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armscrossedmilitary_sit_start.af",
+              "sec": 2.933
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsCrossedMilitary_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armscrossedmilitary_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/armsfrontcasual",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Armsfrontcasual",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "ArmsFrontCasual_Idle",
           "loops": 0,
           "clips": [
@@ -31370,6 +32277,51 @@
             "transition"
           ]
         },
+        {
+          "name": "ArmsFrontCasual_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armsfrontcasual_sit_start.af",
+              "sec": 3.333
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsFrontCasual_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armsfrontcasual_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/armsfrontmilitary",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Armsfrontmilitary",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "ArmsFrontMilitary_Idle",
           "loops": 0,
@@ -31468,6 +32420,51 @@
           ]
         },
         {
+          "name": "ArmsFrontMilitary_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armsfrontmilitary_sit_start.af",
+              "sec": 2.9
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "ArmsFrontMilitary_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/armsfrontmilitary_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/cryingstanding",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Cryingstanding",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "CryingStanding_Idle",
           "loops": 0,
           "clips": [
@@ -31508,6 +32505,51 @@
             "transition"
           ]
         },
+        {
+          "name": "CryingStanding_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/cryingstanding_sit_start.af",
+              "sec": 5.567
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "CryingStanding_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/cryingstanding_stand_start.af",
+              "sec": 5.367
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/handsbehindcasual",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Handsbehindcasual",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "HandsBehindCasual_Idle",
           "loops": 0,
@@ -31592,6 +32634,51 @@
           ]
         },
         {
+          "name": "HandsBehindCasual_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/handsbehindcasual_sit_start.af",
+              "sec": 4.133
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "HandsBehindCasual_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/handsbehindcasual_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/handsbehindmilitary",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Handsbehindmilitary",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "HandsBehindMilitary_Idle",
           "loops": 0,
           "clips": [
@@ -31675,6 +32762,51 @@
           ]
         },
         {
+          "name": "HandsBehindMilitary_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/handsbehindmilitary_sit_start.af",
+              "sec": 2.8
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "HandsBehindMilitary_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/handsbehindmilitary_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/oathtaker",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Oathtaker",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
+        {
           "name": "OathTaker_Idle",
           "loops": 0,
           "clips": [
@@ -31729,6 +32861,51 @@
             "transition"
           ]
         },
+        {
+          "name": "OathTaker_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/oathtaker_sit_start.af",
+              "sec": 2.667
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "OathTaker_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/oathtaker_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/praying",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Praying",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "Praying_Idle",
           "loops": 0,
@@ -31798,6 +32975,51 @@
             "transition"
           ]
         },
+        {
+          "name": "Praying_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/praying_sit_start.af",
+              "sec": 2.933
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Praying_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/praying_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/thinking",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Thinking",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "Thinking_Idle",
           "loops": 0,
@@ -31923,6 +33145,51 @@
             "transition"
           ]
         },
+        {
+          "name": "Thinking_Sit_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/thinking_sit_start.af",
+              "sec": 3.6
+            }
+          ],
+          "tags": [
+            "sit_start",
+            "transition"
+          ]
+        },
+        {
+          "name": "Thinking_Stand_Start",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "furniture/standing/female/animflavor/thinking_stand_start.af",
+              "sec": 2.0
+            }
+          ],
+          "tags": [
+            "stand_start",
+            "transition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vanilla/furniture/standing/female/animflavor/windowshopping",
+      "name": "Vanilla · Furniture / Standing / Female / Animflavor / Windowshopping",
+      "tags": [
+        "vanilla",
+        "furniture",
+        "female",
+        "anchored"
+      ],
+      "anchor": {
+        "keyword": [
+          "Starfield.esm|0x21FE53"
+        ]
+      },
+      "stages": [
         {
           "name": "WindowShopping_Idle",
           "loops": 0,
@@ -32059,286 +33326,6 @@
           ],
           "tags": [
             "idle_flavor09",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedCasual_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armscrossedcasual_sit_start.af",
-              "sec": 3.367
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedCasual_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armscrossedcasual_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedMilitary_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armscrossedmilitary_sit_start.af",
-              "sec": 2.933
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsCrossedMilitary_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armscrossedmilitary_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontCasual_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armsfrontcasual_sit_start.af",
-              "sec": 3.333
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontCasual_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armsfrontcasual_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontMilitary_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armsfrontmilitary_sit_start.af",
-              "sec": 2.9
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "ArmsFrontMilitary_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/armsfrontmilitary_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "CryingStanding_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/cryingstanding_sit_start.af",
-              "sec": 5.567
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "CryingStanding_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/cryingstanding_stand_start.af",
-              "sec": 5.367
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindCasual_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/handsbehindcasual_sit_start.af",
-              "sec": 4.133
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindCasual_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/handsbehindcasual_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindMilitary_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/handsbehindmilitary_sit_start.af",
-              "sec": 2.8
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "HandsBehindMilitary_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/handsbehindmilitary_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "OathTaker_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/oathtaker_sit_start.af",
-              "sec": 2.667
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "OathTaker_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/oathtaker_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Praying_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/praying_sit_start.af",
-              "sec": 2.933
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Praying_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/praying_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Thinking_Sit_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/thinking_sit_start.af",
-              "sec": 3.6
-            }
-          ],
-          "tags": [
-            "sit_start",
-            "transition"
-          ]
-        },
-        {
-          "name": "Thinking_Stand_Start",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "furniture/standing/female/animflavor/thinking_stand_start.af",
-              "sec": 2.0
-            }
-          ],
-          "tags": [
-            "stand_start",
             "transition"
           ]
         },

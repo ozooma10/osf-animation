@@ -3721,6 +3721,19 @@
       ],
       "stages": [
         {
+          "name": "Cower_Pose",
+          "loops": 0,
+          "clips": [
+            {
+              "file": "common/cower_pose.af",
+              "sec": 0.033
+            }
+          ],
+          "tags": [
+            "pose"
+          ]
+        },
+        {
           "name": "Boxer_Pose",
           "loops": 0,
           "clips": [
@@ -3739,19 +3752,6 @@
           "clips": [
             {
               "file": "common/captive_pose.af",
-              "sec": 0.033
-            }
-          ],
-          "tags": [
-            "pose"
-          ]
-        },
-        {
-          "name": "Cower_Pose",
-          "loops": 0,
-          "clips": [
-            {
-              "file": "common/cower_pose.af",
               "sec": 0.033
             }
           ],
