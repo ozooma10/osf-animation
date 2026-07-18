@@ -85,6 +85,7 @@ namespace OSF::Camera
 		constexpr float kOrbitWheelStep = 0.6f;      // meters of radius change per mouse-wheel notch (zoom)
 		constexpr float kOrbitElevLimit = 1.45f;     // ~83°, off the gimbal poles
 		constexpr float kOrbitSmoothTime = 0.07f;    // low-pass time constant (s): smaller = snappier, larger = floatier
+		constexpr float kOrbitReframeTime = 0.35f;   // slower low-pass used while an auto-reframe glide is in flight
 		constexpr float kOrbitFrameFit = 2.5f;       // radius per meter of cast spread — pulls back until the widest cast fits the frame
 		constexpr float kOrbitAxisMinSq = 0.04f;     // pair axis shorter than 20 cm = co-located; keep the heading-based azimuth
 		constexpr float kPi = 3.14159265f;
@@ -336,7 +337,7 @@ namespace OSF::Camera
 					// With a cast seed (SetOrbitFrameSubjects): center on the SUBJECTS' midpoint, open the
 					// radius until their spread fits the frame, and open SIDE-ON to the cast's long axis so
 					// the subjects spread across the frame instead of stacking behind each other (the side
-					// nearest the player's heading, so the opening cut is the smallest camera move).
+					// nearest the player's heading, so the opening move is the smallest camera arc).
 					// Positions are resolved HERE — game thread, after placement moved the cast.
 					std::vector<RE::NiPoint3> pts;
 					pts.reserve(frameSubjects.size());
@@ -348,11 +349,12 @@ namespace OSF::Camera
 					frameSubjects.clear();  // consumed (or dead) — never reused by a later enter
 					float azimuth = h;
 					float radius = kOrbitDefaultRadius;
+					float centerX, centerY, centerZ;
 					if (pts.empty()) {
 						// No cast seed (direct API use): the player's torso, nudged toward the partner.
-						orbitCenterX = loc.x - std::sin(h) * kOrbitCenterFwd;
-						orbitCenterY = loc.y + std::cos(h) * kOrbitCenterFwd;
-						orbitCenterZ = loc.z + kOrbitCenterUp;
+						centerX = loc.x - std::sin(h) * kOrbitCenterFwd;
+						centerY = loc.y + std::cos(h) * kOrbitCenterFwd;
+						centerZ = loc.z + kOrbitCenterUp;
 					} else {
 						float cx = 0.0f, cy = 0.0f, cz = 0.0f;
 						for (const auto& p : pts) {
@@ -364,9 +366,9 @@ namespace OSF::Camera
 						cx /= n;
 						cy /= n;
 						cz /= n;
-						orbitCenterX = cx;
-						orbitCenterY = cy;
-						orbitCenterZ = cz + kOrbitCenterUp;
+						centerX = cx;
+						centerY = cy;
+						centerZ = cz + kOrbitCenterUp;
 						// Fit: widest horizontal reach from the center scales the pull-back.
 						float spread = 0.0f;
 						// Long axis: the most-separated pair (casts are tiny — O(n²) is fine).
@@ -392,13 +394,34 @@ namespace OSF::Camera
 							azimuth = (AngularGap(side1, h) <= AngularGap(side2, h)) ? side1 : side2;
 						}
 					}
-					orbitAzimuth = azimuth;
-					orbitElevation = kOrbitDefaultElev;
-					orbitRadius = radius;
-					orbitTargetAzimuth = orbitAzimuth;  // targets start matched so there's no opening glide
-					orbitTargetElevation = orbitElevation;
-					orbitTargetRadius = orbitRadius;
-					lastDriveMs = 0;
+					// GLIDE, don't cut. The framing above goes into the TARGETS; where the RENDERED pose
+					// starts depends on what the camera was doing:
+					if (orbitDriving.load(std::memory_order_relaxed)) {
+						// An orbit is already live (browse orbit, or an earlier scene node) — the user may
+						// have steered it, so leave the rendered pose alone and let DriveSceneOrbit low-pass
+						// it over at the reframe time constant. lastDriveMs stays live (the driver never
+						// stopped; zeroing it would stall the first glide frame).
+					} else {
+						// Fresh enter (the live camera was third person / vanity): approximate the view the
+						// player was just looking through — behind the player at the default ring pose — so
+						// the state cut lands near the old view and the framing arrives as a swoop.
+						orbitAzimuth = h;
+						orbitElevation = kOrbitDefaultElev;
+						orbitRadius = kOrbitDefaultRadius;
+						orbitCenterX = loc.x;
+						orbitCenterY = loc.y;
+						orbitCenterZ = loc.z + kOrbitCenterUp;
+						lastDriveMs = 0;
+					}
+					// Azimuth unwrapped to the nearest turn — a dragged browse orbit accumulates whole
+					// revolutions, and a raw atan2 target would spin the camera back through them.
+					orbitTargetAzimuth = orbitAzimuth + std::remainder(azimuth - orbitAzimuth, 2.0f * kPi);
+					orbitTargetElevation = kOrbitDefaultElev;
+					orbitTargetRadius = radius;
+					orbitCenterTargetX = centerX;
+					orbitCenterTargetY = centerY;
+					orbitCenterTargetZ = centerZ;
+					orbitReframeGlide = true;  // smooth at kOrbitReframeTime until settled (or the user steers)
 				}
 				orbitDriving.store(true, std::memory_order_relaxed);
 				Input::InputService::GetSingleton().SetMouseCapture(true);
@@ -539,16 +562,37 @@ namespace OSF::Camera
 		if (KeyDown('A')) panR -= 1.0f;
 		if (panF != 0.0f || panR != 0.0f) {
 			const float step = kOrbitPanSpeed * dt;
-			orbitCenterX += (-sh * panF + ch * panR) * step;  // forward=(-sin,cos), right=(cos,sin)
-			orbitCenterY += (ch * panF + sh * panR) * step;
+			orbitCenterTargetX += (-sh * panF + ch * panR) * step;  // forward=(-sin,cos), right=(cos,sin)
+			orbitCenterTargetY += (ch * panF + sh * panR) * step;
+		}
+
+		// Manual steering cancels an in-flight reframe glide: the user's intent wins, and the leftover
+		// offset finishes at the snappy input time constant instead of dragging behind their drag.
+		if (mdx != 0.0f || mdy != 0.0f || wheel != 0.0f || panF != 0.0f || panR != 0.0f) {
+			orbitReframeGlide = false;
 		}
 
 		// Low-pass the rendered values toward the targets (frame-rate-independent: alpha = 1 - e^(-dt/tau)).
 		// This is what turns raw per-tick input into a smooth glide and absorbs the ~7×/frame tick cadence.
-		const float alpha = (dt > 0.0f) ? (1.0f - std::exp(-dt / kOrbitSmoothTime)) : 1.0f;
+		// While a reframe glide is in flight (scene launch / node retarget) the slower constant carries the
+		// camera to the new framing as a visible move; alpha is 0 on the first frame (dt unknown — hold still).
+		const float tau = orbitReframeGlide ? kOrbitReframeTime : kOrbitSmoothTime;
+		const float alpha = (dt > 0.0f) ? (1.0f - std::exp(-dt / tau)) : 0.0f;
 		orbitAzimuth += (orbitTargetAzimuth - orbitAzimuth) * alpha;
 		orbitElevation += (orbitTargetElevation - orbitElevation) * alpha;
 		orbitRadius += (orbitTargetRadius - orbitRadius) * alpha;
+		orbitCenterX += (orbitCenterTargetX - orbitCenterX) * alpha;
+		orbitCenterY += (orbitCenterTargetY - orbitCenterY) * alpha;
+		orbitCenterZ += (orbitCenterTargetZ - orbitCenterZ) * alpha;
+		if (orbitReframeGlide &&
+			std::abs(orbitTargetAzimuth - orbitAzimuth) < 0.01f &&
+			std::abs(orbitTargetElevation - orbitElevation) < 0.01f &&
+			std::abs(orbitTargetRadius - orbitRadius) < 0.05f &&
+			std::abs(orbitCenterTargetX - orbitCenterX) < 0.05f &&
+			std::abs(orbitCenterTargetY - orbitCenterY) < 0.05f &&
+			std::abs(orbitCenterTargetZ - orbitCenterZ) < 0.05f) {
+			orbitReframeGlide = false;  // settled — input smoothing back to snappy
+		}
 
 		// Orbit the center (seeded on enter, then flown by WASD above). Camera sits radius behind it.
 		const RE::NiPoint3 center{ orbitCenterX, orbitCenterY, orbitCenterZ };

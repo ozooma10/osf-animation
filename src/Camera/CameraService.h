@@ -60,8 +60,8 @@ namespace OSF::Camera
 		// game input, so with no scene camera live the player has no way to move the camera at all.
 		// Ensure engages a scene-orbit around a_frameSubjects (empty -> the player) the first time the
 		// view forwards a world-area drag (osf.orbit); it takes ONE state-override hold so it composes
-		// with scene cameras via the same ref count — a scene starting mid-browse retargets the live
-		// camera as usual, and a scene RELEASING while the browse hold remains hands the camera back to
+		// with scene cameras via the same ref count — a scene starting mid-browse GLIDES the live orbit
+		// to its framing (see SetLiveCameraState), and a scene RELEASING while the browse hold remains hands the camera back to
 		// an orbit instead of snapping to baseline (see ReleaseStateOverride). Idempotent per browser
 		// session; Release (on browser close) restores like any other override release.
 		void EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects);
@@ -129,11 +129,18 @@ namespace OSF::Camera
 		float             orbitTargetAzimuth = 0.0f;
 		float             orbitTargetElevation = 0.0f;
 		float             orbitTargetRadius = 0.0f;
-		// Orbit center: seeded on enter (a pinned actor's live position wobbles per frame → jitter, so we
-		// don't re-read it), then flown through the scene by WASD in DriveSceneOrbit.
+		// Orbit center: framing seeded on enter (a pinned actor's live position wobbles per frame → jitter,
+		// so we don't re-read it), then flown through the scene by WASD in DriveSceneOrbit. Target/current
+		// split like the ring params so a scene-orbit re-enter GLIDES to the new framing instead of cutting.
 		float             orbitCenterX = 0.0f;
 		float             orbitCenterY = 0.0f;
 		float             orbitCenterZ = 0.0f;    // torso height; floor ≈ this minus the torso offset
+		float             orbitCenterTargetX = 0.0f;
+		float             orbitCenterTargetY = 0.0f;
+		float             orbitCenterTargetZ = 0.0f;
+		// A reframe glide is in flight (scene launch / per-node retarget): DriveSceneOrbit smooths at the
+		// slower kOrbitReframeTime until the pose settles; any manual input cancels it. Guarded by driveLock.
+		bool              orbitReframeGlide = false;
 		// Cast to frame on the next orbit enter (SetOrbitFrameSubjects). Guarded by driveLock.
 		std::vector<std::uint32_t> frameSubjects;
 	};
