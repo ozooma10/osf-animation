@@ -439,7 +439,7 @@ namespace OSF::API
 			} else {
 				const std::string prefix = Util::ToLower(a_tagPrefix.empty() ? std::string_view{ "player.emote." } : a_tagPrefix);
 				registry.ForEachDef([&](const Registry::SceneDef& a_def) {
-					if (IsWheelScene(a_def) && std::ranges::any_of(a_def.tagSet,
+					if (a_def.clipsAvailable && IsWheelScene(a_def) && std::ranges::any_of(a_def.tagSet,
 						[&](const std::string& a_tag) { return a_tag.starts_with(prefix); })) {
 						add(a_def, Entry{ a_def.id, -1 });
 					}
@@ -518,6 +518,9 @@ namespace OSF::API
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards, &wheelOrder, a_library](const Registry::SceneDef& d) {
 				if (d.library != a_library) {
 					return;  // each lane serializes only its own scenes
+				}
+				if (!d.clipsAvailable) {
+					return;  // clips not installed (compat pack without its source mod) — unplayable, keep it off the shelf
 				}
 				Card c;
 				c.id = d.id;
@@ -1071,7 +1074,7 @@ namespace OSF::API
 				std::unordered_map<RE::BGSKeyword*, std::vector<std::uint32_t>> kwDefs;
 				std::unordered_map<RE::TESFormID, std::vector<std::uint32_t>>   baseDefs;
 				const auto                                                      addDef = [&](const Registry::SceneDef& d) {
-					if (!d.RequiresAnchor()) {
+					if (!d.RequiresAnchor() || !d.clipsAvailable) {
 						return;
 					}
 					const auto idx = static_cast<std::uint32_t>(defCustom.size());
@@ -1215,7 +1218,7 @@ namespace OSF::API
 			if (ref) {
 				Matchmaking::AnchorMatchCache cache(ref);  // one HasKeyword per unique keyword across the def sweep
 				Registry::SceneRegistry::GetSingleton().ForEachDef([&reply, &cache](const Registry::SceneDef& d) {
-					if (d.RequiresAnchor() && cache.Accepts(d)) {
+					if (d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) {
 						reply["sceneIds"].push_back(d.id);
 					}
 				});
@@ -1256,7 +1259,7 @@ namespace OSF::API
 					if (!isActor) {
 						Matchmaking::AnchorMatchCache cache(ref);
 						Registry::SceneRegistry::GetSingleton().ForEachDef([&usable, &cache](const Registry::SceneDef& d) {
-							if (!usable && d.RequiresAnchor() && cache.Accepts(d)) {
+							if (!usable && d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) {
 								usable = true;
 							}
 						});

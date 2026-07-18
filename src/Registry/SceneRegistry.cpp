@@ -1,6 +1,8 @@
 #include "Registry/SceneRegistry.h"
 
+#include "Animation/GraphManager.h"  // ResourceExists (clip-availability probe)
 #include "Input/InputTypes.h"
+#include "Util/ClipPath.h"
 #include "Util/FormRef.h"
 #include "Util/Math.h"
 #include "Util/Species.h"
@@ -9,6 +11,7 @@
 #include <algorithm>
 #include <charconv>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <unordered_set>
@@ -1488,6 +1491,89 @@ namespace OSF::Registry
 		return singleton;
 	}
 
+	namespace
+	{
+		// True when an authored clip spec resolves to SOMETHING the runtime could open: any
+		// ResolveClipSpec candidate that either opens through BSResource (loose OR archive-resident —
+		// the vanilla packs' .af clips live inside the game BA2s) or, for an absolute spec outside
+		// Data, exists on disk. Mirrors GraphManager::LoadClip's candidate walk, minus the decode.
+		bool ClipSpecInstalled(const std::string& a_spec)
+		{
+			const auto spec = Util::ResolveClipSpec(std::filesystem::path{ a_spec });
+			for (const auto& cand : spec.candidates) {
+				if (cand.resource) {
+					if (Animation::ResourceExists(cand.resourcePath)) {
+						return true;
+					}
+				} else {
+					std::error_code ec;
+					if (std::filesystem::exists(cand.filePath, ec)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		// Availability sweep over a freshly loaded scene set: a scene referencing at least one clip
+		// with no installed file is marked !clipsAvailable (hidden from the catalog + matchmaking,
+		// still registered for direct-id starts and diagnostics). Compat packs ship scene JSON that
+		// points at another mod's files, so "pack installed without its source mod" must degrade to
+		// hidden scenes, not a browser full of unplayable cards. One warning per source file.
+		void SweepClipAvailability(std::unordered_map<std::string, SceneDef>& a_scenes, std::vector<std::string>& a_errors)
+		{
+			std::unordered_map<std::string, bool> cache;  // per unique spec; packs repeat clips across stages
+			const auto installed = [&cache](const std::string& a_file) {
+				auto [it, fresh] = cache.try_emplace(a_file, false);
+				if (fresh) {
+					it->second = ClipSpecInstalled(a_file);
+				}
+				return it->second;
+			};
+
+			struct FileTally
+			{
+				int         hidden = 0;
+				std::string firstMissing;
+			};
+			std::map<std::string, FileTally> byFile;  // ordered so the warning list is deterministic
+			for (auto& [key, def] : a_scenes) {
+				std::string missing;
+				for (const auto& node : def.nodes) {
+					for (const auto& stage : node.stages) {
+						for (const auto& clip : stage.clips) {
+							if (!installed(clip.file)) {
+								missing = clip.file;
+								break;
+							}
+						}
+						if (!missing.empty()) {
+							break;
+						}
+					}
+					if (!missing.empty()) {
+						break;
+					}
+				}
+				if (!missing.empty()) {
+					def.clipsAvailable = false;
+					auto& tally = byFile[def.sourceFile.filename().string()];
+					++tally.hidden;
+					if (tally.firstMissing.empty()) {
+						tally.firstMissing = missing;
+					}
+				}
+			}
+			for (const auto& [file, tally] : byFile) {
+				a_errors.push_back("[warn] '" + file + "': " + std::to_string(tally.hidden) +
+					" scene(s) hidden — clips not installed (e.g. '" + tally.firstMissing +
+					"'); install the animation pack this file references");
+				REX::WARN("[Registry] '{}': {} scene(s) hidden — clips not installed (e.g. '{}')",
+					file, tally.hidden, tally.firstMissing);
+			}
+		}
+	}
+
 	void SceneRegistry::LoadAll()
 	{
 		namespace fs = std::filesystem;
@@ -1520,6 +1606,9 @@ namespace OSF::Registry
 
 			// Resolve every node `use` now that the whole set is loaded (catches dangling refs at load).
 			ValidateUseRefs(loaded, errors);
+
+			// Hide scenes whose clips aren't installed (compat pack without its source mod).
+			SweepClipAvailability(loaded, errors);
 		}
 
 		const auto sceneCount = loaded.size();
@@ -1593,28 +1682,15 @@ namespace OSF::Registry
 
 	std::vector<std::string> SceneRegistry::MissingClipRefs() const
 	{
-		namespace fs = std::filesystem;
-		const auto exists = [](const fs::path& a_path) {
-			std::error_code ec;
-			return fs::exists(a_path, ec);
-		};
-		const auto resolved = [&](const std::string& a_spec) {
-			const auto data = fs::current_path() / "Data";
-			const auto lower = ToLower(a_spec);
-			if (lower.starts_with("naf:")) {
-				return exists(data / "NAF" / a_spec.substr(4));
+		// Same probe as the load-time availability sweep (BSResource-aware, so archive-resident
+		// vanilla .af clips are NOT false positives), re-run live for the diagnostic.
+		std::unordered_map<std::string, bool> cache;
+		const auto installed = [&cache](const std::string& a_file) {
+			auto [it, fresh] = cache.try_emplace(a_file, false);
+			if (fresh) {
+				it->second = ClipSpecInstalled(a_file);
 			}
-			const fs::path specPath{ a_spec };
-			if (specPath.is_absolute()) {
-				return exists(specPath);
-			}
-			if (exists(data / specPath)) {
-				return true;
-			}
-			if (exists(data / "NAF" / specPath)) {
-				return true;
-			}
-			return exists(data / "OSF" / "Animations" / specPath.filename());
+			return it->second;
 		};
 
 		std::vector<std::string> out;
@@ -1623,7 +1699,7 @@ namespace OSF::Registry
 			for (const auto& node : def.nodes) {
 				for (const auto& stage : node.stages) {
 					for (const auto& clip : stage.clips) {
-						if (!resolved(clip.file)) {
+						if (!installed(clip.file)) {
 							out.push_back(def.id + " node '" + node.id + "': missing clip '" + clip.file +
 								(clip.animId.empty() ? "" : (":" + clip.animId)) + "'");
 						}

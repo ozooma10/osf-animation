@@ -440,6 +440,9 @@ namespace OSF::Serialization::ClipDurations
 
 			std::vector<std::pair<std::string, std::string>> refs;
 			Registry::SceneRegistry::GetSingleton().ForEachDef([&refs](const Registry::SceneDef& d) {
+				if (!d.clipsAvailable) {
+					return;  // clips not installed — probing would just fail-log per file
+				}
 				for (const auto& n : d.nodes) {
 					for (const auto& st : n.stages) {
 						for (const auto& c : st.clips) {

@@ -410,6 +410,16 @@ namespace OSF::Animation
 		}
 	}
 
+	bool ResourceExists(std::string_view a_relPath)
+	{
+		const auto relPath = NormalizeResourcePath(a_relPath);
+		if (relPath.empty()) {
+			return false;
+		}
+		ResourceBinaryStream stream{ relPath.c_str() };
+		return stream.good();
+	}
+
 	GraphManager& GraphManager::GetSingleton()
 	{
 		static GraphManager singleton;

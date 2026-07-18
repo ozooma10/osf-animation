@@ -11,6 +11,11 @@
 
 namespace OSF::Animation
 {
+	// True when a_relPath (Data-relative) opens through BSResource — loose file OR archive-resident,
+	// with the engine's loose-over-BA2 precedence. Cheap open/close probe, no read. Used by the
+	// registry's clip-availability sweep; only meaningful once archives are mounted (kPostDataLoad+).
+	bool ResourceExists(std::string_view a_relPath);
+
 	class GraphManager
 	{
 	public:
