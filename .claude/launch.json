@@ -4,19 +4,19 @@
     {
       "name": "osf-view",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8791", "--directory", "views/osf"],
+      "runtimeArgs": ["tools/view-dev-server.py", "8791"],
       "port": 8791
     },
     {
       "name": "osf-view-2",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8795", "--directory", "views/osf"],
+      "runtimeArgs": ["tools/view-dev-server.py", "8795"],
       "port": 8795
     },
     {
       "name": "osf-view-3",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8797", "--directory", "views/osf"],
+      "runtimeArgs": ["tools/view-dev-server.py", "8797"],
       "port": 8797
     }
   ]
