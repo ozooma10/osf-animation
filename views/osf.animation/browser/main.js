@@ -22,6 +22,7 @@ const state = {
   lastHandle: 0,
   lastSceneId: "",
   opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
+  optsOpen: false,    // START OVERRIDES disclosure in the brief footer (collapsed by default)
   filters: { search: "", authorMode: false },
   catalogReceived: false,
   // Which anchor-bound scenes the KEYED furniture actually fits (osf.anchorMatch reply).
@@ -35,6 +36,10 @@ const state = {
   // Emote-wheel context while mode === "wheel" (osf.mode push from the native OpenWheel):
   // { tagPrefix, target: {token,name}|null, focus, error, launching }. null otherwise.
   wheel: null,
+  // Live mode: the console/brief collapse to a small floating live bar so the world (the
+  // running scene) is the whole screen. Entered automatically on a successful launch, or
+  // manually via the slate minimize button; exited by EXPAND/stop. Never survives a hide.
+  minimized: false,
   library: [],
   libraryReceived: false,
   libOpen: new Set(),  // expanded library pack groups
@@ -72,7 +77,7 @@ const orbit = { dragging: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, queued: fal
 
 function orbitWorldTarget(e) {
   if (state.wheel) return false;  // wheel mode: the world area is the wheel's cancel/pick surface
-  return !(e.target instanceof Element && e.target.closest(".console, .brief"));
+  return !(e.target instanceof Element && e.target.closest(".console, .brief, .livebar"));
 }
 
 function orbitFlush() {
@@ -151,6 +156,7 @@ function onNativeMessage(jsonText) {
         // re-engage the native browse orbit on a closed browser (stuck orbit camera).
         orbit.dx = orbit.dy = orbit.wheel = 0;
         exitWheel();             // wheel mode never survives a hide — a reopen shows the console
+        setMinimized(false);     // ditto live mode: F10 reopen means "browse", show the console
       }
       send(payload && payload.visible ? "osf.animation.opened" : "osf.animation.closed");
       break;
@@ -271,6 +277,7 @@ function handleLaunchResult(p) {
     state.lastHandle = p.handle;
     state.lastSceneId = p.sceneId || state.selectedId || "";
     notice("ok", `Playing "${sceneTitle(state.lastSceneId)}" on handle ${p.handle}.`);
+    setMinimized(true);  // get the console out of the way — the scene is the point now
   } else {
     notice("err", (p && p.error) || "Launch failed.");
   }
@@ -304,6 +311,7 @@ function normalizeScene(raw) {
     requiresFurniture,
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map((a) => String(a)) : [],  // what it anchors to ("Barstool", …)
     unlisted: !!raw.unlisted,
+    pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),  // 1-based emote-wheel pin order (0 = unpinned)
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
     weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
     sourceFile: String(raw.sourceFile || raw.source || ""),
@@ -677,6 +685,7 @@ function renderAll() {
   const fk = navFocusKey(document.activeElement);
   ensureSelection();
   renderSlateTake();
+  renderLivebar();
   renderRail();
   renderBrowse();
   renderBrief();
@@ -693,6 +702,38 @@ function renderSlateTake() {
   } else {
     el.innerHTML = `<div class="take-chip"><span class="lbl">NO SCENE RUNNING</span><span class="mono">crew → furniture → launch</span></div>`;
   }
+}
+
+/* ---- live mode (minimized) ------------------------------------------------ */
+// The console/brief hide (CSS via body.live-mode, same pattern as wheel-mode) and only the
+// floating live bar stays: the whole screen becomes the world, so drag-to-orbit works
+// everywhere. Entered on launch success or the slate minimize button; EXPAND/stop restores.
+function setMinimized(min) {
+  min = !!min;
+  if (state.minimized === min) return;
+  state.minimized = min;
+  document.body.classList.toggle("live-mode", min);
+  renderLivebar();
+  if (min) {
+    // The focused control just vanished with the console — move focus to the bar so
+    // gamepad/keyboard users keep a live cursor (mouse users won't see the ring).
+    const first = document.querySelector("#livebar [data-act]");
+    if (first && document.body.classList.contains("nav-kb")) first.focus({ preventScroll: true });
+  }
+}
+
+function renderLivebar() {
+  const el = $("livebar");
+  if (!state.minimized) { el.innerHTML = ""; return; }
+  const running = !!state.lastHandle;
+  const ls = sceneById(state.lastSceneId);
+  const label = running
+    ? `<span class="live-dot"></span><div class="take-body"><span class="lbl">RUNNING · #${state.lastHandle}</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div>`
+    : `<div class="take-body"><span class="lbl">STANDBY</span><strong>No scene running</strong></div>`;
+  el.innerHTML = `<div class="take-chip ${running ? "live" : ""}">${label}` +
+    (running ? `<button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button>` : "") +
+    `<button class="expand-mini" data-act="expand" title="Bring the browser back"><svg class="chev-ico" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 5l4-3.8L9 5"/></svg>BROWSER</button></div>` +
+    `<div class="livebar-hint mono">DRAG ORBIT · WHEEL ZOOM</div>`;
 }
 
 /* ---- guided rail ---------------------------------------------------------- */
@@ -894,7 +935,8 @@ function sceneRow(s, ev, playable) {
   if (dur) bits.push(dur);
   const meta = state.filters.authorMode ? s.id : bits.join(" · ");
   const badge = playable ? `<span class="row-badge go">READY</span>` : `<span class="row-badge">${esc(needsText(s, ev))}</span>`;
-  return `<button class="libx-row ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(s.title)}</span><span class="libx-meta mono">${esc(meta)}</span>${badge}</button>`;
+  const pinmark = s.pinned > 0 ? `<span class="libx-pinmark" title="On the emote wheel">◆</span>` : "";
+  return `<button class="libx-row ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(s.title)}</span>${pinmark}<span class="libx-meta mono">${esc(meta)}</span>${badge}</button>`;
 }
 
 /* ---- library browser (reference lane: compact folder-grouped rows) ------- */
@@ -1019,8 +1061,21 @@ function renderBrief() {
       }).join("")}</div></div>`
     : "";
 
+  // START OVERRIDES: collapsed to one line by default — the footer stays tight and the Launch
+  // button keeps the room. The folded row still reads at a glance: any non-default settings show
+  // as a summary, so a tweaked override can't hide behind the fold.
   const o = state.opts;
-  const overrides = `<div class="info-box"><div class="lbl">START OVERRIDES</div><div class="override-grid"><label class="override"><span class="lbl">STRIP</span><select class="select" data-field="strip">${optionTags([["-1", "Inherit"], ["1", "On"], ["0", "Off"]], o.strip)}</select></label><label class="override"><span class="lbl">LOCK PLAYER</span><select class="select" data-field="lock">${optionTags([["-1", "Inherit"], ["1", "On"], ["0", "Off"]], o.lock)}</select></label><label class="override"><span class="lbl">CAMERA</span><select class="select" data-field="camera">${optionTags([["", "Inherit"], ["thirdperson_hold", "Third person"], ["scene_orbit", "Scene orbit"], ["freefly", "Free fly"], ["vanity_orbit", "Vanity orbit"]], o.camera)}</select></label><label class="override"><span class="lbl">SPEED <b id="speedVal">${Number(o.speed).toFixed(1)}x</b></span><input id="optSpeed" class="range" type="range" min="0.1" max="3" step="0.1" value="${escAttr(o.speed)}"></label></div></div>`;
+  const camNames = { thirdperson_hold: "3rd person", scene_orbit: "orbit", freefly: "free fly", vanity_orbit: "vanity" };
+  const tweaks = [];
+  if (o.strip !== "-1") tweaks.push(`strip ${o.strip === "1" ? "on" : "off"}`);
+  if (o.lock !== "-1") tweaks.push(`lock ${o.lock === "1" ? "on" : "off"}`);
+  if (o.camera) tweaks.push(`cam ${camNames[o.camera] || o.camera}`);
+  if (Number(o.speed) !== 1) tweaks.push(`${Number(o.speed).toFixed(1)}x`);
+  const optsSummary = tweaks.length ? tweaks.join(" · ") : "defaults";
+  const overrideGrid = state.optsOpen
+    ? `<div class="override-grid"><label class="override"><span class="lbl">STRIP</span><select class="select" data-field="strip">${optionTags([["-1", "Inherit"], ["1", "On"], ["0", "Off"]], o.strip)}</select></label><label class="override"><span class="lbl">LOCK PLAYER</span><select class="select" data-field="lock">${optionTags([["-1", "Inherit"], ["1", "On"], ["0", "Off"]], o.lock)}</select></label><label class="override"><span class="lbl">CAMERA</span><select class="select" data-field="camera">${optionTags([["", "Inherit"], ["thirdperson_hold", "Third person"], ["scene_orbit", "Scene orbit"], ["freefly", "Free fly"], ["vanity_orbit", "Vanity orbit"]], o.camera)}</select></label><label class="override"><span class="lbl">SPEED <b id="speedVal">${Number(o.speed).toFixed(1)}x</b></span><input id="optSpeed" class="range" type="range" min="0.1" max="3" step="0.1" value="${escAttr(o.speed)}"></label></div>`
+    : "";
+  const overrides = `<div class="overrides ${state.optsOpen ? "open" : ""}"><button class="overrides-head" data-act="opts-toggle" title="${state.optsOpen ? "Collapse" : "Expand"} start overrides"><span class="chev">${state.optsOpen ? "▾" : "▸"}</span><span class="lbl">START OVERRIDES</span>${state.optsOpen ? "" : `<span class="overrides-sum mono ${tweaks.length ? "hot" : ""}">${esc(optsSummary)}</span>`}</button>${overrideGrid}</div>`;
 
   const authorBoxes = state.filters.authorMode
     ? `<div class="info-box hud"><div class="lbl">DIAGNOSTICS</div><div class="kv-list">${diagRows(s, ev).map(([k, v]) => `<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("")}</div></div>`
@@ -1034,12 +1089,19 @@ function renderBrief() {
   const reasonHTML = reason ? `<div class="mono wrap" style="color:var(--text-faint);text-align:center">${esc(reason)}</div>` : "";
   const launchStack = `<div class="launch-stack">${reasonHTML}${launchBtn}${stopBtn}</div>`;
 
+  // Emote-wheel pin: any solo authored scene qualifies (not just emote-tagged ones). The
+  // library lane stays out — it's fetch-on-demand and may not be loaded when the wheel opens.
+  const pinnable = !s.library && !s.unlisted && (s.actorCount || 0) === 1;
+  const pinRow = pinnable
+    ? `<div class="brief-pin"><button class="pin-btn ${s.pinned > 0 ? "on" : ""}" data-act="pin-toggle" data-id="${escAttr(s.id)}" title="${s.pinned > 0 ? "Remove from the emote wheel" : "Add to the emote wheel"}">${s.pinned > 0 ? "◆ ON WHEEL" : "◇ PIN TO WHEEL"}</button></div>`
+    : "";
+
   // Fixed header (status/title/cast) + fixed footer (overrides + launch/stop); only the animations
   // band between them scrolls. The ▶ Launch button and its overrides stay in view no matter how many
   // stages a scene has — no more scrolling past a long list to reach the button.
   const roleMap = roleMapHTML(s, ev);
 
-  brief.innerHTML = head + summary +
+  brief.innerHTML = head + summary + pinRow +
     `<div class="brief-scroll">${roleMap}${animBox}${authorBoxes}</div>` +
     `<div class="brief-foot">${overrides}${launchStack}</div>`;
 }
@@ -1141,11 +1203,32 @@ function launchRoleNames(s) {
   return names;
 }
 
+// Pin/unpin the selected scene on the emote wheel. Optimistic: mirror the DLL's
+// compaction locally (pin -> max order + 1; unpin -> zero it, later pins shift up)
+// so the row glyph and wheel react instantly; the authoritative catalog re-push the
+// DLL answers with reconciles moments later (a visual no-op when in sync).
+function togglePin(id) {
+  const s = state.catalog.find((x) => x.id === id);
+  if (!s) return;
+  const on = !(s.pinned > 0);
+  send("osf.animation.wheel.pin", { sceneId: id, pinned: on });
+  if (on) {
+    s.pinned = 1 + state.catalog.reduce((m, x) => Math.max(m, x.pinned || 0), 0);
+  } else {
+    const was = s.pinned;
+    s.pinned = 0;
+    for (const x of state.catalog) if ((x.pinned || 0) > was) x.pinned--;
+  }
+  notice("info", on ? `"${s.title}" pinned to the emote wheel.` : `"${s.title}" removed from the emote wheel.`);
+  renderAll();
+}
+
 function doStop() {
   if (!state.lastHandle) return;
   send("osf.animation.stop", { handle: state.lastHandle });
   notice("info", `Stopping handle ${state.lastHandle}…`);
   state.lastHandle = 0;
+  setMinimized(false);  // nothing to watch anymore — bring the console back
   renderAll();
 }
 
@@ -1161,7 +1244,14 @@ function doStop() {
    leak into a normal browser open.
    ========================================================================= */
 const WHEEL_MAX = 12;                    // slices shown; overflow is dropped with a "+N more" note
-const WHEEL_RX = 250, WHEEL_RY = 170;    // slice-track ellipse radii (px)
+
+// Count-adaptive slice-track ellipse: near-circular for the handful of emotes the
+// immersion pack ships, widening toward the old 12-slice ellipse as the ring fills
+// (labels crowd at 16:9 without the stretch). Always clears the 128px hub.
+function wheelGeom(n) {
+  const t = Math.max(0, Math.min(1, (n - 3) / 9));  // <=3 slices -> 0, 12 -> 1
+  return { rx: Math.round(150 + 100 * t), ry: Math.round(140 + 50 * t) };  // 150x140 .. 250x190
+}
 
 function enterWheel(p) {
   const t = p && p.target;
@@ -1188,13 +1278,19 @@ function exitWheel() {
   renderAll();
 }
 
-// Solo authored scenes carrying the wheel's tag prefix (player-facing: unlisted stays hidden).
+// Wheel pool (player-facing: unlisted stays hidden, solo authored scenes only).
+// User pins rule when any exist: exactly the pinned scenes, in pin order, ignoring
+// tagPrefix — explicit intent from the browser's PIN TO WHEEL toggle. With no pins
+// (or all pins stale — their packs uninstalled), the tag-prefix pool works out of
+// the box. Ascending sort tolerates order gaps from stale ids.
 function wheelPool() {
+  const eligible = state.catalog.filter((s) => !s.unlisted && (s.actorCount || 0) === 1);
+  const pins = eligible.filter((s) => s.pinned > 0).sort((a, b) => a.pinned - b.pinned);
+  if (pins.length) return pins;
   const pre = state.wheel ? state.wheel.tagPrefix : "";
   if (!pre) return [];
-  return state.catalog
-    .filter((s) => !s.unlisted && (s.actorCount || 0) === 1 &&
-      (s.tags || []).some((t) => t.toLowerCase().startsWith(pre)))
+  return eligible
+    .filter((s) => (s.tags || []).some((t) => t.toLowerCase().startsWith(pre)))
     .sort((a, b) => b.priority - a.priority || b.weight - a.weight || a.title.localeCompare(b.title));
 }
 
@@ -1205,7 +1301,11 @@ function renderWheel() {
   const pool = wheelPool();
   const slices = pool.slice(0, WHEEL_MAX);
   const extra = pool.length - slices.length;
+  // Stash what this render shows: wheelPick reads w.pool, so a catalog push landing
+  // between render and click can't shift indices under an in-flight pick.
+  w.pool = slices;
   if (w.focus >= slices.length) w.focus = Math.max(0, slices.length - 1);
+  const { rx, ry } = wheelGeom(slices.length);
 
   let body;
   if (!state.catalogReceived) {
@@ -1213,22 +1313,24 @@ function renderWheel() {
   } else if (!slices.length) {
     body = `<div class="wheel-empty"><span class="mono">No emotes installed — no solo scene carries a ${esc(w.tagPrefix)}* tag.</span><button class="chip-btn" data-act="wheel-cancel">CLOSE</button></div>`;
   } else {
-    // Slices sit on an ellipse (wider than tall so labels never crowd at 16:9),
-    // clockwise from the top. Positions are inline — no CSS trig needed.
+    // Slices sit on the count-adaptive ellipse (wheelGeom), clockwise from the top.
+    // Positions are inline — no CSS trig needed.
     const items = slices.map((s, i) => {
       const rad = ((-90 + (360 / slices.length) * i) * Math.PI) / 180;
-      const x = Math.round(Math.cos(rad) * WHEEL_RX);
-      const y = Math.round(Math.sin(rad) * WHEEL_RY);
+      const x = Math.round(Math.cos(rad) * rx);
+      const y = Math.round(Math.sin(rad) * ry);
       return `<button class="wheel-slice ${i === w.focus ? "focused" : ""}" data-act="wheel-pick" data-i="${i}" style="transform:translate(-50%,-50%) translate(${x}px,${y}px)" title="${escAttr(s.title)}">${w.launching === s.id ? "▶ " : ""}${esc(s.title)}</button>`;
     }).join("");
     const status = w.error
       ? `<span class="wheel-hub-status err">${esc(w.error)}</span>`
       : `<span class="wheel-hub-status">${w.launching ? "launching…" : "click to close"}</span>`;
+    // Never show pin rank numbers — stale ids leave gaps; only on/off state is honest.
+    const pinnedPool = slices.length > 0 && slices[0].pinned > 0;
     body = `<div class="wheel-dial"></div>${items}` +
       `<button class="wheel-hub" data-act="wheel-cancel" title="Close (Esc)"><span class="wheel-hub-who">${esc(w.target ? `→ ${w.target.name}` : "You")}</span>${status}</button>` +
-      (extra > 0 ? `<div class="wheel-more mono">+${extra} more not shown</div>` : "");
+      (extra > 0 ? `<div class="wheel-more mono">+${extra} ${pinnedPool ? "pinned" : "more"} not shown</div>` : "");
   }
-  root.innerHTML = `<div class="wheel-ring">${body}</div>` +
+  root.innerHTML = `<div class="wheel-ring" style="--wrx:${rx}px;--wry:${ry}px">${body}</div>` +
     `<div class="wheel-caption mono">EMOTE WHEEL · ←→ SELECT · ENTER PLAY · ESC CLOSE</div>`;
   const f = root.querySelector(".wheel-slice.focused");
   if (f) f.focus({ preventScroll: true });
@@ -1248,7 +1350,7 @@ function wheelSetFocus(i) {
 function wheelPick(i) {
   const w = state.wheel;
   if (!w || w.launching) return;  // one launch in flight at a time
-  const s = wheelPool().slice(0, WHEEL_MAX)[i];
+  const s = (w.pool || [])[i];    // the rendered slices, not a fresh re-pool (see renderWheel)
   if (!s) return;
   w.error = "";
   w.launching = s.id;
@@ -1323,6 +1425,7 @@ function onClick(e) {
       break;
     }
     case "lib-showall": state.libShowAll = !state.libShowAll; renderAll(); break;
+    case "opts-toggle": state.optsOpen = !state.optsOpen; renderAll(); break;
     case "toggle-actor": toggleActor(Number(el.dataset.token)); break;
     case "toggle-anchor": toggleAnchor(Number(el.dataset.token)); break;
     case "scan": scanNearby(el.dataset.kind); break;
@@ -1334,6 +1437,9 @@ function onClick(e) {
     case "move-down": nudgeMember(Number(el.dataset.i), 1, el.closest(".role-map") ? ".role-map" : ".cast-stack", "move-down"); break;
     case "launch": doLaunch(); break;
     case "stop": doStop(); break;
+    case "pin-toggle": togglePin(el.dataset.id); break;
+    case "minimize": setMinimized(true); break;
+    case "expand": setMinimized(false); renderAll(); break;
     case "play-stage": doLaunch(Number(el.dataset.stage)); break;
     case "wheel-pick": wheelPick(Number(el.dataset.i)); break;
     case "wheel-cancel": wheelCancel(); break;
@@ -1658,11 +1764,18 @@ function init() {
     requestCatalog(true);
   } else {
     setLamp("ok");
-    $("statusText").textContent = "standalone mock";
     state.ready = true;
     state.nearbyActors = MOCK_ACTORS.slice();
     state.nearbyFurniture = MOCK_ANCHORS.slice();
-    handleCatalog(MOCK_CATALOG);
+    // Prefer the live snapshot the DLL dumps in-game (served as /live/* by
+    // tools/view_dev_server.py); fall back to the mock catalog when absent.
+    fetchLiveSnapshot("catalog").then((live) => {
+      $("statusText").textContent = live ? "standalone · live snapshot" : "standalone mock";
+      handleCatalog(applyMockPins(live || MOCK_CATALOG));
+      notice("info", live
+        ? "Standalone mode. Live catalog snapshot (dumped by the last in-game session); pick/scan/launch are stubbed. W = emote wheel (Shift+W: no target)."
+        : "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target).");
+    });
     // Emote-wheel dev: W opens the wheel with a mock crosshair target, Shift+W player-only
     // (also window.mockOpenWheel(withTarget) from the console). Feeds the same osf.mode
     // path the native OpenWheel uses.
@@ -1675,7 +1788,6 @@ function init() {
       if (e.key === "w") window.mockOpenWheel(true);
       else if (e.key === "W") window.mockOpenWheel(false);
     });
-    notice("info", "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target).");
   }
 }
 
@@ -1688,6 +1800,15 @@ const MOCK_EMOTES = ["Wave", "Cheer", "Clap", "Point", "Salute", "Shrug", "Facep
   const slug = name.toLowerCase().replace(/\s+/g, "");
   return { id: `emote.${slug}`, title: name, tags: [`player.emote.${slug}`, "emote"], actorCount: 1, genders: ["any"], requiresFurniture: false, estSec: 4 + (i % 5), priority: 0, weight: 1, sourceFile: "Data/OSF/Emotes/immersion.osf.json" };
 });
+// Standalone wheel-pin state, applied on top of whichever catalog is served (mock or
+// live snapshot) so the pin round-trip is exercisable either way. Pre-seeded with a
+// stale id (its "pack" is uninstalled): it must never render and never block the
+// tag-prefix fallback — same shape as a real wheel-pins.json surviving a pack removal.
+let MOCK_PINS = ["emote.uninstalled"];
+function applyMockPins(list) {
+  return list.map((s) => ({ ...s, pinned: MOCK_PINS.indexOf(s.id) + 1 }));
+}
+
 const MOCK_CATALOG = [
   ...MOCK_EMOTES,
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
@@ -1720,9 +1841,21 @@ const MOCK_LIBRARY = [
   { id: "vanilla/creature/terrormorph", title: "Vanilla · Terrormorph", species: "terrormorph", tags: ["vanilla", "creature", "species:terrormorph"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-creature-terrormorph.osf.json", stages: [{ index: 0, name: "BleedOut_Idle", tags: ["idle"], clipCount: 1, loopSec: 8.3, loops: 0, openEnded: true, estSec: 16.6 }, { index: 1, name: "Attack_Lunge", tags: ["rootmotion"], clipCount: 1, loopSec: 2.1, loops: 0, openEnded: true, estSec: 4.2 }], estSec: 20.8, estPartial: false, openEnded: true, priority: 0, weight: 1 },
 ];
 
+// Standalone live data: the DLL mirrors each catalog/library push to
+// <Documents>\My Games\Starfield\OSF\ui\<name>.json, and tools/view_dev_server.py serves
+// that folder as /live/. Returns the parsed array, or null (no server route / no dump yet /
+// file:// page) — callers fall back to the mocks. no-store: re-fetch picks up a fresh dump
+// from a game session running alongside.
+function fetchLiveSnapshot(name) {
+  return fetch(`live/${name}.json`, { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => (Array.isArray(data) ? data : null))
+    .catch(() => null);
+}
+
 function mockNative(command, fields) {
-  if (command === "osf.animation.catalog.get") setTimeout(() => handleCatalog(MOCK_CATALOG), 60);
-  else if (command === "osf.animation.library.get") setTimeout(() => handleLibrary(MOCK_LIBRARY), 90);
+  if (command === "osf.animation.catalog.get") fetchLiveSnapshot("catalog").then((live) => handleCatalog(applyMockPins(live || MOCK_CATALOG)));
+  else if (command === "osf.animation.library.get") fetchLiveSnapshot("library").then((live) => handleLibrary(live || MOCK_LIBRARY));
   else if (command === "osf.animation.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
   else if (command === "osf.animation.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
   else if (command === "osf.animation.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
@@ -1731,6 +1864,13 @@ function mockNative(command, fields) {
     else setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
   }
   else if (command === "osf.animation.stop") setTimeout(() => notice("ok", "Scene stopped."), 40);
+  // Pin toggle: mutate the standalone pin list, then answer like the DLL does — an
+  // unsolicited catalog re-push carrying the fresh `pinned` fields.
+  else if (command === "osf.animation.wheel.pin") {
+    if (fields.pinned) { if (!MOCK_PINS.includes(fields.sceneId)) MOCK_PINS.push(fields.sceneId); }
+    else MOCK_PINS = MOCK_PINS.filter((id) => id !== fields.sceneId);
+    setTimeout(() => fetchLiveSnapshot("catalog").then((live) => handleCatalog(applyMockPins(live || MOCK_CATALOG))), 60);
+  }
   // Host close: mimic OSF UI hiding the overlay so the real exit path runs (ui.visibility
   // hide -> exitWheel + osf.closed relay). Standalone just lands back on the console.
   else if (command === "osf.animation.requestClose") setTimeout(() => onNativeMessage(JSON.stringify({ type: "ui.visibility", payload: { visible: false } })), 60);
