@@ -120,14 +120,20 @@ independent X/Y scale, matching how the OSF UI harness maps the Ultralight
 surface (`S` toggles stretch / 1:1 pixels; `?w=1920&h=1080` overrides the
 size).
 
-**Live data:** the DLL mirrors every `catalog.data`/`library.data` push to
-`<Documents>\My Games\Starfield\OSF\ui\{catalog,library}.json`, and the dev
-server maps that folder to `/live/`. When a snapshot exists (i.e. the game ran
-once with the browser bridge ready), the standalone page loads it instead of
-the mock catalog — status reads `standalone · live snapshot`; the console
-Refresh button re-fetches, so a game session running alongside refreshes the
-data. Pick/scan/launch stay stubbed (they need live refs). With no snapshot
-(or when opened via `file://`), it falls back to the built-in mock catalog.
+**Live data:** `live/{catalog,library}.json` are committed snapshot fixtures of
+the payloads the DLL sends the in-game view, served as plain static files (the
+page fetches `live/…` relative). The standalone page loads them instead of the
+mock catalog — status reads `standalone · live snapshot`. `library.json` (the
+vanilla-packs lane) is generated offline by
+`python tools/generate-library-snapshot.py`, which replicates the DLL's
+`BuildCatalog(library)` over `dist/OSF` — re-run it after regenerating packs.
+`catalog.json` is a one-time in-game dump (the runtime mirror code has since
+been removed; est times for hand-authored packs come from the in-game probe, so
+refreshing it would need a temporary re-add of that dump or hand-editing).
+Pick/scan/launch stay stubbed (they need live refs). With no snapshot (or when
+opened via `file://`), it falls back to the built-in mock catalog. These
+fixtures do NOT ship in-game — the xmake packaging copies an explicit file
+list that excludes `live/`.
 
 To exercise the **emote wheel** standalone: press `W` (mock crosshair target) or
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the

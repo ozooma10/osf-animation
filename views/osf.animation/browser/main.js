@@ -542,7 +542,10 @@ function castMembers() { return state.cast; }
 function hasPlayer() { return state.cast.some((m) => m.kind === "player"); }
 function partnerCount() { return state.cast.reduce((n, m) => n + (m.kind === "player" ? 0 : 1), 0); }
 
-function unlistedVisible(s) { return !!s && (!s.unlisted || state.filters.authorMode || state.allUnlisted); }
+// `unlisted` keeps a scene out of the catalog browse and the wheel; the library tab is its own
+// opt-in surface, so library cards are always visible (the generated vanilla packs are all
+// file-level unlisted:true — gating them here would blank the whole library).
+function unlistedVisible(s) { return !!s && (s.library || !s.unlisted || state.filters.authorMode || state.allUnlisted); }
 
 function ensureSelection() {
   // Track the fully-filtered pool of the ACTIVE mode so the brief never inspects a scene no
@@ -942,7 +945,12 @@ function sceneRow(s, ev, playable) {
 /* ---- library browser (reference lane: compact folder-grouped rows) ------- */
 function packKey(s) {
   const f = String(s.sourceFile || "").replace(/\\/g, "/").split("/").pop() || "";
-  return f.replace(/\.osf\.json$/i, "") || "library";
+  if (f) return f.replace(/\.osf\.json$/i, "");
+  // The runtime payload carries no sourceFile — group by the id's leading pack family
+  // instead ("vanilla/furniture/absorbpower" -> "vanilla-furniture"). Two segments max:
+  // deeper ids (generated quest-scene sets) would otherwise explode into per-scene groups.
+  const segs = String(s.id || "").split("/").filter(Boolean);
+  return segs.slice(0, segs.length >= 3 ? 2 : Math.max(1, segs.length - 1)).join("-") || "library";
 }
 
 function groupLabel(key) { return key.replace(/^vanilla-/i, "").replace(/[-_]+/g, " ").toUpperCase(); }
@@ -955,6 +963,15 @@ function fitsKeyedAnchor(s) {
   return state.anchorMatch.ids.has(s.id);
 }
 
+// Playability rank for the current setup: 0 = plays right now (fits the keyed furniture,
+// or needs none while none is keyed), 1 = free-space set while furniture is keyed (still
+// playable, but not what the keyed piece is for), 2 = furniture-bound with nothing
+// (matching) keyed. Drives the library ordering so what fits the setup surfaces first.
+function libRank(s) {
+  if (!s.requiresFurniture) return state.furniture ? 1 : 0;
+  return fitsKeyedAnchor(s) === true ? 0 : 2;
+}
+
 function libraryGroups(pred) {
   const m = new Map();
   for (const s of state.library) {
@@ -965,8 +982,11 @@ function libraryGroups(pred) {
     if (!m.has(key)) m.set(key, []);
     m.get(key).push(s);
   }
-  for (const list of m.values()) list.sort((a, b) => a.title.localeCompare(b.title));
-  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  for (const list of m.values()) list.sort((a, b) => libRank(a) - libRank(b) || a.title.localeCompare(b.title));
+  // Groups by their MEAN member rank, so a mostly-anchored pack sinks when nothing fits
+  // even if it holds a few free-space sets (those still sort first inside the group).
+  const groupRank = (list) => list.reduce((a, s) => a + libRank(s), 0) / list.length;
+  return [...m.entries()].sort((a, b) => groupRank(a[1]) - groupRank(b[1]) || a[0].localeCompare(b[0]));
 }
 
 function libraryBrowserHTML() {
@@ -1767,13 +1787,13 @@ function init() {
     state.ready = true;
     state.nearbyActors = MOCK_ACTORS.slice();
     state.nearbyFurniture = MOCK_ANCHORS.slice();
-    // Prefer the live snapshot the DLL dumps in-game (served as /live/* by
-    // tools/view_dev_server.py); fall back to the mock catalog when absent.
+    // Prefer the committed snapshot fixtures in live/ (real catalog data);
+    // fall back to the mock catalog when absent (e.g. a file:// page).
     fetchLiveSnapshot("catalog").then((live) => {
       $("statusText").textContent = live ? "standalone · live snapshot" : "standalone mock";
       handleCatalog(applyMockPins(live || MOCK_CATALOG));
       notice("info", live
-        ? "Standalone mode. Live catalog snapshot (dumped by the last in-game session); pick/scan/launch are stubbed. W = emote wheel (Shift+W: no target)."
+        ? "Standalone mode. Snapshot catalog (live/catalog.json); pick/scan/launch are stubbed. W = emote wheel (Shift+W: no target)."
         : "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target).");
     });
     // Emote-wheel dev: W opens the wheel with a mock crosshair target, Shift+W player-only
@@ -1841,11 +1861,10 @@ const MOCK_LIBRARY = [
   { id: "vanilla/creature/terrormorph", title: "Vanilla · Terrormorph", species: "terrormorph", tags: ["vanilla", "creature", "species:terrormorph"], actorCount: 1, genders: ["any"], requiresFurniture: false, sourceFile: "Data/OSF/vanilla/vanilla-creature-terrormorph.osf.json", stages: [{ index: 0, name: "BleedOut_Idle", tags: ["idle"], clipCount: 1, loopSec: 8.3, loops: 0, openEnded: true, estSec: 16.6 }, { index: 1, name: "Attack_Lunge", tags: ["rootmotion"], clipCount: 1, loopSec: 2.1, loops: 0, openEnded: true, estSec: 4.2 }], estSec: 20.8, estPartial: false, openEnded: true, priority: 0, weight: 1 },
 ];
 
-// Standalone live data: the DLL mirrors each catalog/library push to
-// <Documents>\My Games\Starfield\OSF\ui\<name>.json, and tools/view_dev_server.py serves
-// that folder as /live/. Returns the parsed array, or null (no server route / no dump yet /
-// file:// page) — callers fall back to the mocks. no-store: re-fetch picks up a fresh dump
-// from a game session running alongside.
+// Standalone live data: committed snapshot fixtures in the view's live/ folder
+// (library.json regenerated by tools/generate-library-snapshot.py, catalog.json a
+// one-time in-game dump). Returns the parsed array, or null (no live/ files /
+// file:// page) — callers fall back to the mocks.
 function fetchLiveSnapshot(name) {
   return fetch(`live/${name}.json`, { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))

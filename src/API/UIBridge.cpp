@@ -7,6 +7,7 @@
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
+#include "Serialization/WheelPins.h"  // user-pinned emote-wheel scenes (catalog `pinned` + osf.animation.wheel.pin)
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
 #include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
 #include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
