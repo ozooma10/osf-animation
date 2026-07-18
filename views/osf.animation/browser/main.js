@@ -55,6 +55,9 @@ const state = {
   // Collapsible pre-flight steps: once cast/anchor are set they fold to a summary line so
   // the browse list gets the dock's height back (the rail otherwise eats ~half the column).
   stepOpen: { cast: true, anchor: true },
+  // Tokens already seeded from an open-time crosshair target (osf.animation.openTarget), so a
+  // re-push (or a reopen with the same target) never re-adds one the user has since dropped.
+  seededTokens: new Set(),
 };
 
 const $ = (id) => document.getElementById(id);
@@ -143,6 +146,7 @@ function onNativeMessage(jsonText) {
     case "osf.animation.catalog.data": handleCatalog(payload); break;
     case "osf.animation.library.data": handleLibrary(payload); break;
     case "osf.animation.pick": handlePick(payload); break;
+    case "osf.animation.openTarget": handleOpenTarget(payload); break;
     case "osf.animation.scanResults": handleScanResults(payload); break;
     case "osf.animation.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.animation.launchResult": handleLaunchResult(payload); break;
@@ -228,6 +232,26 @@ function handlePick(p) {
     return;
   }
   applyPick(p.slot === "furniture" ? "furniture" : "actor", p.token, p.name, p.distance, p.species);
+}
+
+// What the reticle was on when the browser opened (pushed on every open). Aiming at someone is
+// a statement of intent, so it seeds the pre-flight: an actor BECOMES the crew (the player is
+// only the default when there was no target), furniture keys the anchor. Never clobbers a crew
+// or anchor the user has already touched this session — only the untouched default gives way.
+function handleOpenTarget(p) {
+  if (!p || !p.token || state.seededTokens.has(p.token)) return;
+  state.seededTokens.add(p.token);
+  if (p.slot === "furniture") {
+    if (state.furniture) return;   // user already keyed one — leave it
+    keyAnchor(p.token, p.name, p.distance);
+  } else {
+    const untouched = state.cast.length === 1 && state.cast[0].kind === "player";
+    if (!untouched) { applyPick("actor", p.token, p.name, p.distance, p.species); return; }
+    state.cast = [{ token: p.token, name: p.name || "actor", distance: p.distance || null, species: p.species || "human" }];
+    state.stepOpen.cast = false;
+    notice("info", `Crew: ${p.name || "actor"} (your crosshair target).`);
+  }
+  renderAll();
 }
 
 function handleScanResults(p) {
@@ -1028,15 +1052,21 @@ function stageClean(st) {
 }
 function cleanStages(s) { return (s.stages || []).filter(stageClean); }
 
-// Clean-tier quality rank: 0 = photomode (the unambiguous showpieces), 1 = pose-dominated
-// sets (chargen etc.), 2 = sets holding idle loops, 3 = the rest. A lone 2-frame 'pose'
-// clip inside a grab-bag set must NOT promote it, hence MOST-clean-stages-are-poses.
+// Clean-tier quality rank, best first: 0 = photomode POSE sets (the showpieces — hand-authored
+// standing poses), 1 = other photomode (vehicle idles etc.), 2 = pose-dominated sets elsewhere
+// (chargen), 3 = sets holding idle loops, 4 = the rest. Pose-dominance = MOST clean stages are
+// 'pose'-tagged, so a lone 2-frame 'pose' clip in a grab-bag set can't promote it. Keeping
+// photomode's pose member at 0 keeps the PHOTOMODE group on top (group rank = its best member)
+// while ordering the real poses ahead of the vehicle idles inside it.
 function setQuality(s) {
-  if (/(^|\/)photomode(\/|$)/.test(String(s.id))) return 0;
+  const isPhoto = /(^|\/)photomode(\/|$)/.test(String(s.id));
   const cs = cleanStages(s);
-  if (cs.length && cs.filter((st) => (st.tags || []).includes("pose")).length > cs.length / 2) return 1;
-  if (cs.some((st) => /idle/i.test(st.name || "") || (st.tags || []).some((t) => t.startsWith("idle")))) return 2;
-  return 3;
+  const poseMajority = cs.length > 0 && cs.filter((st) => (st.tags || []).includes("pose")).length > cs.length / 2;
+  if (isPhoto && poseMajority) return 0;
+  if (isPhoto) return 1;
+  if (poseMajority) return 2;
+  if (cs.some((st) => /idle/i.test(st.name || "") || (st.tags || []).some((t) => t.startsWith("idle")))) return 3;
+  return 4;
 }
 
 function libraryGroups(pred, cleanTier) {
@@ -1993,6 +2023,14 @@ function mockNative(command, fields) {
   else if (command === "osf.animation.library.get") fetchLiveSnapshot("library").then((live) => handleLibrary(live || MOCK_LIBRARY));
   else if (command === "osf.animation.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
   else if (command === "osf.animation.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
+  // Mirror the DLL's open-time seed: `?target=actor|furniture` mocks a crosshair target at open.
+  else if (command === "osf.animation.opened") {
+    const want = new URLSearchParams(location.search).get("target");
+    if (want === "actor" || want === "furniture") {
+      const item = want === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0];
+      setTimeout(() => handleOpenTarget({ slot: want, ...item }), 60);
+    }
+  }
   else if (command === "osf.animation.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
   else if (command === "osf.animation.launch") {
     if (fields.sceneId === "emote.facepalm") setTimeout(() => handleLaunchResult({ ok: false, error: "No room in front of the actor (mock error)." }), 80);

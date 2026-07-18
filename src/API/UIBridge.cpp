@@ -1050,7 +1050,7 @@ namespace OSF::API
 		// The view reports every visibility change (ui.visibility -> osf.opened / osf.closed): the
 		// first-run F10 hint counts real opens, and the input hook learns whether a UI cursor is on
 		// screen (visible = the scene-orbit camera steers by LMB-drag; hidden = free-look).
-		void OnOpened(const char*, const char*, const char*, void*) noexcept
+		void OnOpened(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			g_viewVisible = true;
 			UI::FirstRunHint::OnMenuOpened();
@@ -1066,6 +1066,34 @@ namespace OSF::API
 			// Current live-scene list (NPC scenes may still be running from an earlier
 			// session) — the reopened browser is their stop surface.
 			PushActiveScenes();
+			// What the reticle was on when the browser opened, so the view can seed the crew /
+			// anchor with it instead of defaulting to the player. Same capture PICK resolves
+			// (the engine has nulled the live slot by now); a furniture ref is only offered as
+			// an anchor if some scene actually accepts it, so aiming at a crate seeds nothing.
+			if (g_openPickToken != 0) {
+				if (RE::TESObjectREFR* ref = ResolveToken(g_openPickToken)) {
+					const bool isActor = ref->IsActor();
+					bool       usable = isActor;
+					if (!isActor) {
+						Matchmaking::AnchorMatchCache cache(ref);
+						Registry::SceneRegistry::GetSingleton().ForEachDef([&usable, &cache](const Registry::SceneDef& d) {
+							if (!usable && d.RequiresAnchor() && cache.Accepts(d)) {
+								usable = true;
+							}
+						});
+					}
+					if (usable) {
+						json p;
+						p["slot"] = isActor ? "actor" : "furniture";
+						p["token"] = g_openPickToken;
+						p["name"] = ScanLabel(ref);
+						p["formId"] = ref->GetFormID();
+						p["species"] = isActor ? Util::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
+						REX::DEBUG("[UI] OnOpened: seeding view with crosshair target '{}' as {}", ScanLabel(ref), p["slot"].get<std::string>());
+						SendJson(a_srcView, "osf.animation.openTarget", p);
+					}
+				}
+			}
 		}
 
 		void OnClosed(const char*, const char*, const char*, void*) noexcept
