@@ -1,6 +1,6 @@
-# OSF Animation — scene browser view
+# OSF Animation — animation browser view
 
-The in-game scene browser/launcher. It is an HTML/CSS/JS view rendered by
+The in-game animation and scene browser/launcher. It is an HTML/CSS/JS view rendered by
 **OSF UI** (Ultralight overlay) and driven **natively** by OSF Animation's own
 DLL over OSF UI's bridge API (protocol **1.0**). Only JSON text crosses the
 boundary.
@@ -25,17 +25,22 @@ views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  �
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
   `pickCrosshair`→`pick`, `scanNearby`→`scanResults`,
   `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`,
-  `wheel.pin {sceneId, pinned}` (toggle a scene on the emote wheel; the reply
-  is an unsolicited `catalog.data` re-push carrying fresh `pinned` fields),
+  `wheel.set {sceneIds:[...]}` (persist the complete ordered emote-wheel loadout)
+  or `wheel.set {reset:true}` (return to installed defaults); the reply is an
+  unsolicited `catalog.data` re-push carrying fresh wheel state/order fields,
   `orbit {dx,dy,wheel}` (world-drag steers the native orbit camera; no reply),
   `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
   `requestClose` (view asks the host to hide it — used by the emote wheel).
   Native→web `activeScenes {scenes:[{handle, sceneId, stage, player,
   cast:[{token,name,player}]}]}` is the authoritative live-scene list, pushed
   on `opened`, after a launch, and on every scene lifecycle change (stage
-  advance, any termination — natural ends included). The view renders one
-  RUNNING chip per scene with a per-row stop (`stop {handle}`) and LIVE
-  badges on busy crew. **Close semantics:** only scenes whose cast includes
+  advance, any termination — natural ends included). The view surfaces it as
+  an **ACTIVE tab** in the browse mode switch (visible only while scenes run,
+  labeled with the count) holding one card per scene — title, handle, YOU,
+  current stage, full cast, per-scene stop (`stop {handle}`), STOP ALL —
+  plus a compact header chip (a single scene shows directly with its stop;
+  several collapse to a count) that opens the tab, and LIVE badges on busy
+  crew. **Close semantics:** only scenes whose cast includes
   the *player* are aborted when the browser closes; NPC-only scenes keep
   running (vignettes/machinima) and resurface in this list on the next open.
   Native→web `mode {mode:"wheel", tagPrefix, target:{token,name}|null}`
@@ -57,7 +62,10 @@ views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  �
   lists nearby actors (living, closest-first, with a species tag for creature
   filtering) and furniture with per-anchor scene counts, each as a clickable
   token. Scan rows draw a neutral silhouette (no portrait capture).
-- Catalog = OSF Animation's **live** `SceneRegistry` (not a disk scan).
+- Catalog = OSF Animation's **live** `SceneRegistry` (not a disk scan). The browser
+  projects its runtime entries into player-facing kinds: ordinary authored entries stay
+  under **Scenes**, while `presentation:"emote"` entries appear first under
+  **Animations → Emotes** with quick-action language. They remain scene-backed internally.
   The view only ever holds opaque integer **tokens** (player = `-1`), which
   the DLL maps back to `RE::*` refs and re-validates on the main thread
   before use.
@@ -110,17 +118,18 @@ live in OSF UI's in-game settings menu under **OSF Animation**.
 
 The `openWheel` hotkey verb (native `API::OpenWheel`) opens this same view in a
 radial **wheel mode**: `osf.animation.mode {mode:"wheel", tagPrefix, target}`
-hides the console/brief and rings up to 12 solo scenes (overflow shows "+N
-more"; the ring's ellipse is count-adaptive — near-circular for a handful,
-widening as it fills). **Pool:** if the user has pinned scenes (the brief's
-`◇ PIN TO WHEEL` toggle — any solo authored scene qualifies, `wheel.pin`
-persists the list DLL-side in `<Documents>\My Games\Starfield\OSF\wheel-pins.json`,
-account-global, surviving ReloadPacks and reinstalls), the wheel shows exactly
-the pins in pin order, ignoring `tagPrefix`; with no pins (or all pins stale —
-packs uninstalled), it falls back to scenes tagged under `tagPrefix` (default
-`player.emote.`), so it works out of the box. Pinned scenes show a ◆ marker on
-their catalog rows. The hub names who plays — the crosshair target captured at
-open time ("→ Sarah") or "You".
+hides the console/brief and rings up to 12 `wheelEligible` emotes; the ring's
+ellipse is count-adaptive — near-circular for a handful, widening as it fills.
+Before customization the ordered pool is derived from installed `wheelDefault`
+emotes (the established `player.emote.*` tag remains a compatibility fallback),
+so it works out of the box. The first **Add to Wheel**, removal, or reorder
+materializes that whole default pool before applying the edit—customizing one
+entry never makes every other default disappear. The explicit loadout persists
+DLL-side in `<Documents>\My Games\Starfield\OSF\wheel-pins.json`, account-global,
+surviving ReloadPacks and reinstalls. The selected emote's brief offers removal,
+earlier/later ordering, and **Reset Defaults**. Wheel membership shows as ◆ in
+the Emotes group. The hub names who plays—the crosshair target captured at open
+time ("→ Sarah") or "You".
 Arrows/hover step the ring, Enter/click launches (`osf.animation.launch` with
 `castTokens:[token]`, no opts), success sends `osf.animation.requestClose`; a
 launch error shows in the hub and the wheel stays open. Cancel = Esc,
@@ -158,7 +167,7 @@ To exercise the **emote wheel** standalone: press `W` (mock crosshair target) or
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
 console; `?wheel` in the URL (`?wheel=solo` for no target, also on `/frame`)
 boots straight into wheel mode so a plain reload keeps you there. The mock
-catalog carries 14 `player.emote.*` scenes so the 12-slice cap shows "+2 more";
+catalog carries 14 `player.emote.*` quick actions so the hard 12-entry cap is exercised;
 picking **Facepalm** mock-fails to exercise the error path, any other pick
 "launches" and closes the wheel via the mocked `osf.animation.requestClose` →
 `ui.visibility` hide round-trip.
@@ -175,19 +184,17 @@ While the wheel is up, a **WHEEL DEBUG strip** (top-left, standalone only —
 injected only when no bridge exists, so it can never surface in-game) drives
 every wheel state without in-game round-trips: `−`/`+` step a generated emote
 pool through wheelGeom's whole range (0 = the empty state, 1–3 = the tight
-ring, past 12 = "+N more" overflow, emotes cycle with numbered titles past 14);
+ring, past 12 proves the hard cap, and emotes cycle with numbered titles past 14);
 `PINS×3` pins the first three emotes in *reverse* order to prove pin-order
 sorting; `TARGET` flips the hub between "→ Sarah Morgan" and "You"; `ERROR`
 plants a hub launch error; `LOADING` shows the catalog-pending state; `RESET`
 returns to the real (snapshot/mock) catalog.
 
-**Pins standalone:** the `wheel.pin` round-trip is mocked with a session-local
-pin list applied on top of whichever catalog is served (mock or live snapshot —
-note it *replaces* any `pinned` values a live snapshot carries). It is
-pre-seeded with a stale id (`emote.uninstalled`) that must never render and must
-not block the tag-prefix fallback — the same shape as a real `wheel-pins.json`
-after a pack removal. Pin a few solo scenes from the brief, then `W`: the wheel
-shows exactly those, in pin order; unpin all to get the 14-emote tag pool back.
+**Loadout standalone:** the `wheel.set` round-trip is mocked with a session-local
+ordered loadout applied on top of whichever catalog is served. Remove or reorder
+an emote from its brief, then `W`: the wheel retains all other defaults in the
+chosen order. **Reset Defaults** drops the explicit list and derives the installed
+defaults again.
 
 ## Aesthetic
 

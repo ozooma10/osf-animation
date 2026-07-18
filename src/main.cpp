@@ -29,7 +29,7 @@ namespace
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
 			OSF::API::MarkReady();
-			// Register the osf.* scene-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
+			// Register the osf.* animation-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
 			// Runs after the registry is loaded and the scene API is ready, so catalog/launch answer live.
 			OSF::API::InstallUIBridge();
 			// Settings + hotkeys live in OSF UI's MCM (schema registration, change

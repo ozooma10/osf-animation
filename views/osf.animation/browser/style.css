@@ -137,6 +137,10 @@ button,input,select{font:inherit;color:inherit}
 .stop-mini{margin-left:auto;flex:none;border:1px solid var(--signal-stop);background:rgba(200,80,58,.12);color:var(--signal-stop);border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .stop-mini:hover{background:rgba(200,80,58,.22)}
 .take-cast{font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the take body doubles as the "open the ACTIVE tab" button */
+.take-open{background:none;border:0;padding:0;text-align:left;cursor:pointer;flex:1;min-width:0}
+.take-open strong{max-width:100%}
+.take-open:hover strong{color:var(--accent-hover)}
 .cast-busy{flex:none;margin-left:4px;padding:1px 5px;border:1px solid var(--signal-go);border-radius:2px;color:var(--signal-go);font:600 8px/1.4 var(--font-mono);letter-spacing:.12em}
 .readiness-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .readiness-head .eb{color:var(--text-faint)}
@@ -353,10 +357,19 @@ button,input,select{font:inherit;color:inherit}
 .mode-btn+.mode-btn{border-left:1px solid var(--line-strong)}
 .mode-btn:not(.on):hover{color:var(--text-body)}
 .mode-btn.on{color:var(--text-on-amber);background:var(--accent);box-shadow:inset 0 0 8px rgba(0,0,0,.25)}
+/* ACTIVE tab: appears only while scenes run; pulsing dot marks it live */
+.mode-btn.live{display:inline-flex;align-items:center;gap:6px}
+.mode-btn.live .live-dot{width:7px;height:7px}
+.mode-btn.live.on .live-dot{box-shadow:0 0 5px rgba(0,0,0,.4)}
 .libx-browser{display:flex;flex-direction:column;gap:6px;min-height:0}
 .libx-group{border:1px solid var(--line);border-radius:2px;background:var(--void-800);overflow:hidden}
 .libx-head{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:var(--void-700);border:0;border-left:2px solid var(--steel-500);padding:8px 11px;cursor:pointer}
 .libx-head:hover{border-left-color:var(--accent)}
+.libx-head.static{cursor:default;border-left-color:var(--accent);background:linear-gradient(90deg,rgba(240,113,48,.1),var(--void-700) 35%)}
+.libx-head.static:hover{border-left-color:var(--accent)}
+.emote-mark{width:10px;flex:none;color:var(--accent);font-size:10px;text-align:center}
+.libx-group.emotes{border-color:var(--line-strong);margin-bottom:2px}
+.libx-row.emote .libx-spine{background:rgba(240,113,48,.45)}
 .libx-head .chev{font-size:9px;color:var(--text-faint);flex:none;width:10px}
 .libx-name{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--text-body)}
 .libx-meta{margin-left:auto;flex:none;overflow:hidden;text-overflow:ellipsis}
@@ -368,8 +381,26 @@ button,input,select{font:inherit;color:inherit}
 .libx-row.selected .libx-spine{background:var(--accent)}
 .libx-title{font-size:11px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .libx-row .libx-meta{color:var(--text-faint)}
-/* ◆ = this scene rides the emote wheel (pinned from the brief) */
+/* ◆ = this emote is in the effective wheel loadout */
 .libx-pinmark{flex:none;color:var(--accent);font-size:9px;line-height:1}
+
+/* ---- ACTIVE tab (running-scenes manager) ------------------- */
+.active-list{display:flex;flex-direction:column;gap:6px}
+.active-card{display:flex;align-items:center;gap:10px;background:var(--void-800);
+  border:1px solid var(--line);border-left:2px solid var(--signal-go);border-radius:2px;padding:9px 11px}
+.active-card.selected{border-color:var(--accent);border-left-color:var(--signal-go);background:rgba(240,113,48,.06)}
+.active-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;background:none;border:0;padding:0;text-align:left;cursor:pointer}
+.active-headline{display:flex;align-items:center;gap:8px;min-width:0}
+.active-title{font:600 13px var(--font-display);letter-spacing:.03em;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.active-main:hover .active-title{color:var(--accent-hover)}
+.active-handle{flex:none;color:var(--signal-go)}
+.active-stage{font-size:9px;letter-spacing:.08em;color:var(--text-muted)}
+.active-cast{display:flex;flex-wrap:wrap;gap:4px}
+.active-actor{font:500 10px var(--font-mono);color:var(--text-body);background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:2px 7px;white-space:nowrap}
+.active-actor.player{border-color:var(--accent);color:var(--accent)}
+.active-card .stop-mini{margin-left:0}
+.reveal.inline.stop-all{color:var(--signal-stop);border-color:rgba(200,80,58,.5)}
+.reveal.inline.stop-all:hover{background:rgba(200,80,58,.12)}
 
 /* ---- BRIEF panel (floating bottom-right over the world) ---- */
 .brief{position:absolute;right:14px;bottom:14px;z-index:5;width:380px;max-height:min(620px,80%);overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:12px;
@@ -386,12 +417,16 @@ button,input,select{font:inherit;color:inherit}
 .brief-status.warn .eb{color:var(--signal-warn)}
 .brief-status .dot{width:7px;height:7px;background:var(--accent);box-shadow:0 0 7px var(--accent)}
 .brief-status.warn .dot{background:var(--signal-warn);box-shadow:0 0 7px var(--signal-warn)}
-/* emote-wheel pin toggle (solo authored scenes only) */
-.brief-pin{display:flex}
+/* emote-wheel loadout controls */
+.brief-pin{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .pin-btn{border:1px solid var(--line-strong);background:transparent;border-radius:2px;padding:4px 10px;
   font:600 9.5px var(--font-mono);letter-spacing:.12em;color:var(--text-muted);cursor:pointer}
 .pin-btn:hover{border-color:var(--steel-500);color:var(--text-bright)}
 .pin-btn.on{border-color:var(--accent);color:var(--accent)}
+.pin-btn.compact{padding:4px 7px;min-width:26px}
+.pin-btn.reset{margin-left:auto;font-size:8px;color:var(--text-faint)}
+.pin-btn:disabled{opacity:.35;cursor:default;border-color:var(--line);color:var(--text-faint)}
+.wheel-order{color:var(--text-faint);padding:0 2px}
 .brief-empty{background:var(--void-900);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:20px;text-align:center}
 .brief-empty .mono{color:var(--text-muted)}
 
@@ -547,7 +582,7 @@ button,input,select{font:inherit;color:inherit}
 /* List rows sit inside overflow:auto columns where an outline clips — mark the
    focused row with fill + border + inset ring instead, so it reads on a busy world. */
 .nav-kb .near-row:focus,.nav-kb .libx-row:focus,.nav-kb .step-head:focus,
-.nav-kb .libx-head:focus,.nav-kb .reveal:focus{
+.nav-kb .libx-head:focus,.nav-kb .reveal:focus,.nav-kb .active-main:focus{
   outline:none;border-color:var(--accent);background:var(--accent-quiet);
   box-shadow:inset 0 0 0 1px var(--accent),0 0 10px rgba(240,113,48,.22)}
 .nav-kb .search-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-quiet)}

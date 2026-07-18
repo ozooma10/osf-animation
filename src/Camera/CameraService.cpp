@@ -231,6 +231,24 @@ namespace OSF::Camera
 		}
 	}
 
+	void CameraService::KickToThirdPerson()
+	{
+		SFSE::GetTaskInterface()->AddTask([this]() {
+			if (suppressBounce.load(std::memory_order_relaxed)) {
+				return;  // a state override owns the camera; don't fight it
+			}
+			auto* camera = RE::PlayerCamera::GetSingleton();
+			if (!camera || !camera->IsInFirstPerson()) {
+				return;  // already out of first person — leave the player's zoom alone
+			}
+			camera->ForceThirdPerson();
+			// ForceThirdPerson resets zoom to 0.0 and a zoom at the floor re-trips ForceFirstPerson —
+			// seed the pull-back (queues after this task; snap so current never sits at 0).
+			SeedThirdPersonZoom(0.0f, /*snapCurrent*/ true);
+			REX::DEBUG("[Camera] kicked out of first person (browser opened on the player)");
+		});
+	}
+
 	void CameraService::SeedThirdPersonZoom(float a_distance, bool a_snapCurrent)
 	{
 		if (a_distance < 0.0f) {
