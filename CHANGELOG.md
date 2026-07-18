@@ -13,10 +13,13 @@ All notable changes to OSF Animation are documented here.
 
 - Badge icon in OSF UI's Mods surface: the rail entry and Home cards now show the OSF playback-curve mark (`views/osf/osf-icon.svg`, schema `icon` field — a tiny-size cut of the branding emblem, bolded to stay legible at ~30px) instead of the "OA" initials monogram. Needs an OSF UI new enough to know the field; older versions ignore it and keep the initials.
 
+- Emote-wheel pinning: a `◇ PIN TO WHEEL` toggle in the scene browser's brief puts any solo authored scene on the emote wheel (pinned rows show a ◆ marker). With pins present the wheel shows exactly them, in pin order; with none it falls back to the `player.emote.*` tag pool as before. The list persists DLL-side in `Documents\My Games\Starfield\OSF\wheel-pins.json` (account-global; pins whose pack is uninstalled are kept dormant and revive on reinstall). New bridge command `osf.animation.wheel.pin {sceneId, pinned}`, answered by a catalog re-push with per-scene `pinned` order.
+
 ### Removed
 - SAF backwards-compatibility shim (the opt-in `SAF.pex`/`SAFScript.pex` FOMOD component from 0.2.0) and its supporting internals: the non-public `OSFCompat` natives, the Activate-key redirect in the input hook, and the FOMOD "Compatibility" install step. SAF-targeting content should use the real SAF, or be ported to the OSF API.
 
 ### Changed
+- Emote-wheel ring geometry is now count-adaptive: near-circular for a handful of emotes (the shipped pack's ~5 no longer stretch into a flat oval), widening toward the old 12-slice ellipse as the ring fills.
 - Vanilla library packs now exclude **partial-coverage layer clips** (real tracked bones < 85% of the rig, measured from the `.af` index atlas — e.g. cover-lean or `*_idlepartialbody_*` layers with 5-25 of 82 bones): played standalone they T-pose every untracked bone. ~1,700 of ~14k clips dropped from the browsable catalog; regenerate with `generate_vanilla_packs.py --include-partial` to re-add them tagged `"partial"`.
 
 ## [0.2.0] - 2026-06-30

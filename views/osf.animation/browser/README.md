@@ -25,6 +25,8 @@ views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  �
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
   `pickCrosshair`→`pick`, `scanNearby`→`scanResults`,
   `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`,
+  `wheel.pin {sceneId, pinned}` (toggle a scene on the emote wheel; the reply
+  is an unsolicited `catalog.data` re-push carrying fresh `pinned` fields),
   `orbit {dx,dy,wheel}` (world-drag steers the native orbit camera; no reply),
   `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
   `requestClose` (view asks the host to hide it — used by the emote wheel).
@@ -89,9 +91,17 @@ live in OSF UI's in-game settings menu under **OSF Animation**.
 
 The `openWheel` hotkey verb (native `API::OpenWheel`) opens this same view in a
 radial **wheel mode**: `osf.animation.mode {mode:"wheel", tagPrefix, target}`
-hides the console/brief and rings up to 12 solo scenes whose tags start with
-`tagPrefix` (default `player.emote.`; overflow shows "+N more"). The hub names
-who plays — the crosshair target captured at open time ("→ Sarah") or "You".
+hides the console/brief and rings up to 12 solo scenes (overflow shows "+N
+more"; the ring's ellipse is count-adaptive — near-circular for a handful,
+widening as it fills). **Pool:** if the user has pinned scenes (the brief's
+`◇ PIN TO WHEEL` toggle — any solo authored scene qualifies, `wheel.pin`
+persists the list DLL-side in `<Documents>\My Games\Starfield\OSF\wheel-pins.json`,
+account-global, surviving ReloadPacks and reinstalls), the wheel shows exactly
+the pins in pin order, ignoring `tagPrefix`; with no pins (or all pins stale —
+packs uninstalled), it falls back to scenes tagged under `tagPrefix` (default
+`player.emote.`), so it works out of the box. Pinned scenes show a ◆ marker on
+their catalog rows. The hub names who plays — the crosshair target captured at
+open time ("→ Sarah") or "You".
 Arrows/hover step the ring, Enter/click launches (`osf.animation.launch` with
 `castTokens:[token]`, no opts), success sends `osf.animation.requestClose`; a
 launch error shows in the hub and the wheel stays open. Cancel = Esc,
@@ -100,9 +110,24 @@ clears wheel mode, so a later browser open always shows the normal console.
 
 ## Standalone dev
 
-The page detects a missing bridge and runs on a mock catalog, so you can iterate
-layout/logic in a normal browser. A preview server is configured in
-`.claude/launch.json` (`python -m http.server`, serves this folder).
+The page detects a missing bridge and runs standalone, so you can iterate
+layout/logic in a normal browser. Serve it with
+`python tools/view-dev-server.py [port]` (default 8791; also configured in
+`.claude/launch.json`) and open `http://localhost:8791/`. For an in-game-true
+render, open `http://localhost:8791/frame` — the view laid out at a fixed
+**1600×900** (the overlay resolution) and stretched to fill the window with
+independent X/Y scale, matching how the OSF UI harness maps the Ultralight
+surface (`S` toggles stretch / 1:1 pixels; `?w=1920&h=1080` overrides the
+size).
+
+**Live data:** the DLL mirrors every `catalog.data`/`library.data` push to
+`<Documents>\My Games\Starfield\OSF\ui\{catalog,library}.json`, and the dev
+server maps that folder to `/live/`. When a snapshot exists (i.e. the game ran
+once with the browser bridge ready), the standalone page loads it instead of
+the mock catalog — status reads `standalone · live snapshot`; the console
+Refresh button re-fetches, so a game session running alongside refreshes the
+data. Pick/scan/launch stay stubbed (they need live refs). With no snapshot
+(or when opened via `file://`), it falls back to the built-in mock catalog.
 
 To exercise the **emote wheel** standalone: press `W` (mock crosshair target) or
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
@@ -110,6 +135,14 @@ console. The mock catalog carries 14 `player.emote.*` scenes so the 12-slice cap
 shows "+2 more"; picking **Facepalm** mock-fails to exercise the error path, any
 other pick "launches" and closes the wheel via the mocked
 `osf.animation.requestClose` → `ui.visibility` hide round-trip.
+
+**Pins standalone:** the `wheel.pin` round-trip is mocked with a session-local
+pin list applied on top of whichever catalog is served (mock or live snapshot —
+note it *replaces* any `pinned` values a live snapshot carries). It is
+pre-seeded with a stale id (`emote.uninstalled`) that must never render and must
+not block the tag-prefix fallback — the same shape as a real `wheel-pins.json`
+after a pack removal. Pin a few solo scenes from the brief, then `W`: the wheel
+shows exactly those, in pin order; unpin all to get the 14-emote tag pool back.
 
 ## Aesthetic
 

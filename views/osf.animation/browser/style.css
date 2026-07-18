@@ -151,6 +151,10 @@ button,input,select{font:inherit;color:inherit}
 .metric .lbl.warn{color:var(--signal-warn)}
 .iconbtn{border:1px solid var(--line-strong);background:var(--void-700);border-radius:2px;width:26px;height:22px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;padding:0}
 .iconbtn:hover{border-color:var(--accent);color:var(--accent)}
+/* Drawn chevrons for the minimize/restore pair — the ⌄/⌃ text glyphs render
+   font-dependent (tiny, baseline-shifted) and read as stray carets. */
+.chev-ico{display:block;flex:none}
+.chev-ico path{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:square}
 
 /* stripe band */
 .stripe{position:relative;z-index:2;display:flex;flex-direction:column}
@@ -362,6 +366,8 @@ button,input,select{font:inherit;color:inherit}
 .libx-row.selected .libx-spine{background:var(--accent)}
 .libx-title{font-size:11px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .libx-row .libx-meta{color:var(--text-faint)}
+/* ◆ = this scene rides the emote wheel (pinned from the brief) */
+.libx-pinmark{flex:none;color:var(--accent);font-size:9px;line-height:1}
 
 /* ---- BRIEF panel (floating bottom-right over the world) ---- */
 .brief{position:absolute;right:14px;bottom:14px;z-index:5;width:380px;max-height:min(620px,80%);overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:12px;
@@ -378,6 +384,12 @@ button,input,select{font:inherit;color:inherit}
 .brief-status.warn .eb{color:var(--signal-warn)}
 .brief-status .dot{width:7px;height:7px;background:var(--accent);box-shadow:0 0 7px var(--accent)}
 .brief-status.warn .dot{background:var(--signal-warn);box-shadow:0 0 7px var(--signal-warn)}
+/* emote-wheel pin toggle (solo authored scenes only) */
+.brief-pin{display:flex}
+.pin-btn{border:1px solid var(--line-strong);background:transparent;border-radius:2px;padding:4px 10px;
+  font:600 9.5px var(--font-mono);letter-spacing:.12em;color:var(--text-muted);cursor:pointer}
+.pin-btn:hover{border-color:var(--steel-500);color:var(--text-bright)}
+.pin-btn.on{border-color:var(--accent);color:var(--accent)}
 .brief-empty{background:var(--void-900);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:20px;text-align:center}
 .brief-empty .mono{color:var(--text-muted)}
 
@@ -452,6 +464,14 @@ button,input,select{font:inherit;color:inherit}
 .policy-list .mono b{color:var(--signal-go);font-weight:700}
 
 /* overrides + animations */
+/* START OVERRIDES folds to a single row in the pinned footer; the summary echoes any
+   non-default settings so a tweak stays visible while collapsed. */
+.overrides{display:flex;flex-direction:column;gap:8px;min-width:0}
+.overrides-head{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:0;text-align:left;cursor:pointer;min-width:0}
+.overrides-head .chev{flex:none;font-size:9px;color:var(--text-faint);width:10px}
+.overrides-head:hover .chev{color:var(--text-body)}
+.overrides-sum{margin-left:auto;overflow:hidden;text-overflow:ellipsis;font-size:9px}
+.overrides-sum.hot{color:var(--accent)}
 .override-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .override{display:flex;flex-direction:column;gap:5px;min-width:0}
 .override .lbl{margin:0}
@@ -531,6 +551,24 @@ button,input,select{font:inherit;color:inherit}
 .nav-kb .search-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-quiet)}
 
 /* ============================================================
+   LIVE MODE  (minimized browser — body.live-mode)
+   On launch the console/brief fold away so the running scene owns
+   the screen; only a small floating chip (take · stop · expand)
+   remains, bottom-left, clear of the scene-orbit drag surface.
+   ============================================================ */
+body.live-mode .console,body.live-mode .brief{display:none}
+.livebar{position:absolute;left:14px;bottom:14px;z-index:6;display:none;flex-direction:column;gap:6px}
+body.live-mode .livebar{display:flex}
+body.wheel-mode .livebar{display:none}  /* the wheel owns the screen while it's up */
+.livebar .take-chip{background:rgba(6,9,13,.88);box-shadow:var(--shadow-sm);max-width:440px}
+.livebar .take-body strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.livebar .stop-mini{margin-left:8px}
+.expand-mini{margin-left:8px;flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);background:var(--void-700);color:var(--text-muted);
+  border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
+.expand-mini:hover{border-color:var(--steel-500);color:var(--text-bright)}
+.livebar-hint{font-size:9px;letter-spacing:.14em;color:var(--text-faint);padding-left:2px}
+
+/* ============================================================
    EMOTE WHEEL  (transient radial mode — EmoteWheel_Plan.md)
    Opened via osf.mode {mode:"wheel"}: console/brief hide, a ring
    of emote slices circles the untouched world center. Live
@@ -540,9 +578,11 @@ button,input,select{font:inherit;color:inherit}
 body.wheel-mode .console,body.wheel-mode .brief{display:none}
 .wheel{position:absolute;inset:0;z-index:8;display:none;pointer-events:none}
 body.wheel-mode .wheel{display:block}
-.wheel-ring{position:absolute;left:50%;top:50%}
-/* decorative dashed ellipse tracing the slice track (radii match WHEEL_RX/RY in main.js) */
-.wheel-dial{position:absolute;left:0;top:0;width:470px;height:310px;transform:translate(-50%,-50%);
+/* --wrx/--wry = slice-track ellipse radii, set inline by renderWheel (count-adaptive
+   wheelGeom in main.js); the defaults here only cover a ring rendered without them */
+.wheel-ring{position:absolute;left:50%;top:50%;--wrx:250px;--wry:170px}
+/* decorative dashed ellipse tracing the slice track */
+.wheel-dial{position:absolute;left:0;top:0;width:calc(var(--wrx)*2 - 30px);height:calc(var(--wry)*2 - 30px);transform:translate(-50%,-50%);
   border:1px dashed var(--line-strong);border-radius:50%;opacity:.55}
 /* slices: inline transform (JS-computed ellipse position) — don't set transform here */
 .wheel-slice{position:absolute;left:0;top:0;max-width:170px;pointer-events:auto;cursor:pointer;
@@ -560,7 +600,7 @@ body.wheel-mode .wheel{display:block}
   max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wheel-hub-status{font:500 8.5px var(--font-mono);color:var(--text-faint);max-width:104px;white-space:normal;text-align:center;line-height:1.35}
 .wheel-hub-status.err{color:#e6b3a8}
-.wheel-more{position:absolute;left:0;top:206px;transform:translateX(-50%);white-space:nowrap}
+.wheel-more{position:absolute;left:0;top:calc(var(--wry) + 36px);transform:translateX(-50%);white-space:nowrap}
 .wheel-caption{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);letter-spacing:.12em;white-space:nowrap}
 .wheel-empty{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:auto;width:300px;
   background:rgba(6,9,13,.92);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:18px;

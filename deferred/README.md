@@ -17,12 +17,6 @@ A Papyrus-only ambient-companion module (moments cast on crew). Never finished:
 
 Revive path: fold into the Ambient Director effort rather than shipping as-is.
 
-## WheelPins_Plan.md
-
-Design for user-pinnable emote-wheel entries (persisted pin list + rounder,
-count-adaptive wheel geometry). Pure QoL — the shipping tag-prefix wheel works
-without it. Plan only; no code was written. Good early post-launch pickup.
-
 ## Also deferred (no artifacts to park — plan-only, in root)
 
 - **Ambient NPC Life Director** — `../GameplayModuels_Plan.md` Phase 2. Never

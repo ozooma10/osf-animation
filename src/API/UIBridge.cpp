@@ -340,6 +340,7 @@ namespace OSF::API
 				bool                     requiresFurniture = false;
 				std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
 				bool                     unlisted = false;
+				std::int32_t             pinned = 0;  // 1-based emote-wheel pin order (0 = unpinned; library lane never pins)
 				std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
 				float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
 				bool                     estPartial = false;  // at least one linear stage had no estimate
@@ -375,6 +376,7 @@ namespace OSF::API
 					c.anchorNames.push_back(edid && edid[0] ? std::string{ edid } : std::format("{:#010x}", b));
 				}
 				c.unlisted = d.unlisted;
+				c.pinned = a_library ? 0 : Serialization::WheelPins::Order(d.id);
 				// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 				c.stages.reserve(d.linearStages.size());
 				for (std::size_t i = 0; i < d.linearStages.size(); ++i) {
@@ -483,6 +485,7 @@ namespace OSF::API
 					{ "requiresFurniture", c.requiresFurniture },
 					{ "anchors", c.anchorNames },
 					{ "unlisted", c.unlisted },
+					{ "pinned", c.pinned },
 					{ "stageCount", static_cast<std::int32_t>(c.stages.size()) },
 					{ "stages", std::move(stages) },
 					{ "estSec", secOrNull(c.estSec) },
@@ -692,6 +695,27 @@ namespace OSF::API
 				}
 			}
 			REX::DEBUG("[UI] osf.animation.stop handle={} -> {}", handle, ok);
+		}
+
+		// Browser pin toggle: persist the emote-wheel pin list and re-push the catalog —
+		// the refreshed `pinned` fields ARE the reply (the view already tolerates
+		// unsolicited catalog pushes and reconciles its optimistic local update).
+		void OnWheelPin(const char*, const char* a_payload, const char*, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			if (!j.is_object()) {
+				return;
+			}
+			const auto it = j.find("sceneId");
+			if (it == j.end() || !it->is_string()) {
+				return;
+			}
+			const auto sceneId = it->get<std::string>();
+			const bool pinned = j.value("pinned", false);
+			if (Serialization::WheelPins::Set(sceneId, pinned)) {
+				REX::DEBUG("[UI] osf.animation.wheel.pin '{}' -> {}", sceneId, pinned ? "pinned" : "unpinned");
+				PushCatalogUpdate();
+			}
 		}
 
 		// ---- nearby-actor enumeration ----------------------------------------
@@ -1187,6 +1211,7 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
 		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
+		g_ui.RegisterCommand("osf.animation.wheel.pin", &OnWheelPin, nullptr);
 		g_ui.RegisterCommand("osf.animation.opened", &OnOpened, nullptr);
 		g_ui.RegisterCommand("osf.animation.closed", &OnClosed, nullptr);
 		g_ui.RegisterCommand("osf.animation.orbit", &OnOrbit, nullptr);
