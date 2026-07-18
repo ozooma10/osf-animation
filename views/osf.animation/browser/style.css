@@ -127,7 +127,7 @@ button,input,select{font:inherit;color:inherit}
 .anchor-chg:hover{color:var(--teal-300)}
 
 .slate-readiness{flex:1;min-width:230px}
-.slate-take{flex:1;min-width:150px;justify-content:center}
+.slate-take{flex:1;min-width:150px;justify-content:center;gap:5px;max-height:132px;overflow-y:auto}
 .slate-tools{justify-content:center}
 .take-chip{display:flex;align-items:center;gap:10px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:7px 12px}
 .take-chip.live{border-color:var(--signal-go)}
@@ -136,6 +136,8 @@ button,input,select{font:inherit;color:inherit}
 .take-body strong{font-size:12px;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stop-mini{margin-left:auto;flex:none;border:1px solid var(--signal-stop);background:rgba(200,80,58,.12);color:var(--signal-stop);border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .stop-mini:hover{background:rgba(200,80,58,.22)}
+.take-cast{font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cast-busy{flex:none;margin-left:4px;padding:1px 5px;border:1px solid var(--signal-go);border-radius:2px;color:var(--signal-go);font:600 8px/1.4 var(--font-mono);letter-spacing:.12em}
 .readiness-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .readiness-head .eb{color:var(--text-faint)}
 .author-wrap{display:flex;align-items:center;gap:8px}

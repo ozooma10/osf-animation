@@ -59,6 +59,14 @@ namespace OSF::Scene
 			DispatchLifecycleSounds(a_handle, a_node, true);
 			DispatchLifecycleCues(a_handle, a_node, true);
 		}
+
+		// Native scene observer (the UI bridge's ACTIVE-list push): a node enter covers scene
+		// start + stage advance, a scene end covers every termination path. The end path's
+		// ReleaseSlot runs right after this Fire and the observer defers to the task queue, so
+		// its ListScenes read sees the slot already retired.
+		if (a_event == Event::kNodeEnter || a_event == Event::kSceneEnd) {
+			GetSingleton().NotifySceneObserver();
+		}
 	}
 
 	void SceneRuntime::DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,

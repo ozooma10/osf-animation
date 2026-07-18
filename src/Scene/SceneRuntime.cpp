@@ -325,6 +325,38 @@ namespace OSF::Scene
 		return FindSlotForActor(a_actor, &token) ? token : 0;
 	}
 
+	std::vector<SceneRuntime::ActiveScene> SceneRuntime::ListScenes()
+	{
+		std::lock_guard l{ _lock };
+		std::vector<ActiveScene> out;
+		for (std::uint16_t slot = 0; slot < _slots.size(); slot++) {
+			const Slot& s = _slots[slot];
+			if (s.generation == 0 || s.ended) {
+				continue;  // empty, or retired (kept only for the async SCENE_END roster read)
+			}
+			out.push_back(ActiveScene{ MakeToken(s.generation, slot), s.id, s.node, s.participants });
+		}
+		return out;
+	}
+
+	void SceneRuntime::SetSceneObserver(std::function<void()> a_fn)
+	{
+		std::lock_guard l{ _lock };
+		_sceneObserver = std::move(a_fn);
+	}
+
+	void SceneRuntime::NotifySceneObserver()
+	{
+		std::function<void()> fn;
+		{
+			std::lock_guard l{ _lock };
+			fn = _sceneObserver;
+		}
+		if (fn) {
+			fn();
+		}
+	}
+
 	void SceneRuntime::Clear()
 	{
 		std::lock_guard l{ _lock };

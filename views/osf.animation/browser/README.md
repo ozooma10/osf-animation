@@ -30,6 +30,14 @@ views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  �
   `orbit {dx,dy,wheel}` (world-drag steers the native orbit camera; no reply),
   `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
   `requestClose` (view asks the host to hide it — used by the emote wheel).
+  Native→web `activeScenes {scenes:[{handle, sceneId, stage, player,
+  cast:[{token,name,player}]}]}` is the authoritative live-scene list, pushed
+  on `opened`, after a launch, and on every scene lifecycle change (stage
+  advance, any termination — natural ends included). The view renders one
+  RUNNING chip per scene with a per-row stop (`stop {handle}`) and LIVE
+  badges on busy crew. **Close semantics:** only scenes whose cast includes
+  the *player* are aborted when the browser closes; NPC-only scenes keep
+  running (vignettes/machinima) and resurface in this list on the next open.
   Native→web `mode {mode:"wheel", tagPrefix, target:{token,name}|null}`
   switches the view into **emote-wheel mode** (see below); any other `mode`
   restores the console. Flash-free wheel opens rely on OSF UI **queuing
@@ -53,6 +61,15 @@ views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  �
   The view only ever holds opaque integer **tokens** (player = `-1`), which
   the DLL maps back to `RE::*` refs and re-validates on the main thread
   before use.
+- **Library clean tier:** the LIBRARY lane defaults to poses & loopable clips
+  only — stages tagged `transition`/`partial` (the vanilla dump's connective
+  tissue) hide behind a "full library" banner toggle, and groups order
+  photomode/pose sets first. The tier is bypassed while furniture is keyed
+  (the anchor match already curates, and e.g. dance flavor clips are tagged
+  `transition` upstream yet are the good content) and while searching (stage
+  names are in the search hay — a hit must be visible). The brief mirrors it:
+  library sets list clean stages first with the rest folded behind a
+  "+ N transitions & layers" count.
 - **Durations:** each stage card carries `loopSec` (clip loop length),
   `timerSec`/`loops` (stage timing), `openEnded` and `estSec`; each scene carries
   `estSec` (sum of stage estimates, holds counted as 2 loops), `estPartial`

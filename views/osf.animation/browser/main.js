@@ -21,6 +21,11 @@ const state = {
   nearbyFurniture: [],
   lastHandle: 0,
   lastSceneId: "",
+  // Live scenes (osf.animation.activeScenes push): several can run at once — NPC-only
+  // scenes keep running after the browser closes, so a reopen lists them here (the
+  // ACTIVE panel is their stop surface). null until the first push (an older DLL never
+  // sends one; activeScenes() then falls back to a single lastHandle row).
+  active: null,
   opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
   optsOpen: false,    // START OVERRIDES disclosure in the brief footer (collapsed by default)
   filters: { search: "", authorMode: false },
@@ -44,6 +49,8 @@ const state = {
   libraryReceived: false,
   libOpen: new Set(),  // expanded library pack groups
   libShowAll: false,   // library: false = focus on sets fitting the keyed anchor, true = all
+  libFull: false,      // library: false = clean tier (pose/loopable clips only), true = the full dump
+  briefFullAnims: false,  // brief: library sets fold transition/partial stages behind a count
   markersOpen: false,  // anchor step: the collapsed "AI markers" group (invisible idle markers)
   // Collapsible pre-flight steps: once cast/anchor are set they fold to a summary line so
   // the browse list gets the dock's height back (the rail otherwise eats ~half the column).
@@ -139,6 +146,7 @@ function onNativeMessage(jsonText) {
     case "osf.animation.scanResults": handleScanResults(payload); break;
     case "osf.animation.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.animation.launchResult": handleLaunchResult(payload); break;
+    case "osf.animation.activeScenes": handleActiveScenes(payload); break;
     // Native mode switch (OpenWheel): "wheel" enters the emote wheel; anything else restores
     // the console. Delivered pre-paint by OSF UI's message queue (bridge MINOR >= 2) and
     // replayed on osf.opened while a wheel open is pending, so it must be idempotent.
@@ -254,6 +262,18 @@ function handleAnchorMatch(p) {
   // Only accept the reply for the anchor that is still keyed (the user may have re-keyed).
   if (!state.furniture || state.furniture.token !== p.token) return;
   state.anchorMatch = { token: p.token, ids: new Set(Array.isArray(p.sceneIds) ? p.sceneIds : []) };
+  renderAll();
+}
+
+// Authoritative live-scene list, pushed by the DLL on open, launch, stage advance, and
+// every scene end (including natural timer/loop ends while the browser is up).
+function handleActiveScenes(p) {
+  state.active = p && Array.isArray(p.scenes) ? p.scenes : [];
+  if (state.lastHandle && !state.active.some((s) => s.handle === state.lastHandle)) {
+    // The scene this session launched ended on its own — release the live bar.
+    state.lastHandle = 0;
+    setMinimized(false);
+  }
   renderAll();
 }
 
@@ -533,12 +553,24 @@ function setMode(mode) {
 
 function activeList() { return state.mode === "library" ? state.library : state.catalog; }
 
-function applySelection(id) { state.selectedId = id; }
+function applySelection(id) { state.selectedId = id; state.briefFullAnims = false; }
 function selectScene(id) { applySelection(id); renderAll(); }
 function sceneById(id) { return state.catalog.find((s) => s.id === id) || state.library.find((s) => s.id === id) || null; }
 function sceneTitle(id) { const s = sceneById(id); return s ? s.title : (id || "scene"); }
 function castTokens() { return state.cast.map((m) => m.token); }
 function castMembers() { return state.cast; }
+// The live-scene rows to show: the pushed list, or (older DLL / standalone before any
+// push) a single row synthesized from the last launch.
+function activeScenes() {
+  if (state.active) return state.active;
+  return state.lastHandle ? [{ handle: state.lastHandle, sceneId: state.lastSceneId, player: true, cast: [] }] : [];
+}
+// Cast tokens currently in a running scene (player = -1), for the LIVE badges.
+function busyTokens() {
+  const set = new Set();
+  for (const s of activeScenes()) for (const c of s.cast || []) set.add(c.token);
+  return set;
+}
 function hasPlayer() { return state.cast.some((m) => m.kind === "player"); }
 function partnerCount() { return state.cast.reduce((n, m) => n + (m.kind === "player" ? 0 : 1), 0); }
 
@@ -699,12 +731,19 @@ function renderAll() {
 function renderSlateTake() {
   $("authorToggle").classList.toggle("on", state.filters.authorMode);
   const el = $("slateTake");
-  if (state.lastHandle) {
-    const ls = sceneById(state.lastSceneId);
-    el.innerHTML = `<div class="take-chip live"><span class="live-dot"></span><div class="take-body"><span class="lbl">RUNNING · #${state.lastHandle}</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div><button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button></div>`;
-  } else {
+  const live = activeScenes();
+  if (!live.length) {
     el.innerHTML = `<div class="take-chip"><span class="lbl">NO SCENE RUNNING</span><span class="mono">crew → furniture → launch</span></div>`;
+    return;
   }
+  // One chip per running scene (NPC scenes persist across browser sessions, so this is
+  // where they resurface). YOU marks the player's scene; each row stops independently.
+  el.innerHTML = live.map((s) => {
+    const title = sceneTitle(s.sceneId);
+    const cast = (s.cast || []).map((c) => c.name).join(" + ");
+    const who = cast ? `<span class="take-cast mono">${esc(cast)}</span>` : "";
+    return `<div class="take-chip live"><span class="live-dot"></span><div class="take-body"><span class="lbl">RUNNING · #${s.handle}${s.player ? " · YOU" : ""}</span><strong>${esc(title)}</strong>${who}</div><button class="stop-mini" data-act="stop-scene" data-handle="${s.handle}" title="Stop this scene">■ STOP</button></div>`;
+  }).join("");
 }
 
 /* ---- live mode (minimized) ------------------------------------------------ */
@@ -766,6 +805,7 @@ function stepCastHTML() {
 
   // CREW here is membership only (add / remove / re-add player). Order is DISPLAYED (A/B/C keys) but
   // SET in the brief's ROLES map for the selected scene — see roleMapHTML.
+  const busy = busyTokens();
   const chips = members.map((m, i) => {
     const player = m.kind === "player";
     // Player and partners are both droppable; the player's × toggles it out (keeps the re-add ghost).
@@ -775,7 +815,9 @@ function stepCastHTML() {
     // Show the detected skeleton family for a non-human cast member so the species filter is legible.
     const sp = !player && m.species && m.species !== "human"
       ? `<span class="cast-species" title="Skeleton family — the library filters to its animations">${esc(speciesLabel(m.species))}</span>` : "";
-    return `<span class="castline ${player ? "player" : ""}"><span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${sp}${drop}</span>`;
+    const live = busy.has(m.token)
+      ? `<span class="cast-busy" title="Currently in a running scene — launching on them replaces it">LIVE</span>` : "";
+    return `<span class="castline ${player ? "player" : ""}"><span class="cast-key">${String.fromCharCode(65 + i)}</span><span class="castline-name">${esc(m.name)}</span>${sp}${live}${drop}</span>`;
   }).join("");
   // When the player has been dropped, offer a ghost chip to put them back.
   const readd = hasPlayer() ? "" : `<button class="castline ghost" data-act="toggle-player" title="Add player back to the crew">＋ Player</button>`;
@@ -783,7 +825,8 @@ function stepCastHTML() {
   const rows = state.nearbyActors.length
     ? state.nearbyActors.map((a) => {
         const added = state.cast.some((m) => m.token === a.token);
-        return `<button class="near-row ${added ? "active" : ""}" data-act="toggle-actor" data-token="${a.token}">${faceHTML(a)}<span class="near-name">${esc(a.name)}</span><span class="near-meta mono">${a.distance != null ? Math.max(1, Math.round(a.distance)) + "m" : ""}</span><span class="near-tag ${added ? "added" : ""}">${added ? "✓" : "ADD"}</span></button>`;
+        const live = busy.has(a.token) ? `<span class="cast-busy" title="Currently in a running scene">LIVE</span>` : "";
+        return `<button class="near-row ${added ? "active" : ""}" data-act="toggle-actor" data-token="${a.token}">${faceHTML(a)}<span class="near-name">${esc(a.name)}</span>${live}<span class="near-meta mono">${a.distance != null ? Math.max(1, Math.round(a.distance)) + "m" : ""}</span><span class="near-tag ${added ? "added" : ""}">${added ? "✓" : "ADD"}</span></button>`;
       }).join("")
     : `<div class="empty-mini"><span class="mono">Scan, or aim at someone before opening and PICK.</span></div>`;
 
@@ -949,8 +992,10 @@ function packKey(s) {
   // The runtime payload carries no sourceFile — group by the id's leading pack family
   // instead ("vanilla/furniture/absorbpower" -> "vanilla-furniture"). Two segments max:
   // deeper ids (generated quest-scene sets) would otherwise explode into per-scene groups.
+  // Two-segment ids keep both ("vanilla/photomode" -> "vanilla-photomode"), so the
+  // top-level photomode/chargen sets land in their family group, not a bare "vanilla".
   const segs = String(s.id || "").split("/").filter(Boolean);
-  return segs.slice(0, segs.length >= 3 ? 2 : Math.max(1, segs.length - 1)).join("-") || "library";
+  return segs.slice(0, Math.max(1, Math.min(2, segs.length))).join("-") || "library";
 }
 
 function groupLabel(key) { return key.replace(/^vanilla-/i, "").replace(/[-_]+/g, " ").toUpperCase(); }
@@ -972,21 +1017,46 @@ function libRank(s) {
   return fitsKeyedAnchor(s) === true ? 0 : 2;
 }
 
-function libraryGroups(pred) {
+// The vanilla dump is mostly connective tissue: enter/exit/turn transitions and partial-body
+// layers. A stage is CLEAN when it's a standalone whole — a pose or a loopable full clip.
+// The library browses the clean tier by default; the full dump is one toggle away. Fit-focus
+// (furniture keyed) bypasses the tier: the anchor match already curates, and e.g. dance
+// flavor clips carry is_state=0 upstream (tagged 'transition') yet ARE the good content.
+function stageClean(st) {
+  const t = st.tags || [];
+  return !t.includes("transition") && !t.includes("partial");
+}
+function cleanStages(s) { return (s.stages || []).filter(stageClean); }
+
+// Clean-tier quality rank: 0 = photomode (the unambiguous showpieces), 1 = pose-dominated
+// sets (chargen etc.), 2 = sets holding idle loops, 3 = the rest. A lone 2-frame 'pose'
+// clip inside a grab-bag set must NOT promote it, hence MOST-clean-stages-are-poses.
+function setQuality(s) {
+  if (/(^|\/)photomode(\/|$)/.test(String(s.id))) return 0;
+  const cs = cleanStages(s);
+  if (cs.length && cs.filter((st) => (st.tags || []).includes("pose")).length > cs.length / 2) return 1;
+  if (cs.some((st) => /idle/i.test(st.name || "") || (st.tags || []).some((t) => t.startsWith("idle")))) return 2;
+  return 3;
+}
+
+function libraryGroups(pred, cleanTier) {
   const m = new Map();
   for (const s of state.library) {
     if (!matchesSearch(s)) continue;
     if (!speciesVisible(s)) continue;  // creature packs only appear for a matching creature cast
     if (pred && !pred(s)) continue;
+    if (cleanTier && !cleanStages(s).length) continue;  // transition-only sets live in the full dump
     const key = packKey(s);
     if (!m.has(key)) m.set(key, []);
     m.get(key).push(s);
   }
-  for (const list of m.values()) list.sort((a, b) => libRank(a) - libRank(b) || a.title.localeCompare(b.title));
+  const quality = cleanTier ? setQuality : () => 0;
+  for (const list of m.values()) list.sort((a, b) => libRank(a) - libRank(b) || quality(a) - quality(b) || a.title.localeCompare(b.title));
   // Groups by their MEAN member rank, so a mostly-anchored pack sinks when nothing fits
   // even if it holds a few free-space sets (those still sort first inside the group).
   const groupRank = (list) => list.reduce((a, s) => a + libRank(s), 0) / list.length;
-  return [...m.entries()].sort((a, b) => groupRank(a[1]) - groupRank(b[1]) || a[0].localeCompare(b[0]));
+  const groupQuality = (list) => Math.min(...list.map(quality));
+  return [...m.entries()].sort((a, b) => groupRank(a[1]) - groupRank(b[1]) || groupQuality(a[1]) - groupQuality(b[1]) || a[0].localeCompare(b[0]));
 }
 
 function libraryBrowserHTML() {
@@ -997,7 +1067,10 @@ function libraryBrowserHTML() {
   // furniture animations by furniture" behavior) — with a one-click escape to the full list.
   const matchKnown = !!(state.furniture && state.anchorMatch && state.anchorMatch.token === state.furniture.token);
   const fitFocus = matchKnown && !state.libShowAll;
-  const groups = libraryGroups(fitFocus ? (s) => state.anchorMatch.ids.has(s.id) : null);
+  // Clean tier: the free-space browse leads with poses/loops; searching opts into everything
+  // (stage names are in the search hay — a hit must not be invisible in the list).
+  const cleanTier = !matchKnown && !state.libFull && !state.filters.search;
+  const groups = libraryGroups(fitFocus ? (s) => state.anchorMatch.ids.has(s.id) : null, cleanTier);
 
   // Counts reflect the active species filter, so "N sets" matches what the list actually shows.
   const speciesLib = state.library.filter(speciesVisible);
@@ -1010,7 +1083,11 @@ function libraryBrowserHTML() {
   } else {
     const total = speciesLib.length;
     const clips = speciesLib.reduce((a, s) => a + (s.stages || []).length, 0);
-    banner += `<div class="browse-note"><span class="dot"></span><span class="lbl">ANIMATION LIBRARY · ${clips} CLIPS IN ${total} SETS</span></div>`;
+    const cleanClips = speciesLib.reduce((a, s) => a + cleanStages(s).length, 0);
+    const label = cleanTier ? `ANIMATION LIBRARY · ${cleanClips} POSES & LOOPS` : `ANIMATION LIBRARY · ${clips} CLIPS IN ${total} SETS`;
+    const toggle = state.filters.search ? "" :
+      `<button class="reveal inline ${state.libFull ? "on" : ""}" data-act="lib-full">${state.libFull ? "poses & loops only" : `full library · ${clips} clips`}</button>`;
+    banner += `<div class="browse-note"><span class="dot"></span><span class="lbl">${label}</span>${toggle}</div>`;
   }
 
   if (!groups.length) {
@@ -1023,8 +1100,8 @@ function libraryBrowserHTML() {
   const body = groups.map(([key, list]) => {
     // Auto-expand when searching or an anchor is keyed (so the ⚓ fit/no-fit marks are visible).
     const open = searching || matchKnown || state.libOpen.has(key);
-    const stageTotal = list.reduce((a, s) => a + (s.stages || []).length, 0);
-    const rows = open ? `<div class="libx-list">${list.map(libxRow).join("")}</div>` : "";
+    const stageTotal = list.reduce((a, s) => a + (cleanTier ? cleanStages(s) : (s.stages || [])).length, 0);
+    const rows = open ? `<div class="libx-list">${list.map((s) => libxRow(s, cleanTier)).join("")}</div>` : "";
     return `<div class="libx-group">` +
       `<button class="libx-head" data-act="lib-group" data-key="${escAttr(key)}"><span class="chev">${open ? "▾" : "▸"}</span><span class="libx-name">${esc(groupLabel(key))}</span><span class="libx-meta mono">${list.length} set${list.length === 1 ? "" : "s"} · ${stageTotal} anim${stageTotal === 1 ? "" : "s"}</span></button>` +
       rows + `</div>`;
@@ -1032,9 +1109,9 @@ function libraryBrowserHTML() {
   return banner + body;
 }
 
-function libxRow(s) {
+function libxRow(s, cleanTier) {
   const sel = s.id === state.selectedId;
-  const n = (s.stages || []).length;
+  const n = (cleanTier ? cleanStages(s) : (s.stages || [])).length;
   const title = s.title.replace(/^Vanilla · /, "");
   const meta = state.filters.authorMode ? s.id : `${n} anim${n === 1 ? "" : "s"}`;
   // "FURN" marks furniture-bound sets; when furniture is keyed, tint by whether this set fits it.
@@ -1070,15 +1147,24 @@ function renderBrief() {
 
   const stages = s.stages || [];
   const canPlay = state.ready && allMet;
+  // Library sets: poses/loops lead, the connective transition/partial clips fold behind a
+  // count (mirrors the library's clean tier — the noise is reachable, just not in the way).
+  const cleanList = s.library ? stages.filter(stageClean) : stages;
+  const noise = s.library ? stages.filter((st) => !stageClean(st)) : [];
+  const folded = cleanList.length > 0 && noise.length > 0 && !state.briefFullAnims;
+  const shown = cleanList.length ? (folded ? cleanList : [...cleanList, ...noise]) : stages;
+  const foldBtn = cleanList.length && noise.length
+    ? `<button class="reveal anim-fold ${state.briefFullAnims ? "on" : ""}" data-act="brief-anims">${folded ? `+ ${noise.length} transition${noise.length === 1 ? "" : "s"} & layers ▸` : "poses & loops only"}</button>`
+    : "";
   const animBox = stages.length
-    ? `<div class="info-box"><div class="lbl">ANIMATIONS · ${stages.length}</div><div class="anim-list">${stages.map((st) => {
+    ? `<div class="info-box"><div class="lbl">ANIMATIONS · ${shown.length}${folded ? ` OF ${stages.length}` : ""}</div><div class="anim-list">${shown.map((st) => {
         const label = st.name || `Stage ${st.index}`;
         const tags = (st.tags || []).slice(0, 3).map((t) => `<span class="pill">${esc(t)}</span>`).join("");
         const loop = fmtDur(st.loopSec);
         const d = loop || fmtDur(st.estSec);
         const durHTML = d ? `<span class="anim-dur" title="${loop ? "Loop length" : "Stage time"}">${esc(d)}${st.openEnded ? "∞" : ""}</span>` : "";
         return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div>${durHTML}<button class="anim-play" data-act="play-stage" data-stage="${st.index}" ${canPlay ? "" : "disabled"} title="Play this animation">▶</button></div>`;
-      }).join("")}</div></div>`
+      }).join("")}${foldBtn}</div></div>`
     : "";
 
   // START OVERRIDES: collapsed to one line by default — the footer stays tight and the Launch
@@ -1243,12 +1329,18 @@ function togglePin(id) {
   renderAll();
 }
 
-function doStop() {
-  if (!state.lastHandle) return;
-  send("osf.animation.stop", { handle: state.lastHandle });
-  notice("info", `Stopping handle ${state.lastHandle}…`);
-  state.lastHandle = 0;
-  setMinimized(false);  // nothing to watch anymore — bring the console back
+// Stop one scene by handle (the ACTIVE rows), or with no argument the last-launched one
+// (the legacy stop buttons in the brief/live bar).
+function doStop(handle) {
+  const h = Number(handle) || state.lastHandle;
+  if (!h) return;
+  send("osf.animation.stop", { handle: h });
+  notice("info", `Stopping handle ${h}…`);
+  if (state.active) state.active = state.active.filter((s) => s.handle !== h);  // optimistic; the end push reconciles
+  if (h === state.lastHandle) {
+    state.lastHandle = 0;
+    setMinimized(false);  // nothing to watch anymore — bring the console back
+  }
   renderAll();
 }
 
@@ -1445,6 +1537,8 @@ function onClick(e) {
       break;
     }
     case "lib-showall": state.libShowAll = !state.libShowAll; renderAll(); break;
+    case "lib-full": state.libFull = !state.libFull; renderAll(); break;
+    case "brief-anims": state.briefFullAnims = !state.briefFullAnims; renderAll(); break;
     case "opts-toggle": state.optsOpen = !state.optsOpen; renderAll(); break;
     case "toggle-actor": toggleActor(Number(el.dataset.token)); break;
     case "toggle-anchor": toggleAnchor(Number(el.dataset.token)); break;
@@ -1457,6 +1551,7 @@ function onClick(e) {
     case "move-down": nudgeMember(Number(el.dataset.i), 1, el.closest(".role-map") ? ".role-map" : ".cast-stack", "move-down"); break;
     case "launch": doLaunch(); break;
     case "stop": doStop(); break;
+    case "stop-scene": doStop(Number(el.dataset.handle)); break;
     case "pin-toggle": togglePin(el.dataset.id); break;
     case "minimize": setMinimized(true); break;
     case "expand": setMinimized(false); renderAll(); break;
@@ -1883,6 +1978,13 @@ function fetchLiveSnapshot(name) {
     .catch(() => null);
 }
 
+// Standalone live-scene table (the DLL's SceneRuntime slot table, mocked).
+let MOCK_ACTIVE = [];
+let mockHandle = 42;
+function mockPushActive() {
+  onNativeMessage(JSON.stringify({ type: "osf.animation.activeScenes", payload: { scenes: MOCK_ACTIVE } }));
+}
+
 function mockNative(command, fields) {
   if (command === "osf.animation.catalog.get") {
     if (wheelDbg.active) handleCatalog(dbgCatalog());  // debug override holds until RESET
@@ -1894,9 +1996,31 @@ function mockNative(command, fields) {
   else if (command === "osf.animation.scanNearby") setTimeout(() => handleScanResults({ kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS }), 80);
   else if (command === "osf.animation.launch") {
     if (fields.sceneId === "emote.facepalm") setTimeout(() => handleLaunchResult({ ok: false, error: "No room in front of the actor (mock error)." }), 80);
-    else setTimeout(() => handleLaunchResult({ ok: true, handle: 42, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
+    else {
+      // Mirror the DLL: replace-in-place on busy cast, then a launchResult followed by an
+      // activeScenes push (multiple scenes accumulate when the casts are disjoint).
+      const tokens = fields.castTokens || [];
+      MOCK_ACTIVE = MOCK_ACTIVE.filter((s) => !(s.cast || []).some((c) => tokens.includes(c.token)));
+      const handle = mockHandle++;
+      MOCK_ACTIVE.push({
+        handle, sceneId: fields.sceneId, stage: (fields.opts && fields.opts.stage) || 0,
+        player: tokens.includes(PLAYER_TOKEN),
+        cast: tokens.map((t) => t === PLAYER_TOKEN
+          ? { token: t, name: "Player", player: true }
+          : { token: t, name: (MOCK_ACTORS.find((a) => a.token === t) || {}).name || "actor", player: false }),
+      });
+      setTimeout(() => handleLaunchResult({ ok: true, handle, sceneId: fields.sceneId, stage: fields.opts && fields.opts.stage }), 80);
+      setTimeout(() => mockPushActive(), 130);
+    }
   }
-  else if (command === "osf.animation.stop") setTimeout(() => notice("ok", "Scene stopped."), 40);
+  else if (command === "osf.animation.stop") {
+    MOCK_ACTIVE = MOCK_ACTIVE.filter((s) => s.handle !== fields.handle);
+    setTimeout(() => { notice("ok", "Scene stopped."); mockPushActive(); }, 40);
+  }
+  // Visibility relays from the view itself: like the DLL, closing aborts only PLAYER
+  // scenes (NPC-only ones persist for the next open), and opening re-pushes the list.
+  else if (command === "osf.animation.closed") MOCK_ACTIVE = MOCK_ACTIVE.filter((s) => !s.player);
+  else if (command === "osf.animation.opened") setTimeout(() => mockPushActive(), 50);
   // Pin toggle: mutate the standalone pin list, then answer like the DLL does — an
   // unsolicited catalog re-push carrying the fresh `pinned` fields.
   else if (command === "osf.animation.wheel.pin") {

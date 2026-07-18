@@ -154,6 +154,25 @@ namespace OSF::Scene
 		// Empty only if the handle is stale/invalid or its slot was already reclaimed.
 		std::vector<RE::Actor*> GetParticipants(std::int32_t a_scene);
 
+		// One live scene's identity, snapshotted for enumeration (ListScenes).
+		struct ActiveScene
+		{
+			std::int32_t            handle = 0;
+			std::string             id;    // registry id; empty for an ad-hoc files scene
+			std::string             node;
+			std::vector<RE::Actor*> participants;
+		};
+
+		// Snapshot every LIVE (non-ended) scene, for surfaces that list/stop all running
+		// scenes at once (the browser's ACTIVE list). Actor pointers are game-thread data.
+		std::vector<ActiveScene> ListScenes();
+
+		// Register the single native scene observer, poked on every lifecycle change worth
+		// re-listing: a node enter (covers scene start + stage advance) and a scene end. May
+		// fire on whatever thread drove the transition (game thread, or the VM for a Papyrus
+		// stop) — the observer must do its own thread hop if it needs one.
+		void SetSceneObserver(std::function<void()> a_fn);
+
 		// Ledger-safe ad-hoc apparel controls for dynamic callers. HideEquipment records the
 		// snapshot on a_handle so every scene end path restores it; RestoreHiddenEquipment
 		// replays that equipment debt early. a_slotMask uses ARMO biped slot bits; 0 hides nothing.
@@ -412,9 +431,14 @@ namespace OSF::Scene
 		// Empty if the handle is invalid or the node isn't def-backed.
 		std::vector<AdvanceEdgeInfo> AdvanceEdges(std::int32_t a_scene);
 
+		// Copy the observer out under _lock and invoke it outside (it may re-enter the
+		// runtime via ListScenes). No-op while none is registered.
+		void NotifySceneObserver();
+
 		std::mutex        _lock;
 		std::vector<Slot> _slots;
 		std::uint16_t     _nextGen = 1;
 		std::int32_t      _controlLockCount = 0;  // # of live scenes holding the player control lock
+		std::function<void()> _sceneObserver;     // see SetSceneObserver
 	};
 }

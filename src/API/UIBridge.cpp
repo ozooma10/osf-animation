@@ -186,13 +186,61 @@ namespace OSF::API
 			return json::parse(a_json ? a_json : "", nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
 		}
 
-		// The player's crosshair/command target as a validated object reference, or nullptr.
-		// commandTarget is NOT guaranteed to be a ref: aiming at terrain or empty space yields
-		// the CELL (or nothing). Main thread only.
+		// Every live scene for the view's ACTIVE list: handle, sceneId, stage, whether the
+		// player is in the cast, and the cast itself (token + name; the player is token -1,
+		// NPCs get pick tokens so the view can badge busy crew members and re-target stops).
+		// Main thread only (AllocToken touches g_tokens).
+		json BuildActiveScenes()
+		{
+			auto& rt = Scene::SceneRuntime::GetSingleton();
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			json scenes = json::array();
+			for (const auto& s : rt.ListScenes()) {
+				json cast = json::array();
+				bool hasPlayer = false;
+				for (RE::Actor* a : s.participants) {
+					if (!a) {
+						continue;
+					}
+					const bool isPlayer = player && a == static_cast<RE::Actor*>(player);
+					hasPlayer = hasPlayer || isPlayer;
+					cast.push_back(json{
+						{ "token", isPlayer ? -1 : AllocToken(a) },
+						{ "name", isPlayer ? std::string{ "Player" } : ScanLabel(a) },
+						{ "player", isPlayer },
+					});
+				}
+				scenes.push_back(json{
+					{ "handle", s.handle },
+					{ "sceneId", s.id.empty() ? std::string{ "runtime.files" } : s.id },
+					{ "stage", rt.GetStage(s.handle) },
+					{ "player", hasPlayer },
+					{ "cast", std::move(cast) },
+				});
+			}
+			return json{ { "scenes", std::move(scenes) } };
+		}
+
+		// Push the live-scene list to the view. Dropped while the browser is hidden — the
+		// osf.opened handler re-sends, so a reopen always shows the current list (including
+		// NPC scenes still running from an earlier session). Main thread only.
+		void PushActiveScenes()
+		{
+			if (!g_ui || !g_uiReady || !g_viewVisible) {
+				return;
+			}
+			SendJson(kViewId, "osf.animation.activeScenes", BuildActiveScenes());
+		}
+
+		// The player's crosshair/reticle target as a validated object reference, or nullptr.
+		// crosshairRef (+0xF90) is runtime-proven on 1.16.244 (OSF RE gameplay.crosshair_pick;
+		// F11 probe 2026-07-18) and pinned by an offsetof assert in the CLSF header — the old
+		// `commandTarget` member compiled +0x48 late onto the CELL slot. The engine nulls the
+		// slot while any menu is up. Main thread only.
 		RE::TESObjectREFR* CrosshairRef()
 		{
 			auto*              player = RE::PlayerCharacter::GetSingleton();
-			RE::TESObjectREFR* ref = player ? player->commandTarget : nullptr;
+			RE::TESObjectREFR* ref = player ? player->crosshairRef : nullptr;
 			return (ref && (ref->Is(RE::FormType::kREFR) || ref->Is(RE::FormType::kACHR))) ? ref : nullptr;
 		}
 
@@ -668,9 +716,10 @@ namespace OSF::API
 			}
 			reply["ok"] = true;
 			reply["handle"] = handle;
-			REX::INFO("[UI] osf.animation.launch '{}' -> handle {} ({} cast{})", sceneId, handle, actors.size(),
-				furniture ? ", anchored" : "");
+			REX::INFO("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})", sceneId, handle, actors.size(),
+				furniture ? ", anchored" : "", castHasPlayer ? "" : ", NPC-only — outlives the browser");
 			SendJson(a_srcView, "osf.animation.launchResult", reply);
+			PushActiveScenes();
 		}
 
 		void OnStop(const char*, const char* a_payload, const char*, void*) noexcept
@@ -990,6 +1039,9 @@ namespace OSF::API
 			if (g_wheel.active) {
 				SendWheelMode();
 			}
+			// Current live-scene list (NPC scenes may still be running from an earlier
+			// session) — the reopened browser is their stop surface.
+			PushActiveScenes();
 		}
 
 		void OnClosed(const char*, const char*, const char*, void*) noexcept
@@ -1217,6 +1269,15 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.closed", &OnClosed, nullptr);
 		g_ui.RegisterCommand("osf.animation.orbit", &OnOrbit, nullptr);
 		g_ui.RegisterCommand("osf.animation.requestClose", &OnRequestClose, nullptr);
+
+		// Any scene lifecycle change (start, stage advance, any termination — including
+		// natural timer/loop ends and Papyrus stops) refreshes the browser's ACTIVE list.
+		// May fire off the game thread (a Papyrus StopScene), and the push touches
+		// main-thread-only bridge state (the token map), so hop through the task queue —
+		// which also lets the end path's ReleaseSlot retire the slot before ListScenes reads.
+		Scene::SceneRuntime::GetSingleton().SetSceneObserver([]() {
+			SFSE::GetTaskInterface()->AddTask([]() { PushActiveScenes(); });
+		});
 
 		// Bridge ABI 1.5: register our shipped views/osf.animation/browser/
 		// folder as an openable surface — OSF UI's shipped config.views lists
