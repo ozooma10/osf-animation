@@ -216,7 +216,7 @@ function handleLibrary(list) {
 
 function handlePick(p) {
   if (!p || !p.valid || !p.token) {
-    notice("err", `Nothing valid under the crosshair for the ${(p && p.slot) || "target"} slot.`);
+    notice("err", `No ${(p && p.slot) || "target"} was under the crosshair when the browser opened — aim first, then open, or use SCAN.`);
     return;
   }
   applyPick(p.slot === "furniture" ? "furniture" : "actor", p.token, p.name, p.distance, p.species);
@@ -785,7 +785,7 @@ function stepCastHTML() {
         const added = state.cast.some((m) => m.token === a.token);
         return `<button class="near-row ${added ? "active" : ""}" data-act="toggle-actor" data-token="${a.token}">${faceHTML(a)}<span class="near-name">${esc(a.name)}</span><span class="near-meta mono">${a.distance != null ? Math.max(1, Math.round(a.distance)) + "m" : ""}</span><span class="near-tag ${added ? "added" : ""}">${added ? "✓" : "ADD"}</span></button>`;
       }).join("")
-    : `<div class="empty-mini"><span class="mono">Scan, or aim at someone and PICK.</span></div>`;
+    : `<div class="empty-mini"><span class="mono">Scan, or aim at someone before opening and PICK.</span></div>`;
 
   const fit = state.catalog.filter((s) => unlistedVisible(s) && (s.actorCount || 0) === castCount).length;
   const libNote = castCount === 1 ? (state.libraryReceived ? ` · library ${state.library.length}` : " · + library") : "";
@@ -1793,8 +1793,8 @@ function init() {
       $("statusText").textContent = live ? "standalone · live snapshot" : "standalone mock";
       handleCatalog(applyMockPins(live || MOCK_CATALOG));
       notice("info", live
-        ? "Standalone mode. Snapshot catalog (live/catalog.json); pick/scan/launch are stubbed. W = emote wheel (Shift+W: no target)."
-        : "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target).");
+        ? "Standalone mode. Snapshot catalog (live/catalog.json); pick/scan/launch are stubbed. W = emote wheel (Shift+W: no target) · B = backdrop."
+        : "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target) · B = backdrop.");
       // ?wheel boots straight into wheel mode (?wheel=solo: no target), so a plain
       // reload while iterating on the wheel doesn't need a W keypress every time.
       const q = new URLSearchParams(location.search);
@@ -1805,6 +1805,7 @@ function init() {
     // path the native OpenWheel uses. The wheel-mode debug strip (top-left) drives the
     // rest of the states — see WHEEL DEBUG below.
     initWheelDebug();
+    initDevBackdrop();
     window.mockOpenWheel = (withTarget = true) => {
       wheelDbg.target = withTarget;
       renderWheelDbg();
@@ -1993,6 +1994,42 @@ function renderWheelDbg() {
     `<button class="${on(wheelDbg.err)}" data-dbg="err" title="Hub launch error">ERROR</button>` +
     `<button class="${on(wheelDbg.loading)}" data-dbg="loading" title="Catalog not yet received">LOADING</button>` +
     `<button data-dbg="reset" title="Back to the real catalog">RESET</button>`;
+}
+
+/* =========================================================================
+   DEV BACKDROP (standalone only — injected only when no bridge exists)
+   In-game the page body is transparent and the live game world shows through;
+   a desktop browser renders that as flat white/black, which lies about
+   contrast. This stands a fake world behind the overlay: procedural scenes
+   (dark ship interior / bright daylight — the readability worst case / night
+   exterior / flat none), cycled with B and sticky per-tab. Dropping a real
+   screenshot at live/backdrop.jpg (git-ignored, never packaged) adds it as a
+   "shot" scene and makes it the default.
+   ========================================================================= */
+function initDevBackdrop() {
+  const el = document.createElement("div");
+  el.id = "devbackdrop";
+  document.body.prepend(el);
+  const scenes = ["interior", "day", "night", "none"];
+  const apply = (scene) => {
+    el.dataset.scene = scene;
+    el.style.backgroundImage = scene === "shot" ? "url(live/backdrop.jpg)" : "";
+    try { sessionStorage.osfDevBackdrop = scene; } catch {}
+  };
+  const saved = (() => { try { return sessionStorage.osfDevBackdrop; } catch { return null; } })();
+  apply(scenes.includes(saved) ? saved : "interior");
+  // A user screenshot beats the procedural scenes: joins the cycle and wins by default.
+  const img = new Image();
+  img.onload = () => {
+    scenes.unshift("shot");
+    if (!scenes.includes(saved) || saved === "shot") apply("shot");  // a saved procedural pick stands
+  };
+  img.src = "live/backdrop.jpg";
+  document.addEventListener("keydown", (e) => {
+    if (isTextEntry(document.activeElement)) return;
+    if (e.key !== "b" && e.key !== "B") return;
+    apply(scenes[(scenes.indexOf(el.dataset.scene) + 1) % scenes.length]);
+  });
 }
 
 init();

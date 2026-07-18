@@ -43,7 +43,9 @@ views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  �
   footer). Gamepad works through the runtime's default mapping (D-pad/left
   stick → arrows, A → Enter, B → close, right stick → scroll) feeding the
   view's directional-focus layer; no raw `ui.gamepad` handling.
-- **Targeting:** crosshair pick *or* **Scan Nearby** — a cell walk that
+- **Targeting:** crosshair pick (the target under the reticle when the browser
+  *opened* — the engine nulls the reticle slot while any menu is up, so PICK
+  resolves the open-time capture) *or* **Scan Nearby** — a cell walk that
   lists nearby actors (living, closest-first, with a species tag for creature
   filtering) and furniture with per-anchor scene counts, each as a clickable
   token. Scan rows draw a neutral silhouette (no portrait capture).
@@ -143,6 +145,14 @@ catalog carries 14 `player.emote.*` scenes so the 12-slice cap shows "+2 more";
 picking **Facepalm** mock-fails to exercise the error path, any other pick
 "launches" and closes the wheel via the mocked `osf.animation.requestClose` →
 `ui.visibility` hide round-trip.
+
+**Backdrop:** in-game the page body is transparent over the live game world; a
+desktop browser renders that as flat white/black, which lies about contrast. In
+standalone mode a **dev backdrop** stands a fake world behind the overlay —
+procedural scenes cycled with `B` (dark ship **interior** → bright **day**, the
+readability worst case → **night** exterior → flat **none**), sticky per tab.
+Drop a real screenshot at `live/backdrop.jpg` (git-ignored, never packaged) and
+it joins the cycle as **shot** and becomes the default.
 
 While the wheel is up, a **WHEEL DEBUG strip** (top-left, standalone only —
 injected only when no bridge exists, so it can never surface in-game) drives

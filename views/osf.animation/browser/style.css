@@ -590,22 +590,44 @@ body.wheel-mode .wheel{display:block}
   font:600 12px var(--font-display);letter-spacing:.06em;text-transform:uppercase;color:var(--text-body);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:var(--shadow-sm)}
 .wheel-slice:hover{border-color:var(--steel-500);color:var(--text-bright)}
-.wheel-slice.focused{border-color:var(--accent);background:rgba(240,113,48,.16);color:var(--text-bright);box-shadow:var(--glow-accent)}
+/* amber layered OVER the dark base (not replacing it): a bare 16% amber wash goes
+   near-transparent over a bright game world and the focused label becomes unreadable */
+.wheel-slice.focused{border-color:var(--accent);color:var(--text-bright);box-shadow:var(--glow-accent);
+  background:linear-gradient(rgba(240,113,48,.18),rgba(240,113,48,.18)) rgba(6,9,13,.88)}
 .wheel-slice:focus{outline:none}  /* .focused carries the ring — no doubled outline under .nav-kb */
 .wheel-hub{position:absolute;left:0;top:0;width:128px;height:128px;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;border-radius:50%;
-  background:rgba(6,9,13,.55);border:1px solid var(--line-hud);box-shadow:inset 0 0 22px rgba(0,0,0,.55)}
+  background:rgba(6,9,13,.72);border:1px solid var(--line-hud);box-shadow:inset 0 0 22px rgba(0,0,0,.55)}
 .wheel-hub:hover{border-color:var(--signal-stop)}
 .wheel-hub-who{font:700 13px var(--font-display);letter-spacing:.05em;text-transform:uppercase;color:var(--text-bright);
   max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wheel-hub-status{font:500 8.5px var(--font-mono);color:var(--text-faint);max-width:104px;white-space:normal;text-align:center;line-height:1.35}
 .wheel-hub-status.err{color:#e6b3a8}
-.wheel-more{position:absolute;left:0;top:calc(var(--wry) + 36px);transform:translateX(-50%);white-space:nowrap}
-.wheel-caption{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);letter-spacing:.12em;white-space:nowrap}
+/* text-shadow: keeps the free-floating captions legible over a bright game world */
+.wheel-more{position:absolute;left:0;top:calc(var(--wry) + 36px);transform:translateX(-50%);white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}
+.wheel-caption{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);letter-spacing:.12em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}
 .wheel-empty{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:auto;width:300px;
   background:rgba(6,9,13,.92);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:18px;
   display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
 .wheel-empty .mono{white-space:normal}
+
+/* standalone-only dev backdrop (#devbackdrop, injected by main.js when no bridge
+   is present — never exists in-game): stands in for the live game world behind the
+   transparent overlay so contrast reads true in a desktop browser. B cycles scenes;
+   [data-scene=shot] shows a user screenshot dropped at live/backdrop.jpg */
+#devbackdrop{position:fixed;inset:0;z-index:-1;background-color:#0b0e12;background-size:cover;background-position:center}
+#devbackdrop[data-scene=interior]{background-image:
+  repeating-linear-gradient(90deg,rgba(255,255,255,.02) 0 2px,transparent 2px 170px),
+  radial-gradient(55% 45% at 68% 38%,rgba(240,150,80,.12),transparent 70%),
+  radial-gradient(80% 70% at 25% 85%,rgba(96,116,138,.14),transparent),
+  linear-gradient(180deg,#131922 0%,#0b0f15 55%,#06080c 100%)}
+#devbackdrop[data-scene=day]{background-image:
+  radial-gradient(42% 36% at 74% 22%,rgba(255,242,215,.95),rgba(255,242,215,0) 70%),
+  linear-gradient(180deg,#b7c8d6 0%,#ccd5d9 42%,#a39781 58%,#6f6452 100%)}
+#devbackdrop[data-scene=night]{background-image:
+  radial-gradient(26% 22% at 24% 26%,rgba(205,218,238,.22),transparent 70%),
+  radial-gradient(120% 60% at 50% 110%,rgba(46,58,74,.5),transparent),
+  linear-gradient(180deg,#0a1019 0%,#070a11 60%,#04060a 100%)}
 
 /* standalone-only wheel debug strip (#wheeldbg, injected by main.js when no
    bridge is present — never exists in-game); visible only while the wheel is up */
