@@ -6,6 +6,7 @@
 #include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
 #include "Registry/SceneRegistry.h"
+#include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "Serialization/WheelPins.h"  // user-pinned emote-wheel scenes (catalog `pinned` + osf.animation.wheel.pin)
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
@@ -57,12 +58,17 @@ namespace OSF::API
 		// Last scene handle we launched, so an osf.stop with no handle can target it.
 		std::int32_t g_lastHandle = 0;
 
-		// Scenes launched from the browser console, aborted when the browser closes: once the
-		// UI is gone there is no stop button left, so a player mid-scene would be stuck.
-		// Wheel launches are NOT tracked — the wheel closes itself right after a successful
-		// pick, and the emote must survive that close. Stale entries are harmless (handles
-		// are generational; StopScene on an ended scene returns false) and the list is
-		// cleared on every close, so it never outgrows one browser session. Main thread only.
+		// PLAYER-cast scenes launched from the browser console, aborted when the browser
+		// closes: once the UI is gone there is no stop button left, so a player mid-scene
+		// would be stuck. NPC-only scenes are deliberately NOT tracked — they outlive the
+		// browser (vignettes / machinima; the player can just walk away), and the ACTIVE
+		// list on reopen is their stop surface. Every player-affecting mechanism (control
+		// lock, camera, fade) is already engine-gated on the player being a participant, so
+		// an NPC-only scene can never strand a lock. Wheel launches are NOT tracked either —
+		// the wheel closes itself right after a successful pick, and the emote must survive
+		// that close. Stale entries are harmless (handles are generational; StopScene on an
+		// ended scene returns false) and the list is cleared on every close, so it never
+		// outgrows one browser session. Main thread only.
 		std::vector<std::int32_t> g_closeStops;
 
 		// Pending emote-wheel open (OpenWheel): the osf.mode push must survive the open race,
@@ -77,6 +83,13 @@ namespace OSF::API
 			std::string  targetName;
 		};
 		PendingWheel g_wheel;
+
+		// Crosshair target captured at browser-open time. The engine clears the reticle slot
+		// (PlayerCharacter+0xF90) to null while ANY menu is up (OSF RE gameplay.crosshair_pick),
+		// so a PICK clicked inside the open browser can never read it live — it resolves this
+		// capture instead. 0 = nothing was under the reticle at open. Cleared on osf.closed.
+		// Game main thread only, like g_tokens.
+		std::int32_t g_openPickToken = 0;
 
 		// token -> picked ref. All handlers run on the GAME MAIN THREAD (CommandFn contract), and the token map is only ever touched from a handler, so no locking is needed. 
 		// token -1 is reserved for the player (never stored).
@@ -569,8 +582,14 @@ namespace OSF::API
 			}
 			const bool wantActor = (slot != "furniture");
 
+			// Live read first (covers any host that leaves the reticle active), but with the
+			// browser menu up the engine has cleared the slot — fall back to the target that
+			// was under the crosshair when the browser opened (re-validated via the token map).
 			RE::TESObjectREFR* ref = CrosshairRef();
-			const bool         accept = ref && (!wantActor || ref->IsActor());
+			if (!ref && g_openPickToken != 0) {
+				ref = ResolveToken(g_openPickToken);
+			}
+			const bool accept = ref && (!wantActor || ref->IsActor());
 
 			json reply;
 			reply["slot"] = slot;
@@ -579,7 +598,7 @@ namespace OSF::API
 				reply["token"] = 0;
 				reply["name"] = "";
 				reply["formId"] = 0;
-				REX::DEBUG("[UI] osf.animation.pickCrosshair slot={} -> nothing valid under crosshair", slot);
+				REX::DEBUG("[UI] osf.animation.pickCrosshair slot={} -> nothing valid (live null, openToken={})", slot, g_openPickToken);
 			} else {
 				const std::int32_t token = AllocToken(ref);
 				const std::string  nm = ScanLabel(ref);
@@ -711,7 +730,12 @@ namespace OSF::API
 			}
 
 			g_lastHandle = handle;
-			if (!g_wheel.active) {  // console launch: abort on browser close (wheel emotes outlive it)
+			// Console launch with the PLAYER in the cast: abort on browser close (see
+			// g_closeStops). NPC-only casts and wheel emotes outlive the close.
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			const bool castHasPlayer = player &&
+				std::find(actors.begin(), actors.end(), static_cast<RE::Actor*>(player)) != actors.end();
+			if (!g_wheel.active && castHasPlayer) {
 				g_closeStops.push_back(handle);
 			}
 			reply["ok"] = true;
@@ -1050,8 +1074,10 @@ namespace OSF::API
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
 			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();  // drag-to-look never outlives the browser
 			g_wheel = {};  // any hide ends wheel mode; the next open starts clean
-			// Abort console-launched scenes (see g_closeStops): the browser was the only stop
-			// button, so a scene outliving it would leave its cast — the player included — stuck.
+			g_openPickToken = 0;  // the open-time crosshair capture never outlives its session
+			// Abort console-launched PLAYER scenes (see g_closeStops): the browser was the only
+			// stop button, so one outliving it would leave the player stuck. NPC-only scenes
+			// are not in the list — they keep running until stopped from a reopened browser.
 			if (!g_closeStops.empty()) {
 				if (auto* api = SceneAPI()) {
 					for (const std::int32_t h : g_closeStops) {
@@ -1164,6 +1190,13 @@ namespace OSF::API
 			if (g_wheel.active) {
 				g_wheel = {};
 				SendJson(kViewId, "osf.animation.mode", json{ { "mode", "browser" } });
+			}
+			// Capture the reticle target NOW, before any menu (ours included) is up — once the
+			// browser opens the engine nulls the slot, and PICK resolves this capture instead.
+			g_openPickToken = 0;
+			if (RE::TESObjectREFR* ref = CrosshairRef()) {
+				g_openPickToken = AllocToken(ref);
+				REX::DEBUG("[UI] OpenBrowser: captured crosshair target '{}' ({:08X}) for PICK", ScanLabel(ref), ref->GetFormID());
 			}
 			auto* ui = RE::UI::GetSingleton();
 			auto* queue = RE::UIMessageQueue::GetSingleton();
