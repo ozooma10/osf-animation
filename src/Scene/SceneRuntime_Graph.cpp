@@ -147,6 +147,7 @@ namespace OSF::Scene
 		std::string oldNode;
 		std::string sceneId;
 		std::vector<RE::Actor*> participants;
+		bool cameraOverridden = false;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = nullptr;
@@ -161,6 +162,7 @@ namespace OSF::Scene
 			oldNode = s->node;
 			sceneId = s->id;
 			participants = s->participants;
+			cameraOverridden = s->cameraOverridden;
 		}
 
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(sceneId);
@@ -190,8 +192,10 @@ namespace OSF::Scene
 					const auto& snd = node->sounds[idx];
 					PlaySound(handle, snd.spec, snd.role, snd.volume);
 				}
-			} else if (m.lane == kLaneCamera && node) {
-				// token = index into node->cameras (set by ApplyNodeMarks).
+			} else if (m.lane == kLaneCamera && node && !cameraOverridden) {
+				// token = index into node->cameras (set by ApplyNodeMarks). A per-start camera
+				// override owns the scene's camera — timed camera marks stand down like the
+				// lifecycle entries (see DispatchLifecycleCamera).
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->cameras.size(), idx)) {
 					RunCamera(handle, node->cameras[idx].state, hasPlayer, node->cameras[idx].distance);
@@ -271,6 +275,7 @@ namespace OSF::Scene
 		// anchored there instead of at participant[0]. Read it fresh from the slot so all the
 		// transition paths (Advance/Navigate/auto-end/trigger) reuse it with no per-site plumbing.
 		float loopScale = 1.0f;
+		std::optional<bool> inPlaceOverride;
 		{
 			std::lock_guard l{ GetSingleton()._lock };
 			std::int32_t tok = 0;
@@ -281,7 +286,13 @@ namespace OSF::Scene
 					plan->anchorHeading = s->anchor.heading;
 				}
 				loopScale = s->loopScale;  // per-start LoopScale (1.0 = none)
+				inPlaceOverride = s->inPlace;
 			}
+		}
+		// Per-start inPlace (SceneOptions) wins over the def's posture. BuildNodePlan already stamped
+		// the def's `inPlace` onto plan->anchored; true here = no teleport / per-frame root+heading pin.
+		if (inPlaceOverride.has_value()) {
+			plan->anchored = !*inPlaceOverride;
 		}
 		// Stamp the node's loop policy + timerSec onto the plan so the GraphManager auto-ends
 		// at the node's terminal condition and reports it back via OnGraphAutoEnd (which takes
@@ -572,15 +583,19 @@ namespace OSF::Scene
 		if (!handle) {
 			return 0;
 		}
-		// Store the explicit anchor + per-start loop scale on the slot BEFORE the first play, so PlayNodeAnim and every later node transition reuse them.
-		//  loopScale must live on the slot because the plan is rebuilt fresh per node, so it re-applies on each entry rather than compounding.
-		if (a_anchor.set || a_over.loopScale != 1.0f) {
+		// Store the explicit anchor + per-start overrides on the slot BEFORE the first play, so PlayNodeAnim and every later node transition reuse them.
+		//  loopScale/inPlace must live on the slot because the plan is rebuilt fresh per node, so they re-apply on each entry rather than compounding.
+		if (a_anchor.set || a_over.loopScale != 1.0f || a_over.inPlace.has_value() || a_over.camera.has_value()) {
 			std::lock_guard l{ _lock };
 			if (Slot* s = Resolve(handle)) {
 				if (a_anchor.set) {
 					s->anchor = a_anchor;
 				}
 				s->loopScale = a_over.loopScale;
+				s->inPlace = a_over.inPlace;
+				// A per-start camera override owns the scene's camera for its whole lifetime:
+				// authored node cameras are suppressed while this is set (see DispatchLifecycleCamera).
+				s->cameraOverridden = a_over.camera.has_value();
 			}
 		}
 		// If the entry node can't play (dangling `use`, plan build fail, clip load fail), don't mint a

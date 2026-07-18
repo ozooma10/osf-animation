@@ -197,6 +197,9 @@ namespace OSF::Scene
 		} else if (state == "vanity_orbit") {
 			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — vanity orbit engaged", a_handle, a_state);
 			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kVanityOrbit);
+		} else if (state == "none") {
+			// Explicit hands-off (per-start override or authored): the vanilla camera is left alone.
+			REX::DEBUG("[Scene] scene {:#010x} camera 'none' — vanilla camera untouched", a_handle);
 		} else {
 			// SceneRegistry validation restricts authored states to the known set; an unknown one here is a no-op.
 			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — unknown state, no-op", a_handle, a_state);
@@ -207,6 +210,13 @@ namespace OSF::Scene
 	{
 		SlotView view;
 		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
+			return;
+		}
+		// A per-start camera override (SceneOptions.Camera) owns the scene's camera: authored node
+		// cameras stand down for the scene's lifetime, or they would stomp the override on NODE_ENTER
+		// (with "none" that means the vanilla camera stays untouched throughout).
+		if (view.cameraOverridden) {
+			REX::DEBUG("[Scene] scene {:#010x} node '{}' authored cameras suppressed — per-start camera override active", a_handle, a_node);
 			return;
 		}
 		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);

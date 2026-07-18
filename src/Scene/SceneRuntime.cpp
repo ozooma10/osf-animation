@@ -170,6 +170,7 @@ namespace OSF::Scene
 		a_out.id = s->id;
 		a_out.node = s->node;
 		a_out.participants = s->participants;
+		a_out.cameraOverridden = s->cameraOverridden;
 		return true;
 	}
 

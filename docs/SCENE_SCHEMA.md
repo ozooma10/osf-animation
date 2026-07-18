@@ -486,7 +486,7 @@ seed is applied per scene start and does not permanently change the player's own
 
 ## Policy
 
-Set on a scene (or as a file-level default for `lockPlayer` / `stripActors` / `fade`):
+Set on a scene (or as a file-level default for `lockPlayer` / `stripActors` / `fade` / `inPlace`):
 
 ### Player input lock (`lockPlayer`, default-on)
 
@@ -525,6 +525,24 @@ black until the end.
   scene's actor teleport/strip/camera-cut run synchronously *this* frame, so the initial snap is already
   on screen before black arrives. The default gives a cinematic dip + settle, not a hidden start.
 - Authored `osf.fade.out` / `osf.fade.in` still work (e.g. a held end-fade), independent of this default.
+
+### In-place playback (`inPlace`, default-off)
+
+By default the runtime **anchors** a scene: participants are teleported to the anchor (participant[0]'s
+transform, or the furniture anchor) and their rendered root position **and heading are re-pinned every
+frame** so multi-actor placements stay aligned. That pin overwrites the player's heading each frame —
+and in vanilla third person the *camera* writes the player's heading, so the two fight and the camera
+judders.
+
+Set **`"inPlace": true`** for scenes that should play on each actor **exactly where they stand**:
+
+- No teleport, no per-frame root/heading pin, no animation-driven AI flag — the rig follows the actor's
+  live transform.
+- The player keeps vanilla camera behavior entirely (pair it with `"camera": "none"` and
+  `"lockPlayer": false` for the full hands-off posture — this is the emote-pack recipe).
+- Meant for **solo flourishes** (emotes, gestures). A multi-actor `inPlace` scene gets no relative
+  alignment — each actor animates wherever they happen to be.
+- Incompatible with an `anchor` requirement (load error): an anchor's whole job is positioning the cast.
 
 ### Director input grant (`playerControl`)
 
@@ -594,6 +612,6 @@ can join them without another schema layer (the shipped set lives in `Data/OSF/i
 
 | Tag | Consumed by | Contract |
 |-----|-------------|----------|
-| `player.emote.<name>` | Animations → Emotes and the emote wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the emote's `name` is the wheel slice label. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
+| `player.emote.<name>` | Animations → Emotes and the default animation wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the emote's `name` is the wheel slice label. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
 | `immersion` | — | Umbrella tag for the shipped immersion pack; free for browsing/filtering. |
 

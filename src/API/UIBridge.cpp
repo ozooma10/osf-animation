@@ -8,7 +8,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
-#include "Serialization/WheelPins.h"  // ordered emote-wheel customization (catalog wheel fields + osf.animation.wheel.set)
+#include "Serialization/WheelPins.h"  // ordered animation-wheel customization
 #include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
 #include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
 #include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
@@ -71,7 +71,7 @@ namespace OSF::API
 		// outgrows one browser session. Main thread only.
 		std::vector<std::int32_t> g_closeStops;
 
-		// Pending emote-wheel open (OpenWheel): the osf.mode push must survive the open race,
+		// Pending animation-wheel open (OpenWheel): the osf.mode push must survive the open race,
 		// so it is re-sent from the osf.opened handler while this is active. Cleared on
 		// osf.closed and by OpenBrowser (a normal open must never land in wheel mode).
 		// Game main thread only, like g_tokens.
@@ -377,11 +377,110 @@ namespace OSF::API
 				[](const std::string& a_tag) { return a_tag.starts_with("player.emote."); });
 		}
 
+		bool IsWheelScene(const Registry::SceneDef& a_def)
+		{
+			return !a_def.library && !a_def.unlisted && a_def.roles.size() == 1 &&
+			       !a_def.RequiresAnchor() && IsEmote(a_def);
+		}
+
+		const Registry::SceneNode* WheelStage(const Registry::SceneDef& a_def, std::int32_t a_stage)
+		{
+			if (!a_def.library || a_def.roles.size() != 1 || a_def.RequiresAnchor() ||
+			    (!a_def.species.empty() && a_def.species != "human") ||
+			    a_stage < 0 || static_cast<std::size_t>(a_stage) >= a_def.linearStages.size()) {
+				return nullptr;
+			}
+			const auto* node = a_def.FindNode(a_def.linearStages[static_cast<std::size_t>(a_stage)]);
+			return node && !node->stages.empty() && !node->stages.front().clips.empty() ? node : nullptr;
+		}
+
+		json BuildWheelData(std::string_view a_tagPrefix)
+		{
+			using Serialization::WheelPins::Entry;
+			struct Item
+			{
+				Entry        entry;
+				std::string  title;
+				std::int32_t priority = 0;
+				std::int32_t weight = 1;
+			};
+
+			std::vector<Item> items;
+			auto add = [&items](const Registry::SceneDef& a_def, const Entry& a_entry) {
+				if (a_entry.stage < 0) {
+					if (!IsWheelScene(a_def)) {
+						return;
+					}
+					items.push_back({ a_entry, a_def.name.empty() ? a_def.id : a_def.name, a_def.priority, a_def.weight });
+					return;
+				}
+				const auto* node = WheelStage(a_def, a_entry.stage);
+				if (!node) {
+					return;
+				}
+				const auto& stage = node->stages.front();
+				std::string title = stage.name;
+				if (title.empty()) {
+					title = a_def.linearStages.size() == 1
+					          ? (a_def.name.empty() ? a_def.id : a_def.name)
+					          : std::format("{} · Stage {}", a_def.name.empty() ? a_def.id : a_def.name, a_entry.stage + 1);
+				}
+				items.push_back({ a_entry, std::move(title), a_def.priority, a_def.weight });
+			};
+
+			auto& registry = Registry::SceneRegistry::GetSingleton();
+			const bool customized = Serialization::WheelPins::Customized();
+			if (customized) {
+				for (const auto& entry : Serialization::WheelPins::Entries()) {
+					if (const auto* def = registry.Find(entry.scene)) {
+						add(*def, entry);
+					}
+				}
+			} else {
+				const std::string prefix = Util::ToLower(a_tagPrefix.empty() ? std::string_view{ "player.emote." } : a_tagPrefix);
+				registry.ForEachDef([&](const Registry::SceneDef& a_def) {
+					if (IsWheelScene(a_def) && std::ranges::any_of(a_def.tagSet,
+						[&](const std::string& a_tag) { return a_tag.starts_with(prefix); })) {
+						add(a_def, Entry{ a_def.id, -1 });
+					}
+				});
+				std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
+					return a.priority != b.priority ? a.priority > b.priority :
+					       a.weight != b.weight ? a.weight > b.weight : a.title < b.title;
+				});
+				if (items.size() > 12) {
+					items.resize(12);
+				}
+			}
+
+			json entries = json::array();
+			for (const auto& item : items) {
+				json value = {
+					{ "scene", item.entry.scene },
+					{ "title", item.title },
+				};
+				if (item.entry.stage >= 0) {
+					value["stage"] = item.entry.stage;
+				}
+				entries.push_back(std::move(value));
+			}
+			return { { "customized", customized }, { "entries", std::move(entries) } };
+		}
+
 		// Serialize the live scene registry to the osf.catalog.data array (a_library=false) or the osf.library.data array (a_library=true — the reference-library lane, e.g. the generated vanilla packs). 
 		// Copies the fields out from under the registry read lock, then builds JSON afterwards
 		json BuildCatalog(bool a_library)
 		{
 			const bool wheelCustomized = Serialization::WheelPins::Customized();
+			const auto wheelEntries = Serialization::WheelPins::Entries();
+			const auto wheelOrder = [&wheelEntries](std::string_view a_scene, std::int32_t a_stage) {
+				for (std::size_t i = 0; i < wheelEntries.size(); ++i) {
+					if (wheelEntries[i].scene == a_scene && wheelEntries[i].stage == a_stage) {
+						return static_cast<std::int32_t>(i) + 1;
+					}
+				}
+				return 0;
+			};
 			struct StageCard
 			{
 				std::int32_t             index = 0;
@@ -389,6 +488,7 @@ namespace OSF::API
 				std::vector<std::string> tags;
 				std::int32_t             clipCount = 0;
 				std::string              sig;    // clip-set signature (files joined) for de-dup
+				std::int32_t             pinned = 0;  // 1-based animation-wheel order
 				// Timing. loopSec = the clip's loop length (the honest per-animation number);
 				// estSec folds in the stage's loops/timer; either < 0 = unknown (clip not probed yet).
 				float                    loopSec = -1.0f;
@@ -415,7 +515,7 @@ namespace OSF::API
 				bool                     openEnded = false;   // some stage holds until advanced
 			};
 			std::vector<Card> cards;
-			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards, a_library](const Registry::SceneDef& d) {
+			Registry::SceneRegistry::GetSingleton().ForEachDef([&cards, &wheelOrder, a_library](const Registry::SceneDef& d) {
 				if (d.library != a_library) {
 					return;  // each lane serializes only its own scenes
 				}
@@ -444,7 +544,7 @@ namespace OSF::API
 					c.anchorNames.push_back(edid && edid[0] ? std::string{ edid } : std::format("{:#010x}", b));
 				}
 				c.unlisted = d.unlisted;
-				c.pinned = a_library ? 0 : Serialization::WheelPins::Order(d.id);
+				c.pinned = wheelOrder(d.id, -1);
 				// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 				c.stages.reserve(d.linearStages.size());
 				for (std::size_t i = 0; i < d.linearStages.size(); ++i) {
@@ -459,6 +559,7 @@ namespace OSF::API
 					sc.name = st.name;
 					sc.tags = st.tags;
 					sc.clipCount = static_cast<std::int32_t>(st.clips.size());
+					sc.pinned = wheelOrder(d.id, sc.index);
 					for (const auto& clip : st.clips) {
 						sc.sig += clip.file;
 						sc.sig += '\n';
@@ -535,6 +636,7 @@ namespace OSF::API
 						{ "name", s.name },
 						{ "tags", s.tags },
 						{ "clipCount", s.clipCount },
+						{ "pinned", s.pinned },
 						{ "sig", s.sig },
 						{ "loopSec", secOrNull(s.loopSec) },
 						{ "timerSec", s.timerSec > 0.0f ? json(s.timerSec) : json(nullptr) },
@@ -694,6 +796,20 @@ namespace OSF::API
 			}
 			o.anchorRef = furniture;
 
+			// WHEEL POSTURE: every wheel launch is a quick in-world flourish and gets the same
+			// hands-off settings regardless of which pack the animation came from — play it on the
+			// actor where they stand (no teleport / per-frame root+heading pin), never touch the
+			// camera (vanilla third person stays live; the pin fight was the emote camera judder),
+			// keep the player's controls, no strip, no fade. Enforced HERE (not per-pack policy) so
+			// stage-pinned library animations behave exactly like the installed emotes.
+			if (g_wheel.active) {
+				o.inPlaceMode = 1;
+				o.lockPlayerMode = 0;
+				o.stripMode = 0;
+				o.fadeMode = 0;
+				std::snprintf(o.camera, sizeof(o.camera), "none");
+			}
+
 			auto* api = SceneAPI();
 			if (!api) {
 				return fail("OSF Animation engine is not ready yet");
@@ -778,9 +894,17 @@ namespace OSF::API
 			REX::DEBUG("[UI] osf.animation.stop handle={} -> {}", handle, ok);
 		}
 
-		// Persist a complete, ordered emote-wheel loadout. The view materializes the
-		// installed defaults on the first edit, so adding/removing one emote never
-		// unexpectedly replaces the other defaults. `reset:true` returns to derivation.
+		void OnWheelGet(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			const std::string prefix = j.is_object() && j.contains("tagPrefix") && j["tagPrefix"].is_string()
+			                             ? j["tagPrefix"].get<std::string>()
+			                             : std::string{ "player.emote." };
+			SendJson(a_srcView, "osf.animation.wheel.data", BuildWheelData(prefix));
+		}
+
+		// Persist a complete, ordered animation-wheel loadout. The view materializes
+		// the installed defaults on the first edit. `reset:true` returns to derivation.
 		void OnWheelSet(const char*, const char* a_payload, const char*, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
@@ -789,33 +913,48 @@ namespace OSF::API
 			}
 			if (j.value("reset", false)) {
 				if (Serialization::WheelPins::Reset()) {
-					REX::DEBUG("[UI] emote wheel reset to installed defaults");
+					REX::DEBUG("[UI] animation wheel reset to installed defaults");
 					PushCatalogUpdate();
 				}
 				return;
 			}
-			const auto it = j.find("sceneIds");
+			const auto it = j.find("entries");
 			if (it == j.end() || !it->is_array() || it->size() > 12) {
 				REX::WARN("[UI] osf.animation.wheel.set refused malformed/oversized loadout");
 				return;
 			}
-			std::vector<std::string> ids;
-			ids.reserve(it->size());
+			std::vector<Serialization::WheelPins::Entry> entries;
+			entries.reserve(it->size());
 			for (const auto& value : *it) {
-				if (!value.is_string()) {
-					REX::WARN("[UI] osf.animation.wheel.set refused a non-string entry");
+				if (!value.is_object()) {
+					REX::WARN("[UI] osf.animation.wheel.set refused a non-object entry");
 					return;
 				}
-				auto id = value.get<std::string>();
-				const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
-				if (!def || def->library || def->unlisted || def->roles.size() != 1 || def->RequiresAnchor() || !IsEmote(*def)) {
-					REX::WARN("[UI] osf.animation.wheel.set refused ineligible emote '{}'", id);
+				const auto sit = value.find("scene");
+				if (sit == value.end() || !sit->is_string()) {
+					REX::WARN("[UI] osf.animation.wheel.set refused an entry without a scene id");
 					return;
 				}
-				ids.push_back(std::move(id));
+				Serialization::WheelPins::Entry entry;
+				entry.scene = sit->get<std::string>();
+				if (const auto stit = value.find("stage"); stit != value.end()) {
+					if (!stit->is_number_integer()) {
+						REX::WARN("[UI] osf.animation.wheel.set refused a non-integer stage");
+						return;
+					}
+					entry.stage = stit->get<std::int32_t>();
+				}
+
+				const auto* def = Registry::SceneRegistry::GetSingleton().Find(entry.scene);
+				const bool eligible = def && (entry.stage < 0 ? IsWheelScene(*def) : WheelStage(*def, entry.stage) != nullptr);
+				if (!eligible) {
+					REX::WARN("[UI] osf.animation.wheel.set refused ineligible animation '{}' stage {}", entry.scene, entry.stage);
+					return;
+				}
+				entries.push_back(std::move(entry));
 			}
-			if (Serialization::WheelPins::SetEntries(ids)) {
-				REX::DEBUG("[UI] emote wheel customized with {} entr{}", ids.size(), ids.size() == 1 ? "y" : "ies");
+			if (Serialization::WheelPins::SetEntries(entries)) {
+				REX::DEBUG("[UI] animation wheel customized with {} entr{}", entries.size(), entries.size() == 1 ? "y" : "ies");
 				PushCatalogUpdate();
 			}
 		}
@@ -1289,7 +1428,7 @@ namespace OSF::API
 		}
 		// Same gate as OpenBrowser: actionable message beats the wrapper's silent no-op.
 		if (!g_ui.Has(OSFUI::API::Feature::kRequestMenu)) {
-			REX::WARN("[UI] OpenWheel: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to use the emote wheel");
+			REX::WARN("[UI] OpenWheel: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to use the animation wheel");
 			UI::HudMessage::Error("OSF UI not present or too old");
 			return false;
 		}
@@ -1362,6 +1501,7 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
 		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
+		g_ui.RegisterCommand("osf.animation.wheel.get", &OnWheelGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.wheel.set", &OnWheelSet, nullptr);
 		g_ui.RegisterCommand("osf.animation.opened", &OnOpened, nullptr);
 		g_ui.RegisterCommand("osf.animation.closed", &OnClosed, nullptr);

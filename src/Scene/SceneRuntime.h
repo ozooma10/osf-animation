@@ -54,7 +54,8 @@ namespace OSF::Scene
 			std::optional<bool> lockPlayer;
 			std::optional<bool> fade;
 			std::optional<bool> playerControl;  // override the director-input grant (false = revoke advance/end/navigate/etc.)
-			std::optional<std::string> camera;  // override the entry camera STATE (e.g. "scene_orbit"); unset = inherit the scene's
+			std::optional<std::string> camera;  // override the scene's camera ("none" = leave the vanilla camera alone); when set, authored node cameras are suppressed for the whole scene
+			std::optional<bool> inPlace;        // override the def's inPlace posture: true = no teleport / per-frame root+heading pin (rig follows the actor)
 			float               loopScale = 1.0f;  // multiplies loop-driven (loops>0) stages only, floored
 		};
 
@@ -222,6 +223,8 @@ namespace OSF::Scene
 			std::vector<RE::Actor*> participants;
 			AnchorOverride          anchor;  // StartSceneAt world anchor (unset = anchor at participant[0])
 			float                   loopScale = 1.0f;  // per-start LoopScale, re-read per node in PlayNodeAnim (1.0 = no scaling)
+			std::optional<bool>     inPlace;  // per-start inPlace override, re-read per node in PlayNodeAnim (unset = the def's posture)
+			bool                    cameraOverridden = false;  // a per-start camera override exists — authored node cameras stand down for the scene's lifetime
 			// Ordered list of reversible mechanisms this scene engaged (at most one entry per
 			// Mechanism — record is idempotent). Replayed in reverse on termination.
 			std::vector<Mechanism>  ledger;
@@ -245,6 +248,7 @@ namespace OSF::Scene
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
+			bool                    cameraOverridden = false;  // see Slot::cameraOverridden
 		};
 
 		// The id + resolved label of one branchable (advance) edge, for the menu accessors.

@@ -29,7 +29,7 @@ namespace OSF::API
 		constexpr const char* kSchemaJson = R"json({
   "id": "osf.animation",
   "title": "OSF Animation",
-  "description": "Scene framework — browser, emote wheel, and scene hotkeys.",
+  "description": "Scene framework — browser, animation wheel, and scene hotkeys.",
   "icon": "browser/osf-icon.svg",
   "version": 1,
   "targetVersion": "1.0.0",
@@ -39,7 +39,7 @@ namespace OSF::API
         "label": "Open animation browser",
         "hint": "Browse animations, emotes, and authored scenes." },
       { "key": "hotkeys.openWheel", "type": "key", "default": "", "allowUnbound": true,
-        "label": "Open emote wheel",
+        "label": "Open animation wheel",
         "hint": "Radial emote picker; targets the crosshair NPC when one is in reach." }
     ] },
     { "label": "Interface", "settings": [

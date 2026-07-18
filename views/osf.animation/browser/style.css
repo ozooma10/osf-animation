@@ -417,7 +417,7 @@ button,input,select{font:inherit;color:inherit}
 .brief-status.warn .eb{color:var(--signal-warn)}
 .brief-status .dot{width:7px;height:7px;background:var(--accent);box-shadow:0 0 7px var(--accent)}
 .brief-status.warn .dot{background:var(--signal-warn);box-shadow:0 0 7px var(--signal-warn)}
-/* emote-wheel loadout controls */
+/* animation-wheel loadout controls */
 .brief-pin{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .pin-btn{border:1px solid var(--line-strong);background:transparent;border-radius:2px;padding:4px 10px;
   font:600 9.5px var(--font-mono);letter-spacing:.12em;color:var(--text-muted);cursor:pointer}
@@ -525,6 +525,9 @@ button,input,select{font:inherit;color:inherit}
 .anim-tags{display:flex;flex-wrap:wrap;gap:3px}
 .anim-tags .pill{font:600 7px var(--font-mono);color:var(--text-faint);border:1px solid var(--line);border-radius:2px;padding:1px 4px;text-transform:uppercase;letter-spacing:.06em}
 .anim-dur{font:600 9px var(--font-mono);color:var(--text-faint);letter-spacing:.04em;flex:none;white-space:nowrap}
+.anim-wheel-controls{display:inline-flex;align-items:center;gap:3px;flex:none}
+.anim-wheel-controls .wheel-order{font-size:8px}
+.anim-wheel-controls:not(.wide) .pin-btn{height:26px}
 .anim-play{width:26px;height:26px;flex:none;border:1px solid var(--line-strong);background:var(--void-700);border-radius:2px;color:var(--accent);font-size:12px;display:inline-flex;align-items:center;justify-content:center}
 .anim-play:hover:not(:disabled){background:var(--accent);color:var(--text-on-amber);border-color:var(--accent)}
 .anim-play:disabled{color:var(--text-faint);border-color:var(--line);opacity:.5}
@@ -606,7 +609,7 @@ body.wheel-mode .livebar{display:none}  /* the wheel owns the screen while it's 
 .livebar-hint{font-size:9px;letter-spacing:.14em;color:var(--text-faint);padding-left:2px}
 
 /* ============================================================
-   EMOTE WHEEL  (transient radial mode — EmoteWheel_Plan.md)
+   ANIMATION WHEEL  (transient radial mode)
    Opened via osf.mode {mode:"wheel"}: console/brief hide, a ring
    of emote slices circles the untouched world center. Live
    overlay (pausesGame:false) — no world-obscuring backdrop; only

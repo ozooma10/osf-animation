@@ -62,6 +62,7 @@ namespace OSF::Scene
 		over.lockPlayer = triState(a_opts.lockPlayerMode);
 		over.playerControl = triState(a_opts.playerControlMode);
 		over.fade = triState(a_opts.fadeMode);
+		over.inPlace = triState(a_opts.inPlaceMode);
 		if (!a_opts.camera.empty()) {
 			over.camera = a_opts.camera;
 		}

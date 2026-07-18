@@ -10,8 +10,7 @@ const PLAYER_CAST = { token: PLAYER_TOKEN, name: "Player", kind: "player", speci
 const state = {
   ready: false,
   catalog: [],
-  wheelCustomized: false,  // false = derive installed defaults; true = `pinned` is the explicit loadout
-  allUnlisted: false,
+  wheelCustomized: false,  // false = derive installed defaults; true = pinned fields are the explicit loadout
   selectedId: null,
   // Ordered cast. Role/slot binding is BY THIS ORDER (member 0 -> first role, etc.), so the list is
   // reorderable (drag, or Alt+↑/↓). The player is an inline member (kind "player") that may be
@@ -38,8 +37,8 @@ const state = {
   allSpecies: false,  // override the per-cast species filter (show human + every creature's animations)
   // Reference-library lane (osf.library.*): the generated vanilla packs. Static after load,
   // fetched once on demand when the LIBRARY mode is first opened, then cached for the session.
-  mode: "scenes",  // "scenes" | "library" | "wheel" (transient — see EMOTE WHEEL)
-  // Emote-wheel context while mode === "wheel" (osf.mode push from the native OpenWheel):
+  mode: "scenes",  // "scenes" | "library" | "wheel" (transient — see ANIMATION WHEEL)
+  // Animation-wheel context while mode === "wheel" (osf.mode push from the native OpenWheel):
   // { tagPrefix, target: {token,name}|null, focus, error, launching }. null otherwise.
   wheel: null,
   // Live mode: the console/brief collapse to a small floating live bar so the world (the
@@ -146,13 +145,14 @@ function onNativeMessage(jsonText) {
     case "runtime.ready": handleReady(payload); break;
     case "osf.animation.catalog.data": handleCatalog(payload); break;
     case "osf.animation.library.data": handleLibrary(payload); break;
+    case "osf.animation.wheel.data": handleWheelData(payload); break;
     case "osf.animation.pick": handlePick(payload); break;
     case "osf.animation.openTarget": handleOpenTarget(payload); break;
     case "osf.animation.scanResults": handleScanResults(payload); break;
     case "osf.animation.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.animation.launchResult": handleLaunchResult(payload); break;
     case "osf.animation.activeScenes": handleActiveScenes(payload); break;
-    // Native mode switch (OpenWheel): "wheel" enters the emote wheel; anything else restores
+    // Native mode switch (OpenWheel): "wheel" enters the animation wheel; anything else restores
     // the console. Delivered pre-paint by OSF UI's message queue (bridge MINOR >= 2) and
     // replayed on osf.opened while a wheel open is pending, so it must be idempotent.
     case "osf.animation.mode":
@@ -210,8 +210,6 @@ function handleCatalog(list) {
   clearTimeout(catalogTimer);
   state.catalog = Array.isArray(list) ? list.map(safeNormalize).filter(Boolean) : [];
   state.wheelCustomized = state.catalog.some((s) => s.wheelCustomized);
-  const scenes = sceneCatalog();
-  state.allUnlisted = scenes.length > 0 && scenes.every((s) => s.unlisted);
   ensureSelection();
   renderAll();
 }
@@ -220,6 +218,7 @@ function handleLibrary(list) {
   state.libraryReceived = true;
   clearTimeout(libraryTimer);
   state.library = Array.isArray(list) ? list.map(safeNormalize).filter(Boolean) : [];
+  if (state.library.some((s) => s.wheelCustomized)) state.wheelCustomized = true;
   for (const s of state.library) {
     s.library = true;
     // Library search should find individual animations, not just set names.
@@ -227,6 +226,20 @@ function handleLibrary(list) {
   }
   ensureSelection();
   renderAll();
+}
+
+function handleWheelData(p) {
+  if (!state.wheel) return;
+  state.wheelCustomized = !!(p && p.customized);
+  state.wheel.entries = p && Array.isArray(p.entries) ? p.entries.map((raw) => ({
+    scene: String((raw && raw.scene) || ""),
+    stage: raw && Number.isInteger(raw.stage) ? raw.stage : null,
+    title: String((raw && raw.title) || (raw && raw.scene) || "Animation"),
+    detail: String((raw && raw.title) || (raw && raw.scene) || "Animation"),
+    key: wheelKey(String((raw && raw.scene) || ""), raw && Number.isInteger(raw.stage) ? raw.stage : null),
+  })).filter((entry) => entry.scene) : [];
+  state.wheel.received = true;
+  renderWheel();
 }
 
 function handlePick(p) {
@@ -382,6 +395,7 @@ function normalizeStages(stages) {
       name: String(st.name || ""),
       tags: Array.isArray(st.tags) ? st.tags.map((t) => String(t)) : [],
       clipCount: Number(st.clipCount || 0),
+      pinned: Math.max(0, Math.trunc(Number(st.pinned) || 0)),
       loopSec: numOrNull(st.loopSec),     // the clip's loop length (the honest per-animation number)
       timerSec: numOrNull(st.timerSec),   // auto-advance timer, if any
       loops: numOrNull(st.loops),         // null = play once, 0 = hold, N = loop count
@@ -581,7 +595,7 @@ function setMode(mode) {
 
 function isEmote(s) { return !!s && (s.tags || []).some((t) => t.toLowerCase().startsWith("player.emote.")); }
 function isWheelEmote(s) { return isEmote(s) && !s.unlisted && (s.actorCount || 0) === 1 && !s.requiresFurniture; }
-function sceneCatalog() { return state.catalog.filter((s) => !isEmote(s)); }
+function sceneCatalog() { return state.catalog.filter((s) => !isEmote(s) && unlistedVisible(s)); }
 function emoteCatalog() { return state.catalog.filter(isEmote); }
 function animationList() { return [...emoteCatalog(), ...state.library]; }
 function activeList() {
@@ -614,7 +628,7 @@ function partnerCount() { return state.cast.reduce((n, m) => n + (m.kind === "pl
 // `unlisted` keeps a scene out of the catalog browse and the wheel; the library tab is its own
 // opt-in surface, so library cards are always visible (the generated vanilla packs are all
 // file-level unlisted:true — gating them here would blank the whole library).
-function unlistedVisible(s) { return !!s && (s.library || !s.unlisted || state.filters.authorMode || state.allUnlisted); }
+function unlistedVisible(s) { return !!s && (s.library || !s.unlisted || state.filters.authorMode); }
 
 function ensureSelection() {
   // ACTIVE tab: the selection is whichever running-scene card was tapped (the brief mirrors
@@ -1039,7 +1053,7 @@ function sceneRow(s, ev, playable) {
   if (dur) bits.push(dur);
   const meta = state.filters.authorMode ? s.id : bits.join(" · ");
   const badge = playable ? `<span class="row-badge go">READY</span>` : `<span class="row-badge">${esc(needsText(s, ev))}</span>`;
-  const pinmark = s.pinned > 0 ? `<span class="libx-pinmark" title="On the emote wheel">◆</span>` : "";
+  const pinmark = s.pinned > 0 ? `<span class="libx-pinmark" title="On the animation wheel">◆</span>` : "";
   return `<button class="libx-row ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(s.title)}</span>${pinmark}<span class="libx-meta mono">${esc(meta)}</span>${badge}</button>`;
 }
 
@@ -1128,7 +1142,7 @@ function libraryBrowserHTML() {
   const emoteRows = emotes.map((s) => {
     const sel = s.id === state.selectedId;
     const dur = fmtEst(s);
-    const wheel = isOnWheel(s) ? `<span class="libx-pinmark" title="On the emote wheel">◆</span>` : "";
+    const wheel = isOnWheel(s) ? `<span class="libx-pinmark" title="On the animation wheel">◆</span>` : "";
     const meta = state.filters.authorMode ? s.id : ["emote", dur].filter(Boolean).join(" · ");
     return `<button class="libx-row emote ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(s.title)}</span>${wheel}<span class="libx-meta mono">${esc(meta)}</span></button>`;
   }).join("");
@@ -1194,7 +1208,9 @@ function libxRow(s, cleanTier) {
   const anchorMark = s.requiresFurniture
     ? `<span class="libx-anchor ${fits === true ? "fit" : fits === false ? "nofit" : ""}" title="${escAttr(anchorFull(s) ? `Needs: ${anchorFull(s)}` : "Needs matching furniture")}">FURN</span>`
     : "";
-  return `<button class="libx-row ${sel ? "selected" : ""} ${fits === false ? "dim" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(title)}</span>${anchorMark}<span class="libx-meta mono">${esc(meta)}</span></button>`;
+  const wheelMark = (s.stages || []).some((st) => st.pinned > 0)
+    ? `<span class="libx-pinmark" title="Contains an animation on the wheel">◆</span>` : "";
+  return `<button class="libx-row ${sel ? "selected" : ""} ${fits === false ? "dim" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(title)}</span>${wheelMark}${anchorMark}<span class="libx-meta mono">${esc(meta)}</span></button>`;
 }
 
 function bayEmpty(msg) { return `<div class="bay-empty"><span class="mono">${esc(msg)}</span></div>`; }
@@ -1234,6 +1250,25 @@ function activeCardHTML(s) {
 }
 
 /* ---- brief (slim) --------------------------------------------------------- */
+function wheelEntryControls(s, st = null, wide = false) {
+  if (st ? !isWheelStage(s, st) : !isWheelEmote(s)) return "";
+  // An explicit loadout may contain library stages. Wait for that compact index before
+  // editing, otherwise a quick emote click during library load could overwrite hidden pins.
+  if (state.wheelCustomized && !state.libraryReceived) return "";
+  const stage = st ? st.index : null;
+  const key = wheelKey(s.id, stage);
+  const pool = wheelPool();
+  const index = pool.findIndex((item) => item.key === key);
+  const onWheel = index >= 0;
+  const stageAttr = stage == null ? "" : String(stage);
+  const label = wide ? (onWheel ? "◆ ON WHEEL" : "◇ ADD TO WHEEL") : (onWheel ? "◆" : "◇");
+  const title = onWheel ? "Remove from the animation wheel" : "Add to the animation wheel";
+  const move = onWheel && state.wheelCustomized
+    ? `<span class="wheel-order mono">${index + 1}/${pool.length}</span><button class="pin-btn compact" data-act="wheel-move" data-scene="${escAttr(s.id)}" data-stage="${stageAttr}" data-dir="-1" ${index <= 0 ? "disabled" : ""} title="Move earlier on wheel">←</button><button class="pin-btn compact" data-act="wheel-move" data-scene="${escAttr(s.id)}" data-stage="${stageAttr}" data-dir="1" ${index >= pool.length - 1 ? "disabled" : ""} title="Move later on wheel">→</button>`
+    : "";
+  return `<span class="anim-wheel-controls ${wide ? "wide" : ""}"><button class="pin-btn ${onWheel ? "on" : ""} ${wide ? "" : "compact"}" data-act="wheel-toggle" data-scene="${escAttr(s.id)}" data-stage="${stageAttr}" title="${title}">${label}</button>${move}</span>`;
+}
+
 function renderBrief() {
   const brief = $("brief");
   const s = sceneById(state.selectedId);
@@ -1275,7 +1310,8 @@ function renderBrief() {
         const loop = fmtDur(st.loopSec);
         const d = loop || fmtDur(st.estSec);
         const durHTML = d ? `<span class="anim-dur" title="${loop ? "Loop length" : "Stage time"}">${esc(d)}${st.openEnded ? "∞" : ""}</span>` : "";
-        return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div>${durHTML}<button class="anim-play" data-act="play-stage" data-stage="${st.index}" ${canPlay ? "" : "disabled"} title="Play this animation">▶</button></div>`;
+        const wheelControls = wheelEntryControls(s, st);
+        return `<div class="anim-row"><div class="anim-main"><span class="anim-name">${esc(label)}</span><div class="anim-tags">${tags}</div></div>${durHTML}${wheelControls}<button class="anim-play" data-act="play-stage" data-stage="${st.index}" ${canPlay ? "" : "disabled"} title="Play this animation">▶</button></div>`;
       }).join("")}${foldBtn}</div></div>`
     : "";
 
@@ -1307,16 +1343,9 @@ function renderBrief() {
   const reasonHTML = reason ? `<div class="mono wrap" style="color:var(--text-faint);text-align:center">${esc(reason)}</div>` : "";
   const launchStack = `<div class="launch-stack">${reasonHTML}${launchBtn}${stopBtn}</div>`;
 
-  const onWheel = isWheelEmote(s) && isOnWheel(s);
-  const wheelIds = wheelPool().map((x) => x.id);
-  const wheelIndex = wheelIds.indexOf(s.id);
-  const orderControls = onWheel && state.wheelCustomized
-    ? `<span class="wheel-order mono">${wheelIndex + 1}/${wheelIds.length}</span><button class="pin-btn compact" data-act="wheel-up" data-id="${escAttr(s.id)}" ${wheelIndex <= 0 ? "disabled" : ""} title="Move earlier on wheel">←</button><button class="pin-btn compact" data-act="wheel-down" data-id="${escAttr(s.id)}" ${wheelIndex < 0 || wheelIndex >= wheelIds.length - 1 ? "disabled" : ""} title="Move later on wheel">→</button>`
-    : "";
-  const reset = state.wheelCustomized ? `<button class="pin-btn reset" data-act="wheel-reset" title="Restore installed default emotes">RESET DEFAULTS</button>` : "";
-  const pinRow = isWheelEmote(s)
-    ? `<div class="brief-pin"><button class="pin-btn ${onWheel ? "on" : ""}" data-act="pin-toggle" data-id="${escAttr(s.id)}" title="${onWheel ? "Remove from the emote wheel" : "Add to the emote wheel"}">${onWheel ? "◆ ON WHEEL" : "◇ ADD TO WHEEL"}</button>${orderControls}${reset}</div>`
-    : "";
+  const reset = state.wheelCustomized ? `<button class="pin-btn reset" data-act="wheel-reset" title="Restore installed default animations">RESET DEFAULTS</button>` : "";
+  const wholeControls = isWheelEmote(s) ? wheelEntryControls(s, null, true) : "";
+  const pinRow = wholeControls || reset ? `<div class="brief-pin">${wholeControls}${reset}</div>` : "";
 
   // Fixed header (status/title/cast) + fixed footer (overrides + launch/stop); only the animations
   // band between them scrolls. The ▶ Launch button and its overrides stay in view no matter how many
@@ -1425,56 +1454,101 @@ function launchRoleNames(s) {
   return names;
 }
 
-function isOnWheel(s) { return !!s && wheelPool().some((x) => x.id === s.id); }
-
-// Stamp an explicit ordered loadout locally, then persist the complete list. This is
-// intentionally whole-state: the first edit materializes every installed default before
-// changing one entry, so adding/removing an emote never makes its neighbours disappear.
-function setWheelIds(ids) {
-  state.wheelCustomized = true;
-  for (const s of state.catalog) s.pinned = 0;
-  ids.slice(0, WHEEL_MAX).forEach((id, i) => {
-    const s = state.catalog.find((x) => x.id === id);
-    if (s) s.pinned = i + 1;
-  });
-  send("osf.animation.wheel.set", { sceneIds: ids.slice(0, WHEEL_MAX) });
+function wheelKey(scene, stage) { return scene + "\u0000" + (stage == null ? "" : stage); }
+function isWheelStage(s, st) {
+  return !!s && !!st && st.clipCount > 0 && !!s.library && !s.requiresFurniture &&
+    (s.actorCount || 0) === 1 && (s.species || "human") === "human";
+}
+function wheelStageTitle(s, st) {
+  if (st.name) return st.name;
+  return (s.stages || []).length === 1 ? s.title : s.title + " · Stage " + (st.index + 1);
+}
+function wheelCandidates() {
+  const items = emoteCatalog().filter(isWheelEmote).map((s) => ({
+    key: wheelKey(s.id, null), scene: s.id, stage: null, title: s.title,
+    detail: s.title, pinned: s.pinned, priority: s.priority, weight: s.weight, source: s,
+  }));
+  for (const s of state.library) {
+    for (const st of s.stages || []) {
+      if (!isWheelStage(s, st)) continue;
+      const title = wheelStageTitle(s, st);
+      items.push({
+        key: wheelKey(s.id, st.index), scene: s.id, stage: st.index, title,
+        detail: st.name ? s.title + " · " + st.name : title,
+        pinned: st.pinned, priority: s.priority, weight: s.weight, source: st,
+      });
+    }
+  }
+  return items;
+}
+function isOnWheel(s) {
+  const key = s ? wheelKey(s.id, null) : "";
+  return !!s && wheelPool().some((item) => item.key === key);
+}
+function isStageOnWheel(s, st) {
+  const key = s && st ? wheelKey(s.id, st.index) : "";
+  return !!key && wheelPool().some((item) => item.key === key);
 }
 
-function togglePin(id) {
-  const s = state.catalog.find((x) => x.id === id);
-  if (!s || !isWheelEmote(s)) return;
-  const ids = wheelPool().slice(0, WHEEL_MAX).map((x) => x.id);
-  const at = ids.indexOf(id);
+// Stamp an explicit ordered loadout locally, then persist the complete list. The first edit
+// materializes the installed defaults, so adding one animation never drops its neighbours.
+function setWheelEntries(entries) {
+  state.wheelCustomized = true;
+  for (const s of state.catalog) s.pinned = 0;
+  for (const s of state.library) {
+    s.pinned = 0;
+    for (const st of s.stages || []) st.pinned = 0;
+  }
+  entries.slice(0, WHEEL_MAX).forEach((entry, i) => {
+    entry.source.pinned = i + 1;
+  });
+  send("osf.animation.wheel.set", {
+    entries: entries.slice(0, WHEEL_MAX).map((entry) =>
+      entry.stage == null ? { scene: entry.scene } : { scene: entry.scene, stage: entry.stage }),
+  });
+}
+
+function toggleWheelEntry(scene, stage = null) {
+  const key = wheelKey(scene, stage);
+  const candidate = wheelCandidates().find((item) => item.key === key);
+  if (!candidate) return;
+  const entries = wheelPool().slice(0, WHEEL_MAX);
+  const at = entries.findIndex((item) => item.key === key);
   const adding = at < 0;
   if (adding) {
-    if (ids.length >= WHEEL_MAX) {
-      notice("err", `The emote wheel is full (${WHEEL_MAX}/${WHEEL_MAX}). Remove one before adding "${s.title}".`);
+    if (entries.length >= WHEEL_MAX) {
+      notice("err", `The animation wheel is full (${WHEEL_MAX}/${WHEEL_MAX}). Remove one before adding "${candidate.title}".`);
       return;
     }
-    ids.push(id);
+    entries.push(candidate);
   } else {
-    ids.splice(at, 1);
+    entries.splice(at, 1);
   }
-  setWheelIds(ids);
-  notice("info", adding ? `"${s.title}" added to the emote wheel.` : `"${s.title}" removed from the emote wheel.`);
+  setWheelEntries(entries);
+  notice("info", adding ? `"${candidate.title}" added to the animation wheel.` : `"${candidate.title}" removed from the animation wheel.`);
   renderAll();
 }
 
-function moveWheelEntry(id, dir) {
-  const ids = wheelPool().slice(0, WHEEL_MAX).map((x) => x.id);
-  const from = ids.indexOf(id), to = from + dir;
-  if (from < 0 || to < 0 || to >= ids.length) return;
-  [ids[from], ids[to]] = [ids[to], ids[from]];
-  setWheelIds(ids);
-  notice("info", "Emote wheel order updated.");
+function moveWheelEntry(scene, stage, dir) {
+  const key = wheelKey(scene, stage);
+  const entries = wheelPool().slice(0, WHEEL_MAX);
+  const from = entries.findIndex((item) => item.key === key), to = from + dir;
+  if (from < 0 || to < 0 || to >= entries.length) return;
+  [entries[from], entries[to]] = [entries[to], entries[from]];
+  setWheelEntries(entries);
+  notice("info", "Animation wheel order updated.");
   renderAll();
 }
 
 function resetWheel() {
   state.wheelCustomized = false;
   for (const s of state.catalog) s.pinned = 0;
+  for (const s of state.library) {
+    s.pinned = 0;
+    for (const st of s.stages || []) st.pinned = 0;
+  }
   send("osf.animation.wheel.set", { reset: true });
-  notice("info", "Emote wheel reset to installed defaults.");
+  notice("info", "Animation wheel reset to installed defaults.");
   renderAll();
 }
 
@@ -1494,7 +1568,7 @@ function doStop(handle) {
 }
 
 /* =========================================================================
-   EMOTE WHEEL  (transient radial mode — EmoteWheel_Plan.md)
+   ANIMATION WHEEL  (transient radial mode)
    Opened natively (OpenWheel hotkey verb) via an osf.mode {mode:"wheel",
    tagPrefix, target} push: the console/brief hide and a ring of solo scenes
    tagged under tagPrefix appears around the untouched world center. A pick
@@ -1522,11 +1596,14 @@ function enterWheel(p) {
     state.wheel.tagPrefix = tagPrefix;
     state.wheel.target = target;
   } else {
-    state.wheel = { tagPrefix, target, focus: 0, error: "", launching: "" };
+    state.wheel = { tagPrefix, target, focus: 0, error: "", launching: "", received: false, requested: false, entries: [] };
     state.mode = "wheel";
   }
   document.body.classList.add("wheel-mode");
-  if (!state.catalogReceived) requestCatalog(false);  // open race: the catalog may not be in yet
+  if (!state.wheel.requested) {
+    state.wheel.requested = true;
+    send("osf.animation.wheel.get", { tagPrefix });
+  }
   renderWheel();
 }
 
@@ -1544,12 +1621,12 @@ function exitWheel() {
 // that complete visible list is materialized into `pinned` order and remains explicit,
 // including the intentionally-empty case.
 function wheelPool() {
-  const eligible = state.catalog.filter(isWheelEmote);
-  const pins = eligible.filter((s) => s.pinned > 0).sort((a, b) => a.pinned - b.pinned);
+  const eligible = wheelCandidates();
+  const pins = eligible.filter((item) => item.pinned > 0).sort((a, b) => a.pinned - b.pinned);
   if (state.wheelCustomized) return pins.slice(0, WHEEL_MAX);
   const pre = state.wheel ? state.wheel.tagPrefix : "";
   return eligible
-    .filter((s) => (s.tags || []).some((t) => t.toLowerCase().startsWith(pre || "player.emote.")))
+    .filter((item) => item.stage == null && (item.source.tags || []).some((tag) => tag.toLowerCase().startsWith(pre || "player.emote.")))
     .sort((a, b) => b.priority - a.priority || b.weight - a.weight || a.title.localeCompare(b.title))
     .slice(0, WHEEL_MAX);
 }
@@ -1558,8 +1635,7 @@ function renderWheel() {
   const root = $("wheel");
   const w = state.wheel;
   if (!w) { root.innerHTML = ""; return; }
-  const pool = wheelPool();
-  const slices = pool;
+  const slices = w.entries;
   // Stash what this render shows: wheelPick reads w.pool, so a catalog push landing
   // between render and click can't shift indices under an in-flight pick.
   w.pool = slices;
@@ -1567,10 +1643,10 @@ function renderWheel() {
   const { rx, ry } = wheelGeom(slices.length);
 
   let body;
-  if (!state.catalogReceived) {
-    body = `<div class="wheel-empty"><span class="mono">Loading emotes…</span><button class="chip-btn" data-act="wheel-cancel">CLOSE</button></div>`;
+  if (!w.received) {
+    body = `<div class="wheel-empty"><span class="mono">Loading animation wheel…</span><button class="chip-btn" data-act="wheel-cancel">CLOSE</button></div>`;
   } else if (!slices.length) {
-    body = `<div class="wheel-empty"><span class="mono">${state.wheelCustomized ? "Your emote wheel is empty. Reset it from the Animation Browser to restore installed defaults." : `No wheel-ready emotes carry a ${esc(w.tagPrefix)}* tag.`}</span><button class="chip-btn" data-act="wheel-cancel">CLOSE</button></div>`;
+    body = `<div class="wheel-empty"><span class="mono">${state.wheelCustomized ? "Your animation wheel is empty. Reset it from the Animation Browser to restore installed defaults." : `No default animations carry a ${esc(w.tagPrefix)}* tag.`}</span><button class="chip-btn" data-act="wheel-cancel">CLOSE</button></div>`;
   } else {
     // Slices sit on the count-adaptive ellipse (wheelGeom), clockwise from the top.
     // Positions are inline — no CSS trig needed.
@@ -1578,7 +1654,7 @@ function renderWheel() {
       const rad = ((-90 + (360 / slices.length) * i) * Math.PI) / 180;
       const x = Math.round(Math.cos(rad) * rx);
       const y = Math.round(Math.sin(rad) * ry);
-      return `<button class="wheel-slice ${i === w.focus ? "focused" : ""}" data-act="wheel-pick" data-i="${i}" style="transform:translate(-50%,-50%) translate(${x}px,${y}px)" title="${escAttr(s.title)}">${w.launching === s.id ? "▶ " : ""}${esc(s.title)}</button>`;
+      return `<button class="wheel-slice ${i === w.focus ? "focused" : ""}" data-act="wheel-pick" data-i="${i}" style="transform:translate(-50%,-50%) translate(${x}px,${y}px)" title="${escAttr(s.detail || s.title)}">${w.launching === s.key ? "▶ " : ""}${esc(s.title)}</button>`;
     }).join("");
     const status = w.error
       ? `<span class="wheel-hub-status err">${esc(w.error)}</span>`
@@ -1587,7 +1663,7 @@ function renderWheel() {
       `<button class="wheel-hub" data-act="wheel-cancel" title="Close (Esc)"><span class="wheel-hub-who">${esc(w.target ? `→ ${w.target.name}` : "You")}</span>${status}</button>`;
   }
   root.innerHTML = `<div class="wheel-ring" style="--wrx:${rx}px;--wry:${ry}px">${body}</div>` +
-    `<div class="wheel-caption mono">EMOTE WHEEL · ←→ SELECT · ENTER PLAY · ESC CLOSE</div>`;
+    `<div class="wheel-caption mono">ANIMATION WHEEL · ←→ SELECT · ENTER PLAY · ESC CLOSE</div>`;
   const f = root.querySelector(".wheel-slice.focused");
   if (f) f.focus({ preventScroll: true });
 }
@@ -1609,9 +1685,9 @@ function wheelPick(i) {
   const s = (w.pool || [])[i];    // the rendered slices, not a fresh re-pool (see renderWheel)
   if (!s) return;
   w.error = "";
-  w.launching = s.id;
-  // No opts overrides — emote scenes carry their own camera/strip defaults.
-  send("osf.animation.launch", { sceneId: s.id, castTokens: [w.target ? w.target.token : PLAYER_TOKEN] });
+  w.launching = s.key;
+  const opts = s.stage == null ? {} : { stage: s.stage };
+  send("osf.animation.launch", { sceneId: s.scene, castTokens: [w.target ? w.target.token : PLAYER_TOKEN], opts });
   renderWheel();
 }
 
@@ -1697,9 +1773,8 @@ function onClick(e) {
     case "stop": doStop(); break;
     case "stop-scene": doStop(Number(el.dataset.handle)); break;
     case "stop-all": for (const s of activeScenes().slice()) doStop(s.handle); break;
-    case "pin-toggle": togglePin(el.dataset.id); break;
-    case "wheel-up": moveWheelEntry(el.dataset.id, -1); break;
-    case "wheel-down": moveWheelEntry(el.dataset.id, 1); break;
+    case "wheel-toggle": toggleWheelEntry(el.dataset.scene, el.dataset.stage === "" ? null : Number(el.dataset.stage)); break;
+    case "wheel-move": moveWheelEntry(el.dataset.scene, el.dataset.stage === "" ? null : Number(el.dataset.stage), Number(el.dataset.dir)); break;
     case "wheel-reset": resetWheel(); break;
     case "minimize": setMinimized(true); break;
     case "expand": setMinimized(false); renderAll(); break;
@@ -1977,7 +2052,7 @@ function init() {
   // B → close, right stick → scroll. No raw ui.gamepad handling needed here.
   initNav();
 
-  // Emote wheel: hover focuses a slice; right-click anywhere cancels (Escape's in-game
+  // Animation wheel: hover focuses a slice; right-click anywhere cancels (Escape's in-game
   // delivery is unverified, so the wheel never depends on it alone).
   document.addEventListener("mouseover", (e) => {
     const slice = state.wheel && e.target instanceof Element && e.target.closest(".wheel-slice");
@@ -2036,14 +2111,14 @@ function init() {
       $("statusText").textContent = live ? "standalone · live snapshot" : "standalone mock";
       handleCatalog(applyMockPins(live || MOCK_CATALOG));
       notice("info", live
-        ? "Standalone mode. Snapshot catalog (live/catalog.json); pick/scan/launch are stubbed. W = emote wheel (Shift+W: no target) · B = backdrop."
-        : "Standalone mode. Mock catalog, native calls are stubbed. W = emote wheel (Shift+W: no target) · B = backdrop.");
+        ? "Standalone mode. Snapshot catalog (live/catalog.json); pick/scan/launch are stubbed. W = animation wheel (Shift+W: no target) · B = backdrop."
+        : "Standalone mode. Mock catalog, native calls are stubbed. W = animation wheel (Shift+W: no target) · B = backdrop.");
       // ?wheel boots straight into wheel mode (?wheel=solo: no target), so a plain
       // reload while iterating on the wheel doesn't need a W keypress every time.
       const q = new URLSearchParams(location.search);
       if (q.has("wheel")) window.mockOpenWheel(q.get("wheel") !== "solo");
     });
-    // Emote-wheel dev: W opens the wheel with a mock crosshair target, Shift+W player-only
+    // Animation-wheel dev: W opens the wheel with a mock crosshair target, Shift+W player-only
     // (also window.mockOpenWheel(withTarget) from the console). Feeds the same osf.mode
     // path the native OpenWheel uses. The wheel-mode debug strip (top-left) drives the
     // rest of the states — see WHEEL DEBUG below.
@@ -2078,7 +2153,21 @@ const MOCK_EMOTES = ["Wave", "Cheer", "Clap", "Point", "Salute", "Shrug", "Facep
 let MOCK_WHEEL_CUSTOMIZED = false;
 let MOCK_PINS = [];
 function applyMockPins(list) {
-  return list.map((s) => ({ ...s, wheelCustomized: MOCK_WHEEL_CUSTOMIZED, pinned: MOCK_PINS.indexOf(s.id) + 1 }));
+  return list.map((s) => ({
+    ...s,
+    wheelCustomized: MOCK_WHEEL_CUSTOMIZED,
+    pinned: MOCK_PINS.findIndex((entry) => entry.scene === s.id && entry.stage == null) + 1,
+  }));
+}
+function applyMockLibraryPins(list) {
+  return list.map((s) => ({
+    ...s,
+    wheelCustomized: MOCK_WHEEL_CUSTOMIZED,
+    stages: (s.stages || []).map((st) => ({
+      ...st,
+      pinned: MOCK_PINS.findIndex((entry) => entry.scene === s.id && entry.stage === st.index) + 1,
+    })),
+  }));
 }
 
 const MOCK_CATALOG = [
@@ -2136,7 +2225,11 @@ function mockNative(command, fields) {
     if (wheelDbg.active) handleCatalog(dbgCatalog());  // debug override holds until RESET
     else fetchLiveSnapshot("catalog").then((live) => handleCatalog(applyMockPins(live || MOCK_CATALOG)));
   }
-  else if (command === "osf.animation.library.get") fetchLiveSnapshot("library").then((live) => handleLibrary(live || MOCK_LIBRARY));
+  else if (command === "osf.animation.library.get") fetchLiveSnapshot("library").then((live) => handleLibrary(applyMockLibraryPins(live || MOCK_LIBRARY)));
+  else if (command === "osf.animation.wheel.get") {
+    const entries = wheelPool().map((item) => ({ scene: item.scene, stage: item.stage, title: item.title }));
+    setTimeout(() => handleWheelData({ customized: state.wheelCustomized, entries }), 40);
+  }
   else if (command === "osf.animation.anchorMatch") setTimeout(() => handleAnchorMatch({ token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[fields.token] || [] }), 70);
   else if (command === "osf.animation.pickCrosshair") { const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0]; setTimeout(() => handlePick({ slot: fields.slot, valid: true, ...item }), 60); }
   // Mirror the DLL's open-time seed: `?target=actor|furniture` mocks a crosshair target at open.
@@ -2178,7 +2271,7 @@ function mockNative(command, fields) {
   // Complete wheel loadout update, then an unsolicited catalog re-push like the DLL.
   else if (command === "osf.animation.wheel.set") {
     MOCK_WHEEL_CUSTOMIZED = !fields.reset;
-    MOCK_PINS = fields.reset ? [] : (fields.sceneIds || []).slice(0, WHEEL_MAX);
+    MOCK_PINS = fields.reset ? [] : (fields.entries || []).slice(0, WHEEL_MAX);
     setTimeout(() => fetchLiveSnapshot("catalog").then((live) => handleCatalog(applyMockPins(live || MOCK_CATALOG))), 60);
   }
   // Host close: mimic OSF UI hiding the overlay so the real exit path runs (ui.visibility
@@ -2192,7 +2285,7 @@ function mockNative(command, fields) {
    A small strip shown while the wheel is up: step the slice count through
    wheelGeom's whole range (0 = empty state, >12 proves the hard cap), toggle
    the pinned-pool ordering, the target hub label, the hub error, and the
-   "Loading emotes…" state — every wheel state without in-game round-trips.
+   loading state — every wheel state without in-game round-trips.
    `?wheel` in the URL boots straight into wheel mode (see init).
    ========================================================================= */
 const wheelDbg = { active: false, count: 12, target: true, pins: false, err: false, loading: false };
@@ -2245,15 +2338,17 @@ function dbgAct(act) {
     if (w) { w.error = wheelDbg.err ? "No room in front of the actor (debug)." : ""; w.launching = ""; }
   } else if (act === "loading") {
     wheelDbg.loading = !wheelDbg.loading;
-    if (!wheelDbg.loading) state.catalogReceived = true;  // the catalog is still in state
   } else if (act === "reset") {
     Object.assign(wheelDbg, { active: false, count: 12, pins: false, err: false, loading: false });
     if (w) { w.error = ""; w.launching = ""; }
     requestCatalog(true);  // back to the live snapshot / mock catalog
   }
   if (wheelDbg.active) handleCatalog(dbgCatalog());
-  state.catalogReceived = state.catalogReceived && !wheelDbg.loading;
-  if (state.wheel) renderWheel();
+  if (state.wheel) {
+    state.wheel.entries = wheelPool().map((item) => ({ ...item }));
+    state.wheel.received = !wheelDbg.loading;
+    renderWheel();
+  }
   renderWheelDbg();
 }
 

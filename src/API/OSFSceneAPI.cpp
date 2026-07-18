@@ -56,6 +56,11 @@ namespace OSF::API
 				ls = kLoopScaleMax;
 			}
 			over.loopScale = ls;
+			// APPENDED fields (MINOR >= 2): read only when the consumer's stamped size covers them —
+			// an older consumer's smaller POD ends before this field.
+			if (a_opts.size >= offsetof(OSFStartOptions, inPlaceMode) + sizeof(a_opts.inPlaceMode)) {
+				over.inPlace = TriState(a_opts.inPlaceMode);
+			}
 			return over;
 		}
 
@@ -155,12 +160,13 @@ namespace OSF::API
 		// --- POD layout guard: locks the ABI of OSFStartOptions at OSF build time. A field add/reorder/resize that would silently break a shipped consumer copy fails HERE.
 		// Appended fields are allowed only at the end (bump kOSFSceneAPIVersion MINOR + the size).
 		static_assert(std::is_standard_layout_v<OSFStartOptions>, "OSFStartOptions must be standard-layout (POD ABI)");
-		static_assert(sizeof(OSFStartOptions) == 128, "OSFStartOptions layout changed — update the size + version, ship a new header");
+		static_assert(sizeof(OSFStartOptions) == 136, "OSFStartOptions layout changed — update the size + version, ship a new header");
 		static_assert(offsetof(OSFStartOptions, size) == 0, "OSFStartOptions.size must be first (cbSize prefix)");
 		static_assert(offsetof(OSFStartOptions, camera) == 20, "OSFStartOptions.camera offset drift");
 		static_assert(offsetof(OSFStartOptions, startStage) == 96, "OSFStartOptions.startStage offset drift");
 		static_assert(offsetof(OSFStartOptions, anchorHeadingRad) == 116, "OSFStartOptions.anchorHeadingRad offset drift");
 		static_assert(offsetof(OSFStartOptions, anchorRef) == 120, "OSFStartOptions.anchorRef offset drift");
+		static_assert(offsetof(OSFStartOptions, inPlaceMode) == 128, "OSFStartOptions.inPlaceMode offset drift (MINOR 2 append)");
 		static_assert(sizeof(OSFStartOptions::camera) == 64, "OSFStartOptions.camera buffer size changed");
 	}
 

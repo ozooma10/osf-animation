@@ -552,7 +552,7 @@ namespace OSF::Registry
 		// roles, and the playable (clip/stages/nodes) are parsed by the caller. a_lockDefault/
 		// a_stripDefault/a_fadeDefault/a_unlistedDefault seed the policy opt-outs (the file-level defaults).
 		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault, bool a_fadeDefault,
-			bool a_unlistedDefault)
+			bool a_unlistedDefault, bool a_inPlaceDefault)
 		{
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", 0);
@@ -593,6 +593,13 @@ namespace OSF::Registry
 					throw std::runtime_error("scene '" + def.id + "': 'fade' must be a boolean");
 				}
 				def.fade = it->get<bool>();
+			}
+			def.inPlace = a_inPlaceDefault;
+			if (auto it = a_json.find("inPlace"); it != a_json.end()) {
+				if (!it->is_boolean()) {
+					throw std::runtime_error("scene '" + def.id + "': 'inPlace' must be a boolean");
+				}
+				def.inPlace = it->get<bool>();
 			}
 			// Input control is enabled-by-default (def.playerControl starts enabled with all capabilities).
 			// `"playerControl": false` turns it off; an object narrows it via `disable`/`locked`.
@@ -1056,7 +1063,7 @@ namespace OSF::Registry
 		// a_packRoles are the file-level `roles` (inherited by a scene that omits its own);
 		// a_anchorDefault is the file-level `anchor` (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
-			bool a_fadeDefault, bool a_unlistedDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
+			bool a_fadeDefault, bool a_unlistedDefault, bool a_inPlaceDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
 			std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
@@ -1068,7 +1075,7 @@ namespace OSF::Registry
 			const std::string clipRoot = a_json.contains("clipRoot") ?
 				NormalizeClipRoot(a_json.value("clipRoot", std::string{}), "scene '" + def.id + "'") :
 				std::string(a_packClipRoot);
-			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_fadeDefault, a_unlistedDefault);
+			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_fadeDefault, a_unlistedDefault, a_inPlaceDefault);
 			if (const auto it = a_json.find("tags"); it != a_json.end()) {
 				for (const auto& t : *it) {
 					def.tags.push_back(t.get<std::string>());
@@ -1102,6 +1109,10 @@ namespace OSF::Registry
 				def.anchorKeywords = anchorReq.keywords;
 				def.anchorBaseForms = anchorReq.baseForms;
 				def.anchorOffset = anchorReq.offset;
+			}
+			// An anchor-bound scene positions the cast AT the anchor — the exact thing inPlace turns off.
+			if (def.inPlace && def.RequiresAnchor()) {
+				throw std::runtime_error("scene '" + def.id + "': 'inPlace' cannot be combined with an 'anchor' requirement");
 			}
 
 			const bool hasNodes = a_json.contains("nodes");
@@ -1264,6 +1275,9 @@ namespace OSF::Registry
 			const bool stripDefault = a_json.value("stripActors", !library);
 			const bool fadeDefault = a_json.value("fade", false);
 			const bool unlistedDefault = a_json.value("unlisted", false);
+			// Pack-level `inPlace:true` = every scene plays on the actors where they stand (no teleport,
+			// no per-frame root/heading pin) — the emote-pack posture; scenes may override per-scene.
+			const bool inPlaceDefault = a_json.value("inPlace", false);
 			std::string packClipRoot;
 			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
 				if (!crit->is_string()) {
@@ -1348,7 +1362,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, unlistedDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, unlistedDefault, inPlaceDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
 					def.sourceFile = a_file;
 					def.library = library;
 					auto key = ToLower(def.id);
@@ -1541,10 +1555,20 @@ namespace OSF::Registry
 				REX::WARN("[Registry] node '{}' use target '{}' is not a single inline-stage scene", a_node.id, a_node.use);
 				return std::nullopt;
 			}
-			return BuildPlanFromStages(target.id, target.roles, target.nodes[0].stages, a_actorCount);
+			auto plan = BuildPlanFromStages(target.id, target.roles, target.nodes[0].stages, a_actorCount);
+			if (plan) {
+				plan->anchored = !a_def.inPlace;  // the OWNING scene's posture governs, like its other policies
+			}
+			return plan;
 		}
 		// Inline node: this scene's roles supply the default placements.
-		return BuildPlanFromStages(a_def.id, a_def.roles, a_node.stages, a_actorCount);
+		auto plan = BuildPlanFromStages(a_def.id, a_def.roles, a_node.stages, a_actorCount);
+		if (plan) {
+			// inPlace scene: no teleport/pin — the rig follows each actor's live transform, so the
+			// player's heading/position (and with them the vanilla third-person camera) stay untouched.
+			plan->anchored = !a_def.inPlace;
+		}
+		return plan;
 	}
 
 	void SceneRegistry::ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const

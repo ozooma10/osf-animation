@@ -113,6 +113,9 @@ namespace OSF::Papyrus
 			if (const auto* v = member("FadeMode"); v && v->is<std::int32_t>()) {
 				out.fadeMode = RE::BSScript::get<std::int32_t>(*v);
 			}
+			if (const auto* v = member("InPlaceMode"); v && v->is<std::int32_t>()) {
+				out.inPlaceMode = RE::BSScript::get<std::int32_t>(*v);
+			}
 			if (const auto* v = member("Camera"); v && v->is<RE::BSFixedString>()) {
 				out.camera = RE::BSScript::get<RE::BSFixedString>(*v).c_str();
 			}

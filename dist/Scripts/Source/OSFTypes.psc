@@ -16,7 +16,8 @@ Struct SceneOptions
     int LockPlayerMode = -1   ; override player-input lock (movement/combat) while the scene plays: INHERIT/OFF/ON
     int PlayerControlMode = -1 ; override director-input (advance/navigate/end/freecam): INHERIT/OFF/ON. OFF = player can't advance or end the scene.
     int FadeMode = -1          ; override the start fade-to-black curtain: INHERIT/OFF/ON
-    string Camera = ""        ; override the entry camera STATE ("" = inherit the scene's): "thirdperson_hold" / "scene_orbit" / "vanity_orbit" / "freefly" / "none"
+    int InPlaceMode = -1       ; override in-place playback: ON = play on the actors where they stand (no teleport, no root/heading pin - vanilla camera untouched)
+    string Camera = ""        ; override the scene's camera ("" = inherit): "thirdperson_hold" / "scene_orbit" / "vanity_orbit" / "freefly" / "none". When set, authored node cameras are suppressed for the whole scene.
     float LoopScale = 1.0     ; multiply every loop-driven stage's loop count (1.0 = unchanged). Affects only stages with a loop count (loops > 0);
 EndStruct
 

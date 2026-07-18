@@ -21,7 +21,7 @@
 namespace OSF::API
 {
 	// Packed (MAJOR << 16) | MINOR. MAJOR breaks ABI; MINOR bumps on an appended vmethod or an appended OSFStartOptions field.
-	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 1u;
+	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 2u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
 
 	inline constexpr const wchar_t* kOSFModuleName     = L"OSF Animation.dll";
@@ -52,9 +52,15 @@ namespace OSF::API
 		float anchorZ          = 0.0f;          // -> AnchorOverride::pos.z
 		float anchorHeadingRad = 0.0f;          // RADIANS -> AnchorOverride::heading (the hasAnchor world anchor only)
 
-		// Furniture/object to anchor at. For an anchor-BOUND scene OSF validates this is the required furniture and composes the scene's authored anchorOffset; 
+		// Furniture/object to anchor at. For an anchor-BOUND scene OSF validates this is the required furniture and composes the scene's authored anchorOffset;
 		// for a free scene it world-anchors there. Uses the ref's own facing. Takes precedence over hasAnchor. nullptr = none.
 		RE::TESObjectREFR* anchorRef = nullptr;
+
+		// APPENDED at MINOR 2 (OSF reads it only when your stamped `size` covers it).
+		// -> StartOverrides::inPlace: 1 = play on the actors exactly where they stand — no teleport,
+		// no per-frame root/heading pin (leaves the player's heading, and with it the vanilla
+		// third-person camera, alone). 0 = force the anchored posture; else = inherit the scene's.
+		std::int32_t inPlaceMode = -1;
 	};
 
 	// -------------------------------------------------------------------------

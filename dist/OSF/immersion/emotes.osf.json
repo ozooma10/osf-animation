@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "OSF Immersion — Emotes",
-  // Solo self-terminating flourishes for the emote wheel (enumerated by tag prefix
+  // Solo self-terminating defaults for the animation wheel (enumerated by tag prefix
   // "player.emote."). Each scene's `name` is the wheel slice label. Linear one-stage
   // form: `loops:0` holds the pose, `timer` ends it, and every linear stage gets a
   // free default advance edge so Space skips early. The same scenes play on a
@@ -10,6 +10,9 @@
   "stripActors": false,
   "lockPlayer": false, // short flourishes — leave the player's controls alone
   "camera": "none",    // never touch the camera for an emote
+  "inPlace": true,     // play where the actor stands: no teleport and no per-frame root/heading pin,
+                       // so the vanilla third-person camera (which writes the player's heading) is
+                       // never fought — the pin fight is what made the camera judder during emotes
   // No `roles` block: each scene infers one anonymous slot from its single clip —
   // the player when launched solo, or the crosshair NPC when the wheel targets one.
   // No weapon sheathe either (see the wave scene's note): emotes never touch weapon

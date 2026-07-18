@@ -257,6 +257,7 @@ namespace OSF::Registry
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
 		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
 		bool                     fade = false;  // Screen fade-to-black on start when the player participates (self-releasing curtain); OFF by default, opt in with `fade:true`
+		bool                     inPlace = false;  // `inPlace:true`: play on each actor where they stand — no teleport, no per-frame root/heading pin (ScenePlan::anchored=false). For solo flourishes (emotes) that must leave the actor + vanilla camera untouched.
 		PlayerControl            playerControl;  // director-input grant; ENABLED by default, scene opts out/narrows
 		std::vector<std::string> tags;
 		// Lowercased `tags`, built once at parse: matchmaking tag-matches EVERY loaded def per

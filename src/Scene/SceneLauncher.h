@@ -23,7 +23,8 @@ namespace OSF::Scene
 		std::int32_t       lockPlayerMode = -1;     // tri-state override
 		std::int32_t       playerControlMode = -1;  // tri-state override of the director-input grant (OFF = no advance/end)
 		std::int32_t       fadeMode = -1;           // tri-state override
-		std::string        camera;                  // entry camera state override ("" = inherit the scene's)
+		std::int32_t       inPlaceMode = -1;        // tri-state override: 1 = no teleport / per-frame root+heading pin (rig follows the actor)
+		std::string        camera;                  // camera state override ("" = inherit; "none" = leave the vanilla camera alone; suppresses authored node cameras)
 		float              loopScale = 1.0f;        // multiply loop-driven stage loop counts (1.0 = none)
 	};
 

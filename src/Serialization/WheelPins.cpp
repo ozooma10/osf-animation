@@ -23,7 +23,7 @@ namespace OSF::Serialization::WheelPins
 		std::mutex               g_lock;  // guards the pin list + the state file
 		bool                     g_loaded = false;
 		bool                     g_customized = false;
-		std::vector<std::string> g_entries;  // wheel order: front = first slice
+		std::vector<Entry>       g_entries;  // wheel order: front = first slice
 		constexpr std::size_t    kMaxEntries = 12;
 
 		// <Documents>\My Games\Starfield\OSF\wheel-pins.json (next to first-run.json),
@@ -62,13 +62,24 @@ namespace OSF::Serialization::WheelPins
 			}
 			g_customized = true;
 			for (const auto& v : doc) {
-				if (!v.is_string()) {
+				if (!v.is_object()) {
 					continue;
 				}
-				auto id = v.get<std::string>();
-				if (!id.empty() && g_entries.size() < kMaxEntries &&
-					std::find(g_entries.begin(), g_entries.end(), id) == g_entries.end()) {
-					g_entries.push_back(std::move(id));
+				const auto sit = v.find("scene");
+				if (sit == v.end() || !sit->is_string()) {
+					continue;
+				}
+				Entry entry;
+				entry.scene = sit->get<std::string>();
+				if (const auto stit = v.find("stage"); stit != v.end()) {
+					if (!stit->is_number_integer()) {
+						continue;
+					}
+					entry.stage = stit->get<std::int32_t>();
+				}
+				if (!entry.scene.empty() && entry.stage >= -1 && g_entries.size() < kMaxEntries &&
+					std::find(g_entries.begin(), g_entries.end(), entry) == g_entries.end()) {
+					g_entries.push_back(std::move(entry));
 				}
 			}
 		}
@@ -79,7 +90,14 @@ namespace OSF::Serialization::WheelPins
 			if (file.empty()) {
 				return;
 			}
-			const json doc = g_entries;
+			json doc = json::array();
+			for (const auto& entry : g_entries) {
+				json value = { { "scene", entry.scene } };
+				if (entry.stage >= 0) {
+					value["stage"] = entry.stage;
+				}
+				doc.push_back(std::move(value));
+			}
 
 			std::error_code ec;
 			std::filesystem::create_directories(file.parent_path(), ec);
@@ -107,28 +125,21 @@ namespace OSF::Serialization::WheelPins
 		return g_customized;
 	}
 
-	int Order(std::string_view a_sceneId)
+	std::vector<Entry> Entries()
 	{
 		std::lock_guard lock(g_lock);
 		LoadLocked();
-		if (!g_customized) {
-			return 0;
-		}
-		for (std::size_t i = 0; i < g_entries.size(); ++i) {
-			if (g_entries[i] == a_sceneId) {
-				return static_cast<int>(i) + 1;
-			}
-		}
-		return 0;
+		return g_customized ? g_entries : std::vector<Entry>{};
 	}
 
-	bool SetEntries(std::span<const std::string> a_sceneIds)
+	bool SetEntries(std::span<const Entry> a_entries)
 	{
-		std::vector<std::string> next;
-		next.reserve(std::min(a_sceneIds.size(), kMaxEntries));
-		for (const auto& id : a_sceneIds) {
-			if (!id.empty() && next.size() < kMaxEntries && std::find(next.begin(), next.end(), id) == next.end()) {
-				next.push_back(id);
+		std::vector<Entry> next;
+		next.reserve(std::min(a_entries.size(), kMaxEntries));
+		for (const auto& entry : a_entries) {
+			if (!entry.scene.empty() && entry.stage >= -1 && next.size() < kMaxEntries &&
+				std::find(next.begin(), next.end(), entry) == next.end()) {
+				next.push_back(entry);
 			}
 		}
 		std::lock_guard lock(g_lock);
