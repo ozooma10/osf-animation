@@ -1,14 +1,20 @@
 # OSF Animation — animation browser view
 
-The in-game animation and scene browser/launcher. It is an HTML/CSS/JS view rendered by
+The in-game animation and scene browser/launcher. Its editable source is a Vite/TypeScript/Preact app in this directory; `views/osf.animation/browser/` is generated, committed production output. It is rendered by
 **OSF UI** (Ultralight overlay) and driven **natively** by OSF Animation's own
 DLL over OSF UI's bridge API (protocol **1.0**). Only JSON text crosses the
 boundary.
 
+## Development and build
+
+Install once with `npm install` in this directory. Use `npm run dev` for hot-reload desktop iteration, `npm test` for the typed bridge/model tests, and `npm run build` to type-check and regenerate the committed production view. The build targets ES2018, emits a single self-contained entry bundle plus local font assets, and writes source maps for in-game debugging.
+
+Edit only `ui/animation-browser/`; do not hand-edit `views/osf.animation/browser/`. After changing browser source, run `npm test` and `npm run build`. A normal native `xmake` build deploys the already-generated output and does not require Node.
+
 ## How it's wired
 
 ```
-views/osf.animation/browser/ (this folder)  ──►  OSF UI  MessageBridge  ──►  OSF Animation DLL
+ui/animation-browser/src/ ── Vite ──► views/osf.animation/browser/ ──► OSF UI  MessageBridge  ──►  OSF Animation DLL
    window.osfui.postMessage        (ui.command)              src/API/UIBridge.cpp
    window.osfui.onMessage      ◄── SendToWeb ────────────────  osf.animation.* handlers
 ```
@@ -96,7 +102,7 @@ OSF UI resolves its view dir relative to its own DLL
 ships from OSF Animation's own mod folder; **no copy lives in the OSF UI repo or
 mod**:
 
-- `xmake` (`after_build`) deploys this folder to
+- `xmake` (`after_build`) deploys the committed production build to
   `MO2\mods\OSF Animation\SFSE\Plugins\OSFUI\views\osf.animation\browser\`
   (the two-level `views/<modId>/<viewName>/` layout OSF UI discovers).
 - The DLL registers the view at runtime via `RegisterView("osf.animation/browser")`
@@ -143,16 +149,15 @@ clears wheel mode, so a later browser open always shows the normal console.
 ## Standalone dev
 
 The page detects a missing bridge and runs standalone, so you can iterate
-layout/logic in a normal browser. Serve it with
-`python tools/view-dev-server.py [port]` (default 8791; also configured in
-`.claude/launch.json`) and open `http://localhost:8791/`. For an in-game-true
+layout/logic in a normal browser. Run `npm run dev` from `ui/animation-browser`
+(or use `python tools/view-dev-server.py [port]`, retained for `.claude/launch.json`) and open `http://localhost:8791/`. For an in-game-true
 render, open `http://localhost:8791/frame` — the view laid out at a fixed
 **1600×900** (the overlay resolution) and stretched to fill the window with
 independent X/Y scale, matching how the OSF UI harness maps the Ultralight
 surface (`S` toggles stretch / 1:1 pixels; `?w=1920&h=1080` overrides the
 size).
 
-**Live data:** `live/{catalog,library}.json` are committed snapshot fixtures of
+**Live data:** `fixtures/live/{catalog,library}.json` are committed snapshot fixtures of
 the payloads the DLL sends the in-game view, served as plain static files (the
 page fetches `live/…` relative). The standalone page loads them instead of the
 mock catalog — status reads `standalone · live snapshot`. `library.json` (the
@@ -163,9 +168,7 @@ vanilla-packs lane) is generated offline by
 been removed; est times for hand-authored packs come from the in-game probe, so
 refreshing it would need a temporary re-add of that dump or hand-editing).
 Pick/scan/launch stay stubbed (they need live refs). With no snapshot (or when
-opened via `file://`), it falls back to the built-in mock catalog. These
-fixtures do NOT ship in-game — the xmake packaging copies an explicit file
-list that excludes `live/`.
+opened via `file://`), it falls back to the built-in mock catalog. These fixtures do NOT ship in-game: they live outside the generated output copied by `xmake`.
 
 To exercise the **animation wheel** standalone: press `W` (mock crosshair target) or
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
@@ -181,7 +184,7 @@ desktop browser renders that as flat white/black, which lies about contrast. In
 standalone mode a **dev backdrop** stands a fake world behind the overlay —
 procedural scenes cycled with `B` (dark ship **interior** → bright **day**, the
 readability worst case → **night** exterior → flat **none**), sticky per tab.
-Drop a real screenshot at `live/backdrop.jpg` (git-ignored, never packaged) and
+Drop a real screenshot at `ui/animation-browser/fixtures/live/backdrop.jpg` (git-ignored, never packaged) and
 it joins the cycle as **shot** and becomes the default.
 
 While the wheel is up, a **WHEEL DEBUG strip** (top-left, standalone only —
@@ -211,6 +214,6 @@ instrument **brief** module (registry id, requirements, seats, launch). Saira Se
 Condensed (Bahnschrift stand-in) for chrome, JetBrains Mono / Cascadia for data.
 Restrained glows and gradients are intentional here — every glow signals state.
 
-The design-system tokens are inlined into `style.css` (the view ships self-contained;
+The design-system tokens are inlined into `src/styles/browser.css` (the view ships self-contained;
 OSF UI serves no network, so webfonts fall back to Bahnschrift/Segoe). Source design:
 Claude Design "Scene Director" wireframe.

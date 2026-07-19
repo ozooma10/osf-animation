@@ -57,11 +57,9 @@ target("OSF Animation")
             local view = path.join(plugins, "OSFUI", "views", "osf.animation", "browser")
             os.tryrm(path.join(plugins, "OSFUI", "views", "osf.animation"))
             os.mkdir(view)
-            os.cp("views/osf.animation/browser/manifest.json", view .. "/")
-            os.cp("views/osf.animation/browser/index.html", view .. "/")
-            os.cp("views/osf.animation/browser/main.js", view .. "/")
-            os.cp("views/osf.animation/browser/style.css", view .. "/")
-            os.cp("views/osf.animation/browser/osf-icon.svg", view .. "/")  -- Mods-surface badge (schema `icon`)
+            -- The browser is a committed Vite production build. Copy the complete output so
+            -- hashed fonts, the source map, and future split chunks cannot be omitted.
+            os.cp("views/osf.animation/browser/**", view .. "/", { rootdir = "views/osf.animation/browser" })
             local ok = try { function() os.cp(target:targetfile(), plugins .. "/"); return true end }
             if ok then
                 if os.isfile(target:symbolfile()) then

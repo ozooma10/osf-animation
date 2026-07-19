@@ -4,6 +4,10 @@
 // Wired to the OSF UI bridge contract (protocol 1.0): only JSON text crosses window.osfui.
 "use strict";
 
+import { encodeCommand, parseNativeMessage } from "../bridge";
+import { evaluateScene, normalizeScene } from "../model";
+import { renderLiveBar } from "../components/LiveBar";
+
 const PLAYER_TOKEN = -1;
 const PLAYER_CAST = { token: PLAYER_TOKEN, name: "Player", kind: "player", species: "human" };
 
@@ -70,7 +74,7 @@ function bridgeAvailable() {
 }
 
 function send(command, fields = {}) {
-  const msg = JSON.stringify({ type: "ui.command", payload: { command, ...fields } });
+  const msg = encodeCommand(command, fields);
   if (bridgeAvailable()) window.osfui.postMessage(msg);
   else { console.log("(standalone) ->", msg); mockNative(command, fields); }
 }
@@ -138,8 +142,8 @@ function requestLibrary(fresh) {
 }
 
 function onNativeMessage(jsonText) {
-  let msg;
-  try { msg = JSON.parse(jsonText); } catch { return; }
+  const msg = parseNativeMessage(jsonText);
+  if (!msg) return;
   const { type, payload } = msg;
   switch (type) {
     case "runtime.ready": handleReady(payload); break;
@@ -353,119 +357,6 @@ function safeNormalize(raw) {
   catch (e) { console.warn("OSF: skipped malformed scene", e); return null; }
 }
 
-function normalizeScene(raw) {
-  const id = String(raw.id || "");
-  const actorCount = clampCount(raw.actorCount, raw.roles);
-  const genders = Array.isArray(raw.genders) ? raw.genders : [];
-  const roles = normalizeRoles(raw.roles, genders, actorCount);
-  const tags = Array.isArray(raw.tags) ? raw.tags.map((t) => String(t)) : [];
-  const requiresFurniture = !!(raw.requiresFurniture || raw.anchorRequired || raw.anchor);
-  return {
-    id,
-    title: String(raw.title || raw.name || id || "Unnamed scene"),
-    species: String(raw.species || "human").toLowerCase(),  // skeleton family; drives the per-cast filter
-    tags,
-    actorCount,
-    genders,
-    roles,
-    requiresFurniture,
-    anchors: Array.isArray(raw.anchors) ? raw.anchors.map((a) => String(a)) : [],  // what it anchors to ("Barstool", …)
-    unlisted: !!raw.unlisted,
-    wheelCustomized: !!raw.wheelCustomized,
-    pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),  // 1-based explicit wheel order (0 = absent/default-derived)
-    priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
-    weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
-    sourceFile: String(raw.sourceFile || raw.source || ""),
-    shape: normalizeShape(raw, actorCount),
-    policy: normalizePolicy(raw),
-    stages: normalizeStages(raw.stages),
-    estSec: numOrNull(raw.estSec),        // summed stage estimates (null = engine hasn't probed the clips yet)
-    estPartial: !!raw.estPartial,         // some stage contributed no estimate — treat estSec as "at least"
-    openEnded: !!raw.openEnded,           // holds a stage until advanced — wall time is the player's call
-  };
-}
-
-// Each stage is a browsable animation: { index, name, tags, clipCount, loopSec, estSec, … }.
-function normalizeStages(stages) {
-  if (!Array.isArray(stages)) return [];
-  return stages.map((raw, i) => {
-    const st = raw || {};
-    return {
-      index: Number.isInteger(st.index) ? st.index : i,
-      name: String(st.name || ""),
-      tags: Array.isArray(st.tags) ? st.tags.map((t) => String(t)) : [],
-      clipCount: Number(st.clipCount || 0),
-      pinned: Math.max(0, Math.trunc(Number(st.pinned) || 0)),
-      loopSec: numOrNull(st.loopSec),     // the clip's loop length (the honest per-animation number)
-      timerSec: numOrNull(st.timerSec),   // auto-advance timer, if any
-      loops: numOrNull(st.loops),         // null = play once, 0 = hold, N = loop count
-      openEnded: !!st.openEnded,
-      estSec: numOrNull(st.estSec),
-    };
-  });
-}
-
-function numOrNull(v) { const n = Number(v); return v == null || !Number.isFinite(n) ? null : n; }
-
-function clampCount(actorCount, roles) {
-  if (Number.isFinite(Number(actorCount)) && Number(actorCount) > 0) return Number(actorCount);
-  if (Array.isArray(roles) && roles.length) return roles.length;
-  return 0;
-}
-
-function normalizeRoles(roles, genders, actorCount) {
-  if (Array.isArray(roles) && roles.length) {
-    return roles.map((raw, index) => {
-      const role = raw || {};
-      return {
-        name: String(role.name || `role ${index + 1}`),
-        gender: String(role.gender || (role.filters && role.filters.gender) || "any"),
-        filters: role.filters || {},
-        equip: !!role.equip,
-      };
-    });
-  }
-  const total = actorCount || genders.length || 0;
-  return Array.from({ length: total }, (_, index) => ({
-    name: `role ${index + 1}`,
-    gender: String(genders[index] || "any"),
-    filters: {},
-    equip: false,
-  }));
-}
-
-function normalizeShape(raw, actorCount) {
-  if (raw.shape && typeof raw.shape === "object") {
-    return {
-      kind: String(raw.shape.kind || "linear"),
-      stages: Number(raw.shape.stages || raw.shape.stageCount || 0),
-      nodes: Number(raw.shape.nodes || raw.shape.nodeCount || 0),
-      branches: Number(raw.shape.branches || raw.shape.branchCount || 0),
-    };
-  }
-  const stages = Number(raw.stageCount || raw.linearStageCount || 0);
-  const nodes = Number(raw.nodeCount || 0);
-  const branches = Number(raw.branchCount || 0);
-  return { kind: branches > 0 || nodes > stages ? "graph" : "linear", stages: stages || (actorCount ? 1 : 0), nodes: nodes || (stages || 1), branches };
-}
-
-function normalizePolicy(raw) {
-  const policy = raw.policy && typeof raw.policy === "object" ? raw.policy : {};
-  return {
-    stripActors: boolText(policy.stripActors, raw.stripActors, "inherit"),
-    lockPlayer: boolText(policy.lockPlayer, raw.lockPlayer, "inherit"),
-    fade: boolText(policy.fade, raw.fade, "off"),
-    camera: String(policy.camera || raw.camera || "inherit"),
-    playerControl: policy.playerControl || raw.playerControl || null,
-  };
-}
-
-function boolText(primary, fallback, emptyValue) {
-  const value = primary !== undefined ? primary : fallback;
-  if (value === true) return "on";
-  if (value === false) return "off";
-  return emptyValue;
-}
 
 /* =========================================================================
    STATE MUTATIONS
@@ -651,30 +542,11 @@ function ensureSelection() {
    EVALUATION  (readiness gates derived from live registry data)
    ========================================================================= */
 function evalScene(s) {
-  const castCount = castTokens().length;
-  const actorCount = s.actorCount || 0;
-  const hasRoles = actorCount > 0;
-  const rolesGate = hasRoles && castCount >= actorCount;
-  const overCast = hasRoles && castCount > actorCount;
-  // The anchor gate is exact when the keyed furniture's match set is known: an anchor-bound
-  // scene needs THIS anchor to fit, not just any furniture keyed.
-  const matchKnown = !!(state.furniture && state.anchorMatch && state.anchorMatch.token === state.furniture.token);
-  const anchorFits = matchKnown ? state.anchorMatch.ids.has(s.id) : true;
-  const anchorGate = s.requiresFurniture ? (!!state.furniture && anchorFits) : true;
-  const seated = hasRoles ? Math.min(castCount, actorCount) : 0;
-  const issues = [];
-  const blockers = [];
-  // A scene with no fillable roles is never READY — it can't be seated or launched.
-  if (!hasRoles) blockers.push("scene defines no roles");
-  else if (!rolesGate) { const n = actorCount - castCount; issues.push(`needs ${n} more actor${n === 1 ? "" : "s"}`); }
-  if (overCast) { const n = castCount - actorCount; blockers.push(`remove ${n} crew member${n === 1 ? "" : "s"}`); }
-  if (!anchorGate) {
-    const a = anchorFull(s);
-    issues.push(state.furniture ? `this furniture doesn't fit${a ? ` (needs ${a})` : ""}` : (a ? `needs ${a}` : "needs furniture"));
-  }
-  const gaps = issues.length + blockers.length;
-  const reason = gaps === 0 ? "Ready with the current crew and furniture." : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
-  return { castCount, actorCount, hasRoles, rolesGate, overCast, anchorGate, seated, issues, blockers, gaps, reason };
+  return evaluateScene(s, {
+    castCount: castTokens().length,
+    furnitureToken: state.furniture ? state.furniture.token : null,
+    anchorMatch: state.anchorMatch,
+  });
 }
 
 function needsText(s, ev) {
@@ -830,20 +702,26 @@ function setMinimized(min) {
 
 function renderLivebar() {
   const el = $("livebar");
-  if (!state.minimized) { el.innerHTML = ""; return; }
+  if (!state.minimized) { renderLiveBar(el, null); return; }
   const running = !!state.lastHandle;
-  const ls = sceneById(state.lastSceneId);
-  // NEXT only when there is a next animation to step to — on a single-stage scene the
-  // advance edge just ends the scene, and STOP already says that.
-  const multiStage = !!ls && (ls.stages || []).length > 1;
-  const label = running
-    ? `<span class="live-dot"></span><div class="take-body"><span class="lbl">RUNNING · #${state.lastHandle}</span><strong>${esc(ls ? ls.title : state.lastSceneId)}</strong></div>`
-    : `<div class="take-body"><span class="lbl">STANDBY</span><strong>No scene running</strong></div>`;
-  el.innerHTML = `<div class="take-chip ${running ? "live" : ""}">${label}` +
-    (running && multiStage ? `<button class="next-mini" data-act="advance-scene" title="Next animation (Space)">NEXT ▸</button>` : "") +
-    (running ? `<button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button>` : "") +
-    `<button class="expand-mini" data-act="expand" title="Bring the browser back"><svg class="chev-ico" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 5l4-3.8L9 5"/></svg>BROWSER</button></div>` +
-    `<div class="livebar-hint mono">${running && multiStage ? "SPACE NEXT · " : ""}DRAG ORBIT · WHEEL ZOOM</div>`;
+  const scene = sceneById(state.lastSceneId);
+  const stages = scene ? (scene.stages || []) : [];
+  const canAdvance = stages.length > 1;
+  const active = activeScenes().find((item) => item.handle === state.lastHandle) || null;
+  const atStage = active && active.stage >= 0 && active.stage < stages.length;
+  const stage = running && canAdvance && atStage ? {
+    current: active.stage + 1,
+    total: stages.length,
+    name: stageLabel(scene, active.stage),
+    nextName: active.stage + 1 < stages.length ? stageLabel(scene, active.stage + 1) : undefined,
+  } : null;
+  renderLiveBar(el, {
+    running,
+    handle: state.lastHandle,
+    title: scene ? scene.title : state.lastSceneId,
+    stage,
+    canAdvance,
+  });
 }
 
 /* ---- guided rail ---------------------------------------------------------- */
@@ -2460,4 +2338,6 @@ function initDevBackdrop() {
   });
 }
 
-init();
+export function startBrowser() {
+  init();
+}

@@ -8,13 +8,13 @@
 /* Fonts bundled locally (in fonts/) so they render in-game — OSF UI's Ultralight
    host has no network, so a Google Fonts @import would never load. Rajdhani (OFL) =
    Starfield-HUD-ish condensed sans; JetBrains Mono (OFL) = data/label monospace. */
-@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/jetbrains-mono-400.woff2') format('woff2')}
-@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/jetbrains-mono-500.woff2') format('woff2')}
-@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/jetbrains-mono-700.woff2') format('woff2')}
-@font-face{font-family:'Rajdhani';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/rajdhani-400.woff2') format('woff2')}
-@font-face{font-family:'Rajdhani';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/rajdhani-500.woff2') format('woff2')}
-@font-face{font-family:'Rajdhani';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/rajdhani-600.woff2') format('woff2')}
-@font-face{font-family:'Rajdhani';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/rajdhani-700.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400;font-display:swap;src:url('../assets/fonts/jetbrains-mono-400.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:500;font-display:swap;src:url('../assets/fonts/jetbrains-mono-500.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:700;font-display:swap;src:url('../assets/fonts/jetbrains-mono-700.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:400;font-display:swap;src:url('../assets/fonts/rajdhani-400.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:500;font-display:swap;src:url('../assets/fonts/rajdhani-500.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:600;font-display:swap;src:url('../assets/fonts/rajdhani-600.woff2') format('woff2')}
+@font-face{font-family:'Rajdhani';font-style:normal;font-weight:700;font-display:swap;src:url('../assets/fonts/rajdhani-700.woff2') format('woff2')}
 
 :root{
   /* Void / near-black surfaces */
@@ -52,7 +52,7 @@
 }
 
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%;margin:0;overflow:hidden}
+html,body,#app{height:100%;margin:0;overflow:hidden}
 body{background:transparent;color:var(--text-body);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 button,input,select{font:inherit;color:inherit}
 ::-webkit-scrollbar{width:10px;height:10px}
@@ -608,6 +608,11 @@ body.live-mode .livebar{display:flex}
 body.wheel-mode .livebar{display:none}  /* the wheel owns the screen while it's up */
 .livebar .take-chip{background:rgba(6,9,13,.88);box-shadow:var(--shadow-sm);max-width:440px}
 .livebar .take-body strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+/* current animation of the set — the line NEXT ▸ steps */
+.livebar-stage{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.08em;color:var(--text-muted);max-width:240px}
+.livebar-stage .stage-idx{flex:none;color:var(--signal-go);border:1px solid var(--line-strong);border-radius:2px;padding:0 4px}
+/* the name is its own box so a long clip id ellipses instead of clipping mid-glyph */
+.livebar-stage .stage-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .livebar .stop-mini{margin-left:8px}
 .livebar .next-mini{margin-left:8px}
 .expand-mini{margin-left:8px;flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);background:var(--void-700);color:var(--text-muted);
