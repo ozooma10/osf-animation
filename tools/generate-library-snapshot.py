@@ -3,7 +3,7 @@
 
 Replicates UIBridge.cpp BuildCatalog(a_library=true) over the generated packs in
 dist/OSF (section:"library"), writing the card array the in-game view would
-receive to views/osf.animation/browser/live/library.json. The library lane is
+receive to ui/animation-browser/fixtures/live/library.json. The library lane is
 fully static — pack-authored clip durations, no pins, no probe cache — so the
 runtime and this script produce the same payload; the runtime PersistSnapshot
 path was removed in favor of this.
@@ -30,7 +30,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACK_DIR = os.path.join(REPO, "dist", "OSF")
 KEYWORD_MAP = os.path.join(REPO, "tools", "vanilla-packs", "anim-furn-keywords.json")
-OUT = os.path.join(REPO, "views", "osf.animation", "browser", "live", "library.json")
+OUT = os.path.join(REPO, "ui", "animation-browser", "fixtures", "live", "library.json")
 
 # How many loops an open-ended hold stage is assumed to run (kHoldLoopEstimate).
 HOLD_LOOP_ESTIMATE = 2.0

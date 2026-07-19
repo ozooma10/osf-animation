@@ -21,4 +21,6 @@ compile_commands.json
 .codex-tmp
 
 # standalone-dev backdrop screenshot (never committed or packaged)
-views/osf.animation/browser/live/backdrop.*
+ui/animation-browser/fixtures/live/backdrop.*
+# frontend dependencies
+ui/animation-browser/node_modules/
