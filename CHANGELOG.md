@@ -2,7 +2,7 @@
 
 All notable changes to OSF Animation are documented here.
 
-## [Unreleased]
+## [1.0.0] - 2026-07-20
 
 ### Added
 - Global hotkeys, configured in OSF UI's in-game settings menu (OSF Animation card → Hotkeys): open scene browser and open emote wheel. Rebindable in-game with conflict badges; the wheel defaults to `B` (free in vanilla, the emote-wheel convention key), the browser stays unbound (F10 — the OSF UI console toggle — already opens it). Delivered by OSF UI's HotkeyService (bridge ABI 1.4), so keys never fire while the console is open or a text field is focused.
