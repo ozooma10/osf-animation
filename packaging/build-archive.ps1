@@ -129,12 +129,15 @@ foreach ($s in $apiScripts) {
 # from ui/animation-browser). OSF UI discovers views across the VFS at
 # <OSFUI.dll dir>\OSFUI\views\<modId>\<viewName>\ — the view ships from THIS mod, no copy lives
 # in OSF UI. Without it the browser/wheel UI simply doesn't exist. Copy the complete output
-# (hashed fonts, source map) to match the xmake deploy.
+# (hashed fonts) to match the xmake deploy, minus the dev-only JS source map (below).
 $viewSrc = Join-Path $repo 'build\views\osf.animation\browser'
 if (-not (Test-Path "$viewSrc\index.html")) { Die "Browser view missing: $viewSrc (run npm run build in ui/animation-browser, or drop -SkipBuild)" }
 $viewDst = "$core\SFSE\Plugins\OSFUI\views\osf.animation\browser"
 New-Item -ItemType Directory -Force -Path $viewDst | Out-Null
 Copy-Item "$viewSrc\*" $viewDst -Recurse
+# .js.map is dev-only (no in-game devtools consume it) and bloats the archive — never ship it.
+# Copy-Item -Recurse -Exclude misses files in subfolders, so prune the staged copy explicitly.
+Get-ChildItem $viewDst -Recurse -Filter '*.map' | Remove-Item -Force
 
 # License docs a distribution must carry (GPL-3.0 + modding exception + attribution).
 # They live inside the plugin's own folder so the game's Data root stays clean.
@@ -201,6 +204,11 @@ if ($missing) { Die ("Staged archive is missing required files:`n    " + ($missi
 # The dev-only test harness must never ship.
 if (Get-ChildItem $stage -Recurse -Include 'OSFTest.pex', 'OSFTest.psc' -ErrorAction SilentlyContinue) {
     Die 'OSFTest leaked into the stage — it is dev-only and must not ship.'
+}
+
+# JS source maps are dev-only; the staging copy above prunes them, so any survivor is a bug.
+if (Get-ChildItem $stage -Recurse -Include '*.map' -ErrorAction SilentlyContinue) {
+    Die 'A .map source map leaked into the stage — source maps are dev-only and must not ship.'
 }
 
 # Every <folder source="..."> the installer references must exist in the stage,
