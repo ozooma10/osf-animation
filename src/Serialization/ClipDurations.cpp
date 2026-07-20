@@ -57,13 +57,13 @@ namespace OSF::Serialization::ClipDurations
 			       '|' + std::string{ a_animId };
 		}
 
-		// <Documents>\My Games\Starfield\OSF\clip-durations.json, or empty (no persistence).
+		// <Documents>\My Games\Starfield\SFSE\OSF\clip-durations.json, or empty (no persistence).
 		std::filesystem::path CacheFilePath()
 		{
 			try {
 				if (auto dir = SFSE::log::log_directory()) {
-					// ...\My Games\Starfield\SFSE\Logs -> ...\My Games\Starfield\OSF
-					return dir->parent_path().parent_path() / "OSF" / "clip-durations.json";
+					// ...\My Games\Starfield\SFSE\Logs -> ...\My Games\Starfield\SFSE\OSF
+					return dir->parent_path() / "OSF" / "clip-durations.json";
 				}
 			} catch (...) {}
 			return {};

@@ -3,7 +3,7 @@
 // Persistent clip-length cache feeding the UI catalog's time estimates.
 // a GLB's keyframe times are declared in its JSON chunk (accessor max / last input key), a .af's frame count sits in its 64-byte header
 //
-// Values live in <Documents>\My Games\Starfield\OSF\clip-durations.json, keyed on the authored clip spec (normalized) + animation id, invalidated by loose-file size+mtime. 
+// Values live in <Documents>\My Games\Starfield\SFSE\OSF\clip-durations.json, keyed on the authored clip spec (normalized) + animation id, invalidated by loose-file size+mtime. 
 // Real decodes overwrite probe values (Record), so the two sources converge on the exact number.
 
 #include <functional>

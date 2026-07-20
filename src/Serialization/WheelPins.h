@@ -4,7 +4,7 @@
 // derives the wheel from installed `player.emote.*` entries. The first add/remove
 // materializes that complete default list and persists the edited result here.
 //
-// Lives in <Documents>\My Games\Starfield\OSF\wheel-pins.json as an ordered JSON array
+// Lives in <Documents>\My Games\Starfield\SFSE\OSF\wheel-pins.json as an ordered JSON array
 // of minimal {scene, stage?} launch references. File absent means installed defaults;
 // [] means an intentionally empty wheel. Stale entries are kept so they revive if their
 // animation pack is reinstalled.
