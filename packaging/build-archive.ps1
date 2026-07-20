@@ -10,7 +10,7 @@
        - the before_build hook rebuilds the browser view if ui/animation-browser is newer
        - the after_build hook also deploys to MO2, which is the normal dev flow
     2. stage the FOMOD tree (Core / Library / Immersion / fomod) from the authoritative
-       sources: build/ (DLL), dist/ (scripts + scene packs), views/ (browser view)
+       sources: build/ (DLL + generated browser view), dist/ (scripts + scene packs)
     3. add the license docs a GPL distribution must carry
     4. verify every required file is present (hard fail, never a silent skip)
     5. zip -> packaging/out/OSF Animation v<version>[-tag].zip, print size + SHA-256
@@ -77,7 +77,7 @@ if (-not $SkipBuild) {
         if ($LASTEXITCODE -ne 0) { Die 'Build failed.' }
     } finally { Pop-Location }
 } else {
-    Warn 'SkipBuild: packaging whatever is already in build/ + dist/ + views/.'
+    Warn 'SkipBuild: packaging whatever is already in build/ + dist/ (browser view included, and possibly stale).'
 }
 
 $dll = Join-Path $repo "build\windows\x64\$DllFlavor\OSF Animation.dll"
@@ -125,12 +125,13 @@ foreach ($s in $apiScripts) {
     Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\"
 }
 
-# The scene-browser view (committed Vite production build). OSF UI discovers views across
-# the VFS at <OSFUI.dll dir>\OSFUI\views\<modId>\<viewName>\ — the view ships from THIS mod,
-# no copy lives in OSF UI. Without it the browser/wheel UI simply doesn't exist. Copy the
-# complete output (hashed fonts, source map) to match the xmake deploy.
-$viewSrc = Join-Path $repo 'views\osf.animation\browser'
-if (-not (Test-Path "$viewSrc\index.html")) { Die "Browser view missing: $viewSrc (run npm run build in ui/animation-browser)" }
+# The scene-browser view (generated Vite production build — the xmake run above regenerates it
+# from ui/animation-browser). OSF UI discovers views across the VFS at
+# <OSFUI.dll dir>\OSFUI\views\<modId>\<viewName>\ — the view ships from THIS mod, no copy lives
+# in OSF UI. Without it the browser/wheel UI simply doesn't exist. Copy the complete output
+# (hashed fonts, source map) to match the xmake deploy.
+$viewSrc = Join-Path $repo 'build\views\osf.animation\browser'
+if (-not (Test-Path "$viewSrc\index.html")) { Die "Browser view missing: $viewSrc (run npm run build in ui/animation-browser, or drop -SkipBuild)" }
 $viewDst = "$core\SFSE\Plugins\OSFUI\views\osf.animation\browser"
 New-Item -ItemType Directory -Force -Path $viewDst | Out-Null
 Copy-Item "$viewSrc\*" $viewDst -Recurse
