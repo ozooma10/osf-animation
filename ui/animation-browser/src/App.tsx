@@ -14,10 +14,10 @@ function Header() {
         </div>
         <div class="slate-cell slate-take" id="slateTake" />
         <div class="slate-cell slate-tools">
-          <div class="author-wrap">
+          <div class="debug-wrap">
             <button id="refresh" class="iconbtn" type="button" title="Refresh catalog">⟳</button>
-            <span class="lbl">AUTHOR</span>
-            <button id="authorToggle" class="switch" type="button" aria-label="Toggle author mode"><i /></button>
+            <span class="lbl">DEBUG</span>
+            <button id="debugToggle" class="switch" type="button" aria-label="Toggle debug mode"><i /></button>
             <button class="iconbtn" type="button" title="Minimize — watch the scene" data-act="minimize">
               <svg class="chev-ico" width="10" height="9" viewBox="0 0 10 9" aria-hidden="true">
                 <path d="M1 1l4 3.8L9 1"/><path d="M1.2 8h7.6"/>

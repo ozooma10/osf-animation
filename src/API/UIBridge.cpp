@@ -673,6 +673,13 @@ namespace OSF::API
 
 		void OnCatalogGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
+			// The view's status line should name THIS plugin — runtime.ready carries the
+			// OSF UI host's identity, not ours. Piggyback on the catalog request the view
+			// always makes right after ready (and on every refresh).
+			SendJson(a_srcView, "osf.animation.version", json{
+				{ "plugin", SFSE::GetPluginName() },
+				{ "version", SFSE::GetPluginVersion().string() },
+			});
 			SendJson(a_srcView, "osf.animation.catalog.data", BuildCatalog(false));
 		}
 

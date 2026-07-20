@@ -31,6 +31,51 @@ target("OSF Animation")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
+    -- Rebuild the browser view (ui/animation-browser -> views/osf.animation/browser) when its
+    -- sources are newer than the committed Vite output, so a plain `xmake` never deploys a stale UI.
+    before_build(function (target)
+        import("lib.detect.find_tool")
+        import("core.base.option")
+
+        local ui = "ui/animation-browser"
+        local out = "views/osf.animation/browser/assets/browser.js"
+
+        -- Newest mtime across everything the bundle is built from.
+        local newest = 0
+        local inputs = os.files(path.join(ui, "src/**")) or {}
+        table.join2(inputs, os.files(path.join(ui, "public/**")) or {})
+        table.join2(inputs, { path.join(ui, "index.html"), path.join(ui, "package.json"),
+                              path.join(ui, "vite.config.ts"), path.join(ui, "tsconfig.json") })
+        for _, file in ipairs(inputs) do
+            if os.isfile(file) then
+                newest = math.max(newest, os.mtime(file))
+            end
+        end
+
+        local fresh = os.isfile(out) and os.mtime(out) >= newest
+        if fresh and not option.get("rebuild") then
+            return
+        end
+
+        -- npm ships as npm.cmd on Windows; find_tool resolves either.
+        local npm = find_tool("npm.cmd") or find_tool("npm")
+        if not npm then
+            if os.isfile(out) then
+                print("[OSF] npm not found — deploying the committed browser build (may be stale).")
+                return
+            end
+            raise("[OSF] npm not found and views/osf.animation/browser is missing — cannot build the animation browser.")
+        end
+
+        if not os.isdir(path.join(ui, "node_modules")) then
+            print("[OSF] installing animation-browser dependencies (npm ci)...")
+            os.vrunv(npm.program, { "ci" }, { curdir = ui })
+        end
+
+        print("[OSF] building the animation browser (npm run build)...")
+        os.vrunv(npm.program, { "run", "build" }, { curdir = ui })
+    end)
+
     -- Copy the compiled DLL and Papyrus scripts into the mod folder.
     after_build(function (target)
         local mods = os.getenv("XSE_SF_MODS_PATH")

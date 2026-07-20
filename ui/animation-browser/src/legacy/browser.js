@@ -32,8 +32,12 @@ const state = {
   active: null,
   opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
   optsOpen: false,    // START OVERRIDES disclosure in the brief footer (collapsed by default)
-  filters: { search: "", authorMode: false },
+  filters: { search: "", debugMode: false },
   catalogReceived: false,
+  // OSF Animation's own identity (osf.animation.version push, sent with every catalog
+  // reply). null until known — an older DLL never sends one; the status line then
+  // falls back to a plain name without a version.
+  plugin: null,  // { plugin, version }
   // Which anchor-bound scenes the KEYED furniture actually fits (osf.anchorMatch reply).
   // null until known; browse falls back to "any anchor present" while the reply is in flight.
   anchorMatch: null,  // { token, ids: Set<string> }
@@ -147,6 +151,7 @@ function onNativeMessage(jsonText) {
   const { type, payload } = msg;
   switch (type) {
     case "runtime.ready": handleReady(payload); break;
+    case "osf.animation.version": handleVersion(payload); break;
     case "osf.animation.catalog.data": handleCatalog(payload); break;
     case "osf.animation.library.data": handleLibrary(payload); break;
     case "osf.animation.wheel.data": handleWheelData(payload); break;
@@ -204,9 +209,24 @@ function handleReady(p) {
   }
   state.ready = true;
   setLamp("ok");
-  $("statusText").textContent = `${(p.plugin || "OSF").toUpperCase()} v${p.version || "?"} · stage online`;
+  renderStatusOnline();
   notice("ok", `Bridge online. Protocol ${bv}.`);
   requestCatalog(true);
+}
+
+// Status line names OSF Animation (the plugin this browser fronts), not the OSF UI host
+// the runtime.ready payload identifies. Version arrives via osf.animation.version right
+// before the catalog; until then (or on an older DLL) show the name alone.
+function renderStatusOnline() {
+  const p = state.plugin;
+  const tag = p ? `${(p.plugin || "OSF Animation").toUpperCase()} v${p.version || "?"}` : "OSF ANIMATION";
+  $("statusText").textContent = `${tag} · stage online`;
+}
+
+function handleVersion(p) {
+  if (!p || typeof p !== "object") return;
+  state.plugin = p;
+  if (state.ready) renderStatusOnline();
 }
 
 function handleCatalog(list) {
@@ -519,7 +539,7 @@ function partnerCount() { return state.cast.reduce((n, m) => n + (m.kind === "pl
 // `unlisted` keeps a scene out of the catalog browse and the wheel; the library tab is its own
 // opt-in surface, so library cards are always visible (the generated vanilla packs are all
 // file-level unlisted:true — gating them here would blank the whole library).
-function unlistedVisible(s) { return !!s && (s.library || !s.unlisted || state.filters.authorMode); }
+function unlistedVisible(s) { return !!s && (s.library || !s.unlisted || state.filters.debugMode); }
 
 function ensureSelection() {
   // ACTIVE tab: the selection is whichever running-scene card was tapped (the brief mirrors
@@ -658,7 +678,7 @@ function renderAll() {
 // management surface. A single running scene shows directly (title + its stop); several
 // collapse to a count. Either chip opens the tab.
 function renderSlateTake() {
-  $("authorToggle").classList.toggle("on", state.filters.authorMode);
+  $("debugToggle").classList.toggle("on", state.filters.debugMode);
   const el = $("slateTake");
   const live = activeScenes();
   if (!live.length) {
@@ -937,7 +957,7 @@ function sceneRow(s, ev, playable) {
   const bits = [`${n} role${n === 1 ? "" : "s"}`];
   if (s.requiresFurniture) bits.push(`on ${anchorShort(s) || "furniture"}`);
   if (dur) bits.push(dur);
-  const meta = state.filters.authorMode ? s.id : bits.join(" · ");
+  const meta = state.filters.debugMode ? s.id : bits.join(" · ");
   const badge = playable ? `<span class="row-badge go">READY</span>` : `<span class="row-badge">${esc(needsText(s, ev))}</span>`;
   const pinmark = s.pinned > 0 ? `<span class="libx-pinmark" title="On the animation wheel">◆</span>` : "";
   return `<button class="libx-row ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(s.title)}</span>${pinmark}<span class="libx-meta mono">${esc(meta)}</span>${badge}</button>`;
@@ -1029,7 +1049,7 @@ function libraryBrowserHTML() {
     const sel = s.id === state.selectedId;
     const dur = fmtEst(s);
     const wheel = isOnWheel(s) ? `<span class="libx-pinmark" title="On the animation wheel">◆</span>` : "";
-    const meta = state.filters.authorMode ? s.id : ["emote", dur].filter(Boolean).join(" · ");
+    const meta = state.filters.debugMode ? s.id : ["emote", dur].filter(Boolean).join(" · ");
     return `<button class="libx-row emote ${sel ? "selected" : ""}" data-act="select-scene" data-id="${escAttr(s.id)}"><span class="libx-spine"></span><span class="libx-title">${esc(s.title)}</span>${wheel}<span class="libx-meta mono">${esc(meta)}</span></button>`;
   }).join("");
   const emoteGroup = emotes.length
@@ -1088,7 +1108,7 @@ function libxRow(s, cleanTier) {
   const sel = s.id === state.selectedId;
   const n = (cleanTier ? cleanStages(s) : (s.stages || [])).length;
   const title = s.title.replace(/^Vanilla · /, "");
-  const meta = state.filters.authorMode ? s.id : `${n} anim${n === 1 ? "" : "s"}`;
+  const meta = state.filters.debugMode ? s.id : `${n} anim${n === 1 ? "" : "s"}`;
   // "FURN" marks furniture-bound sets; when furniture is keyed, tint by whether this set fits it.
   const fits = fitsKeyedAnchor(s);
   const anchorMark = s.requiresFurniture
@@ -1168,7 +1188,7 @@ function renderBrief() {
   const readyText = emote ? (allMet ? "EMOTE · READY TO PLAY" : "EMOTE · NEEDS ONE ACTOR") : (allMet ? "READY TO LAUNCH" : "NOT SEATABLE YET");
   const head = `<div class="brief-status ${allMet ? "" : "warn"}"><span class="dot"></span><p class="eb">${readyText}</p></div>
     <div class="brief-title">${esc(s.title)}${dur ? `<span class="card-dur">${esc(dur)}</span>` : ""}</div>
-    ${state.filters.authorMode ? `<div class="mono wrap brief-src">${esc(s.id)} · ${esc(s.sourceFile || "live registry")}</div>` : ""}`;
+    ${state.filters.debugMode ? `<div class="mono wrap brief-src">${esc(s.id)} · ${esc(s.sourceFile || "live registry")}</div>` : ""}`;
 
   // One readable line instead of the gauge/req/seat instrument cluster.
   const anchorBit = s.requiresFurniture
@@ -1218,7 +1238,7 @@ function renderBrief() {
     : "";
   const overrides = `<div class="overrides ${state.optsOpen ? "open" : ""}"><button class="overrides-head" data-act="opts-toggle" title="${state.optsOpen ? "Collapse" : "Expand"} start overrides"><span class="chev">${state.optsOpen ? "▾" : "▸"}</span><span class="lbl">START OVERRIDES</span>${state.optsOpen ? "" : `<span class="overrides-sum mono ${tweaks.length ? "hot" : ""}">${esc(optsSummary)}</span>`}</button>${overrideGrid}</div>`;
 
-  const authorBoxes = state.filters.authorMode
+  const debugBoxes = state.filters.debugMode
     ? `<div class="info-box hud"><div class="lbl">DIAGNOSTICS</div><div class="kv-list">${diagRows(s, ev).map(([k, v]) => `<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("")}</div></div>`
     : "";
 
@@ -1240,8 +1260,8 @@ function renderBrief() {
   const roleMap = roleMapHTML(s, ev);
 
   brief.innerHTML = head + summary + pinRow +
-    `<div class="brief-scroll">${roleMap}${animBox}${authorBoxes}</div>` +
-    `<div class="brief-foot">${emote && !state.filters.authorMode ? "" : overrides}${launchStack}</div>`;
+    `<div class="brief-scroll">${roleMap}${animBox}${debugBoxes}</div>` +
+    `<div class="brief-foot">${emote && !state.filters.debugMode ? "" : overrides}${launchStack}</div>`;
 }
 
 // Role→actor map for the SELECTED scene: pairs each named role with the cast member currently
@@ -2012,7 +2032,7 @@ function init() {
     requestCatalog(true);
     if (state.libraryReceived || state.mode === "library") requestLibrary(true);
   });
-  $("authorToggle").addEventListener("click", () => { state.filters.authorMode = !state.filters.authorMode; renderAll(); });
+  $("debugToggle").addEventListener("click", () => { state.filters.debugMode = !state.filters.debugMode; renderAll(); });
   $("search").addEventListener("input", (e) => { state.filters.search = e.target.value.trim().toLowerCase(); renderAll(); });
 
   renderAll();

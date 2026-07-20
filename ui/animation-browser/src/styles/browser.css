@@ -149,7 +149,7 @@ button,input,select{font:inherit;color:inherit}
 .cast-busy{flex:none;margin-left:4px;padding:1px 5px;border:1px solid var(--signal-go);border-radius:2px;color:var(--signal-go);font:600 8px/1.4 var(--font-mono);letter-spacing:.12em}
 .readiness-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .readiness-head .eb{color:var(--text-faint)}
-.author-wrap{display:flex;align-items:center;gap:8px}
+.debug-wrap{display:flex;align-items:center;gap:8px}
 .switch{width:34px;height:18px;border-radius:9px;position:relative;border:1px solid var(--line-strong);background:var(--void-900);padding:0}
 .switch i{position:absolute;width:12px;height:12px;border-radius:50%;top:2px;left:2px;background:var(--steel-500);transition:all var(--dur) var(--ease-out)}
 .switch.on{border-color:var(--accent);background:rgba(240,113,48,.25)}
