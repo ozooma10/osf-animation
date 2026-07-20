@@ -8,6 +8,8 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
+- **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see
+  `docs/PACKAGING.md`). Output: `packaging\out\OSF Animation v<version>.zip`.
 - **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): recompile after editing a `.psc`, THEN `xmake`
   to deploy the fresh `.pex`.** A stale `.pex` (source edited but not recompiled) makes any new/changed
   native fail to bind at link time — e.g. `error: Native static function X could find no matching
