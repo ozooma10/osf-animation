@@ -91,21 +91,27 @@ button,input,select{font:inherit;color:inherit}
   background-size:24px 24px}
 
 /* ---- slate (header) --------------------------------------- */
-.slate{position:relative;z-index:2;display:flex;align-items:stretch;flex-wrap:wrap;
-  border-bottom:1px solid var(--line-strong);background:linear-gradient(180deg,rgba(4,6,10,.7),rgba(4,6,10,.4))}
+.slate{position:relative;z-index:2;display:flex;align-items:stretch;flex-wrap:nowrap;min-height:88px;
+  border-bottom:1px solid var(--line-strong);background:linear-gradient(180deg,rgba(4,6,10,.82),rgba(4,6,10,.5))}
 .slate-cell{padding:11px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
-.slate-brand{flex-direction:row;align-items:center;gap:11px;padding:13px 18px}
-.brand-emblem{width:30px;height:30px;border:1px solid var(--accent);border-radius:3px;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:inset 0 0 10px rgba(240,113,48,.25)}
-.brand-emblem span{width:10px;height:10px;background:var(--accent);border-radius:1px;transform:rotate(45deg);box-shadow:0 0 8px var(--accent)}
-.brand-title{font:700 13px var(--font-display);letter-spacing:.06em;text-transform:uppercase;color:var(--text-bright);white-space:nowrap}
+.slate-brand{flex:0 0 210px;align-items:stretch;justify-content:space-between;gap:8px;padding:11px 14px 10px}
+.brand-lockup{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-meta{display:flex;flex-direction:column;min-width:0}
+.brand-emblem{width:28px;height:28px;border:1px solid var(--accent);border-radius:3px;display:flex;align-items:center;justify-content:center;flex:none;background:rgba(240,113,48,.08);box-shadow:inset 0 0 10px rgba(240,113,48,.2)}
+.brand-emblem span{width:9px;height:9px;background:var(--accent);border-radius:1px;transform:rotate(45deg);box-shadow:0 0 7px var(--accent)}
+.brand-title{font:700 12.5px var(--font-display);letter-spacing:.055em;text-transform:uppercase;color:var(--text-bright);white-space:nowrap}
 .brand-sub{font:500 10px var(--font-mono);color:var(--text-faint);margin-top:2px;display:flex;align-items:center;gap:6px}
 .lamp{width:8px;height:8px;border-radius:50%;background:var(--steel-500);flex:none}
 .lamp[data-state=ok]{background:var(--signal-go);box-shadow:0 0 7px var(--signal-go)}
 .lamp[data-state=off]{background:var(--signal-stop);box-shadow:0 0 7px var(--signal-stop)}
 .lamp[data-state=wait]{background:var(--signal-warn);box-shadow:0 0 7px var(--signal-warn);animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-/* status-line UPDATE badge: the installed OSF UI host predates the version this plugin was tested against */
-.ui-update{font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--signal-warn);background:rgba(224,162,60,.12);border:1px solid rgba(224,162,60,.45);border-radius:2px;padding:1px 5px;text-decoration:none;cursor:pointer;white-space:nowrap}
+/* status line: versions are quiet telemetry, not nameplates — dim mono, no borders, so
+   the title above owns the eye and the UPDATE badge is the only thing that interrupts. */
+#statusText .sep{color:var(--text-faint);margin:0 1px}
+/* the installed OSF UI host predates the version this plugin was tested against — the
+   ONE bordered element in this line, which is exactly why it reads as actionable */
+.ui-update{font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--signal-warn);background:rgba(224,162,60,.12);border:1px solid rgba(224,162,60,.45);border-radius:2px;padding:1px 5px;margin-left:3px;text-decoration:none;cursor:pointer;white-space:nowrap}
 .ui-update:hover,.ui-update:focus-visible{background:rgba(224,162,60,.25);color:var(--text-bright)}
 
 .slate-cast .eb{color:var(--accent);margin-bottom:8px}
@@ -130,21 +136,33 @@ button,input,select{font:inherit;color:inherit}
 .anchor-chg:hover{color:var(--teal-300)}
 
 .slate-readiness{flex:1;min-width:230px}
-.slate-take{flex:1;min-width:150px;justify-content:center;gap:5px;max-height:132px;overflow-y:auto}
-.slate-tools{justify-content:center}
-.take-chip{display:flex;align-items:center;gap:10px;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:7px 12px}
-.take-chip.live{border-color:var(--signal-go)}
+/* The running scene owns the header's wide bay. Brand and utilities stay compact on
+   the left; this panel takes every remaining pixel so live state cannot read as an
+   afterthought. */
+.slate-take{flex:1;min-width:0;justify-content:center;align-items:stretch;gap:5px;padding:10px 12px;border-right:0;
+  background:linear-gradient(90deg,rgba(17,21,27,.28),rgba(4,6,10,.08))}
+.take-chip{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-width:0;min-height:56px;
+  background:rgba(4,6,10,.72);border:1px solid var(--line);border-radius:3px;padding:9px 11px;overflow:hidden;box-shadow:var(--inset-lit)}
+.take-chip.live{border-color:rgba(111,174,106,.72);
+  background:linear-gradient(100deg,rgba(111,174,106,.13),rgba(4,6,10,.8) 46%);box-shadow:inset 3px 0 0 var(--signal-go),var(--inset-lit),0 0 12px rgba(111,174,106,.08)}
+.take-chip.live::after{content:"";position:absolute;right:-20px;top:-34px;width:88px;height:88px;border:1px solid rgba(111,174,106,.12);transform:rotate(45deg);pointer-events:none}
 .take-chip .mono{white-space:normal}
 .take-body{display:flex;flex-direction:column;gap:2px;min-width:0}
-.take-body strong{font-size:12px;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.stop-mini{margin-left:auto;flex:none;border:1px solid var(--signal-stop);background:rgba(200,80,58,.12);color:var(--signal-stop);border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
-.stop-mini:hover{background:rgba(200,80,58,.22)}
+.take-body strong{font:700 14px/1.15 var(--font-display);letter-spacing:.015em;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.take-chip.live>.live-dot{width:7px;height:7px;margin-left:2px;box-shadow:0 0 9px var(--signal-go)}
+.take-chip.live .take-body .lbl{color:var(--signal-go)}
+.stop-mini{position:relative;z-index:1;margin-left:auto;flex:none;border:1px solid rgba(200,80,58,.82);background:rgba(200,80,58,.1);color:#df705c;border-radius:2px;min-height:28px;padding:5px 10px;font:700 9px var(--font-mono);letter-spacing:.12em;cursor:pointer}
+.stop-mini:hover{background:var(--signal-stop);color:var(--void-900)}
 /* NEXT ▸ (advance one stage) — stop-mini geometry, go-signal accent. When it precedes a
    stop-mini the auto margin moves here so the pair stays glued at the right edge. */
 .next-mini{margin-left:auto;flex:none;border:1px solid var(--line-strong);background:var(--void-700);color:var(--text-bright);border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .next-mini:hover{border-color:var(--signal-go);color:var(--signal-go)}
 .next-mini + .stop-mini{margin-left:8px}
 .take-cast{font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.take-idle{border-style:dashed;background:rgba(4,6,10,.38)}
+.take-idle .take-body .lbl{color:var(--text-faint)}
+.take-idle .take-body strong{font-size:13px;color:var(--text-muted)}
+.take-idle-hint{margin-left:auto;font-size:8.5px;letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase}
 /* the take body doubles as the "open the ACTIVE tab" button */
 .take-open{background:none;border:0;padding:0;text-align:left;cursor:pointer;flex:1;min-width:0}
 .take-open strong{max-width:100%}
@@ -153,6 +171,9 @@ button,input,select{font:inherit;color:inherit}
 .readiness-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .readiness-head .eb{color:var(--text-faint)}
 .debug-wrap{display:flex;align-items:center;gap:8px}
+.brand-tools{display:flex;align-items:center;gap:8px;padding-top:7px;border-top:1px solid var(--line)}
+.brand-tools .debug-wrap{gap:6px}
+.brand-tool-sep{width:1px;height:16px;margin-left:auto;background:var(--line)}
 .switch{width:34px;height:18px;border-radius:9px;position:relative;border:1px solid var(--line-strong);background:var(--void-900);padding:0}
 .switch i{position:absolute;width:12px;height:12px;border-radius:50%;top:2px;left:2px;background:var(--steel-500);transition:all var(--dur) var(--ease-out)}
 .switch.on{border-color:var(--accent);background:rgba(240,113,48,.25)}
@@ -695,3 +716,6 @@ body.wheel-mode .wheeldbg{display:flex}
   padding:3px 7px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .wheeldbg button:hover{border-color:var(--steel-500);color:var(--text-bright)}
 .wheeldbg button.on{border-color:var(--accent);background:var(--accent-quiet);color:var(--text-bright)}
+/* version-debug strip (#versiondbg): same chassis, but it drives the status line rather
+   than the wheel, so it sits bottom-left and stays up in every mode. */
+.versiondbg{top:auto;bottom:14px;display:flex}

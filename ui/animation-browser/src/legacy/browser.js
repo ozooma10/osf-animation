@@ -222,15 +222,17 @@ function handleReady(p) {
 function renderStatusOnline() {
   const p = state.plugin;
   const ui = p && p.ui;
-  // Keep this SHORT — it lives in the fixed-width brand cell of the slate, and a long
-  // line pushes the rest of the header down. The lamp beside it already says "online",
-  // and the full spelling lives in the tooltip.
-  let html = p ? `OSF ${esc(p.version || "?")}` : "OSF";
+  // Keep this SHORT and QUIET — it lives in the fixed-width brand cell under the title,
+  // so a long line pushes the header down and boxed-up chrome competes with the title
+  // itself. Versions are plain dim mono; the ONE thing worth a badge is UPDATE, and it
+  // only earns that by being the only bordered thing here. The lamp beside it already
+  // says "online", and the full spelling lives in the tooltip.
+  let html = `OSF ${esc((p && p.version) || "?")}`;
   if (ui && ui.version) {
-    html += ` · UI ${esc(ui.version)}`;
+    html += ` <span class="sep">·</span> UI ${esc(ui.version)}`;
     if (ui.outdated && ui.nexusUrl) {
       html += ` <a class="ui-update" href="${escAttr(ui.nexusUrl)}" target="_blank" rel="noreferrer"
-        title="OSF UI v${escAttr(ui.tested || "?")} available — ${escAttr(ui.nexusUrl)}">UPD</a>`;
+        title="OSF UI v${escAttr(ui.tested || "?")} available — ${escAttr(ui.nexusUrl)}">UPDATE</a>`;
     }
   }
   const el = $("statusText");
@@ -700,7 +702,7 @@ function renderSlateTake() {
   const el = $("slateTake");
   const live = activeScenes();
   if (!live.length) {
-    el.innerHTML = `<div class="take-chip"><span class="lbl">NO SCENE RUNNING</span><span class="mono">crew → furniture → launch</span></div>`;
+    el.innerHTML = `<div class="take-chip take-idle"><div class="take-body"><span class="lbl">SCENE STATUS</span><strong>No scene running</strong></div><span class="take-idle-hint mono">ready to launch</span></div>`;
     return;
   }
   if (live.length === 1) {
@@ -2096,17 +2098,11 @@ function init() {
     // path the native OpenWheel uses. The wheel-mode debug strip (top-left) drives the
     // rest of the states — see WHEEL DEBUG below.
     initWheelDebug();
+    initVersionDebug();
     initDevBackdrop();
     // Status-line dev: exercise the OSF UI host segment + UPDATE badge without a DLL
     // (window.mockVersion(false) = host up to date, no badge).
-    window.mockVersion = (outdated = true) => onNativeMessage(JSON.stringify({
-      type: "osf.animation.version",
-      payload: {
-        plugin: "OSF Animation", version: "1.0.0",
-        ui: { name: "OSF UI", version: outdated ? "1.0.0" : "1.1.0", tested: "1.1.0", outdated,
-              nexusUrl: "https://www.nexusmods.com/starfield/mods/17711" },
-      },
-    }));
+    window.mockVersion = (outdated = true) => versionDbgApply(outdated ? "old" : "match");
     window.mockOpenWheel = (withTarget = true) => {
       wheelDbg.target = withTarget;
       renderWheelDbg();
@@ -2362,6 +2358,62 @@ function renderWheelDbg() {
     `<button class="${on(wheelDbg.err)}" data-dbg="err" title="Hub launch error">ERROR</button>` +
     `<button class="${on(wheelDbg.loading)}" data-dbg="loading" title="Catalog not yet received">LOADING</button>` +
     `<button data-dbg="reset" title="Back to the real catalog">RESET</button>`;
+}
+
+/* =========================================================================
+   VERSION DEBUG (standalone only — injected only when no bridge exists)
+   The status-line host segment and its UPDATE badge are driven entirely by the
+   DLL's osf.animation.version push, so standalone would otherwise never render
+   them. This strip pushes a synthetic payload down the SAME onNativeMessage
+   path the native one takes — nothing here reaches into renderStatusOnline.
+   NONE = a pre-bridge host that reports no ui block at all (badge must not
+   appear); MATCH = host == kOSFUITested; OLDER = host behind tested, the one
+   state that lights the badge. Clicking the lit badge exercises the
+   openModPage fallback (no bridge → the <a> just opens Nexus).
+   ========================================================================= */
+const VERSION_DBG_TESTED = "1.1.0";
+const versionDbg = { state: "none" };
+
+function versionDbgApply(next) {
+  versionDbg.state = next;
+  const ui = next === "none" ? null : {
+    name: "OSF UI",
+    version: next === "old" ? "1.0.0" : VERSION_DBG_TESTED,
+    tested: VERSION_DBG_TESTED,
+    outdated: next === "old",
+    nexusUrl: "https://www.nexusmods.com/starfield/mods/17711",
+  };
+  onNativeMessage(JSON.stringify({
+    type: "osf.animation.version",
+    payload: { plugin: "OSF Animation", version: "1.0.0", ...(ui ? { ui } : {}) },
+  }));
+  renderVersionDbg();
+}
+
+function initVersionDebug() {
+  const el = document.createElement("div");
+  el.id = "versiondbg";
+  el.className = "wheeldbg versiondbg";
+  document.body.appendChild(el);
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-vdbg]");
+    if (!b) return;
+    e.stopPropagation();
+    versionDbgApply(b.dataset.vdbg);
+  });
+  versionDbgApply("none");
+}
+
+function renderVersionDbg() {
+  const el = $("versiondbg");
+  if (!el) return;
+  const btn = (key, label, title) =>
+    `<button class="${versionDbg.state === key ? "on" : ""}" data-vdbg="${key}" title="${escAttr(title)}">${label}</button>`;
+  el.innerHTML =
+    `<span class="wheeldbg-title">OSF UI HOST</span>` +
+    btn("none", "NONE", "Pre-bridge host: no ui block — no host segment, no badge") +
+    btn("match", "MATCH", `Host v${VERSION_DBG_TESTED} == tested — host segment, no badge`) +
+    btn("old", "OLDER", `Host v1.0.0 < tested v${VERSION_DBG_TESTED} — UPDATE badge lights`);
 }
 
 /* =========================================================================
