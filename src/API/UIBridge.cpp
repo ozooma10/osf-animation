@@ -9,7 +9,6 @@
 #include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "Serialization/WheelPins.h"  // ordered animation-wheel customization
-#include "UI/FirstRunHint.h"  // osf.opened -> count a browser open (retires the F10 hint)
 #include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
 #include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
 #include "Util/StringUtil.h"  // Util::ToLower
@@ -1293,14 +1292,11 @@ namespace OSF::API
 		}
 
 		// The view reports every visibility change (ui.visibility -> osf.opened / osf.closed): the
-		// first-run F10 hint counts real opens, and the input hook learns whether a UI cursor is on
-		// screen (visible = the scene-orbit camera steers by LMB-drag; hidden = free-look).
+		// input hook learns whether a UI cursor is on screen (visible = the scene-orbit camera
+		// steers by LMB-drag; hidden = free-look).
 		void OnOpened(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			g_viewVisible = true;
-			// g_wheel.active is set by OpenWheel before it requests the menu, so it already
-			// reflects which face of the view is coming up.
-			UI::FirstRunHint::OnMenuOpened(!g_wheel.active);
 			Input::InputService::GetSingleton().SetUiCursorVisible(true);
 			// A wheel open is pending: replay the mode switch (idempotent view-side). With an
 			// OSF UI that queues sends to a not-yet-visible view (bridge MINOR >= 2) the

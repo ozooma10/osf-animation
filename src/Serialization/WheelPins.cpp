@@ -26,7 +26,7 @@ namespace OSF::Serialization::WheelPins
 		std::vector<Entry>       g_entries;  // wheel order: front = first slice
 		constexpr std::size_t    kMaxEntries = 12;
 
-		// <Documents>\My Games\Starfield\SFSE\OSF\wheel-pins.json (next to first-run.json),
+		// <Documents>\My Games\Starfield\SFSE\OSF\wheel-pins.json,
 		// or empty (no persistence — pins still work for this session).
 		std::filesystem::path StatePath()
 		{

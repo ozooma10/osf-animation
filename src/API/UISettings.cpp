@@ -2,7 +2,6 @@
 
 #include "API/OSFUI_API.h"
 #include "API/UIBridge.h"
-#include "UI/FirstRunHint.h"
 #include "UI/HudMessage.h"
 #include "Util/StringUtil.h"
 
@@ -24,8 +23,8 @@ namespace OSF::API
 		// from the pre-1.0 id "osf": old osf.json values files are orphaned
 		// (hotkeys default unbound anyway; users rebind once).
 		// openBrowser defaults UNBOUND ("" + allowUnbound): F10 (the OSF UI
-		// console toggle) already opens the browser and the first-run hint
-		// teaches it — a bound default would just duplicate that verb.
+		// console toggle) already opens the browser — a bound default would
+		// just duplicate that verb.
 		// openWheel defaults to B: the wheel is a mid-gameplay verb with no
 		// other discovery path, B is free in vanilla Starfield, and it's the
 		// emote-wheel convention key; conflict-badging makes rebinds cheap.
@@ -48,10 +47,7 @@ namespace OSF::API
     { "label": "Interface", "settings": [
       { "key": "debugNotifications", "type": "bool", "default": false,
         "label": "Stage-transition popups",
-        "hint": "Debug HUD popup on each scene stage transition." },
-      { "key": "firstRunHint", "type": "bool", "default": true,
-        "label": "First-run hint",
-        "hint": "Show the browser hint until the animation browser has been opened a few times." }
+        "hint": "Debug HUD popup on each scene stage transition." }
     ] },
     { "label": "Logging", "settings": [
       { "key": "logLevel", "type": "enum", "default": "info",
@@ -112,8 +108,6 @@ namespace OSF::API
 				SetLogLevel(unquote(value));
 			} else if (key == "debugNotifications") {
 				UI::HudMessage::SetDebugEnabled(value == "true");
-			} else if (key == "firstRunHint") {
-				UI::FirstRunHint::SetEnabled(value == "true");
 			}
 		}
 

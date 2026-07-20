@@ -4,7 +4,6 @@
 #include "Camera/CameraService.h"
 #include "Papyrus/OSFScript.h"
 #include "Scene/SceneEventRelay.h"
-#include "UI/FirstRunHint.h"
 #include "Util/Hooking.h"
 
 #include <array>
@@ -123,9 +122,6 @@ namespace OSF::Serialization::SaveSafety
 				// alt state (e.g. scene_orbit's kFreeFly with its driver stopped — stuck at a dead
 				// transform), force it back to third person.
 				Camera::CameraService::GetSingleton().OnPostLoad();
-				// Discoverability nudge: tell a player who hasn't found the scene browser yet
-				// that F10 opens it (self-retires after enough opens / shows).
-				UI::FirstRunHint::OnPostLoad();
 				return RE::BSEventNotifyControl::kContinue;
 			}
 		};
