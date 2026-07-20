@@ -2,6 +2,14 @@
 
 All notable changes to OSF Animation are documented here.
 
+## [Unreleased]
+
+### Added
+- The scene browser's status line now also shows the installed OSF UI host version. If it predates the release this build was tested against (1.1.0), an amber `UPDATE` badge appears linking the [OSF UI Nexus page](https://www.nexusmods.com/starfield/mods/17711) — clicking it in-game opens the page in your system browser (OSF UI's `osfui.openModPage` command: the URL is hardcoded in OSF UI, nothing crosses the bridge), and the SFSE log gains a matching warning.
+
+### Changed
+- The status line is now compact (`OSF 1.0.0 · UI 1.1.0`) so it can't push the header layout down; the full identity moved to its tooltip. The plugin version no longer renders a trailing unused build field (`1.0.0.0`).
+
 ## [1.0.0] - 2026-07-20
 
 ### Added

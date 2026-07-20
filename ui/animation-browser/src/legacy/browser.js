@@ -216,11 +216,29 @@ function handleReady(p) {
 
 // Status line names OSF Animation (the plugin this browser fronts), not the OSF UI host
 // the runtime.ready payload identifies. Version arrives via osf.animation.version right
-// before the catalog; until then (or on an older DLL) show the name alone.
+// before the catalog; until then (or on an older DLL) show the name alone. The payload's
+// `ui` segment (newer DLLs) is the HOST: installed OSF UI version plus the plugin's
+// update verdict — when outdated, an UPDATE badge links the OSF UI Nexus page.
 function renderStatusOnline() {
   const p = state.plugin;
-  const tag = p ? `${(p.plugin || "OSF Animation").toUpperCase()} v${p.version || "?"}` : "OSF ANIMATION";
-  $("statusText").textContent = `${tag} · stage online`;
+  const ui = p && p.ui;
+  // Keep this SHORT — it lives in the fixed-width brand cell of the slate, and a long
+  // line pushes the rest of the header down. The lamp beside it already says "online",
+  // and the full spelling lives in the tooltip.
+  let html = p ? `OSF ${esc(p.version || "?")}` : "OSF";
+  if (ui && ui.version) {
+    html += ` · UI ${esc(ui.version)}`;
+    if (ui.outdated && ui.nexusUrl) {
+      html += ` <a class="ui-update" href="${escAttr(ui.nexusUrl)}" target="_blank" rel="noreferrer"
+        title="OSF UI v${escAttr(ui.tested || "?")} available — ${escAttr(ui.nexusUrl)}">UPD</a>`;
+    }
+  }
+  const el = $("statusText");
+  el.innerHTML = html;
+  el.title = p
+    ? `${p.plugin || "OSF Animation"} v${p.version || "?"} · stage online`
+      + (ui && ui.version ? ` · ${ui.name || "OSF UI"} host v${ui.version}` : "")
+    : "OSF Animation · stage online";
 }
 
 function handleVersion(p) {
@@ -2033,6 +2051,20 @@ function init() {
     if (state.libraryReceived || state.mode === "library") requestLibrary(true);
   });
   $("debugToggle").addEventListener("click", () => { state.filters.debugMode = !state.filters.debugMode; renderAll(); });
+  // UPDATE badge (status line): in-game the view must never navigate — the overlay IS this
+  // page, and there is no browser chrome to come back with. Ask OSF UI to open its OWN
+  // Nexus page in the SYSTEM browser (`osfui.openModPage`, protocol 1.1: the URL is
+  // hardcoded host-side, no URL crosses the bridge). A pre-1.1 host — exactly the host
+  // this badge flags — rejects it with ui.error; our own notice still names the URL, so
+  // the user is never stranded. In standalone dev (a real browser, no bridge) the link
+  // opens the Nexus page normally.
+  document.addEventListener("click", (e) => {
+    const a = e.target && e.target.closest ? e.target.closest("a.ui-update") : null;
+    if (!a || !bridgeAvailable()) return;
+    e.preventDefault();
+    send("osfui.openModPage");
+    notice("info", `Opening ${a.getAttribute("href") || "the OSF UI mod page"} in your system browser — alt-tab if it doesn't surface.`);
+  });
   $("search").addEventListener("input", (e) => { state.filters.search = e.target.value.trim().toLowerCase(); renderAll(); });
 
   renderAll();
@@ -2065,6 +2097,16 @@ function init() {
     // rest of the states — see WHEEL DEBUG below.
     initWheelDebug();
     initDevBackdrop();
+    // Status-line dev: exercise the OSF UI host segment + UPDATE badge without a DLL
+    // (window.mockVersion(false) = host up to date, no badge).
+    window.mockVersion = (outdated = true) => onNativeMessage(JSON.stringify({
+      type: "osf.animation.version",
+      payload: {
+        plugin: "OSF Animation", version: "1.0.0",
+        ui: { name: "OSF UI", version: outdated ? "1.0.0" : "1.1.0", tested: "1.1.0", outdated,
+              nexusUrl: "https://www.nexusmods.com/starfield/mods/17711" },
+      },
+    }));
     window.mockOpenWheel = (withTarget = true) => {
       wheelDbg.target = withTarget;
       renderWheelDbg();

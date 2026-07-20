@@ -24,3 +24,6 @@ compile_commands.json
 ui/animation-browser/fixtures/live/backdrop.*
 # frontend dependencies
 ui/animation-browser/node_modules/
+
+# generated: Vite output for the browser view (source: ui/animation-browser)
+build/views/

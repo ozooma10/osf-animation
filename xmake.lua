@@ -31,14 +31,15 @@ target("OSF Animation")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
-    -- Rebuild the browser view (ui/animation-browser -> views/osf.animation/browser) when its
-    -- sources are newer than the committed Vite output, so a plain `xmake` never deploys a stale UI.
+    -- Rebuild the browser view (ui/animation-browser -> build/views/osf.animation/browser) when
+    -- its sources are newer than the Vite output, so a plain `xmake` never deploys a stale UI.
+    -- The output is generated, never committed: npm is required to build this target.
     before_build(function (target)
         import("lib.detect.find_tool")
         import("core.base.option")
 
         local ui = "ui/animation-browser"
-        local out = "views/osf.animation/browser/assets/browser.js"
+        local out = "build/views/osf.animation/browser/assets/browser.js"
 
         -- Newest mtime across everything the bundle is built from.
         local newest = 0
@@ -61,10 +62,10 @@ target("OSF Animation")
         local npm = find_tool("npm.cmd") or find_tool("npm")
         if not npm then
             if os.isfile(out) then
-                print("[OSF] npm not found — deploying the committed browser build (may be stale).")
+                print("[OSF] npm not found — deploying the existing browser build (may be stale).")
                 return
             end
-            raise("[OSF] npm not found and views/osf.animation/browser is missing — cannot build the animation browser.")
+            raise("[OSF] npm not found and no browser build in build/views — install Node.js to build the animation browser.")
         end
 
         if not os.isdir(path.join(ui, "node_modules")) then
@@ -102,9 +103,11 @@ target("OSF Animation")
             local view = path.join(plugins, "OSFUI", "views", "osf.animation", "browser")
             os.tryrm(path.join(plugins, "OSFUI", "views", "osf.animation"))
             os.mkdir(view)
-            -- The browser is a committed Vite production build. Copy the complete output so
-            -- hashed fonts, the source map, and future split chunks cannot be omitted.
-            os.cp("views/osf.animation/browser/**", view .. "/", { rootdir = "views/osf.animation/browser" })
+            -- The browser is a generated Vite production build (before_build refreshes it).
+            -- Copy the complete output so hashed fonts, the source map, and future split
+            -- chunks cannot be omitted.
+            os.cp("build/views/osf.animation/browser/**", view .. "/",
+                  { rootdir = "build/views/osf.animation/browser" })
             local ok = try { function() os.cp(target:targetfile(), plugins .. "/"); return true end }
             if ok then
                 if os.isfile(target:symbolfile()) then

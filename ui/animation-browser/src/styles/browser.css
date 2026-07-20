@@ -104,6 +104,9 @@ button,input,select{font:inherit;color:inherit}
 .lamp[data-state=off]{background:var(--signal-stop);box-shadow:0 0 7px var(--signal-stop)}
 .lamp[data-state=wait]{background:var(--signal-warn);box-shadow:0 0 7px var(--signal-warn);animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+/* status-line UPDATE badge: the installed OSF UI host predates the version this plugin was tested against */
+.ui-update{font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--signal-warn);background:rgba(224,162,60,.12);border:1px solid rgba(224,162,60,.45);border-radius:2px;padding:1px 5px;text-decoration:none;cursor:pointer;white-space:nowrap}
+.ui-update:hover,.ui-update:focus-visible{background:rgba(224,162,60,.25);color:var(--text-bright)}
 
 .slate-cast .eb{color:var(--accent);margin-bottom:8px}
 .slate-anchor .eb{margin-bottom:8px}

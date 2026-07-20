@@ -41,7 +41,9 @@ export default defineConfig({
   build: {
     target: "es2018",
     modulePreload: false,
-    outDir: resolve(import.meta.dirname, "../../views/osf.animation/browser"),
+    // Generated output lives under the gitignored build/ tree; the two-level
+    // views/<modId>/<viewName>/ tail is the qualified id OSF UI discovers.
+    outDir: resolve(import.meta.dirname, "../../build/views/osf.animation/browser"),
     emptyOutDir: true,
     sourcemap: true,
     cssCodeSplit: false,

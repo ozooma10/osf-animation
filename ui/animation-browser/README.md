@@ -1,20 +1,20 @@
 # OSF Animation — animation browser view
 
-The in-game animation and scene browser/launcher. Its editable source is a Vite/TypeScript/Preact app in this directory; `views/osf.animation/browser/` is generated, committed production output. It is rendered by
+The in-game animation and scene browser/launcher. Its editable source is a Vite/TypeScript/Preact app in this directory; `build/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
 **OSF UI** (Ultralight overlay) and driven **natively** by OSF Animation's own
 DLL over OSF UI's bridge API (protocol **1.0**). Only JSON text crosses the
 boundary.
 
 ## Development and build
 
-Install once with `npm install` in this directory. Use `npm run dev` for hot-reload desktop iteration, `npm test` for the typed bridge/model tests, and `npm run build` to type-check and regenerate the committed production view. The build targets ES2018, emits a single self-contained entry bundle plus local font assets, and writes source maps for in-game debugging.
+Install once with `npm install` in this directory. Use `npm run dev` for hot-reload desktop iteration, `npm test` for the typed bridge/model tests, and `npm run build` to type-check and regenerate the production view. The build targets ES2018, emits a single self-contained entry bundle plus local font assets, and writes source maps for in-game debugging.
 
-Edit only `ui/animation-browser/`; do not hand-edit `views/osf.animation/browser/`. After changing browser source, run `npm test` and `npm run build`. A native `xmake` build re-runs the Vite build automatically when sources here are newer than the committed output (falling back to the committed build with a warning if npm is absent), so a plain `xmake` never deploys a stale view.
+This directory is the only editable copy — `build/views/osf.animation/browser/` is disposable Vite output and is wiped on every build. A native `xmake` re-runs the Vite build whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
 
 ## How it's wired
 
 ```
-ui/animation-browser/src/ ── Vite ──► views/osf.animation/browser/ ──► OSF UI  MessageBridge  ──►  OSF Animation DLL
+ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browser/ ──► OSF UI  MessageBridge  ──►  OSF Animation DLL
    window.osfui.postMessage        (ui.command)              src/API/UIBridge.cpp
    window.osfui.onMessage      ◄── SendToWeb ────────────────  osf.animation.* handlers
 ```
@@ -102,7 +102,7 @@ OSF UI resolves its view dir relative to its own DLL
 ships from OSF Animation's own mod folder; **no copy lives in the OSF UI repo or
 mod**:
 
-- `xmake` (`after_build`) deploys the committed production build to
+- `xmake` (`after_build`) deploys the generated production build to
   `MO2\mods\OSF Animation\SFSE\Plugins\OSFUI\views\osf.animation\browser\`
   (the two-level `views/<modId>/<viewName>/` layout OSF UI discovers).
 - The DLL registers the view at runtime via `RegisterView("osf.animation/browser")`

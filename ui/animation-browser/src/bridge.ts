@@ -12,7 +12,10 @@ export type BridgeCommand =
   | "osf.animation.scanNearby"
   | "osf.animation.stop"
   | "osf.animation.wheel.get"
-  | "osf.animation.wheel.set";
+  | "osf.animation.wheel.set"
+  // OSF UI platform command (protocol 1.1): opens OSF UI's own Nexus page in the
+  // system browser — URL hardcoded host-side, nothing crosses the bridge.
+  | "osfui.openModPage";
 
 export interface UiCommand<TFields extends Record<string, unknown> = Record<string, unknown>> {
   type: "ui.command";

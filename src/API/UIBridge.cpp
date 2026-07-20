@@ -23,6 +23,7 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -172,6 +173,13 @@ namespace OSF::API
 
 		// Our view's manifest id; the SendToWeb target for pushes that aren't a direct reply (e.g. the catalog we push when the bridge becomes ready).
 		constexpr const char* kViewId = "osf.animation/browser";  // qualified "<modId>/<viewName>" (OSF UI api-freeze item 1)
+
+		// The OSF UI release this build was developed and tested against. When the
+		// installed host reports an older version, the browser's status line grows an
+		// UPDATE badge pointing at the OSF UI Nexus page. Bump alongside any new
+		// host feature this file starts depending on.
+		constexpr std::uint32_t kOSFUITested[3] = { 1, 1, 0 };
+		constexpr const char*   kOSFUINexusURL  = "https://www.nexusmods.com/starfield/mods/17711";
 
 		// ---- helpers ---------------------------------------------------------
 
@@ -671,14 +679,40 @@ namespace OSF::API
 			return arr;
 		}
 
+		// The host segment of the identity payload: OSF UI's installed version, plus the
+		// update verdict against kOSFUITested (the view can't compare versions it doesn't
+		// know about, and the Nexus URL is plugin knowledge, not view knowledge).
+		json UIHostInfo() noexcept
+		{
+			std::uint32_t mj = 0, mn = 0, pt = 0;
+			g_ui.GetPluginVersion(mj, mn, pt);
+			if (mj == 0 && mn == 0 && pt == 0) {
+				return nullptr;  // host absent or not reporting — the view omits the segment
+			}
+			const bool outdated =
+				std::tie(mj, mn, pt) < std::tie(kOSFUITested[0], kOSFUITested[1], kOSFUITested[2]);
+			return json{
+				{ "name", "OSF UI" },
+				{ "version", std::format("{}.{}.{}", mj, mn, pt) },
+				{ "tested", std::format("{}.{}.{}", kOSFUITested[0], kOSFUITested[1], kOSFUITested[2]) },
+				{ "outdated", outdated },
+				{ "nexusUrl", kOSFUINexusURL },
+			};
+		}
+
 		void OnCatalogGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			// The view's status line should name THIS plugin — runtime.ready carries the
 			// OSF UI host's identity, not ours. Piggyback on the catalog request the view
-			// always makes right after ready (and on every refresh).
+			// always makes right after ready (and on every refresh). `ui` describes the
+			// HOST (installed OSF UI version + update verdict) so the browser can surface
+			// an outdated host without knowing version history itself.
 			SendJson(a_srcView, "osf.animation.version", json{
 				{ "plugin", SFSE::GetPluginName() },
-				{ "version", SFSE::GetPluginVersion().string() },
+				// major.minor.patch only — Version::string() would append the unused build
+				// field and render as "1.0.0.0" in the view's status line.
+				{ "version", std::format("{}.{}.{}", SFSE::GetPluginVersion().major(), SFSE::GetPluginVersion().minor(), SFSE::GetPluginVersion().patch()) },
+				{ "ui", UIHostInfo() },
 			});
 			SendJson(a_srcView, "osf.animation.catalog.data", BuildCatalog(false));
 		}
@@ -1264,7 +1298,9 @@ namespace OSF::API
 		void OnOpened(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			g_viewVisible = true;
-			UI::FirstRunHint::OnMenuOpened();
+			// g_wheel.active is set by OpenWheel before it requests the menu, so it already
+			// reflects which face of the view is coming up.
+			UI::FirstRunHint::OnMenuOpened(!g_wheel.active);
 			Input::InputService::GetSingleton().SetUiCursorVisible(true);
 			// A wheel open is pending: replay the mode switch (idempotent view-side). With an
 			// OSF UI that queues sends to a not-yet-visible view (bridge MINOR >= 2) the
@@ -1576,5 +1612,9 @@ namespace OSF::API
 		g_ui.GetPluginVersion(mj, mn, pt);
 		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.animation.* commands registered",
 			mj, mn, pt, g_ui.GetBridgeProtocolVersion());
+		if (std::tie(mj, mn, pt) < std::tie(kOSFUITested[0], kOSFUITested[1], kOSFUITested[2])) {
+			REX::WARN("[UI] installed OSF UI v{}.{}.{} predates the v{}.{}.{} this build was tested against — update it: {}",
+				mj, mn, pt, kOSFUITested[0], kOSFUITested[1], kOSFUITested[2], kOSFUINexusURL);
+		}
 	}
 }
