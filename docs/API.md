@@ -210,6 +210,17 @@ scene that already ended before the queued callback ran.
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode
 `akEvent.result`.
 
+## In-game UI, hotkeys, and the wheel tag contract
+
+The scene browser, animation wheel, settings menu, and hotkeys are hosted by **OSF UI** (a separate
+mod) — there is no Papyrus surface for them, and no `Data/OSF/settings.json` (it is no longer read).
+Hotkeys are bound in OSF UI's settings menu on the **OSF Animation** card: the wheel defaults to `B`;
+the browser key ships unbound because OSF UI's own console toggle (F10) already opens it.
+
+Content packs join these surfaces purely by **tags**, no code: a solo, free-space, self-terminating
+scene tagged `player.emote.<name>` appears under Animations → Emotes and in the default animation
+wheel. The well-known tag contract lives in [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
+
 ## Discovery & diagnostics
 
 ```papyrus

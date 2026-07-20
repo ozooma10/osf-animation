@@ -9,7 +9,7 @@ boundary.
 
 Install once with `npm install` in this directory. Use `npm run dev` for hot-reload desktop iteration, `npm test` for the typed bridge/model tests, and `npm run build` to type-check and regenerate the committed production view. The build targets ES2018, emits a single self-contained entry bundle plus local font assets, and writes source maps for in-game debugging.
 
-Edit only `ui/animation-browser/`; do not hand-edit `views/osf.animation/browser/`. After changing browser source, run `npm test` and `npm run build`. A normal native `xmake` build deploys the already-generated output and does not require Node.
+Edit only `ui/animation-browser/`; do not hand-edit `views/osf.animation/browser/`. After changing browser source, run `npm test` and `npm run build`. A native `xmake` build re-runs the Vite build automatically when sources here are newer than the committed output (falling back to the committed build with a warning if npm is absent), so a plain `xmake` never deploys a stale view.
 
 ## How it's wired
 
@@ -117,8 +117,8 @@ would need the folder placed next to `OSFUI.dll` manually.
 
 No drop-in `settings/osf.animation.json` file: the DLL registers the same
 schema document at runtime (`RegisterSettingsSchema`, see
-`src/API/UISettings.cpp`) — hotkeys (`hotkeys.openBrowser`,
-`hotkeys.openWheel`, default unbound), interface toggles, and log level all
+`src/API/UISettings.cpp`) — hotkeys (`hotkeys.openBrowser` default unbound,
+`hotkeys.openWheel` default `B`), interface toggles, and log level all
 live in OSF UI's in-game settings menu under **OSF Animation**.
 
 ## Animation wheel (transient mode)
@@ -208,7 +208,7 @@ defaults again.
 Starfield "NASA-punk" maintenance-HUD, aligned to the shared **OSF design system**
 (burnt amber `--accent` + brushed steel on a near-black void, teal HUD signal):
 one framed **console** with amber corner brackets and a faint scan grid, a **slate**
-header (cast / anchor / readiness + author toggle), three **bays** (READY NOW /
+header (cast / anchor / readiness + debug toggle), three **bays** (READY NOW /
 NEEDS ONE THING / LIBRARY) of spine-numbered scene cards with per-gate pips, and an
 instrument **brief** module (registry id, requirements, seats, launch). Saira Semi
 Condensed (Bahnschrift stand-in) for chrome, JetBrains Mono / Cascadia for data.

@@ -23,9 +23,12 @@ namespace OSF::API
 		// folder and the osf.animation.* command namespace. NOTE the rename
 		// from the pre-1.0 id "osf": old osf.json values files are orphaned
 		// (hotkeys default unbound anyway; users rebind once).
-		// Hotkeys default UNBOUND ("" + allowUnbound): binding is the user's
-		// opt-in, exactly like the old empty hotkeys map — but now in-game,
-		// rebindable, and conflict-badged.
+		// openBrowser defaults UNBOUND ("" + allowUnbound): F10 (the OSF UI
+		// console toggle) already opens the browser and the first-run hint
+		// teaches it — a bound default would just duplicate that verb.
+		// openWheel defaults to B: the wheel is a mid-gameplay verb with no
+		// other discovery path, B is free in vanilla Starfield, and it's the
+		// emote-wheel convention key; conflict-badging makes rebinds cheap.
 		constexpr const char* kSchemaJson = R"json({
   "id": "osf.animation",
   "title": "OSF Animation",
@@ -38,7 +41,7 @@ namespace OSF::API
       { "key": "hotkeys.openBrowser", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open animation browser",
         "hint": "Browse animations, emotes, and authored scenes." },
-      { "key": "hotkeys.openWheel", "type": "key", "default": "", "allowUnbound": true,
+      { "key": "hotkeys.openWheel", "type": "key", "default": "B", "allowUnbound": true,
         "label": "Open animation wheel",
         "hint": "Radial emote picker; targets the crosshair NPC when one is in reach." }
     ] },

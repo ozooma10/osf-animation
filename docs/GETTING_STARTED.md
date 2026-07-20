@@ -75,7 +75,27 @@ declarative immersion (camera/weapon/control/fade) with **automatic cleanup**. E
 You author only the *engage* half of any `osf.*` mechanism — the undo ledger reverses it on every end
 path. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full field reference and the `osf.*` action list.
 
-### d. Verify
+### d. (optional) Put an emote on the animation wheel
+
+A solo, free-space, **self-terminating** scene tagged `player.emote.<name>` automatically appears in
+the browser's Emotes group and the default animation wheel — this is the smallest useful pack:
+
+```jsonc
+{
+  "schema": 1,
+  "id": "mypack.emote.salute",
+  "tags": ["player.emote.salute"],        // <name> becomes the wheel slice label
+  "stages": [
+    { "clips": ["OSF/Animations/MyPack/salute.glb"], "loops": 2 }   // must end on its own
+  ]
+}
+```
+
+The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless
+the clip demands otherwise. Full contract: the well-known tags table in
+[SCENE_SCHEMA.md](SCENE_SCHEMA.md).
+
+### e. Verify
 ```bat
 cgf "OSFTest.Reload"                          ; rescan Data/OSF/**.osf.json and register scenes
 cgf "OSFTest.PairId" <npc-refid> "mypack.scenes.greet"  ; start your scene on player + the clicked NPC

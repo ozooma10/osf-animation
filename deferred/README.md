@@ -12,14 +12,20 @@ A Papyrus-only ambient-companion module (moments cast on crew). Never finished:
 - Needs Creation Kit quest wiring that does not exist (`CrewLifeMain` expects
   sibling scripts attached by property on a start-game-enabled quest).
 - References `OSF.GetConfig*` natives that were never added to the framework.
-- Overlaps the **Ambient NPC Life Director** (see `../GameplayModuels_Plan.md`
+- Overlaps the **Ambient NPC Life Director** (see `GameplayModuels_Plan.md`
   Phase 2), which is the better-architected native version of the same idea.
 
 Revive path: fold into the Ambient Director effort rather than shipping as-is.
 
-## Also deferred (no artifacts to park — plan-only, in root)
+## GameplayModuels_Plan.md
 
-- **Ambient NPC Life Director** — `../GameplayModuels_Plan.md` Phase 2. Never
-  built (no `src/Director/`). The intended flagship post-launch feature.
-- **Item-use animations** (eat/drink/med) — `../GameplayModuels_Plan.md` Phase 3.4.
-  Never built; flagged highest-risk in its own plan.
+The gameplay-modules design doc, parked here after its shipped parts landed
+(hotkeys, emote wheel, immersion emote pack — Phases 1 and 3.2/3.5). What
+remains in it is plan-only:
+
+- **Ambient NPC Life Director** — Phase 2. Never built (no `src/Director/`).
+  The intended flagship post-launch feature.
+- **Item-use animations** (eat/drink/med) — Phase 3.4. Never built; flagged
+  highest-risk in its own plan.
+- **Sit/lean-anywhere** — Phase 3.1. Built then CUT 2026-07-15 (removed
+  end-to-end, incl. the `toggleSceneTags` hotkey verb the plan describes).
