@@ -36,6 +36,16 @@ foreach ($s in @('OSF', 'OSFTypes', 'OSFAdvanced')) {
     if (Test-Path "$dist\Scripts\Source\$s.psc") { Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\" }
 }
 
+# The scene-browser view (committed Vite production build). OSF UI discovers views across
+# the VFS at <OSFUI.dll dir>\OSFUI\views\<modId>\<viewName>\ — the view ships from THIS mod,
+# no copy lives in OSF UI. Without it the browser/wheel UI simply doesn't exist, so fail
+# loudly. Copy the complete output (hashed fonts, source map) to match the xmake deploy.
+$viewSrc = Join-Path $repo 'views\osf.animation\browser'
+if (-not (Test-Path "$viewSrc\index.html")) { throw "Browser view missing: $viewSrc (run npm run build in ui/animation-browser)" }
+$viewDst = "$core\SFSE\Plugins\OSFUI\views\osf.animation\browser"
+New-Item -ItemType Directory -Force -Path $viewDst | Out-Null
+Copy-Item "$viewSrc\*" $viewDst -Recurse
+
 # Settings + hotkeys live in OSF UI's in-game settings menu (schema registered at
 # runtime over the bridge) — no Data/OSF/settings.json ships anymore.
 New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
