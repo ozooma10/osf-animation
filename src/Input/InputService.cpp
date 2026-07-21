@@ -119,19 +119,25 @@ namespace OSF::Input
 			const bool active = g_active.load(std::memory_order_relaxed);
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
 			const bool uiVisible = g_uiCursorVisible.load(std::memory_order_relaxed);
+			const bool menuOwns = MenuOwnsInput();
 			// don't route any input while a menu/console owns it. The engine still receives the queue below.
-			if ((active || capture || uiVisible) && !MenuOwnsInput()) {
+			if ((active || capture || uiVisible) && !menuOwns) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
-					// Browser on screen: the overlay's WndProc swallow starves the engine of KEYBOARD and
-					// MOUSE (they arrive as window messages), but the gamepad is POLLED (XInput) — its
-					// events still reach this queue and would walk/jump the player under the browser.
-					// Consume them: status = kStop is the only reliable gate (thumbstick movement ignores
-					// enable layers, and disabled IDEvents still reach receivers).
-					if (uiVisible && event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
+					const auto et = event->eventType;
+					// Browser on screen: kill THUMBSTICK events BEFORE the forward — the player's
+					// movement dispatch runs inside g_original (post-forward flagging demonstrably
+					// did not stop the walking), and nothing downstream wants engine stick events
+					// anyway (the orbit camera polls XInput directly; the view drops kind:"stick").
+					// Gamepad BUTTONS deliberately pass through unflagged: OSF UI's FocusMenu tap
+					// (also inside g_original) must see them to relay D-pad/A/B to the browser,
+					// and gameplay button verbs are gated by OSF UI's ControlLayer flags (proven
+					// for buttons — only stick movement ignores them). Buttons are swept after
+					// the forward below as belt-and-suspenders.
+					if (uiVisible && et == RE::InputEvent::EventType::kThumbstick &&
+						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 						const_cast<RE::InputEvent*>(event)->status = RE::InputEvent::Status::kStop;
 						continue;
 					}
-					const auto et = event->eventType;
 					if (active && et == RE::InputEvent::EventType::kButton) {
 						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
 					}
@@ -166,9 +172,20 @@ namespace OSF::Input
 					}
 				}
 			}
-			// ALWAYS forward the queue (consumed events ride along flagged kStop; nothing is injected
-			// or unlinked). Beyond the browser-open gamepad swallow above, the hook only reads.
+			// Forward the queue: thumbsticks ride along flagged kStop (consumed above), while gamepad
+			// buttons pass through live so the menu walk inside — OSF UI's FocusMenu tap — can relay
+			// D-pad/A/B to the browser as ui.gamepad. Nothing is injected or unlinked.
 			g_original(a_this, a_queueHead);
+			// Post-forward sweep: flag the remaining gamepad events (buttons) too, in case anything
+			// downstream of the UI receiver still looks at this queue. Gameplay button verbs are
+			// primarily gated by OSF UI's ControlLayer flags; this is defense in depth.
+			if (uiVisible && !menuOwns) {
+				for (const auto* event = a_queueHead; event; event = event->next) {
+					if (event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
+						const_cast<RE::InputEvent*>(event)->status = RE::InputEvent::Status::kStop;
+					}
+				}
+			}
 		}
 	}
 
