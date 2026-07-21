@@ -4,6 +4,7 @@
 
 #include "RE/T/TESObjectARMO.h"
 
+#include <algorithm>
 #include <array>
 
 namespace OSF::Equipment
@@ -95,7 +96,7 @@ namespace OSF::Equipment
 		return Hide(a_actor, 0xFFFFFFFFu);
 	}
 
-	Snapshot EquipmentService::Hide(RE::Actor* a_actor, std::uint32_t a_slotMask)
+	Snapshot EquipmentService::Hide(RE::Actor* a_actor, std::uint32_t a_slotMask, std::span<RE::TESBoundObject* const> a_keep)
 	{
 		Snapshot snapshot;
 		if (!a_actor || a_slotMask == 0 || !Available()) {
@@ -134,6 +135,11 @@ namespace OSF::Equipment
 				if (isArmor) {
 					if (skin && item.object == skin) {
 						skippedSkin++;
+						continue;
+					}
+					// Scene-gear exemption: the item stays worn for the scene, so it must not
+					// enter the snapshot either (restore would double-equip it).
+					if (std::find(a_keep.begin(), a_keep.end(), item.object) != a_keep.end()) {
 						continue;
 					}
 					if (!fullStrip) {

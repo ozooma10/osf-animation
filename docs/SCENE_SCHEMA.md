@@ -515,6 +515,12 @@ ledger-tracked, so each actor is re-dressed on every end path.
 - Unlike the player lock, this applies to **all** participants, including NPC-only scenes.
 - Authored `osf.equipment.hide` / `osf.equipment.restore` still work.
 
+**User scene gear** (`docs/RFC-scene-gear.md`) composes with the strip: items registered as scene gear
+(via `Data/OSF/**/*.osfgear.json` or the user's `scene-gear.json`) that a participant carries are
+auto-equipped for the scene's duration — a worn one is exempted from the strip instead. A role's
+authored `equip` wins over user gear for the slot it occupies; gear fills the slots the scene didn't
+touch. Players can disable this globally (settings → Scene gear → Auto-equip scene gear).
+
 ### Screen fade (`fade`, default-off)
 
 When **`"fade": true`** and the player is a participant, the scene posts a screen fade-to-black curtain

@@ -4,6 +4,7 @@
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
 #include "Audio/SoundService.h"
+#include "Equipment/GearRegistry.h"  // Gear::LoadAll on ReloadPacks
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
@@ -211,6 +212,7 @@ namespace OSF::Papyrus
 			auto& registry = Registry::SceneRegistry::GetSingleton();
 			registry.LoadAll();
 			Registry::SoundRegistry::GetSingleton().LoadAll();
+			Equipment::Gear::LoadAll();
 			// Re-probe clip durations: edited files fail the size/mtime check and get fresh values,
 			// then the catalog re-pushes so the browser's time estimates follow the edit loop.
 			Serialization::ClipDurations::ScanSceneClipsAsync(&API::PushCatalogUpdate);

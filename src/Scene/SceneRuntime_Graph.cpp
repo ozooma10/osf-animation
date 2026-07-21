@@ -378,23 +378,99 @@ namespace OSF::Scene
 		RunCamera(a_handle, "scene_orbit", hasPlayer, 0.0f);  // frames + centers the subjects (RecordCameraState seeds the cast)
 	}
 
-	void SceneRuntime::StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants)
+	void SceneRuntime::StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants,
+		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
 	{
 		if (!a_stripActors) {
 			REX::DEBUG("[Scene] scene {:#010x} default actor strip skipped — opted out (stripActors:false)", a_handle);
 			return;
 		}
-		// Hide every participant's worn apparel
-		for (auto* actor : a_participants) {
+		// Hide every participant's worn apparel — except worn gear picks, which stay on for the scene.
+		for (std::size_t i = 0; i < a_participants.size(); i++) {
+			RE::Actor* actor = a_participants[i];
 			if (!actor) {
 				continue;
 			}
-			auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor);
+			std::vector<RE::TESBoundObject*> keep;
+			if (i < a_gearPicks.size()) {
+				for (const auto& pick : a_gearPicks[i]) {
+					if (pick.worn && pick.object) {
+						keep.push_back(pick.object);
+					}
+				}
+			}
+			auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor, 0xFFFFFFFFu, keep);
 			if (!snap.Empty()) {
 				RecordHiddenEquip(a_handle, actor, std::move(snap));
 			}
 		}
 		REX::DEBUG("[Scene] scene {:#010x} default actor strip applied to {} participant(s)", a_handle, a_participants.size());
+	}
+
+	std::vector<std::vector<Equipment::Gear::Pick>> SceneRuntime::BuildGearPicks(std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
+	{
+		std::vector<std::vector<Equipment::Gear::Pick>> picks(a_participants.size());
+		if (!Equipment::Gear::AutoEquip()) {
+			return picks;
+		}
+		const auto* def = a_defId.empty() ? nullptr : Registry::SceneRegistry::GetSingleton().Find(a_defId);
+		for (std::size_t i = 0; i < a_participants.size(); i++) {
+			RE::Actor* actor = a_participants[i];
+			if (!actor) {
+				continue;
+			}
+			// Authored-equip precedence: if the role's authored `equip` for this actor is itself
+			// registered gear, its slot belongs to the scene author and the gear pass skips it.
+			// (An unregistered authored item has no known slot; EquipRoleItems runs after the gear
+			// pass, so an engine biped-slot conflict resolves in the authored item's favor.)
+			std::vector<std::string> taken;
+			if (def && i < def->roles.size() && !def->roles[i].equip.Empty()) {
+				const std::string  gender = Matchmaking::ActorGenderTag(actor);
+				const std::string& ref = def->roles[i].equip.ForGender(gender);
+				if (!ref.empty()) {
+					if (const auto id = Util::ComposeFormID(ref)) {
+						if (auto slot = Equipment::Gear::SlotOfForm(*id); !slot.empty()) {
+							taken.push_back(std::move(slot));
+						}
+					}
+				}
+			}
+			picks[i] = Equipment::Gear::SelectForActor(actor, taken);
+		}
+		return picks;
+	}
+
+	void SceneRuntime::EquipGearItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
+		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
+	{
+		auto& svc = Equipment::EquipmentService::GetSingleton();
+		for (std::size_t i = 0; i < a_participants.size() && i < a_gearPicks.size(); i++) {
+			RE::Actor* actor = a_participants[i];
+			if (!actor) {
+				continue;
+			}
+			for (const auto& pick : a_gearPicks[i]) {
+				if (!pick.object) {
+					continue;
+				}
+				if (pick.worn) {
+					// Strip-exempted by StripDefaultActors; the actor wore it before the scene and
+					// keeps wearing it after — nothing to equip, nothing to ledger.
+					REX::DEBUG("[Scene] scene {:#010x} actor {:08X} gear '{}' (slot '{}') kept on — worn before the scene",
+						a_handle, actor->formID, pick.ref, pick.slot);
+					continue;
+				}
+				auto record = svc.EquipItem(actor, pick.object);
+				if (record.object) {
+					REX::DEBUG("[Scene] scene {:#010x} actor {:08X} gear '{}' (slot '{}') equipped (added={})",
+						a_handle, actor->formID, pick.ref, pick.slot, record.addedToInventory);
+					RecordEquippedItem(a_handle, actor, std::move(record));
+				} else {
+					REX::WARN("[Scene] scene {:#010x} actor {:08X} gear '{}' — EquipItem did nothing (feature unavailable on this build?)",
+						a_handle, actor->formID, pick.ref);
+				}
+			}
+		}
 	}
 
 	void SceneRuntime::EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
@@ -624,8 +700,12 @@ namespace OSF::Scene
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
 		EngageDefaultCamera(handle, a_id, a_entryNode, lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else authored, else scene_orbit
-		StripDefaultActors(handle, stripActors, a_participants);  // hide every participant's apparel by default
-		EquipRoleItems(handle, a_id, a_participants);             // then equip each role's authored per-gender item (on top of the strip)
+		// User scene gear (RFC-scene-gear) selects BEFORE the strip so worn picks are exempted, equips
+		// after it; the role's authored equip runs last so it wins any biped-slot conflict.
+		const auto gearPicks = BuildGearPicks(a_id, a_participants);
+		StripDefaultActors(handle, stripActors, a_participants, gearPicks);  // hide every participant's apparel by default
+		EquipGearItems(handle, a_participants, gearPicks);                   // then the user's registered gear (on top of the strip)
+		EquipRoleItems(handle, a_id, a_participants);                        // then each role's authored per-gender item
 		FadeSceneStart(handle, fade, a_participants);             // screen curtain on start when the player participates
 		// Recorded AFTER lock + strip so the ledger undoes the input channel FIRST (release the wheel before unlocking/redressing).
 		EngageDefaultPlayerControl(handle, a_id, a_over.playerControl, a_participants);
@@ -783,7 +863,9 @@ namespace OSF::Scene
 		const std::string_view cameraOverride = a_over.camera.has_value() ? std::string_view(*a_over.camera) : std::string_view{};
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
 		EngageDefaultCamera(handle, "", "main", lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else scene_orbit
-		StripDefaultActors(handle, stripActors, a_participants);
+		const auto gearPicks = BuildGearPicks("", a_participants);  // ad-hoc scene: no roles, no authored equips — gear only
+		StripDefaultActors(handle, stripActors, a_participants, gearPicks);
+		EquipGearItems(handle, a_participants, gearPicks);
 		FadeSceneStart(handle, fade, a_participants);
 		EngageDefaultPlayerControl(handle, "", a_over.playerControl, a_participants);  // ad-hoc scene: default-on input unless overridden OFF
 		Fire(handle, Event::kSceneBegin, "main", "");  // first lifecycle event, before the entry node's NODE_ENTER

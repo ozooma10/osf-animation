@@ -2,6 +2,7 @@
 
 #include "API/OSFUI_API.h"
 #include "API/UIBridge.h"
+#include "Equipment/GearRegistry.h"
 #include "UI/HudMessage.h"
 #include "Util/StringUtil.h"
 
@@ -48,6 +49,11 @@ namespace OSF::API
       { "key": "debugNotifications", "type": "bool", "default": false,
         "label": "Stage-transition popups",
         "hint": "Debug HUD popup on each scene stage transition." }
+    ] },
+    { "label": "Scene gear", "settings": [
+      { "key": "gear.autoEquip", "type": "bool", "default": true,
+        "label": "Auto-equip scene gear",
+        "hint": "Equip registered gear (belts, props, etc...) carried by scene participants for the scene's duration. Register items via *.osfgear.json files." }
     ] },
     { "label": "Logging", "settings": [
       { "key": "logLevel", "type": "enum", "default": "info",
@@ -108,6 +114,8 @@ namespace OSF::API
 				SetLogLevel(unquote(value));
 			} else if (key == "debugNotifications") {
 				UI::HudMessage::SetDebugEnabled(value == "true");
+			} else if (key == "gear.autoEquip") {
+				Equipment::Gear::SetAutoEquip(value == "true");
 			}
 		}
 
