@@ -13,6 +13,10 @@ All notable changes to OSF Animation are documented here.
 ### Changed
 - The status line is now compact (`OSF 1.0.0 · UI 1.1.0`) so it can't push the header layout down; the full identity moved to its tooltip. The plugin version no longer renders a trailing unused build field (`1.0.0.0`).
 
+### Fixed
+- Scene-browser camera handling aboard ships. Opening the browser from the **pilot seat** no longer force-switches to the on-foot third-person camera (a stranded "staring at your own hull / void" view that nothing restored — the cockpit registers as first person to the engine, so the browser's can't-see-yourself kick fired on seated pilots too; it now skips them). Closing the browser (or any scene camera ending) now returns a pilot to the **cockpit or whichever ship view they had**: camera baselines are captured as the exact engine state and engine-owned states are handed back directly, because the on-foot first/third-person re-entries silently bail for a seated pilot. The post-load leaked-camera recovery restores the cockpit for pilots the same way.
+- The browse orbit no longer engages while **aboard a ship in space** (dragging the world area simply does nothing there; landed ships orbit as before). The orbit drives the camera in absolute world coordinates captured once at engage, and space cells re-base/move under the ship interior — the result was the camera violently spinning around the hull.
+
 ## [1.0.0] - 2026-07-20
 
 ### Added

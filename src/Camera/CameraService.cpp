@@ -834,10 +834,13 @@ namespace OSF::Camera
 		// so a drag after landing mid-browse re-checks and works again. Game thread (OnOrbit).
 		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 			if (auto* ship = player->GetSpaceship()) {
-				if (!ship->IsSpaceshipLanded()) {
-					REX::DEBUG("[Camera] browse orbit skipped — aboard a ship in space (not landed)");
+				// NOT IsSpaceshipLanded/Docked: those are placeholder-0 IDs in this commonlib (no
+				// address-library entry — first call dies in the ID lookup). IsInSpace is curated.
+				if (ship->IsInSpace(true)) {
+					REX::DEBUG("[Camera] browse orbit skipped — aboard a ship in space");
 					return;
 				}
+				REX::DEBUG("[Camera] aboard a landed ship — browse orbit allowed");
 			}
 		}
 		if (browseOrbitHeld.exchange(true, std::memory_order_relaxed)) {
