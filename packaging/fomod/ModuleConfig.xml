@@ -22,14 +22,14 @@ Recommended. Pure data (a few MB of JSON), no extra plugin slot used.</descripti
                 <folder source="Library" destination="" priority="1"/>
               </files>
               <typeDescriptor>
-                <defaultType name="Recommended"/>
+                <type name="Recommended"/>
               </typeDescriptor>
             </plugin>
             <plugin name="Skip">
               <description>Leaves the browser's Library tab empty. Pick this only if you intend to install dedicated content packs instead.</description>
               <image path="fomod\images\header.jpg"/>
               <typeDescriptor>
-                <defaultType name="Optional"/>
+                <type name="Optional"/>
               </typeDescriptor>
             </plugin>
           </plugins>
@@ -45,14 +45,14 @@ Recommended if you want the emote wheel to do anything out of the box.</descript
                 <folder source="Immersion" destination="" priority="1"/>
               </files>
               <typeDescriptor>
-                <defaultType name="Recommended"/>
+                <type name="Recommended"/>
               </typeDescriptor>
             </plugin>
             <plugin name="Skip">
               <description>Installs no emotes. The emote wheel will open but have nothing to show.</description>
               <image path="fomod\images\header.jpg"/>
               <typeDescriptor>
-                <defaultType name="Optional"/>
+                <type name="Optional"/>
               </typeDescriptor>
             </plugin>
           </plugins>
