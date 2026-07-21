@@ -550,8 +550,8 @@ namespace OSF::API
 				// Name the anchor, not just the fact of one: keyword edids prettify well
 				// ("AnimFurnBarstool" -> "Barstool"); base-form anchors rarely retain an edid,
 				// so those fall back to the form id — still identifiable, never blank.
-				for (auto* kw : d.anchorKeywords) {
-					if (std::string lbl = KeywordLabel(kw); !lbl.empty()) {
+				for (const auto kwId : d.anchorKeywords) {
+					if (std::string lbl = KeywordLabel(RE::TESForm::LookupByID<RE::BGSKeyword>(kwId)); !lbl.empty()) {
 						c.anchorNames.push_back(std::move(lbl));
 					}
 				}
@@ -1152,8 +1152,10 @@ namespace OSF::API
 					}
 					const auto idx = static_cast<std::uint32_t>(defCustom.size());
 					defCustom.push_back(!d.library);
-					for (auto* kw : d.anchorKeywords) {
-						if (kw) {
+					// Resolve each keyword id fresh for this scan; the pointer only lives as a map key
+					// for the duration of the sweep (HasKeyword needs the form, not the id).
+					for (const auto kwId : d.anchorKeywords) {
+						if (auto* kw = RE::TESForm::LookupByID<RE::BGSKeyword>(kwId)) {
 							kwDefs[kw].push_back(idx);
 						}
 					}

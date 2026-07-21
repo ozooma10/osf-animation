@@ -15,8 +15,10 @@
 
 namespace OSF::Equipment
 {
-	// worn inventory entry captured at strip time. The form pointer is stable for the session; 
-	// instanceData is refcounted so the snapshot keeps any mod/instance state alive across the scene.
+	// worn inventory entry captured at strip time. The form pointer stays valid only because the item
+	// remains in the actor's inventory for the snapshot's whole lifetime (Starfield refcounts forms —
+	// an unowned TESForm* can be destroyed); instanceData is refcounted so the snapshot keeps any
+	// mod/instance state alive across the scene.
 	struct WornItem
 	{
 		RE::TESBoundObject*                       object = nullptr;

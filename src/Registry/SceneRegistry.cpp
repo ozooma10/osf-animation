@@ -505,10 +505,10 @@ namespace OSF::Registry
 					}
 				};
 				parseRefs("keyword", "filters.keyword", [&](const std::string& a_ref, const char* a_field) {
-					r.keywords.push_back(ResolveFormRef<RE::BGSKeyword>(a_ref, a_sceneId, r.name, a_field, "Keyword (KYWD)"));
+					r.keywords.push_back(ResolveFormRef<RE::BGSKeyword>(a_ref, a_sceneId, r.name, a_field, "Keyword (KYWD)")->GetFormID());
 				});
 				parseRefs("race", "filters.race", [&](const std::string& a_ref, const char* a_field) {
-					r.races.push_back(ResolveFormRef<RE::TESRace>(a_ref, a_sceneId, r.name, a_field, "Race (RACE)"));
+					r.races.push_back(ResolveFormRef<RE::TESRace>(a_ref, a_sceneId, r.name, a_field, "Race (RACE)")->GetFormID());
 				});
 			}
 
@@ -986,11 +986,11 @@ namespace OSF::Registry
 			}
 		}
 
-		// The parsed `anchor` block (a scene's own, or a file-level default). given=false when the key is absent. 
-		// keyword/base are resolved to forms (any-of within each); offset corrects the ref transform.
+		// The parsed `anchor` block (a scene's own, or a file-level default). given=false when the key is absent.
+		// keyword/base are validated against loaded forms (any-of within each) but kept as FormIDs; offset corrects the ref transform.
 		struct AnchorReq
 		{
-			std::vector<RE::BGSKeyword*>    keywords;
+			std::vector<RE::TESFormID>      keywords;
 			std::vector<RE::TESFormID>      baseForms;
 			Animation::ParticipantPlacement offset{};
 			bool                            given = false;
@@ -1037,7 +1037,7 @@ namespace OSF::Registry
 					throw std::runtime_error(a_subject + ": anchor.keyword '" + a_ref +
 						"' is malformed, names an unloaded plugin, or isn't a Keyword (KYWD) (use \"Plugin.esm|0xLocalID\")");
 				}
-				req.keywords.push_back(kw);
+				req.keywords.push_back(kw->GetFormID());
 			});
 			parseRefs("base", [&](const std::string& a_ref) {
 				const auto id = Util::ComposeFormID(a_ref);

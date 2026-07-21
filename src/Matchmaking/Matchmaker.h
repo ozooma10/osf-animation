@@ -65,9 +65,9 @@ namespace OSF::Matchmaking
 		bool Accepts(const Registry::SceneDef& a_def);
 
 	private:
-		RE::TESObjectREFR*                        ref = nullptr;
-		RE::TESFormID                             baseId = 0;
-		std::unordered_map<RE::BGSKeyword*, bool> kwHits;
+		RE::TESObjectREFR*                       ref = nullptr;
+		RE::TESFormID                            baseId = 0;
+		std::unordered_map<RE::TESFormID, bool>  kwHits;  // keyword FormID -> ref->HasKeyword result
 	};
 
 	// gender as a lowercase tag: "male" / "female", or "" for kNone/unknown (creature, no actorbase).

@@ -234,8 +234,9 @@ namespace OSF::Matchmaking
 		}
 		if (!a_role.keywords.empty()) {
 			bool ok = false;
-			for (auto* kw : a_role.keywords) {
-				if (ActorHasKeyword(a_actor, kw)) {
+			for (const auto kwId : a_role.keywords) {
+				// Fresh lookup per check: the registry stores FormIDs, not pointers (see SceneRole).
+				if (ActorHasKeyword(a_actor, RE::TESForm::LookupByID<RE::BGSKeyword>(kwId))) {
 					ok = true;
 					break;
 				}
@@ -247,8 +248,8 @@ namespace OSF::Matchmaking
 		if (!a_role.races.empty()) {
 			bool ok = false;
 			auto* race = a_actor->race;
-			for (auto* rc : a_role.races) {
-				if (race && race == rc) {
+			for (const auto rcId : a_role.races) {
+				if (race && race->GetFormID() == rcId) {
 					ok = true;
 					break;
 				}
@@ -276,7 +277,8 @@ namespace OSF::Matchmaking
 				}
 			}
 		}
-		for (auto* kw : a_def.anchorKeywords) {
+		for (const auto kwId : a_def.anchorKeywords) {
+			auto* kw = RE::TESForm::LookupByID<RE::BGSKeyword>(kwId);
 			if (kw && a_ref->HasKeyword(kw)) {
 				if (a_matchedKeyword) {
 					*a_matchedKeyword = kw;
@@ -309,13 +311,11 @@ namespace OSF::Matchmaking
 				}
 			}
 		}
-		for (auto* kw : a_def.anchorKeywords) {
-			if (!kw) {
-				continue;
-			}
-			auto it = kwHits.find(kw);
+		for (const auto kwId : a_def.anchorKeywords) {
+			auto it = kwHits.find(kwId);
 			if (it == kwHits.end()) {
-				it = kwHits.emplace(kw, ref->HasKeyword(kw)).first;
+				auto* kw = RE::TESForm::LookupByID<RE::BGSKeyword>(kwId);
+				it = kwHits.emplace(kwId, kw && ref->HasKeyword(kw)).first;
 			}
 			if (it->second) {
 				return true;

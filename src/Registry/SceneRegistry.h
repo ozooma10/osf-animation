@@ -222,12 +222,15 @@ namespace OSF::Registry
 	{
 		std::string name;  // "" = an anonymous positional slot (unified *.osf.json; clips index-align to role order)
 		SlotGender  gender = SlotGender::kAny;
-		// Resolved role filters (resolved once at scene load via the form-ref resolver).
+		// Role filters, VALIDATED at scene load via the form-ref resolver but stored as FormIDs:
+		// Starfield reference-counts forms (TESFormRefCount) and destroys ones nothing loaded holds,
+		// so a raw TESForm* cached across frames can dangle — re-resolve with LookupByID at use
+		// (which reloads an unloaded form on demand).
 		// The role's bound actor must satisfy every PRESENT constraint;
 		// within `keywords`/`races` it is any-of (the actor needs ANY listed keyword, and ANY listed race).
 		// An empty vector = that constraint is absent. `gender` desugars from `gender`/`filters.gender`.
-		std::vector<RE::BGSKeyword*> keywords;  // empty = no keyword constraint
-		std::vector<RE::TESRace*>    races;     // empty = no race constraint
+		std::vector<RE::TESFormID> keywords;  // BGSKeyword ids; empty = no keyword constraint
+		std::vector<RE::TESFormID> races;     // TESRace ids; empty = no race constraint
 		Animation::ParticipantPlacement offset{};  // default placement for this slot
 		RoleEquip                    equip;     // optional per-gender item equipped for the scene's duration
 	};
@@ -273,8 +276,11 @@ namespace OSF::Registry
 		std::string              pack;  // optional file-level `pack`: the content-pack display name the browser groups this scene under (a pack may span many files); "" = derive from sourceFile
 
 		// When anchorKeywords/anchorBaseForms set, the scene is ANCHOR-BOUND. can only start anchored to ref with base form OR has keyword.
-		std::vector<RE::BGSKeyword*>    anchorKeywords;   // resolved at load (any-of); empty = no keyword match
-		std::vector<RE::TESFormID>      anchorBaseForms;  // resolved at load (any-of); empty = no base match
+		// Both stored as FormIDs, validated at load, re-resolved via LookupByID at use — never cache the
+		// TESForm* itself: Starfield refcounts forms and destroys ones nothing loaded references (a vanilla
+		// furniture keyword can die while the player is off-world), so a session-cached pointer dangles.
+		std::vector<RE::TESFormID>      anchorKeywords;   // BGSKeyword ids (any-of); empty = no keyword match
+		std::vector<RE::TESFormID>      anchorBaseForms;  // base-form ids (any-of); empty = no base match
 		Animation::ParticipantPlacement anchorOffset{};
 
 		[[nodiscard]] bool RequiresAnchor() const noexcept { return !anchorKeywords.empty() || !anchorBaseForms.empty(); }
