@@ -1273,6 +1273,20 @@ namespace OSF::Registry
 				}
 			}
 
+			// Optional content-pack label: the browser groups scenes under it, so a pack spanning
+			// many files (one per furniture, say) still reads as ONE collapsible entry. File-level
+			// only — every scene in the file inherits it; absent = the browser falls back to grouping
+			// by the file itself.
+			std::string packName;
+			if (const auto pit = a_json.find("pack"); pit != a_json.end()) {
+				if (!pit->is_string()) {
+					a_errors.push_back("[error] '" + fileName + "': 'pack' must be a string");
+					REX::ERROR("[Registry] '{}' 'pack' must be a string — skipped", fileName);
+					return;
+				}
+				packName = pit->get<std::string>();
+			}
+
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			// Library packs default to NO strip
 			const bool stripDefault = a_json.value("stripActors", !library);
@@ -1367,6 +1381,7 @@ namespace OSF::Registry
 				try {
 					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, unlistedDefault, inPlaceDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
 					def.sourceFile = a_file;
+					def.pack = packName;
 					def.library = library;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {

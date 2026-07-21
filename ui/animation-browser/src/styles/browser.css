@@ -408,8 +408,8 @@ button,input,select{font:inherit;color:inherit}
 .libx-row.selected{border-color:var(--accent);background:rgba(240,113,48,.08)}
 .libx-spine{width:4px;align-self:stretch;flex:none;background:var(--void-700);border-right:1px solid var(--line)}
 .libx-row.selected .libx-spine{background:var(--accent)}
-.libx-title{font-size:11px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.libx-row .libx-meta{color:var(--text-faint)}
+.libx-title{font:600 12px var(--font-sans);letter-spacing:.01em;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.libx-row .libx-meta{color:var(--text-muted)}
 /* ◆ = this emote is in the effective wheel loadout */
 .libx-pinmark{flex:none;color:var(--accent);font-size:9px;line-height:1}
 

@@ -26,7 +26,11 @@ function liveFixtures(): Plugin {
       server.middlewares.use("/live", (request, response, next) => {
         const name = request.url?.replace(/^\//, "").split("?", 1)[0];
         if (!name || !/^[a-z0-9-]+\.json$/i.test(name)) return next();
-        const file = resolve(root, name);
+        // A git-ignored <name>.local.json override wins when present — e.g.
+        // tools/generate-catalog-snapshot.py writes catalog.local.json from real
+        // pack sources (incl. the compat-packs repo) for richer standalone testing.
+        const local = resolve(root, name.replace(/\.json$/i, ".local.json"));
+        const file = existsSync(local) ? local : resolve(root, name);
         if (!existsSync(file)) return next();
         response.setHeader("Content-Type", "application/json; charset=utf-8");
         createReadStream(file).pipe(response);

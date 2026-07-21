@@ -508,6 +508,8 @@ namespace OSF::API
 			{
 				std::string              id;
 				std::string              title;
+				std::string              pack;        // file-level `pack` label — the browser's group-by-pack key ("" = none authored)
+				std::string              sourceFile;  // scene file name only (no directories) — the browser's grouping fallback
 				std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
 				std::vector<std::string> tags;
 				std::uint32_t            actorCount = 0;
@@ -532,6 +534,11 @@ namespace OSF::API
 				Card c;
 				c.id = d.id;
 				c.title = d.name.empty() ? d.id : d.name;
+				c.pack = d.pack;
+				// Filename only: the view groups by it when no `pack` is authored, and a full
+				// path would leak the user's install location into the overlay.
+				const auto srcName = d.sourceFile.filename().u8string();
+				c.sourceFile.assign(srcName.begin(), srcName.end());
 				c.species = d.species.empty() ? std::string{ "human" } : d.species;
 				c.tags = d.tags;
 				c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
@@ -658,6 +665,8 @@ namespace OSF::API
 				arr.push_back({
 					{ "id", c.id },
 					{ "title", c.title },
+					{ "pack", c.pack },
+					{ "sourceFile", c.sourceFile },
 					{ "species", c.species },
 					{ "tags", c.tags },
 					{ "actorCount", c.actorCount },

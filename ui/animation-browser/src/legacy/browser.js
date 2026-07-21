@@ -56,6 +56,10 @@ const state = {
   library: [],
   libraryReceived: false,
   libOpen: new Set(),  // expanded library pack groups
+  // Scenes lane: explicit per-pack open/closed choices (key -> bool). Groups the user hasn't
+  // touched fall back to a computed default (open while searching / few rows / holds the
+  // selection), so a big install starts folded but a small one stays flat-feeling.
+  scnOpen: new Map(),
   libShowAll: false,   // library: false = focus on sets fitting the keyed anchor, true = all
   libFull: false,      // library: false = clean tier (pose/loopable clips only), true = the full dump
   briefFullAnims: false,  // brief: library sets fold transition/partial stages behind a count
@@ -615,7 +619,7 @@ function matchesSearch(s) {
   if (!unlistedVisible(s)) return false;
   if (!f.search) return true;
   const roleText = (s.roles || []).map((r) => `${r.name} ${r.gender}`).join(" ");
-  let hay = `${s.title} ${s.id} ${(s.tags || []).join(" ")} ${roleText} ${s.sourceFile}`.toLowerCase();
+  let hay = `${s.title} ${s.id} ${(s.tags || []).join(" ")} ${roleText} ${s.pack} ${s.sourceFile}`.toLowerCase();
   if (s.library && s.stageHay) hay += " " + s.stageHay;  // library search reaches individual animations
   return hay.includes(f.search);
 }
@@ -961,13 +965,52 @@ function scenesBrowserHTML() {
   let html = speciesFilterBarHTML();
   html += `<div class="browse-note"><span class="dot go"></span><span class="lbl">PLAYABLE NOW · ${playable.length}</span></div>`;
   html += playable.length
-    ? `<div class="row-list">${playable.map((x) => sceneRow(x.s, x.ev, true)).join("")}</div>`
+    ? sceneGroupsHTML(playable, true)
     : emptyScenesRouteHTML();
   if (rest.length) {
     html += `<button class="reveal ${state.browseAll ? "on" : ""}" data-act="browse-all">${state.browseAll ? "▾" : "▸"} ${rest.length} more need a different crew or furniture</button>`;
-    if (state.browseAll) html += `<div class="row-list dim">${rest.map((x) => sceneRow(x.s, x.ev, false)).join("")}</div>`;
+    if (state.browseAll) html += sceneGroupsHTML(rest, false);
   }
   return html;
+}
+
+// Scenes grouped by content pack (packKey): one collapsible block per pack. The incoming list
+// is already ranked, so pack order = each pack's best-ranked member and rows keep their rank
+// inside the pack. A single pack renders flat (a lone header is noise, not organization).
+// Untouched groups default open while searching (a hit must be visible), while the tier is
+// small enough to scan, or while they hold the selection; a header click stores an explicit
+// choice in state.scnOpen that then wins. The two tiers (playable / needs-more) key separately
+// so folding a pack's ready scenes doesn't also fold its needs-more remainder.
+function sceneGroupsHTML(items, playableTier) {
+  const dim = playableTier ? "" : " dim";
+  const flat = () => `<div class="row-list${dim}">${items.map((x) => sceneRow(x.s, x.ev, playableTier)).join("")}</div>`;
+  const m = new Map();
+  for (const x of items) {
+    const key = packKey(x.s);
+    if (!m.has(key)) m.set(key, []);
+    m.get(key).push(x);
+  }
+  const groups = [...m.entries()];
+  if (groups.length === 1) return flat();
+  // Degenerate grouping = no organization: an older DLL sends no pack/sourceFile, and
+  // dot-style ids ("ge.chair.love") then key one group PER SCENE. A wall of singleton
+  // headers is worse than the flat list, so bail when groups barely compress the rows.
+  if (groups.length > 8 && items.length / groups.length < 1.5) return flat();
+  const searching = !!state.filters.search;
+  const fewRows = items.length <= 14;
+  const body = groups.map(([key, list]) => {
+    const stateKey = (playableTier ? "" : "rest:") + key;  // the two tiers fold independently
+    // Selection only auto-opens a modest group: the boot auto-select otherwise lands in a
+    // 394-scene pack and unfolds the very wall this grouping exists to prevent. A user who
+    // dug into a big pack has toggled it open, and that explicit choice wins anyway.
+    const hasSel = list.length <= 30 && list.some((x) => x.s.id === state.selectedId);
+    const open = state.scnOpen.has(stateKey) ? state.scnOpen.get(stateKey) : (searching || fewRows || hasSel);
+    const rows = open ? `<div class="libx-list">${list.map((x) => sceneRow(x.s, x.ev, playableTier)).join("")}</div>` : "";
+    return `<div class="libx-group">` +
+      `<button class="libx-head" data-act="scn-group" data-key="${escAttr(stateKey)}" data-open="${open ? 1 : 0}"><span class="chev">${open ? "▾" : "▸"}</span><span class="libx-name">${esc(packLabel(key, list))}</span><span class="libx-meta mono">${list.length} SCENE${list.length === 1 ? "" : "S"}</span></button>` +
+      rows + `</div>`;
+  }).join("");
+  return `<div class="row-list${dim}">${body}</div>`;
 }
 
 function sceneRow(s, ev, playable) {
@@ -985,9 +1028,12 @@ function sceneRow(s, ev, playable) {
 
 /* ---- library browser (reference lane: compact folder-grouped rows) ------- */
 function packKey(s) {
+  // An authored content-pack label wins: one pack commonly spans many scene files (one per
+  // furniture, say), and `pack` is what stitches those files into a single group.
+  if (s.pack) return "pack:" + s.pack.toLowerCase();
   const f = String(s.sourceFile || "").replace(/\\/g, "/").split("/").pop() || "";
   if (f) return f.replace(/\.osf\.json$/i, "");
-  // The runtime payload carries no sourceFile — group by the id's leading pack family
+  // No pack and no sourceFile (an older DLL) — group by the id's leading pack family
   // instead ("vanilla/furniture/absorbpower" -> "vanilla-furniture"). Two segments max:
   // deeper ids (generated quest-scene sets) would otherwise explode into per-scene groups.
   // Two-segment ids keep both ("vanilla/photomode" -> "vanilla-photomode"), so the
@@ -997,6 +1043,12 @@ function packKey(s) {
 }
 
 function groupLabel(key) { return key.replace(/^vanilla-/i, "").replace(/[-_]+/g, " ").toUpperCase(); }
+// Display label for a group: the authored pack name verbatim (its casing is intentional),
+// else the prettified key. `list` = the group's members (first member carries the pack name).
+function packLabel(key, list) {
+  const p = list && list.length ? list[0].pack || (list[0].s && list[0].s.pack) : "";
+  return p ? String(p).toUpperCase() : groupLabel(key);
+}
 
 // null = anchor status irrelevant (free-space set, or no anchor keyed yet); true/false =
 // this furniture-bound set does / doesn't fit the keyed anchor.
@@ -1118,7 +1170,7 @@ function libraryBrowserHTML() {
     const stageTotal = list.reduce((a, s) => a + (cleanTier ? cleanStages(s) : (s.stages || [])).length, 0);
     const rows = open ? `<div class="libx-list">${list.map((s) => libxRow(s, cleanTier)).join("")}</div>` : "";
     return `<div class="libx-group">` +
-      `<button class="libx-head" data-act="lib-group" data-key="${escAttr(key)}"><span class="chev">${open ? "▾" : "▸"}</span><span class="libx-name">${esc(groupLabel(key))}</span><span class="libx-meta mono">${list.length} set${list.length === 1 ? "" : "s"} · ${stageTotal} anim${stageTotal === 1 ? "" : "s"}</span></button>` +
+      `<button class="libx-head" data-act="lib-group" data-key="${escAttr(key)}"><span class="chev">${open ? "▾" : "▸"}</span><span class="libx-name">${esc(packLabel(key, list))}</span><span class="libx-meta mono">${list.length} set${list.length === 1 ? "" : "s"} · ${stageTotal} anim${stageTotal === 1 ? "" : "s"}</span></button>` +
       rows + `</div>`;
   }).join("");
   return banner + emoteGroup + body;
@@ -1697,6 +1749,7 @@ function onClick(e) {
       renderAll();
       break;
     }
+    case "scn-group": state.scnOpen.set(el.dataset.key, el.dataset.open !== "1"); renderAll(); break;
     case "browse-all": state.browseAll = !state.browseAll; renderAll(); break;
     case "species-all": state.allSpecies = !state.allSpecies; renderAll(); break;
     case "markers-toggle": state.markersOpen = !state.markersOpen; renderAll(); break;
@@ -2152,8 +2205,8 @@ function applyMockLibraryPins(list) {
 const MOCK_CATALOG = [
   ...MOCK_EMOTES,
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, genders: ["any"], requiresFurniture: false, shape: { kind: "linear", stages: 1, nodes: 1, branches: 0 }, policy: { stripActors: false, lockPlayer: false, fade: false, camera: "none" }, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
-  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, anchors: ["Chair"], stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2, loopSec: 18.7, loops: 0, openEnded: true, estSec: 37.3 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2, loopSec: 16, loops: 0, openEnded: true, estSec: 32 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }], estSec: 149.3, estPartial: false, openEnded: true, priority: 2, weight: 40, sourceFile: "Data/OSF/GE/chair.osf.json" },
-  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, anchors: ["Ak Bunk Bed"], stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2, loopSec: 18.7, loops: 2, estSec: 37.3 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2, loopSec: null, loops: 2, estSec: null }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2, timerSec: 30, loops: 0, estSec: 30 }], estSec: 147.3, estPartial: true, openEnded: false, priority: 3, weight: 25, sourceFile: "Data/OSF/GE/akbunk.osf.json" },
+  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "mf", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, anchors: ["Chair"], stageCount: 4, stages: [{ index: 0, name: "Missionary06", tags: ["missionary", "paired"], clipCount: 2, loopSec: 18.7, loops: 0, openEnded: true, estSec: 37.3 }, { index: 1, name: "Cowgirl07", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }, { index: 2, name: "Doggy04", tags: ["doggy", "paired"], clipCount: 2, loopSec: 16, loops: 0, openEnded: true, estSec: 32 }, { index: 3, name: "Scissors02", tags: ["scissors", "paired"], clipCount: 2, loopSec: 20, loops: 0, openEnded: true, estSec: 40 }], estSec: 149.3, estPartial: false, openEnded: true, priority: 2, weight: 40, pack: "Gergel Ebanex", sourceFile: "Data/OSF/GE/chair.osf.json" },
+  { id: "ge.akbunk.sequence", title: "GE AkBunkBed (sequence)", tags: ["ge", "akbunkbed", "mf", "paired", "sequence"], actorCount: 2, roles: [{ name: "left", gender: "female" }, { name: "right", gender: "male" }], requiresFurniture: true, anchors: ["Ak Bunk Bed"], stageCount: 5, stages: [{ index: 0, name: "Blowjob09", tags: ["blowjob", "paired"], clipCount: 2, loopSec: 18.7, loops: 2, estSec: 37.3 }, { index: 1, name: "Cowgirl06", tags: ["cowgirl", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 2, name: "Doggy17", tags: ["doggy", "paired"], clipCount: 2, loopSec: 20, loops: 2, estSec: 40 }, { index: 3, name: "Missionary18", tags: ["missionary", "paired"], clipCount: 2, loopSec: null, loops: 2, estSec: null }, { index: 4, name: "ReverseCowgirl23", tags: ["reversecowgirl", "paired"], clipCount: 2, timerSec: 30, loops: 0, estSec: 30 }], estSec: 147.3, estPartial: true, openEnded: false, priority: 3, weight: 25, pack: "Gergel Ebanex", sourceFile: "Data/OSF/GE/akbunk.osf.json" },
   { id: "pair.freeform", title: "Pair Freeform", tags: ["paired", "free", "demo"], actorCount: 2, genders: ["any", "any"], requiresFurniture: false, shape: { kind: "linear", stages: 3, nodes: 3, branches: 0 }, priority: 1, weight: 22, sourceFile: "Data/OSF/Scenes/demo.osf.json" },
   { id: "author.quest.finale", title: "Quest Finale Branch Test", tags: ["finale", "story", "branching"], actorCount: 2, roles: [{ name: "lead", gender: "any" }, { name: "partner", gender: "any" }], requiresFurniture: false, unlisted: true, shape: { kind: "graph", stages: 3, nodes: 4, branches: 3 }, policy: { stripActors: false, lockPlayer: true, fade: true, camera: "thirdperson_hold" }, priority: 2, weight: 14, sourceFile: "Data/OSF/Author/finale.osf.json" },
 ];

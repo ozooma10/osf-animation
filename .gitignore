@@ -22,6 +22,8 @@ compile_commands.json
 
 # standalone-dev backdrop screenshot (never committed or packaged)
 ui/animation-browser/fixtures/live/backdrop.*
+# standalone-dev snapshot overrides (generate-catalog-snapshot.py; may hold compat-pack content)
+ui/animation-browser/fixtures/live/*.local.json
 # frontend dependencies
 ui/animation-browser/node_modules/
 

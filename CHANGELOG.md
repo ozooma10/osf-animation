@@ -5,6 +5,7 @@ All notable changes to OSF Animation are documented here.
 ## [Unreleased]
 
 ### Added
+- Scene browser: scenes are now organized into **collapsible per-pack groups**, so a big install (e.g. a compat pack spanning dozens of scene files) folds to a few headers instead of one endless list. Grouping keys on a new optional file-level `pack` field in `*.osf.json` (the content-pack display name — set the same string in every file of a pack to merge them into one group; see `docs/SCENE_SCHEMA.md`), falling back to the scene file's name. Groups auto-expand while searching, while the list is short, or around the selected scene; pack names are searchable. Catalog/library bridge payloads gain `pack` and `sourceFile` fields (additive).
 - The scene browser's status line now also shows the installed OSF UI host version. If it predates the release this build was tested against (1.1.0), an amber `UPDATE` badge appears linking the [OSF UI Nexus page](https://www.nexusmods.com/starfield/mods/17711) — clicking it in-game opens the page in your system browser (OSF UI's `osfui.openModPage` command: the URL is hardcoded in OSF UI, nothing crosses the bridge), and the SFSE log gains a matching warning.
 
 ### Changed

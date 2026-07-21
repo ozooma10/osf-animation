@@ -49,6 +49,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 {
   "schema": 1,
   "name": "My Content",                  // diagnostics only
+  "pack": "My Content Pack",             // optional: content-pack label the scene browser groups under
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
   "fade": false,                         // optional file-level start-curtain default; each scene may override
@@ -62,6 +63,10 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
 
 - File-level `lockPlayer` / `stripActors` / `fade` are optional **defaults** every scene in the file may
   override.
+- File-level `pack` (optional, string) names the **content pack** the file belongs to. The in-game scene
+  browser shows one collapsible group per pack, so a pack that spans many files (one per furniture, say)
+  reads as a single entry. Use the same string in every file of the pack; the browser shows it verbatim.
+  Without it, scenes group under the file they came from. Also valid on a bare single-scene file.
 - Every scene needs a unique `id`. Within the one namespace, a duplicate id is **first-loaded-wins**
   plus a logged warning.
 - Authored ids may **not** contain `#` (reserved for synthetic desugar nodes) — such an id is a load

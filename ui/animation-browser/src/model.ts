@@ -33,6 +33,7 @@ export interface SceneModel {
   pinned: number;
   priority: number;
   weight: number;
+  pack: string;
   sourceFile: string;
   shape: { kind: string; stages: number; nodes: number; branches: number };
   policy: {
@@ -72,6 +73,7 @@ export function normalizeScene(raw: Raw): SceneModel {
     pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
     weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
+    pack: String(raw.pack || "").trim(),
     sourceFile: String(raw.sourceFile || raw.source || ""),
     shape: normalizeShape(raw, actorCount),
     policy: normalizePolicy(raw),

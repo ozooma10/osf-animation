@@ -270,6 +270,7 @@ namespace OSF::Registry
 		std::vector<std::string> linearStages;  // optional: stage i -> node id (GetSceneStage/SetSceneStage)
 
 		std::filesystem::path    sourceFile;
+		std::string              pack;  // optional file-level `pack`: the content-pack display name the browser groups this scene under (a pack may span many files); "" = derive from sourceFile
 
 		// When anchorKeywords/anchorBaseForms set, the scene is ANCHOR-BOUND. can only start anchored to ref with base form OR has keyword.
 		std::vector<RE::BGSKeyword*>    anchorKeywords;   // resolved at load (any-of); empty = no keyword match

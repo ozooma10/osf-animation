@@ -73,6 +73,12 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
   projects its runtime entries into player-facing kinds: ordinary authored entries stay
   under **Scenes**, while entries tagged `player.emote.*` appear first under
   **Animations → Emotes** with quick-action language. They remain scene-backed internally.
+  Every entry carries `pack` (the file-level content-pack label, "" if unauthored) and
+  `sourceFile` (the scene file's name, no directories); both lanes group rows into
+  collapsible per-pack blocks keyed on `pack` → `sourceFile` → id-prefix fallback, so a
+  large install folds to a handful of pack headers instead of one endless list. Scenes-lane
+  groups default open while searching, while the tier is small, or around the selection;
+  a header click stores an explicit choice for the session.
   The view only ever holds opaque integer **tokens** (player = `-1`), which
   the DLL maps back to `RE::*` refs and re-validates on the main thread
   before use.
@@ -167,6 +173,15 @@ vanilla-packs lane) is generated offline by
 `catalog.json` is a one-time in-game dump (the runtime mirror code has since
 been removed; est times for hand-authored packs come from the in-game probe, so
 refreshing it would need a temporary re-add of that dump or hand-editing).
+For a **full real-world catalog** instead, run
+`python tools/generate-catalog-snapshot.py`: it models the scenes lane from
+this repo's `dist/OSF` **plus the sibling `OSF Compatibility Packs` repo's
+generated outputs** (extra directories as arguments), writing the git-ignored
+`fixtures/live/catalog.local.json` — the dev server prefers any
+`<name>.local.json` override over the committed fixture, so the standalone
+page then browses the real Gergel Ebanex / Snu Snu install (great for testing
+grouping and layout at scale). Delete the file to fall back to the committed
+dump. Durations the in-game probe would supply come out `null`.
 Pick/scan/launch stay stubbed (they need live refs). With no snapshot (or when
 opened via `file://`), it falls back to the built-in mock catalog. These fixtures do NOT ship in-game: they live outside the generated output copied by `xmake`.
 

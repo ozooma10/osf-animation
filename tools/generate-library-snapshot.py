@@ -40,7 +40,7 @@ SCENE_KEYS = {"id", "name", "tags", "stages", "anchor", "clipRoot", "unlisted"}
 STAGE_KEYS = {"name", "tags", "loops", "timer", "clips"}
 CLIP_KEYS = {"file", "sec", "anim", "offset"}
 ANCHOR_KEYS = {"keyword", "base"}
-FILE_KEYS = {"schema", "name", "section", "unlisted", "clipRoot", "scenes", "stripActors", "fade", "anchor"}
+FILE_KEYS = {"schema", "name", "pack", "section", "unlisted", "clipRoot", "scenes", "stripActors", "fade", "anchor"}
 
 
 def f32(x):
@@ -118,11 +118,16 @@ def apply_clip_root(file, clip_root):
 
 
 def species_from_path(path):
-    """SpeciesFromAnimPath: the segment before the first 'animations' folder."""
+    """SpeciesFromAnimPath: the segment before an 'animations' folder that itself
+    follows an 'actors' segment (mirrors Util::Species MarkerIndex — a path like
+    SAF/Animations/... names no species and falls back to human downstream)."""
     segs = [s for s in path.lower().replace("\\", "/").split("/") if s]
+    have_actors = False
     for i, s in enumerate(segs):
-        if s == "animations":
-            return segs[i - 1] if i > 0 else ""
+        if s == "actors":
+            have_actors = True
+        elif have_actors and i > 0 and s == "animations":
+            return segs[i - 1]
     return ""
 
 
@@ -236,6 +241,8 @@ def build_card(scene, file_defaults, kw_by_formid):
     return {
         "id": sid,
         "title": scene.get("name") or sid,
+        "pack": file_defaults["pack"],
+        "sourceFile": file_defaults["sourceFile"],
         "species": species or "human",
         "tags": scene.get("tags", []),
         "actorCount": actor_count,
@@ -268,6 +275,8 @@ def main():
             "clipRoot": normalize_clip_root(data.get("clipRoot", "")),
             "unlisted": data.get("unlisted", False),
             "anchor": data.get("anchor"),
+            "pack": data.get("pack", ""),
+            "sourceFile": os.path.basename(path),
         }
         for scene in data["scenes"]:
             cards.append(build_card(scene, defaults, kw_by_formid))
