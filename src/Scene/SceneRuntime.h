@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Equipment/EquipmentService.h"  // Snapshot stored per-handle in the undo ledger
+#include "Equipment/GearRegistry.h"      // Pick — per-participant user gear selection at scene start
 #include "Input/InputTypes.h"            // Grant stored per-handle for the input channel
 
 #include <functional>
@@ -398,7 +399,22 @@ namespace OSF::Scene
 		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
-		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants);
+		// a_gearPicks (index-parallel to a_participants, from BuildGearPicks): each participant's
+		// WORN picks are exempted from the strip — the item stays on through the scene.
+		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants,
+			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
+
+		// Each participant's user-side scene-gear selection (docs/RFC-scene-gear.md): the gear
+		// registry ∩ the actor's inventory, minus slots claimed by the def's authored role `equip`
+		// (authored intent wins per-slot). Index-parallel to a_participants; all-empty when
+		// gear.autoEquip is off or nothing matches. GAME THREAD.
+		std::vector<std::vector<Equipment::Gear::Pick>> BuildGearPicks(std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+
+		// Equip each participant's gear picks at scene start, recorded via kEquipItem so they come
+		// back off on every end path. An already-worn pick was strip-exempted instead — the actor
+		// wore it before the scene and keeps it after; nothing to equip or undo.
+		void EquipGearItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
+			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
 
 		// Equip each role's authored per-gender item (SceneRole::equip) onto its bound participant at
 		// scene start, recorded via kEquipItem so it's taken back off + removed on every end path. The

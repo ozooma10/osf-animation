@@ -2,6 +2,7 @@
 #include "API/UIBridge.h"
 #include "API/UISettings.h"
 #include "Animation/GraphManager.h"
+#include "Equipment/GearRegistry.h"
 #include "Input/InputService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/SceneRegistry.h"
@@ -24,6 +25,7 @@ namespace
 		case SFSE::MessagingInterface::kPostDataLoad:
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
+			OSF::Equipment::Gear::LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");

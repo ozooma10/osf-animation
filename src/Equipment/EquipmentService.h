@@ -55,7 +55,9 @@ namespace OSF::Equipment
 
 		// GAME THREAD. Like Hide(), but only strips equipped ARMO whose biped slot bits overlap a_slotMask.
 		// a_slotMask == 0 hides nothing; 0xFFFFFFFF full-strip (incl. weapon).
-		Snapshot Hide(RE::Actor* a_actor, std::uint32_t a_slotMask);
+		// a_keep: worn forms left on AND out of the snapshot (scene-gear strip exemption — the item
+		// stays worn through the scene, so restore must not touch it).
+		Snapshot Hide(RE::Actor* a_actor, std::uint32_t a_slotMask, std::span<RE::TESBoundObject* const> a_keep = {});
 
 		// GAME THREAD. Re-equips the apparel recorded in a_snapshot
 		void Restore(RE::Actor* a_actor, const Snapshot& a_snapshot);
