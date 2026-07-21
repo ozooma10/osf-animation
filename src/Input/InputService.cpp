@@ -118,9 +118,19 @@ namespace OSF::Input
 		{
 			const bool active = g_active.load(std::memory_order_relaxed);
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
-			// don't route any input while a menu/console owns it. The engine still receives the unmodified queue below.
-			if ((active || capture) && !MenuOwnsInput()) {
+			const bool uiVisible = g_uiCursorVisible.load(std::memory_order_relaxed);
+			// don't route any input while a menu/console owns it. The engine still receives the queue below.
+			if ((active || capture || uiVisible) && !MenuOwnsInput()) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
+					// Browser on screen: the overlay's WndProc swallow starves the engine of KEYBOARD and
+					// MOUSE (they arrive as window messages), but the gamepad is POLLED (XInput) — its
+					// events still reach this queue and would walk/jump the player under the browser.
+					// Consume them: status = kStop is the only reliable gate (thumbstick movement ignores
+					// enable layers, and disabled IDEvents still reach receivers).
+					if (uiVisible && event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
+						const_cast<RE::InputEvent*>(event)->status = RE::InputEvent::Status::kStop;
+						continue;
+					}
 					const auto et = event->eventType;
 					if (active && et == RE::InputEvent::EventType::kButton) {
 						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
@@ -156,7 +166,8 @@ namespace OSF::Input
 					}
 				}
 			}
-			// ALWAYS forward the unmodified queue. This hook reads input; it never consumes / injects.
+			// ALWAYS forward the queue (consumed events ride along flagged kStop; nothing is injected
+			// or unlinked). Beyond the browser-open gamepad swallow above, the hook only reads.
 			g_original(a_this, a_queueHead);
 		}
 	}

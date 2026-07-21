@@ -41,8 +41,10 @@ namespace OSF::Input
 		// While set, orbit capture only accumulates look/wheel deltas during an LMB DRAG, so plain
 		// mouse movement drives the cursor and plain wheel scrolls the UI; while clear (no cursor),
 		// the orbit free-looks as before. Sticky across scenes — it tracks the browser, not a scene.
-		// NOTE: while the OSF UI overlay is open it consumes ALL game input at the WndProc, so the
-		// input hook is starved anyway — the browser steers via InjectOrbitDelta instead.
+		// NOTE: while the OSF UI overlay is open its WndProc swallow starves the input hook of
+		// keyboard/mouse — the browser steers via InjectOrbitDelta instead. GAMEPAD input is polled
+		// (XInput), not messaged, so it still reaches the hook; while this flag is set the hook
+		// consumes gamepad events (status = kStop) so the player can't walk/jump under the browser.
 		void SetUiCursorVisible(bool a_on);
 
 		// Bridge-fed orbit steering (osf.orbit from the scene browser): world-area LMB-drag deltas
