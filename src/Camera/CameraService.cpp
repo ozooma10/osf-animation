@@ -161,6 +161,19 @@ namespace OSF::Camera
 			return out;
 		}
 
+		// Game thread only. A seated pilot's camera lives in the ship state machine: the on-foot
+		// re-entries (ForceFirstPerson / ForceThirdPerson) bail or strand the camera for them, so
+		// every path that would force a POV checks this first.
+		bool PlayerIsPilot()
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!player) {
+				return false;
+			}
+			auto* ship = player->GetSpaceship();
+			return ship && ship->GetSpaceshipPilot() == player;
+		}
+
 		std::int64_t NowMs()
 		{
 			using namespace std::chrono;
@@ -216,6 +229,15 @@ namespace OSF::Camera
 			std::scoped_lock l{ lock };
 			if (!baselineCaptured) {
 				baselineWasFirstPerson = camera->IsInFirstPerson();
+				// The full state index too: a pilot's baseline can be a ship exterior state, and
+				// restoring that means handing the exact state back, not forcing an on-foot POV.
+				baselineStateIndex = 0xFFFFFFFFu;
+				for (std::uint32_t i = 0; i < RE::CameraState::kTotal; i++) {
+					if (camera->QCameraEquals(static_cast<RE::CameraState>(i))) {
+						baselineStateIndex = i;
+						break;
+					}
+				}
 				baselineCaptured = true;
 			}
 		});
@@ -224,7 +246,8 @@ namespace OSF::Camera
 	void CameraService::RestoreBaseline()
 	{
 		SFSE::GetTaskInterface()->AddTask([this]() {
-			bool wantFirst = false;
+			bool          wantFirst = false;
+			std::uint32_t priorState = 0xFFFFFFFFu;
 			{
 				std::scoped_lock l{ lock };
 				// Re-acquired meanwhile, or another imposition still holds the camera, leave it (and keep the baseline for that holder to restore later).
@@ -232,6 +255,7 @@ namespace OSF::Camera
 					return;
 				}
 				wantFirst = baselineWasFirstPerson;
+				priorState = baselineStateIndex;
 				baselineCaptured = false;
 			}
 			auto* camera = RE::PlayerCamera::GetSingleton();
@@ -240,8 +264,34 @@ namespace OSF::Camera
 			}
 			if (wantFirst) {
 				if (!camera->IsInFirstPerson()) {
-					camera->ForceFirstPerson();
-					REX::DEBUG("[Camera] restored to first person after scene camera release");
+					if (PlayerIsPilot()) {
+						// ForceFirstPerson is the ON-FOOT re-entry and bails for a seated pilot —
+						// push the engine's own first-person (cockpit) state back directly, the
+						// same direct switch the orbit used to leave it.
+						camera->SetCameraState(RE::CameraState::kFirstPerson);
+						REX::DEBUG("[Camera] restored cockpit first person after scene camera release (pilot)");
+					} else {
+						camera->ForceFirstPerson();
+						REX::DEBUG("[Camera] restored to first person after scene camera release");
+					}
+				}
+				return;
+			}
+			// Non-first baseline. If it was a state the ENGINE owns (ship exterior, vehicle,
+			// furniture, ...), hand that exact state back — forcing the on-foot third person from
+			// e.g. a pilot's exterior view strands the camera in the void. Our own imposed states
+			// (free-fly / free-walk / vanity) are never a baseline worth returning to, nor is an
+			// unknown index: those fall through to the plain third-person restore.
+			const bool engineAltState = priorState < RE::CameraState::kTotal &&
+			                            priorState != RE::CameraState::kFirstPerson &&
+			                            priorState != RE::CameraState::kThirdPerson &&
+			                            priorState != RE::CameraState::kFreeFly &&
+			                            priorState != RE::CameraState::kFreeWalk &&
+			                            priorState != RE::CameraState::kAutoVanity;
+			if (engineAltState) {
+				if (!camera->QCameraEquals(static_cast<RE::CameraState>(priorState))) {
+					camera->SetCameraState(static_cast<RE::CameraState>(priorState));
+					REX::DEBUG("[Camera] restored prior camera state {} after scene camera release", priorState);
 				}
 			} else if (!camera->IsInThirdPerson()) {
 				// Explicit because a released override leaves the live camera in an alt state, not third.
@@ -301,6 +351,13 @@ namespace OSF::Camera
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!camera || !camera->IsInFirstPerson()) {
 				return;  // already out of first person — leave the player's zoom alone
+			}
+			// A seated pilot's "first person" IS the cockpit view: the on-foot third-person state
+			// has no valid framing for a pilot-locked player (the camera strands in the void and
+			// nothing restores it — the kick is one-shot by design). Leave the cockpit alone.
+			if (PlayerIsPilot()) {
+				REX::DEBUG("[Camera] first-person kick skipped — player is piloting a ship");
+				return;
 			}
 			camera->ForceThirdPerson();
 			// ForceThirdPerson resets zoom to 0.0 and a zoom at the floor re-trips ForceFirstPerson —
@@ -770,6 +827,19 @@ namespace OSF::Camera
 
 	void CameraService::EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects)
 	{
+		// Aboard a ship that isn't landed, the orbit is unusable: DriveSceneOrbit writes an
+		// ABSOLUTE world transform captured once at engage, and in space the cell re-bases /
+		// moves under the interior every frame — the camera teleports around the hull and reads
+		// as violent spinning. Skip engaging (drag does nothing); checked before the held flag
+		// so a drag after landing mid-browse re-checks and works again. Game thread (OnOrbit).
+		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
+			if (auto* ship = player->GetSpaceship()) {
+				if (!ship->IsSpaceshipLanded()) {
+					REX::DEBUG("[Camera] browse orbit skipped — aboard a ship in space (not landed)");
+					return;
+				}
+			}
+		}
 		if (browseOrbitHeld.exchange(true, std::memory_order_relaxed)) {
 			return;  // already engaged this browser session
 		}
@@ -871,8 +941,13 @@ namespace OSF::Camera
 				return;
 			}
 			SetNativeFreeCam(false);  // clear the engine free-cam flags too, in case the tfc path leaked
-			camera->ForceThirdPerson();
-			REX::INFO("[Camera] recovered a leaked scene-camera state after load (forced third person)");
+			if (PlayerIsPilot()) {
+				camera->SetCameraState(RE::CameraState::kFirstPerson);  // cockpit — Force* strands a seated pilot
+				REX::INFO("[Camera] recovered a leaked scene-camera state after load (restored cockpit)");
+			} else {
+				camera->ForceThirdPerson();
+				REX::INFO("[Camera] recovered a leaked scene-camera state after load (forced third person)");
+			}
 		});
 	}
 
