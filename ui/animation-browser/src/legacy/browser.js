@@ -165,6 +165,14 @@ function onNativeMessage(jsonText) {
     case "osf.animation.anchorMatch": handleAnchorMatch(payload); break;
     case "osf.animation.launchResult": handleLaunchResult(payload); break;
     case "osf.animation.activeScenes": handleActiveScenes(payload); break;
+    // Generic plugin-side notice for the footer bar (e.g. "orbit unavailable in space" —
+    // the drag would otherwise silently do nothing). kind maps to the notice styles;
+    // anything unknown renders as info. err sticks; ok/info auto-clear.
+    case "osf.animation.notice":
+      if (payload && payload.text) {
+        notice(payload.kind === "err" || payload.kind === "ok" ? payload.kind : "info", String(payload.text));
+      }
+      break;
     // Native mode switch (OpenWheel): "wheel" enters the animation wheel; anything else restores
     // the console. Delivered pre-paint by OSF UI's message queue (bridge MINOR >= 2) and
     // replayed on osf.opened while a wheel open is pending, so it must be idempotent.

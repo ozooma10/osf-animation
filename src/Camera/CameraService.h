@@ -63,8 +63,10 @@ namespace OSF::Camera
 		// with scene cameras via the same ref count — a scene starting mid-browse GLIDES the live orbit
 		// to its framing (see SetLiveCameraState), and a scene RELEASING while the browse hold remains hands the camera back to
 		// an orbit instead of snapping to baseline (see ReleaseStateOverride). Idempotent per browser
-		// session; Release (on browser close) restores like any other override release.
-		void EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects);
+		// session; Release (on browser close) restores like any other override release. Returns
+		// false when the orbit is unavailable (aboard a ship in space — see the body) so the
+		// caller can surface why the drag does nothing; true when engaged / already held.
+		bool EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects);
 		void ReleaseBrowseOrbit();
 		[[nodiscard]] bool BrowseOrbitHeld() const { return browseOrbitHeld.load(std::memory_order_relaxed); }
 

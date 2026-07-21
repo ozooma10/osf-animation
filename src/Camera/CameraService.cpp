@@ -825,26 +825,27 @@ namespace OSF::Camera
 		}
 	}
 
-	void CameraService::EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects)
+	bool CameraService::EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects)
 	{
 		// Aboard a ship that isn't landed, the orbit is unusable: DriveSceneOrbit writes an
 		// ABSOLUTE world transform captured once at engage, and in space the cell re-bases /
 		// moves under the interior every frame — the camera teleports around the hull and reads
-		// as violent spinning. Skip engaging (drag does nothing); checked before the held flag
-		// so a drag after landing mid-browse re-checks and works again. Game thread (OnOrbit).
+		// as violent spinning. Skip engaging (drag does nothing) and report it, so the browser
+		// view can tell the user why; checked before the held flag so a drag after landing
+		// mid-browse re-checks and works again. Game thread (OnOrbit).
 		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 			if (auto* ship = player->GetSpaceship()) {
 				// NOT IsSpaceshipLanded/Docked: those are placeholder-0 IDs in this commonlib (no
 				// address-library entry — first call dies in the ID lookup). IsInSpace is curated.
 				if (ship->IsInSpace(true)) {
 					REX::DEBUG("[Camera] browse orbit skipped — aboard a ship in space");
-					return;
+					return false;
 				}
 				REX::DEBUG("[Camera] aboard a landed ship — browse orbit allowed");
 			}
 		}
 		if (browseOrbitHeld.exchange(true, std::memory_order_relaxed)) {
-			return;  // already engaged this browser session
+			return true;  // already engaged this browser session
 		}
 		AcquireStateOverride();
 		// If an OSF camera is already moving the mouse-steered orbit (a scene_orbit scene) or the
@@ -852,11 +853,12 @@ namespace OSF::Camera
 		// would re-frame the camera out from under the user mid-scene.
 		if (orbitDriving.load(std::memory_order_relaxed) || nativeFreeCamActive.load(std::memory_order_relaxed)) {
 			REX::DEBUG("[Camera] browse orbit hold taken (a scene camera is live — not retargeting)");
-			return;
+			return true;
 		}
 		SetOrbitFrameSubjects(std::move(a_frameSubjects));
 		SetLiveCameraState(CameraMode::kSceneOrbit);
 		REX::DEBUG("[Camera] browse orbit engaged (scene browser drag)");
+		return true;
 	}
 
 	void CameraService::ReleaseBrowseOrbit()

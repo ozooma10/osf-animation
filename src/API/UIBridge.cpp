@@ -52,6 +52,11 @@ namespace OSF::API
 		// (the classic "camera stuck orbiting after closing the browser"). Game main thread only.
 		bool g_viewVisible = false;
 
+		// The in-space "orbit unavailable" notice fired this browser session (OnOrbit runs per
+		// drag-delta batch while the orbit stays disengaged — the view must not be spammed).
+		// Reset on osf.closed. Game main thread only, like g_viewVisible.
+		bool g_orbitSpaceNoticed = false;
+
 		// OSF Animation's own scene API, fetched lazily on first launch/stop.
 		IOSFSceneAPI* g_scene = nullptr;
 
@@ -1366,6 +1371,7 @@ namespace OSF::API
 			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();  // drag-to-look never outlives the browser
 			g_wheel = {};  // any hide ends wheel mode; the next open starts clean
 			g_openPickToken = 0;  // the open-time crosshair capture never outlives its session
+			g_orbitSpaceNoticed = false;  // re-arm the in-space orbit notice for the next session
 			// Abort console-launched PLAYER scenes (see g_closeStops): the browser was the only
 			// stop button, so one outliving it would leave the player stuck. NPC-only scenes
 			// are not in the list — they keep running until stopped from a reopened browser.
@@ -1397,7 +1403,7 @@ namespace OSF::API
 
 		// World-area drag/wheel from the view (osf.orbit {dx,dy,wheel}) — the overlay consumes all
 		// game input while open, so this is the ONLY mouse path to the orbit camera while browsing.
-		void OnOrbit(const char*, const char* a_payloadJson, const char*, void*) noexcept
+		void OnOrbit(const char*, const char* a_payloadJson, const char* a_srcView, void*) noexcept
 		{
 			const json p = ParsePayload(a_payloadJson);
 			if (!p.is_object()) {
@@ -1430,7 +1436,15 @@ namespace OSF::API
 						}
 					}
 				}
-				cam.EnsureBrowseOrbit(std::move(cast));
+				if (!cam.EnsureBrowseOrbit(std::move(cast)) && !g_orbitSpaceNoticed) {
+					// Aboard a ship in space the orbit can't engage (see EnsureBrowseOrbit) — the
+					// drag silently does nothing, so tell the view why, once per session.
+					g_orbitSpaceNoticed = true;
+					json notice;
+					notice["kind"] = "info";
+					notice["text"] = "Camera orbit is unavailable in space — land to use it.";
+					SendJson(a_srcView, "osf.animation.notice", notice);
+				}
 			}
 			Input::InputService::GetSingleton().InjectOrbitDelta(
 				p.value("dx", 0.0f), p.value("dy", 0.0f), p.value("wheel", 0.0f));
