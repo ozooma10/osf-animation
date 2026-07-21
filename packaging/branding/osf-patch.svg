@@ -25,7 +25,6 @@
   <circle cx="340" cy="845" r="347" fill="none" stroke="#e0a05c" stroke-width="1" opacity="0.28"/>
 </g>
 
-<circle cx="340" cy="340" r="272" fill="none" stroke="#b9c0c9" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="2 7"/>
 <circle cx="340" cy="340" r="239" fill="none" stroke="#b9c0c9" stroke-opacity="0.2" stroke-width="1"/>
 <g stroke="#b9c0c9" stroke-opacity="0.38" stroke-width="1.6" stroke-linecap="round">
   <line x1="340" y1="98" x2="340" y2="104" transform="rotate(45 340 340)"/>
