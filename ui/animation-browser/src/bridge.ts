@@ -13,8 +13,11 @@ export type BridgeCommand =
   | "osf.animation.stop"
   | "osf.animation.wheel.get"
   | "osf.animation.wheel.set"
-  // OSF UI platform command (protocol 1.1): opens OSF UI's own Nexus page in the
-  // system browser — URL hardcoded host-side, nothing crosses the bridge.
+  // OSF UI platform commands. openModPage (protocol 1.1): opens OSF UI's own Nexus
+  // page in the system browser — URL hardcoded host-side, nothing crosses the bridge.
+  // gamepadRaw (protocol 1.0, experimental): suppress the runtime's default gamepad
+  // mapping; raw ui.gamepad events become the view's to handle (see PAD NAV).
+  | "osfui.gamepadRaw"
   | "osfui.openModPage";
 
 export interface UiCommand<TFields extends Record<string, unknown> = Record<string, unknown>> {

@@ -60,9 +60,12 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
   it never gates on the protocol/version strings — the contract evolves
   additively. Platform pushes it consumes: `ui.visibility` (open/close relay,
   wheel-mode exit, orbit-drag reset) and `ui.error` (surfaced in the notice
-  footer). Gamepad works through the runtime's default mapping (D-pad/left
-  stick → arrows, A → Enter, B → close, right stick → scroll) feeding the
-  view's directional-focus layer; no raw `ui.gamepad` handling.
+  footer). **Gamepad:** the view takes the `osfui.gamepadRaw` grant on
+  `runtime.ready` — the runtime's default mapping would route both sticks
+  into UI nav/scroll, but the sticks belong to the native scene-orbit camera
+  (the DLL polls XInput directly). The PAD NAV layer re-creates the button
+  half from raw `ui.gamepad` events: D-pad → arrows (hold-repeat), A → Enter,
+  B → wheel cancel / close; stick events are dropped on purpose.
 - **Targeting:** crosshair pick (the target under the reticle when the browser
   *opened* — the engine nulls the reticle slot while any menu is up, so PICK
   resolves the open-time capture) *or* **Scan Nearby** — a cell walk that

@@ -181,11 +181,14 @@ function onNativeMessage(jsonText) {
         // Drop deltas a queued rAF flush hasn't sent yet: flushed after the close relay they'd
         // re-engage the native browse orbit on a closed browser (stuck orbit camera).
         orbit.dx = orbit.dy = orbit.wheel = 0;
+        padStopRepeat();         // a held D-pad direction must not keep tapping a hidden view
         exitWheel();             // wheel mode never survives a hide — a reopen shows the console
         setMinimized(false);     // ditto live mode: F10 reopen means "browse", show the console
       }
       send(payload && payload.visible ? "osf.animation.opened" : "osf.animation.closed");
       break;
+    // Raw gamepad (we hold the osfui.gamepadRaw grant — see handleReady and PAD NAV).
+    case "ui.gamepad": onGamepad(payload); break;
     // The runtime rejected something we sent (protocol 1.0: stable machine `code`
     // plus a human `message`). Surface it — a silently dropped command reads as
     // "the button did nothing".
@@ -215,6 +218,13 @@ function handleReady(p) {
   setLamp("ok");
   renderStatusOnline();
   notice("ok", `Bridge online. Protocol ${bv}.`);
+  // Own the gamepad. The runtime's default mapping would feed BOTH sticks into UI
+  // nav/scroll, but while this view is up the sticks belong to the native scene-orbit
+  // camera (the DLL polls XInput directly — CameraService::DriveSceneOrbit). Raw mode
+  // suppresses the default mapping wholesale, so PAD NAV re-creates the button half
+  // (D-pad/A/B) from raw ui.gamepad events and drops stick events on purpose.
+  // Sticky per view: survives overlay hide/show, re-asserted here on every page load.
+  send("osfui.gamepadRaw", { raw: true });
   requestCatalog(true);
 }
 
@@ -2047,6 +2057,60 @@ function initNav() {
   document.addEventListener("mousemove", mouseMode);
 }
 
+/* =========================================================================
+   PAD NAV  (raw gamepad -> the keyboard nav pipeline)
+   handleReady asserts osfui.gamepadRaw, which turns OFF the runtime's default
+   mapping (D-pad AND left stick -> arrows, A -> Enter, B -> close, right
+   stick -> scroll). The sticks belong to the native scene-orbit camera while
+   this view is up (the DLL polls XInput directly), so this layer re-creates
+   only the BUTTON half from raw ui.gamepad events: D-pad -> arrow keys (with
+   the runtime's hold-repeat cadence), A -> Enter, B -> back (wheel cancel /
+   close the browser). Stick events are dropped on purpose — acting on them
+   here would fight the camera.
+   ========================================================================= */
+const PAD_ARROWS = { 0x0001: "ArrowUp", 0x0002: "ArrowDown", 0x0004: "ArrowLeft", 0x0008: "ArrowRight" };  // XInput wButtons masks
+const PAD_A = 0x1000, PAD_B = 0x2000;
+const PAD_REPEAT_DELAY = 350, PAD_REPEAT = 110;  // ms; mirrors the runtime's stick-nav cadence
+const padHeld = { id: 0, timer: 0 };             // the one D-pad direction currently held
+
+// Synthetic keydown through the same document-level pipeline as the real keyboard
+// (onNavKey / onWheelKey / onReorderKey), so focus movement, sliders, selects, and
+// the wheel behave identically for pad and keys.
+function padKeyTap(key) {
+  document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+}
+
+function padStopRepeat() {
+  clearTimeout(padHeld.timer);
+  padHeld.id = 0;
+  padHeld.timer = 0;
+}
+
+function onGamepad(p) {
+  if (!p || p.kind !== "button" || !p.button) return;  // stick events: the camera's, not ours
+  const { id, down } = p.button;
+  if (!down) {
+    if (id === padHeld.id) padStopRepeat();  // release of an unheld button (A/B, stale edge) is a no-op
+    return;
+  }
+  const arrow = PAD_ARROWS[id];
+  if (arrow) {
+    padStopRepeat();  // a new direction preempts the old one's repeat
+    padKeyTap(arrow);
+    padHeld.id = id;
+    const rep = () => { padKeyTap(arrow); padHeld.timer = setTimeout(rep, PAD_REPEAT); };
+    padHeld.timer = setTimeout(rep, PAD_REPEAT_DELAY);
+    return;
+  }
+  if (id === PAD_A) { padKeyTap("Enter"); return; }
+  if (id === PAD_B) {
+    // The default mapping's B = back: cancel the wheel, else ask the host to close
+    // (the view can't hide itself; exit lands via the ui.visibility relay).
+    if (state.wheel) wheelCancel();
+    else send("osf.animation.requestClose");
+  }
+}
+
 function init() {
   // Static browse skeleton: the search input must survive re-renders (focus + caret),
   // so only #modeSwitch and #browseBody are re-rendered.
@@ -2061,9 +2125,10 @@ function init() {
   document.addEventListener("drop", onDrop);
   document.addEventListener("dragend", endDrag);
   document.addEventListener("keydown", onReorderKey);
-  // Gamepad/keyboard directional focus. The OSF UI runtime's default gamepad
-  // mapping (protocol 1.0) feeds this: D-pad/left stick → arrow keys, A → Enter,
-  // B → close, right stick → scroll. No raw ui.gamepad handling needed here.
+  // Gamepad/keyboard directional focus. Keyboard arrows feed this directly; the
+  // gamepad arrives through PAD NAV (raw ui.gamepad -> synthetic arrow keys),
+  // because handleReady takes the osfui.gamepadRaw grant to keep the sticks on
+  // the native orbit camera.
   initNav();
 
   // Animation wheel: hover focuses a slice; right-click anywhere cancels (Escape's in-game
