@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 namespace OSF::Animation
 {
@@ -9,87 +10,88 @@ namespace OSF::Animation
 	{
 		std::scoped_lock l{ lock };
 
-		// Liveness heartbeat for the stall watchdog: stamp on EVERY tick (any participant, not just the
-		// clock owner — the Scene clock never re-elects, so an owner that stops while others tick must
-		// still read as alive). When the engine stops ticking the whole scene, this stops updating.
-		lastAdvanceMs.store(
-			std::chrono::duration_cast<std::chrono::milliseconds>(
-				std::chrono::steady_clock::now().time_since_epoch())
-				.count(),
-			std::memory_order_relaxed);
+		const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count();
+		// Any participant is a liveness heartbeat. FrameClock independently re-elects a stale owner,
+		// so a surviving participant both keeps the scene alive and resumes its clock.
+		lastAdvanceMs.store(nowMs, std::memory_order_relaxed);
 
-		if (!ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token)) {
-			const float step = a_deltaTime * speed.load(std::memory_order_relaxed);
-			const float prevTime = clock.time;
-			clock.time += step;
-			stageElapsed += step;
+		if (!ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token, nowMs)) {
+			float remaining = a_deltaTime * speed.load(std::memory_order_relaxed);
+			if (!std::isfinite(remaining) || remaining <= 0.0f) {
+				return { clock.time, currentStage };
+			}
 
-			bool stageChanged = false;
-			const bool wrapped = duration > 0.0f && clock.time >= duration;
+			// Consume the update one loop/timer boundary at a time. This keeps loop counts and
+			// repeat:loop marks exact even when a high playback speed crosses several loops at once.
+			while (remaining > 0.0f && !ended.load(std::memory_order_relaxed) && !stages.empty()) {
+				const auto& stage = stages[currentStage];
+				const float toWrap = duration > 0.0f ? std::max(0.0f, duration - clock.time) : remaining;
+				const float toTimer = stage.timer > 0.0f ? std::max(0.0f, stage.timer - stageElapsed) : remaining;
+				float segment = std::min({ remaining, toWrap, toTimer });
+				// Floating-point equality at a boundary can otherwise leave a zero-length loop.
+				if (!(segment > 0.0f)) {
+					segment = std::min(remaining, 0.000001f);
+				}
 
-			// Fire timed marks for the current stage BEFORE any terminal transition (so an "end" mark and an end edge never race).
-			// A numeric mark fires when the playhead crosses its time over [prevTime, clock.time) - handling a single wrap; 
-			// an "end" mark fires on the first loop's wrap. repeat:loop fires every loop, else first loop only (gated by markFired[i]). 
-			// Fired marks land in firedMarks (drained by the hook); the Scene round-trips the opaque lane+token without interpreting them.
-			if (!stages.empty()) {
-				const auto& marks = stages[currentStage].marks;
-				for (size_t i = 0; i < marks.size(); i++) {
-					const auto& mark = marks[i];
-					bool crossed = false;
-					if (mark.atEnd) {
-						crossed = wrapped && stageLoops == 0;
-					} else if (duration > 0.0f) {
-						const float markTime = mark.fraction * duration;
-						crossed = !wrapped ? (prevTime <= markTime && markTime < clock.time)
-						                   : (markTime >= prevTime || markTime < (clock.time - duration));
+				const float prevTime = clock.time;
+				const float nextTime = clock.time + segment;
+				for (size_t i = 0; i < stage.marks.size(); i++) {
+					const auto& mark = stage.marks[i];
+					if (mark.atEnd || duration <= 0.0f) {
+						continue;
 					}
-					if (!crossed) {
+					const float markTime = mark.fraction * duration;
+					if (!(prevTime <= markTime && markTime < nextTime)) {
 						continue;
 					}
 					if (mark.everyLoop) {
-						firedMarks.push_back({ mark.lane, mark.token });  // every loop
+						firedMarks.push_back({ mark.lane, mark.token });
 					} else if (stageLoops == 0 && i < markFired.size() && !markFired[i]) {
-						firedMarks.push_back({ mark.lane, mark.token });  // first loop only, once
+						firedMarks.push_back({ mark.lane, mark.token });
 						markFired[i] = true;
 					}
 				}
-			}
 
-			if (!stages.empty()) {
-				const auto& stage = stages[currentStage];
-				const bool timerExpired = stage.timer > 0.0f && stageElapsed >= stage.timer;
-				const bool loopsExpired = stage.loops > 0 && wrapped && (stageLoops + 1) >= stage.loops;
-				if (timerExpired || loopsExpired) {
-					const char* why = timerExpired ? "timer" : "loop target";
-					if (currentStage + 1 < stages.size()) {
-						ApplyStageLocked(currentStage + 1);
-						REX::DEBUG("[Anim] stage {} expired — advanced to stage {}/{}", why, currentStage + 1, stages.size());
-					} else if (loopWhole) {
-						ApplyStageLocked(0);  // PlaySequence whole-loop
-						REX::DEBUG("[Anim] final stage {} expired — looping to stage 0", why);
-					} else {
-						// Record which condition fired so the scene runtime's auto-advance handler can pick the matching auto-edge (timer vs loops/end). 
-						// Set before `ended` so a reader gated on `ended` sees the reason.
-						endReason.store(timerExpired ? SceneEndReason::kTimer : SceneEndReason::kLoops,
-							std::memory_order_relaxed);
-						ended.store(true, std::memory_order_relaxed);  // hook defers StopScene
-						REX::DEBUG("[Anim] final stage {} expired — holding pose, requesting stop", why);
-					}
-					stageChanged = true;
-				}
-			}
+				clock.time = nextTime;
+				stageElapsed += segment;
+				remaining -= segment;
 
-			// Count the loop + wrap the clock. Skipped on a stage switch (that wrap belongs to the stage we just left).
-			if (!stageChanged) {
+				const bool wrapped = duration > 0.0f && clock.time >= duration;
 				if (wrapped) {
-					stageLoops++;
-				}
-				if (duration > 0.0f) {
-					clock.time = std::fmod(clock.time, duration);
-					if (clock.time < 0.0f) {
-						clock.time += duration;
+					for (size_t i = 0; i < stage.marks.size(); i++) {
+						const auto& mark = stage.marks[i];
+						if (mark.atEnd && stageLoops == 0 && i < markFired.size() && !markFired[i]) {
+							firedMarks.push_back({ mark.lane, mark.token });
+							markFired[i] = true;
+						}
 					}
+					stageLoops++;
+					clock.time = 0.0f;
 				}
+
+				const bool timerExpired = stage.timer > 0.0f && stageElapsed >= stage.timer;
+				const bool loopsExpired = stage.loops > 0 && wrapped && stageLoops >= stage.loops;
+				if (!timerExpired && !loopsExpired) {
+					continue;
+				}
+
+				const char* why = timerExpired ? "timer" : "loop target";
+				if (currentStage + 1 < stages.size()) {
+					ApplyStageLocked(currentStage + 1);
+					REX::DEBUG("[Anim] stage {} expired — advanced to stage {}/{}", why, currentStage + 1, stages.size());
+				} else if (loopWhole) {
+					ApplyStageLocked(0);
+					REX::DEBUG("[Anim] final stage {} expired — looping to stage 0", why);
+				} else {
+					endReason.store(timerExpired ? SceneEndReason::kTimer : SceneEndReason::kLoops,
+						std::memory_order_relaxed);
+					ended.store(true, std::memory_order_relaxed);
+					REX::DEBUG("[Anim] final stage {} expired — holding pose, requesting stop", why);
+				}
+				// Preserve the prior behavior: a stage transition consumes the current update; the
+				// next engine report begins the new stage rather than skipping through several nodes.
+				remaining = 0.0f;
 			}
 		}
 
@@ -134,10 +136,5 @@ namespace OSF::Animation
 		// Reset per-pass gating for this stage's marks (all unfired).
 		markFired.assign(stage.marks.size(), false);
 
-		// Element-wise: the pin reads `placements` lock-free, so never reallocate.
-		const size_t n = std::min(placements.size(), stage.placements.size());
-		for (size_t i = 0; i < n; i++) {
-			placements[i] = stage.placements[i];
-		}
 	}
 }

@@ -163,9 +163,10 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 > **Participants at scene end:** the one exception to "no live getters" — the event's
 > `sceneHandle` stays *roster-queryable* through the `EVENT_SCENE_END` callback, so
 > `OSF.GetSceneParticipants(akEvent.sceneHandle)` returns who took part even though the scene has
-> ended (the slot is retired but not reclaimed until the next scene starts). `SCENE_END` carries no
+> ended (the retired roster is retained for the loaded world). `SCENE_END` carries no
 > `actorRef` itself, so this is how an end handler enumerates participants. Note `SCENE_END` fires on
-> *every* termination (normal finish, `Stop()`, save-load teardown) — gate on a completion cue if you
+> runtime termination (normal finish or `Stop()`). World-replacing load teardown clears the VM relay
+> and native handle table without dispatching callbacks into the discarded world. Gate on a completion cue if you
 > only want genuine finishes.
 
 ```papyrus

@@ -130,8 +130,10 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneRuntime::OnTimedMarks(const std::vector<RE::Actor*>& a_participants, const std::vector<Animation::FiredMark>& a_marks)
+	void SceneRuntime::OnTimedMarks(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
+		const std::vector<Animation::FiredMark>& a_marks)
 	{
+		(void)a_participants;  // retained by GraphManager to keep actor objects alive through dispatch
 		if (a_marks.empty()) {
 			return;
 		}
@@ -147,25 +149,22 @@ namespace OSF::Scene
 		std::string oldNode;
 		std::string sceneId;
 		std::vector<RE::Actor*> participants;
+		Registry::SceneRef definition;
 		bool cameraOverridden = false;
 		{
 			std::lock_guard l{ _lock };
-			Slot* s = nullptr;
-			for (auto* a : a_participants) {
-				if ((s = FindSlotForActor(a, &handle))) {
-					break;
-				}
-			}
+			Slot* s = FindSlotForPlayback(a_playbackId, &handle);
 			if (!s) {
-				return;  // not a SceneRuntime scene (e.g. PlaySequence)
+				return;  // standalone playback, or a stale task from a replaced node
 			}
 			oldNode = s->node;
 			sceneId = s->id;
 			participants = s->participants;
+			definition = s->definition;
 			cameraOverridden = s->cameraOverridden;
 		}
 
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(sceneId);
+		const auto def = definition ? definition : Registry::SceneRegistry::GetSingleton().Find(sceneId);
 		const auto* node = def ? def->FindNode(oldNode) : nullptr;
 
 		auto* player = RE::PlayerCharacter::GetSingleton();
@@ -221,8 +220,8 @@ namespace OSF::Scene
 			Slot* s = Resolve(handle);
 			// Skip when a transition is already in flight (a concurrent advance / auto-end owns it) —
 			// a second transition here could orphan a graph and freeze the player.
-			if (s && s->node == oldNode && !s->transitioning) {
-				const auto* d = Registry::SceneRegistry::GetSingleton().Find(s->id);
+			if (s && s->playbackId == a_playbackId && s->node == oldNode && !s->transitioning) {
+				const auto d = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
 				const auto* n = d ? d->FindNode(s->node) : nullptr;
 				if (n) {
 					for (const auto& id : cueIds) {
@@ -256,39 +255,45 @@ namespace OSF::Scene
 		}
 	}
 
-	bool SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId)
+	Animation::PlaybackId SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants,
+		std::string_view a_sceneId, std::string_view a_nodeId)
 	{
 		if (a_participants.empty()) {
-			return false;  // synthetic scene with no participants — nothing to play
-		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
-		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
-		if (!node || (node->use.empty() && node->stages.empty())) {
-			return false;  // not def-backed, or the node has no playable
-		}
-		// Resolve the node's playable: inline `stages`, or a `use` reference, in the scene registry.
-		auto plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(*def, *node, a_participants.size());
-		if (!plan) {
-			REX::WARN("[Scene] node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
-			return false;
+			return 0;  // synthetic scene with no participants — nothing to play
 		}
 		// StartSceneAt: if the owning scene carries an explicit world anchor, every node plays
 		// anchored there instead of at participant[0]. Read it fresh from the slot so all the
 		// transition paths (Advance/Navigate/auto-end/trigger) reuse it with no per-site plumbing.
 		float loopScale = 1.0f;
 		std::optional<bool> inPlaceOverride;
+		auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		AnchorOverride anchor;
 		{
 			std::lock_guard l{ GetSingleton()._lock };
 			std::int32_t tok = 0;
 			if (Slot* s = GetSingleton().FindSlotForActor(a_participants.front(), &tok); s) {
-				if (s->anchor.set) {
-					plan->anchorExplicit = true;
-					plan->anchorPos = s->anchor.pos;
-					plan->anchorHeading = s->anchor.heading;
+				if (s->definition) {
+					def = s->definition;  // pin the definition version chosen when this scene started
 				}
+				anchor = s->anchor;
 				loopScale = s->loopScale;  // per-start LoopScale (1.0 = none)
 				inPlaceOverride = s->inPlace;
 			}
+		}
+		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
+		if (!node || (node->use.empty() && node->stages.empty())) {
+			return 0;  // not def-backed, or the node has no playable
+		}
+		// Resolve the node's playable and any `use` target from the same pinned snapshot.
+		auto plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(def, *node, a_participants.size());
+		if (!plan) {
+			REX::WARN("[Scene] node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
+			return 0;
+		}
+		if (anchor.set) {
+			plan->anchorExplicit = true;
+			plan->anchorPos = anchor.pos;
+			plan->anchorHeading = anchor.heading;
 		}
 		// Per-start inPlace (SceneOptions) wins over the def's posture. BuildNodePlan already stamped
 		// the def's `inPlace` onto plan->anchored; true here = no teleport / per-frame root+heading pin.
@@ -315,7 +320,11 @@ namespace OSF::Scene
 		// Re-playing on actors already in a scene tears the old node's scene first, so a
 		// node transition is just a fresh PlaySceneStaged. Its bool result is the node's play
 		// status (false = clip load failed) — propagated so ApplyTransition can end cleanly.
-		return Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0);
+		Animation::PlaybackId playbackId = 0;
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0, &playbackId)) {
+			return 0;
+		}
+		return playbackId;
 	}
 
 	void SceneRuntime::StopGraph(const std::vector<RE::Actor*>& a_participants)
@@ -365,7 +374,7 @@ namespace OSF::Scene
 		}
 		// An authored enter-camera on the entry node wins — DispatchLifecycleCamera engages it on NODE_ENTER.
 		// Only impose the default when the scene specified no camera at all (the common case; also files/ad-hoc).
-		if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId)) {
+		if (const auto def = Registry::SceneRegistry::GetSingleton().Find(a_defId)) {
 			if (const auto* node = def->FindNode(a_entryNode)) {
 				for (const auto& cam : node->cameras) {
 					if (cam.pos == Registry::CameraPos::kEnter) {
@@ -413,7 +422,7 @@ namespace OSF::Scene
 		if (!Equipment::Gear::AutoEquip()) {
 			return picks;
 		}
-		const auto* def = a_defId.empty() ? nullptr : Registry::SceneRegistry::GetSingleton().Find(a_defId);
+		const auto def = a_defId.empty() ? Registry::SceneRef{} : Registry::SceneRegistry::GetSingleton().Find(a_defId);
 		for (std::size_t i = 0; i < a_participants.size(); i++) {
 			RE::Actor* actor = a_participants[i];
 			if (!actor) {
@@ -478,7 +487,7 @@ namespace OSF::Scene
 		if (a_defId.empty()) {
 			return;  // files / ad-hoc scene — no roles, nothing to equip
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId);
+		const auto def = Registry::SceneRegistry::GetSingleton().Find(a_defId);
 		if (!def) {
 			return;
 		}
@@ -557,13 +566,30 @@ namespace OSF::Scene
 		REX::DEBUG("[Scene] scene {:#010x} default start fade — {}", a_handle, posted ? "posted" : "unavailable");
 	}
 
+	void SceneRuntime::CompleteStart(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
+		const std::vector<RE::Actor*>& a_participants, bool a_lockPlayer, bool a_stripActors,
+		bool a_fade, const StartOverrides& a_over)
+	{
+		const std::string_view cameraOverride = a_over.camera ? std::string_view(*a_over.camera) : std::string_view{};
+		EngageDefaultPlayerLock(a_handle, a_lockPlayer, a_participants);
+		EngageDefaultCamera(a_handle, a_defId, a_entryNode, a_lockPlayer, cameraOverride, a_participants);
+		const auto gearPicks = BuildGearPicks(a_defId, a_participants);
+		StripDefaultActors(a_handle, a_stripActors, a_participants, gearPicks);
+		EquipGearItems(a_handle, a_participants, gearPicks);
+		EquipRoleItems(a_handle, a_defId, a_participants);
+		FadeSceneStart(a_handle, a_fade, a_participants);
+		EngageDefaultPlayerControl(a_handle, a_defId, a_over.playerControl, a_participants);
+		Fire(a_handle, Event::kSceneBegin, a_entryNode, "");
+		Fire(a_handle, Event::kNodeEnter, a_entryNode, "enter");
+	}
+
 	void SceneRuntime::EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants)
 	{
 		// Input control is ENABLED BY DEFAULT (like lockPlayer/stripActors). A def scene can opt out / narrow via its playerControl block;
 		// pack/files scenes (empty defId) always get the default.
 		Registry::PlayerControl pc;  // enabled, all capabilities, not locked
 		if (!a_defId.empty()) {
-			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_defId)) {
+			if (const auto def = Registry::SceneRegistry::GetSingleton().Find(a_defId)) {
 				pc = def->playerControl;
 			}
 		}
@@ -603,7 +629,8 @@ namespace OSF::Scene
 		// ledger releases the lock. (Validation guarantees every node has a playable, so a false here
 		// is always a real failure, never an intentional marker node.)
 		bool end = a_end;
-		if (!end && !PlayNodeAnim(a_participants, a_sceneId, a_newNode)) {
+		Animation::PlaybackId newPlaybackId = 0;
+		if (!end && !(newPlaybackId = PlayNodeAnim(a_participants, a_sceneId, a_newNode))) {
 			REX::WARN("[Scene] scene {:#010x} transition '{}' -> '{}' could not play the target node — ending scene",
 				a_handle, a_oldNode, a_newNode);
 			UI::HudMessage::Error(std::format("could not play '{}' — scene ended", a_newNode));
@@ -616,11 +643,17 @@ namespace OSF::Scene
 			ReleaseSlot(a_handle);  // retires the handle (clears the transitioning guard with the slot): roster stays readable for the async SCENE_END handler, actors freed now
 			UI::HudMessage::Debug("OSF: scene ended");
 		} else {
+			{
+				std::lock_guard l{ _lock };
+				if (Slot* s = Resolve(a_handle)) {
+					s->playbackId = newPlaybackId;
+				}
+			}
 			Fire(a_handle, Event::kNodeEnter, a_newNode, "enter");
 			// Opt-in debug popup naming the stage we just entered (covers manual advance, navigate, SetNode, and timer/loop auto-advance, every path funnels here).
 			// A linear scene shows "stage N/M"; a branching node has no stage number, so it shows the node id alone. DebugEnabled() gate avoids formatting when off.
 			if (UI::HudMessage::DebugEnabled()) {
-				const auto*        def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+				const auto         def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 				const std::int32_t stage = def ? def->LinearStageOf(a_newNode) : -1;
 				UI::HudMessage::Show(stage >= 0
 						? std::format("OSF: stage {}/{} - {}", stage + 1, def->linearStages.size(), a_newNode)
@@ -641,16 +674,17 @@ namespace OSF::Scene
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
 		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor, const StartOverrides& a_over)
 	{
+		const auto definition = Registry::SceneRegistry::GetSingleton().Find(a_id);
 		// Filter enforcement (every def start path funnels through here): a bound actor must satisfy
 		// its role's filters. Binding is role-declaration order (participants[i] <-> roles[i]); validate
 		// the bound pairs. StartSceneByTags pre-binds via matchmaking so this always passes for it;
 		// the explicit paths (StartScene/StartSceneAt/StartSceneRoles) reject a bad bind here.
-		if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id)) {
-			const std::size_t n = std::min(a_participants.size(), def->roles.size());
+		if (definition) {
+			const std::size_t n = std::min(a_participants.size(), definition->roles.size());
 			for (std::size_t i = 0; i < n; i++) {
-				if (!Matchmaking::RoleAccepts(def->roles[i], a_participants[i])) {
+				if (!Matchmaking::RoleAccepts(definition->roles[i], a_participants[i])) {
 					REX::WARN("[Scene] start '{}' refused — actor {:X} fails role '{}' filters",
-						a_id, a_participants[i] ? a_participants[i]->formID : 0, def->roles[i].name);
+						a_id, a_participants[i] ? a_participants[i]->formID : 0, definition->roles[i].name);
 					return 0;
 				}
 			}
@@ -662,9 +696,10 @@ namespace OSF::Scene
 		}
 		// Store the explicit anchor + per-start overrides on the slot BEFORE the first play, so PlayNodeAnim and every later node transition reuse them.
 		//  loopScale/inPlace must live on the slot because the plan is rebuilt fresh per node, so they re-apply on each entry rather than compounding.
-		if (a_anchor.set || a_over.loopScale != 1.0f || a_over.inPlace.has_value() || a_over.camera.has_value()) {
+		{
 			std::lock_guard l{ _lock };
 			if (Slot* s = Resolve(handle)) {
+				s->definition = definition;
 				if (a_anchor.set) {
 					s->anchor = a_anchor;
 				}
@@ -679,40 +714,31 @@ namespace OSF::Scene
 		// live handle for a scene that never animates — it would hold no graph (the stall watchdog only
 		// sees live graph scenes, so it couldn't recover it) yet still engage the player lock below.
 		// Retire the slot and fail the start cleanly; nothing was locked yet.
-		if (!PlayNodeAnim(a_participants, a_id, a_entryNode)) {
+		const Animation::PlaybackId playbackId = PlayNodeAnim(a_participants, a_id, a_entryNode);
+		if (!playbackId) {
 			REX::WARN("[Scene] start '{}' entry node '{}' could not play — aborting start", a_id, a_entryNode);
 			ReleaseSlot(handle);
 			return 0;
+		}
+		{
+			std::lock_guard l{ _lock };
+			if (Slot* s = Resolve(handle)) {
+				s->playbackId = playbackId;
+			}
 		}
 		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key), then let a per-start override win (StripMode/LockPlayerMode/FadeMode);
 		bool lockPlayer = true;
 		bool stripActors = true;
 		bool fade = false;
-		if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id)) {
-			lockPlayer = def->lockPlayer;
-			stripActors = def->stripActors;
-			fade = def->fade;
+		if (definition) {
+			lockPlayer = definition->lockPlayer;
+			stripActors = definition->stripActors;
+			fade = definition->fade;
 		}
 		lockPlayer = a_over.lockPlayer.value_or(lockPlayer);
 		stripActors = a_over.strip.value_or(stripActors);
 		fade = a_over.fade.value_or(fade);
-		const std::string_view cameraOverride = a_over.camera.has_value() ? std::string_view(*a_over.camera) : std::string_view{};
-		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
-		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
-		EngageDefaultCamera(handle, a_id, a_entryNode, lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else authored, else native-assisted orbit
-		// User scene gear (RFC-scene-gear) selects BEFORE the strip so worn picks are exempted, equips
-		// after it; the role's authored equip runs last so it wins any biped-slot conflict.
-		const auto gearPicks = BuildGearPicks(a_id, a_participants);
-		StripDefaultActors(handle, stripActors, a_participants, gearPicks);  // hide every participant's apparel by default
-		EquipGearItems(handle, a_participants, gearPicks);                   // then the user's registered gear (on top of the strip)
-		EquipRoleItems(handle, a_id, a_participants);                        // then each role's authored per-gender item
-		FadeSceneStart(handle, fade, a_participants);             // screen curtain on start when the player participates
-		// Recorded AFTER lock + strip so the ledger undoes the input channel FIRST (release the wheel before unlocking/redressing).
-		EngageDefaultPlayerControl(handle, a_id, a_over.playerControl, a_participants);
-		
-		// SCENE_BEGIN is scenes first lifecycle event, after everything setup
-		Fire(handle, Event::kSceneBegin, a_entryNode, "");
-		Fire(handle, Event::kNodeEnter, a_entryNode, "enter");
+		CompleteStart(handle, a_id, a_entryNode, a_participants, lockPlayer, stripActors, fade, a_over);
 		return handle;
 	}
 
@@ -796,7 +822,7 @@ namespace OSF::Scene
 	std::int32_t SceneRuntime::StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
 		const StartOverrides& a_over, std::string_view a_entryNode)
 	{
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
 			REX::ERROR("[Scene] StartFromDef: no scene def '{}'", a_sceneId);
 			return 0;
@@ -808,31 +834,13 @@ namespace OSF::Scene
 	std::int32_t SceneRuntime::StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
 		RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over, std::string_view a_entryNode)
 	{
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
 			REX::ERROR("[Scene] StartFromDefAt: no scene def '{}'", a_sceneId);
 			return 0;
 		}
 		return Start(def->id, ResolveEntryNode(*def, a_entryNode), a_participants,
 			AnchorOverride{ true, a_anchorPos, a_anchorHeading }, a_over);
-	}
-
-	std::int32_t SceneRuntime::StartFromFiles(const std::vector<RE::Actor*>& a_participants,
-		const std::vector<std::string>& a_files, float a_speed, float a_blendIn,
-		const AnchorOverride& a_anchor, const StartOverrides& a_over)
-	{
-		if (a_participants.empty() || a_participants.size() != a_files.size()) {
-			return 0;
-		}
-		Animation::ScenePlan plan;
-		Animation::ScenePlan::Stage stage;
-		stage.files = a_files;
-		stage.animIds.assign(a_files.size(), "");
-		stage.loops = 0;  // one stage, holds
-		plan.stages.push_back(std::move(stage));
-		plan.speed = a_speed;
-		plan.blendIn = a_blendIn;
-		return StartFromPlan(a_participants, std::move(plan), 0, a_anchor, a_over);
 	}
 
 	std::int32_t SceneRuntime::StartFromPlan(const std::vector<RE::Actor*>& a_participants, Animation::ScenePlan a_plan,
@@ -853,23 +861,21 @@ namespace OSF::Scene
 		if (!handle) {
 			return 0;  // actor already in a scene
 		}
-		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, a_plan, a_startStage)) {
+		Animation::PlaybackId playbackId = 0;
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, a_plan, a_startStage, &playbackId)) {
 			ReleaseSlot(handle);
 			return 0;
+		}
+		{
+			std::lock_guard l{ _lock };
+			if (Slot* s = Resolve(handle)) {
+				s->playbackId = playbackId;
+			}
 		}
 		const bool lockPlayer = a_over.lockPlayer.value_or(true);
 		const bool stripActors = a_over.strip.value_or(true);
 		const bool fade = a_over.fade.value_or(false);
-		const std::string_view cameraOverride = a_over.camera.has_value() ? std::string_view(*a_over.camera) : std::string_view{};
-		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
-		EngageDefaultCamera(handle, "", "main", lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else native-assisted orbit
-		const auto gearPicks = BuildGearPicks("", a_participants);  // ad-hoc scene: no roles, no authored equips — gear only
-		StripDefaultActors(handle, stripActors, a_participants, gearPicks);
-		EquipGearItems(handle, a_participants, gearPicks);
-		FadeSceneStart(handle, fade, a_participants);
-		EngageDefaultPlayerControl(handle, "", a_over.playerControl, a_participants);  // ad-hoc scene: default-on input unless overridden OFF
-		Fire(handle, Event::kSceneBegin, "main", "");  // first lifecycle event, before the entry node's NODE_ENTER
-		Fire(handle, Event::kNodeEnter, "main", "enter");
+		CompleteStart(handle, "", "main", a_participants, lockPlayer, stripActors, fade, a_over);
 		return handle;
 	}
 
@@ -877,7 +883,7 @@ namespace OSF::Scene
 		const std::vector<std::string>& a_roles, const AnchorOverride& a_anchor, const StartOverrides& a_over,
 		std::string_view a_entryNode)
 	{
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def) {
 			REX::ERROR("[Scene] StartSceneRoles: no scene def '{}'", a_sceneId);
 			return 0;
@@ -943,7 +949,7 @@ namespace OSF::Scene
 				REX::DEBUG("[Scene] edge on scene {:#010x} ignored — a transition is already in flight", a_scene);
 				return false;  // a concurrent advance / auto-end owns the transition; don't start a second
 			}
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
+			const auto def = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
 			const auto* node = def ? def->FindNode(s->node) : nullptr;
 			if (!node) {
 				return false;  // not def-backed, or current node not in the def
@@ -1015,8 +1021,10 @@ namespace OSF::Scene
 		});
 	}
 
-	bool SceneRuntime::OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason)
+	bool SceneRuntime::OnGraphAutoEnd(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
+		Animation::SceneEndReason a_reason)
 	{
+		(void)a_participants;  // playback identity, not actor reuse, selects the runtime slot
 		std::int32_t handle = 0;
 		std::string oldNode;
 		std::string newNode;
@@ -1027,17 +1035,11 @@ namespace OSF::Scene
 		{
 			std::lock_guard l{ _lock };
 
-			// Resolve the live handle owning these participants. Actor exclusivity makes
-			// this single-valued: the first participant that maps to a slot is THE scene.
-			// Unowned => not a SceneRuntime scene (GraphManager stops it itself).
-			Slot* s = nullptr;
-			for (auto* a : a_participants) {
-				if ((s = FindSlotForActor(a, &handle))) {
-					break;
-				}
-			}
+			// Resolve the exact playback instance. Actors can already belong to a replacement
+			// scene by the time this deferred task runs, so actor identity alone is insufficient.
+			Slot* s = FindSlotForPlayback(a_playbackId, &handle);
 			if (!s) {
-				return false;  // standalone scene (e.g. PlaySequence) — GraphManager stops it
+				return false;  // standalone scene, or stale task — GraphManager only stops its retained scene pointer
 			}
 			if (s->transitioning) {
 				// A manual advance / cue-trigger is mid-flight on this scene — it owns the teardown
@@ -1057,7 +1059,7 @@ namespace OSF::Scene
 			// has no edges, so its terminal stage IS the whole scene ending — it falls through the
 			// no-node path. We own the teardown so SCENE_END fires and the handle invalidates here
 			// (vs returning false and letting GraphManager stop it silently, which would leak it).
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
+			const auto def = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
 			const auto* node = def ? def->FindNode(s->node) : nullptr;
 			if (a_reason == Animation::SceneEndReason::kInterrupted) {
 				end = true;  // engine stopped ticking the scene (unloaded / AI-disabled) — end it, never advance an edge.
@@ -1107,7 +1109,7 @@ namespace OSF::Scene
 		if (!s) {
 			return out;
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(s->id);
+		const auto def = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
 		const auto* node = def ? def->FindNode(s->node) : nullptr;
 		if (!node) {
 			return out;

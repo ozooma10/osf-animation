@@ -50,13 +50,17 @@ namespace OSF::Animation
 		bool hasAnchor = false;
 		RE::NiPoint3 anchorPos{};
 		RootMode rootMode = RootMode::kPin;
+		std::uint64_t anchorRevision = 0;  // invalidates deferred SetAnchor teleports
 
 		//non-null for all non-scene graphs. sync merges members onto a shared group (which owns the clock)
 		std::shared_ptr<SyncGroup> syncGroup;
 
 		// Non-null while a scene participant; the scene owns the clock.
 		Scene* scene = nullptr;
-		int participantIndex = -1;   // index into scene->placements/participants; const while in the scene
+		int participantIndex = -1;   // index into scene participants; const while in the scene
+		// Current stage placement copied while applying the stage under stateLock. The compose hook
+		// reads this graph-owned value under the same lock, avoiding a scene placement data race.
+		ParticipantPlacement scenePlacement{};
 		uint32_t appliedStage = 0;   // stage this graph's clip matches; Sample swaps on a stage change
 		uint32_t sceneFrames = 0;    // update-call counter for the HoldAnchoredParticipant re-assert cadence
 

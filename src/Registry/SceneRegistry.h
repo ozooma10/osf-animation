@@ -8,15 +8,17 @@
 #include "Animation/Scene.h"   // ParticipantPlacement, ScenePlan
 #include "Input/InputTypes.h"  // PlayerControl capabilities default to Input::kAllCapabilities
 
+#include <atomic>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
-#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace OSF::Registry
@@ -62,14 +64,19 @@ namespace OSF::Registry
 		std::int32_t priority = 0;
 	};
 
-	// Where on the node's clip timeline a cue fires. kFraction = a clip-local fraction in [0,1); the rest are the named lifecycle anchors.
-	enum class CuePos : std::uint8_t
+	// Shared position model for all four node tracks. Aliases below preserve the lane-specific
+	// names at call sites while keeping parsing/scheduling semantics structurally identical.
+	enum class TrackPos : std::uint8_t
 	{
-		kFraction,
 		kEnter,
 		kExit,
+		kFraction,
 		kEnd
 	};
+	using CuePos = TrackPos;
+	using ActionPos = TrackPos;
+	using SoundPos = TrackPos;
+	using CameraPos = TrackPos;
 
 	// One `cue` track entry: fires EVENT_CUE (and, later, drives a trigger:<id> edge).
 	struct CueEntry
@@ -78,16 +85,6 @@ namespace OSF::Registry
 		float        fraction = 0.0f;   // when pos == kFraction
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  id;
-	};
-
-	// Where an `action` track entry runs. kEnter/kExit are the lifecycle anchors, fired directly on node enter/exit; 
-	// kFraction/kEnd are timed by the clip clock, fired through the same timed-mark path as cues.
-	enum class ActionPos : std::uint8_t
-	{
-		kEnter,
-		kExit,
-		kFraction,
-		kEnd
 	};
 
 	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the  runtime); 
@@ -105,15 +102,6 @@ namespace OSF::Registry
 		std::string  item;   // osf.equipment.equip: form ref "<plugin>|0xLOCAL" of the item to equip
 	};
 
-	// Where a `sound` track entry fires — same time model as cues and actions. kEnter/kExit are lifecycle anchors; kFraction/kEnd are clip-timed.
-	enum class SoundPos : std::uint8_t
-	{
-		kEnter,
-		kExit,
-		kFraction,
-		kEnd
-	};
-
 	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed).
 	// A spec starting with '$' is a SoundRegistry pool query ("$tag,tag,..." — all-of) resolved to ONE clip at fire time (SceneRuntime::PlaySound), so a repeated/per-loop cue re-rolls; otherwise the value is taken literally.
 	struct SoundEntry
@@ -124,15 +112,6 @@ namespace OSF::Registry
 		std::string  spec;    // file path or event: spec
 		std::string  role;    // optional; positions the sound at this actor (else the player)
 		float        volume = 1.0f;
-	};
-
-	// Where a `camera` track entry fires — same time model as the other lanes.
-	enum class CameraPos : std::uint8_t
-	{
-		kEnter,
-		kExit,
-		kFraction,
-		kEnd
 	};
 
 	// One `camera` track entry: a held camera state, auto-restored on cleanup. States:
@@ -291,6 +270,43 @@ namespace OSF::Registry
 		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
+	// Immutable publication unit. Reload builds one privately and atomically replaces the current
+	// pointer; readers and live scenes retain shared ownership of the exact definitions they use.
+	struct SceneRegistrySnapshot
+	{
+		std::unordered_map<std::string, SceneDef> scenes;
+		std::vector<std::string> loadErrors;
+		size_t authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
+	};
+
+	class SceneRef
+	{
+	public:
+		SceneRef() = default;
+		SceneRef(const SceneRef&) = default;
+		SceneRef& operator=(const SceneRef&) = default;
+		SceneRef(SceneRef&& a_other) noexcept :
+			owner(std::move(a_other.owner)), value(std::exchange(a_other.value, nullptr))
+		{}
+		SceneRef& operator=(SceneRef&& a_other) noexcept
+		{
+			if (this != &a_other) {
+				owner = std::move(a_other.owner);
+				value = std::exchange(a_other.value, nullptr);
+			}
+			return *this;
+		}
+		[[nodiscard]] explicit operator bool() const noexcept { return value != nullptr; }
+		[[nodiscard]] const SceneDef* get() const noexcept { return value; }
+		[[nodiscard]] const SceneDef* operator->() const noexcept { return value; }
+		[[nodiscard]] const SceneDef& operator*() const noexcept { return *value; }
+
+	private:
+		friend class SceneRegistry;
+		std::shared_ptr<const SceneRegistrySnapshot> owner;
+		const SceneDef* value = nullptr;
+	};
+
 	class SceneRegistry
 	{
 	public:
@@ -301,15 +317,16 @@ namespace OSF::Registry
 		// Runs at startup and again on OSF.ReloadPacks().
 		void LoadAll();
 
-		// Scene by id (case-insensitive), or nullptr.
-		const SceneDef* Find(std::string_view a_id) const;
+		// Scene by id (case-insensitive). The returned ref pins the immutable registry snapshot,
+		// so its definition remains valid across ReloadPacks and can be retained by a live scene.
+		SceneRef Find(std::string_view a_id) const;
 
 		// Resolve a node's inline `stages`, or a `use` target's single inline-stage node - to a ScenePlan (files + placements + timer/loops), or nullopt (reason logged).
 		// a_actorCount must equal the resolved role count.
-		std::optional<Animation::ScenePlan> BuildNodePlan(const SceneDef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
+		std::optional<Animation::ScenePlan> BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
 
-		// Visit every loaded scene def under the read lock (used by the matchmaker to build candidates). 
-		// The callback runs while the registry lock is held, so it must NOT re-enter the registry; keep it to reading the def + cheap per-actor predicate checks.
+		// Visit every definition in one pinned snapshot. A concurrent reload publishes a new
+		// snapshot without invalidating this iteration.
 		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
 
 		size_t Size() const;
@@ -321,9 +338,8 @@ namespace OSF::Registry
 		std::vector<std::string> MissingClipRefs() const;
 
 	private:
-		mutable std::shared_mutex        lock;
-		std::unordered_map<std::string, SceneDef> scenes;  // key = lowercased id
-		std::vector<std::string>         loadErrors;
-		size_t                           authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
+		std::atomic<std::shared_ptr<const SceneRegistrySnapshot>> snapshot{
+			std::make_shared<const SceneRegistrySnapshot>()
+		};
 	};
 }

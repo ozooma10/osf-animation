@@ -6,6 +6,7 @@
 #include "ozz/base/span.h"
 
 #include <chrono>
+#include <cmath>
 
 namespace OSF::Animation
 {
@@ -313,12 +314,20 @@ namespace OSF::Animation
 		if (scene) {
 			const auto tick = scene->Advance(a_token, a_deltaTime);
 			if (tick.stage != appliedStage && participantIndex >= 0 && tick.stage < scene->stages.size()) {
-				const auto& slot = scene->stages[tick.stage].participants[participantIndex];
+				const auto& stage = scene->stages[tick.stage];
+				const auto& slot = stage.participants[participantIndex];
 				SetAnimation(slot.skeleton, slot.anim, slot.file);
-				blendDuration = scene->stages[tick.stage].blendIn;  // per-stage blend-in
+				blendDuration = stage.blendIn;  // per-stage blend-in
+				scenePlacement = stage.placements[participantIndex];
 				appliedStage = tick.stage;
 			}
 			localTime = tick.time;
+			// The scene's stage boundary uses its reference clip, but malformed packs can contain
+			// slightly different participant durations. Keep every SamplingJob ratio in [0,1) by
+			// wrapping against this graph's own clip instead of feeding ozz an invalid ratio.
+			if (anim && anim->data && anim->data->duration() > 0.0f) {
+				localTime = std::fmod(localTime, anim->data->duration());
+			}
 		}
 
 		if (!anim || !skeleton) {
@@ -340,13 +349,8 @@ namespace OSF::Animation
 			auto& clk = syncGroup->clock;
 			const int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now().time_since_epoch()).count();
-			//if owner clock stoped, elect new owner.
-			if (clk.owner && a_token != clk.owner && nowMs - syncGroup->lastAdvanceMs > kSyncOwnerStaleMs) {
-				clk.owner = nullptr;
-			}
-			if (clk.ShouldAdvance(a_token)) {
+			if (clk.ShouldAdvance(a_token, nowMs)) {
 				clk.time += a_deltaTime * syncGroup->speed.load(std::memory_order_relaxed);
-				syncGroup->lastAdvanceMs = nowMs;
 			}
 			float t = clk.time;
 			t = std::fmod(t, duration);

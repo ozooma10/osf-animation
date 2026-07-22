@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace OSF::Util
@@ -40,4 +41,8 @@ namespace OSF::Util
 	// candidates or touching the filesystem (string-only, no syscalls, nothing to throw beyond
 	// allocation). The clip-duration cache keys on this.
 	std::string ClipSpecDisplay(const std::filesystem::path& a_spec);
+
+	// Runtime glTF selector syntax: "File.glb:animationId". Colons in non-glTF paths (for
+	// example a Windows drive prefix) remain part of the path.
+	std::pair<std::string, std::string> SplitRuntimeClipSpec(std::string a_spec);
 }

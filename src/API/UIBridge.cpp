@@ -294,7 +294,8 @@ namespace OSF::API
 			}
 		}
 
-		// Actor count for a card: the declared role count, else the first playable stage's clip count (anonymous positional scenes have no roles[]). Reads only the def, so it is safe under the registry read lock (ForEachDef).
+		// Actor count for a card: the declared role count, else the first playable stage's clip count
+		// (anonymous positional scenes have no roles[]). ForEachDef pins the immutable snapshot.
 		std::size_t ActorCountOf(const Registry::SceneDef& a_def)
 		{
 			if (!a_def.roles.empty()) {
@@ -352,7 +353,7 @@ namespace OSF::API
 		std::string LaunchError(const std::string& a_sceneId, std::size_t a_castCount, bool a_haveFurniture)
 		{
 			auto&       reg = Registry::SceneRegistry::GetSingleton();
-			const auto* def = reg.Find(a_sceneId);
+			const auto def = reg.Find(a_sceneId);
 			if (!def) {
 				return "Unknown scene '" + a_sceneId + "'";
 			}
@@ -444,7 +445,7 @@ namespace OSF::API
 			const bool customized = Serialization::WheelPins::Customized();
 			if (customized) {
 				for (const auto& entry : Serialization::WheelPins::Entries()) {
-					if (const auto* def = registry.Find(entry.scene)) {
+					if (const auto def = registry.Find(entry.scene)) {
 						add(*def, entry);
 					}
 				}
@@ -480,7 +481,7 @@ namespace OSF::API
 		}
 
 		// Serialize the live scene registry to the osf.catalog.data array (a_library=false) or the osf.library.data array (a_library=true — the reference-library lane, e.g. the generated vanilla packs). 
-		// Copies the fields out from under the registry read lock, then builds JSON afterwards
+		// Copies fields from the pinned registry snapshot, then builds JSON afterwards.
 		json BuildCatalog(bool a_library)
 		{
 			const bool wheelCustomized = Serialization::WheelPins::Customized();
@@ -1036,7 +1037,7 @@ namespace OSF::API
 					entry.stage = stit->get<std::int32_t>();
 				}
 
-				const auto* def = Registry::SceneRegistry::GetSingleton().Find(entry.scene);
+				const auto def = Registry::SceneRegistry::GetSingleton().Find(entry.scene);
 				const bool eligible = def && (entry.stage < 0 ? IsWheelScene(*def) : WheelStage(*def, entry.stage) != nullptr);
 				if (!eligible) {
 					REX::WARN("[UI] osf.animation.wheel.set refused ineligible animation '{}' stage {}", entry.scene, entry.stage);
@@ -1170,7 +1171,7 @@ namespace OSF::API
 				};
 				auto& reg = Registry::SceneRegistry::GetSingleton();
 				if (!sceneId.empty()) {
-					if (const auto* def = reg.Find(sceneId)) {
+					if (const auto def = reg.Find(sceneId)) {
 						addDef(*def);
 					}
 				}

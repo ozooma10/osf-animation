@@ -76,7 +76,7 @@ namespace OSF::Scene
 	std::optional<SceneRuntime::AnchorOverride> ResolveSceneAnchor(
 		std::string_view a_sceneId, RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad, bool a_emitHud)
 	{
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+		const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 		if (!def || !def->RequiresAnchor()) {
 			return MakeAnchorAt(a_ref, a_headingRad);  // free scene: anchor optional, pass through
 		}

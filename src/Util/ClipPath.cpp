@@ -76,4 +76,19 @@ namespace OSF::Util
 			std::filesystem::current_path() / "Data" / "OSF" / "Animations" / a_spec.filename(), true });
 		return out;
 	}
+
+	std::pair<std::string, std::string> SplitRuntimeClipSpec(std::string a_spec)
+	{
+		const auto pos = a_spec.rfind(':');
+		if (pos == std::string::npos || pos + 1 >= a_spec.size()) {
+			return { std::move(a_spec), {} };
+		}
+		std::string pathPart = a_spec.substr(0, pos);
+		const auto ext = ToLower(std::filesystem::path{ pathPart }.extension().string());
+		if (ext != ".glb" && ext != ".gltf") {
+			return { std::move(a_spec), {} };
+		}
+		std::string animId = a_spec.substr(pos + 1);
+		return { std::move(pathPart), std::move(animId) };
+	}
 }

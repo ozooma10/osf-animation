@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // The matchmake-and-start funnel shared by every launch path (Papyrus natives, hotkeys, director).
@@ -37,6 +38,9 @@ namespace OSF::Scene
 	// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool> (1 = on, 0 = off, anything else incl. -1 = inherit the scene's pack default).
 	// LoopScale is sanitized: <=0 or NaN -> 1.0 (no scaling); inf / overshoot -> clamped to kLoopScaleMax.
 	SceneRuntime::StartOverrides MakeOverrides(const LaunchOpts& a_opts);
+	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_stripMode, std::int32_t a_lockPlayerMode,
+		std::int32_t a_playerControlMode, std::int32_t a_fadeMode, std::int32_t a_inPlaceMode,
+		std::string_view a_camera, float a_loopScale);
 
 	// Validate the actor list, matchmake a_query across the scene registry (priority tier + weighted-random) with anchor filtering (a_mode + a_opts.anchor),
 	// ENFORCE the picked scene's anchor requirement (ResolveSceneAnchor), and start the pick with its matchmade binding at the resolved anchor.

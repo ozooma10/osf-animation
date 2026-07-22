@@ -18,9 +18,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <cstddef>
 #include <format>
+#include <mutex>
+#include <unordered_set>
 
 namespace OSF::Animation
 {
@@ -57,6 +60,23 @@ namespace OSF::Animation
 		// BSFadeNode near-camera fade flag (+0x1B4, a float: 1.0 = drawn, 0.0 = faded).
 		// The engine fades an actor out when the third-person camera orbits close; we hold it at 1.0 each frame so pinned participants don't vanish.
 		constexpr std::ptrdiff_t kFadeNodeVisFlagOff = 0x1B4;
+
+		void WarnImplicitClipFallback(std::string_view a_spec, std::string_view a_resolved)
+		{
+			// A pack can reuse one clip across many scenes/stages. Keep this migration warning useful
+			// without flooding the shipped Info-level log on every playback.
+			static std::mutex warnedLock;
+			static std::unordered_set<std::string> warnedSpecs;
+			bool first = false;
+			{
+				std::scoped_lock l{ warnedLock };
+				first = warnedSpecs.emplace(a_spec).second;
+			}
+			if (first) {
+				REX::WARN("[Anim] clip '{}' resolved through deprecated implicit fallback '{}' — use an explicit Data-relative path or naf: spec",
+					a_spec, a_resolved);
+			}
+		}
 
 		class ResourceBinaryStream
 		{
@@ -180,7 +200,8 @@ namespace OSF::Animation
 		ClipLoad LoadClip(const ClipSpec& a_spec, std::string_view a_animId)
 		{
 			ClipLoad out;
-			for (const auto& cand : a_spec.candidates) {
+			for (std::size_t candidateIndex = 0; candidateIndex < a_spec.candidates.size(); candidateIndex++) {
+				const auto& cand = a_spec.candidates[candidateIndex];
 				const auto extPath = cand.resource ? std::filesystem::path{ cand.resourcePath } : cand.filePath;
 				const bool isAf = Util::ToLower(extPath.extension().string()) == ".af";
 
@@ -223,6 +244,9 @@ namespace OSF::Animation
 					}
 					out.ok = true;
 					out.source = cand.filePath.string();
+					if (candidateIndex > 0) {
+						WarnImplicitClipFallback(a_spec.display, out.source);
+					}
 					Serialization::ClipDurations::Record(a_spec.display, a_animId, out.anim->data->duration());
 					return out;
 				}
@@ -253,6 +277,9 @@ namespace OSF::Animation
 				}
 				out.ok = true;
 				out.source = cand.resourcePath;
+				if (candidateIndex > 0) {
+					WarnImplicitClipFallback(a_spec.display, out.source);
+				}
 				Serialization::ClipDurations::Record(a_spec.display, a_animId, out.anim->data->duration());
 				return out;
 			}
@@ -328,6 +355,12 @@ namespace OSF::Animation
 				REX::ERROR("[Anim] PlayScene: start stage {} out of range (plan has {} stages)", a_startStage, a_plan.stages.size());
 				return false;
 			}
+			if (a_plan.anchorExplicit &&
+				(!std::isfinite(a_plan.anchorPos.x) || !std::isfinite(a_plan.anchorPos.y) ||
+					!std::isfinite(a_plan.anchorPos.z) || !std::isfinite(a_plan.anchorHeading))) {
+				REX::ERROR("[Anim] PlayScene: explicit anchor contains a non-finite value");
+				return false;
+			}
 			for (size_t s = 0; s < a_plan.stages.size(); s++) {
 				const auto& stage = a_plan.stages[s];
 				if (stage.files.size() != a_actors.size() ||
@@ -336,6 +369,17 @@ namespace OSF::Animation
 					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} anim ids, {} placements, {} actors)",
 						s, stage.files.size(), stage.animIds.size(), stage.placements.size(), a_actors.size());
 					return false;
+				}
+				if (!std::isfinite(stage.timer)) {
+					REX::ERROR("[Anim] PlayScene: stage {} timer is non-finite", s);
+					return false;
+				}
+				for (const auto& placement : stage.placements) {
+					if (!std::isfinite(placement.x) || !std::isfinite(placement.y) ||
+						!std::isfinite(placement.z) || !std::isfinite(placement.heading)) {
+						REX::ERROR("[Anim] PlayScene: stage {} placement contains a non-finite value", s);
+						return false;
+					}
 				}
 			}
 			for (size_t i = 0; i < a_actors.size(); i++) {
@@ -358,7 +402,8 @@ namespace OSF::Animation
 				Scene::StageData stage;
 				stage.timer = planStage.timer;
 				stage.loops = planStage.loops;
-				stage.blendIn = (planStage.blendIn >= 0.0f) ? planStage.blendIn : a_plan.blendIn;
+				const float defaultBlend = std::isfinite(a_plan.blendIn) && a_plan.blendIn >= 0.0f ? a_plan.blendIn : 0.4f;
+				stage.blendIn = std::isfinite(planStage.blendIn) && planStage.blendIn >= 0.0f ? planStage.blendIn : defaultBlend;
 				stage.placements = planStage.placements.empty() ?
 				                       std::vector<ParticipantPlacement>(a_actors.size()) :
 				                       planStage.placements;
@@ -377,15 +422,21 @@ namespace OSF::Animation
 					stage.participants.push_back({ std::move(load.skeleton), std::move(load.anim), fileSpec });
 				}
 				stage.duration = stage.participants[0].anim->data->duration();
+				for (std::size_t i = 1; i < stage.participants.size(); i++) {
+					const float participantDuration = stage.participants[i].anim->data->duration();
+					if (std::abs(participantDuration - stage.duration) > 0.01f) {
+						REX::WARN("[Anim] PlayScene: stage participant {} duration {:.3f}s differs from reference {:.3f}s; sampling wraps independently",
+							i, participantDuration, stage.duration);
+					}
+				}
 				scene->stages.push_back(std::move(stage));
 			}
 			scene->animId = a_plan.animId;
 			scene->anchored = a_plan.anchored;
 			scene->loopWhole = a_plan.loopWhole;
-			scene->speed = std::clamp(a_plan.speed, 0.0f, 100.0f);  // same range as SetSpeed (no raw afSpeed)
+			const float requestedSpeed = std::isfinite(a_plan.speed) ? a_plan.speed : 1.0f;
+			scene->speed = std::clamp(requestedSpeed, 0.0f, 100.0f);  // same range as SetSpeed
 
-			// Current-stage state: placements is sized once here and only ever mutated element-wise afterwards (the pin reads it lock-free).
-			scene->placements.resize(a_actors.size());
 			scene->SetStage(a_startStage);
 
 			// Anchor at actor[0]'s current transform by default; participant world positions are anchor + each placement's offset rotated into the anchor heading frame (see PlacementToWorld).
@@ -566,8 +617,12 @@ namespace OSF::Animation
 		}
 	}
 
-	bool GraphManager::PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage)
+	bool GraphManager::PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
+		PlaybackId* a_outPlaybackId)
 	{
+		if (a_outPlaybackId) {
+			*a_outPlaybackId = 0;
+		}
 		if (!_origAnimGraphUpdate) {
 			REX::ERROR("[Anim] PlayScene refused: update hook is not installed");
 			return false;
@@ -582,6 +637,11 @@ namespace OSF::Animation
 		if (!scene) {
 			return false;
 		}
+		scene->playbackId = _nextPlaybackId.fetch_add(1, std::memory_order_relaxed);
+		if (scene->playbackId == 0) {
+			scene->playbackId = _nextPlaybackId.fetch_add(1, std::memory_order_relaxed);
+		}
+		scene->worldEpoch = _worldEpoch.load(std::memory_order_acquire);
 
 		const auto startStage = static_cast<uint32_t>(a_startStage);
 		{
@@ -608,9 +668,11 @@ namespace OSF::Animation
 					slot->blendDuration = scene->stages[startStage].blendIn;
 					slot->scene = scene.get();
 					slot->participantIndex = static_cast<int>(i);
+					slot->scenePlacement = scene->stages[startStage].placements[i];
 					slot->appliedStage = startStage;
 					slot->sceneFrames = 0;    // restart the HoldAnchoredParticipant re-assert cadence for this scene
 					slot->hasAnchor = false;  // the scene drives positioning; drop any solo SetAnchor
+					slot->anchorRevision++;
 					slot->syncGroup.reset();  // the scene clock supersedes any Sync group
 
 				}
@@ -627,7 +689,7 @@ namespace OSF::Animation
 		// anim running but stops walking the actor back to its post (re-asserted each frame by HoldAnchoredParticipant,
 		// cleared in StopSceneLocked). See OSF RE module gameplay.actor_animation_driven.
 		for (size_t i = 0; scene->anchored && i < scene->participants.size(); i++) {
-			const auto& pl = scene->placements[i];
+			const auto& pl = scene->stages[startStage].placements[i];
 			auto* refr = scene->participants[i]->target.get();
 			if (!refr) {
 				continue;
@@ -637,7 +699,24 @@ namespace OSF::Animation
 			// The PLAYER is never made animation-driven. Can get them stuck in a bad state
 			const bool isPlayer = refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton());
 			RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(refr) };
-			SFSE::GetTaskInterface()->AddTask([keepAlive, worldPos, heading, isPlayer]() {
+			const PlaybackId playbackId = scene->playbackId;
+			const std::uint64_t worldEpoch = scene->worldEpoch;
+			SFSE::GetTaskInterface()->AddTask([keepAlive, worldPos, heading, isPlayer, playbackId, worldEpoch]() {
+				auto& gm = GetSingleton();
+				if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
+					return;
+				}
+				{
+					std::shared_lock l{ gm.stateLock };
+					const auto it = gm.graphs.find(keepAlive.get());
+					if (it == gm.graphs.end()) {
+						return;
+					}
+					std::scoped_lock gl{ it->second->stateLock };
+					if (!it->second->scene || it->second->scene->playbackId != playbackId) {
+						return;
+					}
+				}
 				keepAlive->SetPosition(worldPos, true);  // move the havok capsule to the anchor (the cull's position input)
 				// Save window: keep the bit clear while a save serializes actor state (the hold cadence sets it once the window closes).
 				if (!isPlayer && !GetSingleton()._saveWindow.load(std::memory_order_relaxed)) {
@@ -657,11 +736,14 @@ namespace OSF::Animation
 		// tasks above, FIFO) — start point for the scene-camera investigation.
 		Camera::CameraService::GetSingleton().LogCameraTelemetry("scene-start");
 
-		REX::INFO("[Anim] Started synced scene: {} actors, {} stage(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
+		REX::DEBUG("[Anim] started synced playback: {} actors, {} stage(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
 			"anchored at ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
 			a_actors.size(), scene->stages.size(), startStage, scene->duration,
 			scene->stages[startStage].timer, scene->stages[startStage].loops,
 			scene->anchorPos.x, scene->anchorPos.y, scene->anchorPos.z, scene->anchorHeading);
+		if (a_outPlaybackId) {
+			*a_outPlaybackId = scene->playbackId;
+		}
 		return true;
 	}
 
@@ -718,6 +800,9 @@ namespace OSF::Animation
 
 	void GraphManager::StopAll(const char* a_reason)
 	{
+		// Invalidate every queued task from the discarded world before any service/graph state is
+		// cleared. Tasks already in the SFSE queue observe the new epoch and no-op.
+		_worldEpoch.fetch_add(1, std::memory_order_acq_rel);
 		// A pending save window must not outlive the world it was opened for (a load can begin mid-save-op).
 		_saveWindow.store(false, std::memory_order_relaxed);
 
@@ -864,6 +949,10 @@ namespace OSF::Animation
 		if (!a_actor) {
 			return false;
 		}
+		if (!std::isfinite(a_speed)) {
+			REX::WARN("[Anim] SetSpeed: rejected non-finite speed for actor {:X}", a_actor->formID);
+			return false;
+		}
 		const float speed = std::clamp(a_speed, 0.0f, 100.0f);  // 1.0 = authored, 0 = freeze
 		std::shared_lock l{ stateLock };
 		auto iter = graphs.find(a_actor);
@@ -906,8 +995,30 @@ namespace OSF::Animation
 		if (!a_actor) {
 			return false;
 		}
+		if (!std::isfinite(a_x) || !std::isfinite(a_y) || !std::isfinite(a_z) || !std::isfinite(a_headingDeg)) {
+			REX::WARN("[Anim] SetAnchor: rejected non-finite transform for actor {:X}", a_actor->formID);
+			return false;
+		}
 		const float heading = a_headingDeg * Util::kDegToRadF;
-		const auto mode = static_cast<RootMode>(std::clamp(a_rootMode, 0, 2));
+		RootMode mode = RootMode::kPin;
+		switch (a_rootMode) {
+		case 0:
+			break;
+		case 1:
+			mode = RootMode::kFollow;
+			break;
+		case 2:
+			// Pre-1.1 callers used 2=follow. Keep the alias through the 1.x ABI instead of
+			// casting it to an enum value that no longer exists.
+			mode = RootMode::kFollow;
+			REX::WARN("[Anim] SetAnchor: rootMode 2 is deprecated; use 1 for follow");
+			break;
+		default:
+			REX::WARN("[Anim] SetAnchor: rejected unknown rootMode {}", a_rootMode);
+			return false;
+		}
+		std::shared_ptr<Graph> anchoredGraph;
+		std::uint64_t anchorRevision = 0;
 		{
 			std::shared_lock l{ stateLock };
 			auto iter = graphs.find(a_actor);
@@ -924,12 +1035,31 @@ namespace OSF::Animation
 			iter->second->anchorPos = { a_x, a_y, a_z };
 			iter->second->rootMode = mode;
 			iter->second->hasAnchor = true;
+			anchorRevision = ++iter->second->anchorRevision;
+			anchoredGraph = iter->second;
 		}
 		//Move capsule to anchor too via actor->SetPosition
 		{
 			RE::NiPointer<RE::Actor> keepAlive{ a_actor };
 			const RE::NiPoint3 anchor{ a_x, a_y, a_z };
-			SFSE::GetTaskInterface()->AddTask([keepAlive, anchor, heading]() {
+			const auto worldEpoch = _worldEpoch.load(std::memory_order_acquire);
+			SFSE::GetTaskInterface()->AddTask([keepAlive, anchoredGraph, anchor, heading, anchorRevision, worldEpoch]() {
+				auto& gm = GetSingleton();
+				if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
+					return;
+				}
+				{
+					std::shared_lock l{ gm.stateLock };
+					const auto it = gm.graphs.find(keepAlive.get());
+					if (it == gm.graphs.end() || it->second != anchoredGraph) {
+						return;
+					}
+					std::scoped_lock gl{ anchoredGraph->stateLock };
+					if (anchoredGraph->scene || !anchoredGraph->hasAnchor ||
+						anchoredGraph->anchorRevision != anchorRevision) {
+						return;
+					}
+				}
 				keepAlive->SetPosition(anchor, true);
 				if (auto* transforms = RE::TransformService::GetSingleton()) {
 					transforms->SetHeadingZ(keepAlive.get(), heading);
@@ -953,6 +1083,7 @@ namespace OSF::Animation
 		}
 		std::scoped_lock gl{ iter->second->stateLock };
 		iter->second->hasAnchor = false;
+		iter->second->anchorRevision++;
 		return true;
 	}
 
@@ -1125,14 +1256,29 @@ namespace OSF::Animation
 			if (anchored && p->target) {
 				// participants are always Actors (PlayScene takes Actor*)
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
-				SFSE::GetTaskInterface()->AddTask([keepAlive]() {
+				const PlaybackId stoppedPlayback = (*sceneIter)->playbackId;
+				const std::uint64_t worldEpoch = (*sceneIter)->worldEpoch;
+				SFSE::GetTaskInterface()->AddTask([keepAlive, stoppedPlayback, worldEpoch]() {
+					auto& gm = GetSingleton();
+					if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
+						return;
+					}
+					{
+						std::shared_lock l{ gm.stateLock };
+						if (const auto it = gm.graphs.find(keepAlive.get()); it != gm.graphs.end()) {
+							std::scoped_lock gl{ it->second->stateLock };
+							if (it->second->scene && it->second->scene->playbackId != stoppedPlayback) {
+								return;  // a replacement scene now owns the actor's movement mode
+							}
+						}
+					}
 					keepAlive->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
 				});
 			}
 		}
 		scenes.erase(sceneIter);
 
-		REX::INFO("[Anim] Stopped scene");
+		REX::DEBUG("[Anim] stopped synced playback");
 	}
 
 	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph)
@@ -1175,6 +1321,9 @@ namespace OSF::Animation
 			}
 			REX::DEBUG("[Anim] Scene end task executing on game thread");
 			auto& gm = GetSingleton();
+			if (gm._worldEpoch.load(std::memory_order_acquire) != keepAlive->worldEpoch) {
+				return;
+			}
 
 			// The scene runtime gets first refusal: a graph-driven scene takes the matching auto-edge (advance to the next node / end its scene) and owns the teardown.
 			// A standalone scene (a direct StartScene* with no graph) isn't claimed, we stop it ourselves.
@@ -1188,7 +1337,8 @@ namespace OSF::Animation
 						actors.push_back(static_cast<RE::Actor*>(p->target.get()));
 					}
 				}
-				handled = gm._autoEndHandler(actors, keepAlive->endReason.load(std::memory_order_relaxed));
+				handled = gm._autoEndHandler(keepAlive->playbackId, actors,
+					keepAlive->endReason.load(std::memory_order_relaxed));
 			}
 			if (!handled) {
 				gm.StopSceneByPtr(keepAlive.get());
@@ -1277,14 +1427,20 @@ namespace OSF::Animation
 				keep.emplace_back(static_cast<RE::Actor*>(p->target.get()));
 			}
 		}
-		SFSE::GetTaskInterface()->AddTask([keep, marks]() {
+		const PlaybackId playbackId = a_graph.scene->playbackId;
+		const std::uint64_t worldEpoch = a_graph.scene->worldEpoch;
+		SFSE::GetTaskInterface()->AddTask([keep, marks, playbackId, worldEpoch]() {
+			auto& gm = GetSingleton();
+			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
+				return;
+			}
 			std::vector<RE::Actor*> actors;
 			actors.reserve(keep.size());
 			for (auto& a : keep) {
 				actors.push_back(a.get());
 			}
-			if (GetSingleton()._timedMarkHandler) {
-				GetSingleton()._timedMarkHandler(actors, marks);
+			if (gm._timedMarkHandler) {
+				gm._timedMarkHandler(playbackId, actors, marks);
 			}
 		});
 	}
@@ -1328,9 +1484,24 @@ namespace OSF::Animation
 			return;
 		}
 		RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(a_refr) };
-		SFSE::GetTaskInterface()->AddTask([keepAlive]() {
-			if (GetSingleton()._saveWindow.load(std::memory_order_relaxed)) {
+		const PlaybackId playbackId = a_graph.scene->playbackId;
+		const std::uint64_t worldEpoch = a_graph.scene->worldEpoch;
+		SFSE::GetTaskInterface()->AddTask([keepAlive, playbackId, worldEpoch]() {
+			auto& gm = GetSingleton();
+			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch ||
+				gm._saveWindow.load(std::memory_order_relaxed)) {
 				return;
+			}
+			{
+				std::shared_lock l{ gm.stateLock };
+				const auto it = gm.graphs.find(keepAlive.get());
+				if (it == gm.graphs.end()) {
+					return;
+				}
+				std::scoped_lock gl{ it->second->stateLock };
+				if (!it->second->scene || it->second->scene->playbackId != playbackId) {
+					return;
+				}
 			}
 			keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
 		});
@@ -1411,13 +1582,13 @@ namespace OSF::Animation
 						bool hasPinHeading = false;
 						if (g->scene && g->scene->anchored && g->participantIndex >= 0) {
 							pinWorld = PlacementToWorld(g->scene->anchorPos, g->scene->anchorHeading,
-								g->scene->placements[g->participantIndex]);
+								g->scenePlacement);
 							pinHeading = g->scene->anchorHeading +
-								g->scene->placements[g->participantIndex].heading;
+								g->scenePlacement.heading;
 							hasPinHeading = true;
 							doPin = true;
 						} else if (!g->scene && g->hasAnchor && g->rootMode != RootMode::kFollow) {
-							pinWorld = g->anchorPos;  // additive currently pins like kPin (root-motion travel not done yet)
+							pinWorld = g->anchorPos;
 							doPin = true;
 						}
 						if (doPin && a_parentTransform) {

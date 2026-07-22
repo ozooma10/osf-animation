@@ -24,7 +24,7 @@ namespace OSF::Animation
 		// This is hook scene runtime sets for autoadvance. called on game thread when anchored scene auto ends at final stage.
 		// This manager doesnt know scene graph, just hands runtime the actors and reasons.
 		// returns true if runtime took over what happens (move to next node or end scene). false means manager stops the scene itself, set at load before scene runs.
-		using SceneAutoEndHandler = std::function<bool(const std::vector<RE::Actor*>&, SceneEndReason)>;
+		using SceneAutoEndHandler = std::function<bool(PlaybackId, const std::vector<RE::Actor*>&, SceneEndReason)>;
 		void SetSceneAutoEndHandler(SceneAutoEndHandler a_handler) { _autoEndHandler = std::move(a_handler); }
 
 		// Hook called from StopAll (every teardown path) so scene runtime can drop handle table.
@@ -34,7 +34,7 @@ namespace OSF::Animation
 
 		// Hook called on Game Thread when scene stage fires marks (numeric or end) on any lane.
 		// hands runtime opaque (lane, token) marks and actors, and runtime decodes them (cue -> EVENT_CUE + trigger edges. action -> notify, sound/camera -> relevant service)
-		using SceneTimedMarkHandler = std::function<void(const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
+		using SceneTimedMarkHandler = std::function<void(PlaybackId, const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
 		void SetSceneTimedMarkHandler(SceneTimedMarkHandler a_handler) { _timedMarkHandler = std::move(a_handler); }
 
 		// Installs the AnimationManager::Update vtable hook.
@@ -60,7 +60,8 @@ namespace OSF::Animation
 		// Starts a staged synced scene from a ScenePlan. every stages clips are loaded up front. (stage switches are pointer swaps, not file IO)
 		// Refuses partial scenes. stages auto-advance on timers or loop count targets.
 		// after last stage the scene stops itself (on game thread)
-		bool PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage);
+		bool PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
+			PlaybackId* a_outPlaybackId = nullptr);
 
 		// Jumps the scene containing a_actor to the given stage (0-based);
 		// false if the actor is not in a scene or the stage is out of range.
@@ -83,7 +84,8 @@ namespace OSF::Animation
 		bool SetSpeed(RE::Actor* a_actor, float a_speed);
 		float GetSpeed(RE::Actor* a_actor);
 
-		// Pin a SOLO graph to a world point + heading (degrees), with a rootMode (0 pin / 1 additive / 2 follow). 
+		// Pin a SOLO graph to a world point + heading (degrees), with rootMode 0=pin / 1=follow.
+		// Legacy value 2 remains a deprecated follow alias for 1.x callers.
 		// Also moves the capsule there. Refused for scene participants. ClearAnchor releases it.
 		bool SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode);
 		bool ClearAnchor(RE::Actor* a_actor);
@@ -101,7 +103,8 @@ namespace OSF::Animation
 
 		// drops all inmemory scene + graph state immediately. (no fade or actor mutation)
 		// call when game loads save to nuke our state and reset from the world which is authority.
-		// dispatches end per torn-down scene (deferred, lands after load). Does not restore equipment/movement
+		// World teardown intentionally dispatches no scene callbacks into the discarded VM/world.
+		// Does not restore equipment/movement; the loaded world is authoritative.
 		void StopAll(const char* a_reason);
 
 		// We want to to a scrub of transient bits we set on actors that might persist in save.
@@ -166,6 +169,11 @@ namespace OSF::Animation
 		// Mirror of graphs.size(), refreshed after every mutation under unique stateLock.
 		// Both hooks run for EVERY skeleton/manager in the game, game-wide, forever - this lets the idle case (no OSF playback) early out without touching stateLock at all.
 		std::atomic<size_t> graphCount{ 0 };
+
+		// Concrete playback identity and world generation. Deferred tasks carry both: playbackId
+		// prevents actor-reuse ABA bugs, while worldEpoch invalidates every pre-load task at once.
+		std::atomic<PlaybackId> _nextPlaybackId{ 1 };
+		std::atomic<std::uint64_t> _worldEpoch{ 1 };
 
 		// Stall watchdog bookkeeping (see StallWatchTick), all steady-clock ms, lock-free.
 		std::atomic<std::int64_t> _stallLastHookMs{ 0 };  // last time the hook ran (a big jump = the game was paused/loading)

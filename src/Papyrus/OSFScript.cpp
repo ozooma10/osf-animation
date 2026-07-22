@@ -16,6 +16,7 @@
 #include "Serialization/ClipDurations.h"
 #include "Serialization/GLTFImport.h"
 #include "UI/HudMessage.h"
+#include "Util/ClipPath.h"
 #include "Util/Math.h"
 #include "Util/StringUtil.h"
 
@@ -24,7 +25,6 @@
 #include "RE/S/StructTypeInfo.h"
 
 #include <algorithm>
-#include <filesystem>
 #include <format>
 
 namespace OSF::Papyrus
@@ -266,7 +266,7 @@ namespace OSF::Papyrus
 		}
 
 		// Pin akActor's solo graph to a WORLD point + heading (degrees). 
-		// aiRootMode: 0 pin / 1 additive / 2 follow. 
+		// aiRootMode: 0 pin / 1 follow. Legacy 2 is accepted as follow for 1.x callers.
 		// Also moves the capsule there. Refused for scene participants (their placement is scene-driven).
 		bool SetAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
@@ -340,7 +340,7 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const std::string sid = a_id.c_str();
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(sid);
+			const auto def = Registry::SceneRegistry::GetSingleton().Find(sid);
 			if (!def) {
 				REX::DEBUG("[Papyrus] StartScene: no scene '{}'", sid);
 				return 0;
@@ -377,7 +377,7 @@ namespace OSF::Papyrus
 			const std::string sid = a_id.c_str();
 			// StartSceneRoles carries no SceneOptions, so it can't supply the anchor an anchor-bound scene
 			// needs. Reject early with a clear pointer to StartScene rather than failing the placement later.
-			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(sid); def && def->RequiresAnchor()) {
+			if (const auto def = Registry::SceneRegistry::GetSingleton().Find(sid); def && def->RequiresAnchor()) {
 				REX::WARN("[Papyrus] StartSceneRoles: scene '{}' is anchor-bound — use StartScene with SceneOptions.Anchor", sid);
 				UI::HudMessage::Error(std::format("scene '{}' needs a furniture anchor (use StartScene)", sid));
 				return 0;
@@ -508,33 +508,13 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().GetParticipants(a_scene);
 		}
 
-		bool IsGltfPath(std::string_view a_path)
-		{
-			const auto ext = Util::ToLower(std::filesystem::path{ std::string(a_path) }.extension().string());
-			return ext == ".glb" || ext == ".gltf";
-		}
-
-		std::pair<std::string, std::string> SplitRuntimeClipSpec(std::string a_spec)
-		{
-			const auto pos = a_spec.rfind(':');
-			if (pos == std::string::npos || pos + 1 >= a_spec.size()) {
-				return { std::move(a_spec), {} };
-			}
-			std::string pathPart = a_spec.substr(0, pos);
-			if (!IsGltfPath(pathPart)) {
-				return { std::move(a_spec), {} };
-			}
-			std::string animId = a_spec.substr(pos + 1);
-			return { std::move(pathPart), std::move(animId) };
-		}
-
 		Animation::ScenePlan::Stage MakeStageFromFiles(const std::vector<RE::BSFixedString>& a_files, std::size_t a_begin, std::size_t a_count)
 		{
 			Animation::ScenePlan::Stage stage;
 			stage.files.reserve(a_count);
 			stage.animIds.reserve(a_count);
 			for (std::size_t i = 0; i < a_count; i++) {
-				auto [file, animId] = SplitRuntimeClipSpec(a_files[a_begin + i].c_str());
+				auto [file, animId] = Util::SplitRuntimeClipSpec(a_files[a_begin + i].c_str());
 				stage.files.push_back(std::move(file));
 				stage.animIds.push_back(std::move(animId));
 			}
@@ -699,7 +679,7 @@ namespace OSF::Papyrus
 			// SceneOptions.Stage enters directly on the stage node (same semantics as StartScene) instead of
 			// the old post-start SetStage jump, which played the entry node first (visible pop, double load).
 			std::string entryNode;
-			if (const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str())) {
+			if (const auto def = Registry::SceneRegistry::GetSingleton().Find(a_id.c_str())) {
 				auto resolved = ResolveStageEntryNode(*def, opts.stage, "OSF.StartSceneRolesEx");
 				if (!resolved) {
 					return 0;
@@ -718,7 +698,7 @@ namespace OSF::Papyrus
 			files.reserve(a_files.size());
 			animIds.reserve(a_files.size());
 			for (const auto& spec : a_files) {
-				auto [file, animId] = SplitRuntimeClipSpec(spec.c_str());
+				auto [file, animId] = Util::SplitRuntimeClipSpec(spec.c_str());
 				files.push_back(std::move(file));
 				animIds.push_back(std::move(animId));
 			}

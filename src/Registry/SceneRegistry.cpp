@@ -761,7 +761,7 @@ namespace OSF::Registry
 			return out;
 		}
 
-		// Cue lane (the one track the legacy ParseCueTracks parses inline). Cues need an explicit `at`.
+		// Cue lane. Cues need an explicit `at`.
 		void ParseOsfCueLane(const json& a_entries, SceneNode& a_node)
 		{
 			if (!a_entries.is_array()) {
@@ -953,7 +953,7 @@ namespace OSF::Registry
 		}
 
 		// Cross-node validation of a graph scene: edge targets, entry-is-a-node, and action/sound role
-		// references. Mirrors the legacy ParseScene checks (anonymous roles are unreferenceable).
+		// references. Anonymous roles are intentionally unreferenceable.
 		void ValidateGraph(const SceneDef& def, const std::unordered_set<std::string>& a_nodeIds)
 		{
 			if (!a_nodeIds.count(ToLower(def.entry))) {
@@ -1748,31 +1748,36 @@ namespace OSF::Registry
 		const auto sceneCount = loaded.size();
 		const auto clipEntryCount = AddSceneClipEntries(loaded);
 		const auto problemCount = errors.size();
-		{
-			std::unique_lock l{ lock };
-			scenes = std::move(loaded);
-			loadErrors = std::move(errors);
-			authoredSceneCount = sceneCount;
-		}
+		auto next = std::make_shared<SceneRegistrySnapshot>();
+		next->scenes = std::move(loaded);
+		next->loadErrors = std::move(errors);
+		next->authoredSceneCount = sceneCount;
+		snapshot.store(std::move(next), std::memory_order_release);
 		REX::INFO("[Registry] {} scene(s) loaded, {} scene clip entr{}, {} problem(s)",
 			sceneCount, clipEntryCount, clipEntryCount == 1 ? "y" : "ies", problemCount);
 	}
 
-	const SceneDef* SceneRegistry::Find(std::string_view a_id) const
+	SceneRef SceneRegistry::Find(std::string_view a_id) const
 	{
-		std::shared_lock l{ lock };
-		const auto it = scenes.find(ToLower(std::string(a_id)));
-		return it != scenes.end() ? &it->second : nullptr;
+		SceneRef out;
+		out.owner = snapshot.load(std::memory_order_acquire);
+		const auto it = out.owner->scenes.find(ToLower(std::string(a_id)));
+		if (it != out.owner->scenes.end()) {
+			out.value = &it->second;
+		}
+		return out;
 	}
 
-	std::optional<Animation::ScenePlan> SceneRegistry::BuildNodePlan(const SceneDef& a_def, const SceneNode& a_node, size_t a_actorCount) const
+	std::optional<Animation::ScenePlan> SceneRegistry::BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const
 	{
+		if (!a_def) {
+			return std::nullopt;
+		}
 		if (!a_node.use.empty()) {
 			// A `use` node splices the target scene's single inline-stage node (validated at load,
 			// re-checked here). The target's own roles supply the default placements.
-			std::shared_lock l{ lock };
-			const auto it = scenes.find(ToLower(a_node.use));
-			if (it == scenes.end()) {
+			const auto it = a_def.owner->scenes.find(ToLower(a_node.use));
+			if (it == a_def.owner->scenes.end()) {
 				REX::WARN("[Registry] node '{}' use '{}' references unknown scene", a_node.id, a_node.use);
 				return std::nullopt;
 			}
@@ -1783,38 +1788,36 @@ namespace OSF::Registry
 			}
 			auto plan = BuildPlanFromStages(target.id, target.roles, target.nodes[0].stages, a_actorCount);
 			if (plan) {
-				plan->anchored = !a_def.inPlace;  // the OWNING scene's posture governs, like its other policies
+				plan->anchored = !a_def->inPlace;  // the OWNING scene's posture governs, like its other policies
 			}
 			return plan;
 		}
 		// Inline node: this scene's roles supply the default placements.
-		auto plan = BuildPlanFromStages(a_def.id, a_def.roles, a_node.stages, a_actorCount);
+		auto plan = BuildPlanFromStages(a_def->id, a_def->roles, a_node.stages, a_actorCount);
 		if (plan) {
 			// inPlace scene: no teleport/pin — the rig follows each actor's live transform, so the
 			// player's heading/position (and with them the vanilla third-person camera) stay untouched.
-			plan->anchored = !a_def.inPlace;
+			plan->anchored = !a_def->inPlace;
 		}
 		return plan;
 	}
 
 	void SceneRegistry::ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const
 	{
-		std::shared_lock l{ lock };
-		for (const auto& [key, def] : scenes) {
+		const auto current = snapshot.load(std::memory_order_acquire);
+		for (const auto& [key, def] : current->scenes) {
 			a_fn(def);
 		}
 	}
 
 	size_t SceneRegistry::Size() const
 	{
-		std::shared_lock l{ lock };
-		return authoredSceneCount;
+		return snapshot.load(std::memory_order_acquire)->authoredSceneCount;
 	}
 
 	std::vector<std::string> SceneRegistry::LoadErrors() const
 	{
-		std::shared_lock l{ lock };
-		return loadErrors;
+		return snapshot.load(std::memory_order_acquire)->loadErrors;
 	}
 
 	std::vector<std::string> SceneRegistry::MissingClipRefs() const
@@ -1831,8 +1834,8 @@ namespace OSF::Registry
 		};
 
 		std::vector<std::string> out;
-		std::shared_lock l{ lock };
-		for (const auto& [key, def] : scenes) {
+		const auto current = snapshot.load(std::memory_order_acquire);
+		for (const auto& [key, def] : current->scenes) {
 			for (const auto& node : def.nodes) {
 				for (const auto& stage : node.stages) {
 					for (const auto& clip : stage.clips) {

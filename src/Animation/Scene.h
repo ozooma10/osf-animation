@@ -11,6 +11,7 @@
 namespace OSF::Animation
 {
 	class Graph;
+	using PlaybackId = std::uint64_t;
 
 	// Offset from the scene anchor, rotated into the anchor's heading frame.
 	struct ParticipantPlacement
@@ -137,9 +138,6 @@ namespace OSF::Animation
 
 		std::vector<std::shared_ptr<Graph>> participants;
 
-		// CURRENT stage's placements. The pin reads this lock-free, so stage switches overwrite in place — sized once at start, never reallocated.
-		std::vector<ParticipantPlacement> placements;
-
 		// Immutable after publish — graphs read it lock-free on a stage change.
 		std::vector<StageData> stages;
 
@@ -157,6 +155,11 @@ namespace OSF::Animation
 		// Why the terminal stage ended (only meaningful once `ended` is set). 
 		// Set under `lock` in Advance; read by the deferred auto-end task to pick the auto-edge.
 		std::atomic<SceneEndReason> endReason{ SceneEndReason::kLoops };
+
+		// Stable identity for this concrete playback instance. Runtime callbacks validate it so a
+		// deferred task from an old node can never act on a replacement using the same actors.
+		PlaybackId playbackId = 0;
+		std::uint64_t worldEpoch = 0;
 
 		// Advances the shared clock once per frame (owner-token gated), auto-advancing stages, and returns the time + stage this sample should use.
 		Tick Advance(const void* a_token, float a_deltaTime);

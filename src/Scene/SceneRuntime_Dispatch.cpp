@@ -25,8 +25,9 @@ namespace OSF::Scene
 	{
 		// Undo-ledger replay before SCENE_END: reverse every reversible mechanism this scene
 		// engaged (reverse order, once, idempotently) so a listener reacting to scene-end already
-		// sees the actors/screen restored. Runs on every termination path (they all Fire
-		// SCENE_END), so cleanup never depends on an authored release action.
+		// sees the actors/screen restored. Runs on every runtime termination path (they all
+		// Fire SCENE_END), so cleanup never depends on an authored release action. World-load
+		// teardown clears the runtime and its services directly without dispatching events.
 		if (a_event == Event::kSceneEnd) {
 			GetSingleton().ReplayLedger(a_handle);
 		}
@@ -86,11 +87,11 @@ namespace OSF::Scene
 
 	void SceneRuntime::DispatchLifecycleCues(std::int32_t a_handle, std::string_view a_node, bool a_enter)
 	{
-		const std::string id = GetSingleton().GetId(a_handle);  // "" for pack/files -> no cues
-		if (id.empty()) {
+		SlotView view;
+		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
 			return;
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;
@@ -154,11 +155,11 @@ namespace OSF::Scene
 
 	void SceneRuntime::DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter)
 	{
-		const std::string id = GetSingleton().GetId(a_handle);  // "" for pack/files -> no sounds
-		if (id.empty()) {
+		SlotView view;
+		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
 			return;
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(id);
+		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;
@@ -219,7 +220,7 @@ namespace OSF::Scene
 			REX::DEBUG("[Scene] scene {:#010x} node '{}' authored cameras suppressed — per-start camera override active", a_handle, a_node);
 			return;
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;  // pack/files scene or unknown node — no camera entries
@@ -271,7 +272,7 @@ namespace OSF::Scene
 			return participants.front();  // default target = the first participant
 		}
 		// The binding is role-declaration order: roles[i] <-> participants[i].
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
 		if (!def) {
 			return nullptr;
 		}
@@ -290,7 +291,7 @@ namespace OSF::Scene
 		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
 			return;
 		}
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;  // pack/files scene or unknown node — no actions

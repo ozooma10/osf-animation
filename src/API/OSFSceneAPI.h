@@ -23,6 +23,7 @@ namespace OSF::API
 	// Packed (MAJOR << 16) | MINOR. MAJOR breaks ABI; MINOR bumps on an appended vmethod or an appended OSFStartOptions field.
 	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 2u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
+	inline constexpr std::uint32_t kOSFSceneAPIMinor   = kOSFSceneAPIVersion & 0xFFFFu;
 
 	inline constexpr const wchar_t* kOSFModuleName     = L"OSF Animation.dll";
 	inline constexpr const char*    kRequestExportName = "OSF_RequestSceneAPI";
@@ -110,7 +111,8 @@ namespace OSF::API
 		virtual std::int32_t GetSceneStage(std::int32_t a_handle) = 0;  // linear scenes; -1 otherwise
 
 		// Writes up to a_cap entries into a_out (caller-owned); returns the TOTAL participant count.
-		// A just-ended (not-yet-reclaimed) handle still returns its final roster, so an end handler can read who took part; those actors may be mid-teardown, so touch them only on the game thread.
+		// A just-ended handle retains its final roster for the loaded world, so an end handler can
+		// read who took part; those actors may be mid-teardown, so touch them only on the game thread.
 		virtual std::uint32_t GetSceneParticipants(std::int32_t a_handle,
 			RE::Actor** a_out, std::uint32_t a_cap) = 0;
 

@@ -117,14 +117,15 @@ namespace OSF::Scene
 	{
 		auto& gm = Animation::GraphManager::GetSingleton();
 		gm.SetSceneAutoEndHandler(
-			[](const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason a_reason) {
-				return SceneRuntime::GetSingleton().OnGraphAutoEnd(a_actors, a_reason);
+			[](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason a_reason) {
+				return SceneRuntime::GetSingleton().OnGraphAutoEnd(a_playbackId, a_actors, a_reason);
 			});
 		// Drop the handle table on any load teardown (handles hold raw Actor* participants).
 		gm.SetSceneClearHandler([]() { SceneRuntime::GetSingleton().Clear(); });
 		// Decode the timed marks a scene's stage crosses (cue -> EVENT_CUE/trigger, action -> run).
-		gm.SetSceneTimedMarkHandler([](const std::vector<RE::Actor*>& a_actors, const std::vector<Animation::FiredMark>& a_marks) {
-			SceneRuntime::GetSingleton().OnTimedMarks(a_actors, a_marks);
+		gm.SetSceneTimedMarkHandler([](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors,
+			const std::vector<Animation::FiredMark>& a_marks) {
+			SceneRuntime::GetSingleton().OnTimedMarks(a_playbackId, a_actors, a_marks);
 		});
 		// How a player director verb (from the InputService input hook) drives the active scene.
 		Input::InputService::GetSingleton().SetVerbHandler(
@@ -169,6 +170,24 @@ namespace OSF::Scene
 		return nullptr;
 	}
 
+	SceneRuntime::Slot* SceneRuntime::FindSlotForPlayback(Animation::PlaybackId a_playbackId, std::int32_t* a_token)
+	{
+		if (a_playbackId == 0) {
+			return nullptr;
+		}
+		for (std::uint16_t slot = 0; slot < _slots.size(); slot++) {
+			Slot& s = _slots[slot];
+			if (s.generation == 0 || s.ended || s.playbackId != a_playbackId) {
+				continue;
+			}
+			if (a_token) {
+				*a_token = MakeToken(s.generation, slot);
+			}
+			return &s;
+		}
+		return nullptr;
+	}
+
 	bool SceneRuntime::SnapshotSlot(std::int32_t a_handle, SlotView& a_out)
 	{
 		std::lock_guard l{ _lock };
@@ -179,6 +198,8 @@ namespace OSF::Scene
 		a_out.id = s->id;
 		a_out.node = s->node;
 		a_out.participants = s->participants;
+		a_out.playbackId = s->playbackId;
+		a_out.definition = s->definition;
 		a_out.cameraOverridden = s->cameraOverridden;
 		return true;
 	}
@@ -215,20 +236,32 @@ namespace OSF::Scene
 		std::uint16_t slot = 0;
 		bool reused = false;
 		for (; slot < _slots.size(); slot++) {
-			// Reclaim empty slots and retired (ended) ones — the latter still hold a roster from
-			// their finished scene, which the reset below discards (and the new generation kills
-			// any lingering handle that was still reading it).
-			if (_slots[slot].generation == 0 || _slots[slot].ended) {
+			// Do not eagerly reclaim retired slots: Papyrus event dispatch is asynchronous, and a
+			// later scene can start before an earlier SCENE_END handler runs. Keeping tombstones for
+			// the current world makes the documented participant-roster lookup deterministic.
+			if (_slots[slot].generation == 0) {
 				reused = true;
 				break;
 			}
 		}
 		if (!reused) {
 			if (_slots.size() >= 0xFFFF) {
-				REX::ERROR("[Scene] handle table full");
-				return 0;
+				// Emergency pressure valve after 65k starts in one loaded world. Prefer the oldest
+				// retired slot; live scenes are never displaced. This should be unreachable in normal play.
+				for (slot = 0; slot < _slots.size(); slot++) {
+					if (_slots[slot].ended) {
+						reused = true;
+						REX::WARN("[Scene] handle table exhausted — reclaiming an ended roster tombstone");
+						break;
+					}
+				}
+				if (!reused) {
+					REX::ERROR("[Scene] handle table full of live scenes");
+					return 0;
+				}
+			} else {
+				_slots.emplace_back();
 			}
-			_slots.emplace_back();
 		}
 
 		const std::uint16_t gen = _nextGen++;
@@ -253,13 +286,20 @@ namespace OSF::Scene
 			// roster (the async SCENE_END dispatch reads it via GetParticipants), but drop every
 			// other field — the undo ledger already replayed before SCENE_END, so equipment/weapon/
 			// grant state is spent. The actors are freed for a new scene (FindSlotForActor skips
-			// ended). MintSlot reclaims this slot later, resetting it and bumping the generation.
+			// ended). The tombstone normally survives until Clear() on world load; MintSlot only
+			// reclaims one under the emergency 65k-slot pressure valve.
 			const std::uint16_t gen = s->generation;
 			std::vector<RE::Actor*> roster = std::move(s->participants);
+			std::vector<RE::NiPointer<RE::Actor>> retained;
+			retained.reserve(roster.size());
+			for (auto* actor : roster) {
+				retained.emplace_back(actor);
+			}
 			*s = Slot{};
 			s->generation = gen;
 			s->ended = true;
 			s->participants = std::move(roster);
+			s->retiredParticipantRefs = std::move(retained);
 		}
 	}
 
@@ -317,7 +357,7 @@ namespace OSF::Scene
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
 		// A registry scene has a stage number only if it declares linearStages; an ad-hoc files
 		// scene (no registry def) reports the single GraphManager scene's live stage.
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
 		if (!def) {
 			return Animation::GraphManager::GetSingleton().GetSceneStage(first);
 		}
@@ -331,7 +371,7 @@ namespace OSF::Scene
 			return false;
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
-		const auto* def = Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
 		if (!def) {
 			// ad-hoc files scene: jump the live GraphManager scene (it range-checks the stage).
 			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage);
@@ -360,7 +400,7 @@ namespace OSF::Scene
 			if (s.generation == 0 || s.ended) {
 				continue;  // empty, or retired (kept only for the async SCENE_END roster read)
 			}
-			out.push_back(ActiveScene{ MakeToken(s.generation, slot), s.id, s.node, s.participants });
+			out.push_back(ActiveScene{ MakeToken(s.generation, slot), s.id, s.node, s.participants, s.playbackId });
 		}
 		return out;
 	}

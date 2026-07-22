@@ -5,15 +5,14 @@
 #include "Animation/Scene.h"  // Animation::ScenePlan (ad-hoc files start)
 #include "Registry/SceneRegistry.h"  // SceneDef::RequiresAnchor (anchor-bound guard)
 #include "Scene/AnchorResolve.h"     // shared furniture-anchor resolution
+#include "Scene/SceneLauncher.h"     // canonical per-start option normalization
 #include "Scene/SceneRuntime.h"
-#include "Util/StringUtil.h"  // Util::ToLower
+#include "Util/ClipPath.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstring>
-#include <filesystem>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,46 +21,29 @@ namespace OSF::API
 {
 	namespace
 	{
-		// Mirror of the canonical Scene::MakeOverrides/MakeAnchor sanitization (src/Scene/SceneLauncher.h — kept in lockstep).
-		constexpr float kLoopScaleMax = 20.0f;
+		constexpr std::size_t kStartOptionsV1Size = offsetof(OSFStartOptions, inPlaceMode);
 
-		// Tri-state: 1 = force on, 0 = force off, anything else (incl. -1) = inherit.
-		std::optional<bool> TriState(std::int32_t a_v)
+		bool ValidStartOptions(const OSFStartOptions& a_opts)
 		{
-			if (a_v == 1) {
-				return true;
-			}
-			if (a_v == 0) {
+			if (a_opts.size < kStartOptionsV1Size) {
+				REX::WARN("[API] rejected OSFStartOptions with size {} (minimum {})", a_opts.size, kStartOptionsV1Size);
 				return false;
 			}
-			return std::nullopt;
+			return true;
 		}
 
 		Scene::SceneRuntime::StartOverrides MakeOverrides(const OSFStartOptions& a_opts)
 		{
-			Scene::SceneRuntime::StartOverrides over{};
-			over.strip = TriState(a_opts.stripMode);
-			over.lockPlayer = TriState(a_opts.lockPlayerMode);
-			over.playerControl = TriState(a_opts.playerControlMode);
-			over.fade = TriState(a_opts.fadeMode);
 			// camera is a fixed buffer; read it bounded so a non-NUL-terminated POD can't overrun.
-			if (const std::size_t len = ::strnlen(a_opts.camera, sizeof(a_opts.camera)); len > 0) {
-				over.camera = std::string(a_opts.camera, len);
-			}
-			// Sanitize LoopScale HERE (never trust the POD): <=0 / NaN -> 1.0; overshoot -> clamp.
-			float ls = a_opts.loopScale;
-			if (!(ls > 0.0f)) {
-				ls = 1.0f;
-			} else if (ls > kLoopScaleMax) {
-				ls = kLoopScaleMax;
-			}
-			over.loopScale = ls;
+			const std::size_t len = ::strnlen(a_opts.camera, sizeof(a_opts.camera));
 			// APPENDED fields (MINOR >= 2): read only when the consumer's stamped size covers them —
 			// an older consumer's smaller POD ends before this field.
+			std::int32_t inPlaceMode = -1;
 			if (a_opts.size >= offsetof(OSFStartOptions, inPlaceMode) + sizeof(a_opts.inPlaceMode)) {
-				over.inPlace = TriState(a_opts.inPlaceMode);
+				inPlaceMode = a_opts.inPlaceMode;
 			}
-			return over;
+			return Scene::MakeOverrides(a_opts.stripMode, a_opts.lockPlayerMode, a_opts.playerControlMode,
+				a_opts.fadeMode, inPlaceMode, std::string_view(a_opts.camera, len), a_opts.loopScale);
 		}
 
 		Scene::SceneRuntime::AnchorOverride MakeAnchor(const OSFStartOptions& a_opts)
@@ -73,27 +55,6 @@ namespace OSF::API
 				anchor.heading = a_opts.anchorHeadingRad;  // RADIANS (the POD documents this)
 			}
 			return anchor;
-		}
-
-		bool IsGltfPath(std::string_view a_path)
-		{
-			const auto ext = Util::ToLower(std::filesystem::path{ std::string(a_path) }.extension().string());
-			return ext == ".glb" || ext == ".gltf";
-		}
-
-		// Split "File.glb:animId" into (path, animId), matching OSFScript.cpp's SplitRuntimeClipSpec.
-		std::pair<std::string, std::string> SplitRuntimeClipSpec(std::string a_spec)
-		{
-			const auto pos = a_spec.rfind(':');
-			if (pos == std::string::npos || pos + 1 >= a_spec.size()) {
-				return { std::move(a_spec), {} };
-			}
-			std::string pathPart = a_spec.substr(0, pos);
-			if (!IsGltfPath(pathPart)) {
-				return { std::move(a_spec), {} };  // a bare drive-letter colon etc. — not a clip spec
-			}
-			std::string animId = a_spec.substr(pos + 1);
-			return { std::move(pathPart), std::move(animId) };
 		}
 
 		// Copy the raw actor array into a vector; false (and a_out cleared) if empty or any actor is null
@@ -117,7 +78,7 @@ namespace OSF::API
 		// An anchorbound scene with no anchorref cant be placed.
 		bool AnchorBoundRefused(std::string_view a_sceneId, const char* a_tag)
 		{
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+			const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 			if (def && def->RequiresAnchor()) {
 				REX::WARN("[API] {} '{}' is anchor-bound (furniture) - set OSFStartOptions.anchorRef to the furniture ref. Start refused", a_tag, a_sceneId);
 				return true;
@@ -145,7 +106,7 @@ namespace OSF::API
 			if (a_stage <= 0) {
 				return {};
 			}
-			const auto* def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+			const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
 			if (!def) {
 				return {};  // unknown scene — the start itself will fail with the right log
 			}
@@ -199,7 +160,7 @@ namespace OSF::API
 			const OSFStartOptions& a_opts) override
 		{
 			std::vector<RE::Actor*> actors;
-			if (!a_sceneId || !CollectActors(a_actors, a_count, actors)) {
+			if (!a_sceneId || !ValidStartOptions(a_opts) || !CollectActors(a_actors, a_count, actors)) {
 				return 0;
 			}
 			const auto over = MakeOverrides(a_opts);
@@ -231,7 +192,7 @@ namespace OSF::API
 			const char* const* a_roles, std::uint32_t a_roleCount, const OSFStartOptions& a_opts) override
 		{
 			std::vector<RE::Actor*> actors;
-			if (!a_sceneId || !CollectActors(a_actors, a_count, actors)) {
+			if (!a_sceneId || !ValidStartOptions(a_opts) || !CollectActors(a_actors, a_count, actors)) {
 				return 0;
 			}
 			if (!a_roles || a_roleCount != a_count) {
@@ -267,7 +228,7 @@ namespace OSF::API
 			const OSFStartOptions& a_opts) override
 		{
 			std::vector<RE::Actor*> actors;
-			if (!a_files || !CollectActors(a_actors, a_count, actors)) {
+			if (!a_files || !ValidStartOptions(a_opts) || !CollectActors(a_actors, a_count, actors)) {
 				return 0;
 			}
 			Animation::ScenePlan        plan;
@@ -275,7 +236,7 @@ namespace OSF::API
 			stage.files.reserve(a_count);
 			stage.animIds.reserve(a_count);
 			for (std::uint32_t i = 0; i < a_count; i++) {
-				auto [file, animId] = SplitRuntimeClipSpec(a_files[i] ? a_files[i] : "");
+				auto [file, animId] = Util::SplitRuntimeClipSpec(a_files[i] ? a_files[i] : "");
 				stage.files.push_back(std::move(file));
 				stage.animIds.push_back(std::move(animId));
 			}
@@ -403,7 +364,8 @@ namespace OSF::API
 // Returns nullptr on a MAJOR ABI mismatch or before OSF has marked the API ready.
 extern "C" __declspec(dllexport) OSF::API::IOSFSceneAPI* OSF_RequestSceneAPI(std::uint32_t a_abiVersion)
 {
-	if ((a_abiVersion >> 16) != OSF::API::kOSFSceneAPIMajor) {
+	if ((a_abiVersion >> 16) != OSF::API::kOSFSceneAPIMajor ||
+		(a_abiVersion & 0xFFFFu) > OSF::API::kOSFSceneAPIMinor) {
 		return nullptr;  // incompatible vtable ABI - degrade rather than corrupt
 	}
 	return OSF::API::SceneAPIImpl::GetSingleton().IfReady();

@@ -48,6 +48,14 @@ namespace OSF::Scene
 	// LoopScale is sanitized: <=0 or NaN -> 1.0 (no scaling); inf / overshoot -> clamped to kLoopScaleMax.
 	SceneRuntime::StartOverrides MakeOverrides(const LaunchOpts& a_opts)
 	{
+		return MakeOverrides(a_opts.stripMode, a_opts.lockPlayerMode, a_opts.playerControlMode,
+			a_opts.fadeMode, a_opts.inPlaceMode, a_opts.camera, a_opts.loopScale);
+	}
+
+	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_stripMode, std::int32_t a_lockPlayerMode,
+		std::int32_t a_playerControlMode, std::int32_t a_fadeMode, std::int32_t a_inPlaceMode,
+		std::string_view a_camera, float a_loopScale)
+	{
 		SceneRuntime::StartOverrides over{};
 		const auto triState = [](std::int32_t a_v) -> std::optional<bool> {
 			if (a_v == 1) {
@@ -58,15 +66,15 @@ namespace OSF::Scene
 			}
 			return std::nullopt;  // -1 and any out-of-range value = inherit
 		};
-		over.strip = triState(a_opts.stripMode);
-		over.lockPlayer = triState(a_opts.lockPlayerMode);
-		over.playerControl = triState(a_opts.playerControlMode);
-		over.fade = triState(a_opts.fadeMode);
-		over.inPlace = triState(a_opts.inPlaceMode);
-		if (!a_opts.camera.empty()) {
-			over.camera = a_opts.camera;
+		over.strip = triState(a_stripMode);
+		over.lockPlayer = triState(a_lockPlayerMode);
+		over.playerControl = triState(a_playerControlMode);
+		over.fade = triState(a_fadeMode);
+		over.inPlace = triState(a_inPlaceMode);
+		if (!a_camera.empty()) {
+			over.camera = std::string(a_camera);
 		}
-		float ls = a_opts.loopScale;
+		float ls = a_loopScale;
 		if (!(ls > 0.0f)) {  // false for <=0 AND for NaN -> no-op
 			ls = 1.0f;
 		} else if (ls > kLoopScaleMax) {

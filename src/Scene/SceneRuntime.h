@@ -3,7 +3,9 @@
 #include "Equipment/EquipmentService.h"  // Snapshot stored per-handle in the undo ledger
 #include "Equipment/GearRegistry.h"      // Pick — per-participant user gear selection at scene start
 #include "Input/InputTypes.h"            // Grant stored per-handle for the input channel
+#include "Registry/SceneRegistry.h"      // SceneRef pins a live scene's immutable definition snapshot
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 
@@ -17,13 +19,6 @@ namespace OSF::Animation
 	enum class SceneEndReason : std::uint8_t;  // Animation/Scene.h
 	struct FiredMark;                          // Animation/Scene.h
 	struct ScenePlan;                          // Animation/Scene.h
-}
-
-namespace OSF::Registry
-{
-	struct ActionEntry;   // Registry/SceneRegistry.h
-	struct SceneNode;     // Registry/SceneRegistry.h
-	struct SceneEdge;     // Registry/SceneRegistry.h
 }
 
 namespace OSF::Camera
@@ -67,14 +62,16 @@ namespace OSF::Scene
 		// owning the participants and which auto-edge fired (timer/loops/end); if no edge matches,
 		// the scene completes and ends. Returns true if this runtime handled the scene, false
 		// otherwise (e.g. a direct StartScene with no graph).
-		bool OnGraphAutoEnd(const std::vector<RE::Actor*>& a_participants, Animation::SceneEndReason a_reason);
+		bool OnGraphAutoEnd(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
+			Animation::SceneEndReason a_reason);
 
 		// Timed-mark callback registered with the GraphManager. Runs on the game thread. Resolves
 		// the handle owning a_participants, then decodes each fired mark by lane in the same-tick
 		// order action -> camera -> sound -> cue: action-lane marks run the built-in/custom
 		// mechanism; cue-lane marks dispatch EVENT_CUE and then take the first matching
 		// trigger:<id> edge on the current node (transition, or end if "$end").
-		void OnTimedMarks(const std::vector<RE::Actor*>& a_participants, const std::vector<Animation::FiredMark>& a_marks);
+		void OnTimedMarks(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
+			const std::vector<Animation::FiredMark>& a_marks);
 
 		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. An explicit
 		// anchor (StartSceneAt) world-anchors the scene at a_anchor instead of at participant[0]
@@ -103,15 +100,8 @@ namespace OSF::Scene
 		std::int32_t StartFromDefAt(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants,
 			RE::NiPoint3 a_anchorPos, float a_anchorHeading, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
 
-		// Start an ad-hoc files scene (what StartSceneFiles is built on): a single synthetic "main"
-		// node that holds, with the actors co-located and synced by the GraphManager. 0 = bad args,
-		// play failure, or an actor is already in a scene.
-		std::int32_t StartFromFiles(const std::vector<RE::Actor*>& a_participants,
-			const std::vector<std::string>& a_files, float a_speed, float a_blendIn,
-			const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
-
 		// Start an ad-hoc staged scene built by a Papyrus caller. The plan is already actor-aligned
-		// and may carry multiple stages; otherwise it behaves like StartFromFiles (synthetic handle,
+		// and may carry multiple stages; it receives a synthetic handle,
 		// callbacks, default mechanisms, and the undo ledger).
 		std::int32_t StartFromPlan(const std::vector<RE::Actor*>& a_participants, Animation::ScenePlan a_plan,
 			std::int32_t a_startStage, const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
@@ -158,9 +148,9 @@ namespace OSF::Scene
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
 		// Participant roster of a live — OR just-ended — scene, in scene-internal (role-declaration)
-		// order. The roster survives into the post-end SCENE_END callback (the handle stays
-		// roster-queryable until the slot is reclaimed), so an end handler can read who took part.
-		// Empty only if the handle is stale/invalid or its slot was already reclaimed.
+		// order. The roster survives into the post-end SCENE_END callback and normally for the
+		// remainder of the loaded world, so an end handler can reliably read who took part.
+		// Empty only if the handle is stale/invalid (or the emergency 65k-slot pressure valve fired).
 		std::vector<RE::Actor*> GetParticipants(std::int32_t a_scene);
 
 		// One live scene's identity, snapshotted for enumeration (ListScenes).
@@ -170,6 +160,7 @@ namespace OSF::Scene
 			std::string             id;    // registry id; empty for an ad-hoc files scene
 			std::string             node;
 			std::vector<RE::Actor*> participants;
+			Animation::PlaybackId   playbackId = 0;
 		};
 
 		// Snapshot every LIVE (non-ended) scene, for surfaces that list/stop all running
@@ -215,8 +206,9 @@ namespace OSF::Scene
 			// Retired-but-not-reclaimed: ReleaseSlot keeps the roster + generation so the
 			// post-end ASYNC SCENE_END dispatch can still resolve GetParticipants(handle),
 			// while liveness queries (FindSlotForActor) treat the actors as free and every
-			// mutating/lifecycle path (Resolve, default) rejects the handle. MintSlot reclaims
-			// ended slots lazily (resetting them + bumping generation, which kills the handle).
+			// mutating/lifecycle path (Resolve, default) rejects the handle. Tombstones remain for
+			// the loaded world so an asynchronous SCENE_END handler cannot lose its roster merely
+			// because another scene started; only extreme table pressure reclaims one.
 			bool                    ended = false;
 			// One-transition-at-a-time guard. ApplyTransition runs OUTSIDE _lock (it enters the VM
 			// and drives the GraphManager), so two transition triggers on one scene (a Papyrus
@@ -229,6 +221,11 @@ namespace OSF::Scene
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
+			// Ended rosters remain queryable for the loaded world. Keep the actors alive while the
+			// raw-pointer API view is retained so an unloaded ref cannot turn that roster dangling.
+			std::vector<RE::NiPointer<RE::Actor>> retiredParticipantRefs;
+			Animation::PlaybackId   playbackId = 0;
+			Registry::SceneRef      definition;
 			AnchorOverride          anchor;  // StartSceneAt world anchor (unset = anchor at participant[0])
 			float                   loopScale = 1.0f;  // per-start LoopScale, re-read per node in PlayNodeAnim (1.0 = no scaling)
 			std::optional<bool>     inPlace;  // per-start inPlace override, re-read per node in PlayNodeAnim (unset = the def's posture)
@@ -257,6 +254,8 @@ namespace OSF::Scene
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
+			Animation::PlaybackId   playbackId = 0;
+			Registry::SceneRef      definition;
 			bool                    cameraOverridden = false;  // see Slot::cameraOverridden
 		};
 
@@ -284,7 +283,8 @@ namespace OSF::Scene
 
 		// Retire the slot a_handle names (no events): mark it ended, keeping the generation +
 		// participant roster so the async SCENE_END dispatch can still read GetParticipants(handle),
-		// and freeing the actors for a new scene immediately. Reclaimed lazily by MintSlot. Used on
+		// and freeing the actors for a new scene immediately. Retained until load teardown (except
+		// under extreme 65k-slot pressure). Used on
 		// scene end AND as rollback for a start whose playback failed after the handle was minted
 		// (there the empty roster just lingers harmlessly until reclaim). Takes _lock itself.
 		void ReleaseSlot(std::int32_t a_handle);
@@ -293,6 +293,9 @@ namespace OSF::Scene
 		// non-null), or null. This is the single source for the one-actor-one-scene invariant and
 		// the actor->handle lookups.
 		Slot* FindSlotForActor(RE::Actor* a_actor, std::int32_t* a_token);
+		// Caller holds _lock. Resolves the exact concrete graph playback; unlike actor lookup this
+		// cannot accidentally bind a deferred callback to a replacement scene using the same cast.
+		Slot* FindSlotForPlayback(Animation::PlaybackId a_playbackId, std::int32_t* a_token);
 
 		// Snapshot the slot a_handle names into a_out under _lock; 
 		// false (a_out left default) if the handle is stale. 
@@ -387,7 +390,8 @@ namespace OSF::Scene
 		// timer/loops back through OnGraphAutoEnd. Returns true if a scene was started; false if the
 		// node has no playable or it failed to play (ApplyTransition collapses that to a clean end so
 		// the scene is never stranded animation-less with the player lock still held).
-		static bool PlayNodeAnim(const std::vector<RE::Actor*>& a_participants, std::string_view a_sceneId, std::string_view a_nodeId);
+		static Animation::PlaybackId PlayNodeAnim(const std::vector<RE::Actor*>& a_participants,
+			std::string_view a_sceneId, std::string_view a_nodeId);
 		// StopGraph ends the participants' scene.
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants);
 
@@ -434,6 +438,13 @@ namespace OSF::Scene
 		// run synchronously this frame, so this is a cinematic curtain, not a snap-hider (hiding the frame-0 snap would
 		// need a deferred start). No-op when the player isn't a participant or fades are unavailable on this runtime.
 		void FadeSceneStart(std::int32_t a_handle, bool a_fade, const std::vector<RE::Actor*>& a_participants);
+
+		// Single post-play commit funnel shared by registry and ad-hoc starts. Playback and slot
+		// identity must already be live; this applies policies, records reversible mechanisms, and
+		// emits the initial lifecycle events in one consistent order.
+		void CompleteStart(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
+			const std::vector<RE::Actor*>& a_participants, bool a_lockPlayer, bool a_stripActors,
+			bool a_fade, const StartOverrides& a_over);
 
 		// The node-transition lifecycle, shared by every transition path (SetNode / Advance /
 		// Navigate / OnGraphAutoEnd / cue-trigger): fire NODE_EXIT for a_oldNode, then either end

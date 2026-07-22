@@ -235,12 +235,9 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 
-		// VM is being reset and maybe already freed, so cached receiver pointers are potentially dangling
-		// Dont run release, just forget about them instead by overwriting to a null pointer.
-		// Expectation is vm owns the objects and manages lifetime/frees so shouldnt be any leaks
-		for (auto& e : _slots) {
-			std::construct_at(std::addressof(e.receiver));  // overwrite _ptr=null, skip Release
-		}
+		// SaveSafety calls this from SaveLoadEvent::kBegin, the documented pre-VM-teardown
+		// window. Release the receiver smart pointers normally while their VM ownership is valid;
+		// deliberately overwriting live smart-pointer objects made their C++ lifetime undefined.
 		_slots.clear();
 
 		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a token

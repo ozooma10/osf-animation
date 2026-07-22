@@ -91,7 +91,7 @@ namespace OSF::Serialization::ClipDurations
 				const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false);
 				const auto clips = doc.is_object() ? doc.find("clips") : doc.end();
 				if (clips == doc.end() || !clips->is_object()) {
-					REX::WARN("[ClipDur] {} unreadable — starting with an empty duration cache", file.string());
+					REX::WARN("[Registry] clip-duration cache {} unreadable — starting empty", file.string());
 					return;
 				}
 				for (const auto& [key, v] : clips->items()) {
@@ -109,10 +109,10 @@ namespace OSF::Serialization::ClipDurations
 				}
 			} catch (const std::exception& e) {
 				g_map.clear();
-				REX::WARN("[ClipDur] failed reading {} ({}) — starting with an empty duration cache", file.string(), e.what());
+				REX::WARN("[Registry] clip-duration cache read failed for {} ({}) — starting empty", file.string(), e.what());
 				return;
 			}
-			REX::DEBUG("[ClipDur] loaded {} cached duration(s) from {}", g_map.size(), file.string());
+			REX::DEBUG("[Registry] loaded {} cached clip duration(s) from {}", g_map.size(), file.string());
 		}
 
 		void SaveLocked()
@@ -137,7 +137,7 @@ namespace OSF::Serialization::ClipDurations
 			{
 				std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
 				if (!out) {
-					REX::WARN("[ClipDur] cannot write {} — durations won't persist this session", tmp.string());
+					REX::WARN("[Registry] cannot write clip-duration cache {} — values won't persist this session", tmp.string());
 					return;
 				}
 				// replace error handler: keys are Windows file paths in the ACP narrow encoding, which need not be valid UTF-8
@@ -145,7 +145,7 @@ namespace OSF::Serialization::ClipDurations
 			}
 			std::filesystem::rename(tmp, file, ec);
 			if (ec) {
-				REX::WARN("[ClipDur] cannot replace {} ({})", file.string(), ec.message());
+				REX::WARN("[Registry] cannot replace clip-duration cache {} ({})", file.string(), ec.message());
 				return;
 			}
 			g_dirty = false;
@@ -430,9 +430,8 @@ namespace OSF::Serialization::ClipDurations
 			return valueChanged ? ProbeOutcome::kChanged : ProbeOutcome::kFresh;
 		}
 
-		// One full pass: gather refs from the live registry (its own read lock, NEVER under
-		// g_lock — BuildCatalog nests g_lock inside the registry lock, so nesting the other way
-		// around here could deadlock through a queued LoadAll writer), probe them, prune, save.
+		// One full pass: gather refs from one immutable registry snapshot, then probe, prune, save.
+		// Do not hold g_lock while gathering: callbacks should remain independent of cache locking.
 		// Returns the number of catalog-visible changes.
 		std::size_t ScanPass()
 		{
@@ -497,7 +496,7 @@ namespace OSF::Serialization::ClipDurations
 
 			const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now() - t0).count();
-			REX::INFO("[ClipDur] duration scan: {} unique clip(s) — {} fresh, {} updated, {} missing, {} unprobeable, {} pruned ({} ms)",
+			REX::INFO("[Registry] duration scan: {} unique clip(s) — {} fresh, {} updated, {} missing, {} unprobeable, {} pruned ({} ms)",
 				seen.size(), fresh, changed, missing, unprobed, pruned, ms);
 			return changed;
 		}
@@ -554,7 +553,7 @@ namespace OSF::Serialization::ClipDurations
 				// Fold into the running scan: its worker re-gathers from the (possibly reloaded)
 				// registry and runs another pass before finishing, using its own callback.
 				g_rescanPending = true;
-				REX::DEBUG("[ClipDur] scan already running — queued a follow-up pass");
+				REX::DEBUG("[Registry] clip-duration scan already running — queued a follow-up pass");
 				return;
 			}
 			g_scanRunning = true;
@@ -567,9 +566,9 @@ namespace OSF::Serialization::ClipDurations
 				try {
 					changed += ScanPass();
 				} catch (const std::exception& e) {
-					REX::ERROR("[ClipDur] duration scan failed: {}", e.what());
+					REX::ERROR("[Registry] clip-duration scan failed: {}", e.what());
 				} catch (...) {
-					REX::ERROR("[ClipDur] duration scan failed (non-std exception)");
+					REX::ERROR("[Registry] clip-duration scan failed (non-std exception)");
 				}
 				std::scoped_lock l{ g_lock };
 				if (!g_rescanPending) {
