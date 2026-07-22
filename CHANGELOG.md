@@ -2,18 +2,33 @@
 
 All notable changes to OSF Animation are documented here.
 
+## [1.2.0] - 2026-07-22
+
+### Added
+- **Cross-plugin persistence (cosave) API.** OSF now writes a small `.osf` sidecar next to each save and reloads it on load, so mod-added scene state survives save/load. Third-party SFSE plugins can register a client over the new native `OSFPersistenceAPI` (ABI 1.0, disk magic `OSFP`, format 1) to persist their own records through OSF's broker — versioned/CRC-checked records, atomic writes (a failed save preserves the previous sidecar), and FormID remap/delete resolution across load-order changes. See [`docs/RFC-persistence-api.md`](docs/RFC-persistence-api.md).
+- Native free-camera access on controller: **R3** now mirrors middle mouse to toggle the engine `tfc` camera during a player scene. The input hook passes the pad through to native TFC even while the browser is visible, and toggling back restores the scene orbit/vanity posture underneath it.
+- Clip-level debugging in the browser's **Animations** list: every distinct installed clip referenced by a non-library scene is auto-published as a one-actor entry (grouped by the scene file's `pack`, or its `*.osf.json` filename). Playing one runs just that raw clip in place — no strip, player lock, fade, role offset, or scene tracks. Generated vanilla/library scenes and emotes are excluded (they already populate Animations). See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).
+- **Custom-only** filter for the Animations library that hides vanilla-derived clips (id under `vanilla/` or tagged `vanilla`), so custom content isn't buried.
+
+### Changed
+- Player scenes with no explicit camera use `scene_orbit`, now as a native-assisted hybrid: OSF first enters Starfield's `tfc` path to retain its close-camera actor-mesh rendering behavior, then drives the camera transform itself for automatic cast framing, orbit, pan, height, and zoom controls. Explicit `"camera": "freefly"` still leaves movement entirely to the native TFC driver.
+- Gamepad orbit-camera layout refined: the **left stick** now flies the orbit center **horizontally** (like WASD), **RT/LT** move it up/down, and **RB/LB** zoom in/out. (In 1.1.0 the triggers zoomed and there was no vertical control.)
+- The scene browser view was rewritten from the legacy monolithic script onto a reducer/controller/selectors architecture with a mockable bridge and unit tests. No user-facing behavior change intended.
+
+### Fixed
+- Deferred scene callbacks (auto-end and timed marks) are now keyed by a stable `PlaybackId` instead of by participant identity, so a mark or end queued for one scene can no longer be delivered to a **replacement scene that reuses the same cast** after a rapid restart. A live scene also pins the exact registry definition it started with across a pack reload.
+- Queued camera/control tasks are now gated across world loads so a task queued before a save-load can't fire against the freshly loaded world.
+
 ## [1.1.0] - 2026-07-21
 
 ### Added
 - **Scene gear** — user-side scene equipment. Register any ARMO as gear in a slot (e.g. `belt`) via a `*.osfgear.json` anywhere under `Data/OSF/` (shippable by gear mods) or hand-edit `Documents\My Games\Starfield\SFSE\OSF\scene-gear.json`; a registered item **carried by a scene participant** is auto-equipped for the scene's duration (ledger-reversed on every end path, no inventory residue) — and if already worn, it's exempted from the default unequip instead, so pre-equipping it "just works". At most one item per slot per actor: a per-actor `overrides` entry in `scene-gear.json` picks between multiples (or `"none"` suppresses a slot), else a worn item wins, else stable order. A scene's authored role `equip` beats user gear for the slot it occupies. Global toggle: settings → Scene gear → **Auto-equip scene gear** (default on). Cast-manager UI for picking/registering gear lands in a follow-up.
-- Gamepad camera control for the orbit camera: the **right stick** orbits (like mouse drag), the **left stick** flies the orbit center horizontally (like WASD), **RT/LT** move it up/down, and **RB/LB** zoom in/out (like the wheel). Works in scene orbits and the browse orbit alike — the DLL polls XInput directly, so it keeps working while the browser overlay owns game input.
-- Native free-camera access on controller: **R3** now mirrors middle mouse to toggle the engine `tfc` camera during a player scene. The input hook passes the pad through to native TFC even while the browser is visible, and toggling back restores the scene orbit/vanity posture underneath it.
+- Gamepad camera control for the orbit camera: the **right stick** orbits (like mouse drag), the **left stick** flies the orbit center (like WASD), and the **triggers** zoom (RT in / LT out, like the wheel). Works in scene orbits and the browse orbit alike — the DLL polls XInput directly, so it keeps working while the browser overlay owns game input.
 - Gamepad UI navigation while the scene browser is open: the **D-pad** moves focus (hold to repeat), **A** activates, **B** cancels the wheel / closes the browser — and the sticks stay on the camera. The view takes OSF UI's `osfui.gamepadRaw` grant (protocol 1.0) so the runtime's default mapping no longer routes the sticks into UI nav/scroll, and re-creates the D-pad/A/B half itself from raw `ui.gamepad` events.
 - Scene browser: scenes are now organized into **collapsible per-pack groups**, so a big install (e.g. a compat pack spanning dozens of scene files) folds to a few headers instead of one endless list. Grouping keys on a new optional file-level `pack` field in `*.osf.json` (the content-pack display name — set the same string in every file of a pack to merge them into one group; see `docs/SCENE_SCHEMA.md`), falling back to the scene file's name. Groups auto-expand while searching, while the list is short, or around the selected scene; pack names are searchable. Catalog/library bridge payloads gain `pack` and `sourceFile` fields (additive).
 - The scene browser's status line now also shows the installed OSF UI host version. If it predates the release this build was tested against (1.2.0), an amber `UPDATE` badge appears linking the [OSF UI Nexus page](https://www.nexusmods.com/starfield/mods/17711) — clicking it in-game opens the page in your system browser (OSF UI's `osfui.openModPage` command: the URL is hardcoded in OSF UI, nothing crosses the bridge), and the SFSE log gains a matching warning.
 
 ### Changed
-- Player scenes with no explicit camera use `scene_orbit` again, now as a native-assisted hybrid: OSF first enters Starfield's `tfc` path to retain its close-camera actor-mesh rendering behavior, then drives the camera transform itself for automatic cast framing, orbit, pan, height, and zoom controls. Explicit `"camera": "freefly"` still leaves movement entirely to the native TFC driver.
 - The status line is now compact (`OSF 1.1.0 · UI 1.2.0`) so it can't push the header layout down; the full identity moved to its tooltip. The plugin version no longer renders a trailing unused build field (`1.0.0.0`).
 
 ### Fixed

@@ -112,15 +112,19 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     if (fresh) { catalogTries.current = 0; dispatch({ type: "catalog/requested" }); }
     if (catalogTimer.current) clearTimeout(catalogTimer.current);
     send("osf.animation.catalog.get");
-    if (!standalone && catalogTries.current++ < 20) catalogTimer.current = window.setTimeout(() => requestCatalog(false), 1200);
-  }, [send, standalone]);
+    if (standalone) return;
+    if (catalogTries.current++ < 20) catalogTimer.current = window.setTimeout(() => requestCatalog(false), 1200);
+    else if (!stateRef.current.catalogReceived) showNotice("err", "No response from OSF Animation. Load a save and make sure OSF UI is present.");
+  }, [send, standalone, showNotice]);
 
   const requestLibrary = useCallback((fresh = false) => {
     if (fresh) { libraryTries.current = 0; dispatch({ type: "library/requested" }); }
     if (libraryTimer.current) clearTimeout(libraryTimer.current);
     send("osf.animation.library.get");
-    if (!standalone && libraryTries.current++ < 5) libraryTimer.current = window.setTimeout(() => requestLibrary(false), 1500);
-  }, [send, standalone]);
+    if (standalone) return;
+    if (libraryTries.current++ < 5) libraryTimer.current = window.setTimeout(() => requestLibrary(false), 1500);
+    else if (!stateRef.current.libraryReceived) showNotice("err", "No response from OSF Animation. The animation library didn't load — make sure a save is loaded.");
+  }, [send, standalone, showNotice]);
 
   handlerRef.current = (message) => {
     const payload = message.payload;

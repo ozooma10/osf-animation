@@ -15,6 +15,7 @@ __pycache__/
 # files
 *.zip
 compile_commands.json
+.DS_Store
 
 *.rig
 *.pex
