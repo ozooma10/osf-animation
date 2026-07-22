@@ -182,7 +182,7 @@ namespace OSF::API
 		// installed host reports an older version, the browser's status line grows an
 		// UPDATE badge pointing at the OSF UI Nexus page. Bump alongside any new
 		// host feature this file starts depending on.
-		constexpr std::uint32_t kOSFUITested[3] = { 1, 2, 0 };
+		constexpr std::uint32_t kOSFUITested[3] = { 1, 3, 0 };
 		constexpr const char*   kOSFUINexusURL  = "https://www.nexusmods.com/starfield/mods/17711";
 
 		// ---- helpers ---------------------------------------------------------

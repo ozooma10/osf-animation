@@ -14,6 +14,7 @@ All notable changes to OSF Animation are documented here.
 - Player scenes with no explicit camera use `scene_orbit`, now as a native-assisted hybrid: OSF first enters Starfield's `tfc` path to retain its close-camera actor-mesh rendering behavior, then drives the camera transform itself for automatic cast framing, orbit, pan, height, and zoom controls. Explicit `"camera": "freefly"` still leaves movement entirely to the native TFC driver.
 - Gamepad orbit-camera layout refined: the **left stick** now flies the orbit center **horizontally** (like WASD), **RT/LT** move it up/down, and **RB/LB** zoom in/out. (In 1.1.0 the triggers zoomed and there was no vertical control.)
 - The scene browser view was rewritten from the legacy monolithic script onto a reducer/controller/selectors architecture with a mockable bridge and unit tests. No user-facing behavior change intended.
+- Tested against OSF UI **1.3.0** — the status line's `UPDATE` badge now appears only on hosts older than 1.3.0 (was 1.2.0).
 
 ### Fixed
 - Deferred scene callbacks (auto-end and timed marks) are now keyed by a stable `PlaybackId` instead of by participant identity, so a mark or end queued for one scene can no longer be delivered to a **replacement scene that reuses the same cast** after a rapid restart. A live scene also pins the exact registry definition it started with across a pack reload.
