@@ -53,7 +53,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
   "fade": false,                         // optional file-level start-curtain default; each scene may override
-  "camera": "thirdperson_hold",          // file-level default camera posture (default "freefly"; "none" opts out)
+  "camera": "thirdperson_hold",          // file-level default camera posture (default "scene_orbit"; "none" opts out)
   "scenes": [
     { "id": "author.one", "clip": "OSF/Anims/One.glb" },
     { "id": "author.two", "stages": [ { "loops": 0, "clips": ["OSF/Anims/Two.glb"] } ] }
@@ -464,8 +464,9 @@ In a pool, the `clips` value may be the usual **array**, or — the shorthand fo
 #### Camera `state` values
 
 Camera postures are **held**: ledger-tracked and auto-restored to the player's prior POV on any scene
-end. Supported states: `freefly` (the default; engine-native free camera using the `tfc` path),
-`scene_orbit` (the OSF-driven orbit that frames and centers the
+end. Supported states: `freefly` (pure engine-native free camera using the `tfc` driver),
+`scene_orbit` (the default; enters native TFC to retain its close-actor rendering behavior, then uses
+the OSF-driven transform to frame and center the
 cast — while the scene browser is open, hold **LMB and drag** to orbit so free mouse movement keeps
 driving the UI cursor; on a controller use right stick to orbit, left stick to pan, LT/RT to move
 vertically, and LB/RB to zoom), `thirdperson_hold` (force and hold third person, bouncing the player back if
@@ -474,10 +475,11 @@ they zoom to first person), and `vanity_orbit`.
 During a player scene, **MMB** or controller **R3** toggles the engine-native free camera (the same
 camera path as `tfc`); pressing it again returns to the scene's prior orbit/vanity/held posture.
 
-A file with no `"camera"` key defaults to **`freefly`** on each scene's entry node. This uses the
-engine's complete TFC setup, including its close-camera actor rendering behavior. Authors who prefer
-automatic cast framing can explicitly set `"camera": "scene_orbit"`; it centers on the cast's midpoint,
-pulls back until everyone fits, and opens side-on to the cast's long axis. Use
+A file with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node. It first enters
+the engine's TFC path so the native close-camera actor rendering policy remains active, then switches
+transform control to OSF: it centers on the cast's midpoint, pulls back until everyone fits, and opens
+side-on to the cast's long axis. Authors can explicitly select `"camera": "freefly"` when they want the
+engine's native movement driver instead. Use
 `"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
 node-level `camera` track on the entry node always wins over the file-level default.
 

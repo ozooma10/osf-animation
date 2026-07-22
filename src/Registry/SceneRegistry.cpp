@@ -1312,11 +1312,10 @@ namespace OSF::Registry
 			}
 
 			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
-			// entry node (unless that node already declares its own camera track). When omitted, use
-			// the engine-native free camera (`tfc` path): its renderer policy keeps close actor meshes
-			// visible more reliably than the self-driven scene orbit. Authors can still request
-			// "scene_orbit" explicitly when cast framing is more important.
-			std::string cameraDefault = "freefly";
+			// entry node (unless that node already declares its own camera track). The default orbit
+			// bootstraps native TFC's close-actor renderer policy, then hands transform control to OSF
+			// for automatic cast framing and orbit input. Pure native freefly remains author-selectable.
+			std::string cameraDefault = "scene_orbit";
 			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
 				if (!cit->is_string()) {
 					a_errors.push_back("[error] '" + fileName + "': 'camera' must be a string");

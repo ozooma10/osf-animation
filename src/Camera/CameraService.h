@@ -104,13 +104,16 @@ namespace OSF::Camera
 		// Restore the prior POV on the game thread, only if no imposition remains and the live camera differs from the baseline.
 		void RestoreBaseline();
 
-		// engine native freecam (`tfc`). ToggleFreeCameraMode enters kFreeWalk + seeds the pose from the current view + routes input
-		void NativeFreeCamEnter();
+		// Engine-native freecam (`tfc`). ToggleFreeCameraMode enters kFreeWalk and establishes the
+		// renderer/input flags. Pure freefly leaves the native driver in charge; scene-orbit keeps
+		// those flags but switches to OSF's driven kFreeFly transform with gamepad passthrough off.
+		void NativeFreeCamEnter(bool a_gamepadPassthrough);
 		void NativeFreeCamExit();
 		void RestoreAfterPlayerFreeCam(PlayerFreeCamReturn a_mode);
 
-		// SCENE ORBIT (self-driven): per-frame from Tick (job threads) — places the camera on a ring around
-		// the scene center and aims it inward, writing the FreeFly state's transform. Mouse/right stick steer
+		// SCENE ORBIT (native-assisted, self-driven): native TFC first establishes its close-actor renderer
+		// policy, then per-frame Tick places the camera on a ring around the scene center and aims it inward,
+		// writing the FreeFly state's transform. Mouse/right stick steer
 		// azimuth/elevation (while the browser cursor is up, mouse deltas require LMB drag); wheel/LB-RB zoom,
 		// WASD/left stick pan horizontally, and LT/RT translate vertically; holds still with no input.
 		void DriveSceneOrbit();

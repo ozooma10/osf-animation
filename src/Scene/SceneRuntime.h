@@ -327,7 +327,7 @@ namespace OSF::Scene
 		static void DispatchLifecycleCamera(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
 		// Engage one camera state (held, ledger-tracked, auto-restored).
-		// "thirdperson_hold" -> the standalone camera lock (kCamera); "freefly" / "vanity_orbit" -> a PlayerCamera state override (kCameraState).
+		// "thirdperson_hold" -> the standalone camera lock (kCamera); "freefly" / "vanity_orbit" / "scene_orbit" -> a PlayerCamera state override (kCameraState).
 		// a_distance (> 0) seeds the opening third-person zoom pull-back for "thirdperson_hold"; ignored by the other states.
 		static void RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer, float a_distance = 0.0f);
 
@@ -395,7 +395,7 @@ namespace OSF::Scene
 		// The caller resolves a_lockPlayer from the scene def (`lockPlayer`) or pack;
 		void EngageDefaultPlayerLock(std::int32_t a_handle, bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants);
 
-		// Default camera when the player participates and the scene specifies none: engine-native freefly (`tfc` path).
+		// Default camera when the player participates and the scene specifies none: native-TFC-assisted scene orbit.
 		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.

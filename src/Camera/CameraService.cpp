@@ -428,11 +428,14 @@ namespace OSF::Camera
 	void CameraService::SetLiveCameraState(CameraMode a_mode)
 	{
 		if (a_mode == CameraMode::kFreeFly) {
-			NativeFreeCamEnter();  // engine-native free cam (the `tfc` path): engine owns camera + input
+			NativeFreeCamEnter(/*a_gamepadPassthrough*/ true);  // pure `tfc`: engine owns camera + input
 			return;
 		}
 		if (a_mode == CameraMode::kSceneOrbit) {
-			// Self-driven orbit: enter the FreeFly state, then write its transform each frame in Tick.
+			// Bootstrap through native TFC first so its close-camera actor-rendering policy remains
+			// active, then switch to FreeFly and let OSF write the transform each frame in Tick.
+			// The queued tasks are FIFO: the native flags exist before the state/driver handoff.
+			NativeFreeCamEnter(/*a_gamepadPassthrough*/ false);
 			SFSE::GetTaskInterface()->AddTask([this]() {
 				if (!suppressBounce.load(std::memory_order_relaxed)) {
 					return;  // the override was released before this task ran
@@ -547,11 +550,17 @@ namespace OSF::Camera
 				}
 				orbitDriving.store(true, std::memory_order_relaxed);
 				Input::InputService::GetSingleton().SetMouseCapture(true);
-				REX::DEBUG("[Camera] scene orbit camera engaged");
+				REX::DEBUG("[Camera] native-assisted scene orbit engaged");
 			});
 			return;
 		}
 		// kVanityOrbit: a plain PlayerCamera state override (auto orbit, needs no input).
+		// Stop either TFC driver before the queued vanity transition. NativeFreeCamExit is queued
+		// unconditionally so it also handles an earlier camera-enter task that has not run yet.
+		if (orbitDriving.exchange(false, std::memory_order_relaxed)) {
+			Input::InputService::GetSingleton().SetMouseCapture(false);
+		}
+		NativeFreeCamExit();
 		SFSE::GetTaskInterface()->AddTask([this]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // the override was released before this task ran
@@ -575,18 +584,29 @@ namespace OSF::Camera
 		frameSubjects = std::move(a_actorIds);  // consumed by the next scene-orbit enter (see SetLiveCameraState)
 	}
 
-	void CameraService::NativeFreeCamEnter()
+	void CameraService::NativeFreeCamEnter(bool a_gamepadPassthrough)
 	{
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		SFSE::GetTaskInterface()->AddTask([this, a_gamepadPassthrough]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // the override was released before this task ran
 			}
+			Input::InputService::GetSingleton().SetNativeFreeCamGamepad(a_gamepadPassthrough);
+			if (a_gamepadPassthrough && orbitDriving.exchange(false, std::memory_order_relaxed)) {
+				Input::InputService::GetSingleton().SetMouseCapture(false);  // pure TFC takes the controls
+			}
 			if (nativeFreeCamActive.exchange(true, std::memory_order_relaxed)) {
-				return;  // already on — toggling again would exit it
+				// Retargeting native-assisted orbit -> pure freefly must restore the native state;
+				// retargeting pure freefly -> orbit is completed by the caller's queued FreeFly task.
+				if (a_gamepadPassthrough) {
+					if (auto* camera = RE::PlayerCamera::GetSingleton()) {
+						camera->SetCameraState(RE::CameraState::kFreeWalk);
+					}
+				}
+				return;  // flags already on — toggling again would exit them
 			}
 			SetNativeFreeCam(true);  // enter free cam (state-driven); the engine seeds the pose from the current view
-			Input::InputService::GetSingleton().SetNativeFreeCamGamepad(true);
-			REX::DEBUG("[Camera] native free camera entered (ToggleFreeCameraMode, state {})", kNativeFreeCamState);
+			REX::DEBUG("[Camera] native free camera entered (ToggleFreeCameraMode, state {}, input={})",
+				kNativeFreeCamState, a_gamepadPassthrough ? "native" : "OSF orbit");
 		});
 	}
 
@@ -630,9 +650,27 @@ namespace OSF::Camera
 		if (a_mode == PlayerFreeCamReturn::kNone) {
 			return;
 		}
+		if (a_mode == PlayerFreeCamReturn::kSceneOrbit) {
+			// The underlying orbit is itself native-assisted now. Keep TFC's renderer flags alive,
+			// return gamepad ownership to OSF, and resume the retained ring/center in kFreeFly.
+			SFSE::GetTaskInterface()->AddTask([this]() {
+				if (!suppressBounce.load(std::memory_order_relaxed) ||
+				    !nativeFreeCamActive.load(std::memory_order_relaxed) ||
+				    !orbitDriving.load(std::memory_order_relaxed)) {
+					return;  // the underlying scene orbit ended before this handback ran
+				}
+				Input::InputService::GetSingleton().SetNativeFreeCamGamepad(false);
+				if (auto* camera = RE::PlayerCamera::GetSingleton()) {
+					camera->SetCameraState(RE::CameraState::kFreeFly);
+					Input::InputService::GetSingleton().SetMouseCapture(true);
+					REX::DEBUG("[Camera] native free camera handed back to the prior native-assisted scene orbit");
+				}
+			});
+			return;
+		}
 		// The player toggle can sit on top of a scene-owned orbit/vanity override. Releasing only
-		// its ref-count would leave native TFC live because the scene still owns the other hold.
-		// Exit TFC explicitly, then restore the posture that was live before R3/MMB entered it.
+		// its ref-count would leave native TFC live because the scene still owns a vanity hold.
+		// Exit TFC explicitly, then restore that non-TFC posture.
 		NativeFreeCamExit();
 		SFSE::GetTaskInterface()->AddTask([this, a_mode]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
@@ -642,12 +680,7 @@ namespace OSF::Camera
 			if (!camera) {
 				return;
 			}
-			if (a_mode == PlayerFreeCamReturn::kSceneOrbit && orbitDriving.load(std::memory_order_relaxed)) {
-				// Resume the retained ring/center rather than re-entering scene-orbit, which would
-				// reframe on the player and discard the view the user had before toggling TFC.
-				camera->SetCameraState(RE::CameraState::kFreeFly);
-				REX::DEBUG("[Camera] native free camera handed back to the prior scene orbit");
-			} else if (a_mode == PlayerFreeCamReturn::kVanityOrbit) {
+			if (a_mode == PlayerFreeCamReturn::kVanityOrbit) {
 				camera->SetCameraState(RE::CameraState::kAutoVanity);
 				REX::DEBUG("[Camera] native free camera handed back to the prior vanity orbit");
 			}
@@ -841,9 +874,12 @@ namespace OSF::Camera
 		// Re-entrant-safe alternation: the flag flips exactly once per press, so the on/off paths can't
 		// double-acquire or double-release the override even if presses land back-to-back.
 		if (!playerFreeCamHeld.exchange(true, std::memory_order_relaxed)) {
-			// A scene-authored `freefly` is already native TFC and remains owned by that scene;
-			// don't add a second player hold that could never meaningfully toggle it off.
-			if (nativeFreeCamActive.load(std::memory_order_relaxed)) {
+			// A scene-authored pure `freefly` is already native TFC and remains owned by that scene;
+			// don't add a second player hold that could never meaningfully toggle it off. A native-
+			// assisted scene orbit is different: R3/MMB temporarily selects the pure native driver.
+			const bool nativeActive = nativeFreeCamActive.load(std::memory_order_relaxed);
+			const bool orbitActive = orbitDriving.load(std::memory_order_relaxed);
+			if (nativeActive && !orbitActive) {
 				playerFreeCamHeld.store(false, std::memory_order_relaxed);
 				REX::DEBUG("[Camera] player free camera toggle ignored — scene free-fly already active");
 				return;
@@ -857,8 +893,23 @@ namespace OSF::Camera
 				returnMode = PlayerFreeCamReturn::kSceneOrbit;
 			}
 			playerFreeCamReturn.store(returnMode, std::memory_order_relaxed);
-			AcquireStateOverride();                 // capture baseline + suppress the bounce on the first holder
-			SetLiveCameraState(CameraMode::kFreeFly);  // engine-native free cam (the `tfc` path)
+			AcquireStateOverride();  // capture baseline + suppress the bounce on the first holder
+			if (returnMode == PlayerFreeCamReturn::kSceneOrbit && nativeActive) {
+				// Keep the orbit state retained (its Tick driver naturally pauses outside kFreeFly),
+				// and hand the already-active TFC session back to the native movement state/input.
+				Input::InputService::GetSingleton().SetMouseCapture(false);
+				Input::InputService::GetSingleton().SetNativeFreeCamGamepad(true);
+				SFSE::GetTaskInterface()->AddTask([this]() {
+					if (suppressBounce.load(std::memory_order_relaxed) &&
+					    nativeFreeCamActive.load(std::memory_order_relaxed)) {
+						if (auto* camera = RE::PlayerCamera::GetSingleton()) {
+							camera->SetCameraState(RE::CameraState::kFreeWalk);
+						}
+					}
+				});
+			} else {
+				SetLiveCameraState(CameraMode::kFreeFly);  // enter engine-native free cam (the `tfc` path)
+			}
 			REX::DEBUG("[Camera] player free camera toggled ON (MMB/R3)");
 			return;
 		}

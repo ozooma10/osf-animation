@@ -13,7 +13,7 @@ All notable changes to OSF Animation are documented here.
 - The scene browser's status line now also shows the installed OSF UI host version. If it predates the release this build was tested against (1.2.0), an amber `UPDATE` badge appears linking the [OSF UI Nexus page](https://www.nexusmods.com/starfield/mods/17711) — clicking it in-game opens the page in your system browser (OSF UI's `osfui.openModPage` command: the URL is hardcoded in OSF UI, nothing crosses the bridge), and the SFSE log gains a matching warning.
 
 ### Changed
-- Player scenes with no explicit camera now use Starfield's engine-native `tfc` free camera instead of OSF's self-driven `scene_orbit`. This keeps the native close-camera mesh visibility behavior; `"camera": "scene_orbit"` remains available for authors who prefer automatic cast framing, and the browser's standby drag-orbit is unchanged.
+- Player scenes with no explicit camera use `scene_orbit` again, now as a native-assisted hybrid: OSF first enters Starfield's `tfc` path to retain its close-camera actor-mesh rendering behavior, then drives the camera transform itself for automatic cast framing, orbit, pan, height, and zoom controls. Explicit `"camera": "freefly"` still leaves movement entirely to the native TFC driver.
 - The status line is now compact (`OSF 1.1.0 · UI 1.2.0`) so it can't push the header layout down; the full identity moved to its tooltip. The plugin version no longer renders a trailing unused build field (`1.0.0.0`).
 
 ### Fixed
