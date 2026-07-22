@@ -53,7 +53,7 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   "stripActors": true,                   // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
   "fade": false,                         // optional file-level start-curtain default; each scene may override
-  "camera": "thirdperson_hold",          // file-level default camera posture (default "scene_orbit"; "none" opts out)
+  "camera": "thirdperson_hold",          // file-level default camera posture (default "freefly"; "none" opts out)
   "scenes": [
     { "id": "author.one", "clip": "OSF/Anims/One.glb" },
     { "id": "author.two", "stages": [ { "loops": 0, "clips": ["OSF/Anims/Two.glb"] } ] }
@@ -137,6 +137,11 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   `"name": "Missionary06", "tags": ["missionary", "mf"]`. To then play just that one animation, start
   the scene with **`SceneOptions.Stage = <index>`** — it enters directly on that stage (a `loops:0`
   stage holds there). Stage `tags` are separate from the scene's `tags` (which drive matchmaking).
+- **Clip-level debugging in Animations.** Every distinct, installed clip referenced by a non-library
+  scene is also published automatically as a one-actor entry under **Animations**, grouped by the
+  scene file's `pack` label (or by its `*.osf.json` filename when no pack is declared). Playing one
+  runs only that raw clip, in place, with no strip, player lock, fade, role offset, or scene tracks.
+  Generated vanilla/library scenes and emotes are excluded because they already populate Animations.
 - **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A role-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.
@@ -459,18 +464,20 @@ In a pool, the `clips` value may be the usual **array**, or — the shorthand fo
 #### Camera `state` values
 
 Camera postures are **held**: ledger-tracked and auto-restored to the player's prior POV on any scene
-end. Supported states: `scene_orbit` (the default; mouse-steered orbit that frames and centers the
+end. Supported states: `freefly` (the default; engine-native free camera using the `tfc` path),
+`scene_orbit` (the OSF-driven orbit that frames and centers the
 cast — while the scene browser is open, hold **LMB and drag** to orbit so free mouse movement keeps
 driving the UI cursor; on a controller use right stick to orbit, left stick to pan, LT/RT to move
 vertically, and LB/RB to zoom), `thirdperson_hold` (force and hold third person, bouncing the player back if
-they zoom to first person), `freefly`, and `vanity_orbit`.
+they zoom to first person), and `vanity_orbit`.
 
 During a player scene, **MMB** or controller **R3** toggles the engine-native free camera (the same
 camera path as `tfc`); pressing it again returns to the scene's prior orbit/vanity/held posture.
 
-A file with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node: the camera
-centers on the cast's midpoint, pulls back until everyone fits, and opens side-on to the cast's long
-axis (nearest the player's prior heading) so the subjects spread across the frame. Use
+A file with no `"camera"` key defaults to **`freefly`** on each scene's entry node. This uses the
+engine's complete TFC setup, including its close-camera actor rendering behavior. Authors who prefer
+automatic cast framing can explicitly set `"camera": "scene_orbit"`; it centers on the cast's midpoint,
+pulls back until everyone fits, and opens side-on to the cast's long axis. Use
 `"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
 node-level `camera` track on the entry node always wins over the file-level default.
 

@@ -374,8 +374,8 @@ namespace OSF::Scene
 				}
 			}
 		}
-		REX::DEBUG("[Scene] scene {:#010x} default camera engaged — no authored camera, orbiting the cast", a_handle);
-		RunCamera(a_handle, "scene_orbit", hasPlayer, 0.0f);  // frames + centers the subjects (RecordCameraState seeds the cast)
+		REX::DEBUG("[Scene] scene {:#010x} default camera engaged — no authored camera, entering native free-fly", a_handle);
+		RunCamera(a_handle, "freefly", hasPlayer, 0.0f);  // engine-native `tfc` path; renderer preserves close actor meshes
 	}
 
 	void SceneRuntime::StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants,
@@ -699,7 +699,7 @@ namespace OSF::Scene
 		const std::string_view cameraOverride = a_over.camera.has_value() ? std::string_view(*a_over.camera) : std::string_view{};
 		// Default-lock the player's input BEFORE the enter actions run, so an authored osf.control.lock is a no-op and the ledger records the control lock first (undone last).
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
-		EngageDefaultCamera(handle, a_id, a_entryNode, lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else authored, else scene_orbit
+		EngageDefaultCamera(handle, a_id, a_entryNode, lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else authored, else native freefly
 		// User scene gear (RFC-scene-gear) selects BEFORE the strip so worn picks are exempted, equips
 		// after it; the role's authored equip runs last so it wins any biped-slot conflict.
 		const auto gearPicks = BuildGearPicks(a_id, a_participants);
@@ -862,7 +862,7 @@ namespace OSF::Scene
 		const bool fade = a_over.fade.value_or(false);
 		const std::string_view cameraOverride = a_over.camera.has_value() ? std::string_view(*a_over.camera) : std::string_view{};
 		EngageDefaultPlayerLock(handle, lockPlayer, a_participants);
-		EngageDefaultCamera(handle, "", "main", lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else scene_orbit
+		EngageDefaultCamera(handle, "", "main", lockPlayer, cameraOverride, a_participants);  // SceneOptions.Camera wins, else native freefly
 		const auto gearPicks = BuildGearPicks("", a_participants);  // ad-hoc scene: no roles, no authored equips — gear only
 		StripDefaultActors(handle, stripActors, a_participants, gearPicks);
 		EquipGearItems(handle, a_participants, gearPicks);

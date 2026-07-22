@@ -1312,10 +1312,11 @@ namespace OSF::Registry
 			}
 
 			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
-			// entry node (unless that node already declares its own camera track). When omitted, the
-			// pack defaults to "scene_orbit" — it frames and centers the cast, where a thirdperson_hold
-			// stays glued to the player's back pointing wherever they last looked.
-			std::string cameraDefault = "scene_orbit";
+			// entry node (unless that node already declares its own camera track). When omitted, use
+			// the engine-native free camera (`tfc` path): its renderer policy keeps close actor meshes
+			// visible more reliably than the self-driven scene orbit. Authors can still request
+			// "scene_orbit" explicitly when cast framing is more important.
+			std::string cameraDefault = "freefly";
 			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
 				if (!cit->is_string()) {
 					a_errors.push_back("[error] '" + fileName + "': 'camera' must be a string");
@@ -1587,6 +1588,125 @@ namespace OSF::Registry
 					file, tally.hidden, tally.firstMissing);
 			}
 		}
+
+		// Publish every distinct clip referenced by a non-library scene as a generated one-actor,
+		// one-stage definition in the library lane. This is the browser's clip-level debug surface:
+		// a multi-actor scene can still be inspected one raw clip at a time without authors having to
+		// mint parallel solo scenes. Generated vanilla/reference-library scenes and emotes are
+		// deliberately excluded because they already populate Animations.
+		std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes)
+		{
+			struct ClipEntry
+			{
+				std::string           display;
+				StageClip             clip;
+				std::filesystem::path sourceFile;
+				std::string           pack;
+			};
+
+			// The source map is unordered. Sort first so both de-dup winners and generated IDs stay
+			// stable across launches and ReloadPacks calls.
+			std::vector<const SceneDef*> sources;
+			sources.reserve(a_scenes.size());
+			for (const auto& [key, def] : a_scenes) {
+				const bool alreadyAnEmote = std::ranges::any_of(def.tagSet,
+					[](const std::string& a_tag) { return a_tag.starts_with("player.emote."); });
+				if (!def.library && !alreadyAnEmote) {
+					sources.push_back(&def);
+				}
+			}
+			std::sort(sources.begin(), sources.end(), [](const SceneDef* a_lhs, const SceneDef* a_rhs) {
+				const auto lf = ToLower(a_lhs->sourceFile.filename().string());
+				const auto rf = ToLower(a_rhs->sourceFile.filename().string());
+				return lf != rf ? lf < rf : ToLower(a_lhs->id) < ToLower(a_rhs->id);
+			});
+
+			std::map<std::string, ClipEntry> unique;
+			std::unordered_map<std::string, bool> installed;
+			for (const SceneDef* def : sources) {
+				// `pack` is the browser's preferred group key. Without one, the browser groups by
+				// source filename, so use that same identity for clip de-duplication.
+				const std::string group = !def->pack.empty()
+				                              ? "pack:" + ToLower(def->pack)
+				                              : "file:" + ToLower(def->sourceFile.filename().string());
+				for (const auto& node : def->nodes) {
+					for (const auto& stage : node.stages) {
+						for (const auto& clip : stage.clips) {
+							const std::string display = Util::ClipSpecDisplay(std::filesystem::path{ clip.file });
+							const std::string installKey = ToLower(display);
+							auto [iit, fresh] = installed.try_emplace(installKey, false);
+							if (fresh) {
+								iit->second = ClipSpecInstalled(clip.file);
+							}
+							if (!iit->second) {
+								continue;  // an Animations entry must be runnable even if its parent scene is not
+							}
+
+							const std::string key = group + '\n' + ToLower(display) + '\n' + clip.animId;
+							unique.try_emplace(key, ClipEntry{ display, clip, def->sourceFile, def->pack });
+						}
+					}
+				}
+			}
+
+			const auto stableHash = [](std::string_view a_text) {
+				std::uint64_t hash = 14695981039346656037ull;  // FNV-1a 64
+				for (const unsigned char ch : a_text) {
+					hash ^= ch;
+					hash *= 1099511628211ull;
+				}
+				return hash;
+			};
+
+			std::size_t added = 0;
+			for (auto& [key, entry] : unique) {
+				std::string id = std::format("osf.scene-clip/{:016x}", stableHash(key));
+				for (std::uint32_t collision = 1; a_scenes.contains(ToLower(id)); ++collision) {
+					id = std::format("osf.scene-clip/{:016x}-{}", stableHash(key), collision);
+				}
+
+				SceneDef def;
+				def.id = std::move(id);
+				const std::filesystem::path displayPath{ entry.display };
+				def.name = displayPath.filename().string();
+				if (def.name.empty()) {
+					def.name = entry.display;
+				}
+				if (!entry.clip.animId.empty()) {
+					def.name += " · " + entry.clip.animId;
+				}
+				def.species = Util::SpeciesFromAnimPath(entry.clip.file);
+				if (def.species.empty()) {
+					def.species = "human";
+				}
+				def.unlisted = true;  // direct/browser only; never enter tag matchmaking
+				def.library = true;   // Animations lane, beside (but not duplicated from) vanilla
+				def.lockPlayer = false;
+				def.stripActors = false;
+				def.fade = false;
+				def.inPlace = true;   // raw-clip debugging must not teleport or root-pin the actor
+				def.tags = { "scene.clip" };
+				def.tagSet = { "scene.clip" };
+				def.roles.emplace_back();
+				def.sourceFile = std::move(entry.sourceFile);
+				def.pack = std::move(entry.pack);
+
+				StageDef stage;
+				stage.name = entry.display;
+				if (!entry.clip.animId.empty()) {
+					stage.name += ":" + entry.clip.animId;
+				}
+				stage.tags = { "scene.clip" };
+				entry.clip.offset.reset();  // isolate the animation, not its role placement
+				stage.clips.push_back(std::move(entry.clip));
+				DesugarLinear(def, { stage });  // one holding node; Advance/Space ends it
+
+				const std::string generatedKey = ToLower(def.id);
+				a_scenes.emplace(generatedKey, std::move(def));
+				++added;
+			}
+			return added;
+		}
 	}
 
 	void SceneRegistry::LoadAll()
@@ -1627,13 +1747,16 @@ namespace OSF::Registry
 		}
 
 		const auto sceneCount = loaded.size();
+		const auto clipEntryCount = AddSceneClipEntries(loaded);
 		const auto problemCount = errors.size();
 		{
 			std::unique_lock l{ lock };
 			scenes = std::move(loaded);
 			loadErrors = std::move(errors);
+			authoredSceneCount = sceneCount;
 		}
-		REX::INFO("[Registry] {} scene(s) loaded, {} problem(s)", sceneCount, problemCount);
+		REX::INFO("[Registry] {} scene(s) loaded, {} scene clip entr{}, {} problem(s)",
+			sceneCount, clipEntryCount, clipEntryCount == 1 ? "y" : "ies", problemCount);
 	}
 
 	const SceneDef* SceneRegistry::Find(std::string_view a_id) const
@@ -1686,7 +1809,7 @@ namespace OSF::Registry
 	size_t SceneRegistry::Size() const
 	{
 		std::shared_lock l{ lock };
-		return scenes.size();
+		return authoredSceneCount;
 	}
 
 	std::vector<std::string> SceneRegistry::LoadErrors() const

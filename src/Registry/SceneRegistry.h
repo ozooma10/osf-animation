@@ -324,5 +324,6 @@ namespace OSF::Registry
 		mutable std::shared_mutex        lock;
 		std::unordered_map<std::string, SceneDef> scenes;  // key = lowercased id
 		std::vector<std::string>         loadErrors;
+		size_t                           authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
 	};
 }
