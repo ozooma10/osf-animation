@@ -19,6 +19,9 @@ namespace
 {
 	// Last game version whose offsets I checked by hand. Should keep working unless AddressLib ships a breaking update.
 	constexpr REL::Version kVerifiedGameVersion{ 1, 16, 244, 0 };
+	// Persistence uses 59 bytes for three original-function gateways plus 42 bytes
+	// for their branch islands. Keep a small margin for hook implementation changes.
+	constexpr std::size_t kTrampolineBytes = 128;
 
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
 	{
@@ -61,14 +64,14 @@ SFSE_PLUGIN_PRELOAD(const SFSE::PreLoadInterface* a_sfse)
 	// CRT asserts (which trainwreck cannot see) + a stack + minidump into the SFSE Logs folder.
 	OSF::Util::CrashHandler::Install();
 
-	SFSE::Init(a_sfse);
+	SFSE::Init(a_sfse, { .trampoline = true, .trampolineSize = kTrampolineBytes });
 
 	return true;
 }
 
 SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 {
-	SFSE::Init(a_sfse);
+	SFSE::Init(a_sfse, { .trampoline = true, .trampolineSize = kTrampolineBytes });
 
 	const auto runtime = a_sfse->RuntimeVersion();
 	REX::INFO("[Boot] {} v{} loading — supported game version {}, running on {}",
