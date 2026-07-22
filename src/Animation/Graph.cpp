@@ -13,10 +13,19 @@ namespace OSF::Animation
 	{
 		using OSF::Util::ToLower;
 
-		bool IsFaceRigNode(std::string_view a_lowerName)
+		// OSF drives the BODY only — the face and eyes stay with the engine's own systems (look-at,
+		// blink, facial anim). Face bones are prefixed "faceBone_" and morph targets "morph". The
+		// eyeball look-at bones are NOT faceBone_-prefixed (L_Eye/R_Eye/Eye_Target), so they must be
+		// named explicitly: the flat SAF/NAF clips author these with large (~0.7-1.0m) translations
+		// in a look-at space, and because the engine parents them under C_Head, stamping those as
+		// head-local offsets flings the eye meshes ~70 units off the head to a scene-dependent spot
+		// (the "eyes popping out to a random location" report). ~45% of Gergel Ebanex clips animate
+		// them. Skipping keeps the eyes engine-driven. (Sibling head bones — tongue/ears/DirectAt —
+		// measured <0.15m across the pack, so they compose fine and are left drivable.)
+		bool IsNonBodyRigNode(std::string_view a_lowerName)
 		{
-			//We only want to drive body. rig has face prefixed with faceBone_, morph also not stamped
-			return a_lowerName.starts_with("facebone") || a_lowerName.starts_with("morph");
+			return a_lowerName.starts_with("facebone") || a_lowerName.starts_with("morph") ||
+			       a_lowerName == "l_eye" || a_lowerName == "r_eye" || a_lowerName == "eye_target";
 		}
 
 		// Write bone slot in engines NiTransform layout. Rotation as 3 rows of 4 floats (0x00,0x10,0x20), translation +0x30, scale +0x3C 
@@ -247,7 +256,7 @@ namespace OSF::Animation
 		binding.clear();
 		binding.reserve(cachedBoneCount);
 
-		uint32_t skippedFaceBones = 0;
+		uint32_t skippedNonBody = 0;
 		for (uint32_t i = 0; i < modelNode->nodes.size(); i++) {
 			const auto& entry = modelNode->nodes[i];
 			if (!entry.node) {
@@ -258,8 +267,8 @@ namespace OSF::Animation
 				continue;
 			}
 			const auto lowerName = ToLower(name);
-			if (IsFaceRigNode(lowerName)) {
-				skippedFaceBones++;
+			if (IsNonBodyRigNode(lowerName)) {
+				skippedNonBody++;
 				continue;
 			}
 			if (auto iter = jointMap.find(lowerName); iter != jointMap.end()) {
@@ -272,7 +281,7 @@ namespace OSF::Animation
 
 		if (!loggedBind) {
 			loggedBind = true;
-			REX::DEBUG("[Anim] rig bind — {}/{} mapped body bones matched skeleton joints ({} faceBone_/morph nodes skipped)", binding.size(), cachedBoneCount, skippedFaceBones);
+			REX::DEBUG("[Anim] rig bind — {}/{} mapped body bones matched skeleton joints ({} face/eye/morph nodes skipped)", binding.size(), cachedBoneCount, skippedNonBody);
 		}
 
 		return !binding.empty();
