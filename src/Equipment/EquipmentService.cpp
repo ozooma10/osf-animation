@@ -19,6 +19,15 @@ namespace OSF::Equipment
 			0x57, 0x48, 0x8D, 0x6C, 0x24, 0xF9, 0x48, 0x81, 0xEC
 		};
 
+		RE::TESNPC* NpcOf(RE::Actor* a_actor)
+		{
+			if (!a_actor) {
+				return nullptr;
+			}
+			const auto base = a_actor->GetBaseObject();
+			return base ? base->As<RE::TESNPC>() : nullptr;
+		}
+
 		// The engine re-instances items while they sit unequipped (outfit/skin pass), so the live
 		// inventory instanceData is the authoritative one to equip/unequip against. Returns null when
 		// the object isn't in the actor's inventory (then equip uses the base instance).
@@ -106,7 +115,7 @@ namespace OSF::Equipment
 		// Never strip the actor's base skin: on some NPCs the skin/body ARMO enumerates as an equipped inventory item, and unequipping it leaves the actor invisible. 
 		// Identified by form identity (NPC override skin, else race default, via TESNPC::GetSkin) rather than the biped mask, whose offset uncertain. 
 		const RE::TESObjectARMO* skin = nullptr;
-		if (auto* npc = a_actor->GetNPC()) {
+		if (auto* npc = NpcOf(a_actor)) {
 			skin = npc->GetSkin();
 		}
 		std::uint32_t skippedSkin = 0;
@@ -159,6 +168,9 @@ namespace OSF::Equipment
 		}
 
 		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
+			return snapshot;
+		}
 		for (const auto& w : snapshot.stripped) {
 			RE::BGSObjectInstance instance{ w.object, w.instanceData.get() };
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
@@ -175,6 +187,9 @@ namespace OSF::Equipment
 		}
 
 		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
+			return;
+		}
 		for (const auto& w : a_snapshot.stripped) {
 			if (!w.object) {
 				continue;
@@ -212,6 +227,10 @@ namespace OSF::Equipment
 				a_actor->formID, a_object->GetFormID());
 			return record;
 		}
+		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
+			return record;
+		}
 		record.object = a_object;
 
 		// Whether the actor already owns / already wears this exact form decides what we have to undo:
@@ -235,7 +254,7 @@ namespace OSF::Equipment
 			RE::BGSObjectInstance instance{ a_object, LiveInstance(a_actor, a_object) };
 			// Same silent flags as Restore: queueEquip=false (immediate), forceEquip=true (skip the AI veto),
 			// playSounds=false, applyNow=true, locked=false (the actor's outfit logic still owns it afterwards).
-			RE::ActorEquipManager::GetSingleton()->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
+			mgr->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
 			record.equipped = true;
 		}
 
@@ -250,10 +269,14 @@ namespace OSF::Equipment
 			return;
 		}
 
+		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
+			return;
+		}
 		if (a_item.equipped) {
 			RE::BGSObjectInstance instance{ a_item.object, LiveInstance(a_actor, a_item.object) };
 			// forceUnequip=true clears any equip lock; queueUnequip=false (immediate), silent, applyNow=true.
-			RE::ActorEquipManager::GetSingleton()->UnequipObject(a_actor, instance, nullptr, false, true, false, true, nullptr);
+			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, true, nullptr);
 		}
 
 		if (a_item.addedToInventory) {

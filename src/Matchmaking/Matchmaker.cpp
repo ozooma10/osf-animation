@@ -14,9 +14,18 @@ namespace OSF::Matchmaking
 
 	namespace
 	{
+		RE::TESNPC* NpcOf(RE::Actor* a_actor)
+		{
+			if (!a_actor) {
+				return nullptr;
+			}
+			const auto base = a_actor->GetBaseObject();
+			return base ? base->As<RE::TESNPC>() : nullptr;
+		}
+
 		RE::SEX SexOf(RE::Actor* a_actor)
 		{
-			auto* npc = a_actor ? a_actor->GetNPC() : nullptr;
+			auto* npc = NpcOf(a_actor);
 			return npc ? npc->GetSex() : RE::SEX::kNone;
 		}
 
@@ -42,7 +51,7 @@ namespace OSF::Matchmaking
 			}
 			// Qualify the base call: TESNPC declares its own HasKeyword(string_view), which hides the inherited BGSKeywordForm::HasKeyword(BGSKeyword*). 
 			// The base checks the actorbase's own keywords; the race is checked separately so an actor matches if EITHER carries it.
-			if (auto* npc = a_actor->GetNPC(); npc && npc->BGSKeywordForm::HasKeyword(a_keyword)) {
+			if (auto* npc = NpcOf(a_actor); npc && npc->BGSKeywordForm::HasKeyword(a_keyword)) {
 				return true;
 			}
 			if (auto* race = a_actor->race; race && race->BGSKeywordForm::HasKeyword(a_keyword)) {
@@ -229,7 +238,7 @@ namespace OSF::Matchmaking
 		if (!a_actor) {
 			return false;
 		}
-		if (!SlotGenderAccepts(a_role.gender, SexOf(a_actor))) {
+		if (a_role.gender != Registry::SlotGender::kAny && !SlotGenderAccepts(a_role.gender, SexOf(a_actor))) {
 			return false;
 		}
 		if (!a_role.keywords.empty()) {
