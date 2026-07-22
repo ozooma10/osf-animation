@@ -114,6 +114,12 @@ function LibraryRow({ state, scene, cleanTier, commands }: { state: BrowserState
   </button>;
 }
 
+function VanillaSourceToggle({ filtered, onToggle }: { filtered: boolean; onToggle(): void }) {
+  return <button class={`source-toggle ${filtered ? "filtered" : ""}`} onClick={onToggle} title={filtered ? "Show vanilla animations" : "Hide vanilla animations"} aria-label={filtered ? "Vanilla animations hidden" : "Vanilla animations shown"} aria-pressed={filtered}>
+    <span>VANILLA</span><i class="source-toggle-switch" aria-hidden="true"><i/></i>
+  </button>;
+}
+
 function LibraryBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const emotes = emoteCatalog(state).filter((scene) => matchesSearch(state, scene) && speciesVisible(state, scene));
   const matchKnown = !!state.furniture && state.anchorMatch?.token === state.furniture.token;
@@ -139,8 +145,8 @@ function LibraryBrowser({ state, commands }: { state: BrowserState; commands: Br
   const cleanClips = speciesLibrary.reduce((count, scene) => count + cleanStages(scene).length, 0);
   return <>
     <SpeciesFilter state={state} onToggle={commands.toggleSpecies}/>
-    {matchKnown ? <div class="browse-note"><Dot active/><span class="lbl">{state.furniture!.name} · {speciesLibrary.filter((scene) => state.anchorMatch!.ids.has(scene.id)).length} SETS FIT</span><button class={`reveal inline ${state.libShowAll ? "on" : ""}`} onClick={commands.toggleLibraryShowAll}>{state.libShowAll ? "show fitting only" : "show all"}</button><button class={`reveal inline ${state.libCustomOnly ? "on" : ""}`} onClick={commands.toggleLibraryCustomOnly}>{state.libCustomOnly ? "show vanilla" : "hide vanilla"}</button></div>
-      : <div class="browse-note"><Dot/><span class="lbl">{cleanTier ? `ANIMATION LIBRARY · ${cleanClips} POSES & LOOPS` : `ANIMATION LIBRARY · ${clips} CLIPS IN ${speciesLibrary.length} SETS`}</span>{!state.filters.search && <button class={`reveal inline ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>{state.libFull ? "poses & loops only" : `full library · ${clips} clips`}</button>}<button class={`reveal inline ${state.libCustomOnly ? "on" : ""}`} onClick={commands.toggleLibraryCustomOnly}>{state.libCustomOnly ? "show vanilla" : "hide vanilla"}</button></div>}
+    {matchKnown ? <div class="browse-note"><Dot active/><span class="lbl">{state.furniture!.name} · {speciesLibrary.filter((scene) => state.anchorMatch!.ids.has(scene.id)).length} SETS FIT</span><button class={`reveal inline ${state.libShowAll ? "on" : ""}`} onClick={commands.toggleLibraryShowAll}>{state.libShowAll ? "show fitting only" : "show all"}</button><VanillaSourceToggle filtered={state.libCustomOnly} onToggle={commands.toggleLibraryCustomOnly}/></div>
+      : <div class="browse-note"><Dot/><span class="lbl">{cleanTier ? `ANIMATION LIBRARY · ${cleanClips} POSES & LOOPS` : `ANIMATION LIBRARY · ${clips} CLIPS IN ${speciesLibrary.length} SETS`}</span>{!state.filters.search && <button class={`reveal inline ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>{state.libFull ? "poses & loops only" : `full library · ${clips} clips`}</button>}<VanillaSourceToggle filtered={state.libCustomOnly} onToggle={commands.toggleLibraryCustomOnly}/></div>}
     {!!emotes.length && <div class="libx-group emotes"><div class="libx-head static"><span class="emote-mark">✦</span><span class="libx-name">EMOTES</span><span class="libx-meta mono">{emotes.length} QUICK ACTION{emotes.length === 1 ? "" : "S"}</span></div><div class="libx-list">
       {emotes.map((scene) => <button key={scene.id} class={`libx-row emote ${state.selectedId === scene.id ? "selected" : ""}`} onClick={() => commands.selectScene(scene.id)}><span class="libx-spine"/><span class="libx-title">{scene.title}</span>{scene.pinned > 0 && <span class="libx-pinmark">◆</span>}<span class="libx-meta mono">{state.filters.debugMode ? scene.id : ["emote", formatEstimate(scene)].filter(Boolean).join(" · ")}</span></button>)}
     </div></div>}
