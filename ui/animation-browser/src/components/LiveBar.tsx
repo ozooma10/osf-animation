@@ -45,8 +45,7 @@ export function LiveBar({ running, handle, title, stage, canAdvance, onAdvance, 
       </div>
       <div class="livebar-hint mono">
         {running && canAdvance ? "SPACE NEXT · " : ""}
-        DRAG/RS ORBIT · WHEEL/LB-RB ZOOM · LT-RT HEIGHT
-        {running ? " · MMB/R3 FREECAM" : ""}
+        {running ? "LS/RS CAMERA · LT-RT HEIGHT" : "DRAG/RS ORBIT · WHEEL/LB-RB ZOOM · LT-RT HEIGHT"}
       </div>
     </>
   );
