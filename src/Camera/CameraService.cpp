@@ -83,10 +83,11 @@ namespace OSF::Camera
 		constexpr float kOrbitMinRadius = 1.0f;
 		constexpr float kOrbitMaxRadius = 12.0f;
 		constexpr float kOrbitMouseSens = 0.004f;    // radians per raw mouse unit
-		constexpr float kOrbitPanSpeed = 5.0f;       // meters/sec the WASD keys fly the orbit center through the scene
+		constexpr float kOrbitPanSpeed = 5.0f;       // meters/sec the WASD keys / left stick fly the orbit center horizontally
+		constexpr float kOrbitLiftSpeed = 3.0f;      // meters/sec the triggers fly the orbit center vertically
 		constexpr float kOrbitWheelStep = 0.6f;      // meters of radius change per mouse-wheel notch (zoom)
 		constexpr float kOrbitStickLookSpeed = 2.2f;    // radians/sec of orbit steer at full right-stick deflection
-		constexpr float kOrbitTriggerZoomSpeed = 4.0f;  // meters/sec of radius change at full trigger pull
+		constexpr float kOrbitButtonZoomSpeed = 4.0f;   // meters/sec of radius change while a shoulder button is held
 		constexpr float kOrbitElevLimit = 1.45f;     // ~83°, off the gimbal poles
 		constexpr float kOrbitSmoothTime = 0.07f;    // low-pass time constant (s): smaller = snappier, larger = floatier
 		constexpr float kOrbitReframeTime = 0.35f;   // slower low-pass used while an auto-reframe glide is in flight
@@ -105,9 +106,9 @@ namespace OSF::Camera
 			return (GetAsyncKeyState(a_vk) & 0x8000) != 0;
 		}
 
-		// --- Gamepad orbit steering, the pad mirror of the mouse scheme: RIGHT stick = mouse drag
-		// (orbit angle), LEFT stick = WASD (flies the orbit center), TRIGGERS = wheel (RT zooms in,
-		// LT out). Polled like KeyDown; sticks are positions, not deltas, so DriveSceneOrbit
+		// --- Gamepad orbit steering: RIGHT stick = mouse drag (orbit angle), LEFT stick = WASD
+		// (flies the orbit center horizontally), TRIGGERS = vertical translation (RT up / LT down),
+		// SHOULDERS = wheel (RB zooms in / LB out). Polled like KeyDown; axes are positions, not deltas, so DriveSceneOrbit
 		// integrates them as rate · dt into the same targets the mouse nudges.
 		struct PadOrbit
 		{
@@ -115,7 +116,8 @@ namespace OSF::Camera
 			float lookY{ 0.0f };  // right stick Y, + = up
 			float panF{ 0.0f };   // left stick Y, + = forward
 			float panR{ 0.0f };   // left stick X, + = right
-			float zoom{ 0.0f };   // RT − LT in [-1, 1], + = zoom in
+			float lift{ 0.0f };   // RT − LT in [-1, 1], + = translate up
+			float zoom{ 0.0f };   // RB − LB in [-1, 1], + = zoom in
 			bool  steering{ false };  // any axis outside its deadzone this poll
 		};
 
@@ -156,8 +158,10 @@ namespace OSF::Camera
 				           static_cast<float>(a_raw - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) / (255.0f - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) :
 				           0.0f;
 			};
-			out.zoom = trigger(pad.bRightTrigger) - trigger(pad.bLeftTrigger);
-			out.steering = out.lookX != 0.0f || out.lookY != 0.0f || out.panF != 0.0f || out.panR != 0.0f || out.zoom != 0.0f;
+			out.lift = trigger(pad.bRightTrigger) - trigger(pad.bLeftTrigger);
+			out.zoom = ((pad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 ? 1.0f : 0.0f) -
+			           ((pad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 ? 1.0f : 0.0f);
+			out.steering = out.lookX != 0.0f || out.lookY != 0.0f || out.panF != 0.0f || out.panR != 0.0f || out.lift != 0.0f || out.zoom != 0.0f;
 			return out;
 		}
 
@@ -580,6 +584,7 @@ namespace OSF::Camera
 				return;  // already on — toggling again would exit it
 			}
 			SetNativeFreeCam(true);  // enter free cam (state-driven); the engine seeds the pose from the current view
+			Input::InputService::GetSingleton().SetNativeFreeCamGamepad(true);
 			REX::DEBUG("[Camera] native free camera entered (ToggleFreeCameraMode, state {})", kNativeFreeCamState);
 		});
 	}
@@ -597,6 +602,7 @@ namespace OSF::Camera
 			if (!nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
 				return;  // not on — nothing to do
 			}
+			Input::InputService::GetSingleton().SetNativeFreeCamGamepad(false);
 			SetNativeFreeCam(false);  // clear the engine free-cam status flags 
 			// tfc set the player AI-driven (to freeze them while the camera flew) and toggling it off doesn't reliably clear it for a pinned scene participant.
 			Player::PlayerControlService::GetSingleton().ClearAIDriven();
@@ -615,6 +621,35 @@ namespace OSF::Camera
 			}
 
 			REX::DEBUG("[Camera] native free camera exited");
+		});
+	}
+
+	void CameraService::RestoreAfterPlayerFreeCam(PlayerFreeCamReturn a_mode)
+	{
+		if (a_mode == PlayerFreeCamReturn::kNone) {
+			return;
+		}
+		// The player toggle can sit on top of a scene-owned orbit/vanity override. Releasing only
+		// its ref-count would leave native TFC live because the scene still owns the other hold.
+		// Exit TFC explicitly, then restore the posture that was live before R3/MMB entered it.
+		NativeFreeCamExit();
+		SFSE::GetTaskInterface()->AddTask([this, a_mode]() {
+			if (!suppressBounce.load(std::memory_order_relaxed)) {
+				return;  // the underlying scene override ended before this handback ran
+			}
+			auto* camera = RE::PlayerCamera::GetSingleton();
+			if (!camera) {
+				return;
+			}
+			if (a_mode == PlayerFreeCamReturn::kSceneOrbit && orbitDriving.load(std::memory_order_relaxed)) {
+				// Resume the retained ring/center rather than re-entering scene-orbit, which would
+				// reframe on the player and discard the view the user had before toggling TFC.
+				camera->SetCameraState(RE::CameraState::kFreeFly);
+				REX::DEBUG("[Camera] native free camera handed back to the prior scene orbit");
+			} else if (a_mode == PlayerFreeCamReturn::kVanityOrbit) {
+				camera->SetCameraState(RE::CameraState::kAutoVanity);
+				REX::DEBUG("[Camera] native free camera handed back to the prior vanity orbit");
+			}
 		});
 	}
 
@@ -657,9 +692,9 @@ namespace OSF::Camera
 		lastDriveMs = now;
 		dt = std::clamp(dt, 0.0f, 0.1f);
 
-		// Control scheme (freecam-style orbit): MOUSE / right stick steers the orbit angle, WHEEL /
-		// triggers zooms the radius, and WASD / left stick flies the orbit CENTER through the scene
-		// (the camera keeps orbiting the moving pivot).
+		// Control scheme (freecam-style orbit): mouse / right stick steers the orbit angle; wheel /
+		// shoulders zoom the radius; WASD / left stick flies the orbit CENTER horizontally; triggers
+		// translate it vertically. The camera keeps orbiting the moving pivot.
 		float mdx = 0.0f, mdy = 0.0f, wheel = 0.0f;
 		auto& input = Input::InputService::GetSingleton();
 		input.DrainMouseDelta(mdx, mdy);
@@ -669,7 +704,7 @@ namespace OSF::Camera
 		orbitTargetAzimuth -= mdx * kOrbitMouseSens + pad.lookX * kOrbitStickLookSpeed * dt;
 		orbitTargetElevation += mdy * kOrbitMouseSens - pad.lookY * kOrbitStickLookSpeed * dt;
 		orbitTargetElevation = std::clamp(orbitTargetElevation, -kOrbitElevLimit, kOrbitElevLimit);
-		orbitTargetRadius -= wheel * kOrbitWheelStep + pad.zoom * kOrbitTriggerZoomSpeed * dt;  // wheel up / RT (+) = zoom in = smaller radius
+		orbitTargetRadius -= wheel * kOrbitWheelStep + pad.zoom * kOrbitButtonZoomSpeed * dt;  // wheel up / RB (+) = zoom in = smaller radius
 		orbitTargetRadius = std::clamp(orbitTargetRadius, kOrbitMinRadius, kOrbitMaxRadius);
 
 		// WASD pans the center in its horizontal plane, relative to the current view: W/S along the camera's
@@ -687,6 +722,7 @@ namespace OSF::Camera
 			orbitCenterTargetX += (-sh * panF + ch * panR) * step;  // forward=(-sin,cos), right=(cos,sin)
 			orbitCenterTargetY += (ch * panF + sh * panR) * step;
 		}
+		orbitCenterTargetZ += pad.lift * kOrbitLiftSpeed * dt;
 
 		// Manual steering cancels an in-flight reframe glide: the user's intent wins, and the leftover
 		// offset finishes at the snappy input time constant instead of dragging behind their drag.
@@ -805,14 +841,29 @@ namespace OSF::Camera
 		// Re-entrant-safe alternation: the flag flips exactly once per press, so the on/off paths can't
 		// double-acquire or double-release the override even if presses land back-to-back.
 		if (!playerFreeCamHeld.exchange(true, std::memory_order_relaxed)) {
+			// A scene-authored `freefly` is already native TFC and remains owned by that scene;
+			// don't add a second player hold that could never meaningfully toggle it off.
+			if (nativeFreeCamActive.load(std::memory_order_relaxed)) {
+				playerFreeCamHeld.store(false, std::memory_order_relaxed);
+				REX::DEBUG("[Camera] player free camera toggle ignored — scene free-fly already active");
+				return;
+			}
+			PlayerFreeCamReturn returnMode = PlayerFreeCamReturn::kNone;
+			if (orbitDriving.load(std::memory_order_relaxed)) {
+				returnMode = PlayerFreeCamReturn::kSceneOrbit;
+			} else if (auto* camera = RE::PlayerCamera::GetSingleton(); camera && camera->QCameraEquals(RE::CameraState::kAutoVanity)) {
+				returnMode = PlayerFreeCamReturn::kVanityOrbit;
+			}
+			playerFreeCamReturn.store(returnMode, std::memory_order_relaxed);
 			AcquireStateOverride();                 // capture baseline + suppress the bounce on the first holder
 			SetLiveCameraState(CameraMode::kFreeFly);  // engine-native free cam (the `tfc` path)
-			REX::DEBUG("[Camera] player free camera toggled ON (MMB)");
+			REX::DEBUG("[Camera] player free camera toggled ON (MMB/R3)");
 			return;
 		}
 		playerFreeCamHeld.store(false, std::memory_order_relaxed);
+		RestoreAfterPlayerFreeCam(playerFreeCamReturn.exchange(PlayerFreeCamReturn::kNone, std::memory_order_relaxed));
 		ReleaseStateOverride();  // hands the camera back to any scene posture / third-person hold / baseline
-		REX::DEBUG("[Camera] player free camera toggled OFF (MMB)");
+		REX::DEBUG("[Camera] player free camera toggled OFF (MMB/R3)");
 	}
 
 	void CameraService::ForcePlayerFreeCamOff()
@@ -824,6 +875,7 @@ namespace OSF::Camera
 		// undo, which runs BEFORE the control-lock undo, so the third-person hold is still armed here and
 		// ReleaseStateOverride hands the camera cleanly back to it (then the lock undo restores the baseline).
 		if (playerFreeCamHeld.exchange(false, std::memory_order_relaxed)) {
+			RestoreAfterPlayerFreeCam(playerFreeCamReturn.exchange(PlayerFreeCamReturn::kNone, std::memory_order_relaxed));
 			ReleaseStateOverride();
 			REX::DEBUG("[Camera] player free camera force-exited (scene ended)");
 		}
@@ -911,6 +963,7 @@ namespace OSF::Camera
 
 	void CameraService::OnStopAll()
 	{
+		Input::InputService::GetSingleton().SetNativeFreeCamGamepad(false);
 		if (orbitDriving.exchange(false, std::memory_order_relaxed)) {
 			Input::InputService::GetSingleton().SetMouseCapture(false);
 		}
@@ -923,6 +976,7 @@ namespace OSF::Camera
 			SFSE::GetTaskInterface()->AddTask([]() { SetNativeFreeCam(false); });
 		}
 		playerFreeCamHeld.store(false, std::memory_order_relaxed);
+		playerFreeCamReturn.store(PlayerFreeCamReturn::kNone, std::memory_order_relaxed);
 		browseOrbitHeld.store(false, std::memory_order_relaxed);  // counts are dropped wholesale below
 		std::scoped_lock l{ lock };
 		holdCount = 0;

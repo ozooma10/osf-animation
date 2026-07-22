@@ -47,6 +47,11 @@ namespace OSF::Input
 		// consumes gamepad events (status = kStop) so the player can't walk/jump under the browser.
 		void SetUiCursorVisible(bool a_on);
 
+		// Native free cam (`tfc`) owns the gamepad while active. The browser normally consumes
+		// thumbstick events before the engine sees them (the self-driven orbit polls XInput), but
+		// TFC uses the engine input path; allow those events through until free cam exits.
+		void SetNativeFreeCamGamepad(bool a_on);
+
 		// Bridge-fed orbit steering (osf.orbit from the scene browser): world-area LMB-drag deltas
 		// in view CSS px (+wheel notches, + = zoom in). Scaled to the raw-mouse axis and added to
 		// the same accumulators the hook feeds; dropped when no orbit capture is active.

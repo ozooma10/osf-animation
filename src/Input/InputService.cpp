@@ -1,5 +1,7 @@
 #include "Input/InputService.h"
 
+#include "SFSE/InputMap.h"
+
 #include "RE/B/BSInputEventReceiver.h"
 #include "RE/B/BSInputEventUser.h"
 #include "RE/C/Console.h"
@@ -32,6 +34,7 @@ namespace OSF::Input
 		// button is held (click-drag orbits; free movement steers the cursor, free wheel scrolls the UI).
 		std::atomic_bool   g_uiCursorVisible{ false };
 		std::atomic_bool   g_orbitDragHeld{ false };  // LMB is down (tracked only while capture is on)
+		std::atomic_bool   g_nativeFreeCamGamepad{ false };  // let engine TFC consume pad axes while the browser is visible
 		// MouseMoveEvent is an IDEvent (0x38) subclass; the two raw axis deltas (int32 x,y) follow it.
 		constexpr std::ptrdiff_t kMouseMoveDeltaOffset = 0x38;
 		// The mouse wheel arrives as ButtonEvents on the kMouse device (confirmed in-game): idCode 0x800 =
@@ -65,6 +68,12 @@ namespace OSF::Input
 			}
 		}
 
+		Verb VerbForGamepad(std::int32_t a_idCode)
+		{
+			const auto key = SFSE::InputMap::GamepadMaskToKeycode(static_cast<std::uint32_t>(a_idCode));
+			return key == SFSE::InputMap::kGamepadButtonOffset_RIGHT_THUMB ? Verb::kFreecam : Verb::kNone;
+		}
+
 		// On a keyboard PRESS edge, map -> verb, capability-gate against the active grant, then post the verb to the game thread via the registered handler. 
 		// Keeps the input hot path lock-free: the thunk only copies the grant + posts a task; the heavy scene work runs on the game thread.
 		void MaybeDispatch(const RE::ButtonEvent* a_event)
@@ -78,9 +87,11 @@ namespace OSF::Input
 			} else if (a_event->deviceType == RE::InputEvent::DeviceType::kMouse &&
 					   a_event->idCode == kMouseMiddleId) {
 				verb = Verb::kFreecam;  // MMB toggles native free camera while a scene grants it
+			} else if (a_event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
+				verb = VerbForGamepad(a_event->idCode);  // R3 mirrors MMB
 			}
 			if (verb == Verb::kNone) {
-				return;  // unmapped key/button (gamepad idCodes still pending capture)
+				return;  // unmapped key/button
 			}
 
 			Grant                                   grant;
@@ -119,6 +130,7 @@ namespace OSF::Input
 			const bool active = g_active.load(std::memory_order_relaxed);
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
 			const bool uiVisible = g_uiCursorVisible.load(std::memory_order_relaxed);
+			const bool nativeFreeCamGamepad = g_nativeFreeCamGamepad.load(std::memory_order_relaxed);
 			const bool menuOwns = MenuOwnsInput();
 			// don't route any input while a menu/console owns it. The engine still receives the queue below.
 			if ((active || capture || uiVisible) && !menuOwns) {
@@ -133,7 +145,7 @@ namespace OSF::Input
 					// and gameplay button verbs are gated by OSF UI's ControlLayer flags (proven
 					// for buttons — only stick movement ignores them). Buttons are swept after
 					// the forward below as belt-and-suspenders.
-					if (uiVisible && et == RE::InputEvent::EventType::kThumbstick &&
+					if (uiVisible && !nativeFreeCamGamepad && et == RE::InputEvent::EventType::kThumbstick &&
 						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 						const_cast<RE::InputEvent*>(event)->status = RE::InputEvent::Status::kStop;
 						continue;
@@ -287,6 +299,7 @@ namespace OSF::Input
 			g_grant = Grant{};
 		}
 		g_active.store(false, std::memory_order_relaxed);
+		g_nativeFreeCamGamepad.store(false, std::memory_order_relaxed);
 		SetMouseCapture(false);
 	}
 
@@ -322,6 +335,11 @@ namespace OSF::Input
 			// browser must not start steering the camera).
 			g_orbitDragHeld.store(false, std::memory_order_relaxed);
 		}
+	}
+
+	void InputService::SetNativeFreeCamGamepad(bool a_on)
+	{
+		g_nativeFreeCamGamepad.store(a_on, std::memory_order_relaxed);
 	}
 
 	void InputService::DrainMouseDelta(float& a_dx, float& a_dy)

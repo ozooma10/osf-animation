@@ -92,6 +92,13 @@ namespace OSF::Camera
 		void OnPostLoad();
 
 	private:
+		enum class PlayerFreeCamReturn : std::uint8_t
+		{
+			kNone,
+			kSceneOrbit,
+			kVanityOrbit
+		};
+
 		// Capture the prior POV once, on the game thread, when the first imposition engages.
 		void CaptureBaseline();
 		// Restore the prior POV on the game thread, only if no imposition remains and the live camera differs from the baseline.
@@ -100,6 +107,7 @@ namespace OSF::Camera
 		// engine native freecam (`tfc`). ToggleFreeCameraMode enters kFreeWalk + seeds the pose from the current view + routes input
 		void NativeFreeCamEnter();
 		void NativeFreeCamExit();
+		void RestoreAfterPlayerFreeCam(PlayerFreeCamReturn a_mode);
 
 		// SCENE ORBIT (self-driven): per-frame from Tick (job threads) — places the camera on a ring around
 		// the scene center and aims it inward, writing the FreeFly state's transform. Mouse steers azimuth/
@@ -119,6 +127,7 @@ namespace OSF::Camera
 
 		std::atomic<bool> nativeFreeCamActive{ false };  // engine-native free cam is toggled on
 		std::atomic<bool> playerFreeCamHeld{ false };    // the MMB player toggle owns one state-override hold
+		std::atomic<PlayerFreeCamReturn> playerFreeCamReturn{ PlayerFreeCamReturn::kNone };  // posture under the player TFC toggle
 		std::atomic<bool> browseOrbitHeld{ false };      // the scene browser's drag-to-look owns one state-override hold
 
 		std::atomic<bool> orbitDriving{ false };  // gates Tick's scene-orbit self-drive
