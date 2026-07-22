@@ -35,7 +35,6 @@ namespace OSF::Camera
 		// Drive the engine free cam to a desired on/off state.
 		//   ENTER: call ToggleFreeCameraMode - the engine sets up the FreeWalk state + flags properly. (Safe.)
 		//   EXIT:  DO NOT call ToggleFreeCameraMode's exit. The camera itself is returned to third person by the caller's ForceThirdPerson / RestoreBaseline handback
-		//          RestoreBaseline also restores PlayerCamera's captured third-person rotation-input byte.
 		void SetNativeFreeCam(bool a_on)
 		{
 			auto* camera = RE::PlayerCamera::GetSingleton();
@@ -69,10 +68,6 @@ namespace OSF::Camera
 		constexpr std::ptrdiff_t kThirdPersonTargetZoomOffset = 0x224;   // float — the zoom SETPOINT (write this)
 		constexpr std::ptrdiff_t kThirdPersonCurrentZoomOffset = 0x228;  // float — the eased/rendered zoom (writing snaps)
 		constexpr std::ptrdiff_t kThirdPersonStateIdOffset = 0x50;      // std::uint32_t — must == kThirdPerson(20)
-		// PlayerCamera's authoritative third-person free-rotation input flag. PlayerCamera::Update passes
-		// this to ThirdPersonState::SetFreeRotationMode (vtable +0xb8), which mirrors the live mode into
-		// ThirdPersonState +0x288. A POV re-entry recomputes it; a direct state handback can leave it stale.
-		constexpr std::ptrdiff_t kThirdPersonRotationInputOffset = 0x2da;
 		constexpr std::uint32_t  kThirdPersonStateId = 20;              // RE::CameraState::kThirdPerson
 
 		// Normalized zoom axis [0 .. 2] (NOT meters). Keep above the 0.0 floor (<= floor trips ForceFirstPerson); clamp the authored value into range.
@@ -234,8 +229,6 @@ namespace OSF::Camera
 			std::scoped_lock l{ lock };
 			if (!baselineCaptured) {
 				baselineWasFirstPerson = camera->IsInFirstPerson();
-				baselineThirdPersonRotationInput =
-					*reinterpret_cast<const std::uint8_t*>(reinterpret_cast<const std::byte*>(camera) + kThirdPersonRotationInputOffset) != 0;
 				// The full state index too: a pilot's baseline can be a ship exterior state, and
 				// restoring that means handing the exact state back, not forcing an on-foot POV.
 				baselineStateIndex = 0xFFFFFFFFu;
@@ -254,7 +247,6 @@ namespace OSF::Camera
 	{
 		SFSE::GetTaskInterface()->AddTask([this]() {
 			bool          wantFirst = false;
-			bool          priorThirdPersonRotationInput = false;
 			std::uint32_t priorState = 0xFFFFFFFFu;
 			{
 				std::scoped_lock l{ lock };
@@ -263,7 +255,6 @@ namespace OSF::Camera
 					return;
 				}
 				wantFirst = baselineWasFirstPerson;
-				priorThirdPersonRotationInput = baselineThirdPersonRotationInput;
 				priorState = baselineStateIndex;
 				baselineCaptured = false;
 			}
@@ -306,20 +297,6 @@ namespace OSF::Camera
 				// Explicit because a released override leaves the live camera in an alt state, not third.
 				camera->ForceThirdPerson();
 				REX::DEBUG("[Camera] restored to third person after scene camera release");
-			}
-			if (priorState == RE::CameraState::kThirdPerson && camera->IsInThirdPerson()) {
-				// ForceThirdPerson early-outs when the engine has already selected kThirdPerson. That is
-				// normally fine for POV/position, but it skips the POV-entry refresh of +0x2da; when the
-				// stale value is false, mouse look turns the actor while the camera orbit stays frozen.
-				// Restore the exact pre-scene value so the next PlayerCamera update re-enables the matching
-				// ThirdPersonState +0x288 free-rotation mode without a visible 1st/3rd-person toggle.
-				auto* rotationInput = reinterpret_cast<std::uint8_t*>(
-					reinterpret_cast<std::byte*>(camera) + kThirdPersonRotationInputOffset);
-				const std::uint8_t restored = priorThirdPersonRotationInput ? 1 : 0;
-				if (*rotationInput != restored) {
-					*rotationInput = restored;
-					REX::DEBUG("[Camera] restored third-person rotation input after scene camera release");
-				}
 			}
 		});
 	}
@@ -805,8 +782,12 @@ namespace OSF::Camera
 		if (holdArmed.load(std::memory_order_relaxed)) {
 			// A third-person hold is still active — hand the camera back to it instead of restoring.
 			SFSE::GetTaskInterface()->AddTask([this]() {
-				if (suppressBounce.load(std::memory_order_relaxed)) {
-					return;  // an override was re-acquired meanwhile
+				// The scene ledger releases camera-state before control-lock. Both restores are queued, so
+				// this hold can disappear before the task executes; forcing third person from this stale
+				// snapshot would make the later baseline restore early-out and skip the final POV re-entry.
+				// Re-check the live hold here and let RestoreBaseline own the handback when it is gone.
+				if (suppressBounce.load(std::memory_order_relaxed) || !holdArmed.load(std::memory_order_relaxed)) {
+					return;  // an override was re-acquired, or the hold was released before this queued handback ran
 				}
 				auto* camera = RE::PlayerCamera::GetSingleton();
 				if (camera && !camera->IsInThirdPerson()) {

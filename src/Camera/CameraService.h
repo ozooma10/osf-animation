@@ -113,7 +113,6 @@ namespace OSF::Camera
 		std::atomic<bool> bouncePending{ false };
 		bool baselineCaptured = false;
 		bool baselineWasFirstPerson = false;
-		bool baselineThirdPersonRotationInput = false;  // PlayerCamera +0x2da, restored with a third-person baseline
 		std::uint32_t baselineStateIndex = 0xFFFFFFFFu;  // RE::CameraState index live at capture; >= kTotal = unknown
 		int  holdCount = 0;      // third-person-hold holders (control lock + thirdperson_hold tracks)
 		int  overrideCount = 0;  // state-override holders (free-fly / vanity-orbit scenes)
