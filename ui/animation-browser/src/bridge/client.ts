@@ -12,6 +12,13 @@ export interface AnimationBridge {
 export class OsfUiBridge implements AnimationBridge {
   readonly standalone = false;
   private readonly listeners = new Set<NativeMessageListener>();
+  // Messages delivered by the host before any listener has subscribed. The bridge's
+  // onMessage handler is installed synchronously in the constructor (render phase), but
+  // the controller only calls subscribe() from a post-paint useEffect. The host queues
+  // messages for a not-yet-visible view and flushes them at first paint — which lands in
+  // that gap — so runtime.ready (sent once) would otherwise be dropped and the view would
+  // wedge at "Engine Offline" forever. Buffer here and replay on the first subscribe.
+  private readonly pending: NativeMessage[] = [];
   private readonly previousHandler = window.osfui?.onMessage;
 
   constructor() {
@@ -19,6 +26,7 @@ export class OsfUiBridge implements AnimationBridge {
     window.osfui.onMessage = (text) => {
       const message = parseNativeMessage(text);
       if (!message) return;
+      if (this.listeners.size === 0) { this.pending.push(message); return; }
       for (const listener of this.listeners) listener(message);
     };
   }
@@ -29,6 +37,10 @@ export class OsfUiBridge implements AnimationBridge {
 
   subscribe(listener: NativeMessageListener): () => void {
     this.listeners.add(listener);
+    if (this.pending.length) {
+      const buffered = this.pending.splice(0);
+      for (const message of buffered) listener(message);
+    }
     return () => this.listeners.delete(listener);
   }
 
