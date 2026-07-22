@@ -127,9 +127,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     const record = isRecord(payload) ? payload : {};
     switch (message.type) {
       case "runtime.ready":
-        if (!record.bridgeVersion) { showNotice("err", `This view needs the OSF UI bridge; runtime reports ${record.bridgeVersion || "?"}.`); break; }
+        // Contract: a bridge being present (runtime.ready arriving) is the only gate — never
+        // require a specific version field. The host sends `protocol` (see bridge.test.ts);
+        // there is no `bridgeVersion` field, so gating on it wedged the view at "Engine Offline".
         dispatch({ type: "runtime/ready" });
-        showNotice("ok", `Bridge online. Protocol ${record.bridgeVersion}.`);
+        showNotice("ok", `Bridge online. Protocol ${record.protocol || "?"}.`);
         send("osfui.gamepadRaw", { raw: true });
         requestCatalog(true);
         break;
