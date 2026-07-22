@@ -31,20 +31,26 @@ namespace OSF::Serialization::PersistenceHost
 		LoadGameFn* g_originalLoadGame{};
 		DeleteSaveFn* g_originalDeleteSave{};
 
-		constexpr std::array<std::uint8_t, 5> kCallOpcodePrefix{ 0xE8, 0, 0, 0, 0 };
+		constexpr REL::ID kDeleteSave{ 98620 };
+		constexpr std::array<std::uint8_t, 15> kSavePrologue{
+			0x4C, 0x89, 0x4C, 0x24, 0x20,
+			0x4C, 0x89, 0x44, 0x24, 0x18,
+			0x48, 0x89, 0x54, 0x24, 0x10
+		};
+		constexpr std::array<std::uint8_t, 15> kLoadPrologue{
+			0x48, 0x8B, 0xC4,
+			0x44, 0x88, 0x48, 0x20,
+			0x44, 0x88, 0x40, 0x18,
+			0x48, 0x89, 0x50, 0x10
+		};
 		constexpr std::array<std::uint8_t, 15> kDeletePrologue{
 			0x48, 0x89, 0x5C, 0x24, 0x08,
 			0x48, 0x89, 0x74, 0x24, 0x10,
 			0x48, 0x89, 0x7C, 0x24, 0x20
 		};
 
-		// 1.16.244 sole call sites. The called functions themselves remain bound by
-		// Address Library IDs 98376/98380 and are checked before patching.
-		constexpr REL::Offset kSaveGameCall{ 0x01821BA8 };
-		constexpr REL::Offset kLoadGameCall{ 0x0184177A };
-		// 1.16.244 BGSSaveLoadManager delete worker. AddrLib 147844 currently maps
-		// to an unrelated 0x2C09180 function, so use the audited RVA + byte gate.
-		constexpr REL::Offset kDeleteSaveTarget{ 0x0183B8C0 };
+		// IDs 98376, 98380, and 98620 resolve the save, load, and delete workers on
+		// both 1.16.242 and 1.16.244. Prologue gates below still reject signature drift.
 
 		std::string BoundedName(const char* name)
 		{
@@ -299,44 +305,37 @@ namespace OSF::Serialization::PersistenceHost
 		private:
 			Host() : _broker(BrokerLog) {}
 
-			static std::uintptr_t CalledTarget(std::uintptr_t callSite)
-			{
-				if (*reinterpret_cast<const std::uint8_t*>(callSite) != kCallOpcodePrefix[0]) {
-					return 0;
-				}
-				std::int32_t displacement{};
-				std::memcpy(&displacement, reinterpret_cast<const void*>(callSite + 1), sizeof(displacement));
-				return callSite + 5 + displacement;
-			}
-
-			static DeleteSaveFn* MakeDeleteGateway(std::uintptr_t target)
+			template <class Fn>
+			static Fn* MakeGateway(std::uintptr_t target, std::size_t stolenBytes)
 			{
 				auto& trampoline = REL::GetTrampoline();
-				auto* code = static_cast<std::byte*>(trampoline.allocate(5 + sizeof(REL::ASM::JMP14)));
-				std::memcpy(code, reinterpret_cast<const void*>(target), 5);
-				REL::ASM::JMP14 jump(target + 5);
-				std::memcpy(code + 5, &jump, sizeof(jump));
-				return reinterpret_cast<DeleteSaveFn*>(code);
+				auto* code = static_cast<std::byte*>(trampoline.allocate(stolenBytes + sizeof(REL::ASM::JMP14)));
+				std::memcpy(code, reinterpret_cast<const void*>(target), stolenBytes);
+				REL::ASM::JMP14 jump(target + stolenBytes);
+				std::memcpy(code + stolenBytes, &jump, sizeof(jump));
+				return reinterpret_cast<Fn*>(code);
 			}
 
 			bool InstallHooks()
 			{
-				const auto saveCall = kSaveGameCall.address();
-				const auto loadCall = kLoadGameCall.address();
-				const auto deleteTarget = kDeleteSaveTarget.address();
-				const bool saveOK = CalledTarget(saveCall) == RE::ID::BGSSaveLoadGame::SaveGame.address();
-				const bool loadOK = CalledTarget(loadCall) == RE::ID::BGSSaveLoadGame::LoadGame.address();
-				const bool deleteOK = Util::Hooking::PrologueMatches(deleteTarget, kDeletePrologue);
+				const auto saveTarget = RE::ID::BGSSaveLoadGame::SaveGame.address();
+				const auto loadTarget = RE::ID::BGSSaveLoadGame::LoadGame.address();
+				const auto deleteTarget = kDeleteSave.address();
+				const bool saveOK = Util::Hooking::PrologueMatches(RE::ID::BGSSaveLoadGame::SaveGame, kSavePrologue);
+				const bool loadOK = Util::Hooking::PrologueMatches(RE::ID::BGSSaveLoadGame::LoadGame, kLoadPrologue);
+				const bool deleteOK = Util::Hooking::PrologueMatches(kDeleteSave, kDeletePrologue);
 				if (!saveOK || !loadOK || !deleteOK) {
 					REX::ERROR("[Save] persistence hook validation failed: save={} load={} delete={}", saveOK, loadOK, deleteOK);
 					return false;
 				}
 				auto& trampoline = REL::GetTrampoline();
-				g_originalSaveGame = reinterpret_cast<SaveGameFn*>(trampoline.write_call<5>(saveCall, &SaveHook));
-				g_originalLoadGame = reinterpret_cast<LoadGameFn*>(trampoline.write_call<5>(loadCall, &LoadHook));
-				g_originalDeleteSave = MakeDeleteGateway(deleteTarget);
+				g_originalSaveGame = MakeGateway<SaveGameFn>(saveTarget, 5);
+				g_originalLoadGame = MakeGateway<LoadGameFn>(loadTarget, 7);
+				g_originalDeleteSave = MakeGateway<DeleteSaveFn>(deleteTarget, 5);
+				trampoline.write_jmp<5>(saveTarget, &SaveHook);
+				trampoline.write_jmp<5>(loadTarget, &LoadHook);
 				trampoline.write_jmp<5>(deleteTarget, &DeleteHook);
-				REX::DEBUG("[Save] installed save/load call-site hooks and delete entry hook");
+				REX::DEBUG("[Save] installed Address Library save/load/delete entry hooks");
 				return g_originalSaveGame && g_originalLoadGame && g_originalDeleteSave;
 			}
 
