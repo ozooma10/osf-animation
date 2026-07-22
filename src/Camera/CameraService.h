@@ -44,13 +44,13 @@ namespace OSF::Camera
 		// resolves) the orbit falls back to centering on the player.
 		void SetOrbitFrameSubjects(std::vector<std::uint32_t> a_actorIds);
 
-		// PLAYER-DRIVEN FREE CAM (the MMB toggle, routed from InputService::kFreecam). Toggles engine-native
+		// PLAYER-DRIVEN FREE CAM (MMB / controller R3, routed from InputService::kFreecam). Toggles engine-native
 		// free cam on/off as one paired state override: the first toggle Acquires + enters free-fly, the second
 		// Releases (handing the camera back to any scene posture / third-person hold / baseline). Composes with
 		// scene-driven overrides via the same ref count. Game-thread only (the verb dispatch posts it there).
 		void ToggleFreeCam();
 
-		// Force the player-driven free cam OFF if it's currently held (no-op otherwise). The MMB hold lives
+		// Force the player-driven free cam OFF if it's currently held (no-op otherwise). The player-toggle hold lives
 		// OUTSIDE the scene's undo ledger, so without this it can outlive the scene that granted it — leaving
 		// the player in free-fly (WASD drives the camera, not the character) after the scene ends. The scene
 		// runtime calls this when the player's input grant is released, so a free cam can't survive its scene.
@@ -110,9 +110,9 @@ namespace OSF::Camera
 		void RestoreAfterPlayerFreeCam(PlayerFreeCamReturn a_mode);
 
 		// SCENE ORBIT (self-driven): per-frame from Tick (job threads) — places the camera on a ring around
-		// the scene center and aims it inward, writing the FreeFly state's transform. Mouse steers azimuth/
-		// elevation (drained from InputService; while the scene browser's cursor is up the hook only feeds
-		// deltas during an LMB drag), wheel zooms, WASD pans the center; holds still with no input.
+		// the scene center and aims it inward, writing the FreeFly state's transform. Mouse/right stick steer
+		// azimuth/elevation (while the browser cursor is up, mouse deltas require LMB drag); wheel/LB-RB zoom,
+		// WASD/left stick pan horizontally, and LT/RT translate vertically; holds still with no input.
 		void DriveSceneOrbit();
 
 		std::mutex lock;
@@ -150,6 +150,7 @@ namespace OSF::Camera
 		float             orbitCenterTargetX = 0.0f;
 		float             orbitCenterTargetY = 0.0f;
 		float             orbitCenterTargetZ = 0.0f;
+		float             orbitFloorZ = 0.0f;  // fixed floor estimate; vertical input must not drag it down
 		// A reframe glide is in flight (scene launch / per-node retarget): DriveSceneOrbit smooths at the
 		// slower kOrbitReframeTime until the pose settles; any manual input cancels it. Guarded by driveLock.
 		bool              orbitReframeGlide = false;

@@ -542,6 +542,7 @@ namespace OSF::Camera
 					orbitCenterTargetX = centerX;
 					orbitCenterTargetY = centerY;
 					orbitCenterTargetZ = centerZ;
+					orbitFloorZ = centerZ - kOrbitCenterUp + kOrbitFloorMargin;
 					orbitReframeGlide = true;  // smooth at kOrbitReframeTime until settled (or the user steers)
 				}
 				orbitDriving.store(true, std::memory_order_relaxed);
@@ -722,7 +723,7 @@ namespace OSF::Camera
 			orbitCenterTargetX += (-sh * panF + ch * panR) * step;  // forward=(-sin,cos), right=(cos,sin)
 			orbitCenterTargetY += (ch * panF + sh * panR) * step;
 		}
-		orbitCenterTargetZ += pad.lift * kOrbitLiftSpeed * dt;
+		orbitCenterTargetZ = std::max(orbitCenterTargetZ + pad.lift * kOrbitLiftSpeed * dt, orbitFloorZ);
 
 		// Manual steering cancels an in-flight reframe glide: the user's intent wins, and the leftover
 		// offset finishes at the snappy input time constant instead of dragging behind their drag.
@@ -761,8 +762,7 @@ namespace OSF::Camera
 			center.z - fwd.z * orbitRadius
 		};
 		// Don't orbit through the floor: keep the camera above it (floor ≈ center minus the torso offset).
-		const float floorZ = center.z - kOrbitCenterUp + kOrbitFloorMargin;
-		pos.z = std::max(pos.z, floorZ);
+		pos.z = std::max(pos.z, orbitFloorZ);
 
 		// Aim at the center from the (possibly floor-clamped) position so the look stays correct.
 		const float dx = center.x - pos.x;
@@ -849,10 +849,12 @@ namespace OSF::Camera
 				return;
 			}
 			PlayerFreeCamReturn returnMode = PlayerFreeCamReturn::kNone;
-			if (orbitDriving.load(std::memory_order_relaxed)) {
-				returnMode = PlayerFreeCamReturn::kSceneOrbit;
-			} else if (auto* camera = RE::PlayerCamera::GetSingleton(); camera && camera->QCameraEquals(RE::CameraState::kAutoVanity)) {
+			// A node may have retargeted a formerly driven orbit to vanity without dropping the
+			// retained orbit state. Prefer the actual live camera before consulting that retained flag.
+			if (auto* camera = RE::PlayerCamera::GetSingleton(); camera && camera->QCameraEquals(RE::CameraState::kAutoVanity)) {
 				returnMode = PlayerFreeCamReturn::kVanityOrbit;
+			} else if (orbitDriving.load(std::memory_order_relaxed)) {
+				returnMode = PlayerFreeCamReturn::kSceneOrbit;
 			}
 			playerFreeCamReturn.store(returnMode, std::memory_order_relaxed);
 			AcquireStateOverride();                 // capture baseline + suppress the bounce on the first holder

@@ -17,7 +17,7 @@ namespace OSF::Input
 		kNavigate = 1u << 1,    // branch edges
 		kSpeed = 1u << 2,       // faster / slower / reset / pause the shared scene clock
 		// bit 3 reserved (was kReposition — cut, never implemented)
-		kFreecam = 1u << 4,     // free camera (MMB toggle -> native free cam)
+		kFreecam = 1u << 4,     // free camera (MMB / controller R3 toggle -> native free cam)
 		kEnd = 1u << 5,         // end the scene (subject to playerControl.locked)
 	};
 

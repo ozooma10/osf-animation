@@ -76,7 +76,7 @@ namespace OSF::Scene
 					break;
 				}
 				s_lastFreecam = now;
-				Camera::CameraService::GetSingleton().ToggleFreeCam();  // MMB toggle; cap kFreecam already enforced in the InputService
+				Camera::CameraService::GetSingleton().ToggleFreeCam();  // MMB/R3 toggle; cap kFreecam already enforced in InputService
 				break;
 			}
 			case Input::Verb::kEnd:

@@ -461,8 +461,12 @@ In a pool, the `clips` value may be the usual **array**, or — the shorthand fo
 Camera postures are **held**: ledger-tracked and auto-restored to the player's prior POV on any scene
 end. Supported states: `scene_orbit` (the default; mouse-steered orbit that frames and centers the
 cast — while the scene browser is open, hold **LMB and drag** to orbit so free mouse movement keeps
-driving the UI cursor), `thirdperson_hold` (force and hold third person, bouncing the player back if
+driving the UI cursor; on a controller use right stick to orbit, left stick to pan, LT/RT to move
+vertically, and LB/RB to zoom), `thirdperson_hold` (force and hold third person, bouncing the player back if
 they zoom to first person), `freefly`, and `vanity_orbit`.
+
+During a player scene, **MMB** or controller **R3** toggles the engine-native free camera (the same
+camera path as `tfc`); pressing it again returns to the scene's prior orbit/vanity/held posture.
 
 A file with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node: the camera
 centers on the cast's midpoint, pulls back until everyone fits, and opens side-on to the cast's long
