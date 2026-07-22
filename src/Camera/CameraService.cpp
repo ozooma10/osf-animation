@@ -221,11 +221,21 @@ namespace OSF::Camera
 		return instance;
 	}
 
+	void CameraService::QueueTask(std::function<void()> a_task)
+	{
+		const auto epoch = taskEpoch.load(std::memory_order_acquire);
+		SFSE::GetTaskInterface()->AddTask([this, epoch, task = std::move(a_task)]() mutable {
+			if (taskEpoch.load(std::memory_order_acquire) == epoch) {
+				task();
+			}
+		});
+	}
+
 	void CameraService::CaptureBaseline()
 	{
 		// Game thread: record the prior POV once so any imposition restores to it.
 		// A second engage (overlapping scene) finds baselineCaptured already set and keeps the original POV.
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		QueueTask([this]() {
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!camera) {
 				return;
@@ -249,7 +259,7 @@ namespace OSF::Camera
 
 	void CameraService::RestoreBaseline()
 	{
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		QueueTask([this]() {
 			bool          wantFirst = false;
 			std::uint32_t priorState = 0xFFFFFFFFu;
 			{
@@ -317,7 +327,7 @@ namespace OSF::Camera
 			}
 			CaptureBaseline();
 			// Force third person now — unless a state override is currently imposing an alt camera.
-			SFSE::GetTaskInterface()->AddTask([this]() {
+			QueueTask([this]() {
 				if (suppressBounce.load(std::memory_order_relaxed)) {
 					return;  // a state override owns the camera; don't fight it
 				}
@@ -348,7 +358,7 @@ namespace OSF::Camera
 
 	void CameraService::KickToThirdPerson()
 	{
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		QueueTask([this]() {
 			if (suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // a state override owns the camera; don't fight it
 			}
@@ -381,7 +391,7 @@ namespace OSF::Camera
 		const float seed = (a_distance > 0.0f)
 			? std::clamp(a_distance, kThirdPersonZoomMin, kThirdPersonZoomMax)
 			: kThirdPersonZoomMax;
-		SFSE::GetTaskInterface()->AddTask([this, seed, a_snapCurrent]() {
+		QueueTask([this, seed, a_snapCurrent]() {
 			if (suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // a state override (free-fly / orbit) owns the camera — don't fight it.
 			}
@@ -436,7 +446,7 @@ namespace OSF::Camera
 			// active, then switch to FreeFly and let OSF write the transform each frame in Tick.
 			// The queued tasks are FIFO: the native flags exist before the state/driver handoff.
 			NativeFreeCamEnter(/*a_gamepadPassthrough*/ false);
-			SFSE::GetTaskInterface()->AddTask([this]() {
+			QueueTask([this]() {
 				if (!suppressBounce.load(std::memory_order_relaxed)) {
 					return;  // the override was released before this task ran
 				}
@@ -561,7 +571,7 @@ namespace OSF::Camera
 			Input::InputService::GetSingleton().SetMouseCapture(false);
 		}
 		NativeFreeCamExit();
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		QueueTask([this]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // the override was released before this task ran
 			}
@@ -586,7 +596,7 @@ namespace OSF::Camera
 
 	void CameraService::NativeFreeCamEnter(bool a_gamepadPassthrough)
 	{
-		SFSE::GetTaskInterface()->AddTask([this, a_gamepadPassthrough]() {
+		QueueTask([this, a_gamepadPassthrough]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // the override was released before this task ran
 			}
@@ -619,7 +629,7 @@ namespace OSF::Camera
 		// target here (game-thread state read of holdArmed) and apply it in the SAME task, AFTER the
 		// engine toggle-off, so the ordering is deterministic and Tick's bounce can't race us.
 		const bool handBackToHold = holdArmed.load(std::memory_order_relaxed);
-		SFSE::GetTaskInterface()->AddTask([this, handBackToHold]() {
+		QueueTask([this, handBackToHold]() {
 			if (!nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
 				return;  // not on — nothing to do
 			}
@@ -653,7 +663,7 @@ namespace OSF::Camera
 		if (a_mode == PlayerFreeCamReturn::kSceneOrbit) {
 			// The underlying orbit is itself native-assisted now. Keep TFC's renderer flags alive,
 			// return gamepad ownership to OSF, and resume the retained ring/center in kFreeFly.
-			SFSE::GetTaskInterface()->AddTask([this]() {
+			QueueTask([this]() {
 				if (!suppressBounce.load(std::memory_order_relaxed) ||
 				    !nativeFreeCamActive.load(std::memory_order_relaxed) ||
 				    !orbitDriving.load(std::memory_order_relaxed)) {
@@ -672,7 +682,7 @@ namespace OSF::Camera
 		// its ref-count would leave native TFC live because the scene still owns a vanity hold.
 		// Exit TFC explicitly, then restore that non-TFC posture.
 		NativeFreeCamExit();
-		SFSE::GetTaskInterface()->AddTask([this, a_mode]() {
+		QueueTask([this, a_mode]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // the underlying scene override ended before this handback ran
 			}
@@ -850,7 +860,7 @@ namespace OSF::Camera
 		}
 		if (holdArmed.load(std::memory_order_relaxed)) {
 			// A third-person hold is still active — hand the camera back to it instead of restoring.
-			SFSE::GetTaskInterface()->AddTask([this]() {
+			QueueTask([this]() {
 				// The scene ledger releases camera-state before control-lock. Both restores are queued, so
 				// this hold can disappear before the task executes; forcing third person from this stale
 				// snapshot would make the later baseline restore early-out and skip the final POV re-entry.
@@ -899,7 +909,7 @@ namespace OSF::Camera
 				// and hand the already-active TFC session back to the native movement state/input.
 				Input::InputService::GetSingleton().SetMouseCapture(false);
 				Input::InputService::GetSingleton().SetNativeFreeCamGamepad(true);
-				SFSE::GetTaskInterface()->AddTask([this]() {
+				QueueTask([this]() {
 					if (suppressBounce.load(std::memory_order_relaxed) &&
 					    nativeFreeCamActive.load(std::memory_order_relaxed)) {
 						if (auto* camera = RE::PlayerCamera::GetSingleton()) {
@@ -982,7 +992,7 @@ namespace OSF::Camera
 
 	void CameraService::LogCameraTelemetry(const char* a_tag)
 	{
-		SFSE::GetTaskInterface()->AddTask([a_tag]() {
+		QueueTask([a_tag]() {
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			if (!camera || !player) {
@@ -1016,6 +1026,7 @@ namespace OSF::Camera
 
 	void CameraService::OnStopAll()
 	{
+		taskEpoch.fetch_add(1, std::memory_order_acq_rel);
 		Input::InputService::GetSingleton().SetNativeFreeCamGamepad(false);
 		if (orbitDriving.exchange(false, std::memory_order_relaxed)) {
 			Input::InputService::GetSingleton().SetMouseCapture(false);
@@ -1026,7 +1037,7 @@ namespace OSF::Camera
 		}
 		if (nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
 			// Drive the native free cam off so a save/load doesn't strand the player in it.
-			SFSE::GetTaskInterface()->AddTask([]() { SetNativeFreeCam(false); });
+			QueueTask([]() { SetNativeFreeCam(false); });
 		}
 		playerFreeCamHeld.store(false, std::memory_order_relaxed);
 		playerFreeCamReturn.store(PlayerFreeCamReturn::kNone, std::memory_order_relaxed);
@@ -1045,7 +1056,7 @@ namespace OSF::Camera
 		// load left it in a state OSF imposes (scene_orbit=kFreeFly, native freecam=kFreeWalk,
 		// vanity_orbit=kAutoVanity), it's a leaked imposition nothing will ever release — recover it.
 		// Covers the in-process quickload AND loading a save that was written mid-scene.
-		SFSE::GetTaskInterface()->AddTask([]() {
+		QueueTask([]() {
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!camera) {
 				return;
@@ -1094,7 +1105,7 @@ namespace OSF::Camera
 			return;
 		}
 
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		QueueTask([this]() {
 			bouncePending.store(false, std::memory_order_relaxed);
 			if (!holdArmed.load(std::memory_order_relaxed) || suppressBounce.load(std::memory_order_relaxed)) {
 				return;

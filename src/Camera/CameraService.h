@@ -1,5 +1,11 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
+#include <functional>
+#include <mutex>
+#include <vector>
+
 namespace OSF::Camera
 {
 	// Alternate scene camera postures beyond the default third-person hold.
@@ -92,6 +98,10 @@ namespace OSF::Camera
 		void OnPostLoad();
 
 	private:
+		// Every asynchronous camera mutation is generation-gated. OnStopAll advances the epoch
+		// before clearing state, making tasks queued for the discarded world harmless.
+		void QueueTask(std::function<void()> a_task);
+
 		enum class PlayerFreeCamReturn : std::uint8_t
 		{
 			kNone,
@@ -119,6 +129,7 @@ namespace OSF::Camera
 		void DriveSceneOrbit();
 
 		std::mutex lock;
+		std::atomic<std::uint64_t> taskEpoch{ 1 };
 		std::atomic<bool> holdArmed{ false };       // gates Tick: a third-person hold is active
 		std::atomic<bool> suppressBounce{ false };  // a state override owns the camera — don't bounce
 		std::atomic<bool> bouncePending{ false };

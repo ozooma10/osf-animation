@@ -1,5 +1,9 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
+#include <mutex>
+
 namespace OSF::Player
 {
 	// Standalone player-control lock applied by the scene runtime's osf.control.lock action.
@@ -31,6 +35,7 @@ namespace OSF::Player
 		void RestoreEnabled();
 
 		std::mutex lock;
+		std::atomic<std::uint64_t> taskEpoch{ 1 };
 		RE::BSInputEnableLayer* inputLayer = nullptr;
 		bool standaloneActive = false;
 		// The input events the lock disables, fixed at construction (kSceneUserEvents / kSceneOtherEvents).

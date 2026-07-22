@@ -61,13 +61,17 @@ namespace OSF::Player
 
 	void PlayerControlService::OnStopAll()
 	{
+		const auto epoch = taskEpoch.fetch_add(1, std::memory_order_acq_rel) + 1;
 		// Defensively clear the PERSISTENT AI-driven flag on every load. The lock no longer sets it, but a save
 		// made by an OLDER build (which did) would reload the player AI-driven with no in-process memory of it,
 		// leaving them non-controllable. OnStopAll runs only on a load (every GraphManager::StopAll caller is a
 		// save-load/revert/manual-load sink). The runtime input-disable layer below is non-persistent.
 		SetPlayerAIDriven(false);
 
-		SFSE::GetTaskInterface()->AddTask([this]() {
+		SFSE::GetTaskInterface()->AddTask([this, epoch]() {
+			if (taskEpoch.load(std::memory_order_acquire) != epoch) {
+				return;
+			}
 			std::scoped_lock l{ lock };
 			if (standaloneActive) {
 				standaloneActive = false;
@@ -85,7 +89,11 @@ namespace OSF::Player
 
 	void PlayerControlService::SetStandaloneLock(bool a_enable)
 	{
-		SFSE::GetTaskInterface()->AddTask([this, a_enable]() {
+		const auto epoch = taskEpoch.load(std::memory_order_acquire);
+		SFSE::GetTaskInterface()->AddTask([this, a_enable, epoch]() {
+			if (taskEpoch.load(std::memory_order_acquire) != epoch) {
+				return;
+			}
 			std::scoped_lock l{ lock };
 			if (a_enable) {
 				if (standaloneActive) {
