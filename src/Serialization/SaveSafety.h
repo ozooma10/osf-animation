@@ -2,7 +2,7 @@
 
 namespace OSF::Serialization::SaveSafety
 {
-	// Registers the SaveLoadEvent sink, which (a) drops graphs and scenes before a load replaces
+	// Registers the SaveLoadEvent sink, which (a) asks the persistence broker to revert all clients before a load replaces
 	// the world, and (b) opens a save window around every save-writing op (autosave/quicksave/
 	// manual/exit save) that strips the per-NPC kAnimationDriven bit so a mid-scene save can't
 	// bake it in (see GraphManager::OnSaveBegin). Plus a TESLoadGameEvent backstop that re-binds

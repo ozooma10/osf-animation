@@ -2,6 +2,8 @@
 
 # OSF Papyrus API
 
+Native SFSE plugins that need per-save records should use the [shared persistence C ABI](RFC-persistence-api.md).
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the

@@ -58,6 +58,8 @@ Each entry: **system** (`path`) — role.
   load (VM is rebuilt).
 - **Save-safety** (`src/Serialization/SaveSafety.*`) — `GraphManager::StopAll` drops ALL scene/graph
   state on a world-replacing load (SaveLoadEvent begin sink + TESLoadGameEvent backstop + manual).
+- **Shared persistence** (`src/API/OSFPersistenceAPI.h`, `src/Serialization/Persistence{Broker,Host}.*`) —
+  public C ABI for per-plugin record streams in one atomic `.osf` sidecar (`OSFP` container); deterministic/bounded broker, load remap/delete forwarding, save/load/delete hooks, and internal `OSFA` client. See `docs/RFC-persistence-api.md`.
 - **Startup** (`src/main.cpp`) — logs game-version vs RE build, loads packs+scenes+sound pools, inits
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 

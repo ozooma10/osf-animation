@@ -137,3 +137,11 @@ target("osf-af-import-test")
     add_packages("ozz-animation", "zlib")
     add_files("src/Serialization/AFImport.cpp", "src/Util/Ba2.cpp", "test/AFImportTest.cpp")
     add_includedirs("src")
+
+-- Standalone shared-persistence broker tests (no game/CommonLib runtime needed).
+target("osf-persistence-test")
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_files("src/Serialization/PersistenceBroker.cpp", "test/PersistenceTest.cpp")
+    add_includedirs("src")

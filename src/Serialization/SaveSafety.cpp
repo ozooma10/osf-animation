@@ -4,6 +4,7 @@
 #include "Camera/CameraService.h"
 #include "Papyrus/OSFScript.h"
 #include "Scene/SceneEventRelay.h"
+#include "Serialization/PersistenceHost.h"
 #include "Util/Hooking.h"
 
 #include <array>
@@ -89,7 +90,7 @@ namespace OSF::Serialization::SaveSafety
 					// StopAll stays scoped to world-replacing loads: it releases the player-control lock /
 					// AI-driven flag, which must not be perturbed mid-save on a quit op.
 					if (IsWorldReplacingLoadOp(a_event.opType)) {
-						Animation::GraphManager::GetSingleton().StopAll("save-load begin");
+						PersistenceHost::BeginLoad("SaveLoadEvent begin");
 					}
 				} else {
 					// Any terminal status (kSaveCompleted, or kFailed = failure/cancel of any op) closes the
@@ -117,7 +118,7 @@ namespace OSF::Serialization::SaveSafety
 					REX::ERROR("[Save] could not re-register OSF natives after load (GameVM unavailable); "
 						"OSF.* stays unbound until the next successful load");
 				}
-				Animation::GraphManager::GetSingleton().StopAll("save loaded (TESLoadGameEvent backstop)");
+				PersistenceHost::OnLoadBackstop();
 				// AFTER StopAll (impositions zeroed): if the load still left the camera in an OSF-imposed
 				// alt state (e.g. scene_orbit's kFreeFly with its driver stopped — stuck at a dead
 				// transform), force it back to third person.
@@ -129,6 +130,7 @@ namespace OSF::Serialization::SaveSafety
 
 	void RegisterLoadEventSinks()
 	{
+		PersistenceHost::RegisterEventSinks();
 		if (!SaveLoadEventSourcePrologueMatches()) {
 			REX::WARN("[Save] SaveLoadEvent GetEventSource prologue mismatch; relying on TESLoadGameEvent backstop");
 		} else if (auto* saveLoadSrc = RE::SaveLoadEvent::GetEventSource(); saveLoadSrc) {

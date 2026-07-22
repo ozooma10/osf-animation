@@ -9,6 +9,7 @@
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/ClipDurations.h"
+#include "Serialization/PersistenceHost.h"
 #include "Serialization/SaveSafety.h"
 #include "Util/CrashHandler.h"
 
@@ -80,6 +81,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	}
 
 	OSF::Animation::GraphManager::GetSingleton().InstallHooks();
+	OSF::Serialization::PersistenceHost::Initialize();
 	SFSE::GetMessagingInterface()->RegisterListener(MessageCallback);
 
 	return true;
