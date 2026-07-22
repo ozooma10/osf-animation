@@ -6,13 +6,12 @@
 
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
+#include "Animation/Scene.h"  // ParticipantPlacement
 
 #include "ozz/animation/runtime/sampling_job.h"
 
 namespace OSF::Animation
 {
-	class Scene;
-
 	enum class BlendPhase : std::uint8_t
 	{
 		kNone,  // stamp at full weight
