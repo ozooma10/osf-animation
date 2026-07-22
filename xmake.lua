@@ -145,3 +145,23 @@ target("osf-persistence-test")
     set_languages("c++23")
     add_files("src/Serialization/PersistenceBroker.cpp", "test/PersistenceTest.cpp")
     add_includedirs("src")
+
+-- Pure shared-clock and clip-spec helper tests (no game/CommonLib runtime needed).
+target("osf-frame-clock-test")
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_files("src/Util/ClipPath.cpp", "test/FrameClockTest.cpp")
+    add_includedirs("src")
+
+-- Sound-pool parsing/subtitle fixture tests. Uses the CommonLib logging surface but no game runtime.
+target("osf-sound-registry-test")
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_deps("commonlibsf")
+    add_packages("nlohmann_json")
+    add_files("src/Registry/SoundRegistry.cpp", "test/unit/test_sound.cpp")
+    add_includedirs("src")
+    set_pcxxheader("src/pch.h")
+    set_rundir("test/fixtures")
