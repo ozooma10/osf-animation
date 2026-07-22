@@ -705,7 +705,7 @@ body.wheel-mode .wheel{display:block}
   radial-gradient(120% 60% at 50% 110%,rgba(46,58,74,.5),transparent),
   linear-gradient(180deg,#0a1019 0%,#070a11 60%,#04060a 100%)}
 
-/* standalone-only wheel debug strip (#wheeldbg, injected by main.js when no
+/* standalone-only wheel debug strip (#wheeldbg, rendered by DevTools when no
    bridge is present — never exists in-game); visible only while the wheel is up */
 .wheeldbg{position:fixed;left:14px;top:14px;z-index:9;display:none;align-items:center;gap:6px;
   background:rgba(6,9,13,.88);border:1px solid var(--line-strong);border-radius:2px;padding:6px 10px;box-shadow:var(--shadow-sm)}

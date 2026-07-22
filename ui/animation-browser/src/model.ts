@@ -47,6 +47,10 @@ export interface SceneModel {
   estSec: number | null;
   estPartial: boolean;
   openEnded: boolean;
+  /** View-only marker for generated reference-library entries. */
+  library?: boolean;
+  /** Lower-cased stage-name search index, populated when library data arrives. */
+  stageHay?: string;
 }
 
 type Raw = Record<string, any>;

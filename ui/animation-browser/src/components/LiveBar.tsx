@@ -1,11 +1,12 @@
-import { render } from "preact";
-
 export interface LiveBarProps {
   running: boolean;
   handle: number;
   title: string;
   stage: { current: number; total: number; name: string; nextName?: string } | null;
   canAdvance: boolean;
+  onAdvance(): void;
+  onStop(): void;
+  onExpand(): void;
 }
 
 function BrowserChevron() {
@@ -16,7 +17,7 @@ function BrowserChevron() {
   );
 }
 
-function LiveBar({ running, handle, title, stage, canAdvance }: LiveBarProps) {
+export function LiveBar({ running, handle, title, stage, canAdvance, onAdvance, onStop, onExpand }: LiveBarProps) {
   const nextTitle = stage?.nextName ? `Next: ${stage.nextName} (Space)` : "Next animation (Space)";
   return (
     <>
@@ -38,15 +39,15 @@ function LiveBar({ running, handle, title, stage, canAdvance }: LiveBarProps) {
         ) : (
           <div class="take-body"><span class="lbl">STANDBY</span><strong>No scene running</strong></div>
         )}
-        {running && canAdvance && <button class="next-mini" data-act="advance-scene" title={nextTitle}>NEXT ▸</button>}
-        {running && <button class="stop-mini" data-act="stop" title="Stop the running scene">■ STOP</button>}
-        <button class="expand-mini" data-act="expand" title="Bring the browser back"><BrowserChevron/>BROWSER</button>
+        {running && canAdvance && <button class="next-mini" onClick={onAdvance} title={nextTitle}>NEXT ▸</button>}
+        {running && <button class="stop-mini" onClick={onStop} title="Stop the running scene">■ STOP</button>}
+        <button class="expand-mini" onClick={onExpand} title="Bring the browser back"><BrowserChevron/>BROWSER</button>
       </div>
-      <div class="livebar-hint mono">{running && canAdvance ? "SPACE NEXT · " : ""}DRAG ORBIT · WHEEL ZOOM</div>
+      <div class="livebar-hint mono">
+        {running && canAdvance ? "SPACE NEXT · " : ""}
+        DRAG/RS ORBIT · WHEEL/LB-RB ZOOM · LT-RT HEIGHT
+        {running ? " · MMB/R3 FREECAM" : ""}
+      </div>
     </>
   );
-}
-
-export function renderLiveBar(target: Element, props: LiveBarProps | null): void {
-  render(props ? <LiveBar {...props}/> : null, target);
 }

@@ -4,8 +4,6 @@
     "useDefineForClassFields": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "allowJs": true,
-    "checkJs": false,
     "strict": true,
     "noEmit": true,
     "isolatedModules": true,

@@ -1,0 +1,43 @@
+import type { BrowserMode } from "./state";
+
+export interface BrowserCommands {
+  refresh(): void;
+  setMode(mode: BrowserMode): void;
+  selectScene(id: string): void;
+  setSearch(value: string): void;
+  toggleDebug(): void;
+  toggleBrowseAll(): void;
+  toggleSpecies(): void;
+  toggleStep(step: "cast" | "anchor"): void;
+  toggleMarkers(): void;
+  scan(kind: "actor" | "furniture"): void;
+  pick(kind: "actor" | "furniture"): void;
+  toggleActor(token: number): void;
+  togglePlayer(): void;
+  removeMember(index: number): void;
+  moveMember(index: number, delta: -1 | 1): void;
+  reorderMember(from: number, to: number, after: boolean): void;
+  toggleAnchor(token: number): void;
+  clearAnchor(): void;
+  toggleLibraryGroup(key: string): void;
+  toggleSceneGroup(key: string, open: boolean): void;
+  toggleLibraryShowAll(): void;
+  toggleLibraryFull(): void;
+  toggleBriefAnimations(): void;
+  toggleOptions(): void;
+  setOption(field: "strip" | "lock" | "camera" | "speed", value: string): void;
+  launch(stage?: number): void;
+  stop(handle?: number): void;
+  stopAll(): void;
+  advance(handle?: number): void;
+  setMinimized(value: boolean): void;
+  toggleWheelEntry(scene: string, stage?: number | null): void;
+  moveWheelEntry(scene: string, stage: number | null, direction: -1 | 1): void;
+  resetWheel(): void;
+  focusWheel(index: number): void;
+  pickWheel(index: number): void;
+  cancelWheel(): void;
+  requestClose(): void;
+  orbit(dx: number, dy: number, wheel: number): void;
+  openModPage(url: string): void;
+}
