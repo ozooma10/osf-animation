@@ -101,6 +101,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return { ...state, libShowAll: !state.libShowAll };
     case "library/full":
       return { ...state, libFull: !state.libFull };
+    case "library/customOnly":
+      return { ...state, libCustomOnly: !state.libCustomOnly };
     case "library/group": {
       const libOpen = new Set(state.libOpen);
       if (libOpen.has(action.key)) libOpen.delete(action.key);

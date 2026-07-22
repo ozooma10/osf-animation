@@ -286,6 +286,7 @@ button,input,select{font:inherit;color:inherit}
 .reveal{width:100%;text-align:left;background:none;border:1px dashed var(--line-strong);border-radius:2px;padding:7px 10px;font:500 11px var(--font-mono);color:var(--text-faint);cursor:pointer;margin-top:4px}
 .reveal:hover,.reveal.on{color:var(--text-body);border-color:var(--steel-500)}
 .reveal.inline{width:auto;margin:0 0 0 auto;padding:2px 8px;border-style:solid}
+.browse-note .reveal.inline + .reveal.inline{margin-left:0}
 /* "FURN" chip on furniture-bound library rows; tinted go/stop when keyed furniture is checked */
 .libx-anchor{flex:none;font:600 8px var(--font-mono);letter-spacing:.12em;color:var(--text-faint);border:1px solid var(--line);border-radius:2px;padding:1px 4px}
 .libx-anchor.fit,.libx-anchor.nofit{border-color:currentColor}

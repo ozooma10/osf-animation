@@ -35,6 +35,7 @@ export type BrowserAction =
   | { type: "browse/all" }
   | { type: "library/showAll" }
   | { type: "library/full" }
+  | { type: "library/customOnly" }
   | { type: "library/group"; key: string }
   | { type: "scene/group"; key: string; open: boolean }
   | { type: "brief/fullAnimations" }

@@ -256,7 +256,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   useEffect(() => {
     const selectedId = validSelection(state);
     if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", sceneId: selectedId });
-  }, [state.catalog, state.library, state.mode, state.filters, state.allSpecies, state.browseAll, state.cast, state.furniture, state.anchorMatch]);
+  }, [state.catalog, state.library, state.mode, state.filters, state.allSpecies, state.browseAll, state.libCustomOnly, state.cast, state.furniture, state.anchorMatch]);
 
   useEffect(() => {
     document.body.classList.toggle("wheel-mode", !!state.wheel);
@@ -286,6 +286,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleSceneGroup: (key, open) => dispatch({ type: "scene/group", key, open }),
     toggleLibraryShowAll: () => dispatch({ type: "library/showAll" }),
     toggleLibraryFull: () => dispatch({ type: "library/full" }),
+    toggleLibraryCustomOnly: () => dispatch({ type: "library/customOnly" }),
     toggleBriefAnimations: () => dispatch({ type: "brief/fullAnimations" }),
     toggleOptions: () => dispatch({ type: "brief/options" }),
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),

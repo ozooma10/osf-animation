@@ -124,6 +124,7 @@ export interface BrowserState {
   scnOpen: ReadonlyMap<string, boolean>;
   libShowAll: boolean;
   libFull: boolean;
+  libCustomOnly: boolean;
   briefFullAnims: boolean;
   markersOpen: boolean;
   stepOpen: { cast: boolean; anchor: boolean };
@@ -162,6 +163,7 @@ export function createInitialState(): BrowserState {
     scnOpen: new Map(),
     libShowAll: false,
     libFull: false,
+    libCustomOnly: false,
     briefFullAnims: false,
     markersOpen: false,
     stepOpen: { cast: true, anchor: true },

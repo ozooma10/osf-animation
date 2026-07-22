@@ -37,7 +37,18 @@ export function emoteCatalog(state: BrowserState): SceneModel[] {
 }
 
 export function animationList(state: BrowserState): SceneModel[] {
-  return [...emoteCatalog(state), ...state.library];
+  return [...emoteCatalog(state), ...filteredLibrary(state)];
+}
+
+export function isVanillaAnimation(scene: SceneModel): boolean {
+  return scene.id.toLowerCase().startsWith("vanilla/")
+    || scene.tags.some((tag) => tag.toLowerCase() === "vanilla");
+}
+
+export function filteredLibrary(state: BrowserState): SceneModel[] {
+  return state.libCustomOnly
+    ? state.library.filter((scene) => !isVanillaAnimation(scene))
+    : state.library;
 }
 
 export function sceneById(state: BrowserState, id: string | null): SceneModel | null {
@@ -116,6 +127,7 @@ export function matchesSearch(state: BrowserState, scene: SceneModel): boolean {
 }
 
 export function browseVisible(state: BrowserState, scene: SceneModel): boolean {
+  if (state.mode === "library" && state.libCustomOnly && isVanillaAnimation(scene)) return false;
   if (!matchesSearch(state, scene) || !speciesVisible(state, scene)) return false;
   return state.mode !== "scenes" || state.browseAll || evaluateForState(state, scene).gaps === 0;
 }

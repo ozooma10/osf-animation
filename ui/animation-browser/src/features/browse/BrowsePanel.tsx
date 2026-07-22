@@ -10,6 +10,7 @@ import {
   emoteCatalog,
   evaluateForState,
   fitsKeyedAnchor,
+  filteredLibrary,
   formatEstimate,
   isEmote,
   libraryRank,
@@ -119,7 +120,8 @@ function LibraryBrowser({ state, commands }: { state: BrowserState; commands: Br
   const fitFocus = matchKnown && !state.libShowAll;
   const cleanTier = !matchKnown && !state.libFull && !state.filters.search;
   const grouped = new Map<string, SceneModel[]>();
-  for (const scene of state.library) {
+  const library = filteredLibrary(state);
+  for (const scene of library) {
     if (!matchesSearch(state, scene) || !speciesVisible(state, scene)) continue;
     if (fitFocus && !state.anchorMatch?.ids.has(scene.id)) continue;
     if (cleanTier && !cleanStages(scene).length) continue;
@@ -132,13 +134,13 @@ function LibraryBrowser({ state, commands }: { state: BrowserState; commands: Br
     const rank = (list: SceneModel[]) => list.reduce((sum, scene) => sum + libraryRank(state, scene), 0) / list.length;
     return rank(a[1]) - rank(b[1]) || Math.min(...a[1].map(quality)) - Math.min(...b[1].map(quality)) || a[0].localeCompare(b[0]);
   });
-  const speciesLibrary = state.library.filter((scene) => speciesVisible(state, scene));
+  const speciesLibrary = library.filter((scene) => speciesVisible(state, scene));
   const clips = speciesLibrary.reduce((count, scene) => count + scene.stages.length, 0);
   const cleanClips = speciesLibrary.reduce((count, scene) => count + cleanStages(scene).length, 0);
   return <>
     <SpeciesFilter state={state} onToggle={commands.toggleSpecies}/>
-    {matchKnown ? <div class="browse-note"><Dot active/><span class="lbl">{state.furniture!.name} · {speciesLibrary.filter((scene) => state.anchorMatch!.ids.has(scene.id)).length} SETS FIT</span><button class={`reveal inline ${state.libShowAll ? "on" : ""}`} onClick={commands.toggleLibraryShowAll}>{state.libShowAll ? "show fitting only" : "show all"}</button></div>
-      : <div class="browse-note"><Dot/><span class="lbl">{cleanTier ? `ANIMATION LIBRARY · ${cleanClips} POSES & LOOPS` : `ANIMATION LIBRARY · ${clips} CLIPS IN ${speciesLibrary.length} SETS`}</span>{!state.filters.search && <button class={`reveal inline ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>{state.libFull ? "poses & loops only" : `full library · ${clips} clips`}</button>}</div>}
+    {matchKnown ? <div class="browse-note"><Dot active/><span class="lbl">{state.furniture!.name} · {speciesLibrary.filter((scene) => state.anchorMatch!.ids.has(scene.id)).length} SETS FIT</span><button class={`reveal inline ${state.libShowAll ? "on" : ""}`} onClick={commands.toggleLibraryShowAll}>{state.libShowAll ? "show fitting only" : "show all"}</button><button class={`reveal inline ${state.libCustomOnly ? "on" : ""}`} onClick={commands.toggleLibraryCustomOnly}>{state.libCustomOnly ? "show vanilla" : "hide vanilla"}</button></div>
+      : <div class="browse-note"><Dot/><span class="lbl">{cleanTier ? `ANIMATION LIBRARY · ${cleanClips} POSES & LOOPS` : `ANIMATION LIBRARY · ${clips} CLIPS IN ${speciesLibrary.length} SETS`}</span>{!state.filters.search && <button class={`reveal inline ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>{state.libFull ? "poses & loops only" : `full library · ${clips} clips`}</button>}<button class={`reveal inline ${state.libCustomOnly ? "on" : ""}`} onClick={commands.toggleLibraryCustomOnly}>{state.libCustomOnly ? "show vanilla" : "hide vanilla"}</button></div>}
     {!!emotes.length && <div class="libx-group emotes"><div class="libx-head static"><span class="emote-mark">✦</span><span class="libx-name">EMOTES</span><span class="libx-meta mono">{emotes.length} QUICK ACTION{emotes.length === 1 ? "" : "S"}</span></div><div class="libx-list">
       {emotes.map((scene) => <button key={scene.id} class={`libx-row emote ${state.selectedId === scene.id ? "selected" : ""}`} onClick={() => commands.selectScene(scene.id)}><span class="libx-spine"/><span class="libx-title">{scene.title}</span>{scene.pinned > 0 && <span class="libx-pinmark">◆</span>}<span class="libx-meta mono">{state.filters.debugMode ? scene.id : ["emote", formatEstimate(scene)].filter(Boolean).join(" · ")}</span></button>)}
     </div></div>}
@@ -172,7 +174,7 @@ export function BrowsePanel({ state, commands }: { state: BrowserState; commands
   const live = activeScenes(state);
   const scenes = sceneCatalog(state);
   const emotes = emoteCatalog(state);
-  const animationCount = state.libraryReceived ? emotes.length + state.library.reduce((sum, scene) => sum + scene.stages.length, 0) : `${emotes.length}+`;
+  const animationCount = state.libraryReceived ? emotes.length + filteredLibrary(state).reduce((sum, scene) => sum + scene.stages.length, 0) : `${emotes.length}+`;
   return <>
     <div class="browse-head">
       <div class="mode-switch">
@@ -185,4 +187,3 @@ export function BrowsePanel({ state, commands }: { state: BrowserState; commands
     <div class="browse-body">{state.mode === "active" ? <ActiveBrowser state={state} commands={commands}/> : state.mode === "library" ? <LibraryBrowser state={state} commands={commands}/> : <ScenesBrowser state={state} commands={commands}/>}</div>
   </>;
 }
-

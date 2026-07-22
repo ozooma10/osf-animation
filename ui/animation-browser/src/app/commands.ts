@@ -23,6 +23,7 @@ export interface BrowserCommands {
   toggleSceneGroup(key: string, open: boolean): void;
   toggleLibraryShowAll(): void;
   toggleLibraryFull(): void;
+  toggleLibraryCustomOnly(): void;
   toggleBriefAnimations(): void;
   toggleOptions(): void;
   setOption(field: "strip" | "lock" | "camera" | "speed", value: string): void;

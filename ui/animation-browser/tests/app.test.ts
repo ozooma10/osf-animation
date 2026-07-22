@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { browserReducer } from "../src/app/reducer";
 import {
   browseVisible,
+  filteredLibrary,
   formatDuration,
   formatEstimate,
+  isVanillaAnimation,
   validSelection,
   wheelGeometry,
   wheelPool,
@@ -44,6 +46,11 @@ describe("browser reducer", () => {
     const reset = browserReducer(customized, { type: "wheel/reset", catalog: [solo], library: [] });
     expect(reset.wheelCustomized).toBe(false);
   });
+
+  it("toggles custom-only animation filtering", () => {
+    const state = browserReducer(createInitialState(), { type: "library/customOnly" });
+    expect(state.libCustomOnly).toBe(true);
+  });
 });
 
 describe("browser selectors", () => {
@@ -66,5 +73,22 @@ describe("browser selectors", () => {
     expect(formatDuration(150)).toBe("2:30");
     expect(formatEstimate({ estSec: 150, estPartial: true, openEnded: true })).toBe("~2:30+∞");
   });
-});
 
+  it("filters vanilla animations without hiding imported scene clips", () => {
+    const vanilla = normalizeScene({ id: "vanilla/common/idle", title: "Vanilla Idle", tags: ["vanilla"], stages: [{ name: "Idle" }] });
+    const imported = normalizeScene({ id: "osf.scene-clip/abc", title: "Imported Clip", tags: ["scene.clip"], stages: [{ name: "Pack\\Clip.glb" }] });
+    const state = {
+      ...createInitialState(),
+      mode: "library" as const,
+      library: [vanilla, imported],
+      libraryReceived: true,
+      libCustomOnly: true,
+      selectedId: vanilla.id,
+    };
+    expect(isVanillaAnimation(vanilla)).toBe(true);
+    expect(isVanillaAnimation(imported)).toBe(false);
+    expect(filteredLibrary(state).map((scene) => scene.id)).toEqual([imported.id]);
+    expect(browseVisible(state, vanilla)).toBe(false);
+    expect(validSelection(state)).toBe(imported.id);
+  });
+});
