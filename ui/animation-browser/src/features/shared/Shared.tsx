@@ -25,6 +25,32 @@ export function SpeciesFilter({ state, onToggle }: { state: BrowserState; onTogg
   );
 }
 
+export function Segmented({ label, value, options, onSelect, wide }: {
+  label: ComponentChildren;
+  value: string;
+  options: { value: string; label: string; title?: string }[];
+  onSelect(value: string): void;
+  wide?: boolean;
+}) {
+  return (
+    <div class={`override ${wide ? "wide" : ""}`}>
+      <span class="lbl">{label}</span>
+      <div class="seg" role="radiogroup">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            class={`seg-btn ${option.value === value ? "on" : ""}`}
+            role="radio"
+            aria-checked={option.value === value}
+            title={option.title}
+            onClick={() => onSelect(option.value)}
+          >{option.label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MoveButtons({ index, count, onMove }: {
   index: number;
   count: number;

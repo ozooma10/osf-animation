@@ -549,8 +549,16 @@ button,input,select{font:inherit;color:inherit}
 .overrides-sum.hot{color:var(--accent)}
 .override-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .override{display:flex;flex-direction:column;gap:5px;min-width:0}
+.override.wide{grid-column:1/-1}
 .override .lbl{margin:0}
 .override .lbl b{color:var(--accent)}
+/* Segmented picker — replaces native <select> so the choices never render in a
+   popup layer that Ultralight stacks under the surrounding brief controls. */
+.seg{display:flex;background:var(--void-900);border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.seg-btn{flex:1 1 0;min-width:0;background:none;border:0;border-left:1px solid var(--line);color:var(--text-faint);padding:6px 4px;font:600 9px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg-btn:first-child{border-left:0}
+.seg-btn:hover{color:var(--text-body);background:rgba(255,255,255,.03)}
+.seg-btn.on{background:var(--accent-quiet);color:var(--accent)}
 .select,.range{width:100%}
 .select{appearance:none;background:var(--void-900);border:1px solid var(--line);border-radius:2px;color:var(--text-body);padding:6px 8px;font:500 10px var(--font-mono);outline:none}
 .select:focus{border-color:var(--accent)}

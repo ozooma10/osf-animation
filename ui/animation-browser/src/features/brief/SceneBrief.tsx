@@ -15,7 +15,7 @@ import {
 } from "../../app/selectors";
 import type { BrowserState } from "../../app/state";
 import type { SceneEvaluation, SceneModel, SceneStage } from "../../model";
-import { MoveButtons } from "../shared/Shared";
+import { MoveButtons, Segmented } from "../shared/Shared";
 
 function WheelControls({ state, scene, stage, wide, commands }: {
   state: BrowserState;
@@ -98,10 +98,10 @@ function Overrides({ state, commands }: { state: BrowserState; commands: Browser
   return <div class={`overrides ${state.optsOpen ? "open" : ""}`}>
     <button class="overrides-head" title={`${state.optsOpen ? "Collapse" : "Expand"} start overrides`} onClick={commands.toggleOptions}><span class="chev">{state.optsOpen ? "▾" : "▸"}</span><span class="lbl">START OVERRIDES</span>{!state.optsOpen && <span class={`overrides-sum mono ${tweaks.length ? "hot" : ""}`}>{tweaks.length ? tweaks.join(" · ") : "defaults"}</span>}</button>
     {state.optsOpen && <div class="override-grid">
-      <label class="override"><span class="lbl">STRIP</span><select class="select" value={options.strip} onChange={(event) => commands.setOption("strip", event.currentTarget.value)}><option value="-1">Inherit</option><option value="1">On</option><option value="0">Off</option></select></label>
-      <label class="override"><span class="lbl">LOCK PLAYER</span><select class="select" value={options.lock} onChange={(event) => commands.setOption("lock", event.currentTarget.value)}><option value="-1">Inherit</option><option value="1">On</option><option value="0">Off</option></select></label>
-      <label class="override"><span class="lbl">CAMERA</span><select class="select" value={options.camera} onChange={(event) => commands.setOption("camera", event.currentTarget.value)}><option value="">Inherit</option><option value="thirdperson_hold">Third person</option><option value="scene_orbit">Scene orbit</option><option value="freefly">Free fly</option><option value="vanity_orbit">Vanity orbit</option></select></label>
-      <label class="override"><span class="lbl">SPEED <b>{Number(options.speed).toFixed(1)}x</b></span><input class="range" type="range" min="0.1" max="3" step="0.1" value={options.speed} onInput={(event) => commands.setOption("speed", event.currentTarget.value)}/></label>
+      <Segmented label="STRIP" value={options.strip} onSelect={(value) => commands.setOption("strip", value)} options={[{ value: "-1", label: "Inherit" }, { value: "1", label: "On" }, { value: "0", label: "Off" }]}/>
+      <Segmented label="LOCK PLAYER" value={options.lock} onSelect={(value) => commands.setOption("lock", value)} options={[{ value: "-1", label: "Inherit" }, { value: "1", label: "On" }, { value: "0", label: "Off" }]}/>
+      <Segmented label="CAMERA" wide value={options.camera} onSelect={(value) => commands.setOption("camera", value)} options={[{ value: "", label: "Inherit" }, { value: "thirdperson_hold", label: "3rd", title: "Third person" }, { value: "scene_orbit", label: "Orbit", title: "Scene orbit" }, { value: "freefly", label: "Free", title: "Free fly" }, { value: "vanity_orbit", label: "Vanity", title: "Vanity orbit" }]}/>
+      <label class="override wide"><span class="lbl">SPEED <b>{Number(options.speed).toFixed(1)}x</b></span><input class="range" type="range" min="0.1" max="3" step="0.1" value={options.speed} onInput={(event) => commands.setOption("speed", event.currentTarget.value)}/></label>
     </div>}
   </div>;
 }
