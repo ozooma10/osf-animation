@@ -78,6 +78,7 @@ namespace OSF::Animation
 			std::vector<TimedMark> marks;                  // timed marks (numeric/end) for this stage
 		};
 		std::vector<Stage> stages;
+		std::vector<std::vector<std::string>> preserveBones;  // optional, one exact-name list per actor
 		std::string animId;     // registry id ("" = ad-hoc)
 		float speed = 1.0f;     // clock speed multiplier
 		float blendIn = 0.4f;   // default per-participant blend-in secs

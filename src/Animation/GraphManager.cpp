@@ -361,6 +361,11 @@ namespace OSF::Animation
 				REX::ERROR("[Anim] PlayScene: explicit anchor contains a non-finite value");
 				return false;
 			}
+			if (!a_plan.preserveBones.empty() && a_plan.preserveBones.size() != a_actors.size()) {
+				REX::ERROR("[Anim] PlayScene: preserve-bone policy has {} role(s), but scene has {} actor(s)",
+					a_plan.preserveBones.size(), a_actors.size());
+				return false;
+			}
 			for (size_t s = 0; s < a_plan.stages.size(); s++) {
 				const auto& stage = a_plan.stages[s];
 				if (stage.files.size() != a_actors.size() ||
@@ -561,6 +566,8 @@ namespace OSF::Animation
 
 		{
 			std::unique_lock gl{ g->stateLock };
+			static const std::vector<std::string> kNoPreservedBones;
+			g->SetPreserveBones(kNoPreservedBones);
 			g->SetAnimation(loadResult.skeleton, loadResult.anim, std::string(a_file));
 		}
 
@@ -664,6 +671,8 @@ namespace OSF::Animation
 				}
 				{
 					std::scoped_lock gl{ slot->stateLock };
+					static const std::vector<std::string> kNoPreservedBones;
+					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
 					slot->blendDuration = scene->stages[startStage].blendIn;
 					slot->scene = scene.get();

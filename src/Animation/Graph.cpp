@@ -187,6 +187,25 @@ namespace OSF::Animation
 		binding.clear();
 	}
 
+	void Graph::SetPreserveBones(const std::vector<std::string>& a_bones)
+	{
+		preserveBones.clear();
+		preserveBones.reserve(a_bones.size());
+		for (const auto& bone : a_bones) {
+			if (!bone.empty()) {
+				preserveBones.emplace(ToLower(bone));
+			}
+		}
+
+		// The binding is the write policy. Force it to rebuild even if the live rig itself did not change.
+		cachedModelNode = nullptr;
+		cachedRig = nullptr;
+		cachedBoneCount = 0;
+		cachedLocalData = nullptr;
+		cachedRigBoneCount = 0;
+		binding.clear();
+	}
+
 	bool Graph::ResolveAndBind()
 	{
 
@@ -258,6 +277,7 @@ namespace OSF::Animation
 		binding.reserve(cachedBoneCount);
 
 		uint32_t skippedNonBody = 0;
+		uint32_t skippedPreserved = 0;
 		for (uint32_t i = 0; i < modelNode->nodes.size(); i++) {
 			const auto& entry = modelNode->nodes[i];
 			if (!entry.node) {
@@ -268,6 +288,10 @@ namespace OSF::Animation
 				continue;
 			}
 			const auto lowerName = ToLower(name);
+			if (preserveBones.contains(lowerName)) {
+				skippedPreserved++;
+				continue;
+			}
 			if (IsNonBodyRigNode(lowerName)) {
 				skippedNonBody++;
 				continue;
@@ -282,7 +306,8 @@ namespace OSF::Animation
 
 		if (!loggedBind) {
 			loggedBind = true;
-			REX::DEBUG("[Anim] rig bind — {}/{} mapped body bones matched skeleton joints ({} face/eye/morph nodes skipped)", binding.size(), cachedBoneCount, skippedNonBody);
+			REX::DEBUG("[Anim] rig bind — {}/{} mapped body bones matched skeleton joints ({} preserved, {} face/eye/morph nodes skipped)",
+				binding.size(), cachedBoneCount, skippedPreserved, skippedNonBody);
 		}
 
 		return !binding.empty();

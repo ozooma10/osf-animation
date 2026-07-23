@@ -210,6 +210,7 @@ namespace OSF::Registry
 		// An empty vector = that constraint is absent. `gender` desugars from `gender`/`filters.gender`.
 		std::vector<RE::TESFormID> keywords;  // BGSKeyword ids; empty = no keyword constraint
 		std::vector<RE::TESFormID> races;     // TESRace ids; empty = no race constraint
+		std::vector<std::string>   preserveBones;  // exact, case-insensitive rig names left engine-driven
 		Animation::ParticipantPlacement offset{};  // default placement for this slot
 		RoleEquip                    equip;     // optional per-gender item equipped for the scene's duration
 	};

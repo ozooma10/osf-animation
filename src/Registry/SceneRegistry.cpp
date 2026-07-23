@@ -516,6 +516,25 @@ namespace OSF::Registry
 				throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' and filters.gender disagree");
 			}
 			r.gender = shorthand ? *shorthand : (fromFilter ? *fromFilter : SlotGender::kAny);
+			// Optional exact-name bone mask. Preserved bones stay under the engine's live pose for
+			// this role while every other matched animation joint continues to stamp normally.
+			if (auto bit = a_role.find("preserveBones"); bit != a_role.end()) {
+				if (!bit->is_array()) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': 'preserveBones' must be an array of strings");
+				}
+				std::unordered_set<std::string> seen;
+				for (const auto& entry : *bit) {
+					if (!entry.is_string() || entry.get_ref<const std::string&>().empty()) {
+						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+							"': 'preserveBones' entries must be non-empty strings");
+					}
+					auto bone = entry.get<std::string>();
+					if (seen.emplace(ToLower(bone)).second) {
+						r.preserveBones.push_back(std::move(bone));
+					}
+				}
+			}
 			// Optional default placement for this slot (unified *.osf.json roles).
 			if (auto oit = a_role.find("offset"); oit != a_role.end()) {
 				r.offset = ParseOffsetField(*oit);
@@ -1445,6 +1464,10 @@ namespace OSF::Registry
 			}
 			Animation::ScenePlan plan;
 			plan.animId = a_id;
+			plan.preserveBones.reserve(a_roles.size());
+			for (const auto& role : a_roles) {
+				plan.preserveBones.push_back(role.preserveBones);
+			}
 			plan.stages.reserve(a_stages.size());
 			for (const auto& sd : a_stages) {
 				if (sd.clips.size() != a_actorCount) {

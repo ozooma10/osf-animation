@@ -174,7 +174,7 @@ load, so there is no clip list to count).
 ]
 ```
 
-Each role is `{ name?, gender?, filters?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`:
+Each role is `{ name?, gender?, filters?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`:
 
 - **`name`** is **OPTIONAL**. Omit it for an anonymous positional slot (`{}`); name it to bind via
   `StartSceneRoles` and to reference from track entries (`"role": "lead"`).
@@ -184,6 +184,15 @@ Each role is `{ name?, gender?, filters?, offset?, equip? }`, where `filters` is
   one. **Note the singular key, nested under `filters`** (a bare top-level `keywords` is not read).
 - **`filters.race`**: a form-ref string or array; the actor's race must equal any one. Singular, under
   `filters` (a bare top-level `races` is not read).
+- **`preserveBones`**: an array of exact, case-insensitive rig bone names that remain engine-driven
+  for this role. OSF omits only those bone slots while continuing to animate independently bound
+  child bones. This is useful when a baked full-pose clip contains an unwanted transform for a
+  helper/root bone, without making the role gender-specific:
+
+  ```jsonc
+  { "name": "receiver", "preserveBones": ["C_GenitalsRoot"] }
+  ```
+
 - **`offset`**: the role's default placement for all stages.
 - **`equip`**: an item to equip onto this role's actor for the scene's duration, **auto-removed on
   every end path**. Either a bare form-ref string (any gender) or an object keyed by the actor's

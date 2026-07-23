@@ -72,6 +72,9 @@ namespace OSF::Animation
 
 		// Start a new animation clip. Resets time and starts a blend-in. a_file is for diagnostics only ("" = none).
 		void SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file = "");
+		// Exact, case-insensitive rig bone names whose live engine transforms this graph must not overwrite.
+		// The policy survives stage changes; GraphManager replaces it at every new solo/scene start.
+		void SetPreserveBones(const std::vector<std::string>& a_bones);
 
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
 		bool IsFadedOut() const;  // fade-out ramp fully elapsed
@@ -104,6 +107,7 @@ namespace OSF::Animation
 		std::vector<ozz::math::SoaTransform> localPose;
 		std::vector<ozz::math::Float4x4> outputPose;
 		std::unordered_map<std::string, uint16_t> jointMap;  // lowercased joint name -> index
+		std::unordered_set<std::string> preserveBones;       // lowercased live rig names omitted from binding
 
 		bool hasPose = false;  // outputPose valid (also the blend-from source for the next SetAnimation)
 
