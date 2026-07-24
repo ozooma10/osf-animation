@@ -14,8 +14,8 @@ describe("OsfUiBridge subscription race", () => {
   it("replays a runtime.ready flushed before the first subscribe", () => {
     const bridge = new OsfUiBridge();
     // The host queues messages for a not-yet-visible view and flushes them at first paint —
-    // which lands before the controller's post-paint useEffect subscribes. Without buffering
-    // this message is dropped and the view wedges at "Engine Offline".
+    // which lands before the controller's post-paint useEffect subscribes. Buffering keeps
+    // the normal startup immediate; manual page reload recovery is covered in app.test.ts.
     deliver("runtime.ready", { bridgeVersion: "1.3" });
 
     const received: NativeMessage[] = [];

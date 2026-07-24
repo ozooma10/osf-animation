@@ -23,6 +23,17 @@ const solo = normalizeScene({
 const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2, pinned: 1 });
 
 describe("browser reducer", () => {
+  it("self-heals engine readiness from a catalog reply after a web-view reload", () => {
+    const reloaded = createInitialState();
+    expect(reloaded.ready).toBe(false);
+
+    // OSF UI's one-shot runtime.ready was delivered to the old page, but every
+    // newly mounted page sends catalog.get and OSF Animation answers directly.
+    const healed = browserReducer(reloaded, { type: "catalog/received", scenes: [solo] });
+
+    expect(healed).toMatchObject({ ready: true, catalogReceived: true });
+  });
+
   it("keeps cast ordering immutable", () => {
     const initial = { ...createInitialState(), cast: [PLAYER_CAST, { token: 7, name: "Sarah", species: "human" }] };
     const moved = browserReducer(initial, { type: "cast/moved", from: 1, to: 0 });

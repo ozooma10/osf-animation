@@ -16,8 +16,8 @@ export class OsfUiBridge implements AnimationBridge {
   // onMessage handler is installed synchronously in the constructor (render phase), but
   // the controller only calls subscribe() from a post-paint useEffect. The host queues
   // messages for a not-yet-visible view and flushes them at first paint — which lands in
-  // that gap — so runtime.ready (sent once) would otherwise be dropped and the view would
-  // wedge at "Engine Offline" forever. Buffer here and replay on the first subscribe.
+  // that gap. Buffer here and replay on the first subscribe so normal startup becomes
+  // ready immediately; a full page reload also self-heals from the catalog response.
   private readonly pending: NativeMessage[] = [];
   private readonly previousHandler = window.osfui?.onMessage;
 

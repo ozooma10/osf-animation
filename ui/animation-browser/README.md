@@ -56,9 +56,11 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
   messages sent to a not-yet-visible view and delivering them before its
   first paint** (C ABI MINOR ≥ 2): the DLL pushes the mode before
   `RequestMenu(open)`.
-- The view requires only that a bridge is present (`runtime.ready` arrives);
-  it never gates on the protocol/version strings — the contract evolves
-  additively. Platform pushes it consumes: `ui.visibility` (open/close relay,
+- The view becomes ready when the bridge announces `runtime.ready`, or when
+  OSF Animation answers the catalog/version request that every page mount sends.
+  The response path lets a manually reloaded web view self-heal after the host's
+  one-shot ready handshake has already gone by. It never gates on the
+  protocol/version strings — the contract evolves additively. Platform pushes it consumes: `ui.visibility` (open/close relay,
   wheel-mode exit, orbit-drag reset) and `ui.error` (surfaced in the notice
   footer). **Gamepad:** the view takes the `osfui.gamepadRaw` grant on
   `runtime.ready` — the runtime's default mapping would route both sticks
