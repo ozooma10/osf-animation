@@ -9,8 +9,9 @@
     { "id": "test.err.unknown", "roles": ["nope"], "clip": "Fixture/x.glb" },
     // Registry ids are exact and case-sensitive: "F" does not resolve "f".
     { "id": "test.err.case", "roles": ["F"], "clip": "Fixture/x.glb" },
-    // Both definitions collapse to runtime name "f" — duplicate only when one scene uses both.
-    { "id": "test.err.dup", "roles": ["f", "f-preserved"], "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }] },
+    // Two EXPLICIT "f" names (an override + an inline role) still reject; two plain references
+    // to same-named templates would auto-number (f, f2) instead — see fixture_registry_templates.
+    { "id": "test.err.dup", "roles": [{ "id": "f-preserved", "name": "f" }, { "name": "f" }], "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }] },
     { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
   ]
 }

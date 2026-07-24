@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "name": "fixture role template error cases",
+  "roles": {
+    "m": { "gender": "male" },
+    "f": {}
+  },
+  "scenes": [
+    // An object override naming an unknown id rejects only its scene.
+    { "id": "test.terr.unknown", "roles": [{ "id": "nope", "name": "x" }], "clip": "Fixture/x.glb" },
+    // `id` must be a non-empty string.
+    { "id": "test.terr.empty", "roles": [{ "id": "", "name": "x" }], "clip": "Fixture/x.glb" },
+    { "id": "test.terr.num", "roles": [{ "id": 42 }], "clip": "Fixture/x.glb" },
+    // Duplicate EXPLICIT names reject, whether from an override or an inline role.
+    { "id": "test.terr.dup",
+      "roles": [{ "id": "m", "name": "lead" }, { "name": "lead" }],
+      "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }] },
+    // ...while its file's other scenes still load.
+    { "id": "test.terr.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
+  ]
+}

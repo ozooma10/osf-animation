@@ -175,8 +175,8 @@ load, so there is no clip list to count).
 ```
 
 Each role is `{ name?, gender?, filters?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`.
-(A `roles` entry may also be a plain **string** — a reference to the file-level roles registry; see
-*File-level roles* below.)
+(A `roles` entry may also reference the file-level roles registry — a plain id **string**, or an
+`{ "id": ..., ...overrides }` object; see *File-level roles* below.)
 
 - **`name`** is **OPTIONAL**. Omit it for an anonymous positional slot (`{}`); name it to bind via
   `StartSceneRoles` and to reference from track entries (`"role": "lead"`).
@@ -244,41 +244,70 @@ Every scene in `scenes` that omits its own `roles` inherits the array (names, fi
 
 #### Roles registry (object)
 
-An object maps an **exact, case-sensitive id** to a role object. Scenes reference a definition by its
-id **string** inside their own `roles` array, freely mixed with inline role objects; each reference
-expands to an ordinary copy of the definition at load, so everything downstream (matchmaking,
-`StartSceneRoles`, track `"role"` refs) works exactly as with inline roles.
+An object maps an **exact, case-sensitive id** to a reusable role **template**. Scenes instantiate a
+template inside their own `roles` array in two forms, freely mixed with inline role objects:
+
+- a **string** — the bare id — copies the template as-is;
+- an **object containing `id`** — copies the template, then applies the entry's remaining keys as
+  overrides (the `id` key itself is consumed by the reference, not parsed as role data).
+
+Both expand to ordinary roles at load, so everything downstream (matchmaking, `StartSceneRoles`,
+track `"role"` refs) works exactly as with inline roles.
 
 ```jsonc
 {
   "schema": 1,
   "roles": {
-    "male":          { "name": "m", "equip": { "male": "...|0x804", "female": "...|0x81D" } },
-    "f":             {},                                            // runtime name defaults to the id: "f"
-    "f-preserved":   { "name": "f", "preserveBones": ["C_GenitalsRoot"] }
+    "m":  { "gender": "male", "equip": { "male": "...|0x804", "female": "...|0x81D" } },
+    "f":  {}                                                     // base name defaults to the id: "f"
   },
   "scenes": [
-    { "id": "author.scene.a", "roles": ["male", "f-preserved"], "stages": [ { "clips": ["A0.glb", "A1.glb"] } ] },
-    { "id": "author.scene.b", "roles": ["male", "f", { "offset": { "y": 1.0 } }], "stages": [ { "clips": ["B0.glb", "B1.glb", "B2.glb"] } ] },
+    // MMF — the repeated template is auto-numbered: runtime names "m", "m2", "f".
+    { "id": "author.scene.mmf", "roles": ["m", "m", "f"], "stages": [ { "clips": ["A0.glb", "A1.glb", "A2.glb"] } ] },
+    // A named instance (e.g. a track target: "role": "lead") with a per-slot offset override.
+    { "id": "author.scene.duo",
+      "roles": [ { "id": "m", "name": "lead", "offset": { "y": 1.0 } }, "f" ],
+      "stages": [ { "clips": ["B0.glb", "B1.glb"] } ] },
     { "id": "author.scene.c", "stages": [ { "clips": ["C0.glb", "C1.glb"] } ] }   // no roles: normal inference
   ]
 }
 ```
 
-- **Name defaulting:** a definition that omits `name` takes its **registry id** as its runtime name.
-  An explicit `name` wins, so the id can differ from the binding name (`"male"` → name `"m"` above);
-  explicit `name: ""` remains an anonymous positional slot.
+**Overrides** merge onto the template JSON-merge-patch style:
+
+- **Scalars replace** — `"gender": "female"` replaces the template's `gender`.
+- **`filters`, `offset`, and `equip` merge by key** — `{ "offset": { "y": 1.0 } }` changes only `y`;
+  `{ "equip": { "female": "..." } }` changes only the `female` ref. Unspecified keys are inherited.
+- **Arrays replace wholesale** — a `preserveBones` override substitutes the whole list.
+- **`null` removes an inherited optional field** — `"equip": null` instantiates the template without
+  its equip.
+- `gender` and `filters.gender` are **aliases** for one constraint: overriding either drops the
+  inherited value on the other path, so the merged role can never trip the "they disagree" check.
+  (Supplying both in one override is validated exactly like an inline role.)
+
+**Runtime names** are assigned deterministically:
+
+- A template that omits `name` takes its **registry id** as its base name; an explicit `name: ""`
+  (on the template or an override) stays an **anonymous positional slot**.
+- A **string** reference — or `{ "id": ... }` with no `name` — gets an **automatic** name: the
+  template's effective name, suffixed `2`, `3`, … past any name already used in the scene. Three
+  males and a female are simply `["m", "m", "m", "f"]` → `m`, `m2`, `m3`, `f`.
+- An **explicit** `name` (on an override object or an inline role) is kept **exactly** and reserved
+  first, so automatic names skip it: `["m", { "id": "m", "name": "m" }]` → `m2`, `m`. **Duplicate
+  explicit names reject the scene** (case-insensitive).
+- Anonymous slots are never numbered.
+
+**Validation:**
+
+- A malformed **template** (non-object value, or a role object that would be rejected inline)
+  rejects the **whole file** at load.
+- A scene with an **unknown, empty, or non-string `id`** (ids are case-sensitive), or with
+  **duplicate explicit role names**, rejects **only that scene**; diagnostics name the source file,
+  scene id, and role id.
+- **File-local, templates-only:** the registry is visible only to the scenes in its own file. There
+  are no aliases, cross-file references, or whole-role-set references.
 - **Not a default cast:** a scene that omits `roles` under a registry gets the usual clip-count
   inference (anonymous slots), never the registry contents.
-- **File-local, definitions-only:** the registry is visible only to the scenes in its own file, and
-  each value must be a role object. There are no aliases, overrides, inheritance, whole-role-set
-  references, cross-file references, or `{ "ref": ... }` objects — a string is the complete reference
-  syntax; an uncommon variant gets its own definition or stays inline.
-- **Validation:** a malformed definition (non-object value, or a role object that would be rejected
-  inline) rejects the **whole file** at load. A scene referencing an **unknown id** (ids are
-  case-sensitive) or ending up with **duplicate runtime role names** (e.g. referencing both `"f"` and
-  `"f-preserved"` above) rejects **only that scene**; diagnostics name the source file, scene id, and
-  role id.
 
 ---
 

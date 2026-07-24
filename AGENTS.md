@@ -68,11 +68,15 @@ Each entry: **system** (`path`) — role.
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`); also
   carries the `stripActors`/`lockPlayer` default-mechanism opt-outs (top-level → per-role). A multi-scene
   file's top-level `roles` is read by JSON type: an ARRAY is a default cast inherited by scenes omitting
-  `roles`; an OBJECT is a file-local registry of reusable role definitions that scene `roles` entries
-  reference by exact id string (mixed with inline objects; a definition omitting `name` defaults it to
-  the id; a registry is NOT a default cast — omitted `roles` still infers). References expand to ordinary
-  `SceneRole` copies at load; malformed definitions reject the file, unknown refs/duplicate runtime names
-  reject only the scene. The `sound`
+  `roles`; an OBJECT is a file-local registry of reusable role TEMPLATES that scene `roles` entries
+  reference by exact id — either a bare string (copy as-is) or an `{ "id", ...overrides }` object
+  (JSON-merge-patch over the template: scalars replace, filters/offset/equip merge by key, arrays
+  replace, null removes; `gender`/`filters.gender` aliased so one override drops the other path),
+  mixed freely with inline objects. A template omitting `name` defaults it to the id; a registry is
+  NOT a default cast — omitted `roles` still infers. Templates validate at file load (malformed
+  rejects the file); unknown/empty/non-string `id`s or duplicate EXPLICIT names reject only the
+  scene. Automatic (template-derived) names are numbered past collisions — `["m","m","f"]` →
+  m, m2, f — while explicit names are kept exactly and reserved first. The `sound`
   lane also accepts a ladder-sugar OBJECT `{ role?, spec, repeat?, marks }` (shared defaults that expand
   to one entry per mark, appending each mark's tag(s) to the base `spec`). `marks` is either GROUPED —
   `{ "low":[0.1,0.3], "loud":[0.8] }` (key = tag(s) to append, value = positions; terse for repeated

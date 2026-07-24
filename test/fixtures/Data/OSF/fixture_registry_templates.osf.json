@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "name": "fixture role templates: overrides + automatic runtime names",
+  "roles": {
+    // A fully-loaded template: every overridable field populated.
+    "m": {
+      "gender": "male",
+      "offset": { "x": 1.0, "y": 2.0, "heading": 90.0 },
+      "preserveBones": ["C_GenitalsRoot"],
+      "equip": { "male": "Top.esm|0x111", "female": "Top.esm|0x222" }
+    },
+    "f": {},
+    // filters.gender (the nested alias) + a two-key equip, for by-key merge and alias checks.
+    "geared": {
+      "name": "geared",
+      "filters": { "gender": "female" },
+      "preserveBones": ["BoneA", "BoneB"],
+      "equip": { "male": "Suit.esm|0x333", "any": "Suit.esm|0x444" }
+    }
+  },
+  "scenes": [
+    {
+      // MMF: the repeated template auto-numbers -> runtime names m, m2, f.
+      "id": "test.tpl.mmf",
+      "roles": ["m", "m", "f"],
+      "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb", "Fixture/c.glb"] }]
+    },
+    {
+      // Three or more repeats keep numbering -> m, m2, m3.
+      "id": "test.tpl.trio",
+      "roles": ["m", "m", "m"],
+      "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb", "Fixture/c.glb"] }]
+    },
+    {
+      // An explicit override name is kept exactly; the plain ref's automatic name is unaffected.
+      "id": "test.tpl.named",
+      "roles": [{ "id": "m", "name": "lead" }, "m"],
+      "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }]
+    },
+    {
+      // Deterministic collision: the explicit "m" is reserved first, so the automatic slot -> m2.
+      "id": "test.tpl.collision",
+      "roles": ["m", { "id": "m", "name": "m" }],
+      "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }]
+    },
+    {
+      // Automatic names skip explicit reservations: m, m2 (explicit inline), m3.
+      "id": "test.tpl.skip",
+      "roles": ["m", { "name": "m2" }, "m"],
+      "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb", "Fixture/c.glb"] }]
+    },
+    {
+      // Merge: the scalar gender replaces; offset/equip merge by key (y/female replaced, x/male
+      // retained); an unspecified array (preserveBones) is retained.
+      "id": "test.tpl.merge",
+      "roles": [{ "id": "m", "gender": "female", "offset": { "y": 9.0 }, "equip": { "female": "New.esm|0x999" } }],
+      "clip": "Fixture/x.glb"
+    },
+    {
+      // Alias direction 1: a top-level `gender` override drops the inherited filters.gender
+      // (no false disagreement).
+      "id": "test.tpl.alias1",
+      "roles": [{ "id": "geared", "gender": "male" }],
+      "clip": "Fixture/x.glb"
+    },
+    {
+      // Alias direction 2: a filters.gender override drops the inherited top-level `gender`.
+      "id": "test.tpl.alias2",
+      "roles": [{ "id": "m", "filters": { "gender": "female" } }],
+      "clip": "Fixture/x.glb"
+    },
+    {
+      // Arrays replace wholesale; unspecified nested fields (filters) are retained.
+      "id": "test.tpl.bones",
+      "roles": [{ "id": "geared", "preserveBones": ["OnlyThis"] }],
+      "clip": "Fixture/x.glb"
+    },
+    {
+      // An explicit name:"" is an anonymous slot (never numbered).
+      "id": "test.tpl.anon",
+      "roles": [{ "id": "m", "name": "" }],
+      "clip": "Fixture/x.glb"
+    },
+    {
+      // null removes inherited optional fields.
+      "id": "test.tpl.null",
+      "roles": [{ "id": "m", "equip": null, "preserveBones": null }],
+      "clip": "Fixture/x.glb"
+    }
+  ]
+}

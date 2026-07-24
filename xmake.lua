@@ -166,9 +166,10 @@ target("osf-sound-registry-test")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")
 
--- Scene-registry parsing fixture tests (pack-default roles, the roles registry, reference
--- expansion, inference, per-scene/per-file rejection). No game runtime: the fixtures resolve no
--- form refs and the clip-availability probe is stubbed "installed" in the test main.
+-- Scene-registry parsing fixture tests (pack-default roles, the roles registry: template
+-- expansion, { id, ...overrides } merge, automatic runtime-name numbering, inference,
+-- per-scene/per-file rejection). No game runtime: the fixtures resolve no form refs and the
+-- clip-availability probe is stubbed "installed" in the test main.
 target("osf-scene-registry-test")
     set_kind("binary")
     set_default(false)
