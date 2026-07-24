@@ -1,6 +1,7 @@
 import type { BrowserCommands } from "../../app/commands";
 import { animationList, busyTokens, hasPlayer, sceneCatalog, speciesLabel } from "../../app/selectors";
 import type { BrowserState, CastMember } from "../../app/state";
+import { SexTag, memberSex } from "../shared/Shared";
 
 function StepHead({ open, summary, onClick }: { open: boolean; summary: string; onClick(): void }) {
   return (
@@ -15,10 +16,11 @@ function Face() {
   return <span class="near-face blank" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4 22c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>;
 }
 
-function CastChip({ member, index, live, commands }: {
+function CastChip({ member, index, live, sex, commands }: {
   member: CastMember;
   index: number;
   live: boolean;
+  sex: string;
   commands: BrowserCommands;
 }) {
   const player = member.kind === "player";
@@ -26,6 +28,7 @@ function CastChip({ member, index, live, commands }: {
     <span class={`castline ${player ? "player" : ""}`}>
       <span class="cast-key">{String.fromCharCode(65 + index)}</span>
       <span class="castline-name">{member.name}</span>
+      <SexTag sex={sex}/>
       {!player && member.species !== "human" && (
         <span class="cast-species" title="Skeleton family — the library filters to its animations">
           {speciesLabel(member.species)}
@@ -52,7 +55,10 @@ export function CastPanel({ state, commands }: { state: BrowserState; commands: 
     <div class="step">
       <StepHead open summary={`${state.cast.length} on deck`} onClick={() => commands.toggleStep("cast")}/>
       <div class="cast-stack">
-        {state.cast.map((member, index) => <CastChip key={member.token} member={member} index={index} live={busy.has(member.token)} commands={commands}/>)}
+        {state.cast.map((member, index) => (
+          <CastChip key={member.token} member={member} index={index} live={busy.has(member.token)}
+            sex={memberSex(state, member)} commands={commands}/>
+        ))}
         {!hasPlayer(state) && <button class="castline ghost" title="Add player back to the crew" onClick={commands.togglePlayer}>＋ Player</button>}
       </div>
       {state.cast.length > 1 && <div class="cast-order-hint mono">A·B·C order sets roles — arrange in ROLES →</div>}
@@ -65,7 +71,7 @@ export function CastPanel({ state, commands }: { state: BrowserState; commands: 
           const added = state.cast.some((member) => member.token === actor.token);
           return (
             <button key={actor.token} class={`near-row ${added ? "active" : ""}`} onClick={() => commands.toggleActor(actor.token)}>
-              <Face/><span class="near-name">{actor.name}</span>
+              <Face/><span class="near-name">{actor.name}</span><SexTag sex={actor.sex}/>
               {busy.has(actor.token) && <span class="cast-busy" title="Currently in a running scene">LIVE</span>}
               <span class="near-meta mono">{actor.distance == null ? "" : `${Math.max(1, Math.round(actor.distance))}m`}</span>
               <span class={`near-tag ${added ? "added" : ""}`}>{added ? "✓" : "ADD"}</span>

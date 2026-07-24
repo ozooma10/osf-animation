@@ -57,6 +57,8 @@ export class StandaloneBridge implements AnimationBridge {
 
   send(command: BridgeCommand, fields: Record<string, unknown> = {}): void {
     if (command === "osf.animation.catalog.get") {
+      // The engine piggybacks its identity (and the player's sex) on the catalog request.
+      this.later({ type: "osf.animation.version", payload: { plugin: "OSF Animation", version: "0.0.0-dev", playerSex: "female" } }, 20);
       void fetchFixture("catalog").then((fixture) => this.emit({ type: "osf.animation.catalog.data", payload: this.applyPins(fixture ?? MOCK_CATALOG, false) }));
     } else if (command === "osf.animation.library.get") {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));

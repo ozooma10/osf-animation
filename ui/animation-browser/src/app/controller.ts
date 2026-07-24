@@ -46,6 +46,7 @@ function normalizeNearby(payload: unknown): NearbyTarget[] {
     distance: typeof item.distance === "number" ? item.distance : null,
     isActor: !!item.isActor,
     species: String(item.species || "").toLowerCase(),
+    sex: String(item.sex || "").toLowerCase(),
     sceneCount: typeof item.sceneCount === "number" ? item.sceneCount : null,
     customCount: typeof item.customCount === "number" ? item.customCount : null,
     marker: !!item.marker,
@@ -165,7 +166,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           dispatch({ type: "anchor/selected", anchor: { token: Number(record.token), name: String(record.name || "furniture"), distance: typeof record.distance === "number" ? record.distance : null } });
           send("osf.animation.anchorMatch", { token: Number(record.token) });
         } else {
-          const member: CastMember = Number(record.token) === PLAYER_TOKEN ? PLAYER_CAST : { token: Number(record.token), name: String(record.name || "actor"), distance: typeof record.distance === "number" ? record.distance : null, species: String(record.species || "human") };
+          const member: CastMember = Number(record.token) === PLAYER_TOKEN ? PLAYER_CAST : { token: Number(record.token), name: String(record.name || "actor"), distance: typeof record.distance === "number" ? record.distance : null, species: String(record.species || "human"), sex: String(record.sex || "").toLowerCase() };
           dispatch({ type: "cast/toggled", member });
         }
         break;
@@ -178,7 +179,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           dispatch({ type: "anchor/selected", anchor: { token, name: String(record.name || "furniture"), distance: typeof record.distance === "number" ? record.distance : null } });
           send("osf.animation.anchorMatch", { token });
         } else if (record.slot !== "furniture") {
-          const member: CastMember = { token, name: String(record.name || "actor"), distance: typeof record.distance === "number" ? record.distance : null, species: String(record.species || "human") };
+          const member: CastMember = { token, name: String(record.name || "actor"), distance: typeof record.distance === "number" ? record.distance : null, species: String(record.species || "human"), sex: String(record.sex || "").toLowerCase() };
           dispatch(stateRef.current.cast.length === 1 && stateRef.current.cast[0].kind === "player" ? { type: "cast/replaced", members: [member] } : { type: "cast/toggled", member });
         }
         break;
@@ -279,7 +280,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleMarkers: () => dispatch({ type: "markers/toggled" }),
     scan: (kind) => { showNotice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`); send("osf.animation.scanNearby", { kind, sceneId: stateRef.current.selectedId || "" }); },
     pick: (slot) => send("osf.animation.pickCrosshair", { slot }),
-    toggleActor: (token) => { const actor = stateRef.current.nearbyActors.find((candidate) => candidate.token === token); if (actor) dispatch({ type: "cast/toggled", member: { token, name: actor.name, distance: actor.distance, species: actor.species || "human" } }); },
+    toggleActor: (token) => { const actor = stateRef.current.nearbyActors.find((candidate) => candidate.token === token); if (actor) dispatch({ type: "cast/toggled", member: { token, name: actor.name, distance: actor.distance, species: actor.species || "human", sex: actor.sex } }); },
     togglePlayer: () => dispatch({ type: "cast/toggled", member: PLAYER_CAST }),
     removeMember: (index) => dispatch({ type: "cast/removed", index }),
     moveMember: (index, delta) => dispatch({ type: "cast/moved", from: index, to: index + delta, after: delta > 0 }),

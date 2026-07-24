@@ -35,7 +35,7 @@ describe("browser reducer", () => {
   });
 
   it("keeps cast ordering immutable", () => {
-    const initial = { ...createInitialState(), cast: [PLAYER_CAST, { token: 7, name: "Sarah", species: "human" }] };
+    const initial = { ...createInitialState(), cast: [PLAYER_CAST, { token: 7, name: "Sarah", species: "human", sex: "female" }] };
     const moved = browserReducer(initial, { type: "cast/moved", from: 1, to: 0 });
     expect(moved.cast.map((member) => member.token)).toEqual([7, -1]);
     expect(initial.cast.map((member) => member.token)).toEqual([-1, 7]);

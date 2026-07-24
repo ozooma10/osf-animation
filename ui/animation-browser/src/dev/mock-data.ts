@@ -1,8 +1,8 @@
 export const MOCK_ACTORS = [
-  { token: 601, name: "Sarah Morgan", formId: 0x2, distance: 2, isActor: true, species: "human" },
-  { token: 602, name: "Andreja", formId: 0x3, distance: 5, isActor: true, species: "human" },
-  { token: 603, name: "Sam Coe", formId: 0x4, distance: 9, isActor: true, species: "human" },
-  { token: 605, name: "Terrormorph", formId: 0x6, distance: 7, isActor: true, species: "terrormorph" },
+  { token: 601, name: "Sarah Morgan", formId: 0x2, distance: 2, isActor: true, species: "human", sex: "female" },
+  { token: 602, name: "Andreja", formId: 0x3, distance: 5, isActor: true, species: "human", sex: "female" },
+  { token: 603, name: "Sam Coe", formId: 0x4, distance: 9, isActor: true, species: "human", sex: "male" },
+  { token: 605, name: "Terrormorph", formId: 0x6, distance: 7, isActor: true, species: "terrormorph", sex: "" },
 ];
 
 export const MOCK_ANCHORS = [

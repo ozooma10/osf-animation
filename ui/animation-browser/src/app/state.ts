@@ -8,6 +8,8 @@ export interface CastMember {
   kind?: "player";
   distance?: number | null;
   species: string;
+  /** "male" / "female", or "" when the actor has no actorbase sex (most creatures). */
+  sex: string;
 }
 
 export const PLAYER_CAST: CastMember = {
@@ -15,6 +17,8 @@ export const PLAYER_CAST: CastMember = {
   name: "Player",
   kind: "player",
   species: "human",
+  // The player's sex rides the version push instead (see PluginVersion.playerSex).
+  sex: "",
 };
 
 export interface NearbyTarget {
@@ -24,6 +28,7 @@ export interface NearbyTarget {
   distance: number | null;
   isActor: boolean;
   species: string;
+  sex: string;
   sceneCount: number | null;
   customCount: number | null;
   marker: boolean;
@@ -52,6 +57,8 @@ export interface FurnitureTarget {
 export interface PluginVersion {
   plugin?: string;
   version?: string;
+  /** The player character's sex tag, so the permanent player chip can badge M/F too. */
+  playerSex?: string;
   ui?: {
     name?: string;
     version?: string;

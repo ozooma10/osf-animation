@@ -282,6 +282,15 @@ namespace OSF::API
 			SendJson(kViewId, "osf.animation.mode", payload);
 		}
 
+		// Actor sex as the view's M/F badge tag: "male" / "female", "" for furniture, creatures and
+		// any actor with no actorbase sex. Same tag the matchmaker binds gendered role slots with.
+		std::string RefSexTag(RE::TESObjectREFR* a_ref)
+		{
+			return a_ref && a_ref->IsActor()
+			         ? Matchmaking::ActorGenderTag(static_cast<RE::Actor*>(a_ref))
+			         : std::string{};
+		}
+
 		const char* GenderTag(Registry::SlotGender a_gender)
 		{
 			switch (a_gender) {
@@ -727,6 +736,9 @@ namespace OSF::API
 				// field and render as "1.0.0.0" in the view's status line.
 				{ "version", std::format("{}.{}.{}", SFSE::GetPluginVersion().major(), SFSE::GetPluginVersion().minor(), SFSE::GetPluginVersion().patch()) },
 				{ "ui", UIHostInfo() },
+				// The player is a permanent crew member the view never scans, so its M/F badge
+				// has no other channel — ride along with the identity push.
+				{ "playerSex", RefSexTag(RE::PlayerCharacter::GetSingleton()) },
 			});
 			SendJson(a_srcView, "osf.animation.catalog.data", BuildCatalog(false));
 		}
@@ -776,6 +788,7 @@ namespace OSF::API
 				// Skeleton family, so the view can filter the library to what this actor can actually
 				// play (a creature gets its own animations, not human ones). "" for furniture picks.
 				reply["species"] = ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
+				reply["sex"] = RefSexTag(ref);
 				REX::DEBUG("[UI] osf.animation.pickCrosshair slot={} -> token {} '{}' ({:08X})", slot, token, nm, ref->GetFormID());
 			}
 			SendJson(a_srcView, "osf.animation.pick", reply);
@@ -1266,6 +1279,7 @@ namespace OSF::API
 					{ "isActor", h.ref->IsActor() },
 					{ "marker", marker },
 					{ "species", h.ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(h.ref)) : std::string{} },
+					{ "sex", RefSexTag(h.ref) },
 				};
 				if (h.sceneCount >= 0) {
 					item["sceneCount"] = h.sceneCount;
@@ -1351,6 +1365,7 @@ namespace OSF::API
 						p["name"] = ScanLabel(ref);
 						p["formId"] = ref->GetFormID();
 						p["species"] = isActor ? Util::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
+						p["sex"] = RefSexTag(ref);
 						REX::DEBUG("[UI] OnOpened: seeding view with crosshair target '{}' as {}", ScanLabel(ref), p["slot"].get<std::string>());
 						SendJson(a_srcView, "osf.animation.openTarget", p);
 					}

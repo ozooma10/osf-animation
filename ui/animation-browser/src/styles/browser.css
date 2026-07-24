@@ -239,6 +239,9 @@ button,input,select{font:inherit;color:inherit}
 .castline-name{font-size:12px;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 /* Detected skeleton family on a non-human cast member — the library filters to its animations. */
 .cast-species{flex:none;font:600 8px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);background:rgba(240,113,48,.1);border:1px solid rgba(240,113,48,.35);border-radius:2px;padding:1px 5px}
+/* Actor sex readout (M/F) — quiet instrument data in the meta run, not a badge:
+   no plate, no colour coding (amber/teal are signal here), the letter is the whole tag. */
+.sex-tag{flex:none;font-size:10px;color:var(--text-faint)}
 .chip-x{flex:none;border:0;background:none;color:var(--text-faint);font-size:13px;cursor:pointer;padding:0 3px}
 .chip-x:hover{color:var(--signal-stop)}
 .near-list{display:flex;flex-direction:column;gap:4px;max-height:148px;overflow-y:auto}

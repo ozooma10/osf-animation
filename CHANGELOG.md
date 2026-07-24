@@ -2,6 +2,17 @@
 
 All notable changes to OSF Animation are documented here.
 
+## [1.3.0] - 2026-07-24
+
+### Added
+- **Reusable role templates.** A multi-scene file's file-level `roles` key may now be an **object** — a file-local registry mapping an id to a reusable role template — instead of an array default cast. A scene instantiates a template inside its own `roles` array either as a bare id **string** or as an `{ "id": ..., ...overrides }` object, freely mixed with inline roles; both expand to ordinary roles at load, so matchmaking, `StartSceneRoles`, and track `"role"` refs are unchanged. Overrides merge JSON-merge-patch style (scalars replace, `filters`/`offset`/`equip` merge by key, arrays replace wholesale, `null` drops an inherited field), and repeated templates are auto-numbered into distinct runtime names (`["m", "m", "f"]` → `m`, `m2`, `f`) with explicit names reserved first. An array `roles` still means a default cast, and a scene that omits `roles` still falls back to clip-count inference — a registry is never an implicit cast. See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).
+- **`preserveBones` on a role** — an array of exact, case-insensitive rig bone names that stay engine-driven for that role. OSF omits only those bone slots while continuing to animate independently bound child bones, so a baked full-pose clip carrying an unwanted helper/root transform can be corrected without making the role gender-specific.
+- **M/F indicators on actors in the scene browser.** Nearby scan rows, crew chips, and the `ROLES` map now carry the actor's sex tag next to the name, so a scene with gendered role slots can be cast without guessing. Creatures and any actor with no actorbase sex show no badge.
+- Scene-browser start overrides (`STRIP`, `LOCK PLAYER`, `CAMERA`) are now **segmented pickers** instead of native dropdowns — Ultralight rendered the `<select>` popup layer underneath the surrounding brief controls, making the open list unreadable. `SPEED` now spans the full grid width.
+
+### Fixed
+- The scene browser no longer wedges at **Engine Offline** after a manual web-view reload. Readiness was gated solely on OSF UI's one-shot `runtime.ready` handshake, which a reloaded view has already missed; the view now also becomes ready on OSF Animation's own answer to the catalog/version request it sends on every mount.
+
 ## [1.2.0] - 2026-07-22
 
 ### Added

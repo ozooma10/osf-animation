@@ -15,7 +15,7 @@ import {
 } from "../../app/selectors";
 import type { BrowserState } from "../../app/state";
 import type { SceneEvaluation, SceneModel, SceneStage } from "../../model";
-import { MoveButtons, Segmented } from "../shared/Shared";
+import { MoveButtons, Segmented, SexTag, memberSex } from "../shared/Shared";
 
 function WheelControls({ state, scene, stage, wide, commands }: {
   state: BrowserState;
@@ -60,7 +60,7 @@ function RoleMap({ state, scene, evaluation, commands }: { state: BrowserState; 
           onDrop={(event) => { if (dragFrom.current < 0) return; event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); commands.reorderMember(dragFrom.current, index, event.clientY - bounds.top > bounds.height / 2); dragFrom.current = -1; }}
           onDragEnd={() => { dragFrom.current = -1; }}
           onKeyDown={(event) => { if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) { event.preventDefault(); commands.moveMember(index, event.key === "ArrowDown" ? 1 : -1); } }}>
-          <span class="castline-name">{member.name}</span><MoveButtons index={index} count={state.cast.length} onMove={(direction) => commands.moveMember(index, direction)}/></span>
+          <span class="castline-name">{member.name}</span><SexTag sex={memberSex(state, member)}/><MoveButtons index={index} count={state.cast.length} onMove={(direction) => commands.moveMember(index, direction)}/></span>
           : <span class="role-empty mono">add an actor →</span>}
       </div>;
     })}
