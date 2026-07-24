@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "name": "fixture registry error cases",
+  "roles": {
+    "f": {},
+    "f-preserved": { "name": "f", "preserveBones": ["C_GenitalsRoot"] }
+  },
+  "scenes": [
+    { "id": "test.err.unknown", "roles": ["nope"], "clip": "Fixture/x.glb" },
+    // Registry ids are exact and case-sensitive: "F" does not resolve "f".
+    { "id": "test.err.case", "roles": ["F"], "clip": "Fixture/x.glb" },
+    // Both definitions collapse to runtime name "f" — duplicate only when one scene uses both.
+    { "id": "test.err.dup", "roles": ["f", "f-preserved"], "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }] },
+    { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
+  ]
+}

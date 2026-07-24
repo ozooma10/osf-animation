@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "name": "fixture legacy pack-default roles",
+  // ARRAY form: a pack default cast inherited by scenes that omit their own roles.
+  "roles": [
+    { "name": "bottom" },
+    { "name": "top", "equip": "Any.esm|0x123" }
+  ],
+  "scenes": [
+    {
+      "id": "test.legacy.inherit",
+      "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }]
+    },
+    {
+      "id": "test.legacy.override",
+      "roles": [{ "name": "only" }],
+      "clip": "Fixture/x.glb"
+    }
+  ]
+}

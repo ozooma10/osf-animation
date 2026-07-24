@@ -66,7 +66,13 @@ Each entry: **system** (`path`) — role.
 ### Layer B - scene runtime
 - **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`); also
-  carries the `stripActors`/`lockPlayer` default-mechanism opt-outs (top-level → per-role). The `sound`
+  carries the `stripActors`/`lockPlayer` default-mechanism opt-outs (top-level → per-role). A multi-scene
+  file's top-level `roles` is read by JSON type: an ARRAY is a default cast inherited by scenes omitting
+  `roles`; an OBJECT is a file-local registry of reusable role definitions that scene `roles` entries
+  reference by exact id string (mixed with inline objects; a definition omitting `name` defaults it to
+  the id; a registry is NOT a default cast — omitted `roles` still infers). References expand to ordinary
+  `SceneRole` copies at load; malformed definitions reject the file, unknown refs/duplicate runtime names
+  reject only the scene. The `sound`
   lane also accepts a ladder-sugar OBJECT `{ role?, spec, repeat?, marks }` (shared defaults that expand
   to one entry per mark, appending each mark's tag(s) to the base `spec`). `marks` is either GROUPED —
   `{ "low":[0.1,0.3], "loud":[0.8] }` (key = tag(s) to append, value = positions; terse for repeated

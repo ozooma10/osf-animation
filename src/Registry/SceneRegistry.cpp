@@ -47,6 +47,13 @@ namespace OSF::Registry
 			return form;
 		}
 
+		// File-local reusable role definitions: the OBJECT form of a multi-scene file's top-level
+		// `roles`. Exact, case-sensitive id -> a fully parsed role. Scene-level `roles` arrays may
+		// mix inline role objects with plain strings referencing these by id; a reference expands
+		// to an ordinary SceneRole copy at load. Never leaves the file — no aliases, inheritance,
+		// or cross-file references.
+		using RoleRegistry = std::map<std::string, SceneRole>;
+
 		// Parse an { x, y, z, heading } placement. Authors write heading in DEGREES; the
 		// runtime uses radians.
 		Animation::ParticipantPlacement ParseOffsetField(const json& a_json)
@@ -1082,11 +1089,12 @@ namespace OSF::Registry
 		}
 
 		// Parse one unified scene. a_lockDefault/a_stripDefault/a_fadeDefault/a_unlistedDefault are the file-level policy defaults;
-		// a_packRoles are the file-level `roles` (inherited by a scene that omits its own);
+		// a_packRoles are the ARRAY form of the file-level `roles` (inherited by a scene that omits its own);
+		// a_roleRegistry is the OBJECT form (id -> reusable definition a scene's `roles` references by string);
 		// a_anchorDefault is the file-level `anchor` (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault, bool a_stripDefault,
 			bool a_fadeDefault, bool a_unlistedDefault, bool a_inPlaceDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
-			std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
+			const RoleRegistry& a_roleRegistry, std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -1106,8 +1114,11 @@ namespace OSF::Registry
 			for (const auto& t : def.tags) {
 				def.tagSet.insert(ToLower(t));
 			}
-			// roles[]: unified participant list; `name` optional (anonymous positional slot). A scene's
-			// own `roles` overrides the pack-level `roles`; a scene that omits the key inherits them.
+			// roles[]: unified participant list; `name` optional (anonymous positional slot). Entries are
+			// inline role objects, or plain strings referencing the file-level roles REGISTRY by exact id
+			// (expanded to ordinary copies here; the two forms mix freely). A scene's own `roles`
+			// overrides the pack-level `roles`; a scene that omits the key inherits them. A registry is
+			// NOT a default cast — omitting `roles` under a registry falls through to clip-count inference.
 			bool rolesGiven = false;
 			if (const auto it = a_json.find("roles"); it != a_json.end()) {
 				if (!it->is_array()) {
@@ -1115,11 +1126,37 @@ namespace OSF::Registry
 				}
 				rolesGiven = true;
 				for (const auto& jRole : *it) {
-					def.roles.push_back(ParseRole(jRole, def.id));
+					if (jRole.is_string()) {
+						const auto& refId = jRole.get_ref<const std::string&>();
+						const auto ref = a_roleRegistry.find(refId);
+						if (ref == a_roleRegistry.end()) {
+							throw std::runtime_error("scene '" + def.id + "': role reference '" + refId +
+								"' is not defined in this file's top-level 'roles' registry");
+						}
+						def.roles.push_back(ref->second);  // expand to an ordinary copy
+					} else if (jRole.is_object()) {
+						def.roles.push_back(ParseRole(jRole, def.id));
+					} else {
+						throw std::runtime_error("scene '" + def.id +
+							"': 'roles' entries must be role objects or registry id strings");
+					}
 				}
 			} else if (!a_packRoles.empty()) {
 				def.roles = a_packRoles;  // inherit the pack-level roles (names, filters, offsets, equip)
 				rolesGiven = true;
+			}
+			// Runtime role names bind actors (StartSceneRoles) and target track entries, so they must be
+			// unambiguous within a scene — reject duplicates (case-insensitive, like the matchers;
+			// anonymous slots are exempt). A registry can legally hold two definitions that collapse to
+			// the same runtime name; only a scene that uses both is rejected, here, per scene.
+			{
+				std::unordered_set<std::string> roleNames;
+				for (const auto& r : def.roles) {
+					if (!r.name.empty() && !roleNames.insert(ToLower(r.name)).second) {
+						throw std::runtime_error("scene '" + def.id + "': duplicate role name '" + r.name +
+							"' (role names must be unique within a scene)");
+					}
+				}
 			}
 
 			// Anchor requirement: the scene's own `anchor` block overrides the file-level default entirely (mirrors roles).
@@ -1353,12 +1390,15 @@ namespace OSF::Registry
 				}
 			}
 
-			// A file holds a single bare scene, or { schema, scenes: [...] }. In the multi-scene form a
-			// file-level `roles` is a PACK default inherited by every scene that omits its own `roles`
-			// (a bare file's top-level `roles` is just that one scene's roles, parsed by ParseOsfScene).
+			// A file holds a single bare scene, or { schema, scenes: [...] }. In the multi-scene form the
+			// file-level `roles` is interpreted BY JSON TYPE: an ARRAY is a PACK default inherited by every
+			// scene that omits its own `roles`; an OBJECT is a file-local registry of reusable role
+			// definitions a scene's `roles` references by id string (never a default cast).
+			// (A bare file's top-level `roles` is just that one scene's roles, parsed by ParseOsfScene.)
 			std::vector<const json*> sceneJsons;
 			std::vector<SceneRole>   packRoles;
-			AnchorReq                packAnchor;  // file-level `anchor` default (multi-scene envelope only)
+			RoleRegistry             roleRegistry;  // multi-scene envelope, object-form `roles` only
+			AnchorReq                packAnchor;    // file-level `anchor` default (multi-scene envelope only)
 			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
 				if (!sit->is_array()) {
 					a_errors.push_back("[error] '" + fileName + "': 'scenes' must be an array");
@@ -1373,18 +1413,43 @@ namespace OSF::Registry
 					return;
 				}
 				if (auto rit = a_json.find("roles"); rit != a_json.end()) {
-					if (!rit->is_array()) {
-						a_errors.push_back("[error] '" + fileName + "': pack-level 'roles' must be an array");
-						REX::ERROR("[Registry] '{}' pack-level 'roles' must be an array — skipped", fileName);
-						return;
-					}
-					try {
-						for (const auto& jRole : *rit) {
-							packRoles.push_back(ParseRole(jRole, "<pack:" + fileName + ">"));
+					if (rit->is_array()) {
+						try {
+							for (const auto& jRole : *rit) {
+								packRoles.push_back(ParseRole(jRole, "<pack:" + fileName + ">"));
+							}
+						} catch (const std::exception& e) {
+							a_errors.push_back("[error] '" + fileName + "': pack-level roles: " + e.what());
+							REX::ERROR("[Registry] '{}' pack-level roles rejected: {} — skipped", fileName, e.what());
+							return;
 						}
-					} catch (const std::exception& e) {
-						a_errors.push_back("[error] '" + fileName + "': pack-level roles: " + e.what());
-						REX::ERROR("[Registry] '{}' pack-level roles rejected: {} — skipped", fileName, e.what());
+					} else if (rit->is_object()) {
+						// Roles registry: parse every definition now (a malformed one rejects the whole
+						// file, unlike a bad scene-level reference which rejects only that scene). A
+						// definition omitting `name` defaults its runtime name to the registry id.
+						for (const auto& [roleId, roleJson] : rit->items()) {
+							if (roleId.empty() || !roleJson.is_object()) {
+								a_errors.push_back("[error] '" + fileName + "': roles registry entry '" + roleId +
+									"': definitions must be role objects keyed by a non-empty id");
+								REX::ERROR("[Registry] '{}' roles registry entry '{}' is not a role object — skipped", fileName, roleId);
+								return;
+							}
+							try {
+								auto role = ParseRole(roleJson, "<pack:" + fileName + ">");
+								if (!roleJson.contains("name")) {
+									role.name = roleId;
+								}
+								roleRegistry.emplace(roleId, std::move(role));
+							} catch (const std::exception& e) {
+								a_errors.push_back("[error] '" + fileName + "': roles registry entry '" + roleId + "': " + e.what());
+								REX::ERROR("[Registry] '{}' roles registry entry '{}' rejected: {} — skipped", fileName, roleId, e.what());
+								return;
+							}
+						}
+					} else {
+						a_errors.push_back("[error] '" + fileName +
+							"': file-level 'roles' must be an array (default cast) or an object (roles registry)");
+						REX::ERROR("[Registry] '{}' file-level 'roles' must be an array or an object — skipped", fileName);
 						return;
 					}
 				}
@@ -1398,7 +1463,7 @@ namespace OSF::Registry
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, unlistedDefault, inPlaceDefault, cameraDefault, packRoles, packClipRoot, packAnchor);
+					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, fadeDefault, unlistedDefault, inPlaceDefault, cameraDefault, packRoles, roleRegistry, packClipRoot, packAnchor);
 					def.sourceFile = a_file;
 					def.pack = packName;
 					def.library = library;

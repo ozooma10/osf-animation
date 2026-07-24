@@ -174,7 +174,9 @@ load, so there is no clip list to count).
 ]
 ```
 
-Each role is `{ name?, gender?, filters?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`:
+Each role is `{ name?, gender?, filters?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`.
+(A `roles` entry may also be a plain **string** — a reference to the file-level roles registry; see
+*File-level roles* below.)
 
 - **`name`** is **OPTIONAL**. Omit it for an anonymous positional slot (`{}`); name it to bind via
   `StartSceneRoles` and to reference from track entries (`"role": "lead"`).
@@ -216,10 +218,18 @@ replacers), so only the `"Plugin|0xLocal"` shape is checked at load.
 
 ### File-level roles
 
-In a multi-scene file (`{ schema, "scenes": [ ... ] }`) a **file-level `roles`** block is a default:
-every scene in `scenes` that omits its own `roles` inherits it (names, filters, offsets, **and
-`equip`**). A scene that declares its own `roles` overrides the file-level roles entirely. (In a bare
-single-scene file the top-level `roles` is simply that scene's roles.)
+In a multi-scene file (`{ schema, "scenes": [ ... ] }`) the **file-level `roles`** key is read by its
+JSON type:
+
+- an **array** is a **default cast**;
+- an **object** is a **roles registry** of reusable, referenceable definitions.
+
+(In a bare single-scene file the top-level `roles` is simply that scene's roles, and must be an array.)
+
+#### Default cast (array)
+
+Every scene in `scenes` that omits its own `roles` inherits the array (names, filters, offsets, **and
+`equip`**). A scene that declares its own `roles` overrides the file-level roles entirely.
 
 ```jsonc
 {
@@ -231,6 +241,44 @@ single-scene file the top-level `roles` is simply that scene's roles.)
   ]
 }
 ```
+
+#### Roles registry (object)
+
+An object maps an **exact, case-sensitive id** to a role object. Scenes reference a definition by its
+id **string** inside their own `roles` array, freely mixed with inline role objects; each reference
+expands to an ordinary copy of the definition at load, so everything downstream (matchmaking,
+`StartSceneRoles`, track `"role"` refs) works exactly as with inline roles.
+
+```jsonc
+{
+  "schema": 1,
+  "roles": {
+    "male":          { "name": "m", "equip": { "male": "...|0x804", "female": "...|0x81D" } },
+    "f":             {},                                            // runtime name defaults to the id: "f"
+    "f-preserved":   { "name": "f", "preserveBones": ["C_GenitalsRoot"] }
+  },
+  "scenes": [
+    { "id": "author.scene.a", "roles": ["male", "f-preserved"], "stages": [ { "clips": ["A0.glb", "A1.glb"] } ] },
+    { "id": "author.scene.b", "roles": ["male", "f", { "offset": { "y": 1.0 } }], "stages": [ { "clips": ["B0.glb", "B1.glb", "B2.glb"] } ] },
+    { "id": "author.scene.c", "stages": [ { "clips": ["C0.glb", "C1.glb"] } ] }   // no roles: normal inference
+  ]
+}
+```
+
+- **Name defaulting:** a definition that omits `name` takes its **registry id** as its runtime name.
+  An explicit `name` wins, so the id can differ from the binding name (`"male"` → name `"m"` above);
+  explicit `name: ""` remains an anonymous positional slot.
+- **Not a default cast:** a scene that omits `roles` under a registry gets the usual clip-count
+  inference (anonymous slots), never the registry contents.
+- **File-local, definitions-only:** the registry is visible only to the scenes in its own file, and
+  each value must be a role object. There are no aliases, overrides, inheritance, whole-role-set
+  references, cross-file references, or `{ "ref": ... }` objects — a string is the complete reference
+  syntax; an uncommon variant gets its own definition or stays inline.
+- **Validation:** a malformed definition (non-object value, or a role object that would be rejected
+  inline) rejects the **whole file** at load. A scene referencing an **unknown id** (ids are
+  case-sensitive) or ending up with **duplicate runtime role names** (e.g. referencing both `"f"` and
+  `"f-preserved"` above) rejects **only that scene**; diagnostics name the source file, scene id, and
+  role id.
 
 ---
 

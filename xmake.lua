@@ -165,3 +165,18 @@ target("osf-sound-registry-test")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")
+
+-- Scene-registry parsing fixture tests (pack-default roles, the roles registry, reference
+-- expansion, inference, per-scene/per-file rejection). No game runtime: the fixtures resolve no
+-- form refs and the clip-availability probe is stubbed "installed" in the test main.
+target("osf-scene-registry-test")
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_deps("commonlibsf")
+    add_packages("nlohmann_json", "ozz-animation")
+    add_files("src/Registry/SceneRegistry.cpp", "src/Util/ClipPath.cpp", "src/Util/Species.cpp",
+              "test/unit/test_scene.cpp")
+    add_includedirs("src")
+    set_pcxxheader("src/pch.h")
+    set_rundir("test/fixtures")

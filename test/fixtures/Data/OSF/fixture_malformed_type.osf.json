@@ -1,0 +1,5 @@
+{
+  "schema": 1,
+  "roles": 42,
+  "scenes": [{ "id": "test.bad.type", "clip": "Fixture/x.glb" }]
+}
