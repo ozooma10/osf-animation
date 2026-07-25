@@ -944,25 +944,33 @@ namespace OSF::Camera
 		}
 	}
 
-	bool CameraService::EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects)
+	bool CameraService::SceneOrbitAvailable() const
 	{
-		// Aboard a ship that isn't landed, the orbit is unusable: DriveSceneOrbit writes an
-		// ABSOLUTE world transform captured once at engage, and in space the cell re-bases /
-		// moves under the interior every frame — the camera teleports around the hull and reads
-		// as violent spinning. Skip engaging (drag does nothing) and report it, so the browser
-		// view can tell the user why; checked before the held flag so a drag after landing
-		// mid-browse re-checks and works again. Game thread (OnOrbit).
+		// DriveSceneOrbit writes an ABSOLUTE world transform captured once at engage. In space the
+		// ship/interior frame moves or re-bases underneath it every frame, which teleports the camera
+		// around the hull and reads as violent spinning. The engine-owned camera is the only safe
+		// posture there. Game-thread callers only (scene dispatch / browser OnOrbit).
 		if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 			if (auto* ship = player->GetSpaceship()) {
 				// NOT IsSpaceshipLanded/Docked: those are placeholder-0 IDs in this commonlib (no
 				// address-library entry — first call dies in the ID lookup). IsInSpace is curated.
 				if (ship->IsInSpace(true)) {
-					REX::DEBUG("[Camera] browse orbit skipped — aboard a ship in space");
+					REX::DEBUG("[Camera] scene orbit unavailable — aboard a ship in space");
 					return false;
 				}
-				REX::DEBUG("[Camera] aboard a landed ship — browse orbit allowed");
+				REX::DEBUG("[Camera] scene orbit available — ship is landed");
 			}
 		}
+		return true;
+	}
+
+	bool CameraService::EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects)
+	{
+		// Re-check before the held flag so a drag after landing mid-browse works again.
+		if (!SceneOrbitAvailable()) {
+			return false;
+		}
+
 		if (browseOrbitHeld.exchange(true, std::memory_order_relaxed)) {
 			return true;  // already engaged this browser session
 		}
