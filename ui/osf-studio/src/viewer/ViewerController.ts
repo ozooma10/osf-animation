@@ -300,6 +300,14 @@ export class ViewerController {
     this.controls.update();
   }
 
+  async captureThumbnail(): Promise<Blob | null> {
+    if (!this.loaded || this.disposed) return null;
+    this.renderer.render(this.scene, this.camera);
+    return new Promise((resolve) => {
+      this.renderer.domElement.toBlob((blob) => resolve(blob), "image/webp", 0.82);
+    });
+  }
+
   private emit(error?: string): void {
     const clip = this.loaded?.clips[this.selectedClip];
     this.onStatus({

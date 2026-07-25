@@ -12,6 +12,8 @@ import "./clipLibrary.css";
 
 interface Props {
   onPreviewClip: (clipId: string) => void;
+  onUseClip: (clip: ClipRecord) => void;
+  onUseClipSet: (clipSet: ClipSet, clips: ClipRecord[]) => void;
 }
 
 const EMPTY_LIBRARY: ClipLibrarySnapshot = { clips: [], clipSets: [] };
@@ -34,10 +36,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 }
 
-export function ClipLibrary({ onPreviewClip }: Props) {
+export function ClipLibrary({ onPreviewClip, onUseClip, onUseClipSet }: Props) {
   const repository = useRef<ClipLibraryRepository>();
   const input = useRef<HTMLInputElement>(null);
   const [snapshot, setSnapshot] = useState(EMPTY_LIBRARY);
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   const snapshotRef = useRef(snapshot);
   const [mode, setMode] = useState<"clips" | "sets">("clips");
   const [query, setQuery] = useState("");
@@ -61,6 +64,18 @@ export function ClipLibrary({ onPreviewClip }: Props) {
     ].some((value) => value.toLowerCase().includes(needle)));
   }, [snapshot.clips, query]);
 
+  async function refreshThumbnails(next: ClipLibrarySnapshot): Promise<void> {
+    if (!repository.current) return;
+    const pairs = await Promise.all(next.clips.map(async (clip) => {
+      const blob = await repository.current!.getThumbnail(clip.id);
+      return blob ? [clip.id, URL.createObjectURL(blob)] as const : undefined;
+    }));
+    setThumbnailUrls((current) => {
+      Object.values(current).forEach((url) => URL.revokeObjectURL(url));
+      return Object.fromEntries(pairs.filter((pair): pair is readonly [string, string] => Boolean(pair)));
+    });
+  }
+
   function applySnapshot(update: (current: ClipLibrarySnapshot) => ClipLibrarySnapshot): void {
     const next = update(snapshotRef.current);
     snapshotRef.current = next;
@@ -79,6 +94,7 @@ export function ClipLibrary({ onPreviewClip }: Props) {
       if (!active) return;
       snapshotRef.current = loaded;
       setSnapshot(loaded);
+      await refreshThumbnails(loaded);
       setSelectedClipId(loaded.clips[0]?.id ?? "");
       setSelectedSetId(loaded.clipSets[0]?.id ?? "");
       setBusy(false);
@@ -92,11 +108,16 @@ export function ClipLibrary({ onPreviewClip }: Props) {
     };
   }, []);
 
+  useEffect(() => () => {
+    Object.values(thumbnailUrls).forEach((url) => URL.revokeObjectURL(url));
+  }, [thumbnailUrls]);
+
   async function reload(preferredClipId = selectedClipId, preferredSetId = selectedSetId) {
     if (!repository.current) return;
     const loaded = await repository.current.load();
     snapshotRef.current = loaded;
     setSnapshot(loaded);
+    await refreshThumbnails(loaded);
     setSelectedClipId(
       loaded.clips.some((clip) => clip.id === preferredClipId)
         ? preferredClipId
@@ -117,6 +138,22 @@ export function ClipLibrary({ onPreviewClip }: Props) {
     for (const file of Array.from(files)) {
       try {
         const record = await repository.current.importClip(file);
+        if (record.format !== "af") {
+          const recordId = record.id;
+          void import("./clipInspection").then(async ({ inspectClip }) => {
+            const inspection = await inspectClip(file);
+            const inspectionRepository = await ClipLibraryRepository.open();
+            try {
+              await inspectionRepository.updateInspection(recordId, inspection);
+              if (inspection.thumbnail) await inspectionRepository.saveThumbnail(recordId, inspection.thumbnail);
+            } finally {
+              inspectionRepository.close();
+            }
+            if (repository.current) await reload(recordId);
+          }).catch(() => {
+            // Import remains complete when optional metadata or WebGL preview generation fails.
+          });
+        }
         lastId = record.id;
       } catch (error) {
         failures.push(`${file.name}: ${error instanceof Error ? error.message : "Import failed"}`);
@@ -214,6 +251,7 @@ export function ClipLibrary({ onPreviewClip }: Props) {
 
   const dependencies = selectedSet ? resolveClipSet(selectedSet, snapshot.clips) : [];
   const missingDependencies = dependencies.filter((entry) => !entry.clip).length;
+  const incompatibleSetMembers = dependencies.filter((entry) => entry.clip && entry.clip.actorCount !== 1).length;
 
   return (
     <section class="library-workspace">
@@ -269,7 +307,8 @@ export function ClipLibrary({ onPreviewClip }: Props) {
                   class={`clip-tile ${clip.id === selectedClipId ? "selected" : ""}`}
                   onClick={() => setSelectedClipId(clip.id)}
                 >
-                  <div class="clip-tile-preview">
+                  <div class={`clip-tile-preview ${thumbnailUrls[clip.id] ? "has-thumbnail" : ""}`}>
+                    {thumbnailUrls[clip.id] && <img src={thumbnailUrls[clip.id]} alt="" />}
                     <span>{clip.format.toUpperCase()}</span>
                     <b>{clip.actorCount > 1 ? `${clip.actorCount} actors` : "solo"}</b>
                   </div>
@@ -342,11 +381,14 @@ export function ClipLibrary({ onPreviewClip }: Props) {
                   <dl class="clip-facts">
                     <div><dt>Source</dt><dd>{selectedClip.sourceFilename}</dd></div>
                     <div><dt>Size</dt><dd>{formatBytes(selectedClip.size)}</dd></div>
+                    <div><dt>Animations</dt><dd>{selectedClip.animationCount ?? "Unknown"}</dd></div>
+                    <div><dt>Bones</dt><dd>{selectedClip.boneCount ?? "Unknown"}</dd></div>
                     <div><dt>Storage</dt><dd>Browser-local</dd></div>
                   </dl>
                 </div>
                 <footer class="library-inspector-actions">
                   <button class="secondary-button" onClick={() => onPreviewClip(selectedClip.id)}>Open in viewer</button>
+                  <button class="secondary-button" disabled={selectedClip.actorCount !== 1} title={selectedClip.actorCount !== 1 ? "Use single-actor clips in scene slots; group them with a Clip Set." : ""} onClick={() => onUseClip(selectedClip)}>Use in scene</button>
                   <button class="primary-button" onClick={() => void saveClip()}>Save metadata</button>
                   <button class="danger-quiet" onClick={() => void removeClip()}>Remove clip</button>
                 </footer>
@@ -381,8 +423,8 @@ export function ClipLibrary({ onPreviewClip }: Props) {
                     <h2>{selectedSet.title}</h2>
                     <p>Each member resolves to a stable local clip ID and exports as a normal OSF stage.</p>
                   </div>
-                  <div class={`dependency-health ${missingDependencies ? "error" : ""}`}>
-                    {missingDependencies ? `${missingDependencies} missing` : "Dependencies ready"}
+                  <div class={`dependency-health ${missingDependencies || incompatibleSetMembers ? "error" : ""}`}>
+                    {missingDependencies ? `${missingDependencies} missing` : incompatibleSetMembers ? `${incompatibleSetMembers} incompatible` : "Dependencies ready"}
                   </div>
                 </header>
                 <section class="panel clipset-details">
@@ -444,7 +486,8 @@ export function ClipLibrary({ onPreviewClip }: Props) {
                 </section>
                 <div class="clipset-actions">
                   <button class="danger-quiet" onClick={() => void removeSet()}>Remove Clip Set</button>
-                  <button class="secondary-button" disabled={!selectedSet.members.length || Boolean(missingDependencies)} onClick={() => void copyStage()}>Copy OSF stage</button>
+                  <button class="secondary-button" disabled={!selectedSet.members.length || Boolean(missingDependencies) || Boolean(incompatibleSetMembers)} onClick={() => void copyStage()}>Copy OSF stage</button>
+                  <button class="secondary-button" disabled={!selectedSet.members.length || Boolean(missingDependencies) || Boolean(incompatibleSetMembers)} onClick={() => onUseClipSet(selectedSet, snapshot.clips)}>Use in scene</button>
                   <button class="primary-button" onClick={() => void saveSet()}>Save Clip Set</button>
                 </div>
               </>

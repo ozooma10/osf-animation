@@ -10,6 +10,7 @@ describe("file safety", () => {
   it("enforces centralized allocation limits", () => {
     expect(() => assertFileSize({ size: FILE_LIMITS.json + 1 } as File, "json")).toThrow(/5 MiB/);
     expect(() => assertFileSize({ size: FILE_LIMITS.rig } as File, "rig")).not.toThrow();
+    expect(() => assertFileSize({ size: FILE_LIMITS.bundle + 1 } as File, "bundle")).toThrow(/256 MiB/);
   });
 
   it("validates GLB, gzip, and truncated signatures", () => {

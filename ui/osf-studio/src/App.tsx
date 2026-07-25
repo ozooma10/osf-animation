@@ -2,6 +2,7 @@ import { lazy, Suspense } from "preact/compat";
 import { useState } from "preact/hooks";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { SceneEditor } from "./SceneEditor";
+import type { LibraryInsertion } from "./sceneLibrary";
 
 const AnimationViewer = lazy(() => import("./viewer/AnimationViewerSurface").then((module) => ({
   default: module.AnimationViewer,
@@ -21,10 +22,16 @@ const SURFACE_COPY: Record<Surface, string> = {
 export function App() {
   const [surface, setSurface] = useState<Surface>("editor");
   const [previewClipId, setPreviewClipId] = useState<string>();
+  const [libraryInsertion, setLibraryInsertion] = useState<LibraryInsertion>();
 
   function showViewer() {
     setPreviewClipId(undefined);
     setSurface("viewer");
+  }
+
+  function useInScene(insertion: LibraryInsertion) {
+    setLibraryInsertion(insertion);
+    setSurface("editor");
   }
 
   return (
@@ -51,15 +58,21 @@ export function App() {
         {surface !== "editor" && <div class="viewer-privacy"><i /> Local only · never uploaded</div>}
       </header>
       {surface === "editor" && (
-        <ErrorBoundary scope="editor"><SceneEditor /></ErrorBoundary>
+        <ErrorBoundary scope="editor">
+          <SceneEditor insertion={libraryInsertion} onInsertionApplied={() => setLibraryInsertion(undefined)} />
+        </ErrorBoundary>
       )}
       {surface === "library" && (
         <ErrorBoundary scope="library" onReturnToEditor={() => setSurface("editor")}>
           <Suspense fallback={<section class="surface-loading">Loading clip library…</section>}>
-            <ClipLibrary onPreviewClip={(clipId) => {
-              setPreviewClipId(clipId);
-              setSurface("viewer");
-            }} />
+            <ClipLibrary
+              onPreviewClip={(clipId) => {
+                setPreviewClipId(clipId);
+                setSurface("viewer");
+              }}
+              onUseClip={(clip) => useInScene({ type: "clip", clip })}
+              onUseClipSet={(clipSet, clips) => useInScene({ type: "clipSet", clipSet, clips })}
+            />
           </Suspense>
         </ErrorBoundary>
       )}

@@ -24,6 +24,9 @@ export interface ClipRecord {
   tags: string[];
   actorCount: number;
   durationSeconds?: number;
+  animationCount?: number;
+  boneCount?: number;
+  thumbnailAssetId?: string;
   format: ClipFormat;
   size: number;
   sha256: string;
@@ -143,6 +146,19 @@ export class ClipLibraryRepository {
     const existing = await this.db.get("clips", id) as ClipRecord | undefined;
     if (existing) return existing;
     const now = new Date().toISOString();
+    let headerMetadata: Pick<ClipRecord, "durationSeconds" | "animationCount" | "boneCount"> = {};
+    if (format === "af") {
+      const bytes = await file.arrayBuffer();
+      if (bytes.byteLength >= 48) {
+        const header = new DataView(bytes);
+        const frames = header.getUint16(44, true);
+        headerMetadata = {
+          animationCount: 1,
+          boneCount: header.getUint16(42, true),
+          durationSeconds: Math.max(0, frames - 1) / 30,
+        };
+      }
+    }
     const record: ClipRecord = {
       schemaVersion: CLIP_LIBRARY_SCHEMA_VERSION,
       id,
@@ -153,6 +169,7 @@ export class ClipLibraryRepository {
       author: "",
       tags: [],
       actorCount: 1,
+      ...headerMetadata,
       format,
       size: file.size,
       sha256: hash,
@@ -170,7 +187,7 @@ export class ClipLibraryRepository {
       blob: file,
     };
     const tx = this.db.transaction(["clips", "assets"], "readwrite");
-    await Promise.all([tx.objectStore("clips").put(record), tx.objectStore("assets").put(asset)]);
+    await Promise.all([tx.objectStore("clips").put(record), tx.objectStore("assets").put(asset, asset.id)]);
     await tx.done;
     return record;
   }
@@ -190,7 +207,10 @@ export class ClipLibraryRepository {
     const clip = await this.db.get("clips", id) as ClipRecord | undefined;
     const tx = this.db.transaction(["clips", "assets"], "readwrite");
     await tx.objectStore("clips").delete(id);
-    if (clip) await tx.objectStore("assets").delete(clip.assetId);
+    if (clip) {
+      await tx.objectStore("assets").delete(clip.assetId);
+      if (clip.thumbnailAssetId) await tx.objectStore("assets").delete(clip.thumbnailAssetId);
+    }
     await tx.done;
   }
 
@@ -203,6 +223,48 @@ export class ClipLibraryRepository {
       type: asset.mediaType,
       lastModified: new Date(asset.createdAt).getTime(),
     });
+  }
+
+  async updateInspection(
+    id: string,
+    inspection: Pick<ClipRecord, "durationSeconds" | "animationCount" | "boneCount">,
+  ): Promise<ClipRecord | null> {
+    const record = await this.db.get("clips", id) as ClipRecord | undefined;
+    if (!record) return null;
+    const next = normalizeClip({ ...record, ...inspection });
+    await this.db.put("clips", next);
+    return next;
+  }
+
+  async saveThumbnail(id: string, blob: Blob): Promise<void> {
+    const record = await this.db.get("clips", id) as ClipRecord | undefined;
+    if (!record) return;
+    const hash = await sha256(blob);
+    const assetId = `thumbnail:${hash}`;
+    const asset: StoredAsset = {
+      id: assetId,
+      kind: "thumbnail",
+      name: `${record.title}.webp`,
+      mediaType: blob.type || "image/webp",
+      size: blob.size,
+      sha256: hash,
+      createdAt: new Date().toISOString(),
+      blob,
+    };
+    const tx = this.db.transaction(["clips", "assets"], "readwrite");
+    if (record.thumbnailAssetId && record.thumbnailAssetId !== assetId) {
+      await tx.objectStore("assets").delete(record.thumbnailAssetId);
+    }
+    await tx.objectStore("assets").put(asset, asset.id);
+    await tx.objectStore("clips").put({ ...record, thumbnailAssetId: assetId, updatedAt: new Date().toISOString() });
+    await tx.done;
+  }
+
+  async getThumbnail(id: string): Promise<Blob | null> {
+    const record = await this.db.get("clips", id) as ClipRecord | undefined;
+    if (!record?.thumbnailAssetId) return null;
+    const asset = await this.db.get("assets", record.thumbnailAssetId) as StoredAsset | undefined;
+    return asset?.blob ?? null;
   }
 
   async createClipSet(): Promise<ClipSet> {
@@ -241,6 +303,8 @@ export function clipSetToOsfStage(set: ClipSet, clips: ClipRecord[]) {
   const dependencies = resolveClipSet(set, clips);
   const missing = dependencies.filter((entry) => !entry.clip);
   if (missing.length) throw new Error(`Clip Set has ${missing.length} missing clip dependenc${missing.length === 1 ? "y" : "ies"}.`);
+  const incompatible = dependencies.filter((entry) => entry.clip && entry.clip.actorCount !== 1);
+  if (incompatible.length) throw new Error("Clip Set members must be single-actor clips.");
   return {
     name: set.title,
     clips: dependencies.map(({ clip, member }) => ({

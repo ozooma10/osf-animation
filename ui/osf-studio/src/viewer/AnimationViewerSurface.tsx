@@ -92,6 +92,17 @@ export function AnimationViewer({ initialClipId }: { initialClipId?: string }) {
         return;
       }
       controller.current?.load(loaded);
+      if (initialClipId) {
+        requestAnimationFrame(() => {
+          void controller.current?.captureThumbnail().then(async (thumbnail) => {
+            if (!thumbnail) return;
+            const library = await ClipLibraryRepository.open();
+            try { await library.saveThumbnail(initialClipId, thumbnail); } finally { library.close(); }
+          }).catch(() => {
+            // Preview playback remains available when thumbnail persistence fails.
+          });
+        });
+      }
       pendingAf.current = undefined;
       if (!loaded.clips.length) setError("The file loaded, but it contains no animation clips.");
     } catch (reason) {

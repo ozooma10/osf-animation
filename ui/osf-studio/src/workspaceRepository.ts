@@ -19,7 +19,7 @@ export interface WorkspaceEnvelope {
 
 export interface StoredAsset {
   id: string;
-  kind: "rig" | "animation";
+  kind: "rig" | "animation" | "thumbnail";
   name: string;
   mediaType: string;
   size: number;

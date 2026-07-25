@@ -5,6 +5,15 @@ import { downloadDiagnosticReport } from "./diagnostics";
 import { WORKSPACE_SCHEMA_VERSION } from "./workspaceRepository";
 import { assertFileSize } from "./fileSafety";
 import { useWorkspace } from "./useWorkspace";
+import { ClipLibraryRepository, type ClipLibrarySnapshot } from "./clipLibrary";
+import {
+  appendScene,
+  exportSceneBundle,
+  importSceneBundle,
+  resolveSceneDependencies,
+  sceneFromLibraryInsertion,
+  type LibraryInsertion,
+} from "./sceneLibrary";
 import {
   SAMPLE_SCENE,
   addScene,
@@ -24,6 +33,11 @@ import {
 } from "./model";
 
 type Tab = "form" | "json";
+const EMPTY_LIBRARY: ClipLibrarySnapshot = { clips: [], clipSets: [] };
+interface SceneEditorProps {
+  insertion?: LibraryInsertion;
+  onInsertionApplied?: () => void;
+}
 function text(value: JsonValue | undefined): string {
   return typeof value === "string" ? value : "";
 }
@@ -38,6 +52,15 @@ function object(value: JsonValue | undefined): JsonObject {
 
 function list(value: JsonValue | undefined): JsonValue[] {
   return Array.isArray(value) ? value : [];
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  queueMicrotask(() => URL.revokeObjectURL(url));
 }
 
 function download(filename: string, contents: string) {
@@ -87,7 +110,7 @@ function Toggle(props: { label: string; hint: string; value: boolean; onChange: 
   );
 }
 
-export function SceneEditor() {
+export function SceneEditor({ insertion, onInsertionApplied }: SceneEditorProps) {
   const workspaceController = useWorkspace();
   const historyState = workspaceController.state;
   const snapshot = historyState.present;
@@ -96,6 +119,9 @@ export function SceneEditor() {
   const [jsonError, setJsonError] = useState("");
   const [notice, setNotice] = useState("Drafts stay on this device");
   const fileInput = useRef<HTMLInputElement>(null);
+  const bundleInput = useRef<HTMLInputElement>(null);
+  const libraryRepository = useRef<ClipLibraryRepository>();
+  const [library, setLibrary] = useState(EMPTY_LIBRARY);
 
   const selectedDocument = snapshot.documents.find((entry) => entry.id === snapshot.selection.documentId)
     ?? snapshot.documents[0];
@@ -104,8 +130,40 @@ export function SceneEditor() {
     : undefined;
   const diagnostics = useMemo(() => validateDocuments(snapshot.documents), [snapshot.documents]);
   const selectedDiagnostics = selectedDocument ? diagnostics.get(selectedDocument.id) ?? [] : [];
+  const sceneDependencies = useMemo(
+    () => selectedScene ? resolveSceneDependencies(selectedScene, library.clips) : [],
+    [selectedScene, library.clips],
+  );
+  const availableDependencies = sceneDependencies.filter((entry) => entry.status === "available").length;
+  const missingDependencies = sceneDependencies.filter((entry) => entry.status === "missing").length;
+  const incompatibleDependencies = sceneDependencies.filter((entry) => entry.status === "incompatible").length;
   const errorCount = [...diagnostics.values()].flat().filter((entry) => entry.severity === "error").length;
   const warningCount = [...diagnostics.values()].flat().filter((entry) => entry.severity === "warning").length;
+
+  useEffect(() => {
+    let active = true;
+    void ClipLibraryRepository.open().then(async (repository) => {
+      if (!active) { repository.close(); return; }
+      libraryRepository.current = repository;
+      const loaded = await repository.load();
+      if (active) setLibrary(loaded);
+    }).catch((error) => setNotice(error instanceof Error ? error.message : "The Clip Library could not be opened."));
+    return () => {
+      active = false;
+      libraryRepository.current?.close();
+      libraryRepository.current = undefined;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!insertion || !selectedDocument) return;
+    const scene = sceneFromLibraryInsertion(insertion);
+    const appended = appendScene(selectedDocument.root, scene);
+    workspaceController.dispatch({ type: "replaceDocument", documentId: selectedDocument.id, root: appended.root });
+    workspaceController.dispatch({ type: "select", selection: { documentId: selectedDocument.id, sceneIndex: appended.index } });
+    setNotice(`Created scene from ${insertion.type === "clip" ? insertion.clip.title : insertion.clipSet.title}`);
+    onInsertionApplied?.();
+  }, [insertion]);
 
   useEffect(() => {
     if (selectedDocument) {
@@ -169,6 +227,34 @@ export function SceneEditor() {
     }
     if (failures.length) setNotice(failures.join(" · "));
     if (fileInput.current) fileInput.current.value = "";
+  }
+
+  async function importBundle(file?: File) {
+    if (!file || !libraryRepository.current) return;
+    try {
+      const result = await importSceneBundle(file, libraryRepository.current);
+      workspaceController.dispatch({ type: "importDocuments", documents: [result.document] });
+      setLibrary(await libraryRepository.current.load());
+      setNotice(`Imported scene bundle with ${result.importedClips} clip${result.importedClips === 1 ? "" : "s"}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The scene bundle could not be imported.");
+    } finally {
+      if (bundleInput.current) bundleInput.current.value = "";
+    }
+  }
+
+  async function exportBundle() {
+    if (!selectedDocument || !libraryRepository.current) return;
+    try {
+      const bundledDocument = Array.isArray(selectedDocument.root.scenes) && selectedScene
+        ? { ...selectedDocument, root: { ...selectedDocument.root, scenes: [selectedScene] } }
+        : selectedDocument;
+      const blob = await exportSceneBundle(bundledDocument, library, libraryRepository.current);
+      downloadBlob(selectedDocument.filename.replace(/\.osf\.json$/i, "") + ".osfscene", blob);
+      setNotice("Exported portable scene bundle");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The scene bundle could not be exported.");
+    }
   }
 
   function newFile() {
@@ -235,6 +321,13 @@ export function SceneEditor() {
             <button class="icon-button" onClick={undo} disabled={!historyState.past.length} title="Undo (Ctrl+Z)">↶</button>
             <button class="icon-button" onClick={redo} disabled={!historyState.future.length} title="Redo (Ctrl+Shift+Z)">↷</button>
             <input
+              ref={bundleInput}
+              class="visually-hidden"
+              type="file"
+              accept=".osfscene,.zip"
+              onChange={(event) => void importBundle(event.currentTarget.files?.[0])}
+            />
+            <input
               ref={fileInput}
               class="visually-hidden"
               type="file"
@@ -243,6 +336,7 @@ export function SceneEditor() {
               onChange={(event) => void importFiles(event.currentTarget.files)}
             />
             <button class="secondary-button" onClick={() => fileInput.current?.click()}>Import JSON</button>
+            <button class="secondary-button" onClick={() => bundleInput.current?.click()}>Import bundle</button>
             <button
               class="primary-button"
               onClick={() => {
@@ -255,6 +349,7 @@ export function SceneEditor() {
             >
               Export JSON
             </button>
+            <button class="secondary-button" onClick={() => void exportBundle()} disabled={!selectedDocument}>Export bundle</button>
             <button class="secondary-button" onClick={() => void workspaceController.exportBackup()}>Backup</button>
             <button class="icon-button" title="Export diagnostics" aria-label="Export diagnostics" onClick={() => downloadDiagnosticReport(WORKSPACE_SCHEMA_VERSION)}>ⓘ</button>
           </div>
@@ -524,6 +619,7 @@ export function SceneEditor() {
                               <div class="clip-list">
                                 {clips.map((clipValue, clipIndex) => {
                                   const clip = typeof clipValue === "string" ? { file: clipValue } : object(clipValue);
+                                  const dependency = resolveSceneDependencies({ clip: text(clip.file) }, library.clips)[0];
                                   const nextClips = (patch: Partial<JsonObject>) => {
                                     const next = [...clips];
                                     next[clipIndex] = { ...clip, ...patch };
@@ -535,6 +631,19 @@ export function SceneEditor() {
                                       <label class="field clip-path">
                                         <span>Clip file</span>
                                         <input value={text(clip.file)} onInput={(event) => nextClips({ file: event.currentTarget.value })} />
+                                      </label>
+                                      <label class="field library-clip-select">
+                                        <span>Library <small class={dependency?.status === "available" ? "dependency-ok" : "dependency-missing"}>{dependency?.status ?? "untracked"}</small></span>
+                                        <select
+                                          value={dependency?.clip?.id ?? ""}
+                                          onChange={(event) => {
+                                            const selected = library.clips.find((entry) => entry.id === event.currentTarget.value);
+                                            if (selected) nextClips({ file: selected.gamePath, sec: selected.durationSeconds });
+                                          }}
+                                        >
+                                          <option value="">Manual path</option>
+                                          {library.clips.map((entry) => <option value={entry.id}>{entry.title}</option>)}
+                                        </select>
                                       </label>
                                       <label class="field anim-id">
                                         <span>Animation ID</span>
@@ -577,6 +686,11 @@ export function SceneEditor() {
             <div class="health-summary">
               <span class={errorCount ? "error" : "clear"}>{errorCount} errors</span>
               <span class={warningCount ? "warning" : "clear"}>{warningCount} warnings</span>
+            </div>
+            <div class="dependency-summary">
+              <span>{availableDependencies} library ready</span>
+              <span class={missingDependencies ? "missing" : ""}>{missingDependencies} untracked</span>
+              <span class={incompatibleDependencies ? "missing" : ""}>{incompatibleDependencies} incompatible</span>
             </div>
           </div>
           <div class="diagnostic-list">

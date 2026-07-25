@@ -3,6 +3,7 @@ export const FILE_LIMITS = {
   rig: 8 * 1024 * 1024,
   af: 32 * 1024 * 1024,
   gltf: 128 * 1024 * 1024,
+  bundle: 256 * 1024 * 1024,
 } as const;
 
 export type SupportedFileKind = keyof typeof FILE_LIMITS;
