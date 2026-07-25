@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import type { LoadedAnimation } from "./AnimationLoader";
+import { AnimationAuthoring, AUTHORING_FPS } from "./AnimationAuthoring";
 import { recordDiagnostic } from "../diagnostics";
 
 export interface ViewerStatus {
@@ -14,6 +17,16 @@ export interface ViewerStatus {
   formalBones: number;
   animatedBones: number;
   meshCount: number;
+  authoring: boolean;
+  boneNames: string[];
+  selectedBone: string;
+  currentFrame: number;
+  keyedTimes: number[];
+  keyedBoneCount: number;
+  hasKey: boolean;
+  dirty: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
   error?: string;
 }
 
@@ -101,8 +114,11 @@ export class ViewerController {
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.01, 500);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly controls: OrbitControls;
+  private readonly transform: TransformControls;
   private readonly clock = new THREE.Clock();
+  private readonly projectedBone = new THREE.Vector3();
   private readonly observer: ResizeObserver;
+  private authoring = new AnimationAuthoring();
   private frame = 0;
   private disposed = false;
   private loaded?: LoadedAnimation;
@@ -110,6 +126,9 @@ export class ViewerController {
   private trackRig?: AnimatedNodeRig;
   private mixer?: THREE.AnimationMixer;
   private action?: THREE.AnimationAction;
+  private bones: THREE.Bone[] = [];
+  private selectedBone?: THREE.Bone;
+  private authoringEnabled = false;
   private selectedClip = 0;
   private playing = true;
   private speed = 1;
@@ -135,6 +154,16 @@ export class ViewerController {
     this.controls.enableDamping = true;
     this.controls.target.set(0, 1, 0);
     this.controls.update();
+    this.transform = new TransformControls(this.camera, this.renderer.domElement);
+    this.transform.setMode("rotate");
+    this.transform.setSpace("local");
+    this.transform.setSize(0.72);
+    this.scene.add(this.transform.getHelper());
+    this.transform.addEventListener("dragging-changed", (event) => {
+      this.controls.enabled = !event.value;
+    });
+    this.transform.addEventListener("objectChange", () => this.emit());
+    this.renderer.domElement.addEventListener("dblclick", this.pickBone);
     this.addEnvironment();
 
     this.renderer.domElement.addEventListener("webglcontextlost", this.contextLost, false);
@@ -183,7 +212,10 @@ export class ViewerController {
     if (this.disposed) return;
     const now = performance.now();
     const delta = Math.min(this.clock.getDelta(), 0.1);
-    if (this.mixer && this.playing) this.mixer.update(delta * this.speed);
+    if (this.mixer && this.playing) {
+      this.mixer.update(delta * this.speed);
+      this.authoring.apply(this.bones, this.action?.time ?? 0);
+    }
     this.trackRig?.update();
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
@@ -197,12 +229,14 @@ export class ViewerController {
   load(animation: LoadedAnimation): void {
     this.unload();
     this.loaded = animation;
+    this.authoring = new AnimationAuthoring();
     this.scene.add(animation.root);
     animation.root.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
       }
+      if (child instanceof THREE.Bone) this.bones.push(child);
     });
     this.mixer = new THREE.AnimationMixer(animation.root);
     if (animation.skeleton.formalBones) {
@@ -217,6 +251,7 @@ export class ViewerController {
       this.scene.add(this.trackRig.group);
     }
     this.chooseClip(0);
+    this.selectBone(undefined);
     this.fit();
   }
 
@@ -242,6 +277,9 @@ export class ViewerController {
     this.trackRig = undefined;
     this.mixer = undefined;
     this.action = undefined;
+    this.bones = [];
+    this.authoring = new AnimationAuthoring();
+    this.selectBone(undefined);
   }
 
   chooseClip(index: number): void {
@@ -254,6 +292,7 @@ export class ViewerController {
       this.action.play();
       this.action.paused = !this.playing;
       this.mixer.update(0);
+      this.authoring.apply(this.bones, 0);
     } else {
       this.action = undefined;
     }
@@ -275,13 +314,106 @@ export class ViewerController {
     if (!this.action || !this.mixer) return;
     this.action.time = Math.max(0, Math.min(value, this.action.getClip().duration));
     this.mixer.update(0);
+    this.authoring.apply(this.bones, this.action.time);
     this.emit();
   }
 
   restart(): void {
     this.action?.reset();
     if (this.action) this.action.paused = !this.playing;
+    this.mixer?.update(0);
+    this.authoring.apply(this.bones, this.action?.time ?? 0);
     this.emit();
+  }
+
+  setAuthoring(value: boolean): void {
+    this.authoringEnabled = value && this.bones.length > 0;
+    if (this.authoringEnabled) this.setPlaying(false);
+    else this.selectBone(undefined);
+    this.emit();
+  }
+
+  selectBoneByName(name: string): void {
+    this.selectBone(this.bones.find((bone) => bone.name === name));
+  }
+
+  setKey(): void {
+    if (!this.selectedBone || !this.action) return;
+    this.authoring.setKey(this.selectedBone, this.action.time);
+    this.authoring.apply(this.bones, this.action.time);
+    this.emit();
+  }
+
+  deleteKey(): void {
+    if (!this.selectedBone || !this.action) return;
+    if (this.authoring.deleteKey(this.selectedBone, this.action.time)) this.refreshAuthoredPose();
+  }
+
+  undo(): void {
+    if (this.authoring.undo()) this.refreshAuthoredPose();
+  }
+
+  redo(): void {
+    if (this.authoring.redo()) this.refreshAuthoredPose();
+  }
+
+  async exportAuthoredGlb(): Promise<Blob> {
+    if (!this.loaded || !this.mixer || !this.action) {
+      throw new Error("Load an animation before exporting.");
+    }
+    const duration = this.action.getClip().duration;
+    const times: number[] = [];
+    const positions = new Map<THREE.Bone, number[]>();
+    const rotations = new Map<THREE.Bone, number[]>();
+    const scales = new Map<THREE.Bone, number[]>();
+    const currentTime = this.action.time;
+    const frameCount = Math.max(1, Math.round(duration * AUTHORING_FPS));
+
+    for (const bone of this.bones) {
+      positions.set(bone, []);
+      rotations.set(bone, []);
+      scales.set(bone, []);
+    }
+    try {
+      for (let frame = 0; frame <= frameCount; frame += 1) {
+        const time = Math.min(duration, frame / AUTHORING_FPS);
+        times.push(time);
+        this.action.time = time;
+        this.mixer.update(0);
+        this.authoring.apply(this.bones, time);
+        for (const bone of this.bones) {
+          positions.get(bone)!.push(...bone.position.toArray());
+          rotations.get(bone)!.push(...bone.quaternion.toArray());
+          scales.get(bone)!.push(...bone.scale.toArray());
+        }
+      }
+
+      const tracks: THREE.KeyframeTrack[] = [];
+      for (const bone of this.bones) {
+        tracks.push(
+          new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, positions.get(bone)!),
+          new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, rotations.get(bone)!),
+          new THREE.VectorKeyframeTrack(`${bone.name}.scale`, times, scales.get(bone)!),
+        );
+      }
+      const clipName = `${this.action.getClip().name || "OSF"}_authored`;
+      const clip = new THREE.AnimationClip(clipName, duration, tracks);
+      const result = await new GLTFExporter().parseAsync(this.loaded.root, {
+        animations: [clip],
+        binary: true,
+        trs: true,
+        onlyVisible: false,
+      });
+      if (!(result instanceof ArrayBuffer)) {
+        throw new Error("The GLB exporter returned an unexpected result.");
+      }
+      return new Blob([result], { type: "model/gltf-binary" });
+    } finally {
+      this.action.time = currentTime;
+      this.mixer.update(0);
+      this.authoring.apply(this.bones, currentTime);
+      this.emit();
+    }
   }
 
   fit(): void {
@@ -313,9 +445,50 @@ export class ViewerController {
       formalBones: this.loaded?.skeleton.formalBones ?? 0,
       animatedBones: this.loaded?.skeleton.animatedTransforms ?? 0,
       meshCount: this.loaded?.skeleton.meshCount ?? 0,
+      authoring: this.authoringEnabled,
+      boneNames: this.bones.map((bone) => bone.name),
+      selectedBone: this.selectedBone?.name ?? "",
+      currentFrame: this.authoring.frameAt(this.action?.time ?? 0),
+      keyedTimes: this.authoring.keyTimes(),
+      keyedBoneCount: this.authoring.keyedBoneCount,
+      hasKey: this.authoring.hasKey(this.selectedBone, this.action?.time ?? 0),
+      dirty: this.authoring.dirty,
+      canUndo: this.authoring.canUndo,
+      canRedo: this.authoring.canRedo,
       error,
     });
   }
+
+  private refreshAuthoredPose(): void {
+    this.mixer?.update(0);
+    this.authoring.apply(this.bones, this.action?.time ?? 0);
+    this.emit();
+  }
+
+  private selectBone(bone: THREE.Bone | undefined): void {
+    this.selectedBone = bone;
+    if (bone && this.authoringEnabled) this.transform.attach(bone);
+    else this.transform.detach();
+    this.emit();
+  }
+
+  private pickBone = (event: MouseEvent): void => {
+    if (!this.authoringEnabled || !this.bones.length) return;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    let best: THREE.Bone | undefined;
+    let bestDistance = 16;
+    for (const bone of this.bones) {
+      bone.getWorldPosition(this.projectedBone).project(this.camera);
+      const x = rect.left + (this.projectedBone.x + 1) * rect.width / 2;
+      const y = rect.top + (1 - this.projectedBone.y) * rect.height / 2;
+      const distance = Math.hypot(event.clientX - x, event.clientY - y);
+      if (distance < bestDistance) {
+        best = bone;
+        bestDistance = distance;
+      }
+    }
+    if (best) this.selectBone(best);
+  };
 
   dispose(): void {
     if (this.disposed) return;
@@ -324,6 +497,10 @@ export class ViewerController {
     this.observer.disconnect();
     this.unload();
     this.controls.dispose();
+    this.transform.detach();
+    this.transform.dispose();
+    this.scene.remove(this.transform.getHelper());
+    this.renderer.domElement.removeEventListener("dblclick", this.pickBone);
     this.renderer.domElement.removeEventListener("webglcontextlost", this.contextLost);
     this.renderer.domElement.removeEventListener("webglcontextrestored", this.contextRestored);
     this.renderer.dispose();
