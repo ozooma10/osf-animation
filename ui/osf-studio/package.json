@@ -1,21 +1,27 @@
 {
   "name": "@osf/studio",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 8792",
     "build": "npm run typecheck && vite build && node scripts/prepare-sites.mjs",
     "test": "vitest run --globals",
     "typecheck": "tsc --noEmit",
-    "verify": "npm test && npm run build"
+    "verify": "npm test && npm run build",
+    "test:e2e": "playwright test",
+    "test:alpha": "npm run verify && npm run test:e2e",
+    "test:parity": "vitest run tests/afParity.local.test.ts --globals"
   },
   "dependencies": {
     "@types/three": "^0.185.1",
+    "idb": "^8.0.3",
+    "jsonc-parser": "^3.3.1",
     "preact": "10.29.7",
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@preact/preset-vite": "2.10.2",
     "@types/node": "24.7.2",
     "typescript": "5.9.3",

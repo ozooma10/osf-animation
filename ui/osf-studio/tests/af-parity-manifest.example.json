@@ -1,0 +1,15 @@
+[
+  {
+    "name": "local-human-one-byte",
+    "af": "C:/local-only/clip.af",
+    "rig": "C:/local-only/skeleton.rig",
+    "categories": ["one-byte-counters", "skipped-atlas-runs", "human"]
+  },
+  {
+    "name": "local-creature-two-byte",
+    "af": "C:/local-only/creature.af",
+    "rig": "C:/local-only/creature-skeleton.rig",
+    "categories": ["two-byte-counters", "preamble", "partial-body", "long", "creature"]
+  }
+]
+

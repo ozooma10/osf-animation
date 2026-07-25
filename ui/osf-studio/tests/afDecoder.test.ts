@@ -37,7 +37,7 @@ describe("AF decoder", () => {
     expect(decoded.boneCount).toBe(2);
     expect(decoded.frameCount).toBe(30);
     expect(decoded.animations[0].name).toBe("idle");
-    expect(decoded.animations[0].duration).toBe(1);
+    expect(decoded.animations[0].duration).toBeCloseTo(29 / 30);
     expect(decoded.scene.children[0].children).toHaveLength(1);
   });
 });

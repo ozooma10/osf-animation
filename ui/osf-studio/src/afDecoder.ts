@@ -158,6 +158,11 @@ function parseRig(buffer: ArrayBuffer): RigData {
   return { bones, animatedBoneCount, lowPrecision, highPrecision };
 }
 
+export function inspectRigMetadata(buffer: ArrayBuffer): { totalBones: number; animatedBones: number } {
+  const rig = parseRig(buffer);
+  return { totalBones: rig.bones.length, animatedBones: rig.animatedBoneCount };
+}
+
 function signed7(value: number) {
   const payload = value & 0x7f;
   return payload >= 64 ? payload - 128 : payload;
@@ -251,6 +256,11 @@ function parseAf(buffer: ArrayBuffer) {
   return { boneCount, frameCount, blocks };
 }
 
+export function inspectAfMetadata(buffer: ArrayBuffer): { boneCount: number; frameCount: number; duration: number } {
+  const af = parseAf(buffer);
+  return { boneCount: af.boneCount, frameCount: af.frameCount, duration: Math.max(0, af.frameCount - 1) / 30 };
+}
+
 function dequantRotation(prefix: RotationPrefix, entry: [number, number, number]) {
   const low = SQRT_HALF / 64;
   const high = SQRT_HALF / 16384;
@@ -291,7 +301,7 @@ export function decodeAf(afBuffer: ArrayBuffer, rigBuffer: ArrayBuffer, name = "
   });
 
   const tracks: THREE.KeyframeTrack[] = [];
-  let duration = Math.max(af.frameCount / AF_FPS, 1 / AF_FPS);
+  const duration = Math.max(0, af.frameCount - 1) / AF_FPS;
   af.blocks.forEach((block, boneIndex) => {
     const bone = rig.bones[boneIndex];
     const object = objects[boneIndex];
@@ -307,7 +317,6 @@ export function decodeAf(afBuffer: ArrayBuffer, rigBuffer: ArrayBuffer, name = "
         const time = block.rotationKeys[index] / AF_FPS;
         times.push(time);
         values.push(absolute.x, absolute.y, absolute.z, absolute.w);
-        duration = Math.max(duration, time);
       }
       tracks.push(new THREE.QuaternionKeyframeTrack(`${object.name}.quaternion`, times, values));
     }
@@ -329,7 +338,6 @@ export function decodeAf(afBuffer: ArrayBuffer, rigBuffer: ArrayBuffer, name = "
         const time = block.translationKeys[index] / AF_FPS;
         times.push(time);
         values.push(absolute.x, absolute.y, absolute.z);
-        duration = Math.max(duration, time);
       }
       tracks.push(new THREE.VectorKeyframeTrack(`${object.name}.position`, times, values));
     }

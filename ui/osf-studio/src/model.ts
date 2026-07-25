@@ -1,3 +1,5 @@
+import { parse as parseJsonc, printParseErrorCode, type ParseError } from "jsonc-parser";
+
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 export interface JsonObject {
@@ -13,6 +15,7 @@ export interface StudioDocument {
 
 export interface Diagnostic {
   severity: "error" | "warning";
+  source: "Studio structural validation" | "Game-dependent validation";
   path: string;
   message: string;
 }
@@ -54,9 +57,53 @@ export function cloneJson<T extends JsonValue>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+export class DocumentParseError extends Error {
+  constructor(
+    public readonly filename: string,
+    public readonly line: number,
+    public readonly column: number,
+    message: string,
+  ) {
+    super(`${filename}:${line}:${column} — ${message}`);
+    this.name = "DocumentParseError";
+  }
+}
+
+function lineAndColumn(source: string, offset: number): { line: number; column: number } {
+  const before = source.slice(0, offset);
+  const lines = before.split(/\r\n|\r|\n/);
+  return { line: lines.length, column: (lines.at(-1)?.length ?? 0) + 1 };
+}
+
+function describeParseError(error: ParseError): string {
+  const code = printParseErrorCode(error.error);
+  const descriptions: Record<string, string> = {
+    InvalidSymbol: "Remove or quote the unexpected symbol.",
+    InvalidNumberFormat: "Use a valid JSON number.",
+    PropertyNameExpected: "Add a quoted property name.",
+    ValueExpected: "Add a JSON value after the property name.",
+    ColonExpected: "Add ':' after the property name.",
+    CloseBraceExpected: "Add a closing '}'.",
+    CloseBracketExpected: "Add a closing ']'.",
+    CommaExpected: "Add a comma between values.",
+    EndOfFileExpected: "Remove content after the root JSON value.",
+  };
+  return descriptions[code] ?? `Correct the JSONC syntax (${code}).`;
+}
+
 export function parseDocument(filename: string, source: string): StudioDocument {
-  const parsed: unknown = JSON.parse(source);
-  if (!isObject(parsed)) throw new Error("The file root must be a JSON object.");
+  const errors: ParseError[] = [];
+  const parsed: unknown = parseJsonc(source, errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+    allowEmptyContent: false,
+  });
+  if (errors.length) {
+    const first = errors[0];
+    const location = lineAndColumn(source, first.offset);
+    throw new DocumentParseError(filename, location.line, location.column, describeParseError(first));
+  }
+  if (!isObject(parsed)) throw new DocumentParseError(filename, 1, 1, "The file root must be a JSON object.");
   return {
     id: crypto.randomUUID(),
     filename: filename || "untitled.osf.json",
@@ -114,7 +161,7 @@ export function addScene(root: JsonObject): { root: JsonObject; index: number } 
 }
 
 function label(path: string, message: string, severity: Diagnostic["severity"] = "error"): Diagnostic {
-  return { severity, path, message };
+  return { severity, source: "Studio structural validation", path, message };
 }
 
 function validateScene(scene: JsonObject, path: string): Diagnostic[] {
