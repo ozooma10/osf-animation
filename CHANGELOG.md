@@ -7,6 +7,9 @@ All notable changes to OSF Animation are documented here.
 ### Added
 - **Problems now show up in OSF UI's System Health page** instead of only in the log. A scene or sound pack that could not be read gets a card naming the file and the first few reasons, so a broken pack stops being an invisible "why is this animation missing?" — one card per file, however many scenes it lost. Also reported: running on a Starfield version this build was not tested against, wheel pin customization that cannot be saved to disk, and screen fades disabling themselves after a game patch. Cards clear themselves when the condition goes away — fix a pack, run `OSF.ReloadScenes`, and its card moves to **Resolved this session** — and they ride along in System Health's **Copy diagnostic report**. Needs an OSF UI new enough to carry native ABI 1.7 (the release after 1.4.0); on anything older nothing changes and the log keeps every line, exactly as before. See [`docs/HEALTH_REPORTING.md`](docs/HEALTH_REPORTING.md).
 
+### Fixed
+- GLB animations exported without Starfield's `COM` bone no longer lift or stretch the actor. Poser-style files that place `C_Hips` and `C_Spine` directly under an unbound armature helper carry each body's roughly one-metre rest height in those tracks; OSF now removes that duplicated rest component while preserving the animation's actual pose offsets. Conventional COM-based GLBs are unchanged.
+
 ## [1.3.0] - 2026-07-24
 
 ### Added

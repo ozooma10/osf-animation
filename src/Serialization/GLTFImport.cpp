@@ -56,14 +56,50 @@ namespace OSF::Serialization
 			return a_lowerName == "humanexportroot" || a_lowerName == "root";
 		}
 
-		ozz::math::Transform GetNodeLocalTransform(const fastgltf::Node& a_node)
+		bool HasNodeNamed(const fastgltf::Asset& a_asset, std::string_view a_lowerName)
+		{
+			return std::ranges::any_of(a_asset.nodes, [a_lowerName](const fastgltf::Node& a_node) {
+				return ToLower(a_node.name.c_str()) == a_lowerName;
+			});
+		}
+
+		ozz::math::Float3 NodeTranslation(const fastgltf::Node& a_node)
+		{
+			if (std::holds_alternative<fastgltf::TRS>(a_node.transform)) {
+				const auto& tr = std::get<fastgltf::TRS>(a_node.transform).translation;
+				return { tr[0], tr[1], tr[2] };
+			}
+			return { 0.0f, 0.0f, 0.0f };
+		}
+
+		// Some poser exports omit the engine's COM bone and hang C_Hips + C_Spine directly under an
+		// unbound ArmatureEXP helper. Those tracks are consequently authored in armature/root space
+		// (including the roughly one-metre standing body height), but OSF binds them into live rig slots
+		// that already have their proper parents. Reapplying the rest height lifts the legs at C_Hips
+		// and independently stretches the upper body at C_Spine. Normalize only large absolute-space
+		// roots; an ordinary local C_Spine offset is small and must remain untouched.
+		bool IsComlessBodyRoot(const fastgltf::Node& a_node, bool a_hasCom)
+		{
+			if (a_hasCom) {
+				return false;
+			}
+			const auto lowerName = ToLower(a_node.name.c_str());
+			if (lowerName != "c_hips" && lowerName != "c_spine") {
+				return false;
+			}
+			const auto tr = NodeTranslation(a_node);
+			return tr.x * tr.x + tr.y * tr.y + tr.z * tr.z > 0.25f;  // > 0.5 m means authoring/root space
+		}
+
+		ozz::math::Transform GetNodeLocalTransform(const fastgltf::Node& a_node, bool a_hasCom)
 		{
 			ozz::math::Transform result = ozz::math::Transform::identity();
 			if (std::holds_alternative<fastgltf::TRS>(a_node.transform)) {
 				const auto& trs = std::get<fastgltf::TRS>(a_node.transform);
 				result.rotation = { trs.rotation[0], trs.rotation[1], trs.rotation[2], trs.rotation[3] };
 				result.scale = { trs.scale[0], trs.scale[1], trs.scale[2] };
-				if (IsExportRootNode(ToLower(a_node.name.c_str()))) {
+				const auto lowerName = ToLower(a_node.name.c_str());
+				if (IsExportRootNode(lowerName) || IsComlessBodyRoot(a_node, a_hasCom)) {
 					result.translation = { 0.0f, 0.0f, 0.0f };  // anchor owns root placement
 				} else {
 					result.translation = { trs.translation[0], trs.translation[1], trs.translation[2] };
@@ -241,6 +277,7 @@ namespace OSF::Serialization
 		std::shared_ptr<Animation::OzzSkeleton> BuildSkeleton(const fastgltf::Asset& a_asset)
 		{
 			const auto& nodes = a_asset.nodes;
+			const bool hasCom = HasNodeNamed(a_asset, "com");
 			std::vector<bool> isChild(nodes.size(), false);
 			for (const auto& n : nodes) {
 				for (auto childIdx : n.children) {
@@ -257,7 +294,7 @@ namespace OSF::Serialization
 				const auto& n = nodes[a_nodeIdx];
 				auto& joint = a_dest.emplace_back();
 				joint.name = n.name.c_str();
-				joint.transform = GetNodeLocalTransform(n);
+				joint.transform = GetNodeLocalTransform(n, hasCom);
 				for (auto childIdx : n.children) {
 					if (childIdx < nodes.size()) {
 						self(childIdx, joint.children);
@@ -289,6 +326,8 @@ namespace OSF::Serialization
 		std::shared_ptr<Animation::OzzAnimation> BuildAnimation(const fastgltf::Asset& a_asset,
 			const fastgltf::Animation& a_anim, const ozz::animation::Skeleton& a_skeleton)
 		{
+			const bool hasCom = HasNodeNamed(a_asset, "com");
+
 			// Map of lowercased node names -> skeleton joint indexes.
 			std::map<std::string, size_t> jointMap;
 			auto jointNames = a_skeleton.joint_names();
@@ -326,7 +365,11 @@ namespace OSF::Serialization
 					continue;
 
 				// Export-root translation is dropped (placement is anchor-owned); rotation still applies.
-				const bool isExportRoot = IsExportRootNode(ToLower(a_asset.nodes[c.nodeIndex.value()].name.c_str()));
+				const auto& channelNode = a_asset.nodes[c.nodeIndex.value()];
+				const auto lowerName = ToLower(channelNode.name.c_str());
+				const bool isExportRoot = IsExportRootNode(lowerName);
+				const bool isComlessBodyRoot = IsComlessBodyRoot(channelNode, hasCom);
+				const auto bindTranslation = NodeTranslation(channelNode);
 
 				if (c.samplerIndex >= a_anim.samplers.size())
 					continue;
@@ -355,7 +398,9 @@ namespace OSF::Serialization
 						const auto tRaw = fastgltf::getAccessorElement<ozz::math::Float3>(a_asset, dataAccessor, i);
 						const ozz::math::Float3 tr = isExportRoot ?
 							ozz::math::Float3(0.0f, 0.0f, 0.0f) :
-							ozz::math::Float3(tRaw.x, tRaw.y, tRaw.z);
+							isComlessBodyRoot ?
+								ozz::math::Float3(tRaw.x - bindTranslation.x, tRaw.y - bindTranslation.y, tRaw.z - bindTranslation.z) :
+								ozz::math::Float3(tRaw.x, tRaw.y, tRaw.z);
 						track.translations.push_back({ t, tr });
 						break;
 					}
