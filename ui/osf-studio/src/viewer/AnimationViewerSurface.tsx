@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { inspectAfMetadata } from "../afDecoder";
 import { detectAnimationKind, assertFileSize } from "../fileSafety";
 import { recordDiagnostic } from "../diagnostics";
+import { ClipLibraryRepository } from "../clipLibrary";
 import { AnimationLoader, type RigSource } from "./AnimationLoader";
 import { RigCatalog, type RigDescriptor } from "./RigCatalog";
 import { ViewerController, type ViewerStatus } from "./ViewerController";
@@ -19,7 +20,7 @@ const EMPTY_STATUS: ViewerStatus = {
   meshCount: 0,
 };
 
-export function AnimationViewer() {
+export function AnimationViewer({ initialClipId }: { initialClipId?: string }) {
   const host = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const rigInput = useRef<HTMLInputElement>(null);
@@ -37,6 +38,7 @@ export function AnimationViewer() {
   const [selectedServedRig, setSelectedServedRig] = useState("");
   const [rig, setRig] = useState<RigDescriptor>();
   const [afRequirement, setAfRequirement] = useState<number>();
+  const [catalogReady, setCatalogReady] = useState(false);
 
   useEffect(() => {
     if (!host.current) return;
@@ -101,6 +103,23 @@ export function AnimationViewer() {
       if (fileInput.current) fileInput.current.value = "";
     }
   }
+
+  useEffect(() => {
+    if (!initialClipId || !catalogReady) return;
+    let active = true;
+    void ClipLibraryRepository.open().then(async (library) => {
+      try {
+        const file = await library.getClipFile(initialClipId);
+        if (active && file) await loadFile(file);
+        if (active && !file) setError("This library clip is missing its local animation bytes.");
+      } finally {
+        library.close();
+      }
+    }).catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : "The library clip could not be opened.");
+    });
+    return () => { active = false; };
+  }, [initialClipId, catalogReady]);
 
   async function activateRig(
     result: { descriptor: RigDescriptor; rig: RigSource },

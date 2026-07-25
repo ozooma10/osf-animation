@@ -3,7 +3,7 @@ import { downloadDiagnosticReport, recordDiagnostic } from "./diagnostics";
 import { WORKSPACE_SCHEMA_VERSION } from "./workspaceRepository";
 
 interface Props {
-  scope: "application" | "editor" | "viewer";
+  scope: "application" | "editor" | "library" | "viewer";
   onReturnToEditor?: () => void;
   children: ComponentChildren;
 }
