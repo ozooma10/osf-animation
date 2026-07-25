@@ -17,16 +17,6 @@ const EMPTY_STATUS: ViewerStatus = {
   formalBones: 0,
   animatedBones: 0,
   meshCount: 0,
-  authoring: false,
-  boneNames: [],
-  selectedBone: "",
-  currentFrame: 0,
-  keyedTimes: [],
-  keyedBoneCount: 0,
-  hasKey: false,
-  dirty: false,
-  canUndo: false,
-  canRedo: false,
 };
 
 export function AnimationViewer() {
@@ -47,7 +37,6 @@ export function AnimationViewer() {
   const [selectedServedRig, setSelectedServedRig] = useState("");
   const [rig, setRig] = useState<RigDescriptor>();
   const [afRequirement, setAfRequirement] = useState<number>();
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!host.current) return;
@@ -141,24 +130,6 @@ export function AnimationViewer() {
       await activateRig(await catalog.current.selectServed(name), name);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The served rig could not be loaded.");
-    }
-  }
-
-  async function exportGlb(): Promise<void> {
-    if (!controller.current) return;
-    setExporting(true);
-    try {
-      const blob = await controller.current.exportAuthoredGlb();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.download = `${filename.replace(/\.(glb|gltf|af)$/i, "") || "osf-animation"}-authored.glb`;
-      link.href = url;
-      link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The authored GLB could not be exported.");
-    } finally {
-      setExporting(false);
     }
   }
 
@@ -295,59 +266,6 @@ export function AnimationViewer() {
             />
             <div><span>{status.time.toFixed(2)}s</span><span>{status.duration.toFixed(2)}s</span></div>
           </div>
-        </section>
-
-        <section class="viewer-control-section authoring-panel">
-          <div class="authoring-heading">
-            <span class="eyebrow">FK authoring</span>
-            <button
-              class={status.authoring ? "active" : ""}
-              disabled={!status.formalBones || !status.clipNames.length}
-              onClick={() => controller.current?.setAuthoring(!status.authoring)}
-            >{status.authoring ? "Editing" : "Enable"}</button>
-          </div>
-          {status.authoring ? (
-            <>
-              <label class="field">
-                <span>Selected bone</span>
-                <select
-                  value={status.selectedBone}
-                  onChange={(event) => controller.current?.selectBoneByName(event.currentTarget.value)}
-                >
-                  <option value="">Select or double-click a bone</option>
-                  {status.boneNames.map((name, index) => (
-                    <option value={name} key={`${name}-${index}`}>{name}</option>
-                  ))}
-                </select>
-              </label>
-              <div class="authoring-frame">
-                <span>Frame <strong>{status.currentFrame}</strong></span>
-                <span>{status.keyedBoneCount} keyed bones</span>
-              </div>
-              <div class="authoring-actions">
-                <button onClick={() => controller.current?.setKey()} disabled={!status.selectedBone}>
-                  {status.hasKey ? "Update key" : "Set key"}
-                </button>
-                <button onClick={() => controller.current?.deleteKey()} disabled={!status.hasKey}>Delete</button>
-                <button onClick={() => controller.current?.undo()} disabled={!status.canUndo} title="Undo">↶</button>
-                <button onClick={() => controller.current?.redo()} disabled={!status.canRedo} title="Redo">↷</button>
-              </div>
-              <div class="authoring-keys" aria-label="Authored key times">
-                {status.keyedTimes.length ? status.keyedTimes.map((time) => (
-                  <button onClick={() => controller.current?.seek(time)} key={time}>
-                    {(time * 30).toFixed(0)}
-                  </button>
-                )) : <span>No authored keys yet</span>}
-              </div>
-              <button
-                class="authoring-export"
-                disabled={!status.dirty || exporting}
-                onClick={() => void exportGlb()}
-              >{exporting ? "Baking 30 FPS…" : "Export authored GLB"}</button>
-            </>
-          ) : (
-            <p class="authoring-note">Enable FK editing to rotate deform bones and key the result.</p>
-          )}
         </section>
 
         <section class="viewer-control-section">
