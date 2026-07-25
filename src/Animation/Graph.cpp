@@ -323,6 +323,30 @@ namespace OSF::Animation
 		removalQueued = false;
 	}
 
+	void Graph::DetachAndFadeOut()
+	{
+		scene = nullptr;
+		participantIndex = -1;
+		syncGroup = std::make_shared<SyncGroup>();  // return to a "solo" syncGroup (group of 1)
+		syncGroup->clock.time = localTime;          // fade resumes from current phase
+
+		// Face/eye/morph nodes are always left to Starfield, but C_Head is normally body-driven so
+		// authored head motion still plays. At scene end the facial system and equipment rebuilds
+		// resume immediately; continuing to blend C_Head for another 0.4s can make those dependent
+		// nodes cache against a half-OSF/half-engine head pose. The player camera-mode rebuild clears
+		// that stale state, but NPCs keep the malformed head. Hand C_Head back on the first teardown
+		// frame while the rest of the body still fades smoothly.
+		if (preserveBones.emplace("c_head").second) {
+			cachedModelNode = nullptr;
+			cachedRig = nullptr;
+			cachedBoneCount = 0;
+			cachedLocalData = nullptr;
+			cachedRigBoneCount = 0;
+			binding.clear();
+		}
+
+		BeginFadeOut();
+	}
 	bool Graph::IsFadedOut() const
 	{
 		return blendPhase == BlendPhase::kOut && blendClock.time >= blendDuration;

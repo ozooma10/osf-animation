@@ -79,15 +79,8 @@ namespace OSF::Animation
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
 		bool IsFadedOut() const;  // fade-out ramp fully elapsed
 
-		// Scene teardown: detach, hand clip back to "solo" syncGroup
-		void DetachAndFadeOut()
-		{
-			scene = nullptr;
-			participantIndex = -1;
-			syncGroup = std::make_shared<SyncGroup>();	// return to a "solo" syncGroup (group of 1)
-			syncGroup->clock.time = localTime;			// fade resumes from current phase
-			BeginFadeOut();
-		}
+		// Scene teardown: detach, hand clip back to "solo" syncGroup, and begin the exit blend.
+		void DetachAndFadeOut();
 
 		// modelNode identity the stamp hook matches against (set by Sample's bind).
 		const RE::BGSModelNode* StampTarget() const { return cachedModelNode; }
