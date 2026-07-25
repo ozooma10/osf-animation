@@ -50,6 +50,7 @@ namespace OSF::Scene
 		bool disengageLock = false;
 		std::int32_t remaining = 0;
 		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;  // moved out for kEquipment
+		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> heldEquip;  // moved out for kHeldEquipment
 		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;  // moved out for kEquipItem
 		std::vector<RE::Actor*> weapon;                                 // moved out for kWeapon
 		{
@@ -71,6 +72,8 @@ namespace OSF::Scene
 				remaining = _controlLockCount;
 			} else if (a_mech == Mechanism::kEquipment) {
 				equip.swap(s->hiddenEquip);  // take this scene's hidden apparel out for restore
+			} else if (a_mech == Mechanism::kHeldEquipment) {
+				heldEquip.swap(s->hiddenHeldEquip);  // cleanup-only: never touched by authored apparel restore
 			} else if (a_mech == Mechanism::kEquipItem) {
 				equipItems.swap(s->equippedItems);  // take this scene's equipped items out for removal
 			} else if (a_mech == Mechanism::kWeapon) {
@@ -96,6 +99,12 @@ namespace OSF::Scene
 		case Mechanism::kEquipment:
 			REX::TRACE("[Scene] scene {:#010x} equipment undo — restoring {} actor(s)", a_handle, equip.size());
 			for (auto& [actor, snap] : equip) {
+				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
+			}
+			break;
+		case Mechanism::kHeldEquipment:
+			REX::TRACE("[Scene] scene {:#010x} held-equipment undo — restoring {} actor(s)", a_handle, heldEquip.size());
+			for (auto& [actor, snap] : heldEquip) {
 				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
 			}
 			break;
@@ -191,6 +200,19 @@ namespace OSF::Scene
 		s->hiddenEquip.emplace_back(a_actor, std::move(a_snapshot));
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipment) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kEquipment);  // one ledger entry; the snapshots accumulate
+		}
+	}
+
+	void SceneRuntime::RecordHiddenHeldEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot)
+	{
+		std::lock_guard l{ _lock };
+		Slot* s = Resolve(a_handle);
+		if (!s) {
+			return;
+		}
+		s->hiddenHeldEquip.emplace_back(a_actor, std::move(a_snapshot));
+		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kHeldEquipment) == s->ledger.end()) {
+			s->ledger.push_back(Mechanism::kHeldEquipment);  // one ledger entry; the snapshots accumulate
 		}
 	}
 

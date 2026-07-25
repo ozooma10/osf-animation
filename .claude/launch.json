@@ -14,6 +14,12 @@
       "port": 8795
     },
     {
+      "name": "osfui-harness",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["--prefix", "../OSF UI/frontend", "run", "dev"],
+      "port": 8080
+    },
+    {
       "name": "osf-view-3",
       "runtimeExecutable": "python",
       "runtimeArgs": ["tools/view-dev-server.py", "8797"],

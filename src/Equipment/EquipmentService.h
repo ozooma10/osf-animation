@@ -59,6 +59,13 @@ namespace OSF::Equipment
 		// stays worn through the scene, so restore must not touch it).
 		Snapshot Hide(RE::Actor* a_actor, std::uint32_t a_slotMask, std::span<RE::TESBoundObject* const> a_keep = {});
 
+		// GAME THREAD. Strips everything the actor is HOLDING rather than wearing: every equipped
+		// non-ARMO inventory item (weapon, slate/datapad, tool, consumable). Nothing worn is touched,
+		// so this is safe to run on a clothed scene — a held prop survives an animation otherwise and
+		// stays welded to the hand through it. Restore() takes the snapshot back.
+		// a_keep: forms left equipped AND out of the snapshot (scene-gear exemption, as in Hide()).
+		Snapshot HideHeld(RE::Actor* a_actor, std::span<RE::TESBoundObject* const> a_keep = {});
+
 		// GAME THREAD. Re-equips the apparel recorded in a_snapshot
 		void Restore(RE::Actor* a_actor, const Snapshot& a_snapshot);
 

@@ -180,6 +180,48 @@ namespace OSF::Equipment
 		return snapshot;
 	}
 
+	Snapshot EquipmentService::HideHeld(RE::Actor* a_actor, std::span<RE::TESBoundObject* const> a_keep)
+	{
+		Snapshot snapshot;
+		if (!a_actor || !Available()) {
+			return snapshot;
+		}
+
+		{
+			const auto guard = a_actor->inventoryList.LockRead();
+			const RE::BGSInventoryList* list = *guard;
+			if (!list) {
+				return snapshot;  // lazy list never materialized — nothing to take out of their hands
+			}
+			for (const auto& item : list->data) {
+				if (!item.object || !item.IsEquipped() || item.object->GetFormID() == 0) {
+					continue;
+				}
+				// Worn apparel is Hide()'s business, not ours — skip every ARMO (the base skin included,
+				// which is why this pass needs no GetSkin() guard: a skin is always an ARMO).
+				if (item.object->IsArmor()) {
+					continue;
+				}
+				if (std::find(a_keep.begin(), a_keep.end(), item.object) != a_keep.end()) {
+					continue;
+				}
+				snapshot.stripped.push_back({ item.object, item.instanceData });
+			}
+		}
+
+		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
+			return snapshot;
+		}
+		for (const auto& w : snapshot.stripped) {
+			RE::BGSObjectInstance instance{ w.object, w.instanceData.get() };
+			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
+		}
+
+		REX::DEBUG("[Equip] actor {:X}: cleared {} held item(s)", a_actor->formID, snapshot.stripped.size());
+		return snapshot;
+	}
+
 	void EquipmentService::Restore(RE::Actor* a_actor, const Snapshot& a_snapshot)
 	{
 		if (!a_actor || a_snapshot.Empty() || !Available()) {

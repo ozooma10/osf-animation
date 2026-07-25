@@ -387,6 +387,37 @@ namespace OSF::Scene
 		RunCamera(a_handle, "scene_orbit", hasPlayer, 0.0f);  // native TFC renderer policy + OSF cast framing/input
 	}
 
+	void SceneRuntime::ClearHeldItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
+		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
+	{
+		// Held props (a slate, a tool, a drawn weapon) stay welded to the hand through an animation and
+		// wreck it. Unlike the apparel strip this is NOT gated on stripActors: it's animation correctness,
+		// not undressing, and library packs default stripActors:false — exactly the browse-an-animation
+		// case where the actor was reading a slate a moment ago. Restored from its own cleanup-only ledger entry.
+		std::size_t cleared = 0;
+		for (std::size_t i = 0; i < a_participants.size(); i++) {
+			RE::Actor* actor = a_participants[i];
+			if (!actor) {
+				continue;
+			}
+			std::vector<RE::TESBoundObject*> keep;
+			if (i < a_gearPicks.size()) {
+				for (const auto& pick : a_gearPicks[i]) {
+					if (pick.worn && pick.object) {
+						keep.push_back(pick.object);
+					}
+				}
+			}
+			auto snap = Equipment::EquipmentService::GetSingleton().HideHeld(actor, keep);
+			if (!snap.Empty()) {
+				cleared += snap.stripped.size();
+				RecordHiddenHeldEquip(a_handle, actor, std::move(snap));
+			}
+		}
+		REX::DEBUG("[Scene] scene {:#010x} held-item clear: {} item(s) across {} participant(s)",
+			a_handle, cleared, a_participants.size());
+	}
+
 	void SceneRuntime::StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants,
 		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
 	{
@@ -574,6 +605,7 @@ namespace OSF::Scene
 		EngageDefaultPlayerLock(a_handle, a_lockPlayer, a_participants);
 		EngageDefaultCamera(a_handle, a_defId, a_entryNode, a_lockPlayer, cameraOverride, a_participants);
 		const auto gearPicks = BuildGearPicks(a_defId, a_participants);
+		ClearHeldItems(a_handle, a_participants, gearPicks);
 		StripDefaultActors(a_handle, a_stripActors, a_participants, gearPicks);
 		EquipGearItems(a_handle, a_participants, gearPicks);
 		EquipRoleItems(a_handle, a_defId, a_participants);

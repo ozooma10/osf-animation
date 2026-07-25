@@ -193,6 +193,7 @@ namespace OSF::Scene
 			kControlLock,   // player control + camera lock (ref-counted across scenes)
 			kFade,          // screen fade-to-black (undo = fade back in)
 			kEquipment,     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
+			kHeldEquipment, // held items cleared at scene start (undo = re-equip only on scene cleanup)
 			kEquipItem,     // arbitrary items equipped for the scene (undo = unequip + remove-if-added; per-actor records in the Slot)
 			kCamera,        // held third-person camera lock (undo = release the standalone camera lock)
 			kCameraState,   // alt camera posture: free-fly / vanity orbit (undo = release the state override)
@@ -238,6 +239,9 @@ namespace OSF::Scene
 			// here (not the ledger entry) so the ledger stays a plain ordered type list — same
 			// pattern as control-lock keeping its count in _controlLockCount.
 			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenEquip;
+			// kHeldEquipment's per-actor state: non-apparel equipped items cleared at scene start.
+			// Kept separate so osf.equipment.restore remains an apparel-only authored action.
+			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenHeldEquip;
 			// kEquipItem's per-actor state: arbitrary items this scene equipped (unequipped + removed-if-added
 			// on undo). Same out-of-ledger pattern as hiddenEquip.
 			std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equippedItems;
@@ -368,6 +372,9 @@ namespace OSF::Scene
 		// ledger entry. Call OUTSIDE _lock (it locks). a_snapshot moved in.
 		void RecordHiddenEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
 
+		// Record held items cleared at scene start, adding the cleanup-only kHeldEquipment ledger
+		// entry. Kept separate from kEquipment so authored apparel restore cannot re-equip props.
+		void RecordHiddenHeldEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
 		// Record an item this scene equipped on a_actor (osf.equipment.equip), adding the kEquipItem
 		// ledger entry. Call OUTSIDE _lock (it locks). a_item moved in.
 		void RecordEquippedItem(std::int32_t a_handle, RE::Actor* a_actor, Equipment::EquippedItem a_item);
@@ -401,6 +408,12 @@ namespace OSF::Scene
 
 		// Default camera when the player participates and the scene specifies none: native-TFC-assisted scene orbit.
 		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
+
+		// Held-item clear on scene start: takes whatever every participant is HOLDING out of their hands
+		// (slate, tool, drawn weapon) so it can't ride through the animation. Deliberately NOT gated on
+		// stripActors — see the definition. Worn gear picks are exempt, same as the strip below.
+		void ClearHeldItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
+			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
 
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
 		// a_gearPicks (index-parallel to a_participants, from BuildGearPicks): each participant's
