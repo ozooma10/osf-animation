@@ -438,7 +438,14 @@ namespace OSF::Animation
 			}
 			scene->animId = a_plan.animId;
 			scene->anchored = a_plan.anchored;
+			scene->restoreParticipantTransforms = a_plan.anchored && a_plan.anchorExplicit;
 			scene->loopWhole = a_plan.loopWhole;
+			if (scene->restoreParticipantTransforms) {
+				scene->originalTransforms.reserve(a_actors.size());
+				for (const auto* actor : a_actors) {
+					scene->originalTransforms.emplace_back(actor->data.location, actor->data.angle.z);
+				}
+			}
 			const float requestedSpeed = std::isfinite(a_plan.speed) ? a_plan.speed : 1.0f;
 			scene->speed = std::clamp(requestedSpeed, 0.0f, 100.0f);  // same range as SetSpeed
 
@@ -1246,9 +1253,12 @@ namespace OSF::Animation
 		Camera::CameraService::GetSingleton().LogCameraTelemetry("scene-end");
 
 		const bool anchored = (*sceneIter)->anchored;
+		const bool restoreTransforms = (*sceneIter)->restoreParticipantTransforms;
+		const auto originalTransforms = (*sceneIter)->originalTransforms;
 
 		auto& participants = (*sceneIter)->participants;
-		for (auto& p : participants) {
+		for (std::size_t participantIndex = 0; participantIndex < participants.size(); participantIndex++) {
+			auto& p = participants[participantIndex];
 			{
 				// graph stays in the map and fades to the engine pose; the update hook queues its removal once the ramp elapses
 				std::scoped_lock gl{ p->stateLock };
@@ -1265,9 +1275,14 @@ namespace OSF::Animation
 			if (anchored && p->target) {
 				// participants are always Actors (PlayScene takes Actor*)
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
+				const auto stoppedGraph = p;
 				const PlaybackId stoppedPlayback = (*sceneIter)->playbackId;
 				const std::uint64_t worldEpoch = (*sceneIter)->worldEpoch;
-				SFSE::GetTaskInterface()->AddTask([keepAlive, stoppedPlayback, worldEpoch]() {
+				const bool restoreTransform = restoreTransforms && participantIndex < originalTransforms.size();
+				const auto originalTransform = restoreTransform ?
+				                                   originalTransforms[participantIndex] :
+				                                   std::pair<RE::NiPoint3, float>{};
+				SFSE::GetTaskInterface()->AddTask([keepAlive, stoppedGraph, stoppedPlayback, worldEpoch, restoreTransform, originalTransform]() {
 					auto& gm = GetSingleton();
 					if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
 						return;
@@ -1279,9 +1294,21 @@ namespace OSF::Animation
 							if (it->second->scene && it->second->scene->playbackId != stoppedPlayback) {
 								return;  // a replacement scene now owns the actor's movement mode
 							}
+							if (restoreTransform && it->second != stoppedGraph) {
+								return;  // replacement solo playback owns the actor; don't apply stale scene placement cleanup
+							}
 						}
 					}
 					keepAlive->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
+					if (restoreTransform) {
+						keepAlive->SetPosition(originalTransform.first, true);
+						if (auto* transforms = RE::TransformService::GetSingleton()) {
+							transforms->SetHeadingZ(keepAlive.get(), originalTransform.second);
+						}
+						REX::TRACE("[Anim] scene-end restore: actor {:X} -> ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
+							keepAlive->formID, originalTransform.first.x, originalTransform.first.y,
+							originalTransform.first.z, originalTransform.second);
+					}
 				});
 			}
 		}

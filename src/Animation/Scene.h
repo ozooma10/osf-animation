@@ -134,10 +134,12 @@ namespace OSF::Animation
 		float anchorHeading = 0.0f;  // radians
 
 		bool anchored = true;    // see ScenePlan::anchored; const after publish
+		bool restoreParticipantTransforms = false;  // explicit world/furniture anchors return actors to their pre-scene transforms on normal teardown
 		bool loopWhole = false;  // const after publish
 		std::string animId;      // registry id, "" for ad-hoc; const after publish
 
 		std::vector<std::shared_ptr<Graph>> participants;
+		std::vector<std::pair<RE::NiPoint3, float>> originalTransforms;  // participant position + heading, parallel to participants
 
 		// Immutable after publish — graphs read it lock-free on a stage change.
 		std::vector<StageData> stages;
