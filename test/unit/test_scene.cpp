@@ -50,11 +50,50 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 20 authored scenes load: bare(1) + legacy(2) + registry(4) + errors(1 of 4) + templates(11) +
+	// 21 authored scenes load: bare(1) + legacy(2) + registry(4) + errors(1 of 4) + templates(11) +
 	// template-errors(1 of 5); the two malformed-registry files load nothing. (Generated clip-debug
-	// entries don't count here.)
-	Check(reg.Size() == 20, "authored scene count");
+	// entries and clipLibrary registrations don't count here.)
+	Check(reg.Size() == 21, "authored scene count");
 
+	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
+	std::int32_t curatedCount = 0;
+	bool friendlyFound = false;
+	bool fallbackFound = false;
+	bool animatedFound = false;
+	bool clipOnlyFound = false;
+	std::int32_t duplicateCount = 0;
+	reg.ForEachDef([&](const OSF::Registry::SceneDef& d) {
+		if (d.library && d.pack == "Test Clip Library") {
+			++curatedCount;
+			if (d.name == "Friendly Pose") {
+				friendlyFound = d.unlisted && d.inPlace && !d.lockPlayer && !d.stripActors &&
+					d.tagSet.contains("scene.clip") && d.tagSet.contains("pose") && d.tagSet.contains("standing") &&
+					d.nodes.size() == 1 && d.nodes[0].stages.size() == 1 &&
+					d.nodes[0].stages[0].name == "Friendly Pose" &&
+					d.nodes[0].stages[0].clips.size() == 1 &&
+					d.nodes[0].stages[0].clips[0].file == "clips/test/friendly.af";
+			} else if (d.name == "fallback.af") {
+				fallbackFound = true;
+			} else if (d.name == "Looking Away") {
+				animatedFound = d.nodes.size() == 1 && d.nodes[0].stages.size() == 1 &&
+					d.nodes[0].stages[0].clips.size() == 1 &&
+					d.nodes[0].stages[0].clips[0].animId == "LookAway";
+			}
+		}
+		if (d.library && d.pack == "Test Clip Only" && d.name == "Only Pose") {
+			clipOnlyFound = true;
+		}
+		if (d.library && d.pack == "Test Clip Duplicate") {
+			++duplicateCount;
+		}
+	});
+	Check(curatedCount == 3, "registered clip de-duplicates against the same scene-referenced clip");
+	Check(friendlyFound, "clipLibrary friendly name, tags, clipRoot, and safe playback posture");
+	Check(fallbackFound, "bare clipLibrary entry falls back to filename");
+	Check(animatedFound, "clipLibrary object preserves GLB animation id");
+	Check(clipOnlyFound, "clipLibrary-only file loads without a dummy scene");
+
+	Check(duplicateCount == 1, "duplicate explicit clip registration keeps the first entry");
 	// -- bare single-scene file: top-level roles is that scene's roles (unchanged) --------------
 	if (const auto s = reg.Find("test.bare")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "solo", "bare scene keeps its inline roles");
@@ -227,7 +266,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 9, "exactly the nine expected diagnostics");
+	Check(errors.size() == 10, "exactly the ten expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -239,6 +278,8 @@ int main()
 	CheckError(errors, "scene 'test.terr.empty': a role object's 'id' must be a non-empty string", "empty-id diagnostic");
 	CheckError(errors, "scene 'test.terr.num': a role object's 'id' must be a non-empty string", "non-string-id diagnostic");
 	CheckError(errors, "scene 'test.terr.dup': duplicate role name 'lead'", "duplicate explicit-name diagnostic");
+	CheckError(errors, "duplicate clipLibrary registration for",
+		"duplicate clipLibrary diagnostic names the registered clip");
 
 	if (g_failures) {
 		std::cerr << g_failures << " scene registry test(s) FAILED\n";

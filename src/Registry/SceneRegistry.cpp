@@ -178,6 +178,62 @@ namespace OSF::Registry
 			ApplyClipRoot(clip, a_clipRoot);
 			return clip;
 		}
+
+		struct ClipLibraryRegistration
+		{
+			std::string              name;
+			std::vector<std::string> tags;
+			StageClip                clip;
+			std::filesystem::path    sourceFile;
+			std::string              pack;
+		};
+
+		std::vector<ClipLibraryRegistration> ParseClipLibrary(const json& a_json, const std::filesystem::path& a_file,
+			std::string_view a_pack, std::string_view a_clipRoot)
+		{
+			std::vector<ClipLibraryRegistration> out;
+			const auto it = a_json.find("clipLibrary");
+			if (it == a_json.end()) {
+				return out;
+			}
+			const std::string fileName = a_file.filename().string();
+			if (!it->is_array()) {
+				throw std::runtime_error("'" + fileName + "': 'clipLibrary' must be an array");
+			}
+			out.reserve(it->size());
+			for (std::size_t i = 0; i < it->size(); ++i) {
+				const auto& entry = (*it)[i];
+				const std::string subject = "'" + fileName + "': clipLibrary[" + std::to_string(i) + "]";
+
+				ClipLibraryRegistration reg;
+				reg.clip = ParseStageClip(entry, a_clipRoot, subject);
+				reg.sourceFile = a_file;
+				reg.pack = a_pack;
+
+				if (entry.is_object()) {
+					if (const auto nit = entry.find("name"); nit != entry.end()) {
+						if (!nit->is_string() || nit->get_ref<const std::string&>().empty()) {
+							throw std::runtime_error(subject + ": 'name' must be a non-empty string");
+						}
+						reg.name = nit->get<std::string>();
+					}
+					if (const auto tit = entry.find("tags"); tit != entry.end()) {
+						if (!tit->is_array()) {
+							throw std::runtime_error(subject + ": 'tags' must be an array of strings");
+						}
+						for (const auto& tag : *tit) {
+							if (!tag.is_string() || tag.get_ref<const std::string&>().empty()) {
+								throw std::runtime_error(subject + ": every tag must be a non-empty string");
+							}
+							reg.tags.push_back(tag.get<std::string>());
+						}
+					}
+				}
+				out.push_back(std::move(reg));
+			}
+			return out;
+		}
+
 		EdgeWhen ParseWhen(const std::string& a_when, std::string& a_trigger)
 		{
 			if (a_when == "end") {
@@ -1405,7 +1461,8 @@ namespace OSF::Registry
 		}
 
 		void LoadOsfFile(const json& a_json, const std::filesystem::path& a_file,
-			std::unordered_map<std::string, SceneDef>& a_out, std::vector<std::string>& a_errors)
+			std::unordered_map<std::string, SceneDef>& a_out, std::vector<ClipLibraryRegistration>& a_clipLibrary,
+			std::vector<std::string>& a_errors)
 		{
 			const std::string fileName = a_file.filename().string();
 
@@ -1569,8 +1626,22 @@ namespace OSF::Registry
 				for (const auto& s : *sit) {
 					sceneJsons.push_back(&s);
 				}
-			} else {
+			} else if (a_json.contains("id")) {
 				sceneJsons.push_back(&a_json);  // bare single-scene file
+			} else if (!a_json.contains("clipLibrary")) {
+				a_errors.push_back("[error] '" + fileName + "': expected a bare scene 'id', 'scenes', or 'clipLibrary'");
+				REX::ERROR("[Registry] '{}' has no scene id, scenes, or clipLibrary — skipped", fileName);
+				return;
+			}
+
+			try {
+				auto registrations = ParseClipLibrary(a_json, a_file, packName, packClipRoot);
+				a_clipLibrary.insert(a_clipLibrary.end(),
+					std::make_move_iterator(registrations.begin()), std::make_move_iterator(registrations.end()));
+			} catch (const std::exception& e) {
+				a_errors.push_back(std::string("[error] ") + e.what());
+				REX::ERROR("[Registry] {} — skipped", e.what());
+				return;
 			}
 
 			for (const auto* sj : sceneJsons) {
@@ -1794,16 +1865,61 @@ namespace OSF::Registry
 		// a multi-actor scene can still be inspected one raw clip at a time without authors having to
 		// mint parallel solo scenes. Generated vanilla/reference-library scenes and emotes are
 		// deliberately excluded because they already populate Animations.
-		std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes)
+		std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
+			const std::vector<ClipLibraryRegistration>& a_registrations, std::vector<std::string>& a_errors)
 		{
 			struct ClipEntry
 			{
-				std::string           display;
-				StageClip             clip;
+				std::string              display;
+				std::string              name;
+				std::vector<std::string> tags;
+				StageClip                clip;
 				std::filesystem::path sourceFile;
 				std::string           pack;
 			};
 
+			const auto groupOf = [](std::string_view a_pack, const std::filesystem::path& a_sourceFile) {
+				return !a_pack.empty()
+				         ? "pack:" + ToLower(std::string(a_pack))
+				         : "file:" + ToLower(a_sourceFile.filename().string());
+			};
+			const auto clipKey = [&groupOf](std::string_view a_pack, const std::filesystem::path& a_sourceFile,
+				                    std::string_view a_display, std::string_view a_animId) {
+				return groupOf(a_pack, a_sourceFile) + '\n' + ToLower(std::string(a_display)) + '\n' + std::string(a_animId);
+			};
+
+			std::map<std::string, ClipEntry> unique;
+			std::unordered_map<std::string, bool> installed;
+			std::unordered_set<std::string> explicitKeys;
+
+			// Explicit registrations go first so their friendly names/tags win over raw filename
+			// entries discovered from scenes. Registration identity is pack/file group + file + anim.
+			for (const auto& reg : a_registrations) {
+				const std::string display = Util::ClipSpecDisplay(std::filesystem::path{ reg.clip.file });
+				const std::string key = clipKey(reg.pack, reg.sourceFile, display, reg.clip.animId);
+				if (!explicitKeys.insert(key).second) {
+					a_errors.push_back("[error] duplicate clipLibrary registration for '" + display +
+						(reg.clip.animId.empty() ? "" : (":" + reg.clip.animId)) + "' in pack/file group '" +
+						(reg.pack.empty() ? reg.sourceFile.filename().string() : reg.pack) + "' — keeping the first");
+					REX::ERROR("[Registry] duplicate clipLibrary registration '{}' in group '{}' — keeping first",
+						display, reg.pack.empty() ? reg.sourceFile.filename().string() : reg.pack);
+					continue;
+				}
+
+				const std::string installKey = ToLower(display);
+				auto [iit, fresh] = installed.try_emplace(installKey, false);
+				if (fresh) {
+					iit->second = ClipSpecInstalled(reg.clip.file);
+				}
+				if (!iit->second) {
+					a_errors.push_back("[warn] '" + reg.sourceFile.filename().string() +
+						"': clipLibrary entry hidden — clip not installed ('" + reg.clip.file + "')");
+					REX::WARN("[Registry] '{}': clipLibrary entry hidden — clip not installed ('{}')",
+						reg.sourceFile.filename().string(), reg.clip.file);
+					continue;
+				}
+				unique.emplace(key, ClipEntry{ display, reg.name, reg.tags, reg.clip, reg.sourceFile, reg.pack });
+			}
 			// The source map is unordered. Sort first so both de-dup winners and generated IDs stay
 			// stable across launches and ReloadPacks calls.
 			std::vector<const SceneDef*> sources;
@@ -1821,14 +1937,7 @@ namespace OSF::Registry
 				return lf != rf ? lf < rf : ToLower(a_lhs->id) < ToLower(a_rhs->id);
 			});
 
-			std::map<std::string, ClipEntry> unique;
-			std::unordered_map<std::string, bool> installed;
 			for (const SceneDef* def : sources) {
-				// `pack` is the browser's preferred group key. Without one, the browser groups by
-				// source filename, so use that same identity for clip de-duplication.
-				const std::string group = !def->pack.empty()
-				                              ? "pack:" + ToLower(def->pack)
-				                              : "file:" + ToLower(def->sourceFile.filename().string());
 				for (const auto& node : def->nodes) {
 					for (const auto& stage : node.stages) {
 						for (const auto& clip : stage.clips) {
@@ -1842,8 +1951,8 @@ namespace OSF::Registry
 								continue;  // an Animations entry must be runnable even if its parent scene is not
 							}
 
-							const std::string key = group + '\n' + ToLower(display) + '\n' + clip.animId;
-							unique.try_emplace(key, ClipEntry{ display, clip, def->sourceFile, def->pack });
+							const std::string key = clipKey(def->pack, def->sourceFile, display, clip.animId);
+							unique.try_emplace(key, ClipEntry{ display, {}, {}, clip, def->sourceFile, def->pack });
 						}
 					}
 				}
@@ -1867,13 +1976,16 @@ namespace OSF::Registry
 
 				SceneDef def;
 				def.id = std::move(id);
-				const std::filesystem::path displayPath{ entry.display };
-				def.name = displayPath.filename().string();
+				def.name = entry.name;
 				if (def.name.empty()) {
-					def.name = entry.display;
-				}
-				if (!entry.clip.animId.empty()) {
-					def.name += " · " + entry.clip.animId;
+					const std::filesystem::path displayPath{ entry.display };
+					def.name = displayPath.filename().string();
+					if (def.name.empty()) {
+						def.name = entry.display;
+					}
+					if (!entry.clip.animId.empty()) {
+						def.name += " · " + entry.clip.animId;
+					}
 				}
 				def.species = Util::SpeciesFromAnimPath(entry.clip.file);
 				if (def.species.empty()) {
@@ -1888,15 +2000,18 @@ namespace OSF::Registry
 				def.tags = { "scene.clip" };
 				def.tagSet = { "scene.clip" };
 				def.roles.emplace_back();
+				for (const auto& tag : entry.tags) {
+					const auto lower = ToLower(tag);
+					if (def.tagSet.insert(lower).second) {
+						def.tags.push_back(tag);
+					}
+				}
 				def.sourceFile = std::move(entry.sourceFile);
 				def.pack = std::move(entry.pack);
 
 				StageDef stage;
-				stage.name = entry.display;
-				if (!entry.clip.animId.empty()) {
-					stage.name += ":" + entry.clip.animId;
-				}
-				stage.tags = { "scene.clip" };
+				stage.name = def.name;
+				stage.tags = def.tags;
 				entry.clip.offset.reset();  // isolate the animation, not its role placement
 				stage.clips.push_back(std::move(entry.clip));
 				DesugarLinear(def, { stage });  // one holding node; Advance/Space ends it
@@ -1914,6 +2029,7 @@ namespace OSF::Registry
 		namespace fs = std::filesystem;
 		std::unordered_map<std::string, SceneDef> loaded;
 		std::vector<std::string> errors;
+		std::vector<ClipLibraryRegistration> clipLibrary;
 
 		const fs::path dir = fs::current_path() / "Data" / "OSF";
 		std::error_code ec;
@@ -1932,7 +2048,7 @@ namespace OSF::Registry
 				try {
 					std::ifstream in(file, std::ios::binary);
 					const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
-					LoadOsfFile(j, file, loaded, errors);
+					LoadOsfFile(j, file, loaded, clipLibrary, errors);
 				} catch (const std::exception& e) {
 					errors.push_back("[error] '" + file.filename().string() + "': parse failed: " + e.what());
 					REX::ERROR("[Registry] failed to parse '{}': {}", file.filename().string(), e.what());
@@ -1947,7 +2063,7 @@ namespace OSF::Registry
 		}
 
 		const auto sceneCount = loaded.size();
-		const auto clipEntryCount = AddSceneClipEntries(loaded);
+		const auto clipEntryCount = AddSceneClipEntries(loaded, clipLibrary, errors);
 		const auto problemCount = errors.size();
 		auto next = std::make_shared<SceneRegistrySnapshot>();
 		next->scenes = std::move(loaded);

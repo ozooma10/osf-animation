@@ -4,7 +4,7 @@
 
 Two kinds of mods build on OSF:
 
-1. **Content mods** — ship scenes as JSON (`*.osf.json`) + GLB. **No Papyrus, no scripting, no ESP required.** Drop files under `Data/OSF/**` and they're discovered.
+1. **Content mods** — ship scenes and/or curated clip libraries as JSON (`*.osf.json`) plus GLB/AF assets. **No Papyrus, no scripting, no ESP required.** Drop JSON under `Data/OSF/**` and it is discovered.
 2. **Trigger / consumer mods** — Papyrus that decides *when* to start an OSF scene in response to gameplay. They call the [`OSF.*` API](API.md).
 
 The split is deliberate: OSF is content-neutral, so animation **data** lives in JSON and gameplay
@@ -14,13 +14,39 @@ The split is deliberate: OSF is content-neutral, so animation **data** lives in 
 
 ## 1. Ship a content mod (no scripting)
 
-### a. Author the GLBs
-Export your animation clips as GLB and place them anywhere Data-relative, conventionally
-`Data/OSF/Animations/<YourPack>/*.glb`.
+### a. Author the clips
+Export your animation clips as GLB or AF and place them anywhere Data-relative, conventionally under
+`Data/OSF/Animations/<YourPack>/`.
 
-### b. Write a minimal scene (`Data/OSF/<yourscene>.osf.json`)
-Everything you author is a **scene** (`*.osf.json`, `"schema": 1`). A minimal scene maps an **id** to
-clip files + per-role placement + per-stage timing:
+### b. Register individual clips or poses (optional)
+
+When the individual clips are the product—such as a static-pose pack—register them directly in the
+Animations library with friendly names. No dummy scene is required:
+
+```jsonc
+{
+  "schema": 1,
+  "pack": "Moods of Andromas",
+  "clipRoot": "OSF/Animations/MoodsOfAndromas",
+  "clipLibrary": [
+    {
+      "file": "arms-crossed.af",
+      "name": "Arms Crossed",
+      "tags": ["pose", "standing"]
+    },
+    "looking-away.af"                  // no name: browser falls back to the filename
+  ]
+}
+```
+
+Registered clips are one-actor, in-place, unlisted from matchmaking, and hold until advanced or
+stopped. They appear even if no scene references them. See `clipLibrary` in
+[SCENE_SCHEMA.md](SCENE_SCHEMA.md) for GLB animation ids, de-duplication, and mixed clip/scene files.
+
+### c. Write a minimal scene (`Data/OSF/<yourscene>.osf.json`)
+
+A scene composes clip files with roles, placement, timing, policy, and optional navigation. A minimal
+scene maps an **id** to clip files + per-role placement + per-stage timing:
 
 ```jsonc
 {
@@ -43,7 +69,7 @@ clip files + per-role placement + per-stage timing:
 A solo or simple paired clip can stop here — `OSF.StartScene(actors, "mypack.greet")` or a tag query
 will play it.
 
-### c. (optional) Grow it into a graph scene
+### d. (optional) Grow it into a graph scene
 The **same** scene grows `nodes[]` (+ `entry`) when you want phases, branching, furniture anchoring, or
 declarative immersion (camera/weapon/control/fade) with **automatic cleanup**. Each node plays an inline
 `stages` timeline (the default) or `use`s another scene by id:
@@ -75,7 +101,7 @@ declarative immersion (camera/weapon/control/fade) with **automatic cleanup**. E
 You author only the *engage* half of any `osf.*` mechanism — the undo ledger reverses it on every end
 path. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full field reference and the `osf.*` action list.
 
-### d. (optional) Put an emote on the animation wheel
+### e. (optional) Put an emote on the animation wheel
 
 A solo, free-space, **self-terminating** scene tagged `player.emote.<name>` automatically appears in
 the browser's Emotes group and the default animation wheel — this is the smallest useful pack:
@@ -95,7 +121,7 @@ The same launch preset runs on a crosshair NPC target, so keep the role anonymou
 the clip demands otherwise. Full contract: the well-known tags table in
 [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
 
-### e. Verify
+### f. Verify
 ```bat
 cgf "OSFTest.Reload"                          ; rescan Data/OSF/**.osf.json and register scenes
 cgf "OSFTest.PairId" <npc-refid> "mypack.scenes.greet"  ; start your scene on player + the clicked NPC

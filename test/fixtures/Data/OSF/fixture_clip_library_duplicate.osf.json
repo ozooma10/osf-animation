@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "pack": "Test Clip Duplicate",
+  "clipLibrary": [
+    "Clips/Test/duplicate.af",
+    { "file": "Clips/Test/duplicate.af", "name": "Duplicate Pose" }
+  ]
+}

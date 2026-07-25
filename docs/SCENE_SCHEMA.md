@@ -2,21 +2,22 @@
 
 # OSF scene schema (`*.osf.json`)
 
-OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. The primary content concept is a **scene** (`*.osf.json`); a secondary `*.sounds.json` file declares reusable **sound pools**.
+OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. An `*.osf.json`
+file may declare authored **scenes**, curated **clip-library entries**, or both; a secondary `*.sounds.json` file declares reusable **sound pools**.
 Both are plain JSON (`//` line comments are allowed):
 
 | File | Loaded by | Purpose |
 |------|-----------|---------|
-| `*.osf.json` | **SceneRegistry** | **Scenes** — id → roles + a clip timeline (linear) or a node graph, plus matchmaking and policy. |
+| `*.osf.json` | **SceneRegistry** | **Scenes** and optional curated `clipLibrary` entries for individually browsable raw clips. |
 | `*.sounds.json` | **SoundRegistry** | **Sound pools** — tagged, weighted clip sets a scene `sound`/`osf.voice.play` spec can draw from by tag (`$…`), optionally carrying subtitle text. See *Sound pools*. |
 
 All `*.osf.json` files are scanned recursively under `Data/OSF`. Bad files/entries are skipped and
 reported in `OSF Animation.log`. The current schema version is **1** (`"schema": 1`).
 
-A **scene** is the unified content entity an author writes (`SceneDef`). There is no separate "pack" or
-"animation" content noun anymore — a clip is just a `.glb`/`.af` file, and the thing that sequences
-clips is a scene. A *running* instance is also called a scene (a handle + anchor + participants + undo
-ledger). `StartScene` starts an instance from a definition.
+A **clip** is one raw `.glb`/`.af` animation. A `clipLibrary` entry gives that asset a friendly catalog
+name and tags. A **scene** composes one or more clips for participants, timing, policy, and optional
+navigation. A *running* scene is a handle + anchor + participants + undo ledger; `StartScene` starts
+one from a scene definition.
 
 A scene is **minimal by default** (just clips) and **expands into graph features** (branches, tracks,
 roles, policy) only when needed. The two shapes share **one vocabulary** — a graph **node** is just a
@@ -37,7 +38,8 @@ form and add `edges` only when you need branching.
 
 ## File layout
 
-A file is either a **single bare scene object**, or an envelope with a `scenes[]` array:
+A file may be a **single bare scene object**, an envelope with a `scenes[]` array, a clip-only
+`clipLibrary`, or an envelope containing both `scenes` and `clipLibrary`:
 
 ```jsonc
 // single-scene file
@@ -71,6 +73,69 @@ A file is either a **single bare scene object**, or an envelope with a `scenes[]
   plus a logged warning.
 - Authored ids may **not** contain `#` (reserved for synthetic desugar nodes) — such an id is a load
   error.
+
+---
+
+
+## Curated clip library (`clipLibrary`)
+
+Use `clipLibrary` when the individual clips are the product—for example, a static-pose pack. Each
+entry becomes a one-actor item under **Animations**, grouped by the file's `pack`. It is unlisted from
+matchmaking, plays in place without stripping or locking the actor, and holds until the user advances
+or stops it. A clip-only file needs no dummy scene or `id`:
+
+```jsonc
+{
+  "schema": 1,
+  "pack": "Moods of Andromas",
+  "clipRoot": "OSF/Animations/MoodsOfAndromas",
+  "clipLibrary": [
+    {
+      "file": "arms-crossed.af",
+      "name": "Arms Crossed",
+      "tags": ["pose", "standing"]
+    },
+    {
+      "file": "contemplative.af",
+      "name": "Contemplative",
+      "tags": ["pose", "standing"]
+    },
+    "looking-away.af"
+  ]
+}
+```
+
+- An entry is a bare file string, or the normal clip object `{ file, anim?, sec? }` plus optional
+  `name` and `tags` catalog metadata.
+- `name` is the friendly browser label. When omitted, OSF falls back to the clip filename and appends
+  the GLB animation id when present.
+- `tags` are copied onto the library item for browsing/filtering. OSF also adds the internal
+  `scene.clip` tag.
+- File-level `clipRoot` applies exactly as it does to scene clips.
+- A registered clip appears even when no scene references it.
+- When a scene in the same pack/file group references the same file + animation id, OSF creates one
+  library item and the explicit registration's `name`/`tags` win over filename-derived metadata.
+- Duplicate explicit registrations for the same file + animation id in one pack/file group are a
+  load error; the first entry is kept.
+- A missing registered clip is reported and hidden from the library.
+
+`clipLibrary` and `scenes` may coexist:
+
+```jsonc
+{
+  "schema": 1,
+  "pack": "My Pack",
+  "clipLibrary": [
+    { "file": "OSF/Animations/MyPack/pose.glb", "name": "Heroic Pose" }
+  ],
+  "scenes": [
+    { "id": "mypack.greeting", "clip": "OSF/Animations/MyPack/greeting.glb" }
+  ]
+}
+```
+
+Clips referenced by ordinary non-library scenes still receive automatic filename-based debug entries
+when no explicit registration supplies metadata.
 
 ---
 

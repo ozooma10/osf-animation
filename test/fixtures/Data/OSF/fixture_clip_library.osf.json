@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "pack": "Test Clip Library",
+  "clipRoot": "Clips/Test",
+  "clipLibrary": [
+    "fallback.af",
+    {
+      "file": "friendly.af",
+      "name": "Friendly Pose",
+      "tags": ["pose", "standing"]
+    },
+    {
+      "file": "multi.glb",
+      "anim": "LookAway",
+      "name": "Looking Away",
+      "tags": ["pose"]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "test.clip.source",
+      "stages": [
+        {
+          "clips": ["friendly.af"]
+        }
+      ]
+    }
+  ]
+}
