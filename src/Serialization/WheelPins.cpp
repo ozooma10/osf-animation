@@ -1,5 +1,7 @@
 #include "Serialization/WheelPins.h"
 
+#include "API/Health.h"
+
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -102,10 +104,26 @@ namespace OSF::Serialization::WheelPins
 			std::error_code ec;
 			std::filesystem::create_directories(file.parent_path(), ec);
 			const auto tmp = file.parent_path() / (file.filename().string() + ".tmp");
+
+			// This file is the only record of a customized wheel, so a write
+			// that cannot land means the player's customization dies with the
+			// session — durable, and fixable (permissions, a full disk, a
+			// read-only mod folder). The card names the file, never its path.
+			const auto reportFailure = [&file](std::string_view a_stage, const std::string& a_detail) {
+				const json context{
+					{ "file", file.filename().string() },
+					{ "stage", std::string(a_stage) },
+					{ "detail", a_detail },
+				};
+				API::Health::Report("wheel.pins", "wheel.pins-not-persisted",
+					API::Health::Severity::kWarning, file.filename().string(), &context);
+			};
+
 			{
 				std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
 				if (!out) {
 					REX::WARN("[UI] cannot write {} — wheel customization won't persist this session", tmp.string());
+					reportFailure("write", "the temporary file could not be opened for writing");
 					return;
 				}
 				out << doc.dump(1, '\t');
@@ -113,8 +131,14 @@ namespace OSF::Serialization::WheelPins
 			// std::filesystem::rename does not replace an existing destination on Windows.
 			// MoveFileEx gives the temp-write its intended atomic replace semantics.
 			if (!::MoveFileExW(tmp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-				REX::WARN("[UI] cannot replace {} (Win32 error {})", file.string(), ::GetLastError());
+				const auto err = ::GetLastError();
+				REX::WARN("[UI] cannot replace {} (Win32 error {})", file.string(), err);
+				reportFailure("replace", "Win32 error " + std::to_string(err));
+				return;
 			}
+			// It worked — a later save succeeding is exactly the "it fixed
+			// itself" that the pane's resolved history exists to show.
+			API::Health::Clear("wheel.pins");
 		}
 	}
 

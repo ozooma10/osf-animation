@@ -1,5 +1,6 @@
 #include "OSFScript.h"
 
+#include "API/Health.h"    // registry problems -> OSF UI System Health (re-reported on ReloadPacks)
 #include "API/UIBridge.h"  // PushCatalogUpdate (duration rescan on ReloadPacks)
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
@@ -213,6 +214,10 @@ namespace OSF::Papyrus
 			registry.LoadAll();
 			Registry::SoundRegistry::GetSingleton().LoadAll();
 			Equipment::Gear::LoadAll();
+			// Reconcile the health cards against what is wrong NOW: a pack the
+			// player just fixed moves to "Resolved this session" instead of
+			// leaving a card that outlived its condition.
+			API::Health::ReportRegistryLoad();
 			// Re-probe clip durations: edited files fail the size/mtime check and get fresh values,
 			// then the catalog re-pushes so the browser's time estimates follow the edit loop.
 			Serialization::ClipDurations::ScanSceneClipsAsync(&API::PushCatalogUpdate);

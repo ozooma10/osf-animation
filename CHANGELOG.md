@@ -2,6 +2,11 @@
 
 All notable changes to OSF Animation are documented here.
 
+## [Unreleased]
+
+### Added
+- **Problems now show up in OSF UI's System Health page** instead of only in the log. A scene or sound pack that could not be read gets a card naming the file and the first few reasons, so a broken pack stops being an invisible "why is this animation missing?" — one card per file, however many scenes it lost. Also reported: running on a Starfield version this build was not tested against, wheel pin customization that cannot be saved to disk, and screen fades disabling themselves after a game patch. Cards clear themselves when the condition goes away — fix a pack, run `OSF.ReloadScenes`, and its card moves to **Resolved this session** — and they ride along in System Health's **Copy diagnostic report**. Needs an OSF UI new enough to carry native ABI 1.7 (the release after 1.4.0); on anything older nothing changes and the log keeps every line, exactly as before. See [`docs/HEALTH_REPORTING.md`](docs/HEALTH_REPORTING.md).
+
 ## [1.3.0] - 2026-07-24
 
 ### Added
@@ -11,6 +16,7 @@ All notable changes to OSF Animation are documented here.
 - Scene-browser start overrides (`STRIP`, `LOCK PLAYER`, `CAMERA`) are now **segmented pickers** instead of native dropdowns — Ultralight rendered the `<select>` popup layer underneath the surrounding brief controls, making the open list unreadable. `SPEED` now spans the full grid width.
 
 ### Fixed
+- **An actor holding something no longer keeps holding it through the animation.** Scene start now takes every participant's *held* items out of their hands — a slate, a tool, a drawn weapon, anything equipped that isn't worn apparel — and hands them back when the scene ends. This runs regardless of `stripActors`, since it is animation correctness rather than undressing: library packs default `stripActors:false`, which was exactly the browse-an-animation case where the slate stayed welded to the hand. Props that belong to a piece of furniture rather than to the actor's inventory (a weight-bench bar, for instance) are not inventory items and are unaffected.
 - The scene browser no longer wedges at **Engine Offline** after a manual web-view reload. Readiness was gated solely on OSF UI's one-shot `runtime.ready` handshake, which a reloaded view has already missed; the view now also becomes ready on OSF Animation's own answer to the catalog/version request it sends on every mount.
 
 ## [1.2.0] - 2026-07-22

@@ -1,3 +1,4 @@
+#include "API/Health.h"
 #include "API/SceneAPIControl.h"
 #include "API/UIBridge.h"
 #include "API/UISettings.h"
@@ -14,6 +15,7 @@
 #include "Util/CrashHandler.h"
 
 #include <REX/W32/KERNEL32.h>
+#include <nlohmann/json.hpp>
 
 namespace
 {
@@ -27,8 +29,14 @@ namespace
 	{
 		switch (a_msg->type) {
 		case SFSE::MessagingInterface::kPostDataLoad:
+			// Before the loaders: they are the first real producers, and
+			// connecting here also flushes what plugin load already buffered.
+			// Separate from InstallUIBridge because health reporting has to
+			// survive a host too old for the browser view.
+			OSF::API::Health::Connect();
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
+			OSF::API::Health::ReportRegistryLoad();
 			OSF::Equipment::Gear::LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
 			if (!OSF::Papyrus::RegisterFunctions()) {
@@ -81,6 +89,15 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 		REX::WARN("[Boot] Unsupported game version: OSF Animation was last tested against Starfield version {} only, but this is {}. "
 			"Not all features may be available",
 			kVerifiedGameVersion.string(), runtime.string(), kVerifiedGameVersion.string());
+		// True for the whole session and squarely the player's business: they
+		// updated Starfield (or downgraded), and anything that misbehaves from
+		// here has one likely cause. Buffered — the bridge does not exist yet.
+		const nlohmann::json context{
+			{ "tested", kVerifiedGameVersion.string() },
+			{ "running", runtime.string() },
+		};
+		OSF::API::Health::Report("boot.game-version", "boot.untested-game-version",
+			OSF::API::Health::Severity::kWarning, runtime.string(), &context);
 	}
 
 	OSF::Animation::GraphManager::GetSingleton().InstallHooks();

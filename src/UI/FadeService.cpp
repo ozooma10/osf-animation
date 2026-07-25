@@ -1,6 +1,9 @@
 #include "UI/FadeService.h"
 
+#include "API/Health.h"
 #include "Util/Hooking.h"
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -55,6 +58,15 @@ namespace OSF::UI
 				REX::WARN("[UI] screen fades disabled: fade poster (ID {}) prologue mismatch on this runtime "
 				          "— osf.fade.* actions are no-ops",
 					kFadeScreenPoster.id());
+				// Off for the whole session, and the cause — a game patch moved
+				// the engine function this is anchored to — is not something a
+				// player could ever guess from scenes that simply don't fade.
+				const nlohmann::json context{
+					{ "feature", "screen fades" },
+					{ "reason", "engine function signature changed on this game version" },
+				};
+				API::Health::Report("fade.poster", "fade.disabled",
+					API::Health::Severity::kWarning, "screen fades", &context);
 				return false;
 			}
 			REX::DEBUG("[UI] screen fades available: fade poster prologue verified");
