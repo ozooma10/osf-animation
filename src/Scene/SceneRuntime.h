@@ -377,7 +377,7 @@ namespace OSF::Scene
 		void RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor);
 
 		// Engage an alternate camera posture (free-fly / vanity orbit) for a_handle. Call OUTSIDE _lock (it locks, then drives the service outside it).
-		void RecordCameraState(std::int32_t a_handle, Camera::CameraMode a_mode);
+		bool RecordCameraState(std::int32_t a_handle, Camera::CameraMode a_mode);
 
 		// Store a_grant on the slot, add the kInputChannel ledger entry (idempotent), and engage the InputService director channel. 
 		// Call OUTSIDE _lock (it locks, then engages outside it).

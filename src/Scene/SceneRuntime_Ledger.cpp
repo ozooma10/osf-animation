@@ -223,15 +223,19 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneRuntime::RecordCameraState(std::int32_t a_handle, Camera::CameraMode a_mode)
+	bool SceneRuntime::RecordCameraState(std::int32_t a_handle, Camera::CameraMode a_mode)
 	{
+		auto& cam = Camera::CameraService::GetSingleton();
+		if (a_mode == Camera::CameraMode::kSceneOrbit && !cam.SceneOrbitAvailable()) {
+			return false;  // keep the engine-owned ship camera; do not acquire/suppress the normal hold
+		}
 		bool firstForScene = false;
 		std::vector<std::uint32_t> cast;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
 			if (!s) {
-				return;
+				return false;
 			}
 			if (a_mode == Camera::CameraMode::kSceneOrbit) {
 				// Frame seed: the orbit centers/fits on the whole cast, not just the player. Form IDs, so
@@ -248,7 +252,6 @@ namespace OSF::Scene
 			}
 		}
 		// Drive the service OUTSIDE _lock (it takes its own lock + posts game-thread tasks).
-		auto& cam = Camera::CameraService::GetSingleton();
 		if (a_mode == Camera::CameraMode::kSceneOrbit) {
 			cam.SetOrbitFrameSubjects(std::move(cast));
 		}
@@ -256,6 +259,7 @@ namespace OSF::Scene
 			cam.AcquireStateOverride();  // capture baseline + suppress the bounce on the first holder
 		}
 		cam.SetLiveCameraState(a_mode);  // retarget the live camera every call (supports per-node switches)
+		return true;
 	}
 
 	void SceneRuntime::RecordInputChannel(std::int32_t a_handle, const Input::Grant& a_grant)

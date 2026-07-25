@@ -62,6 +62,10 @@ namespace OSF::Camera
 		// runtime calls this when the player's input grant is released, so a free cam can't survive its scene.
 		void ForcePlayerFreeCamOff();
 
+		// Shared safety predicate for native-assisted scene/browse orbit. Absolute-world camera
+		// transforms are unusable while the player's ship is in space. Game-thread callers only.
+		[[nodiscard]] bool SceneOrbitAvailable() const;
+
 		// BROWSE ORBIT (the scene browser's drag-to-look). While the browser is open OSF UI freezes all
 		// game input, so with no scene camera live the player has no way to move the camera at all.
 		// Ensure engages a scene-orbit around a_frameSubjects (empty -> the player) the first time the
