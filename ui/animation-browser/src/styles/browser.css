@@ -414,6 +414,13 @@ button,input,select{font:inherit;color:inherit}
 .libx-name{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--text-body)}
 .libx-meta{margin-left:auto;flex:none;overflow:hidden;text-overflow:ellipsis}
 .libx-list{display:flex;flex-direction:column;gap:3px;padding:6px}
+.libx-folder{display:flex;flex-direction:column;gap:3px}
+.libx-folder-head{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--void-800);border:0;border-left:2px solid var(--line-strong);padding:6px 9px;cursor:pointer}
+.libx-folder-head:hover{border-left-color:var(--accent);background:var(--void-700)}
+.libx-folder-head .chev{font-size:9px;color:var(--text-faint);flex:none;width:10px}
+.libx-folder-name{font:600 9px var(--font-mono);letter-spacing:.1em;color:var(--text-body);text-transform:uppercase}
+.libx-folder-body{display:flex;flex-direction:column;gap:3px;margin-left:12px;padding-left:6px;border-left:1px solid var(--line)}
+.libx-folder-body>.libx-folder{margin-left:0}
 .libx-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:var(--void-900);border:1px solid var(--line);border-radius:2px;padding:5px 9px 5px 0;cursor:pointer}
 .libx-row:hover{border-color:var(--line-strong)}
 .libx-row.selected{border-color:var(--accent);background:rgba(240,113,48,.08)}

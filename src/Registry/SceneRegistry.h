@@ -254,6 +254,7 @@ namespace OSF::Registry
 
 		std::filesystem::path    sourceFile;
 		std::string              pack;  // optional file-level `pack`: the content-pack display name the browser groups this scene under (a pack may span many files); "" = derive from sourceFile
+		std::string              folder;  // optional slash-delimited catalog path within the pack; presentation only
 
 		// When anchorKeywords/anchorBaseForms set, the scene is ANCHOR-BOUND. can only start anchored to ref with base form OR has keyword.
 		// Both stored as FormIDs, validated at load, re-resolved via LookupByID at use — never cache the

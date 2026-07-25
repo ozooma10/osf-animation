@@ -121,7 +121,7 @@ export function matchesSearch(state: BrowserState, scene: SceneModel): boolean {
   if (!state.filters.search) return true;
   const roles = scene.roles.map((role) => `${role.name} ${role.gender}`).join(" ");
   const stages = scene.library ? ` ${scene.stageHay ?? ""}` : "";
-  return `${scene.title} ${scene.id} ${scene.tags.join(" ")} ${roles} ${scene.pack} ${scene.sourceFile}${stages}`
+  return `${scene.title} ${scene.id} ${scene.tags.join(" ")} ${roles} ${scene.pack} ${scene.folder} ${scene.sourceFile}${stages}`
     .toLowerCase()
     .includes(state.filters.search);
 }
@@ -183,6 +183,43 @@ export function packLabel(key: string, scenes: readonly SceneModel[]): string {
   return scenes[0]?.pack
     ? scenes[0].pack.toUpperCase()
     : key.replace(/^vanilla-/i, "").replace(/[-_]+/g, " ").toUpperCase();
+}
+
+export interface LibraryFolderNode {
+  key: string;
+  label: string;
+  scenes: SceneModel[];
+  children: LibraryFolderNode[];
+}
+
+export function libraryFolderTree(groupKey: string, scenes: readonly SceneModel[]): LibraryFolderNode {
+  const root: LibraryFolderNode = { key: groupKey, label: "", scenes: [], children: [] };
+  for (const scene of scenes) {
+    let node = root;
+    let path = "";
+    for (const label of scene.folder.split("/").filter(Boolean)) {
+      path = path ? `${path}/${label.toLowerCase()}` : label.toLowerCase();
+      let child = node.children.find((candidate) => candidate.label.toLowerCase() === label.toLowerCase());
+      if (!child) {
+        child = {
+          key: `${groupKey}|folder:${path}`,
+          label,
+          scenes: [],
+          children: [],
+        };
+        node.children.push(child);
+      }
+      node = child;
+    }
+    node.scenes.push(scene);
+  }
+
+  const sort = (node: LibraryFolderNode): void => {
+    node.children.sort((a, b) => a.label.localeCompare(b.label));
+    for (const child of node.children) sort(child);
+  };
+  sort(root);
+  return root;
 }
 
 export function fitsKeyedAnchor(state: BrowserState, scene: SceneModel): boolean | null {

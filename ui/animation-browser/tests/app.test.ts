@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatEstimate,
   isVanillaAnimation,
+  libraryFolderTree,
   validSelection,
   wheelGeometry,
   wheelPool,
@@ -101,5 +102,18 @@ describe("browser selectors", () => {
     expect(filteredLibrary(state).map((scene) => scene.id)).toEqual([imported.id]);
     expect(browseVisible(state, vanilla)).toBe(false);
     expect(validSelection(state)).toBe(imported.id);
+  });
+
+  it("builds case-insensitive nested folders while keeping root clips at the pack level", () => {
+    const root = normalizeScene({ id: "root", pack: "Pose Pack", title: "Root" });
+    const seated = normalizeScene({ id: "seated", pack: "Pose Pack", folder: "Furniture/Seated", title: "Seated" });
+    const leaning = normalizeScene({ id: "leaning", pack: "Pose Pack", folder: "furniture/Leaning", title: "Leaning" });
+    const tree = libraryFolderTree("pack:pose pack", [root, seated, leaning]);
+
+    expect(tree.scenes.map((scene) => scene.id)).toEqual(["root"]);
+    expect(tree.children).toHaveLength(1);
+    expect(tree.children[0]).toMatchObject({ label: "Furniture" });
+    expect(tree.children[0].children.map((folder) => folder.label)).toEqual(["Leaning", "Seated"]);
+    expect(tree.children[0].children[1].scenes.map((scene) => scene.id)).toEqual(["seated"]);
   });
 });

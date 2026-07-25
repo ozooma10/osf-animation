@@ -14,6 +14,8 @@ import {
   formatEstimate,
   isEmote,
   libraryRank,
+  libraryFolderTree,
+  type LibraryFolderNode,
   matchesSearch,
   needsText,
   packKey,
@@ -120,6 +122,30 @@ function VanillaSourceToggle({ filtered, onToggle }: { filtered: boolean; onTogg
   </button>;
 }
 
+function folderScenes(node: LibraryFolderNode): SceneModel[] {
+  return node.children.reduce((all, child) => all.concat(folderScenes(child)), [...node.scenes]);
+}
+
+function LibraryFolder({ node, depth, state, cleanTier, matchKnown, commands }: {
+  node: LibraryFolderNode; depth: number; state: BrowserState; cleanTier: boolean; matchKnown: boolean; commands: BrowserCommands;
+}) {
+  const forced = !!state.filters.search || matchKnown;
+  const open = forced || state.libOpen.has(node.key);
+  const scenes = folderScenes(node);
+  const animations = scenes.reduce((sum, scene) => sum + (cleanTier ? cleanStages(scene) : scene.stages).length, 0);
+  return <div class="libx-folder">
+    <button class="libx-folder-head" style={{ paddingLeft: `${10 + depth * 14}px` }} onClick={() => commands.toggleLibraryGroup(node.key)}>
+      <span class="chev">{open ? "▾" : "▸"}</span>
+      <span class="libx-folder-name">{node.label}</span>
+      <span class="libx-meta mono">{animations} anim{animations === 1 ? "" : "s"}</span>
+    </button>
+    {open && <div class="libx-folder-body">
+      {node.scenes.map((scene) => <LibraryRow key={scene.id} state={state} scene={scene} cleanTier={cleanTier} commands={commands}/>)}
+      {node.children.map((child) => <LibraryFolder key={child.key} node={child} depth={depth + 1} state={state} cleanTier={cleanTier} matchKnown={matchKnown} commands={commands}/>)}
+    </div>}
+  </div>;
+}
+
 function LibraryBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const emotes = emoteCatalog(state).filter((scene) => matchesSearch(state, scene) && speciesVisible(state, scene));
   const matchKnown = !!state.furniture && state.anchorMatch?.token === state.furniture.token;
@@ -153,7 +179,8 @@ function LibraryBrowser({ state, commands }: { state: BrowserState; commands: Br
     {!state.libraryReceived ? <Empty>Loading the animation library…</Empty> : groups.length ? groups.map(([key, list]) => {
       const open = !!state.filters.search || matchKnown || state.libOpen.has(key);
       const count = list.reduce((sum, scene) => sum + (cleanTier ? cleanStages(scene) : scene.stages).length, 0);
-      return <div class="libx-group" key={key}><button class="libx-head" onClick={() => commands.toggleLibraryGroup(key)}><span class="chev">{open ? "▾" : "▸"}</span><span class="libx-name">{packLabel(key, list)}</span><span class="libx-meta mono">{list.length} set{list.length === 1 ? "" : "s"} · {count} anim{count === 1 ? "" : "s"}</span></button>{open && <div class="libx-list">{list.map((scene) => <LibraryRow key={scene.id} state={state} scene={scene} cleanTier={cleanTier} commands={commands}/>)}</div>}</div>;
+      const tree = libraryFolderTree(key, list);
+      return <div class="libx-group" key={key}><button class="libx-head" onClick={() => commands.toggleLibraryGroup(key)}><span class="chev">{open ? "▾" : "▸"}</span><span class="libx-name">{packLabel(key, list)}</span><span class="libx-meta mono">{list.length} set{list.length === 1 ? "" : "s"} · {count} anim{count === 1 ? "" : "s"}</span></button>{open && <div class="libx-list">{tree.scenes.map((scene) => <LibraryRow key={scene.id} state={state} scene={scene} cleanTier={cleanTier} commands={commands}/>)}{tree.children.map((folder) => <LibraryFolder key={folder.key} node={folder} depth={0} state={state} cleanTier={cleanTier} matchKnown={matchKnown} commands={commands}/>)}</div>}</div>;
     }) : !emotes.length && <Empty>{castHasCreature(state) && !state.allSpecies ? `No ${[...castSpecies(state)].map(speciesLabel).join(" / ")} animations in the library.` : "Nothing in the library matches the filter."}</Empty>}
   </>;
 }

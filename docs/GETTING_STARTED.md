@@ -28,11 +28,12 @@ Animations library with friendly names. No dummy scene is required:
   "schema": 1,
   "pack": "Moods of Andromas",
   "clipRoot": "OSF/Animations/MoodsOfAndromas",
+  "folder": "Standing",
   "clipLibrary": [
     {
       "file": "arms-crossed.af",
       "name": "Arms Crossed",
-      "tags": ["pose", "standing"]
+      "folder": "Furniture/Seated"
     },
     "looking-away.af"                  // no name: browser falls back to the filename
   ]
@@ -42,6 +43,10 @@ Animations library with friendly names. No dummy scene is required:
 Registered clips are one-actor, in-place, unlisted from matchmaking, and hold until advanced or
 stopped. They appear even if no scene references them. See `clipLibrary` in
 [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for GLB animation ids, de-duplication, and mixed clip/scene files.
+Use `folder` for the browser hierarchy under the pack; slash paths such as `Furniture/Seated`
+create nested folders. A file-level folder is the default, and an object entry can override it.
+Use `tags` only for optional qualities that should be searchable across folders.
+
 
 ### c. Write a minimal scene (`Data/OSF/<yourscene>.osf.json`)
 

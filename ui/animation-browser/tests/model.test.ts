@@ -6,6 +6,7 @@ describe("scene normalization", () => {
     const scene = normalizeScene({
       id: "test.scene",
       name: "Test Scene",
+      folder: "Furniture / Seated",
       roles: [{ name: "lead", filters: { gender: "female" } }],
       stages: [{ name: "idle", loopSec: "2.5", loops: 0 }],
     });
@@ -16,6 +17,7 @@ describe("scene normalization", () => {
       actorCount: 1,
       roles: [{ name: "lead", gender: "female" }],
       policy: { stripActors: "inherit", lockPlayer: "inherit", fade: "off" },
+      folder: "Furniture/Seated",
     });
     expect(scene.stages[0]).toMatchObject({ index: 0, loopSec: 2.5, loops: 0 });
   });

@@ -1,12 +1,14 @@
 {
   "schema": 1,
   "pack": "Test Clip Library",
+  "folder": "Poses",
   "clipRoot": "Clips/Test",
   "clipLibrary": [
     "fallback.af",
     {
       "file": "friendly.af",
       "name": "Friendly Pose",
+      "folder": "Standing/Heroic",
       "tags": ["pose", "standing"]
     },
     {

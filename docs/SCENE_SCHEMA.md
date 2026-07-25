@@ -89,16 +89,17 @@ or stops it. A clip-only file needs no dummy scene or `id`:
   "schema": 1,
   "pack": "Moods of Andromas",
   "clipRoot": "OSF/Animations/MoodsOfAndromas",
+  "folder": "Standing",
   "clipLibrary": [
     {
       "file": "arms-crossed.af",
       "name": "Arms Crossed",
-      "tags": ["pose", "standing"]
+      "tags": ["arms-crossed"]
     },
     {
       "file": "contemplative.af",
       "name": "Contemplative",
-      "tags": ["pose", "standing"]
+      "folder": "Furniture/Seated"
     },
     "looking-away.af"
   ]
@@ -106,15 +107,24 @@ or stops it. A clip-only file needs no dummy scene or `id`:
 ```
 
 - An entry is a bare file string, or the normal clip object `{ file, anim?, sec? }` plus optional
-  `name` and `tags` catalog metadata.
+  `name`, `folder`, and `tags` catalog metadata.
 - `name` is the friendly browser label. When omitted, OSF falls back to the clip filename and appends
   the GLB animation id when present.
 - `tags` are copied onto the library item for browsing/filtering. OSF also adds the internal
   `scene.clip` tag.
 - File-level `clipRoot` applies exactly as it does to scene clips.
+- `folder` organizes the browser within the pack. Use `/` for nesting, such as
+  `Furniture/Seated`. It is presentation-only and never affects playback or matchmaking.
+- A file-level `folder` is the default for every `clipLibrary` entry and for automatically exposed
+  clips from scenes in that file. An object entry's `folder` overrides that default. With no folder,
+  the item appears directly at the pack root.
+- Folder paths are relative: no leading/trailing `/`, backslashes, empty segments, `.` or `..`.
+  Display casing is preserved, while grouping is case-insensitive.
+- Use folders for hierarchy and `tags` only for optional cross-cutting facets that may span folders.
+  The pack already identifies the source mod, and `scene.clip` already identifies a raw clip.
 - A registered clip appears even when no scene references it.
 - When a scene in the same pack/file group references the same file + animation id, OSF creates one
-  library item and the explicit registration's `name`/`tags` win over filename-derived metadata.
+  library item and the explicit registration's `name`/`folder`/`tags` win over derived metadata.
 - Duplicate explicit registrations for the same file + animation id in one pack/file group are a
   load error; the first entry is kept.
 - A missing registered clip is reported and hidden from the library.

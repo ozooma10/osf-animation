@@ -66,16 +66,18 @@ int main()
 		if (d.library && d.pack == "Test Clip Library") {
 			++curatedCount;
 			if (d.name == "Friendly Pose") {
-				friendlyFound = d.unlisted && d.inPlace && !d.lockPlayer && !d.stripActors &&
+				friendlyFound = d.folder == "Standing/Heroic" && d.unlisted && d.inPlace &&
+					!d.lockPlayer && !d.stripActors &&
 					d.tagSet.contains("scene.clip") && d.tagSet.contains("pose") && d.tagSet.contains("standing") &&
 					d.nodes.size() == 1 && d.nodes[0].stages.size() == 1 &&
 					d.nodes[0].stages[0].name == "Friendly Pose" &&
 					d.nodes[0].stages[0].clips.size() == 1 &&
 					d.nodes[0].stages[0].clips[0].file == "clips/test/friendly.af";
 			} else if (d.name == "fallback.af") {
-				fallbackFound = true;
+				fallbackFound = d.folder == "Poses";
 			} else if (d.name == "Looking Away") {
-				animatedFound = d.nodes.size() == 1 && d.nodes[0].stages.size() == 1 &&
+				animatedFound = d.folder == "Poses" && d.nodes.size() == 1 &&
+					d.nodes[0].stages.size() == 1 &&
 					d.nodes[0].stages[0].clips.size() == 1 &&
 					d.nodes[0].stages[0].clips[0].animId == "LookAway";
 			}
@@ -88,8 +90,8 @@ int main()
 		}
 	});
 	Check(curatedCount == 3, "registered clip de-duplicates against the same scene-referenced clip");
-	Check(friendlyFound, "clipLibrary friendly name, tags, clipRoot, and safe playback posture");
-	Check(fallbackFound, "bare clipLibrary entry falls back to filename");
+	Check(friendlyFound, "clipLibrary friendly name, folder override, tags, clipRoot, and safe playback posture");
+	Check(fallbackFound, "bare clipLibrary entry falls back to filename and inherits file folder");
 	Check(animatedFound, "clipLibrary object preserves GLB animation id");
 	Check(clipOnlyFound, "clipLibrary-only file loads without a dummy scene");
 
@@ -266,7 +268,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 10, "exactly the ten expected diagnostics");
+	Check(errors.size() == 11, "exactly the eleven expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -280,6 +282,8 @@ int main()
 	CheckError(errors, "scene 'test.terr.dup': duplicate role name 'lead'", "duplicate explicit-name diagnostic");
 	CheckError(errors, "duplicate clipLibrary registration for",
 		"duplicate clipLibrary diagnostic names the registered clip");
+	CheckError(errors, "'folder' contains an empty segment",
+		"invalid clipLibrary folder diagnostic names the path problem");
 
 	if (g_failures) {
 		std::cerr << g_failures << " scene registry test(s) FAILED\n";

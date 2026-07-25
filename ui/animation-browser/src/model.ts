@@ -34,6 +34,7 @@ export interface SceneModel {
   priority: number;
   weight: number;
   pack: string;
+  folder: string;
   sourceFile: string;
   shape: { kind: string; stages: number; nodes: number; branches: number };
   policy: {
@@ -78,6 +79,7 @@ export function normalizeScene(raw: Raw): SceneModel {
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
     weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
     pack: String(raw.pack || "").trim(),
+    folder: normalizeFolder(raw.folder),
     sourceFile: String(raw.sourceFile || raw.source || ""),
     shape: normalizeShape(raw, actorCount),
     policy: normalizePolicy(raw),
@@ -113,6 +115,13 @@ export function normalizeStages(stages: unknown): SceneStage[] {
       estSec: numberOrNull(stage.estSec),
     };
   });
+}
+
+function normalizeFolder(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const segments = value.replace(/\\/g, "/").split("/").map((segment) => segment.trim());
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return "";
+  return segments.join("/");
 }
 
 function numberOrNull(value: unknown): number | null {
