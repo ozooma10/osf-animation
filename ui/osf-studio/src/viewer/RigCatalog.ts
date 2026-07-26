@@ -69,6 +69,18 @@ export class RigCatalog {
     assertFileSize({ size: blob.size } as File, "rig");
     const hash = await sha256(blob);
     const metadata = inspectRigMetadata(await blob.arrayBuffer());
+    const asset: StoredAsset = {
+      id: hash,
+      kind: "rig",
+      name,
+      mediaType: "application/octet-stream",
+      size: blob.size,
+      sha256: hash,
+      createdAt: new Date().toISOString(),
+      blob,
+    };
+    await this.repository?.saveAsset(asset);
+    try { localStorage.setItem(LAST_RIG_KEY, hash); } catch { /* The rig remains available by project identity. */ }
     return {
       descriptor: {
         id: hash,

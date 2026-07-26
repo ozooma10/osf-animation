@@ -9,14 +9,17 @@ const AnimationViewer = lazy(() => import("./viewer/AnimationViewerSurface").the
 })));
 const ClipLibrary = lazy(() => import("./ClipLibrarySurface").then((module) => ({
   default: module.ClipLibrary,
+})));const AnimationAuthoring = lazy(() => import("./authoring/AnimationAuthoringSurface").then((module) => ({
+  default: module.AnimationAuthoring,
 })));
 
-type Surface = "editor" | "library" | "viewer";
+type Surface = "editor" | "library" | "viewer" | "authoring";
 
 const SURFACE_COPY: Record<Surface, string> = {
   editor: "Scene authoring workspace",
   library: "Reusable clip repository",
   viewer: "Animation inspection workspace",
+  authoring: "FK animation authoring workspace",
 };
 
 export function App() {
@@ -53,6 +56,8 @@ export function App() {
           </button>
           <button class={surface === "viewer" ? "active" : ""} onClick={showViewer}>
             <span>03</span> Animation viewer
+          </button>          <button class={surface === "authoring" ? "active" : ""} onClick={() => setSurface("authoring")}>
+            <span>04</span> Animate
           </button>
         </nav>
         {surface !== "editor" && <div class="viewer-privacy"><i /> Local only · never uploaded</div>}
@@ -80,6 +85,12 @@ export function App() {
         <ErrorBoundary scope="viewer" onReturnToEditor={() => setSurface("editor")}>
           <Suspense fallback={<section class="surface-loading">Loading animation viewer…</section>}>
             <AnimationViewer initialClipId={previewClipId} />
+          </Suspense>
+        </ErrorBoundary>
+      )}      {surface === "authoring" && (
+        <ErrorBoundary scope="authoring" onReturnToEditor={() => setSurface("editor")}>
+          <Suspense fallback={<section class="surface-loading">Loading animation editor…</section>}>
+            <AnimationAuthoring onOpenLibrary={() => setSurface("library")} />
           </Suspense>
         </ErrorBoundary>
       )}

@@ -143,13 +143,21 @@ export function ClipLibrary({ onPreviewClip, onUseClip, onUseClipSet }: Props) {
           void import("./clipInspection").then(async ({ inspectClip }) => {
             const inspection = await inspectClip(file);
             const inspectionRepository = await ClipLibraryRepository.open();
+            let inspected: ClipRecord | null = null;
             try {
               await inspectionRepository.updateInspection(recordId, inspection);
               if (inspection.thumbnail) await inspectionRepository.saveThumbnail(recordId, inspection.thumbnail);
+              inspected = await inspectionRepository.getClip(recordId);
             } finally {
               inspectionRepository.close();
             }
-            if (repository.current) await reload(recordId);
+            if (inspected && repository.current) {
+              applySnapshot((current) => ({
+                ...current,
+                clips: current.clips.map((clip) => clip.id === recordId ? inspected! : clip),
+              }));
+              await refreshThumbnails(snapshotRef.current);
+            }
           }).catch(() => {
             // Import remains complete when optional metadata or WebGL preview generation fails.
           });

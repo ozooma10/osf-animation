@@ -105,6 +105,11 @@ export interface DecodedAf {
   frameCount: number;
 }
 
+export interface DecodedRig {
+  scene: THREE.Group;
+  bones: THREE.Bone[];
+  animatedBoneCount: number;
+}
 function readCString(bytes: Uint8Array, offset: number): string {
   if (!Number.isSafeInteger(offset) || offset < 0 || offset >= bytes.length) {
     throw new Error("skeleton.rig contains an invalid bone-name offset.");
@@ -161,6 +166,24 @@ function parseRig(buffer: ArrayBuffer): RigData {
 export function inspectRigMetadata(buffer: ArrayBuffer): { totalBones: number; animatedBones: number } {
   const rig = parseRig(buffer);
   return { totalBones: rig.bones.length, animatedBones: rig.animatedBoneCount };
+}
+export function decodeRigSkeleton(buffer: ArrayBuffer): DecodedRig {
+  const rig = parseRig(buffer);
+  const scene = new THREE.Group();
+  scene.name = "OSF_Rig";
+  const bones = rig.bones.map((bone, index) => {
+    const object = new THREE.Bone();
+    object.name = THREE.PropertyBinding.sanitizeNodeName(bone.name || `Bone_${index}`);
+    object.position.copy(bone.translation);
+    object.quaternion.copy(bone.rotation);
+    return object;
+  });
+  bones.forEach((bone, index) => {
+    const parent = rig.bones[index].parent;
+    if (parent >= 0 && parent < bones.length) bones[parent].add(bone);
+    else scene.add(bone);
+  });
+  return { scene, bones, animatedBoneCount: rig.animatedBoneCount };
 }
 
 function signed7(value: number) {
@@ -285,20 +308,8 @@ export function decodeAf(afBuffer: ArrayBuffer, rigBuffer: ArrayBuffer, name = "
     throw new Error(`.af expects ${af.boneCount} animated bones, but this rig supports ${rig.animatedBoneCount}.`);
   }
 
-  const scene = new THREE.Group();
+  const { scene, bones: objects } = decodeRigSkeleton(rigBuffer);
   scene.name = "AF_Root";
-  const objects = rig.bones.map((bone, index) => {
-    const object = new THREE.Bone();
-    object.name = THREE.PropertyBinding.sanitizeNodeName(bone.name || `Bone_${index}`);
-    object.position.copy(bone.translation);
-    object.quaternion.copy(bone.rotation);
-    return object;
-  });
-  objects.forEach((object, index) => {
-    const parent = rig.bones[index].parent;
-    if (parent >= 0 && parent < objects.length) objects[parent].add(object);
-    else scene.add(object);
-  });
 
   const tracks: THREE.KeyframeTrack[] = [];
   const duration = Math.max(0, af.frameCount - 1) / AF_FPS;

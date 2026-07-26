@@ -9,7 +9,7 @@ import { sha256, type StoredAsset } from "./workspaceRepository";
 
 export const CLIP_LIBRARY_SCHEMA_VERSION = 1;
 const DATABASE_NAME = "osf-studio";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 export type ClipFormat = "af" | "glb" | "gltf";
 
@@ -118,6 +118,7 @@ export class ClipLibraryRepository {
         if (!database.objectStoreNames.contains("assets")) database.createObjectStore("assets");
         if (!database.objectStoreNames.contains("clips")) database.createObjectStore("clips", { keyPath: "id" });
         if (!database.objectStoreNames.contains("clipSets")) database.createObjectStore("clipSets", { keyPath: "id" });
+        if (!database.objectStoreNames.contains("animationProjects")) database.createObjectStore("animationProjects", { keyPath: "id" });
       },
     });
     return new ClipLibraryRepository(db);
@@ -190,6 +191,10 @@ export class ClipLibraryRepository {
     await Promise.all([tx.objectStore("clips").put(record), tx.objectStore("assets").put(asset, asset.id)]);
     await tx.done;
     return record;
+  }
+
+  async getClip(id: string): Promise<ClipRecord | null> {
+    return (await this.db.get("clips", id) as ClipRecord | undefined) ?? null;
   }
 
   async updateClip(record: ClipRecord): Promise<ClipRecord> {

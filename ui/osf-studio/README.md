@@ -14,6 +14,9 @@ Local-first web authoring for OSF Animation scene files.
 - Validate common structural and cross-file problems.
 - Preserve fields not yet represented by the form editor.
 - Undo/redo, browser-local drafts, and JSON export.
+- Create device-local FK animation projects from `skeleton.rig` files.
+- Select bones, rotate with local gizmos, key poses on a frame timeline, and copy/paste/reset poses.
+- Export validated GLB animations directly into the local Clip Library.
 
 Graph scenes are detected and preserved but currently use JSON mode. The file access boundary is
 deliberately browser-local so a chosen-folder workspace or live OSF bridge can be added without

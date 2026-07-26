@@ -177,12 +177,13 @@ async function migrateLegacy(repository: WorkspaceRepository): Promise<Workspace
 export async function createWorkspaceRepository(): Promise<RepositoryHandle> {
   try {
     if (!("indexedDB" in globalThis)) throw new Error("IndexedDB is not available.");
-    const db = await openDB(DATABASE_NAME, 2, {
+    const db = await openDB(DATABASE_NAME, 3, {
       upgrade(database) {
         if (!database.objectStoreNames.contains("workspace")) database.createObjectStore("workspace");
         if (!database.objectStoreNames.contains("assets")) database.createObjectStore("assets");
         if (!database.objectStoreNames.contains("clips")) database.createObjectStore("clips", { keyPath: "id" });
         if (!database.objectStoreNames.contains("clipSets")) database.createObjectStore("clipSets", { keyPath: "id" });
+        if (!database.objectStoreNames.contains("animationProjects")) database.createObjectStore("animationProjects", { keyPath: "id" });
       },
     });
     const repository = new IndexedDbWorkspaceRepository(db);
