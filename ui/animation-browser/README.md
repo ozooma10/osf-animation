@@ -74,6 +74,13 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
   lists nearby actors (living, closest-first, with a species tag for creature
   filtering) and furniture with per-anchor scene counts, each as a clickable
   token. Scan rows draw a neutral silhouette (no portrait capture).
+  The **Location** step places free-space scenes at Cast A (default), the player,
+  a selected cast member, ten feet in front of the player, or a picked
+  furniture/AI-marker reference. `launch` carries this as
+  `location:{mode:"cast"|"player"|"actor"|"front"|"furniture",token?}`; the DLL
+  resolves reference modes through the rendered world transform, including
+  attached ship/interior frames. Furniture-authored scenes still require and
+  validate compatible furniture—the free-space choices never bypass that gate.
 - Catalog = OSF Animation's **live** `SceneRegistry` (not a disk scan). The browser
   projects its runtime entries into player-facing kinds: ordinary authored entries stay
   under **Scenes**, while entries tagged `player.emote.*` appear first under

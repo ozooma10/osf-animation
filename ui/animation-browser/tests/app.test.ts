@@ -63,6 +63,21 @@ describe("browser reducer", () => {
     const state = browserReducer(createInitialState(), { type: "library/customOnly" });
     expect(state.libCustomOnly).toBe(true);
   });
+
+  it("tracks free-space and furniture location choices", () => {
+    const withActor = { ...createInitialState(), cast: [PLAYER_CAST, { token: 7, name: "Sarah", species: "human", sex: "female" }] };
+    const atActor = browserReducer(withActor, { type: "location/selected", mode: "actor", token: 7 });
+    expect(atActor).toMatchObject({ locationMode: "actor", locationToken: 7 });
+
+    const withoutActor = browserReducer(atActor, { type: "cast/removed", index: 1 });
+    expect(withoutActor).toMatchObject({ locationMode: "cast", locationToken: null });
+
+    const atFurniture = browserReducer(withoutActor, { type: "anchor/selected", anchor: { token: 9, name: "Barstool", distance: 2 } });
+    expect(atFurniture).toMatchObject({ locationMode: "furniture", locationToken: 9, furniture: { token: 9 } });
+
+    const atPlayer = browserReducer(atFurniture, { type: "location/selected", mode: "player" });
+    expect(atPlayer).toMatchObject({ locationMode: "player", locationToken: null, furniture: { token: 9 } });
+  });
 });
 
 describe("browser selectors", () => {

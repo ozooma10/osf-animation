@@ -48,6 +48,8 @@ export interface ActiveScene {
   cast: ActiveCastMember[];
 }
 
+export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";
+
 export interface FurnitureTarget {
   token: number;
   name: string;
@@ -112,6 +114,8 @@ export interface BrowserState {
   selectedId: string | null;
   cast: CastMember[];
   furniture: FurnitureTarget | null;
+  locationMode: LocationMode;
+  locationToken: number | null;
   nearbyActors: NearbyTarget[];
   nearbyFurniture: NearbyTarget[];
   lastHandle: number;
@@ -151,6 +155,8 @@ export function createInitialState(): BrowserState {
     selectedId: null,
     cast: [PLAYER_CAST],
     furniture: null,
+    locationMode: "cast",
+    locationToken: null,
     nearbyActors: [],
     nearbyFurniture: [],
     lastHandle: 0,

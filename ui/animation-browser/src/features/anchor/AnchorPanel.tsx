@@ -1,9 +1,20 @@
 import type { BrowserCommands } from "../../app/commands";
+import { sceneById } from "../../app/selectors";
 import type { BrowserState, FurnitureTarget, NearbyTarget } from "../../app/state";
 import { Dot } from "../shared/Shared";
 
 function StepHead({ open, summary, onClick }: { open: boolean; summary: string; onClick(): void }) {
-  return <button class="step-head" onClick={onClick}><span class="step-num">2</span><span class="eb">FURNITURE</span><span class="step-note">{summary}</span><span class="chev">{open ? "▾" : "▸"}</span></button>;
+  return <button class="step-head" onClick={onClick}><span class="step-num">2</span><span class="eb">LOCATION</span><span class="step-note">{summary}</span><span class="chev">{open ? "▾" : "▸"}</span></button>;
+}
+
+function LocationRow({ active, name, note, onClick }: { active: boolean; name: string; note: string; onClick(): void }) {
+  return (
+    <button class={`near-row ${active ? "active" : ""}`} onClick={onClick}>
+      <span class="near-name">{name}</span>
+      <span class="near-meta mono">{note}</span>
+      <span class={`near-tag ${active ? "added" : ""}`}>{active ? "✓" : "USE"}</span>
+    </button>
+  );
 }
 
 function AnchorRow({ anchor, keyed, onToggle }: { anchor: NearbyTarget; keyed: FurnitureTarget | null; onToggle(): void }) {
@@ -33,18 +44,40 @@ function MatchLabel({ state }: { state: BrowserState }) {
 
 export function AnchorPanel({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const keyed = state.furniture;
+  const selected = sceneById(state, state.selectedId);
+  const requiresFurniture = !!selected?.requiresFurniture;
+  const locationActor = state.cast.find((member) => member.token === state.locationToken);
+  const locationSummary = requiresFurniture
+    ? keyed?.name ?? "furniture required"
+    : state.locationMode === "player" ? "player"
+      : state.locationMode === "front" ? "10 ft ahead"
+        : state.locationMode === "actor" ? locationActor?.name ?? "Cast A"
+          : state.locationMode === "furniture" ? keyed?.name ?? "Cast A"
+            : "Cast A";
   if (!state.stepOpen.anchor) {
-    return <div class="step closed"><StepHead open={false} summary={keyed?.name ?? "none"} onClick={() => commands.toggleStep("anchor")}/></div>;
+    return <div class="step closed"><StepHead open={false} summary={locationSummary} onClick={() => commands.toggleStep("anchor")}/></div>;
   }
   const furniture = state.nearbyFurniture.filter((anchor) => !anchor.marker);
   const markers = state.nearbyFurniture.filter((anchor) => anchor.marker);
   const markersOpen = state.markersOpen || !!keyed && markers.some((anchor) => anchor.token === keyed.token);
   return (
     <div class="step">
-      <StepHead open summary="optional" onClick={() => commands.toggleStep("anchor")}/>
+      <StepHead open summary={locationSummary} onClick={() => commands.toggleStep("anchor")}/>
+      {requiresFurniture ? <div class="empty-mini"><span class="mono">This scene is authored for furniture. Pick a compatible spot below.</span></div> : <>
+        <div class="step-sub"><span class="lbl">PLACE SCENE</span></div>
+        <div class="near-list">
+          <LocationRow active={state.locationMode === "cast"} name={`${state.cast[0]?.name ?? "First actor"}'s location (Cast A)`} note="current" onClick={() => commands.selectLocation("cast")}/>
+          <LocationRow active={state.locationMode === "player"} name="Player location" note="at player" onClick={() => commands.selectLocation("player")}/>
+          <LocationRow active={state.locationMode === "front"} name="In front of player" note="10 ft" onClick={() => commands.selectLocation("front")}/>
+          {state.cast.filter((member) => member.token !== -1).map((member) =>
+            <LocationRow key={member.token} active={state.locationMode === "actor" && state.locationToken === member.token}
+              name={`${member.name} location`} note="cast member" onClick={() => commands.selectLocation("actor", member.token)}/>
+          )}
+        </div>
+      </>}
       {keyed ? <div class="anchor-slot keyed"><Dot active/><span class="anchor-name">{keyed.name}</span><button class="chip-btn" onClick={commands.clearAnchor}>CLR</button></div>
-        : <div class="anchor-slot"><Dot/><span class="anchor-name faint">none — free-space scenes only</span></div>}
-      <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools">
+        : <div class="anchor-slot"><Dot/><span class="anchor-name faint">no furniture selected</span></div>}
+      <div class="step-sub"><span class="lbl">FURNITURE / MARKER</span><span class="step-tools">
         <button class="chip-btn" onClick={() => commands.scan("furniture")}>SCAN</button>
         <button class="chip-btn" onClick={() => commands.pick("furniture")}>PICK</button>
       </span></div>

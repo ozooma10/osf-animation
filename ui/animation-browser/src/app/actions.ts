@@ -3,6 +3,7 @@ import type {
   BrowserMode,
   CastMember,
   FurnitureTarget,
+  LocationMode,
   NearbyTarget,
   PluginVersion,
   WheelEntry,
@@ -27,6 +28,7 @@ export type BrowserAction =
   | { type: "anchor/selected"; anchor: FurnitureTarget }
   | { type: "anchor/cleared" }
   | { type: "anchor/matched"; token: number; ids: ReadonlySet<string> }
+  | { type: "location/selected"; mode: LocationMode; token?: number | null }
   | { type: "selection/changed"; sceneId: string | null }
   | { type: "mode/changed"; mode: BrowserMode }
   | { type: "filter/search"; search: string }

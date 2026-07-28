@@ -73,6 +73,21 @@ namespace OSF::Scene
 		return anchor;
 	}
 
+	SceneRuntime::AnchorOverride MakeAnchorInFrontOf(RE::TESObjectREFR* a_ref, float a_distance)
+	{
+		if (!a_ref || !std::isfinite(a_distance)) {
+			return {};
+		}
+		const RefTransform base = RenderedTransform(a_ref);
+		const RE::NiPoint3 pos{
+			base.pos.x - std::sin(base.heading) * a_distance,
+			base.pos.y + std::cos(base.heading) * a_distance,
+			base.pos.z
+		};
+
+		return SceneRuntime::AnchorOverride{ true, pos, base.heading };
+	}
+
 	std::optional<SceneRuntime::AnchorOverride> ResolveSceneAnchor(
 		std::string_view a_sceneId, RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad, bool a_emitHud)
 	{

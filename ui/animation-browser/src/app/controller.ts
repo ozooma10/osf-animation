@@ -287,6 +287,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     reorderMember: (from, to, after) => dispatch({ type: "cast/moved", from, to, after }),
     toggleAnchor: (token) => { const current = stateRef.current; if (current.furniture?.token === token) dispatch({ type: "anchor/cleared" }); else { const anchor = current.nearbyFurniture.find((candidate) => candidate.token === token); if (anchor) { dispatch({ type: "anchor/selected", anchor: { token, name: anchor.name, distance: anchor.distance } }); send("osf.animation.anchorMatch", { token }); } } },
     clearAnchor: () => dispatch({ type: "anchor/cleared" }),
+    selectLocation: (mode, token = null) => dispatch({ type: "location/selected", mode, token }),
     toggleLibraryGroup: (key) => dispatch({ type: "library/group", key }),
     toggleSceneGroup: (key, open) => dispatch({ type: "scene/group", key, open }),
     toggleLibraryShowAll: () => dispatch({ type: "library/showAll" }),
@@ -302,6 +303,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const options: Record<string, unknown> = { strip: Number(current.opts.strip), lockPlayer: Number(current.opts.lock), camera: current.opts.camera, speed: Number(current.opts.speed) };
       if (Number.isInteger(stageIndex) && Number(stageIndex) > 0) options.stage = stageIndex;
       const fields: Record<string, unknown> = { sceneId: scene.id, castTokens: current.cast.map((member) => member.token), opts: options };
+      fields.location = {
+        mode: scene.requiresFurniture ? "furniture" : scene.inPlace ? "cast" : current.locationMode,
+        token: scene.requiresFurniture ? current.furniture?.token ?? 0 : current.locationToken ?? 0,
+      };
       const roleNames = scene.roles.map((role) => role.name);
       if (roleNames.length === current.cast.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
       if (scene.requiresFurniture && current.furniture) fields.furnitureToken = current.furniture.token;

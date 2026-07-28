@@ -6,6 +6,7 @@
 #include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
 #include "Registry/SceneRegistry.h"
+#include "Scene/AnchorResolve.h"  // rendered-world reference anchors + in-front-of-player placement
 #include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/ClipDurations.h"  // clip loop lengths for the catalog's time estimates
 #include "Serialization/WheelPins.h"  // ordered animation-wheel customization
@@ -531,6 +532,7 @@ namespace OSF::API
 				std::uint32_t            actorCount = 0;
 				std::vector<std::string> genders;
 				bool                     requiresFurniture = false;
+				bool                     inPlace = false;
 				std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
 				bool                     unlisted = false;
 				std::int32_t             pinned = 0;  // 1-based explicit wheel order (0 = absent/default-derived)
@@ -564,6 +566,7 @@ namespace OSF::API
 					c.genders.emplace_back(GenderTag(r.gender));
 				}
 				c.requiresFurniture = d.RequiresAnchor();
+				c.inPlace = d.inPlace;
 				// Name the anchor, not just the fact of one: keyword edids prettify well
 				// ("AnimFurnBarstool" -> "Barstool"); base-form anchors rarely retain an edid,
 				// so those fall back to the form id — still identifiable, never blank.
@@ -690,6 +693,7 @@ namespace OSF::API
 					{ "actorCount", c.actorCount },
 					{ "genders", c.genders },
 					{ "requiresFurniture", c.requiresFurniture },
+					{ "inPlace", c.inPlace },
 					{ "anchors", c.anchorNames },
 					{ "unlisted", c.unlisted },
 					{ "wheelCustomized", wheelCustomized },
@@ -869,6 +873,61 @@ namespace OSF::API
 				std::snprintf(o.camera, sizeof(o.camera), "%s", it->get<std::string>().c_str());
 			}
 			o.anchorRef = furniture;
+			// Browser location selector. This is deliberately a bridge-only extension: the stable native
+			// OSFStartOptions already represents both reference and explicit-world anchors.
+			std::string locationMode = furniture ? "furniture" : "cast";
+			std::int32_t locationToken = 0;
+			if (j.is_object()) {
+				if (const auto it = j.find("location"); it != j.end() && it->is_object()) {
+					if (const auto mode = it->find("mode"); mode != it->end() && mode->is_string()) {
+						locationMode = mode->get<std::string>();
+					}
+					if (const auto token = it->find("token"); token != it->end() && token->is_number_integer()) {
+						locationToken = token->get<std::int32_t>();
+					}
+				}
+			}
+
+			if (locationMode == "player") {
+				o.anchorRef = RE::PlayerCharacter::GetSingleton();
+				if (!o.anchorRef) {
+					return fail("The player is not available as a scene location");
+				}
+			} else if (locationMode == "actor") {
+				o.anchorRef = ResolveToken(locationToken);
+				if (!o.anchorRef || !o.anchorRef->IsActor()) {
+					return fail("The selected actor location is no longer available — re-pick it");
+				}
+			} else if (locationMode == "furniture") {
+				if (locationToken != 0) {
+					o.anchorRef = ResolveToken(locationToken);
+				}
+				if (o.anchorRef && o.anchorRef->IsActor()) {
+					return fail("The selected furniture location is an actor — pick furniture or a marker");
+				}
+				furniture = o.anchorRef;
+			} else if (locationMode == "front") {
+				// Starfield distance scale used by nearby scan: ~70.5 units/m. Ten feet is ~215 units.
+				const auto anchor = Scene::MakeAnchorInFrontOf(RE::PlayerCharacter::GetSingleton(), 215.0f);
+				if (!anchor.set) {
+					return fail("The player is not available for front-of-player placement");
+				}
+				o.anchorRef = nullptr;
+				o.hasAnchor = true;
+				o.anchorX = anchor.pos.x;
+				o.anchorY = anchor.pos.y;
+				o.anchorZ = anchor.pos.z;
+				o.anchorHeadingRad = anchor.heading;
+			} else if (locationMode != "cast") {
+				return fail("Unknown scene location mode '" + locationMode + "'");
+			}
+
+			std::string castDiag;
+			for (RE::Actor* actor : actors) {
+				castDiag += std::format("{}{:08X}", castDiag.empty() ? "" : ",", actor->formID);
+			}
+			REX::DEBUG("[UI] launch request '{}' cast=[{}] location={} token={} activeBefore={}",
+				sceneId, castDiag, locationMode, locationToken, Scene::SceneRuntime::GetSingleton().ListScenes().size());
 
 			// WHEEL POSTURE: every wheel launch is a quick in-world flourish and gets the same
 			// hands-off settings regardless of which pack the animation came from — play it on the

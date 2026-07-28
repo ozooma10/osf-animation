@@ -67,10 +67,25 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       const cast = index >= 0
         ? state.cast.filter((_, memberIndex) => memberIndex !== index)
         : action.member.kind === "player" ? [PLAYER_CAST, ...state.cast] : [...state.cast, action.member];
-      return { ...state, cast, stepOpen: index < 0 ? { ...state.stepOpen, cast: false } : state.stepOpen };
+      const removedLocation = index >= 0 && state.locationMode === "actor" && state.locationToken === action.member.token;
+      return {
+        ...state,
+        cast,
+        locationMode: removedLocation ? "cast" : state.locationMode,
+        locationToken: removedLocation ? null : state.locationToken,
+        stepOpen: index < 0 ? { ...state.stepOpen, cast: false } : state.stepOpen,
+      };
     }
-    case "cast/removed":
-      return { ...state, cast: state.cast.filter((_, index) => index !== action.index) };
+    case "cast/removed": {
+      const removed = state.cast[action.index];
+      const removedLocation = !!removed && state.locationMode === "actor" && state.locationToken === removed.token;
+      return {
+        ...state,
+        cast: state.cast.filter((_, index) => index !== action.index),
+        locationMode: removedLocation ? "cast" : state.locationMode,
+        locationToken: removedLocation ? null : state.locationToken,
+      };
+    }
     case "cast/moved": {
       const cast = moveMember(state.cast, action.from, action.to, action.after);
       return cast === state.cast ? state : { ...state, cast };
@@ -83,16 +98,30 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return {
         ...state,
         furniture: action.anchor,
+        locationMode: "furniture",
+        locationToken: action.anchor.token,
         anchorMatch: null,
         libShowAll: false,
         stepOpen: { ...state.stepOpen, anchor: false },
       };
     case "anchor/cleared":
-      return { ...state, furniture: null, anchorMatch: null };
+      return {
+        ...state,
+        furniture: null,
+        anchorMatch: null,
+        locationMode: state.locationMode === "furniture" ? "cast" : state.locationMode,
+        locationToken: state.locationMode === "furniture" ? null : state.locationToken,
+      };
     case "anchor/matched":
       return state.furniture?.token === action.token
         ? { ...state, anchorMatch: { token: action.token, ids: action.ids } }
         : state;
+    case "location/selected":
+      return {
+        ...state,
+        locationMode: action.mode,
+        locationToken: action.mode === "actor" || action.mode === "furniture" ? action.token ?? null : null,
+      };
     case "selection/changed":
       return { ...state, selectedId: action.sceneId, briefFullAnims: false };
     case "mode/changed":

@@ -1,4 +1,4 @@
-import type { BrowserMode } from "./state";
+import type { BrowserMode, LocationMode } from "./state";
 
 export interface BrowserCommands {
   refresh(): void;
@@ -19,6 +19,7 @@ export interface BrowserCommands {
   reorderMember(from: number, to: number, after: boolean): void;
   toggleAnchor(token: number): void;
   clearAnchor(): void;
+  selectLocation(mode: LocationMode, token?: number | null): void;
   toggleLibraryGroup(key: string): void;
   toggleSceneGroup(key: string, open: boolean): void;
   toggleLibraryShowAll(): void;
