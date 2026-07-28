@@ -66,6 +66,8 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
           ]}/>
         <ToggleRow label="Remember browsing state" hint="Keep search, filters, and expanded folders between openings in this game session."
           enabled={preferences.rememberBrowsing} onChange={(value) => set("rememberBrowsing", value)}/>
+        <ToggleRow label="Actor name labels" hint="Tag selected cast members over their heads in the world, and list them in the corner while they are off screen."
+          enabled={preferences.actorLabels} onChange={(value) => set("actorLabels", value)}/>
       </section>
 
       <section class="settings-group">

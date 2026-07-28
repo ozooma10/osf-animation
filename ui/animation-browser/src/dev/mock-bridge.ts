@@ -94,6 +94,7 @@ export class StandaloneBridge implements AnimationBridge {
         "browser.afterLaunch": preferences.afterLaunch,
         "browser.openTo": preferences.openTo,
         "browser.rememberBrowsing": preferences.rememberBrowsing,
+        "browser.actorLabels": preferences.actorLabels,
         "browser.libraryDetail": preferences.libraryDetail,
         "browser.librarySource": preferences.librarySource,
         "browser.unavailableScenes": preferences.unavailableScenes,

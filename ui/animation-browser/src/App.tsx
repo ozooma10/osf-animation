@@ -42,6 +42,7 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
 }
 
 function ActorIndicators({ state }: { state: BrowserState }) {
+  if (!state.preferences.actorLabels) return null;
   if (!state.viewVisible || state.wheel || state.minimized) return null;
   const selected = state.cast
     .map((member, index) => ({ member, index }))

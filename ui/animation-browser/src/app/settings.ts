@@ -10,6 +10,7 @@ export const PREFERENCE_KEYS: { [K in keyof BrowserPreferences]: string } = {
   afterLaunch: "browser.afterLaunch",
   openTo: "browser.openTo",
   rememberBrowsing: "browser.rememberBrowsing",
+  actorLabels: "browser.actorLabels",
   libraryDetail: "browser.libraryDetail",
   librarySource: "browser.librarySource",
   unavailableScenes: "browser.unavailableScenes",
@@ -42,6 +43,7 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   // open the unified browser; retain decoding so existing profiles migrate.
   if (openTo) preferences.openTo = openTo === "library" ? "scenes" : openTo;
   if (typeof values[PREFERENCE_KEYS.rememberBrowsing] === "boolean") preferences.rememberBrowsing = values[PREFERENCE_KEYS.rememberBrowsing] as boolean;
+  if (typeof values[PREFERENCE_KEYS.actorLabels] === "boolean") preferences.actorLabels = values[PREFERENCE_KEYS.actorLabels] as boolean;
   if (libraryDetail) preferences.libraryDetail = libraryDetail;
   if (librarySource) preferences.librarySource = librarySource;
   if (unavailableScenes) preferences.unavailableScenes = unavailableScenes;

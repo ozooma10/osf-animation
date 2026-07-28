@@ -88,6 +88,7 @@ export interface BrowserPreferences {
   afterLaunch: AfterLaunch;
   openTo: OpenTo;
   rememberBrowsing: boolean;
+  actorLabels: boolean;
   libraryDetail: "curated" | "full";
   librarySource: "all" | "custom";
   unavailableScenes: UnavailableScenes;
@@ -102,6 +103,7 @@ export const DEFAULT_PREFERENCES: BrowserPreferences = {
   afterLaunch: "minimize",
   openTo: "last",
   rememberBrowsing: true,
+  actorLabels: true,
   libraryDetail: "curated",
   librarySource: "all",
   unavailableScenes: "ask",

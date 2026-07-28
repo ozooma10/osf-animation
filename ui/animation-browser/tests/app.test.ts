@@ -127,8 +127,11 @@ describe("browser settings", () => {
     expect(decodePreferences({
       "browser.afterLaunch": "close",
       "browser.rememberBrowsing": false,
+      "browser.actorLabels": false,
       "launch.camera": "scene_orbit",
-    })).toMatchObject({ afterLaunch: "close", rememberBrowsing: false, camera: "scene_orbit" });
+    })).toMatchObject({ afterLaunch: "close", rememberBrowsing: false, actorLabels: false, camera: "scene_orbit" });
+    // Absent keys keep their defaults rather than decoding as false.
+    expect(decodePreferences({}).actorLabels).toBeUndefined();
     expect(decodePreferences({ "browser.autoMinimize": false })).toMatchObject({ afterLaunch: "stay" });
   });
 

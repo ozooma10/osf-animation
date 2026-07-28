@@ -339,7 +339,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
 
   useEffect(() => {
     const tokens = state.cast.filter((member) => member.kind !== "player").map((member) => member.token);
-    if (!state.viewVisible || state.wheel || state.minimized || tokens.length === 0) {
+    // Nothing renders the projections with labels off, so skip the 80ms round-trip too.
+    if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized || tokens.length === 0) {
       if (state.actorIndicators.length) dispatch({ type: "indicators/received", items: [] });
       return;
     }
@@ -347,7 +348,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     project();
     const timer = window.setInterval(project, 80);
     return () => clearInterval(timer);
-  }, [state.cast, state.viewVisible, state.wheel, state.minimized, send]);
+  }, [state.cast, state.viewVisible, state.wheel, state.minimized, state.preferences.actorLabels, send]);
 
   const commands = useMemo<BrowserCommands>(() => ({
     refresh: () => { requestCatalog(true); requestLibrary(true); },
