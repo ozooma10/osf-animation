@@ -1,12 +1,13 @@
 # Animation browser agent guide
 
-This directory is the editable source for OSF Animation's in-game browser. The generated
-`../../build/views/osf.animation/browser/` directory is disposable output; never edit it.
+This directory is the editable source for OSF Animation's in-game browser. The OSF UI CLI generates
+the disposable view under `../../build/osfui/SFSE/Plugins/OSFUI/views/osf.animation/browser/`;
+never edit generated output.
 
 ## Required checks
 
 Run `npm run verify` from this directory after source changes. The command runs the unit tests,
-strict TypeScript checking, and the production Vite build.
+the OSF UI compatibility/type checks, and the production build.
 
 ## Architecture
 
@@ -30,8 +31,8 @@ state library unless the existing reducer demonstrably cannot express the behavi
 
 ## In-game invariants
 
-- Production output is an ES2018 IIFE for OSF UI's Ultralight host. Avoid unsupported browser APIs,
-  dynamic imports, network dependencies, and CDN assets.
+- Production output is generated and compatibility-checked by `@osfui/cli`. Avoid unsupported
+  browser APIs, dynamic imports, network dependencies, and CDN assets.
 - Only JSON text crosses `window.osfui`; decode unknown native payloads at the bridge boundary.
 - Bridge evolution is additive. Require bridge presence, but do not gate on version strings.
 - The player token is `-1`. Other reference tokens are opaque integers and must never be treated as
@@ -50,4 +51,3 @@ state library unless the existing reducer demonstrably cannot express the behavi
 - Put derived filtering/grouping/readiness logic in selectors, not render bodies.
 - Keep feature CSS beside the feature when practical; shared tokens/layout remain under `styles/`.
 - Add reducer/selector tests for new behavior and bridge tests for contract changes.
-

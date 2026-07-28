@@ -30,3 +30,4 @@ ui/animation-browser/node_modules/
 
 # generated: Vite output for the browser view (source: ui/animation-browser)
 build/views/
+build/osfui/

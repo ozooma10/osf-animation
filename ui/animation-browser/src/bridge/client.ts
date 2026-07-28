@@ -51,6 +51,9 @@ export class OsfUiBridge implements AnimationBridge {
 }
 
 export function hasOsfUiBridge(): boolean {
-  return typeof window.osfui?.postMessage === "function";
+  // The OSF UI authoring harness injects the production-shaped bridge into its
+  // iframe. Keep using this view's richer stateful simulator there; the generic
+  // harness still owns framing, sizing, transparency, visibility, and HMR.
+  return window.parent === window && typeof window.osfui?.postMessage === "function";
 }
 

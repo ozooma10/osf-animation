@@ -24,7 +24,7 @@ packaging\build-archive.ps1 -IncludePdb
 
 ## What it does
 
-1. **Configure + build** — `xmake f -m releasedbg -P .` + `xmake -P .` (the mode is pinned; a bare reconfigure silently drops it). The build's `before_build` hook rebuilds the browser view from `ui/animation-browser` into `build/views/` if its sources are newer than the last Vite output, so a packaged archive can't ship a stale UI. The view is generated, never committed — npm is required. `-SkipBuild` packages whatever is already built, browser view included.
+1. **Configure + build** — `xmake f -m releasedbg -P .` + `xmake -P .` (the mode is pinned; a bare reconfigure silently drops it). The build's `before_build` hook uses the OSF UI CLI to rebuild the browser view from `ui/animation-browser` into `build/osfui/` if its sources are newer than the generated output, so a packaged archive can't ship a stale UI. The view is generated, never committed — npm is required. `-SkipBuild` packages whatever is already built, browser view included.
 2. **Papyrus surface check** — `OSF` / `OSFTypes` / `OSFAdvanced` `.pex` + `.psc` must exist (hard fail — consumers compile against the sources). A `.psc` newer than its `.pex` warns (stale `.pex` = new natives fail to bind at link time); `-CompilePapyrus` recompiles with the CK compiler instead. `OSFTest` is dev-only and must never ship — the script fails if it leaks into the stage.
 3. **Stage the FOMOD tree** from the authoritative sources (`build/` DLL + generated browser view, `dist/` scripts + scene packs):
 4. **License docs** — `LICENSE`, `EXCEPTIONS`, `THIRD_PARTY.md` go inside `SFSE/Plugins/OSF Animation/` so the game's `Data` root stays clean.

@@ -1,20 +1,20 @@
 # OSF Animation — animation browser view
 
-The in-game animation and scene browser/launcher. Its editable source is a Vite/TypeScript/Preact app in this directory; `build/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
-**OSF UI** (Ultralight overlay) and driven **natively** by OSF Animation's own
+The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Preact app in this directory; `build/osfui/SFSE/Plugins/OSFUI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
+**OSF UI** and driven **natively** by OSF Animation's own
 DLL over OSF UI's bridge API (protocol **1.0**). Only JSON text crosses the
 boundary.
 
 ## Development and build
 
-Install once with `npm install` in this directory. Use `npm run dev` for hot-reload desktop iteration, `npm test` for the typed bridge/model tests, and `npm run build` to type-check and regenerate the production view. The build targets ES2018, emits a single self-contained entry bundle plus local font assets, and writes source maps for in-game debugging.
+Install once with `npm install` in this directory. Use `npm run dev` for the OSF UI browser harness with hot reload, `npm test` for the typed bridge/model tests, `npm run check` for host compatibility and strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
 
-This directory is the only editable copy — `build/views/osf.animation/browser/` is disposable Vite output and is wiped on every build. A native `xmake` re-runs the Vite build whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
+This directory is the only editable copy — `build/osfui/` is disposable toolchain output and is wiped on every build. A native `xmake` re-runs the OSF UI CLI whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
 
 ## How it's wired
 
 ```
-ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browser/ ──► OSF UI  MessageBridge  ──►  OSF Animation DLL
+ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.animation/browser/ ──► OSF UI  MessageBridge  ──►  OSF Animation DLL
    window.osfui.postMessage        (ui.command)              src/API/UIBridge.cpp
    window.osfui.onMessage      ◄── SendToWeb ────────────────  osf.animation.* handlers
 ```
@@ -179,12 +179,10 @@ clears wheel mode, so a later browser open always shows the normal console.
 
 The page detects a missing bridge and runs standalone, so you can iterate
 layout/logic in a normal browser. Run `npm run dev` from `ui/animation-browser`
-(or use `python tools/view-dev-server.py [port]`, retained for `.claude/launch.json`) and open `http://localhost:8791/`. For an in-game-true
-render, open `http://localhost:8791/frame` — the view laid out at a fixed
-**1600×900** (the overlay resolution) and stretched to fill the window with
-independent X/Y scale, matching how the OSF UI harness maps the Ultralight
-surface (`S` toggles stretch / 1:1 pixels; `?w=1920&h=1080` overrides the
-size).
+and open `http://localhost:8791/__osfui/`. The OSF UI CLI harness owns the
+game-sized frame, resolution controls, transparency checker, visibility and
+locale simulation, bridge traffic, and HMR. The view uses its richer stateful
+animation simulator inside the harness iframe.
 
 **Live data:** `fixtures/live/{catalog,library}.json` are committed snapshot fixtures of
 the payloads the DLL sends the in-game view, served as plain static files (the
@@ -200,7 +198,7 @@ For a **full real-world catalog** instead, run
 `python tools/generate-catalog-snapshot.py`: it models the scenes lane from
 this repo's `dist/OSF` **plus the sibling `OSF Compatibility Packs` repo's
 generated outputs** (extra directories as arguments), writing the git-ignored
-`fixtures/live/catalog.local.json` — the dev server prefers any
+`fixtures/live/catalog.local.json` — standalone loading prefers any
 `<name>.local.json` override over the committed fixture, so the standalone
 page then browses the real Gergel Ebanex / Snu Snu install (great for testing
 grouping and layout at scale). Delete the file to fall back to the committed
@@ -210,7 +208,7 @@ opened via `file://`), it falls back to the built-in mock catalog. These fixture
 
 To exercise the **animation wheel** standalone: press `W` (mock crosshair target) or
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
-console; `?wheel` in the URL (`?wheel=solo` for no target, also on `/frame`)
+console; add `?wheel` to the iframe URL (`?wheel=solo` for no target)
 boots straight into wheel mode so a plain reload keeps you there. The mock
 catalog carries 14 `player.emote.*` quick actions so the hard 12-entry cap is exercised;
 picking **Facepalm** mock-fails to exercise the error path, any other pick

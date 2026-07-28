@@ -5,13 +5,22 @@ import { PLAYER_TOKEN, type ActiveScene, type BrowserState } from "../app/state"
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_LIBRARY } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
-  try {
-    const response = await fetch(`live/${name}.json`, { cache: "no-store" });
-    const value: unknown = response.ok ? await response.json() : null;
-    return Array.isArray(value) ? value : null;
-  } catch {
-    return null;
+  // In the CLI harness these source modules are served through Vite's /@fs/
+  // route, so resolving from import.meta.url preserves the existing fixture
+  // workflow without adding a second server plugin. Keep the URL construction
+  // dynamic so production builds do not package debug snapshots.
+  for (const suffix of [".local.json", ".json"]) {
+    try {
+      const url = new URL("../../../fixtures/live/" + name + suffix, import.meta.url);
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) continue;
+      const value: unknown = await response.json();
+      if (Array.isArray(value)) return value;
+    } catch {
+      // Try the committed fallback, then use the built-in mock catalog.
+    }
   }
+  return null;
 }
 
 /** Standalone implementation of the same JSON-level behavior the native DLL exposes. */

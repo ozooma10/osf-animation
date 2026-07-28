@@ -9,6 +9,8 @@ OSF Animation DLL
       | JSON text
       v
 bridge/client.ts ---- dev/mock-bridge.ts
+      ^                     ^
+      |              OSF UI CLI harness iframe
       |
       v
 app/controller.ts (effects and retries)
@@ -37,7 +39,8 @@ same interface, so feature code does not branch on bridge availability.
 
 ## Development
 
-The existing Vite `/frame` route is the visual harness because it reproduces the 1600x900 game
-composition. Committed snapshots under `fixtures/live/` feed the standalone bridge. Storybook is
-intentionally unnecessary: a second fixture/runtime system would drift from the actual bridge.
-
+`npm run dev` starts the OSF UI CLI harness at `/__osfui/`. It owns the game-sized reference frame,
+resolution controls, transparency, visibility, bridge injection, and HMR. Inside that harness iframe
+the browser deliberately selects its stateful standalone bridge, because animation launches, scans,
+wheel edits, and active-scene transitions need more behavior than a static command fixture. Committed
+snapshots under `fixtures/live/` remain the source for generated mock data and offline inspection.

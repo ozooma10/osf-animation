@@ -4,10 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 8791",
-    "build": "npm run typecheck && vite build",
+    "dev": "osfui dev --port 8791",
+    "dev:game": "osfui dev --game --port 8791",
+    "build": "osfui build",
+    "check": "osfui check",
+    "doctor": "osfui doctor",
     "verify": "npm test && npm run build",
-    "preview": "vite preview --host 127.0.0.1 --port 8791",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
@@ -16,10 +18,8 @@
     "preact": "10.29.7"
   },
   "devDependencies": {
-    "@preact/preset-vite": "2.10.2",
+    "@osfui/cli": "file:../../../OSF UI/packages/cli",
     "@types/node": "24.7.2",
-    "typescript": "5.9.3",
-    "vite": "7.3.6",
     "vitest": "3.2.7"
   }
 }
