@@ -16,7 +16,9 @@ export type BridgeCommand =
   | "osf.animation.wheel.get"
   | "osf.animation.wheel.set"
   | "osfui.gamepadRaw"
-  | "osfui.openModPage";
+  | "osfui.openModPage"
+  | "settings.get"
+  | "settings.set";
 
 export interface UiCommand<TFields extends Record<string, unknown> = Record<string, unknown>> {
   type: "ui.command";

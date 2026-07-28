@@ -60,6 +60,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return state.wheel
         ? { ...state, wheel: { ...state.wheel, launching: "", error: action.error } }
         : state;
+    case "settings/autoMinimize":
+      return { ...state, autoMinimize: action.enabled };
     case "cast/replaced":
       return { ...state, cast: action.members, stepOpen: { ...state.stepOpen, cast: false } };
     case "cast/toggled": {

@@ -124,7 +124,7 @@ button,input,select{font:inherit;color:inherit}
 .slate{position:relative;z-index:2;display:flex;align-items:stretch;flex-wrap:nowrap;min-height:88px;
   border-bottom:1px solid var(--line-strong);background:linear-gradient(180deg,rgba(4,6,10,.82),rgba(4,6,10,.5))}
 .slate-cell{padding:11px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
-.slate-brand{flex:0 0 210px;align-items:stretch;justify-content:space-between;gap:8px;padding:11px 14px 10px}
+.slate-brand{flex:0 0 292px;align-items:stretch;justify-content:space-between;gap:8px;padding:11px 14px 10px}
 .brand-lockup{display:flex;align-items:center;gap:10px;min-width:0}
 .brand-meta{display:flex;flex-direction:column;min-width:0}
 .brand-emblem{width:28px;height:28px;border:1px solid var(--accent);border-radius:3px;display:flex;align-items:center;justify-content:center;flex:none;background:rgba(240,113,48,.08);box-shadow:inset 0 0 10px rgba(240,113,48,.2)}
@@ -203,6 +203,7 @@ button,input,select{font:inherit;color:inherit}
 .debug-wrap{display:flex;align-items:center;gap:8px}
 .brand-tools{display:flex;align-items:center;gap:8px;padding-top:7px;border-top:1px solid var(--line)}
 .brand-tools .debug-wrap{gap:6px}
+.auto-min-wrap{display:flex;align-items:center;gap:6px}
 .brand-tool-sep{width:1px;height:16px;margin-left:auto;background:var(--line)}
 .switch{width:34px;height:18px;border-radius:9px;position:relative;border:1px solid var(--line-strong);background:var(--void-900);padding:0}
 .switch i{position:absolute;width:12px;height:12px;border-radius:50%;top:2px;left:2px;background:var(--steel-500);transition:all var(--dur) var(--ease-out)}

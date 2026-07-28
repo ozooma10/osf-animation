@@ -79,6 +79,10 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.wheel.data", payload: { customized: this.getState().wheelCustomized, entries } });
     } else if (command === "osf.animation.launch") {
       this.launch(fields);
+    } else if (command === "settings.get") {
+      this.later({ type: "settings.data", payload: { mods: [{ id: "osf.animation", values: { "browser.autoMinimize": this.getState().autoMinimize } }] } }, 10);
+    } else if (command === "settings.set" && fields.mod === "osf.animation" && fields.key === "browser.autoMinimize") {
+      this.later({ type: "settings.changed", payload: { mod: fields.mod, key: fields.key, value: !!fields.value } }, 10);
     } else if (command === "osf.animation.stop") {
       this.active = this.active.filter((scene) => scene.handle !== Number(fields.handle));
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
@@ -122,7 +126,7 @@ export class StandaloneBridge implements AnimationBridge {
       player: tokens.includes(PLAYER_TOKEN),
       cast: tokens.map((token) => ({ token, name: token === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === token)?.name ?? "actor", player: token === PLAYER_TOKEN })),
     });
-    this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, autoMinimize: true } }, 80);
+    this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, autoMinimize: this.getState().autoMinimize } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);
   }
 

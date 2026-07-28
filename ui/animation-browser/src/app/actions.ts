@@ -20,6 +20,7 @@ export type BrowserAction =
   | { type: "active/received"; scenes: ActiveScene[] }
   | { type: "launch/succeeded"; handle: number; sceneId: string; autoMinimize: boolean }
   | { type: "launch/failed"; error: string }
+  | { type: "settings/autoMinimize"; enabled: boolean }
   | { type: "cast/replaced"; members: CastMember[] }
   | { type: "cast/toggled"; member: CastMember }
   | { type: "cast/removed"; index: number }

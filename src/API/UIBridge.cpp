@@ -808,33 +808,73 @@ namespace OSF::API
 
 		struct SafeViewProjection
 		{
-			RE::NiPoint3 position;
-			RE::NiPoint3 forward;
-			RE::NiPoint3 right;
-			RE::NiPoint3 up;
-			float        tanHalfHorizontal{ 1.0f };
-			float        aspect{ 16.0f / 9.0f };
+			// Keep the camera graph alive while a command projects all requested points.
+			RE::NiPointer<RE::NiNode> root;
+			RE::NiCamera*             camera{ nullptr };
+			RE::NiPoint3              position;
+			RE::NiPoint3              forward;
+			RE::NiPoint3              right;
+			RE::NiPoint3              up;
 
 			bool Project(const RE::NiPoint3& a_world, RE::NiPoint3& a_screen) const
 			{
+				if (!camera) {
+					return false;
+				}
 				const RE::NiPoint3 delta = a_world - position;
 				const float depth = delta.Dot(forward);
 				if (!std::isfinite(depth) || depth <= 0.01f) {
 					return false;
 				}
-				const float horizontal = delta.Dot(right);
-				const float vertical = delta.Dot(up);
-				const float tanHalfVertical = tanHalfHorizontal / aspect;
-				a_screen.x = 0.5f + horizontal / (2.0f * depth * tanHalfHorizontal);
-				a_screen.y = 0.5f - vertical / (2.0f * depth * tanHalfVertical);
+
+				// NiCamera owns the exact per-frame projection used for culling, including the
+				// current FOV, aspect ratio and viewport. A hand-built fixed-FOV projection drifts
+				// as soon as the game or scene camera changes its lens.
+				a_screen = camera->WorldToScreenNormalized(a_world);
 				a_screen.z = depth;
-				return std::isfinite(a_screen.x) && std::isfinite(a_screen.y);
+				return std::isfinite(a_screen.x) && std::isfinite(a_screen.y) &&
+				       std::isfinite(a_screen.z);
+			}
+
+			float ProjectedRadius(const RE::NiPoint3& a_center, float a_radius,
+				float a_width, float a_height) const
+			{
+				RE::NiPoint3 center;
+				RE::NiPoint3 edgeX;
+				RE::NiPoint3 edgeY;
+				if (!Project(a_center, center) ||
+					!Project(a_center + right * a_radius, edgeX) ||
+					!Project(a_center + up * a_radius, edgeY)) {
+					return 0.0f;
+				}
+				return std::max(std::abs(edgeX.x - center.x) * a_width,
+					std::abs(edgeY.y - center.y) * a_height);
 			}
 		};
 
+		RE::NiCamera* FindRenderCamera(RE::NiAVObject* a_object, std::uint32_t a_depth = 0)
+		{
+			if (!a_object || a_depth > 16) {
+				return nullptr;
+			}
+			if (auto* camera = starfield_cast<RE::NiCamera*>(a_object)) {
+				return camera;
+			}
+			auto* node = starfield_cast<RE::NiNode*>(a_object);
+			if (!node) {
+				return nullptr;
+			}
+			for (const auto& child : node->children) {
+				if (auto* camera = FindRenderCamera(child.get(), a_depth + 1)) {
+					return camera;
+				}
+			}
+			return nullptr;
+		}
+
 		// PlayerCamera::cameraRoot is a mapped, runtime-proven field already used by the
-		// camera service. Build a small pinhole projection from its world transform instead
-		// of touching Main::WorldRoot, whose relocation is invalid on Starfield 1.16.244.
+		// camera service. Its NiCamera child carries the real current world-to-screen matrix;
+		// this avoids Main::WorldRoot, whose relocation is invalid on Starfield 1.16.244.
 		std::optional<SafeViewProjection> CurrentViewProjection(float a_width, float a_height)
 		{
 			auto* playerCamera = RE::PlayerCamera::GetSingleton();
@@ -844,11 +884,16 @@ namespace OSF::API
 			}
 
 			SafeViewProjection out;
-			out.position = root->world.translate;
+			out.root = root;
+			out.camera = FindRenderCamera(root.get());
+			if (!out.camera) {
+				return std::nullopt;
+			}
+			out.position = out.camera->world.translate;
 			out.forward = {
-				root->world.rotate[0][0],
-				root->world.rotate[0][1],
-				root->world.rotate[0][2],
+				out.camera->world.rotate[0][0],
+				out.camera->world.rotate[0][1],
+				out.camera->world.rotate[0][2],
 			};
 			if (out.forward.Unitize() <= 0.001f) {
 				return std::nullopt;
@@ -861,9 +906,6 @@ namespace OSF::API
 			if (out.up.Unitize() <= 0.001f) {
 				return std::nullopt;
 			}
-			out.aspect = a_width / a_height;
-			constexpr float kHorizontalFovRad = 85.0f * 3.14159265f / 180.0f;
-			out.tanHalfHorizontal = std::tan(kHorizontalFovRad * 0.5f);
 			return out;
 		}
 
@@ -892,6 +934,39 @@ namespace OSF::API
 			return true;
 		}
 
+		bool RenderedActorLabelPoint(RE::TESObjectREFR* a_ref, RE::NiPoint3& a_point)
+		{
+			if (!a_ref || !a_ref->IsActor() || a_ref->IsDeleted()) {
+				return false;
+			}
+			RE::NiPointer<RE::NiAVObject> root;
+			{
+				const auto loaded = a_ref->loadedData.LockRead();
+				if (*loaded) {
+					root = (*loaded)->data3D;
+				}
+			}
+			if (!root) {
+				return false;
+			}
+
+			// The label belongs to the rendered head, not the actor's worldBound. worldBound is
+			// a culling sphere and may be expanded or re-centered by weapons, animation and OSF's
+			// compose-root cull pin, so center+radius is not a stable anatomical point.
+			static const RE::BSFixedString headName{ "C_Head" };
+			if (RE::NiAVObject* head = root->GetObjectByName(headName)) {
+				a_point = head->world.translate + RE::NiPoint3{ 0.0f, 0.0f, 10.0f };
+				return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
+			}
+
+			// Creature rigs do not consistently expose C_Head. Keep their fallback close to the
+			// rendered body by clamping the culling radius to plausible actor dimensions.
+			const RE::NiPoint3 center = root->worldBound.center;
+			const float radius = std::clamp(root->worldBound.radius, 35.0f, 140.0f);
+			a_point = center + RE::NiPoint3{ 0.0f, 0.0f, radius };
+			return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
+		}
+
 		void OnProjectActors(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
@@ -918,11 +993,10 @@ namespace OSF::API
 				if (!ref || !ref->IsActor()) {
 					continue;
 				}
-				RE::NiPoint3 center;
-				float radius = 0.0f;
+				RE::NiPoint3 labelPoint;
 				RE::NiPoint3 screen;
-				const bool projected = RenderedBound(ref, true, center, radius) &&
-					projection->Project(center + RE::NiPoint3{ 0.0f, 0.0f, radius + 0.08f }, screen);
+				const bool projected = RenderedActorLabelPoint(ref, labelPoint) &&
+					projection->Project(labelPoint, screen);
 				const bool visible = projected && screen.x >= 0.0f && screen.x <= 1.0f && screen.y >= 0.0f && screen.y <= 1.0f;
 				items.push_back(json{
 					{ "token", token },
@@ -1311,7 +1385,7 @@ namespace OSF::API
 				return;
 			}
 
-			const float projectedRadius = radius / screen.z * a_width / (2.0f * a_projection.tanHalfHorizontal);
+			const float projectedRadius = a_projection.ProjectedRadius(center, radius, a_width, a_height);
 			const float radiusX = std::clamp(projectedRadius * 1.15f, a_actor ? 38.0f : 30.0f, 220.0f);
 			const float radiusY = std::clamp(projectedRadius * 1.15f, a_actor ? 52.0f : 30.0f, 260.0f);
 			const float dx = (a_x - screen.x) * a_width / radiusX;

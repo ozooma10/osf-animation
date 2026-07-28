@@ -75,10 +75,11 @@ namespace OSF::Scene
 				return std::nullopt;
 			}
 
-			// The camera root uses the same row-0 forward basis as the render camera. Project it
-			// onto the ground plane so looking up/down does not change the requested distance.
-			const float x = cameraRoot->world.rotate[0][0];
-			const float y = cameraRoot->world.rotate[0][1];
+			// NiMatrix3 stores the camera's local basis by row: row 0 is +X/right and row 1 is
+			// +Y/forward. Project forward onto the ground plane so looking up/down does not
+			// change the requested distance.
+			const float x = cameraRoot->world.rotate[1][0];
+			const float y = cameraRoot->world.rotate[1][1];
 			const float lengthSq = x * x + y * y;
 			if (!std::isfinite(lengthSq) || lengthSq < 0.0001f) {
 				return std::nullopt;

@@ -139,6 +139,7 @@ export interface BrowserState {
   allSpecies: boolean;
   mode: BrowserMode;
   wheel: WheelState | null;
+  autoMinimize: boolean;
   minimized: boolean;
   libOpen: ReadonlySet<string>;
   scnOpen: ReadonlyMap<string, boolean>;
@@ -183,6 +184,7 @@ export function createInitialState(): BrowserState {
     allSpecies: false,
     mode: "scenes",
     wheel: null,
+    autoMinimize: true,
     minimized: false,
     libOpen: new Set(),
     scnOpen: new Map(),

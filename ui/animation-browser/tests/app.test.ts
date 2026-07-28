@@ -76,6 +76,12 @@ describe("browser reducer", () => {
     expect(keptOpen).toMatchObject({ lastHandle: 12, minimized: false });
   });
 
+  it("tracks Auto-Minimize changes from either settings surface", () => {
+    const disabled = browserReducer(createInitialState(), { type: "settings/autoMinimize", enabled: false });
+    expect(disabled.autoMinimize).toBe(false);
+    expect(browserReducer(disabled, { type: "settings/autoMinimize", enabled: true }).autoMinimize).toBe(true);
+  });
+
 
   it("distinguishes an explicit wheel from reset defaults", () => {
     const customized = browserReducer(createInitialState(), { type: "wheel/customized", catalog: [solo], library: [] });

@@ -6,6 +6,7 @@ export interface BrowserCommands {
   selectScene(id: string): void;
   setSearch(value: string): void;
   toggleDebug(): void;
+  toggleAutoMinimize(): void;
   toggleBrowseAll(): void;
   toggleSpecies(): void;
   toggleStep(step: "cast" | "anchor"): void;

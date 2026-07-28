@@ -152,6 +152,20 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         requestCatalog(true);
         break;
       case "osf.animation.version": dispatch({ type: "plugin/received", plugin: record }); break;
+      case "settings.data": {
+        const mods = Array.isArray(record.mods) ? record.mods : [];
+        const animation = mods.find((mod) => isRecord(mod) && mod.id === "osf.animation");
+        const values = isRecord(animation) && isRecord(animation.values) ? animation.values : {};
+        if (typeof values["browser.autoMinimize"] === "boolean") {
+          dispatch({ type: "settings/autoMinimize", enabled: values["browser.autoMinimize"] });
+        }
+        break;
+      }
+      case "settings.changed":
+        if (record.mod === "osf.animation" && record.key === "browser.autoMinimize" && typeof record.value === "boolean") {
+          dispatch({ type: "settings/autoMinimize", enabled: record.value });
+        }
+        break;
       case "osf.animation.catalog.data":
         if (catalogTimer.current) clearTimeout(catalogTimer.current);
         dispatch({ type: "catalog/received", scenes: normalizeCatalog(payload) });
@@ -272,6 +286,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       window.mockOpenWheel = (withTarget = true) => (bridge as StandaloneBridge).openWheel(withTarget);
       if (new URLSearchParams(location.search).has("wheel")) window.setTimeout(() => window.mockOpenWheel?.(new URLSearchParams(location.search).get("wheel") !== "solo"), 0);
     } else requestCatalog(true);
+    send("settings.get");
     return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (padHeld.current.timer) clearTimeout(padHeld.current.timer); };
   }, []);
 
@@ -303,6 +318,12 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     selectScene: (sceneId) => dispatch({ type: "selection/changed", sceneId }),
     setSearch: (search) => dispatch({ type: "filter/search", search: search.trim().toLowerCase() }),
     toggleDebug: () => dispatch({ type: "filter/debug" }),
+    toggleAutoMinimize: () => {
+      const enabled = !stateRef.current.autoMinimize;
+      dispatch({ type: "settings/autoMinimize", enabled });
+      send("settings.set", { mod: "osf.animation", key: "browser.autoMinimize", value: enabled });
+      showNotice("ok", `Auto-Minimize ${enabled ? "enabled" : "disabled"}.`);
+    },
     toggleBrowseAll: () => dispatch({ type: "browse/all" }),
     toggleSpecies: () => dispatch({ type: "filter/species" }),
     toggleStep: (step) => dispatch({ type: "step/toggled", step }),
