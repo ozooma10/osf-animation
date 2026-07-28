@@ -116,9 +116,10 @@ function LibraryRow({ state, scene, cleanTier, commands }: { state: BrowserState
   </button>;
 }
 
+/* Switch state mirrors what the list shows: lit = vanilla included, dark = vanilla filtered out. */
 function VanillaSourceToggle({ filtered, onToggle }: { filtered: boolean; onToggle(): void }) {
-  return <button class={`source-toggle ${filtered ? "filtered" : ""}`} onClick={onToggle} title={filtered ? "Show vanilla animations" : "Hide vanilla animations"} aria-label={filtered ? "Vanilla animations hidden" : "Vanilla animations shown"} aria-pressed={filtered}>
-    <span>VANILLA</span><i class="source-toggle-switch" aria-hidden="true"><i/></i>
+  return <button class={`source-toggle ${filtered ? "off" : "on"}`} onClick={onToggle} title={filtered ? "Show vanilla animations" : "Hide vanilla animations"} aria-label={filtered ? "Vanilla animations hidden" : "Vanilla animations shown"} aria-pressed={!filtered}>
+    <span>VANILLA {filtered ? "OFF" : "ON"}</span><i class="source-toggle-switch" aria-hidden="true"><i/></i>
   </button>;
 }
 

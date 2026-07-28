@@ -323,11 +323,13 @@ button,input,select{font:inherit;color:inherit}
 .source-toggle{display:inline-flex;align-items:center;gap:4px;flex:none;margin-left:auto;padding:2px 5px;background:rgba(79,94,111,.08);border:1px solid var(--line);border-radius:2px;color:var(--text-faint);font:600 7px var(--font-mono);letter-spacing:.08em;white-space:nowrap;cursor:pointer}
 .reveal.inline + .source-toggle{margin-left:0}
 .source-toggle:hover{color:var(--text-body);border-color:var(--steel-500)}
-.source-toggle-switch{position:relative;width:11px;height:6px;border:1px solid var(--steel-500);border-radius:4px}
-.source-toggle-switch i{position:absolute;top:1px;left:5px;width:3px;height:3px;border-radius:50%;background:var(--steel-400);transition:left .12s ease}
-.source-toggle.filtered{color:var(--accent);border-color:rgba(240,113,48,.45);background:rgba(240,113,48,.07)}
-.source-toggle.filtered .source-toggle-switch{border-color:var(--accent)}
-.source-toggle.filtered .source-toggle-switch i{left:1px;background:var(--accent);box-shadow:0 0 4px rgba(240,113,48,.4)}
+.source-toggle-switch{position:relative;width:11px;height:6px;border:1px solid var(--line);border-radius:4px}
+/* knob parks left when vanilla is filtered out, right when it is included */
+.source-toggle-switch i{position:absolute;top:1px;left:1px;width:3px;height:3px;border-radius:50%;background:var(--steel-400);transition:left .12s ease}
+.source-toggle.on{color:var(--text-body);border-color:var(--steel-500)}
+.source-toggle.on .source-toggle-switch{border-color:var(--steel-500)}
+.source-toggle.on .source-toggle-switch i{left:5px;background:var(--steel-300)}
+.source-toggle.off{color:var(--text-faint);background:none}
 /* "FURN" chip on furniture-bound library rows; tinted go/stop when keyed furniture is checked */
 .libx-anchor{flex:none;font:600 8px var(--font-mono);letter-spacing:.12em;color:var(--text-faint);border:1px solid var(--line);border-radius:2px;padding:1px 4px}
 .libx-anchor.fit,.libx-anchor.nofit{border-color:currentColor}
