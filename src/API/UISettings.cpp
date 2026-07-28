@@ -23,27 +23,26 @@ namespace OSF::API
 		// folder and the osf.animation.* command namespace. NOTE the rename
 		// from the pre-1.0 id "osf": old osf.json values files are orphaned
 		// (hotkeys default unbound anyway; users rebind once).
-		// openBrowser defaults UNBOUND ("" + allowUnbound): F10 (the OSF UI
-		// console toggle) already opens the browser — a bound default would
-		// just duplicate that verb.
-		// openWheel defaults to B: the wheel is a mid-gameplay verb with no
-		// other discovery path, B is free in vanilla Starfield, and it's the
-		// emote-wheel convention key; conflict-badging makes rebinds cheap.
+		// Hotkeys default UNBOUND ("" + allowUnbound). F10 (the OSF UI console
+		// toggle) already opens the browser, while every plausible gameplay key
+		// is context-sensitive and may also be localized. In particular, B is
+		// used by several German UI actions. A default must not take ownership
+		// of a key that Starfield needs; users can opt in from the settings card.
 		constexpr const char* kSchemaJson = R"json({
   "id": "osf.animation",
   "title": "OSF Animation",
   "description": "Scene framework — browser, animation wheel, and scene hotkeys.",
   "icon": "browser/osf-icon.svg",
-  "version": 1,
+  "version": 2,
   "targetVersion": "1.3.0",
   "groups": [
     { "label": "Hotkeys", "settings": [
       { "key": "hotkeys.openBrowser", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open animation browser",
         "hint": "Browse animations, emotes, and authored scenes." },
-      { "key": "hotkeys.openWheel", "type": "key", "default": "B", "allowUnbound": true,
+      { "key": "hotkeys.openWheel", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open animation wheel",
-        "hint": "Radial emote picker; targets the crosshair NPC when one is in reach." }
+        "hint": "Unbound by default to avoid conflicts. Opens the radial emote picker and targets the crosshair NPC when one is in reach." }
     ] },
     { "label": "Interface", "settings": [
       { "key": "browser.autoMinimize", "type": "bool", "default": true,

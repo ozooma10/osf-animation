@@ -217,8 +217,9 @@ scene that already ended before the queued callback ran.
 
 The scene browser, animation wheel, settings menu, and hotkeys are hosted by **OSF UI** (a separate
 mod) — there is no Papyrus surface for them, and no `Data/OSF/settings.json` (it is no longer read).
-Hotkeys are bound in OSF UI's settings menu on the **OSF Animation** card: the wheel defaults to `B`;
-the browser key ships unbound because OSF UI's own console toggle (F10) already opens it.
+Hotkeys are bound in OSF UI's settings menu on the **OSF Animation** card. Both ship unbound so they
+do not replace Starfield's context-sensitive or localized key assignments; OSF UI's own console
+toggle (F10) already opens the browser.
 
 Content packs join these surfaces purely by **tags**, no code: a solo, free-space, self-terminating
 scene tagged `player.emote.<name>` appears under Animations → Emotes and in the default animation

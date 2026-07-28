@@ -137,8 +137,8 @@ would need the folder placed next to `OSFUI.dll` manually.
 
 No drop-in `settings/osf.animation.json` file: the DLL registers the same
 schema document at runtime (`RegisterSettingsSchema`, see
-`src/API/UISettings.cpp`) — hotkeys (`hotkeys.openBrowser` default unbound,
-`hotkeys.openWheel` default `B`), interface toggles, and log level all
+`src/API/UISettings.cpp`) — hotkeys (`hotkeys.openBrowser` and
+`hotkeys.openWheel`, both unbound by default), interface toggles, and log level all
 live in OSF UI's in-game settings menu under **OSF Animation**.
 
 ## Animation wheel (transient mode)
