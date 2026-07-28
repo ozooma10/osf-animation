@@ -852,7 +852,7 @@ namespace OSF::API
 			}
 		};
 
-		RE::NiCamera* FindRenderCamera(RE::NiAVObject* a_object, std::uint32_t a_depth = 0)
+		RE::NiCamera* FindCameraInNode(RE::NiAVObject* a_object, std::uint32_t a_depth = 0)
 		{
 			if (!a_object || a_depth > 16) {
 				return nullptr;
@@ -865,16 +865,42 @@ namespace OSF::API
 				return nullptr;
 			}
 			for (const auto& child : node->children) {
-				if (auto* camera = FindRenderCamera(child.get(), a_depth + 1)) {
+				if (auto* camera = FindCameraInNode(child.get(), a_depth + 1)) {
 					return camera;
 				}
 			}
 			return nullptr;
 		}
 
+		RE::NiCamera* ActiveWorldCamera()
+		{
+			// RUNTIME-PROVEN on 1.16.244: Address Library ID 936470 is the global
+			// StorageTable::Camera host-memory pointer. Its inline NiCamera at +0x80 is
+			// camera B, the main WORLD render camera. PlayerCamera::cameraRoot reaches
+			// only camera A (the gameplay/viewmodel camera), which is wrong in third
+			// person and scene orbit.
+			static const REL::Relocation<std::uintptr_t> storageGlobal{ REL::ID(936470) };
+			static const REL::Relocation<std::uintptr_t> cameraVtable{ RE::NiCamera::VTABLE[0] };
+
+			const auto storage = *reinterpret_cast<const std::uintptr_t*>(storageGlobal.address());
+			if (storage != 0) {
+				auto* candidate = reinterpret_cast<RE::NiCamera*>(storage + 0x80);
+				if (*reinterpret_cast<const std::uintptr_t*>(candidate) == cameraVtable.address()) {
+					return candidate;
+				}
+			}
+
+			// Defensive fallback for a future runtime whose renderer storage layout moves:
+			// a camera nested under the mapped PlayerCamera root is still preferable to
+			// dropping every indicator, although it may represent the viewmodel lens.
+			auto* playerCamera = RE::PlayerCamera::GetSingleton();
+			const auto root = playerCamera ? playerCamera->cameraRoot : nullptr;
+			return root ? FindCameraInNode(root.get()) : nullptr;
+		}
+
 		// PlayerCamera::cameraRoot is a mapped, runtime-proven field already used by the
-		// camera service. Its NiCamera child carries the real current world-to-screen matrix;
-		// this avoids Main::WorldRoot, whose relocation is invalid on Starfield 1.16.244.
+		// camera service. It supplies a lifetime pin and a fallback; ActiveWorldCamera()
+		// resolves the separate main-world renderer camera used for exact projection.
 		std::optional<SafeViewProjection> CurrentViewProjection(float a_width, float a_height)
 		{
 			auto* playerCamera = RE::PlayerCamera::GetSingleton();
@@ -885,7 +911,7 @@ namespace OSF::API
 
 			SafeViewProjection out;
 			out.root = root;
-			out.camera = FindRenderCamera(root.get());
+			out.camera = ActiveWorldCamera();
 			if (!out.camera) {
 				return std::nullopt;
 			}
@@ -955,14 +981,16 @@ namespace OSF::API
 			// compose-root cull pin, so center+radius is not a stable anatomical point.
 			static const RE::BSFixedString headName{ "C_Head" };
 			if (RE::NiAVObject* head = root->GetObjectByName(headName)) {
-				a_point = head->world.translate + RE::NiPoint3{ 0.0f, 0.0f, 10.0f };
+				// Render-node transforms are in meters (unlike TESObjectREFR logical
+				// positions). Twelve centimetres clears the top of the rendered head.
+				a_point = head->world.translate + RE::NiPoint3{ 0.0f, 0.0f, 0.12f };
 				return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
 			}
 
 			// Creature rigs do not consistently expose C_Head. Keep their fallback close to the
-			// rendered body by clamping the culling radius to plausible actor dimensions.
+			// rendered body by clamping the culling radius to plausible dimensions in METERS.
 			const RE::NiPoint3 center = root->worldBound.center;
-			const float radius = std::clamp(root->worldBound.radius, 35.0f, 140.0f);
+			const float radius = std::clamp(root->worldBound.radius, 0.45f, 1.35f);
 			a_point = center + RE::NiPoint3{ 0.0f, 0.0f, radius };
 			return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
 		}
