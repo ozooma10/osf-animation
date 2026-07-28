@@ -1039,8 +1039,8 @@ namespace OSF::API
 				}
 				furniture = o.anchorRef;
 			} else if (locationMode == "front") {
-				// Starfield distance scale used by nearby scan: ~70.5 units/m. Ten feet is ~215 units.
-				const auto anchor = Scene::MakeAnchorInFrontOfView(RE::PlayerCharacter::GetSingleton(), 215.0f);
+				// Starfield's NiPoint3 world transforms are meters. Ten feet = 3.048 m.
+				const auto anchor = Scene::MakeAnchorInFrontOfView(RE::PlayerCharacter::GetSingleton(), 3.048f);
 				if (!anchor.set) {
 					return fail("The player is not available for front-of-player placement");
 				}

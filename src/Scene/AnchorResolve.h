@@ -11,7 +11,7 @@ namespace OSF::Scene
 	// World anchor at a ref with no scene validation. Basically passes through ref transform
 	SceneRuntime::AnchorOverride MakeAnchorAt(RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad);
 
-	// World anchor a_distance game units from a reference in the current camera's horizontal look
+	// World anchor a_distance meters from a reference in the current camera's horizontal look
 	// direction. Falls back to the reference heading when the render camera is unavailable.
 	SceneRuntime::AnchorOverride MakeAnchorInFrontOfView(RE::TESObjectREFR* a_ref, float a_distance);
 
