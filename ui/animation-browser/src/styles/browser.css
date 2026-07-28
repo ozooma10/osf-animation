@@ -210,12 +210,17 @@ button,input,select{font:inherit;color:inherit}
 .metric .lbl.warn{color:var(--signal-warn)}
 .iconbtn{border:1px solid var(--line-strong);background:var(--void-700);border-radius:2px;width:26px;height:22px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;padding:0}
 .iconbtn:hover{border-color:var(--accent);color:var(--accent)}
-.iconbtn.settings-btn{font-size:11px}
+/* The settings button carries its label, so it sizes to content rather than the
+   square icon box. */
+.iconbtn.settings-btn{width:auto;gap:6px;padding:0 8px 0 6px}
 .iconbtn.settings-btn.on{border-color:var(--accent);background:var(--accent-quiet);color:var(--accent)}
-/* Drawn chevrons for the minimize/restore pair — the ⌄/⌃ text glyphs render
-   font-dependent (tiny, baseline-shifted) and read as stray carets. */
-.chev-ico{display:block;flex:none}
-.chev-ico path{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:square}
+.iconbtn-lbl{font:700 9px/1 var(--font-mono);letter-spacing:.14em;text-transform:uppercase}
+/* Drawn chevrons for the minimize/restore pair and the settings gear — the
+   ⌄/⌃/⚙ text glyphs render font-dependent (tiny, baseline-shifted) and read as
+   stray carets or an off-center cog. */
+.chev-ico,.gear-ico{display:block;flex:none}
+.chev-ico path,.gear-ico path,.gear-ico circle{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:square}
+.gear-ico path,.gear-ico circle{stroke-width:1.2}
 
 /* stripe band */
 .stripe{position:relative;z-index:2;display:flex;flex-direction:column}
@@ -836,6 +841,3 @@ body.wheel-mode .wheeldbg{display:flex}
   padding:3px 7px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .wheeldbg button:hover{border-color:var(--steel-500);color:var(--text-bright)}
 .wheeldbg button.on{border-color:var(--accent);background:var(--accent-quiet);color:var(--text-bright)}
-/* version-debug strip (#versiondbg): same chassis, but it drives the status line rather
-   than the wheel, so it sits bottom-left and stays up in every mode. */
-.versiondbg{top:auto;bottom:14px;display:flex}

@@ -38,7 +38,7 @@ import { safeNormalizeScene, type SceneModel } from "../model";
 import { MOCK_ACTORS, MOCK_ANCHORS } from "../dev/mock-data";
 import { StandaloneBridge } from "../dev/mock-bridge";
 import { MOCK_CATALOG } from "../dev/mock-data";
-import type { DevCommands, VersionDebugState, WheelDebugState } from "../dev/DevTools";
+import type { DevCommands, VersionDebugState, WheelDebugState } from "../dev/debug";
 
 function normalizeCatalog(payload: unknown, library = false): SceneModel[] {
   if (!Array.isArray(payload)) return [];

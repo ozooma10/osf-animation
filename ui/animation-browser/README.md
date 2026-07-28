@@ -233,6 +233,13 @@ sorting; `TARGET` flips the hub between "→ Sarah Morgan" and "You"; `ERROR`
 plants a hub launch error; `LOADING` shows the catalog-pending state; `RESET`
 returns to the real (snapshot/mock) catalog.
 
+**Harness toolbar:** `osfui.mock.ts` contributes the view's non-wheel debug
+switches to the harness shell toolbar instead of overlaying them on the layout.
+**OSF UI host** fakes the installed host version the status line reports — *no
+host info* (the default), *host up to date*, or *host older than tested*, which
+raises the amber `UPDATE` badge and its Nexus link. Clicks reach the view over a
+window event (`src/dev/harness-tools.ts`); the mock module shares the view page.
+
 **Loadout standalone:** the `wheel.set` round-trip is mocked with a session-local
 ordered loadout applied on top of whichever catalog is served. Remove or reorder
 an emote from its brief, then `W`: the wheel retains all other defaults in the

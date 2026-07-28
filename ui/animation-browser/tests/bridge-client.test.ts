@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OsfUiBridge } from "../src/bridge/client";
+import { hasOsfUiBridge, OsfUiBridge } from "../src/bridge/client";
 import type { NativeMessage } from "../src/bridge/contract";
 
 // OsfUiBridge only touches window.osfui; stub a bare window so these run in the node env.
@@ -30,5 +30,24 @@ describe("OsfUiBridge subscription race", () => {
     bridge.subscribe((m) => received.push(m));
     deliver("osf.animation.notice", { text: "hi" });
     expect(received).toEqual([{ type: "osf.animation.notice", payload: { text: "hi" } }]);
+  });
+});
+
+describe("bridge environment detection", () => {
+  afterEach(() => { delete (globalThis as any).window; });
+
+  it("uses the native bridge in the top-level game view", () => {
+    const topLevel: any = { osfui: { postMessage() {} } };
+    topLevel.parent = topLevel;
+    (globalThis as any).window = topLevel;
+    expect(hasOsfUiBridge()).toBe(true);
+  });
+
+  it("keeps the stateful simulator inside the OSF UI authoring harness", () => {
+    (globalThis as any).window = {
+      parent: {},
+      osfui: { postMessage() {} },
+    };
+    expect(hasOsfUiBridge()).toBe(false);
   });
 });
