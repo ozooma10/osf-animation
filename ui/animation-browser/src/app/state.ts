@@ -78,6 +78,38 @@ export interface LaunchOptions {
 }
 
 export type BrowserMode = "scenes" | "library" | "active" | "wheel";
+export type BrowseMode = Exclude<BrowserMode, "wheel">;
+export type AfterLaunch = "minimize" | "stay" | "close";
+export type OpenTo = "last" | BrowseMode;
+export type UnavailableScenes = "ask" | "show" | "hide";
+
+export interface BrowserPreferences {
+  afterLaunch: AfterLaunch;
+  openTo: OpenTo;
+  rememberBrowsing: boolean;
+  libraryDetail: "curated" | "full";
+  librarySource: "all" | "custom";
+  unavailableScenes: UnavailableScenes;
+  strip: "-1" | "0" | "1";
+  lock: "-1" | "0" | "1";
+  camera: "" | "thirdperson_hold" | "scene_orbit" | "freefly" | "vanity_orbit";
+  speed: string;
+  authorDetails: boolean;
+}
+
+export const DEFAULT_PREFERENCES: BrowserPreferences = {
+  afterLaunch: "minimize",
+  openTo: "last",
+  rememberBrowsing: true,
+  libraryDetail: "curated",
+  librarySource: "all",
+  unavailableScenes: "ask",
+  strip: "-1",
+  lock: "-1",
+  camera: "",
+  speed: "1",
+  authorDetails: false,
+};
 
 export interface WheelEntry {
   scene: string;
@@ -139,7 +171,9 @@ export interface BrowserState {
   allSpecies: boolean;
   mode: BrowserMode;
   wheel: WheelState | null;
-  autoMinimize: boolean;
+  preferences: BrowserPreferences;
+  settingsOpen: boolean;
+  lastBrowseMode: BrowseMode;
   minimized: boolean;
   libOpen: ReadonlySet<string>;
   scnOpen: ReadonlyMap<string, boolean>;
@@ -177,14 +211,16 @@ export function createInitialState(): BrowserState {
     active: null,
     opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
     optsOpen: false,
-    filters: { search: "", debugMode: false },
+    filters: { search: "", debugMode: DEFAULT_PREFERENCES.authorDetails },
     plugin: null,
     anchorMatch: null,
     browseAll: false,
     allSpecies: false,
     mode: "scenes",
     wheel: null,
-    autoMinimize: true,
+    preferences: { ...DEFAULT_PREFERENCES },
+    settingsOpen: false,
+    lastBrowseMode: "scenes",
     minimized: false,
     libOpen: new Set(),
     scnOpen: new Map(),

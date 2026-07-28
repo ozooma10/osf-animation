@@ -55,13 +55,34 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     }
     case "launch/succeeded":
-      return { ...state, lastHandle: action.handle, lastSceneId: action.sceneId, minimized: !state.wheel && action.autoMinimize };
+      return {
+        ...state,
+        lastHandle: action.handle,
+        lastSceneId: action.sceneId,
+        minimized: !state.wheel && action.afterLaunch === "minimize",
+      };
     case "launch/failed":
       return state.wheel
         ? { ...state, wheel: { ...state.wheel, launching: "", error: action.error } }
         : state;
-    case "settings/autoMinimize":
-      return { ...state, autoMinimize: action.enabled };
+    case "settings/received": {
+      const preferences = { ...state.preferences, ...action.preferences };
+      return {
+        ...state,
+        preferences,
+        filters: { ...state.filters, debugMode: preferences.authorDetails },
+        libFull: preferences.libraryDetail === "full",
+        libCustomOnly: preferences.librarySource === "custom",
+        opts: {
+          strip: preferences.strip,
+          lock: preferences.lock,
+          camera: preferences.camera,
+          speed: preferences.speed,
+        },
+      };
+    }
+    case "settings/open":
+      return { ...state, settingsOpen: action.open };
     case "cast/replaced":
       return { ...state, cast: action.members, stepOpen: { ...state.stepOpen, cast: false } };
     case "cast/toggled": {
@@ -133,11 +154,29 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "selection/changed":
       return { ...state, selectedId: action.sceneId, briefFullAnims: false };
     case "mode/changed":
-      return { ...state, mode: action.mode };
+      return {
+        ...state,
+        mode: action.mode,
+        lastBrowseMode: action.mode === "wheel" ? state.lastBrowseMode : action.mode,
+        settingsOpen: false,
+      };
+    case "browser/opened":
+      return {
+        ...state,
+        mode: action.mode,
+        lastBrowseMode: action.mode,
+        settingsOpen: false,
+        ...(action.resetBrowsing ? {
+          filters: { ...state.filters, search: "" },
+          browseAll: false,
+          allSpecies: false,
+          libShowAll: false,
+          libOpen: new Set<string>(),
+          scnOpen: new Map<string, boolean>(),
+        } : {}),
+      };
     case "filter/search":
       return { ...state, filters: { ...state.filters, search: action.search } };
-    case "filter/debug":
-      return { ...state, filters: { ...state.filters, debugMode: !state.filters.debugMode } };
     case "filter/species":
       return { ...state, allSpecies: !state.allSpecies };
     case "browse/all":
@@ -218,7 +257,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "wheel/reset":
       return { ...state, wheelCustomized: false, catalog: action.catalog, library: action.library };
     case "visibility/hidden":
-      return { ...state, wheel: null, mode: "scenes", minimized: false, pickMode: null, actorIndicators: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
+      return { ...state, wheel: null, mode: "scenes", settingsOpen: false, minimized: false, pickMode: null, actorIndicators: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
     case "visibility/shown":
       return { ...state, viewVisible: true };
     case "seeded/remembered": {

@@ -80,9 +80,22 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.launch") {
       this.launch(fields);
     } else if (command === "settings.get") {
-      this.later({ type: "settings.data", payload: { mods: [{ id: "osf.animation", values: { "browser.autoMinimize": this.getState().autoMinimize } }] } }, 10);
-    } else if (command === "settings.set" && fields.mod === "osf.animation" && fields.key === "browser.autoMinimize") {
-      this.later({ type: "settings.changed", payload: { mod: fields.mod, key: fields.key, value: !!fields.value } }, 10);
+      const preferences = this.getState().preferences;
+      this.later({ type: "settings.data", payload: { mods: [{ id: "osf.animation", values: {
+        "browser.afterLaunch": preferences.afterLaunch,
+        "browser.openTo": preferences.openTo,
+        "browser.rememberBrowsing": preferences.rememberBrowsing,
+        "browser.libraryDetail": preferences.libraryDetail,
+        "browser.librarySource": preferences.librarySource,
+        "browser.unavailableScenes": preferences.unavailableScenes,
+        "browser.authorDetails": preferences.authorDetails,
+        "launch.strip": preferences.strip,
+        "launch.lock": preferences.lock,
+        "launch.camera": preferences.camera,
+        "launch.speed": preferences.speed,
+      } }] } }, 10);
+    } else if (command === "settings.set" && fields.mod === "osf.animation" && typeof fields.key === "string") {
+      this.later({ type: "settings.changed", payload: { mod: fields.mod, key: fields.key, value: fields.value } }, 10);
     } else if (command === "osf.animation.stop") {
       this.active = this.active.filter((scene) => scene.handle !== Number(fields.handle));
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
@@ -126,7 +139,7 @@ export class StandaloneBridge implements AnimationBridge {
       player: tokens.includes(PLAYER_TOKEN),
       cast: tokens.map((token) => ({ token, name: token === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === token)?.name ?? "actor", player: token === PLAYER_TOKEN })),
     });
-    this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, autoMinimize: this.getState().autoMinimize } }, 80);
+      this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);
   }
 

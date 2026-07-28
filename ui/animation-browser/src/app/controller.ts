@@ -13,12 +13,19 @@ import {
   wheelPool,
 } from "./selectors";
 import {
+  PREFERENCE_KEYS,
+  decodePreferences,
+  preferenceFromChange,
+  preferredOpenMode,
+} from "./settings";
+import {
   PLAYER_CAST,
   PLAYER_TOKEN,
   createInitialState,
   type ActiveScene,
   type ActorIndicator,
   type BrowserState,
+  type BrowserPreferences,
   type CastMember,
   type NearbyTarget,
   type WheelEntry,
@@ -156,15 +163,22 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         const mods = Array.isArray(record.mods) ? record.mods : [];
         const animation = mods.find((mod) => isRecord(mod) && mod.id === "osf.animation");
         const values = isRecord(animation) && isRecord(animation.values) ? animation.values : {};
-        if (typeof values["browser.autoMinimize"] === "boolean") {
-          dispatch({ type: "settings/autoMinimize", enabled: values["browser.autoMinimize"] });
+        const preferences = decodePreferences(values);
+        dispatch({ type: "settings/received", preferences });
+        // settings.data can race the host's first visibility message. Apply the
+        // opening preference here as well so a newly mounted view does not
+        // briefly settle on the hard-coded Scenes default.
+        const current = stateRef.current;
+        const merged = { ...current.preferences, ...preferences };
+        if (!current.wheel) {
+          const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeScenes(current).length > 0);
+          dispatch({ type: "browser/opened", mode, resetBrowsing: !merged.rememberBrowsing });
+          if (mode === "library" && !current.libraryReceived) requestLibrary(true);
         }
         break;
       }
       case "settings.changed":
-        if (record.mod === "osf.animation" && record.key === "browser.autoMinimize" && typeof record.value === "boolean") {
-          dispatch({ type: "settings/autoMinimize", enabled: record.value });
-        }
+        if (record.mod === "osf.animation") dispatch({ type: "settings/received", preferences: preferenceFromChange(record.key, record.value) });
         break;
       case "osf.animation.catalog.data":
         if (catalogTimer.current) clearTimeout(catalogTimer.current);
@@ -225,10 +239,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "osf.animation.launchResult":
         if (record.ok && record.handle) {
           const sceneId = String(record.sceneId || stateRef.current.selectedId || "");
-          // Missing means true for additive compatibility with an older native plugin, whose
-          // browser behavior was always to minimize after a successful launch.
-          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, autoMinimize: record.autoMinimize !== false });
-          if (stateRef.current.wheel) send("osf.animation.requestClose");
+          const wheelLaunch = !!stateRef.current.wheel;
+          const afterLaunch = stateRef.current.preferences.afterLaunch;
+          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch });
+          if (wheelLaunch || afterLaunch === "close") send("osf.animation.requestClose");
           else showNotice("ok", `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
         } else {
           const error = String(record.error || "Launch failed.");
@@ -250,7 +264,13 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           if (padHeld.current.timer) clearTimeout(padHeld.current.timer);
           padHeld.current = { id: 0 };
           dispatch({ type: "visibility/hidden" });
-        } else dispatch({ type: "visibility/shown" });
+        } else {
+          dispatch({ type: "visibility/shown" });
+          const current = stateRef.current;
+          const mode = preferredOpenMode(current.preferences.openTo, current.lastBrowseMode, activeScenes(current).length > 0);
+          dispatch({ type: "browser/opened", mode, resetBrowsing: !current.preferences.rememberBrowsing });
+          if (mode === "library" && !current.libraryReceived) requestLibrary(true);
+        }
         send(record.visible ? "osf.animation.opened" : "osf.animation.closed");
         break;
       case "ui.error": showNotice("err", `Bridge rejected a message: ${record.message || record.code || "unknown error"}`); break;
@@ -317,12 +337,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     setMode: (mode) => { dispatch({ type: "mode/changed", mode }); if (mode === "library" && !stateRef.current.libraryReceived) { showNotice("info", "Loading the animation library…"); requestLibrary(true); } },
     selectScene: (sceneId) => dispatch({ type: "selection/changed", sceneId }),
     setSearch: (search) => dispatch({ type: "filter/search", search: search.trim().toLowerCase() }),
-    toggleDebug: () => dispatch({ type: "filter/debug" }),
-    toggleAutoMinimize: () => {
-      const enabled = !stateRef.current.autoMinimize;
-      dispatch({ type: "settings/autoMinimize", enabled });
-      send("settings.set", { mod: "osf.animation", key: "browser.autoMinimize", value: enabled });
-      showNotice("ok", `Auto-Minimize ${enabled ? "enabled" : "disabled"}.`);
+    toggleSettings: (open) => dispatch({ type: "settings/open", open: open ?? !stateRef.current.settingsOpen }),
+    setPreference: (key, value) => {
+      dispatch({ type: "settings/received", preferences: { [key]: value } as Partial<BrowserPreferences> });
+      send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });
     },
     toggleBrowseAll: () => dispatch({ type: "browse/all" }),
     toggleSpecies: () => dispatch({ type: "filter/species" }),
@@ -351,8 +369,16 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleLibraryGroup: (key) => dispatch({ type: "library/group", key }),
     toggleSceneGroup: (key, open) => dispatch({ type: "scene/group", key, open }),
     toggleLibraryShowAll: () => dispatch({ type: "library/showAll" }),
-    toggleLibraryFull: () => dispatch({ type: "library/full" }),
-    toggleLibraryCustomOnly: () => dispatch({ type: "library/customOnly" }),
+    toggleLibraryFull: () => {
+      const value = stateRef.current.preferences.libraryDetail === "full" ? "curated" : "full";
+      dispatch({ type: "settings/received", preferences: { libraryDetail: value } });
+      send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS.libraryDetail, value });
+    },
+    toggleLibraryCustomOnly: () => {
+      const value = stateRef.current.preferences.librarySource === "custom" ? "all" : "custom";
+      dispatch({ type: "settings/received", preferences: { librarySource: value } });
+      send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS.librarySource, value });
+    },
     toggleBriefAnimations: () => dispatch({ type: "brief/fullAnimations" }),
     toggleOptions: () => dispatch({ type: "brief/options" }),
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),

@@ -138,8 +138,15 @@ would need the folder placed next to `OSFUI.dll` manually.
 No drop-in `settings/osf.animation.json` file: the DLL registers the same
 schema document at runtime (`RegisterSettingsSchema`, see
 `src/API/UISettings.cpp`) — hotkeys (`hotkeys.openBrowser` and
-`hotkeys.openWheel`, both unbound by default), interface toggles, and log level all
-live in OSF UI's in-game settings menu under **OSF Animation**.
+`hotkeys.openWheel`, both unbound by default), interface preferences, scene launch
+defaults, and log level all live in OSF UI's in-game settings menu under
+**OSF Animation**. The browser's header gear opens a dedicated view of its own
+preferences using the same `settings.get` / `settings.set` store, so changes made
+there and in OSF UI's settings card stay synchronized. It covers after-launch
+behavior, the opening tab, session browsing memory, library detail/source,
+unavailable-scene visibility, default strip/lock/camera/speed overrides, and
+author-facing catalog details. World references such as selected actors and
+furniture are deliberately never persisted.
 
 ## Animation wheel (transient mode)
 

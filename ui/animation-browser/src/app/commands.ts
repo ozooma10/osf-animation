@@ -1,12 +1,12 @@
-import type { BrowserMode, LocationMode } from "./state";
+import type { BrowserMode, BrowserPreferences, LocationMode } from "./state";
 
 export interface BrowserCommands {
   refresh(): void;
   setMode(mode: BrowserMode): void;
   selectScene(id: string): void;
   setSearch(value: string): void;
-  toggleDebug(): void;
-  toggleAutoMinimize(): void;
+  toggleSettings(open?: boolean): void;
+  setPreference<K extends keyof BrowserPreferences>(key: K, value: BrowserPreferences[K]): void;
   toggleBrowseAll(): void;
   toggleSpecies(): void;
   toggleStep(step: "cast" | "anchor"): void;

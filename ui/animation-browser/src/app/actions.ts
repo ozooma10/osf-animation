@@ -1,6 +1,8 @@
 import type {
   ActiveScene,
+  AfterLaunch,
   BrowserMode,
+  BrowserPreferences,
   CastMember,
   FurnitureTarget,
   LocationMode,
@@ -18,9 +20,10 @@ export type BrowserAction =
   | { type: "catalog/received"; scenes: SceneModel[] }
   | { type: "library/received"; scenes: SceneModel[] }
   | { type: "active/received"; scenes: ActiveScene[] }
-  | { type: "launch/succeeded"; handle: number; sceneId: string; autoMinimize: boolean }
+  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch }
   | { type: "launch/failed"; error: string }
-  | { type: "settings/autoMinimize"; enabled: boolean }
+  | { type: "settings/received"; preferences: Partial<BrowserPreferences> }
+  | { type: "settings/open"; open: boolean }
   | { type: "cast/replaced"; members: CastMember[] }
   | { type: "cast/toggled"; member: CastMember }
   | { type: "cast/removed"; index: number }
@@ -35,8 +38,8 @@ export type BrowserAction =
   | { type: "location/selected"; mode: LocationMode; token?: number | null }
   | { type: "selection/changed"; sceneId: string | null }
   | { type: "mode/changed"; mode: BrowserMode }
+  | { type: "browser/opened"; mode: Exclude<BrowserMode, "wheel">; resetBrowsing: boolean }
   | { type: "filter/search"; search: string }
-  | { type: "filter/debug" }
   | { type: "filter/species" }
   | { type: "browse/all" }
   | { type: "library/showAll" }

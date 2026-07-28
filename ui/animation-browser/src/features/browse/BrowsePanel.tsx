@@ -95,13 +95,16 @@ function ScenesBrowser({ state, commands }: { state: BrowserState; commands: Bro
     || b.scene.priority - a.scene.priority || b.scene.weight - a.scene.weight || a.scene.title.localeCompare(b.scene.title);
   const playable = evaluated.filter((item) => item.evaluation.gaps === 0).sort(rank);
   const rest = evaluated.filter((item) => item.evaluation.gaps > 0).sort(rank);
+  const unavailable = state.preferences.unavailableScenes;
+  const showRest = unavailable === "show" || unavailable === "ask" && state.browseAll;
   return <>
     <SpeciesFilter state={state} onToggle={commands.toggleSpecies}/>
     <div class="browse-note"><Dot active/><span class="lbl">PLAYABLE NOW · {playable.length}</span></div>
     {playable.length ? <SceneGroups state={state} items={playable} playable commands={commands}/>
       : <div class="bay-empty"><span class="mono">{state.furniture || state.cast.length > 1 ? "No scene pack fits this exact crew + furniture." : "No solo scenes in your installed packs."}</span><button class="chip-btn" onClick={() => commands.setMode("library")}>OPEN ANIMATIONS ▸</button></div>}
-    {!!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`} onClick={commands.toggleBrowseAll}>{state.browseAll ? "▾" : "▸"} {rest.length} more need a different crew or furniture</button>}
-    {state.browseAll && <SceneGroups state={state} items={rest} playable={false} commands={commands}/>} 
+    {unavailable === "ask" && !!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`} onClick={commands.toggleBrowseAll}>{state.browseAll ? "▾" : "▸"} {rest.length} more need a different crew or furniture</button>}
+    {showRest && !!rest.length && unavailable === "show" && <div class="browse-note dim"><Dot/><span class="lbl">NEEDS DIFFERENT CREW OR FURNITURE · {rest.length}</span></div>}
+    {showRest && <SceneGroups state={state} items={rest} playable={false} commands={commands}/>}
   </>;
 }
 

@@ -33,7 +33,7 @@ namespace OSF::API
   "title": "OSF Animation",
   "description": "Scene framework — browser, animation wheel, and scene hotkeys.",
   "icon": "browser/osf-icon.svg",
-  "version": 2,
+  "version": 3,
   "targetVersion": "1.3.0",
   "groups": [
     { "label": "Hotkeys", "settings": [
@@ -45,12 +45,53 @@ namespace OSF::API
         "hint": "Unbound by default to avoid conflicts. Opens the radial emote picker and targets the crosshair NPC when one is in reach." }
     ] },
     { "label": "Interface", "settings": [
-      { "key": "browser.autoMinimize", "type": "bool", "default": true,
-        "label": "Auto-Minimize",
-        "hint": "Collapse the animation browser to its live controls when a scene starts." },
+      { "key": "browser.afterLaunch", "type": "enum", "default": "minimize",
+        "options": ["minimize", "stay", "close"],
+        "optionLabels": ["Live controls", "Stay open", "Close browser"],
+        "label": "After launching a scene",
+        "hint": "Choose what the animation browser does after a successful launch." },
+      { "key": "browser.openTo", "type": "enum", "default": "last",
+        "options": ["last", "scenes", "library", "active"],
+        "optionLabels": ["Last used", "Scenes", "Animations", "Active"],
+        "label": "Open browser to",
+        "hint": "Active falls back to Scenes when nothing is running." },
+      { "key": "browser.rememberBrowsing", "type": "bool", "default": true,
+        "label": "Remember browsing state",
+        "hint": "Keep search, filters, and expanded folders between browser openings in this game session." },
+      { "key": "browser.libraryDetail", "type": "enum", "default": "curated",
+        "options": ["curated", "full"], "optionLabels": ["Poses and loops", "Full library"],
+        "label": "Animation detail",
+        "hint": "Choose whether transitions and animation layers are shown by default." },
+      { "key": "browser.librarySource", "type": "enum", "default": "all",
+        "options": ["all", "custom"], "optionLabels": ["Custom and vanilla", "Custom only"],
+        "label": "Animation source",
+        "hint": "Hide vanilla animations without affecting custom animation packs." },
+      { "key": "browser.unavailableScenes", "type": "enum", "default": "ask",
+        "options": ["ask", "show", "hide"], "optionLabels": ["On request", "Always below", "Hide"],
+        "label": "Unavailable scenes",
+        "hint": "Control scenes that need a different cast or furniture." },
+      { "key": "browser.authorDetails", "type": "bool", "default": false,
+        "label": "Show author details",
+        "hint": "Reveal IDs, source files, diagnostics, and generated or unlisted entries." },
       { "key": "debugNotifications", "type": "bool", "default": false,
         "label": "Stage-transition popups",
         "hint": "Debug HUD popup on each scene stage transition." }
+    ] },
+    { "label": "Scene defaults", "settings": [
+      { "key": "launch.strip", "type": "enum", "default": "-1",
+        "options": ["-1", "1", "0"], "optionLabels": ["Use scene", "Always", "Never"],
+        "label": "Strip actors", "hint": "Default apparel override for browser launches." },
+      { "key": "launch.lock", "type": "enum", "default": "-1",
+        "options": ["-1", "1", "0"], "optionLabels": ["Use scene", "Always", "Never"],
+        "label": "Lock player controls", "hint": "Default player-control override for browser launches." },
+      { "key": "launch.camera", "type": "enum", "default": "",
+        "options": ["", "thirdperson_hold", "scene_orbit", "freefly", "vanity_orbit"],
+        "optionLabels": ["Use scene", "Third person", "Scene orbit", "Free fly", "Vanity orbit"],
+        "label": "Camera", "hint": "Default camera policy for browser launches." },
+      { "key": "launch.speed", "type": "enum", "default": "1",
+        "options": ["0.5", "0.75", "1", "1.25", "1.5", "2"],
+        "optionLabels": ["0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x"],
+        "label": "Playback speed", "hint": "Default clock multiplier for browser launches." }
     ] },
     { "label": "Scene gear", "settings": [
       { "key": "gear.autoEquip", "type": "bool", "default": true,
@@ -114,8 +155,8 @@ namespace OSF::API
 			};
 			if (key == "logLevel") {
 				SetLogLevel(unquote(value));
-			} else if (key == "browser.autoMinimize") {
-				SetBrowserAutoMinimize(value == "true");
+			} else if (key == "browser.afterLaunch") {
+				SetBrowserAutoMinimize(unquote(value) == "minimize");
 			} else if (key == "debugNotifications") {
 				UI::HudMessage::SetDebugEnabled(value == "true");
 			} else if (key == "gear.autoEquip") {

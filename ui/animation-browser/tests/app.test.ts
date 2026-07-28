@@ -13,6 +13,7 @@ import {
   wheelPool,
 } from "../src/app/selectors";
 import { PLAYER_CAST, createInitialState } from "../src/app/state";
+import { decodePreferences, preferredOpenMode } from "../src/app/settings";
 import { normalizeScene } from "../src/model";
 
 const solo = normalizeScene({
@@ -63,23 +64,30 @@ describe("browser reducer", () => {
     expect(browserReducer(projected, { type: "visibility/hidden" }).actorIndicators).toEqual([]);
   });
 
-  it("honors the Auto-Minimize preference when a scene starts", () => {
+  it("honors the after-launch preference when a scene starts", () => {
     const initial = createInitialState();
     const minimized = browserReducer(initial, {
-      type: "launch/succeeded", handle: 11, sceneId: "solo", autoMinimize: true,
+      type: "launch/succeeded", handle: 11, sceneId: "solo", afterLaunch: "minimize",
     });
     const keptOpen = browserReducer(initial, {
-      type: "launch/succeeded", handle: 12, sceneId: "pair", autoMinimize: false,
+      type: "launch/succeeded", handle: 12, sceneId: "pair", afterLaunch: "stay",
+    });
+    const closed = browserReducer(initial, {
+      type: "launch/succeeded", handle: 13, sceneId: "solo", afterLaunch: "close",
     });
 
     expect(minimized).toMatchObject({ lastHandle: 11, minimized: true });
     expect(keptOpen).toMatchObject({ lastHandle: 12, minimized: false });
+    expect(closed).toMatchObject({ lastHandle: 13, minimized: false });
   });
 
-  it("tracks Auto-Minimize changes from either settings surface", () => {
-    const disabled = browserReducer(createInitialState(), { type: "settings/autoMinimize", enabled: false });
-    expect(disabled.autoMinimize).toBe(false);
-    expect(browserReducer(disabled, { type: "settings/autoMinimize", enabled: true }).autoMinimize).toBe(true);
+  it("applies synchronized browser and launch preferences", () => {
+    const state = browserReducer(createInitialState(), {
+      type: "settings/received",
+      preferences: { afterLaunch: "stay", libraryDetail: "full", librarySource: "custom", strip: "0", authorDetails: true },
+    });
+    expect(state.preferences.afterLaunch).toBe("stay");
+    expect(state).toMatchObject({ libFull: true, libCustomOnly: true, opts: { strip: "0" }, filters: { debugMode: true } });
   });
 
 
@@ -112,6 +120,22 @@ describe("browser reducer", () => {
 
 });
 
+describe("browser settings", () => {
+  it("decodes typed settings and migrates the legacy Auto-Minimize bool", () => {
+    expect(decodePreferences({
+      "browser.afterLaunch": "close",
+      "browser.rememberBrowsing": false,
+      "launch.camera": "scene_orbit",
+    })).toMatchObject({ afterLaunch: "close", rememberBrowsing: false, camera: "scene_orbit" });
+    expect(decodePreferences({ "browser.autoMinimize": false })).toMatchObject({ afterLaunch: "stay" });
+  });
+
+  it("falls back from Active when no scene is running", () => {
+    expect(preferredOpenMode("active", "library", false)).toBe("scenes");
+    expect(preferredOpenMode("last", "library", false)).toBe("library");
+  });
+});
+
 describe("browser selectors", () => {
   it("deduplicates equivalent cast location choices", () => {
     const sarah = { token: 7, name: "Sarah", species: "human", sex: "female" };
@@ -136,6 +160,17 @@ describe("browser selectors", () => {
     expect(validSelection(state)).toBe("pair");
     expect(browseVisible(state, pair)).toBe(false);
     expect(validSelection({ ...state, browseAll: true })).toBe("pair");
+  });
+
+  it("applies the unavailable-scene visibility preference", () => {
+    const state = { ...createInitialState(), catalog: [pair], catalogReceived: true };
+    expect(browseVisible(state, pair)).toBe(false);
+    expect(browseVisible({ ...state, preferences: { ...state.preferences, unavailableScenes: "show" } }, pair)).toBe(true);
+    expect(browseVisible({
+      ...state,
+      browseAll: true,
+      preferences: { ...state.preferences, unavailableScenes: "hide" },
+    }, pair)).toBe(false);
   });
 
   it("derives default wheel order and caps its geometry", () => {

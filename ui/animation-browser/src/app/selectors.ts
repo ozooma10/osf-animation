@@ -147,7 +147,11 @@ export function matchesSearch(state: BrowserState, scene: SceneModel): boolean {
 export function browseVisible(state: BrowserState, scene: SceneModel): boolean {
   if (state.mode === "library" && state.libCustomOnly && isVanillaAnimation(scene)) return false;
   if (!matchesSearch(state, scene) || !speciesVisible(state, scene)) return false;
-  return state.mode !== "scenes" || state.browseAll || evaluateForState(state, scene).gaps === 0;
+  if (state.mode !== "scenes") return true;
+  const playable = evaluateForState(state, scene).gaps === 0;
+  if (playable) return true;
+  return state.preferences.unavailableScenes === "show"
+    || state.preferences.unavailableScenes === "ask" && state.browseAll;
 }
 
 export function selectionCandidates(state: BrowserState): SceneModel[] {
