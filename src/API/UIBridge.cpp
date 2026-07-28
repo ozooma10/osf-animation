@@ -908,7 +908,7 @@ namespace OSF::API
 				furniture = o.anchorRef;
 			} else if (locationMode == "front") {
 				// Starfield distance scale used by nearby scan: ~70.5 units/m. Ten feet is ~215 units.
-				const auto anchor = Scene::MakeAnchorInFrontOf(RE::PlayerCharacter::GetSingleton(), 215.0f);
+				const auto anchor = Scene::MakeAnchorInFrontOfView(RE::PlayerCharacter::GetSingleton(), 215.0f);
 				if (!anchor.set) {
 					return fail("The player is not available for front-of-player placement");
 				}

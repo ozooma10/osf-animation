@@ -66,6 +66,24 @@ namespace OSF::Scene
 				rendered.pos.x, rendered.pos.y, rendered.pos.z, rendered.heading);
 			return rendered;
 		}
+
+		std::optional<float> CurrentViewHeading()
+		{
+			const auto camera = RE::Main::GetWorldRootCamera();
+			if (!camera) {
+				return std::nullopt;
+			}
+
+			// NiCamera::WorldToScreen treats row 0 of the world rotation as camera-forward.
+			// Project it onto the ground plane so looking up/down does not change distance.
+			const float x = camera->world.rotate[0][0];
+			const float y = camera->world.rotate[0][1];
+			const float lengthSq = x * x + y * y;
+			if (!std::isfinite(lengthSq) || lengthSq < 0.0001f) {
+				return std::nullopt;
+			}
+			return std::atan2(-x, y);
+		}
 	}
 
 	SceneRuntime::AnchorOverride MakeAnchorAt(RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad)
@@ -80,19 +98,25 @@ namespace OSF::Scene
 		return anchor;
 	}
 
-	SceneRuntime::AnchorOverride MakeAnchorInFrontOf(RE::TESObjectREFR* a_ref, float a_distance)
+	SceneRuntime::AnchorOverride MakeAnchorInFrontOfView(RE::TESObjectREFR* a_ref, float a_distance)
 	{
 		if (!a_ref || !std::isfinite(a_distance)) {
 			return {};
 		}
 		const RefTransform base = RenderedTransform(a_ref);
+		const std::optional<float> viewHeading = CurrentViewHeading();
+		const float heading = viewHeading.value_or(base.heading);
 		const RE::NiPoint3 pos{
-			base.pos.x - std::sin(base.heading) * a_distance,
-			base.pos.y + std::cos(base.heading) * a_distance,
+			base.pos.x - std::sin(heading) * a_distance,
+			base.pos.y + std::cos(heading) * a_distance,
 			base.pos.z
 		};
 
-		return SceneRuntime::AnchorOverride{ true, pos, base.heading };
+		REX::DEBUG("[Scene] front-of-view anchor ref {:#010x}: origin ({:.1f},{:.1f},{:.1f}) actorHeading {:.2f}, "
+			"viewHeading {:.2f}{} distance {:.1f} -> ({:.1f},{:.1f},{:.1f})",
+			a_ref->GetFormID(), base.pos.x, base.pos.y, base.pos.z, base.heading, heading,
+			viewHeading ? "" : " (actor fallback)", a_distance, pos.x, pos.y, pos.z);
+		return SceneRuntime::AnchorOverride{ true, pos, heading };
 	}
 
 	std::optional<SceneRuntime::AnchorOverride> ResolveSceneAnchor(
