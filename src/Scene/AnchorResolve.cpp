@@ -69,15 +69,16 @@ namespace OSF::Scene
 
 		std::optional<float> CurrentViewHeading()
 		{
-			const auto camera = RE::Main::GetWorldRootCamera();
-			if (!camera) {
+			auto* playerCamera = RE::PlayerCamera::GetSingleton();
+			const auto cameraRoot = playerCamera ? playerCamera->cameraRoot : nullptr;
+			if (!cameraRoot) {
 				return std::nullopt;
 			}
 
-			// NiCamera::WorldToScreen treats row 0 of the world rotation as camera-forward.
-			// Project it onto the ground plane so looking up/down does not change distance.
-			const float x = camera->world.rotate[0][0];
-			const float y = camera->world.rotate[0][1];
+			// The camera root uses the same row-0 forward basis as the render camera. Project it
+			// onto the ground plane so looking up/down does not change the requested distance.
+			const float x = cameraRoot->world.rotate[0][0];
+			const float y = cameraRoot->world.rotate[0][1];
 			const float lengthSq = x * x + y * y;
 			if (!std::isfinite(lengthSq) || lengthSq < 0.0001f) {
 				return std::nullopt;
