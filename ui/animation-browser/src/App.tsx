@@ -1,5 +1,5 @@
 import type { BrowserCommands } from "./app/commands";
-import { activeScenes, sceneById, sceneTitle, stageLabel } from "./app/selectors";
+import { activeScenes, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
 import type { BrowserState } from "./app/state";
 import { LiveBar } from "./components/LiveBar";
 import { AnchorPanel } from "./features/anchor/AnchorPanel";
@@ -77,7 +77,10 @@ function ActorIndicators({ state }: { state: BrowserState }) {
 }
 
 export function App({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  return <div class={`stage ${state.pickMode ? "picking" : ""} ${state.settingsOpen ? "settings-mode" : ""}`}>
+  const selected = selectedPlayable(state);
+  const compactContext = state.mode !== "active" && !!selected && selected.kind !== "scene"
+    && selected.scene.actorCount === 1 && !selected.scene.requiresFurniture;
+  return <div class={`stage ${state.pickMode ? "picking" : ""} ${state.settingsOpen ? "settings-mode" : ""} ${compactContext ? "compact-context" : ""}`}>
     <ActorIndicators state={state}/>
     <div class="console"><span class="bracket tl"/><span class="bracket tr"/><span class="bracket bl"/><span class="bracket br"/><div class="grid-overlay"/><Header state={state} commands={commands}/>{state.settingsOpen ? <SettingsPanel state={state} commands={commands}/> : <div class="director"><aside class="rail"><CastPanel state={state} commands={commands}/><AnchorPanel state={state} commands={commands}/></aside><section class="browse"><BrowsePanel state={state} commands={commands}/></section></div>}<footer class={`notice ${state.notice.kind}`} aria-live="polite">{state.notice.text}</footer></div>
     <aside class="brief"><SceneBrief state={state} commands={commands}/></aside>

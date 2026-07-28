@@ -1,13 +1,14 @@
-import type { BrowserMode, BrowserPreferences, LocationMode } from "./state";
+import type { BrowseKind, BrowserMode, BrowserPreferences, LocationMode } from "./state";
 
 export interface BrowserCommands {
   refresh(): void;
   setMode(mode: BrowserMode): void;
-  selectScene(id: string): void;
+  selectScene(id: string, stage?: number | null): void;
   setSearch(value: string): void;
   toggleSettings(open?: boolean): void;
   setPreference<K extends keyof BrowserPreferences>(key: K, value: BrowserPreferences[K]): void;
   toggleBrowseAll(): void;
+  setBrowseKind(kind: BrowseKind): void;
   toggleSpecies(): void;
   toggleStep(step: "cast" | "anchor"): void;
   toggleMarkers(): void;
@@ -31,7 +32,7 @@ export interface BrowserCommands {
   toggleBriefAnimations(): void;
   toggleOptions(): void;
   setOption(field: "strip" | "lock" | "camera" | "speed", value: string): void;
-  launch(stage?: number): void;
+  launch(stage?: number, singleAnimation?: boolean, sceneId?: string): void;
   stop(handle?: number): void;
   stopAll(): void;
   advance(handle?: number): void;

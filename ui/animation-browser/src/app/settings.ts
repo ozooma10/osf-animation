@@ -38,7 +38,9 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   if (afterLaunch) preferences.afterLaunch = afterLaunch;
   // Compatibility with the old boolean setting if a host still returns it.
   else if (typeof values["browser.autoMinimize"] === "boolean") preferences.afterLaunch = values["browser.autoMinimize"] ? "minimize" : "stay";
-  if (openTo) preferences.openTo = openTo;
+  // "library" was the old separate Animations tab. Both old browse lanes now
+  // open the unified browser; retain decoding so existing profiles migrate.
+  if (openTo) preferences.openTo = openTo === "library" ? "scenes" : openTo;
   if (typeof values[PREFERENCE_KEYS.rememberBrowsing] === "boolean") preferences.rememberBrowsing = values[PREFERENCE_KEYS.rememberBrowsing] as boolean;
   if (libraryDetail) preferences.libraryDetail = libraryDetail;
   if (librarySource) preferences.librarySource = librarySource;
@@ -58,5 +60,6 @@ export function preferenceFromChange(key: unknown, value: unknown): Partial<Brow
 
 export function preferredOpenMode(openTo: OpenTo, last: BrowseMode, hasActive: boolean): BrowseMode {
   const requested = openTo === "last" ? last : openTo;
+  if (requested === "library") return "scenes";
   return requested === "active" && !hasActive ? "scenes" : requested;
 }

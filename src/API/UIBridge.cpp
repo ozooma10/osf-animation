@@ -1044,6 +1044,10 @@ namespace OSF::API
 			                                ? j["sceneId"].get<std::string>()
 			                                : std::string{};
 			reply["sceneId"] = sceneId;
+			// A browser animation row references one stage inside a registry-backed
+			// collection. Its launch must end when that stage exits instead of walking
+			// the collection's remaining stage chain. The wheel implies the same scope.
+			const bool singleAnimation = j.is_object() && j.value("singleAnimation", false);
 
 			auto fail = [&](const std::string& a_reason) {
 				reply["ok"] = false;
@@ -1223,11 +1227,10 @@ namespace OSF::API
 			}
 
 			g_lastHandle = handle;
-			// Wheel posture, part 2: pin the emote to its entered stage — every edge out (space,
-			// the pack's loops/timer chain) ends the scene instead of advancing to the next
-			// animation. Post-start on purpose: the launch runs through the public API POD, and
-			// this is engine posture, not a per-scene option worth an ABI append.
-			if (g_wheel.active) {
+			// A stage-scoped browser item and a wheel entry both mean "play this
+			// animation", never "start here and continue through the parent collection."
+			// Post-start on purpose: this is launch posture, not authored scene policy.
+			if (g_wheel.active || singleAnimation) {
 				Scene::SceneRuntime::GetSingleton().SetSingleStage(handle);
 			}
 			// Console launch with the PLAYER in the cast: abort on browser close (see

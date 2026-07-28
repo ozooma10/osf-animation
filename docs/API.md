@@ -222,8 +222,9 @@ do not replace Starfield's context-sensitive or localized key assignments; OSF U
 toggle (F10) already opens the browser.
 
 Content packs join these surfaces purely by **tags**, no code: a solo, free-space, self-terminating
-scene tagged `player.emote.<name>` appears under Animations → Emotes and in the default animation
-wheel. The well-known tag contract lives in [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
+scene tagged `player.emote.<name>` appears as an Action in the unified Browse catalog and in the
+default Quick Access wheel. The well-known tag contract lives in
+[SCENE_SCHEMA.md](SCENE_SCHEMA.md).
 
 ## Discovery & diagnostics
 

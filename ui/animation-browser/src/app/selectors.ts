@@ -33,6 +33,21 @@ export interface WheelCandidate {
   source: SceneModel | SceneStage;
 }
 
+export type PlayableKind = "animation" | "action" | "scene";
+
+/**
+ * Browser-facing launch target. A collection is deliberately absent: packs,
+ * folders, and vanilla sets organize these items but are never launchable.
+ */
+export interface PlayableItem {
+  key: string;
+  kind: PlayableKind;
+  scene: SceneModel;
+  stage: SceneStage | null;
+  title: string;
+  collection: string;
+}
+
 export function isEmote(scene: SceneModel | null | undefined): boolean {
   return !!scene && scene.tags.some((tag) => tag.toLowerCase().startsWith("player.emote."));
 }
@@ -52,6 +67,77 @@ export function sceneCatalog(state: BrowserState): SceneModel[] {
 
 export function emoteCatalog(state: BrowserState): SceneModel[] {
   return state.catalog.filter(isEmote);
+}
+
+export function isGeneratedSceneClip(scene: SceneModel): boolean {
+  return scene.id.toLowerCase().startsWith("osf.scene-clip/");
+}
+
+export function playableKey(sceneId: string, stage: number | null): string {
+  return wheelKey(sceneId, stage);
+}
+
+export function playableStageTitle(scene: SceneModel, stage: SceneStage): string {
+  if (scene.stages.length === 1) return scene.title.replace(/^Vanilla · /, "");
+  return stage.name || `Animation ${stage.index + 1}`;
+}
+
+export function playableItems(state: BrowserState): PlayableItem[] {
+  const items: PlayableItem[] = [];
+  for (const scene of state.catalog) {
+    if (!unlistedVisible(state, scene)) continue;
+    const kind: PlayableKind = isEmote(scene) ? "action" : "scene";
+    items.push({
+      key: playableKey(scene.id, null),
+      kind,
+      scene,
+      stage: null,
+      title: scene.title,
+      collection: scene.folder,
+    });
+  }
+  for (const scene of filteredLibrary(state)) {
+    if (!state.filters.debugMode && isGeneratedSceneClip(scene)) continue;
+    for (const stage of scene.stages) {
+      items.push({
+        key: playableKey(scene.id, stage.index),
+        kind: "animation",
+        scene,
+        stage,
+        title: playableStageTitle(scene, stage),
+        collection: [scene.folder, scene.stages.length > 1 ? scene.title.replace(/^Vanilla · /, "") : ""]
+          .filter(Boolean).join(" / "),
+      });
+    }
+  }
+  return items;
+}
+
+export function matchesPlayableSearch(state: BrowserState, item: PlayableItem): boolean {
+  if (!state.filters.search) return true;
+  const scene = item.scene;
+  const roles = scene.roles.map((role) => `${role.name} ${role.gender}`).join(" ");
+  return `${item.title} ${item.collection} ${scene.title} ${scene.id} ${scene.tags.join(" ")} ${item.stage?.tags.join(" ") ?? ""} ${roles} ${scene.pack} ${scene.sourceFile}`
+    .toLowerCase().includes(state.filters.search);
+}
+
+export function playableVisible(state: BrowserState, item: PlayableItem): boolean {
+  if (state.browseKind !== "all" && state.browseKind !== item.kind) return false;
+  if (!speciesVisible(state, item.scene) || !matchesPlayableSearch(state, item)) return false;
+  if (item.kind === "animation") {
+    const matchKnown = !!state.furniture && state.anchorMatch?.token === state.furniture.token;
+    if (matchKnown && !state.libShowAll && !state.anchorMatch?.ids.has(item.scene.id)) return false;
+    if (!matchKnown && !state.libFull && !state.filters.search && item.stage && !stageClean(item.stage)) return false;
+  }
+  return true;
+}
+
+export function selectedPlayable(state: BrowserState): PlayableItem | null {
+  if (!state.selectedId) return null;
+  const items = playableItems(state);
+  const exact = items.find((item) => item.scene.id === state.selectedId
+    && (item.stage?.index ?? null) === state.selectedStage);
+  return exact ?? items.find((item) => item.scene.id === state.selectedId) ?? null;
 }
 
 export function animationList(state: BrowserState): SceneModel[] {
@@ -156,13 +242,16 @@ export function browseVisible(state: BrowserState, scene: SceneModel): boolean {
 
 export function selectionCandidates(state: BrowserState): SceneModel[] {
   if (state.mode === "active") return state.catalog;
-  return state.mode === "library" ? animationList(state) : sceneCatalog(state);
+  const seen = new Set<string>();
+  return playableItems(state).filter((item) => playableVisible(state, item))
+    .map((item) => item.scene)
+    .filter((scene) => !seen.has(scene.id) && !!seen.add(scene.id));
 }
 
 export function validSelection(state: BrowserState): string | null {
   if (state.mode === "active" && state.selectedId && sceneById(state, state.selectedId)) return state.selectedId;
   const candidates = selectionCandidates(state);
-  const visible = candidates.filter((scene) => browseVisible(state, scene));
+  const visible = state.mode === "active" ? candidates.filter((scene) => browseVisible(state, scene)) : candidates;
   if (state.selectedId && visible.some((scene) => scene.id === state.selectedId)) return state.selectedId;
   if (visible[0]) return visible[0].id;
   if (state.selectedId && candidates.some((scene) => scene.id === state.selectedId)) return state.selectedId;

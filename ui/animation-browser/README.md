@@ -30,7 +30,10 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
 - **Contract (`osf.animation.*`):**
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
   `pickCrosshair`→`pick`, `pickScreen {slot,x,y,width,height}`→`pick`, `scanNearby`→`scanResults`,
-  `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`,
+  `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`.
+  A launch may carry additive `singleAnimation:true`; after entering the requested
+  `opts.stage`, any edge out ends playback instead of continuing through the
+  parent registry definition.
   `wheel.get`→`wheel.data`,
   `wheel.set {entries:[{scene,stage?},...]}` (persist the complete ordered animation-wheel loadout)
   or `wheel.set {reset:true}` (return to installed defaults); the reply is an
@@ -84,27 +87,26 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
   attached ship/interior frames. Furniture-authored scenes still require and
   validate compatible furniture—the free-space choices never bypass that gate.
 - Catalog = OSF Animation's **live** `SceneRegistry` (not a disk scan). The browser
-  projects its runtime entries into player-facing kinds: ordinary authored entries stay
-  under **Scenes**, while entries tagged `player.emote.*` appear first under
-  **Animations → Emotes** with quick-action language. They remain scene-backed internally.
+  projects it into one player-facing catalog of **playables**: a library stage is an
+  Animation, a `player.emote.*` definition is an Action, and an ordinary authored
+  definition is a Scene. Pack/folder/set names are collections only and never launch.
+  The All / Animations / Actions / Scenes controls are facets over that one catalog.
   Every entry carries `pack` (the file-level content-pack label, "" if unauthored) and
-  `sourceFile` (the scene file's name, no directories); both lanes group rows into
-  collapsible per-pack blocks keyed on `pack` → `sourceFile` → id-prefix fallback, so a
-  large install folds to a handful of pack headers instead of one endless list. Scenes-lane
-  groups default open while searching, while the tier is small, or around the selection;
-  a header click stores an explicit choice for the session.
+  `sourceFile` (the scene file's name, no directories); rows group into collapsible
+  collection blocks keyed on `pack` → `sourceFile` → id-prefix fallback. Selecting or
+  directly playing a library row launches exactly its referenced stage; it cannot walk
+  into another animation in the collection. Generated raw clips extracted from authored
+  scenes are author-detail/debug material and stay out of the normal catalog.
   The view only ever holds opaque integer **tokens** (player = `-1`), which
   the DLL maps back to `RE::*` refs and re-validates on the main thread
   before use.
-- **Library clean tier:** the LIBRARY lane defaults to poses & loopable clips
+- **Animation clean tier:** Browse defaults to poses & loopable clips
   only — stages tagged `transition`/`partial` (the vanilla dump's connective
   tissue) hide behind a "full library" banner toggle, and groups order
   photomode/pose sets first. The tier is bypassed while furniture is keyed
   (the anchor match already curates, and e.g. dance flavor clips are tagged
   `transition` upstream yet are the good content) and while searching (stage
-  names are in the search hay — a hit must be visible). The brief mirrors it:
-  library sets list clean stages first with the rest folded behind a
-  "+ N transitions & layers" count.
+  names are in the search hay — a hit must be visible).
 - **Durations:** each stage card carries `loopSec` (clip loop length),
   `timerSec`/`loops` (stage timing), `openEnded` and `estSec`; each scene carries
   `estSec` (sum of stage estimates, holds counted as 2 loops), `estPartial`
@@ -161,11 +163,11 @@ materializes that whole default pool before applying the edit—customizing one
 entry never makes every other default disappear. The explicit loadout persists
 DLL-side in `<Documents>\My Games\Starfield\OSF\wheel-pins.json`, account-global,
 surviving ReloadPacks and reinstalls. It is an ordered JSON array of minimal
-`{"scene":"...","stage":0}` launch references (stage is omitted for a whole emote);
+`{"scene":"...","stage":0}` launch references (stage is omitted for a whole default Action);
 deleting it restores installed defaults, while [] is an intentionally empty wheel.
-Each eligible animation row offers add/remove and earlier/later controls; the brief also
-offers **Reset Defaults**. Wheel membership shows as ◆ in
-the Emotes group. The hub names who plays—the crosshair target captured at open
+Each eligible animation or Action row offers add/remove controls; the brief also
+offers **Reset Defaults**. Quick Access membership shows as ◆ on its Browse row.
+The hub names who plays—the crosshair target captured at open
 time ("→ Sarah") or "You".
 Arrows/hover step the ring, Enter/click launches (`osf.animation.launch` with
 `castTokens:[token]` and the saved stage), success sends `osf.animation.requestClose`; a

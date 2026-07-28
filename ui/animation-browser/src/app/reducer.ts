@@ -151,8 +151,19 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         locationMode: action.mode,
         locationToken: action.mode === "actor" || action.mode === "furniture" ? action.token ?? null : null,
       };
-    case "selection/changed":
-      return { ...state, selectedId: action.sceneId, briefFullAnims: false };
+    case "selection/changed": {
+      const scene = state.catalog.find((candidate) => candidate.id === action.sceneId)
+        ?? state.library.find((candidate) => candidate.id === action.sceneId);
+      const compact = !!scene && scene.actorCount === 1 && !scene.requiresFurniture
+        && (!!scene.library || scene.tags.some((tag) => tag.toLowerCase().startsWith("player.emote.")));
+      return {
+        ...state,
+        selectedId: action.sceneId,
+        selectedStage: action.stage ?? null,
+        briefFullAnims: false,
+        stepOpen: compact ? { cast: false, anchor: false } : state.stepOpen,
+      };
+    }
     case "mode/changed":
       return {
         ...state,
@@ -169,6 +180,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ...(action.resetBrowsing ? {
           filters: { ...state.filters, search: "" },
           browseAll: false,
+          browseKind: "all",
           allSpecies: false,
           libShowAll: false,
           libOpen: new Set<string>(),
@@ -181,6 +193,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return { ...state, allSpecies: !state.allSpecies };
     case "browse/all":
       return { ...state, browseAll: !state.browseAll };
+    case "browse/kind":
+      return { ...state, browseKind: action.kind };
     case "library/showAll":
       return { ...state, libShowAll: !state.libShowAll };
     case "library/full":

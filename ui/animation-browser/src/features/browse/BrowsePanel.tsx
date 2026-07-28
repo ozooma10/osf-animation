@@ -2,197 +2,197 @@ import type { BrowserCommands } from "../../app/commands";
 import {
   activeScenes,
   anchorShort,
-  animationList,
-  browseVisible,
-  castHasCreature,
-  castSpecies,
-  cleanStages,
-  emoteCatalog,
   evaluateForState,
-  fitsKeyedAnchor,
-  filteredLibrary,
+  formatDuration,
   formatEstimate,
-  isEmote,
-  libraryRank,
-  libraryFolderTree,
-  type LibraryFolderNode,
-  matchesSearch,
+  isWheelEmote,
+  isWheelStage,
   needsText,
   packKey,
   packLabel,
+  playableItems,
+  playableVisible,
   sceneById,
-  sceneCatalog,
-  setQuality,
   speciesLabel,
-  speciesVisible,
   stageLabel,
+  wheelPool,
+  type PlayableItem,
 } from "../../app/selectors";
-import type { BrowserState } from "../../app/state";
+import type { BrowseKind, BrowserState } from "../../app/state";
 import type { SceneEvaluation, SceneModel } from "../../model";
 import { Dot, Empty, SpeciesFilter } from "../shared/Shared";
 
-interface EvaluatedScene { scene: SceneModel; evaluation: SceneEvaluation }
-
-function SceneRow({ state, item, playable, commands }: {
-  state: BrowserState;
-  item: EvaluatedScene;
-  playable: boolean;
-  commands: BrowserCommands;
-}) {
-  const { scene, evaluation } = item;
-  const details = [`${scene.actorCount || 1} role${scene.actorCount === 1 ? "" : "s"}`];
-  if (scene.requiresFurniture) details.push(`on ${anchorShort(scene) || "furniture"}`);
-  const duration = formatEstimate(scene);
-  if (duration) details.push(duration);
-  return (
-    <button class={`libx-row ${state.selectedId === scene.id ? "selected" : ""}`} onClick={() => commands.selectScene(scene.id)}>
-      <span class="libx-spine"/><span class="libx-title">{scene.title}</span>
-      {scene.pinned > 0 && <span class="libx-pinmark" title="On the animation wheel">◆</span>}
-      <span class="libx-meta mono">{state.filters.debugMode ? scene.id : details.join(" · ")}</span>
-      <span class={`row-badge ${playable ? "go" : ""}`}>{playable ? "READY" : needsText(state, scene, evaluation)}</span>
-    </button>
-  );
+interface EvaluatedPlayable {
+  item: PlayableItem;
+  evaluation: SceneEvaluation;
 }
 
-function SceneGroups({ state, items, playable, commands }: {
-  state: BrowserState;
-  items: EvaluatedScene[];
-  playable: boolean;
-  commands: BrowserCommands;
-}) {
-  const groups = new Map<string, EvaluatedScene[]>();
-  for (const item of items) {
-    const key = packKey(item.scene);
-    groups.set(key, [...(groups.get(key) ?? []), item]);
+function playableGroupKey(item: PlayableItem): string {
+  if (item.kind === "action" && !item.scene.pack && !item.scene.sourceFile) {
+    return `action-pack:${item.scene.id.split("/").filter(Boolean)[0] || "actions"}`;
   }
-  const entries = [...groups.entries()];
-  const flat = entries.length === 1 || entries.length > 8 && items.length / entries.length < 1.5;
-  if (flat) return <div class={`row-list ${playable ? "" : "dim"}`}>{items.map((item) => <SceneRow key={item.scene.id} state={state} item={item} playable={playable} commands={commands}/>)}</div>;
-  const searching = !!state.filters.search;
-  const fewRows = items.length <= 14;
-  return <div class={`row-list ${playable ? "" : "dim"}`}>{entries.map(([key, list]) => {
-    const stateKey = `${playable ? "" : "rest:"}${key}`;
-    const containsSelection = list.length <= 30 && list.some((item) => item.scene.id === state.selectedId);
-    const open = state.scnOpen.get(stateKey) ?? (searching || fewRows || containsSelection);
-    return <div class="libx-group" key={stateKey}>
-      <button class="libx-head" onClick={() => commands.toggleSceneGroup(stateKey, !open)}>
-        <span class="chev">{open ? "▾" : "▸"}</span><span class="libx-name">{packLabel(key, list.map((item) => item.scene))}</span>
-        <span class="libx-meta mono">{list.length} SCENE{list.length === 1 ? "" : "S"}</span>
-      </button>
-      {open && <div class="libx-list">{list.map((item) => <SceneRow key={item.scene.id} state={state} item={item} playable={playable} commands={commands}/>)}</div>}
-    </div>;
-  })}</div>;
+  return packKey(item.scene);
 }
 
-function ScenesBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  if (!state.catalogReceived) return <Empty>Waiting for the catalog…</Empty>;
-  const scenes = sceneCatalog(state);
-  if (!scenes.length) return <Empty>No authored scenes installed — emotes and the animation library are ready to play.<br/><button class="chip-btn" onClick={() => commands.setMode("library")}>OPEN ANIMATIONS ▸</button></Empty>;
-  const evaluated = scenes.filter((scene) => matchesSearch(state, scene) && speciesVisible(state, scene))
-    .map((scene) => ({ scene, evaluation: evaluateForState(state, scene) }));
-  const anchorFits = (item: EvaluatedScene) => Number(!!state.furniture && item.scene.requiresFurniture && item.evaluation.anchorGate);
-  const rank = (a: EvaluatedScene, b: EvaluatedScene) => anchorFits(b) - anchorFits(a)
-    || b.scene.priority - a.scene.priority || b.scene.weight - a.scene.weight || a.scene.title.localeCompare(b.scene.title);
-  const playable = evaluated.filter((item) => item.evaluation.gaps === 0).sort(rank);
-  const rest = evaluated.filter((item) => item.evaluation.gaps > 0).sort(rank);
-  const unavailable = state.preferences.unavailableScenes;
-  const showRest = unavailable === "show" || unavailable === "ask" && state.browseAll;
-  return <>
-    <SpeciesFilter state={state} onToggle={commands.toggleSpecies}/>
-    <div class="browse-note"><Dot active/><span class="lbl">PLAYABLE NOW · {playable.length}</span></div>
-    {playable.length ? <SceneGroups state={state} items={playable} playable commands={commands}/>
-      : <div class="bay-empty"><span class="mono">{state.furniture || state.cast.length > 1 ? "No scene pack fits this exact crew + furniture." : "No solo scenes in your installed packs."}</span><button class="chip-btn" onClick={() => commands.setMode("library")}>OPEN ANIMATIONS ▸</button></div>}
-    {unavailable === "ask" && !!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`} onClick={commands.toggleBrowseAll}>{state.browseAll ? "▾" : "▸"} {rest.length} more need a different crew or furniture</button>}
-    {showRest && !!rest.length && unavailable === "show" && <div class="browse-note dim"><Dot/><span class="lbl">NEEDS DIFFERENT CREW OR FURNITURE · {rest.length}</span></div>}
-    {showRest && <SceneGroups state={state} items={rest} playable={false} commands={commands}/>}
-  </>;
+function playableGroupLabel(key: string, scenes: readonly SceneModel[]): string {
+  if (key.startsWith("action-pack:")) {
+    return key.slice("action-pack:".length).replace(/[-_]+/g, " ").toUpperCase();
+  }
+  const label = packLabel(key, scenes);
+  return scenes[0]?.library && /^vanilla-/i.test(key) ? `VANILLA / ${label}` : label;
 }
 
-function LibraryRow({ state, scene, cleanTier, commands }: { state: BrowserState; scene: SceneModel; cleanTier: boolean; commands: BrowserCommands }) {
-  const stages = cleanTier ? cleanStages(scene) : scene.stages;
-  const fits = fitsKeyedAnchor(state, scene);
-  return <button class={`libx-row ${state.selectedId === scene.id ? "selected" : ""} ${fits === false ? "dim" : ""}`} onClick={() => commands.selectScene(scene.id)}>
-    <span class="libx-spine"/><span class="libx-title">{scene.title.replace(/^Vanilla · /, "")}</span>
-    {scene.stages.some((stage) => stage.pinned > 0) && <span class="libx-pinmark" title="Contains an animation on the wheel">◆</span>}
-    {scene.requiresFurniture && <span class={`libx-anchor ${fits === true ? "fit" : fits === false ? "nofit" : ""}`} title={scene.anchors.length ? `Needs: ${scene.anchors.join(" / ")}` : "Needs matching furniture"}>FURN</span>}
-    <span class="libx-meta mono">{state.filters.debugMode ? scene.id : `${stages.length} anim${stages.length === 1 ? "" : "s"}`}</span>
-  </button>;
+function kindLabel(item: PlayableItem): string {
+  if (item.kind === "action") return item.scene.openEnded ? "ACTION · HOLDS" : "ACTION · ENDS";
+  if (item.kind === "scene") return "SCENE";
+  if (item.stage?.tags.includes("pose")) return "POSE · HOLDS";
+  return item.stage?.openEnded ? "LOOP · HOLDS" : "ANIMATION";
 }
 
-/* Switch state mirrors what the list shows: lit = vanilla included, dark = vanilla filtered out. */
-function VanillaSourceToggle({ filtered, onToggle }: { filtered: boolean; onToggle(): void }) {
-  return <button class={`source-toggle ${filtered ? "off" : "on"}`} onClick={onToggle} title={filtered ? "Show vanilla animations" : "Hide vanilla animations"} aria-label={filtered ? "Vanilla animations hidden" : "Vanilla animations shown"} aria-pressed={!filtered}>
-    <span>VANILLA {filtered ? "OFF" : "ON"}</span><i class="source-toggle-switch" aria-hidden="true"><i/></i>
-  </button>;
+function itemDuration(item: PlayableItem): string {
+  if (!item.stage) return formatEstimate(item.scene);
+  return formatDuration(item.stage.loopSec ?? item.stage.estSec);
 }
 
-function folderScenes(node: LibraryFolderNode): SceneModel[] {
-  return node.children.reduce((all, child) => all.concat(folderScenes(child)), [...node.scenes]);
+function wheelEligible(item: PlayableItem): boolean {
+  return item.stage
+    ? isWheelStage(item.scene, item.stage)
+    : item.kind === "action" && isWheelEmote(item.scene);
 }
 
-function LibraryFolder({ node, depth, state, cleanTier, matchKnown, commands }: {
-  node: LibraryFolderNode; depth: number; state: BrowserState; cleanTier: boolean; matchKnown: boolean; commands: BrowserCommands;
+function PlayableRow({ state, entry, wheelKeys, commands }: {
+  state: BrowserState;
+  entry: EvaluatedPlayable;
+  wheelKeys: ReadonlySet<string>;
+  commands: BrowserCommands;
 }) {
-  const forced = !!state.filters.search || matchKnown;
-  const open = forced || state.libOpen.has(node.key);
-  const scenes = folderScenes(node);
-  const animations = scenes.reduce((sum, scene) => sum + (cleanTier ? cleanStages(scene) : scene.stages).length, 0);
-  return <div class="libx-folder">
-    <button class="libx-folder-head" style={{ paddingLeft: `${10 + depth * 14}px` }} onClick={() => commands.toggleLibraryGroup(node.key)}>
-      <span class="chev">{open ? "▾" : "▸"}</span>
-      <span class="libx-folder-name">{node.label}</span>
-      <span class="libx-meta mono">{animations} anim{animations === 1 ? "" : "s"}</span>
+  const { item, evaluation } = entry;
+  const scene = item.scene;
+  const ready = evaluation.gaps === 0;
+  const selected = state.selectedId === scene.id && state.selectedStage === (item.stage?.index ?? null);
+  const onWheel = wheelKeys.has(item.key);
+  const details = [kindLabel(item)];
+  if (scene.actorCount > 1) details.push(`${scene.actorCount} actors`);
+  if (scene.requiresFurniture) details.push(anchorShort(scene) || "furniture");
+  const duration = itemDuration(item);
+  if (duration) details.push(duration);
+
+  return <div class={`playable-row ${selected ? "selected" : ""} ${ready ? "" : "dim"}`}>
+    <button class={`playable-main libx-row ${selected ? "selected" : ""}`} onClick={() => commands.selectScene(scene.id, item.stage?.index ?? null)}>
+      <span class="libx-spine"/>
+      <span class="playable-copy">
+        <span class="libx-title">{item.title}</span>
+        <span class="playable-path mono">{state.filters.debugMode
+          ? `${scene.id}${item.stage ? ` · stage ${item.stage.index}` : ""}`
+          : item.collection || playableGroupLabel(playableGroupKey(item), [scene])}</span>
+      </span>
+      <span class="playable-traits mono">{details.join(" · ")}</span>
+      {!ready && <span class="row-badge">{needsText(state, scene, evaluation)}</span>}
     </button>
-    {open && <div class="libx-folder-body">
-      {node.scenes.map((scene) => <LibraryRow key={scene.id} state={state} scene={scene} cleanTier={cleanTier} commands={commands}/>)}
-      {node.children.map((child) => <LibraryFolder key={child.key} node={child} depth={depth + 1} state={state} cleanTier={cleanTier} matchKnown={matchKnown} commands={commands}/>)}
-    </div>}
+    {wheelEligible(item) && <button class={`playable-wheel ${onWheel ? "on" : ""}`}
+      title={onWheel ? "Remove from Quick Access" : "Add to Quick Access"}
+      onClick={() => commands.toggleWheelEntry(scene.id, item.stage?.index ?? null)}>
+      {onWheel ? "◆" : "◇"}
+    </button>}
+    <button class={`playable-play ${ready ? "go" : ""}`} disabled={!ready}
+      title={ready ? `Play ${item.title}` : evaluation.reason}
+      onClick={() => commands.launch(item.stage?.index, item.kind === "animation", scene.id)}>▶</button>
   </div>;
 }
 
-function LibraryBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  const emotes = emoteCatalog(state).filter((scene) => matchesSearch(state, scene) && speciesVisible(state, scene));
-  const matchKnown = !!state.furniture && state.anchorMatch?.token === state.furniture.token;
-  const fitFocus = matchKnown && !state.libShowAll;
-  const cleanTier = !matchKnown && !state.libFull && !state.filters.search;
-  const grouped = new Map<string, SceneModel[]>();
-  const library = filteredLibrary(state);
-  for (const scene of library) {
-    if (!matchesSearch(state, scene) || !speciesVisible(state, scene)) continue;
-    if (fitFocus && !state.anchorMatch?.ids.has(scene.id)) continue;
-    if (cleanTier && !cleanStages(scene).length) continue;
-    const key = packKey(scene);
-    grouped.set(key, [...(grouped.get(key) ?? []), scene]);
+function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: {
+  state: BrowserState;
+  entries: EvaluatedPlayable[];
+  wheelKeys: ReadonlySet<string>;
+  commands: BrowserCommands;
+  muted?: boolean;
+}) {
+  const groups = new Map<string, EvaluatedPlayable[]>();
+  for (const entry of entries) {
+    const key = playableGroupKey(entry.item);
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
   }
-  const quality = cleanTier ? setQuality : () => 0;
-  for (const list of grouped.values()) list.sort((a, b) => libraryRank(state, a) - libraryRank(state, b) || quality(a) - quality(b) || a.title.localeCompare(b.title));
-  const groups = [...grouped.entries()].sort((a, b) => {
-    const rank = (list: SceneModel[]) => list.reduce((sum, scene) => sum + libraryRank(state, scene), 0) / list.length;
-    return rank(a[1]) - rank(b[1]) || Math.min(...a[1].map(quality)) - Math.min(...b[1].map(quality)) || a[0].localeCompare(b[0]);
-  });
-  const speciesLibrary = library.filter((scene) => speciesVisible(state, scene));
-  const clips = speciesLibrary.reduce((count, scene) => count + scene.stages.length, 0);
-  const cleanClips = speciesLibrary.reduce((count, scene) => count + cleanStages(scene).length, 0);
+  return <div class={`playable-groups ${muted ? "dim" : ""}`}>
+    {[...groups.entries()].map(([key, list]) => {
+      const stateKey = `browse:${muted ? "rest:" : ""}${key}`;
+      const containsSelection = list.some(({ item }) => item.scene.id === state.selectedId
+        && (item.stage?.index ?? null) === state.selectedStage);
+      const open = !!state.filters.search || containsSelection || state.libOpen.has(stateKey);
+      const scenes = list.map(({ item }) => item.scene);
+      return <section class="libx-group" key={stateKey}>
+        <button class="libx-head" onClick={() => commands.toggleLibraryGroup(stateKey)}>
+          <span class="chev">{open ? "▾" : "▸"}</span>
+          <span class="libx-name">{playableGroupLabel(key, scenes)}</span>
+          <span class="libx-meta mono">{list.length} playable{list.length === 1 ? "" : "s"}</span>
+        </button>
+        {open && <div class="libx-list">{list.map((entry) =>
+          <PlayableRow key={entry.item.key} state={state} entry={entry} wheelKeys={wheelKeys} commands={commands}/>)}</div>}
+      </section>;
+    })}
+  </div>;
+}
+
+function BrowseFilters({ state, commands, count }: {
+  state: BrowserState;
+  commands: BrowserCommands;
+  count: number;
+}) {
+  const kinds: { value: BrowseKind; label: string }[] = [
+    { value: "all", label: "ALL" },
+    { value: "animation", label: "ANIMATIONS" },
+    { value: "action", label: "ACTIONS" },
+    { value: "scene", label: "SCENES" },
+  ];
   return <>
+    <div class="browse-filterbar">
+      <div class="kind-switch" aria-label="Playable type">
+        {kinds.map(({ value, label }) => <button class={state.browseKind === value ? "on" : ""}
+          aria-pressed={state.browseKind === value} onClick={() => commands.setBrowseKind(value)} key={value}>{label}</button>)}
+      </div>
+      <button class={`filter-chip ${state.libCustomOnly ? "on" : ""}`} onClick={commands.toggleLibraryCustomOnly}>
+        {state.libCustomOnly ? "CUSTOM ONLY" : "CUSTOM + VANILLA"}
+      </button>
+      {!state.filters.search && <button class={`filter-chip ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>
+        {state.libFull ? "FULL DETAIL" : "POSES & LOOPS"}
+      </button>}
+    </div>
     <SpeciesFilter state={state} onToggle={commands.toggleSpecies}/>
-    {matchKnown ? <div class="browse-note"><Dot active/><span class="lbl">{state.furniture!.name} · {speciesLibrary.filter((scene) => state.anchorMatch!.ids.has(scene.id)).length} SETS FIT</span><button class={`reveal inline ${state.libShowAll ? "on" : ""}`} onClick={commands.toggleLibraryShowAll}>{state.libShowAll ? "show fitting only" : "show all"}</button><VanillaSourceToggle filtered={state.libCustomOnly} onToggle={commands.toggleLibraryCustomOnly}/></div>
-      : <div class="browse-note"><Dot/><span class="lbl">{cleanTier ? `ANIMATION LIBRARY · ${cleanClips} POSES & LOOPS` : `ANIMATION LIBRARY · ${clips} CLIPS IN ${speciesLibrary.length} SETS`}</span>{!state.filters.search && <button class={`reveal inline ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>{state.libFull ? "poses & loops only" : `full library · ${clips} clips`}</button>}<VanillaSourceToggle filtered={state.libCustomOnly} onToggle={commands.toggleLibraryCustomOnly}/></div>}
-    {!!emotes.length && <div class="libx-group emotes"><div class="libx-head static"><span class="emote-mark">✦</span><span class="libx-name">EMOTES</span><span class="libx-meta mono">{emotes.length} QUICK ACTION{emotes.length === 1 ? "" : "S"}</span></div><div class="libx-list">
-      {emotes.map((scene) => <button key={scene.id} class={`libx-row emote ${state.selectedId === scene.id ? "selected" : ""}`} onClick={() => commands.selectScene(scene.id)}><span class="libx-spine"/><span class="libx-title">{scene.title}</span>{scene.pinned > 0 && <span class="libx-pinmark">◆</span>}<span class="libx-meta mono">{state.filters.debugMode ? scene.id : ["emote", formatEstimate(scene)].filter(Boolean).join(" · ")}</span></button>)}
-    </div></div>}
-    {!state.libraryReceived ? <Empty>Loading the animation library…</Empty> : groups.length ? groups.map(([key, list]) => {
-      const open = !!state.filters.search || matchKnown || state.libOpen.has(key);
-      const count = list.reduce((sum, scene) => sum + (cleanTier ? cleanStages(scene) : scene.stages).length, 0);
-      const tree = libraryFolderTree(key, list);
-      return <div class="libx-group" key={key}><button class="libx-head" onClick={() => commands.toggleLibraryGroup(key)}><span class="chev">{open ? "▾" : "▸"}</span><span class="libx-name">{packLabel(key, list)}</span><span class="libx-meta mono">{list.length} set{list.length === 1 ? "" : "s"} · {count} anim{count === 1 ? "" : "s"}</span></button>{open && <div class="libx-list">{tree.scenes.map((scene) => <LibraryRow key={scene.id} state={state} scene={scene} cleanTier={cleanTier} commands={commands}/>)}{tree.children.map((folder) => <LibraryFolder key={folder.key} node={folder} depth={0} state={state} cleanTier={cleanTier} matchKnown={matchKnown} commands={commands}/>)}</div>}</div>;
-    }) : !emotes.length && <Empty>{castHasCreature(state) && !state.allSpecies ? `No ${[...castSpecies(state)].map(speciesLabel).join(" / ")} animations in the library.` : "Nothing in the library matches the filter."}</Empty>}
+    <div class="browse-note"><Dot active/><span class="lbl">PLAYABLE NOW · {count}</span></div>
+  </>;
+}
+
+function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
+  if (!state.catalogReceived && !state.libraryReceived) return <Empty>Waiting for the playable catalog…</Empty>;
+  const entries = playableItems(state).filter((item) => playableVisible(state, item))
+    .map((item) => ({ item, evaluation: evaluateForState(state, item.scene) }));
+  const rank = (a: EvaluatedPlayable, b: EvaluatedPlayable) => {
+    const anchored = (entry: EvaluatedPlayable) => Number(!!state.furniture && entry.item.scene.requiresFurniture && entry.evaluation.anchorGate);
+    return anchored(b) - anchored(a)
+      || b.item.scene.priority - a.item.scene.priority
+      || a.item.title.localeCompare(b.item.title);
+  };
+  const ready = entries.filter((entry) => entry.evaluation.gaps === 0).sort(rank);
+  const rest = entries.filter((entry) => entry.evaluation.gaps > 0).sort(rank);
+  const wheelKeys = new Set(wheelPool(state).map((candidate) => candidate.key));
+  const unavailable = state.preferences.unavailableScenes;
+  const showRest = unavailable === "show" || unavailable === "ask" && state.browseAll;
+
+  return <>
+    <BrowseFilters state={state} commands={commands} count={ready.length}/>
+    {ready.length ? <PlayableGroups state={state} entries={ready} wheelKeys={wheelKeys} commands={commands}/>
+      : <Empty>No installed playable fits the current cast, furniture, and filters.</Empty>}
+    {unavailable === "ask" && !!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`}
+      onClick={commands.toggleBrowseAll}>{state.browseAll ? "▾" : "▸"} {rest.length} more need a different cast or furniture</button>}
+    {showRest && unavailable === "show" && !!rest.length &&
+      <div class="browse-note dim"><Dot/><span class="lbl">NEEDS DIFFERENT CAST OR FURNITURE · {rest.length}</span></div>}
+    {showRest && <PlayableGroups state={state} entries={rest} wheelKeys={wheelKeys} muted commands={commands}/>}
   </>;
 }
 
 function ActiveBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const scenes = activeScenes(state);
-  if (!scenes.length) return <Empty>No scenes running.</Empty>;
-  return <><div class="browse-note"><Dot active/><span class="lbl">RUNNING · {scenes.length} SCENE{scenes.length === 1 ? "" : "S"}</span>{scenes.length > 1 && <button class="reveal inline stop-all" onClick={commands.stopAll}>■ STOP ALL</button>}</div>
+  if (!scenes.length) return <Empty>No playables running.</Empty>;
+  return <><div class="browse-note"><Dot active/><span class="lbl">RUNNING · {scenes.length}</span>{scenes.length > 1 && <button class="reveal inline stop-all" onClick={commands.stopAll}>■ STOP ALL</button>}</div>
     <div class="active-list">{scenes.map((active) => {
       const scene = sceneById(state, active.sceneId);
       const stages = scene?.stages ?? [];
@@ -209,18 +209,14 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
 
 export function BrowsePanel({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const live = activeScenes(state);
-  const scenes = sceneCatalog(state);
-  const emotes = emoteCatalog(state);
-  const animationCount = state.libraryReceived ? emotes.length + filteredLibrary(state).reduce((sum, scene) => sum + scene.stages.length, 0) : `${emotes.length}+`;
   return <>
     <div class="browse-head">
       <div class="mode-switch">
-        <button class={`mode-btn ${state.mode === "scenes" ? "on" : ""}`} onClick={() => commands.setMode("scenes")}>SCENES · {scenes.length}</button>
-        <button class={`mode-btn ${state.mode === "library" ? "on" : ""}`} onClick={() => commands.setMode("library")}>ANIMATIONS · {animationCount}</button>
+        <button class={`mode-btn ${state.mode !== "active" ? "on" : ""}`} onClick={() => commands.setMode("scenes")}>BROWSE</button>
         {!!live.length && <button class={`mode-btn live ${state.mode === "active" ? "on" : ""}`} onClick={() => commands.setMode("active")}><span class="live-dot"/>ACTIVE · {live.length}</button>}
       </div>
-      <div class="search-field grow"><input type="text" value={state.filters.search} onInput={(event) => commands.setSearch(event.currentTarget.value)} placeholder="⌕ search scenes · animations · tags" autocomplete="off" spellcheck={false}/></div>
+      <div class="search-field grow"><input type="text" value={state.filters.search} onInput={(event) => commands.setSearch(event.currentTarget.value)} placeholder="⌕ search animations · actions · scenes · tags" autocomplete="off" spellcheck={false}/></div>
     </div>
-    <div class="browse-body">{state.mode === "active" ? <ActiveBrowser state={state} commands={commands}/> : state.mode === "library" ? <LibraryBrowser state={state} commands={commands}/> : <ScenesBrowser state={state} commands={commands}/>}</div>
+    <div class="browse-body">{state.mode === "active" ? <ActiveBrowser state={state} commands={commands}/> : <UnifiedBrowser state={state} commands={commands}/>}</div>
   </>;
 }

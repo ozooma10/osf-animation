@@ -797,6 +797,6 @@ can join them without another schema layer (the shipped set lives in `Data/OSF/i
 
 | Tag | Consumed by | Contract |
 |-----|-------------|----------|
-| `player.emote.<name>` | Animations → Emotes and the default animation wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the emote's `name` is the wheel slice label. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
+| `player.emote.<name>` | Browse as an Action and the default Quick Access wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the Action's `name` is the wheel slice label. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
 | `immersion` | — | Umbrella tag for the shipped immersion pack; free for browsing/filtering. |
 

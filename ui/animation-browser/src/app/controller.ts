@@ -4,6 +4,8 @@ import { browserReducer } from "./reducer";
 import {
   WHEEL_MAX,
   activeScenes,
+  playableItems,
+  playableVisible,
   sceneById,
   sceneTitle,
   stageLabel,
@@ -157,6 +159,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         showNotice("ok", `Bridge online. Protocol ${record.protocol || "?"}.`);
         send("osfui.gamepadRaw", { raw: true });
         requestCatalog(true);
+        requestLibrary(true);
         break;
       case "osf.animation.version": dispatch({ type: "plugin/received", plugin: record }); break;
       case "settings.data": {
@@ -173,7 +176,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         if (!current.wheel) {
           const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeScenes(current).length > 0);
           dispatch({ type: "browser/opened", mode, resetBrowsing: !merged.rememberBrowsing });
-          if (mode === "library" && !current.libraryReceived) requestLibrary(true);
+          if (!current.libraryReceived) requestLibrary(true);
         }
         break;
       }
@@ -269,7 +272,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           const current = stateRef.current;
           const mode = preferredOpenMode(current.preferences.openTo, current.lastBrowseMode, activeScenes(current).length > 0);
           dispatch({ type: "browser/opened", mode, resetBrowsing: !current.preferences.rememberBrowsing });
-          if (mode === "library" && !current.libraryReceived) requestLibrary(true);
+          if (!current.libraryReceived) requestLibrary(true);
         }
         send(record.visible ? "osf.animation.opened" : "osf.animation.closed");
         break;
@@ -302,18 +305,32 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       dispatch({ type: "nearby/received", kind: "actor", targets: normalizeNearby(MOCK_ACTORS) });
       dispatch({ type: "nearby/received", kind: "furniture", targets: normalizeNearby(MOCK_ANCHORS) });
       requestCatalog(true);
+      requestLibrary(true);
       showNotice("info", "Standalone mode. Snapshot catalog; pick/scan/launch are stubbed. W = animation wheel · B = backdrop.");
       window.mockOpenWheel = (withTarget = true) => (bridge as StandaloneBridge).openWheel(withTarget);
       if (new URLSearchParams(location.search).has("wheel")) window.setTimeout(() => window.mockOpenWheel?.(new URLSearchParams(location.search).get("wheel") !== "solo"), 0);
-    } else requestCatalog(true);
+    } else {
+      requestCatalog(true);
+      requestLibrary(true);
+    }
     send("settings.get");
     return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (padHeld.current.timer) clearTimeout(padHeld.current.timer); };
   }, []);
 
   useEffect(() => {
-    const selectedId = validSelection(state);
-    if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", sceneId: selectedId });
-  }, [state.catalog, state.library, state.mode, state.filters, state.allSpecies, state.browseAll, state.libCustomOnly, state.cast, state.furniture, state.anchorMatch]);
+    if (state.mode === "active") {
+      const selectedId = validSelection(state);
+      if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", sceneId: selectedId });
+      return;
+    }
+    const visible = playableItems(state).filter((item) => playableVisible(state, item));
+    const currentValid = visible.some((item) => item.scene.id === state.selectedId
+      && (item.stage?.index ?? null) === state.selectedStage);
+    if (!currentValid) {
+      const first = visible[0];
+      dispatch({ type: "selection/changed", sceneId: first?.scene.id ?? null, stage: first?.stage?.index ?? null });
+    }
+  }, [state.catalog, state.library, state.mode, state.filters, state.allSpecies, state.browseAll, state.browseKind, state.libCustomOnly, state.libFull, state.libShowAll, state.cast, state.furniture, state.anchorMatch]);
 
   useEffect(() => {
     document.body.classList.toggle("wheel-mode", !!state.wheel);
@@ -333,9 +350,9 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   }, [state.cast, state.viewVisible, state.wheel, state.minimized, send]);
 
   const commands = useMemo<BrowserCommands>(() => ({
-    refresh: () => requestCatalog(true),
-    setMode: (mode) => { dispatch({ type: "mode/changed", mode }); if (mode === "library" && !stateRef.current.libraryReceived) { showNotice("info", "Loading the animation library…"); requestLibrary(true); } },
-    selectScene: (sceneId) => dispatch({ type: "selection/changed", sceneId }),
+    refresh: () => { requestCatalog(true); requestLibrary(true); },
+    setMode: (mode) => { dispatch({ type: "mode/changed", mode: mode === "library" ? "scenes" : mode }); if (!stateRef.current.libraryReceived) requestLibrary(true); },
+    selectScene: (sceneId, stage = null) => dispatch({ type: "selection/changed", sceneId, stage }),
     setSearch: (search) => dispatch({ type: "filter/search", search: search.trim().toLowerCase() }),
     toggleSettings: (open) => dispatch({ type: "settings/open", open: open ?? !stateRef.current.settingsOpen }),
     setPreference: (key, value) => {
@@ -343,6 +360,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });
     },
     toggleBrowseAll: () => dispatch({ type: "browse/all" }),
+    setBrowseKind: (kind) => dispatch({ type: "browse/kind", kind }),
     toggleSpecies: () => dispatch({ type: "filter/species" }),
     toggleStep: (step) => dispatch({ type: "step/toggled", step }),
     toggleMarkers: () => dispatch({ type: "markers/toggled" }),
@@ -382,13 +400,20 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleBriefAnimations: () => dispatch({ type: "brief/fullAnimations" }),
     toggleOptions: () => dispatch({ type: "brief/options" }),
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),
-    launch: (stageIndex) => {
+    launch: (stageIndex, singleAnimation = false, sceneId) => {
       const current = stateRef.current;
-      const scene = sceneById(current, current.selectedId);
+      const scene = sceneById(current, sceneId ?? current.selectedId);
       if (!scene) return;
+      const effectiveStage = Number.isInteger(stageIndex) ? Number(stageIndex) : sceneId ? null : current.selectedStage;
+      const stageOnly = singleAnimation || (!!scene.library && effectiveStage != null);
       const options: Record<string, unknown> = { strip: Number(current.opts.strip), lockPlayer: Number(current.opts.lock), camera: current.opts.camera, speed: Number(current.opts.speed) };
-      if (Number.isInteger(stageIndex) && Number(stageIndex) > 0) options.stage = stageIndex;
-      const fields: Record<string, unknown> = { sceneId: scene.id, castTokens: current.cast.map((member) => member.token), opts: options };
+      if (effectiveStage != null && effectiveStage > 0) options.stage = effectiveStage;
+      const fields: Record<string, unknown> = {
+        sceneId: scene.id,
+        castTokens: current.cast.map((member) => member.token),
+        opts: options,
+        singleAnimation: stageOnly,
+      };
       fields.location = {
         mode: scene.requiresFurniture ? "furniture" : scene.inPlace ? "cast" : current.locationMode,
         token: scene.requiresFurniture ? current.furniture?.token ?? 0 : current.locationToken ?? 0,
@@ -396,7 +421,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const roleNames = scene.roles.map((role) => role.name);
       if (roleNames.length === current.cast.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
       if (scene.requiresFurniture && current.furniture) fields.furnitureToken = current.furniture.token;
-      showNotice("info", `Launching "${Number(stageIndex) > 0 ? `${scene.title} · ${stageLabel(scene, Number(stageIndex))}` : scene.title}"…`);
+      showNotice("info", `Launching "${effectiveStage != null ? `${scene.title} · ${stageLabel(scene, effectiveStage)}` : scene.title}"…`);
       send("osf.animation.launch", fields);
     },
     stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "scene/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },

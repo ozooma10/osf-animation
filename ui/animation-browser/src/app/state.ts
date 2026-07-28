@@ -79,6 +79,7 @@ export interface LaunchOptions {
 
 export type BrowserMode = "scenes" | "library" | "active" | "wheel";
 export type BrowseMode = Exclude<BrowserMode, "wheel">;
+export type BrowseKind = "all" | "animation" | "action" | "scene";
 export type AfterLaunch = "minimize" | "stay" | "close";
 export type OpenTo = "last" | BrowseMode;
 export type UnavailableScenes = "ask" | "show" | "hide";
@@ -152,6 +153,8 @@ export interface BrowserState {
   libraryReceived: boolean;
   wheelCustomized: boolean;
   selectedId: string | null;
+  /** Selected library stage. Null selects the whole authored action/scene. */
+  selectedStage: number | null;
   cast: CastMember[];
   furniture: FurnitureTarget | null;
   locationMode: LocationMode;
@@ -168,6 +171,7 @@ export interface BrowserState {
   plugin: PluginVersion | null;
   anchorMatch: { token: number; ids: ReadonlySet<string> } | null;
   browseAll: boolean;
+  browseKind: BrowseKind;
   allSpecies: boolean;
   mode: BrowserMode;
   wheel: WheelState | null;
@@ -199,6 +203,7 @@ export function createInitialState(): BrowserState {
     libraryReceived: false,
     wheelCustomized: false,
     selectedId: null,
+    selectedStage: null,
     cast: [PLAYER_CAST],
     furniture: null,
     locationMode: "cast",
@@ -215,6 +220,7 @@ export function createInitialState(): BrowserState {
     plugin: null,
     anchorMatch: null,
     browseAll: false,
+    browseKind: "all",
     allSpecies: false,
     mode: "scenes",
     wheel: null,

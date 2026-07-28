@@ -1,6 +1,7 @@
 import type {
   ActiveScene,
   AfterLaunch,
+  BrowseKind,
   BrowserMode,
   BrowserPreferences,
   CastMember,
@@ -36,12 +37,13 @@ export type BrowserAction =
   | { type: "anchor/cleared" }
   | { type: "anchor/matched"; token: number; ids: ReadonlySet<string> }
   | { type: "location/selected"; mode: LocationMode; token?: number | null }
-  | { type: "selection/changed"; sceneId: string | null }
+  | { type: "selection/changed"; sceneId: string | null; stage?: number | null }
   | { type: "mode/changed"; mode: BrowserMode }
   | { type: "browser/opened"; mode: Exclude<BrowserMode, "wheel">; resetBrowsing: boolean }
   | { type: "filter/search"; search: string }
   | { type: "filter/species" }
   | { type: "browse/all" }
+  | { type: "browse/kind"; kind: BrowseKind }
   | { type: "library/showAll" }
   | { type: "library/full" }
   | { type: "library/customOnly" }

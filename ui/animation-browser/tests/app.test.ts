@@ -8,6 +8,8 @@ import {
   isVanillaAnimation,
   libraryFolderTree,
   locationCastChoices,
+  playableItems,
+  playableVisible,
   validSelection,
   wheelGeometry,
   wheelPool,
@@ -132,7 +134,7 @@ describe("browser settings", () => {
 
   it("falls back from Active when no scene is running", () => {
     expect(preferredOpenMode("active", "library", false)).toBe("scenes");
-    expect(preferredOpenMode("last", "library", false)).toBe("library");
+    expect(preferredOpenMode("last", "library", false)).toBe("scenes");
   });
 });
 
@@ -155,11 +157,11 @@ describe("browser selectors", () => {
     expect(npcFirst.showPlayer).toBe(true);
     expect(npcFirst.actors.map((member) => member.token)).toEqual([8]);
   });
-  it("selects only a scene visible in the current lane", () => {
+  it("selects a ready action from the unified browse surface", () => {
     const state = { ...createInitialState(), catalog: [solo, pair], catalogReceived: true };
-    expect(validSelection(state)).toBe("pair");
+    expect(validSelection(state)).toBe("solo");
     expect(browseVisible(state, pair)).toBe(false);
-    expect(validSelection({ ...state, browseAll: true })).toBe("pair");
+    expect(validSelection({ ...state, browseAll: true })).toBe("solo");
   });
 
   it("applies the unavailable-scene visibility preference", () => {
@@ -186,7 +188,7 @@ describe("browser selectors", () => {
     expect(formatEstimate({ estSec: 150, estPartial: true, openEnded: true })).toBe("~2:30+∞");
   });
 
-  it("filters vanilla animations without hiding imported scene clips", () => {
+  it("filters vanilla animations and keeps generated source clips author-only", () => {
     const vanilla = normalizeScene({ id: "vanilla/common/idle", title: "Vanilla Idle", tags: ["vanilla"], stages: [{ name: "Idle" }] });
     const imported = normalizeScene({ id: "osf.scene-clip/abc", title: "Imported Clip", tags: ["scene.clip"], stages: [{ name: "Pack\\Clip.glb" }] });
     const state = {
@@ -201,7 +203,34 @@ describe("browser selectors", () => {
     expect(isVanillaAnimation(imported)).toBe(false);
     expect(filteredLibrary(state).map((scene) => scene.id)).toEqual([imported.id]);
     expect(browseVisible(state, vanilla)).toBe(false);
-    expect(validSelection(state)).toBe(imported.id);
+    expect(validSelection(state)).toBeNull();
+    const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
+    expect(validSelection(authorState)).toBe(imported.id);
+  });
+
+  it("projects library stages as playables while keeping their set as collection metadata", () => {
+    const set = normalizeScene({
+      id: "vanilla/photomode",
+      title: "Vanilla · Photomode / Female",
+      pack: "Vanilla",
+      folder: "Standing",
+      stages: [
+        { index: 0, name: "Heroic", tags: ["pose"], clipCount: 1, openEnded: true },
+        { index: 1, name: "Wave", clipCount: 1, openEnded: false },
+      ],
+    });
+    const state = {
+      ...createInitialState(),
+      mode: "scenes" as const,
+      library: [set],
+      libraryReceived: true,
+      libFull: true,
+    };
+    const items = playableItems(state).filter((item) => playableVisible(state, item));
+    expect(items.map((item) => ({ title: item.title, stage: item.stage?.index, collection: item.collection }))).toEqual([
+      { title: "Heroic", stage: 0, collection: "Standing / Photomode / Female" },
+      { title: "Wave", stage: 1, collection: "Standing / Photomode / Female" },
+    ]);
   });
 
   it("builds case-insensitive nested folders while keeping root clips at the pack level", () => {

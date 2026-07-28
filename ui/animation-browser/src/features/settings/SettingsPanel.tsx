@@ -57,12 +57,11 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
             { value: "stay", label: "Stay open" },
             { value: "close", label: "Close" },
           ]}/>
-        <ChoiceRow label="Open browser to" hint="Active falls back to Scenes when nothing is running."
+        <ChoiceRow label="Open browser to" hint="Active falls back to Browse when nothing is running."
           value={preferences.openTo} onChange={(value) => set("openTo", value)}
           choices={[
             { value: "last", label: "Last used" },
-            { value: "scenes", label: "Scenes" },
-            { value: "library", label: "Animations" },
+            { value: "scenes", label: "Browse" },
             { value: "active", label: "Active" },
           ]}/>
         <ToggleRow label="Remember browsing state" hint="Keep search, filters, and expanded folders between openings in this game session."
@@ -70,7 +69,7 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
       </section>
 
       <section class="settings-group">
-        <h3>Library</h3>
+        <h3>Browse</h3>
         <ChoiceRow label="Animation detail" hint="Keep transitions and animation layers folded away, or show every installed clip."
           value={preferences.libraryDetail} onChange={(value) => set("libraryDetail", value)}
           choices={[{ value: "curated", label: "Poses & loops" }, { value: "full", label: "Full library" }]}/>
