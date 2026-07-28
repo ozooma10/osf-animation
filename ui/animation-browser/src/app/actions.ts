@@ -18,7 +18,7 @@ export type BrowserAction =
   | { type: "catalog/received"; scenes: SceneModel[] }
   | { type: "library/received"; scenes: SceneModel[] }
   | { type: "active/received"; scenes: ActiveScene[] }
-  | { type: "launch/succeeded"; handle: number; sceneId: string }
+  | { type: "launch/succeeded"; handle: number; sceneId: string; autoMinimize: boolean }
   | { type: "launch/failed"; error: string }
   | { type: "cast/replaced"; members: CastMember[] }
   | { type: "cast/toggled"; member: CastMember }

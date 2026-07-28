@@ -196,7 +196,9 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "osf.animation.launchResult":
         if (record.ok && record.handle) {
           const sceneId = String(record.sceneId || stateRef.current.selectedId || "");
-          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId });
+          // Missing means true for additive compatibility with an older native plugin, whose
+          // browser behavior was always to minimize after a successful launch.
+          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, autoMinimize: record.autoMinimize !== false });
           if (stateRef.current.wheel) send("osf.animation.requestClose");
           else showNotice("ok", `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
         } else {

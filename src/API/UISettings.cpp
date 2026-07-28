@@ -46,6 +46,9 @@ namespace OSF::API
         "hint": "Radial emote picker; targets the crosshair NPC when one is in reach." }
     ] },
     { "label": "Interface", "settings": [
+      { "key": "browser.autoMinimize", "type": "bool", "default": true,
+        "label": "Auto-Minimize",
+        "hint": "Collapse the animation browser to its live controls when a scene starts." },
       { "key": "debugNotifications", "type": "bool", "default": false,
         "label": "Stage-transition popups",
         "hint": "Debug HUD popup on each scene stage transition." }
@@ -112,6 +115,8 @@ namespace OSF::API
 			};
 			if (key == "logLevel") {
 				SetLogLevel(unquote(value));
+			} else if (key == "browser.autoMinimize") {
+				SetBrowserAutoMinimize(value == "true");
 			} else if (key == "debugNotifications") {
 				UI::HudMessage::SetDebugEnabled(value == "true");
 			} else if (key == "gear.autoEquip") {

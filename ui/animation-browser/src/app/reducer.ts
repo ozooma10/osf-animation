@@ -55,7 +55,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     }
     case "launch/succeeded":
-      return { ...state, lastHandle: action.handle, lastSceneId: action.sceneId, minimized: !state.wheel };
+      return { ...state, lastHandle: action.handle, lastSceneId: action.sceneId, minimized: !state.wheel && action.autoMinimize };
     case "launch/failed":
       return state.wheel
         ? { ...state, wheel: { ...state.wheel, launching: "", error: action.error } }

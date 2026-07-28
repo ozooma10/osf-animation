@@ -117,7 +117,7 @@ export class StandaloneBridge implements AnimationBridge {
       player: tokens.includes(PLAYER_TOKEN),
       cast: tokens.map((token) => ({ token, name: token === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === token)?.name ?? "actor", player: token === PLAYER_TOKEN })),
     });
-    this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId } }, 80);
+    this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, autoMinimize: true } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);
   }
 

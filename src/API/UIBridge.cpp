@@ -52,6 +52,9 @@ namespace OSF::API
 		// RE-engage the browse orbit on a closed browser, and nothing would ever release it
 		// (the classic "camera stuck orbiting after closing the browser"). Game main thread only.
 		bool g_viewVisible = false;
+		// User preference replayed by UISettings. Defaults to the schema default when OSF UI is
+		// absent/old; only browser launches consume it (wheel launches always close).
+		bool g_browserAutoMinimize = true;
 
 		// The in-space "orbit unavailable" notice fired this browser session (OnOrbit runs per
 		// drag-delta batch while the orbit stays disengaged — the view must not be spammed).
@@ -1006,6 +1009,7 @@ namespace OSF::API
 			}
 			reply["ok"] = true;
 			reply["handle"] = handle;
+			reply["autoMinimize"] = g_browserAutoMinimize;
 			REX::INFO("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})", sceneId, handle, actors.size(),
 				furniture ? ", anchored" : "", castHasPlayer ? "" : ", NPC-only — outlives the browser");
 			SendJson(a_srcView, "osf.animation.launchResult", reply);
@@ -1548,6 +1552,12 @@ namespace OSF::API
 	bool UIBridgeInstalled()
 	{
 		return g_ui.IsConnected();
+	}
+
+	void SetBrowserAutoMinimize(bool a_enabled)
+	{
+		g_browserAutoMinimize = a_enabled;
+		REX::DEBUG("[UI] browser Auto-Minimize {}", a_enabled ? "enabled" : "disabled");
 	}
 
 	bool OpenBrowser()

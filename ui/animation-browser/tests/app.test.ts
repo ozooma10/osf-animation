@@ -52,6 +52,19 @@ describe("browser reducer", () => {
     const hidden = browserReducer({ ...state, minimized: true }, { type: "visibility/hidden" });
     expect(hidden).toMatchObject({ mode: "scenes", wheel: null, minimized: false });
   });
+  it("honors the Auto-Minimize preference when a scene starts", () => {
+    const initial = createInitialState();
+    const minimized = browserReducer(initial, {
+      type: "launch/succeeded", handle: 11, sceneId: "solo", autoMinimize: true,
+    });
+    const keptOpen = browserReducer(initial, {
+      type: "launch/succeeded", handle: 12, sceneId: "pair", autoMinimize: false,
+    });
+
+    expect(minimized).toMatchObject({ lastHandle: 11, minimized: true });
+    expect(keptOpen).toMatchObject({ lastHandle: 12, minimized: false });
+  });
+
 
   it("distinguishes an explicit wheel from reset defaults", () => {
     const customized = browserReducer(createInitialState(), { type: "wheel/customized", catalog: [solo], library: [] });

@@ -15,6 +15,10 @@ namespace OSF::API
 	// True when OSF UI is present and the bridge was fetched (i.e. F10 actually opens something).
 	bool UIBridgeInstalled();
 
+	// Mirror the browser's Interface > Auto-Minimize setting into launch replies. The view owns
+	// the minimized live-bar state; native only supplies the current persisted preference.
+	void SetBrowserAutoMinimize(bool a_enabled);
+
 	// Open the in-game scene browser (the "osf.animation/browser" view), as F10 would. Backs the OSF.OpenBrowser
 	// native and the openBrowser hotkey. Returns false when OSF UI is absent or too old to
 	// support a native menu open (bridge MINOR < 1). Any thread.
