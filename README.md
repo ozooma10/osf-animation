@@ -15,6 +15,9 @@ Key Features:
 
 ## Documentation
 
+- **Scene and animation authors:** [OSF Studio](https://github.com/ozooma10/osf-web-services/tree/main/sites/studio)
+  provides the local-first browser authoring workspace.
+
 - **Quest/consumer-mod authors:** [docs/API.md](docs/API.md) - Papyrus integration guide and the API stability policy;
   per-native reference in [dist/Scripts/Source/OSF.psc](dist/Scripts/Source/OSF.psc).
 
