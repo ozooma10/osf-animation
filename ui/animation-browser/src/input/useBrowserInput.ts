@@ -56,6 +56,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
     const keydown = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const active = document.activeElement;
+      if (state.pickMode && event.key === "Escape") { event.preventDefault(); commands.cancelPick(); return; }
       if (state.wheel) {
         if (event.key === "Escape") { event.preventDefault(); commands.cancelWheel(); return; }
         const direction = ({ ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 } as Record<string, number>)[event.key];
@@ -95,10 +96,10 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       document.removeEventListener("mousemove", pointer);
       document.removeEventListener("contextmenu", context);
     };
-  }, [commands, standalone, state.active, state.lastHandle, state.wheel]);
+  }, [commands, standalone, state.active, state.lastHandle, state.pickMode, state.wheel]);
 
   useEffect(() => {
-    const orbit = { dragging: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, frame: 0 };
+    const orbit = { dragging: false, selecting: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, frame: 0 };
     const worldTarget = (target: EventTarget | null) => !state.wheel && !(target instanceof Element && target.closest(".console, .brief, .livebar"));
     const flush = () => {
       orbit.frame = 0;
@@ -106,9 +107,29 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       orbit.dx = orbit.dy = orbit.wheel = 0;
     };
     const queue = () => { if (!orbit.frame) orbit.frame = requestAnimationFrame(flush); };
-    const down = (event: MouseEvent) => { if (event.button === 0 && worldTarget(event.target)) { orbit.dragging = true; orbit.x = event.clientX; orbit.y = event.clientY; } };
-    const move = (event: MouseEvent) => { if (!orbit.dragging) return; orbit.dx += event.clientX - orbit.x; orbit.dy += event.clientY - orbit.y; orbit.x = event.clientX; orbit.y = event.clientY; queue(); };
-    const up = (event: MouseEvent) => { if (event.button === 0) orbit.dragging = false; };
+    const down = (event: MouseEvent) => {
+      if (event.button !== 0 || !worldTarget(event.target)) return;
+      orbit.dragging = true;
+      orbit.selecting = !!state.pickMode;
+      orbit.x = event.clientX;
+      orbit.y = event.clientY;
+      orbit.dx = orbit.dy = 0;
+    };
+    const move = (event: MouseEvent) => {
+      if (!orbit.dragging) return;
+      orbit.dx += event.clientX - orbit.x;
+      orbit.dy += event.clientY - orbit.y;
+      orbit.x = event.clientX;
+      orbit.y = event.clientY;
+      if (orbit.selecting && Math.hypot(orbit.dx, orbit.dy) <= 5) return;
+      orbit.selecting = false;
+      queue();
+    };
+    const up = (event: MouseEvent) => {
+      if (event.button !== 0 || !orbit.dragging) return;
+      if (orbit.selecting && state.pickMode) commands.pickAt(event.clientX / innerWidth, event.clientY / innerHeight, innerWidth, innerHeight);
+      orbit.dragging = orbit.selecting = false;
+    };
     const wheel = (event: WheelEvent) => { if (!worldTarget(event.target)) return; event.preventDefault(); orbit.wheel += Math.sign(event.deltaY); queue(); };
     document.addEventListener("mousedown", down);
     document.addEventListener("mousemove", move);
@@ -121,5 +142,5 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       document.removeEventListener("wheel", wheel);
       if (orbit.frame) cancelAnimationFrame(orbit.frame);
     };
-  }, [commands, state.visibilitySerial, state.wheel]);
+  }, [commands, state.pickMode, state.visibilitySerial, state.wheel]);
 }

@@ -94,6 +94,12 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return action.kind === "actor"
         ? { ...state, nearbyActors: action.targets }
         : { ...state, nearbyFurniture: action.targets };
+    case "indicators/received":
+      return { ...state, actorIndicators: action.items };
+    case "pick/armed":
+      return { ...state, pickMode: action.kind };
+    case "pick/cancelled":
+      return { ...state, pickMode: null };
     case "anchor/selected":
       return {
         ...state,
@@ -210,7 +216,9 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "wheel/reset":
       return { ...state, wheelCustomized: false, catalog: action.catalog, library: action.library };
     case "visibility/hidden":
-      return { ...state, wheel: null, mode: "scenes", minimized: false, visibilitySerial: state.visibilitySerial + 1 };
+      return { ...state, wheel: null, mode: "scenes", minimized: false, pickMode: null, actorIndicators: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
+    case "visibility/shown":
+      return { ...state, viewVisible: true };
     case "seeded/remembered": {
       const seededTokens = new Set(state.seededTokens);
       seededTokens.add(action.token);

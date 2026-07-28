@@ -64,7 +64,9 @@ export function CastPanel({ state, commands }: { state: BrowserState; commands: 
       {state.cast.length > 1 && <div class="cast-order-hint mono">A·B·C order sets roles — arrange in ROLES →</div>}
       <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools">
         <button class="chip-btn" onClick={() => commands.scan("actor")}>SCAN</button>
-        <button class="chip-btn" onClick={() => commands.pick("actor")}>PICK</button>
+        <button class={`chip-btn ${state.pickMode === "actor" ? "on" : ""}`} onClick={() => commands.pick("actor")}>
+          {state.pickMode === "actor" ? "CANCEL" : "PICK"}
+        </button>
       </span></div>
       <div class="near-list">
         {state.nearbyActors.length ? state.nearbyActors.map((actor) => {
@@ -77,7 +79,7 @@ export function CastPanel({ state, commands }: { state: BrowserState; commands: 
               <span class={`near-tag ${added ? "added" : ""}`}>{added ? "✓" : "ADD"}</span>
             </button>
           );
-        }) : <div class="empty-mini"><span class="mono">Scan, or aim at someone before opening and PICK.</span></div>}
+        }) : <div class="empty-mini"><span class="mono">Scan nearby, or press PICK and click someone in the world.</span></div>}
       </div>
       {state.catalogReceived && <div class="step-foot"><span class="mono">
         {fitting} scene{fitting === 1 ? "" : "s"} fit {state.cast.length} actor{state.cast.length === 1 ? "" : "s"}{animationNote}

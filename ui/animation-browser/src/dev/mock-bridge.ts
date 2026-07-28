@@ -64,11 +64,16 @@ export class StandaloneBridge implements AnimationBridge {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
     } else if (command === "osf.animation.anchorMatch") {
       this.later({ type: "osf.animation.anchorMatch", payload: { token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[Number(fields.token)] ?? [] } }, 70);
-    } else if (command === "osf.animation.pickCrosshair") {
+    } else if (command === "osf.animation.pickCrosshair" || command === "osf.animation.pickScreen") {
       const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0];
       this.later({ type: "osf.animation.pick", payload: { slot: fields.slot, valid: true, ...item } }, 60);
     } else if (command === "osf.animation.scanNearby") {
       this.later({ type: "osf.animation.scanResults", payload: { kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS } }, 80);
+    } else if (command === "osf.animation.projectActors") {
+      const tokens = Array.isArray(fields.tokens) ? fields.tokens.map(Number) : [];
+      this.later({ type: "osf.animation.actorIndicators", payload: {
+        items: tokens.map((token, index) => ({ token, x: 0.68 + index * 0.12, y: 0.34 + index * 0.06, visible: true })),
+      } }, 5);
     } else if (command === "osf.animation.wheel.get") {
       const entries = wheelPool(this.getState()).map(({ scene, stage, title, detail, key }) => ({ scene, stage, title, detail, key }));
       this.later({ type: "osf.animation.wheel.data", payload: { customized: this.getState().wheelCustomized, entries } });

@@ -19,8 +19,10 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <format>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -804,6 +806,70 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.pick", reply);
 		}
 
+		// Project selected cast members into the browser viewport so the web overlay can
+		// draw its A/B/C badges above the actors. The view polls only while it is visible
+		// and has non-player cast members; keeping projection native avoids exposing game
+		// pointers or duplicating the render camera's matrix conventions in JavaScript.
+		void OnProjectActors(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			json       items = json::array();
+			if (!j.is_object() || !j.contains("tokens") || !j["tokens"].is_array()) {
+				SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
+				return;
+			}
+
+			auto camera = RE::Main::GetWorldRootCamera();
+			if (!camera) {
+				SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
+				return;
+			}
+
+			// The browser caps cast size elsewhere, but keep this command bounded because it
+			// accepts JSON from a view and runs on the game main thread.
+			constexpr std::size_t kMaxIndicators = 16;
+			for (const auto& value : j["tokens"]) {
+				if (items.size() >= kMaxIndicators || !value.is_number_integer()) {
+					break;
+				}
+				const std::int32_t token = value.get<std::int32_t>();
+				RE::TESObjectREFR* ref = ResolveToken(token);
+				if (!ref || !ref->IsActor()) {
+					continue;
+				}
+
+				// Prefer the rendered model bound: unlike a fixed human-height offset this also
+				// lands above creatures. Copy the smart pointer while holding loadedData's read
+				// lock, then use the main-thread snapshot for this projection.
+				RE::NiPoint3 marker = ref->GetPosition();
+				marker.z += 120.0f;  // unloaded/freshly attaching fallback (~1.7 m)
+				RE::NiPointer<RE::NiAVObject> node;
+				{
+					const auto loaded = ref->loadedData.LockRead();
+					if (*loaded) {
+						node = (*loaded)->data3D;
+					}
+				}
+				if (node && std::isfinite(node->worldBound.radius) && node->worldBound.radius > 1.0f &&
+					node->worldBound.radius < 1000.0f) {
+					marker = node->worldBound.center;
+					marker.z += node->worldBound.radius + 8.0f;
+				}
+
+				const RE::NiPoint3 screen = camera->WorldToScreenNormalized(marker);
+				const bool finite = std::isfinite(screen.x) && std::isfinite(screen.y) && std::isfinite(screen.z);
+				const bool visible = finite && screen.z > 0.0f &&
+					screen.x >= 0.0f && screen.x <= 1.0f && screen.y >= 0.0f && screen.y <= 1.0f;
+				items.push_back(json{
+					{ "token", token },
+					{ "x", finite ? screen.x : 0.0f },
+					{ "y", finite ? screen.y : 0.0f },
+					{ "visible", visible },
+				});
+			}
+			SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
+		}
+
 		void OnLaunch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
@@ -1165,6 +1231,146 @@ namespace OSF::API
 			}
 		}
 
+		struct ScreenPick
+		{
+			RE::TESObjectREFR* ref = nullptr;
+			float              score = std::numeric_limits<float>::max();
+			float              depth = std::numeric_limits<float>::max();
+		};
+
+		// Screen-space hit test against a loaded ref's rendered bounding sphere. The UI sends
+		// full-view normalized coordinates plus its pixel dimensions; using pixels keeps the
+		// click affordance consistent across aspect ratios and resolutions. This deliberately
+		// selects only loaded 3D, so an invisible/off-screen marker can never win a world click.
+		void ConsiderScreenPick(RE::NiCamera* a_camera, RE::TESObjectREFR* a_ref, bool a_actor,
+			float a_x, float a_y, float a_width, float a_height, ScreenPick& a_best)
+		{
+			if (!a_camera || !a_ref || a_ref->IsDeleted()) {
+				return;
+			}
+
+			RE::NiPointer<RE::NiAVObject> node;
+			{
+				const auto loaded = a_ref->loadedData.LockRead();
+				if (*loaded) {
+					node = (*loaded)->data3D;
+				}
+			}
+			if (!node) {
+				return;
+			}
+
+			RE::NiPoint3 center = node->worldBound.center;
+			float        radius = node->worldBound.radius;
+			if (!std::isfinite(radius) || radius < 1.0f || radius > 10000.0f ||
+				!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) {
+				center = node->world.translate;
+				radius = a_actor ? 70.0f : 45.0f;
+			}
+
+			const RE::NiPoint3 projected = a_camera->WorldToScreenNormalized(center);
+			if (!std::isfinite(projected.x) || !std::isfinite(projected.y) || projected.z <= 0.0f ||
+				projected.x < -0.2f || projected.x > 1.2f || projected.y < -0.2f || projected.y > 1.2f) {
+				return;
+			}
+
+			float radiusX = a_actor ? 38.0f : 30.0f;
+			float radiusY = radiusX;
+			for (const RE::NiPoint3 offset : {
+				     RE::NiPoint3{ radius, 0.0f, 0.0f }, RE::NiPoint3{ -radius, 0.0f, 0.0f },
+				     RE::NiPoint3{ 0.0f, radius, 0.0f }, RE::NiPoint3{ 0.0f, -radius, 0.0f },
+				     RE::NiPoint3{ 0.0f, 0.0f, radius }, RE::NiPoint3{ 0.0f, 0.0f, -radius } }) {
+				const RE::NiPoint3 edge = a_camera->WorldToScreenNormalized(center + offset);
+				if (edge.z <= 0.0f || !std::isfinite(edge.x) || !std::isfinite(edge.y)) {
+					continue;
+				}
+				radiusX = std::max(radiusX, std::abs(edge.x - projected.x) * a_width);
+				radiusY = std::max(radiusY, std::abs(edge.y - projected.y) * a_height);
+			}
+			radiusX = std::clamp(radiusX * 1.15f, a_actor ? 38.0f : 30.0f, 180.0f);
+			radiusY = std::clamp(radiusY * 1.15f, a_actor ? 48.0f : 30.0f, 220.0f);
+
+			const float dx = (a_x - projected.x) * a_width / radiusX;
+			const float dy = (a_y - projected.y) * a_height / radiusY;
+			const float score = dx * dx + dy * dy;
+			if (score <= 1.0f && (score < a_best.score || (score == a_best.score && projected.z < a_best.depth))) {
+				a_best = { a_ref, score, projected.z };
+			}
+		}
+
+		void SendScreenPick(const char* a_view, const std::string& a_slot, RE::TESObjectREFR* a_ref)
+		{
+			json reply{
+				{ "slot", a_slot },
+				{ "valid", a_ref != nullptr },
+				{ "token", 0 },
+				{ "name", "" },
+				{ "formId", 0 },
+			};
+			if (a_ref) {
+				const std::int32_t token = AllocToken(a_ref);
+				reply["token"] = token;
+				reply["name"] = ScanLabel(a_ref);
+				reply["formId"] = a_ref->GetFormID();
+				reply["species"] = a_ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(a_ref)) : std::string{};
+				reply["sex"] = RefSexTag(a_ref);
+				if (auto* player = RE::PlayerCharacter::GetSingleton()) {
+					reply["distance"] = std::sqrt(player->GetPosition().GetSquaredDistance(a_ref->GetPosition())) / 70.0f;
+				}
+			}
+			SendJson(a_view, "osf.animation.pick", reply);
+		}
+
+		void OnPickScreen(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			const std::string slot = j.is_object() && j.value("slot", std::string{}) == "furniture" ? "furniture" : "actor";
+			const float x = j.is_object() ? j.value("x", -1.0f) : -1.0f;
+			const float y = j.is_object() ? j.value("y", -1.0f) : -1.0f;
+			const float width = std::clamp(j.is_object() ? j.value("width", 0.0f) : 0.0f, 320.0f, 10000.0f);
+			const float height = std::clamp(j.is_object() ? j.value("height", 0.0f) : 0.0f, 200.0f, 10000.0f);
+			if (x < 0.0f || x > 1.0f || y < 0.0f || y > 1.0f) {
+				SendScreenPick(a_srcView, slot, nullptr);
+				return;
+			}
+
+			auto camera = RE::Main::GetWorldRootCamera();
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!camera || !player) {
+				SendScreenPick(a_srcView, slot, nullptr);
+				return;
+			}
+
+			ScreenPick best;
+			if (slot == "actor") {
+				std::vector<RE::Actor*> actors;
+				EnumerateHighActors(actors);
+				for (RE::Actor* actor : actors) {
+					if (!actor || actor->IsPlayerRef() || actor->IsDead() ||
+						player->GetPosition().GetSquaredDistance(actor->GetPosition()) > 4096.0f * 4096.0f) {
+						continue;
+					}
+					ConsiderScreenPick(camera.get(), actor, true, x, y, width, height, best);
+				}
+			} else if (auto* tes = RE::TES::GetSingleton()) {
+				RE::NiPoint3A origin{};
+				origin.x = player->GetPosition().x;
+				origin.y = player->GetPosition().y;
+				origin.z = player->GetPosition().z;
+				tes->ForEachReferenceInRange(origin, 4096.0f, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
+					RE::TESObjectREFR* ref = a_ref.get();
+					const auto base = ref ? ref->GetBaseObject() : nullptr;
+					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN)) {
+						ConsiderScreenPick(camera.get(), ref, false, x, y, width, height, best);
+					}
+					return RE::BSContainer::ForEachResult::kContinue;
+				});
+			}
+
+			REX::DEBUG("[UI] osf.animation.pickScreen slot={} at ({:.3f},{:.3f}) -> {}", slot, x, y,
+				best.ref ? std::format("'{}' ({:08X})", ScanLabel(best.ref), best.ref->GetFormID()) : "no hit");
+			SendScreenPick(a_srcView, slot, best.ref);
+		}
 		// Nearby-furniture enumeration goes through RE::TES::ForEachReferenceInRange (CommonLibSF),
 		// which spans the loaded interior cell or exterior grid — see OnScanNearby's furniture branch.
 
@@ -1686,6 +1892,8 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.pickCrosshair", &OnPickCrosshair, nullptr);
+		g_ui.RegisterCommand("osf.animation.pickScreen", &OnPickScreen, nullptr);
+		g_ui.RegisterCommand("osf.animation.projectActors", &OnProjectActors, nullptr);
 		g_ui.RegisterCommand("osf.animation.scanNearby", &OnScanNearby, nullptr);
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);

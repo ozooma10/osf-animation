@@ -40,11 +40,34 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
   return <LiveBar running={!!state.lastHandle} handle={state.lastHandle} title={scene?.title ?? state.lastSceneId} stage={stage} canAdvance={canAdvance} onAdvance={() => commands.advance()} onStop={() => commands.stop()} onExpand={() => commands.setMinimized(false)}/>;
 }
 
+function ActorIndicators({ state }: { state: BrowserState }) {
+  if (!state.viewVisible || state.wheel || state.minimized) return null;
+  const byToken = new Map(state.actorIndicators.map((indicator) => [indicator.token, indicator]));
+  return <div class="world-indicators" aria-hidden="true">
+    {state.cast.map((member, index) => {
+      if (member.kind === "player") return null;
+      const indicator = byToken.get(member.token);
+      if (!indicator?.visible) return null;
+      return <div key={member.token} class="world-actor-indicator"
+        style={{ left: `${indicator.x * 100}%`, top: `${indicator.y * 100}%` }}>
+        <span class="world-actor-key">{String.fromCharCode(65 + index)}</span>
+        <span class="world-actor-name">{member.name}</span>
+        <i/>
+      </div>;
+    })}
+  </div>;
+}
+
 export function App({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  return <div class="stage">
+  return <div class={`stage ${state.pickMode ? "picking" : ""}`}>
+    <ActorIndicators state={state}/>
     <div class="console"><span class="bracket tl"/><span class="bracket tr"/><span class="bracket bl"/><span class="bracket br"/><div class="grid-overlay"/><Header state={state} commands={commands}/><div class="director"><aside class="rail"><CastPanel state={state} commands={commands}/><AnchorPanel state={state} commands={commands}/></aside><section class="browse"><BrowsePanel state={state} commands={commands}/></section></div><footer class={`notice ${state.notice.kind}`} aria-live="polite">{state.notice.text}</footer></div>
     <aside class="brief"><SceneBrief state={state} commands={commands}/></aside>
     <div class="livebar"><MinimizedBar state={state} commands={commands}/></div>
     <div class="wheel"><AnimationWheel state={state} commands={commands}/></div>
+    {state.pickMode && <div class="pick-hud mono" aria-live="polite">
+      <strong>SELECT {state.pickMode === "actor" ? "ACTOR" : "FURNITURE"}</strong>
+      <span>Click it in the world · Esc to cancel</span>
+    </div>}
   </div>;
 }

@@ -12,6 +12,8 @@ export interface BrowserCommands {
   toggleMarkers(): void;
   scan(kind: "actor" | "furniture"): void;
   pick(kind: "actor" | "furniture"): void;
+  pickAt(x: number, y: number, width: number, height: number): void;
+  cancelPick(): void;
   toggleActor(token: number): void;
   togglePlayer(): void;
   removeMember(index: number): void;

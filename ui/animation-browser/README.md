@@ -29,7 +29,7 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
   show a "needs update" badge on the Mods surface, nothing is gated).
 - **Contract (`osf.animation.*`):**
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
-  `pickCrosshair`→`pick`, `scanNearby`→`scanResults`,
+  `pickCrosshair`→`pick`, `pickScreen {slot,x,y,width,height}`→`pick`, `scanNearby`→`scanResults`,
   `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`,
   `wheel.get`→`wheel.data`,
   `wheel.set {entries:[{scene,stage?},...]}` (persist the complete ordered animation-wheel loadout)
@@ -68,10 +68,12 @@ ui/animation-browser/src/ ── Vite ──► build/views/osf.animation/browse
   (the DLL polls XInput directly). The PAD NAV layer re-creates the button
   half from raw `ui.gamepad` events: D-pad → arrows (hold-repeat), A → Enter,
   B → wheel cancel / close; stick events are dropped on purpose.
-- **Targeting:** crosshair pick (the target under the reticle when the browser
-  *opened* — the engine nulls the reticle slot while any menu is up, so PICK
-  resolves the open-time capture) *or* **Scan Nearby** — a cell walk that
-  lists nearby actors (living, closest-first, with a species tag for creature
+- **Targeting:** PICK arms actor or furniture selection, then a click in the
+  transparent world area screen-tests loaded 3D bounds and returns the chosen
+  reference; dragging more than five pixels remains camera orbit and Escape
+  cancels. **Scan Nearby** remains the cell-walk fallback for crowded targets
+  and invisible AI markers. The legacy open-time crosshair capture remains an
+  additive native bridge command for older views. Its cell walk lists nearby actors (living, closest-first, with a species tag for creature
   filtering) and furniture with per-anchor scene counts, each as a clickable
   token. Scan rows draw a neutral silhouette (no portrait capture).
   The **Location** step places free-space scenes at Cast A (default), the player,

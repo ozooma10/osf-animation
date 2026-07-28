@@ -78,6 +78,24 @@ button,input,select{font:inherit;color:inherit}
    transparent — the engine renders the 3D world behind the overlay (no kModal),
    so the focal point you framed before opening remains in view while you browse. */
 .stage{position:relative;height:100%;padding:14px;display:flex;align-items:stretch}
+/* Native-projected cast badges. These live over the transparent world area and
+   carry the same A/B/C labels as the crew chips, making role order spatially clear. */
+.world-indicators{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+.world-actor-indicator{position:absolute;display:flex;align-items:center;gap:6px;transform:translate(-50%,calc(-100% - 8px));
+  max-width:190px;padding:4px 8px 5px 5px;border:1px solid var(--accent);border-radius:2px;
+  background:rgba(6,9,13,.88);box-shadow:var(--glow-accent),0 2px 8px rgba(0,0,0,.7);
+  transition:left 80ms linear,top 80ms linear}
+.world-actor-indicator::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:9px;background:var(--accent)}
+.world-actor-indicator>i{position:absolute;left:50%;top:calc(100% + 8px);width:6px;height:6px;
+  transform:translateX(-50%) rotate(45deg);background:var(--accent);box-shadow:0 0 7px var(--accent)}
+.world-actor-key{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex:none;
+  background:var(--accent);color:var(--text-on-amber);font:700 10px var(--font-mono)}
+.world-actor-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--text-bright);font:600 10px var(--font-mono);letter-spacing:.04em}
+.stage.picking{cursor:crosshair}
+.stage.picking .console,.stage.picking .brief,.stage.picking .livebar{cursor:default}
+.pick-hud{position:absolute;z-index:20;left:73%;top:28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 14px;background:rgba(4,6,10,.88);border:1px solid var(--accent);border-radius:2px;pointer-events:none;box-shadow:var(--glow-accent);color:var(--text-body)}
+.pick-hud strong{font:700 10px var(--font-mono);letter-spacing:.16em;color:var(--accent)}
 .console{position:relative;flex:none;width:min(540px,46%);min-width:380px;min-height:0;display:flex;flex-direction:column;
   background:rgba(6,9,13,.96);
   border:1px solid var(--line-strong);border-radius:var(--radius);box-shadow:0 10px 44px rgba(0,0,0,.5)}
@@ -312,6 +330,7 @@ button,input,select{font:inherit;color:inherit}
 .world-tools{display:flex;gap:4px}
 .chip-btn{border:1px solid var(--line);background:var(--void-900);border-radius:2px;padding:3px 7px;font:600 8px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--hud)}
 .chip-btn:hover{border-color:var(--accent);color:var(--accent)}
+.chip-btn.on{border-color:var(--accent);background:var(--accent-quiet);color:var(--accent)}
 .world-list{display:flex;flex-direction:column;gap:6px}
 .pick-row{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:var(--void-700);border:1px solid var(--line);border-left:2px solid var(--line);border-radius:2px;padding:7px 9px;box-shadow:var(--inset-lit)}
 .pick-row:hover{border-color:var(--line-strong);border-left-color:var(--line-strong)}

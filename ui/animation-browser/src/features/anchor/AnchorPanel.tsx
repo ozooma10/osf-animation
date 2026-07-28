@@ -92,7 +92,9 @@ export function AnchorPanel({ state, commands }: { state: BrowserState; commands
         : <div class="anchor-slot"><Dot/><span class="anchor-name faint">no furniture selected</span></div>}
       <div class="step-sub"><span class="lbl">FURNITURE / MARKER</span><span class="step-tools">
         <button class="chip-btn" onClick={() => commands.scan("furniture")}>SCAN</button>
-        <button class="chip-btn" onClick={() => commands.pick("furniture")}>PICK</button>
+        <button class={`chip-btn ${state.pickMode === "furniture" ? "on" : ""}`} onClick={() => commands.pick("furniture")}>
+          {state.pickMode === "furniture" ? "CANCEL" : "PICK"}
+        </button>
       </span></div>
       <div class="near-list">
         {furniture.length ? furniture.map((anchor) => <AnchorRow key={anchor.token} anchor={anchor} keyed={keyed} onToggle={() => commands.toggleAnchor(anchor.token)}/>)

@@ -25,6 +25,9 @@ export type BrowserAction =
   | { type: "cast/removed"; index: number }
   | { type: "cast/moved"; from: number; to: number; after?: boolean }
   | { type: "nearby/received"; kind: "actor" | "furniture"; targets: NearbyTarget[] }
+  | { type: "indicators/received"; items: import("./state").ActorIndicator[] }
+  | { type: "pick/armed"; kind: "actor" | "furniture" }
+  | { type: "pick/cancelled" }
   | { type: "anchor/selected"; anchor: FurnitureTarget }
   | { type: "anchor/cleared" }
   | { type: "anchor/matched"; token: number; ids: ReadonlySet<string> }
@@ -58,6 +61,7 @@ export type BrowserAction =
   | { type: "wheel/customized"; catalog: SceneModel[]; library: SceneModel[] }
   | { type: "wheel/reset"; catalog: SceneModel[]; library: SceneModel[] }
   | { type: "visibility/hidden" }
+  | { type: "visibility/shown" }
   | { type: "seeded/remembered"; token: number }
   | { type: "notice/show"; kind: "info" | "ok" | "err"; text: string }
   | { type: "notice/clear"; serial: number };

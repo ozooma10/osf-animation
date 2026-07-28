@@ -49,9 +49,20 @@ describe("browser reducer", () => {
       tagPrefix: "player.emote.",
       target: null,
     });
-    const hidden = browserReducer({ ...state, minimized: true }, { type: "visibility/hidden" });
-    expect(hidden).toMatchObject({ mode: "scenes", wheel: null, minimized: false });
+    const armed = browserReducer(state, { type: "pick/armed", kind: "actor" });
+    const hidden = browserReducer({ ...armed, minimized: true }, { type: "visibility/hidden" });
+    expect(hidden).toMatchObject({ mode: "scenes", wheel: null, minimized: false, pickMode: null, actorIndicators: [], viewVisible: false });
   });
+
+  it("tracks native-projected actor indicators and clears them when hidden", () => {
+    const projected = browserReducer(createInitialState(), {
+      type: "indicators/received",
+      items: [{ token: 7, x: 0.7, y: 0.3, visible: true }],
+    });
+    expect(projected.actorIndicators).toEqual([{ token: 7, x: 0.7, y: 0.3, visible: true }]);
+    expect(browserReducer(projected, { type: "visibility/hidden" }).actorIndicators).toEqual([]);
+  });
+
   it("honors the Auto-Minimize preference when a scene starts", () => {
     const initial = createInitialState();
     const minimized = browserReducer(initial, {

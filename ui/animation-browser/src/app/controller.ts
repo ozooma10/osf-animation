@@ -17,6 +17,7 @@ import {
   PLAYER_TOKEN,
   createInitialState,
   type ActiveScene,
+  type ActorIndicator,
   type BrowserState,
   type CastMember,
   type NearbyTarget,
@@ -64,6 +65,16 @@ function normalizeActive(payload: unknown): ActiveScene[] {
       token: Number(member.token), name: String(member.name || "actor"), player: !!member.player,
     })) : [],
   })).filter((scene) => scene.handle > 0);
+}
+
+function normalizeIndicators(payload: unknown): ActorIndicator[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.filter(isRecord).map((item) => ({
+    token: Number(item.token) || 0,
+    x: Number(item.x),
+    y: Number(item.y),
+    visible: !!item.visible,
+  })).filter((item) => item.token !== 0 && Number.isFinite(item.x) && Number.isFinite(item.y));
 }
 
 function cloneWithPins(state: BrowserState, keys: readonly string[]): { catalog: SceneModel[]; library: SceneModel[] } {
@@ -161,7 +172,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         break;
       }
       case "osf.animation.pick": {
-        if (!record.valid || !record.token) { showNotice("err", `No ${record.slot || "target"} was under the crosshair when the browser opened — aim first, then open, or use SCAN.`); break; }
+        dispatch({ type: "pick/cancelled" });
+        if (!record.valid || !record.token) { showNotice("err", `No ${record.slot || "target"} was under that click — try its visible center, or use SCAN.`); break; }
         if (record.slot === "furniture") {
           dispatch({ type: "anchor/selected", anchor: { token: Number(record.token), name: String(record.name || "furniture"), distance: typeof record.distance === "number" ? record.distance : null } });
           send("osf.animation.anchorMatch", { token: Number(record.token) });
@@ -191,6 +203,9 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         showNotice("info", `${targets.length} nearby ${kind === "actor" ? `actor${targets.length === 1 ? "" : "s"}` : `furniture spot${targets.length === 1 ? "" : "s"}`} found.`);
         break;
       }
+      case "osf.animation.actorIndicators":
+        dispatch({ type: "indicators/received", items: normalizeIndicators(record.items) });
+        break;
       case "osf.animation.anchorMatch": dispatch({ type: "anchor/matched", token: Number(record.token), ids: new Set(Array.isArray(record.sceneIds) ? record.sceneIds.map(String) : []) }); break;
       case "osf.animation.activeScenes": dispatch({ type: "active/received", scenes: normalizeActive(record.scenes) }); break;
       case "osf.animation.launchResult":
@@ -221,7 +236,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           if (padHeld.current.timer) clearTimeout(padHeld.current.timer);
           padHeld.current = { id: 0 };
           dispatch({ type: "visibility/hidden" });
-        }
+        } else dispatch({ type: "visibility/shown" });
         send(record.visible ? "osf.animation.opened" : "osf.animation.closed");
         break;
       case "ui.error": showNotice("err", `Bridge rejected a message: ${record.message || record.code || "unknown error"}`); break;
@@ -270,6 +285,18 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     document.body.classList.toggle("live-mode", state.minimized);
   }, [state.wheel, state.minimized]);
 
+  useEffect(() => {
+    const tokens = state.cast.filter((member) => member.kind !== "player").map((member) => member.token);
+    if (!state.viewVisible || state.wheel || state.minimized || tokens.length === 0) {
+      if (state.actorIndicators.length) dispatch({ type: "indicators/received", items: [] });
+      return;
+    }
+    const project = () => send("osf.animation.projectActors", { tokens });
+    project();
+    const timer = window.setInterval(project, 80);
+    return () => clearInterval(timer);
+  }, [state.cast, state.viewVisible, state.wheel, state.minimized, send]);
+
   const commands = useMemo<BrowserCommands>(() => ({
     refresh: () => requestCatalog(true),
     setMode: (mode) => { dispatch({ type: "mode/changed", mode }); if (mode === "library" && !stateRef.current.libraryReceived) { showNotice("info", "Loading the animation library…"); requestLibrary(true); } },
@@ -281,7 +308,17 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleStep: (step) => dispatch({ type: "step/toggled", step }),
     toggleMarkers: () => dispatch({ type: "markers/toggled" }),
     scan: (kind) => { showNotice("info", `Scanning nearby ${kind === "furniture" ? "furniture" : "actors"}…`); send("osf.animation.scanNearby", { kind, sceneId: stateRef.current.selectedId || "" }); },
-    pick: (slot) => send("osf.animation.pickCrosshair", { slot }),
+    pick: (kind) => {
+      const armed = stateRef.current.pickMode === kind;
+      dispatch(armed ? { type: "pick/cancelled" } : { type: "pick/armed", kind });
+      showNotice("info", armed ? "World selection cancelled." : `Click the ${kind === "actor" ? "actor" : "furniture"} in the visible world. Drag still orbits; Esc cancels.`);
+    },
+    pickAt: (x, y, width, height) => {
+      const slot = stateRef.current.pickMode;
+      if (!slot) return;
+      send("osf.animation.pickScreen", { slot, x, y, width, height });
+    },
+    cancelPick: () => { if (stateRef.current.pickMode) { dispatch({ type: "pick/cancelled" }); showNotice("info", "World selection cancelled."); } },
     toggleActor: (token) => { const actor = stateRef.current.nearbyActors.find((candidate) => candidate.token === token); if (actor) dispatch({ type: "cast/toggled", member: { token, name: actor.name, distance: actor.distance, species: actor.species || "human", sex: actor.sex } }); },
     togglePlayer: () => dispatch({ type: "cast/toggled", member: PLAYER_CAST }),
     removeMember: (index) => dispatch({ type: "cast/removed", index }),

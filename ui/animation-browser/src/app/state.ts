@@ -104,6 +104,14 @@ export interface NoticeState {
   serial: number;
 }
 
+export interface ActorIndicator {
+  token: number;
+  /** Viewport-normalized coordinates (0..1), projected by the native render camera. */
+  x: number;
+  y: number;
+  visible: boolean;
+}
+
 export interface BrowserState {
   ready: boolean;
   catalog: SceneModel[];
@@ -118,6 +126,7 @@ export interface BrowserState {
   locationToken: number | null;
   nearbyActors: NearbyTarget[];
   nearbyFurniture: NearbyTarget[];
+  pickMode: "actor" | "furniture" | null;
   lastHandle: number;
   lastSceneId: string;
   active: ActiveScene[] | null;
@@ -140,6 +149,8 @@ export interface BrowserState {
   markersOpen: boolean;
   stepOpen: { cast: boolean; anchor: boolean };
   seededTokens: ReadonlySet<number>;
+  actorIndicators: ActorIndicator[];
+  viewVisible: boolean;
   notice: NoticeState;
   visibilitySerial: number;
 }
@@ -159,6 +170,7 @@ export function createInitialState(): BrowserState {
     locationToken: null,
     nearbyActors: [],
     nearbyFurniture: [],
+    pickMode: null,
     lastHandle: 0,
     lastSceneId: "",
     active: null,
@@ -181,6 +193,8 @@ export function createInitialState(): BrowserState {
     markersOpen: false,
     stepOpen: { cast: true, anchor: true },
     seededTokens: new Set(),
+    actorIndicators: [],
+    viewVisible: true,
     notice: { kind: "", text: "", serial: 0 },
     visibilitySerial: 0,
   };
