@@ -32,6 +32,13 @@ namespace OSF::Scene
 		RefTransform RenderedTransform(RE::TESObjectREFR* a_ref)
 		{
 			RefTransform logical{ a_ref->data.location, a_ref->data.angle.z };
+			// Actor model roots are not reference roots: their composed 3D transform may be skeleton/
+			// parent-relative and can be radically different from the position SetPosition expects.
+			// Scene default anchoring already uses actor data.location, so reference-based player/NPC
+			// locations must use that same coordinate space. The rendered fallback below is furniture-only.
+			if (a_ref->IsActor()) {
+				return logical;
+			}
 
 			RE::NiPointer<RE::NiAVObject> node;
 			{

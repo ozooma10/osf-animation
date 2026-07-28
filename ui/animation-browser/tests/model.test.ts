@@ -8,6 +8,7 @@ describe("scene normalization", () => {
       name: "Test Scene",
       folder: "Furniture / Seated",
       roles: [{ name: "lead", filters: { gender: "female" } }],
+      inPlace: true,
       stages: [{ name: "idle", loopSec: "2.5", loops: 0 }],
     });
     expect(scene).toMatchObject({
@@ -18,6 +19,7 @@ describe("scene normalization", () => {
       roles: [{ name: "lead", gender: "female" }],
       policy: { stripActors: "inherit", lockPlayer: "inherit", fade: "off" },
       folder: "Furniture/Seated",
+      inPlace: true,
     });
     expect(scene.stages[0]).toMatchObject({ index: 0, loopSec: 2.5, loops: 0 });
   });

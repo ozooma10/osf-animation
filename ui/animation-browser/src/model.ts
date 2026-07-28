@@ -27,6 +27,7 @@ export interface SceneModel {
   genders: unknown[];
   roles: SceneRole[];
   requiresFurniture: boolean;
+  inPlace: boolean;
   anchors: string[];
   unlisted: boolean;
   wheelCustomized: boolean;
@@ -72,6 +73,7 @@ export function normalizeScene(raw: Raw): SceneModel {
     genders,
     roles,
     requiresFurniture,
+    inPlace: Boolean(raw.inPlace),
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map(String) : [],
     unlisted: Boolean(raw.unlisted),
     wheelCustomized: Boolean(raw.wheelCustomized),
