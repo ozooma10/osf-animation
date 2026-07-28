@@ -291,7 +291,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       if (state.actorIndicators.length) dispatch({ type: "indicators/received", items: [] });
       return;
     }
-    const project = () => send("osf.animation.projectActors", { tokens });
+    const project = () => send("osf.animation.projectActors", { tokens, width: innerWidth, height: innerHeight });
     project();
     const timer = window.setInterval(project, 80);
     return () => clearInterval(timer);

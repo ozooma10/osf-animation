@@ -806,17 +806,132 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.pick", reply);
 		}
 
-		// Render-camera ownership is not mapped safely on every supported runtime. In
-		// particular, Address Library ID 887308 points at unrelated settings storage on
-		// 1.16.244. Fail closed until a runtime-proven projection source is available.
-		void OnProjectActors(const char*, const char*, const char* a_srcView, void*) noexcept
+		struct SafeViewProjection
 		{
-			static bool warned = false;
-			if (!warned) {
-				warned = true;
-				REX::WARN("[UI] actor world indicators unavailable: render-camera projection is not mapped for this runtime");
+			RE::NiPoint3 position;
+			RE::NiPoint3 forward;
+			RE::NiPoint3 right;
+			RE::NiPoint3 up;
+			float        tanHalfHorizontal{ 1.0f };
+			float        aspect{ 16.0f / 9.0f };
+
+			bool Project(const RE::NiPoint3& a_world, RE::NiPoint3& a_screen) const
+			{
+				const RE::NiPoint3 delta = a_world - position;
+				const float depth = delta.Dot(forward);
+				if (!std::isfinite(depth) || depth <= 0.01f) {
+					return false;
+				}
+				const float horizontal = delta.Dot(right);
+				const float vertical = delta.Dot(up);
+				const float tanHalfVertical = tanHalfHorizontal / aspect;
+				a_screen.x = 0.5f + horizontal / (2.0f * depth * tanHalfHorizontal);
+				a_screen.y = 0.5f - vertical / (2.0f * depth * tanHalfVertical);
+				a_screen.z = depth;
+				return std::isfinite(a_screen.x) && std::isfinite(a_screen.y);
 			}
-			SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", json::array() } });
+		};
+
+		// PlayerCamera::cameraRoot is a mapped, runtime-proven field already used by the
+		// camera service. Build a small pinhole projection from its world transform instead
+		// of touching Main::WorldRoot, whose relocation is invalid on Starfield 1.16.244.
+		std::optional<SafeViewProjection> CurrentViewProjection(float a_width, float a_height)
+		{
+			auto* playerCamera = RE::PlayerCamera::GetSingleton();
+			const auto root = playerCamera ? playerCamera->cameraRoot : nullptr;
+			if (!root || !std::isfinite(a_width) || !std::isfinite(a_height) || a_width < 1.0f || a_height < 1.0f) {
+				return std::nullopt;
+			}
+
+			SafeViewProjection out;
+			out.position = root->world.translate;
+			out.forward = {
+				root->world.rotate[0][0],
+				root->world.rotate[0][1],
+				root->world.rotate[0][2],
+			};
+			if (out.forward.Unitize() <= 0.001f) {
+				return std::nullopt;
+			}
+			out.right = out.forward.Cross(RE::NiPoint3{ 0.0f, 0.0f, 1.0f });
+			if (out.right.Unitize() <= 0.001f) {
+				return std::nullopt;
+			}
+			out.up = out.right.Cross(out.forward);
+			if (out.up.Unitize() <= 0.001f) {
+				return std::nullopt;
+			}
+			out.aspect = a_width / a_height;
+			constexpr float kHorizontalFovRad = 85.0f * 3.14159265f / 180.0f;
+			out.tanHalfHorizontal = std::tan(kHorizontalFovRad * 0.5f);
+			return out;
+		}
+
+		bool RenderedBound(RE::TESObjectREFR* a_ref, bool a_actor, RE::NiPoint3& a_center, float& a_radius)
+		{
+			if (!a_ref || a_ref->IsDeleted()) {
+				return false;
+			}
+			RE::NiPointer<RE::NiAVObject> node;
+			{
+				const auto loaded = a_ref->loadedData.LockRead();
+				if (*loaded) {
+					node = (*loaded)->data3D;
+				}
+			}
+			if (!node) {
+				return false;
+			}
+			a_center = node->worldBound.center;
+			a_radius = node->worldBound.radius;
+			if (!std::isfinite(a_radius) || a_radius < 0.01f || a_radius > 10000.0f ||
+				!std::isfinite(a_center.x) || !std::isfinite(a_center.y) || !std::isfinite(a_center.z)) {
+				a_center = node->world.translate;
+				a_radius = a_actor ? 0.8f : 0.6f;
+			}
+			return true;
+		}
+
+		void OnProjectActors(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			json items = json::array();
+			if (!j.is_object() || !j.contains("tokens") || !j["tokens"].is_array()) {
+				SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
+				return;
+			}
+			const float width = std::clamp(j.value("width", 1280.0f), 320.0f, 10000.0f);
+			const float height = std::clamp(j.value("height", 720.0f), 200.0f, 10000.0f);
+			const auto projection = CurrentViewProjection(width, height);
+			if (!projection) {
+				SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
+				return;
+			}
+
+			constexpr std::size_t kMaxIndicators = 16;
+			for (const auto& value : j["tokens"]) {
+				if (items.size() >= kMaxIndicators || !value.is_number_integer()) {
+					break;
+				}
+				const std::int32_t token = value.get<std::int32_t>();
+				RE::TESObjectREFR* ref = ResolveToken(token);
+				if (!ref || !ref->IsActor()) {
+					continue;
+				}
+				RE::NiPoint3 center;
+				float radius = 0.0f;
+				RE::NiPoint3 screen;
+				const bool projected = RenderedBound(ref, true, center, radius) &&
+					projection->Project(center + RE::NiPoint3{ 0.0f, 0.0f, radius + 0.08f }, screen);
+				const bool visible = projected && screen.x >= 0.0f && screen.x <= 1.0f && screen.y >= 0.0f && screen.y <= 1.0f;
+				items.push_back(json{
+					{ "token", token },
+					{ "x", projected ? screen.x : 0.0f },
+					{ "y", projected ? screen.y : 0.0f },
+					{ "visible", visible },
+				});
+			}
+			SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
 		}
 		void OnLaunch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
@@ -1179,6 +1294,33 @@ namespace OSF::API
 			}
 		}
 
+		struct ScreenPick
+		{
+			RE::TESObjectREFR* ref = nullptr;
+			float score = std::numeric_limits<float>::max();
+			float depth = std::numeric_limits<float>::max();
+		};
+
+		void ConsiderScreenPick(const SafeViewProjection& a_projection, RE::TESObjectREFR* a_ref, bool a_actor,
+			float a_x, float a_y, float a_width, float a_height, ScreenPick& a_best)
+		{
+			RE::NiPoint3 center;
+			float radius = 0.0f;
+			RE::NiPoint3 screen;
+			if (!RenderedBound(a_ref, a_actor, center, radius) || !a_projection.Project(center, screen)) {
+				return;
+			}
+
+			const float projectedRadius = radius / screen.z * a_width / (2.0f * a_projection.tanHalfHorizontal);
+			const float radiusX = std::clamp(projectedRadius * 1.15f, a_actor ? 38.0f : 30.0f, 220.0f);
+			const float radiusY = std::clamp(projectedRadius * 1.15f, a_actor ? 52.0f : 30.0f, 260.0f);
+			const float dx = (a_x - screen.x) * a_width / radiusX;
+			const float dy = (a_y - screen.y) * a_height / radiusY;
+			const float score = dx * dx + dy * dy;
+			if (score <= 1.0f && (score < a_best.score || (std::abs(score - a_best.score) < 0.0001f && screen.z < a_best.depth))) {
+				a_best = { a_ref, score, screen.z };
+			}
+		}
 		void SendScreenPick(const char* a_view, const std::string& a_slot, RE::TESObjectREFR* a_ref)
 		{
 			json reply{
@@ -1206,15 +1348,48 @@ namespace OSF::API
 		{
 			const json j = ParsePayload(a_payload);
 			const std::string slot = j.is_object() && j.value("slot", std::string{}) == "furniture" ? "furniture" : "actor";
-			RE::TESObjectREFR* ref = g_openPickToken != 0 ? ResolveToken(g_openPickToken) : nullptr;
-			if (ref && ((slot == "actor") != ref->IsActor())) {
-				ref = nullptr;
+			const float x = j.is_object() ? j.value("x", -1.0f) : -1.0f;
+			const float y = j.is_object() ? j.value("y", -1.0f) : -1.0f;
+			const float width = std::clamp(j.is_object() ? j.value("width", 0.0f) : 0.0f, 320.0f, 10000.0f);
+			const float height = std::clamp(j.is_object() ? j.value("height", 0.0f) : 0.0f, 200.0f, 10000.0f);
+			const auto projection = CurrentViewProjection(width, height);
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!projection || !player || x < 0.0f || x > 1.0f || y < 0.0f || y > 1.0f) {
+				REX::DEBUG("[UI] osf.animation.pickScreen slot={} -> invalid projection/input", slot);
+				SendScreenPick(a_srcView, slot, nullptr);
+				return;
 			}
-			REX::DEBUG("[UI] osf.animation.pickScreen slot={} projection unavailable -> open-time target {}",
-				slot, ref ? std::format("'{}' ({:08X})", ScanLabel(ref), ref->GetFormID()) : "not valid");
-			SendScreenPick(a_srcView, slot, ref);
-		}
-		// Nearby-furniture enumeration goes through RE::TES::ForEachReferenceInRange (CommonLibSF),
+
+			ScreenPick best;
+			if (slot == "actor") {
+				std::vector<RE::Actor*> actors;
+				EnumerateHighActors(actors);
+				for (RE::Actor* actor : actors) {
+					if (!actor || actor->IsPlayerRef() || actor->IsDead() ||
+						player->GetPosition().GetSquaredDistance(actor->GetPosition()) > 4096.0f * 4096.0f) {
+						continue;
+					}
+					ConsiderScreenPick(*projection, actor, true, x, y, width, height, best);
+				}
+			} else if (auto* tes = RE::TES::GetSingleton()) {
+				RE::NiPoint3A origin{};
+				origin.x = player->GetPosition().x;
+				origin.y = player->GetPosition().y;
+				origin.z = player->GetPosition().z;
+				tes->ForEachReferenceInRange(origin, 4096.0f, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
+					RE::TESObjectREFR* ref = a_ref.get();
+					const auto base = ref ? ref->GetBaseObject() : nullptr;
+					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN)) {
+						ConsiderScreenPick(*projection, ref, false, x, y, width, height, best);
+					}
+					return RE::BSContainer::ForEachResult::kContinue;
+				});
+			}
+
+			REX::DEBUG("[UI] world PICK {} at ({:.3f},{:.3f}) -> {}", slot, x, y,
+				best.ref ? std::format("'{}' ({:08X})", ScanLabel(best.ref), best.ref->GetFormID()) : "no hit");
+			SendScreenPick(a_srcView, slot, best.ref);
+		}		// Nearby-furniture enumeration goes through RE::TES::ForEachReferenceInRange (CommonLibSF),
 		// which spans the loaded interior cell or exterior grid — see OnScanNearby's furniture branch.
 
 		// Distance math uses TESObjectREFR::GetPosition() (cached data.location), the same source the rest of OSF Animation uses for actor/anchor placement.
