@@ -1,7 +1,25 @@
 import { evaluateScene, type SceneEvaluation, type SceneModel, type SceneStage } from "../model";
-import type { ActiveScene, BrowserState } from "./state";
+import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember } from "./state";
 
 export const WHEEL_MAX = 12;
+
+export interface LocationCastChoices {
+  showPlayer: boolean;
+  actors: CastMember[];
+}
+
+export function locationCastChoices(state: BrowserState): LocationCastChoices {
+  const castAToken = state.cast[0]?.token;
+  const seen = new Set<number>([PLAYER_TOKEN]);
+  if (castAToken != null) seen.add(castAToken);
+
+  const actors = state.cast.filter((member) => {
+    if (seen.has(member.token)) return false;
+    seen.add(member.token);
+    return true;
+  });
+  return { showPlayer: castAToken !== PLAYER_TOKEN, actors };
+}
 
 export interface WheelCandidate {
   key: string;

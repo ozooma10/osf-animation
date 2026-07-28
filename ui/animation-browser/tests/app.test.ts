@@ -7,6 +7,7 @@ import {
   formatEstimate,
   isVanillaAnimation,
   libraryFolderTree,
+  locationCastChoices,
   validSelection,
   wheelGeometry,
   wheelPool,
@@ -78,9 +79,28 @@ describe("browser reducer", () => {
     const atPlayer = browserReducer(atFurniture, { type: "location/selected", mode: "player" });
     expect(atPlayer).toMatchObject({ locationMode: "player", locationToken: null, furniture: { token: 9 } });
   });
+
 });
 
 describe("browser selectors", () => {
+  it("deduplicates equivalent cast location choices", () => {
+    const sarah = { token: 7, name: "Sarah", species: "human", sex: "female" };
+    const andreja = { token: 8, name: "Andreja", species: "human", sex: "female" };
+
+    const playerFirst = locationCastChoices({
+      ...createInitialState(),
+      cast: [PLAYER_CAST, sarah, sarah],
+    });
+    expect(playerFirst.showPlayer).toBe(false);
+    expect(playerFirst.actors.map((member) => member.token)).toEqual([7]);
+
+    const npcFirst = locationCastChoices({
+      ...createInitialState(),
+      cast: [sarah, PLAYER_CAST, andreja, sarah],
+    });
+    expect(npcFirst.showPlayer).toBe(true);
+    expect(npcFirst.actors.map((member) => member.token)).toEqual([8]);
+  });
   it("selects only a scene visible in the current lane", () => {
     const state = { ...createInitialState(), catalog: [solo, pair], catalogReceived: true };
     expect(validSelection(state)).toBe("pair");

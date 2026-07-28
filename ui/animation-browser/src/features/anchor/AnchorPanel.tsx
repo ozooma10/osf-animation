@@ -1,5 +1,5 @@
 import type { BrowserCommands } from "../../app/commands";
-import { sceneById } from "../../app/selectors";
+import { locationCastChoices, sceneById } from "../../app/selectors";
 import type { BrowserState, FurnitureTarget, NearbyTarget } from "../../app/state";
 import { Dot } from "../shared/Shared";
 
@@ -68,16 +68,21 @@ export function AnchorPanel({ state, commands }: { state: BrowserState; commands
   const furniture = state.nearbyFurniture.filter((anchor) => !anchor.marker);
   const markers = state.nearbyFurniture.filter((anchor) => anchor.marker);
   const markersOpen = state.markersOpen || !!keyed && markers.some((anchor) => anchor.token === keyed.token);
+  const castA = state.cast[0];
+  const locationChoices = locationCastChoices(state);
+  const castAActive = state.locationMode === "cast"
+    || state.locationMode === "player" && castA?.token === -1
+    || state.locationMode === "actor" && state.locationToken === castA?.token;
   return (
     <div class="step">
       <StepHead open summary={locationSummary} onClick={() => commands.toggleStep("anchor")}/>
       {requiresFurniture ? <div class="empty-mini"><span class="mono">This scene is authored for furniture. Pick a compatible spot below.</span></div> : <>
         <div class="step-sub"><span class="lbl">PLACE SCENE</span></div>
         <div class="near-list">
-          <LocationRow active={state.locationMode === "cast"} name={`${state.cast[0]?.name ?? "First actor"}'s location (Cast A)`} note="current" onClick={() => commands.selectLocation("cast")}/>
-          <LocationRow active={state.locationMode === "player"} name="Player location" note="at player" onClick={() => commands.selectLocation("player")}/>
+          <LocationRow active={castAActive} name={`${castA?.name ?? "First actor"}'s location (Cast A)`} note="current" onClick={() => commands.selectLocation("cast")}/>
+          {locationChoices.showPlayer && <LocationRow active={state.locationMode === "player"} name="Player location" note="at player" onClick={() => commands.selectLocation("player")}/>}
           <LocationRow active={state.locationMode === "front"} name="In front of player" note="10 ft" onClick={() => commands.selectLocation("front")}/>
-          {state.cast.filter((member) => member.token !== -1).map((member) =>
+          {locationChoices.actors.map((member) =>
             <LocationRow key={member.token} active={state.locationMode === "actor" && state.locationToken === member.token}
               name={`${member.name} location`} note="cast member" onClick={() => commands.selectLocation("actor", member.token)}/>
           )}
