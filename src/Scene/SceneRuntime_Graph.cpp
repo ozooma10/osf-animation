@@ -758,6 +758,12 @@ namespace OSF::Scene
 				s->playbackId = playbackId;
 			}
 		}
+		std::string castDiag;
+		for (RE::Actor* actor : a_participants) {
+			castDiag += std::format("{}{:08X}", castDiag.empty() ? "" : ",", actor->formID);
+		}
+		REX::DEBUG("[Scene] start correlation handle={:#010x} playback={} id='{}' cast=[{}]",
+			handle, playbackId, a_id, castDiag);
 		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key), then let a per-start override win (StripMode/LockPlayerMode/FadeMode);
 		bool lockPlayer = true;
 		bool stripActors = true;

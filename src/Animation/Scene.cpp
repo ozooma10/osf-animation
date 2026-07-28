@@ -116,6 +116,13 @@ namespace OSF::Animation
 		return currentStage;
 	}
 
+	Scene::DiagnosticSnapshot Scene::GetDiagnosticSnapshot(std::int64_t a_nowMs)
+	{
+		std::scoped_lock l{ lock };
+		const std::int64_t ownerAge = clock.owner && clock.lastAdvanceMs > 0 ? a_nowMs - clock.lastAdvanceMs : -1;
+		return { clock.time, currentStage, clock.owner, ownerAge };
+	}
+
 	void Scene::DrainFiredMarks(std::vector<FiredMark>& a_out)
 	{
 		std::scoped_lock l{ lock };

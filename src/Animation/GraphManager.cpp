@@ -1429,6 +1429,16 @@ namespace OSF::Animation
 				if (!s || s->ended.load(std::memory_order_relaxed) || s->endQueued.load(std::memory_order_relaxed)) {
 					continue;  // already terminal / queued — leave it to the normal path
 				}
+				std::int64_t lastDiag = s->lastDiagnosticMs.load(std::memory_order_relaxed);
+				if (now - lastDiag >= 1000 && s->lastDiagnosticMs.compare_exchange_strong(lastDiag, now, std::memory_order_relaxed)) {
+					const auto diag = s->GetDiagnosticSnapshot(now);
+					const std::int64_t stampMs = s->lastStampMs.load(std::memory_order_relaxed);
+					const std::int64_t sampleAge = now - s->lastAdvanceMs.load(std::memory_order_relaxed);
+					const std::int64_t stampAge = stampMs > 0 ? now - stampMs : -1;
+					REX::TRACE("[Anim] scene heartbeat playback={} id='{}' stage={} time={:.3f} speed={:.2f} sampleAge={}ms stampAge={}ms owner={:X} ownerAge={}ms cast={}",
+						s->playbackId, s->animId, diag.stage, diag.time, s->speed.load(std::memory_order_relaxed),
+						sampleAge, stampAge, reinterpret_cast<std::uintptr_t>(diag.owner), diag.ownerAgeMs, s->participants.size());
+				}
 				const std::int64_t lastAdv = s->lastAdvanceMs.load(std::memory_order_relaxed);
 				if (lastAdv != 0 && now - lastAdv > kSceneStallMs) {
 					stalled.push_back(s);
@@ -1608,6 +1618,11 @@ namespace OSF::Animation
 					if (g->StampTarget() == a_this) {
 						std::unique_lock gl{ g->stateLock };
 						g->StampPose(a_this);
+						if (g->scene) {
+							const auto stampMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+								std::chrono::steady_clock::now().time_since_epoch()).count();
+							g->scene->lastStampMs.store(stampMs, std::memory_order_relaxed);
+						}
 						// Pin the compose root TRANSLATION to the placement world position. a_parentTransform = &fadeNode->local (this compose's root input;
 						// NiTransform, translate at +0x30). Overriding the compose input pins the RENDERED skeleton without fighting physics 
 						// (capsules sit ~0.3 m off and win any refr-teleport). Scene participant -> its placement (anchored); solo graph -> its SetAnchor anchor when rootMode != kFollow.

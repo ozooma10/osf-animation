@@ -122,6 +122,13 @@ namespace OSF::Animation
 			float time;
 			uint32_t stage;
 		};
+		struct DiagnosticSnapshot
+		{
+			float time;
+			uint32_t stage;
+			const void* owner;
+			std::int64_t ownerAgeMs;
+		};
 
 		std::mutex lock;
 		float duration = 0.0f;  // current stage's clip length
@@ -154,6 +161,10 @@ namespace OSF::Animation
 		// has been interrupted (the engine stops AnimationManager::Update for unloaded / AI-disabled
 		// actors), so it ends cleanly instead of stranding participants + locks.
 		std::atomic<std::int64_t> lastAdvanceMs{ 0 };
+		// Compose-hook heartbeat and Trace-log throttle. These distinguish a stopped update clock from
+		// a clock that advances while the rendered pose stops stamping.
+		std::atomic<std::int64_t> lastStampMs{ 0 };
+		std::atomic<std::int64_t> lastDiagnosticMs{ 0 };
 
 		// Why the terminal stage ended (only meaningful once `ended` is set). 
 		// Set under `lock` in Advance; read by the deferred auto-end task to pick the auto-edge.
@@ -173,6 +184,9 @@ namespace OSF::Animation
 		// Authoritative current stage index - updated immediately by SetStage / auto-advance, unlike the per-graph `appliedStage` which lags until the next sample.
 		// Caller must NOT hold `lock`.
 		uint32_t CurrentStage();
+
+		// Snapshot clock-owner state under the scene lock for rate-limited Trace diagnostics.
+		DiagnosticSnapshot GetDiagnosticSnapshot(std::int64_t a_nowMs);
 
 		// Move the marks fired since the last drain into a_out (swaps the buffer empty).
 		// Drained once per frame by the update hook; the runtime decodes lane+token. 
