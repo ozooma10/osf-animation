@@ -81,6 +81,18 @@ button,input,select{font:inherit;color:inherit}
 /* Native-projected cast badges. These live over the transparent world area and
    carry the same A/B/C labels as the crew chips, making role order spatially clear. */
 .world-indicators{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+/* Camera-independent fallback: selected actors remain unmistakable even when the
+   current game runtime has no verified render-camera projection mapping. */
+.selected-actors-hud{position:fixed;z-index:5;left:73%;top:28px;transform:translateX(-50%);pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:6px;max-width:40vw}
+.selected-actors-label{padding:3px 8px;border-left:1px solid var(--accent);border-right:1px solid var(--accent);
+  background:rgba(6,9,13,.82);color:var(--accent);letter-spacing:.16em}
+.selected-actors-list{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}
+.selected-actor-chip{position:relative;display:flex;align-items:center;gap:6px;max-width:190px;padding:4px 8px 5px 5px;
+  border:1px solid var(--accent);border-radius:2px;background:rgba(6,9,13,.9);
+  box-shadow:var(--glow-accent),0 2px 8px rgba(0,0,0,.7)}
+.selected-actor-chip>i{width:6px;height:6px;margin-left:2px;transform:rotate(45deg);background:var(--signal-go);
+  box-shadow:0 0 7px var(--signal-go)}
 .world-actor-indicator{position:absolute;display:flex;align-items:center;gap:6px;transform:translate(-50%,calc(-100% - 8px));
   max-width:190px;padding:4px 8px 5px 5px;border:1px solid var(--accent);border-radius:2px;
   background:rgba(6,9,13,.88);box-shadow:var(--glow-accent),0 2px 8px rgba(0,0,0,.7);

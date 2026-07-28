@@ -42,12 +42,29 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
 
 function ActorIndicators({ state }: { state: BrowserState }) {
   if (!state.viewVisible || state.wheel || state.minimized) return null;
+  const selected = state.cast
+    .map((member, index) => ({ member, index }))
+    .filter(({ member }) => member.kind !== "player");
+  if (!selected.length) return null;
+
   const byToken = new Map(state.actorIndicators.map((indicator) => [indicator.token, indicator]));
+  const projected = selected.filter(({ member }) => byToken.get(member.token)?.visible);
+  if (!projected.length) {
+    return <div class="selected-actors-hud" aria-live="polite">
+      <span class="selected-actors-label mono">SELECTED CREW</span>
+      <div class="selected-actors-list">
+        {selected.map(({ member, index }) => <span key={member.token} class="selected-actor-chip">
+          <span class="world-actor-key">{String.fromCharCode(65 + index)}</span>
+          <span class="world-actor-name">{member.name}</span>
+          <i/>
+        </span>)}
+      </div>
+    </div>;
+  }
+
   return <div class="world-indicators" aria-hidden="true">
-    {state.cast.map((member, index) => {
-      if (member.kind === "player") return null;
-      const indicator = byToken.get(member.token);
-      if (!indicator?.visible) return null;
+    {projected.map(({ member, index }) => {
+      const indicator = byToken.get(member.token)!;
       return <div key={member.token} class="world-actor-indicator"
         style={{ left: `${indicator.x * 100}%`, top: `${indicator.y * 100}%` }}>
         <span class="world-actor-key">{String.fromCharCode(65 + index)}</span>
