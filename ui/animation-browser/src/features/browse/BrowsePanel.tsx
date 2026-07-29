@@ -2,6 +2,7 @@ import type { BrowserCommands } from "../../app/commands";
 import {
   activeScenes,
   anchorShort,
+  comparePlayableGroupKeys,
   comparePlayableItems,
   evaluateForState,
   formatDuration,
@@ -116,7 +117,7 @@ function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: 
     groups.set(key, [...(groups.get(key) ?? []), entry]);
   }
   return <div class={`playable-groups ${muted ? "dim" : ""}`}>
-    {[...groups.entries()].map(([key, list]) => {
+    {[...groups.entries()].sort(([a], [b]) => comparePlayableGroupKeys(a, b)).map(([key, list]) => {
       const stateKey = `browse:${muted ? "rest:" : ""}${key}`;
       const containsSelection = list.some(({ item }) => item.scene.id === state.selectedId
         && (item.stage?.index ?? null) === state.selectedStage);

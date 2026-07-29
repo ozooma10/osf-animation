@@ -406,6 +406,20 @@ export function packLabel(key: string, scenes: readonly SceneModel[]): string {
     : key.replace(/^vanilla-/i, "").replace(/[-_]+/g, " ").toUpperCase();
 }
 
+/**
+ * Keep the immediately useful vanilla pose catalog prominent and the raw
+ * quest/dialogue Scene fragments out of the way. Returning zero for every
+ * other pairing preserves the item-ranked insertion order between packs.
+ */
+export function comparePlayableGroupKeys(a: string, b: string): number {
+  const rank = (key: string) => {
+    if (/^vanilla-photomode$/i.test(key)) return -1;
+    if (/^vanilla-scenes$/i.test(key)) return 1;
+    return 0;
+  };
+  return rank(a) - rank(b);
+}
+
 export interface LibraryFolderNode {
   key: string;
   label: string;

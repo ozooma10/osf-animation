@@ -160,6 +160,40 @@ namespace OSF::API
 			return out;
 		}
 
+		// Direct crosshair/world picks do not come through Scan Nearby's inverted anchor
+		// index, so recover the same descriptive anchor keyword here. Without this, an
+		// unnamed FURN/ACTI picked under the reticle falls through to "Furniture 0x...".
+		RE::BGSKeyword* AnchorLabelKeyword(RE::TESObjectREFR* a_ref)
+		{
+			if (!a_ref || a_ref->IsActor()) {
+				return nullptr;
+			}
+
+			RE::BGSKeyword*                         match = nullptr;
+			std::unordered_map<RE::TESFormID, bool> tested;
+			Registry::SceneRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
+				if (match || !a_def.clipsAvailable) {
+					return;
+				}
+				for (const auto kwId : a_def.anchorKeywords) {
+					auto [it, inserted] = tested.emplace(kwId, false);
+					if (!inserted) {
+						if (it->second) {
+							match = RE::TESForm::LookupByID<RE::BGSKeyword>(kwId);
+						}
+						continue;
+					}
+					auto* kw = RE::TESForm::LookupByID<RE::BGSKeyword>(kwId);
+					it->second = kw && a_ref->HasKeyword(kw) && !KeywordLabel(kw).empty();
+					if (it->second) {
+						match = kw;
+						return;
+					}
+				}
+			});
+			return match;
+		}
+
 		// A human label for a scanned ref. Invisible AI markers and outpost/dynamic furniture
 		// return an empty display name, so fall back to the matched anchor keyword, then the base
 		// object's EditorID, then a form-id tag, so a pick is never a bare "(unnamed)" the user
@@ -168,6 +202,9 @@ namespace OSF::API
 		{
 			if (const char* nm = a_ref->GetDisplayFullName(); nm && nm[0]) {
 				return nm;
+			}
+			if (!a_matchedKw) {
+				a_matchedKw = AnchorLabelKeyword(a_ref);
 			}
 			if (std::string kwLabel = KeywordLabel(a_matchedKw); !kwLabel.empty()) {
 				return kwLabel;

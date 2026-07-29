@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { browserReducer } from "../src/app/reducer";
 import {
   browseVisible,
+  comparePlayableGroupKeys,
   comparePlayableItems,
   filteredLibrary,
   formatDuration,
@@ -275,6 +276,16 @@ describe("browser selectors", () => {
     ]);
     expect(readableAnimationName("LooseAnim_FormalApplause01")).toBe("Formal Applause 01");
     expect(readableAnimationName("SitOnGround_Pose", true)).toBe("Sit On Ground");
+  });
+
+  it("puts vanilla photomode first and raw Scene fragments last", () => {
+    const keys = ["custom-pack", "vanilla-scenes", "vanilla-idles", "vanilla-photomode"];
+    expect(keys.sort(comparePlayableGroupKeys)).toEqual([
+      "vanilla-photomode",
+      "custom-pack",
+      "vanilla-idles",
+      "vanilla-scenes",
+    ]);
   });
 
   it("allows a selected animation group to be explicitly collapsed", () => {
