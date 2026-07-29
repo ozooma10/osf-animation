@@ -100,6 +100,14 @@ export function safeNormalizeScene(raw: unknown): SceneModel | null {
   }
 }
 
+/** A whole catalog payload — the scenes lane, or the library lane with `library` set. */
+export function normalizeCatalog(payload: unknown, library = false): SceneModel[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.map(safeNormalizeScene).filter((scene): scene is SceneModel => !!scene).map((scene) => library
+    ? { ...scene, library: true, stageHay: scene.stages.map((stage) => stage.name).join(" ").toLowerCase() }
+    : scene);
+}
+
 export function normalizeStages(stages: unknown): SceneStage[] {
   if (!Array.isArray(stages)) return [];
   return stages.map((raw, index) => {

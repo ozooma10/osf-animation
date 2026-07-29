@@ -65,7 +65,8 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
         if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") { event.preventDefault(); commands.pickWheel(state.wheel.focus); }
         return;
       }
-      if (standalone && !isTextInput(active) && (event.key === "w" || event.key === "W")) {
+      // Dev-only shortcut; the literal guard lets it fold out of a game build.
+      if (import.meta.env.DEV && standalone && !isTextInput(active) && (event.key === "w" || event.key === "W")) {
         window.mockOpenWheel?.(event.key === "w");
         return;
       }

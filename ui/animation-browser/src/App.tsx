@@ -1,5 +1,5 @@
 import type { BrowserCommands } from "./app/commands";
-import { activeScenes, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
+import { activeScenes, labeledCast, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
 import type { BrowserState } from "./app/state";
 import { LiveBar } from "./components/LiveBar";
 import { AnchorPanel } from "./features/anchor/AnchorPanel";
@@ -42,11 +42,7 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
 }
 
 function ActorIndicators({ state }: { state: BrowserState }) {
-  if (!state.preferences.actorLabels) return null;
-  if (!state.viewVisible || state.wheel || state.minimized) return null;
-  const selected = state.cast
-    .map((member, index) => ({ member, index }))
-    .filter(({ member }) => member.kind !== "player");
+  const selected = labeledCast(state);
   if (!selected.length) return null;
 
   const byToken = new Map(state.actorIndicators.map((indicator) => [indicator.token, indicator]));

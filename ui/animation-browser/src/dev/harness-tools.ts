@@ -9,7 +9,9 @@ import type { DevCommands, VersionDebugState } from "./debug";
 /** Fakes the installed OSF UI host version the browser status line reports. */
 export const HOST_TOOL_ID = "ui-host";
 
+// First entry is the default the toolbar registers and the view seeds itself to.
 export const HOST_TOOL_OPTIONS: { value: VersionDebugState; label: string }[] = [
+  { value: "none", label: "no host info" },
   { value: "match", label: "host up to date" },
   { value: "old", label: "host older than tested" },
 ];
@@ -28,12 +30,13 @@ export function sendDevTool(invocation: DevToolInvocation): void {
 
 /** View side: apply the default host state, then follow the toolbar. Returns cleanup. */
 export function connectHarnessTools(commands: DevCommands): () => void {
-  commands.version("none");
+  const fallback = HOST_TOOL_OPTIONS[0].value;
+  commands.version(fallback);
   const listener = (event: Event) => {
     const detail = (event as CustomEvent<DevToolInvocation>).detail;
     if (!detail || detail.id !== HOST_TOOL_ID) return;
     const option = HOST_TOOL_OPTIONS.find((candidate) => candidate.value === detail.value);
-    commands.version(option?.value ?? "none");
+    commands.version(option?.value ?? fallback);
   };
   window.addEventListener(CHANNEL, listener);
   return () => window.removeEventListener(CHANNEL, listener);

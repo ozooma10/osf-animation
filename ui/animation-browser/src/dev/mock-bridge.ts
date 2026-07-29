@@ -1,17 +1,22 @@
 import type { AnimationBridge, NativeMessageListener } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
 import { WHEEL_MAX, sceneById, wheelPool } from "../app/selectors";
-import { PLAYER_TOKEN, type ActiveScene, type BrowserState } from "../app/state";
+import { PREFERENCE_KEYS } from "../app/settings";
+import { PLAYER_TOKEN, type ActiveScene, type BrowserPreferences, type BrowserState } from "../app/state";
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_LIBRARY } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
   // In the CLI harness these source modules are served through Vite's /@fs/
   // route, so resolving from import.meta.url preserves the existing fixture
-  // workflow without adding a second server plugin. Keep the URL construction
-  // dynamic so production builds do not package debug snapshots.
+  // workflow without adding a second server plugin. Deliberately uncached: the
+  // refresh button exists so a regenerated snapshot is picked up without a
+  // reload.
   for (const suffix of [".local.json", ".json"]) {
     try {
-      const url = new URL("../../../fixtures/live/" + name + suffix, import.meta.url);
+      // Relative to src/dev/ — two levels up is the project root, which is where
+      // fixtures/live/ lives. (Three silently resolved to ui/, so every snapshot
+      // 404'd and standalone fell back to the built-in mock catalog.)
+      const url = new URL("../../fixtures/live/" + name + suffix, import.meta.url);
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) continue;
       const value: unknown = await response.json();
@@ -32,6 +37,8 @@ export class StandaloneBridge implements AnimationBridge {
   private nextHandle = 42;
   private customized = false;
   private pins: Array<{ scene: string; stage?: number }> = [];
+  /** Last catalog payload served, so a wheel edit re-pins it instead of re-fetching. */
+  private catalogRaw: unknown[] | null = null;
 
   constructor(private readonly getState: () => BrowserState) {}
 
@@ -47,6 +54,11 @@ export class StandaloneBridge implements AnimationBridge {
   private later(message: NativeMessage, delay = 40): void {
     const timer = window.setTimeout(() => { this.timers.delete(timer); this.emit(message); }, delay);
     this.timers.add(timer);
+  }
+
+  private emitCatalog(raw: unknown[]): void {
+    this.catalogRaw = raw;
+    this.emit({ type: "osf.animation.catalog.data", payload: this.applyPins(raw, false) });
   }
 
   private applyPins(raw: unknown[], library: boolean): unknown[] {
@@ -68,7 +80,7 @@ export class StandaloneBridge implements AnimationBridge {
     if (command === "osf.animation.catalog.get") {
       // The engine piggybacks its identity (and the player's sex) on the catalog request.
       this.later({ type: "osf.animation.version", payload: { plugin: "OSF Animation", version: "0.0.0-dev", playerSex: "female" } }, 20);
-      void fetchFixture("catalog").then((fixture) => this.emit({ type: "osf.animation.catalog.data", payload: this.applyPins(fixture ?? MOCK_CATALOG, false) }));
+      void fetchFixture("catalog").then((fixture) => this.emitCatalog(fixture ?? MOCK_CATALOG));
     } else if (command === "osf.animation.library.get") {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
     } else if (command === "osf.animation.anchorMatch") {
@@ -89,21 +101,12 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.launch") {
       this.launch(fields);
     } else if (command === "settings.get") {
+      // Derived from PREFERENCE_KEYS so the mock host stays exhaustive by
+      // construction — a new setting cannot be forgotten here.
       const preferences = this.getState().preferences;
-      this.later({ type: "settings.data", payload: { mods: [{ id: "osf.animation", values: {
-        "browser.afterLaunch": preferences.afterLaunch,
-        "browser.openTo": preferences.openTo,
-        "browser.rememberBrowsing": preferences.rememberBrowsing,
-        "browser.actorLabels": preferences.actorLabels,
-        "browser.libraryDetail": preferences.libraryDetail,
-        "browser.librarySource": preferences.librarySource,
-        "browser.unavailableScenes": preferences.unavailableScenes,
-        "browser.authorDetails": preferences.authorDetails,
-        "launch.strip": preferences.strip,
-        "launch.lock": preferences.lock,
-        "launch.camera": preferences.camera,
-        "launch.speed": preferences.speed,
-      } }] } }, 10);
+      const values = Object.fromEntries(Object.entries(PREFERENCE_KEYS)
+        .map(([field, key]) => [key, preferences[field as keyof BrowserPreferences]]));
+      this.later({ type: "settings.data", payload: { mods: [{ id: "osf.animation", values }] } }, 10);
     } else if (command === "settings.set" && fields.mod === "osf.animation" && typeof fields.key === "string") {
       this.later({ type: "settings.changed", payload: { mod: fields.mod, key: fields.key, value: fields.value } }, 10);
     } else if (command === "osf.animation.stop") {
@@ -116,7 +119,9 @@ export class StandaloneBridge implements AnimationBridge {
       this.pins = fields.reset ? [] : Array.isArray(fields.entries)
         ? fields.entries.filter(isRecord).slice(0, WHEEL_MAX).map((entry) => ({ scene: String(entry.scene || ""), ...(Number.isInteger(entry.stage) ? { stage: entry.stage } : {}) }))
         : [];
-      void fetchFixture("catalog").then((fixture) => this.emit({ type: "osf.animation.catalog.data", payload: this.applyPins(fixture ?? MOCK_CATALOG, false) }));
+      // Pins are a presentation layer over the catalog already served — re-reading
+      // the snapshot (up to ~600KB) on every pin or reorder buys nothing.
+      this.emitCatalog(this.catalogRaw ?? MOCK_CATALOG);
     } else if (command === "osf.animation.closed") {
       this.active = this.active.filter((scene) => !scene.player);
     } else if (command === "osf.animation.opened") {

@@ -54,6 +54,10 @@ export function hasOsfUiBridge(): boolean {
   // The OSF UI authoring harness injects the production-shaped bridge into its
   // iframe. Keep using this view's richer stateful simulator there; the generic
   // harness still owns framing, sizing, transparency, visibility, and HMR.
-  return window.parent === window && typeof window.osfui?.postMessage === "function";
+  // Ask the harness directly rather than inferring it from frame nesting — a
+  // shipped view must never decide "this is only a simulation" from topology it
+  // does not control.
+  if (window.__osfuiHarness) return false;
+  return typeof window.osfui?.postMessage === "function";
 }
 

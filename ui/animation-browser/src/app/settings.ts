@@ -24,6 +24,8 @@ export const PREFERENCE_KEYS: { [K in keyof BrowserPreferences]: string } = {
 const oneOf = <T extends string>(value: unknown, choices: readonly T[]): T | undefined =>
   typeof value === "string" && choices.includes(value as T) ? value as T : undefined;
 
+const bool = (value: unknown): boolean | undefined => typeof value === "boolean" ? value : undefined;
+
 export function decodePreferences(values: Record<string, unknown>): Partial<BrowserPreferences> {
   const preferences: Partial<BrowserPreferences> = {};
   const afterLaunch = oneOf<AfterLaunch>(values[PREFERENCE_KEYS.afterLaunch], ["minimize", "stay", "close"]);
@@ -35,6 +37,9 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   const lock = oneOf<BrowserPreferences["lock"]>(values[PREFERENCE_KEYS.lock], ["-1", "0", "1"]);
   const camera = oneOf<BrowserPreferences["camera"]>(values[PREFERENCE_KEYS.camera], ["", "thirdperson_hold", "scene_orbit", "freefly", "vanity_orbit"]);
   const speed = oneOf(values[PREFERENCE_KEYS.speed], ["0.5", "0.75", "1", "1.25", "1.5", "2"]);
+  const rememberBrowsing = bool(values[PREFERENCE_KEYS.rememberBrowsing]);
+  const actorLabels = bool(values[PREFERENCE_KEYS.actorLabels]);
+  const authorDetails = bool(values[PREFERENCE_KEYS.authorDetails]);
 
   if (afterLaunch) preferences.afterLaunch = afterLaunch;
   // Compatibility with the old boolean setting if a host still returns it.
@@ -42,8 +47,8 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   // "library" was the old separate Animations tab. Both old browse lanes now
   // open the unified browser; retain decoding so existing profiles migrate.
   if (openTo) preferences.openTo = openTo === "library" ? "scenes" : openTo;
-  if (typeof values[PREFERENCE_KEYS.rememberBrowsing] === "boolean") preferences.rememberBrowsing = values[PREFERENCE_KEYS.rememberBrowsing] as boolean;
-  if (typeof values[PREFERENCE_KEYS.actorLabels] === "boolean") preferences.actorLabels = values[PREFERENCE_KEYS.actorLabels] as boolean;
+  if (rememberBrowsing !== undefined) preferences.rememberBrowsing = rememberBrowsing;
+  if (actorLabels !== undefined) preferences.actorLabels = actorLabels;
   if (libraryDetail) preferences.libraryDetail = libraryDetail;
   if (librarySource) preferences.librarySource = librarySource;
   if (unavailableScenes) preferences.unavailableScenes = unavailableScenes;
@@ -51,7 +56,7 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   if (lock) preferences.lock = lock;
   if (camera !== undefined) preferences.camera = camera;
   if (speed) preferences.speed = speed;
-  if (typeof values[PREFERENCE_KEYS.authorDetails] === "boolean") preferences.authorDetails = values[PREFERENCE_KEYS.authorDetails] as boolean;
+  if (authorDetails !== undefined) preferences.authorDetails = authorDetails;
   return preferences;
 }
 

@@ -4,6 +4,7 @@ import { browserReducer } from "./reducer";
 import {
   WHEEL_MAX,
   activeScenes,
+  labeledCast,
   playableItems,
   playableVisible,
   sceneById,
@@ -34,18 +35,20 @@ import {
 } from "./state";
 import { OsfUiBridge, hasOsfUiBridge, type AnimationBridge } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
-import { safeNormalizeScene, type SceneModel } from "../model";
-import { MOCK_ACTORS, MOCK_ANCHORS } from "../dev/mock-data";
-import { StandaloneBridge } from "../dev/mock-bridge";
-import { MOCK_CATALOG } from "../dev/mock-data";
-import type { DevCommands, VersionDebugState, WheelDebugState } from "../dev/debug";
+import { normalizeCatalog, type SceneModel } from "../model";
+import type { DevCommands } from "../dev/debug";
+import {
+  NO_DEV_COMMANDS,
+  createDebugCommands,
+  createStandaloneBridge,
+  installWheelHook,
+  standaloneNearby,
+} from "../dev/standalone";
 
-function normalizeCatalog(payload: unknown, library = false): SceneModel[] {
-  if (!Array.isArray(payload)) return [];
-  return payload.map(safeNormalizeScene).filter((scene): scene is SceneModel => !!scene).map((scene) => library
-    ? { ...scene, library: true, stageHay: scene.stages.map((stage) => stage.name).join(" ").toLowerCase() }
-    : scene);
-}
+// The `import.meta.env.DEV` guards below are written inline rather than through a
+// local alias on purpose: Vite substitutes the literal `false` into a production
+// build, which folds each branch away and lets the whole src/dev graph leave the
+// bundle. Behind an alias the bundler keeps the references alive.
 
 function normalizeNearby(payload: unknown): NearbyTarget[] {
   if (!Array.isArray(payload)) return [];
@@ -101,9 +104,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   const [state, dispatch] = useReducer(browserReducer, undefined, createInitialState);
   const stateRef = useRef(state);
   stateRef.current = state;
-  const standalone = useMemo(() => !hasOsfUiBridge(), []);
-  const bridge = useMemo<AnimationBridge>(() => standalone
-    ? new StandaloneBridge(() => stateRef.current)
+  // In game the host bridge is always present; simulating one there would hide a
+  // broken bridge behind plausible fake data, so the fallback is dev-only.
+  const standalone = useMemo(() => import.meta.env.DEV && !hasOsfUiBridge(), []);
+  const bridge = useMemo<AnimationBridge>(() => import.meta.env.DEV && standalone
+    ? createStandaloneBridge(() => stateRef.current)
     : new OsfUiBridge(), [standalone]);
   const handlerRef = useRef<(message: NativeMessage) => void>(() => undefined);
   const noticeTimer = useRef<number | undefined>();
@@ -300,15 +305,15 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
 
   useEffect(() => {
     const unsubscribe = bridge.subscribe((message) => emit(message));
-    if (standalone) {
+    if (import.meta.env.DEV && standalone) {
       dispatch({ type: "runtime/ready" });
-      dispatch({ type: "nearby/received", kind: "actor", targets: normalizeNearby(MOCK_ACTORS) });
-      dispatch({ type: "nearby/received", kind: "furniture", targets: normalizeNearby(MOCK_ANCHORS) });
+      const nearby = standaloneNearby();
+      dispatch({ type: "nearby/received", kind: "actor", targets: normalizeNearby(nearby.actors) });
+      dispatch({ type: "nearby/received", kind: "furniture", targets: normalizeNearby(nearby.anchors) });
       requestCatalog(true);
       requestLibrary(true);
       showNotice("info", "Standalone mode. Snapshot catalog; pick/scan/launch are stubbed. W = animation wheel · B = backdrop.");
-      window.mockOpenWheel = (withTarget = true) => (bridge as StandaloneBridge).openWheel(withTarget);
-      if (new URLSearchParams(location.search).has("wheel")) window.setTimeout(() => window.mockOpenWheel?.(new URLSearchParams(location.search).get("wheel") !== "solo"), 0);
+      installWheelHook(bridge);
     } else {
       requestCatalog(true);
       requestLibrary(true);
@@ -338,9 +343,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   }, [state.wheel, state.minimized]);
 
   useEffect(() => {
-    const tokens = state.cast.filter((member) => member.kind !== "player").map((member) => member.token);
-    // Nothing renders the projections with labels off, so skip the 80ms round-trip too.
-    if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized || tokens.length === 0) {
+    // Nothing renders the projections when the label layer is dark, so skip the
+    // 80ms round-trip too — labeledCast owns that gate for both sides.
+    const tokens = labeledCast(state).map(({ member }) => member.token);
+    if (tokens.length === 0) {
       if (state.actorIndicators.length) dispatch({ type: "indicators/received", items: [] });
       return;
     }
@@ -460,35 +466,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     openModPage: (url) => { if (standalone) window.open(url, "_blank", "noopener"); else send("osfui.openModPage"); },
   }), [requestCatalog, requestLibrary, send, showNotice, standalone]);
 
-  const debugCommands = useMemo<DevCommands>(() => ({
-    version: (mode: VersionDebugState) => dispatch({
-      type: "plugin/received",
-      plugin: mode === "none" ? { plugin: "OSF Animation", version: "1.0.0" } : {
-        plugin: "OSF Animation",
-        version: "1.0.0",
-        ui: { name: "OSF UI", version: mode === "old" ? "1.0.0" : "1.1.0", tested: "1.1.0", outdated: mode === "old", nexusUrl: "https://www.nexusmods.com/starfield/mods/17711" },
-      },
-    }),
-    wheel: (config: WheelDebugState | null) => {
-      if (!config) {
-        requestCatalog(true);
-        window.setTimeout(() => { if (stateRef.current.wheel) send("osf.animation.wheel.get", { tagPrefix: stateRef.current.wheel.tagPrefix }); }, 80);
-        return;
-      }
-      const base = MOCK_CATALOG.filter((value) => isRecord(value) && Array.isArray(value.tags) && value.tags.some((tag: unknown) => String(tag).startsWith("player.emote.")));
-      const raw = Array.from({ length: config.count }, (_, index) => {
-        const source = base[index % base.length] as Record<string, unknown>;
-        const cycle = Math.floor(index / base.length) + 1;
-        return { ...source, id: cycle === 1 ? source.id : `${source.id}.${index}`, title: cycle === 1 ? source.title : `${source.title} ${cycle}`, wheelCustomized: config.pins, pinned: config.pins && index < 3 ? 3 - index : 0 };
-      });
-      const scenes = normalizeCatalog(raw);
-      dispatch({ type: "catalog/received", scenes });
-      if (!stateRef.current.wheel) return;
-      const ordered = config.pins ? scenes.slice(0, 3).reverse() : scenes;
-      const entries = ordered.slice(0, WHEEL_MAX).map((scene) => ({ scene: scene.id, stage: null, title: scene.title, detail: scene.title, key: wheelKey(scene.id, null) }));
-      dispatch({ type: "wheel/debug", entries, customized: config.pins, received: !config.loading, target: config.target ? { token: 601, name: "Sarah Morgan" } : null, error: config.error ? "No room in front of the actor (debug)." : "" });
-    },
-  }), [requestCatalog, send]);
+  const debugCommands = useMemo<DevCommands>(
+    () => import.meta.env.DEV ? createDebugCommands({ dispatch, send, requestCatalog, stateRef }) : NO_DEV_COMMANDS,
+    [requestCatalog, send],
+  );
 
   return { state, commands, debugCommands, standalone };
 }

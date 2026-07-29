@@ -6,7 +6,7 @@ import { HOST_TOOL_ID, HOST_TOOL_OPTIONS, sendDevTool } from "./src/dev/harness-
 // mock. What it does contribute are dev controls in the harness shell toolbar,
 // which is where debug-only switches belong — an in-view strip would sit on top
 // of the layout it is meant to exercise.
-export default defineMock({ state: {}, requests: {}, locales: {} });
+export default defineMock({});
 
 export function install(ctx: MockContext): void {
   ctx.registerTools([{

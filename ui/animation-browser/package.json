@@ -9,10 +9,9 @@
     "build": "osfui build",
     "check": "osfui check",
     "doctor": "osfui doctor",
-    "verify": "npm test && npm run build",
+    "verify": "npm test && npm run check && npm run build",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "preact": "10.29.7"

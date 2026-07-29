@@ -1,19 +1,17 @@
 import { render } from "preact";
-import { useEffect } from "preact/hooks";
 import { App } from "./App";
 import { useBrowserController } from "./app/controller";
-import { useDevBackdrop } from "./dev/useDevBackdrop";
-import { DevTools } from "./dev/DevTools";
-import { connectHarnessTools } from "./dev/harness-tools";
+import { DevSurface } from "./dev/DevSurface";
 import { useBrowserInput } from "./input/useBrowserInput";
 import "./styles/browser.css";
 
 function BrowserRoot() {
   const { state, commands, debugCommands, standalone } = useBrowserController();
   useBrowserInput(state, commands, standalone);
-  useDevBackdrop(standalone);
-  useEffect(() => standalone ? connectHarnessTools(debugCommands) : undefined, [standalone, debugCommands]);
-  return <><App state={state} commands={commands}/>{standalone && <DevTools commands={debugCommands}/>}</>;
+  // import.meta.env.DEV is compile-time false in a production build, so the
+  // DevSurface import below is dead code the bundler removes outright.
+  return <><App state={state} commands={commands}/>
+    {import.meta.env.DEV && standalone && <DevSurface commands={debugCommands}/>}</>;
 }
 
 document.body.className = "osf-animation";

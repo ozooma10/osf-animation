@@ -185,8 +185,9 @@ locale simulation, bridge traffic, and HMR. The view uses its richer stateful
 animation simulator inside the harness iframe.
 
 **Live data:** `fixtures/live/{catalog,library}.json` are committed snapshot fixtures of
-the payloads the DLL sends the in-game view, served as plain static files (the
-page fetches `live/…` relative). The standalone page loads them instead of the
+the payloads the DLL sends the in-game view. The standalone page resolves them
+relative to its own module URL (through Vite's `/@fs/` route), preferring a
+git-ignored `*.local.json` override. It loads them instead of the
 mock catalog — status reads `standalone · live snapshot`. `library.json` (the
 vanilla-packs lane) is generated offline by
 `python tools/generate-library-snapshot.py`, which replicates the DLL's

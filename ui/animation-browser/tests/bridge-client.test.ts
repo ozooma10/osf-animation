@@ -36,16 +36,21 @@ describe("OsfUiBridge subscription race", () => {
 describe("bridge environment detection", () => {
   afterEach(() => { delete (globalThis as any).window; });
 
-  it("uses the native bridge in the top-level game view", () => {
-    const topLevel: any = { osfui: { postMessage() {} } };
-    topLevel.parent = topLevel;
-    (globalThis as any).window = topLevel;
+  it("uses the native bridge whenever the host injected one", () => {
+    (globalThis as any).window = { osfui: { postMessage() {} } };
+    expect(hasOsfUiBridge()).toBe(true);
+  });
+
+  it("uses the native bridge even when the view is nested in a frame", () => {
+    // Frame topology must not decide this: a nested game view is still the game.
+    (globalThis as any).window = { parent: {}, osfui: { postMessage() {} } };
     expect(hasOsfUiBridge()).toBe(true);
   });
 
   it("keeps the stateful simulator inside the OSF UI authoring harness", () => {
     (globalThis as any).window = {
       parent: {},
+      __osfuiHarness: { meta: {} },
       osfui: { postMessage() {} },
     };
     expect(hasOsfUiBridge()).toBe(false);

@@ -185,6 +185,18 @@ export function hasPlayer(state: BrowserState): boolean {
   return state.cast.some((member) => member.kind === "player");
 }
 
+/**
+ * Cast members whose world labels are live right now, paired with their cast
+ * index (the A/B/C key). Empty whenever nothing would render them — the same
+ * gate decides whether the controller runs the 80ms projection poll at all.
+ */
+export function labeledCast(state: BrowserState): { member: CastMember; index: number }[] {
+  if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized) return [];
+  return state.cast
+    .map((member, index) => ({ member, index }))
+    .filter(({ member }) => member.kind !== "player");
+}
+
 export function partnerCount(state: BrowserState): number {
   return state.cast.reduce((count, member) => count + (member.kind === "player" ? 0 : 1), 0);
 }
