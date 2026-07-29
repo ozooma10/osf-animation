@@ -5,6 +5,8 @@
 #include "Registry/SceneRegistry.h"  // SceneDef::RequiresAnchor / anchorOffset
 #include "UI/HudMessage.h"
 
+#include <atomic>
+#include <cstdint>
 #include <format>
 
 namespace OSF::Scene
@@ -67,6 +69,118 @@ namespace OSF::Scene
 			return rendered;
 		}
 
+		// ---- closest-navmesh-point snap ------------------------------------------------
+		// Engine primitive proven in OSF RE (world.navmesh_query, 1.16.244): one
+		// FindTriangleForLocation call pulls a candidate point onto the nearest walkable
+		// navmesh triangle — laterally (out of walls) AND vertically (onto floors and stair
+		// steps). Recipe mirrored from GameScript::MoveToNearestNavmeshLocFunctor slot 7,
+		// the implementation behind Papyrus MoveToNearestNavmeshLocation. Positions travel
+		// in logical data.location space (ships included), the same space this file already
+		// anchors actors in.
+
+		struct PathingPoint
+		{
+			RE::NiPoint3  pos;
+			std::uint32_t spaceIdx;  // index into the rebase table; >= count = absolute coords
+			RE::TESForm*  ctx;       // REQUIRED cell/worldspace — the space resolver keys on it
+		};
+		static_assert(sizeof(PathingPoint) == 0x18);
+
+		struct PathingLocation
+		{
+			RE::NiPoint3  pos;
+			std::uint32_t spaceIdx;
+			void*         navmeshRef;   // refcounted, written by the find on success
+			void*         spaceObject;  // refcounted, written by CreatePathingLocation
+			std::uint64_t poly;
+			std::uint8_t  state;
+			std::uint8_t  flags;
+			std::uint8_t  pad2A[6];
+		};
+		static_assert(sizeof(PathingLocation) == 0x30);
+
+		struct TraversableFilter  // FindTriangleForLocationTraversableFilter, stack-constructed
+		{
+			const void*   vptr{ nullptr };
+			float         zAboveExtent{ 0.0f };  // consulted only when radius >= 0
+			float         zBelowExtent{ 1.0f };
+			float         radius{ -1.0f };  // negative = unlimited (bbox pre-check short-circuits)
+			std::uint32_t pad14{ 0 };
+			std::uint8_t  flag{ 1 };
+			std::uint8_t  pad19[7]{};
+		};
+		static_assert(sizeof(TraversableFilter) == 0x20);
+
+		// The engine's own release pattern for PathingLocation's refcounted members:
+		// lock xadd [ptr+8], -1; old count 1 -> vtbl slot 0 (deleting dtor, flag 1).
+		void ReleasePathingRef(void* a_ptr)
+		{
+			if (!a_ptr) {
+				return;
+			}
+			auto& count = *reinterpret_cast<std::int32_t*>(reinterpret_cast<std::uintptr_t>(a_ptr) + 8);
+			if (std::atomic_ref<std::int32_t>(count).fetch_sub(1) == 1) {
+				using Dtor = void* (*)(void*, std::uint32_t);
+				(*reinterpret_cast<Dtor**>(a_ptr))[0](a_ptr, 1);
+			}
+		}
+
+		// Snap (a_ref's pathing position + a_offset) onto the closest walkable navmesh point.
+		// nullopt = the engine can't answer (no manager, transitional pathing state, off-mesh)
+		// and the caller keeps its uncorrected point.
+		std::optional<RE::NiPoint3> SnapToNavmesh(RE::TESObjectREFR* a_ref, const RE::NiPoint3& a_offset)
+		{
+			using GetRefrPathingPosition_t = void* (*)(RE::TESObjectREFR*, PathingPoint*);
+			using CreatePathingLocation_t = void (*)(void*, PathingLocation*, const PathingPoint*);
+			using FindTriangleForLocation_t = bool (*)(PathingLocation*, TraversableFilter*);
+			static const REL::Relocation<std::uintptr_t>             managerGlobal{ REL::ID(937453) };
+			static const REL::Relocation<std::uintptr_t>             rebaseTable{ REL::ID(944493) };  // {u32 count; NiPoint3* data}
+			static const REL::Relocation<std::uintptr_t>             filterVtable{ REL::ID(478388) };
+			static const REL::Relocation<GetRefrPathingPosition_t>   getRefrPathingPosition{ REL::ID(63394) };
+			static const REL::Relocation<CreatePathingLocation_t>    createPathingLocation{ REL::ID(71889) };
+			static const REL::Relocation<FindTriangleForLocation_t>  findTriangleForLocation{ REL::ID(133636) };
+
+			void* const manager = *reinterpret_cast<void* const*>(managerGlobal.address());
+			if (!manager) {
+				return std::nullopt;
+			}
+
+			// Author the input exactly the way the engine does — GetRefrPathingPosition fills
+			// {pos, spaceIdx, ctx} — then offset pos to the candidate.
+			PathingPoint point{};
+			getRefrPathingPosition(a_ref, &point);
+			if (!point.ctx) {
+				return std::nullopt;
+			}
+			// Menu/load transitional states answer a (50,50,0)+bogus-cell fallback; detect it
+			// by drift from the reference's actual position and degrade.
+			if (point.pos.GetSquaredDistance(a_ref->data.location) > 1.0f) {
+				return std::nullopt;
+			}
+			point.pos += a_offset;
+
+			PathingLocation loc{};
+			createPathingLocation(manager, &loc, &point);
+
+			TraversableFilter filter{};
+			filter.vptr = reinterpret_cast<const void*>(filterVtable.address());
+
+			std::optional<RE::NiPoint3> result;
+			if (findTriangleForLocation(&loc, &filter)) {
+				RE::NiPoint3 pos = loc.pos;
+				const auto   count = *reinterpret_cast<const std::uint32_t*>(rebaseTable.address());
+				if (loc.spaceIdx < count) {
+					if (const auto* data = *reinterpret_cast<RE::NiPoint3* const*>(rebaseTable.address() + 8)) {
+						pos += data[loc.spaceIdx];
+					}
+				}
+				result = pos;
+			}
+			ReleasePathingRef(loc.navmeshRef);
+			ReleasePathingRef(loc.spaceObject);
+			return result;
+		}
+
 		std::optional<float> CurrentViewHeading()
 		{
 			auto* playerCamera = RE::PlayerCamera::GetSingleton();
@@ -108,16 +222,34 @@ namespace OSF::Scene
 		const RefTransform base = RenderedTransform(a_ref);
 		const std::optional<float> viewHeading = CurrentViewHeading();
 		const float heading = viewHeading.value_or(base.heading);
-		const RE::NiPoint3 pos{
+		RE::NiPoint3 pos{
 			base.pos.x - std::sin(heading) * a_distance,
 			base.pos.y + std::cos(heading) * a_distance,
 			base.pos.z
 		};
 
+		// Navmesh correction: pull the candidate out of walls and onto the walkable floor.
+		// The lateral correction may legitimately span the whole distance (facing a wall);
+		// a Z jump past the window means a different storey/ledge answered — distrust it and
+		// keep the pure-math point. Snap failure likewise degrades to the pure-math point.
+		const RE::NiPoint3 offset{ pos.x - base.pos.x, pos.y - base.pos.y, 0.0f };
+		bool snapped = false;
+		if (const auto corrected = SnapToNavmesh(a_ref, offset)) {
+			constexpr float kZWindow = 2.0f;  // meters
+			const float     dx = corrected->x - pos.x;
+			const float     dy = corrected->y - pos.y;
+			const float     lateralMax = a_distance + 1.0f;
+			if (std::abs(corrected->z - pos.z) <= kZWindow && dx * dx + dy * dy <= lateralMax * lateralMax) {
+				pos = *corrected;
+				snapped = true;
+			}
+		}
+
 		REX::DEBUG("[Scene] front-of-view anchor ref {:#010x}: origin ({:.1f},{:.1f},{:.1f}) actorHeading {:.2f}, "
-			"viewHeading {:.2f}{} distance {:.1f} -> ({:.1f},{:.1f},{:.1f})",
+			"viewHeading {:.2f}{} distance {:.1f} -> ({:.1f},{:.1f},{:.1f}){}",
 			a_ref->GetFormID(), base.pos.x, base.pos.y, base.pos.z, base.heading, heading,
-			viewHeading ? "" : " (actor fallback)", a_distance, pos.x, pos.y, pos.z);
+			viewHeading ? "" : " (actor fallback)", a_distance, pos.x, pos.y, pos.z,
+			snapped ? " (navmesh-snapped)" : " (no snap)");
 		return SceneRuntime::AnchorOverride{ true, pos, heading };
 	}
 
