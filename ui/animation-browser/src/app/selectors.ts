@@ -198,6 +198,11 @@ export function comparePlayableItems(state: BrowserState, a: PlayableItem, b: Pl
     || a.key.localeCompare(b.key);
 }
 
+export function playableGroupOpen(state: BrowserState, key: string, containsSelection: boolean): boolean {
+  if (state.filters.search) return true;
+  return state.libOpen.get(key) ?? containsSelection;
+}
+
 export function matchesPlayableSearch(state: BrowserState, item: PlayableItem): boolean {
   if (!state.filters.search) return true;
   const scene = item.scene;

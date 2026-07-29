@@ -27,7 +27,7 @@ export interface BrowserCommands {
   toggleAnchor(token: number): void;
   clearAnchor(): void;
   selectLocation(mode: LocationMode, token?: number | null): void;
-  toggleLibraryGroup(key: string): void;
+  toggleLibraryGroup(key: string, open: boolean): void;
   toggleSceneGroup(key: string, open: boolean): void;
   toggleLibraryShowAll(): void;
   toggleLibraryFull(): void;

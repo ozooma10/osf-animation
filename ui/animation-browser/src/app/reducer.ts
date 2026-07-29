@@ -182,7 +182,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
           browseKind: "all",
           allSpecies: false,
           libShowAll: false,
-          libOpen: new Set<string>(),
+          libOpen: new Map<string, boolean>(),
           scnOpen: new Map<string, boolean>(),
         } : {}),
       };
@@ -201,9 +201,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "library/customOnly":
       return { ...state, libCustomOnly: !state.libCustomOnly };
     case "library/group": {
-      const libOpen = new Set(state.libOpen);
-      if (libOpen.has(action.key)) libOpen.delete(action.key);
-      else libOpen.add(action.key);
+      const libOpen = new Map(state.libOpen);
+      libOpen.set(action.key, action.open);
       return { ...state, libOpen };
     }
     case "scene/group": {

@@ -48,7 +48,7 @@ export type BrowserAction =
   | { type: "library/showAll" }
   | { type: "library/full" }
   | { type: "library/customOnly" }
-  | { type: "library/group"; key: string }
+  | { type: "library/group"; key: string; open: boolean }
   | { type: "scene/group"; key: string; open: boolean }
   | { type: "brief/fullAnimations" }
   | { type: "brief/options" }

@@ -12,6 +12,7 @@ import {
   libraryFolderTree,
   locationCastChoices,
   playableItems,
+  playableGroupOpen,
   playableVisible,
   readableAnimationName,
   validSelection,
@@ -274,6 +275,19 @@ describe("browser selectors", () => {
     ]);
     expect(readableAnimationName("LooseAnim_FormalApplause01")).toBe("Formal Applause 01");
     expect(readableAnimationName("SitOnGround_Pose", true)).toBe("Sit On Ground");
+  });
+
+  it("allows a selected animation group to be explicitly collapsed", () => {
+    const state = createInitialState();
+    expect(playableGroupOpen(state, "browse:pack:vanilla", true)).toBe(true);
+
+    const collapsed = browserReducer(state, {
+      type: "library/group",
+      key: "browse:pack:vanilla",
+      open: false,
+    });
+    expect(playableGroupOpen(collapsed, "browse:pack:vanilla", true)).toBe(false);
+    expect(playableGroupOpen(collapsed, "browse:pack:other", true)).toBe(true);
   });
 
   it("applies the unavailable-scene visibility preference", () => {

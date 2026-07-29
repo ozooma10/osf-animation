@@ -11,6 +11,7 @@ import {
   needsText,
   packKey,
   packLabel,
+  playableGroupOpen,
   playableItems,
   playableSceneTitle,
   playableVisible,
@@ -119,10 +120,10 @@ function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: 
       const stateKey = `browse:${muted ? "rest:" : ""}${key}`;
       const containsSelection = list.some(({ item }) => item.scene.id === state.selectedId
         && (item.stage?.index ?? null) === state.selectedStage);
-      const open = !!state.filters.search || containsSelection || state.libOpen.has(stateKey);
+      const open = playableGroupOpen(state, stateKey, containsSelection);
       const scenes = list.map(({ item }) => item.scene);
       return <section class="libx-group" key={stateKey}>
-        <button class="libx-head" onClick={() => commands.toggleLibraryGroup(stateKey)}>
+        <button class="libx-head" onClick={() => commands.toggleLibraryGroup(stateKey, !open)}>
           <span class="chev">{open ? "▾" : "▸"}</span>
           <span class="libx-name">{playableGroupLabel(key, scenes)}</span>
           <span class="libx-meta mono">{list.length} playable{list.length === 1 ? "" : "s"}</span>

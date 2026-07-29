@@ -455,7 +455,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleAnchor: (token) => { const current = stateRef.current; if (current.furniture?.token === token) dispatch({ type: "anchor/cleared" }); else { const anchor = current.nearbyFurniture.find((candidate) => candidate.token === token); if (anchor) { dispatch({ type: "anchor/selected", anchor: { token, name: anchor.name, distance: anchor.distance } }); send("osf.animation.anchorMatch", { token }); } } },
     clearAnchor: () => dispatch({ type: "anchor/cleared" }),
     selectLocation: (mode, token = null) => dispatch({ type: "location/selected", mode, token }),
-    toggleLibraryGroup: (key) => dispatch({ type: "library/group", key }),
+    toggleLibraryGroup: (key, open) => dispatch({ type: "library/group", key, open }),
     toggleSceneGroup: (key, open) => dispatch({ type: "scene/group", key, open }),
     toggleLibraryShowAll: () => dispatch({ type: "library/showAll" }),
     toggleLibraryFull: () => {
