@@ -28,15 +28,24 @@ namespace OSF::API
 		// is context-sensitive and may also be localized. In particular, B is
 		// used by several German UI actions. A default must not take ownership
 		// of a key that Starfield needs; users can opt in from the settings card.
+		// Pages (OSF UI 1.5.0): the Hotkeys group stays untagged so it lands on
+		// the implicit General tab painted first; everything else segments into
+		// Browser / Scenes / Advanced. Older OSF UI hosts ignore `pages`/`page`
+		// and render the same groups as one flat column.
 		constexpr const char* kSchemaJson = R"json({
   "id": "osf.animation",
   "title": "OSF Animation",
   "description": "Scene framework — browser, animation wheel, and scene hotkeys.",
   "icon": "browser/osf-icon.svg",
-  "version": 3,
+  "version": 4,
   "targetVersion": "1.5.0",
+  "pages": [
+    { "id": "browser", "label": "Browser" },
+    { "id": "scenes", "label": "Scenes" },
+    { "id": "advanced", "label": "Advanced" }
+  ],
   "groups": [
-    { "label": "Hotkeys", "settings": [
+    { "id": "hotkeys", "label": "Hotkeys", "settings": [
       { "key": "hotkeys.openBrowser", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open animation browser",
         "hint": "Browse animations, emotes, and authored scenes." },
@@ -44,7 +53,7 @@ namespace OSF::API
         "label": "Open animation wheel",
         "hint": "Unbound by default to avoid conflicts. Opens the radial emote picker and targets the crosshair NPC when one is in reach." }
     ] },
-    { "label": "Interface", "settings": [
+    { "id": "browser-behavior", "label": "Behavior", "page": "browser", "settings": [
       { "key": "browser.afterLaunch", "type": "enum", "default": "minimize",
         "options": ["minimize", "stay", "close"],
         "optionLabels": ["Live controls", "Stay open", "Close browser"],
@@ -57,10 +66,9 @@ namespace OSF::API
         "hint": "Active falls back to Browse when nothing is running." },
       { "key": "browser.rememberBrowsing", "type": "bool", "default": true,
         "label": "Remember browsing state",
-        "hint": "Keep search, filters, and expanded folders between browser openings in this game session." },
-      { "key": "browser.actorLabels", "type": "bool", "default": true,
-        "label": "Actor name labels",
-        "hint": "Tag selected cast members over their heads in the world while the browser is open." },
+        "hint": "Keep search, filters, and expanded folders between browser openings in this game session." }
+    ] },
+    { "id": "browser-library", "label": "Library", "page": "browser", "settings": [
       { "key": "browser.libraryDetail", "type": "enum", "default": "curated",
         "options": ["curated", "full"], "optionLabels": ["Poses and loops", "Full library"],
         "label": "Animation detail",
@@ -72,15 +80,17 @@ namespace OSF::API
       { "key": "browser.unavailableScenes", "type": "enum", "default": "ask",
         "options": ["ask", "show", "hide"], "optionLabels": ["On request", "Always below", "Hide"],
         "label": "Unavailable scenes",
-        "hint": "Control scenes that need a different cast or furniture." },
+        "hint": "Control scenes that need a different cast or furniture." }
+    ] },
+    { "id": "browser-display", "label": "Display", "page": "browser", "settings": [
+      { "key": "browser.actorLabels", "type": "bool", "default": true,
+        "label": "Actor name labels",
+        "hint": "Tag selected cast members over their heads in the world while the browser is open." },
       { "key": "browser.authorDetails", "type": "bool", "default": false,
         "label": "Show author details",
-        "hint": "Reveal IDs, source files, diagnostics, and generated or unlisted entries." },
-      { "key": "debugNotifications", "type": "bool", "default": false,
-        "label": "Stage-transition popups",
-        "hint": "Debug HUD popup on each scene stage transition." }
+        "hint": "Reveal IDs, source files, diagnostics, and generated or unlisted entries." }
     ] },
-    { "label": "Scene defaults", "settings": [
+    { "id": "scene-launch", "label": "Launch defaults", "page": "scenes", "settings": [
       { "key": "launch.strip", "type": "enum", "default": "-1",
         "options": ["-1", "1", "0"], "optionLabels": ["Use scene", "Always", "Never"],
         "label": "Strip actors", "hint": "Default apparel override for browser launches." },
@@ -96,12 +106,15 @@ namespace OSF::API
         "optionLabels": ["0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x"],
         "label": "Playback speed", "hint": "Default clock multiplier for browser launches." }
     ] },
-    { "label": "Scene gear", "settings": [
+    { "id": "scene-gear", "label": "Scene gear", "page": "scenes", "settings": [
       { "key": "gear.autoEquip", "type": "bool", "default": true,
         "label": "Auto-equip scene gear",
         "hint": "Equip registered gear (belts, props, etc...) carried by scene participants for the scene's duration. Register items via *.osfgear.json files." }
     ] },
-    { "label": "Logging", "settings": [
+    { "id": "diagnostics", "label": "Diagnostics", "page": "advanced", "settings": [
+      { "key": "debugNotifications", "type": "bool", "default": false,
+        "label": "Stage-transition popups",
+        "hint": "Debug HUD popup on each scene stage transition." },
       { "key": "logLevel", "type": "enum", "default": "info",
         "options": ["trace", "debug", "info", "warn", "error"],
         "optionLabels": ["Trace", "Debug", "Info", "Warnings", "Errors"],

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm.cmd",
       "runtimeArgs": ["--prefix", "ui/animation-browser", "run", "dev", "--", "--open", "false"],
       "port": 8791
+    },
+    {
+      "name": "osfui-harness",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["--prefix", "C:\\Modding\\Starfield\\OSF UI\\frontend", "run", "dev"],
+      "port": 5173
     }
   ]
 }
