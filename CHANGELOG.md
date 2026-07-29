@@ -2,7 +2,7 @@
 
 All notable changes to OSF Animation are documented here.
 
-## [Unreleased]
+## [1.4.0] - 2026-07-29
 
 ### Added
 - **The OSF Animation settings card is now organized into pages.** On an OSF UI new enough to render them, settings split into **General** (hotkeys), **Browser** (behavior, library, display), **Scenes** (launch defaults, scene gear), and **Advanced** (diagnostics) tabs instead of one long column. Older OSF UI versions keep showing the same settings as a flat list.
