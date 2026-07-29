@@ -10,6 +10,7 @@ export type BridgeCommand =
   | "osf.animation.pickCrosshair"
   | "osf.animation.pickScreen"
   | "osf.animation.projectActors"
+  | "osf.animation.projectPickables"
   | "osf.animation.requestClose"
   | "osf.animation.scanNearby"
   | "osf.animation.stop"

@@ -66,6 +66,24 @@ describe("browser reducer", () => {
     expect(browserReducer(projected, { type: "visibility/hidden" }).actorIndicators).toEqual([]);
   });
 
+  it("keeps pick targets only while the matching pick mode stays armed", () => {
+    const target = { x: 0.6, y: 0.3, cx: 0.6, cy: 0.42, rx: 70, ry: 110 };
+    const armed = browserReducer(createInitialState(), { type: "pick/armed", kind: "actor" });
+    const polled = browserReducer(armed, { type: "pickTargets/received", slot: "actor", items: [target] });
+    expect(polled.pickTargets).toEqual([target]);
+
+    // A stale reply from the other slot must not repaint the marker layer.
+    const rearmed = browserReducer(polled, { type: "pick/armed", kind: "furniture" });
+    expect(rearmed.pickTargets).toEqual([]);
+    expect(browserReducer(rearmed, { type: "pickTargets/received", slot: "actor", items: [target] }).pickTargets).toEqual([]);
+    expect(browserReducer(rearmed, { type: "pickTargets/received", slot: "furniture", items: [target] }).pickTargets).toEqual([target]);
+
+    // A late in-flight reply after cancel must not resurrect the marker layer.
+    const cancelled = browserReducer(polled, { type: "pick/cancelled" });
+    expect(cancelled.pickTargets).toEqual([]);
+    expect(browserReducer(cancelled, { type: "pickTargets/received", slot: "actor", items: [target] }).pickTargets).toEqual([]);
+  });
+
   it("honors the after-launch preference when a scene starts", () => {
     const initial = createInitialState();
     const minimized = browserReducer(initial, {

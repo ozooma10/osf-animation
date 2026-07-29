@@ -91,12 +91,13 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ? state.cast.filter((_, memberIndex) => memberIndex !== index)
         : action.member.kind === "player" ? [PLAYER_CAST, ...state.cast] : [...state.cast, action.member];
       const removedLocation = index >= 0 && state.locationMode === "actor" && state.locationToken === action.member.token;
+      // Deliberately leaves stepOpen alone: collapsing CREW on every addition
+      // made armed world-picking feel broken (each click folded the panel).
       return {
         ...state,
         cast,
         locationMode: removedLocation ? "cast" : state.locationMode,
         locationToken: removedLocation ? null : state.locationToken,
-        stepOpen: index < 0 ? { ...state.stepOpen, cast: false } : state.stepOpen,
       };
     }
     case "cast/removed": {
@@ -119,10 +120,15 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         : { ...state, nearbyFurniture: action.targets };
     case "indicators/received":
       return { ...state, actorIndicators: action.items };
+    case "pickTargets/received":
+      // Replies are tagged with the slot they were polled for, so a late
+      // in-flight actor reply can't paint markers into furniture mode (or
+      // vice versa), and anything after cancel is dropped.
+      return state.pickMode === action.slot ? { ...state, pickTargets: action.items } : state;
     case "pick/armed":
-      return { ...state, pickMode: action.kind };
+      return { ...state, pickMode: action.kind, pickTargets: [] };
     case "pick/cancelled":
-      return { ...state, pickMode: null };
+      return { ...state, pickMode: null, pickTargets: [] };
     case "anchor/selected":
       return {
         ...state,
@@ -271,7 +277,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "wheel/reset":
       return { ...state, wheelCustomized: false, catalog: action.catalog, library: action.library };
     case "visibility/hidden":
-      return { ...state, wheel: null, mode: "scenes", settingsOpen: false, minimized: false, pickMode: null, actorIndicators: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
+      return { ...state, wheel: null, mode: "scenes", settingsOpen: false, minimized: false, pickMode: null, actorIndicators: [], pickTargets: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
     case "visibility/shown":
       return { ...state, viewVisible: true };
     case "seeded/remembered": {

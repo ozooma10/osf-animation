@@ -31,6 +31,7 @@ export type BrowserAction =
   | { type: "cast/moved"; from: number; to: number; after?: boolean }
   | { type: "nearby/received"; kind: "actor" | "furniture"; targets: NearbyTarget[] }
   | { type: "indicators/received"; items: import("./state").ActorIndicator[] }
+  | { type: "pickTargets/received"; slot: "actor" | "furniture"; items: import("./state").PickTarget[] }
   | { type: "pick/armed"; kind: "actor" | "furniture" }
   | { type: "pick/cancelled" }
   | { type: "anchor/selected"; anchor: FurnitureTarget }

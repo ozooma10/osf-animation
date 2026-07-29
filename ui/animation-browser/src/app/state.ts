@@ -147,6 +147,19 @@ export interface ActorIndicator {
   visible: boolean;
 }
 
+export interface PickTarget {
+  /** Marker anchor (above the rendered head), viewport-normalized (0..1). */
+  x: number;
+  y: number;
+  /** Hover hit-test ellipse: normalized center plus pixel radii, the same
+   *  acceptance geometry the native click hit-test uses — so the marker shows
+   *  exactly when a click would land. */
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+
 export interface BrowserState {
   ready: boolean;
   catalog: SceneModel[];
@@ -191,6 +204,7 @@ export interface BrowserState {
   stepOpen: { cast: boolean; anchor: boolean };
   seededTokens: ReadonlySet<number>;
   actorIndicators: ActorIndicator[];
+  pickTargets: PickTarget[];
   viewVisible: boolean;
   notice: NoticeState;
   visibilitySerial: number;
@@ -240,6 +254,7 @@ export function createInitialState(): BrowserState {
     stepOpen: { cast: true, anchor: true },
     seededTokens: new Set(),
     actorIndicators: [],
+    pickTargets: [],
     viewVisible: true,
     notice: { kind: "", text: "", serial: 0 },
     visibilitySerial: 0,

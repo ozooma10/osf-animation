@@ -1409,24 +1409,106 @@ namespace OSF::API
 			float depth = std::numeric_limits<float>::max();
 		};
 
-		void ConsiderScreenPick(const SafeViewProjection& a_projection, RE::TESObjectREFR* a_ref, bool a_actor,
-			float a_x, float a_y, float a_width, float a_height, ScreenPick& a_best)
+		// The screen-space acceptance ellipse a click (and the hover marker) test
+		// against: projected bound center plus clamped pixel radii. One function so
+		// the marker the view floats on hover and the actual click always agree.
+		struct PickScreenBound
 		{
+			RE::NiPoint3 screen;  // normalized center; z = view depth
+			float        radiusX{ 0.0f };
+			float        radiusY{ 0.0f };
+		};
+
+		// Actor hit regions come from the rendered skeleton, not worldBound: the
+		// cull sphere is expanded and re-centered by weapons, animation, and OSF's
+		// own compose-root cull pin, which made some actors unclickable — their
+		// acceptance ellipse sat nowhere near the visible body. Both landmarks
+		// must be RENDERED BONES (C_Head, C_Hips): bones are exactly where the
+		// visible body is, while the data3D root's translate proved to drift away
+		// from the body (runtime-observed: actors OSF had animated missed every
+		// click with scores of 8-260 while furniture picks kept landing). Feet
+		// are estimated by mirroring the head across the hips along the body
+		// axis, spanning standing AND prone poses; the ellipse is axis-aligned,
+		// so each radius covers whichever span component runs its way.
+		bool ActorScreenCapsule(const SafeViewProjection& a_projection, RE::Actor* a_actor,
+			float a_width, float a_height, PickScreenBound& a_out)
+		{
+			RE::NiPointer<RE::NiAVObject> root;
+			{
+				const auto loaded = a_actor->loadedData.LockRead();
+				if (*loaded) {
+					root = (*loaded)->data3D;
+				}
+			}
+			if (!root) {
+				return false;
+			}
+			static const RE::BSFixedString headName{ "C_Head" };
+			static const RE::BSFixedString hipsName{ "C_Hips" };
+			RE::NiAVObject* head = root->GetObjectByName(headName);
+			RE::NiAVObject* hips = root->GetObjectByName(hipsName);
+			RE::NiPoint3    headWorld;
+			RE::NiPoint3    baseWorld;
+			if (head && hips) {
+				headWorld = head->world.translate + RE::NiPoint3{ 0.0f, 0.0f, 0.12f };
+				baseWorld = hips->world.translate + (hips->world.translate - head->world.translate);
+			} else if (RenderedActorLabelPoint(a_actor, headWorld)) {
+				// Creature rigs without the humanoid bones: label point (clamped
+				// worldBound top) against the root translate, as before.
+				baseWorld = root->world.translate;
+			} else {
+				return false;
+			}
+			RE::NiPoint3 headScreen;
+			RE::NiPoint3 baseScreen;
+			if (!a_projection.Project(headWorld, headScreen) || !a_projection.Project(baseWorld, baseScreen)) {
+				return false;
+			}
+			const float dxPx = std::abs(headScreen.x - baseScreen.x) * a_width;
+			const float dyPx = std::abs(headScreen.y - baseScreen.y) * a_height;
+			const float span = std::hypot(dxPx, dyPx);
+			a_out.screen = {
+				(headScreen.x + baseScreen.x) * 0.5f,
+				(headScreen.y + baseScreen.y) * 0.5f,
+				std::min(headScreen.z, baseScreen.z),
+			};
+			a_out.radiusX = std::clamp(std::max(dxPx * 0.62f, span * 0.22f), 38.0f, 260.0f);
+			a_out.radiusY = std::clamp(std::max(dyPx * 0.62f, span * 0.22f), 52.0f, 320.0f);
+			return true;
+		}
+
+		bool ComputePickScreenBound(const SafeViewProjection& a_projection, RE::TESObjectREFR* a_ref, bool a_actor,
+			float a_width, float a_height, PickScreenBound& a_out)
+		{
+			if (a_actor && ActorScreenCapsule(a_projection, static_cast<RE::Actor*>(a_ref), a_width, a_height, a_out)) {
+				return true;
+			}
 			RE::NiPoint3 center;
 			float radius = 0.0f;
-			RE::NiPoint3 screen;
-			if (!RenderedBound(a_ref, a_actor, center, radius) || !a_projection.Project(center, screen)) {
+			if (!RenderedBound(a_ref, a_actor, center, radius) || !a_projection.Project(center, a_out.screen)) {
+				return false;
+			}
+			const float projectedRadius = a_projection.ProjectedRadius(center, radius, a_width, a_height);
+			a_out.radiusX = std::clamp(projectedRadius * 1.15f, a_actor ? 38.0f : 30.0f, 220.0f);
+			a_out.radiusY = std::clamp(projectedRadius * 1.15f, a_actor ? 52.0f : 30.0f, 260.0f);
+			return true;
+		}
+
+		void ConsiderScreenPick(const SafeViewProjection& a_projection, RE::TESObjectREFR* a_ref, bool a_actor,
+			float a_x, float a_y, float a_width, float a_height, ScreenPick& a_best, ScreenPick* a_nearest = nullptr)
+		{
+			PickScreenBound bound;
+			if (!ComputePickScreenBound(a_projection, a_ref, a_actor, a_width, a_height, bound)) {
 				return;
 			}
-
-			const float projectedRadius = a_projection.ProjectedRadius(center, radius, a_width, a_height);
-			const float radiusX = std::clamp(projectedRadius * 1.15f, a_actor ? 38.0f : 30.0f, 220.0f);
-			const float radiusY = std::clamp(projectedRadius * 1.15f, a_actor ? 52.0f : 30.0f, 260.0f);
-			const float dx = (a_x - screen.x) * a_width / radiusX;
-			const float dy = (a_y - screen.y) * a_height / radiusY;
+			const float dx = (a_x - bound.screen.x) * a_width / bound.radiusX;
+			const float dy = (a_y - bound.screen.y) * a_height / bound.radiusY;
 			const float score = dx * dx + dy * dy;
-			if (score <= 1.0f && (score < a_best.score || (std::abs(score - a_best.score) < 0.0001f && screen.z < a_best.depth))) {
-				a_best = { a_ref, score, screen.z };
+			if (a_nearest && score < a_nearest->score) {
+				*a_nearest = { a_ref, score, bound.screen.z };
+			}
+			if (score <= 1.0f && (score < a_best.score || (std::abs(score - a_best.score) < 0.0001f && bound.screen.z < a_best.depth))) {
+				a_best = { a_ref, score, bound.screen.z };
 			}
 		}
 		void SendScreenPick(const char* a_view, const std::string& a_slot, RE::TESObjectREFR* a_ref)
@@ -1469,6 +1551,7 @@ namespace OSF::API
 			}
 
 			ScreenPick best;
+			ScreenPick nearest;  // closest candidate regardless of acceptance, for miss diagnostics
 			if (slot == "actor") {
 				std::vector<RE::Actor*> actors;
 				EnumerateHighActors(actors);
@@ -1477,7 +1560,7 @@ namespace OSF::API
 						player->GetPosition().GetSquaredDistance(actor->GetPosition()) > 4096.0f * 4096.0f) {
 						continue;
 					}
-					ConsiderScreenPick(*projection, actor, true, x, y, width, height, best);
+					ConsiderScreenPick(*projection, actor, true, x, y, width, height, best, &nearest);
 				}
 			} else if (auto* tes = RE::TES::GetSingleton()) {
 				RE::NiPoint3A origin{};
@@ -1488,15 +1571,124 @@ namespace OSF::API
 					RE::TESObjectREFR* ref = a_ref.get();
 					const auto base = ref ? ref->GetBaseObject() : nullptr;
 					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN)) {
-						ConsiderScreenPick(*projection, ref, false, x, y, width, height, best);
+						ConsiderScreenPick(*projection, ref, false, x, y, width, height, best, &nearest);
 					}
 					return RE::BSContainer::ForEachResult::kContinue;
 				});
 			}
 
 			REX::DEBUG("[UI] world PICK {} at ({:.3f},{:.3f}) -> {}", slot, x, y,
-				best.ref ? std::format("'{}' ({:08X})", ScanLabel(best.ref), best.ref->GetFormID()) : "no hit");
+				best.ref  ? std::format("'{}' ({:08X})", ScanLabel(best.ref), best.ref->GetFormID()) :
+				nearest.ref ? std::format("no hit (nearest '{}' score {:.2f})", ScanLabel(nearest.ref), nearest.score) :
+							  "no hit (no candidates on screen)");
 			SendScreenPick(a_srcView, slot, best.ref);
+		}
+
+		// While a pick is armed the view polls this (~10 Hz) and marks pickable
+		// targets — hover-only for actors, every candidate for furniture. Each
+		// item carries the marker anchor plus the exact click acceptance ellipse
+		// (ComputePickScreenBound), so hover feedback and OnPickScreen agree.
+		void OnProjectPickables(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json        j = ParsePayload(a_payload);
+			const std::string slot = j.is_object() && j.value("slot", std::string{}) == "furniture" ? "furniture" : "actor";
+			const float       width = std::clamp(j.is_object() ? j.value("width", 0.0f) : 0.0f, 320.0f, 10000.0f);
+			const float       height = std::clamp(j.is_object() ? j.value("height", 0.0f) : 0.0f, 200.0f, 10000.0f);
+			const auto        projection = CurrentViewProjection(width, height);
+			auto*             player = RE::PlayerCharacter::GetSingleton();
+
+			// The caps keep crowded scenes bounded; candidates are distance-sorted
+			// first so it is always the farthest targets that drop, not arbitrary ones.
+			const auto append = [&](json& a_items, RE::TESObjectREFR* a_ref, bool a_actor) {
+				PickScreenBound bound;
+				if (!ComputePickScreenBound(*projection, a_ref, a_actor, width, height, bound)) {
+					return;
+				}
+				if (bound.screen.x < -0.1f || bound.screen.x > 1.1f ||
+					bound.screen.y < -0.1f || bound.screen.y > 1.1f) {
+					return;  // comfortably off-screen — never hoverable
+				}
+				// Marker anchor: actors use the rendered head the name labels sit on;
+				// furniture floats the marker just above its rendered bound. The bound
+				// center is the fallback either way.
+				RE::NiPoint3 anchorScreen = bound.screen;
+				RE::NiPoint3 anchorWorld;
+				RE::NiPoint3 center;
+				float        radius = 0.0f;
+				const bool   anchored = a_actor
+				      ? RenderedActorLabelPoint(a_ref, anchorWorld)
+				      : (RenderedBound(a_ref, false, center, radius) &&
+							(anchorWorld = center + RE::NiPoint3{ 0.0f, 0.0f, std::clamp(radius, 0.25f, 1.4f) }, true));
+				if (anchored) {
+					RE::NiPoint3 projected;
+					if (projection->Project(anchorWorld, projected)) {
+						anchorScreen = projected;
+					}
+				}
+				a_items.push_back(json{
+					{ "x", anchorScreen.x },
+					{ "y", anchorScreen.y },
+					{ "cx", bound.screen.x },
+					{ "cy", bound.screen.y },
+					{ "rx", bound.radiusX },
+					{ "ry", bound.radiusY },
+				});
+			};
+
+			json items = json::array();
+			if (projection && player && slot == "actor") {
+				constexpr std::size_t   kMaxActorTargets = 24;
+				std::vector<RE::Actor*> actors;
+				EnumerateHighActors(actors);
+				std::sort(actors.begin(), actors.end(), [player](RE::Actor* a_lhs, RE::Actor* a_rhs) {
+					return player->GetPosition().GetSquaredDistance(a_lhs->GetPosition()) <
+					       player->GetPosition().GetSquaredDistance(a_rhs->GetPosition());
+				});
+				for (RE::Actor* actor : actors) {
+					if (items.size() >= kMaxActorTargets) {
+						break;
+					}
+					// Mirror OnPickScreen's eligibility exactly — a marker over a target
+					// a click would refuse (or vice versa) reads as a defect.
+					if (!actor || actor->IsPlayerRef() || actor->IsDead() ||
+						player->GetPosition().GetSquaredDistance(actor->GetPosition()) > 4096.0f * 4096.0f) {
+						continue;
+					}
+					append(items, actor, true);
+				}
+			} else if (projection && player) {
+				if (auto* tes = RE::TES::GetSingleton()) {
+					constexpr std::size_t kMaxFurnitureTargets = 32;
+					struct Candidate
+					{
+						RE::TESObjectREFR* ref;
+						float              distanceSq;
+					};
+					std::vector<Candidate> candidates;
+					RE::NiPoint3A          origin{};
+					origin.x = player->GetPosition().x;
+					origin.y = player->GetPosition().y;
+					origin.z = player->GetPosition().z;
+					tes->ForEachReferenceInRange(origin, 4096.0f, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
+						RE::TESObjectREFR* ref = a_ref.get();
+						const auto base = ref ? ref->GetBaseObject() : nullptr;
+						if (ref && !ref->IsPlayerRef() && !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN)) {
+							candidates.push_back({ ref, player->GetPosition().GetSquaredDistance(ref->GetPosition()) });
+						}
+						return RE::BSContainer::ForEachResult::kContinue;
+					});
+					std::sort(candidates.begin(), candidates.end(), [](const Candidate& a_lhs, const Candidate& a_rhs) {
+						return a_lhs.distanceSq < a_rhs.distanceSq;
+					});
+					for (const Candidate& candidate : candidates) {
+						if (items.size() >= kMaxFurnitureTargets) {
+							break;
+						}
+						append(items, candidate.ref, false);
+					}
+				}
+			}
+			SendJson(a_srcView, "osf.animation.pickTargets", json{ { "slot", slot }, { "items", std::move(items) } });
 		}		// Nearby-furniture enumeration goes through RE::TES::ForEachReferenceInRange (CommonLibSF),
 		// which spans the loaded interior cell or exterior grid — see OnScanNearby's furniture branch.
 
@@ -2019,6 +2211,7 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.pickCrosshair", &OnPickCrosshair, nullptr);
 		g_ui.RegisterCommand("osf.animation.pickScreen", &OnPickScreen, nullptr);
+		g_ui.RegisterCommand("osf.animation.projectPickables", &OnProjectPickables, nullptr);
 		g_ui.RegisterCommand("osf.animation.projectActors", &OnProjectActors, nullptr);
 		g_ui.RegisterCommand("osf.animation.scanNearby", &OnScanNearby, nullptr);
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);

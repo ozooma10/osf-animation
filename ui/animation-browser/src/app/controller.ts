@@ -31,6 +31,7 @@ import {
   type BrowserPreferences,
   type CastMember,
   type NearbyTarget,
+  type PickTarget,
   type WheelEntry,
 } from "./state";
 import { OsfUiBridge, hasOsfUiBridge, type AnimationBridge } from "../bridge/client";
@@ -87,6 +88,19 @@ function normalizeIndicators(payload: unknown): ActorIndicator[] {
     y: Number(item.y),
     visible: !!item.visible,
   })).filter((item) => item.token !== 0 && Number.isFinite(item.x) && Number.isFinite(item.y));
+}
+
+function normalizePickTargets(payload: unknown): PickTarget[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.filter(isRecord).map((item) => ({
+    x: Number(item.x),
+    y: Number(item.y),
+    cx: Number(item.cx),
+    cy: Number(item.cy),
+    rx: Number(item.rx),
+    ry: Number(item.ry),
+  })).filter((item) => [item.x, item.y, item.cx, item.cy].every(Number.isFinite)
+    && item.rx > 0 && item.ry > 0);
 }
 
 function cloneWithPins(state: BrowserState, keys: readonly string[]): { catalog: SceneModel[]; library: SceneModel[] } {
@@ -208,14 +222,20 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         break;
       }
       case "osf.animation.pick": {
-        dispatch({ type: "pick/cancelled" });
+        // A miss keeps the pick armed — re-arming per attempt made the feature
+        // read as broken. Actor picks also stay armed on success (crew building
+        // is a multi-click flow; Esc or CANCEL finishes); a furniture hit
+        // disarms because there is exactly one anchor slot to fill.
         if (!record.valid || !record.token) { showNotice("err", `No ${record.slot || "target"} was under that click — try its visible center, or use SCAN.`); break; }
         if (record.slot === "furniture") {
+          dispatch({ type: "pick/cancelled" });
           dispatch({ type: "anchor/selected", anchor: { token: Number(record.token), name: String(record.name || "furniture"), distance: typeof record.distance === "number" ? record.distance : null } });
           send("osf.animation.anchorMatch", { token: Number(record.token) });
         } else {
           const member: CastMember = Number(record.token) === PLAYER_TOKEN ? PLAYER_CAST : { token: Number(record.token), name: String(record.name || "actor"), distance: typeof record.distance === "number" ? record.distance : null, species: String(record.species || "human"), sex: String(record.sex || "").toLowerCase() };
+          const removing = stateRef.current.cast.some((candidate) => candidate.token === member.token);
           dispatch({ type: "cast/toggled", member });
+          showNotice("ok", `${member.name} ${removing ? "removed from" : "added to"} the crew — click more, Esc to finish.`);
         }
         break;
       }
@@ -241,6 +261,9 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       }
       case "osf.animation.actorIndicators":
         dispatch({ type: "indicators/received", items: normalizeIndicators(record.items) });
+        break;
+      case "osf.animation.pickTargets":
+        dispatch({ type: "pickTargets/received", slot: record.slot === "furniture" ? "furniture" : "actor", items: normalizePickTargets(record.items) });
         break;
       case "osf.animation.anchorMatch": dispatch({ type: "anchor/matched", token: Number(record.token), ids: new Set(Array.isArray(record.sceneIds) ? record.sceneIds.map(String) : []) }); break;
       case "osf.animation.activeScenes": dispatch({ type: "active/received", scenes: normalizeActive(record.scenes) }); break;
@@ -355,6 +378,19 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     const timer = window.setInterval(project, 80);
     return () => clearInterval(timer);
   }, [state.cast, state.viewVisible, state.wheel, state.minimized, state.preferences.actorLabels, send]);
+
+  useEffect(() => {
+    // Armed pick: poll the pickable targets' screen geometry so the view can
+    // mark them — hover-only for actors, all-targets for furniture. Same
+    // cadence family as the cast label projections; the native side reuses
+    // the click hit-test geometry, so marker shown === click would land.
+    const slot = state.pickMode;
+    if (!slot || !state.viewVisible) return;
+    const project = () => send("osf.animation.projectPickables", { slot, width: innerWidth, height: innerHeight });
+    project();
+    const timer = window.setInterval(project, 100);
+    return () => clearInterval(timer);
+  }, [state.pickMode, state.viewVisible, send]);
 
   const commands = useMemo<BrowserCommands>(() => ({
     refresh: () => { requestCatalog(true); requestLibrary(true); },

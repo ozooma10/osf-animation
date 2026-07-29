@@ -1,3 +1,4 @@
+import { useEffect, useState } from "preact/hooks";
 import type { BrowserCommands } from "./app/commands";
 import { activeScenes, labeledCast, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
 import type { BrowserState } from "./app/state";
@@ -73,19 +74,59 @@ function ActorIndicators({ state }: { state: BrowserState }) {
   </div>;
 }
 
+function PickMarkers({ state }: { state: BrowserState }) {
+  const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!state.pickMode) return;
+    const move = (event: MouseEvent) => {
+      // Hover highlighting only makes sense over the world area — hovering the
+      // console or brief mirrors the click handler's worldTarget() exclusions.
+      const overUi = event.target instanceof Element && event.target.closest(".console, .brief, .livebar");
+      setMouse(overUi ? null : { x: event.clientX, y: event.clientY });
+    };
+    document.addEventListener("mousemove", move);
+    return () => { document.removeEventListener("mousemove", move); setMouse(null); };
+  }, [state.pickMode]);
+
+  if (!state.pickMode || !state.pickTargets.length) return null;
+  // Same ellipse acceptance the native click hit-test applies, so the hot
+  // marker shows exactly on the target a click would select.
+  let best: BrowserState["pickTargets"][number] | null = null;
+  let bestScore = 1;
+  if (mouse) {
+    for (const target of state.pickTargets) {
+      const dx = (mouse.x - target.cx * innerWidth) / target.rx;
+      const dy = (mouse.y - target.cy * innerHeight) / target.ry;
+      const score = dx * dx + dy * dy;
+      if (score <= bestScore) { bestScore = score; best = target; }
+    }
+  }
+  // Furniture pick shows every candidate so pickable spots are discoverable;
+  // actor pick stays hover-only (a marker per crowd member would be noise).
+  const shown = state.pickMode === "furniture" ? state.pickTargets : state.pickTargets.filter((target) => target === best);
+  if (!shown.length) return null;
+  return <div class="pick-hover-layer" aria-hidden="true">
+    {shown.map((target, index) => <div key={index} class={`pick-hover-marker ${target === best ? "hot" : "idle"}`}
+      style={{ left: `${target.x * 100}%`, top: `${target.y * 100}%` }}>
+      <span class="pick-hover-glyph"><span class="pick-frame"><i/></span><span class="pick-stem"/></span>
+    </div>)}
+  </div>;
+}
+
 export function App({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const selected = selectedPlayable(state);
   const compactContext = state.mode !== "active" && !!selected && selected.kind !== "scene"
     && selected.scene.actorCount === 1 && !selected.scene.requiresFurniture;
   return <div class={`stage ${state.pickMode ? "picking" : ""} ${state.settingsOpen ? "settings-mode" : ""} ${compactContext ? "compact-context" : ""}`}>
     <ActorIndicators state={state}/>
+    <PickMarkers state={state}/>
     <div class="console"><span class="bracket tl"/><span class="bracket tr"/><span class="bracket bl"/><span class="bracket br"/><div class="grid-overlay"/><Header state={state} commands={commands}/>{state.settingsOpen ? <SettingsPanel state={state} commands={commands}/> : <div class="director"><aside class="rail"><CastPanel state={state} commands={commands}/><AnchorPanel state={state} commands={commands}/></aside><section class="browse"><BrowsePanel state={state} commands={commands}/></section></div>}<footer class={`notice ${state.notice.kind}`} aria-live="polite">{state.notice.text}</footer></div>
     <aside class="brief"><SceneBrief state={state} commands={commands}/></aside>
     <div class="livebar"><MinimizedBar state={state} commands={commands}/></div>
     <div class="wheel"><AnimationWheel state={state} commands={commands}/></div>
     {state.pickMode && <div class="pick-hud mono" aria-live="polite">
-      <strong>SELECT {state.pickMode === "actor" ? "ACTOR" : "FURNITURE"}</strong>
-      <span>Click it in the world · Esc to cancel</span>
+      <strong>SELECT {state.pickMode === "actor" ? "ACTORS" : "FURNITURE"}</strong>
+      <span>{state.pickMode === "actor" ? "Click actors to add or remove · Esc to finish" : "Click it in the world · Esc to cancel"}</span>
     </div>}
   </div>;
 }

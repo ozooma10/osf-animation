@@ -90,6 +90,20 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.pick", payload: { slot: fields.slot, valid: true, ...item } }, 60);
     } else if (command === "osf.animation.scanNearby") {
       this.later({ type: "osf.animation.scanResults", payload: { kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS } }, 80);
+    } else if (command === "osf.animation.projectPickables") {
+      const width = Number(fields.width) || 1280;
+      const height = Number(fields.height) || 720;
+      const items = fields.slot === "furniture"
+        ? [
+          { x: 0.58, y: 0.52, cx: 0.58, cy: 0.58, rx: width * 0.05, ry: height * 0.08 },
+          { x: 0.72, y: 0.60, cx: 0.72, cy: 0.66, rx: width * 0.06, ry: height * 0.09 },
+          { x: 0.88, y: 0.44, cx: 0.88, cy: 0.50, rx: width * 0.04, ry: height * 0.07 },
+        ]
+        : [
+          { x: 0.62, y: 0.30, cx: 0.62, cy: 0.42, rx: width * 0.055, ry: height * 0.16 },
+          { x: 0.82, y: 0.38, cx: 0.82, cy: 0.48, rx: width * 0.045, ry: height * 0.13 },
+        ];
+      this.later({ type: "osf.animation.pickTargets", payload: { slot: fields.slot, items } }, 5);
     } else if (command === "osf.animation.projectActors") {
       const tokens = Array.isArray(fields.tokens) ? fields.tokens.map(Number) : [];
       this.later({ type: "osf.animation.actorIndicators", payload: {

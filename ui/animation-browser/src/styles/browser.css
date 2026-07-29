@@ -106,6 +106,31 @@ button,input,select{font:inherit;color:inherit}
   background:var(--accent);color:var(--text-on-amber);font:700 10px var(--font-mono)}
 .world-actor-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   color:var(--text-bright);font:600 10px var(--font-mono);letter-spacing:.04em}
+/* Armed-pick target markers: diamond reticles anchored to the native
+   projection, eased on the label layer's cadence so they track smoothly.
+   `hot` = the target a click would select right now (accent, filled core,
+   bobbing); `idle` = other pickable candidates (furniture mode shows all,
+   muted steel so the hot one reads instantly). */
+.pick-hover-layer{position:fixed;inset:0;z-index:6;pointer-events:none;overflow:hidden}
+.pick-hover-marker{position:absolute;transform:translate(-50%,-100%);
+  transition:left 60ms linear,top 60ms linear}
+.pick-hover-glyph{display:flex;flex-direction:column;align-items:center}
+.pick-hover-marker.hot .pick-hover-glyph{animation:pickBob .9s ease-in-out infinite}
+.pick-hover-glyph .pick-frame{width:13px;height:13px;flex:none;transform:rotate(45deg);
+  border:1.5px solid var(--accent);background:rgba(6,9,13,.55);
+  box-shadow:var(--glow-accent),0 2px 8px rgba(0,0,0,.6);
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .12s linear,box-shadow .12s linear}
+.pick-hover-glyph .pick-frame>i{width:4px;height:4px;background:var(--accent);box-shadow:0 0 6px var(--accent);
+  transition:background .12s linear,box-shadow .12s linear}
+.pick-hover-glyph .pick-stem{width:1px;height:8px;margin-top:4px;background:var(--accent);
+  box-shadow:0 0 5px var(--accent);transition:background .12s linear,box-shadow .12s linear}
+.pick-hover-marker.idle .pick-hover-glyph{opacity:.66}
+.pick-hover-marker.idle .pick-frame{border-color:var(--line-strong);background:rgba(6,9,13,.42);
+  box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.pick-hover-marker.idle .pick-frame>i{background:transparent;box-shadow:none}
+.pick-hover-marker.idle .pick-stem{background:var(--line-strong);box-shadow:none}
+@keyframes pickBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 .stage.picking{cursor:crosshair}
 .stage.picking .console,.stage.picking .brief,.stage.picking .livebar{cursor:default}
 .pick-hud{position:absolute;z-index:20;left:73%;top:28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 14px;background:rgba(4,6,10,.88);border:1px solid var(--accent);border-radius:2px;pointer-events:none;box-shadow:var(--glow-accent);color:var(--text-body)}
@@ -265,17 +290,19 @@ button,input,select{font:inherit;color:inherit}
 /* flex:0 1 auto + min-height:0 + overflow: the rail takes its natural height when there's room, but
    SHRINKS and scrolls internally rather than pushing the browse list off the bottom when the console
    is short (the browse list below keeps a usable, scrollable minimum via .browse min-height). */
-.rail{flex:0 1 auto;min-height:0;overflow-y:auto;padding:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:row;gap:12px;background:rgba(4,6,10,.28)}
-.rail{align-items:flex-start}
+/* Two fixed columns, NOT flex: a step's width must not depend on whether it is
+   open, focused, or how many rows a scan returned — otherwise folding CREW or
+   scanning shoves LOCATION sideways and the rail visibly reflows under the cursor. */
+.rail{flex:0 1 auto;min-height:0;overflow-y:auto;padding:12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:12px;background:rgba(4,6,10,.28)}
 .stage.compact-context .rail{flex:0 0 auto;overflow:visible;padding:8px;gap:8px}
-.stage.compact-context .rail .step{padding:7px 10px;gap:0}
+.stage.compact-context .rail .step{gap:0}
 .stage.compact-context .rail .step>*:not(.step-head){display:none}
 .stage.compact-context .rail .step-num{width:18px;height:18px;font-size:9px}
-.stage.compact-context .rail .step:focus-within{padding:11px 12px;gap:9px}
+.stage.compact-context .rail .step:focus-within{gap:9px}
 .stage.compact-context .rail .step:focus-within>*:not(.step-head){display:flex}
-.step{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;border:1px solid var(--line);border-radius:2px;background:var(--void-800);padding:11px 12px}
-/* a folded step shrinks to its summary line; the open sibling takes the freed width */
-.step.closed{flex:0 1 auto;padding:9px 12px}
+.step{min-width:0;display:flex;flex-direction:column;gap:9px;border:1px solid var(--line);border-radius:2px;background:var(--void-800);padding:11px 12px}
+/* a folded step keeps its column — only its height collapses to the summary line */
+.step.closed{padding:9px 12px}
 .step-head{display:flex;align-items:center;gap:9px;width:100%;background:none;border:0;padding:0;text-align:left;cursor:pointer}
 .step-head .eb{color:var(--accent)}
 .step-head .chev{flex:none;font-size:9px;color:var(--text-faint);width:10px}
@@ -309,7 +336,10 @@ button,input,select{font:inherit;color:inherit}
 /* Actor sex readout (M/F) — quiet instrument data in the meta run, not a badge:
    no plate, no colour coding (amber/teal are signal here), the letter is the whole tag. */
 .sex-tag{flex:none;font-size:10px;color:var(--text-faint)}
-.chip-x{flex:none;border:0;background:none;color:var(--text-faint);font-size:13px;cursor:pointer;padding:0 3px}
+/* Padding + negative margin grow the hit box well past the glyph without
+   shifting layout — the × was a ~10px target and genuinely hard to hit. */
+.chip-x{flex:none;border:0;background:none;color:var(--text-faint);font-size:14px;line-height:1;cursor:pointer;
+  padding:6px 9px;margin:-6px -6px}
 .chip-x:hover{color:var(--signal-stop)}
 .near-list{display:flex;flex-direction:column;gap:4px;max-height:148px;overflow-y:auto}
 .near-row{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:var(--void-700);border:1px solid var(--line);border-radius:2px;padding:5px 8px;cursor:pointer}
@@ -387,7 +417,7 @@ button,input,select{font:inherit;color:inherit}
 .world-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:6px}
 .world-head .lbl{margin:0}
 .world-tools{display:flex;gap:4px}
-.chip-btn{border:1px solid var(--line);background:var(--void-900);border-radius:2px;padding:3px 7px;font:600 8px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--hud)}
+.chip-btn{border:1px solid var(--line);background:var(--void-900);border-radius:2px;padding:5px 10px;font:600 9px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--hud)}
 .chip-btn:hover{border-color:var(--accent);color:var(--accent)}
 .chip-btn.on{border-color:var(--accent);background:var(--accent-quiet);color:var(--accent)}
 .world-list{display:flex;flex-direction:column;gap:6px}
@@ -720,7 +750,7 @@ button,input,select{font:inherit;color:inherit}
   .stage{flex-direction:column;gap:12px}
   .console{width:100%;min-width:0;flex:1}
   .brief{position:static;width:auto;max-height:42%;flex:none}
-  .rail{flex-direction:column}
+  .rail{grid-template-columns:1fr}
   .stage.settings-mode .console{width:100%;min-width:0}
   .setting-row{grid-template-columns:1fr}
   .settings-switch{justify-self:start}
