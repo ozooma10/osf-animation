@@ -4,6 +4,7 @@ import { browserReducer } from "./reducer";
 import {
   WHEEL_MAX,
   activeScenes,
+  hottestPickTarget,
   labeledCast,
   playableItems,
   playableVisible,
@@ -93,13 +94,14 @@ function normalizeIndicators(payload: unknown): ActorIndicator[] {
 function normalizePickTargets(payload: unknown): PickTarget[] {
   if (!Array.isArray(payload)) return [];
   return payload.filter(isRecord).map((item) => ({
+    token: Number(item.token) || 0,
     x: Number(item.x),
     y: Number(item.y),
     cx: Number(item.cx),
     cy: Number(item.cy),
     rx: Number(item.rx),
     ry: Number(item.ry),
-  })).filter((item) => [item.x, item.y, item.cx, item.cy].every(Number.isFinite)
+  })).filter((item) => item.token !== 0 && [item.x, item.y, item.cx, item.cy].every(Number.isFinite)
     && item.rx > 0 && item.ry > 0);
 }
 
@@ -226,7 +228,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         // read as broken. Actor picks also stay armed on success (crew building
         // is a multi-click flow; Esc or CANCEL finishes); a furniture hit
         // disarms because there is exactly one anchor slot to fill.
-        if (!record.valid || !record.token) { showNotice("err", `No ${record.slot || "target"} was under that click — try its visible center, or use SCAN.`); break; }
+        // A local miss never reaches this handler (pickAt resolves clicks against the
+        // marker geometry) — an invalid reply means the clicked target vanished or became
+        // ineligible between the marker poll and the click.
+        if (!record.valid || !record.token) { showNotice("err", `That ${record.slot === "furniture" ? "furniture" : "actor"} is no longer available — pick again, or use SCAN.`); break; }
         if (record.slot === "furniture") {
           dispatch({ type: "pick/cancelled" });
           dispatch({ type: "anchor/selected", anchor: { token: Number(record.token), name: String(record.name || "furniture"), distance: typeof record.distance === "number" ? record.distance : null } });
@@ -416,7 +421,16 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     pickAt: (x, y, width, height) => {
       const slot = stateRef.current.pickMode;
       if (!slot) return;
-      send("osf.animation.pickScreen", { slot, x, y, width, height });
+      // Resolve the click against the SAME marker geometry the user is looking at
+      // (hottestPickTarget over the polled pick targets). No native re-projection at
+      // click time: the hot marker's token IS the selection, and a miss is decided
+      // right here — so the marker shown and the click result can never disagree.
+      const hot = hottestPickTarget(stateRef.current.pickTargets, x * width, y * height, width, height);
+      if (!hot) {
+        showNotice("err", `No ${slot === "furniture" ? "furniture" : "actor"} was under that click — aim for its marker, or use SCAN.`);
+        return;
+      }
+      send("osf.animation.pickScreen", { slot, token: hot.token });
     },
     cancelPick: () => { if (stateRef.current.pickMode) { dispatch({ type: "pick/cancelled" }); showNotice("info", "World selection cancelled."); } },
     toggleActor: (token) => { const actor = stateRef.current.nearbyActors.find((candidate) => candidate.token === token); if (actor) dispatch({ type: "cast/toggled", member: { token, name: actor.name, distance: actor.distance, species: actor.species || "human", sex: actor.sex } }); },

@@ -148,12 +148,15 @@ export interface ActorIndicator {
 }
 
 export interface PickTarget {
+  /** Native pick token for the target this marker stands on. A click resolves to
+   *  the hot marker and sends this token back, so the marker geometry the user
+   *  sees IS the click acceptance — there is no second native hit-test to drift. */
+  token: number;
   /** Marker anchor (above the rendered head), viewport-normalized (0..1). */
   x: number;
   y: number;
-  /** Hover hit-test ellipse: normalized center plus pixel radii, the same
-   *  acceptance geometry the native click hit-test uses — so the marker shows
-   *  exactly when a click would land. */
+  /** Hover/click hit-test ellipse: normalized center plus pixel radii
+   *  (hottestPickTarget scores against it for both the marker and the click). */
   cx: number;
   cy: number;
   rx: number;

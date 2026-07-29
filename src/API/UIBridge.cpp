@@ -901,9 +901,36 @@ namespace OSF::API
 			return root ? FindCameraInNode(root.get()) : nullptr;
 		}
 
+		// Rate limiter for camera-anomaly logs: picking polls at ~10 Hz, so an unhealthy
+		// camera would otherwise repeat the same line for as long as it stays unhealthy.
+		bool ShouldLogCameraAnomaly()
+		{
+			static std::chrono::steady_clock::time_point s_last{};
+			const auto now = std::chrono::steady_clock::now();
+			if (now - s_last < std::chrono::seconds(2)) {
+				return false;
+			}
+			s_last = now;
+			return true;
+		}
+
 		// PlayerCamera::cameraRoot is a mapped, runtime-proven field already used by the
 		// camera service. It supplies a lifetime pin and a fallback; ActiveWorldCamera()
 		// resolves the separate main-world renderer camera used for exact projection.
+		//
+		// Two health checks guard the result, because the reported failure mode of world
+		// picking was not "misses by a bit" but "markers and clicks land nowhere near the
+		// visible world, until further notice":
+		//   1. While OSF's scene orbit drives the camera (the browser is open — exactly when
+		//      picking runs), the orbit pose is the one view pose OSF computes itself, so it
+		//      can't go stale. A resolved camera sitting far from that pose is NOT the camera
+		//      the world is rendered through — prefer whichever known camera is at the pose.
+		//   2. worldToCam (what Project uses) is a CPU-side matrix rebuilt asynchronously from
+		//      the camera's world transform (see NiCamera.h); a probe point straight down the
+		//      camera's own forward must project to the viewport center. When matrix and
+		//      transform disagree beyond one frame of skew, fail the whole query: no markers
+		//      for that beat (plus a log saying why) beats markers that lie — and since a
+		//      click resolves against the marker the user saw, a click never projects at all.
 		std::optional<SafeViewProjection> CurrentViewProjection(float a_width, float a_height)
 		{
 			auto* playerCamera = RE::PlayerCamera::GetSingleton();
@@ -915,6 +942,32 @@ namespace OSF::API
 			SafeViewProjection out;
 			out.root = root;
 			out.camera = ActiveWorldCamera();
+
+			float orbitPos[3];
+			float orbitFwd[3];
+			if (Camera::CameraService::GetSingleton().SceneOrbitPose(orbitPos, orbitFwd)) {
+				const auto poseErrorSq = [&](RE::NiCamera* a_camera) {
+					const float dx = a_camera->world.translate.x - orbitPos[0];
+					const float dy = a_camera->world.translate.y - orbitPos[1];
+					const float dz = a_camera->world.translate.z - orbitPos[2];
+					return dx * dx + dy * dy + dz * dz;
+				};
+				constexpr float kPoseToleranceSq = 1.5f * 1.5f;  // generous: covers the orbit glide's frame lag
+				RE::NiCamera*   alt = FindCameraInNode(root.get());
+				const float     mainErr = out.camera ? poseErrorSq(out.camera) : std::numeric_limits<float>::max();
+				const float     altErr = (alt && alt != out.camera) ? poseErrorSq(alt) : std::numeric_limits<float>::max();
+				if (mainErr > kPoseToleranceSq) {
+					if (altErr < mainErr) {
+						if (ShouldLogCameraAnomaly()) {
+							REX::WARN("[UI] world-pick camera: storage camera sits {:.1f} from the live orbit pose — projecting through the cameraRoot camera instead ({:.1f})",
+								std::sqrt(mainErr), std::sqrt(altErr));
+						}
+						out.camera = alt;
+					} else if (ShouldLogCameraAnomaly()) {
+						REX::WARN("[UI] world-pick camera sits {:.1f} from the live orbit pose — picking may not line up", std::sqrt(mainErr));
+					}
+				}
+			}
 			if (!out.camera) {
 				return std::nullopt;
 			}
@@ -933,6 +986,25 @@ namespace OSF::API
 			}
 			out.up = out.right.Cross(out.forward);
 			if (out.up.Unitize() <= 0.001f) {
+				return std::nullopt;
+			}
+
+			// Health check 2 (see above): the camera's own forward axis must project to the
+			// viewport center. 0.12 normalized is loose enough to pass one frame of update
+			// skew during a violent orbit flick, and tight enough to catch a frozen matrix.
+			// A second probe offset to the right must land measurably off the first — a
+			// degenerate matrix collapses WorldToScreen to its (0,0) sentinel, which
+			// normalizes to exactly (0.5, 0.5) and would sail through the center check.
+			RE::NiPoint3 probe{ -1.0f, -1.0f, -1.0f };
+			RE::NiPoint3 probeRight{ -1.0f, -1.0f, -1.0f };
+			if (!out.Project(out.position + out.forward * 10.0f, probe) ||
+				std::abs(probe.x - 0.5f) > 0.12f || std::abs(probe.y - 0.5f) > 0.12f ||
+				!out.Project(out.position + out.forward * 10.0f + out.right, probeRight) ||
+				std::abs(probeRight.x - probe.x) < 0.005f) {
+				if (ShouldLogCameraAnomaly()) {
+					REX::WARN("[UI] world-pick projection rejected: camera matrix disagrees with its own transform (forward probe {:.2f},{:.2f}; right offset {:.3f})",
+						probe.x, probe.y, std::abs(probeRight.x - probe.x));
+				}
 				return std::nullopt;
 			}
 			return out;
@@ -1402,16 +1474,10 @@ namespace OSF::API
 			}
 		}
 
-		struct ScreenPick
-		{
-			RE::TESObjectREFR* ref = nullptr;
-			float score = std::numeric_limits<float>::max();
-			float depth = std::numeric_limits<float>::max();
-		};
-
-		// The screen-space acceptance ellipse a click (and the hover marker) test
-		// against: projected bound center plus clamped pixel radii. One function so
-		// the marker the view floats on hover and the actual click always agree.
+		// The screen-space acceptance ellipse of a pickable target: projected bound
+		// center plus clamped pixel radii. The view renders these as hover markers
+		// AND resolves the click against them (hottestPickTarget), so what the user
+		// sees lit is by construction what a click selects.
 		struct PickScreenBound
 		{
 			RE::NiPoint3 screen;  // normalized center; z = view depth
@@ -1494,23 +1560,6 @@ namespace OSF::API
 			return true;
 		}
 
-		void ConsiderScreenPick(const SafeViewProjection& a_projection, RE::TESObjectREFR* a_ref, bool a_actor,
-			float a_x, float a_y, float a_width, float a_height, ScreenPick& a_best, ScreenPick* a_nearest = nullptr)
-		{
-			PickScreenBound bound;
-			if (!ComputePickScreenBound(a_projection, a_ref, a_actor, a_width, a_height, bound)) {
-				return;
-			}
-			const float dx = (a_x - bound.screen.x) * a_width / bound.radiusX;
-			const float dy = (a_y - bound.screen.y) * a_height / bound.radiusY;
-			const float score = dx * dx + dy * dy;
-			if (a_nearest && score < a_nearest->score) {
-				*a_nearest = { a_ref, score, bound.screen.z };
-			}
-			if (score <= 1.0f && (score < a_best.score || (std::abs(score - a_best.score) < 0.0001f && bound.screen.z < a_best.depth))) {
-				a_best = { a_ref, score, bound.screen.z };
-			}
-		}
 		void SendScreenPick(const char* a_view, const std::string& a_slot, RE::TESObjectREFR* a_ref)
 		{
 			json reply{
@@ -1534,60 +1583,44 @@ namespace OSF::API
 			SendJson(a_view, "osf.animation.pick", reply);
 		}
 
+		// The view resolves a click against the SAME marker geometry it renders (the hot
+		// marker from projectPickables) and sends that target's token, so the target the
+		// user saw lit is by construction the one picked — no second projection pass at
+		// click time that could disagree with the markers (stale camera, frame skew).
+		// This side only re-validates that the token still names a live, eligible target.
 		void OnPickScreen(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
-			const json j = ParsePayload(a_payload);
-			const std::string slot = j.is_object() && j.value("slot", std::string{}) == "furniture" ? "furniture" : "actor";
-			const float x = j.is_object() ? j.value("x", -1.0f) : -1.0f;
-			const float y = j.is_object() ? j.value("y", -1.0f) : -1.0f;
-			const float width = std::clamp(j.is_object() ? j.value("width", 0.0f) : 0.0f, 320.0f, 10000.0f);
-			const float height = std::clamp(j.is_object() ? j.value("height", 0.0f) : 0.0f, 200.0f, 10000.0f);
-			const auto projection = CurrentViewProjection(width, height);
-			auto* player = RE::PlayerCharacter::GetSingleton();
-			if (!projection || !player || x < 0.0f || x > 1.0f || y < 0.0f || y > 1.0f) {
-				REX::DEBUG("[UI] osf.animation.pickScreen slot={} -> invalid projection/input", slot);
-				SendScreenPick(a_srcView, slot, nullptr);
-				return;
-			}
-
-			ScreenPick best;
-			ScreenPick nearest;  // closest candidate regardless of acceptance, for miss diagnostics
-			if (slot == "actor") {
-				std::vector<RE::Actor*> actors;
-				EnumerateHighActors(actors);
-				for (RE::Actor* actor : actors) {
-					if (!actor || actor->IsPlayerRef() || actor->IsDead() ||
-						player->GetPosition().GetSquaredDistance(actor->GetPosition()) > 4096.0f * 4096.0f) {
-						continue;
-					}
-					ConsiderScreenPick(*projection, actor, true, x, y, width, height, best, &nearest);
+			const json         j = ParsePayload(a_payload);
+			const std::string  slot = j.is_object() && j.value("slot", std::string{}) == "furniture" ? "furniture" : "actor";
+			const std::int32_t token = j.is_object() ? j.value("token", 0) : 0;
+			auto*              player = RE::PlayerCharacter::GetSingleton();
+			RE::TESObjectREFR* ref = token != 0 ? ResolveToken(token) : nullptr;
+			if (ref && player) {
+				bool eligible;
+				if (slot == "actor") {
+					auto* actor = ref->IsActor() ? static_cast<RE::Actor*>(ref) : nullptr;
+					eligible = actor && !actor->IsPlayerRef() && !actor->IsDead();
+				} else {
+					const auto base = ref->GetBaseObject();
+					eligible = !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN);
 				}
-			} else if (auto* tes = RE::TES::GetSingleton()) {
-				RE::NiPoint3A origin{};
-				origin.x = player->GetPosition().x;
-				origin.y = player->GetPosition().y;
-				origin.z = player->GetPosition().z;
-				tes->ForEachReferenceInRange(origin, 4096.0f, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
-					RE::TESObjectREFR* ref = a_ref.get();
-					const auto base = ref ? ref->GetBaseObject() : nullptr;
-					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN)) {
-						ConsiderScreenPick(*projection, ref, false, x, y, width, height, best, &nearest);
-					}
-					return RE::BSContainer::ForEachResult::kContinue;
-				});
+				if (!eligible || player->GetPosition().GetSquaredDistance(ref->GetPosition()) > 4096.0f * 4096.0f) {
+					ref = nullptr;
+				}
+			} else {
+				ref = nullptr;
 			}
-
-			REX::DEBUG("[UI] world PICK {} at ({:.3f},{:.3f}) -> {}", slot, x, y,
-				best.ref  ? std::format("'{}' ({:08X})", ScanLabel(best.ref), best.ref->GetFormID()) :
-				nearest.ref ? std::format("no hit (nearest '{}' score {:.2f})", ScanLabel(nearest.ref), nearest.score) :
-							  "no hit (no candidates on screen)");
-			SendScreenPick(a_srcView, slot, best.ref);
+			REX::DEBUG("[UI] world PICK {} token={} -> {}", slot, token,
+				ref ? std::format("'{}' ({:08X})", ScanLabel(ref), ref->GetFormID()) : "no longer a valid target");
+			SendScreenPick(a_srcView, slot, ref);
 		}
 
 		// While a pick is armed the view polls this (~10 Hz) and marks pickable
-		// targets — hover-only for actors, every candidate for furniture. Each
-		// item carries the marker anchor plus the exact click acceptance ellipse
-		// (ComputePickScreenBound), so hover feedback and OnPickScreen agree.
+		// targets — hover-only for actors, every candidate for furniture. Each item
+		// carries the target's token, the marker anchor, and the acceptance ellipse
+		// (ComputePickScreenBound). This is the ONLY projection pass in the pick
+		// flow: the view renders these markers, resolves the click against them,
+		// and sends back the hot marker's token (OnPickScreen just validates it).
 		void OnProjectPickables(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json        j = ParsePayload(a_payload);
@@ -1626,6 +1659,7 @@ namespace OSF::API
 					}
 				}
 				a_items.push_back(json{
+					{ "token", AllocToken(a_ref) },
 					{ "x", anchorScreen.x },
 					{ "y", anchorScreen.y },
 					{ "cx", bound.screen.x },
@@ -1648,8 +1682,9 @@ namespace OSF::API
 					if (items.size() >= kMaxActorTargets) {
 						break;
 					}
-					// Mirror OnPickScreen's eligibility exactly — a marker over a target
-					// a click would refuse (or vice versa) reads as a defect.
+					// Eligibility is decided HERE (a marker IS pickability); OnPickScreen
+					// re-checks the same conditions only to catch a target that died or
+					// left range between the marker poll and the click.
 					if (!actor || actor->IsPlayerRef() || actor->IsDead() ||
 						player->GetPosition().GetSquaredDistance(actor->GetPosition()) > 4096.0f * 4096.0f) {
 						continue;

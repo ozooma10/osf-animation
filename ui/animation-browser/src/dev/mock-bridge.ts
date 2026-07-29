@@ -85,9 +85,15 @@ export class StandaloneBridge implements AnimationBridge {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
     } else if (command === "osf.animation.anchorMatch") {
       this.later({ type: "osf.animation.anchorMatch", payload: { token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[Number(fields.token)] ?? [] } }, 70);
-    } else if (command === "osf.animation.pickCrosshair" || command === "osf.animation.pickScreen") {
+    } else if (command === "osf.animation.pickCrosshair") {
       const item = fields.slot === "furniture" ? MOCK_ANCHORS[0] : MOCK_ACTORS[0];
       this.later({ type: "osf.animation.pick", payload: { slot: fields.slot, valid: true, ...item } }, 60);
+    } else if (command === "osf.animation.pickScreen") {
+      // The view sends the hot marker's token (resolved against pickTargets geometry);
+      // this side only validates it, mirroring the native contract.
+      const pool = fields.slot === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS;
+      const item = pool.find((candidate) => candidate.token === Number(fields.token));
+      this.later({ type: "osf.animation.pick", payload: { slot: fields.slot, valid: !!item, ...(item ?? { token: 0 }) } }, 60);
     } else if (command === "osf.animation.scanNearby") {
       this.later({ type: "osf.animation.scanResults", payload: { kind: fields.kind, items: fields.kind === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS } }, 80);
     } else if (command === "osf.animation.projectPickables") {
@@ -95,13 +101,13 @@ export class StandaloneBridge implements AnimationBridge {
       const height = Number(fields.height) || 720;
       const items = fields.slot === "furniture"
         ? [
-          { x: 0.58, y: 0.52, cx: 0.58, cy: 0.58, rx: width * 0.05, ry: height * 0.08 },
-          { x: 0.72, y: 0.60, cx: 0.72, cy: 0.66, rx: width * 0.06, ry: height * 0.09 },
-          { x: 0.88, y: 0.44, cx: 0.88, cy: 0.50, rx: width * 0.04, ry: height * 0.07 },
+          { token: MOCK_ANCHORS[0].token, x: 0.58, y: 0.52, cx: 0.58, cy: 0.58, rx: width * 0.05, ry: height * 0.08 },
+          { token: MOCK_ANCHORS[1].token, x: 0.72, y: 0.60, cx: 0.72, cy: 0.66, rx: width * 0.06, ry: height * 0.09 },
+          { token: MOCK_ANCHORS[2].token, x: 0.88, y: 0.44, cx: 0.88, cy: 0.50, rx: width * 0.04, ry: height * 0.07 },
         ]
         : [
-          { x: 0.62, y: 0.30, cx: 0.62, cy: 0.42, rx: width * 0.055, ry: height * 0.16 },
-          { x: 0.82, y: 0.38, cx: 0.82, cy: 0.48, rx: width * 0.045, ry: height * 0.13 },
+          { token: MOCK_ACTORS[0].token, x: 0.62, y: 0.30, cx: 0.62, cy: 0.42, rx: width * 0.055, ry: height * 0.16 },
+          { token: MOCK_ACTORS[1].token, x: 0.82, y: 0.38, cx: 0.82, cy: 0.48, rx: width * 0.045, ry: height * 0.13 },
         ];
       this.later({ type: "osf.animation.pickTargets", payload: { slot: fields.slot, items } }, 5);
     } else if (command === "osf.animation.projectActors") {

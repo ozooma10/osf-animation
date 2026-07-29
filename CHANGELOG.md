@@ -2,7 +2,10 @@
 
 All notable changes to OSF Animation are documented here.
 
-## [1.4.0] - 2026-07-29
+## [Unreleased]
+
+### Fixed
+- **World picking no longer drifts away from the visible world.** Clicking an actor or furniture now selects exactly the target whose marker is lit under the cursor: the click resolves against the same marker geometry the browser renders, instead of running a second projection pass at click time that could disagree with what was on screen. The projection behind the markers also validates itself every poll — while the browser's orbit camera is live, the renderer camera is cross-checked against the pose OSF itself drives (switching to the correct camera when the renderer-storage slot goes stale), and a camera whose projection matrix disagrees with its own transform is rejected for that beat (markers briefly disappear and a warning is logged, rather than markers lying about where targets are). If picking still misbehaves, `OSF Animation.log` now says which camera check failed.
 
 ### Added
 - **The OSF Animation settings card is now organized into pages.** On an OSF UI new enough to render them, settings split into **General** (hotkeys), **Browser** (behavior, library, display), **Scenes** (launch defaults, scene gear), and **Advanced** (diagnostics) tabs instead of one long column. Older OSF UI versions keep showing the same settings as a flat list.

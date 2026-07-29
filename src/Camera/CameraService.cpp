@@ -565,6 +565,7 @@ namespace OSF::Camera
 					orbitCenterTargetZ = centerZ;
 					orbitFloorZ = centerZ - kOrbitCenterUp + kOrbitFloorMargin;
 					orbitReframeGlide = true;  // smooth at kOrbitReframeTime until settled (or the user steers)
+					lastOrbitPoseValid = false;  // don't serve a previous session's pose before the first drive tick
 				}
 				orbitDriving.store(true, std::memory_order_relaxed);
 				Input::InputService::GetSingleton().SetMouseCapture(true);
@@ -823,6 +824,33 @@ namespace OSF::Camera
 		const float yaw = std::atan2(-dx, dy);
 		const float pitch = std::atan2(dz, std::sqrt(dx * dx + dy * dy));
 		WriteFreeFlyTransform(state, pos, yaw, pitch);
+
+		// Publish the pose we just asked the engine to render from (see SceneOrbitPose):
+		// the browser's world picking validates the renderer camera against it.
+		const float aimLen = std::sqrt(dx * dx + dy * dy + dz * dz);
+		if (aimLen > 0.001f) {
+			lastOrbitPos[0] = pos.x;
+			lastOrbitPos[1] = pos.y;
+			lastOrbitPos[2] = pos.z;
+			lastOrbitFwd[0] = dx / aimLen;
+			lastOrbitFwd[1] = dy / aimLen;
+			lastOrbitFwd[2] = dz / aimLen;
+			lastOrbitPoseValid = true;
+		}
+	}
+
+	bool CameraService::SceneOrbitPose(float (&a_pos)[3], float (&a_fwd)[3])
+	{
+		if (!orbitDriving.load(std::memory_order_relaxed)) {
+			return false;
+		}
+		std::unique_lock l{ driveLock, std::try_to_lock };
+		if (!l.owns_lock() || !lastOrbitPoseValid) {
+			return false;  // a job-thread drive tick is mid-write — skip rather than stall the caller
+		}
+		std::copy(std::begin(lastOrbitPos), std::end(lastOrbitPos), a_pos);
+		std::copy(std::begin(lastOrbitFwd), std::end(lastOrbitFwd), a_fwd);
+		return true;
 	}
 
 	void CameraService::ReleaseStateOverride()

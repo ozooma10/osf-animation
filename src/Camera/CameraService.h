@@ -66,6 +66,15 @@ namespace OSF::Camera
 		// transforms are unusable while the player's ship is in space. Game-thread callers only.
 		[[nodiscard]] bool SceneOrbitAvailable() const;
 
+		// AUTHORITATIVE view pose while the self-driven scene orbit owns the camera: the world
+		// position and unit forward DriveSceneOrbit last wrote to the FreeFly state (so the same
+		// space the engine renders that state from). Returns false when no orbit is driving, or
+		// when a job-thread drive tick holds the lock (callers skip the check rather than stall).
+		// The scene browser's world picking validates the renderer camera it projects through
+		// against this pose — the orbit is the one camera pose OSF computes itself, so unlike a
+		// camera dug out of renderer storage it can never silently go stale.
+		bool SceneOrbitPose(float (&a_pos)[3], float (&a_fwd)[3]);
+
 		// BROWSE ORBIT (the scene browser's drag-to-look). While the browser is open OSF UI freezes all
 		// game input, so with no scene camera live the player has no way to move the camera at all.
 		// Ensure engages a scene-orbit around a_frameSubjects (empty -> the player) the first time the
@@ -172,6 +181,12 @@ namespace OSF::Camera
 		// A reframe glide is in flight (scene launch / per-node retarget): DriveSceneOrbit smooths at the
 		// slower kOrbitReframeTime until the pose settles; any manual input cancels it. Guarded by driveLock.
 		bool              orbitReframeGlide = false;
+		// Pose DriveSceneOrbit last wrote (position + unit forward), served by SceneOrbitPose.
+		// Guarded by driveLock; the validity flag is reset on each orbit enter so a new session
+		// can't briefly serve the previous session's pose before its first drive tick.
+		bool              lastOrbitPoseValid = false;
+		float             lastOrbitPos[3] = {};
+		float             lastOrbitFwd[3] = {};
 		// Cast to frame on the next orbit enter (SetOrbitFrameSubjects). Guarded by driveLock.
 		std::vector<std::uint32_t> frameSubjects;
 	};

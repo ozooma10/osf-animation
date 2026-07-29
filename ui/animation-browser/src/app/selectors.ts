@@ -1,5 +1,23 @@
 import { evaluateScene, type SceneEvaluation, type SceneModel, type SceneStage } from "../model";
-import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember } from "./state";
+import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember, type PickTarget } from "./state";
+
+/** The pick target whose acceptance ellipse contains the pointer, nearest first.
+ *  THE one scoring function for world picking: the marker layer uses it to light
+ *  the hot marker and the click handler uses it to resolve the selection, so the
+ *  two can never disagree. Pointer coordinates are in CSS pixels. */
+export function hottestPickTarget(
+  targets: readonly PickTarget[], px: number, py: number, width: number, height: number,
+): PickTarget | null {
+  let best: PickTarget | null = null;
+  let bestScore = 1;
+  for (const target of targets) {
+    const dx = (px - target.cx * width) / target.rx;
+    const dy = (py - target.cy * height) / target.ry;
+    const score = dx * dx + dy * dy;
+    if (score <= bestScore) { bestScore = score; best = target; }
+  }
+  return best;
+}
 
 export const WHEEL_MAX = 12;
 

@@ -14,6 +14,9 @@ export interface BrowserCommands {
   toggleMarkers(): void;
   scan(kind: "actor" | "furniture"): void;
   pick(kind: "actor" | "furniture"): void;
+  /** Resolve an armed world-pick click: x/y are viewport-normalized (0..1); the
+   *  controller scores them against the polled pick-marker geometry and sends the
+   *  hot marker's token — a click with no hot marker is a miss decided locally. */
   pickAt(x: number, y: number, width: number, height: number): void;
   cancelPick(): void;
   toggleActor(token: number): void;

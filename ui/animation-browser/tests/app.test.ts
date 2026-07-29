@@ -5,6 +5,7 @@ import {
   filteredLibrary,
   formatDuration,
   formatEstimate,
+  hottestPickTarget,
   isVanillaAnimation,
   libraryFolderTree,
   locationCastChoices,
@@ -67,7 +68,7 @@ describe("browser reducer", () => {
   });
 
   it("keeps pick targets only while the matching pick mode stays armed", () => {
-    const target = { x: 0.6, y: 0.3, cx: 0.6, cy: 0.42, rx: 70, ry: 110 };
+    const target = { token: 41, x: 0.6, y: 0.3, cx: 0.6, cy: 0.42, rx: 70, ry: 110 };
     const armed = browserReducer(createInitialState(), { type: "pick/armed", kind: "actor" });
     const polled = browserReducer(armed, { type: "pickTargets/received", slot: "actor", items: [target] });
     expect(polled.pickTargets).toEqual([target]);
@@ -202,6 +203,22 @@ describe("browser selectors", () => {
     expect(npcFirst.showPlayer).toBe(true);
     expect(npcFirst.actors.map((member) => member.token)).toEqual([8]);
   });
+  it("resolves the hot pick target with the shared marker/click scoring", () => {
+    // 1000x500 viewport. One scoring function serves the hover marker AND the
+    // click resolution, so these expectations pin the world-pick acceptance.
+    const near = { token: 1, x: 0.3, y: 0.2, cx: 0.3, cy: 0.4, rx: 60, ry: 100 };
+    const far = { token: 2, x: 0.8, y: 0.3, cx: 0.8, cy: 0.5, rx: 60, ry: 100 };
+    // Dead center of `near`'s ellipse.
+    expect(hottestPickTarget([near, far], 300, 200, 1000, 500)?.token).toBe(1);
+    // Inside `far`'s ellipse, outside `near`'s.
+    expect(hottestPickTarget([near, far], 810, 260, 1000, 500)?.token).toBe(2);
+    // Just inside the horizontal edge of `near` (dx = 59/60 < 1).
+    expect(hottestPickTarget([near], 359, 200, 1000, 500)?.token).toBe(1);
+    // Just outside every ellipse → no hot target, which the click treats as a miss.
+    expect(hottestPickTarget([near, far], 500, 480, 1000, 500)).toBeNull();
+    expect(hottestPickTarget([], 300, 200, 1000, 500)).toBeNull();
+  });
+
   it("selects a ready action from the unified browse surface", () => {
     const state = { ...createInitialState(), catalog: [solo, pair], catalogReceived: true };
     expect(validSelection(state)).toBe("solo");

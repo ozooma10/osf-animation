@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { BrowserCommands } from "./app/commands";
-import { activeScenes, labeledCast, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
+import { activeScenes, hottestPickTarget, labeledCast, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
 import type { BrowserState } from "./app/state";
 import { LiveBar } from "./components/LiveBar";
 import { AnchorPanel } from "./features/anchor/AnchorPanel";
@@ -89,18 +89,9 @@ function PickMarkers({ state }: { state: BrowserState }) {
   }, [state.pickMode]);
 
   if (!state.pickMode || !state.pickTargets.length) return null;
-  // Same ellipse acceptance the native click hit-test applies, so the hot
-  // marker shows exactly on the target a click would select.
-  let best: BrowserState["pickTargets"][number] | null = null;
-  let bestScore = 1;
-  if (mouse) {
-    for (const target of state.pickTargets) {
-      const dx = (mouse.x - target.cx * innerWidth) / target.rx;
-      const dy = (mouse.y - target.cy * innerHeight) / target.ry;
-      const score = dx * dx + dy * dy;
-      if (score <= bestScore) { bestScore = score; best = target; }
-    }
-  }
+  // Same scoring the click handler resolves with (hottestPickTarget), so the
+  // hot marker shows exactly on the target a click would select.
+  const best = mouse ? hottestPickTarget(state.pickTargets, mouse.x, mouse.y, innerWidth, innerHeight) : null;
   // Furniture pick shows every candidate so pickable spots are discoverable;
   // actor pick stays hover-only (a marker per crowd member would be noise).
   const shown = state.pickMode === "furniture" ? state.pickTargets : state.pickTargets.filter((target) => target === best);
