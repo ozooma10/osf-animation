@@ -1705,28 +1705,36 @@ namespace OSF::API
 			const bool actorSlot = slot == "actor";
 
 			// Gather every candidate WITH its screen bound, then gate and rank on that
-			// bound: on-screen and within kMaxPickDepth of the pick camera. Eligibility
-			// is decided HERE (a marker IS pickability); OnPickScreen re-checks only to
-			// catch a target that died or left range between the marker poll and the click.
+			// bound: on-screen and rendering at least kMin*SizePx (sight-ranged, unit-free).
+			// Eligibility is decided HERE (a marker IS pickability); OnPickScreen re-checks
+			// only to catch a target that died or left range between marker poll and click.
 			struct Candidate
 			{
 				RE::TESObjectREFR* ref;
 				PickScreenBound    bound;
 			};
 			std::vector<Candidate> candidates;
-			std::size_t            droppedSmall = 0;
+			// Per-stage drop counters, so the periodic stats line pinpoints WHICH gate
+			// eats targets when "some actors won't mark" (in-game report: exteriors).
+			std::size_t enumerated = 0;    // reached us from the engine at all
+			std::size_t ineligible = 0;    // player / dead
+			std::size_t noBound = 0;       // no rendered 3D / projection failed
+			std::size_t droppedSmall = 0;  // renders too small to aim at
+			std::size_t offScreen = 0;
 			const auto consider = [&](RE::TESObjectREFR* a_ref) {
 				PickScreenBound bound;
 				if (!ComputePickScreenBound(*projection, a_ref, actorSlot, width, height, bound)) {
+					++noBound;
 					return;
 				}
 				if (bound.sizePx < (actorSlot ? kMinActorSizePx : kMinFurnitureSizePx)) {
-					++droppedSmall;  // renders too small to aim at = beyond picking range — SCAN covers those
+					++droppedSmall;  // beyond deliberate-aim range — SCAN covers those
 					return;
 				}
 				if (bound.screen.x < -0.1f || bound.screen.x > 1.1f ||
 					bound.screen.y < -0.1f || bound.screen.y > 1.1f) {
-					return;  // comfortably off-screen — never hoverable
+					++offScreen;  // comfortably off-screen — never hoverable
+					return;
 				}
 				candidates.push_back({ a_ref, bound });
 			};
@@ -1734,8 +1742,10 @@ namespace OSF::API
 			if (projection && player && actorSlot) {
 				std::vector<RE::Actor*> actors;
 				EnumerateHighActors(actors);
+				enumerated = actors.size();
 				for (RE::Actor* actor : actors) {
 					if (!actor || actor->IsPlayerRef() || actor->IsDead()) {
+						++ineligible;
 						continue;
 					}
 					consider(actor);
@@ -1750,6 +1760,7 @@ namespace OSF::API
 						RE::TESObjectREFR* ref = a_ref.get();
 						const auto base = ref ? ref->GetBaseObject() : nullptr;
 						if (ref && !ref->IsPlayerRef() && !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN)) {
+							++enumerated;
 							consider(ref);
 						}
 						return RE::BSContainer::ForEachResult::kContinue;
@@ -1757,8 +1768,14 @@ namespace OSF::API
 				}
 			}
 
-			// Periodic snapshot of what the gates saw — enough to diagnose "nothing
-			// pickable" (or a wrong-unit assumption) from the log alone.
+			// Periodic snapshot of what each gate saw, at DEBUG (Settings > OSF
+			// Animation > Advanced > Log level). Reading one line resolves where
+			// unmarkable targets are lost:
+			//   enumerated low while more actors are visible -> they are not in the
+			//     engine's HIGH-process list (exteriors demote actors beyond an AI
+			//     radius around the player; OSF must not touch the low list);
+			//   small high -> the on-screen size gate (report largest/smallest px);
+			//   no-bound high -> no rendered 3D or a failing projection.
 			{
 				static std::chrono::steady_clock::time_point s_lastStats{};
 				const auto now = std::chrono::steady_clock::now();
@@ -1770,8 +1787,8 @@ namespace OSF::API
 						nearDepth = std::min(nearDepth, candidate.bound.screen.z);
 						bigSize = std::max(bigSize, candidate.bound.sizePx);
 					}
-					REX::DEBUG("[UI] pickables {}: {} candidates ({} too small), nearest depth {:.2f}, largest {:.0f}px",
-						slot, candidates.size(), droppedSmall,
+					REX::DEBUG("[UI] pickables {}: {} markers of {} enumerated (dropped: {} ineligible, {} no-bound, {} small, {} off-screen), nearest depth {:.2f}, largest {:.0f}px",
+						slot, candidates.size(), enumerated, ineligible, noBound, droppedSmall, offScreen,
 						candidates.empty() ? -1.0f : nearDepth, bigSize);
 				}
 			}
