@@ -8,6 +8,7 @@ import {
   isEmote,
   isWheelEmote,
   isWheelStage,
+  playableSceneTitle,
   playableStageTitle,
   sceneById,
   stageClean,
@@ -77,7 +78,9 @@ function AnimationList({ state, scene, canPlay, focusStage, commands }: { state:
   const shown = focused ? [focused] : clean.length ? folded ? clean : [...clean, ...noise] : scene.stages;
   return <div class="info-box"><div class="lbl">ANIMATIONS · {shown.length}{folded ? ` OF ${scene.stages.length}` : ""}</div><div class="anim-list">
     {shown.map((stage) => {
-      const label = stage.name || (isEmote(scene) ? scene.stages.length === 1 ? scene.title : `Part ${stage.index + 1}` : `Stage ${stage.index}`);
+      const label = stage.name
+        ? playableStageTitle(scene, stage)
+        : isEmote(scene) ? scene.stages.length === 1 ? playableSceneTitle(scene) : `Part ${stage.index + 1}` : `Stage ${stage.index}`;
       const loop = formatDuration(stage.loopSec);
       const duration = loop || formatDuration(stage.estSec);
       return <div class="anim-row" key={stage.index}><div class="anim-main"><span class="anim-name">{label}</span><div class="anim-tags">{stage.tags.slice(0, 3).map((tag) => <span class="pill" key={tag}>{tag}</span>)}</div></div>
@@ -137,13 +140,13 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
     : action ? `${scene.openEnded ? "holds until stopped" : "ends automatically"} · ${anchor}`
       : `${evaluation.seated}/${evaluation.actorCount || "?"} crew · ${anchor}`;
   const wholeWheel = isWheelEmote(scene);
-  const itemTitle = focusedStage ? playableStageTitle(scene, focusedStage) : scene.title;
+  const itemTitle = focusedStage ? playableStageTitle(scene, focusedStage) : playableSceneTitle(scene);
   const itemKind = focusedStage ? "ANIMATION" : action ? "ACTION" : "SCENE";
   const reason = !state.ready ? "Engine not connected." : ready ? "" : evaluation.reason;
   return <>
     <div class={`brief-status ${ready ? "" : "warn"}`}><span class="dot"/><p class="eb">{ready ? `${itemKind} · READY TO PLAY` : `${itemKind} · NOT READY`}</p></div>
     <div class="brief-title">{itemTitle}{(focusedStage ? formatDuration(focusedStage.loopSec ?? focusedStage.estSec) : formatEstimate(scene)) && <span class="card-dur">{focusedStage ? formatDuration(focusedStage.loopSec ?? focusedStage.estSec) : formatEstimate(scene)}</span>}</div>
-    {focusedStage && scene.stages.length > 1 && <div class="mono wrap brief-collection">{scene.title}</div>}
+    {focusedStage && scene.stages.length > 1 && <div class="mono wrap brief-collection">{playableSceneTitle(scene)}</div>}
     {state.filters.debugMode && <div class="mono wrap brief-src">{scene.id} · {scene.sourceFile || "live registry"}</div>}
     <div class={`brief-line ${ready ? "" : "warn"}`}><span class="mono">{summary}</span></div>
     {(focusedStage || wholeWheel || state.wheelCustomized) && <div class="brief-pin">{focusedStage ? <WheelControls state={state} scene={scene} stage={focusedStage} wide commands={commands}/> : wholeWheel && <WheelControls state={state} scene={scene} wide commands={commands}/>} {state.wheelCustomized && <button class="pin-btn reset" title="Restore installed default animations" onClick={commands.resetWheel}>RESET DEFAULTS</button>}</div>}

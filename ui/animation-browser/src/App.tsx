@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { BrowserCommands } from "./app/commands";
-import { activeScenes, hottestPickTarget, labeledCast, labeledFurniture, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
+import { activeScenes, hottestPickTarget, labeledCast, labeledFurniture, playableSceneTitle, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
 import type { BrowserState } from "./app/state";
 import { LiveBar } from "./components/LiveBar";
 import { AnchorPanel } from "./features/anchor/AnchorPanel";
@@ -39,7 +39,7 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
   const stages = scene?.stages ?? [];
   const canAdvance = stages.length > 1;
   const stage = scene && active && canAdvance && active.stage >= 0 && active.stage < stages.length ? { current: active.stage + 1, total: stages.length, name: stageLabel(scene, active.stage), nextName: active.stage + 1 < stages.length ? stageLabel(scene, active.stage + 1) : undefined } : null;
-  return <LiveBar running={!!state.lastHandle} handle={state.lastHandle} title={scene?.title ?? state.lastSceneId} stage={stage} canAdvance={canAdvance} onAdvance={() => commands.advance()} onStop={() => commands.stop()} onExpand={() => commands.setMinimized(false)}/>;
+  return <LiveBar running={!!state.lastHandle} handle={state.lastHandle} title={scene ? playableSceneTitle(scene) : state.lastSceneId} stage={stage} canAdvance={canAdvance} onAdvance={() => commands.advance()} onStop={() => commands.stop()} onExpand={() => commands.setMinimized(false)}/>;
 }
 
 function FurnitureIcon() {

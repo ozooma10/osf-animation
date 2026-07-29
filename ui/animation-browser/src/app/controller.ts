@@ -4,10 +4,12 @@ import { browserReducer } from "./reducer";
 import {
   WHEEL_MAX,
   activeScenes,
+  comparePlayableItems,
   hottestPickTarget,
   labeledCast,
   labeledFurniture,
   playableItems,
+  playableSceneTitle,
   playableVisible,
   sceneById,
   sceneTitle,
@@ -361,14 +363,19 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", sceneId: selectedId });
       return;
     }
-    const visible = playableItems(state).filter((item) => playableVisible(state, item));
+    // Catalog and library replies are independent. Do not let whichever lane
+    // arrives first become an accidental sticky default.
+    if (!state.selectedId && (!state.catalogReceived || !state.libraryReceived)) return;
+    const visible = playableItems(state)
+      .filter((item) => playableVisible(state, item))
+      .sort((a, b) => comparePlayableItems(state, a, b));
     const currentValid = visible.some((item) => item.scene.id === state.selectedId
       && (item.stage?.index ?? null) === state.selectedStage);
     if (!currentValid) {
       const first = visible[0];
       dispatch({ type: "selection/changed", sceneId: first?.scene.id ?? null, stage: first?.stage?.index ?? null });
     }
-  }, [state.catalog, state.library, state.mode, state.filters, state.allSpecies, state.browseAll, state.browseKind, state.libCustomOnly, state.libFull, state.libShowAll, state.cast, state.furniture, state.anchorMatch]);
+  }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.browseKind, state.libCustomOnly, state.libFull, state.libShowAll, state.cast, state.furniture, state.anchorMatch]);
 
   useEffect(() => {
     document.body.classList.toggle("wheel-mode", !!state.wheel);
@@ -485,7 +492,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const roleNames = scene.roles.map((role) => role.name);
       if (roleNames.length === current.cast.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
       if (scene.requiresFurniture && current.furniture) fields.furnitureToken = current.furniture.token;
-      showNotice("info", `Launching "${effectiveStage != null ? `${scene.title} · ${stageLabel(scene, effectiveStage)}` : scene.title}"…`);
+      const title = playableSceneTitle(scene);
+      showNotice("info", `Launching "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
       send("osf.animation.launch", fields);
     },
     stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "scene/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },

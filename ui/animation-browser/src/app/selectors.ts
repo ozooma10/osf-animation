@@ -105,9 +105,40 @@ export function playableKey(sceneId: string, stage: number | null): string {
   return wheelKey(sceneId, stage);
 }
 
+/**
+ * Turn engine/export names into labels without changing registry identity.
+ * Authored prose is left alone; separators, CamelCase, and numeric suffixes
+ * used by vanilla clip names are made readable.
+ */
+export function readableAnimationName(value: string, pose = false): string {
+  let label = value.trim()
+    .replace(/^LooseAnim[_\s-]*/i, "")
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([A-Za-z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (pose) label = label.replace(/\s+Pose$/i, "").trim();
+  return label || value;
+}
+
+function readableCollectionName(value: string): string {
+  return value.split(/(\s+[·—]\s+|\s*\/\s*)/).map((part) =>
+    /^[\s/·—]+$/.test(part) ? part : readableAnimationName(part)).join("");
+}
+
+export function playableSceneTitle(scene: SceneModel): string {
+  return readableCollectionName(scene.title);
+}
+
 export function playableStageTitle(scene: SceneModel, stage: SceneStage): string {
-  if (scene.stages.length === 1) return scene.title.replace(/^Vanilla · /, "");
-  return stage.name || `Animation ${stage.index + 1}`;
+  const pose = stage.tags.some((tag) => tag.toLowerCase() === "pose");
+  if (scene.stages.length === 1 && !stage.name) {
+    return readableCollectionName(scene.title.replace(/^Vanilla · /, ""));
+  }
+  return stage.name ? readableAnimationName(stage.name, pose) : `Animation ${stage.index + 1}`;
 }
 
 export function playableItems(state: BrowserState): PlayableItem[] {
@@ -120,7 +151,7 @@ export function playableItems(state: BrowserState): PlayableItem[] {
       kind,
       scene,
       stage: null,
-      title: scene.title,
+      title: playableSceneTitle(scene),
       collection: scene.folder,
     });
   }
@@ -133,12 +164,38 @@ export function playableItems(state: BrowserState): PlayableItem[] {
         scene,
         stage,
         title: playableStageTitle(scene, stage),
-        collection: [scene.folder, scene.stages.length > 1 ? scene.title.replace(/^Vanilla · /, "") : ""]
+        collection: [scene.folder, scene.stages.length > 1
+          ? readableCollectionName(scene.title.replace(/^Vanilla · /, ""))
+          : ""]
           .filter(Boolean).join(" / "),
       });
     }
   }
   return items;
+}
+
+function playablePreference(item: PlayableItem): number {
+  if (item.kind === "animation" && item.stage) {
+    const pose = item.stage.tags.some((tag) => tag.toLowerCase() === "pose");
+    const photomode = /(^|\/)photomode(\/|$)/i.test(item.scene.id)
+      || item.scene.tags.some((tag) => tag.toLowerCase() === "photomode");
+    if (pose && photomode) return 0;
+    if (pose) return 1;
+    return 2;
+  }
+  if (item.kind === "scene") return 3;
+  return 4;
+}
+
+/** Shared ordering for rendering and automatic selection. */
+export function comparePlayableItems(state: BrowserState, a: PlayableItem, b: PlayableItem): number {
+  const anchored = (item: PlayableItem) => Number(
+    !!state.furniture && item.scene.requiresFurniture && fitsKeyedAnchor(state, item.scene) === true);
+  return anchored(b) - anchored(a)
+    || playablePreference(a) - playablePreference(b)
+    || b.scene.priority - a.scene.priority
+    || a.title.localeCompare(b.title)
+    || a.key.localeCompare(b.key);
 }
 
 export function matchesPlayableSearch(state: BrowserState, item: PlayableItem): boolean {
@@ -191,7 +248,8 @@ export function sceneById(state: BrowserState, id: string | null): SceneModel | 
 }
 
 export function sceneTitle(state: BrowserState, id: string): string {
-  return sceneById(state, id)?.title ?? (id || "scene");
+  const scene = sceneById(state, id);
+  return scene ? playableSceneTitle(scene) : id || "scene";
 }
 
 export function activeScenes(state: BrowserState): ActiveScene[] {
@@ -415,8 +473,9 @@ export function wheelKey(scene: string, stage: number | null): string {
 }
 
 export function wheelStageTitle(scene: SceneModel, stage: SceneStage): string {
-  if (stage.name) return stage.name;
-  return scene.stages.length === 1 ? scene.title : `${scene.title} · Stage ${stage.index + 1}`;
+  if (stage.name) return playableStageTitle(scene, stage);
+  const title = playableSceneTitle(scene);
+  return scene.stages.length === 1 ? title : `${title} · Stage ${stage.index + 1}`;
 }
 
 export function wheelCandidates(state: BrowserState): WheelCandidate[] {
@@ -424,8 +483,8 @@ export function wheelCandidates(state: BrowserState): WheelCandidate[] {
     key: wheelKey(scene.id, null),
     scene: scene.id,
     stage: null,
-    title: scene.title,
-    detail: scene.title,
+    title: playableSceneTitle(scene),
+    detail: playableSceneTitle(scene),
     pinned: scene.pinned,
     priority: scene.priority,
     weight: scene.weight,
@@ -440,7 +499,7 @@ export function wheelCandidates(state: BrowserState): WheelCandidate[] {
         scene: scene.id,
         stage: stage.index,
         title,
-        detail: stage.name ? `${scene.title} · ${stage.name}` : title,
+        detail: stage.name ? `${playableSceneTitle(scene)} · ${playableStageTitle(scene, stage)}` : title,
         pinned: stage.pinned,
         priority: scene.priority,
         weight: scene.weight,
@@ -476,7 +535,8 @@ export function formatEstimate(scene: Pick<SceneModel, "estSec" | "estPartial" |
 }
 
 export function stageLabel(scene: SceneModel, index: number): string {
-  return scene.stages.find((stage) => stage.index === index)?.name || `stage ${index}`;
+  const stage = scene.stages.find((candidate) => candidate.index === index);
+  return stage ? playableStageTitle(scene, stage) : `stage ${index}`;
 }
 
 export function wheelGeometry(count: number): { rx: number; ry: number } {

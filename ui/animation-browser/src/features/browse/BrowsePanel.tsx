@@ -2,6 +2,7 @@ import type { BrowserCommands } from "../../app/commands";
 import {
   activeScenes,
   anchorShort,
+  comparePlayableItems,
   evaluateForState,
   formatDuration,
   formatEstimate,
@@ -11,6 +12,7 @@ import {
   packKey,
   packLabel,
   playableItems,
+  playableSceneTitle,
   playableVisible,
   sceneById,
   speciesLabel,
@@ -166,10 +168,7 @@ function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: Br
   const entries = playableItems(state).filter((item) => playableVisible(state, item))
     .map((item) => ({ item, evaluation: evaluateForState(state, item.scene) }));
   const rank = (a: EvaluatedPlayable, b: EvaluatedPlayable) => {
-    const anchored = (entry: EvaluatedPlayable) => Number(!!state.furniture && entry.item.scene.requiresFurniture && entry.evaluation.anchorGate);
-    return anchored(b) - anchored(a)
-      || b.item.scene.priority - a.item.scene.priority
-      || a.item.title.localeCompare(b.item.title);
+    return comparePlayableItems(state, a.item, b.item);
   };
   const ready = entries.filter((entry) => entry.evaluation.gaps === 0).sort(rank);
   const rest = entries.filter((entry) => entry.evaluation.gaps > 0).sort(rank);
@@ -197,7 +196,7 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
       const scene = sceneById(state, active.sceneId);
       const stages = scene?.stages ?? [];
       return <div class={`active-card ${state.selectedId === active.sceneId ? "selected" : ""}`} key={active.handle}>
-        <button class="active-main" onClick={() => commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{scene?.title ?? active.sceneId}</span><span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
+        <button class="active-main" onClick={() => commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{scene ? playableSceneTitle(scene) : active.sceneId}</span><span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
           {stages.length > 1 && active.stage >= 0 && active.stage < stages.length && <div class="active-stage mono">STAGE {active.stage + 1}/{stages.length} · {stageLabel(scene!, active.stage).toUpperCase()}</div>}
           {!!active.cast.length && <div class="active-cast">{active.cast.map((member) => <span class={`active-actor ${member.player ? "player" : ""}`} key={member.token}>{member.name}{member.player ? " · YOU" : ""}</span>)}</div>}
         </button>

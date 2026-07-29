@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { browserReducer } from "../src/app/reducer";
 import {
   browseVisible,
+  comparePlayableItems,
   filteredLibrary,
   formatDuration,
   formatEstimate,
@@ -12,6 +13,7 @@ import {
   locationCastChoices,
   playableItems,
   playableVisible,
+  readableAnimationName,
   validSelection,
   wheelGeometry,
   wheelPool,
@@ -246,6 +248,32 @@ describe("browser selectors", () => {
     expect(validSelection(state)).toBe("solo");
     expect(browseVisible(state, pair)).toBe(false);
     expect(validSelection({ ...state, browseAll: true })).toBe("solo");
+  });
+
+  it("prioritizes photomode poses ahead of actions and cleans exported names", () => {
+    const photomode = normalizeScene({
+      id: "vanilla/photomode/female",
+      title: "Vanilla · Photomode / Female",
+      tags: ["vanilla", "photomode"],
+      actorCount: 1,
+      stages: [{ index: 0, name: "ArmsCrossed_Pose", tags: ["pose"], clipCount: 1, openEnded: true }],
+    });
+    const state = {
+      ...createInitialState(),
+      catalog: [solo],
+      catalogReceived: true,
+      library: [{ ...photomode, library: true }],
+      libraryReceived: true,
+    };
+    const items = playableItems(state).filter((item) => playableVisible(state, item))
+      .sort((a, b) => comparePlayableItems(state, a, b));
+
+    expect(items.map((item) => [item.kind, item.title])).toEqual([
+      ["animation", "Arms Crossed"],
+      ["action", "Solo"],
+    ]);
+    expect(readableAnimationName("LooseAnim_FormalApplause01")).toBe("Formal Applause 01");
+    expect(readableAnimationName("SitOnGround_Pose", true)).toBe("Sit On Ground");
   });
 
   it("applies the unavailable-scene visibility preference", () => {
