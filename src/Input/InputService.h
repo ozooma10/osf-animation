@@ -18,9 +18,6 @@ namespace OSF::Input
 		// Swaps the vfunc. Call once the UI singleton exists (kPostPostDataLoad). Idempotent.
 		bool Install();
 
-		// True once the vfunc hook is installed.
-		bool Installed() const;
-
 		// The runtime registers HOW a verb executes (it drives the active scene + clock). Called on the game thread.
 		void SetVerbHandler(std::function<void(Verb, const Grant&)> a_handler);
 

@@ -164,6 +164,7 @@ def build_card(scene, file_defaults, kw_by_formid):
     est_partial = False
     open_ended = False
     actor_count = 0
+    species = ""
     for i, st in enumerate(scene["stages"]):
         if not isinstance(st, dict):
             sys.exit(f"error: scene '{sid}': bare-array stage shorthand not modeled here")
@@ -185,6 +186,14 @@ def build_card(scene, file_defaults, kw_by_formid):
                 loop_sec = f32(clip["sec"])
         if actor_count == 0:
             actor_count = len(files)
+        # Species from the clip paths, derived here while the per-stage file list is in scope
+        # (the emitted stage dict deliberately carries no file text — the old `sig` field was
+        # ~490 KB of dead payload no consumer read).
+        if not species:
+            for f in files:
+                species = species_from_path(f)
+                if species:
+                    break
 
         # DesugarLinear: timer>0 -> hold+timer (or count if loops>0 too); loops>0 -> count; else hold.
         sc_est = None
@@ -220,22 +229,12 @@ def build_card(scene, file_defaults, kw_by_formid):
             "name": st.get("name", ""),
             "tags": st.get("tags", []),
             "clipCount": len(files),
-            "sig": "".join(f + "\n" for f in files),
             "loopSec": sec_or_null(loop_sec),
             "timerSec": f32(out_timer) if out_timer > 0.0 else None,
             "loops": out_loops if out_loops >= 0 else None,
             "openEnded": sc_open,
             "estSec": sec_or_null(sc_est),
         })
-
-    species = ""
-    for st in stages:
-        for f in st["sig"].splitlines():
-            species = species_from_path(f)
-            if species:
-                break
-        if species:
-            break
 
     unlisted = scene.get("unlisted", file_defaults["unlisted"])
     return {
@@ -247,6 +246,13 @@ def build_card(scene, file_defaults, kw_by_formid):
         "tags": scene.get("tags", []),
         "actorCount": actor_count,
         "genders": ["any"] * actor_count,  # library packs author no roles -> anonymous any-gender slots
+        "roles": [{"name": "", "gender": "any"} for _ in range(actor_count)],
+        "priority": 0,
+        "weight": 1,
+        # BuildCatalog emits the def's resolved policy; library packs default to no strip.
+        "stripActors": False,
+        "lockPlayer": True,
+        "fade": False,
         "requiresFurniture": bool(anchor),
         "anchors": anchor_names,
         "unlisted": unlisted,

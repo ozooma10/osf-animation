@@ -92,16 +92,21 @@ namespace OSF::Audio::Wwise
 			if (a_size < 12 || std::memcmp(b, "RIFF", 4) != 0 || std::memcmp(b + 8, "WAVE", 4) != 0) {
 				return RE::BGSAudio::AkCodecID::kVorbis;
 			}
-			for (std::uint32_t i = 12; i + 8 <= a_size;) {
+			// 64-bit walk index: a corrupt chunkSize near UINT32_MAX would wrap a 32-bit index into
+			// an infinite loop (or a ~4 GiB overread of the fmt tag). The next index can only grow.
+			for (std::uint64_t i = 12; i + 8 <= a_size;) {
 				std::uint32_t chunkSize = 0;
 				std::memcpy(&chunkSize, b + i + 4, 4);
-				if (std::memcmp(b + i, "fmt ", 4) == 0 && i + 10 <= a_size) {
+				if (std::memcmp(b + i, "fmt ", 4) == 0) {
+					if (i + 10 > a_size) {
+						break;  // fmt chunk truncated
+					}
 					std::uint16_t tag = 0;
 					std::memcpy(&tag, b + i + 8, 2);
 					return (tag == 0xFFFE) ? RE::BGSAudio::AkCodecID::kPCM
 					                       : RE::BGSAudio::AkCodecID::kVorbis;
 				}
-				i += 8 + chunkSize + (chunkSize & 1);
+				i += 8ull + chunkSize + (chunkSize & 1);
 			}
 			return RE::BGSAudio::AkCodecID::kVorbis;
 		}

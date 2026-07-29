@@ -63,7 +63,7 @@ export function normalizeScene(raw: Raw): SceneModel {
   const genders = Array.isArray(raw.genders) ? raw.genders : [];
   const roles = normalizeRoles(raw.roles, genders, actorCount);
   const tags = Array.isArray(raw.tags) ? raw.tags.map(String) : [];
-  const requiresFurniture = Boolean(raw.requiresFurniture || raw.anchorRequired || raw.anchor);
+  const requiresFurniture = Boolean(raw.requiresFurniture);
   return {
     id,
     title: String(raw.title || raw.name || id || "Unnamed scene"),
@@ -166,23 +166,16 @@ function normalizeRoles(roles: unknown, genders: unknown[], actorCount: number):
   }));
 }
 
+// Derived from the only shape signal the bridge actually sends (stageCount): the card
+// payload has no shape/nodeCount/branchCount keys, so a graph scene simply reports its
+// linear stages (0) — the old alias keys were a contract the native side never honoured.
 function normalizeShape(raw: Raw, actorCount: number): SceneModel["shape"] {
-  if (raw.shape && typeof raw.shape === "object") {
-    return {
-      kind: String(raw.shape.kind || "linear"),
-      stages: Number(raw.shape.stages || raw.shape.stageCount || 0),
-      nodes: Number(raw.shape.nodes || raw.shape.nodeCount || 0),
-      branches: Number(raw.shape.branches || raw.shape.branchCount || 0),
-    };
-  }
-  const stages = Number(raw.stageCount || raw.linearStageCount || 0);
-  const nodes = Number(raw.nodeCount || 0);
-  const branches = Number(raw.branchCount || 0);
+  const stages = Number(raw.stageCount || 0);
   return {
-    kind: branches > 0 || nodes > stages ? "graph" : "linear",
+    kind: "linear",
     stages: stages || (actorCount ? 1 : 0),
-    nodes: nodes || stages || 1,
-    branches,
+    nodes: stages || 1,
+    branches: 0,
   };
 }
 
@@ -194,13 +187,12 @@ function policyText(value: unknown, fallback: unknown, empty: "inherit" | "off")
 }
 
 function normalizePolicy(raw: Raw): SceneModel["policy"] {
-  const policy: Raw = raw.policy && typeof raw.policy === "object" ? raw.policy : {};
   return {
-    stripActors: policyText(policy.stripActors, raw.stripActors, "inherit"),
-    lockPlayer: policyText(policy.lockPlayer, raw.lockPlayer, "inherit"),
-    fade: policyText(policy.fade, raw.fade, "off") as "on" | "off",
-    camera: String(policy.camera || raw.camera || "inherit"),
-    playerControl: policy.playerControl || raw.playerControl || null,
+    stripActors: policyText(raw.stripActors, undefined, "inherit"),
+    lockPlayer: policyText(raw.lockPlayer, undefined, "inherit"),
+    fade: policyText(raw.fade, undefined, "off") as "on" | "off",
+    camera: String(raw.camera || "inherit"),
+    playerControl: raw.playerControl || null,
   };
 }
 

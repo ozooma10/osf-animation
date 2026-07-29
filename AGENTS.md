@@ -8,6 +8,10 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
+- **Tests:** `xmake test` builds and runs the four engine-free C++ suites (persistence broker,
+  frame clock/clip specs, sound registry, scene registry — the registry pair run from
+  `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
+  own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
 - **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see
   `docs/PACKAGING.md`). Output: `packaging\out\OSF Animation v<version>.zip`.
 - **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): recompile after editing a `.psc`, THEN `xmake`

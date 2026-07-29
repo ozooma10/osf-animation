@@ -202,8 +202,6 @@ export interface BrowserState {
   minimized: boolean;
   /** Explicit group disclosure choices. Missing keys fall back to selection-driven opening. */
   libOpen: ReadonlyMap<string, boolean>;
-  scnOpen: ReadonlyMap<string, boolean>;
-  libShowAll: boolean;
   libFull: boolean;
   libCustomOnly: boolean;
   briefFullAnims: boolean;
@@ -252,8 +250,6 @@ export function createInitialState(): BrowserState {
     lastBrowseMode: "scenes",
     minimized: false,
     libOpen: new Map(),
-    scnOpen: new Map(),
-    libShowAll: false,
     libFull: false,
     libCustomOnly: false,
     briefFullAnims: false,

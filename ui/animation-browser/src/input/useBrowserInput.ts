@@ -80,7 +80,12 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
         focusInDirection(direction);
         return;
       }
-      if ((event.key === " " || event.key === "Spacebar") && !isTextInput(active) && (state.lastHandle || state.active?.length === 1)) {
+      // Space = advance, but never steal activation from a focused control the user
+      // keyboard/gamepad-navigated to (settings switches, seg buttons, links): with a
+      // scene running, Space on a focused switch used to advance a stage instead of toggling.
+      const activatable = active instanceof HTMLElement && active.matches("button, a[href], select, [role=switch]");
+      if ((event.key === " " || event.key === "Spacebar") && !isTextInput(active) && !activatable &&
+        (state.lastHandle || state.active?.length === 1)) {
         event.preventDefault(); commands.advance(); return;
       }
       if (event.key === "Tab") document.body.classList.add("nav-kb");

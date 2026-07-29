@@ -91,7 +91,7 @@ namespace OSF::Scene
 		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
 			return;
 		}
-		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;
@@ -159,7 +159,7 @@ namespace OSF::Scene
 		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
 			return;
 		}
-		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;
@@ -223,7 +223,7 @@ namespace OSF::Scene
 			REX::DEBUG("[Scene] scene {:#010x} node '{}' authored cameras suppressed — per-start camera override active", a_handle, a_node);
 			return;
 		}
-		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;  // pack/files scene or unknown node — no camera entries
@@ -275,7 +275,7 @@ namespace OSF::Scene
 			return participants.front();  // default target = the first participant
 		}
 		// The binding is role-declaration order: roles[i] <-> participants[i].
-		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		if (!def) {
 			return nullptr;
 		}
@@ -294,7 +294,7 @@ namespace OSF::Scene
 		if (!GetSingleton().SnapshotSlot(a_handle, view)) {
 			return;
 		}
-		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
 			return;  // pack/files scene or unknown node — no actions

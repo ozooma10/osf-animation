@@ -9,6 +9,8 @@
 
 #include "AFImport.h"
 
+#include "Util/Gzip.h"  // kMaxClipBytes only (this TU stays CLSF-free)
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -102,7 +104,7 @@ namespace OSF::Serialization
 		{
 			std::error_code ec;
 			const auto sz = std::filesystem::file_size(a_file, ec);
-			if (ec) {
+			if (ec || sz > Util::kMaxClipBytes) {
 				return std::nullopt;
 			}
 			std::ifstream f(a_file, std::ios::binary);
@@ -388,21 +390,31 @@ namespace OSF::Serialization
 			return c.ok;
 		}
 
-		std::vector<RotPrefix> UnfoldRot(const std::vector<RotPrefix>& a_folded)
+		// Both unfolds are capped by the consumer's real key count: the RLE counts are raw file
+		// bytes, and without the cap a crafted clip (64Ki prefixes × 64Ki count) amplifies a small
+		// file into a multi-GB allocation. Keys beyond a_maxKeys can never be consumed anyway
+		// (the decode loops run to min(keys, entries, prefixes)).
+		std::vector<RotPrefix> UnfoldRot(const std::vector<RotPrefix>& a_folded, size_t a_maxKeys)
 		{
 			std::vector<RotPrefix> out;
 			for (const auto& p : a_folded) {
 				for (int i = 0; i <= static_cast<int>(p.count); i++) {  // programming counter: count+1 copies
+					if (out.size() >= a_maxKeys) {
+						return out;
+					}
 					out.push_back(p);
 				}
 			}
 			return out;
 		}
-		std::vector<TransPrefix> UnfoldTrans(const std::vector<TransPrefix>& a_folded)
+		std::vector<TransPrefix> UnfoldTrans(const std::vector<TransPrefix>& a_folded, size_t a_maxKeys)
 		{
 			std::vector<TransPrefix> out;
 			for (const auto& p : a_folded) {
 				for (uint32_t i = 0; i < p.count; i++) {  // classical counter: count copies
+					if (out.size() >= a_maxKeys) {
+						return out;
+					}
 					out.push_back(p);
 				}
 			}
@@ -538,7 +550,7 @@ namespace OSF::Serialization
 				auto& track = raw->tracks[it->second];
 
 				// Rotation: dequant rest-relative track, re-base to absolute local (R_abs = R_bind ∘ R_track).
-				const auto rotPrefixes = UnfoldRot(blk.rotPrefixesFolded);
+				const auto rotPrefixes = UnfoldRot(blk.rotPrefixesFolded, blk.rotKeys.size());
 				const size_t nRot = std::min({ blk.rotKeys.size(), blk.rotEntries.size(), rotPrefixes.size() });
 				for (size_t i = 0; i < nRot; i++) {
 					const ozz::math::Quaternion trackRot = DequantRotation(rotPrefixes[i], blk.rotEntries[i]);
@@ -549,7 +561,7 @@ namespace OSF::Serialization
 				}
 
 				// Translation: dequant rest-relative track, re-base (T_abs = T_bind + R_bind · T_track).
-				const auto transPrefixes = UnfoldTrans(blk.transPrefixesFolded);
+				const auto transPrefixes = UnfoldTrans(blk.transPrefixesFolded, blk.transKeys.size());
 				const size_t nTr = std::min({ blk.transKeys.size(), blk.transEntries.size(), transPrefixes.size() });
 				for (size_t i = 0; i < nTr; i++) {
 					const ozz::math::Float3 trackTr = DequantTranslation(transPrefixes[i], blk.transEntries[i], a_rig.lowPrecision, a_rig.highPrecision);

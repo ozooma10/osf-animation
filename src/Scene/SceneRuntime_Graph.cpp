@@ -164,7 +164,7 @@ namespace OSF::Scene
 			cameraOverridden = s->cameraOverridden;
 		}
 
-		const auto def = definition ? definition : Registry::SceneRegistry::GetSingleton().Find(sceneId);
+		const auto def = definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		const auto* node = def ? def->FindNode(oldNode) : nullptr;
 
 		auto* player = RE::PlayerCharacter::GetSingleton();
@@ -221,7 +221,7 @@ namespace OSF::Scene
 			// Skip when a transition is already in flight (a concurrent advance / auto-end owns it) —
 			// a second transition here could orphan a graph and freeze the player.
 			if (s && s->playbackId == a_playbackId && s->node == oldNode && !s->transitioning) {
-				const auto d = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
+				const auto d = s->definition;  // pinned at Start
 				const auto* n = d ? d->FindNode(s->node) : nullptr;
 				if (n) {
 					for (const auto& id : cueIds) {
@@ -895,6 +895,12 @@ namespace OSF::Scene
 			a_plan.anchorPos = a_anchor.pos;
 			a_plan.anchorHeading = a_anchor.heading;
 		}
+		// Honour StartOverrides::inPlace on the plan path too (def scenes apply it in PlayNodeAnim;
+		// plan scenes never re-enter that path, so without this the four OSFAdvanced Start* natives
+		// and the ABI's StartSceneFiles silently ignored InPlaceMode).
+		if (a_over.inPlace.has_value()) {
+			a_plan.anchored = !*a_over.inPlace;
+		}
 		const std::int32_t handle = MintSlot("", "main", a_participants);
 		if (!handle) {
 			return 0;  // actor already in a scene
@@ -987,7 +993,7 @@ namespace OSF::Scene
 				REX::DEBUG("[Scene] edge on scene {:#010x} ignored — a transition is already in flight", a_scene);
 				return false;  // a concurrent advance / auto-end owns the transition; don't start a second
 			}
-			const auto def = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
+			const auto def = s->definition;  // pinned at Start
 			const auto* node = def ? def->FindNode(s->node) : nullptr;
 			if (!node) {
 				return false;  // not def-backed, or current node not in the def
@@ -1097,7 +1103,7 @@ namespace OSF::Scene
 			// has no edges, so its terminal stage IS the whole scene ending — it falls through the
 			// no-node path. We own the teardown so SCENE_END fires and the handle invalidates here
 			// (vs returning false and letting GraphManager stop it silently, which would leak it).
-			const auto def = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
+			const auto def = s->definition;  // pinned at Start
 			const auto* node = def ? def->FindNode(s->node) : nullptr;
 			if (a_reason == Animation::SceneEndReason::kInterrupted) {
 				end = true;  // engine stopped ticking the scene (unloaded / AI-disabled) — end it, never advance an edge.
@@ -1147,7 +1153,7 @@ namespace OSF::Scene
 		if (!s) {
 			return out;
 		}
-		const auto def = s->definition ? s->definition : Registry::SceneRegistry::GetSingleton().Find(s->id);
+		const auto def = s->definition;  // pinned at Start
 		const auto* node = def ? def->FindNode(s->node) : nullptr;
 		if (!node) {
 			return out;

@@ -29,6 +29,18 @@ namespace OSF::Animation
 {
 	namespace
 	{
+		// Hand a batch of game-thread follow-ups to SFSE *after* stateLock is released. SFSE's drain
+		// runs every queued task inside its own queue lock while our task bodies take stateLock, so an
+		// AddTask made while holding stateLock inverts that order and can ABBA-deadlock against the drain.
+		void FlushDeferredTasks(std::vector<std::function<void()>>& a_tasks)
+		{
+			for (auto& fn : a_tasks) {
+				SFSE::GetTaskInterface()->AddTask(std::move(fn));
+			}
+			a_tasks.clear();
+		}
+
+
 		// The two engine hooks. InstallHooks verifies each vtable slot still points where we expect before patching it.
 		// AnimationManager::Update - slot 4, the clock/sampling point.
 		// TODO: move to commonlib
@@ -616,8 +628,13 @@ namespace OSF::Animation
 		{
 			std::scoped_lock gl{ g->stateLock };
 			sceneSet = (g->scene != nullptr);
-			fadedOut = g->IsFadedOut();
+			const std::int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+				std::chrono::steady_clock::now().time_since_epoch()).count();
+			fadedOut = g->IsFadedOut() || g->IsStranded(now);  // stranded = the fade can never elapse (Sample stopped)
 			faded = !sceneSet && fadedOut;  // replayed meanwhile? keep it
+			if (!faded) {
+				g->removalQueued = false;  // declined — let the hook (or the sweep) queue again if it re-qualifies
+			}
 		}
 		if (faded) {
 			graphs.erase(iter);
@@ -658,6 +675,7 @@ namespace OSF::Animation
 		scene->worldEpoch = _worldEpoch.load(std::memory_order_acquire);
 
 		const auto startStage = static_cast<uint32_t>(a_startStage);
+		std::vector<std::function<void()>> deferred;
 		{
 			std::unique_lock l{ stateLock };
 
@@ -665,7 +683,7 @@ namespace OSF::Animation
 			for (auto* actor : a_actors) {
 				if (auto iter = graphs.find(actor); iter != graphs.end() && iter->second->scene) {
 					REX::DEBUG("[Anim] PlayScene: actor {:X} already in a scene — stopping it first", actor->formID);
-					StopSceneLocked(iter->second->scene);
+					StopSceneLocked(iter->second->scene, deferred);
 				}
 			}
 
@@ -697,6 +715,7 @@ namespace OSF::Animation
 			scenes.push_back(scene);
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}
+		FlushDeferredTasks(deferred);  // old-scene teardown follow-ups, queued now that stateLock is released
 
 		// Initial placement, dispatched to the GAME THREAD per participant (charController teleports + AI/flag writes
 		// don't take from the Papyrus thread that calls PlaySceneStaged). Per anchored participant: move the actor
@@ -748,10 +767,6 @@ namespace OSF::Animation
 			}
 		}
 
-		// DIAG: snapshot the live camera right after placement lands (queued after the placement
-		// tasks above, FIFO) — start point for the scene-camera investigation.
-		Camera::CameraService::GetSingleton().LogCameraTelemetry("scene-start");
-
 		REX::DEBUG("[Anim] started synced playback: {} actors, {} stage(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
 			"anchored at ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
 			a_actors.size(), scene->stages.size(), startStage, scene->duration,
@@ -799,19 +814,27 @@ namespace OSF::Animation
 			return false;
 		}
 
-		std::unique_lock l{ stateLock };
-		auto iter = graphs.find(a_actor);
-		if (iter == graphs.end() || !iter->second->scene) {
-			return false;
+		std::vector<std::function<void()>> deferred;
+		{
+			std::unique_lock l{ stateLock };
+			auto iter = graphs.find(a_actor);
+			if (iter == graphs.end() || !iter->second->scene) {
+				return false;
+			}
+			StopSceneLocked(iter->second->scene, deferred);
 		}
-		StopSceneLocked(iter->second->scene);
+		FlushDeferredTasks(deferred);
 		return true;
 	}
 
 	void GraphManager::StopSceneByPtr(Scene* a_scene)
 	{
-		std::unique_lock l{ stateLock };
-		StopSceneLocked(a_scene);  // no-op if the scene was already stopped
+		std::vector<std::function<void()>> deferred;
+		{
+			std::unique_lock l{ stateLock };
+			StopSceneLocked(a_scene, deferred);  // no-op if the scene was already stopped
+		}
+		FlushDeferredTasks(deferred);
 	}
 
 	void GraphManager::StopAll(const char* a_reason)
@@ -1240,7 +1263,7 @@ namespace OSF::Animation
 		return PlaySceneStaged(actors, plan, 0);
 	}
 
-	void GraphManager::StopSceneLocked(Scene* a_scene)
+	void GraphManager::StopSceneLocked(Scene* a_scene, std::vector<std::function<void()>>& a_deferred)
 	{
 		// Detach every participant of this scene and drop their graphs; the engine's own rig refresh restores the game pose next frame.
 		auto sceneIter = std::find_if(scenes.begin(), scenes.end(),
@@ -1248,9 +1271,6 @@ namespace OSF::Animation
 		if (sceneIter == scenes.end()) {
 			return;
 		}
-
-		// DIAG: end point for the scene-camera investigation (queued; lands right after teardown).
-		Camera::CameraService::GetSingleton().LogCameraTelemetry("scene-end");
 
 		const bool anchored = (*sceneIter)->anchored;
 		const bool restoreTransforms = (*sceneIter)->restoreParticipantTransforms;
@@ -1282,7 +1302,7 @@ namespace OSF::Animation
 				const auto originalTransform = restoreTransform ?
 				                                   originalTransforms[participantIndex] :
 				                                   std::pair<RE::NiPoint3, float>{};
-				SFSE::GetTaskInterface()->AddTask([keepAlive, stoppedGraph, stoppedPlayback, worldEpoch, restoreTransform, originalTransform]() {
+				a_deferred.emplace_back([keepAlive, stoppedGraph, stoppedPlayback, worldEpoch, restoreTransform, originalTransform]() {
 					auto& gm = GetSingleton();
 					if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
 						return;
@@ -1317,7 +1337,7 @@ namespace OSF::Animation
 		REX::DEBUG("[Anim] stopped synced playback");
 	}
 
-	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph)
+	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
 		// The last timed/loop-counted stage ran out. Defer the stop to the game thread (StopScene needs
 		// stateLock unique; the hook holds it shared). The endQueued load here is a cheap early-out; the
@@ -1339,16 +1359,16 @@ namespace OSF::Animation
 			return;
 		}
 		REX::DEBUG("[Anim] Scene finished its last stage — queueing stop task (from job thread)");
-		QueueSceneEndDeferred(std::move(keepAlive));
+		QueueSceneEndDeferred(std::move(keepAlive), &a_deferred);
 	}
 
-	void GraphManager::QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene)
+	void GraphManager::QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene, std::vector<std::function<void()>>* a_deferred)
 	{
 		// Fire once: a concurrent caller (auto-end vs stall watchdog) that loses the exchange no-ops.
 		if (!a_scene || a_scene->endQueued.exchange(true, std::memory_order_relaxed)) {
 			return;
 		}
-		SFSE::GetTaskInterface()->AddTask([keepAlive = std::move(a_scene)]() {
+		auto task = [keepAlive = std::move(a_scene)]() {
 			// SetStage between the queue and now revives the scene (clears `ended`)
 			// a revived scene must not be killed by this stale task.
 			if (!keepAlive->ended.load(std::memory_order_relaxed)) {
@@ -1379,7 +1399,12 @@ namespace OSF::Animation
 			if (!handled) {
 				gm.StopSceneByPtr(keepAlive.get());
 			}
-		});
+		};
+		if (a_deferred) {
+			a_deferred->emplace_back(std::move(task));  // caller holds stateLock; it flushes after release
+		} else {
+			SFSE::GetTaskInterface()->AddTask(std::move(task));
+		}
 	}
 
 	void GraphManager::StallWatchTick()
@@ -1422,9 +1447,6 @@ namespace OSF::Animation
 		std::vector<std::shared_ptr<Scene>> stalled;
 		{
 			std::shared_lock l{ stateLock };
-			if (scenes.empty()) {
-				return;
-			}
 			for (const auto& s : scenes) {
 				if (!s || s->ended.load(std::memory_order_relaxed) || s->endQueued.load(std::memory_order_relaxed)) {
 					continue;  // already terminal / queued — leave it to the normal path
@@ -1452,9 +1474,37 @@ namespace OSF::Animation
 			s->ended.store(true, std::memory_order_relaxed);  // hand to the normal deferred-end machinery
 			QueueSceneEndDeferred(s);
 		}
+
+		// Stranded-graph sweep: a DETACHED graph whose actor the engine stopped updating can never
+		// finish its fade (blendClock only advances in Sample) and so is never reclaimed by the
+		// normal QueueFadeRemovalIfDone path — the map entry pins the REFR, the model hook keeps
+		// stamping the frozen pose, and graphCount never returns to 0. Judge by wall clock (the
+		// pause/resume grace above already filtered global pauses), collect under the shared lock,
+		// queue removals OUTSIDE it.
+		std::vector<RE::NiPointer<RE::TESObjectREFR>> strandedGraphs;
+		{
+			std::shared_lock l{ stateLock };
+			for (auto& [refr, g] : graphs) {
+				std::scoped_lock gl{ g->stateLock };
+				if (g->scene || g->removalQueued) {
+					continue;  // scene graphs are the stall watchdog's job; queued ones are already on their way out
+				}
+				if (g->IsStranded(now)) {
+					g->removalQueued = true;
+					strandedGraphs.emplace_back(g->target);
+				}
+			}
+		}
+		for (auto& refr : strandedGraphs) {
+			REX::DEBUG("[Anim] stranded-graph sweep: actor {:X} stopped updating — queueing removal",
+				refr ? refr->formID : 0);
+			SFSE::GetTaskInterface()->AddTask([refr]() {
+				GetSingleton().RemoveFadedGraph(refr.get());
+			});
+		}
 	}
 
-	void GraphManager::QueueTimedMarksIfFired(Graph& a_graph)
+	void GraphManager::QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
 		if (!a_graph.scene || !_timedMarkHandler) {
 			return;
@@ -1475,7 +1525,7 @@ namespace OSF::Animation
 		}
 		const PlaybackId playbackId = a_graph.scene->playbackId;
 		const std::uint64_t worldEpoch = a_graph.scene->worldEpoch;
-		SFSE::GetTaskInterface()->AddTask([keep, marks, playbackId, worldEpoch]() {
+		a_deferred.emplace_back([keep, marks, playbackId, worldEpoch]() {
 			auto& gm = GetSingleton();
 			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
 				return;
@@ -1491,7 +1541,7 @@ namespace OSF::Animation
 		});
 	}
 
-	void GraphManager::QueueFadeRemovalIfDone(Graph& a_graph)
+	void GraphManager::QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
 		// Fade-out finished: queue removal on the game thread (the hook holds the state lock shared here). 
 		// A replay before the task runs resets the blend state, and RemoveFadedGraph re-checks under the lock.
@@ -1501,7 +1551,7 @@ namespace OSF::Animation
 		a_graph.removalQueued = true;
 		REX::DEBUG("[Anim] fade-removal QUEUED for actor {:X}", a_graph.target ? a_graph.target->formID : 0);
 		RE::NiPointer<RE::TESObjectREFR> keepAlive{ a_graph.target };
-		SFSE::GetTaskInterface()->AddTask([keepAlive]() {
+		a_deferred.emplace_back([keepAlive]() {
 			GetSingleton().RemoveFadedGraph(keepAlive.get());
 		});
 	}
@@ -1514,7 +1564,7 @@ namespace OSF::Animation
 	// update-calls on the game thread (the AI package re-asserts motion each update); cleared in StopSceneLocked so
 	// the NPC resumes normal movement from where the scene left it. Player excluded (movement-locked, doesn't drift).
 	// OSF RE module: gameplay.actor_animation_driven.
-	void GraphManager::HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr)
+	void GraphManager::HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr, std::vector<std::function<void()>>& a_deferred)
 	{
 		if (!a_graph.scene || !a_graph.scene->anchored || a_graph.participantIndex < 0 || !a_refr ||
 			a_refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
@@ -1532,7 +1582,7 @@ namespace OSF::Animation
 		RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(a_refr) };
 		const PlaybackId playbackId = a_graph.scene->playbackId;
 		const std::uint64_t worldEpoch = a_graph.scene->worldEpoch;
-		SFSE::GetTaskInterface()->AddTask([keepAlive, playbackId, worldEpoch]() {
+		a_deferred.emplace_back([keepAlive, playbackId, worldEpoch]() {
 			auto& gm = GetSingleton();
 			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch ||
 				gm._saveWindow.load(std::memory_order_relaxed)) {
@@ -1593,14 +1643,23 @@ namespace OSF::Animation
 		// bind to the slot by reference instead of copying the shared_ptr (drops a refcount RMW per call, and this fires ~7x/frame per managed actor).
 		auto& g = iter->second;
 
-		std::unique_lock gl{ g->stateLock };
-		g->Sample(PlaybackDelta(*a_updateData), a_this);
+		std::vector<std::function<void()>> deferred;
+		{
+			std::unique_lock gl{ g->stateLock };
+			g->Sample(PlaybackDelta(*a_updateData), a_this);
 
-		// Per-graph follow-ups, run under both locks (each defers any game-thread-only work to the task queue).
-		gm.QueueAutoEndIfFinished(*g);
-		gm.QueueTimedMarksIfFired(*g);
-		gm.QueueFadeRemovalIfDone(*g);
-		gm.HoldAnchoredParticipant(*g, refr);
+			// Per-graph follow-ups, run under both locks; game-thread-only work is collected in
+			// `deferred` and handed to SFSE only after both locks release (AddTask under stateLock
+			// inverts lock order against SFSE's drain).
+			// Marks BEFORE auto-end: the task queue drains FIFO, so on a play-once stage the final
+			// at:"end" marks must be queued ahead of the stop task or they resolve a dead handle.
+			gm.QueueTimedMarksIfFired(*g, deferred);
+			gm.QueueAutoEndIfFinished(*g, deferred);
+			gm.QueueFadeRemovalIfDone(*g, deferred);
+			gm.HoldAnchoredParticipant(*g, refr, deferred);
+		}
+		l.unlock();
+		FlushDeferredTasks(deferred);
 	}
 
 	uint64_t GraphManager::Hook_ModelNodeUpdate(RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData)
@@ -1662,15 +1721,6 @@ namespace OSF::Animation
 
 								// Also pin the LOGICAL heading. (root is just rendering)
 								refr->data.angle.z = pinHeading;
-							}
-
-							// DIAG: while the PLAYER is pinned in a scene, sample the live camera ~1/s
-							// (this hook runs once per skeleton per frame). sceneFrames is unused for the
-							// player (HoldAnchoredParticipant early-outs before its increment), so the
-							// counter is free here; NPC graphs skip via the short-circuit.
-							if (refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton()) &&
-								(++g->sceneFrames % 60) == 1) {
-								Camera::CameraService::GetSingleton().LogCameraTelemetry("pinned");
 							}
 
 							// Keep the CULL SPHERE on the pinned render position. The engine derives worldBound from the physics capsule (~0.3 m off), 

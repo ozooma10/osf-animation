@@ -255,11 +255,6 @@ namespace OSF::Input
 		return true;
 	}
 
-	bool InputService::Installed() const
-	{
-		return g_installed;
-	}
-
 	void InputService::SetVerbHandler(std::function<void(Verb, const Grant&)> a_handler)
 	{
 		std::scoped_lock l{ g_grantLock };

@@ -29,7 +29,7 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   show a "needs update" badge on the Mods surface, nothing is gated).
 - **Contract (`osf.animation.*`):**
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
-  `pickCrosshair`→`pick`, `projectPickables {slot,width,height}`→`pickTargets` (tokened marker
+  `projectPickables {slot,width,height}`→`pickTargets` (tokened marker
   geometry the view both renders and resolves clicks against), `pickScreen {slot,token}`→`pick`
   (validation only — the token is the hot marker's), `scanNearby`→`scanResults`,
   `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`.

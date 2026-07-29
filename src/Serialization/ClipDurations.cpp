@@ -278,12 +278,19 @@ namespace OSF::Serialization::ClipDurations
 					return std::nullopt;  // GLB binary chunk is always buffer 0
 				}
 				const std::size_t stride = bv.value("byteStride", std::size_t{ 4 });
-				const std::size_t off = bv.value("byteOffset", std::size_t{ 0 }) +
-				                        a_acc.value("byteOffset", std::size_t{ 0 }) +
-				                        (count - 1) * stride;
-				if (stride < 4 || off + 4 > binSize) {
+				const std::size_t bvOff = bv.value("byteOffset", std::size_t{ 0 });
+				const std::size_t accOff = a_acc.value("byteOffset", std::size_t{ 0 });
+				// Overflow-proof bound: every term is file-declared, so check stepwise — a wrapped
+				// `off` sum would defeat the final compare and read out of the BIN chunk.
+				if (stride < 4 || bvOff > binSize || accOff > binSize - bvOff) {
 					return std::nullopt;
 				}
+				const std::size_t base = bvOff + accOff;
+				const std::size_t avail = binSize - base;
+				if (avail < 4 || count - 1 > (avail - 4) / stride) {
+					return std::nullopt;
+				}
+				const std::size_t off = base + (count - 1) * stride;
 				float t = 0.0f;
 				std::memcpy(&t, bin + off, 4);
 				return t;
@@ -467,7 +474,17 @@ namespace OSF::Serialization::ClipDurations
 				if (!seen.insert(key).second) {
 					continue;
 				}
-				switch (ProbeOne(file, animId, key)) {
+				// Per-file guard: one malformed clip must cost ONE estimate, not abort the whole
+				// pass (the thread-level catch would otherwise discard every remaining probe).
+				ProbeOutcome outcome = ProbeOutcome::kUnprobed;
+				try {
+					outcome = ProbeOne(file, animId, key);
+				} catch (const std::exception& e) {
+					REX::WARN("[Registry] clip-duration probe failed for '{}': {}", file, e.what());
+				} catch (...) {
+					REX::WARN("[Registry] clip-duration probe failed for '{}' (non-std exception)", file);
+				}
+				switch (outcome) {
 				case ProbeOutcome::kFresh:       fresh++; break;
 				case ProbeOutcome::kChanged:     changed++; break;
 				case ProbeOutcome::kInvalidated: changed++; unprobed++; break;

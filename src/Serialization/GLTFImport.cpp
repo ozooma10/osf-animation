@@ -115,7 +115,7 @@ namespace OSF::Serialization
 		{
 			std::error_code ec;
 			const auto fileSize = std::filesystem::file_size(a_file, ec);
-			if (ec) {
+			if (ec || fileSize > Util::kMaxClipBytes) {
 				return std::nullopt;
 			}
 
@@ -290,7 +290,15 @@ namespace OSF::Serialization
 			using RawSkeleton = ozz::animation::offline::RawSkeleton;
 			RawSkeleton raw;
 
+			// visited guards against child cycles in a hostile/corrupt file (a node listing itself
+			// or an ancestor would otherwise recurse to a stack-overflow process kill — and
+			// fastgltf::validate does NOT reject it). A revisited node is simply skipped.
+			std::vector<bool> visited(nodes.size(), false);
 			auto addJoint = [&](this auto&& self, size_t a_nodeIdx, RawSkeleton::Joint::Children& a_dest) -> void {
+				if (visited[a_nodeIdx]) {
+					return;
+				}
+				visited[a_nodeIdx] = true;
 				const auto& n = nodes[a_nodeIdx];
 				auto& joint = a_dest.emplace_back();
 				joint.name = n.name.c_str();
@@ -321,6 +329,46 @@ namespace OSF::Serialization
 			auto result = std::make_shared<Animation::OzzSkeleton>();
 			result->data = std::move(skeleton);
 			return result;
+		}
+
+		// A hostile/corrupt accessor can declare a count larger than its backing bufferView —
+		// fastgltf::validate does NOT catch this, and getAccessorElement then reads out of bounds
+		// (reproduced as a hard segfault through the offline harness). Verify the last element ends
+		// inside the view and the view inside its buffer before touching any element.
+		bool AccessorInBounds(const fastgltf::Asset& a_asset, const fastgltf::Accessor& a_accessor)
+		{
+			if (a_accessor.sparse.has_value()) {
+				return false;  // sparse storage has its own index/value views; not used by clip exports — reject rather than audit
+			}
+			if (!a_accessor.bufferViewIndex.has_value()) {
+				return true;  // element reads yield zeros
+			}
+			if (*a_accessor.bufferViewIndex >= a_asset.bufferViews.size()) {
+				return false;
+			}
+			const auto& view = a_asset.bufferViews[*a_accessor.bufferViewIndex];
+			if (view.bufferIndex >= a_asset.buffers.size()) {
+				return false;
+			}
+			const std::size_t elemSize = fastgltf::getElementByteSize(a_accessor.type, a_accessor.componentType);
+			const std::size_t stride = view.byteStride.value_or(elemSize);
+			if (elemSize == 0 || stride < elemSize) {
+				return false;
+			}
+			// All quantities come straight from the file: overflow-safe arithmetic only.
+			std::size_t need = a_accessor.byteOffset;
+			if (a_accessor.count > 0) {
+				const std::size_t lastIndex = a_accessor.count - 1;
+				if (lastIndex > (SIZE_MAX - need - elemSize) / stride) {
+					return false;
+				}
+				need += lastIndex * stride + elemSize;
+			}
+			if (need > view.byteLength) {
+				return false;
+			}
+			const auto& buffer = a_asset.buffers[view.bufferIndex];
+			return view.byteOffset <= buffer.byteLength && view.byteLength <= buffer.byteLength - view.byteOffset;
 		}
 
 		std::shared_ptr<Animation::OzzAnimation> BuildAnimation(const fastgltf::Asset& a_asset,
@@ -383,6 +431,9 @@ namespace OSF::Serialization
 				const auto& dataAccessor = a_asset.accessors[sampler.outputAccessor];
 				if (timeAccessor.count != dataAccessor.count)
 					continue;
+				if (!AccessorInBounds(a_asset, timeAccessor) || !AccessorInBounds(a_asset, dataAccessor)) {
+					continue;  // accessor exceeds its buffer view (corrupt/hostile file) — skip the channel; no REX here (CLSF-free TU)
+				}
 
 				auto& track = raw->tracks[jointIdx];
 				for (size_t i = 0; i < timeAccessor.count; i++) {

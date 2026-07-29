@@ -405,6 +405,42 @@ namespace OSF::API
 			return -1;
 		}
 
+		// Type-checked reads for inbound payloads. json::value() THROWS on a present-but-wrong-typed
+		// field, and every command handler here is noexcept — so one malformed message from a peer
+		// OSF UI view would be std::terminate, not a rejected message.
+		float NumOr(const json& a_obj, const char* a_key, float a_def)
+		{
+			if (!a_obj.is_object()) {
+				return a_def;
+			}
+			const auto it = a_obj.find(a_key);
+			return it != a_obj.end() && it->is_number() ? it->get<float>() : a_def;
+		}
+		std::int32_t IntOr(const json& a_obj, const char* a_key, std::int32_t a_def)
+		{
+			if (!a_obj.is_object()) {
+				return a_def;
+			}
+			const auto it = a_obj.find(a_key);
+			return it != a_obj.end() && it->is_number_integer() ? it->get<std::int32_t>() : a_def;
+		}
+		bool BoolOr(const json& a_obj, const char* a_key, bool a_def)
+		{
+			if (!a_obj.is_object()) {
+				return a_def;
+			}
+			const auto it = a_obj.find(a_key);
+			return it != a_obj.end() && it->is_boolean() ? it->get<bool>() : a_def;
+		}
+		std::string StrOr(const json& a_obj, const char* a_key)
+		{
+			if (!a_obj.is_object()) {
+				return {};
+			}
+			const auto it = a_obj.find(a_key);
+			return it != a_obj.end() && it->is_string() ? it->get<std::string>() : std::string{};
+		}
+
 		// A human-readable reason a launch returned handle 0, best-effort.
 		std::string LaunchError(const std::string& a_sceneId, std::size_t a_castCount, bool a_haveFurniture)
 		{
@@ -556,7 +592,6 @@ namespace OSF::API
 				std::string              name;   // stage label ("" = unlabeled)
 				std::vector<std::string> tags;
 				std::int32_t             clipCount = 0;
-				std::string              sig;    // clip-set signature (files joined) for de-dup
 				std::int32_t             pinned = 0;  // 1-based animation-wheel order
 				// Timing. loopSec = the clip's loop length (the honest per-animation number);
 				// estSec folds in the stage's loops/timer; either < 0 = unknown (clip not probed yet).
@@ -577,6 +612,12 @@ namespace OSF::API
 				std::vector<std::string> tags;
 				std::uint32_t            actorCount = 0;
 				std::vector<std::string> genders;
+				std::vector<std::string> roleNames;  // authored role names ("" for anonymous slots) — labels/search only, binding stays positional
+				std::int32_t             priority = 0;
+				std::int32_t             weight = 1;
+				bool                     stripActors = true;
+				bool                     lockPlayer = true;
+				bool                     fade = false;
 				bool                     requiresFurniture = false;
 				bool                     inPlace = false;
 				std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
@@ -608,9 +649,16 @@ namespace OSF::API
 				c.tags = d.tags;
 				c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
 				c.genders.reserve(d.roles.size());
+				c.roleNames.reserve(d.roles.size());
 				for (const auto& r : d.roles) {
 					c.genders.emplace_back(GenderTag(r.gender));
+					c.roleNames.emplace_back(r.name);
 				}
+				c.priority = d.priority;
+				c.weight = d.weight;
+				c.stripActors = d.stripActors;
+				c.lockPlayer = d.lockPlayer;
+				c.fade = d.fade;
 				c.requiresFurniture = d.RequiresAnchor();
 				c.inPlace = d.inPlace;
 				// Name the anchor, not just the fact of one: keyword edids prettify well
@@ -643,10 +691,6 @@ namespace OSF::API
 					sc.tags = st.tags;
 					sc.clipCount = static_cast<std::int32_t>(st.clips.size());
 					sc.pinned = wheelOrder(d.id, sc.index);
-					for (const auto& clip : st.clips) {
-						sc.sig += clip.file;
-						sc.sig += '\n';
-					}
 
 					// Stage timing, from the node the desugar produce: loop length comes from clips[0].
 					// A pack-authored duration wins over the probe cache (generated vanilla packs).
@@ -720,7 +764,6 @@ namespace OSF::API
 						{ "tags", s.tags },
 						{ "clipCount", s.clipCount },
 						{ "pinned", s.pinned },
-						{ "sig", s.sig },
 						{ "loopSec", secOrNull(s.loopSec) },
 						{ "timerSec", s.timerSec > 0.0f ? json(s.timerSec) : json(nullptr) },
 						{ "loops", s.loops >= 0 ? json(s.loops) : json(nullptr) },
@@ -738,6 +781,19 @@ namespace OSF::API
 					{ "tags", c.tags },
 					{ "actorCount", c.actorCount },
 					{ "genders", c.genders },
+					{ "roles", [&c]() {
+						 json roles = json::array();
+						 for (std::size_t i = 0; i < c.roleNames.size(); i++) {
+							 roles.push_back({ { "name", c.roleNames[i] },
+								 { "gender", i < c.genders.size() ? c.genders[i] : "any" } });
+						 }
+						 return roles;
+					 }() },
+					{ "priority", c.priority },
+					{ "weight", c.weight },
+					{ "stripActors", c.stripActors },
+					{ "lockPlayer", c.lockPlayer },
+					{ "fade", c.fade },
 					{ "requiresFurniture", c.requiresFurniture },
 					{ "inPlace", c.inPlace },
 					{ "anchors", c.anchorNames },
@@ -801,50 +857,6 @@ namespace OSF::API
 		void OnLibraryGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.library.data", BuildCatalog(true));
-		}
-
-		void OnPickCrosshair(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
-		{
-			const json j = ParsePayload(a_payload);
-			std::string slot = "actor";
-			if (j.is_object()) {
-				if (const auto it = j.find("slot"); it != j.end() && it->is_string()) {
-					slot = it->get<std::string>();
-				}
-			}
-			const bool wantActor = (slot != "furniture");
-
-			// Live read first (covers any host that leaves the reticle active), but with the
-			// browser menu up the engine has cleared the slot — fall back to the target that
-			// was under the crosshair when the browser opened (re-validated via the token map).
-			RE::TESObjectREFR* ref = CrosshairRef();
-			if (!ref && g_openPickToken != 0) {
-				ref = ResolveToken(g_openPickToken);
-			}
-			const bool accept = ref && (!wantActor || ref->IsActor());
-
-			json reply;
-			reply["slot"] = slot;
-			if (!accept) {
-				reply["valid"] = false;
-				reply["token"] = 0;
-				reply["name"] = "";
-				reply["formId"] = 0;
-				REX::DEBUG("[UI] osf.animation.pickCrosshair slot={} -> nothing valid (live null, openToken={})", slot, g_openPickToken);
-			} else {
-				const std::int32_t token = AllocToken(ref);
-				const std::string  nm = ScanLabel(ref);
-				reply["valid"] = true;
-				reply["token"] = token;
-				reply["name"] = nm;
-				reply["formId"] = ref->GetFormID();
-				// Skeleton family, so the view can filter the library to what this actor can actually
-				// play (a creature gets its own animations, not human ones). "" for furniture picks.
-				reply["species"] = ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
-				reply["sex"] = RefSexTag(ref);
-				REX::DEBUG("[UI] osf.animation.pickCrosshair slot={} -> token {} '{}' ({:08X})", slot, token, nm, ref->GetFormID());
-			}
-			SendJson(a_srcView, "osf.animation.pick", reply);
 		}
 
 		struct SafeViewProjection
@@ -1137,8 +1149,8 @@ namespace OSF::API
 				SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
 				return;
 			}
-			const float width = std::clamp(j.value("width", 1280.0f), 320.0f, 10000.0f);
-			const float height = std::clamp(j.value("height", 720.0f), 200.0f, 10000.0f);
+			const float width = std::clamp(NumOr(j, "width", 1280.0f), 320.0f, 10000.0f);
+			const float height = std::clamp(NumOr(j, "height", 720.0f), 200.0f, 10000.0f);
 			const auto projection = CurrentViewProjection(width, height);
 			if (!projection) {
 				SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
@@ -1184,7 +1196,7 @@ namespace OSF::API
 			// A browser animation row references one stage inside a registry-backed
 			// collection. Its launch must end when that stage exits instead of walking
 			// the collection's remaining stage chain. The wheel implies the same scope.
-			const bool singleAnimation = j.is_object() && j.value("singleAnimation", false);
+			const bool singleAnimation = BoolOr(j, "singleAnimation", false);
 
 			auto fail = [&](const std::string& a_reason) {
 				reply["ok"] = false;
@@ -1240,10 +1252,10 @@ namespace OSF::API
 			o.lockPlayerMode = OptTri(opts, "lockPlayer");
 			o.playerControlMode = OptTri(opts, "playerControl");
 			o.fadeMode = OptTri(opts, "fade");
-			o.speed = opts.value("speed", 1.0f);
+			o.speed = NumOr(opts, "speed", 1.0f);
 			// Enter the scene on a specific linear stage. 0 = the scene's entry; resolved to the stage's
 			// node BEFORE the start (ResolveStartStageNode), so the scene opens directly on it.
-			o.startStage = opts.value("stage", 0);
+			o.startStage = IntOr(opts, "stage", 0);
 			if (const auto it = opts.find("camera"); it != opts.end() && it->is_string()) {
 				std::snprintf(o.camera, sizeof(o.camera), "%s", it->get<std::string>().c_str());
 			}
@@ -1453,7 +1465,7 @@ namespace OSF::API
 			if (!j.is_object()) {
 				return;
 			}
-			if (j.value("reset", false)) {
+			if (BoolOr(j, "reset", false)) {
 				if (Serialization::WheelPins::Reset()) {
 					REX::DEBUG("[UI] animation wheel reset to installed defaults");
 					PushCatalogUpdate();
@@ -1758,8 +1770,8 @@ namespace OSF::API
 		void OnPickScreen(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json         j = ParsePayload(a_payload);
-			const std::string  slot = j.is_object() && j.value("slot", std::string{}) == "furniture" ? "furniture" : "actor";
-			const std::int32_t token = j.is_object() ? j.value("token", 0) : 0;
+			const std::string  slot = StrOr(j, "slot") == "furniture" ? "furniture" : "actor";
+			const std::int32_t token = IntOr(j, "token", 0);
 			auto*              player = RE::PlayerCharacter::GetSingleton();
 			RE::TESObjectREFR* ref = token != 0 ? ResolveToken(token) : nullptr;
 			if (ref && player) {
@@ -1791,9 +1803,9 @@ namespace OSF::API
 		void OnProjectPickables(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json        j = ParsePayload(a_payload);
-			const std::string slot = j.is_object() && j.value("slot", std::string{}) == "furniture" ? "furniture" : "actor";
-			const float       width = std::clamp(j.is_object() ? j.value("width", 0.0f) : 0.0f, 320.0f, 10000.0f);
-			const float       height = std::clamp(j.is_object() ? j.value("height", 0.0f) : 0.0f, 200.0f, 10000.0f);
+			const std::string slot = StrOr(j, "slot") == "furniture" ? "furniture" : "actor";
+			const float       width = std::clamp(NumOr(j, "width", 0.0f), 320.0f, 10000.0f);
+			const float       height = std::clamp(NumOr(j, "height", 0.0f), 200.0f, 10000.0f);
 			const auto        projection = CurrentViewProjection(width, height);
 			auto*             player = RE::PlayerCharacter::GetSingleton();
 
@@ -2317,7 +2329,7 @@ namespace OSF::API
 				}
 			}
 			Input::InputService::GetSingleton().InjectOrbitDelta(
-				p.value("dx", 0.0f), p.value("dy", 0.0f), p.value("wheel", 0.0f));
+				NumOr(p, "dx", 0.0f), NumOr(p, "dy", 0.0f), NumOr(p, "wheel", 0.0f));
 		}
 
 		void OnBridgeReady(void*) noexcept
@@ -2335,11 +2347,6 @@ namespace OSF::API
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
 		SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
-	}
-
-	bool UIBridgeInstalled()
-	{
-		return g_ui.IsConnected();
 	}
 
 	void SetBrowserAutoMinimize(bool a_enabled)
@@ -2473,7 +2480,6 @@ namespace OSF::API
 		g_ui.SetReadyCallback(&OnBridgeReady, nullptr);
 		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
-		g_ui.RegisterCommand("osf.animation.pickCrosshair", &OnPickCrosshair, nullptr);
 		g_ui.RegisterCommand("osf.animation.pickScreen", &OnPickScreen, nullptr);
 		g_ui.RegisterCommand("osf.animation.projectPickables", &OnProjectPickables, nullptr);
 		g_ui.RegisterCommand("osf.animation.projectActors", &OnProjectActors, nullptr);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { browserReducer } from "../src/app/reducer";
 import {
-  browseVisible,
+  evaluateForState,
   comparePlayableGroupKeys,
   comparePlayableItems,
   filteredLibrary,
@@ -10,7 +10,7 @@ import {
   hottestPickTarget,
   isVanillaAnimation,
   labeledFurniture,
-  libraryFolderTree,
+  showUnavailable,
   locationCastChoices,
   playableItems,
   playableGroupOpen,
@@ -132,8 +132,8 @@ describe("browser reducer", () => {
     expect(reset.wheelCustomized).toBe(false);
   });
 
-  it("toggles custom-only animation filtering", () => {
-    const state = browserReducer(createInitialState(), { type: "library/customOnly" });
+  it("toggles custom-only animation filtering via the settings payload", () => {
+    const state = browserReducer(createInitialState(), { type: "settings/received", preferences: { librarySource: "custom" } });
     expect(state.libCustomOnly).toBe(true);
   });
 
@@ -248,7 +248,8 @@ describe("browser selectors", () => {
   it("selects a ready action from the unified browse surface", () => {
     const state = { ...createInitialState(), catalog: [solo, pair], catalogReceived: true };
     expect(validSelection(state)).toBe("solo");
-    expect(browseVisible(state, pair)).toBe(false);
+    // pair is unplayable for the default cast — the live split (UnifiedBrowser) buckets by gaps
+    expect(evaluateForState(state, pair).gaps).toBeGreaterThan(0);
     expect(validSelection({ ...state, browseAll: true })).toBe("solo");
   });
 
@@ -303,13 +304,15 @@ describe("browser selectors", () => {
 
   it("applies the unavailable-scene visibility preference", () => {
     const state = { ...createInitialState(), catalog: [pair], catalogReceived: true };
-    expect(browseVisible(state, pair)).toBe(false);
-    expect(browseVisible({ ...state, preferences: { ...state.preferences, unavailableScenes: "show" } }, pair)).toBe(true);
-    expect(browseVisible({
+    // default preference is "ask" with the reveal collapsed
+    expect(showUnavailable(state)).toBe(false);
+    expect(showUnavailable({ ...state, browseAll: true })).toBe(true);
+    expect(showUnavailable({ ...state, preferences: { ...state.preferences, unavailableScenes: "show" } })).toBe(true);
+    expect(showUnavailable({
       ...state,
       browseAll: true,
       preferences: { ...state.preferences, unavailableScenes: "hide" },
-    }, pair)).toBe(false);
+    })).toBe(false);
   });
 
   it("derives default wheel order and caps its geometry", () => {
@@ -339,7 +342,8 @@ describe("browser selectors", () => {
     expect(isVanillaAnimation(vanilla)).toBe(true);
     expect(isVanillaAnimation(imported)).toBe(false);
     expect(filteredLibrary(state).map((scene) => scene.id)).toEqual([imported.id]);
-    expect(browseVisible(state, vanilla)).toBe(false);
+    // the custom-only filter removes vanilla from the playable surface entirely
+    expect(playableItems(state).some((item) => item.scene.id === vanilla.id)).toBe(false);
     expect(validSelection(state)).toBeNull();
     const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
     expect(validSelection(authorState)).toBe(imported.id);
@@ -370,16 +374,4 @@ describe("browser selectors", () => {
     ]);
   });
 
-  it("builds case-insensitive nested folders while keeping root clips at the pack level", () => {
-    const root = normalizeScene({ id: "root", pack: "Pose Pack", title: "Root" });
-    const seated = normalizeScene({ id: "seated", pack: "Pose Pack", folder: "Furniture/Seated", title: "Seated" });
-    const leaning = normalizeScene({ id: "leaning", pack: "Pose Pack", folder: "furniture/Leaning", title: "Leaning" });
-    const tree = libraryFolderTree("pack:pose pack", [root, seated, leaning]);
-
-    expect(tree.scenes.map((scene) => scene.id)).toEqual(["root"]);
-    expect(tree.children).toHaveLength(1);
-    expect(tree.children[0]).toMatchObject({ label: "Furniture" });
-    expect(tree.children[0].children.map((folder) => folder.label)).toEqual(["Leaning", "Seated"]);
-    expect(tree.children[0].children[1].scenes.map((scene) => scene.id)).toEqual(["seated"]);
-  });
 });

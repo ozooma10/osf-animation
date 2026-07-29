@@ -186,8 +186,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         dispatch({ type: "runtime/ready" });
         showNotice("ok", `Bridge online. Protocol ${record.protocol || "?"}.`);
         send("osfui.gamepadRaw", { raw: true });
-        requestCatalog(true);
-        requestLibrary(true);
+        // The mount effect already requested both; re-request only what hasn't landed —
+        // the native side rebuilds and serializes the ~MB library payload per library.get,
+        // so the unconditional duplicate cost a full extra build every view creation.
+        if (!stateRef.current.catalogReceived) requestCatalog(true);
+        if (!stateRef.current.libraryReceived) requestLibrary(true);
         break;
       case "osf.animation.version": dispatch({ type: "plugin/received", plugin: record }); break;
       case "settings.data": {
@@ -375,7 +378,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const first = visible[0];
       dispatch({ type: "selection/changed", sceneId: first?.scene.id ?? null, stage: first?.stage?.index ?? null });
     }
-  }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.browseKind, state.libCustomOnly, state.libFull, state.libShowAll, state.cast, state.furniture, state.anchorMatch]);
+  }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.browseKind, state.libCustomOnly, state.libFull, state.cast, state.furniture, state.anchorMatch]);
 
   useEffect(() => {
     document.body.classList.toggle("wheel-mode", !!state.wheel);
@@ -456,8 +459,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     clearAnchor: () => dispatch({ type: "anchor/cleared" }),
     selectLocation: (mode, token = null) => dispatch({ type: "location/selected", mode, token }),
     toggleLibraryGroup: (key, open) => dispatch({ type: "library/group", key, open }),
-    toggleSceneGroup: (key, open) => dispatch({ type: "scene/group", key, open }),
-    toggleLibraryShowAll: () => dispatch({ type: "library/showAll" }),
     toggleLibraryFull: () => {
       const value = stateRef.current.preferences.libraryDetail === "full" ? "curated" : "full";
       dispatch({ type: "settings/received", preferences: { libraryDetail: value } });

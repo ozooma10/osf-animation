@@ -114,23 +114,30 @@ namespace OSF::Animation
 
 	private:
 		// Detaches all participants of a_scene (revert movement mode, drop graphs) and removes it from `scenes`. Caller holds stateLock unique.
-		void StopSceneLocked(Scene* a_scene);
+		// Game-thread follow-ups are appended to a_deferred; the caller MUST hand them to SFSE
+		// (FlushDeferredTasks) after releasing stateLock — AddTask under stateLock inverts lock
+		// order against SFSE's task drain.
+		void StopSceneLocked(Scene* a_scene, std::vector<std::function<void()>>& a_deferred);
 
 		// Every live anchored NPC participant (player excluded), NiPointer-pinned. Takes stateLock shared.
 		// The save-window strip/re-assert pair (OnSaveBegin/OnSaveEnd) acts on this set.
 		std::vector<RE::NiPointer<RE::Actor>> CollectAnchoredNpcParticipants();
 
 		// Per-graph upkeep run from Hook_AnimGraphUpdate right after sampling, while the caller holds stateLock (shared) and the graph's own lock.
-		// Each defers any game-thread-only follow-up via the SFSE task queue.
-		void QueueAutoEndIfFinished(Graph& a_graph);                   // last stage ran out -> StopScene
-		void QueueTimedMarksIfFired(Graph& a_graph);                   // stage fired timed marks -> mark handler
-		void QueueFadeRemovalIfDone(Graph& a_graph);                  // fade-out elapsed -> RemoveFadedGraph
-		void HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr);  // keep an anchored scene NPC animation-driven (no AI walk-back)
+		// Each appends its game-thread-only follow-up to a_deferred; the hook flushes the batch to
+		// the SFSE task queue AFTER releasing both locks (AddTask under stateLock inverts lock order
+		// against SFSE's drain).
+		void QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // last stage ran out -> StopScene
+		void QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // stage fired timed marks -> mark handler
+		void QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                  // fade-out elapsed -> RemoveFadedGraph
+		void HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr, std::vector<std::function<void()>>& a_deferred);  // keep an anchored scene NPC animation-driven (no AI walk-back)
 
 		// Defer a scene's end to the game thread: the runtime auto-end handler takes over (advance/end +
 		// ledger replay), else we stop it ourselves. Idempotent via Scene::endQueued; the shared_ptr keeps
 		// the Scene alive across the deferral. Shared by QueueAutoEndIfFinished and the stall watchdog.
-		void QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene);
+		// With a_deferred (locked contexts) the end task is appended there instead of handed to
+		// SFSE directly; the caller flushes after releasing stateLock.
+		void QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene, std::vector<std::function<void()>>* a_deferred = nullptr);
 
 		// Stall watchdog: runs from the update hook every call. Finds live scenes the engine stopped
 		// ticking (lastAdvanceMs gone stale while the game runs) and ends them cleanly as kInterrupted, so

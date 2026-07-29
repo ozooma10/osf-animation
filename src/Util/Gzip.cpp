@@ -33,6 +33,10 @@ namespace OSF::Util
 				return std::nullopt;
 			}
 			out.insert(out.end(), chunk, chunk + (sizeof(chunk) - strm.avail_out));
+			if (out.size() > kMaxClipBytes) {  // gzip bomb: refuse rather than OOM the game
+				inflateEnd(&strm);
+				return std::nullopt;
+			}
 		} while (ret != Z_STREAM_END);
 
 		inflateEnd(&strm);

@@ -24,7 +24,6 @@ namespace OSF::Util::CrashHandler
 {
 	namespace
 	{
-		std::atomic<bool>            g_installUEF{ true };
 		std::atomic<bool>            g_installed{ false };
 		LPTOP_LEVEL_EXCEPTION_FILTER g_prevFilter{ nullptr };  // trainwreck's filter — we chain to it
 
@@ -293,11 +292,6 @@ namespace OSF::Util::CrashHandler
 		}
 	}
 
-	void SetInstallUnhandledExceptionFilter(bool a_enable) noexcept
-	{
-		g_installUEF.store(a_enable, std::memory_order_relaxed);
-	}
-
 	void Install() noexcept
 	{
 		if (g_installed.exchange(true)) {
@@ -332,9 +326,7 @@ namespace OSF::Util::CrashHandler
 		_set_invalid_parameter_handler(InvalidParameterHandler);
 		std::signal(SIGABRT, AbortHandler);
 
-		if (g_installUEF.load(std::memory_order_relaxed)) {
-			g_prevFilter = SetUnhandledExceptionFilter(UnhandledFilter);
-		}
+		g_prevFilter = SetUnhandledExceptionFilter(UnhandledFilter);
 
 		RawLogf("CrashHandler installed (log dir: %s)", g_logDir.string().c_str());
 	}

@@ -17,6 +17,7 @@ import {
   playableSceneTitle,
   playableVisible,
   sceneById,
+  showUnavailable,
   speciesLabel,
   stageLabel,
   wheelPool,
@@ -176,7 +177,7 @@ function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: Br
   const rest = entries.filter((entry) => entry.evaluation.gaps > 0).sort(rank);
   const wheelKeys = new Set(wheelPool(state).map((candidate) => candidate.key));
   const unavailable = state.preferences.unavailableScenes;
-  const showRest = unavailable === "show" || unavailable === "ask" && state.browseAll;
+  const showRest = showUnavailable(state);
 
   return <>
     <BrowseFilters state={state} commands={commands} count={ready.length}/>

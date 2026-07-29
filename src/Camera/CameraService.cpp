@@ -752,7 +752,23 @@ namespace OSF::Camera
 		auto& input = Input::InputService::GetSingleton();
 		input.DrainMouseDelta(mdx, mdy);
 		input.DrainWheelDelta(wheel);
-		const PadOrbit pad = ReadPadOrbit(now);
+		// Input SAMPLING throttle: this drive runs ~7x per render frame per AnimationManager, but one
+		// XInput + GetAsyncKeyState sample per ~8ms is all the integration needs (unthrottled this was
+		// up to ~280 XInput + ~1120 key syscalls per frame with a full cast loaded). The sampled state
+		// is HELD between polls so every call still integrates with its own dt — no behavior change.
+		// driveLock serializes this function, so plain statics are safe (same as ReadPadOrbit's).
+		static PadOrbit s_pad{};
+		static bool s_keyW = false, s_keyS = false, s_keyD = false, s_keyA = false;
+		static std::int64_t s_lastInputPollMs = 0;
+		if (now - s_lastInputPollMs >= 8) {
+			s_lastInputPollMs = now;
+			s_pad = ReadPadOrbit(now);
+			s_keyW = KeyDown('W');
+			s_keyS = KeyDown('S');
+			s_keyD = KeyDown('D');
+			s_keyA = KeyDown('A');
+		}
+		const PadOrbit pad = s_pad;
 		// Stick up looks up = camera lowers, matching a mouse drag up (which arrives as -mdy).
 		orbitTargetAzimuth -= mdx * kOrbitMouseSens + pad.lookX * kOrbitStickLookSpeed * dt;
 		const float lookY = mdy * kOrbitMouseSens - pad.lookY * kOrbitStickLookSpeed * dt;
@@ -765,10 +781,10 @@ namespace OSF::Camera
 		// horizontal forward (toward/away from where it looks), A/D strafe. The center's height is unchanged.
 		const float ch = std::cos(orbitAzimuth), sh = std::sin(orbitAzimuth);
 		float panF = pad.panF, panR = pad.panR;
-		if (KeyDown('W')) panF += 1.0f;
-		if (KeyDown('S')) panF -= 1.0f;
-		if (KeyDown('D')) panR += 1.0f;
-		if (KeyDown('A')) panR -= 1.0f;
+		if (s_keyW) panF += 1.0f;
+		if (s_keyS) panF -= 1.0f;
+		if (s_keyD) panR += 1.0f;
+		if (s_keyA) panR -= 1.0f;
 		panF = std::clamp(panF, -1.0f, 1.0f);
 		panR = std::clamp(panR, -1.0f, 1.0f);
 		if (panF != 0.0f || panR != 0.0f) {
@@ -1033,40 +1049,6 @@ namespace OSF::Camera
 			ReleaseStateOverride();
 			REX::DEBUG("[Camera] browse orbit released (scene browser closed)");
 		}
-	}
-
-	void CameraService::LogCameraTelemetry(const char* a_tag)
-	{
-		QueueTask([a_tag]() {
-			auto* camera = RE::PlayerCamera::GetSingleton();
-			auto* player = RE::PlayerCharacter::GetSingleton();
-			if (!camera || !player) {
-				return;
-			}
-			int stateId = -1;
-			for (std::uint32_t i = 0; i < RE::CameraState::kTotal; i++) {
-				if (camera->QCameraEquals(static_cast<RE::CameraState>(i))) {
-					stateId = static_cast<int>(i);
-					break;
-				}
-			}
-			// Third-person internals, behind the same vtable+stateId guard as SeedThirdPersonZoom.
-			// -99 = state object missing/mismatched. Orbit yaw @+0x220 per OSF RE camera.state_machine.
-			float zoomTarget = -99.0f, zoomCurrent = -99.0f, orbitYaw = -99.0f;
-			if (void* state = camera->cameraStates[RE::CameraState::kThirdPerson]) {
-				static const REL::Relocation<std::uintptr_t> tpsVtbl{ RE::VTABLE::ThirdPersonState[0] };
-				auto* base = reinterpret_cast<std::byte*>(state);
-				if (*reinterpret_cast<std::uintptr_t*>(base) == tpsVtbl.address() &&
-					*reinterpret_cast<std::uint32_t*>(base + kThirdPersonStateIdOffset) == kThirdPersonStateId) {
-					zoomTarget = *reinterpret_cast<float*>(base + kThirdPersonTargetZoomOffset);
-					zoomCurrent = *reinterpret_cast<float*>(base + kThirdPersonCurrentZoomOffset);
-					orbitYaw = *reinterpret_cast<float*>(base + 0x220);
-				}
-			}
-			REX::DEBUG("[Camera] telemetry[{}]: state={} zoomTgt={:.3f} zoomCur={:.3f} orbitYaw={:.3f} heading={:.3f} pos=({:.2f},{:.2f},{:.2f})",
-				a_tag, stateId, zoomTarget, zoomCurrent, orbitYaw,
-				player->data.angle.z, player->data.location.x, player->data.location.y, player->data.location.z);
-		});
 	}
 
 	void CameraService::OnStopAll()

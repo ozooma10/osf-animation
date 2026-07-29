@@ -65,6 +65,13 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
 
 - File-level `lockPlayer` / `stripActors` / `fade` are optional **defaults** every scene in the file may
   override.
+- File-level `anchor` (multi-scene envelope only) is a furniture-anchoring **default** every scene in
+  the file inherits unless it declares its own — see § Furniture anchoring.
+- File-level `unlisted` holds every scene in the file out of the matchmaking pool by default.
+- File-level `section` accepts exactly one value, `"library"`, which routes the file into the browser's
+  ANIMATIONS lane (reference content); it also flips the file's `stripActors` default to **false**
+  (library clips play on actors as-dressed). It is meant for generated packs — normal content packs
+  should omit it.
 - File-level `pack` (optional, string) names the **content pack** the file belongs to. The in-game scene
   browser shows one collapsible group per pack, so a pack that spans many files (one per furniture, say)
   reads as a single entry. Use the same string in every file of the pack; the browser shows it verbatim.
@@ -740,6 +747,38 @@ the scene via the input channel (story scenes).
 The object form also accepts **`"enabled": <bool>`** (an explicit on/off toggle — same effect as the
 boolean `"playerControl": true|false` form) and **`"controlRole": "<roleName>"`** (advanced — names the
 participant role the input grant is bound to; defaults to the player).
+
+### Furniture anchoring (`anchor`)
+
+An **anchor-bound** scene declares WHAT it plays on with an inline `anchor` block — on the scene, or
+at the file level of a multi-scene envelope (a file-level `anchor` is the default every scene in the
+file inherits unless it declares its own). Works for linear AND graph scenes; 475 shipped scenes
+(the vanilla furniture packs) use it.
+
+```jsonc
+{
+  "id": "mypack.scenes.barstool",
+  "anchor": {
+    "keyword": "Starfield.esm|0x0EF961",            // any-of keyword matchers (KYWD form refs; this is one the shipped furniture packs use)
+    "base":    ["MyMod.esm|0x800", "MyMod.esm|0x801"], // and/or any-of base-form matchers
+    "offset":  { "x": 0, "y": -12, "z": 0, "heading": 180 }  // corrects the ref's transform
+  },
+  "stages": [ ... ]
+}
+```
+
+- **`keyword`** — a `"Plugin.esm|0xLocalID"` form ref (or an array of them) naming keyword(s) the
+  anchor ref must carry (any-of). The vanilla furniture packs key on the game's `AnimFurn*` keywords.
+- **`base`** — a form ref (or array) the anchor ref's base object must match (any-of).
+- At least **one of `keyword`/`base` is required** (an empty block could never be satisfied).
+- **`offset`** — optional placement correction relative to the resolved anchor: `x`/`y`/`z` local
+  units + `heading` degrees.
+- Refs resolve **at load**; a malformed/unresolvable ref **rejects the scene** (a file-level one
+  rejects the file) with a load error.
+- At start, an anchor-bound scene **requires** a satisfying ref: `SceneOptions.Anchor` (Papyrus),
+  the browser's furniture pick, or anchor-first matchmaking (`StartSceneAtAnchor`). Starting one
+  with no/incompatible anchor fails with handle 0.
+- Incompatible with `inPlace: true` (load error — see above).
 
 ### Matchmaking (`tags`, `priority`, `weight`)
 

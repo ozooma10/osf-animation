@@ -51,7 +51,6 @@ namespace OSF::Serialization
 
 		bool RegisterClient(const OSFPersistenceClientV1& client);
 		bool UnregisterClient(std::uint32_t clientID, void* context);
-		bool IsRegistered(std::uint32_t clientID) const;
 
 		std::vector<std::byte> SaveToBytes(std::uint32_t hostVersion, SaveStats* stats = nullptr);
 		LoadStats LoadFromBytes(std::span<const std::byte> bytes, const FormResolver& resolver = {},

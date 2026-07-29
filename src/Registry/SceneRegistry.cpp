@@ -499,10 +499,26 @@ namespace OSF::Registry
 				} else if (m.is_object()) {
 					std::string spec = baseSpec;
 					if (auto it = m.find("spec"); it != m.end()) {
+						if (!it->is_string()) {
+							throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'spec' must be a string");
+						}
 						spec = it->get<std::string>();  // per-hit spec replaces the base
 					}
+					// `tags` accepts a string or an array of strings (the schema doc's own example
+					// uses the array form — rejecting it threw the whole file away).
 					if (auto it = m.find("tags"); it != m.end()) {
-						spec += "," + it->get<std::string>();
+						if (it->is_string()) {
+							spec += "," + it->get<std::string>();
+						} else if (it->is_array()) {
+							for (const auto& tag : *it) {
+								if (!tag.is_string()) {
+									throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'tags' entries must be strings");
+								}
+								spec += "," + tag.get<std::string>();
+							}
+						} else {
+							throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'tags' must be a string or an array of strings");
+						}
 					}
 					const json at = m.contains("at") ? m.at("at") : json();
 					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole), m.value("volume", laneVolume));
@@ -916,7 +932,7 @@ namespace OSF::Registry
 		// participant count: when a_fixed it is authoritative (every stage must match it); else the
 		// first stage's clip count sets it.
 		std::vector<StageDef> ParseOsfStageList(const json& a_stages, const std::string& a_subject,
-			size_t& a_ioActorCount, bool a_fixed, std::string_view a_clipRoot)
+			size_t& a_ioActorCount, bool a_fixed, std::string_view a_clipRoot, bool a_allowStageLanes = true)
 		{
 			if (!a_stages.is_array() || a_stages.empty()) {
 				throw std::runtime_error(a_subject + ": 'stages' must be a non-empty array");
@@ -955,6 +971,14 @@ namespace OSF::Registry
 					// SceneNode, so parse into a scratch node and move them onto the stage. DesugarLinear
 					// forwards them to the stage's synthetic node, letting a linear stage carry cues,
 					// actions, audio, and camera postures without authoring the full nodes[] graph form.
+					// Inside a graph node's stages[] the runtime never reads per-stage lanes — reject
+					// them there instead of silently discarding what the author wrote.
+					if (!a_allowStageLanes &&
+						(jStage.contains("cue") || jStage.contains("action") ||
+							jStage.contains("sound") || jStage.contains("camera"))) {
+						throw std::runtime_error(a_subject + ": track lanes on a stage inside a graph node are not "
+							"supported — put cue/action/sound/camera on the node itself");
+					}
 					{
 						SceneNode scratch;
 						scratch.id = a_subject;  // diagnostics only
@@ -1046,7 +1070,8 @@ namespace OSF::Registry
 				n.use = useIt->get<std::string>();
 			} else {
 				size_t ac = 0;
-				n.stages = ParseOsfStageList(a_node.at("stages"), "node '" + n.id + "'", ac, /*a_fixed*/ false, a_clipRoot);
+				n.stages = ParseOsfStageList(a_node.at("stages"), "node '" + n.id + "'", ac, /*a_fixed*/ false, a_clipRoot,
+					/*a_allowStageLanes*/ false);
 			}
 
 			// Node loop policy — one `loops` int, identical to a linear stage:
@@ -1198,11 +1223,11 @@ namespace OSF::Registry
 
 		// Cross-node validation of a graph scene: edge targets, entry-is-a-node, and action/sound role
 		// references. Anonymous roles are intentionally unreferenceable.
-		void ValidateGraph(const SceneDef& def, const std::unordered_set<std::string>& a_nodeIds)
+		// Role-name references in the action/sound lanes, checked for BOTH scene forms — linear
+		// scenes desugar to nodes too, and a typo'd lane role otherwise loads clean and misfires
+		// silently at runtime (DEBUG-only logs in a shipped build).
+		void ValidateRoleRefs(const SceneDef& def)
 		{
-			if (!a_nodeIds.count(ToLower(def.entry))) {
-				throw std::runtime_error("scene '" + def.id + "': entry '" + def.entry + "' is not a node");
-			}
 			std::unordered_set<std::string> roleNames;
 			for (const auto& r : def.roles) {
 				if (!r.name.empty()) {
@@ -1222,9 +1247,28 @@ namespace OSF::Registry
 							"' references undeclared role '" + s.role + "'");
 					}
 				}
+			}
+		}
+
+		void ValidateGraph(const SceneDef& def, const std::unordered_set<std::string>& a_nodeIds)
+		{
+			if (!a_nodeIds.count(ToLower(def.entry))) {
+				throw std::runtime_error("scene '" + def.id + "': entry '" + def.entry + "' is not a node");
+			}
+			ValidateRoleRefs(def);
+			for (const auto& nd : def.nodes) {
 				for (const auto& e : nd.edges) {
 					if (e.to != "$end" && !a_nodeIds.count(ToLower(e.to))) {
 						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' edge targets missing node '" + e.to + "'");
+					}
+				}
+				// Inline stage clip counts must match the declared cast: a mismatch otherwise
+				// surfaces only mid-scene (a live scene aborts, or the node can never start).
+				for (const auto& st : nd.stages) {
+					if (!st.clips.empty() && st.clips.size() != def.roles.size()) {
+						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' stage has " +
+							std::to_string(st.clips.size()) + " clip(s) but the scene has " +
+							std::to_string(def.roles.size()) + " role(s)");
 					}
 				}
 			}
@@ -1457,6 +1501,7 @@ namespace OSF::Registry
 					def.roles.assign(actorCount, SceneRole{});  // synthesize anonymous slots
 				}
 				DesugarLinear(def, stages);
+				ValidateRoleRefs(def);  // linear lanes reference roles too (graph scenes get this via ValidateGraph)
 			}
 
 			// Pack-level default camera (file-level "camera": "<state>"): attach that posture to the
@@ -1507,18 +1552,22 @@ namespace OSF::Registry
 		{
 			const std::string fileName = a_file.filename().string();
 
+			// One reject shape for every whole-file failure: the author-visible LoadError (Health
+			// parses the "[error] '<file>'" prefix) plus the log line. The caller still `return`s.
+			const auto rejectFile = [&](const std::string& a_what) {
+				a_errors.push_back("[error] " + a_what);
+				REX::ERROR("[Registry] {} — skipped", a_what);
+			};
+
 			const auto it = a_json.find("schema");
 			if (it == a_json.end() || !it->is_number_integer()) {
-				a_errors.push_back("[error] '" + fileName + "': missing/non-integer 'schema'");
-				REX::ERROR("[Registry] '{}' missing/non-integer 'schema' — skipped", fileName);
+				rejectFile("'" + fileName + "': missing/non-integer 'schema'");
 				return;
 			}
 			const auto schema = it->get<std::int64_t>();
 			if (schema != kSchemaVersion) {
-				a_errors.push_back("[error] '" + fileName + "': *.osf.json schema " + std::to_string(schema) +
+				rejectFile("'" + fileName + "': *.osf.json schema " + std::to_string(schema) +
 					" unsupported (expected " + std::to_string(kSchemaVersion) + ")");
-				REX::ERROR("[Registry] '{}' declares osf schema {} but this build expects {} — skipped",
-					fileName, schema, kSchemaVersion);
 				return;
 			}
 
@@ -1529,8 +1578,7 @@ namespace OSF::Registry
 				if (section == "library") {
 					library = true;
 				} else {
-					a_errors.push_back("[error] '" + fileName + "': unknown 'section' value (supported: 'library')");
-					REX::ERROR("[Registry] '{}' unknown 'section' value — skipped", fileName);
+					rejectFile("'" + fileName + "': unknown 'section' value (supported: 'library')");
 					return;
 				}
 			}
@@ -1542,8 +1590,7 @@ namespace OSF::Registry
 			std::string packName;
 			if (const auto pit = a_json.find("pack"); pit != a_json.end()) {
 				if (!pit->is_string()) {
-					a_errors.push_back("[error] '" + fileName + "': 'pack' must be a string");
-					REX::ERROR("[Registry] '{}' 'pack' must be a string — skipped", fileName);
+					rejectFile("'" + fileName + "': 'pack' must be a string");
 					return;
 				}
 				packName = pit->get<std::string>();
@@ -1553,13 +1600,20 @@ namespace OSF::Registry
 				try {
 					folderDefault = ParseCatalogFolder(*fit, "'" + fileName + "'");
 				} catch (const std::exception& e) {
-					a_errors.push_back(std::string("[error] ") + e.what());
-					REX::ERROR("[Registry] {} — skipped", e.what());
+					rejectFile(e.what());
 					return;
 				}
 			}
 
-
+			// File-level policy booleans, type-checked up front: value() throws on a wrong-typed
+			// field, which used to reject the file with an unlabeled "parse failed" instead of
+			// naming the key the author typo'd.
+			for (const char* key : { "lockPlayer", "stripActors", "fade", "unlisted", "inPlace" }) {
+				if (const auto bit = a_json.find(key); bit != a_json.end() && !bit->is_boolean()) {
+					rejectFile("'" + fileName + "': '" + std::string(key) + "' must be true or false");
+					return;
+				}
+			}
 			const bool lockDefault = a_json.value("lockPlayer", true);
 			// Library packs default to NO strip
 			const bool stripDefault = a_json.value("stripActors", !library);
@@ -1571,15 +1625,13 @@ namespace OSF::Registry
 			std::string packClipRoot;
 			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
 				if (!crit->is_string()) {
-					a_errors.push_back("[error] '" + fileName + "': 'clipRoot' must be a string");
-					REX::ERROR("[Registry] '{}' 'clipRoot' must be a string — skipped", fileName);
+					rejectFile("'" + fileName + "': 'clipRoot' must be a string");
 					return;
 				}
 				try {
 					packClipRoot = NormalizeClipRoot(crit->get<std::string>(), "'" + fileName + "'");
 				} catch (const std::exception& e) {
-					a_errors.push_back(std::string("[error] ") + e.what());
-					REX::ERROR("[Registry] {} — skipped", e.what());
+					rejectFile(e.what());
 					return;
 				}
 			}
@@ -1591,8 +1643,7 @@ namespace OSF::Registry
 			std::string cameraDefault = "scene_orbit";
 			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
 				if (!cit->is_string()) {
-					a_errors.push_back("[error] '" + fileName + "': 'camera' must be a string");
-					REX::ERROR("[Registry] '{}' 'camera' must be a string — skipped", fileName);
+					rejectFile("'" + fileName + "': 'camera' must be a string");
 					return;
 				}
 				cameraDefault = ToLower(cit->get<std::string>());
@@ -1600,9 +1651,8 @@ namespace OSF::Registry
 				if (cameraDefault == "none") {
 					cameraDefault.clear();
 				} else if (!IsKnownCameraState(cameraDefault)) {
-					a_errors.push_back("[error] '" + fileName + "': unknown camera state '" + cit->get<std::string>() +
+					rejectFile("'" + fileName + "': unknown camera state '" + cit->get<std::string>() +
 						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit', 'none')");
-					REX::ERROR("[Registry] '{}' unknown camera state '{}' — skipped", fileName, cit->get<std::string>());
 					return;
 				}
 			}
@@ -1619,15 +1669,13 @@ namespace OSF::Registry
 			AnchorReq                packAnchor;    // file-level `anchor` default (multi-scene envelope only)
 			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
 				if (!sit->is_array()) {
-					a_errors.push_back("[error] '" + fileName + "': 'scenes' must be an array");
-					REX::ERROR("[Registry] '{}' 'scenes' must be an array — skipped", fileName);
+					rejectFile("'" + fileName + "': 'scenes' must be an array");
 					return;
 				}
 				try {
 					packAnchor = ParseAnchorBlock(a_json, "'" + fileName + "' file-level anchor");
 				} catch (const std::exception& e) {
-					a_errors.push_back(std::string("[error] ") + e.what());
-					REX::ERROR("[Registry] {} — skipped", e.what());
+					rejectFile(e.what());
 					return;
 				}
 				if (auto rit = a_json.find("roles"); rit != a_json.end()) {
@@ -1637,8 +1685,7 @@ namespace OSF::Registry
 								packRoles.push_back(ParseRole(jRole, "<pack:" + fileName + ">"));
 							}
 						} catch (const std::exception& e) {
-							a_errors.push_back("[error] '" + fileName + "': pack-level roles: " + e.what());
-							REX::ERROR("[Registry] '{}' pack-level roles rejected: {} — skipped", fileName, e.what());
+							rejectFile("'" + fileName + "': pack-level roles: " + std::string(e.what()));
 							return;
 						}
 				} else if (rit->is_object()) {
@@ -1648,9 +1695,8 @@ namespace OSF::Registry
 					// raw JSON too, so an object override inherits (or explicitly clears) it.
 					for (const auto& [roleId, roleJson] : rit->items()) {
 						if (roleId.empty() || !roleJson.is_object()) {
-							a_errors.push_back("[error] '" + fileName + "': roles registry entry '" + roleId +
+							rejectFile("'" + fileName + "': roles registry entry '" + roleId +
 								"': definitions must be role objects keyed by a non-empty id");
-							REX::ERROR("[Registry] '{}' roles registry entry '{}' is not a role object — skipped", fileName, roleId);
 							return;
 						}
 						try {
@@ -1663,15 +1709,13 @@ namespace OSF::Registry
 							}
 							roleRegistry.emplace(roleId, std::move(templ));
 						} catch (const std::exception& e) {
-							a_errors.push_back("[error] '" + fileName + "': roles registry entry '" + roleId + "': " + e.what());
-							REX::ERROR("[Registry] '{}' roles registry entry '{}' rejected: {} — skipped", fileName, roleId, e.what());
+							rejectFile("'" + fileName + "': roles registry entry '" + roleId + "': " + std::string(e.what()));
 							return;
 						}
 					}
 				} else {
-						a_errors.push_back("[error] '" + fileName +
+						rejectFile("'" + fileName +
 							"': file-level 'roles' must be an array (default cast) or an object (roles registry)");
-						REX::ERROR("[Registry] '{}' file-level 'roles' must be an array or an object — skipped", fileName);
 						return;
 					}
 				}
@@ -1681,8 +1725,7 @@ namespace OSF::Registry
 			} else if (a_json.contains("id")) {
 				sceneJsons.push_back(&a_json);  // bare single-scene file
 			} else if (!a_json.contains("clipLibrary")) {
-				a_errors.push_back("[error] '" + fileName + "': expected a bare scene 'id', 'scenes', or 'clipLibrary'");
-				REX::ERROR("[Registry] '{}' has no scene id, scenes, or clipLibrary — skipped", fileName);
+				rejectFile("'" + fileName + "': expected a bare scene 'id', 'scenes', or 'clipLibrary'");
 				return;
 			}
 
@@ -1691,8 +1734,7 @@ namespace OSF::Registry
 				a_clipLibrary.insert(a_clipLibrary.end(),
 					std::make_move_iterator(registrations.begin()), std::make_move_iterator(registrations.end()));
 			} catch (const std::exception& e) {
-				a_errors.push_back(std::string("[error] ") + e.what());
-				REX::ERROR("[Registry] {} — skipped", e.what());
+				rejectFile(e.what());
 				return;
 			}
 

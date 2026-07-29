@@ -75,9 +75,10 @@ A solo or simple paired clip can stop here — `OSF.StartScene(actors, "mypack.g
 will play it.
 
 ### d. (optional) Grow it into a graph scene
-The **same** scene grows `nodes[]` (+ `entry`) when you want phases, branching, furniture anchoring, or
-declarative immersion (camera/weapon/control/fade) with **automatic cleanup**. Each node plays an inline
-`stages` timeline (the default) or `use`s another scene by id:
+The **same** scene grows `nodes[]` (+ `entry`) when you want phases, branching, or declarative
+immersion (camera/weapon/control/fade) with **automatic cleanup**. (Furniture anchoring is separate
+and works for BOTH forms: add an inline `anchor` block — see SCENE_SCHEMA.md § Furniture anchoring.)
+Each node plays an inline `stages` timeline (the default) or `use`s another scene by id:
 
 ```jsonc
 {
@@ -127,12 +128,15 @@ the clip demands otherwise. Full contract: the well-known tags table in
 [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
 
 ### f. Verify
+The shipped `OSF.*` natives are console-callable (the `OSFTest.*` harness is dev-only and does
+NOT ship in the release):
 ```bat
-cgf "OSFTest.Reload"                          ; rescan Data/OSF/**.osf.json and register scenes
-cgf "OSFTest.PairId" <npc-refid> "mypack.scenes.greet"  ; start your scene on player + the clicked NPC
-cgf "OSFTest.Stop"                            ; stop the scene the player is in
+cgf "OSF.ReloadPacks"        ; rescan Data/OSF/**.osf.json and re-register scenes
+cgf "OSF.OpenBrowser"        ; open the in-game browser (or press F10 / your bound hotkey)
 ```
-Iterate without restarting: edit the JSON/GLB, then `cgf "OSFTest.Reload"` (or `OSF.ReloadPacks()`).
+Your pack groups under its `pack` name in the browser; launch it from there (the browser binds
+the cast for you). Any `[error]` your file produced shows in OSF UI's System Health pane.
+Iterate without restarting: edit the JSON/GLB, then `cgf "OSF.ReloadPacks"` again.
 
 ---
 

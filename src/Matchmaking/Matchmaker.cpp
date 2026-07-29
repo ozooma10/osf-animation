@@ -126,17 +126,17 @@ namespace OSF::Matchmaking
 			return std::nullopt;
 		}
 
-		// Build the unified candidate pool. a_actors non-empty => filter-aware with a complete binding (Candidate::order filled);
-		// empty => count + tags only (discovery, no binding). a_anchor + a_mode add anchor filtering (see AnchorMode;
-		// kIgnore = no filter, the discovery default).
-		std::vector<Candidate> BuildPool(std::int32_t a_count, const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors,
-			RE::TESObjectREFR* a_anchor = nullptr, AnchorMode a_mode = AnchorMode::kIgnore)
+		// Build the unified candidate pool: filter-aware with a complete binding (Candidate::order
+		// filled). a_anchor + a_mode add anchor filtering (see AnchorMode). Pick guarantees
+		// a_actors is non-empty.
+		std::vector<Candidate> BuildPool(const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors,
+			RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
 		{
-			const bool haveActors = !a_actors.empty();
+			const auto count = static_cast<std::int32_t>(a_actors.size());
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
 
 			// One memoized matcher for the whole def sweep: each distinct anchor keyword costs a single engine HasKeyword no matter how many defs share it (the vanilla-library packs share a handful of AnimFurn* keywords across thousands of defs).
-			AnchorMatchCache anchorCache(a_mode != AnchorMode::kIgnore ? a_anchor : nullptr);
+			AnchorMatchCache anchorCache(a_anchor);
 
 			std::vector<Candidate> pool;
 
@@ -144,35 +144,31 @@ namespace OSF::Matchmaking
 				if (a_def.unlisted || !a_def.clipsAvailable) {
 					return;
 				}
-				if (static_cast<std::int32_t>(a_def.roles.size()) != a_count) {
+				if (static_cast<std::int32_t>(a_def.roles.size()) != count) {
 					return;
 				}
 				if (!TagsMatch(a_def.tagSet, q)) {
 					return;
 				}
-				// Anchor filtering: an anchor-bound scene needs a ref that satisfies it; kRequire (anchor-first) additionally drops free scenes. kIgnore (discovery) skips this entirely.
+				// Anchor filtering: an anchor-bound scene needs a ref that satisfies it; kRequire (anchor-first) additionally drops free scenes.
 				// No per-def logging here: REX log args are formatted eagerly (engine EditorID calls included) BEFORE the level check, and this loop covers every loaded def.
-				if (a_mode != AnchorMode::kIgnore) {
-					if (a_def.RequiresAnchor()) {
-						if (!anchorCache.Accepts(a_def)) {
-							return;
-						}
-					} else if (a_mode == AnchorMode::kRequire) {
+				if (a_def.RequiresAnchor()) {
+					if (!anchorCache.Accepts(a_def)) {
 						return;
 					}
+				} else if (a_mode == AnchorMode::kRequire) {
+					return;
 				}
 				Candidate c;
 				c.id = a_def.id;
 				c.priority = a_def.priority;
 				c.weight = a_def.weight;
-				if (haveActors) {
-					auto order = MatchComplete(static_cast<std::size_t>(a_count),
-						[&](std::size_t a_slot, std::size_t a_ai) { return RoleAccepts(a_def.roles[a_slot], a_actors[a_ai]); });
-					if (!order) {
-						return;
-					}
-					c.order = std::move(*order);
+				auto order = MatchComplete(static_cast<std::size_t>(count),
+					[&](std::size_t a_slot, std::size_t a_ai) { return RoleAccepts(a_def.roles[a_slot], a_actors[a_ai]); });
+				if (!order) {
+					return;
 				}
+				c.order = std::move(*order);
 				pool.push_back(std::move(c));
 			});
 
@@ -198,8 +194,6 @@ namespace OSF::Matchmaking
 		const char* DescribeAnchorMode(AnchorMode a_mode)
 		{
 			switch (a_mode) {
-			case AnchorMode::kIgnore:
-				return "ignore";
 			case AnchorMode::kAllow:
 				return "allow";
 			case AnchorMode::kRequire:
@@ -345,24 +339,6 @@ namespace OSF::Matchmaking
 		}
 	}
 
-	std::vector<std::string> FindIds(std::int32_t a_actorCount, const TagQuery& a_query,
-		const std::vector<RE::Actor*>& a_actors)
-	{
-		auto pool = BuildPool(a_actorCount, a_query, a_actors);
-		std::sort(pool.begin(), pool.end(), [](const Candidate& a_lhs, const Candidate& a_rhs) {
-			if (a_lhs.priority != a_rhs.priority) {
-				return a_lhs.priority > a_rhs.priority;  // priority descending
-			}
-			return ToLower(a_lhs.id) < ToLower(a_rhs.id);  // then id ascending (stable, case-insensitive)
-		});
-		std::vector<std::string> ids;
-		ids.reserve(pool.size());
-		for (auto& c : pool) {
-			ids.push_back(std::move(c.id));
-		}
-		return ids;
-	}
-
 	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query,
 		RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
 	{
@@ -373,7 +349,7 @@ namespace OSF::Matchmaking
 			REX::DEBUG("[Match] no match (no actors supplied)");
 			return std::nullopt;
 		}
-		auto pool = BuildPool(actorCount, a_query, a_actors, a_anchor, a_mode);
+		auto pool = BuildPool(a_query, a_actors, a_anchor, a_mode);
 		if (pool.empty()) {
 			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + anchor filters + a complete actor binding; {})",
 				actorCount, DescribeAnchorSearch(a_anchor, a_mode));

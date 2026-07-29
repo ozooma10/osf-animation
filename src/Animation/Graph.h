@@ -69,6 +69,13 @@ namespace OSF::Animation
 		float blendDuration = 0.4f;  // seconds for either ramp
 		bool removalQueued = false;  // fade-out finished, removal dispatched
 
+		// Wall-clock stamps for the stranded-graph sweep. blendClock only advances inside Sample(),
+		// which requires the engine to keep animation-updating the actor — when it stops (actor
+		// unloaded / AI-disabled), a fade can never elapse and a solo loop can never end, so the
+		// sweep judges by steady-clock instead.
+		std::atomic<std::int64_t> lastSampleMs{ 0 };  // last Sample() call (stamped at SetAnimation too, so a never-sampled graph ages from birth)
+		std::int64_t fadeOutBeganMs = 0;              // stamped at BeginFadeOut; guarded by stateLock
+
 
 		// Start a new animation clip. Resets time and starts a blend-in. a_file is for diagnostics only ("" = none).
 		void SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file = "");
@@ -78,6 +85,11 @@ namespace OSF::Animation
 
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
 		bool IsFadedOut() const;  // fade-out ramp fully elapsed
+
+		// The engine stopped updating this actor: a fade can never elapse (blendClock only advances
+		// in Sample) and a solo loop can never end. Judged on wall clock with generous slack; the
+		// caller (stranded-graph sweep / RemoveFadedGraph) is pause/resume filtered. Holds stateLock.
+		bool IsStranded(std::int64_t a_nowMs) const;
 
 		// Scene teardown: detach, hand clip back to "solo" syncGroup, and begin the exit blend.
 		void DetachAndFadeOut();

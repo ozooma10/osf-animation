@@ -141,7 +141,38 @@ export function playableStageTitle(scene: SceneModel, stage: SceneStage): string
   return stage.name ? readableAnimationName(stage.name, pose) : `Animation ${stage.index + 1}`;
 }
 
+// Single-entry memo: the full playable list is ~6k items over the shipped fixtures and was
+// measured at ~23 ms per rebuild — and it used to rebuild at least twice per render while the
+// 12.5 Hz projectActors poll forced renders. The result only depends on the four inputs below,
+// all of which change by reference/value, so one cached entry suffices.
+let playableMemo: {
+  catalog: BrowserState["catalog"];
+  library: BrowserState["library"];
+  libCustomOnly: boolean;
+  debugMode: boolean;
+  items: PlayableItem[];
+} | null = null;
+
 export function playableItems(state: BrowserState): PlayableItem[] {
+  if (playableMemo &&
+    playableMemo.catalog === state.catalog &&
+    playableMemo.library === state.library &&
+    playableMemo.libCustomOnly === state.libCustomOnly &&
+    playableMemo.debugMode === state.filters.debugMode) {
+    return playableMemo.items;
+  }
+  const items = buildPlayableItems(state);
+  playableMemo = {
+    catalog: state.catalog,
+    library: state.library,
+    libCustomOnly: state.libCustomOnly,
+    debugMode: state.filters.debugMode,
+    items,
+  };
+  return items;
+}
+
+function buildPlayableItems(state: BrowserState): PlayableItem[] {
   const items: PlayableItem[] = [];
   for (const scene of state.catalog) {
     if (!unlistedVisible(state, scene)) continue;
@@ -216,7 +247,7 @@ export function playableVisible(state: BrowserState, item: PlayableItem): boolea
   if (!speciesVisible(state, item.scene) || !matchesPlayableSearch(state, item)) return false;
   if (item.kind === "animation") {
     const matchKnown = !!state.furniture && state.anchorMatch?.token === state.furniture.token;
-    if (matchKnown && !state.libShowAll && !state.anchorMatch?.ids.has(item.scene.id)) return false;
+    if (matchKnown && !state.anchorMatch?.ids.has(item.scene.id)) return false;
     if (!matchKnown && !state.libFull && !state.filters.search && item.stage && !stageClean(item.stage)) return false;
   }
   return true;
@@ -295,10 +326,6 @@ export function labeledFurniture(state: BrowserState): FurnitureTarget | null {
   return state.furniture;
 }
 
-export function partnerCount(state: BrowserState): number {
-  return state.cast.reduce((count, member) => count + (member.kind === "player" ? 0 : 1), 0);
-}
-
 export function unlistedVisible(state: BrowserState, scene: SceneModel): boolean {
   return !!scene.library || !scene.unlisted || state.filters.debugMode;
 }
@@ -340,12 +367,14 @@ export function matchesSearch(state: BrowserState, scene: SceneModel): boolean {
     .includes(state.filters.search);
 }
 
+// The only caller passes mode === "active" (validSelection), so this is just the search +
+// species filter — the old browseVisible carried unreachable "scenes"/"library" branches.
 export function browseVisible(state: BrowserState, scene: SceneModel): boolean {
-  if (state.mode === "library" && state.libCustomOnly && isVanillaAnimation(scene)) return false;
-  if (!matchesSearch(state, scene) || !speciesVisible(state, scene)) return false;
-  if (state.mode !== "scenes") return true;
-  const playable = evaluateForState(state, scene).gaps === 0;
-  if (playable) return true;
+  return matchesSearch(state, scene) && speciesVisible(state, scene);
+}
+
+/** The unavailable-scenes preference resolved against the reveal toggle (the UnifiedBrowser split). */
+export function showUnavailable(state: BrowserState): boolean {
   return state.preferences.unavailableScenes === "show"
     || state.preferences.unavailableScenes === "ask" && state.browseAll;
 }
@@ -420,71 +449,14 @@ export function comparePlayableGroupKeys(a: string, b: string): number {
   return rank(a) - rank(b);
 }
 
-export interface LibraryFolderNode {
-  key: string;
-  label: string;
-  scenes: SceneModel[];
-  children: LibraryFolderNode[];
-}
-
-export function libraryFolderTree(groupKey: string, scenes: readonly SceneModel[]): LibraryFolderNode {
-  const root: LibraryFolderNode = { key: groupKey, label: "", scenes: [], children: [] };
-  for (const scene of scenes) {
-    let node = root;
-    let path = "";
-    for (const label of scene.folder.split("/").filter(Boolean)) {
-      path = path ? `${path}/${label.toLowerCase()}` : label.toLowerCase();
-      let child = node.children.find((candidate) => candidate.label.toLowerCase() === label.toLowerCase());
-      if (!child) {
-        child = {
-          key: `${groupKey}|folder:${path}`,
-          label,
-          scenes: [],
-          children: [],
-        };
-        node.children.push(child);
-      }
-      node = child;
-    }
-    node.scenes.push(scene);
-  }
-
-  const sort = (node: LibraryFolderNode): void => {
-    node.children.sort((a, b) => a.label.localeCompare(b.label));
-    for (const child of node.children) sort(child);
-  };
-  sort(root);
-  return root;
-}
-
 export function fitsKeyedAnchor(state: BrowserState, scene: SceneModel): boolean | null {
   if (!scene.requiresFurniture) return null;
   if (!state.furniture || state.anchorMatch?.token !== state.furniture.token) return null;
   return state.anchorMatch.ids.has(scene.id);
 }
 
-export function libraryRank(state: BrowserState, scene: SceneModel): number {
-  if (!scene.requiresFurniture) return state.furniture ? 1 : 0;
-  return fitsKeyedAnchor(state, scene) === true ? 0 : 2;
-}
-
 export function stageClean(stage: SceneStage): boolean {
   return !stage.tags.includes("transition") && !stage.tags.includes("partial");
-}
-
-export function cleanStages(scene: SceneModel): SceneStage[] {
-  return scene.stages.filter(stageClean);
-}
-
-export function setQuality(scene: SceneModel): number {
-  const photomode = /(^|\/)photomode(\/|$)/.test(scene.id);
-  const clean = cleanStages(scene);
-  const poseMajority = clean.length > 0 && clean.filter((stage) => stage.tags.includes("pose")).length > clean.length / 2;
-  if (photomode && poseMajority) return 0;
-  if (photomode) return 1;
-  if (poseMajority) return 2;
-  if (clean.some((stage) => /idle/i.test(stage.name) || stage.tags.some((tag) => tag.startsWith("idle")))) return 3;
-  return 4;
 }
 
 export function wheelKey(scene: string, stage: number | null): string {
@@ -497,7 +469,23 @@ export function wheelStageTitle(scene: SceneModel, stage: SceneStage): string {
   return scene.stages.length === 1 ? title : `${title} · Stage ${stage.index + 1}`;
 }
 
+// Same single-entry memo shape as playableItems: the candidate sweep walks every library stage.
+let wheelMemo: {
+  catalog: BrowserState["catalog"];
+  library: BrowserState["library"];
+  candidates: WheelCandidate[];
+} | null = null;
+
 export function wheelCandidates(state: BrowserState): WheelCandidate[] {
+  if (wheelMemo && wheelMemo.catalog === state.catalog && wheelMemo.library === state.library) {
+    return wheelMemo.candidates;
+  }
+  const candidates = buildWheelCandidates(state);
+  wheelMemo = { catalog: state.catalog, library: state.library, candidates };
+  return candidates;
+}
+
+function buildWheelCandidates(state: BrowserState): WheelCandidate[] {
   const candidates: WheelCandidate[] = emoteCatalog(state).filter(isWheelEmote).map((scene) => ({
     key: wheelKey(scene.id, null),
     scene: scene.id,

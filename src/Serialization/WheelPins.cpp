@@ -127,6 +127,17 @@ namespace OSF::Serialization::WheelPins
 					return;
 				}
 				out << doc.dump(1, '\t');
+				// Verify the write actually landed before the temp replaces the ONLY copy of the
+				// loadout: a full disk leaves the stream in a fail state that the destructor
+				// silently swallows — renaming that truncated temp over the live file loses it.
+				out.close();
+				if (!out) {
+					REX::WARN("[UI] write to {} failed — wheel customization won't persist this session", tmp.string());
+					std::error_code rmEc;
+					std::filesystem::remove(tmp, rmEc);
+					reportFailure("write", "the temporary file could not be fully written (disk full?)");
+					return;
+				}
 			}
 			// std::filesystem::rename does not replace an existing destination on Windows.
 			// MoveFileEx gives the temp-write its intended atomic replace semantics.

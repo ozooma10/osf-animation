@@ -12,9 +12,6 @@ namespace OSF::API
 	// Fired when the background clip-duration scan lands new numbers after the initial push.
 	void PushCatalogUpdate();
 
-	// True when OSF UI is present and the bridge was fetched (i.e. F10 actually opens something).
-	bool UIBridgeInstalled();
-
 	// Mirror the browser's Interface > Auto-Minimize setting into launch replies. The view owns
 	// the minimized live-bar state; native only supplies the current persisted preference.
 	void SetBrowserAutoMinimize(bool a_enabled);

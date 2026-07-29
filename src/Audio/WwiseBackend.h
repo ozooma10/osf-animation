@@ -23,11 +23,10 @@ namespace OSF::Audio::Wwise
 	// Stops a single posted voice by its AkPlayingID (the value PostEvent / PostExternalFile returned),
 	// for per-slot voice replacement. Safe from any thread; harmless on a playingID the engine already retired.
 	//
-	// PROOF-GATED: the AK stop entry point (AK::SoundEngine::StopPlayingID / ExecuteActionOnPlayingID) is not
-	// yet RE-proven on this build, so calling an unverified AK function with a playingID could corrupt the
-	// audio command queue. Until the rel_id is identified and proven in-game (see WwiseBackend.cpp
-	// kAkStopVoiceID + the OSF RE `wwise stopid` probe), this is a SAFE NO-OP. Returns true only if it
-	// actually issued a stop, so callers/telemetry can tell whether Wwise replace is live yet.
+	// PROLOGUE-GATED: the AK stop entry point (ExecuteActionOnPlayingID, REL::ID 150360) is RE-proven
+	// on 1.16.244 and confirmed in-game (see WwiseBackend.cpp kAkStopVoiceID); the byte-prologue check
+	// still self-disables it on a future patch, in which case this degrades to a no-op. Returns true
+	// only if it actually issued a stop, so callers/telemetry can tell whether Wwise replace is live.
 	bool StopVoice(std::uint32_t a_playingID);
 
 	// --- external-source (.wem) path ---

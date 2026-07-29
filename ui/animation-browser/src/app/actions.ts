@@ -45,11 +45,7 @@ export type BrowserAction =
   | { type: "filter/species" }
   | { type: "browse/all" }
   | { type: "browse/kind"; kind: BrowseKind }
-  | { type: "library/showAll" }
-  | { type: "library/full" }
-  | { type: "library/customOnly" }
   | { type: "library/group"; key: string; open: boolean }
-  | { type: "scene/group"; key: string; open: boolean }
   | { type: "brief/fullAnimations" }
   | { type: "brief/options" }
   | { type: "brief/option"; field: "strip" | "lock" | "camera" | "speed"; value: string }
@@ -63,7 +59,6 @@ export type BrowserAction =
   | { type: "wheel/received"; customized: boolean; entries: WheelEntry[] }
   | { type: "wheel/focused"; focus: number }
   | { type: "wheel/launching"; key: string }
-  | { type: "wheel/error"; error: string }
   | { type: "wheel/debug"; entries: WheelEntry[]; customized: boolean; received: boolean; target: { token: number; name: string } | null; error: string }
   | { type: "wheel/customized"; catalog: SceneModel[]; library: SceneModel[] }
   | { type: "wheel/reset"; catalog: SceneModel[]; library: SceneModel[] }

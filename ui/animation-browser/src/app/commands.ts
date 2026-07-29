@@ -28,8 +28,6 @@ export interface BrowserCommands {
   clearAnchor(): void;
   selectLocation(mode: LocationMode, token?: number | null): void;
   toggleLibraryGroup(key: string, open: boolean): void;
-  toggleSceneGroup(key: string, open: boolean): void;
-  toggleLibraryShowAll(): void;
   toggleLibraryFull(): void;
   toggleLibraryCustomOnly(): void;
   toggleBriefAnimations(): void;

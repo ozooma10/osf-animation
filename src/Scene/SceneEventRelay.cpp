@@ -213,24 +213,6 @@ namespace OSF::Scene
 		}
 	}
 
-	bool SceneEventRelay::DispatchStatic(std::string_view a_script, std::string_view a_fn, const SceneEvent& a_event)
-	{
-		auto* vm = VM::GetSingleton();
-		if (!vm) {
-			REX::WARN("[Scene] DispatchStatic: no VM");
-			return false;
-		}
-		RE::BSScript::Variable payload;
-		if (!PackPayload(vm, a_event, payload)) {
-			return false;
-		}
-		const RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> noCallback{};
-		return vm->DispatchStaticCall(
-			RE::BSFixedString(std::string(a_script).c_str()),
-			RE::BSFixedString(std::string(a_fn).c_str()),
-			MakeArgs(payload), noCallback, 0);
-	}
-
 	void SceneEventRelay::Clear()
 	{
 		std::lock_guard l{ _lock };

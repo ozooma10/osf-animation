@@ -7,7 +7,6 @@ export type BridgeCommand =
   | "osf.animation.library.get"
   | "osf.animation.opened"
   | "osf.animation.orbit"
-  | "osf.animation.pickCrosshair"
   | "osf.animation.pickScreen"
   | "osf.animation.projectActors"
   | "osf.animation.projectPickables"
@@ -52,12 +51,4 @@ export function isRecord(value: unknown): value is Record<string, any> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-export function stringField(record: Record<string, any>, key: string, fallback = ""): string {
-  return record[key] == null ? fallback : String(record[key]);
-}
-
-export function numberField(record: Record<string, any>, key: string, fallback = 0): number {
-  const value = Number(record[key]);
-  return Number.isFinite(value) ? value : fallback;
-}
 

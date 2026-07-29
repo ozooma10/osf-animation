@@ -303,20 +303,6 @@ namespace OSF::Scene
 		}
 	}
 
-	std::string SceneRuntime::GetId(std::int32_t a_scene)
-	{
-		std::lock_guard l{ _lock };
-		Slot* s = Resolve(a_scene);
-		if (!s) {
-			return {};
-		}
-		// An ad-hoc files scene has no registry id (empty) — synthesize one.
-		if (s->id.empty()) {
-			return "runtime.files:" + std::to_string(a_scene);
-		}
-		return s->id;
-	}
-
 	std::string SceneRuntime::GetNode(std::int32_t a_scene)
 	{
 		std::lock_guard l{ _lock };
@@ -357,7 +343,7 @@ namespace OSF::Scene
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
 		// A registry scene has a stage number only if it declares linearStages; an ad-hoc files
 		// scene (no registry def) reports the single GraphManager scene's live stage.
-		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		if (!def) {
 			return Animation::GraphManager::GetSingleton().GetSceneStage(first);
 		}
@@ -371,7 +357,7 @@ namespace OSF::Scene
 			return false;
 		}
 		RE::Actor* first = view.participants.empty() ? nullptr : view.participants.front();
-		const auto def = view.definition ? view.definition : Registry::SceneRegistry::GetSingleton().Find(view.id);
+		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		if (!def) {
 			// ad-hoc files scene: jump the live GraphManager scene (it range-checks the stage).
 			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage);
@@ -427,8 +413,9 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 		_slots.clear();
-		_nextGen = 1;
-		// The actual player lock is released by GraphManager::StopAll (PlayerControlService / CameraService OnStopAll) before this runs; just drop the ref-count.
-		_controlLockCount = 0;
+		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a handle
+		// minted before a save-load can never validate against a slot reused after the load (a stashed
+		// handle must read as dead — same rule as SceneEventRelay::Clear).
+		// The actual player lock is released by GraphManager::StopAll (PlayerControlService / CameraService OnStopAll) before this runs.
 	}
 }

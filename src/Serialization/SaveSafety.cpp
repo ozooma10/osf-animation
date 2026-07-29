@@ -97,6 +97,12 @@ namespace OSF::Serialization::SaveSafety
 					// save window and re-asserts the hold. A cheap no-op when no window is open — load
 					// statuses land here too.
 					Animation::GraphManager::GetSingleton().OnSaveEnd();
+					// A load op that ended without ever dispatching (F9 with no quicksave, refused load)
+					// must un-latch the revert window, or the NEXT real load skips teardown entirely.
+					// AbortLoad is a no-op once the load worker has dispatched.
+					if (IsWorldReplacingLoadOp(a_event.opType)) {
+						PersistenceHost::AbortLoad();
+					}
 				}
 				return RE::BSEventNotifyControl::kContinue;
 			}

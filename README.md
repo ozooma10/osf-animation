@@ -62,6 +62,15 @@ The Papyrus API is exposed as `OSF.*`.
 xmake project -k compile_commands   
 ```
 
+## Tests
+
+```bat
+xmake test
+```
+
+runs the engine-free C++ suites (persistence broker, frame clock/clip specs, sound registry,
+scene registry). The browser view has its own suite: `npm --prefix ui/animation-browser run verify`.
+
 ## Test Harness
 
 ```bat

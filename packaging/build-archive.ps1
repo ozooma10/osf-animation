@@ -200,7 +200,8 @@ $required = @(
 )
 $missing = $required | Where-Object { -not (Test-Path (Join-Path $stage $_)) }
 if ($missing) { Die ("Staged archive is missing required files:`n    " + ($missing -join "`n    ")) }
-if (-not (Get-ChildItem "$core\SFSE\Plugins\OSFUI\views\assets" -Filter '*.js' -ErrorAction SilentlyContinue)) {
+# Layout-independent: the CLI namespaces assets under views\<modId>\assets, so probe recursively.
+if (-not (Get-ChildItem "$core\SFSE\Plugins\OSFUI\views" -Recurse -Filter '*.js' -ErrorAction SilentlyContinue)) {
     Die 'Staged browser view has no generated JavaScript asset.'
 }
 

@@ -188,6 +188,7 @@ namespace OSF::Serialization::PersistenceHost
 					return;
 				}
 				_loadInProgress.store(true, std::memory_order_release);
+				_loadDispatched = false;
 				_completedAwaitingBackstop = false;
 				{
 					std::lock_guard remapLock(_remapMutex);
@@ -196,6 +197,29 @@ namespace OSF::Serialization::PersistenceHost
 				}
 				REX::DEBUG("[Save] persistence revert before load ({})", reason ? reason : "unknown");
 				_broker.RevertAll();
+			}
+
+			// The load worker actually ran: from here on only FinishLoad/Backstop may close the window.
+			void MarkLoadDispatched()
+			{
+				std::lock_guard lifecycleLock(_lifecycleMutex);
+				_loadDispatched = true;
+			}
+
+			// A load op ended in a terminal status without ever reaching the load worker (refused /
+			// cancelled before dispatch). Un-latch so the next load gets its full revert window; a
+			// dispatched load is left alone (FinishLoad owns it).
+			void AbortLoad()
+			{
+				std::lock_guard lifecycleLock(_lifecycleMutex);
+				if (!_loadInProgress.load(std::memory_order_acquire) || _loadDispatched) {
+					return;
+				}
+				REX::DEBUG("[Save] load refused before dispatch — closing the revert window");
+				_loadInProgress.store(false, std::memory_order_release);
+				std::lock_guard remapLock(_remapMutex);
+				_remapped.clear();
+				_deleted.clear();
 			}
 
 			void FinishLoad(std::string_view saveName, bool succeeded)
@@ -215,6 +239,7 @@ namespace OSF::Serialization::PersistenceHost
 					stats.blocksSeen, stats.clientsLoaded, stats.unknownClients, stats.corruptBlocks, stats.callbackFailures);
 				std::lock_guard lifecycleLock(_lifecycleMutex);
 				_loadInProgress.store(false, std::memory_order_release);
+				_loadDispatched = false;
 				_completedAwaitingBackstop = succeeded;
 				std::lock_guard remapLock(_remapMutex);
 				_remapped.clear();
@@ -233,6 +258,7 @@ namespace OSF::Serialization::PersistenceHost
 				BeginLoad("TESLoadGameEvent backstop (unkeyed load/new game)");
 				std::lock_guard lifecycleLock(_lifecycleMutex);
 				_loadInProgress.store(false, std::memory_order_release);
+				_loadDispatched = false;
 				std::lock_guard remapLock(_remapMutex);
 				_remapped.clear();
 				_deleted.clear();
@@ -353,6 +379,7 @@ namespace OSF::Serialization::PersistenceHost
 				const std::string saveName = BoundedName(static_cast<const char*>(reader));
 				auto& host = GetSingleton();
 				host.BeginLoad("load-name hook");
+				host.MarkLoadDispatched();
 				const bool result = g_originalLoadGame(self, reader, flag1, flag2);
 				host.FinishLoad(saveName, result);
 				return result;
@@ -373,6 +400,7 @@ namespace OSF::Serialization::PersistenceHost
 			std::atomic<bool> _ready{};
 			std::mutex _lifecycleMutex;
 			std::atomic<bool> _loadInProgress{};
+			bool _loadDispatched{};  // guarded by _lifecycleMutex
 			bool _completedAwaitingBackstop{};
 			std::mutex _remapMutex;
 			std::unordered_map<std::uint32_t, std::uint32_t> _remapped;
@@ -445,7 +473,6 @@ namespace OSF::Serialization::PersistenceHost
 	}
 
 	bool Initialize() { return Host::GetSingleton().Initialize(); }
-	bool IsReady() { return Host::GetSingleton().IsReady(); }
 
 	void RegisterEventSinks()
 	{
@@ -468,6 +495,7 @@ namespace OSF::Serialization::PersistenceHost
 	}
 
 	void BeginLoad(const char* reason) { Host::GetSingleton().BeginLoad(reason); }
+	void AbortLoad() { Host::GetSingleton().AbortLoad(); }
 	void OnLoadBackstop() { Host::GetSingleton().Backstop(); }
 
 	const OSFPersistenceAPI* RequestAPI(std::uint32_t requestedVersion)

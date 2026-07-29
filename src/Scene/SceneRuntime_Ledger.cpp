@@ -10,8 +10,10 @@
 #include <algorithm>
 
 // SceneRuntime — undo ledger slice (one class, split across translation units; see SceneRuntime.cpp).
-// Every reversible side-effect a scene engages is recorded per-handle and replayed in reverse on termination, so cleanup never depends on an authored release. 
-// The control lock keeps a cross-scene ref-count (_controlLockCount); equipment/weapon keep their per-actor state on the Slot.
+// Every reversible side-effect a scene engages is recorded per-handle and replayed in reverse on termination, so cleanup never depends on an authored release.
+// The control lock needs no cross-scene ref-count: only a scene containing the PLAYER records it,
+// and MintSlot refuses a start on an actor already in a live scene, so at most one live scene can
+// hold it (the services are idempotent/self-counted besides). Equipment/weapon keep their per-actor state on the Slot.
 
 namespace OSF::Scene
 {
@@ -30,7 +32,7 @@ namespace OSF::Scene
 			}
 			s->ledger.push_back(a_mech);
 			if (a_mech == Mechanism::kControlLock) {
-				engageLock = (++_controlLockCount == 1);  // first global holder engages the lock
+				engageLock = true;  // once per scene (the ledger find above); at most one scene can hold the player
 			} else if (a_mech == Mechanism::kCamera) {
 				engageCamera = true;  // the camera lock is ref-counted internally (composes w/ control lock)
 			}
@@ -47,8 +49,6 @@ namespace OSF::Scene
 
 	void SceneRuntime::UndoMechanism(std::int32_t a_handle, Mechanism a_mech)
 	{
-		bool disengageLock = false;
-		std::int32_t remaining = 0;
 		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;  // moved out for kEquipment
 		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> heldEquip;  // moved out for kHeldEquipment
 		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;  // moved out for kEquipItem
@@ -64,13 +64,7 @@ namespace OSF::Scene
 				return;  // not held — idempotent (already reversed, or never engaged)
 			}
 			s->ledger.erase(it);
-			if (a_mech == Mechanism::kControlLock) {
-				disengageLock = (--_controlLockCount <= 0);  // last holder releases the actual lock
-				if (_controlLockCount < 0) {
-					_controlLockCount = 0;
-				}
-				remaining = _controlLockCount;
-			} else if (a_mech == Mechanism::kEquipment) {
+			if (a_mech == Mechanism::kEquipment) {
 				equip.swap(s->hiddenEquip);  // take this scene's hidden apparel out for restore
 			} else if (a_mech == Mechanism::kHeldEquipment) {
 				heldEquip.swap(s->hiddenHeldEquip);  // cleanup-only: never touched by authored apparel restore
@@ -84,13 +78,11 @@ namespace OSF::Scene
 		// the inventory lock).
 		switch (a_mech) {
 		case Mechanism::kControlLock:
-			if (disengageLock) {
-				REX::TRACE("[Scene] scene {:#010x} control lock released — player unlocked", a_handle);
-				Player::PlayerControlService::GetSingleton().SetStandaloneLock(false);
-				Camera::CameraService::GetSingleton().SetStandaloneLock(false);
-			} else {
-				REX::TRACE("[Scene] scene {:#010x} control lock released — {} scene(s) still hold it", a_handle, remaining);
-			}
+			// Always release: at most one scene can hold the player (MintSlot exclusivity), and the
+			// services absorb a redundant release (bool-idempotent / internally counted).
+			REX::TRACE("[Scene] scene {:#010x} control lock released — player unlocked", a_handle);
+			Player::PlayerControlService::GetSingleton().SetStandaloneLock(false);
+			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
 			break;
 		case Mechanism::kFade:
 			REX::TRACE("[Scene] scene {:#010x} fade undo — fading back in", a_handle);

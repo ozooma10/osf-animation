@@ -55,10 +55,6 @@ namespace OSF::Scene
 		// Snapshot a_event into an OSFTypes:SceneEvent and DispatchMethodCall every matching receiver, in registration order. Safe from any thread.
 		void Dispatch(const SceneEvent& a_event);
 
-		// DEBUG/no-instance transport probe: DispatchStaticCall a_script.a_fn(SceneEvent) with a_event's payload (no registration needed). 
-		// Proves the struct marshalling without a scripted form. Returns false if the VM is unavailable.
-		bool DispatchStatic(std::string_view a_script, std::string_view a_fn, const SceneEvent& a_event);
-
 		//Drop registrations without releasing objects (papyrus vm may have alreadyt freed, so forget the references instead)
 		void Clear();
 

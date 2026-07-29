@@ -8,8 +8,7 @@ ScriptName OSF Native Hidden
 
 
 ; Matchmake by tags + role/gender fit across scene defs and packs in registry, chosen by priority tier + weighted-random, and start it.
-; Returns the scene handle (0 = no match);
-; recover the chosen scene id with GetSceneId(handle).
+; Returns the scene handle (0 = no match).
 int Function StartSceneByTags(Actor[] akActors, string[] asTags, OSFTypes:SceneOptions akOpts = None) Global Native
 
 ; Start a specific scene by id. akOpts.Stage = start stage (packs; ignored by def graphs);

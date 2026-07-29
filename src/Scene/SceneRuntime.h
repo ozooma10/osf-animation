@@ -73,17 +73,6 @@ namespace OSF::Scene
 		void OnTimedMarks(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
 			const std::vector<Animation::FiredMark>& a_marks);
 
-		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. An explicit
-		// anchor (StartSceneAt) world-anchors the scene at a_anchor instead of at participant[0]
-		// and is stored on the slot so node transitions reuse it. Returns the handle (0 = failed:
-		// table full / an actor is already in a scene).
-		std::int32_t Start(std::string_view a_id, std::string_view a_entryNode, const std::vector<RE::Actor*>& a_participants,
-			const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
-
-		// Move to a different node: fire NODE_EXIT (old node) then NODE_ENTER (new node).
-		// False if the handle is invalid.
-		bool SetNode(std::int32_t a_scene, std::string_view a_node);
-
 		// Fire NODE_EXIT then SCENE_END, then release the handle. False if invalid.
 		bool Stop(std::int32_t a_scene);
 
@@ -142,7 +131,6 @@ namespace OSF::Scene
 		std::string  EdgeLabel(std::int32_t a_scene, std::int32_t a_index);
 
 		// Lookups (contract sentinels): id/node "" if invalid; stage -1; actor→handle 0.
-		std::string  GetId(std::int32_t a_scene);
 		std::string  GetNode(std::int32_t a_scene);
 		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only; else -1
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
@@ -184,13 +172,24 @@ namespace OSF::Scene
 		void Clear();
 
 	private:
+		// Mint a handle, record (id, entry node, participants), fire NODE_ENTER. An explicit
+		// anchor (StartSceneAt) world-anchors the scene at a_anchor instead of at participant[0]
+		// and is stored on the slot so node transitions reuse it. Returns the handle (0 = failed:
+		// table full / an actor is already in a scene). Internal: external consumers go through the
+		// StartFrom* funnels (Papyrus) or the C ABI (OSFSceneAPI).
+		std::int32_t Start(std::string_view a_id, std::string_view a_entryNode, const std::vector<RE::Actor*>& a_participants,
+			const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
+
+		// Move to a different node: fire NODE_EXIT (old node) then NODE_ENTER (new node).
+		// False if the handle is invalid.
+		bool SetNode(std::int32_t a_scene, std::string_view a_node);
+
 		// A reversible side-effect a scene engaged, tracked in the per-handle undo ledger. On any
 		// termination the ledger replays in reverse order, once, idempotently, so cleanup never
-		// depends on an authored release. Mechanisms with cross-scene state (the control lock) keep
-		// their own ref-count alongside the per-handle entry.
+		// depends on an authored release.
 		enum class Mechanism : std::uint8_t
 		{
-			kControlLock,   // player control + camera lock (ref-counted across scenes)
+			kControlLock,   // player control + camera lock (at most one scene holds the player — MintSlot exclusivity)
 			kFade,          // screen fade-to-black (undo = fade back in)
 			kEquipment,     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
 			kHeldEquipment, // held items cleared at scene start (undo = re-equip only on scene cleanup)
@@ -236,8 +235,7 @@ namespace OSF::Scene
 			// Mechanism — record is idempotent). Replayed in reverse on termination.
 			std::vector<Mechanism>  ledger;
 			// kEquipment's per-actor state: apparel this scene hid (restored on undo). Lives
-			// here (not the ledger entry) so the ledger stays a plain ordered type list — same
-			// pattern as control-lock keeping its count in _controlLockCount.
+			// here (not the ledger entry) so the ledger stays a plain ordered type list.
 			std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> hiddenEquip;
 			// kHeldEquipment's per-actor state: non-apparel equipped items cleared at scene start.
 			// Kept separate so osf.equipment.restore remains an apparel-only authored action.
@@ -359,7 +357,7 @@ namespace OSF::Scene
 		// (idempotent: applies its undo and drops the entry) — the authored osf.*.release /
 		// osf.fade.in path. ReplayLedger reverses the whole ledger in reverse order, once,
 		// idempotently — called from the single Fire(SCENE_END) point so cleanup runs on every
-		// termination path. The control lock keeps a cross-scene ref-count (_controlLockCount).
+		// termination path.
 		void RecordMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void UndoMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void ReplayLedger(std::int32_t a_handle);
@@ -490,7 +488,6 @@ namespace OSF::Scene
 		std::mutex        _lock;
 		std::vector<Slot> _slots;
 		std::uint16_t     _nextGen = 1;
-		std::int32_t      _controlLockCount = 0;  // # of live scenes holding the player control lock
 		std::function<void()> _sceneObserver;     // see SetSceneObserver
 	};
 }

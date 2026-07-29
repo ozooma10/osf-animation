@@ -157,6 +157,8 @@ namespace OSF::Animation
 		blendPhase = BlendPhase::kIn;
 		blendClock.Reset();
 		removalQueued = false;
+		lastSampleMs.store(std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
 
 		skeleton = std::move(a_skeleton);
 		anim = std::move(a_anim);
@@ -321,6 +323,18 @@ namespace OSF::Animation
 		blendPhase = BlendPhase::kOut;
 		blendClock.Reset();
 		removalQueued = false;
+		fadeOutBeganMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count();
+		// Drop the model-node cache: if the engine stops sampling this graph mid-fade (actor
+		// unloaded), a stale cachedModelNode could later match a REUSED address and stamp a
+		// foreign actor's rig. Sample re-resolves and re-binds on the next update, so a live
+		// fade keeps stamping.
+		cachedModelNode = nullptr;
+		cachedRig = nullptr;
+		cachedBoneCount = 0;
+		cachedLocalData = nullptr;
+		cachedRigBoneCount = 0;
+		binding.clear();
 	}
 
 	void Graph::DetachAndFadeOut()
@@ -335,15 +349,9 @@ namespace OSF::Animation
 		// resume immediately; continuing to blend C_Head for another 0.4s can make those dependent
 		// nodes cache against a half-OSF/half-engine head pose. The player camera-mode rebuild clears
 		// that stale state, but NPCs keep the malformed head. Hand C_Head back on the first teardown
-		// frame while the rest of the body still fades smoothly.
-		if (preserveBones.emplace("c_head").second) {
-			cachedModelNode = nullptr;
-			cachedRig = nullptr;
-			cachedBoneCount = 0;
-			cachedLocalData = nullptr;
-			cachedRigBoneCount = 0;
-			binding.clear();
-		}
+		// frame while the rest of the body still fades smoothly. (BeginFadeOut below drops the cached
+		// binding, so the rebind picks the new preserve set up.)
+		preserveBones.emplace("c_head");
 
 		BeginFadeOut();
 	}
@@ -352,8 +360,23 @@ namespace OSF::Animation
 		return blendPhase == BlendPhase::kOut && blendClock.time >= blendDuration;
 	}
 
+	bool Graph::IsStranded(std::int64_t a_nowMs) const
+	{
+		constexpr std::int64_t kFadeSlackMs = 2000;  // beyond the ramp before a wall-clock fade counts as stranded
+		constexpr std::int64_t kStarvedMs = 5000;    // unsampled this long (game running) = engine dropped the actor
+		if (blendPhase == BlendPhase::kOut && fadeOutBeganMs > 0) {
+			const auto rampMs = static_cast<std::int64_t>(blendDuration * 1000.0f);
+			return a_nowMs - fadeOutBeganMs > rampMs + kFadeSlackMs;
+		}
+		const std::int64_t lastSample = lastSampleMs.load(std::memory_order_relaxed);
+		return lastSample != 0 && a_nowMs - lastSample > kStarvedMs;
+	}
+
 	void Graph::Sample(float a_deltaTime, const void* a_token)
 	{
+		lastSampleMs.store(std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
+
 		// Blend ramps run on playback dt, independent of clip looping/clamping
 		if (blendPhase != BlendPhase::kNone && blendClock.ShouldAdvance(a_token)) {
 			blendClock.time += a_deltaTime;

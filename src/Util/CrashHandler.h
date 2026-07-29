@@ -19,10 +19,7 @@ namespace OSF::Util::CrashHandler
 {
 	// Install all handlers. Call ONCE, as early as possible — top of SFSE_PLUGIN_PRELOAD,
 	// before anything (ours or commonlib's) can assert. Idempotent; never throws.
+	// The SetUnhandledExceptionFilter backstop always chains to the previously installed
+	// filter, so trainwreck's crash log still gets produced.
 	void Install() noexcept;
-
-	// Set false BEFORE Install() to skip the SetUnhandledExceptionFilter backstop and
-	// leave all SEH/access-violation handling to trainwreck. Default true; when enabled
-	// we always chain to the previously installed filter so trainwreck still runs.
-	void SetInstallUnhandledExceptionFilter(bool a_enable) noexcept;
 }

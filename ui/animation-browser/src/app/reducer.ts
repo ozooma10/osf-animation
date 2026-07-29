@@ -2,6 +2,10 @@ import type { BrowserAction } from "./actions";
 import { PLAYER_CAST, type BrowserState, type CastMember } from "./state";
 
 function moveMember(members: CastMember[], from: number, to: number, after = false): CastMember[] {
+  // Dropping a row on itself is a cancel, not a reorder: without this, dropping on the
+  // lower half of the SAME row (after=true) computed destination = from + 1 and swapped
+  // the member with its neighbour — silently rebinding roles (cast order is role order).
+  if (from === to) return members;
   if (from < 0 || from >= members.length || to < 0 || to >= members.length) return members;
   const result = members.slice();
   const [member] = result.splice(from, 1);
@@ -10,6 +14,22 @@ function moveMember(members: CastMember[], from: number, to: number, after = fal
   if (destination === from) return members;
   result.splice(destination, 0, member);
   return result;
+}
+
+// Shallow element-wise equality over arrays of flat objects (marker/indicator payloads).
+function sameItems<T extends object>(a: readonly T[], b: readonly T[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] as Record<string, unknown>;
+    const y = b[i] as Record<string, unknown>;
+    const keys = Object.keys(x);
+    if (keys.length !== Object.keys(y).length) return false;
+    for (const k of keys) {
+      if (x[k] !== y[k]) return false;
+    }
+  }
+  return true;
 }
 
 export function browserReducer(state: BrowserState, action: BrowserAction): BrowserState {
@@ -67,6 +87,11 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         : state;
     case "settings/received": {
       const preferences = { ...state.preferences, ...action.preferences };
+      // Re-seed a START OVERRIDES field only when this payload actually carries its key:
+      // an unrelated preference write (the CUSTOM ONLY / FULL DETAIL chips) must not
+      // discard per-launch overrides the user just set. The authoritative full
+      // settings.data payload carries every key, so it still re-seeds everything.
+      const carried = action.preferences;
       return {
         ...state,
         preferences,
@@ -74,10 +99,10 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         libFull: preferences.libraryDetail === "full",
         libCustomOnly: preferences.librarySource === "custom",
         opts: {
-          strip: preferences.strip,
-          lock: preferences.lock,
-          camera: preferences.camera,
-          speed: preferences.speed,
+          strip: "strip" in carried ? preferences.strip : state.opts.strip,
+          lock: "lock" in carried ? preferences.lock : state.opts.lock,
+          camera: "camera" in carried ? preferences.camera : state.opts.camera,
+          speed: "speed" in carried ? preferences.speed : state.opts.speed,
         },
       };
     }
@@ -119,7 +144,9 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ? { ...state, nearbyActors: action.targets }
         : { ...state, nearbyFurniture: action.targets };
     case "indicators/received":
-      return { ...state, actorIndicators: action.items };
+      // Element-wise bail-out (same idea as cast/moved and pickTargets/received): the
+      // ~12.5 Hz projectActors poll re-rendered the whole tree even when nothing moved.
+      return sameItems(state.actorIndicators, action.items) ? state : { ...state, actorIndicators: action.items };
     case "pickTargets/received":
       // Replies are tagged with the slot they were polled for, so a late
       // in-flight actor reply can't paint markers into furniture mode (or
@@ -136,7 +163,6 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         locationMode: "furniture",
         locationToken: action.anchor.token,
         anchorMatch: null,
-        libShowAll: false,
       };
     case "anchor/cleared":
       return {
@@ -181,9 +207,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
           browseAll: false,
           browseKind: "all",
           allSpecies: false,
-          libShowAll: false,
           libOpen: new Map<string, boolean>(),
-          scnOpen: new Map<string, boolean>(),
         } : {}),
       };
     case "filter/search":
@@ -194,21 +218,10 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return { ...state, browseAll: !state.browseAll };
     case "browse/kind":
       return { ...state, browseKind: action.kind };
-    case "library/showAll":
-      return { ...state, libShowAll: !state.libShowAll };
-    case "library/full":
-      return { ...state, libFull: !state.libFull };
-    case "library/customOnly":
-      return { ...state, libCustomOnly: !state.libCustomOnly };
     case "library/group": {
       const libOpen = new Map(state.libOpen);
       libOpen.set(action.key, action.open);
       return { ...state, libOpen };
-    }
-    case "scene/group": {
-      const scnOpen = new Map(state.scnOpen);
-      scnOpen.set(action.key, action.open);
-      return { ...state, scnOpen };
     }
     case "brief/fullAnimations":
       return { ...state, briefFullAnims: !state.briefFullAnims };
@@ -256,8 +269,6 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return state.wheel ? { ...state, wheel: { ...state.wheel, focus: action.focus } } : state;
     case "wheel/launching":
       return state.wheel ? { ...state, wheel: { ...state.wheel, error: "", launching: action.key } } : state;
-    case "wheel/error":
-      return state.wheel ? { ...state, wheel: { ...state.wheel, launching: "", error: action.error } } : state;
     case "wheel/debug":
       return state.wheel ? {
         ...state,

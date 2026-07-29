@@ -5,7 +5,7 @@ ScriptName OSFTypes
 Struct SceneOptions
     ObjectReference Anchor    ; world-anchor the scene at this ref (furniture/bed/marker) instead of co-locating at akActors[0].
     float HeadingDeg = -1.0   ; anchor heading in DEGREES; < 0 = use Anchor's own heading
-    int Stage = 0             ; start stage for OSFAdvanced.StartSceneStages; for registry graph scenes use SetSceneStage* after start
+    int Stage = 0             ; start stage: enters registry scenes directly ON that linear stage (resolved before start), and is the start stage for OSFAdvanced.StartSceneStages; 0 = the scene's entry
     float Speed = 1.0         ; OSFAdvanced dynamic file/stage starts
     float BlendIn = 0.4       ; OSFAdvanced dynamic file/stage starts
 
