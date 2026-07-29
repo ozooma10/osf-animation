@@ -38,7 +38,7 @@ namespace OSF::API
 	{
 		using json = nlohmann::json;
 
-		// The version-gated bridge wrapper (OSFUI::API::Client, header 1.6),
+		// The version-gated bridge wrapper (OSFUI::API::Client, header 1.7),
 		// initialized once at Install; unconnected => OSF UI absent (UI
 		// disabled) and every call degrades to a no-op. Static lifetime:
 		// registered handlers may fire for the remaining process life.
@@ -188,7 +188,10 @@ namespace OSF::API
 		// installed host reports an older version, the browser's status line grows an
 		// UPDATE badge pointing at the OSF UI Nexus page. Bump alongside any new
 		// host feature this file starts depending on.
-		constexpr std::uint32_t kOSFUITested[3] = { 1, 3, 0 };
+		// OSF UI 1.5 is the first release whose consented reporter recognizes
+		// osf.animation/* as the OSF Animation target, attaches this plugin's
+		// session log, and routes the resulting issue to the Animation repo.
+		constexpr std::uint32_t kOSFUITested[3] = { 1, 5, 0 };
 		constexpr const char*   kOSFUINexusURL  = "https://www.nexusmods.com/starfield/mods/17711";
 
 		// ---- helpers ---------------------------------------------------------

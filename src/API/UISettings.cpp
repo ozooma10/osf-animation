@@ -34,7 +34,7 @@ namespace OSF::API
   "description": "Scene framework — browser, animation wheel, and scene hotkeys.",
   "icon": "browser/osf-icon.svg",
   "version": 3,
-  "targetVersion": "1.3.0",
+  "targetVersion": "1.5.0",
   "groups": [
     { "label": "Hotkeys", "settings": [
       { "key": "hotkeys.openBrowser", "type": "key", "default": "", "allowUnbound": true,
