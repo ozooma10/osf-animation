@@ -58,6 +58,8 @@ button,input,select{font:inherit;color:inherit}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:var(--void-900)}
 ::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:var(--steel-500)}
+::-webkit-scrollbar-thumb:active{background:var(--steel-400)}
 .hidden{display:none!important}
 
 /* ---- shared micro-type ------------------------------------ */
