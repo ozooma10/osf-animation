@@ -106,6 +106,14 @@ namespace OSF::Camera
 			return (GetAsyncKeyState(a_vk) & 0x8000) != 0;
 		}
 
+		bool InvertLookY()
+		{
+			// Cache the setting object, not its value: the Controls menu updates this object in place,
+			// so a live scene-orbit follows the player's vanilla preference without a per-frame lookup.
+			static const RE::Setting* setting = RE::GetINISetting("bInvertYValues:Controls");
+			return setting && setting->GetType() == RE::Setting::Type::kBool && setting->GetBool();
+		}
+
 		// --- Gamepad orbit steering: RIGHT stick = mouse drag (orbit angle), LEFT stick = WASD
 		// (flies the orbit center horizontally), TRIGGERS = vertical translation (RT up / LT down),
 		// SHOULDERS = wheel (RB zooms in / LB out). Polled like KeyDown; axes are positions, not deltas, so DriveSceneOrbit
@@ -746,7 +754,8 @@ namespace OSF::Camera
 		const PadOrbit pad = ReadPadOrbit(now);
 		// Stick up looks up = camera lowers, matching a mouse drag up (which arrives as -mdy).
 		orbitTargetAzimuth -= mdx * kOrbitMouseSens + pad.lookX * kOrbitStickLookSpeed * dt;
-		orbitTargetElevation += mdy * kOrbitMouseSens - pad.lookY * kOrbitStickLookSpeed * dt;
+		const float lookY = mdy * kOrbitMouseSens - pad.lookY * kOrbitStickLookSpeed * dt;
+		orbitTargetElevation += InvertLookY() ? -lookY : lookY;
 		orbitTargetElevation = std::clamp(orbitTargetElevation, -kOrbitElevLimit, kOrbitElevLimit);
 		orbitTargetRadius -= wheel * kOrbitWheelStep + pad.zoom * kOrbitButtonZoomSpeed * dt;  // wheel up / RB (+) = zoom in = smaller radius
 		orbitTargetRadius = std::clamp(orbitTargetRadius, kOrbitMinRadius, kOrbitMaxRadius);
