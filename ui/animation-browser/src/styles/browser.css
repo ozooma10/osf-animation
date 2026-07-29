@@ -104,6 +104,13 @@ button,input,select{font:inherit;color:inherit}
   transform:translateX(-50%) rotate(45deg);background:var(--accent);box-shadow:0 0 7px var(--accent)}
 .world-actor-key{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex:none;
   background:var(--accent);color:var(--text-on-amber);font:700 10px var(--font-mono)}
+.world-furniture-key{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex:none;
+  background:var(--signal-go);color:var(--void-950)}
+.world-furniture-key svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.world-actor-indicator.furniture,.selected-actor-chip.furniture{border-color:var(--signal-go);
+  box-shadow:0 0 0 1px rgba(80,205,157,.12),0 0 12px rgba(80,205,157,.22),0 2px 8px rgba(0,0,0,.7)}
+.world-actor-indicator.furniture::after{background:var(--signal-go)}
+.world-actor-indicator.furniture>i{background:var(--signal-go);box-shadow:0 0 7px var(--signal-go)}
 .world-actor-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   color:var(--text-bright);font:600 10px var(--font-mono);letter-spacing:.04em}
 /* Armed-pick target markers: diamond reticles anchored to the native

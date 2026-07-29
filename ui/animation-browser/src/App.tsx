@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { BrowserCommands } from "./app/commands";
-import { activeScenes, hottestPickTarget, labeledCast, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
+import { activeScenes, hottestPickTarget, labeledCast, labeledFurniture, sceneById, sceneTitle, selectedPlayable, stageLabel } from "./app/selectors";
 import type { BrowserState } from "./app/state";
 import { LiveBar } from "./components/LiveBar";
 import { AnchorPanel } from "./features/anchor/AnchorPanel";
@@ -42,21 +42,32 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
   return <LiveBar running={!!state.lastHandle} handle={state.lastHandle} title={scene?.title ?? state.lastSceneId} stage={stage} canAdvance={canAdvance} onAdvance={() => commands.advance()} onStop={() => commands.stop()} onExpand={() => commands.setMinimized(false)}/>;
 }
 
-function ActorIndicators({ state }: { state: BrowserState }) {
+function FurnitureIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4M5 11h14a2 2 0 0 1 2 2v4H3v-4a2 2 0 0 1 2-2ZM5 17v2m14-2v2"/></svg>;
+}
+
+function WorldIndicators({ state }: { state: BrowserState }) {
   const selected = labeledCast(state);
-  if (!selected.length) return null;
+  const furniture = labeledFurniture(state);
+  if (!selected.length && !furniture) return null;
 
   const byToken = new Map(state.actorIndicators.map((indicator) => [indicator.token, indicator]));
   const projected = selected.filter(({ member }) => byToken.get(member.token)?.visible);
-  if (!projected.length) {
+  const projectedFurniture = furniture && byToken.get(furniture.token)?.visible ? byToken.get(furniture.token)! : null;
+  if (!projected.length && !projectedFurniture) {
     return <div class="selected-actors-hud" aria-live="polite">
-      <span class="selected-actors-label mono">SELECTED CREW</span>
+      <span class="selected-actors-label mono">SELECTED TARGETS</span>
       <div class="selected-actors-list">
         {selected.map(({ member, index }) => <span key={member.token} class="selected-actor-chip">
           <span class="world-actor-key">{String.fromCharCode(65 + index)}</span>
           <span class="world-actor-name">{member.name}</span>
           <i/>
         </span>)}
+        {furniture && <span class="selected-actor-chip furniture">
+          <span class="world-furniture-key"><FurnitureIcon/></span>
+          <span class="world-actor-name">{furniture.name}</span>
+          <i/>
+        </span>}
       </div>
     </div>;
   }
@@ -71,6 +82,12 @@ function ActorIndicators({ state }: { state: BrowserState }) {
         <i/>
       </div>;
     })}
+    {furniture && projectedFurniture && <div class="world-actor-indicator furniture"
+      style={{ left: `${projectedFurniture.x * 100}%`, top: `${projectedFurniture.y * 100}%` }}>
+      <span class="world-furniture-key"><FurnitureIcon/></span>
+      <span class="world-actor-name">{furniture.name}</span>
+      <i/>
+    </div>}
   </div>;
 }
 
@@ -109,7 +126,7 @@ export function App({ state, commands }: { state: BrowserState; commands: Browse
   const compactContext = state.mode !== "active" && !!selected && selected.kind !== "scene"
     && selected.scene.actorCount === 1 && !selected.scene.requiresFurniture;
   return <div class={`stage ${state.pickMode ? "picking" : ""} ${state.settingsOpen ? "settings-mode" : ""} ${compactContext ? "compact-context" : ""}`}>
-    <ActorIndicators state={state}/>
+    <WorldIndicators state={state}/>
     <PickMarkers state={state}/>
     <div class="console"><span class="bracket tl"/><span class="bracket tr"/><span class="bracket bl"/><span class="bracket br"/><div class="grid-overlay"/><Header state={state} commands={commands}/>{state.settingsOpen ? <SettingsPanel state={state} commands={commands}/> : <div class="director"><aside class="rail"><CastPanel state={state} commands={commands}/><AnchorPanel state={state} commands={commands}/></aside><section class="browse"><BrowsePanel state={state} commands={commands}/></section></div>}<footer class={`notice ${state.notice.kind}`} aria-live="polite">{state.notice.text}</footer></div>
     <aside class="brief"><SceneBrief state={state} commands={commands}/></aside>

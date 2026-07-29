@@ -6,6 +6,7 @@ import {
   activeScenes,
   hottestPickTarget,
   labeledCast,
+  labeledFurniture,
   playableItems,
   playableVisible,
   sceneById,
@@ -101,7 +102,8 @@ function normalizePickTargets(payload: unknown): PickTarget[] {
     cy: Number(item.cy),
     rx: Number(item.rx),
     ry: Number(item.ry),
-  })).filter((item) => item.token !== 0 && [item.x, item.y, item.cx, item.cy].every(Number.isFinite)
+    depth: Number(item.depth),
+  })).filter((item) => item.token !== 0 && [item.x, item.y, item.cx, item.cy, item.depth].every(Number.isFinite)
     && item.rx > 0 && item.ry > 0);
 }
 
@@ -372,8 +374,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
 
   useEffect(() => {
     // Nothing renders the projections when the label layer is dark, so skip the
-    // 80ms round-trip too — labeledCast owns that gate for both sides.
+    // 80ms round-trip too. Cast and selected furniture share the label policy.
     const tokens = labeledCast(state).map(({ member }) => member.token);
+    const furniture = labeledFurniture(state);
+    if (furniture) tokens.push(furniture.token);
     if (tokens.length === 0) {
       if (state.actorIndicators.length) dispatch({ type: "indicators/received", items: [] });
       return;
@@ -382,7 +386,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     project();
     const timer = window.setInterval(project, 80);
     return () => clearInterval(timer);
-  }, [state.cast, state.viewVisible, state.wheel, state.minimized, state.preferences.actorLabels, send]);
+  }, [state.cast, state.furniture, state.viewVisible, state.wheel, state.minimized, state.preferences.actorLabels, send]);
 
   useEffect(() => {
     // Armed pick: poll the pickable targets' screen geometry so the view can

@@ -1,10 +1,12 @@
 import { evaluateScene, type SceneEvaluation, type SceneModel, type SceneStage } from "../model";
-import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember, type PickTarget } from "./state";
+import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember, type FurnitureTarget, type PickTarget } from "./state";
 
-/** The pick target whose acceptance ellipse contains the pointer, nearest first.
- *  THE one scoring function for world picking: the marker layer uses it to light
- *  the hot marker and the click handler uses it to resolve the selection, so the
- *  two can never disagree. Pointer coordinates are in CSS pixels. */
+/** The pick target under the pointer. THE one scoring function for world picking:
+ *  the marker layer uses it to light the hot marker and the click handler uses it
+ *  to resolve the selection, so the two can never disagree. Among the targets whose
+ *  acceptance ellipse contains the pointer, the FRONT-MOST wins (what a ray into the
+ *  scene would hit first — the target the user visually sees); targets at effectively
+ *  the same depth fall back to the better ellipse score. Pointer is in CSS pixels. */
 export function hottestPickTarget(
   targets: readonly PickTarget[], px: number, py: number, width: number, height: number,
 ): PickTarget | null {
@@ -14,7 +16,12 @@ export function hottestPickTarget(
     const dx = (px - target.cx * width) / target.rx;
     const dy = (py - target.cy * height) / target.ry;
     const score = dx * dx + dy * dy;
-    if (score <= bestScore) { bestScore = score; best = target; }
+    if (score > 1) continue;
+    if (!best || target.depth < best.depth - 0.5
+      || (Math.abs(target.depth - best.depth) <= 0.5 && score < bestScore)) {
+      best = target;
+      bestScore = score;
+    }
   }
   return best;
 }
@@ -213,6 +220,13 @@ export function labeledCast(state: BrowserState): { member: CastMember; index: n
   return state.cast
     .map((member, index) => ({ member, index }))
     .filter(({ member }) => member.kind !== "player");
+}
+
+/** Selected furniture whose world label is live under the same display policy
+ *  as selected-cast labels. */
+export function labeledFurniture(state: BrowserState): FurnitureTarget | null {
+  if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized) return null;
+  return state.furniture;
 }
 
 export function partnerCount(state: BrowserState): number {

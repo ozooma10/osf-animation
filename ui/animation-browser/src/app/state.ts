@@ -161,6 +161,9 @@ export interface PickTarget {
   cy: number;
   rx: number;
   ry: number;
+  /** View depth of the target from the pick camera. Overlapping ellipses resolve
+   *  front-most-first — the target the user visually sees under the cursor. */
+  depth: number;
 }
 
 export interface BrowserState {

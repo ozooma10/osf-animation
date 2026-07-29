@@ -84,8 +84,8 @@ namespace OSF::API
     ] },
     { "id": "browser-display", "label": "Display", "page": "browser", "settings": [
       { "key": "browser.actorLabels", "type": "bool", "default": true,
-        "label": "Actor name labels",
-        "hint": "Tag selected cast members over their heads in the world while the browser is open." },
+        "label": "World selection labels",
+        "hint": "Tag selected cast members and furniture in the world while the browser is open." },
       { "key": "browser.authorDetails", "type": "bool", "default": false,
         "label": "Show author details",
         "hint": "Reveal IDs, source files, diagnostics, and generated or unlisted entries." }

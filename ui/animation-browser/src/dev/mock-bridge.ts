@@ -101,13 +101,13 @@ export class StandaloneBridge implements AnimationBridge {
       const height = Number(fields.height) || 720;
       const items = fields.slot === "furniture"
         ? [
-          { token: MOCK_ANCHORS[0].token, x: 0.58, y: 0.52, cx: 0.58, cy: 0.58, rx: width * 0.05, ry: height * 0.08 },
-          { token: MOCK_ANCHORS[1].token, x: 0.72, y: 0.60, cx: 0.72, cy: 0.66, rx: width * 0.06, ry: height * 0.09 },
-          { token: MOCK_ANCHORS[2].token, x: 0.88, y: 0.44, cx: 0.88, cy: 0.50, rx: width * 0.04, ry: height * 0.07 },
+          { token: MOCK_ANCHORS[0].token, x: 0.58, y: 0.52, cx: 0.58, cy: 0.58, rx: width * 0.05, ry: height * 0.08, depth: 4 },
+          { token: MOCK_ANCHORS[1].token, x: 0.72, y: 0.60, cx: 0.72, cy: 0.66, rx: width * 0.06, ry: height * 0.09, depth: 7 },
+          { token: MOCK_ANCHORS[2].token, x: 0.88, y: 0.44, cx: 0.88, cy: 0.50, rx: width * 0.04, ry: height * 0.07, depth: 11 },
         ]
         : [
-          { token: MOCK_ACTORS[0].token, x: 0.62, y: 0.30, cx: 0.62, cy: 0.42, rx: width * 0.055, ry: height * 0.16 },
-          { token: MOCK_ACTORS[1].token, x: 0.82, y: 0.38, cx: 0.82, cy: 0.48, rx: width * 0.045, ry: height * 0.13 },
+          { token: MOCK_ACTORS[0].token, x: 0.62, y: 0.30, cx: 0.62, cy: 0.42, rx: width * 0.055, ry: height * 0.16, depth: 3 },
+          { token: MOCK_ACTORS[1].token, x: 0.82, y: 0.38, cx: 0.82, cy: 0.48, rx: width * 0.045, ry: height * 0.13, depth: 6 },
         ];
       this.later({ type: "osf.animation.pickTargets", payload: { slot: fields.slot, items } }, 5);
     } else if (command === "osf.animation.projectActors") {

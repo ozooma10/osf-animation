@@ -7,6 +7,7 @@ import {
   formatEstimate,
   hottestPickTarget,
   isVanillaAnimation,
+  labeledFurniture,
   libraryFolderTree,
   locationCastChoices,
   playableItems,
@@ -67,8 +68,16 @@ describe("browser reducer", () => {
     expect(browserReducer(projected, { type: "visibility/hidden" }).actorIndicators).toEqual([]);
   });
 
+  it("labels selected furniture under the world-label display policy", () => {
+    const furniture = { token: 41, name: "Industrial Chair", distance: 3 };
+    const visible = { ...createInitialState(), furniture, viewVisible: true };
+    expect(labeledFurniture(visible)).toEqual(furniture);
+    expect(labeledFurniture({ ...visible, minimized: true })).toBeNull();
+    expect(labeledFurniture({ ...visible, preferences: { ...visible.preferences, actorLabels: false } })).toBeNull();
+  });
+
   it("keeps pick targets only while the matching pick mode stays armed", () => {
-    const target = { token: 41, x: 0.6, y: 0.3, cx: 0.6, cy: 0.42, rx: 70, ry: 110 };
+    const target = { token: 41, x: 0.6, y: 0.3, cx: 0.6, cy: 0.42, rx: 70, ry: 110, depth: 5 };
     const armed = browserReducer(createInitialState(), { type: "pick/armed", kind: "actor" });
     const polled = browserReducer(armed, { type: "pickTargets/received", slot: "actor", items: [target] });
     expect(polled.pickTargets).toEqual([target]);
@@ -206,8 +215,8 @@ describe("browser selectors", () => {
   it("resolves the hot pick target with the shared marker/click scoring", () => {
     // 1000x500 viewport. One scoring function serves the hover marker AND the
     // click resolution, so these expectations pin the world-pick acceptance.
-    const near = { token: 1, x: 0.3, y: 0.2, cx: 0.3, cy: 0.4, rx: 60, ry: 100 };
-    const far = { token: 2, x: 0.8, y: 0.3, cx: 0.8, cy: 0.5, rx: 60, ry: 100 };
+    const near = { token: 1, x: 0.3, y: 0.2, cx: 0.3, cy: 0.4, rx: 60, ry: 100, depth: 5 };
+    const far = { token: 2, x: 0.8, y: 0.3, cx: 0.8, cy: 0.5, rx: 60, ry: 100, depth: 20 };
     // Dead center of `near`'s ellipse.
     expect(hottestPickTarget([near, far], 300, 200, 1000, 500)?.token).toBe(1);
     // Inside `far`'s ellipse, outside `near`'s.
@@ -217,6 +226,18 @@ describe("browser selectors", () => {
     // Just outside every ellipse → no hot target, which the click treats as a miss.
     expect(hottestPickTarget([near, far], 500, 480, 1000, 500)).toBeNull();
     expect(hottestPickTarget([], 300, 200, 1000, 500)).toBeNull();
+  });
+
+  it("prefers the front-most target when acceptance ellipses overlap", () => {
+    // Same ellipse, different depths: the user visually sees the closer actor, so
+    // the closer one must win even when the deeper one's center is nearer the cursor.
+    const front = { token: 1, x: 0.5, y: 0.2, cx: 0.52, cy: 0.4, rx: 80, ry: 120, depth: 4 };
+    const behind = { token: 2, x: 0.5, y: 0.2, cx: 0.5, cy: 0.4, rx: 80, ry: 120, depth: 18 };
+    expect(hottestPickTarget([behind, front], 500, 200, 1000, 500)?.token).toBe(1);
+    expect(hottestPickTarget([front, behind], 500, 200, 1000, 500)?.token).toBe(1);
+    // At effectively the same depth the better ellipse score wins instead.
+    const twin = { ...behind, depth: 4.2 };
+    expect(hottestPickTarget([front, twin], 500, 200, 1000, 500)?.token).toBe(2);
   });
 
   it("selects a ready action from the unified browse surface", () => {

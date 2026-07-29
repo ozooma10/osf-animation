@@ -1070,6 +1070,24 @@ namespace OSF::API
 			return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
 		}
 
+		bool RenderedFurnitureLabelPoint(RE::TESObjectREFR* a_ref, RE::NiPoint3& a_point)
+		{
+			const auto base = a_ref ? a_ref->GetBaseObject() : nullptr;
+			if (!a_ref || a_ref->IsDeleted() || !base || !base->Is(RE::FormType::kFURN)) {
+				return false;
+			}
+
+			RE::NiPoint3 center;
+			float        radius = 0.0f;
+			if (!RenderedBound(a_ref, false, center, radius)) {
+				return false;
+			}
+			// Float the label above the rendered object. Clamp the culling radius so
+			// oversized workbenches and tiny/invisible idle markers stay readable.
+			a_point = center + RE::NiPoint3{ 0.0f, 0.0f, std::clamp(radius, 0.25f, 1.4f) };
+			return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
+		}
+
 		void OnProjectActors(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
@@ -1093,12 +1111,15 @@ namespace OSF::API
 				}
 				const std::int32_t token = value.get<std::int32_t>();
 				RE::TESObjectREFR* ref = ResolveToken(token);
-				if (!ref || !ref->IsActor()) {
+				if (!ref) {
 					continue;
 				}
 				RE::NiPoint3 labelPoint;
 				RE::NiPoint3 screen;
-				const bool projected = RenderedActorLabelPoint(ref, labelPoint) &&
+				const bool hasLabelPoint = ref->IsActor()
+				                               ? RenderedActorLabelPoint(ref, labelPoint)
+				                               : RenderedFurnitureLabelPoint(ref, labelPoint);
+				const bool projected = hasLabelPoint &&
 					projection->Project(labelPoint, screen);
 				const bool visible = projected && screen.x >= 0.0f && screen.x <= 1.0f && screen.y >= 0.0f && screen.y <= 1.0f;
 				items.push_back(json{
@@ -1474,6 +1495,24 @@ namespace OSF::API
 			}
 		}
 
+		// Targets deeper than this (view depth from the pick camera) get no marker and
+		// are therefore unclickable. There is no mapped physics ray to test real
+		// occlusion, so range is the working stand-in: it ends "selected an actor way
+		// off across the map, through a building" (in-game report), and SCAN remains
+		// the tool for gathering anything beyond sight.
+		constexpr float kMaxPickDepth = 50.0f;
+
+		// Scale for the acceptance-ellipse MINIMUM radii by view depth. The generous
+		// floors (38x52 px for actors) keep close targets easy to hit, but a distant
+		// actor renders ~20 px tall — a full-size floor let clicks land on far-away
+		// targets "behind" nearer world geometry the cursor was visually on. Full
+		// size inside ~12, shrinking to a third of it from ~40 out: distant targets
+		// demand deliberate, precise aim.
+		float PickFloorScale(float a_depth)
+		{
+			return a_depth > 0.0f ? std::clamp(12.0f / a_depth, 0.3f, 1.0f) : 1.0f;
+		}
+
 		// The screen-space acceptance ellipse of a pickable target: projected bound
 		// center plus clamped pixel radii. The view renders these as hover markers
 		// AND resolves the click against them (hottestPickTarget), so what the user
@@ -1538,8 +1577,9 @@ namespace OSF::API
 				(headScreen.y + baseScreen.y) * 0.5f,
 				std::min(headScreen.z, baseScreen.z),
 			};
-			a_out.radiusX = std::clamp(std::max(dxPx * 0.62f, span * 0.22f), 38.0f, 260.0f);
-			a_out.radiusY = std::clamp(std::max(dyPx * 0.62f, span * 0.22f), 52.0f, 320.0f);
+			const float minScale = PickFloorScale(a_out.screen.z);
+			a_out.radiusX = std::clamp(std::max(dxPx * 0.62f, span * 0.22f), 38.0f * minScale, 260.0f);
+			a_out.radiusY = std::clamp(std::max(dyPx * 0.62f, span * 0.22f), 52.0f * minScale, 320.0f);
 			return true;
 		}
 
@@ -1555,8 +1595,9 @@ namespace OSF::API
 				return false;
 			}
 			const float projectedRadius = a_projection.ProjectedRadius(center, radius, a_width, a_height);
-			a_out.radiusX = std::clamp(projectedRadius * 1.15f, a_actor ? 38.0f : 30.0f, 220.0f);
-			a_out.radiusY = std::clamp(projectedRadius * 1.15f, a_actor ? 52.0f : 30.0f, 260.0f);
+			const float minScale = PickFloorScale(a_out.screen.z);
+			a_out.radiusX = std::clamp(projectedRadius * 1.15f, (a_actor ? 38.0f : 30.0f) * minScale, 220.0f);
+			a_out.radiusY = std::clamp(projectedRadius * 1.15f, (a_actor ? 52.0f : 30.0f) * minScale, 260.0f);
 			return true;
 		}
 
@@ -1630,77 +1671,45 @@ namespace OSF::API
 			const auto        projection = CurrentViewProjection(width, height);
 			auto*             player = RE::PlayerCharacter::GetSingleton();
 
-			// The caps keep crowded scenes bounded; candidates are distance-sorted
-			// first so it is always the farthest targets that drop, not arbitrary ones.
-			const auto append = [&](json& a_items, RE::TESObjectREFR* a_ref, bool a_actor) {
+			const bool actorSlot = slot == "actor";
+
+			// Gather every candidate WITH its screen bound, then gate and rank on that
+			// bound: on-screen and within kMaxPickDepth of the pick camera. Eligibility
+			// is decided HERE (a marker IS pickability); OnPickScreen re-checks only to
+			// catch a target that died or left range between the marker poll and the click.
+			struct Candidate
+			{
+				RE::TESObjectREFR* ref;
+				PickScreenBound    bound;
+			};
+			std::vector<Candidate> candidates;
+			const auto consider = [&](RE::TESObjectREFR* a_ref) {
 				PickScreenBound bound;
-				if (!ComputePickScreenBound(*projection, a_ref, a_actor, width, height, bound)) {
+				if (!ComputePickScreenBound(*projection, a_ref, actorSlot, width, height, bound)) {
 					return;
+				}
+				if (bound.screen.z > kMaxPickDepth) {
+					return;  // beyond picking range — SCAN is the tool for those
 				}
 				if (bound.screen.x < -0.1f || bound.screen.x > 1.1f ||
 					bound.screen.y < -0.1f || bound.screen.y > 1.1f) {
 					return;  // comfortably off-screen — never hoverable
 				}
-				// Marker anchor: actors use the rendered head the name labels sit on;
-				// furniture floats the marker just above its rendered bound. The bound
-				// center is the fallback either way.
-				RE::NiPoint3 anchorScreen = bound.screen;
-				RE::NiPoint3 anchorWorld;
-				RE::NiPoint3 center;
-				float        radius = 0.0f;
-				const bool   anchored = a_actor
-				      ? RenderedActorLabelPoint(a_ref, anchorWorld)
-				      : (RenderedBound(a_ref, false, center, radius) &&
-							(anchorWorld = center + RE::NiPoint3{ 0.0f, 0.0f, std::clamp(radius, 0.25f, 1.4f) }, true));
-				if (anchored) {
-					RE::NiPoint3 projected;
-					if (projection->Project(anchorWorld, projected)) {
-						anchorScreen = projected;
-					}
-				}
-				a_items.push_back(json{
-					{ "token", AllocToken(a_ref) },
-					{ "x", anchorScreen.x },
-					{ "y", anchorScreen.y },
-					{ "cx", bound.screen.x },
-					{ "cy", bound.screen.y },
-					{ "rx", bound.radiusX },
-					{ "ry", bound.radiusY },
-				});
+				candidates.push_back({ a_ref, bound });
 			};
 
-			json items = json::array();
-			if (projection && player && slot == "actor") {
-				constexpr std::size_t   kMaxActorTargets = 24;
+			if (projection && player && actorSlot) {
 				std::vector<RE::Actor*> actors;
 				EnumerateHighActors(actors);
-				std::sort(actors.begin(), actors.end(), [player](RE::Actor* a_lhs, RE::Actor* a_rhs) {
-					return player->GetPosition().GetSquaredDistance(a_lhs->GetPosition()) <
-					       player->GetPosition().GetSquaredDistance(a_rhs->GetPosition());
-				});
 				for (RE::Actor* actor : actors) {
-					if (items.size() >= kMaxActorTargets) {
-						break;
-					}
-					// Eligibility is decided HERE (a marker IS pickability); OnPickScreen
-					// re-checks the same conditions only to catch a target that died or
-					// left range between the marker poll and the click.
-					if (!actor || actor->IsPlayerRef() || actor->IsDead() ||
-						player->GetPosition().GetSquaredDistance(actor->GetPosition()) > 4096.0f * 4096.0f) {
+					if (!actor || actor->IsPlayerRef() || actor->IsDead()) {
 						continue;
 					}
-					append(items, actor, true);
+					consider(actor);
 				}
 			} else if (projection && player) {
 				if (auto* tes = RE::TES::GetSingleton()) {
-					constexpr std::size_t kMaxFurnitureTargets = 32;
-					struct Candidate
-					{
-						RE::TESObjectREFR* ref;
-						float              distanceSq;
-					};
-					std::vector<Candidate> candidates;
-					RE::NiPoint3A          origin{};
+					RE::NiPoint3A origin{};
 					origin.x = player->GetPosition().x;
 					origin.y = player->GetPosition().y;
 					origin.z = player->GetPosition().z;
@@ -1708,20 +1717,53 @@ namespace OSF::API
 						RE::TESObjectREFR* ref = a_ref.get();
 						const auto base = ref ? ref->GetBaseObject() : nullptr;
 						if (ref && !ref->IsPlayerRef() && !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN)) {
-							candidates.push_back({ ref, player->GetPosition().GetSquaredDistance(ref->GetPosition()) });
+							consider(ref);
 						}
 						return RE::BSContainer::ForEachResult::kContinue;
 					});
-					std::sort(candidates.begin(), candidates.end(), [](const Candidate& a_lhs, const Candidate& a_rhs) {
-						return a_lhs.distanceSq < a_rhs.distanceSq;
-					});
-					for (const Candidate& candidate : candidates) {
-						if (items.size() >= kMaxFurnitureTargets) {
-							break;
-						}
-						append(items, candidate.ref, false);
+				}
+			}
+
+			// The caps keep crowded scenes bounded. Rank by VIEW DEPTH — the ordering
+			// the user sees — so the cap always drops the deepest markers. (The old
+			// player-distance sort starved visible actors of markers whenever the
+			// orbit camera roamed away from the player.)
+			std::sort(candidates.begin(), candidates.end(), [](const Candidate& a_lhs, const Candidate& a_rhs) {
+				return a_lhs.bound.screen.z < a_rhs.bound.screen.z;
+			});
+			const std::size_t cap = actorSlot ? 48 : 32;
+			json              items = json::array();
+			for (const Candidate& candidate : candidates) {
+				if (items.size() >= cap) {
+					break;
+				}
+				// Marker anchor: actors use the rendered head the name labels sit on;
+				// furniture floats the marker just above its rendered bound. The bound
+				// center is the fallback either way.
+				RE::NiPoint3 anchorScreen = candidate.bound.screen;
+				RE::NiPoint3 anchorWorld;
+				RE::NiPoint3 center;
+				float        radius = 0.0f;
+				const bool   anchored = actorSlot
+				      ? RenderedActorLabelPoint(candidate.ref, anchorWorld)
+				      : (RenderedBound(candidate.ref, false, center, radius) &&
+							(anchorWorld = center + RE::NiPoint3{ 0.0f, 0.0f, std::clamp(radius, 0.25f, 1.4f) }, true));
+				if (anchored) {
+					RE::NiPoint3 projected;
+					if (projection->Project(anchorWorld, projected)) {
+						anchorScreen = projected;
 					}
 				}
+				items.push_back(json{
+					{ "token", AllocToken(candidate.ref) },
+					{ "x", anchorScreen.x },
+					{ "y", anchorScreen.y },
+					{ "cx", candidate.bound.screen.x },
+					{ "cy", candidate.bound.screen.y },
+					{ "rx", candidate.bound.radiusX },
+					{ "ry", candidate.bound.radiusY },
+					{ "depth", candidate.bound.screen.z },
+				});
 			}
 			SendJson(a_srcView, "osf.animation.pickTargets", json{ { "slot", slot }, { "items", std::move(items) } });
 		}		// Nearby-furniture enumeration goes through RE::TES::ForEachReferenceInRange (CommonLibSF),
