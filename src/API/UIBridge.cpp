@@ -1505,10 +1505,15 @@ namespace OSF::API
 		// depth gate was authored in "meters" and turned out to filter everything
 		// (in-game: nothing pickable), because nothing in this pipeline actually
 		// knows the engine's unit scale; every working part of it is ratios of
-		// projections. An actor's full body span falls under 40 px somewhere around
-		// 50-60 m out. SCAN remains the tool for anything beyond sight, and there is
-		// still no mapped physics ray for true occlusion.
-		constexpr float kMinActorSizePx = 40.0f;
+		// projections. A standing human's span falls under 24 px around 90-100 m
+		// out — but SEATED/CROUCHED bodies measure much shorter, and the original
+		// 40 px gate dropped sitting actors at ordinary exterior distances
+		// (in-game: exterior picking missed visible actors, '6 small' in the
+		// stats). Accidental far picks stay unlikely at 24 px because the
+		// acceptance floors shrink to a third at that size — distant targets
+		// demand precise aim. SCAN remains the tool for anything beyond sight,
+		// and there is still no mapped physics ray for true occlusion.
+		constexpr float kMinActorSizePx = 24.0f;
 		constexpr float kMinFurnitureSizePx = 10.0f;
 
 		// The on-screen size at which the acceptance-ellipse floors apply in full;
@@ -1718,17 +1723,37 @@ namespace OSF::API
 			// eats targets when "some actors won't mark" (in-game report: exteriors).
 			std::size_t enumerated = 0;    // reached us from the engine at all
 			std::size_t ineligible = 0;    // player / dead
-			std::size_t noBound = 0;       // no rendered 3D / projection failed
+			std::size_t no3D = 0;          // no rendered scene-graph node at all
+			std::size_t behindCam = 0;     // healthy drop: not in front of the pick camera
+			std::size_t projectFail = 0;   // has 3D, in front, but projection failed — the suspicious bucket
 			std::size_t droppedSmall = 0;  // renders too small to aim at
 			std::size_t offScreen = 0;
+			float       smallMaxPx = 0.0f;  // largest size the small-gate rejected (tuning signal)
 			const auto consider = [&](RE::TESObjectREFR* a_ref) {
 				PickScreenBound bound;
 				if (!ComputePickScreenBound(*projection, a_ref, actorSlot, width, height, bound)) {
-					++noBound;
+					// Classify the failure for the stats line only: an exterior grid
+					// legitimately holds many loaded actors behind the camera, and
+					// those must not be mistaken for broken projections.
+					RE::NiPointer<RE::NiAVObject> root;
+					{
+						const auto loaded = a_ref->loadedData.LockRead();
+						if (*loaded) {
+							root = (*loaded)->data3D;
+						}
+					}
+					if (!root) {
+						++no3D;
+					} else if ((root->world.translate - projection->position).Dot(projection->forward) <= 0.01f) {
+						++behindCam;
+					} else {
+						++projectFail;
+					}
 					return;
 				}
 				if (bound.sizePx < (actorSlot ? kMinActorSizePx : kMinFurnitureSizePx)) {
 					++droppedSmall;  // beyond deliberate-aim range — SCAN covers those
+					smallMaxPx = std::max(smallMaxPx, bound.sizePx);
 					return;
 				}
 				if (bound.screen.x < -0.1f || bound.screen.x > 1.1f ||
@@ -1774,8 +1799,10 @@ namespace OSF::API
 			//   enumerated low while more actors are visible -> they are not in the
 			//     engine's HIGH-process list (exteriors demote actors beyond an AI
 			//     radius around the player; OSF must not touch the low list);
-			//   small high -> the on-screen size gate (report largest/smallest px);
-			//   no-bound high -> no rendered 3D or a failing projection.
+			//   small high -> the on-screen size gate ("small<Npx" is the largest
+			//     body it rejected — the tuning signal for kMin*SizePx);
+			//   behind -> healthy (loaded actors behind the pick camera);
+			//   project-fail high -> VISIBLE actors failing projection = a real bug.
 			{
 				static std::chrono::steady_clock::time_point s_lastStats{};
 				const auto now = std::chrono::steady_clock::now();
@@ -1787,8 +1814,8 @@ namespace OSF::API
 						nearDepth = std::min(nearDepth, candidate.bound.screen.z);
 						bigSize = std::max(bigSize, candidate.bound.sizePx);
 					}
-					REX::DEBUG("[UI] pickables {}: {} markers of {} enumerated (dropped: {} ineligible, {} no-bound, {} small, {} off-screen), nearest depth {:.2f}, largest {:.0f}px",
-						slot, candidates.size(), enumerated, ineligible, noBound, droppedSmall, offScreen,
+					REX::DEBUG("[UI] pickables {}: {} markers of {} enumerated (dropped: {} ineligible, {} no-3d, {} behind, {} project-fail, {} small<{:.0f}px, {} off-screen), nearest depth {:.2f}, largest {:.0f}px",
+						slot, candidates.size(), enumerated, ineligible, no3D, behindCam, projectFail, droppedSmall, smallMaxPx, offScreen,
 						candidates.empty() ? -1.0f : nearDepth, bigSize);
 				}
 			}
