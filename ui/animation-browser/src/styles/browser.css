@@ -295,11 +295,7 @@ button,input,select{font:inherit;color:inherit}
    scanning shoves LOCATION sideways and the rail visibly reflows under the cursor. */
 .rail{flex:0 1 auto;min-height:0;overflow-y:auto;padding:12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:12px;background:rgba(4,6,10,.28)}
 .stage.compact-context .rail{flex:0 0 auto;overflow:visible;padding:8px;gap:8px}
-.stage.compact-context .rail .step{gap:0}
-.stage.compact-context .rail .step>*:not(.step-head){display:none}
 .stage.compact-context .rail .step-num{width:18px;height:18px;font-size:9px}
-.stage.compact-context .rail .step:focus-within{gap:9px}
-.stage.compact-context .rail .step:focus-within>*:not(.step-head){display:flex}
 .step{min-width:0;display:flex;flex-direction:column;gap:9px;border:1px solid var(--line);border-radius:2px;background:var(--void-800);padding:11px 12px}
 /* a folded step keeps its column — only its height collapses to the summary line */
 .step.closed{padding:9px 12px}

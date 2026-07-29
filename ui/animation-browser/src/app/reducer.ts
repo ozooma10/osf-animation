@@ -84,7 +84,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "settings/open":
       return { ...state, settingsOpen: action.open };
     case "cast/replaced":
-      return { ...state, cast: action.members, stepOpen: { ...state.stepOpen, cast: false } };
+      return { ...state, cast: action.members };
     case "cast/toggled": {
       const index = state.cast.findIndex((member) => member.token === action.member.token);
       const cast = index >= 0
@@ -137,7 +137,6 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         locationToken: action.anchor.token,
         anchorMatch: null,
         libShowAll: false,
-        stepOpen: { ...state.stepOpen, anchor: false },
       };
     case "anchor/cleared":
       return {
@@ -157,19 +156,13 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         locationMode: action.mode,
         locationToken: action.mode === "actor" || action.mode === "furniture" ? action.token ?? null : null,
       };
-    case "selection/changed": {
-      const scene = state.catalog.find((candidate) => candidate.id === action.sceneId)
-        ?? state.library.find((candidate) => candidate.id === action.sceneId);
-      const compact = !!scene && scene.actorCount === 1 && !scene.requiresFurniture
-        && (!!scene.library || scene.tags.some((tag) => tag.toLowerCase().startsWith("player.emote.")));
+    case "selection/changed":
       return {
         ...state,
         selectedId: action.sceneId,
         selectedStage: action.stage ?? null,
         briefFullAnims: false,
-        stepOpen: compact ? { cast: false, anchor: false } : state.stepOpen,
       };
-    }
     case "mode/changed":
       return {
         ...state,

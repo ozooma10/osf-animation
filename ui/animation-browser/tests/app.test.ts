@@ -138,6 +138,30 @@ describe("browser reducer", () => {
     expect(atPlayer).toMatchObject({ locationMode: "player", locationToken: null, furniture: { token: 9 } });
   });
 
+  it("keeps crew and location expansion under non-header interactions", () => {
+    const initial = {
+      ...createInitialState(),
+      catalog: [solo],
+      stepOpen: { cast: true, anchor: true },
+    };
+    const crewPicked = browserReducer(initial, {
+      type: "cast/replaced",
+      members: [{ token: 7, name: "Sarah", species: "human", sex: "female" }],
+    });
+    const locationPicked = browserReducer(crewPicked, {
+      type: "anchor/selected",
+      anchor: { token: 9, name: "Barstool", distance: 2 },
+    });
+    const sceneSelected = browserReducer(locationPicked, {
+      type: "selection/changed",
+      sceneId: solo.id,
+    });
+
+    expect(crewPicked.stepOpen).toEqual({ cast: true, anchor: true });
+    expect(locationPicked.stepOpen).toEqual({ cast: true, anchor: true });
+    expect(sceneSelected.stepOpen).toEqual({ cast: true, anchor: true });
+  });
+
 });
 
 describe("browser settings", () => {
