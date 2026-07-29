@@ -27,6 +27,7 @@
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // The in-process handle to OSF Animation's own exported scene API.
@@ -1501,8 +1502,9 @@ namespace OSF::API
 		}
 
 		// ---- nearby-actor enumeration ----------------------------------------
-		// ProcessLists::highActorHandles (CommonLibSF, +0x60) is the primitive Scan Nearby wants: near-player, fully-3D actors that SPAN the loaded cell grid (interior + exterior neighbours)
-		// We ONLY touch the high list — lowActorHandles holds 600-1200 partially- loaded actors whose vfuncs __fastfail uncatchably.
+		// ProcessLists::highActorHandles (CommonLibSF, +0x60): near-player, fully-3D actors that SPAN the loaded cell grid (interior + exterior neighbours).
+		// Of the four process lists we ONLY touch high — lowActorHandles holds 600-1200 partially-loaded actors whose vfuncs __fastfail uncatchably.
+		// EnumerateLoadedActors below fills the high tier's gaps from the cell grid instead.
 
 		std::uintptr_t VtableAddr(REL::ID a_id) { return REL::Relocation<std::uintptr_t>{ a_id }.address(); }
 		void EnumerateHighActors(std::vector<RE::Actor*>& a_out)
@@ -1535,6 +1537,51 @@ namespace OSF::API
 			}
 		}
 
+		// The high list alone is NOT "every actor standing next to you": the AI
+		// demotes loaded-and-rendered actors out of the high tier (city crowds,
+		// ambient schedules), and those never appear in highActorHandles — the
+		// in-game symptom was Scan Nearby / picking skipping random visible NPCs.
+		// Union the high list with the loaded cell grid via
+		// TES::ForEachReferenceInRange — the same walker the furniture scan uses
+		// (in-game proven on .244) — filtered to exact-vtable Actors WITH rendered
+		// 3D. The data3D gate keeps the low-bucket crash rule intact: downstream
+		// code vfuncs these (GetDisplayFullName), which is only safe on fully
+		// loaded actors, and a rendered scene graph is the raw-field proof of that.
+		void EnumerateLoadedActors(const RE::NiPoint3& a_origin, float a_radius, std::vector<RE::Actor*>& a_out)
+		{
+			EnumerateHighActors(a_out);
+			auto* tes = RE::TES::GetSingleton();
+			if (!tes || a_radius <= 0.0f) {
+				return;
+			}
+			std::unordered_set<const RE::Actor*> seen(a_out.begin(), a_out.end());
+			const std::uintptr_t                 actorVtbl = VtableAddr(REL::ID(451614));
+			RE::NiPoint3A                        origin{};
+			origin.x = a_origin.x;
+			origin.y = a_origin.y;
+			origin.z = a_origin.z;
+			tes->ForEachReferenceInRange(origin, a_radius, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
+				RE::TESObjectREFR* ref = a_ref.get();
+				if (!ref || *reinterpret_cast<std::uintptr_t*>(ref) != actorVtbl) {
+					return RE::BSContainer::ForEachResult::kContinue;
+				}
+				auto* actor = static_cast<RE::Actor*>(ref);
+				if (seen.contains(actor)) {
+					return RE::BSContainer::ForEachResult::kContinue;
+				}
+				bool rendered = false;
+				{
+					const auto loaded = actor->loadedData.LockRead();
+					rendered = *loaded && (*loaded)->data3D;
+				}
+				if (rendered) {
+					seen.insert(actor);
+					a_out.push_back(actor);
+				}
+				return RE::BSContainer::ForEachResult::kContinue;
+			});
+		}
+
 		// Minimum ON-SCREEN size of a pickable target, in 1080p-equivalent pixels
 		// (PickScreenBound::sizePx). Picking is a sight interaction: a target that
 		// renders smaller than this is too far to be deliberately aimed at, which
@@ -1552,6 +1599,12 @@ namespace OSF::API
 		// and there is still no mapped physics ray for true occlusion.
 		constexpr float kMinActorSizePx = 24.0f;
 		constexpr float kMinFurnitureSizePx = 10.0f;
+
+		// Enumeration + click-revalidation range for actor picking, in game units
+		// (~70/m). Must reach at least as far as the 24 px size gate admits (a
+		// standing human passes it out to ~100 m): the old 4096-unit (~58 m)
+		// revalidation could reject a click on a marker the picker itself offered.
+		constexpr float kPickRangeUnits = 8192.0f;
 
 		// The on-screen size at which the acceptance-ellipse floors apply in full;
 		// below it they shrink proportionally (to a third at the pick minimum), so
@@ -1718,7 +1771,7 @@ namespace OSF::API
 					const auto base = ref->GetBaseObject();
 					eligible = !ref->IsDeleted() && base && base->Is(RE::FormType::kFURN);
 				}
-				if (!eligible || player->GetPosition().GetSquaredDistance(ref->GetPosition()) > 4096.0f * 4096.0f) {
+				if (!eligible || player->GetPosition().GetSquaredDistance(ref->GetPosition()) > kPickRangeUnits * kPickRangeUnits) {
 					ref = nullptr;
 				}
 			} else {
@@ -1803,7 +1856,7 @@ namespace OSF::API
 
 			if (projection && player && actorSlot) {
 				std::vector<RE::Actor*> actors;
-				EnumerateHighActors(actors);
+				EnumerateLoadedActors(player->GetPosition(), kPickRangeUnits, actors);
 				enumerated = actors.size();
 				for (RE::Actor* actor : actors) {
 					if (!actor || actor->IsPlayerRef() || actor->IsDead()) {
@@ -1833,9 +1886,9 @@ namespace OSF::API
 			// Periodic snapshot of what each gate saw, at DEBUG (Settings > OSF
 			// Animation > Advanced > Log level). Reading one line resolves where
 			// unmarkable targets are lost:
-			//   enumerated low while more actors are visible -> they are not in the
-			//     engine's HIGH-process list (exteriors demote actors beyond an AI
-			//     radius around the player; OSF must not touch the low list);
+			//   enumerated low while more actors are visible -> they escaped BOTH the
+			//     HIGH-process list and the rendered-actor cell walk (beyond
+			//     kPickRangeUnits, or no data3D — OSF must not touch the low list);
 			//   small high -> the on-screen size gate ("small<Npx" is the largest
 			//     body it rejected — the tuning signal for kMin*SizePx);
 			//   behind -> healthy (loaded actors behind the pick camera);
@@ -1950,7 +2003,7 @@ namespace OSF::API
 			// Collect candidate pointers + distance only; serialize (GetDisplayFullName / token minting) afterwards so the heavy work stays out of any engine lock.
 			if (wantActor) {
 				std::vector<RE::Actor*> actors;
-				EnumerateHighActors(actors);
+				EnumerateLoadedActors(origin, (radius > 0.0f) ? radius : 4096.0f, actors);
 				for (RE::Actor* actor : actors) {
 					if (!actor || actor->IsPlayerRef() || actor->IsDeleted() || actor->IsDead()) {
 						continue;
