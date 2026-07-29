@@ -235,8 +235,9 @@ describe("browser selectors", () => {
     const behind = { token: 2, x: 0.5, y: 0.2, cx: 0.5, cy: 0.4, rx: 80, ry: 120, depth: 18 };
     expect(hottestPickTarget([behind, front], 500, 200, 1000, 500)?.token).toBe(1);
     expect(hottestPickTarget([front, behind], 500, 200, 1000, 500)?.token).toBe(1);
-    // At effectively the same depth the better ellipse score wins instead.
-    const twin = { ...behind, depth: 4.2 };
+    // At effectively the same depth (inside the 5% relative band) the better
+    // ellipse score wins instead.
+    const twin = { ...behind, depth: 4.1 };
     expect(hottestPickTarget([front, twin], 500, 200, 1000, 500)?.token).toBe(2);
   });
 

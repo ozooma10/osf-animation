@@ -957,7 +957,10 @@ namespace OSF::API
 				const float     mainErr = out.camera ? poseErrorSq(out.camera) : std::numeric_limits<float>::max();
 				const float     altErr = (alt && alt != out.camera) ? poseErrorSq(alt) : std::numeric_limits<float>::max();
 				if (mainErr > kPoseToleranceSq) {
-					if (altErr < mainErr) {
+					// Swap only on clear RELATIVE dominance — the absolute tolerance is
+					// authored in assumed units, but "4x closer to the pose OSF wrote"
+					// holds in any unit.
+					if (altErr * 4.0f < mainErr) {
 						if (ShouldLogCameraAnomaly()) {
 							REX::WARN("[UI] world-pick camera: storage camera sits {:.1f} from the live orbit pose — projecting through the cameraRoot camera instead ({:.1f})",
 								std::sqrt(mainErr), std::sqrt(altErr));
@@ -1495,22 +1498,29 @@ namespace OSF::API
 			}
 		}
 
-		// Targets deeper than this (view depth from the pick camera) get no marker and
-		// are therefore unclickable. There is no mapped physics ray to test real
-		// occlusion, so range is the working stand-in: it ends "selected an actor way
-		// off across the map, through a building" (in-game report), and SCAN remains
-		// the tool for gathering anything beyond sight.
-		constexpr float kMaxPickDepth = 50.0f;
+		// Minimum ON-SCREEN size of a pickable target, in 1080p-equivalent pixels
+		// (PickScreenBound::sizePx). Picking is a sight interaction: a target that
+		// renders smaller than this is too far to be deliberately aimed at, which
+		// bounds the pick range WITHOUT assuming any world unit — this file's first
+		// depth gate was authored in "meters" and turned out to filter everything
+		// (in-game: nothing pickable), because nothing in this pipeline actually
+		// knows the engine's unit scale; every working part of it is ratios of
+		// projections. An actor's full body span falls under 40 px somewhere around
+		// 50-60 m out. SCAN remains the tool for anything beyond sight, and there is
+		// still no mapped physics ray for true occlusion.
+		constexpr float kMinActorSizePx = 40.0f;
+		constexpr float kMinFurnitureSizePx = 10.0f;
 
-		// Scale for the acceptance-ellipse MINIMUM radii by view depth. The generous
-		// floors (38x52 px for actors) keep close targets easy to hit, but a distant
-		// actor renders ~20 px tall — a full-size floor let clicks land on far-away
-		// targets "behind" nearer world geometry the cursor was visually on. Full
-		// size inside ~12, shrinking to a third of it from ~40 out: distant targets
-		// demand deliberate, precise aim.
-		float PickFloorScale(float a_depth)
+		// The on-screen size at which the acceptance-ellipse floors apply in full;
+		// below it they shrink proportionally (to a third at the pick minimum), so
+		// small/far targets demand precise aim instead of being selectable
+		// "through" nearer geometry via oversized invisible hit regions.
+		constexpr float kFullFloorActorSizePx = 130.0f;
+		constexpr float kFullFloorFurnitureSizePx = 45.0f;
+
+		float PickFloorScale(float a_sizePx, float a_fullSizePx)
 		{
-			return a_depth > 0.0f ? std::clamp(12.0f / a_depth, 0.3f, 1.0f) : 1.0f;
+			return a_fullSizePx > 0.0f ? std::clamp(a_sizePx / a_fullSizePx, 0.3f, 1.0f) : 1.0f;
 		}
 
 		// The screen-space acceptance ellipse of a pickable target: projected bound
@@ -1519,9 +1529,10 @@ namespace OSF::API
 		// sees lit is by construction what a click selects.
 		struct PickScreenBound
 		{
-			RE::NiPoint3 screen;  // normalized center; z = view depth
+			RE::NiPoint3 screen;  // normalized center; z = view depth (whatever unit the render camera uses — RELATIVE comparisons only)
 			float        radiusX{ 0.0f };
 			float        radiusY{ 0.0f };
+			float        sizePx{ 0.0f };  // unfloored on-screen extent, normalized to a 1080p-tall viewport
 		};
 
 		// Actor hit regions come from the rendered skeleton, not worldBound: the
@@ -1577,7 +1588,24 @@ namespace OSF::API
 				(headScreen.y + baseScreen.y) * 0.5f,
 				std::min(headScreen.z, baseScreen.z),
 			};
-			const float minScale = PickFloorScale(a_out.screen.z);
+
+			// On-screen size for the pick gate + floor scaling. The axial span alone
+			// vanishes when the camera looks straight down the body (orbit overhead),
+			// so measure width too: a shoulder-scale lateral offset, sized as a
+			// fraction of the body axis itself so no world unit is assumed.
+			const RE::NiPoint3 axis{ headWorld.x - baseWorld.x, headWorld.y - baseWorld.y, headWorld.z - baseWorld.z };
+			const float        bodyLen = std::sqrt(axis.Dot(axis));
+			const RE::NiPoint3 mid{ (headWorld.x + baseWorld.x) * 0.5f, (headWorld.y + baseWorld.y) * 0.5f, (headWorld.z + baseWorld.z) * 0.5f };
+			float              widthPx = 0.0f;
+			RE::NiPoint3       sideScreen;
+			if (bodyLen > 0.0f && a_projection.Project(mid + a_projection.right * (bodyLen * 0.18f), sideScreen)) {
+				widthPx = 2.0f * std::hypot((sideScreen.x - a_out.screen.x) * a_width,
+				                            (sideScreen.y - a_out.screen.y) * a_height);
+			}
+			const float heightScale = a_height / 1080.0f;  // px thresholds are authored at 1080p
+			a_out.sizePx = std::max(span, widthPx) / heightScale;
+
+			const float minScale = PickFloorScale(a_out.sizePx, kFullFloorActorSizePx);
 			a_out.radiusX = std::clamp(std::max(dxPx * 0.62f, span * 0.22f), 38.0f * minScale, 260.0f);
 			a_out.radiusY = std::clamp(std::max(dyPx * 0.62f, span * 0.22f), 52.0f * minScale, 320.0f);
 			return true;
@@ -1595,7 +1623,10 @@ namespace OSF::API
 				return false;
 			}
 			const float projectedRadius = a_projection.ProjectedRadius(center, radius, a_width, a_height);
-			const float minScale = PickFloorScale(a_out.screen.z);
+			// The bound radius spans roughly half the object, so double it for actors to
+			// stay comparable with the capsule path's full-body span measure.
+			a_out.sizePx = projectedRadius * (a_actor ? 2.0f : 1.0f) / (a_height / 1080.0f);
+			const float minScale = PickFloorScale(a_out.sizePx, a_actor ? kFullFloorActorSizePx : kFullFloorFurnitureSizePx);
 			a_out.radiusX = std::clamp(projectedRadius * 1.15f, (a_actor ? 38.0f : 30.0f) * minScale, 220.0f);
 			a_out.radiusY = std::clamp(projectedRadius * 1.15f, (a_actor ? 52.0f : 30.0f) * minScale, 260.0f);
 			return true;
@@ -1683,13 +1714,15 @@ namespace OSF::API
 				PickScreenBound    bound;
 			};
 			std::vector<Candidate> candidates;
+			std::size_t            droppedSmall = 0;
 			const auto consider = [&](RE::TESObjectREFR* a_ref) {
 				PickScreenBound bound;
 				if (!ComputePickScreenBound(*projection, a_ref, actorSlot, width, height, bound)) {
 					return;
 				}
-				if (bound.screen.z > kMaxPickDepth) {
-					return;  // beyond picking range — SCAN is the tool for those
+				if (bound.sizePx < (actorSlot ? kMinActorSizePx : kMinFurnitureSizePx)) {
+					++droppedSmall;  // renders too small to aim at = beyond picking range — SCAN covers those
+					return;
 				}
 				if (bound.screen.x < -0.1f || bound.screen.x > 1.1f ||
 					bound.screen.y < -0.1f || bound.screen.y > 1.1f) {
@@ -1724,10 +1757,30 @@ namespace OSF::API
 				}
 			}
 
+			// Periodic snapshot of what the gates saw — enough to diagnose "nothing
+			// pickable" (or a wrong-unit assumption) from the log alone.
+			{
+				static std::chrono::steady_clock::time_point s_lastStats{};
+				const auto now = std::chrono::steady_clock::now();
+				if (now - s_lastStats >= std::chrono::seconds(5)) {
+					s_lastStats = now;
+					float nearDepth = std::numeric_limits<float>::max();
+					float bigSize = 0.0f;
+					for (const Candidate& candidate : candidates) {
+						nearDepth = std::min(nearDepth, candidate.bound.screen.z);
+						bigSize = std::max(bigSize, candidate.bound.sizePx);
+					}
+					REX::DEBUG("[UI] pickables {}: {} candidates ({} too small), nearest depth {:.2f}, largest {:.0f}px",
+						slot, candidates.size(), droppedSmall,
+						candidates.empty() ? -1.0f : nearDepth, bigSize);
+				}
+			}
+
 			// The caps keep crowded scenes bounded. Rank by VIEW DEPTH — the ordering
 			// the user sees — so the cap always drops the deepest markers. (The old
 			// player-distance sort starved visible actors of markers whenever the
-			// orbit camera roamed away from the player.)
+			// orbit camera roamed away from the player. Depth is used RELATIVELY only;
+			// its absolute unit is unconfirmed.)
 			std::sort(candidates.begin(), candidates.end(), [](const Candidate& a_lhs, const Candidate& a_rhs) {
 				return a_lhs.bound.screen.z < a_rhs.bound.screen.z;
 			});

@@ -102,8 +102,11 @@ function normalizePickTargets(payload: unknown): PickTarget[] {
     cy: Number(item.cy),
     rx: Number(item.rx),
     ry: Number(item.ry),
-    depth: Number(item.depth),
-  })).filter((item) => item.token !== 0 && [item.x, item.y, item.cx, item.cy, item.depth].every(Number.isFinite)
+    // Tolerate a depth-less item (an older native side): 0 = treat as nearest,
+    // which degrades front-most resolution to pure ellipse score — never drop a
+    // target over a missing diagnostic-grade field.
+    depth: Number.isFinite(Number(item.depth)) ? Number(item.depth) : 0,
+  })).filter((item) => item.token !== 0 && [item.x, item.y, item.cx, item.cy].every(Number.isFinite)
     && item.rx > 0 && item.ry > 0);
 }
 

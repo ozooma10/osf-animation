@@ -6,7 +6,9 @@ import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember, typ
  *  to resolve the selection, so the two can never disagree. Among the targets whose
  *  acceptance ellipse contains the pointer, the FRONT-MOST wins (what a ray into the
  *  scene would hit first — the target the user visually sees); targets at effectively
- *  the same depth fall back to the better ellipse score. Pointer is in CSS pixels. */
+ *  the same depth (within 5% — depth's absolute unit is native-defined, so only
+ *  relative comparisons are safe) fall back to the better ellipse score.
+ *  Pointer is in CSS pixels. */
 export function hottestPickTarget(
   targets: readonly PickTarget[], px: number, py: number, width: number, height: number,
 ): PickTarget | null {
@@ -17,8 +19,9 @@ export function hottestPickTarget(
     const dy = (py - target.cy * height) / target.ry;
     const score = dx * dx + dy * dy;
     if (score > 1) continue;
-    if (!best || target.depth < best.depth - 0.5
-      || (Math.abs(target.depth - best.depth) <= 0.5 && score < bestScore)) {
+    const band = best ? 0.05 * Math.min(target.depth, best.depth) : 0;
+    if (!best || target.depth < best.depth - band
+      || (Math.abs(target.depth - best.depth) <= band && score < bestScore)) {
       best = target;
       bestScore = score;
     }
