@@ -3,6 +3,7 @@
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
 #include "Papyrus/OSFScript.h"
+#include "Player/PlayerControlService.h"
 #include "Scene/SceneEventRelay.h"
 #include "Serialization/PersistenceHost.h"
 #include "Util/Hooking.h"
@@ -125,6 +126,13 @@ namespace OSF::Serialization::SaveSafety
 						"OSF.* stays unbound until the next successful load");
 				}
 				PersistenceHost::OnLoadBackstop();
+				// A normal named load already ran the persistence revert BEFORE the engine applied the
+				// save, so its StopAll could only clear the outgoing world's player AI-driven flag. Clear
+				// it again now, against the newly loaded player: older OSF builds and native free-camera
+				// saves can serialize this flag and otherwise leave one particular save permanently
+				// non-controllable. Do not run another full StopAll here — persistence clients have just
+				// restored their state and a late global teardown would discard any OSF scenes they made.
+				Player::PlayerControlService::GetSingleton().ClearAIDriven();
 				// AFTER StopAll (impositions zeroed): if the load still left the camera in an OSF-imposed
 				// alt state (e.g. scene_orbit's kFreeFly with its driver stopped — stuck at a dead
 				// transform), force it back to third person.
