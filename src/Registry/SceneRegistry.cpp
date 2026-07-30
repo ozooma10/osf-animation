@@ -656,6 +656,35 @@ namespace OSF::Registry
 				throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' and filters.gender disagree");
 			}
 			r.gender = shorthand ? *shorthand : (fromFilter ? *fromFilter : SlotGender::kAny);
+			// Role-local pose composition. Omission preserves the historical absolute/override path.
+			if (auto pit = a_role.find("poseMode"); pit != a_role.end()) {
+				if (!pit->is_string()) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': 'poseMode' must be a string ('override' or 'additive')");
+				}
+				const auto mode = ToLower(pit->get<std::string>());
+				if (mode == "override") {
+					r.poseMode = Animation::PoseMode::kOverride;
+				} else if (mode == "additive") {
+					r.poseMode = Animation::PoseMode::kAdditive;
+				} else {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': unknown 'poseMode' value '" + pit->get<std::string>() +
+						"' (expected 'override' or 'additive')");
+				}
+			}
+			if (auto wit = a_role.find("poseWeight"); wit != a_role.end()) {
+				if (!wit->is_number()) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': 'poseWeight' must be a finite number");
+				}
+				const auto normalized = Animation::NormalizePoseWeight(wit->get<double>());
+				if (!normalized) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': 'poseWeight' must be finite");
+				}
+				r.poseWeight = *normalized;
+			}
 			// Optional exact-name bone mask. Preserved bones stay under the engine's live pose for
 			// this role while every other matched animation joint continues to stamp normally.
 			if (auto bit = a_role.find("preserveBones"); bit != a_role.end()) {
@@ -716,7 +745,7 @@ namespace OSF::Registry
 		//   { ... }  (no `id`)         -> an ordinary inline role (unchanged behavior)
 		// `id` must be a non-empty string naming a registry definition; it is removed before the merged
 		// JSON goes through the normal role parse. Overrides merge JSON-merge-patch style (RFC 7386):
-		// scalars replace, `filters`/`offset`/`equip` merge by key, arrays (preserveBones) replace
+		// scalars (including poseMode/poseWeight) replace, `filters`/`offset`/`equip` merge by key, arrays (preserveBones) replace
 		// wholesale, and null removes an inherited optional field. Unknown or malformed references
 		// throw — rejecting only this scene.
 		PendingRole ExpandRoleEntry(const json& a_entry, const std::string& a_sceneId, const RoleRegistry& a_registry)
@@ -1809,8 +1838,14 @@ namespace OSF::Registry
 			Animation::ScenePlan plan;
 			plan.animId = a_id;
 			plan.preserveBones.reserve(a_roles.size());
+			plan.poseModes.reserve(a_roles.size());
+			plan.poseWeights.reserve(a_roles.size());
+			plan.roleNames.reserve(a_roles.size());
 			for (const auto& role : a_roles) {
 				plan.preserveBones.push_back(role.preserveBones);
+				plan.poseModes.push_back(role.poseMode);
+				plan.poseWeights.push_back(role.poseWeight);
+				plan.roleNames.push_back(role.name);
 			}
 			plan.stages.reserve(a_stages.size());
 			for (const auto& sd : a_stages) {

@@ -256,7 +256,7 @@ load, so there is no clip list to count).
 ]
 ```
 
-Each role is `{ name?, gender?, filters?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`.
+Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`.
 (A `roles` entry may also reference the file-level roles registry — a plain id **string**, or an
 `{ "id": ..., ...overrides }` object; see *File-level roles* below.)
 
@@ -268,14 +268,30 @@ Each role is `{ name?, gender?, filters?, preserveBones?, offset?, equip? }`, wh
   one. **Note the singular key, nested under `filters`** (a bare top-level `keywords` is not read).
 - **`filters.race`**: a form-ref string or array; the actor's race must equal any one. Singular, under
   `filters` (a bare top-level `races` is not read).
+- **`poseMode`**: `"override"` (the default) or `"additive"`. Override is the historical behavior:
+  OSF writes the clip's sampled local pose on every driven bone. Additive treats the sample as a
+  gesture layered over Starfield's current locomotion/stance pose. For each joint, the reference is
+  that active animation skeleton's **local-to-parent rest transform** (`joint_rest_poses`, in the same
+  space as the sampled track): rotation delta is `inverse(reference) * sample`, translation delta is
+  `sample - reference`, and the weighted delta is composed as `live * delta`. A stage change loads
+  both its new sample and its new skeleton reference. Additive scale is intentionally ignored, so the
+  engine's live scale stays authoritative.
+- **`poseWeight`**: optional persistent layer strength, default `1.0`. It must be a finite JSON number
+  and is clamped to `[0, 1]`. During blend-in and blend-out the effective additive strength is the
+  transition weight multiplied by `poseWeight`; `blendIn` remains transition **time**, not layer
+  strength. At weight zero OSF leaves the live pose unchanged.
 - **`preserveBones`**: an array of exact, case-insensitive rig bone names that remain engine-driven
-  for this role. OSF omits only those bone slots while continuing to animate independently bound
-  child bones. This is useful when a baked full-pose clip contains an unwanted transform for a
-  helper/root bone, without making the role gender-specific:
+  for this role. It is a hard write exclusion in both pose modes: OSF omits only those bone slots
+  while continuing to animate independently bound child bones. This is useful when a baked full-pose
+  clip contains an unwanted transform for a helper/root bone, without making the role gender-specific:
 
   ```jsonc
   { "name": "receiver", "preserveBones": ["C_GenitalsRoot"] }
   ```
+
+  An additive full-body clip still contributes reference-relative deltas for every bound body joint.
+  Preserve the unwanted bones or author an arms-only gesture if the layer should affect only the upper
+  body; additive composition does not infer an arm mask from the motion itself.
 
 - **`offset`**: the role's default placement for all stages.
 - **`equip`**: an item to equip onto this role's actor for the scene's duration, **auto-removed on
@@ -310,8 +326,9 @@ JSON type:
 
 #### Default cast (array)
 
-Every scene in `scenes` that omits its own `roles` inherits the array (names, filters, offsets, **and
-`equip`**). A scene that declares its own `roles` overrides the file-level roles entirely.
+Every scene in `scenes` that omits its own `roles` inherits the complete array (including pose policy,
+filters, offsets, and `equip`). A scene that declares its own `roles` overrides the file-level roles
+entirely.
 
 ```jsonc
 {
@@ -357,7 +374,8 @@ track `"role"` refs) works exactly as with inline roles.
 
 **Overrides** merge onto the template JSON-merge-patch style:
 
-- **Scalars replace** — `"gender": "female"` replaces the template's `gender`.
+- **Scalars replace** — `"gender": "female"` replaces the template's `gender`; `poseMode` and
+  `poseWeight` replace their inherited scalar values the same way.
 - **`filters`, `offset`, and `equip` merge by key** — `{ "offset": { "y": 1.0 } }` changes only `y`;
   `{ "equip": { "female": "..." } }` changes only the `female` ref. Unspecified keys are inherited.
 - **Arrays replace wholesale** — a `preserveBones` override substitutes the whole list.
@@ -719,6 +737,10 @@ black until the end.
 - Authored `osf.fade.out` / `osf.fade.in` still work (e.g. a held end-fade), independent of this default.
 
 ### In-place playback (`inPlace`, default-off)
+
+`inPlace` and scene anchoring govern each participant's **world/root placement**. They are independent
+of role `poseMode`, which only decides how sampled local bone transforms combine with the live engine
+pose. Setting `poseMode: "additive"` does not enable root motion, disable anchoring, or imply `inPlace`.
 
 By default the runtime **anchors** a scene: participants are teleported to the anchor (participant[0]'s
 transform, or the furniture anchor) and their rendered root position **and heading are re-pinned every

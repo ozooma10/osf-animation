@@ -5,6 +5,8 @@
     // A fully-loaded template: every overridable field populated.
     "m": {
       "gender": "male",
+      "poseMode": "additive",
+      "poseWeight": 0.75,
       "offset": { "x": 1.0, "y": 2.0, "heading": 90.0 },
       "preserveBones": ["C_GenitalsRoot"],
       "equip": { "male": "Top.esm|0x111", "female": "Top.esm|0x222" }
@@ -53,14 +55,14 @@
       // Merge: the scalar gender replaces; offset/equip merge by key (y/female replaced, x/male
       // retained); an unspecified array (preserveBones) is retained.
       "id": "test.tpl.merge",
-      "roles": [{ "id": "m", "gender": "female", "offset": { "y": 9.0 }, "equip": { "female": "New.esm|0x999" } }],
+      "roles": [{ "id": "m", "gender": "female", "poseMode": "override", "poseWeight": -0.25, "offset": { "y": 9.0 }, "equip": { "female": "New.esm|0x999" } }],
       "clip": "Fixture/x.glb"
     },
     {
       // Alias direction 1: a top-level `gender` override drops the inherited filters.gender
       // (no false disagreement).
       "id": "test.tpl.alias1",
-      "roles": [{ "id": "geared", "gender": "male" }],
+      "roles": [{ "id": "geared", "gender": "male", "poseWeight": 2.0 }],
       "clip": "Fixture/x.glb"
     },
     {

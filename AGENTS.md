@@ -8,8 +8,8 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the four engine-free C++ suites (persistence broker,
-  frame clock/clip specs, sound registry, scene registry — the registry pair run from
+- **Tests:** `xmake test` builds and runs the five engine-free C++ suites (persistence broker,
+  frame clock/clip specs, additive pose math, sound registry, scene registry — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
 - **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see

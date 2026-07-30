@@ -211,6 +211,8 @@ namespace OSF::Registry
 		std::vector<RE::TESFormID> keywords;  // BGSKeyword ids; empty = no keyword constraint
 		std::vector<RE::TESFormID> races;     // TESRace ids; empty = no race constraint
 		std::vector<std::string>   preserveBones;  // exact, case-insensitive rig names left engine-driven
+		Animation::PoseMode        poseMode = Animation::PoseMode::kOverride;  // absolute replacement (default) or rest-relative layer
+		float                      poseWeight = 1.0f;  // persistent role layer strength, normalized to [0,1]
 		Animation::ParticipantPlacement offset{};  // default placement for this slot
 		RoleEquip                    equip;     // optional per-gender item equipped for the scene's duration
 	};

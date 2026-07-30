@@ -8,10 +8,32 @@
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
 
+#include <algorithm>
+#include <cmath>
+#include <optional>
+
 namespace OSF::Animation
 {
 	class Graph;
 	using PlaybackId = std::uint64_t;
+
+	// How an authored scene role contributes its sampled local pose. This is deliberately
+	// separate from RootMode / ScenePlan::anchored: pose composition is not root anchoring.
+	enum class PoseMode : std::uint8_t
+	{
+		kOverride,
+		kAdditive
+	};
+
+	// Authored pose weights clamp into the public [0,1] contract. Non-finite values are
+	// rejected by the registry (nullopt) instead of silently poisoning stamp math.
+	inline std::optional<float> NormalizePoseWeight(double a_weight)
+	{
+		if (!std::isfinite(a_weight)) {
+			return std::nullopt;
+		}
+		return static_cast<float>(std::clamp(a_weight, 0.0, 1.0));
+	}
 
 	// Offset from the scene anchor, rotated into the anchor's heading frame.
 	struct ParticipantPlacement
@@ -79,6 +101,9 @@ namespace OSF::Animation
 		};
 		std::vector<Stage> stages;
 		std::vector<std::vector<std::string>> preserveBones;  // optional, one exact-name list per actor
+		std::vector<PoseMode> poseModes;                       // optional, one mode per actor; empty = all override
+		std::vector<float> poseWeights;                        // optional, one normalized [0,1] weight per actor; empty = all 1
+		std::vector<std::string> roleNames;                    // optional diagnostics, one role name per actor
 		std::string animId;     // registry id ("" = ad-hoc)
 		float speed = 1.0f;     // clock speed multiplier
 		float blendIn = 0.4f;   // default per-participant blend-in secs
@@ -95,6 +120,26 @@ namespace OSF::Animation
 		RE::NiPoint3 anchorPos{};
 		float anchorHeading = 0.0f;  // radians
 	};
+
+	// ScenePlan is internal, but several construction paths build it. Keep every optional per-role
+	// policy vector all-or-none so actor/role indexing can never silently drift.
+	inline bool HasValidRolePolicyShape(const ScenePlan& a_plan, std::size_t a_actorCount)
+	{
+		const auto optionalCountMatches = [a_actorCount](std::size_t a_size) {
+			return a_size == 0 || a_size == a_actorCount;
+		};
+		if (!optionalCountMatches(a_plan.preserveBones.size()) ||
+			!optionalCountMatches(a_plan.poseModes.size()) ||
+			!optionalCountMatches(a_plan.poseWeights.size()) ||
+			!optionalCountMatches(a_plan.roleNames.size())) {
+			return false;
+		}
+		return std::ranges::all_of(a_plan.poseModes, [](PoseMode a_mode) {
+			return a_mode == PoseMode::kOverride || a_mode == PoseMode::kAdditive;
+		}) && std::ranges::all_of(a_plan.poseWeights, [](float a_weight) {
+			return std::isfinite(a_weight) && a_weight >= 0.0f && a_weight <= 1.0f;
+		});
+	}
 
 	class Scene
 	{

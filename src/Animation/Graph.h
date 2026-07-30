@@ -80,6 +80,8 @@ namespace OSF::Animation
 
 		// Start a new animation clip. Resets time and starts a blend-in. a_file is for diagnostics only ("" = none).
 		void SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file = "");
+		// Per-role local-pose composition. This is independent of root anchoring and survives stage changes.
+		void SetPosePolicy(PoseMode a_mode, float a_weight, std::string a_roleName = "");
 		// Exact, case-insensitive rig bone names whose live engine transforms this graph must not overwrite.
 		// The policy survives stage changes; GraphManager replaces it at every new solo/scene start.
 		void SetPreserveBones(const std::vector<std::string>& a_bones);
@@ -112,8 +114,12 @@ namespace OSF::Animation
 		ozz::animation::SamplingJob::Context samplingContext;
 		std::vector<ozz::math::SoaTransform> localPose;
 		std::vector<ozz::math::Float4x4> outputPose;
+		std::vector<ozz::math::Float4x4> referencePose;  // active skeleton's local rest pose, parallel to outputPose
 		std::unordered_map<std::string, uint16_t> jointMap;  // lowercased joint name -> index
 		std::unordered_set<std::string> preserveBones;       // lowercased live rig names omitted from binding
+		PoseMode poseMode = PoseMode::kOverride;
+		float poseWeight = 1.0f;
+		std::string roleName;  // diagnostics only
 
 		bool hasPose = false;  // outputPose valid (also the blend-from source for the next SetAnimation)
 
@@ -124,6 +130,12 @@ namespace OSF::Animation
 		const void* cachedLocalData = nullptr;  // rig->local->data at bind time; a reused modelNode with a fresh buffer invalidates the cache
 		uint16_t cachedRigBoneCount = 0;         // rigBoneCount (modelNode+0x78) at bind time; part of the cache identity so a rebuilt rig re-binds
 		std::vector<std::pair<uint16_t, uint16_t>> binding;  // {rigIndex, jointIndex}
+		// Additive stamping reads an immutable engine base. Sample increments enginePoseRevision only
+		// after the engine graph evaluation; the first compose for that revision snapshots each bound
+		// live slot. Any repeated compose call reuses that snapshot, so OSF never layers over itself.
+		std::vector<float> liveBasePose;  // binding order, 16 floats per entry; allocated only on bind
+		std::uint64_t enginePoseRevision = 1;
+		std::uint64_t basePoseRevision = 0;
 
 		FrameClock blendClock;  // blend ramps; owner-token gated, reset at SetAnimation/BeginFadeOut
 
@@ -134,5 +146,6 @@ namespace OSF::Animation
 		bool loggedBind = false;
 		bool loggedFirstApply = false;
 		bool loggedSampleFail = false;
+		bool loggedAdditivePlayback = false;
 	};
 }

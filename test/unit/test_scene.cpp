@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 
 // No game runtime / no mounted archives in this harness: the clip-availability probe reads every
@@ -45,6 +46,7 @@ int main()
 {
 	using OSF::Registry::SceneRegistry;
 	using OSF::Registry::SlotGender;
+	using OSF::Animation::PoseMode;
 
 	// xmake runs this target with test/fixtures as cwd, so LoadAll sees Data/OSF.
 	auto& reg = SceneRegistry::GetSingleton();
@@ -99,6 +101,8 @@ int main()
 	// -- bare single-scene file: top-level roles is that scene's roles (unchanged) --------------
 	if (const auto s = reg.Find("test.bare")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "solo", "bare scene keeps its inline roles");
+		Check(s->roles[0].poseMode == PoseMode::kOverride && s->roles[0].poseWeight == 1.0f,
+			"omitted pose policy defaults to override at full weight");
 	} else {
 		Check(false, "test.bare loads");
 	}
@@ -163,6 +167,29 @@ int main()
 			"mmf: a repeated template auto-numbers (m, m2, f)");
 		Check(s->roles[1].gender == SlotGender::kMale && s->roles[1].equip.male == "Top.esm|0x111",
 			"mmf: the numbered copy keeps the template's fields");
+		Check(s->roles[0].poseMode == PoseMode::kAdditive && s->roles[1].poseMode == PoseMode::kAdditive &&
+			s->roles[0].poseWeight == 0.75f && s->roles[1].poseWeight == 0.75f &&
+			s->roles[2].poseMode == PoseMode::kOverride && s->roles[2].poseWeight == 1.0f,
+			"mmf: additive pose policy is inherited by template copies while omission stays override");
+		const auto plan = reg.BuildNodePlan(s, s->nodes[0], 3);
+		Check(plan.has_value(), "mmf: scene plan builds");
+		if (plan) {
+			Check(plan->poseModes.size() == 3 && plan->poseWeights.size() == 3 && plan->roleNames.size() == 3,
+				"mmf: scene plan carries one pose policy and role name per actor");
+			Check(plan->poseModes[0] == PoseMode::kAdditive && plan->poseModes[1] == PoseMode::kAdditive &&
+				plan->poseModes[2] == PoseMode::kOverride && plan->poseWeights[0] == 0.75f &&
+				plan->poseWeights[1] == 0.75f && plan->poseWeights[2] == 1.0f,
+				"mmf: scene plan preserves resolved role pose values");
+			Check(OSF::Animation::HasValidRolePolicyShape(*plan, 3), "mmf: matching policy arrays validate");
+			auto badModes = *plan;
+			badModes.poseModes.pop_back();
+			Check(!OSF::Animation::HasValidRolePolicyShape(badModes, 3),
+				"scene-plan validation rejects a pose-mode/actor count mismatch");
+			auto badWeights = *plan;
+			badWeights.poseWeights.pop_back();
+			Check(!OSF::Animation::HasValidRolePolicyShape(badWeights, 3),
+				"scene-plan validation rejects a pose-weight/actor count mismatch");
+		}
 	} else {
 		Check(false, "test.tpl.mmf loads");
 	}
@@ -207,6 +234,8 @@ int main()
 			"merge: equip merges by key (female replaced, male retained)");
 		Check(s->roles[0].preserveBones.size() == 1 && s->roles[0].preserveBones[0] == "C_GenitalsRoot",
 			"merge: an unspecified array is retained");
+		Check(s->roles[0].poseMode == PoseMode::kOverride && s->roles[0].poseWeight == 0.0f,
+			"merge: pose scalars replace and a low poseWeight clamps to zero");
 	} else {
 		Check(false, "test.tpl.merge loads");
 	}
@@ -215,6 +244,8 @@ int main()
 			"alias1: a top-level gender override drops the inherited filters.gender");
 		Check(s->roles[0].equip.male == "Suit.esm|0x333" && s->roles[0].equip.any == "Suit.esm|0x444",
 			"alias1: unspecified fields are retained");
+		Check(s->roles[0].poseMode == PoseMode::kOverride && s->roles[0].poseWeight == 1.0f,
+			"alias1: a high poseWeight clamps to one without changing the default mode");
 	} else {
 		Check(false, "test.tpl.alias1 loads");
 	}
@@ -251,6 +282,9 @@ int main()
 	Check(!reg.Find("test.err.unknown"), "unknown reference rejects its scene");
 	Check(!reg.Find("test.err.case"), "registry ids are case-sensitive");
 	Check(!reg.Find("test.err.dup"), "duplicate explicit runtime role names reject their scene");
+	Check(!reg.Find("test.err.pose-mode"), "unknown poseMode rejects its scene");
+	Check(!reg.Find("test.err.pose-mode-type"), "wrong-type poseMode rejects its scene");
+	Check(!reg.Find("test.err.pose-weight-type"), "wrong-type poseWeight rejects its scene");
 	Check(!reg.Find("test.bad.def"), "malformed registry definition rejects its file");
 	Check(!reg.Find("test.bad.type"), "non-array/non-object file-level roles rejects its file");
 	Check(!reg.Find("test.terr.unknown"), "an unknown object-override id rejects its scene");
@@ -268,11 +302,17 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 11, "exactly the eleven expected diagnostics");
+	Check(errors.size() == 14, "exactly the fourteen expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
 	CheckError(errors, "scene 'test.err.dup': duplicate role name 'f'", "duplicate-name diagnostic");
+	CheckError(errors, "scene 'test.err.pose-mode': role 'p': unknown 'poseMode' value 'multiply'",
+		"unknown poseMode diagnostic names the scene, role, value, and field");
+	CheckError(errors, "scene 'test.err.pose-mode-type': role 'p': 'poseMode' must be a string",
+		"wrong-type poseMode diagnostic names the scene, role, and contract");
+	CheckError(errors, "scene 'test.err.pose-weight-type': role 'p': 'poseWeight' must be a finite number",
+		"wrong-type poseWeight diagnostic names the scene, role, and contract");
 	CheckError(errors, "'fixture_malformed_def.osf.json': roles registry entry 'bad'", "malformed-definition diagnostic");
 	CheckError(errors, "'fixture_malformed_type.osf.json': file-level 'roles' must be an array", "registry type diagnostic");
 	CheckError(errors, "'fixture_registry_template_errors.osf.json': scene 'test.terr.unknown': role reference 'nope'",
@@ -284,6 +324,8 @@ int main()
 		"duplicate clipLibrary diagnostic names the registered clip");
 	CheckError(errors, "'folder' contains an empty segment",
 		"invalid clipLibrary folder diagnostic names the path problem");
+	Check(!OSF::Animation::NormalizePoseWeight(std::numeric_limits<double>::quiet_NaN()).has_value(),
+		"non-finite poseWeight normalization rejects NaN");
 
 	if (g_failures) {
 		std::cerr << g_failures << " scene registry test(s) FAILED\n";

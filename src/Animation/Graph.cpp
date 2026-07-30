@@ -1,5 +1,6 @@
 #include "Graph.h"
 
+#include "Animation/PoseMath.h"
 #include "Animation/Scene.h"
 #include "Util/StringUtil.h"
 
@@ -46,101 +47,9 @@ namespace OSF::Animation
 			a_slot[15] = 1.0f;           // uniform scale
 		}
 
-		// --- cross-fade math ---
-		// Largely ai slop "MAKE THIS WORK PLZ"
-
-		struct Quat
-		{
-			float w, x, y, z;
-		};
-
-		// a_m = 16 floats; 3x3 at [0..2]/[4..6]/[8..10], M(r,c) = a_m[c*4 + r]
-		Quat MatrixToQuat(const float* a_m)
-		{
-			const float m00 = a_m[0], m10 = a_m[1], m20 = a_m[2];
-			const float m01 = a_m[4], m11 = a_m[5], m21 = a_m[6];
-			const float m02 = a_m[8], m12 = a_m[9], m22 = a_m[10];
-			const float trace = m00 + m11 + m22;
-			Quat q;
-			if (trace > 0.0f) {
-				const float s = std::sqrt(trace + 1.0f) * 2.0f;
-				q.w = 0.25f * s;
-				q.x = (m21 - m12) / s;
-				q.y = (m02 - m20) / s;
-				q.z = (m10 - m01) / s;
-			} else if (m00 > m11 && m00 > m22) {
-				const float s = std::sqrt(1.0f + m00 - m11 - m22) * 2.0f;
-				q.w = (m21 - m12) / s;
-				q.x = 0.25f * s;
-				q.y = (m01 + m10) / s;
-				q.z = (m02 + m20) / s;
-			} else if (m11 > m22) {
-				const float s = std::sqrt(1.0f + m11 - m00 - m22) * 2.0f;
-				q.w = (m02 - m20) / s;
-				q.x = (m01 + m10) / s;
-				q.y = 0.25f * s;
-				q.z = (m12 + m21) / s;
-			} else {
-				const float s = std::sqrt(1.0f + m22 - m00 - m11) * 2.0f;
-				q.w = (m10 - m01) / s;
-				q.x = (m02 + m20) / s;
-				q.y = (m12 + m21) / s;
-				q.z = 0.25f * s;
-			}
-			return q;
-		}
-
-		void QuatToMatrix3x3(const Quat& a_q, float* a_m)
-		{
-			const float xx = a_q.x * a_q.x, yy = a_q.y * a_q.y, zz = a_q.z * a_q.z;
-			const float xy = a_q.x * a_q.y, xz = a_q.x * a_q.z, yz = a_q.y * a_q.z;
-			const float wx = a_q.w * a_q.x, wy = a_q.w * a_q.y, wz = a_q.w * a_q.z;
-			a_m[0] = 1.0f - 2.0f * (yy + zz);   // m00
-			a_m[1] = 2.0f * (xy + wz);          // m10
-			a_m[2] = 2.0f * (xz - wy);          // m20
-			a_m[4] = 2.0f * (xy - wz);          // m01
-			a_m[5] = 1.0f - 2.0f * (xx + zz);   // m11
-			a_m[6] = 2.0f * (yz + wx);          // m21
-			a_m[8] = 2.0f * (xz + wy);          // m02
-			a_m[9] = 2.0f * (yz - wx);          // m12
-			a_m[10] = 1.0f - 2.0f * (xx + yy);  // m22
-		}
-
-		Quat Nlerp(const Quat& a_from, Quat a_to, float a_t)
-		{
-			const float dot = a_from.w * a_to.w + a_from.x * a_to.x + a_from.y * a_to.y + a_from.z * a_to.z;
-			if (dot < 0.0f) {  // shortest arc
-				a_to = { -a_to.w, -a_to.x, -a_to.y, -a_to.z };
-			}
-			Quat q{
-				a_from.w + (a_to.w - a_from.w) * a_t,
-				a_from.x + (a_to.x - a_from.x) * a_t,
-				a_from.y + (a_to.y - a_from.y) * a_t,
-				a_from.z + (a_to.z - a_from.z) * a_t
-			};
-			const float lenSq = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
-			if (lenSq > 1e-8f) {
-				const float inv = 1.0f / std::sqrt(lenSq);
-				q = { q.w * inv, q.x * inv, q.y * inv, q.z * inv };
-			} else {
-				q = { 1.0f, 0.0f, 0.0f, 0.0f };
-			}
-			return q;
-		}
-
 		void WriteNiTransformRowsBlended(float* a_slot, const float* a_from, const ozz::math::Float4x4& a_target, float a_weight)
 		{
-			const float* to = reinterpret_cast<const float*>(&a_target);
-			const Quat q = Nlerp(MatrixToQuat(a_from), MatrixToQuat(to), a_weight);
-			const float tx = a_from[12] + (to[12] - a_from[12]) * a_weight;
-			const float ty = a_from[13] + (to[13] - a_from[13]) * a_weight;
-			const float tz = a_from[14] + (to[14] - a_from[14]) * a_weight;
-			QuatToMatrix3x3(q, a_slot);
-			a_slot[3] = a_slot[7] = a_slot[11] = 0.0f;
-			a_slot[12] = tx;
-			a_slot[13] = ty;
-			a_slot[14] = tz;
-			a_slot[15] = 1.0f;
+			PoseMath::WriteOverrideBlended(a_slot, a_from, reinterpret_cast<const float*>(&a_target), a_weight);
 		}
 	}
 
@@ -177,6 +86,10 @@ namespace OSF::Animation
 		samplingContext.Resize(numJoints);
 		localPose.resize(skeleton->data->num_soa_joints());
 		outputPose.assign(numJoints, ozz::math::Float4x4::identity());
+		referencePose.assign(numJoints, ozz::math::Float4x4::identity());
+		const auto restPose = skeleton->data->joint_rest_poses();
+		UnpackSoaTransforms({ restPose.data(), restPose.size() },
+			{ referencePose.data(), referencePose.size() }, skeleton->data.get());
 
 		jointMap.clear();
 		auto jointNames = skeleton->data->joint_names();
@@ -191,6 +104,17 @@ namespace OSF::Animation
 		cachedLocalData = nullptr;
 		cachedRigBoneCount = 0;
 		binding.clear();
+		liveBasePose.clear();
+		basePoseRevision = 0;
+	}
+
+	void Graph::SetPosePolicy(PoseMode a_mode, float a_weight, std::string a_roleName)
+	{
+		poseMode = a_mode;
+		poseWeight = std::isfinite(a_weight) ? std::clamp(a_weight, 0.0f, 1.0f) : 1.0f;
+		roleName = std::move(a_roleName);
+		loggedAdditivePlayback = false;
+		basePoseRevision = 0;
 	}
 
 	void Graph::SetPreserveBones(const std::vector<std::string>& a_bones)
@@ -210,6 +134,8 @@ namespace OSF::Animation
 		cachedLocalData = nullptr;
 		cachedRigBoneCount = 0;
 		binding.clear();
+		liveBasePose.clear();
+		basePoseRevision = 0;
 	}
 
 	bool Graph::ResolveAndBind()
@@ -224,6 +150,8 @@ namespace OSF::Animation
 			cachedLocalData = nullptr;
 			cachedRigBoneCount = 0;
 			binding.clear();
+			liveBasePose.clear();
+			basePoseRevision = 0;
 			return false;
 		};
 
@@ -309,11 +237,20 @@ namespace OSF::Animation
 				binding.emplace_back(entry.rigIndex, iter->second);
 			}
 		}
+		// Allocate the immutable live-base buffer only when the binding changes, never in StampPose.
+		liveBasePose.assign(binding.size() * 16, 0.0f);
+		basePoseRevision = 0;
 
 		if (!loggedBind) {
 			loggedBind = true;
 			REX::DEBUG("[Anim] rig bind — {}/{} mapped body bones matched skeleton joints ({} preserved, {} face/eye/morph nodes skipped)",
 				binding.size(), cachedBoneCount, skippedPreserved, skippedNonBody);
+		}
+		if (poseMode == PoseMode::kAdditive && !loggedAdditivePlayback) {
+			loggedAdditivePlayback = true;
+			REX::DEBUG("[Anim] additive playback — actor {:08X}, role '{}', pose weight {:.3f}, {} driven bone(s), {} preserved bone(s)",
+				target ? target->formID : 0, roleName.empty() ? "<anonymous>" : roleName,
+				poseWeight, binding.size(), skippedPreserved);
 		}
 
 		return !binding.empty();
@@ -339,6 +276,8 @@ namespace OSF::Animation
 		cachedLocalData = nullptr;
 		cachedRigBoneCount = 0;
 		binding.clear();
+		liveBasePose.clear();
+		basePoseRevision = 0;
 	}
 
 	void Graph::DetachAndFadeOut()
@@ -378,6 +317,9 @@ namespace OSF::Animation
 
 	void Graph::Sample(float a_deltaTime, const void* a_token)
 	{
+		if (++enginePoseRevision == 0) {
+			++enginePoseRevision;  // zero is reserved for an uncaptured base
+		}
 		lastSampleMs.store(std::chrono::duration_cast<std::chrono::milliseconds>(
 			std::chrono::steady_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
 
@@ -442,7 +384,8 @@ namespace OSF::Animation
 
 	void Graph::StampPose(const RE::BGSModelNode* a_modelNode)
 	{
-		if (a_modelNode != cachedModelNode || binding.empty() || !anim || !skeleton) {
+		if (a_modelNode != cachedModelNode || binding.empty() || !anim || !skeleton ||
+			outputPose.size() != referencePose.size()) {
 			return;
 		}
 
@@ -490,7 +433,35 @@ namespace OSF::Animation
 		// Bound every write to the LIVE buffer. binding.rigIndex was validated when the binding was built, but the rig can be rebuilt (smaller) between bind and stamp on the anim job thread;
 		const uint16_t rigBoneCount = GetRigBoneCount(a_modelNode);
 
-		if (weight >= 1.0f) {
+		if (poseMode == PoseMode::kAdditive) {
+			if (liveBasePose.size() != binding.size() * 16) {
+				return;  // binding/base must be prepared together; never allocate from the stamp hook
+			}
+			// AnimationManager::Update evaluates Starfield first and increments enginePoseRevision via
+			// Sample. Capture those fresh local slots once. If BGSModelNode::Update repeats before a new
+			// engine evaluation, keep this immutable base instead of reading our prior additive write.
+			if (basePoseRevision != enginePoseRevision) {
+				for (std::size_t i = 0; i < binding.size(); ++i) {
+					const auto rigIdx = binding[i].first;
+					if (rigIdx < rigBoneCount) {
+						std::memcpy(liveBasePose.data() + i * 16,
+							buf + static_cast<std::size_t>(rigIdx) * 16, 16 * sizeof(float));
+					}
+				}
+				basePoseRevision = enginePoseRevision;
+			}
+			const float effectiveWeight = PoseMath::EffectiveWeight(weight, poseWeight);
+			for (std::size_t i = 0; i < binding.size(); ++i) {
+				const auto [rigIdx, jointIdx] = binding[i];
+				if (rigIdx >= rigBoneCount) {
+					continue;
+				}
+				float* slot = buf + static_cast<std::size_t>(rigIdx) * 16;
+				PoseMath::WriteAdditive(slot, liveBasePose.data() + i * 16,
+					reinterpret_cast<const float*>(&referencePose[jointIdx]),
+					reinterpret_cast<const float*>(&outputPose[jointIdx]), effectiveWeight);
+			}
+		} else if (weight >= 1.0f) {
 			for (const auto& [rigIdx, jointIdx] : binding) {
 				if (rigIdx >= rigBoneCount) {
 					continue;

@@ -373,9 +373,11 @@ namespace OSF::Animation
 				REX::ERROR("[Anim] PlayScene: explicit anchor contains a non-finite value");
 				return false;
 			}
-			if (!a_plan.preserveBones.empty() && a_plan.preserveBones.size() != a_actors.size()) {
-				REX::ERROR("[Anim] PlayScene: preserve-bone policy has {} role(s), but scene has {} actor(s)",
-					a_plan.preserveBones.size(), a_actors.size());
+			if (!HasValidRolePolicyShape(a_plan, a_actors.size())) {
+				REX::ERROR("[Anim] PlayScene: role policies do not match {} actor(s) or contain an invalid pose weight "
+					"({} preserve, {} modes, {} weights, {} names)",
+					a_actors.size(), a_plan.preserveBones.size(), a_plan.poseModes.size(),
+					a_plan.poseWeights.size(), a_plan.roleNames.size());
 				return false;
 			}
 			for (size_t s = 0; s < a_plan.stages.size(); s++) {
@@ -586,6 +588,7 @@ namespace OSF::Animation
 		{
 			std::unique_lock gl{ g->stateLock };
 			static const std::vector<std::string> kNoPreservedBones;
+			g->SetPosePolicy(PoseMode::kOverride, 1.0f);
 			g->SetPreserveBones(kNoPreservedBones);
 			g->SetAnimation(loadResult.skeleton, loadResult.anim, std::string(a_file));
 		}
@@ -697,6 +700,10 @@ namespace OSF::Animation
 				{
 					std::scoped_lock gl{ slot->stateLock };
 					static const std::vector<std::string> kNoPreservedBones;
+					const PoseMode poseMode = a_plan.poseModes.empty() ? PoseMode::kOverride : a_plan.poseModes[i];
+					const float poseWeight = a_plan.poseWeights.empty() ? 1.0f : a_plan.poseWeights[i];
+					const std::string roleName = a_plan.roleNames.empty() ? std::string{} : a_plan.roleNames[i];
+					slot->SetPosePolicy(poseMode, poseWeight, roleName);
 					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
 					slot->blendDuration = scene->stages[startStage].blendIn;

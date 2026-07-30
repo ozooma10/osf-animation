@@ -166,6 +166,16 @@ target("osf-frame-clock-test")
     add_files("src/Util/ClipPath.cpp", "test/FrameClockTest.cpp")
     add_includedirs("src")
 
+-- Pure local-pose composition tests (reference-relative translation/rotation, weighting,
+-- multiplication order, stage references, preservation, override compatibility, no accumulation).
+target("osf-additive-pose-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    set_languages("c++23")
+    add_files("test/AdditivePoseTest.cpp")
+    add_includedirs("src")
+
 -- Sound-pool parsing/subtitle fixture tests. Uses the CommonLib logging surface but no game runtime.
 target("osf-sound-registry-test")
     set_kind("binary")

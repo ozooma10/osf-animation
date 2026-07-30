@@ -12,6 +12,9 @@
     // Two EXPLICIT "f" names (an override + an inline role) still reject; two plain references
     // to same-named templates would auto-number (f, f2) instead — see fixture_registry_templates.
     { "id": "test.err.dup", "roles": [{ "id": "f-preserved", "name": "f" }, { "name": "f" }], "stages": [{ "clips": ["Fixture/a.glb", "Fixture/b.glb"] }] },
+    { "id": "test.err.pose-mode", "roles": [{ "name": "p", "poseMode": "multiply" }], "clip": "Fixture/x.glb" },
+    { "id": "test.err.pose-mode-type", "roles": [{ "name": "p", "poseMode": 7 }], "clip": "Fixture/x.glb" },
+    { "id": "test.err.pose-weight-type", "roles": [{ "name": "p", "poseWeight": "strong" }], "clip": "Fixture/x.glb" },
     { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
   ]
 }
