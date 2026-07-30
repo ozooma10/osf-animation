@@ -374,10 +374,10 @@ namespace OSF::Animation
 				return false;
 			}
 			if (!HasValidRolePolicyShape(a_plan, a_actors.size())) {
-				REX::ERROR("[Anim] PlayScene: role policies do not match {} actor(s) or contain an invalid pose weight "
-					"({} preserve, {} modes, {} weights, {} names)",
+				REX::ERROR("[Anim] PlayScene: role policies do not match {} actor(s) or contain an invalid pose weight/mask "
+					"({} preserve, {} modes, {} weights, {} masks, {} names)",
 					a_actors.size(), a_plan.preserveBones.size(), a_plan.poseModes.size(),
-					a_plan.poseWeights.size(), a_plan.roleNames.size());
+					a_plan.poseWeights.size(), a_plan.masks.size(), a_plan.roleNames.size());
 				return false;
 			}
 			for (size_t s = 0; s < a_plan.stages.size(); s++) {
@@ -590,6 +590,7 @@ namespace OSF::Animation
 			static const std::vector<std::string> kNoPreservedBones;
 			g->SetPosePolicy(PoseMode::kOverride, 1.0f);
 			g->SetPreserveBones(kNoPreservedBones);
+			g->SetBoneMask({});
 			g->SetAnimation(loadResult.skeleton, loadResult.anim, std::string(a_file));
 		}
 
@@ -705,6 +706,7 @@ namespace OSF::Animation
 					const std::string roleName = a_plan.roleNames.empty() ? std::string{} : a_plan.roleNames[i];
 					slot->SetPosePolicy(poseMode, poseWeight, roleName);
 					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
+					slot->SetBoneMask(a_plan.masks.empty() ? std::string{} : a_plan.masks[i]);
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
 					slot->blendDuration = scene->stages[startStage].blendIn;
 					slot->scene = scene.get();

@@ -52,7 +52,7 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 21 authored scenes load: bare(1) + legacy(2) + registry(4) + errors(1 of 4) + templates(11) +
+	// 21 authored scenes load: bare(1) + legacy(2) + registry(4) + errors(1 of 9) + templates(11) +
 	// template-errors(1 of 5); the two malformed-registry files load nothing. (Generated clip-debug
 	// entries and clipLibrary registrations don't count here.)
 	Check(reg.Size() == 21, "authored scene count");
@@ -182,6 +182,8 @@ int main()
 			s->roles[0].poseWeight == 0.75f && s->roles[1].poseWeight == 0.75f &&
 			s->roles[2].poseMode == PoseMode::kOverride && s->roles[2].poseWeight == 1.0f,
 			"mmf: additive pose policy is inherited by template copies while omission stays override");
+		Check(s->roles[0].mask == "upperBody" && s->roles[1].mask == "upperBody" && s->roles[2].mask.empty(),
+			"mmf: an authored-lowercase mask canonicalizes and inherits; omission stays unmasked");
 		const auto plan = reg.BuildNodePlan(s, s->nodes[0], 3);
 		Check(plan.has_value(), "mmf: scene plan builds");
 		if (plan) {
@@ -191,6 +193,9 @@ int main()
 				plan->poseModes[2] == PoseMode::kOverride && plan->poseWeights[0] == 0.75f &&
 				plan->poseWeights[1] == 0.75f && plan->poseWeights[2] == 1.0f,
 				"mmf: scene plan preserves resolved role pose values");
+			Check(plan->masks.size() == 3 && plan->masks[0] == "upperBody" &&
+				plan->masks[1] == "upperBody" && plan->masks[2].empty(),
+				"mmf: scene plan carries one bone mask per actor");
 			Check(OSF::Animation::HasValidRolePolicyShape(*plan, 3), "mmf: matching policy arrays validate");
 			auto badModes = *plan;
 			badModes.poseModes.pop_back();
@@ -200,6 +205,14 @@ int main()
 			badWeights.poseWeights.pop_back();
 			Check(!OSF::Animation::HasValidRolePolicyShape(badWeights, 3),
 				"scene-plan validation rejects a pose-weight/actor count mismatch");
+			auto badMasks = *plan;
+			badMasks.masks.pop_back();
+			Check(!OSF::Animation::HasValidRolePolicyShape(badMasks, 3),
+				"scene-plan validation rejects a mask/actor count mismatch");
+			auto badMaskName = *plan;
+			badMaskName.masks[0] = "torso";
+			Check(!OSF::Animation::HasValidRolePolicyShape(badMaskName, 3),
+				"scene-plan validation rejects an unknown mask name");
 		}
 	} else {
 		Check(false, "test.tpl.mmf loads");
@@ -247,6 +260,7 @@ int main()
 			"merge: an unspecified array is retained");
 		Check(s->roles[0].poseMode == PoseMode::kOverride && s->roles[0].poseWeight == 0.0f,
 			"merge: pose scalars replace and a low poseWeight clamps to zero");
+		Check(s->roles[0].mask == "arms", "merge: a mask override replaces the template's mask");
 	} else {
 		Check(false, "test.tpl.merge loads");
 	}
@@ -283,7 +297,7 @@ int main()
 	if (const auto s = reg.Find("test.tpl.null")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "m" && s->roles[0].gender == SlotGender::kMale,
 			"null: scalars survive removing optional fields");
-		Check(s->roles[0].equip.Empty() && s->roles[0].preserveBones.empty(),
+		Check(s->roles[0].equip.Empty() && s->roles[0].preserveBones.empty() && s->roles[0].mask.empty(),
 			"null: null removes an inherited optional field");
 	} else {
 		Check(false, "test.tpl.null loads");
@@ -296,6 +310,8 @@ int main()
 	Check(!reg.Find("test.err.pose-mode"), "unknown poseMode rejects its scene");
 	Check(!reg.Find("test.err.pose-mode-type"), "wrong-type poseMode rejects its scene");
 	Check(!reg.Find("test.err.pose-weight-type"), "wrong-type poseWeight rejects its scene");
+	Check(!reg.Find("test.err.mask"), "unknown mask rejects its scene");
+	Check(!reg.Find("test.err.mask-type"), "wrong-type mask rejects its scene");
 	Check(!reg.Find("test.bad.def"), "malformed registry definition rejects its file");
 	Check(!reg.Find("test.bad.type"), "non-array/non-object file-level roles rejects its file");
 	Check(!reg.Find("test.terr.unknown"), "an unknown object-override id rejects its scene");
@@ -313,7 +329,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 14, "exactly the fourteen expected diagnostics");
+	Check(errors.size() == 16, "exactly the sixteen expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -324,6 +340,10 @@ int main()
 		"wrong-type poseMode diagnostic names the scene, role, and contract");
 	CheckError(errors, "scene 'test.err.pose-weight-type': role 'p': 'poseWeight' must be a finite number",
 		"wrong-type poseWeight diagnostic names the scene, role, and contract");
+	CheckError(errors, "scene 'test.err.mask': role 'p': unknown 'mask' value 'torso'",
+		"unknown mask diagnostic names the scene, role, and value");
+	CheckError(errors, "scene 'test.err.mask-type': role 'p': 'mask' must be a string",
+		"wrong-type mask diagnostic names the scene, role, and contract");
 	CheckError(errors, "'fixture_malformed_def.osf.json': roles registry entry 'bad'", "malformed-definition diagnostic");
 	CheckError(errors, "'fixture_malformed_type.osf.json': file-level 'roles' must be an array", "registry type diagnostic");
 	CheckError(errors, "'fixture_registry_template_errors.osf.json': scene 'test.terr.unknown': role reference 'nope'",
@@ -390,9 +410,9 @@ int main()
 			"a rejected file keeps a record carrying its reject line");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
-		// Partial file: some scenes in, six rejected, so it is NOT "rejected".
+		// Partial file: some scenes in, eight rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 6,
+		Check(partial && partial->scenes == 1 && partial->errors == 8,
 			"a partially-loaded file reports both its scenes and its rejected ones");
 		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
 

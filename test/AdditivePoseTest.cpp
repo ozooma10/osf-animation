@@ -1,3 +1,4 @@
+#include "Animation/BoneMask.h"
 #include "Animation/PoseMath.h"
 
 #include <array>
@@ -182,6 +183,49 @@ int main()
 		WriteAdditive(repeated.data(), immutableLive.data(), reference.data(), sampled.data(), 1.0f);
 		Check(Near(first[12], 5.0f) && Near(repeated[12], 5.0f),
 			"repeated stamping does not accumulate an already-written delta");
+	}
+
+	// Named driven-bone masks: the tables the registry validates against and the graph binds with.
+	{
+		namespace BoneMask = OSF::Animation::BoneMask;
+		const auto* upper = BoneMask::Find("upperBody");
+		Check(upper != nullptr && upper == BoneMask::Find("UPPERBODY") && upper->id == "upperBody",
+			"mask lookup is case-insensitive and returns the canonical id");
+		Check(BoneMask::Find("torso") == nullptr, "an unknown mask name resolves to null");
+		Check(upper && upper->feathered &&
+			Near(upper->weights.at("c_spine"), 0.25f) &&
+			Near(upper->weights.at("c_spine1"), 0.5f) &&
+			Near(upper->weights.at("c_spine2"), 0.75f) &&
+			Near(upper->weights.at("c_chest"), 1.0f),
+			"upperBody feathers the spine seam up to a full-weight chest");
+		Check(upper && upper->weights.contains("l_wrist") && upper->weights.contains("r_clavicle") &&
+			upper->weights.contains("c_head") && upper->weights.contains("weapon") &&
+			!upper->weights.contains("c_hips") && !upper->weights.contains("l_thigh") &&
+			!upper->weights.contains("directat"),
+			"upperBody covers both arm chains + head/weapon and excludes the lower body");
+		const auto* arms = BoneMask::Find("arms");
+		Check(arms && !arms->feathered && arms->weights.contains("l_clavicle") &&
+			arms->weights.contains("r_index2") && !arms->weights.contains("c_spine"),
+			"arms is a hard clavicle-down mask with no spine seam");
+		const auto* leftArm = BoneMask::Find("leftArm");
+		Check(leftArm && leftArm->weights.contains("l_biceps") && leftArm->weights.contains("weaponleft") &&
+			!leftArm->weights.contains("r_biceps") && !leftArm->weights.contains("weapon"),
+			"leftArm stays one-sided");
+		const auto* lower = BoneMask::Find("lowerBody");
+		Check(lower && !lower->feathered && lower->weights.contains("c_hips") &&
+			lower->weights.contains("r_toe") && !lower->weights.contains("com") &&
+			!lower->weights.contains("l_clavicle"),
+			"lowerBody covers hips-down and leaves COM/root motion engine-driven");
+		for (const auto& mask : BoneMask::All()) {
+			bool weightsValid = true;
+			for (const auto& [bone, weight] : mask.weights) {
+				weightsValid = weightsValid && weight > 0.0f && weight <= 1.0f &&
+					bone == BoneMask::detail::Lower(bone);
+			}
+			Check(weightsValid, "every mask entry is lowercased with a weight in (0, 1]");
+		}
+		Check(BoneMask::KnownList().find("upperBody") != std::string::npos,
+			"the diagnostic known-mask list names the canonical ids");
 	}
 
 	if (g_failures != 0) {

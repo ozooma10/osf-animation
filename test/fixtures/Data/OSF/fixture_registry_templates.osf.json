@@ -2,11 +2,13 @@
   "schema": 1,
   "name": "fixture role templates: overrides + automatic runtime names",
   "roles": {
-    // A fully-loaded template: every overridable field populated.
+    // A fully-loaded template: every overridable field populated. mask is authored lowercase
+    // to prove the parser canonicalizes the stored id ("upperbody" -> "upperBody").
     "m": {
       "gender": "male",
       "poseMode": "additive",
       "poseWeight": 0.75,
+      "mask": "upperbody",
       "offset": { "x": 1.0, "y": 2.0, "heading": 90.0 },
       "preserveBones": ["C_GenitalsRoot"],
       "equip": { "male": "Top.esm|0x111", "female": "Top.esm|0x222" }
@@ -55,7 +57,7 @@
       // Merge: the scalar gender replaces; offset/equip merge by key (y/female replaced, x/male
       // retained); an unspecified array (preserveBones) is retained.
       "id": "test.tpl.merge",
-      "roles": [{ "id": "m", "gender": "female", "poseMode": "override", "poseWeight": -0.25, "offset": { "y": 9.0 }, "equip": { "female": "New.esm|0x999" } }],
+      "roles": [{ "id": "m", "gender": "female", "poseMode": "override", "poseWeight": -0.25, "mask": "arms", "offset": { "y": 9.0 }, "equip": { "female": "New.esm|0x999" } }],
       "clip": "Fixture/x.glb"
     },
     {
@@ -86,7 +88,7 @@
     {
       // null removes inherited optional fields.
       "id": "test.tpl.null",
-      "roles": [{ "id": "m", "equip": null, "preserveBones": null }],
+      "roles": [{ "id": "m", "equip": null, "preserveBones": null, "mask": null }],
       "clip": "Fixture/x.glb"
     }
   ]

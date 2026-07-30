@@ -260,7 +260,7 @@ load, so there is no clip list to count).
 ]
 ```
 
-Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`.
+Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, mask?, preserveBones?, offset?, equip? }`, where `filters` is `{ gender?, keyword?, race? }`.
 (A `roles` entry may also reference the file-level roles registry — a plain id **string**, or an
 `{ "id": ..., ...overrides }` object; see *File-level roles* below.)
 
@@ -281,9 +281,34 @@ Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, preserveBones?
   both its new sample and its new skeleton reference. Additive scale is intentionally ignored, so the
   engine's live scale stays authoritative.
 - **`poseWeight`**: optional persistent layer strength, default `1.0`. It must be a finite JSON number
-  and is clamped to `[0, 1]`. During blend-in and blend-out the effective additive strength is the
-  transition weight multiplied by `poseWeight`; `blendIn` remains transition **time**, not layer
-  strength. At weight zero OSF leaves the live pose unchanged.
+  and is clamped to `[0, 1]`. It applies in **both** pose modes: additive scales the delta, override
+  blends the sampled pose against the engine's live pose per bone. During blend-in and blend-out the
+  effective strength is the transition weight multiplied by `poseWeight`; `blendIn` remains transition
+  **time**, not layer strength. At weight zero OSF leaves the live pose unchanged.
+- **`mask`**: optional named driven-bone whitelist for partial-body playback. With a mask the role
+  drives ONLY the mask's rig bones — every other bone stays fully engine-driven, so a gesture (an
+  equip, a wave, a held prop) plays **over** Starfield's own locomotion instead of replacing it (the
+  behavior-graph "upper body while moving" look). Weight-1 bones take the sampled pose absolutely;
+  fractional bones blend sampled-vs-live per bone every frame. Named masks (human rig):
+
+  | mask | covers |
+  |---|---|
+  | `"upperBody"` | chest/neck/head, both arms, weapon bones at full weight, over a feathered spine seam (`C_Spine` 0.25, `C_Spine1` 0.5, `C_Spine2` 0.75) so run/walk torso sway survives underneath |
+  | `"arms"` | both clavicle-down arm chains + weapon bones |
+  | `"leftArm"` / `"rightArm"` | one arm chain + its weapon bone |
+  | `"lowerBody"` | hips/waist/legs/feet (COM stays engine-driven, so root motion is untouched) |
+  | `"hands"` | both wrists + fingers + in-hand prop helpers |
+
+  The mask name is matched case-insensitively and validated at load (an unknown name rejects the
+  scene). Interplay: `preserveBones` still hard-excludes bones from a mask; in `"additive"` mode the
+  mask scales each bone's delta instead. Bone names match live rig nodes case-insensitively — bones a
+  species rig doesn't have simply never match, so a mask on an off-species rig degrades toward
+  stamping nothing. `Eye/face` nodes remain engine-driven as always. Typical equip-style gesture:
+
+  ```jsonc
+  { "name": "gesturer", "mask": "upperBody" }
+  ```
+
 - **`preserveBones`**: an array of exact, case-insensitive rig bone names that remain engine-driven
   for this role. It is a hard write exclusion in both pose modes: OSF omits only those bone slots
   while continuing to animate independently bound child bones. This is useful when a baked full-pose
@@ -293,9 +318,10 @@ Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, preserveBones?
   { "name": "receiver", "preserveBones": ["C_GenitalsRoot"] }
   ```
 
-  An additive full-body clip still contributes reference-relative deltas for every bound body joint.
-  Preserve the unwanted bones or author an arms-only gesture if the layer should affect only the upper
-  body; additive composition does not infer an arm mask from the motion itself.
+  An additive full-body clip still contributes reference-relative deltas for every bound body joint;
+  additive composition does not infer an arm mask from the motion itself. For a gesture that should
+  only affect part of the body, use `mask` (the driven-bone whitelist) rather than enumerating
+  everything else in `preserveBones`.
 
 - **`offset`**: the role's default placement for all stages.
 - **`equip`**: an item to equip onto this role's actor for the scene's duration, **auto-removed on
@@ -378,8 +404,8 @@ track `"role"` refs) works exactly as with inline roles.
 
 **Overrides** merge onto the template JSON-merge-patch style:
 
-- **Scalars replace** — `"gender": "female"` replaces the template's `gender`; `poseMode` and
-  `poseWeight` replace their inherited scalar values the same way.
+- **Scalars replace** — `"gender": "female"` replaces the template's `gender`; `poseMode`,
+  `poseWeight`, and `mask` replace their inherited scalar values the same way.
 - **`filters`, `offset`, and `equip` merge by key** — `{ "offset": { "y": 1.0 } }` changes only `y`;
   `{ "equip": { "female": "..." } }` changes only the `female` ref. Unspecified keys are inherited.
 - **Arrays replace wholesale** — a `preserveBones` override substitutes the whole list.

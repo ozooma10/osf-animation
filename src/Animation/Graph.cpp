@@ -98,6 +98,11 @@ namespace OSF::Animation
 		}
 
 		// force a re-bind against the (possibly unchanged) rig
+		InvalidateBinding();
+	}
+
+	void Graph::InvalidateBinding()
+	{
 		cachedModelNode = nullptr;
 		cachedRig = nullptr;
 		cachedBoneCount = 0;
@@ -128,14 +133,24 @@ namespace OSF::Animation
 		}
 
 		// The binding is the write policy. Force it to rebuild even if the live rig itself did not change.
-		cachedModelNode = nullptr;
-		cachedRig = nullptr;
-		cachedBoneCount = 0;
-		cachedLocalData = nullptr;
-		cachedRigBoneCount = 0;
-		binding.clear();
-		liveBasePose.clear();
-		basePoseRevision = 0;
+		InvalidateBinding();
+	}
+
+	void Graph::SetBoneMask(const std::string& a_maskName)
+	{
+		const BoneMask::Mask* next = a_maskName.empty() ? nullptr : BoneMask::Find(a_maskName);
+		if (!a_maskName.empty() && !next) {
+			// The registry validates mask names at load; reaching this means a caller bypassed it.
+			REX::WARN("[Anim] unknown bone mask '{}' — playing unmasked (known: {})",
+				a_maskName, BoneMask::KnownList());
+		}
+		if (next == boneMask) {
+			return;  // unchanged policy keeps the live binding
+		}
+		boneMask = next;
+		loggedMaskBind = false;
+		// The mask decides which bones bind. Force a rebuild even if the live rig did not change.
+		InvalidateBinding();
 	}
 
 	bool Graph::ResolveAndBind()
@@ -212,6 +227,7 @@ namespace OSF::Animation
 
 		uint32_t skippedNonBody = 0;
 		uint32_t skippedPreserved = 0;
+		uint32_t skippedMasked = 0;
 		for (uint32_t i = 0; i < modelNode->nodes.size(); i++) {
 			const auto& entry = modelNode->nodes[i];
 			if (!entry.node) {
@@ -234,7 +250,16 @@ namespace OSF::Animation
 				if (entry.rigIndex >= cachedRigBoneCount) {
 					continue;  // node maps to a rig slot outside the live buffer; never stamp it
 				}
-				binding.emplace_back(entry.rigIndex, iter->second);
+				float boneWeight = 1.0f;
+				if (boneMask) {
+					const auto mit = boneMask->weights.find(lowerName);
+					if (mit == boneMask->weights.end()) {
+						skippedMasked++;  // outside the driven whitelist — stays engine-driven
+						continue;
+					}
+					boneWeight = mit->second;
+				}
+				binding.push_back({ entry.rigIndex, iter->second, boneWeight });
 			}
 		}
 		// Allocate the immutable live-base buffer only when the binding changes, never in StampPose.
@@ -251,6 +276,13 @@ namespace OSF::Animation
 			REX::DEBUG("[Anim] additive playback — actor {:08X}, role '{}', pose weight {:.3f}, {} driven bone(s), {} preserved bone(s)",
 				target ? target->formID : 0, roleName.empty() ? "<anonymous>" : roleName,
 				poseWeight, binding.size(), skippedPreserved);
+		}
+		if (boneMask && !loggedMaskBind) {
+			loggedMaskBind = true;
+			// 0 driven = the mask matched nothing on this rig (off-species) — the graph stamps nothing.
+			REX::DEBUG("[Anim] bone mask '{}' — actor {:08X}, role '{}': {} driven bone(s){}, {} left engine-driven",
+				boneMask->id, target ? target->formID : 0, roleName.empty() ? "<anonymous>" : roleName,
+				binding.size(), boneMask->feathered ? " (feathered seam)" : "", skippedMasked);
 		}
 
 		return !binding.empty();
@@ -270,14 +302,7 @@ namespace OSF::Animation
 		// unloaded), a stale cachedModelNode could later match a REUSED address and stamp a
 		// foreign actor's rig. Sample re-resolves and re-binds on the next update, so a live
 		// fade keeps stamping.
-		cachedModelNode = nullptr;
-		cachedRig = nullptr;
-		cachedBoneCount = 0;
-		cachedLocalData = nullptr;
-		cachedRigBoneCount = 0;
-		binding.clear();
-		liveBasePose.clear();
-		basePoseRevision = 0;
+		InvalidateBinding();
 	}
 
 	void Graph::DetachAndFadeOut()
@@ -433,16 +458,18 @@ namespace OSF::Animation
 		// Bound every write to the LIVE buffer. binding.rigIndex was validated when the binding was built, but the rig can be rebuilt (smaller) between bind and stamp on the anim job thread;
 		const uint16_t rigBoneCount = GetRigBoneCount(a_modelNode);
 
-		if (poseMode == PoseMode::kAdditive) {
+		// AnimationManager::Update evaluates Starfield first and increments enginePoseRevision via
+		// Sample. Capture those fresh local slots once. If BGSModelNode::Update repeats before a new
+		// engine evaluation, keep this immutable base instead of reading our own prior write. Shared
+		// by additive layering and any persistent sub-unity override weight (feathered mask seam /
+		// poseWeight), which would otherwise converge onto the full pose by re-blending over itself.
+		const auto captureLiveBase = [&]() -> bool {
 			if (liveBasePose.size() != binding.size() * 16) {
-				return;  // binding/base must be prepared together; never allocate from the stamp hook
+				return false;  // binding/base must be prepared together; never allocate from the stamp hook
 			}
-			// AnimationManager::Update evaluates Starfield first and increments enginePoseRevision via
-			// Sample. Capture those fresh local slots once. If BGSModelNode::Update repeats before a new
-			// engine evaluation, keep this immutable base instead of reading our prior additive write.
 			if (basePoseRevision != enginePoseRevision) {
 				for (std::size_t i = 0; i < binding.size(); ++i) {
-					const auto rigIdx = binding[i].first;
+					const auto rigIdx = binding[i].rigIndex;
 					if (rigIdx < rigBoneCount) {
 						std::memcpy(liveBasePose.data() + i * 16,
 							buf + static_cast<std::size_t>(rigIdx) * 16, 16 * sizeof(float));
@@ -450,35 +477,54 @@ namespace OSF::Animation
 				}
 				basePoseRevision = enginePoseRevision;
 			}
+			return true;
+		};
+
+		if (poseMode == PoseMode::kAdditive) {
+			if (!captureLiveBase()) {
+				return;
+			}
 			const float effectiveWeight = PoseMath::EffectiveWeight(weight, poseWeight);
 			for (std::size_t i = 0; i < binding.size(); ++i) {
-				const auto [rigIdx, jointIdx] = binding[i];
-				if (rigIdx >= rigBoneCount) {
+				const auto& bound = binding[i];
+				if (bound.rigIndex >= rigBoneCount) {
 					continue;
 				}
-				float* slot = buf + static_cast<std::size_t>(rigIdx) * 16;
+				float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
 				PoseMath::WriteAdditive(slot, liveBasePose.data() + i * 16,
-					reinterpret_cast<const float*>(&referencePose[jointIdx]),
-					reinterpret_cast<const float*>(&outputPose[jointIdx]), effectiveWeight);
-			}
-		} else if (weight >= 1.0f) {
-			for (const auto& [rigIdx, jointIdx] : binding) {
-				if (rigIdx >= rigBoneCount) {
-					continue;
-				}
-				WriteNiTransformRows(buf + static_cast<size_t>(rigIdx) * 16, outputPose[jointIdx]);
+					reinterpret_cast<const float*>(&referencePose[bound.jointIndex]),
+					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
+					effectiveWeight * bound.weight);
 			}
 		} else {
+			// Override: per-bone weight = transition * persistent layer strength * mask weight.
+			// Weight-1 bones take the sampled pose absolutely; fractional bones blend against the
+			// immutable engine base (steady state) or the cross-fade-from snapshot (blend-in), so a
+			// masked gesture overrides the arm chain while the feathered seam keeps live torso sway.
+			const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f;
+			if (persistentPartial && !captureLiveBase()) {
+				return;
+			}
 			const bool fromSnapshot = blendPhase == BlendPhase::kIn && blendFromValid;
-			for (const auto& [rigIdx, jointIdx] : binding) {
-				if (rigIdx >= rigBoneCount) {
+			for (std::size_t i = 0; i < binding.size(); ++i) {
+				const auto& bound = binding[i];
+				if (bound.rigIndex >= rigBoneCount) {
 					continue;
 				}
-				float* slot = buf + static_cast<size_t>(rigIdx) * 16;
+				float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
+				const float w = weight * poseWeight * bound.weight;
+				if (w <= 0.0f) {
+					continue;  // fully faded / zero-weight bone — leave the engine pose alone
+				}
+				if (w >= 1.0f) {
+					WriteNiTransformRows(slot, outputPose[bound.jointIndex]);
+					continue;
+				}
 				const float* from = fromSnapshot ?
-				                        reinterpret_cast<const float*>(&blendFromPose[jointIdx]) :
-				                        slot;  // engine's live pose this frame
-				WriteNiTransformRowsBlended(slot, from, outputPose[jointIdx], weight);
+				                        reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) :
+				                        (persistentPartial ? liveBasePose.data() + i * 16 :
+				                                             slot);  // engine's live pose this frame
+				WriteNiTransformRowsBlended(slot, from, outputPose[bound.jointIndex], w);
 			}
 		}
 

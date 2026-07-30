@@ -5,6 +5,7 @@
 // All of a stage's clips are preloaded at start; Advance() auto-advances on a timer or a loop count, or just holds when both are <= 0; 
 // after the last stage it flags `ended` and the hook defers the StopScene.
 
+#include "Animation/BoneMask.h"
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
 
@@ -103,6 +104,7 @@ namespace OSF::Animation
 		std::vector<std::vector<std::string>> preserveBones;  // optional, one exact-name list per actor
 		std::vector<PoseMode> poseModes;                       // optional, one mode per actor; empty = all override
 		std::vector<float> poseWeights;                        // optional, one normalized [0,1] weight per actor; empty = all 1
+		std::vector<std::string> masks;                        // optional, one named bone mask per actor ("" = unmasked); empty = all unmasked
 		std::vector<std::string> roleNames;                    // optional diagnostics, one role name per actor
 		std::string animId;     // registry id ("" = ad-hoc)
 		float speed = 1.0f;     // clock speed multiplier
@@ -131,6 +133,7 @@ namespace OSF::Animation
 		if (!optionalCountMatches(a_plan.preserveBones.size()) ||
 			!optionalCountMatches(a_plan.poseModes.size()) ||
 			!optionalCountMatches(a_plan.poseWeights.size()) ||
+			!optionalCountMatches(a_plan.masks.size()) ||
 			!optionalCountMatches(a_plan.roleNames.size())) {
 			return false;
 		}
@@ -138,6 +141,8 @@ namespace OSF::Animation
 			return a_mode == PoseMode::kOverride || a_mode == PoseMode::kAdditive;
 		}) && std::ranges::all_of(a_plan.poseWeights, [](float a_weight) {
 			return std::isfinite(a_weight) && a_weight >= 0.0f && a_weight <= 1.0f;
+		}) && std::ranges::all_of(a_plan.masks, [](const std::string& a_mask) {
+			return a_mask.empty() || BoneMask::Find(a_mask) != nullptr;
 		});
 	}
 

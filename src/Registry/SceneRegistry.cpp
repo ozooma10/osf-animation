@@ -686,6 +686,22 @@ namespace OSF::Registry
 				}
 				r.poseWeight = *normalized;
 			}
+			// Optional named driven-bone mask: the role stamps ONLY the mask's bones (per-bone
+			// weighted), leaving the rest of the rig engine-driven — the partial-body gesture path
+			// (an equip/wave plays over the engine's own locomotion instead of replacing it).
+			if (auto mit = a_role.find("mask"); mit != a_role.end()) {
+				if (!mit->is_string()) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': 'mask' must be a string naming a bone mask (" + Animation::BoneMask::KnownList() + ")");
+				}
+				const auto* named = Animation::BoneMask::Find(mit->get<std::string>());
+				if (!named) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': unknown 'mask' value '" + mit->get<std::string>() +
+						"' (expected one of: " + Animation::BoneMask::KnownList() + ")");
+				}
+				r.mask = named->id;  // canonical casing regardless of authored casing
+			}
 			// Optional exact-name bone mask. Preserved bones stay under the engine's live pose for
 			// this role while every other matched animation joint continues to stamp normally.
 			if (auto bit = a_role.find("preserveBones"); bit != a_role.end()) {
@@ -746,7 +762,7 @@ namespace OSF::Registry
 		//   { ... }  (no `id`)         -> an ordinary inline role (unchanged behavior)
 		// `id` must be a non-empty string naming a registry definition; it is removed before the merged
 		// JSON goes through the normal role parse. Overrides merge JSON-merge-patch style (RFC 7386):
-		// scalars (including poseMode/poseWeight) replace, `filters`/`offset`/`equip` merge by key, arrays (preserveBones) replace
+		// scalars (including poseMode/poseWeight/mask) replace, `filters`/`offset`/`equip` merge by key, arrays (preserveBones) replace
 		// wholesale, and null removes an inherited optional field. Unknown or malformed references
 		// throw — rejecting only this scene.
 		PendingRole ExpandRoleEntry(const json& a_entry, const std::string& a_sceneId, const RoleRegistry& a_registry)
@@ -1865,11 +1881,13 @@ namespace OSF::Registry
 			plan.preserveBones.reserve(a_roles.size());
 			plan.poseModes.reserve(a_roles.size());
 			plan.poseWeights.reserve(a_roles.size());
+			plan.masks.reserve(a_roles.size());
 			plan.roleNames.reserve(a_roles.size());
 			for (const auto& role : a_roles) {
 				plan.preserveBones.push_back(role.preserveBones);
 				plan.poseModes.push_back(role.poseMode);
 				plan.poseWeights.push_back(role.poseWeight);
+				plan.masks.push_back(role.mask);
 				plan.roleNames.push_back(role.name);
 			}
 			plan.stages.reserve(a_stages.size());

@@ -15,6 +15,8 @@
     { "id": "test.err.pose-mode", "roles": [{ "name": "p", "poseMode": "multiply" }], "clip": "Fixture/x.glb" },
     { "id": "test.err.pose-mode-type", "roles": [{ "name": "p", "poseMode": 7 }], "clip": "Fixture/x.glb" },
     { "id": "test.err.pose-weight-type", "roles": [{ "name": "p", "poseWeight": "strong" }], "clip": "Fixture/x.glb" },
+    { "id": "test.err.mask", "roles": [{ "name": "p", "mask": "torso" }], "clip": "Fixture/x.glb" },
+    { "id": "test.err.mask-type", "roles": [{ "name": "p", "mask": 7 }], "clip": "Fixture/x.glb" },
     { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
   ]
 }

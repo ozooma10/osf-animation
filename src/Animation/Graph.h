@@ -4,6 +4,7 @@
 // - Sample active ozz clip and writes the pose into engines flat rig local buffers, which is the path the renderer reads from.
 // - The ozz plumbing is adapted from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh); 
 
+#include "Animation/BoneMask.h"
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
 #include "Animation/Scene.h"  // ParticipantPlacement
@@ -85,6 +86,10 @@ namespace OSF::Animation
 		// Exact, case-insensitive rig bone names whose live engine transforms this graph must not overwrite.
 		// The policy survives stage changes; GraphManager replaces it at every new solo/scene start.
 		void SetPreserveBones(const std::vector<std::string>& a_bones);
+		// Named driven-bone whitelist ("" = none): with a mask this graph stamps ONLY the mask's
+		// bones (per-bone weighted), leaving the rest of the rig engine-driven — the partial-body
+		// gesture path. Forces a rebind when it changes; survives stage changes like the other policies.
+		void SetBoneMask(const std::string& a_maskName);
 
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
 		bool IsFadedOut() const;  // fade-out ramp fully elapsed
@@ -110,6 +115,8 @@ namespace OSF::Animation
 		void StampPose(const RE::BGSModelNode* a_modelNode);
 
 		bool ResolveAndBind();
+		// Drop the cached modelNode/rig identity and binding so the next Sample re-resolves.
+		void InvalidateBinding();
 
 		ozz::animation::SamplingJob::Context samplingContext;
 		std::vector<ozz::math::SoaTransform> localPose;
@@ -117,6 +124,7 @@ namespace OSF::Animation
 		std::vector<ozz::math::Float4x4> referencePose;  // active skeleton's local rest pose, parallel to outputPose
 		std::unordered_map<std::string, uint16_t> jointMap;  // lowercased joint name -> index
 		std::unordered_set<std::string> preserveBones;       // lowercased live rig names omitted from binding
+		const BoneMask::Mask* boneMask = nullptr;            // static-storage named mask; null = every body bone binds
 		PoseMode poseMode = PoseMode::kOverride;
 		float poseWeight = 1.0f;
 		std::string roleName;  // diagnostics only
@@ -129,7 +137,13 @@ namespace OSF::Animation
 		uint32_t cachedBoneCount = 0;
 		const void* cachedLocalData = nullptr;  // rig->local->data at bind time; a reused modelNode with a fresh buffer invalidates the cache
 		uint16_t cachedRigBoneCount = 0;         // rigBoneCount (modelNode+0x78) at bind time; part of the cache identity so a rebuilt rig re-binds
-		std::vector<std::pair<uint16_t, uint16_t>> binding;  // {rigIndex, jointIndex}
+		struct BoundBone
+		{
+			uint16_t rigIndex;
+			uint16_t jointIndex;
+			float weight;  // active mask's per-bone weight; 1 when unmasked
+		};
+		std::vector<BoundBone> binding;
 		// Additive stamping reads an immutable engine base. Sample increments enginePoseRevision only
 		// after the engine graph evaluation; the first compose for that revision snapshots each bound
 		// live slot. Any repeated compose call reuses that snapshot, so OSF never layers over itself.
@@ -147,5 +161,6 @@ namespace OSF::Animation
 		bool loggedFirstApply = false;
 		bool loggedSampleFail = false;
 		bool loggedAdditivePlayback = false;
+		bool loggedMaskBind = false;
 	};
 }

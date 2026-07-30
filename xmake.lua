@@ -167,7 +167,8 @@ target("osf-frame-clock-test")
     add_includedirs("src")
 
 -- Pure local-pose composition tests (reference-relative translation/rotation, weighting,
--- multiplication order, stage references, preservation, override compatibility, no accumulation).
+-- multiplication order, stage references, preservation, override compatibility, no accumulation)
+-- plus the named bone-mask tables (BoneMask.h).
 target("osf-additive-pose-test")
     set_kind("binary")
     set_default(false)
