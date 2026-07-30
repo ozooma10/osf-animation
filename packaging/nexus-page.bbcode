@@ -15,7 +15,7 @@ The engine itself carries no content; the installer offers two optional starter 
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620284-2144773043.png[/img][/center]
 [list]
-[*]In-game [b]animation browser[/b] ([font=Courier New]F10[/font]): search the full catalog, pick a cast from the crosshair or a nearby-actor scan, launch on furniture, drag to orbit the camera, and manage running scenes[/*]
+[*]In-game [b]animation browser[/b] ([font=Courier New]F10[/font]): search one unified catalog, pick a cast by clicking actors in the world or from a nearby-actor scan, launch on furniture, drag to orbit the camera, and manage running scenes[/*]
 [*][b]Emote wheel[/b] (unbound by default - pick a key in OSF Animation's settings): radial quick emotes for you or the NPC in your crosshair; pin any solo animation from the browser onto it[/*]
 [*][b]Vanilla animation library[/b] (optional install): thousands of Starfield's own clips, humans plus 27 creature species, browsable and playable[/*]
 [*]Synced multi-actor [b]GLTF / GLB / .af[/b] playback on one shared clock[/*]
@@ -25,8 +25,21 @@ The engine itself carries no content; the installer offers two optional starter 
 [*]A [b]Papyrus API[/b] ([font=Courier New]OSF.*[/font]) for quest mods to drive scenes[/*]
 [/list]
 
+[center][size=4][b][color=#f08a24]NEW IN 1.4.0[/color][/b][/size][/center]
+[list]
+[*][b]The browser was rebuilt around one unified catalog.[/b] Every installed animation is now a row you can play directly - poses, animations, self-ending actions, and scenes - with packs and folders as plain collection headers instead of nested "sets". Type facets, direct Play, Quick Access, and a wider console; launching a library row plays exactly that animation.[/*]
+[*][b]Click actors and furniture in the world to cast them.[/b] Press PICK in Crew or Location, then click what you can see: a marker floats over whoever is under the cursor, actor pick stays armed between clicks, and SCAN is still there for crowds and invisible AI markers.[/*]
+[*][b]Pick where a scene happens.[/b] Free-space scenes can launch at the first cast member, at you, at a selected crew member, about ten feet in front of you, or on a furniture/marker you picked.[/*]
+[*][b]Additive poses.[/b] Scene authors can layer an authored gesture over the game's own stance and locomotion instead of overriding the whole body, with a blend weight.[/*]
+[*][b]Curated clip libraries.[/b] A content pack can register its clips with friendly names, tags, and folders - no dummy scenes needed - and they show up under Animations.[/*]
+[*][b]Settings are now tabbed[/b] - General, Browser, Scenes, Advanced - and the browser can stay open when playback starts ([b]Auto-Minimize[/b] collapses it to a live bar; turn it off to keep the full console).[/*]
+[*][b]Broken packs now tell you.[/b] A scene or sound pack that fails to load gets a card in OSF UI's System Health naming the file and why, and clears itself once fixed. OSF UI's consented bug reporter can attach a redacted tail of [font=Courier New]OSF Animation.log[/font].[/*]
+[*][b]Fixes:[/b] participants return to their original spot after furniture/anchored scenes, held items no longer stay in hand through playback, heads no longer stay distorted after a scene, the orbit camera stays out of the way aboard a ship in space, COM-less poser GLBs no longer stretch the body, and a save that had captured a stuck player-control flag now repairs itself on load.[/*]
+[*][b]OSF Studio[/b], a local-first web workspace for authoring OSF content: edit [font=Courier New]*.osf.json[/font] with validation and undo, preview GLB and Starfield [font=Courier New].af[/font] with orbit and scrubbing, and key simple FK animations against [font=Courier New]skeleton.rig[/font].[/*]
+[/list]
+
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620464-2115394493.png[/img][/center]
-[b]Requires:[/b] [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url] and [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI[/url] (renders the browser, the wheel, the settings menu, and hotkeys - the engine and Papyrus API run without it).
+[b]Requires:[/b] [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url] and [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 1.5.0 or newer[/url] (renders the browser, the wheel, the settings menu, and hotkeys - the engine and Papyrus API run without it). On an older OSF UI the browser warns you with an [color=#f08a24]UPDATE[/color] badge.
 
 Install with MO2 or Vortex; the installer will offer the animation library and the emote pack - take both. Then in-game:
 [list]
