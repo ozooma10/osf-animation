@@ -52,7 +52,7 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 22 authored scenes load: bare(1) + legacy(2) + registry(5) + errors(1 of 9) + templates(11) +
+	// 22 authored scenes load: bare(1) + legacy(2) + registry(5) + errors(1 of 10) + templates(11) +
 	// template-errors(1 of 5); the two malformed-registry files load nothing. (Generated clip-debug
 	// entries and clipLibrary registrations don't count here.)
 	Check(reg.Size() == 22, "authored scene count");
@@ -114,6 +114,7 @@ int main()
 		Check(s->roles.size() == 1 && s->roles[0].name == "solo", "bare scene keeps its inline roles");
 		Check(s->roles[0].poseMode == PoseMode::kOverride && s->roles[0].poseWeight == 1.0f,
 			"omitted pose policy defaults to override at full weight");
+		Check(s->clearHeldItems, "omitted clearHeldItems policy defaults on");
 	} else {
 		Check(false, "test.bare loads");
 	}
@@ -122,12 +123,14 @@ int main()
 	if (const auto s = reg.Find("test.legacy.inherit")) {
 		Check(s->roles.size() == 2, "legacy inherit: role count");
 		Check(s->roles[0].name == "bottom", "legacy inherit: role 0 name");
+		Check(!s->clearHeldItems, "legacy inherit: file-level clearHeldItems default");
 		Check(s->roles[1].name == "top" && s->roles[1].equip.any == "Any.esm|0x123", "legacy inherit: role 1 name + equip");
 	} else {
 		Check(false, "test.legacy.inherit loads");
 	}
 	if (const auto s = reg.Find("test.legacy.override")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "only", "legacy override replaces the pack default");
+		Check(s->clearHeldItems, "legacy override: scene-level clearHeldItems wins");
 	} else {
 		Check(false, "test.legacy.override loads");
 	}
@@ -337,6 +340,7 @@ int main()
 	Check(!reg.Find("test.err.pose-weight-type"), "wrong-type poseWeight rejects its scene");
 	Check(!reg.Find("test.err.mask"), "unknown mask rejects its scene");
 	Check(!reg.Find("test.err.mask-type"), "wrong-type mask rejects its scene");
+	Check(!reg.Find("test.err.clear-held-type"), "wrong-type clearHeldItems rejects its scene");
 	Check(!reg.Find("test.bad.def"), "malformed registry definition rejects its file");
 	Check(!reg.Find("test.bad.type"), "non-array/non-object file-level roles rejects its file");
 	Check(!reg.Find("test.terr.unknown"), "an unknown object-override id rejects its scene");
@@ -354,7 +358,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 16, "exactly the sixteen expected diagnostics");
+	Check(errors.size() == 17, "exactly the seventeen expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -369,6 +373,8 @@ int main()
 		"unknown mask diagnostic names the scene, role, and value");
 	CheckError(errors, "scene 'test.err.mask-type': role 'p': 'mask' must be a string",
 		"wrong-type mask diagnostic names the scene, role, and contract");
+	CheckError(errors, "scene 'test.err.clear-held-type': 'clearHeldItems' must be a boolean",
+		"wrong-type clearHeldItems diagnostic names the scene and contract");
 	CheckError(errors, "'fixture_malformed_def.osf.json': roles registry entry 'bad'", "malformed-definition diagnostic");
 	CheckError(errors, "'fixture_malformed_type.osf.json': file-level 'roles' must be an array", "registry type diagnostic");
 	CheckError(errors, "'fixture_registry_template_errors.osf.json': scene 'test.terr.unknown': role reference 'nope'",
@@ -435,9 +441,9 @@ int main()
 			"a rejected file keeps a record carrying its reject line");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
-		// Partial file: some scenes in, eight rejected, so it is NOT "rejected".
+		// Partial file: some scenes in, nine rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 8,
+		Check(partial && partial->scenes == 1 && partial->errors == 9,
 			"a partially-loaded file reports both its scenes and its rejected ones");
 		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
 

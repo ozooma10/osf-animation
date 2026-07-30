@@ -387,13 +387,18 @@ namespace OSF::Scene
 		RunCamera(a_handle, "scene_orbit", hasPlayer, 0.0f);  // native TFC renderer policy + OSF cast framing/input
 	}
 
-	void SceneRuntime::ClearHeldItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
+	void SceneRuntime::ClearHeldItems(std::int32_t a_handle, bool a_clearHeldItems,
+		const std::vector<RE::Actor*>& a_participants,
 		const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
 	{
+		if (!a_clearHeldItems) {
+			REX::DEBUG("[Scene] scene {:#010x} held-item clear skipped — opted out (clearHeldItems:false)", a_handle);
+			return;
+		}
 		// Held props (a slate, a tool, a drawn weapon) stay welded to the hand through an animation and
-		// wreck it. Unlike the apparel strip this is NOT gated on stripActors: it's animation correctness,
-		// not undressing, and library packs default stripActors:false — exactly the browse-an-animation
-		// case where the actor was reading a slate a moment ago. Restored from its own cleanup-only ledger entry.
+		// wreck it. This remains independent of the apparel strip: library packs default stripActors:false,
+		// exactly the browse-an-animation case where the actor was reading a slate a moment ago. Restored
+		// from its own cleanup-only ledger entry.
 		std::size_t cleared = 0;
 		for (std::size_t i = 0; i < a_participants.size(); i++) {
 			RE::Actor* actor = a_participants[i];
@@ -599,13 +604,13 @@ namespace OSF::Scene
 
 	void SceneRuntime::CompleteStart(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
 		const std::vector<RE::Actor*>& a_participants, bool a_lockPlayer, bool a_stripActors,
-		bool a_fade, const StartOverrides& a_over)
+		bool a_clearHeldItems, bool a_fade, const StartOverrides& a_over)
 	{
 		const std::string_view cameraOverride = a_over.camera ? std::string_view(*a_over.camera) : std::string_view{};
 		EngageDefaultPlayerLock(a_handle, a_lockPlayer, a_participants);
 		EngageDefaultCamera(a_handle, a_defId, a_entryNode, a_lockPlayer, cameraOverride, a_participants);
 		const auto gearPicks = BuildGearPicks(a_defId, a_participants);
-		ClearHeldItems(a_handle, a_participants, gearPicks);
+		ClearHeldItems(a_handle, a_clearHeldItems, a_participants, gearPicks);
 		StripDefaultActors(a_handle, a_stripActors, a_participants, gearPicks);
 		EquipGearItems(a_handle, a_participants, gearPicks);
 		EquipRoleItems(a_handle, a_defId, a_participants);
@@ -764,19 +769,22 @@ namespace OSF::Scene
 		}
 		REX::DEBUG("[Scene] start correlation handle={:#010x} playback={} id='{}' cast=[{}]",
 			handle, playbackId, a_id, castDiag);
-		// Resolve the def's opt-outs (all default-on when the scene has no def / omits the key), then let a per-start override win (StripMode/LockPlayerMode/FadeMode);
+		// Resolve the def's opt-outs, then let the supported per-start overrides win.
 		bool lockPlayer = true;
 		bool stripActors = true;
+		bool clearHeldItems = true;
 		bool fade = false;
 		if (definition) {
 			lockPlayer = definition->lockPlayer;
 			stripActors = definition->stripActors;
+			clearHeldItems = definition->clearHeldItems;
 			fade = definition->fade;
 		}
 		lockPlayer = a_over.lockPlayer.value_or(lockPlayer);
 		stripActors = a_over.strip.value_or(stripActors);
 		fade = a_over.fade.value_or(fade);
-		CompleteStart(handle, a_id, a_entryNode, a_participants, lockPlayer, stripActors, fade, a_over);
+		CompleteStart(handle, a_id, a_entryNode, a_participants, lockPlayer, stripActors,
+			clearHeldItems, fade, a_over);
 		return handle;
 	}
 
@@ -919,7 +927,7 @@ namespace OSF::Scene
 		const bool lockPlayer = a_over.lockPlayer.value_or(true);
 		const bool stripActors = a_over.strip.value_or(true);
 		const bool fade = a_over.fade.value_or(false);
-		CompleteStart(handle, "", "main", a_participants, lockPlayer, stripActors, fade, a_over);
+		CompleteStart(handle, "", "main", a_participants, lockPlayer, stripActors, true, fade, a_over);
 		return handle;
 	}
 

@@ -422,10 +422,11 @@ namespace OSF::Scene
 		// Default camera when the player participates and the scene specifies none: native-TFC-assisted scene orbit.
 		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
-		// Held-item clear on scene start: takes whatever every participant is HOLDING out of their hands
-		// (slate, tool, drawn weapon) so it can't ride through the animation. Deliberately NOT gated on
-		// stripActors — see the definition. Worn gear picks are exempt, same as the strip below.
-		void ClearHeldItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,
+		// Held-item clear on scene start: when a_clearHeldItems (caller-resolved policy), takes whatever
+		// every participant is HOLDING out of their hands (slate, tool, drawn weapon) so it can't ride
+		// through the animation. Independent of stripActors. Worn gear picks are exempt, same as the strip below.
+		void ClearHeldItems(std::int32_t a_handle, bool a_clearHeldItems,
+			const std::vector<RE::Actor*>& a_participants,
 			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
 
 		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
@@ -470,7 +471,7 @@ namespace OSF::Scene
 		// emits the initial lifecycle events in one consistent order.
 		void CompleteStart(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
 			const std::vector<RE::Actor*>& a_participants, bool a_lockPlayer, bool a_stripActors,
-			bool a_fade, const StartOverrides& a_over);
+			bool a_clearHeldItems, bool a_fade, const StartOverrides& a_over);
 
 		// The node-transition lifecycle, shared by every transition path (SetNode / Advance /
 		// Navigate / OnGraphAutoEnd / cue-trigger): fire NODE_EXIT for a_oldNode, then either end

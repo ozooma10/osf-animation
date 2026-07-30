@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "name": "fixture legacy pack-default roles",
+  "clearHeldItems": false,
   // ARRAY form: a pack default cast inherited by scenes that omit their own roles.
   "roles": [
     { "name": "bottom" },
@@ -13,6 +14,7 @@
     },
     {
       "id": "test.legacy.override",
+      "clearHeldItems": true,
       "roles": [{ "name": "only" }],
       "clip": "Fixture/x.glb"
     }

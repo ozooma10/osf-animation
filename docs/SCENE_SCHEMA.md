@@ -53,6 +53,7 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
   "name": "My Content",                  // diagnostics only
   "pack": "My Content Pack",             // optional: content-pack label the scene browser groups under
   "stripActors": true,                   // file-level default; each scene may override
+  "clearHeldItems": true,                // file-level default; each scene may override
   "lockPlayer": true,                    // file-level default; each scene may override
   "fade": false,                         // optional file-level start-curtain default; each scene may override
   "camera": "thirdperson_hold",          // file-level default camera posture (default "scene_orbit"; "none" opts out)
@@ -63,8 +64,8 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
 }
 ```
 
-- File-level `lockPlayer` / `stripActors` / `fade` are optional **defaults** every scene in the file may
-  override.
+- File-level `lockPlayer` / `stripActors` / `clearHeldItems` / `fade` are optional **defaults** every
+  scene in the file may override.
 - File-level `anchor` (multi-scene envelope only) is a furniture-anchoring **default** every scene in
   the file inherits unless it declares its own — see § Furniture anchoring.
 - File-level `unlisted` holds every scene in the file out of the matchmaking pool by default.
@@ -172,6 +173,7 @@ when no explicit registration supplies metadata.
   "weight": 1,                                 // weighted-random sampling within the top priority tier
   "lockPlayer": true,                          // disable player input while participating (false to opt out)
   "stripActors": true,                         // hide every participant's apparel (false to opt out)
+  "clearHeldItems": true,                      // temporarily unequip held weapons/items (false to opt out)
   "fade": true,                                // opt into a start fade-to-black curtain when the player participates
   "roles": [                                   // OPTIONAL; else inferred from the first stage's clips
     {},
@@ -724,7 +726,8 @@ seed is applied per scene start and does not permanently change the player's own
 
 ## Policy
 
-Set on a scene (or as a file-level default for `lockPlayer` / `stripActors` / `fade` / `inPlace`):
+Set on a scene (or as a file-level default for `lockPlayer` / `stripActors` / `clearHeldItems` / `fade` /
+`inPlace`):
 
 ### Player input lock (`lockPlayer`, default-on)
 
@@ -753,6 +756,18 @@ ledger-tracked, so each actor is re-dressed on every end path.
 auto-equipped for the scene's duration — a worn one is exempted from the strip instead. A role's
 authored `equip` wins over user gear for the slot it occupies; gear fills the slots the scene didn't
 touch. Players can disable this globally (settings → Scene gear → Auto-equip scene gear).
+
+### Held-item clear (`clearHeldItems`, default-on)
+
+At scene start the runtime temporarily unequips each participant's equipped **non-apparel** items —
+weapons, slates, tools, consumables, and similar held props — so they cannot remain welded to a hand
+through an unrelated animation. The exact items are ledger-tracked and re-equipped on every end path.
+This policy is independent of `stripActors`: keeping apparel does not implicitly keep held items.
+
+- Set **`"clearHeldItems": false`** for a partial-body or equipment gesture that deliberately needs to
+  preserve the actor's current equipped item.
+- Opting out is safest when the scene or its caller already rejects incompatible states such as a drawn
+  or aimed weapon; OSF will leave those items completely untouched for that scene.
 
 ### Screen fade (`fade`, default-off)
 

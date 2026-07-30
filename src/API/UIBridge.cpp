@@ -616,6 +616,7 @@ namespace OSF::API
 				std::int32_t             priority = 0;
 				std::int32_t             weight = 1;
 				bool                     stripActors = true;
+				bool                     clearHeldItems = true;
 				bool                     lockPlayer = true;
 				bool                     fade = false;
 				bool                     requiresFurniture = false;
@@ -661,6 +662,7 @@ namespace OSF::API
 				c.priority = d.priority;
 				c.weight = d.weight;
 				c.stripActors = d.stripActors;
+				c.clearHeldItems = d.clearHeldItems;
 				c.lockPlayer = d.lockPlayer;
 				c.fade = d.fade;
 				c.requiresFurniture = d.RequiresAnchor();
@@ -797,6 +799,7 @@ namespace OSF::API
 					{ "priority", c.priority },
 					{ "weight", c.weight },
 					{ "stripActors", c.stripActors },
+					{ "clearHeldItems", c.clearHeldItems },
 					{ "lockPlayer", c.lockPlayer },
 					{ "fade", c.fade },
 					{ "requiresFurniture", c.requiresFurniture },
