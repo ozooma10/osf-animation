@@ -1688,9 +1688,24 @@ namespace OSF::Animation
 			std::shared_lock l{ gm.stateLock };
 			if (!gm.graphs.empty()) {
 				for (auto& [refr, g] : gm.graphs) {
-					// benign unsynchronized pointer read; verified again under the graph lock inside StampPose
-					if (g->StampTarget() == a_this) {
+					// Normal case: one atomic pointer comparison, then verify under the graph lock.
+					// Recovery only pays the actor-root lookup while no stamp target is published,
+					// and ResolveAndBind accepts the candidate only if it is this graph's current
+					// actor node. That lets the first compose after a 3D rebuild stamp immediately.
+					const auto* publishedTarget = g->StampTarget();
+					if (publishedTarget == a_this || publishedTarget == nullptr) {
 						std::unique_lock gl{ g->stateLock };
+						bool recovered = false;
+						if (g->StampTarget() != a_this) {
+							if (!g->ResolveAndBind(a_this)) {
+								continue;
+							}
+							recovered = true;
+						}
+						if (recovered) {
+							REX::TRACE("[Anim] compose recovered rig binding — actor {:08X}, modelNode {}",
+								refr ? refr->formID : 0, static_cast<const void*>(a_this));
+						}
 						g->StampPose(a_this);
 						if (g->scene) {
 							const auto stampMs = std::chrono::duration_cast<std::chrono::milliseconds>(

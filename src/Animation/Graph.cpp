@@ -103,7 +103,7 @@ namespace OSF::Animation
 
 	void Graph::InvalidateBinding()
 	{
-		cachedModelNode = nullptr;
+		cachedModelNode.store(nullptr, std::memory_order_relaxed);
 		cachedRig = nullptr;
 		cachedBoneCount = 0;
 		cachedLocalData = nullptr;
@@ -153,13 +153,13 @@ namespace OSF::Animation
 		InvalidateBinding();
 	}
 
-	bool Graph::ResolveAndBind()
+	bool Graph::ResolveAndBind(const RE::BGSModelNode* a_expectedModelNode)
 	{
 
 		//failure invalidates the binding cache.
 		//cachedModelNode is the stamp hooks match key. Once chain stops resolving (3d detatched), the cached address can be freed and reused.
 		const auto fail = [this]() {
-			cachedModelNode = nullptr;
+			cachedModelNode.store(nullptr, std::memory_order_relaxed);
 			cachedRig = nullptr;
 			cachedBoneCount = 0;
 			cachedLocalData = nullptr;
@@ -192,15 +192,22 @@ namespace OSF::Animation
 		if (!modelNode) {
 			return fail();
 		}
+		if (a_expectedModelNode && modelNode != a_expectedModelNode) {
+			// An unrelated skeleton reached the game-wide compose hook while this graph was
+			// temporarily unbound. Keep waiting for the managed actor's current node.
+			return false;
+		}
+
 		auto* rig = modelNode->rig;
 		if (!rig || !rig->local || !rig->local->data) {
 			return fail();
 		}
 
+		const auto* previousModelNode = cachedModelNode.load(std::memory_order_relaxed);
 		// Cache identity includes the buffer base (rig->local->data) and rigBoneCount so a modelNode
 		// that was freed and reused at the same address with a fresh/smaller rig buffer forces a rebind
 		// instead of reusing stale rigIndices that now point past the live buffer.
-		if (modelNode == cachedModelNode && rig == cachedRig
+		if (modelNode == previousModelNode && rig == cachedRig
 			&& rig->local->data == cachedLocalData
 			&& modelNode->nodes.size() == cachedBoneCount
 			&& GetRigBoneCount(modelNode) == cachedRigBoneCount) {
@@ -210,14 +217,14 @@ namespace OSF::Animation
 		// DIAG: a rebind to a DIFFERENT non-null modelNode after the first bind means the actor's 3D was
 		// rebuilt under us (e.g. equipment restore at scene end). Tells us whether a FADING graph re-binds to
 		// the freshly-built skeleton and could keep stamping it. Once per swap.
-		if (cachedModelNode && cachedModelNode != modelNode) {
+		if (previousModelNode && previousModelNode != modelNode) {
 			REX::TRACE("[Anim] rig REBIND — modelNode {} -> {} (3d rebuilt; blendPhase {})",
-				static_cast<const void*>(cachedModelNode), static_cast<const void*>(modelNode),
+				static_cast<const void*>(previousModelNode), static_cast<const void*>(modelNode),
 				static_cast<int>(blendPhase));
 		}
 
 		// build the rigIndex -> jointIndex binding from the bone map
-		cachedModelNode = modelNode;
+		cachedModelNode.store(modelNode, std::memory_order_relaxed);
 		cachedRig = rig;
 		cachedBoneCount = modelNode->nodes.size();
 		cachedLocalData = rig->local->data;
@@ -409,7 +416,8 @@ namespace OSF::Animation
 
 	void Graph::StampPose(const RE::BGSModelNode* a_modelNode)
 	{
-		if (a_modelNode != cachedModelNode || binding.empty() || !anim || !skeleton ||
+		if (a_modelNode != cachedModelNode.load(std::memory_order_relaxed) ||
+			binding.empty() || !anim || !skeleton ||
 			outputPose.size() != referencePose.size()) {
 			return;
 		}

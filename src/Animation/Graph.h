@@ -103,7 +103,12 @@ namespace OSF::Animation
 		void DetachAndFadeOut();
 
 		// modelNode identity the stamp hook matches against (set by Sample's bind).
-		const RE::BGSModelNode* StampTarget() const { return cachedModelNode; }
+		// Published atomically because the compose hook uses it as a lock-free fast-path gate,
+		// then verifies it again while holding stateLock before stamping.
+		const RE::BGSModelNode* StampTarget() const
+		{
+			return cachedModelNode.load(std::memory_order_relaxed);
+		}
 
 		// AnimationManager::Update hook (job threads, ~7x/frame, subdivided dt). Re-resolves the rig chain (caching the stamp hooks match key)
 		// Does NOT sample/write the pose, StampPose does that once per frame (a write here would be clobbered by the engine's snapshot applier).
@@ -114,7 +119,10 @@ namespace OSF::Animation
 		// No-op until a_modelNode matches the cached binding.
 		void StampPose(const RE::BGSModelNode* a_modelNode);
 
-		bool ResolveAndBind();
+		// When a_expectedModelNode is non-null, bind only if it is exactly the actor's
+		// current node. The compose hook uses this to recover a temporarily lost binding
+		// on the new node's first update without accepting an unrelated skeleton.
+		bool ResolveAndBind(const RE::BGSModelNode* a_expectedModelNode = nullptr);
 		// Drop the cached modelNode/rig identity and binding so the next Sample re-resolves.
 		void InvalidateBinding();
 
@@ -132,7 +140,7 @@ namespace OSF::Animation
 		bool hasPose = false;  // outputPose valid (also the blend-from source for the next SetAnimation)
 
 		// resolved fresh each frame; binding cached against modelNode/rig identity
-		const RE::BGSModelNode* cachedModelNode = nullptr;
+		std::atomic<const RE::BGSModelNode*> cachedModelNode{ nullptr };
 		const RE::BGSModelNode::Rig* cachedRig = nullptr;
 		uint32_t cachedBoneCount = 0;
 		const void* cachedLocalData = nullptr;  // rig->local->data at bind time; a reused modelNode with a fresh buffer invalidates the cache

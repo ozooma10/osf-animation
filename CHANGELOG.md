@@ -5,6 +5,7 @@ All notable changes to OSF Animation are documented here.
 ## [Unreleased]
 
 ### Fixed
+- **Masked and additive playback no longer flashes back to the full vanilla pose during a live actor-3D rebuild.** When equipment or cosmetic visibility replaces the current model node between animation evaluation and composition, the compose hook now verifies the new node against the managed actor, rebuilds the bone binding, and stamps that same pass instead of waiting several frames for a later animation update.
 - **Clips a pack registers through `clipLibrary` now appear in the browser for everyone.** They were being treated as the engine's own raw-clip debug entries and hidden unless **Show author details** was on, so a pack shipping a curated clip library and no scenes — Moods of Andromas, for one — loaded perfectly (no errors, clips found) and still showed nothing. Registered clips and the entries OSF derives automatically from a scene's stages share an id namespace; the catalog now marks a registration explicitly, and only the derived entries stay author-only. Scene ids are unchanged, so animation-wheel pins survive.
 
 ### Added
