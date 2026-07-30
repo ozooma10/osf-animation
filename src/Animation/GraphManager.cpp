@@ -1279,10 +1279,12 @@ namespace OSF::Animation
 		auto& participants = (*sceneIter)->participants;
 		for (std::size_t participantIndex = 0; participantIndex < participants.size(); participantIndex++) {
 			auto& p = participants[participantIndex];
+			std::uint64_t stoppedRevision = 0;
 			{
 				// graph stays in the map and fades to the engine pose; the update hook queues its removal once the ramp elapses
 				std::scoped_lock gl{ p->stateLock };
 				p->DetachAndFadeOut();
+				stoppedRevision = p->playbackRevision;
 			}
 			// DIAG: confirm the per-participant detach ran and scene was cleared, so we can tell a "never removed"
 			// graph apart from a "never detached" one.
@@ -1302,11 +1304,12 @@ namespace OSF::Animation
 				const auto originalTransform = restoreTransform ?
 				                                   originalTransforms[participantIndex] :
 				                                   std::pair<RE::NiPoint3, float>{};
-				a_deferred.emplace_back([keepAlive, stoppedGraph, stoppedPlayback, worldEpoch, restoreTransform, originalTransform]() {
+				a_deferred.emplace_back([keepAlive, stoppedGraph, stoppedPlayback, stoppedRevision, worldEpoch, restoreTransform, originalTransform]() {
 					auto& gm = GetSingleton();
 					if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
 						return;
 					}
+					bool applyTransformRestore = restoreTransform;
 					{
 						std::shared_lock l{ gm.stateLock };
 						if (const auto it = gm.graphs.find(keepAlive.get()); it != gm.graphs.end()) {
@@ -1314,13 +1317,16 @@ namespace OSF::Animation
 							if (it->second->scene && it->second->scene->playbackId != stoppedPlayback) {
 								return;  // a replacement scene now owns the actor's movement mode
 							}
-							if (restoreTransform && it->second != stoppedGraph) {
-								return;  // replacement solo playback owns the actor; don't apply stale scene placement cleanup
+							if (applyTransformRestore &&
+								(it->second != stoppedGraph || it->second->playbackRevision != stoppedRevision)) {
+								// A replacement solo playback owns the actor. It does not need the
+								// old scene's movement flag, but must not receive its stale teleport.
+								applyTransformRestore = false;
 							}
 						}
 					}
 					keepAlive->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
-					if (restoreTransform) {
+					if (applyTransformRestore) {
 						keepAlive->SetPosition(originalTransform.first, true);
 						if (auto* transforms = RE::TransformService::GetSingleton()) {
 							transforms->SetHeadingZ(keepAlive.get(), originalTransform.second);

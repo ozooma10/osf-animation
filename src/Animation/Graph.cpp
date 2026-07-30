@@ -146,6 +146,10 @@ namespace OSF::Animation
 
 	void Graph::SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file)
 	{
+		if (++playbackRevision == 0) {
+			++playbackRevision;  // reserve zero for a graph that has never started
+		}
+
 		//crossfade from pose on screen when there is one. otherwise blend in from engines live pose
 		if (hasPose && !outputPose.empty() &&
 			outputPose.size() == static_cast<size_t>(a_skeleton->data->num_joints())) {

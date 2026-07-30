@@ -328,7 +328,9 @@ namespace OSF::Serialization::ClipDurations
 		{
 			std::error_code ec;
 			const auto sz = std::filesystem::file_size(a_file, ec);
-			if (ec) {
+			// Match the playback importers: the duration scan must not allocate a file that
+			// playback itself would reject, especially while probing every installed clip.
+			if (ec || sz > Util::kMaxClipBytes) {
 				return std::nullopt;
 			}
 			std::ifstream f(a_file, std::ios::binary);

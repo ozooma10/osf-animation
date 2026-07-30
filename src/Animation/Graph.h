@@ -75,6 +75,7 @@ namespace OSF::Animation
 		// sweep judges by steady-clock instead.
 		std::atomic<std::int64_t> lastSampleMs{ 0 };  // last Sample() call (stamped at SetAnimation too, so a never-sampled graph ages from birth)
 		std::int64_t fadeOutBeganMs = 0;              // stamped at BeginFadeOut; guarded by stateLock
+		std::uint64_t playbackRevision = 0;           // incremented by SetAnimation; invalidates deferred cleanup from an older clip
 
 
 		// Start a new animation clip. Resets time and starts a blend-in. a_file is for diagnostics only ("" = none).

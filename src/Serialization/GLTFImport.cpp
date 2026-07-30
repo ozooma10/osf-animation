@@ -355,17 +355,20 @@ namespace OSF::Serialization
 			if (elemSize == 0 || stride < elemSize) {
 				return false;
 			}
-			// All quantities come straight from the file: overflow-safe arithmetic only.
-			std::size_t need = a_accessor.byteOffset;
+			// All quantities come straight from the file. Bound against the view by subtraction
+			// so no file-declared sum is formed before it is proven representable.
+			if (a_accessor.byteOffset > view.byteLength) {
+				return false;
+			}
 			if (a_accessor.count > 0) {
-				const std::size_t lastIndex = a_accessor.count - 1;
-				if (lastIndex > (SIZE_MAX - need - elemSize) / stride) {
+				const std::size_t available = view.byteLength - a_accessor.byteOffset;
+				if (elemSize > available) {
 					return false;
 				}
-				need += lastIndex * stride + elemSize;
-			}
-			if (need > view.byteLength) {
-				return false;
+				const std::size_t lastIndex = a_accessor.count - 1;
+				if (lastIndex > (available - elemSize) / stride) {
+					return false;
+				}
 			}
 			const auto& buffer = a_asset.buffers[view.bufferIndex];
 			return view.byteOffset <= buffer.byteLength && view.byteLength <= buffer.byteLength - view.byteOffset;
