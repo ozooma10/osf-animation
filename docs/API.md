@@ -1,6 +1,6 @@
 > WARNING: This file was AI-generated and is likely incorrect. Treat it as a rough draft, not authoritative documentation.
 
-# OSF Papyrus API
+# OSF APIs
 
 Native SFSE plugins that need per-save records should use the [shared persistence C ABI](RFC-persistence-api.md).
 
@@ -28,6 +28,46 @@ Every `Start*` returns an opaque **scene handle** (`Int`): `0` = failed (bad id,
 actor already in a live scene — one live scene per actor is enforced). A nonzero handle drives
 navigation, callbacks, stop, participant lookup, and linear-stage getters. When the scene ends, the
 handle goes invalid except for the short roster-survival window described under callbacks.
+
+## Native C++ scene API
+
+SFSE plugins can copy [src/API/OSFSceneAPI.h](../src/API/OSFSceneAPI.h) into their own source tree and
+link nothing. `OSF::API::RequestSceneAPI()` resolves `OSF Animation.dll` at runtime and requests the
+current ABI. ABI 1.3 appends synchronous native scene-event registration to the existing start,
+stop, navigation, playback, and query surface. A consumer that requires callbacks should request
+1.3 (the header default); an older OSF build returns `nullptr` instead of exposing a short vtable.
+
+```cpp
+void OnSceneEvent(const OSF::API::OSFSceneEvent* event, void* context)
+{
+    if (!event || event->size < sizeof(OSF::API::OSFSceneEvent)) {
+        return;
+    }
+    if (event->eventType == OSF::API::SceneEventType::kCue) {
+        static_cast<MyPlugin*>(context)->OnCue(
+            event->sceneHandle, event->cue ? event->cue : "");
+    }
+}
+
+auto* osf = OSF::API::RequestSceneAPI();
+auto token = osf ? osf->RegisterSceneEventCallback(
+    &OnSceneEvent, this, 0, OSF::API::SceneEventType::kCue) : 0;
+// Later, if this consumer unloads its callback target:
+if (token != 0) {
+    osf->UnregisterSceneEventCallback(token);
+}
+```
+
+Registration and unregistration are thread-safe. For authored scenes the callback runs
+**synchronously on the game thread at the runtime mark**, after earlier timed lanes at that mark
+(action → camera → sound) and before OSF queues the equivalent Papyrus event. The payload is a
+borrowed immutable view: the struct and all string pointers are valid only until the callback
+returns. Copy anything you retain, do not throw across the DLL boundary, and keep the callback
+short. A callback may unregister itself.
+
+Native registration tokens are process-lifetime and survive world replacement; OSF does not emit
+teardown events for the discarded world. Scene filters and event masks use the same handle and bit
+values documented in the Papyrus callback section below. Passing event mask `0` means all events.
 
 ## Starting scenes
 
@@ -154,7 +194,7 @@ String lbl = OSF.GetSceneEdgeLabel(h, 0)
 Linear scenes (those with `linearStages`) also support `GetSceneStage`/`SetSceneStage` (by handle) and
 `GetSceneStageForActor`/`SetSceneStageForActor` (by actor).
 
-## Scene-event callbacks
+## Papyrus scene-event callbacks
 
 Register a receiver to get `OSFTypes:SceneEvent` structs (see
 [dist/Scripts/Source/OSFTypes.psc](../dist/Scripts/Source/OSFTypes.psc)). Dispatch is **asynchronous**
@@ -166,7 +206,8 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 > ended (the retired roster is retained for the loaded world). `SCENE_END` carries no
 > `actorRef` itself, so this is how an end handler enumerates participants. Note `SCENE_END` fires on
 > runtime termination (normal finish or `Stop()`). World-replacing load teardown clears the VM relay
-> and native handle table without dispatching callbacks into the discarded world. Gate on a completion cue if you
+> and native handle table without dispatching callbacks into the discarded world. Native C++
+> registrations remain registered, but receive no teardown event. Gate on a completion cue if you
 > only want genuine finishes.
 
 ```papyrus
@@ -205,7 +246,7 @@ EndFunction
 first event, after OSF has applied start setup (player lock, strip, role equip, optional fade,
 input channel) and the entry node's animation is playing — so the scene is fully live. Its `node`
 field carries the entry node; like `SCENE_END` it carries no `actorRef`. The handle is live when
-`SCENE_BEGIN` is dispatched; because dispatch is async (the callback runs on a later VM tick), it
+`SCENE_BEGIN` is dispatched; because Papyrus dispatch is async (the callback runs on a later VM tick), it
 carries the same roster-survival guarantee as `SCENE_END` — `GetSceneParticipants(akEvent.sceneHandle)`
 stays readable for the callback, but a getter may return empty for a very short (`once`/0-duration)
 scene that already ended before the queued callback ran.
@@ -247,4 +288,5 @@ scene stage getters/setters by handle or actor.
 Pre-1.0 (`0.x`) the surface is still settling and may change between releases. From **1.0** on, natives
 are never removed or re-signatured within a major version (minor versions only **add**). The
 `OSFTypes:SceneEvent` struct member set is part of the ABI — new fields append at the end, so old
-callbacks keep working.
+callbacks keep working. The native C++ API follows the same additive rule: minor versions append
+vmethods or POD fields, while a major version is required for an incompatible layout change.

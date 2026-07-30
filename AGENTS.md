@@ -8,7 +8,8 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the five engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the six engine-free C++ suites (persistence broker,
+  native scene-event callbacks,
   frame clock/clip specs, additive pose math, sound registry, scene registry — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
@@ -106,8 +107,10 @@ Each entry: **system** (`path`) — role.
   every participant's apparel (opt out `stripActors:false`); both ledger-tracked so they auto-reverse on end.
   The caller resolves each opt-out — from the `SceneDef` for a def scene, the `PackPolicy` for a pack — and
   passes the booleans in; a files scene has no field, so both stay on.
-- **SceneEventRelay** (`src/Scene/SceneEventRelay.*`) - token registry + async C++->Papyrus dispatch of
-  the `OSFEvent:SceneEvent` struct.
+- **SceneEventRelay** (`src/Scene/SceneEventRelay.*`) - synchronous native API callback dispatch at
+  the authored runtime mark, followed by the existing token registry + async C++->Papyrus dispatch
+  of the `OSFEvent:SceneEvent` struct. Native registrations live in
+  `src/API/NativeSceneEventRegistry.*` and survive world replacement.
 - **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `SceneRegistry` defs;
   deterministic role-binding; `roles[].filters` gender/keyword/race with
   `"Plugin.esm|0xID"` form-refs resolved at load (RE-sensitive — needs in-game verification).

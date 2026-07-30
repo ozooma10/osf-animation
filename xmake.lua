@@ -157,6 +157,18 @@ target("osf-persistence-test")
     add_files("src/Serialization/PersistenceBroker.cpp", "test/PersistenceTest.cpp")
     add_includedirs("src")
 
+-- Native scene-event callback registry tests (no game runtime needed).
+target("osf-native-scene-event-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    set_languages("c++23")
+    add_deps("commonlibsf")
+    add_files("src/API/NativeSceneEventRegistry.cpp",
+              "test/NativeSceneEventTest.cpp")
+    add_includedirs("src")
+    set_pcxxheader("src/pch.h")
+
 -- Pure shared-clock and clip-spec helper tests (no game/CommonLib runtime needed).
 target("osf-frame-clock-test")
     set_kind("binary")

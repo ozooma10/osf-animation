@@ -1,5 +1,6 @@
 #include "API/OSFSceneAPI.h"
 
+#include "API/NativeSceneEventRegistry.h"
 #include "API/SceneAPIControl.h"
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"  // Animation::ScenePlan (ad-hoc files start)
@@ -7,6 +8,7 @@
 #include "Scene/AnchorResolve.h"     // shared furniture-anchor resolution
 #include "Scene/SceneLauncher.h"     // canonical per-start option normalization
 #include "Scene/SceneRuntime.h"
+#include "Scene/SceneEventRelay.h"
 #include "Util/ClipPath.h"
 
 #include <algorithm>
@@ -129,6 +131,17 @@ namespace OSF::API
 		static_assert(offsetof(OSFStartOptions, anchorRef) == 120, "OSFStartOptions.anchorRef offset drift");
 		static_assert(offsetof(OSFStartOptions, inPlaceMode) == 128, "OSFStartOptions.inPlaceMode offset drift (MINOR 2 append)");
 		static_assert(sizeof(OSFStartOptions::camera) == 64, "OSFStartOptions.camera buffer size changed");
+
+		static_assert(std::is_standard_layout_v<OSFSceneEvent>, "OSFSceneEvent must be standard-layout (POD ABI)");
+		static_assert(sizeof(OSFSceneEvent) == 88, "OSFSceneEvent layout changed - bump the API version");
+		static_assert(offsetof(OSFSceneEvent, size) == 0, "OSFSceneEvent.size must be first");
+		static_assert(offsetof(OSFSceneEvent, sceneHandle) == 4, "OSFSceneEvent.sceneHandle offset drift");
+		static_assert(offsetof(OSFSceneEvent, eventType) == 8, "OSFSceneEvent.eventType offset drift");
+		static_assert(offsetof(OSFSceneEvent, node) == 16, "OSFSceneEvent.node offset drift");
+		static_assert(offsetof(OSFSceneEvent, actor) == 48, "OSFSceneEvent.actor offset drift");
+		static_assert(offsetof(OSFSceneEvent, loopIndex) == 64, "OSFSceneEvent.loopIndex offset drift");
+		static_assert(offsetof(OSFSceneEvent, anchor) == 72, "OSFSceneEvent.anchor offset drift");
+		static_assert(offsetof(OSFSceneEvent, result) == 80, "OSFSceneEvent.result offset drift");
 	}
 
 	// The concrete API singleton. Thin shims only
@@ -347,16 +360,75 @@ namespace OSF::API
 			return total;
 		}
 
+		std::uint64_t RegisterSceneEventCallback(
+			OSFSceneEventCallback a_callback, void* a_context,
+			std::int32_t a_sceneFilter,
+			std::int32_t a_eventMask) override
+		{
+			const auto token = _nativeSceneEvents.Register(
+				a_callback, a_context, a_sceneFilter, a_eventMask);
+			if (token != 0) {
+				REX::DEBUG(
+					"[API] registered native scene-event token {:#018x} "
+					"(mask {:#x}, scene {})",
+					token, a_eventMask, a_sceneFilter);
+			}
+			return token;
+		}
+
+		bool UnregisterSceneEventCallback(std::uint64_t a_token) override
+		{
+			const bool removed = _nativeSceneEvents.Unregister(a_token);
+			if (removed) {
+				REX::DEBUG(
+					"[API] unregistered native scene-event token {:#018x}",
+					a_token);
+			}
+			return removed;
+		}
+
+		void DispatchNativeSceneEvent(const OSFSceneEvent& a_event)
+		{
+			const auto failures = _nativeSceneEvents.Dispatch(a_event);
+			if (failures != 0) {
+				REX::ERROR(
+					"[API] {} native scene-event callback(s) threw; "
+					"exceptions were isolated",
+					failures);
+			}
+		}
+
 	private:
 		SceneAPIImpl() = default;
 
-		std::atomic<bool> _ready{ false };
+		std::atomic<bool>        _ready{ false };
+		NativeSceneEventRegistry _nativeSceneEvents;
 	};
 
 	void MarkReady()
 	{
 		SceneAPIImpl::GetSingleton().MarkReady();
 		REX::INFO("[API] native scene API ready (ABI {:#x})", kOSFSceneAPIVersion);
+	}
+
+	void DispatchNativeSceneEvent(const Scene::SceneEvent& a_event)
+	{
+		const OSFSceneEvent event{
+			.size = sizeof(OSFSceneEvent),
+			.sceneHandle = a_event.scene,
+			.eventType = a_event.event,
+			.node = a_event.node.c_str(),
+			.edge = a_event.edge.c_str(),
+			.cue = a_event.cue.c_str(),
+			.actionType = a_event.actionType.c_str(),
+			.actor = a_event.actor,
+			.role = a_event.role.c_str(),
+			.loopIndex = a_event.loopIndex,
+			.time = a_event.time,
+			.anchor = a_event.anchor.c_str(),
+			.result = a_event.result
+		};
+		SceneAPIImpl::GetSingleton().DispatchNativeSceneEvent(event);
 	}
 }
 

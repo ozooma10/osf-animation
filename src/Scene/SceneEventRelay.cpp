@@ -1,5 +1,7 @@
 #include "Scene/SceneEventRelay.h"
 
+#include "API/SceneAPIControl.h"
+
 #include "Util/StringUtil.h"
 
 #include "RE/B/BSScriptUtil.h"
@@ -165,6 +167,9 @@ namespace OSF::Scene
 
 	void SceneEventRelay::Dispatch(const SceneEvent& a_event)
 	{
+		// Native consumers run synchronously at the authored runtime mark.
+		API::DispatchNativeSceneEvent(a_event);
+
 		// Snapshot matching receivers under the lock; dispatch outside it (the VM call
 		// may re-enter us via a callback that (un)registers).
 		struct Target

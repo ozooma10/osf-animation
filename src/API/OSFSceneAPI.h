@@ -21,7 +21,7 @@
 namespace OSF::API
 {
 	// Packed (MAJOR << 16) | MINOR. MAJOR breaks ABI; MINOR bumps on an appended vmethod or an appended OSFStartOptions field.
-	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 2u;
+	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 3u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
 	inline constexpr std::uint32_t kOSFSceneAPIMinor   = kOSFSceneAPIVersion & 0xFFFFu;
 
@@ -63,6 +63,46 @@ namespace OSF::API
 		// third-person camera, alone). 0 = force the anchored posture; else = inherit the scene's.
 		std::int32_t inPlaceMode = -1;
 	};
+
+	// Scene-event bits. These values are shared with OSF.psc EVENT_* constants
+	// and can be ORed together when registering a native callback.
+	namespace SceneEventType
+	{
+		inline constexpr std::int32_t kNodeEnter = 0x01;
+		inline constexpr std::int32_t kNodeExit = 0x02;
+		inline constexpr std::int32_t kCue = 0x04;
+		inline constexpr std::int32_t kAction = 0x08;
+		inline constexpr std::int32_t kSceneEnd = 0x10;
+		inline constexpr std::int32_t kSceneBegin = 0x20;
+		inline constexpr std::int32_t kAll = 0xFFFF;
+	}
+
+	// Borrowed, immutable scene-event view delivered to OSFSceneEventCallback.
+	// The struct and every string pointer remain valid ONLY for the duration of
+	// the callback. Copy any data the consumer needs to retain.
+	struct OSFSceneEvent
+	{
+		std::uint32_t size = sizeof(OSFSceneEvent);
+		std::int32_t sceneHandle = 0;
+		std::int32_t eventType = 0;
+		const char* node = "";
+		const char* edge = "";
+		const char* cue = "";
+		const char* actionType = "";
+		RE::Actor* actor = nullptr;
+		const char* role = "";
+		std::int32_t loopIndex = -1;
+		float time = -1.0f;
+		const char* anchor = "";
+		std::int32_t result = 0;
+	};
+
+	// Native callbacks are invoked synchronously on the scene-runtime dispatch
+	// thread (the game thread for authored scene events), before OSF queues the
+	// equivalent Papyrus callback. A callback may unregister itself. It must not
+	// retain borrowed payload pointers or throw across the DLL boundary.
+	using OSFSceneEventCallback = void (*)(
+		const OSFSceneEvent* a_event, void* a_context);
 
 	// -------------------------------------------------------------------------
 	// Handles are int32 generational tokens (0 = failure / dead), never raw pointers.
@@ -116,6 +156,17 @@ namespace OSF::API
 		virtual std::uint32_t GetSceneParticipants(std::int32_t a_handle,
 			RE::Actor** a_out, std::uint32_t a_cap) = 0;
 
+		// --- native scene events (APPENDED at MINOR 3) ---
+		// Registration is thread-safe and process-lifetime: tokens survive world
+		// replacement until explicitly unregistered. a_sceneFilter == 0 accepts
+		// every scene; a_eventMask == 0 is treated as SceneEventType::kAll.
+		// Returns a 64-bit generational token, or 0 for a null callback.
+		virtual std::uint64_t RegisterSceneEventCallback(
+			OSFSceneEventCallback a_callback, void* a_context,
+			std::int32_t a_sceneFilter = 0,
+			std::int32_t a_eventMask = SceneEventType::kAll) = 0;
+
+		virtual bool UnregisterSceneEventCallback(std::uint64_t a_token) = 0;
 
 	protected:
 		~IOSFSceneAPI() = default;  // OSF owns the singleton; the consumer never deletes it.
@@ -128,7 +179,7 @@ namespace OSF::API
 	{
 		const REX::W32::HMODULE mod = REX::W32::GetModuleHandleW(kOSFModuleName);
 		if (!mod) {
-			return nullptr;  // OSF not installed/loaded -> fall back to Papyrus DispatchStaticCall.
+			return nullptr;  // OSF not installed/loaded.
 		}
 		const auto fn = reinterpret_cast<RequestSceneAPI_t>(REX::W32::GetProcAddress(mod, kRequestExportName));
 		return fn ? fn(a_abiVersion) : nullptr;  // older OSF (no export) or MAJOR mismatch -> nullptr.
