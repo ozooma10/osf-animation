@@ -52,10 +52,10 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 21 authored scenes load: bare(1) + legacy(2) + registry(4) + errors(1 of 9) + templates(11) +
+	// 22 authored scenes load: bare(1) + legacy(2) + registry(5) + errors(1 of 9) + templates(11) +
 	// template-errors(1 of 5); the two malformed-registry files load nothing. (Generated clip-debug
 	// entries and clipLibrary registrations don't count here.)
-	Check(reg.Size() == 21, "authored scene count");
+	Check(reg.Size() == 22, "authored scene count");
 
 	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
@@ -164,6 +164,31 @@ int main()
 			"an explicit empty registry role name stays anonymous");
 	} else {
 		Check(false, "test.reg.anonymous loads");
+	}
+	if (const auto s = reg.Find("test.reg.props")) {
+		Check(s->nodes.size() == 1 && s->nodes[0].actions.size() == 2,
+			"prop scene keeps its attach and destroy actions");
+		if (s->nodes.size() == 1 && s->nodes[0].actions.size() == 2) {
+			const auto& attach = s->nodes[0].actions[0];
+			const auto& destroy = s->nodes[0].actions[1];
+			Check(attach.type == "osf.prop.attach" && attach.role == "player" &&
+				attach.prop == "helmet", "prop attach identity and role parse");
+			Check(attach.propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
+				attach.propSource.keywords.size() == 2 &&
+				attach.propSource.keywords[0] == "ArmorTypeSpacesuitHelmet",
+				"equipped-armor prop source parses its keyword fallbacks");
+			Check(attach.propAttachment.node == "R_Wrist" &&
+				attach.propAttachment.position[0] == 1.0f &&
+				attach.propAttachment.position[1] == 2.0f &&
+				attach.propAttachment.position[2] == 3.0f &&
+				attach.propAttachment.rotation[1] == -90.0f &&
+				attach.propAttachment.scale == 0.75f,
+				"prop node and local transform parse");
+			Check(destroy.type == "osf.prop.destroy" && destroy.prop == "helmet",
+				"prop destroy addresses the scene-local id");
+		}
+	} else {
+		Check(false, "test.reg.props loads");
 	}
 	if (const auto s = reg.Find("test.err.ok")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "f", "one bad scene does not reject its file's other scenes");
@@ -387,7 +412,7 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 21, "per-file scene counts sum to the authored total");
+		Check(accepted == 22, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");

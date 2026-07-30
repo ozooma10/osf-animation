@@ -7,6 +7,7 @@
 
 #include "Animation/Scene.h"   // ParticipantPlacement, ScenePlan
 #include "Input/InputTypes.h"  // PlayerControl capabilities default to Input::kAllCapabilities
+#include "Props/PropTypes.h"
 
 #include <atomic>
 #include <cstdint>
@@ -100,6 +101,9 @@ namespace OSF::Registry
 		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
 		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
 		std::string  item;   // osf.equipment.equip: form ref "<plugin>|0xLOCAL" of the item to equip
+		std::string  prop;    // osf.prop.*: scene-local prop id
+		Props::Source     propSource;      // osf.prop.attach: fixed form or equipped-armor selector
+		Props::Attachment propAttachment;  // osf.prop.attach: actor node + local transform
 	};
 
 	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed).

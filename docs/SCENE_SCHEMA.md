@@ -569,7 +569,7 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
-| `action` | `{ "at", "type", "role", "hold", "duration", "set", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. |
+| `action` | `{ "at", "type", "role", "hold", "duration", "set", "item", "prop", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
 | `sound` | `{ "at", "spec", "role", "volume", "repeat" }` — an **array/object `at`** makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases); `role` positions it (else player). One **voice channel per actor** — see below. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
@@ -860,12 +860,51 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 | `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). **All participants are stripped by default** — see *Actor strip*; author these only to override. | ✓ | |
 | `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A copy is added if the actor doesn't own one and **destroyed on cleanup** (no inventory residue); a form the actor already wears is left untouched both ways. | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
+| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it. | ✓ | `prop`; attach also requires `source` and `node`, with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
 | `osf.voice.play` | Play a sound spec positioned at the role. If that clip carries subtitle text in its pool, the line shows in the box (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
 
-> **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/fade in
+> **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/props/fade in
 > reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — you never
 > author a restore.
+
+### Scene props
+
+A prop belongs to one live scene handle. Its `prop` value is an author-local id within that scene,
+not a persistent object identity. OSF destroys every remaining prop before it dispatches the scene-end
+event and also detaches them explicitly during world-load teardown. A consumer that wants a visual to
+remain after the animation should create and own a separate persistent object.
+
+```jsonc
+"action": [
+  {
+    "at": 0.101,
+    "type": "osf.prop.attach",
+    "role": "player",
+    "prop": "helmet",
+    "source": {
+      "equippedArmor": {
+        "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"]
+      }
+    },
+    "node": "R_Wrist",
+    "position": [0, 0, 0],
+    "rotation": [0, -90, -90],
+    "scale": 1
+  },
+  { "at": 0.758, "type": "osf.prop.destroy", "prop": "helmet" }
+]
+```
+
+`source` contains exactly one selector:
+
+- `{ "form": "<Plugin>|0xLOCAL" }` clones a fixed bound object's ground visual.
+- `{ "equippedArmor": { "keyword": "<EditorID>" } }` selects the first equipped armor carrying
+  that keyword. `keyword` may be an array of alternative editor IDs.
+
+`position` and `rotation` are three-number arrays in node-local units and degrees; both default to
+zero. `scale` defaults to `1` and must be in `(0,10]`. The visual is best-effort: a missing source,
+actor 3D, or attachment node logs the failed action without aborting the animation.
 
 ---
 

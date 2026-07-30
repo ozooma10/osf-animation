@@ -9,6 +9,7 @@
 #include "Util/StringUtil.h"
 
 #include <algorithm>
+#include <cmath>
 #include <charconv>
 #include <chrono>
 #include <fstream>
@@ -327,7 +328,8 @@ namespace OSF::Registry
 				"osf.equipment.equip", "osf.equipment.unequip",
 				"osf.weapon.sheathe", "osf.weapon.restore",
 				"osf.fade.out", "osf.fade.in",
-				"osf.voice.play"
+				"osf.voice.play",
+				"osf.prop.attach", "osf.prop.destroy"
 			};
 			return kKnown.count(a_typeLower) != 0;
 		}
@@ -377,6 +379,110 @@ namespace OSF::Registry
 			}
 		}
 
+		std::array<float, 3> ParsePropVector(
+			const json& a_action, const char* a_field, const std::string& a_nodeId)
+		{
+			std::array<float, 3> result{};
+			const auto it = a_action.find(a_field);
+			if (it == a_action.end()) {
+				return result;
+			}
+			if (!it->is_array() || it->size() != result.size()) {
+				throw std::runtime_error("node '" + a_nodeId + "': action 'osf.prop.attach' field '" +
+					a_field + "' must be an array of exactly three finite numbers");
+			}
+			for (std::size_t i = 0; i < result.size(); ++i) {
+				if (!(*it)[i].is_number()) {
+					throw std::runtime_error("node '" + a_nodeId + "': action 'osf.prop.attach' field '" +
+						a_field + "' must be an array of exactly three finite numbers");
+				}
+				result[i] = (*it)[i].get<float>();
+				if (!std::isfinite(result[i])) {
+					throw std::runtime_error("node '" + a_nodeId + "': action 'osf.prop.attach' field '" +
+						a_field + "' must contain only finite numbers");
+				}
+			}
+			return result;
+		}
+
+		Props::Source ParsePropSource(const json& a_source, const std::string& a_nodeId)
+		{
+			if (!a_source.is_object()) {
+				throw std::runtime_error("node '" + a_nodeId +
+					"': action 'osf.prop.attach' field 'source' must be an object");
+			}
+			const bool hasForm = a_source.contains("form");
+			const bool hasEquipped = a_source.contains("equippedArmor");
+			if (hasForm == hasEquipped) {
+				throw std::runtime_error("node '" + a_nodeId +
+					"': action 'osf.prop.attach' source must contain exactly one of 'form' or 'equippedArmor'");
+			}
+
+			Props::Source result;
+			if (hasForm) {
+				const auto& form = a_source.at("form");
+				if (!form.is_string() || form.get<std::string>().empty()) {
+					throw std::runtime_error("node '" + a_nodeId +
+						"': action 'osf.prop.attach' source.form must be a non-empty form ref");
+				}
+				result.kind = Props::SourceKind::kForm;
+				result.form = form.get<std::string>();
+				return result;
+			}
+
+			const auto& equipped = a_source.at("equippedArmor");
+			if (!equipped.is_object() || !equipped.contains("keyword")) {
+				throw std::runtime_error("node '" + a_nodeId +
+					"': action 'osf.prop.attach' source.equippedArmor requires 'keyword'");
+			}
+			const auto& keyword = equipped.at("keyword");
+			const auto append = [&](const json& a_value) {
+				if (!a_value.is_string() || a_value.get<std::string>().empty()) {
+					throw std::runtime_error("node '" + a_nodeId +
+						"': action 'osf.prop.attach' equippedArmor.keyword entries must be non-empty strings");
+				}
+				result.keywords.push_back(a_value.get<std::string>());
+			};
+			if (keyword.is_string()) {
+				append(keyword);
+			} else if (keyword.is_array()) {
+				for (const auto& entry : keyword) {
+					append(entry);
+				}
+			} else {
+				throw std::runtime_error("node '" + a_nodeId +
+					"': action 'osf.prop.attach' source.equippedArmor.keyword must be a string or array");
+			}
+			if (result.keywords.empty()) {
+				throw std::runtime_error("node '" + a_nodeId +
+					"': action 'osf.prop.attach' source.equippedArmor.keyword cannot be empty");
+			}
+			result.kind = Props::SourceKind::kEquippedArmor;
+			return result;
+		}
+
+		Props::Attachment ParsePropAttachment(
+			const json& a_action, const std::string& a_nodeId)
+		{
+			Props::Attachment result;
+			const auto node = a_action.find("node");
+			if (node == a_action.end() || !node->is_string() ||
+				node->get<std::string>().empty()) {
+				throw std::runtime_error("node '" + a_nodeId +
+					"': action 'osf.prop.attach' requires a non-empty 'node'");
+			}
+			result.node = node->get<std::string>();
+			result.position = ParsePropVector(a_action, "position", a_nodeId);
+			result.rotation = ParsePropVector(a_action, "rotation", a_nodeId);
+			result.scale = a_action.value("scale", 1.0f);
+			if (!std::isfinite(result.scale) || result.scale <= 0.0f ||
+				result.scale > 10.0f) {
+				throw std::runtime_error("node '" + a_nodeId +
+					"': action 'osf.prop.attach' scale must be finite and in (0,10]");
+			}
+			return result;
+		}
+
 		void ParseActionTrack(const json& a_entries, SceneNode& a_node_out)
 		{
 			if (!a_entries.is_array()) {
@@ -393,6 +499,7 @@ namespace OSF::Registry
 				ae.duration = a.value("duration", 0.0f);   // osf.fade.*: ramp secs (0 = default)
 				ae.set = a.value("set", std::string{});    // osf.voice.play: sound spec
 				ae.item = a.value("item", std::string{});  // osf.equipment.equip: item form ref
+				ae.prop = a.value("prop", std::string{});  // osf.prop.*: scene-local prop id
 				const auto typeLower = ToLower(ae.type);
 				if (typeLower.rfind("osf.", 0) == 0) {
 					if (!IsKnownBuiltinAction(typeLower)) {
@@ -407,6 +514,19 @@ namespace OSF::Registry
 					}
 					if (typeLower == "osf.equipment.equip" && ae.item.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.equipment.equip' requires 'item'");
+					}
+					if ((typeLower == "osf.prop.attach" ||
+						 typeLower == "osf.prop.destroy") && ae.prop.empty()) {
+						throw std::runtime_error("node '" + a_node_out.id + "': action '" +
+							ae.type + "' requires a non-empty 'prop'");
+					}
+					if (typeLower == "osf.prop.attach") {
+						const auto source = a.find("source");
+						if (source == a.end()) {
+							throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.prop.attach' requires 'source'");
+						}
+						ae.propSource = ParsePropSource(*source, a_node_out.id);
+						ae.propAttachment = ParsePropAttachment(a, a_node_out.id);
 					}
 				} else if (a.value("required", false)) {
 					// Custom actions are best-effort notifications; `required` is reserved.

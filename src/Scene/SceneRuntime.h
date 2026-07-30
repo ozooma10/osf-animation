@@ -3,6 +3,7 @@
 #include "Equipment/EquipmentService.h"  // Snapshot stored per-handle in the undo ledger
 #include "Equipment/GearRegistry.h"      // Pick — per-participant user gear selection at scene start
 #include "Input/InputTypes.h"            // Grant stored per-handle for the input channel
+#include "Props/PropService.h"            // Instance stored per-handle in the undo ledger
 #include "Registry/SceneRegistry.h"      // SceneRef pins a live scene's immutable definition snapshot
 
 #include <cstdint>
@@ -197,7 +198,14 @@ namespace OSF::Scene
 			kCamera,        // held third-person camera lock (undo = release the standalone camera lock)
 			kCameraState,   // alt camera posture: free-fly / vanity orbit (undo = release the state override)
 			kWeapon,        // sheathed weapons (undo = re-draw; per-actor list in the Slot)
-			kInputChannel   // player director-input channel (undo = release the InputService grant; Grant in the Slot)
+			kInputChannel,  // player director-input channel (undo = release the InputService grant; Grant in the Slot)
+			kProps          // render-only props owned strictly for the scene's lifetime
+		};
+
+		struct ActiveProp
+		{
+			std::string     id;
+			Props::Instance instance;
 		};
 
 		struct Slot
@@ -246,6 +254,9 @@ namespace OSF::Scene
 			// kWeapon's per-actor state: actors this scene sheathed (re-drawn on undo). Same
 			// out-of-ledger pattern as hiddenEquip.
 			std::vector<RE::Actor*> sheathedWeapon;
+			// kProps' state: exact cloned visuals owned by this scene, keyed by
+			// author-local prop id. Destroyed before SCENE_END dispatch.
+			std::vector<ActiveProp> props;
 			// kInputChannel's data: the director-input grant this scene handed the InputService (engaged on record, released on undo).
 			Input::Grant            grant;
 		};
@@ -361,6 +372,10 @@ namespace OSF::Scene
 		void RecordMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void UndoMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void ReplayLedger(std::int32_t a_handle);
+
+		void AttachSceneProp(
+			std::int32_t a_handle, const Registry::ActionEntry& a_action);
+		void DestroySceneProp(std::int32_t a_handle, std::string_view a_prop);
 
 		// The participant bound to a_role (by role-declaration order; an empty role -> the first
 		// participant). nullptr if the handle is dead or the role is unknown.

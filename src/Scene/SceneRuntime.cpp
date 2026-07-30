@@ -411,8 +411,26 @@ namespace OSF::Scene
 
 	void SceneRuntime::Clear()
 	{
-		std::lock_guard l{ _lock };
-		_slots.clear();
+		std::vector<ActiveProp> props;
+		{
+			std::lock_guard l{ _lock };
+			for (auto& slot : _slots) {
+				for (auto& prop : slot.props) {
+					props.push_back(std::move(prop));
+				}
+			}
+			_slots.clear();
+		}
+		// World-replacing load teardown suppresses scene callbacks and therefore
+		// cannot rely on Fire(SCENE_END). Detach props explicitly while the old
+		// actor roots are still valid.
+		for (auto& prop : props) {
+			std::string error;
+			if (!Props::PropService::GetSingleton().Destroy(
+					prop.instance, &error)) {
+				REX::ERROR("[Scene] load prop cleanup '{}' failed: {}", prop.id, error);
+			}
+		}
 		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a handle
 		// minted before a save-load can never validate against a slot reused after the load (a stashed
 		// handle must read as dead — same rule as SceneEventRelay::Clear).

@@ -31,6 +31,26 @@
       "id": "test.reg.anonymous",
       "roles": ["anonymous"],
       "clip": "Fixture/x.glb"
+    },
+    {
+      "id": "test.reg.props",
+      "roles": [{ "name": "player" }],
+      "stages": [{
+        "clips": ["Fixture/x.glb"],
+        "action": [
+          {
+            "at": 0.1, "type": "osf.prop.attach", "role": "player", "prop": "helmet",
+            "source": {
+              "equippedArmor": {
+                "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"]
+              }
+            },
+            "node": "R_Wrist", "position": [1, 2, 3],
+            "rotation": [0, -90, -90], "scale": 0.75
+          },
+          { "at": 0.8, "type": "osf.prop.destroy", "prop": "helmet" }
+        ]
+      }]
     }
   ]
 }

@@ -394,6 +394,10 @@ namespace OSF::Scene
 			// Take back off everything this scene equipped + drop the debt so cleanup won't redo it.
 			REX::DEBUG("[Scene] scene {:#010x} osf.equipment.unequip", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipItem);
+		} else if (type == "osf.prop.attach") {
+			GetSingleton().AttachSceneProp(a_handle, a_action);
+		} else if (type == "osf.prop.destroy") {
+			GetSingleton().DestroySceneProp(a_handle, a_action.prop);
 		} else if (type == "osf.weapon.sheathe") {
 			// Holster the role's actor's weapon; record it so cleanup (or osf.weapon.restore)
 			// re-draws it. Symmetric pair (see WeaponService): re-draw on cleanup is unconditional,

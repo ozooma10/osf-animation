@@ -4,6 +4,7 @@
 #include "Equipment/EquipmentService.h"
 #include "Input/InputService.h"
 #include "Player/PlayerControlService.h"
+#include "Props/PropService.h"
 #include "UI/FadeService.h"
 #include "Weapon/WeaponService.h"
 
@@ -53,6 +54,7 @@ namespace OSF::Scene
 		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> heldEquip;  // moved out for kHeldEquipment
 		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;  // moved out for kEquipItem
 		std::vector<RE::Actor*> weapon;                                 // moved out for kWeapon
+		std::vector<ActiveProp> props;                                   // moved out for kProps
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
@@ -72,6 +74,8 @@ namespace OSF::Scene
 				equipItems.swap(s->equippedItems);  // take this scene's equipped items out for removal
 			} else if (a_mech == Mechanism::kWeapon) {
 				weapon.swap(s->sheathedWeapon);  // take this scene's sheathed actors out for re-draw
+			} else if (a_mech == Mechanism::kProps) {
+				props.swap(s->props);  // take every scene-owned render prop out for destruction
 			}
 		}
 		// Apply the reversal OUTSIDE the lock (services enter the VM / post UI messages / touch
@@ -128,6 +132,18 @@ namespace OSF::Scene
 			// scene. No-op unless the player currently holds one. (Runs before the control-lock undo, so
 			// the camera hands back to the still-armed third-person hold; see ForcePlayerFreeCamOff.)
 			Camera::CameraService::GetSingleton().ForcePlayerFreeCamOff();
+			break;
+		case Mechanism::kProps:
+			REX::TRACE("[Scene] scene {:#010x} prop undo — destroying {} prop(s)",
+				a_handle, props.size());
+			for (auto& prop : props) {
+				std::string error;
+				if (!Props::PropService::GetSingleton().Destroy(
+						prop.instance, &error)) {
+					REX::ERROR("[Scene] scene {:#010x} prop cleanup '{}' failed: {}",
+						a_handle, prop.id, error);
+				}
+			}
 			break;
 		}
 	}

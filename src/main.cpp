@@ -5,6 +5,7 @@
 #include "Animation/GraphManager.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputService.h"
+#include "Props/PropService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
@@ -55,6 +56,8 @@ namespace
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
+			REX::INFO("[Feature] Scene Props {}",
+				OSF::Props::PropService::GetSingleton().Available() ? "AVAILABLE" : "UNAVAILABLE");
 			break;
 		case SFSE::MessagingInterface::kPostPostDataLoad:
 			REX::INFO("[Feature] Input Hook {}", OSF::Input::InputService::GetSingleton().Install() ? "INSTALLED" : "UNAVAILABLE");
