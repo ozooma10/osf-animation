@@ -107,7 +107,24 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     }
     case "settings/open":
-      return { ...state, settingsOpen: action.open };
+      // The two full-panel surfaces cover the same console body, so opening one closes the other.
+      return { ...state, settingsOpen: action.open, importsOpen: action.open ? false : state.importsOpen };
+    case "imports/open":
+      return { ...state, importsOpen: action.open, settingsOpen: action.open ? false : state.settingsOpen };
+    case "imports/requested":
+      return { ...state, importsReceived: false };
+    case "imports/received":
+      return { ...state, importsReceived: true, imports: action.files, importTotals: action.totals };
+    case "imports/expanded": {
+      const importsExpanded = new Set(state.importsExpanded);
+      if (action.open) importsExpanded.add(action.path);
+      else importsExpanded.delete(action.path);
+      return { ...state, importsExpanded };
+    }
+    case "imports/problemsOnly":
+      return { ...state, importsProblemsOnly: !state.importsProblemsOnly };
+    case "imports/search":
+      return { ...state, importsSearch: action.search };
     case "cast/replaced":
       return { ...state, cast: action.members };
     case "cast/toggled": {
@@ -195,6 +212,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         mode: action.mode,
         lastBrowseMode: action.mode === "wheel" ? state.lastBrowseMode : action.mode,
         settingsOpen: false,
+        importsOpen: false,
       };
     case "browser/opened":
       return {
@@ -202,6 +220,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         mode: action.mode,
         lastBrowseMode: action.mode,
         settingsOpen: false,
+        importsOpen: false,
         ...(action.resetBrowsing ? {
           filters: { ...state.filters, search: "" },
           browseAll: false,
@@ -280,7 +299,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "wheel/reset":
       return { ...state, wheelCustomized: false, catalog: action.catalog, library: action.library };
     case "visibility/hidden":
-      return { ...state, wheel: null, mode: "scenes", settingsOpen: false, minimized: false, pickMode: null, actorIndicators: [], pickTargets: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
+      return { ...state, wheel: null, mode: "scenes", settingsOpen: false, importsOpen: false, minimized: false, pickMode: null, actorIndicators: [], pickTargets: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
     case "visibility/shown":
       return { ...state, viewVisible: true };
     case "seeded/remembered": {

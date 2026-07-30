@@ -3,7 +3,7 @@ import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/cont
 import { WHEEL_MAX, sceneById, wheelPool } from "../app/selectors";
 import { PREFERENCE_KEYS } from "../app/settings";
 import { PLAYER_TOKEN, type ActiveScene, type BrowserPreferences, type BrowserState } from "../app/state";
-import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_LIBRARY } from "./mock-data";
+import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
   // In the CLI harness these source modules are served through Vite's /@fs/
@@ -83,6 +83,8 @@ export class StandaloneBridge implements AnimationBridge {
       void fetchFixture("catalog").then((fixture) => this.emitCatalog(fixture ?? MOCK_CATALOG));
     } else if (command === "osf.animation.library.get") {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
+    } else if (command === "osf.animation.imports.get") {
+      this.later({ type: "osf.animation.imports.data", payload: MOCK_IMPORTS }, 90);
     } else if (command === "osf.animation.anchorMatch") {
       this.later({ type: "osf.animation.anchorMatch", payload: { token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[Number(fields.token)] ?? [] } }, 70);
     } else if (command === "osf.animation.pickScreen") {

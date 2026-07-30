@@ -40,7 +40,7 @@ import {
 } from "./state";
 import { OsfUiBridge, hasOsfUiBridge, type AnimationBridge } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
-import { normalizeCatalog, type SceneModel } from "../model";
+import { normalizeCatalog, normalizeImportReport, type SceneModel } from "../model";
 import type { DevCommands } from "../dev/debug";
 import {
   NO_DEV_COMMANDS,
@@ -137,8 +137,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   const noticeTimer = useRef<number | undefined>();
   const catalogTimer = useRef<number | undefined>();
   const libraryTimer = useRef<number | undefined>();
+  const importsTimer = useRef<number | undefined>();
   const catalogTries = useRef(0);
   const libraryTries = useRef(0);
+  const importsTries = useRef(0);
   const lastAdvance = useRef(0);
   const padHeld = useRef<{ id: number; timer?: number }>({ id: 0 });
 
@@ -173,6 +175,18 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     if (standalone) return;
     if (libraryTries.current++ < 5) libraryTimer.current = window.setTimeout(() => requestLibrary(false), 1500);
     else if (!stateRef.current.libraryReceived) showNotice("err", "No response from OSF Animation. The animation library didn't load — make sure a save is loaded.");
+  }, [send, standalone, showNotice]);
+
+  // Unlike the catalog and the library, this is only fetched while the IMPORTS panel is open, so
+  // it retries briefly and then gives up quietly rather than warning about a runtime the rest of
+  // the browser is plainly talking to.
+  const requestImports = useCallback((fresh = false) => {
+    if (fresh) { importsTries.current = 0; dispatch({ type: "imports/requested" }); }
+    if (importsTimer.current) clearTimeout(importsTimer.current);
+    send("osf.animation.imports.get");
+    if (standalone) return;
+    if (importsTries.current++ < 4) importsTimer.current = window.setTimeout(() => requestImports(false), 1200);
+    else if (!stateRef.current.importsReceived) showNotice("err", "No import report from OSF Animation — the engine did not answer.");
   }, [send, standalone, showNotice]);
 
   handlerRef.current = (message) => {
@@ -222,6 +236,12 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         if (libraryTimer.current) clearTimeout(libraryTimer.current);
         dispatch({ type: "library/received", scenes: normalizeCatalog(payload, true) });
         break;
+      case "osf.animation.imports.data": {
+        if (importsTimer.current) clearTimeout(importsTimer.current);
+        const report = normalizeImportReport(payload);
+        dispatch({ type: "imports/received", files: report.files, totals: report.totals });
+        break;
+      }
       case "osf.animation.wheel.data": {
         if (!stateRef.current.wheel) break;
         const entries: WheelEntry[] = Array.isArray(record.entries) ? record.entries.filter(isRecord).map((entry) => {
@@ -357,7 +377,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       requestLibrary(true);
     }
     send("settings.get");
-    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (padHeld.current.timer) clearTimeout(padHeld.current.timer); };
+    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (importsTimer.current) clearTimeout(importsTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (padHeld.current.timer) clearTimeout(padHeld.current.timer); };
   }, []);
 
   useEffect(() => {
@@ -420,6 +440,17 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     selectScene: (sceneId, stage = null) => dispatch({ type: "selection/changed", sceneId, stage }),
     setSearch: (search) => dispatch({ type: "filter/search", search: search.trim().toLowerCase() }),
     toggleSettings: (open) => dispatch({ type: "settings/open", open: open ?? !stateRef.current.settingsOpen }),
+    toggleImports: (open) => {
+      const next = open ?? !stateRef.current.importsOpen;
+      dispatch({ type: "imports/open", open: next });
+      // Re-fetch on every open: the report describes the last load, and ReloadPacks (or a fresh
+      // pack dropped in) can have happened since — a cached one would quietly lie.
+      if (next) requestImports(true);
+    },
+    refreshImports: () => requestImports(true),
+    toggleImportFile: (path, open) => dispatch({ type: "imports/expanded", path, open }),
+    toggleImportProblemsOnly: () => dispatch({ type: "imports/problemsOnly" }),
+    setImportSearch: (value) => dispatch({ type: "imports/search", search: value.trim().toLowerCase() }),
     setPreference: (key, value) => {
       dispatch({ type: "settings/received", preferences: { [key]: value } as Partial<BrowserPreferences> });
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });
@@ -530,7 +561,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     requestClose: () => send("osf.animation.requestClose"),
     orbit: (dx, dy, wheel) => send("osf.animation.orbit", { dx, dy, wheel }),
     openModPage: (url) => { if (standalone) window.open(url, "_blank", "noopener"); else send("osfui.openModPage"); },
-  }), [requestCatalog, requestLibrary, send, showNotice, standalone]);
+  }), [requestCatalog, requestLibrary, requestImports, send, showNotice, standalone]);
 
   const debugCommands = useMemo<DevCommands>(
     () => import.meta.env.DEV ? createDebugCommands({ dispatch, send, requestCatalog, stateRef }) : NO_DEV_COMMANDS,

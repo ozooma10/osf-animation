@@ -2,6 +2,14 @@
 
 All notable changes to OSF Animation are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **Clips a pack registers through `clipLibrary` now appear in the browser for everyone.** They were being treated as the engine's own raw-clip debug entries and hidden unless **Show author details** was on, so a pack shipping a curated clip library and no scenes — Moods of Andromas, for one — loaded perfectly (no errors, clips found) and still showed nothing. Registered clips and the entries OSF derives automatically from a scene's stages share an id namespace; the catalog now marks a registration explicitly, and only the derived entries stay author-only. Scene ids are unchanged, so animation-wheel pins survive.
+
+### Added
+- **A scene-file import report in the Animation Browser.** A new **IMPORTS** button in the browser header opens a listing of every `*.osf.json` the engine scanned under `Data/OSF`, worst-first — including files that contributed nothing, which is exactly the case the scene catalog can never show. Each row carries what that file produced (scenes, nodes, stages, roles, clip slots, distinct clips, cues/actions/sounds/cameras, generated clip entries, species), how big it is and how long it took to read, its declared `schema` and `pack`, and every load error or warning attributed to it. Rows expand for the full breakdown and problem text; a summary strip totals the load; a filter narrows to files needing attention or searches file, pack, and problem text. The header button carries the verdict so a load with rejected content is visible without opening anything. This is additive — `OSF.GetSceneLoadErrors`, the log, and the System Health cards are unchanged.
+
 ## [1.4.0] - 2026-07-30
 
 ### Added

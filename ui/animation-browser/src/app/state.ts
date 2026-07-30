@@ -1,4 +1,4 @@
-import type { SceneModel } from "../model";
+import { EMPTY_IMPORT_TOTALS, type ImportFile, type ImportTotals, type SceneModel } from "../model";
 
 export const PLAYER_TOKEN = -1;
 
@@ -198,6 +198,16 @@ export interface BrowserState {
   wheel: WheelState | null;
   preferences: BrowserPreferences;
   settingsOpen: boolean;
+  /** The per-file import report panel. Mutually exclusive with `settingsOpen`. */
+  importsOpen: boolean;
+  imports: ImportFile[];
+  importTotals: ImportTotals;
+  importsReceived: boolean;
+  /** Expanded import rows, keyed by file path. */
+  importsExpanded: ReadonlySet<string>;
+  /** Hide files that loaded cleanly, leaving only the ones with something to fix. */
+  importsProblemsOnly: boolean;
+  importsSearch: string;
   lastBrowseMode: BrowseMode;
   minimized: boolean;
   /** Explicit group disclosure choices. Missing keys fall back to selection-driven opening. */
@@ -247,6 +257,13 @@ export function createInitialState(): BrowserState {
     wheel: null,
     preferences: { ...DEFAULT_PREFERENCES },
     settingsOpen: false,
+    importsOpen: false,
+    imports: [],
+    importTotals: { ...EMPTY_IMPORT_TOTALS },
+    importsReceived: false,
+    importsExpanded: new Set(),
+    importsProblemsOnly: false,
+    importsSearch: "",
     lastBrowseMode: "scenes",
     minimized: false,
     libOpen: new Map(),

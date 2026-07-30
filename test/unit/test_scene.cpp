@@ -59,6 +59,8 @@ int main()
 
 	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
+	std::int32_t curatedFlagged = 0;   // registered entries carrying curatedClip
+	std::int32_t harvestedFlagged = 0;  // entries harvested from a scene's stages (curatedClip false)
 	bool friendlyFound = false;
 	bool fallbackFound = false;
 	bool animatedFound = false;
@@ -90,6 +92,12 @@ int main()
 		if (d.library && d.pack == "Test Clip Duplicate") {
 			++duplicateCount;
 		}
+		// The browser shows registered clips to everyone and keeps harvested ones behind author
+		// details, and `curatedClip` is the ONLY thing that separates them — a registration may
+		// carry no name, folder or tags at all, so nothing else in the def can stand in for it.
+		if (d.library && d.tagSet.contains("scene.clip")) {
+			(d.curatedClip ? curatedFlagged : harvestedFlagged) += 1;
+		}
 	});
 	Check(curatedCount == 3, "registered clip de-duplicates against the same scene-referenced clip");
 	Check(friendlyFound, "clipLibrary friendly name, folder override, tags, clipRoot, and safe playback posture");
@@ -98,6 +106,9 @@ int main()
 	Check(clipOnlyFound, "clipLibrary-only file loads without a dummy scene");
 
 	Check(duplicateCount == 1, "duplicate explicit clip registration keeps the first entry");
+	// 5 registrations survive across the fixtures (3 in Test Clip Library, 1 Only, 1 Duplicate).
+	Check(curatedFlagged == 5, "every clipLibrary registration is flagged curated");
+	Check(harvestedFlagged > 0, "clips harvested from scene stages are NOT flagged curated");
 	// -- bare single-scene file: top-level roles is that scene's roles (unchanged) --------------
 	if (const auto s = reg.Find("test.bare")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "solo", "bare scene keeps its inline roles");
@@ -326,6 +337,76 @@ int main()
 		"invalid clipLibrary folder diagnostic names the path problem");
 	Check(!OSF::Animation::NormalizePoseWeight(std::numeric_limits<double>::quiet_NaN()).has_value(),
 		"non-finite poseWeight normalization rejects NaN");
+
+	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
+	{
+		const auto files = reg.FileStats();
+		Check(files.size() == 12, "one import record per discovered *.osf.json");
+
+		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::SceneFileStats* {
+			for (const auto& f : files) {
+				if (f.file == a_name) {
+					return &f;
+				}
+			}
+			return nullptr;
+		};
+
+		std::uint32_t accepted = 0;
+		std::uint32_t owned = 0;
+		bool sorted = true;
+		bool pathsRelative = true;
+		for (std::size_t i = 0; i < files.size(); ++i) {
+			accepted += files[i].scenes;
+			owned += static_cast<std::uint32_t>(files[i].problems.size());
+			if (i && files[i - 1].path > files[i].path) {
+				sorted = false;
+			}
+			// Never an absolute path, and always forward-slashed.
+			if (files[i].path.find(':') != std::string::npos || files[i].path.find('\\') != std::string::npos) {
+				pathsRelative = false;
+			}
+		}
+		Check(accepted == 21, "per-file scene counts sum to the authored total");
+		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
+		Check(sorted, "import records are sorted by path");
+		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
+
+		const auto* bare = find("fixture_bare.osf.json");
+		Check(bare && bare->scenes == 1, "the bare single-scene fixture reports one scene");
+		Check(bare && bare->schema == OSF::Registry::kSchemaVersion, "the declared schema is recorded");
+		Check(bare && bare->bytes > 0, "the file size is recorded");
+		Check(bare && bare->nodes > 0 && bare->stages > 0 && bare->clips > 0,
+			"node/stage/clip totals are recorded");
+		Check(bare && bare->distinctClips > 0 && bare->distinctClips <= bare->clips,
+			"distinct clips are counted and never exceed the clip slots");
+		Check(bare && bare->errors == 0 && bare->warnings == 0, "a clean file reports no problems");
+		Check(bare && !bare->Rejected(), "a clean file is not flagged rejected");
+
+		// Whole-file reject: the record still exists, which is the whole point — a pack that
+		// contributed nothing has to be visible as such, not simply absent.
+		const auto* malformed = find("fixture_malformed_type.osf.json");
+		Check(malformed && malformed->scenes == 0 && malformed->errors == 1,
+			"a rejected file keeps a record carrying its reject line");
+		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
+
+		// Partial file: some scenes in, six rejected, so it is NOT "rejected".
+		const auto* partial = find("fixture_registry_errors.osf.json");
+		Check(partial && partial->scenes == 1 && partial->errors == 6,
+			"a partially-loaded file reports both its scenes and its rejected ones");
+		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
+
+		const auto* clipLib = find("fixture_clip_library.osf.json");
+		Check(clipLib && clipLib->clipEntries > 0, "generated clip entries are attributed to their file");
+		Check(clipLib && clipLib->pack == "Test Clip Library", "the file-level pack label is recorded");
+
+		// A clipLibrary-ONLY file declares no scenes, so its contribution is visible only through
+		// the generated-entry count — and that alone has to keep it off the rejected list.
+		const auto* clipOnly = find("fixture_clip_only.osf.json");
+		Check(clipOnly && clipOnly->scenes == 0 && clipOnly->clipEntries > 0,
+			"a clipLibrary-only file reports zero scenes and its generated entries");
+		Check(clipOnly && !clipOnly->Rejected(), "a file contributing only clip entries is not rejected");
+	}
 
 	if (g_failures) {
 		std::cerr << g_failures << " scene registry test(s) FAILED\n";

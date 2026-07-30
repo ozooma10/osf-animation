@@ -622,6 +622,10 @@ namespace OSF::API
 				bool                     inPlace = false;
 				std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
 				bool                     unlisted = false;
+				// Generated one-clip entry that a pack REGISTERED via `clipLibrary`, as opposed to
+				// one harvested from a scene's stages. Both carry the `osf.scene-clip/` id, so the
+				// browser cannot tell authored content from its own debug surface without this.
+				bool                     curated = false;
 				std::int32_t             pinned = 0;  // 1-based explicit wheel order (0 = absent/default-derived)
 				std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
 				float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
@@ -675,6 +679,7 @@ namespace OSF::API
 					c.anchorNames.push_back(edid && edid[0] ? std::string{ edid } : std::format("{:#010x}", b));
 				}
 				c.unlisted = d.unlisted;
+				c.curated = d.curatedClip;
 				c.pinned = wheelOrder(d.id, -1);
 				// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 				c.stages.reserve(d.linearStages.size());
@@ -798,6 +803,7 @@ namespace OSF::API
 					{ "inPlace", c.inPlace },
 					{ "anchors", c.anchorNames },
 					{ "unlisted", c.unlisted },
+					{ "curated", c.curated },
 					{ "wheelCustomized", wheelCustomized },
 					{ "pinned", c.pinned },
 					{ "stageCount", static_cast<std::int32_t>(c.stages.size()) },
@@ -809,6 +815,98 @@ namespace OSF::API
 			}
 			REX::DEBUG("[UI] {} built -> {} entr{}", a_library ? "library" : "catalog", cards.size(), cards.size() == 1 ? "y" : "ies");
 			return arr;
+		}
+
+		// At most this many problem lines travel per file. The full set stays in the log and in
+		// OSF.GetSceneLoadErrors(); a pack with 300 bad scenes must not turn one reply into a
+		// megabyte of text the panel cannot render anyway. The counts are always exact.
+		constexpr std::size_t kMaxProblemsPerFile = 12;
+
+		// Serialize the registry's per-file import records to osf.animation.imports.data. This is a
+		// FILE-shaped view of the load, deliberately unlike the catalog's scene-shaped one: a file
+		// that produced nothing has no scene to appear as, and "my pack didn't load" is precisely
+		// the question the catalog cannot answer.
+		json BuildFileReport()
+		{
+			const auto stats = Registry::SceneRegistry::GetSingleton().FileStats();
+
+			json files = json::array();
+			std::uint64_t totalScenes = 0, totalClipEntries = 0, totalErrors = 0, totalWarnings = 0;
+			std::uint64_t totalHidden = 0, totalMissing = 0, totalBytes = 0;
+			std::uint32_t rejectedFiles = 0, realFiles = 0;
+			float totalMs = 0.0f;
+			for (const auto& s : stats) {
+				totalScenes += s.scenes;
+				totalClipEntries += s.clipEntries;
+				totalErrors += s.errors;
+				totalWarnings += s.warnings;
+				totalHidden += s.hidden;
+				totalMissing += s.missingClips;
+				totalBytes += s.bytes;
+				totalMs += s.parseMs;
+				// The trailing cross-file bucket has no path and is not a file — it must not count
+				// toward "N files scanned" or it reads as a phantom pack.
+				if (!s.path.empty()) {
+					++realFiles;
+					rejectedFiles += s.Rejected() ? 1u : 0u;
+				}
+
+				json problems = json::array();
+				for (std::size_t i = 0; i < s.problems.size() && i < kMaxProblemsPerFile; ++i) {
+					problems.push_back(s.problems[i]);
+				}
+				files.push_back({
+					{ "path", s.path },
+					{ "file", s.file },
+					{ "pack", s.pack },
+					{ "library", s.library },
+					{ "schema", s.schema },
+					{ "bytes", s.bytes },
+					{ "parseMs", s.parseMs },
+					{ "scenes", s.scenes },
+					{ "hidden", s.hidden },
+					{ "unlisted", s.unlisted },
+					{ "anchored", s.anchored },
+					{ "nodes", s.nodes },
+					{ "stages", s.stages },
+					{ "roles", s.roles },
+					{ "clips", s.clips },
+					{ "distinctClips", s.distinctClips },
+					{ "missingClips", s.missingClips },
+					{ "cues", s.cues },
+					{ "actions", s.actions },
+					{ "sounds", s.sounds },
+					{ "cameras", s.cameras },
+					{ "clipEntries", s.clipEntries },
+					{ "species", s.species },
+					{ "errors", s.errors },
+					{ "warnings", s.warnings },
+					{ "rejected", s.Rejected() },
+					{ "problems", std::move(problems) },
+					// So the panel can say "12 of 40 shown" instead of silently truncating.
+					{ "problemCount", static_cast<std::uint32_t>(s.problems.size()) },
+				});
+			}
+
+			REX::DEBUG("[UI] import report built -> {} file record(s), {} problem(s)", stats.size(), totalErrors + totalWarnings);
+			return {
+				{ "files", std::move(files) },
+				{ "totals", {
+					{ "files", realFiles },
+					{ "rejectedFiles", rejectedFiles },
+					{ "scenes", totalScenes },
+					// The registry's own authored count, so a mismatch with the per-file sum is
+					// visible rather than silently averaged away.
+					{ "registered", static_cast<std::uint64_t>(Registry::SceneRegistry::GetSingleton().Size()) },
+					{ "clipEntries", totalClipEntries },
+					{ "hidden", totalHidden },
+					{ "missingClips", totalMissing },
+					{ "errors", totalErrors },
+					{ "warnings", totalWarnings },
+					{ "bytes", totalBytes },
+					{ "parseMs", totalMs },
+				} },
+			};
 		}
 
 		// The host segment of the identity payload: OSF UI's installed version, plus the
@@ -857,6 +955,14 @@ namespace OSF::API
 		void OnLibraryGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.library.data", BuildCatalog(true));
+		}
+
+		// The per-file import report. Static between ReloadPacks calls like the library, but small
+		// and asked for rarely (only while the IMPORTS panel is open), so it is rebuilt per request
+		// rather than cached — a cache would just be one more thing to invalidate on reload.
+		void OnImportsGet(const char*, const char*, const char* a_srcView, void*) noexcept
+		{
+			SendJson(a_srcView, "osf.animation.imports.data", BuildFileReport());
 		}
 
 		struct SafeViewProjection
@@ -2480,6 +2586,7 @@ namespace OSF::API
 		g_ui.SetReadyCallback(&OnBridgeReady, nullptr);
 		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
+		g_ui.RegisterCommand("osf.animation.imports.get", &OnImportsGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.pickScreen", &OnPickScreen, nullptr);
 		g_ui.RegisterCommand("osf.animation.projectPickables", &OnProjectPickables, nullptr);
 		g_ui.RegisterCommand("osf.animation.projectActors", &OnProjectActors, nullptr);

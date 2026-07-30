@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateScene, normalizeScene, safeNormalizeScene } from "../src/model";
+import { evaluateScene, normalizeImportReport, normalizeScene, safeNormalizeScene } from "../src/model";
 
 describe("scene normalization", () => {
   it("normalizes registry defaults and duration values", () => {
@@ -58,5 +58,44 @@ describe("scene readiness", () => {
       anchorMatch: { token: 7, ids: new Set(["bar.scene"]) },
     });
     expect(match.gaps).toBe(0);
+  });
+});
+
+describe("import report normalization", () => {
+  it("fills every field from a sparse native payload", () => {
+    const report = normalizeImportReport({
+      files: [{ path: "GE/chair.osf.json", file: "chair.osf.json", scenes: 3 }],
+      totals: { files: 1, scenes: 3 },
+    });
+    expect(report.files[0]).toMatchObject({
+      path: "GE/chair.osf.json",
+      file: "chair.osf.json",
+      pack: "",
+      library: false,
+      scenes: 3,
+      nodes: 0,
+      species: [],
+      problems: [],
+      problemCount: 0,
+      rejected: false,
+    });
+    expect(report.totals).toMatchObject({ files: 1, scenes: 3, errors: 0, parseMs: 0 });
+  });
+
+  it("survives a malformed payload instead of throwing at the panel", () => {
+    expect(normalizeImportReport(null)).toEqual({ files: [], totals: expect.objectContaining({ files: 0 }) });
+    expect(normalizeImportReport({ files: "nope" }).files).toEqual([]);
+    const junk = normalizeImportReport({ files: [null, { scenes: -4, parseMs: "x", species: 7 }] });
+    expect(junk.files).toHaveLength(2);
+    expect(junk.files[1]).toMatchObject({ scenes: 0, parseMs: 0, species: [] });
+  });
+
+  it("never reports fewer problems than actually arrived", () => {
+    // A truncating native side sends 2 lines with a count of 40; a buggy one could send a count
+    // below the lines it shipped, which would make the panel claim negative hidden problems.
+    const truncated = normalizeImportReport({ files: [{ problems: ["[warn] a", "[error] b"], problemCount: 40 }] });
+    expect(truncated.files[0].problemCount).toBe(40);
+    const understated = normalizeImportReport({ files: [{ problems: ["[warn] a", "[error] b"], problemCount: 1 }] });
+    expect(understated.files[0].problemCount).toBe(2);
   });
 });

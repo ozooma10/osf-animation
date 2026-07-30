@@ -238,6 +238,12 @@ namespace OSF::Registry
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     unlisted = false;  // excluded from the matchmaking pool; only reachable by direct id
+		// Generated one-clip entry built from an EXPLICIT `clipLibrary` registration rather than
+		// harvested from a scene's stages. Both share the `osf.scene-clip/` id namespace, but only
+		// the harvested ones are a debug surface: a registration is authored content a pack shipped
+		// on purpose, so the browser must show it to everyone. Nothing else can tell them apart —
+		// an author may register a clip with no tags, name, or folder at all.
+		bool                     curatedClip = false;
 		bool                     library = false;   // file-level `section:"library"`: reference-library lane (osf.library.data), kept out of the main catalog
 		bool                     clipsAvailable = true;  // false: a referenced clip resolves to no installed file (compat pack without its source mod) — hidden from the catalog and matchmaking; a direct-id start still attempts and logs the load failure
 		bool                     lockPlayer = true; //Player input disabled by default when player participant
@@ -274,6 +280,47 @@ namespace OSF::Registry
 		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
+	// What ONE *.osf.json contributed to the registry: the author-facing import record behind the
+	// browser's IMPORTS panel. Every discovered file gets one, including a file that was rejected
+	// whole and contributed nothing — "my pack is missing" is answered by the row being present with
+	// zero scenes and its reject line attached, which a scene-shaped view can never show.
+	// Aggregated from the FINAL scene set, so the counts are what actually reached the registry.
+	struct SceneFileStats
+	{
+		// Never an absolute path: it names the player's machine and account. `path` is relative to
+		// Data/OSF, which is what actually disambiguates two packs both shipping "scenes.osf.json".
+		std::string   file;              // file name only
+		std::string   path;              // slash-delimited, relative to Data/OSF ("" = the cross-file bucket)
+		std::string   pack;              // file-level `pack` label ("" = none authored)
+		bool          library = false;   // file-level section:"library" (reference lane)
+		std::int64_t  schema = 0;        // declared `schema` (0 = absent, unreadable, or the file failed to parse)
+		std::uint64_t bytes = 0;         // size on disk
+		float         parseMs = 0.0f;    // read + parse + validate wall time for this file
+
+		std::uint32_t scenes = 0;        // scenes accepted into the registry
+		std::uint32_t hidden = 0;        //   ...of those, hidden by the availability sweep (!clipsAvailable)
+		std::uint32_t unlisted = 0;      //   ...of those, out of the matchmaking pool (direct id only)
+		std::uint32_t anchored = 0;      //   ...of those, anchor-bound (furniture/marker required)
+		std::uint32_t nodes = 0;
+		std::uint32_t stages = 0;
+		std::uint32_t roles = 0;
+		std::uint32_t clips = 0;          // clip slots (stage x role) — what playback will actually load
+		std::uint32_t distinctClips = 0;  // distinct clip specs referenced
+		std::uint32_t missingClips = 0;   //   ...of those, ones that resolve to no installed file
+		std::uint32_t cues = 0;           // track-lane entries, summed over every accepted node
+		std::uint32_t actions = 0;
+		std::uint32_t sounds = 0;
+		std::uint32_t cameras = 0;
+		std::uint32_t clipEntries = 0;    // generated one-clip library entries sourced from this file
+		std::vector<std::string> species;  // distinct skeleton families, sorted
+
+		std::uint32_t errors = 0;
+		std::uint32_t warnings = 0;
+		std::vector<std::string> problems;  // this file's "[error] ..."/"[warn] ..." lines, in load order
+
+		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && clipEntries == 0 && errors > 0; }
+	};
+
 	// Immutable publication unit. Reload builds one privately and atomically replaces the current
 	// pointer; readers and live scenes retain shared ownership of the exact definitions they use.
 	struct SceneRegistrySnapshot
@@ -281,6 +328,9 @@ namespace OSF::Registry
 		std::unordered_map<std::string, SceneDef> scenes;
 		std::vector<std::string> loadErrors;
 		size_t authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
+		// One record per discovered *.osf.json, sorted by `path`. A trailing record with an empty
+		// `path` collects problems no single file owns (there normally are none).
+		std::vector<SceneFileStats> files;
 	};
 
 	class SceneRef
@@ -337,6 +387,9 @@ namespace OSF::Registry
 
 		// Problems (errors + warnings) from the last LoadAll, for OSF.GetSceneLoadErrors().
 		std::vector<std::string> LoadErrors() const;
+
+		// Per-file import records from the last LoadAll, sorted by path (see SceneFileStats).
+		std::vector<SceneFileStats> FileStats() const;
 
 		// Data-relative clip references from loaded scenes whose resolved file does not currently exist.
 		std::vector<std::string> MissingClipRefs() const;

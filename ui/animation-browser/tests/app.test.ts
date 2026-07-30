@@ -17,12 +17,17 @@ import {
   playableVisible,
   readableAnimationName,
   validSelection,
+  importSeverity,
+  isGeneratedSceneClip,
+  visibleImports,
+  formatBytes,
+  formatMillis,
   wheelGeometry,
   wheelPool,
 } from "../src/app/selectors";
 import { PLAYER_CAST, createInitialState } from "../src/app/state";
 import { decodePreferences, preferredOpenMode } from "../src/app/settings";
-import { normalizeScene } from "../src/model";
+import { normalizeImportReport, normalizeScene, type ImportFile } from "../src/model";
 
 const solo = normalizeScene({
   id: "solo",
@@ -349,6 +354,49 @@ describe("browser selectors", () => {
     expect(validSelection(authorState)).toBe(imported.id);
   });
 
+  it("shows clipLibrary registrations to everyone, not only to authors", () => {
+    // A pack may ship nothing but a clipLibrary — the registrations ARE its content. They share
+    // the osf.scene-clip/ id namespace with the harvested debug entries, so only `curated`
+    // separates them; treating both as debug made such a pack invisible in the browser.
+    // Both shapes as the engine actually serializes them: one anonymous role, unlisted, in the
+    // library lane, tagged only `scene.clip` when the author supplied no tags of their own.
+    const registered = normalizeScene({
+      id: "osf.scene-clip/aaa",
+      title: "Hand Extended 01",
+      tags: ["scene.clip"],
+      curated: true,
+      unlisted: true,
+      actorCount: 1,
+      genders: ["any"],
+      pack: "Moods of Andromas",
+      folder: "Standing",
+      stages: [{ index: 0, name: "Hand Extended 01", tags: ["scene.clip"], clipCount: 1, openEnded: true }],
+    });
+    const harvested = normalizeScene({
+      id: "osf.scene-clip/bbb",
+      title: "NAF\\RZSPU02.glb",
+      tags: ["scene.clip"],
+      unlisted: true,
+      actorCount: 1,
+      genders: ["any"],
+      stages: [{ index: 0, name: "NAF\\RZSPU02.glb", tags: ["scene.clip"], clipCount: 1, openEnded: true }],
+    });
+    expect(isGeneratedSceneClip(registered)).toBe(false);
+    expect(isGeneratedSceneClip(harvested)).toBe(true);
+
+    // Stock preferences: author details off, poses-and-loops tier, custom+vanilla, no search.
+    const state = { ...createInitialState(), library: [registered, harvested], libraryReceived: true };
+    const visible = playableItems(state).filter((item) => playableVisible(state, item));
+    expect(visible.map((item) => item.scene.id)).toEqual([registered.id]);
+    // Ready with the default player-only cast, so it lands in the playable list, not the
+    // "needs a different cast" bucket that stays folded away.
+    expect(evaluateForState(state, registered).gaps).toBe(0);
+
+    const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
+    expect(playableItems(authorState).map((item) => item.scene.id).sort())
+      .toEqual([registered.id, harvested.id].sort());
+  });
+
   it("projects library stages as playables while keeping their set as collection metadata", () => {
     const set = normalizeScene({
       id: "vanilla/photomode",
@@ -374,4 +422,71 @@ describe("browser selectors", () => {
     ]);
   });
 
+});
+
+describe("import report panel", () => {
+  const file = (over: Partial<ImportFile>): ImportFile =>
+    normalizeImportReport({ files: [over] }).files[0];
+
+  it("keeps the two full-panel surfaces mutually exclusive", () => {
+    const settings = browserReducer(createInitialState(), { type: "settings/open", open: true });
+    const imports = browserReducer(settings, { type: "imports/open", open: true });
+    expect(imports).toMatchObject({ importsOpen: true, settingsOpen: false });
+    expect(browserReducer(imports, { type: "settings/open", open: true }))
+      .toMatchObject({ importsOpen: false, settingsOpen: true });
+  });
+
+  it("closes with the rest of the console when the view is hidden", () => {
+    const open = browserReducer(createInitialState(), { type: "imports/open", open: true });
+    expect(browserReducer(open, { type: "visibility/hidden" }).importsOpen).toBe(false);
+    expect(browserReducer(open, { type: "browser/opened", mode: "scenes", resetBrowsing: false }).importsOpen).toBe(false);
+    expect(browserReducer(open, { type: "mode/changed", mode: "active" }).importsOpen).toBe(false);
+  });
+
+  it("tracks per-file disclosure independently", () => {
+    const base = createInitialState();
+    const one = browserReducer(base, { type: "imports/expanded", path: "a.osf.json", open: true });
+    const two = browserReducer(one, { type: "imports/expanded", path: "b.osf.json", open: true });
+    expect([...two.importsExpanded]).toEqual(["a.osf.json", "b.osf.json"]);
+    expect([...browserReducer(two, { type: "imports/expanded", path: "a.osf.json", open: false }).importsExpanded])
+      .toEqual(["b.osf.json"]);
+  });
+
+  it("ranks a file by its worst outcome", () => {
+    expect(importSeverity(file({ scenes: 3 }))).toBe("ok");
+    // Loaded without complaint but contributed nothing — never an error, always worth seeing.
+    expect(importSeverity(file({}))).toBe("note");
+    expect(importSeverity(file({ scenes: 3, warnings: 1 }))).toBe("warn");
+    // Hidden scenes and missing clips are warnings even when the load itself said nothing.
+    expect(importSeverity(file({ scenes: 3, hidden: 2 }))).toBe("warn");
+    expect(importSeverity(file({ scenes: 3, missingClips: 4 }))).toBe("warn");
+    expect(importSeverity(file({ scenes: 3, warnings: 1, errors: 1 }))).toBe("error");
+  });
+
+  it("sorts worst-first and filters by search and problems-only", () => {
+    const report = normalizeImportReport({ files: [
+      { path: "a/clean.osf.json", file: "clean.osf.json", scenes: 2 },
+      { path: "b/broken.osf.json", file: "broken.osf.json", errors: 1, problems: ["[error] 'broken.osf.json': schema 0 unsupported"] },
+      { path: "c/warned.osf.json", file: "warned.osf.json", scenes: 1, warnings: 1, problems: ["[warn] 'warned.osf.json': 1 scene(s) hidden"] },
+    ] });
+    const state = { ...createInitialState(), imports: report.files, importsReceived: true };
+
+    expect(visibleImports(state).map((entry) => entry.file))
+      .toEqual(["broken.osf.json", "warned.osf.json", "clean.osf.json"]);
+    expect(visibleImports({ ...state, importsProblemsOnly: true }).map((entry) => entry.file))
+      .toEqual(["broken.osf.json", "warned.osf.json"]);
+    // Search covers the problem text, because an author usually has the message, not the filename.
+    expect(visibleImports({ ...state, importsSearch: "schema 0" }).map((entry) => entry.file))
+      .toEqual(["broken.osf.json"]);
+    expect(visibleImports({ ...state, importsSearch: "a/clean" }).map((entry) => entry.file))
+      .toEqual(["clean.osf.json"]);
+  });
+
+  it("formats sizes and durations at readable magnitudes", () => {
+    // Under 10 KB keeps a decimal (small files differ meaningfully); above it rounds.
+    expect([formatBytes(0), formatBytes(812), formatBytes(4_096), formatBytes(24_118), formatBytes(1_204_886)])
+      .toEqual(["0 B", "812 B", "4.0 KB", "24 KB", "1.1 MB"]);
+    expect([formatMillis(0), formatMillis(0.42), formatMillis(148.2), formatMillis(1_810)])
+      .toEqual(["0 ms", "0.4 ms", "148 ms", "1.81 s"]);
+  });
 });

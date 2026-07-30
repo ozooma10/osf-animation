@@ -129,7 +129,11 @@ or stops it. A clip-only file needs no dummy scene or `id`:
   Display casing is preserved, while grouping is case-insensitive.
 - Use folders for hierarchy and `tags` only for optional cross-cutting facets that may span folders.
   The pack already identifies the source mod, and `scene.clip` already identifies a raw clip.
-- A registered clip appears even when no scene references it.
+- A registered clip appears even when no scene references it, and it appears for every player —
+  unlike the entries OSF derives automatically from a scene's stages, which stay behind the
+  browser's **Show author details** switch because they are a raw-clip debug surface. The two share
+  an id namespace, so the catalog marks a registration `curated:true`; a pack that ships nothing but
+  a `clipLibrary` is normal, complete content.
 - When a scene in the same pack/file group references the same file + animation id, OSF creates one
   library item and the explicit registration's `name`/`folder`/`tags` win over derived metadata.
 - Duplicate explicit registrations for the same file + animation id in one pack/file group are a

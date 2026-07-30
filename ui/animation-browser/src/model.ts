@@ -30,6 +30,9 @@ export interface SceneModel {
   inPlace: boolean;
   anchors: string[];
   unlisted: boolean;
+  /** A generated one-clip entry a pack registered via `clipLibrary` — authored content that
+   *  happens to share the `osf.scene-clip/` id namespace with the auto-harvested debug entries. */
+  curated: boolean;
   wheelCustomized: boolean;
   pinned: number;
   priority: number;
@@ -76,6 +79,7 @@ export function normalizeScene(raw: Raw): SceneModel {
     inPlace: Boolean(raw.inPlace),
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map(String) : [],
     unlisted: Boolean(raw.unlisted),
+    curated: Boolean(raw.curated),
     wheelCustomized: Boolean(raw.wheelCustomized),
     pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
@@ -193,6 +197,142 @@ function normalizePolicy(raw: Raw): SceneModel["policy"] {
     fade: policyText(raw.fade, undefined, "off") as "on" | "off",
     camera: String(raw.camera || "inherit"),
     playerControl: raw.playerControl || null,
+  };
+}
+
+// ---- import report (osf.animation.imports.data) -----------------------------------------------
+// A FILE-shaped view of the last registry load, deliberately unlike the scene-shaped catalog: a
+// file that produced no scenes has nothing to appear as in the catalog, and "why is my pack
+// missing" is exactly the question only this shape can answer.
+
+/** What one *.osf.json contributed to the registry. */
+export interface ImportFile {
+  /** Data/OSF-relative, forward-slashed. Empty on the trailing cross-file problem bucket. */
+  path: string;
+  file: string;
+  pack: string;
+  library: boolean;
+  /** Declared `schema` — 0 when absent, non-integer, or the file never parsed. */
+  schema: number;
+  bytes: number;
+  parseMs: number;
+  scenes: number;
+  hidden: number;
+  unlisted: number;
+  anchored: number;
+  nodes: number;
+  stages: number;
+  roles: number;
+  clips: number;
+  distinctClips: number;
+  missingClips: number;
+  cues: number;
+  actions: number;
+  sounds: number;
+  cameras: number;
+  clipEntries: number;
+  species: string[];
+  errors: number;
+  warnings: number;
+  /** Contributed nothing and reported at least one error. */
+  rejected: boolean;
+  /** Bounded by the native side; `problemCount` is the true total. */
+  problems: string[];
+  problemCount: number;
+}
+
+export interface ImportTotals {
+  files: number;
+  rejectedFiles: number;
+  scenes: number;
+  /** The registry's own authored count, so a drift from the per-file sum stays visible. */
+  registered: number;
+  clipEntries: number;
+  hidden: number;
+  missingClips: number;
+  errors: number;
+  warnings: number;
+  bytes: number;
+  parseMs: number;
+}
+
+export interface ImportReport {
+  files: ImportFile[];
+  totals: ImportTotals;
+}
+
+export const EMPTY_IMPORT_TOTALS: ImportTotals = {
+  files: 0,
+  rejectedFiles: 0,
+  scenes: 0,
+  registered: 0,
+  clipEntries: 0,
+  hidden: 0,
+  missingClips: 0,
+  errors: 0,
+  warnings: 0,
+  bytes: 0,
+  parseMs: 0,
+};
+
+function count(value: unknown): number {
+  const number = Math.trunc(Number(value));
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+export function normalizeImportReport(payload: unknown): ImportReport {
+  const raw: Raw = payload && typeof payload === "object" ? (payload as Raw) : {};
+  const files = Array.isArray(raw.files) ? raw.files : [];
+  const totals: Raw = raw.totals && typeof raw.totals === "object" ? raw.totals : {};
+  return {
+    files: files.map((value): ImportFile => {
+      const entry: Raw = value && typeof value === "object" ? value : {};
+      const problems = Array.isArray(entry.problems) ? entry.problems.map(String) : [];
+      return {
+        path: String(entry.path || ""),
+        file: String(entry.file || ""),
+        pack: String(entry.pack || "").trim(),
+        library: Boolean(entry.library),
+        schema: count(entry.schema),
+        bytes: count(entry.bytes),
+        parseMs: Number.isFinite(Number(entry.parseMs)) ? Math.max(0, Number(entry.parseMs)) : 0,
+        scenes: count(entry.scenes),
+        hidden: count(entry.hidden),
+        unlisted: count(entry.unlisted),
+        anchored: count(entry.anchored),
+        nodes: count(entry.nodes),
+        stages: count(entry.stages),
+        roles: count(entry.roles),
+        clips: count(entry.clips),
+        distinctClips: count(entry.distinctClips),
+        missingClips: count(entry.missingClips),
+        cues: count(entry.cues),
+        actions: count(entry.actions),
+        sounds: count(entry.sounds),
+        cameras: count(entry.cameras),
+        clipEntries: count(entry.clipEntries),
+        species: Array.isArray(entry.species) ? entry.species.map(String) : [],
+        errors: count(entry.errors),
+        warnings: count(entry.warnings),
+        rejected: Boolean(entry.rejected),
+        problems,
+        // Never let a stale/short `problemCount` claim fewer lines than actually arrived.
+        problemCount: Math.max(count(entry.problemCount), problems.length),
+      };
+    }),
+    totals: {
+      files: count(totals.files),
+      rejectedFiles: count(totals.rejectedFiles),
+      scenes: count(totals.scenes),
+      registered: count(totals.registered),
+      clipEntries: count(totals.clipEntries),
+      hidden: count(totals.hidden),
+      missingClips: count(totals.missingClips),
+      errors: count(totals.errors),
+      warnings: count(totals.warnings),
+      bytes: count(totals.bytes),
+      parseMs: Number.isFinite(Number(totals.parseMs)) ? Math.max(0, Number(totals.parseMs)) : 0,
+    },
   };
 }
 

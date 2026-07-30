@@ -29,6 +29,12 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   show a "needs update" badge on the Mods surface, nothing is gated).
 - **Contract (`osf.animation.*`):**
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
+  `imports.get`→`imports.data` (the per-file registry-load report behind the
+  IMPORTS panel: one record per `*.osf.json` the engine scanned — counts, timing,
+  size, and the load problems attributed to it, plus rolled-up `totals`. Fetched
+  only while the panel is open, and re-fetched on every open because the report
+  describes the *last* load and `ReloadPacks` can have happened since. Problem
+  lines are bounded per file; `problemCount` carries the true total),
   `projectPickables {slot,width,height}`→`pickTargets` (tokened marker
   geometry the view both renders and resolves clicks against), `pickScreen {slot,token}`→`pick`
   (validation only — the token is the hot marker's), `scanNearby`→`scanResults`,

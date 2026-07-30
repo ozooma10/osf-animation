@@ -6,6 +6,12 @@ export interface BrowserCommands {
   selectScene(id: string, stage?: number | null): void;
   setSearch(value: string): void;
   toggleSettings(open?: boolean): void;
+  /** Open/close the per-file import report; opening (re)requests it from the engine. */
+  toggleImports(open?: boolean): void;
+  refreshImports(): void;
+  toggleImportFile(path: string, open: boolean): void;
+  toggleImportProblemsOnly(): void;
+  setImportSearch(value: string): void;
   setPreference<K extends keyof BrowserPreferences>(key: K, value: BrowserPreferences[K]): void;
   toggleBrowseAll(): void;
   setBrowseKind(kind: BrowseKind): void;

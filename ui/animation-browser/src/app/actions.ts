@@ -11,7 +11,7 @@ import type {
   PluginVersion,
   WheelEntry,
 } from "./state";
-import type { SceneModel } from "../model";
+import type { ImportFile, ImportTotals, SceneModel } from "../model";
 
 export type BrowserAction =
   | { type: "runtime/ready" }
@@ -25,6 +25,12 @@ export type BrowserAction =
   | { type: "launch/failed"; error: string }
   | { type: "settings/received"; preferences: Partial<BrowserPreferences> }
   | { type: "settings/open"; open: boolean }
+  | { type: "imports/open"; open: boolean }
+  | { type: "imports/requested" }
+  | { type: "imports/received"; files: ImportFile[]; totals: ImportTotals }
+  | { type: "imports/expanded"; path: string; open: boolean }
+  | { type: "imports/problemsOnly" }
+  | { type: "imports/search"; search: string }
   | { type: "cast/replaced"; members: CastMember[] }
   | { type: "cast/toggled"; member: CastMember }
   | { type: "cast/removed"; index: number }

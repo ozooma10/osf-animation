@@ -1,4 +1,4 @@
-import { evaluateScene, type SceneEvaluation, type SceneModel, type SceneStage } from "../model";
+import { evaluateScene, type ImportFile, type SceneEvaluation, type SceneModel, type SceneStage } from "../model";
 import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember, type FurnitureTarget, type PickTarget } from "./state";
 
 /** The pick target under the pointer. THE one scoring function for world picking:
@@ -97,8 +97,13 @@ export function emoteCatalog(state: BrowserState): SceneModel[] {
   return state.catalog.filter(isEmote);
 }
 
+/** A clip entry the engine HARVESTED from a scene's stages — the author-only debug surface that
+ *  lets a multi-actor scene be inspected one raw clip at a time. Entries a pack REGISTERED via
+ *  `clipLibrary` share the same id namespace but are authored content whose whole purpose is to
+ *  appear under Animations, so `curated` excludes them: without that check a pack shipping only a
+ *  clip library (no scenes) was invisible unless the user found "Show author details". */
 export function isGeneratedSceneClip(scene: SceneModel): boolean {
-  return scene.id.toLowerCase().startsWith("osf.scene-clip/");
+  return !scene.curated && scene.id.toLowerCase().startsWith("osf.scene-clip/");
 }
 
 export function playableKey(sceneId: string, stage: number | null): string {
@@ -544,6 +549,48 @@ export function formatEstimate(scene: Pick<SceneModel, "estSec" | "estPartial" |
 export function stageLabel(scene: SceneModel, index: number): string {
   const stage = scene.stages.find((candidate) => candidate.index === index);
   return stage ? playableStageTitle(scene, stage) : `stage ${index}`;
+}
+
+// ---- import report ----------------------------------------------------------------------------
+
+/** Worst state a file reached: an error outranks a warning, which outranks a silent oddity. */
+export type ImportSeverity = "ok" | "note" | "warn" | "error";
+
+export function importSeverity(file: ImportFile): ImportSeverity {
+  if (file.errors) return "error";
+  if (file.warnings || file.missingClips || file.hidden) return "warn";
+  // Loaded cleanly but contributed nothing playable — never an error, always worth seeing.
+  if (!file.scenes && !file.clipEntries) return "note";
+  return "ok";
+}
+
+const SEVERITY_RANK: Record<ImportSeverity, number> = { error: 0, warn: 1, note: 2, ok: 3 };
+
+/** Files the IMPORTS panel should show: search + problems-only filter, worst-first. */
+export function visibleImports(state: BrowserState): ImportFile[] {
+  const search = state.importsSearch;
+  return state.imports
+    .filter((file) => {
+      if (state.importsProblemsOnly && importSeverity(file) === "ok") return false;
+      if (!search) return true;
+      // Match the problem text too: an author usually searches for the message, not the file.
+      return `${file.path} ${file.file} ${file.pack} ${file.species.join(" ")} ${file.problems.join(" ")}`
+        .toLowerCase().includes(search);
+    })
+    .sort((a, b) => SEVERITY_RANK[importSeverity(a)] - SEVERITY_RANK[importSeverity(b)]
+      || a.path.localeCompare(b.path));
+}
+
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function formatMillis(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "0 ms";
+  return ms < 10 ? `${ms.toFixed(1)} ms` : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`;
 }
 
 export function wheelGeometry(count: number): { rx: number; ry: number } {

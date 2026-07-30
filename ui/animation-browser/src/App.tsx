@@ -8,6 +8,7 @@ import { SceneBrief } from "./features/brief/SceneBrief";
 import { BrowsePanel } from "./features/browse/BrowsePanel";
 import { CastPanel } from "./features/cast/CastPanel";
 import { AnimationWheel } from "./features/wheel/AnimationWheel";
+import { ImportsPanel } from "./features/imports/ImportsPanel";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 
 function Status({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
@@ -29,7 +30,11 @@ function RunningSummary({ state, commands }: { state: BrowserState; commands: Br
 }
 
 function Header({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  return <><div class="slate"><div class="slate-cell slate-brand"><div class="brand-lockup"><div class="brand-emblem"><span/></div><div class="brand-meta"><div class="brand-title">Animation Browser</div><div class="brand-sub"><Status state={state} commands={commands}/></div></div></div><div class="brand-tools"><button class="iconbtn" type="button" title="Refresh catalog" onClick={commands.refresh}>⟳</button><button class={`iconbtn settings-btn ${state.settingsOpen ? "on" : ""}`} type="button" title="Browser settings" aria-pressed={state.settingsOpen} onClick={() => commands.toggleSettings()}><svg class="gear-ico" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.35"/><circle cx="7" cy="7" r="1.5"/><path d="M11.35 7L13.15 7M10.08 10.08L11.35 11.35M7 11.35L7 13.15M3.92 10.08L2.65 11.35M2.65 7L0.85 7M3.92 3.92L2.65 2.65M7 2.65L7 0.85M10.08 3.92L11.35 2.65"/></svg><span class="iconbtn-lbl">Settings</span></button><span class="brand-tool-sep"/><button class="iconbtn" type="button" title="Minimize — watch the scene" onClick={() => commands.setMinimized(true)}><svg class="chev-ico" width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M1 1l4 3.8L9 1"/><path d="M1.2 8h7.6"/></svg></button></div></div><div class="slate-cell slate-take"><RunningSummary state={state} commands={commands}/></div></div><div class="stripe"><span/><span/><span/></div></>;
+  // The IMPORTS button is the report's only discovery surface, so it carries the verdict: a load
+  // with rejected content is worth noticing without opening anything. The totals stay zero until
+  // the report has been fetched once, so a never-opened panel shows a plain button.
+  const importIssues = state.importTotals.errors + state.importTotals.warnings;
+  return <><div class="slate"><div class="slate-cell slate-brand"><div class="brand-lockup"><div class="brand-emblem"><span/></div><div class="brand-meta"><div class="brand-title">Animation Browser</div><div class="brand-sub"><Status state={state} commands={commands}/></div></div></div><div class="brand-tools"><button class="iconbtn" type="button" title="Refresh catalog" onClick={commands.refresh}>⟳</button><button class={`iconbtn imports-btn ${state.importsOpen ? "on" : ""} ${state.importTotals.errors ? "err" : importIssues ? "warn" : ""}`} type="button" title="Scene file imports — what loaded from Data/OSF" aria-pressed={state.importsOpen} onClick={() => commands.toggleImports()}><svg class="imports-ico" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M1.6 2.6h10.8M1.6 5.6h10.8M1.6 8.6h10.8M1.6 11.6h6.4"/></svg><span class="iconbtn-lbl">Imports</span>{!!importIssues && <span class="iconbtn-pip"/>}</button><button class={`iconbtn settings-btn ${state.settingsOpen ? "on" : ""}`} type="button" title="Browser settings" aria-pressed={state.settingsOpen} onClick={() => commands.toggleSettings()}><svg class="gear-ico" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.35"/><circle cx="7" cy="7" r="1.5"/><path d="M11.35 7L13.15 7M10.08 10.08L11.35 11.35M7 11.35L7 13.15M3.92 10.08L2.65 11.35M2.65 7L0.85 7M3.92 3.92L2.65 2.65M7 2.65L7 0.85M10.08 3.92L11.35 2.65"/></svg><span class="iconbtn-lbl">Settings</span></button><span class="brand-tool-sep"/><button class="iconbtn" type="button" title="Minimize — watch the scene" onClick={() => commands.setMinimized(true)}><svg class="chev-ico" width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M1 1l4 3.8L9 1"/><path d="M1.2 8h7.6"/></svg></button></div></div><div class="slate-cell slate-take"><RunningSummary state={state} commands={commands}/></div></div><div class="stripe"><span/><span/><span/></div></>;
 }
 
 function MinimizedBar({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
@@ -125,10 +130,12 @@ export function App({ state, commands }: { state: BrowserState; commands: Browse
   const selected = selectedPlayable(state);
   const compactContext = state.mode !== "active" && !!selected && selected.kind !== "scene"
     && selected.scene.actorCount === 1 && !selected.scene.requiresFurniture;
-  return <div class={`stage ${state.pickMode ? "picking" : ""} ${state.settingsOpen ? "settings-mode" : ""} ${compactContext ? "compact-context" : ""}`}>
+  // Both full-panel surfaces want the same console geometry (wider, no scene brief).
+  const panelMode = state.settingsOpen || state.importsOpen;
+  return <div class={`stage ${state.pickMode ? "picking" : ""} ${panelMode ? "settings-mode" : ""} ${compactContext ? "compact-context" : ""}`}>
     <WorldIndicators state={state}/>
     <PickMarkers state={state}/>
-    <div class="console"><span class="bracket tl"/><span class="bracket tr"/><span class="bracket bl"/><span class="bracket br"/><div class="grid-overlay"/><Header state={state} commands={commands}/>{state.settingsOpen ? <SettingsPanel state={state} commands={commands}/> : <div class="director"><aside class="rail"><CastPanel state={state} commands={commands}/><AnchorPanel state={state} commands={commands}/></aside><section class="browse"><BrowsePanel state={state} commands={commands}/></section></div>}<footer class={`notice ${state.notice.kind}`} aria-live="polite">{state.notice.text}</footer></div>
+    <div class="console"><span class="bracket tl"/><span class="bracket tr"/><span class="bracket bl"/><span class="bracket br"/><div class="grid-overlay"/><Header state={state} commands={commands}/>{state.settingsOpen ? <SettingsPanel state={state} commands={commands}/> : state.importsOpen ? <ImportsPanel state={state} commands={commands}/> : <div class="director"><aside class="rail"><CastPanel state={state} commands={commands}/><AnchorPanel state={state} commands={commands}/></aside><section class="browse"><BrowsePanel state={state} commands={commands}/></section></div>}<footer class={`notice ${state.notice.kind}`} aria-live="polite">{state.notice.text}</footer></div>
     <aside class="brief"><SceneBrief state={state} commands={commands}/></aside>
     <div class="livebar"><MinimizedBar state={state} commands={commands}/></div>
     <div class="wheel"><AnimationWheel state={state} commands={commands}/></div>
