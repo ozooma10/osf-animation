@@ -67,7 +67,13 @@ namespace OSF::Animation
 						}
 					}
 					stageLoops++;
-					clock.time = 0.0f;
+					// A one-shot final stage that just consumed its last loop ENDS here: hold the
+					// clock at the clip end so participants keep the final pose while the deferred
+					// stop lands. Resetting to 0 (the looping path) snapped the cast back to the
+					// clip's first frame for however many frames the stop task took to arrive.
+					const bool finishing = stage.loops > 0 && stageLoops >= stage.loops &&
+					                       currentStage + 1 >= stages.size() && !loopWhole;
+					clock.time = finishing ? duration : 0.0f;
 				}
 
 				const bool timerExpired = stage.timer > 0.0f && stageElapsed >= stage.timer;
@@ -95,7 +101,9 @@ namespace OSF::Animation
 			}
 		}
 
-		return { clock.time, currentStage };
+		const bool holdEnd = ended.load(std::memory_order_relaxed) &&
+		                     endReason.load(std::memory_order_relaxed) == SceneEndReason::kLoops;
+		return { clock.time, currentStage, holdEnd };
 	}
 
 	bool Scene::SetStage(int32_t a_stage)

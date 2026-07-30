@@ -171,6 +171,11 @@ namespace OSF::Animation
 		{
 			float time;
 			uint32_t stage;
+			// The scene finished a one-shot final stage (ended by loop count): participants hold
+			// the clip's FINAL frame — never wrap back to frame 0 — while the deferred stop and
+			// the fade-out land. Without this the cast snapped to the clip's start pose for
+			// however many frames the stop task took to arrive.
+			bool holdEnd = false;
 		};
 		struct DiagnosticSnapshot
 		{

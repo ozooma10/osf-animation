@@ -78,6 +78,7 @@ namespace OSF::Animation
 		currentFile = std::move(a_file);
 		localTime = 0.0f;
 		hasPose = false;
+		holdClipAtEnd = false;
 		if(!scene) {
 			syncGroup = std::make_shared<SyncGroup>();	// new clip owns the clock if not in a scene
 		}
@@ -111,6 +112,7 @@ namespace OSF::Animation
 		binding.clear();
 		liveBasePose.clear();
 		basePoseRevision = 0;
+		stampProbeValid = false;
 	}
 
 	void Graph::SetPosePolicy(PoseMode a_mode, float a_weight, std::string a_roleName)
@@ -158,7 +160,7 @@ namespace OSF::Animation
 
 		//failure invalidates the binding cache.
 		//cachedModelNode is the stamp hooks match key. Once chain stops resolving (3d detatched), the cached address can be freed and reused.
-		const auto fail = [this]() {
+		const auto fail = [this, a_expectedModelNode]() {
 			cachedModelNode.store(nullptr, std::memory_order_relaxed);
 			cachedRig = nullptr;
 			cachedBoneCount = 0;
@@ -167,6 +169,16 @@ namespace OSF::Animation
 			binding.clear();
 			liveBasePose.clear();
 			basePoseRevision = 0;
+			stampProbeValid = false;
+			// A failure while the COMPOSE hook expected a specific node means composes are running
+			// unstamped (a visible vanilla-pose frame) — the previously silent glitch path.
+			if (a_expectedModelNode) {
+				composeResolveFailCount++;
+				if (composeResolveFailCount == 1 || (composeResolveFailCount & 255u) == 0) {
+					REX::TRACE("[Anim] compose resolve FAILED — actor {:08X} unstamped this compose (#{}, blendPhase {})",
+						target ? target->formID : 0, composeResolveFailCount, static_cast<int>(blendPhase));
+				}
+			}
 			return false;
 		};
 
@@ -222,6 +234,13 @@ namespace OSF::Animation
 				static_cast<const void*>(previousModelNode), static_cast<const void*>(modelNode),
 				static_cast<int>(blendPhase));
 		}
+		// DIAG: same node, changed identity = the node table / rig buffer was mutated in place
+		// (helmet visibility patches, prop geometry). These mid-play rebinds were invisible
+		// before (the bind log is once per graph) yet they bracket the glitch-frame windows.
+		if (previousModelNode == modelNode && loggedBind) {
+			REX::TRACE("[Anim] rig re-bind — same modelNode, identity changed (nodes {} -> {}, rigBones {} -> {})",
+				cachedBoneCount, modelNode->nodes.size(), cachedRigBoneCount, GetRigBoneCount(modelNode));
+		}
 
 		// build the rigIndex -> jointIndex binding from the bone map
 		cachedModelNode.store(modelNode, std::memory_order_relaxed);
@@ -272,6 +291,7 @@ namespace OSF::Animation
 		// Allocate the immutable live-base buffer only when the binding changes, never in StampPose.
 		liveBasePose.assign(binding.size() * 16, 0.0f);
 		basePoseRevision = 0;
+		stampProbeValid = false;  // rig indices may have been remapped; the old probe is meaningless
 
 		if (!loggedBind) {
 			loggedBind = true;
@@ -372,11 +392,15 @@ namespace OSF::Animation
 				appliedStage = tick.stage;
 			}
 			localTime = tick.time;
+			// A finished one-shot stage holds its final frame (never wraps); the flag sticks
+			// through DetachAndFadeOut so the fade-out below also samples the end pose.
+			holdClipAtEnd = tick.holdEnd;
 			// The scene's stage boundary uses its reference clip, but malformed packs can contain
 			// slightly different participant durations. Keep every SamplingJob ratio in [0,1) by
 			// wrapping against this graph's own clip instead of feeding ozz an invalid ratio.
 			if (anim && anim->data && anim->data->duration() > 0.0f) {
-				localTime = std::fmod(localTime, anim->data->duration());
+				localTime = holdClipAtEnd ? std::min(localTime, anim->data->duration()) :
+				                            std::fmod(localTime, anim->data->duration());
 			}
 		}
 
@@ -402,12 +426,17 @@ namespace OSF::Animation
 			if (clk.ShouldAdvance(a_token, nowMs)) {
 				clk.time += a_deltaTime * syncGroup->speed.load(std::memory_order_relaxed);
 			}
-			float t = clk.time;
-			t = std::fmod(t, duration);
-			if (t < 0.0f) {
-				t += duration;
+			if (holdClipAtEnd) {
+				// Ended one-shot fading out: hold the final frame, never wrap back to frame 0.
+				localTime = std::min(clk.time, duration);
+			} else {
+				float t = clk.time;
+				t = std::fmod(t, duration);
+				if (t < 0.0f) {
+					t += duration;
+				}
+				localTime = t;
 			}
-			localTime = t;
 		}
 
 		// ozz sample defered to StampPose. AnimationManager::Update fires 7x per frame, so sampling here is waste.
@@ -420,6 +449,28 @@ namespace OSF::Animation
 			binding.empty() || !anim || !skeleton ||
 			outputPose.size() != referencePose.size()) {
 			return;
+		}
+
+		// Same-address staleness: helmet-visibility patches and prop geometry mutate the node
+		// table (and can remap rig slots) WITHOUT replacing the BGSModelNode, and Sample only
+		// notices on its next update-stream call. Stamping the old binding would write remapped
+		// slots (a scrambled frame) — re-bind now, on the first compose that sees the mutation.
+		{
+			auto* liveRig = a_modelNode->rig;
+			const bool stale = !liveRig || !liveRig->local || liveRig->local->data != cachedLocalData ||
+			                   a_modelNode->nodes.size() != cachedBoneCount ||
+			                   GetRigBoneCount(a_modelNode) != cachedRigBoneCount;
+			if (stale) {
+				const auto prevNodes = cachedBoneCount;
+				staleStampRebindCount++;
+				if (!ResolveAndBind(a_modelNode)) {
+					REX::TRACE("[Anim] stamp SKIPPED — node-table mutation and re-bind failed (actor {:08X}, mutation #{}, nodes {} -> {})",
+						target ? target->formID : 0, staleStampRebindCount, prevNodes, a_modelNode->nodes.size());
+					return;
+				}
+				REX::TRACE("[Anim] compose re-bound after node-table mutation — actor {:08X}, mutation #{}, nodes {} -> {}, {} driven bone(s)",
+					target ? target->formID : 0, staleStampRebindCount, prevNodes, cachedBoneCount, binding.size());
+			}
 		}
 
 		//blend toward pose. slot content here is engines live pose for this frame, so blending blends against whatever actor would otherwise be doing.
@@ -476,6 +527,22 @@ namespace OSF::Animation
 				return false;  // binding/base must be prepared together; never allocate from the stamp hook
 			}
 			if (basePoseRevision != enginePoseRevision) {
+				// The revision counts update-stream calls, not proven buffer writes. If the probe
+				// slot still holds OUR previous write, the engine has not re-applied its pose since
+				// we stamped — adopting the buffer would poison the feather/additive base with our
+				// own output (the spine pops as it re-blends over itself). Keep the previous base.
+				// Gated on a base actually existing (revision 0 = liveBasePose holds no capture yet).
+				if (basePoseRevision != 0 && stampProbeValid && stampProbeRigIdx < rigBoneCount &&
+					std::memcmp(buf + static_cast<std::size_t>(stampProbeRigIdx) * 16,
+						stampProbe.data(), 16 * sizeof(float)) == 0) {
+					basePoseRevision = enginePoseRevision;
+					captureGateCount++;
+					if (captureGateCount == 1 || (captureGateCount & 63u) == 0) {
+						REX::TRACE("[Anim] live-base capture gated — buffer unchanged since our stamp (actor {:08X}, #{})",
+							target ? target->formID : 0, captureGateCount);
+					}
+					return true;
+				}
 				for (std::size_t i = 0; i < binding.size(); ++i) {
 					const auto rigIdx = binding[i].rigIndex;
 					if (rigIdx < rigBoneCount) {
@@ -486,6 +553,15 @@ namespace OSF::Animation
 				basePoseRevision = enginePoseRevision;
 			}
 			return true;
+		};
+
+		// Record the bytes we leave in the first written slot; the next capture's probe.
+		bool probeRecorded = false;
+		const auto recordProbe = [&](const float* a_slot, uint16_t a_rigIdx) {
+			std::memcpy(stampProbe.data(), a_slot, 16 * sizeof(float));
+			stampProbeRigIdx = a_rigIdx;
+			stampProbeValid = true;
+			probeRecorded = true;
 		};
 
 		if (poseMode == PoseMode::kAdditive) {
@@ -503,6 +579,9 @@ namespace OSF::Animation
 					reinterpret_cast<const float*>(&referencePose[bound.jointIndex]),
 					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
 					effectiveWeight * bound.weight);
+				if (!probeRecorded) {
+					recordProbe(slot, bound.rigIndex);
+				}
 			}
 		} else {
 			// Override: per-bone weight = transition * persistent layer strength * mask weight.
@@ -526,6 +605,9 @@ namespace OSF::Animation
 				}
 				if (w >= 1.0f) {
 					WriteNiTransformRows(slot, outputPose[bound.jointIndex]);
+					if (!probeRecorded) {
+						recordProbe(slot, bound.rigIndex);
+					}
 					continue;
 				}
 				const float* from = fromSnapshot ?
@@ -533,7 +615,13 @@ namespace OSF::Animation
 				                        (persistentPartial ? liveBasePose.data() + i * 16 :
 				                                             slot);  // engine's live pose this frame
 				WriteNiTransformRowsBlended(slot, from, outputPose[bound.jointIndex], w);
+				if (!probeRecorded) {
+					recordProbe(slot, bound.rigIndex);
+				}
 			}
+		}
+		if (!probeRecorded) {
+			stampProbeValid = false;  // nothing written this stamp (all bones skipped) — no probe
 		}
 
 		if (!loggedFirstApply) {

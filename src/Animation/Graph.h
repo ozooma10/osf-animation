@@ -9,6 +9,8 @@
 #include "Animation/OzzTypes.h"
 #include "Animation/Scene.h"  // ParticipantPlacement
 
+#include <array>
+
 #include "ozz/animation/runtime/sampling_job.h"
 
 namespace OSF::Animation
@@ -158,6 +160,22 @@ namespace OSF::Animation
 		std::vector<float> liveBasePose;  // binding order, 16 floats per entry; allocated only on bind
 		std::uint64_t enginePoseRevision = 1;
 		std::uint64_t basePoseRevision = 0;
+		// The bytes of the first slot the last StampPose wrote. enginePoseRevision counts
+		// update-stream calls, not proven engine buffer writes: before adopting the buffer as a
+		// fresh live base, the capture compares this probe — if the slot still holds OUR write,
+		// the engine has not re-evaluated and the previous base is kept (never our own output).
+		std::array<float, 16> stampProbe{};
+		uint16_t stampProbeRigIdx = 0;
+		bool stampProbeValid = false;
+		// glitch-frame diagnostics (all guarded by stateLock)
+		std::uint32_t captureGateCount = 0;        // live-base captures rejected by the probe
+		std::uint32_t staleStampRebindCount = 0;   // same-address node-table mutations healed at compose
+		std::uint32_t composeResolveFailCount = 0; // compose-time recovery attempts that failed
+
+		// The scene finished a one-shot final stage: clamp the clip clock at its final frame
+		// instead of wrapping. Survives DetachAndFadeOut so the fade-out also holds the end pose
+		// (a wrap during the stop/fade window snapped the actor to the clip's first frame).
+		bool holdClipAtEnd = false;
 
 		FrameClock blendClock;  // blend ramps; owner-token gated, reset at SetAnimation/BeginFadeOut
 

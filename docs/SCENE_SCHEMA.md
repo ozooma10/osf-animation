@@ -207,6 +207,10 @@ when no explicit registration supplies metadata.
   advance the stages automatically and the scene **ends after its final stage**; in a **graph** scene you
   wire the matching `edges` yourself (right column). A single-stage looping idle needs `"loops": 0`, or
   it plays once and ends.
+
+  When a final stage finishes **by loop count** (including the play-once default), the cast **holds the
+  clip's final frame** while the scene's stop and fade-out complete — a one-shot gesture settles on its
+  end pose and fades to the engine from there, it never flashes back to the clip's first frame.
 - **Stage shorthand:** a stage may be written as a bare array of clips instead of a
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a
