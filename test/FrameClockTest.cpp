@@ -1,6 +1,11 @@
 #include "Animation/FrameClock.h"
 #include "Util/ClipPath.h"
+#include "Util/DiagnosticText.h"
+#include "Util/RegistryFiles.h"
 
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
 #include <cstdlib>
 #include <iostream>
 
@@ -41,6 +46,38 @@ int main()
 		auto [path, animation] = OSF::Util::SplitRuntimeClipSpec("C:\\clips\\test.af");
 		Check(path == "C:\\clips\\test.af", "non-glTF colon remains part of the path");
 		Check(animation.empty(), "non-glTF path has no selector");
+	}
+
+	{
+		const auto data = (std::filesystem::current_path() / "Data").lexically_normal();
+		const auto rel = OSF::Util::DataRelativePath(data / "..extras" / "clip.af");
+		Check(rel && *rel == OSF::Util::NormalizeResourcePath("..extras/clip.af"),
+			"Data child beginning with two dots is not traversal");
+	}
+	{
+		const auto data = (std::filesystem::current_path() / "Data").lexically_normal();
+		std::string differentlyCased = data.string();
+		std::transform(differentlyCased.begin(), differentlyCased.end(), differentlyCased.begin(),
+			[](unsigned char a_ch) { return static_cast<char>(std::tolower(a_ch)); });
+		const auto rel = OSF::Util::DataRelativePath(
+			std::filesystem::path{ differentlyCased } / "OSF" / "clip.af");
+		Check(rel && *rel == OSF::Util::NormalizeResourcePath("OSF/clip.af"),
+			"Data containment follows Windows case-insensitivity");
+	}
+	{
+		const auto outside = std::filesystem::current_path() / "Elsewhere" / "clip.af";
+		Check(!OSF::Util::DataRelativePath(outside), "path outside Data is not archive-relative");
+	}
+	{
+		const std::filesystem::path root{ R"(C:\Game\Data\OSF)" };
+		const auto label = OSF::Util::RegistryPathLabel(root, root / "Packs" / "test.osf.json");
+		Check(label == "Packs/test.osf.json", "registry labels are root-relative");
+	}
+	{
+		const auto safe = OSF::Util::SanitizeDiagnosticPaths(
+			R"(cannot inspect 'C:\Users\Player\Game\Data\OSF\bad.osf.json': denied)");
+		Check(safe.find("C:\\Users") == std::string::npos, "health context removes absolute paths");
+		Check(safe.find("'bad.osf.json'") != std::string::npos, "health context keeps the filename");
 	}
 
 	std::cout << "Core runtime tests passed\n";

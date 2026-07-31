@@ -31,12 +31,26 @@ namespace OSF::Serialization::ClipDurations
 			bool          exact = false;  // true = from a real ozz decode (Record), not a metadata probe
 		};
 
-		std::mutex g_lock;  // guards g_map, g_loaded, g_dirty, g_scanRunning, g_rescanPending and the save
-		std::unordered_map<std::string, Entry> g_map;
-		bool g_loaded = false;
-		bool g_dirty = false;
-		bool g_scanRunning = false;
-		bool g_rescanPending = false;  // a scan was requested while one ran — the worker folds in another pass
+		struct ProcessState
+		{
+			std::mutex lock;
+			std::unordered_map<std::string, Entry> map;
+			bool loaded = false;
+			bool dirty = false;
+			bool scanRunning = false;
+			bool rescanPending = false;
+		};
+
+		// The scanner is detached because SFSE plugins are not unloaded during play. Keep every
+		// object it can touch process-lifetime too, so CRT teardown cannot destroy cache state
+		// underneath a finishing scan.
+		ProcessState& g_state = *new ProcessState();
+		auto& g_lock = g_state.lock;
+		auto& g_map = g_state.map;
+		bool& g_loaded = g_state.loaded;
+		bool& g_dirty = g_state.dirty;
+		bool& g_scanRunning = g_state.scanRunning;
+		bool& g_rescanPending = g_state.rescanPending;
 
 		// A probe within this of an exact decode value confirms it — keep the decode's number.
 		constexpr float kExactConfirmTolerance = 0.05f;

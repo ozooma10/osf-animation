@@ -77,8 +77,9 @@ namespace OSF::Audio
 
 	SoundService& SoundService::GetSingleton()
 	{
-		static SoundService instance;
-		return instance;
+		// Jobs capture the service from detached process-lifetime workers.
+		static auto* instance = new SoundService();
+		return *instance;
 	}
 
 	SoundService::PlayTicket SoundService::BeginPlay()

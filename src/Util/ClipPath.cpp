@@ -29,9 +29,21 @@ namespace OSF::Util
 
 		auto data = (std::filesystem::current_path() / "Data").lexically_normal();
 		auto path = a_path.lexically_normal();
-		auto rel = path.lexically_relative(data);
-		if (rel.empty() || rel.string().starts_with("..")) {
+		auto dataIt = data.begin();
+		auto pathIt = path.begin();
+		for (; dataIt != data.end(); ++dataIt, ++pathIt) {
+			if (pathIt == path.end() ||
+				ToLower(dataIt->generic_string()) != ToLower(pathIt->generic_string())) {
+				return std::nullopt;
+			}
+		}
+		if (pathIt == path.end()) {
 			return std::nullopt;
+		}
+
+		std::filesystem::path rel;
+		for (; pathIt != path.end(); ++pathIt) {
+			rel /= *pathIt;
 		}
 		return NormalizeResourcePath(rel.string());
 	}

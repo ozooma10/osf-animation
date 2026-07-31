@@ -24,6 +24,21 @@ namespace OSF::Util
 		bool fatal = false;
 	};
 
+	inline std::string RegistryPathLabel(
+		const std::filesystem::path& a_root, const std::filesystem::path& a_path)
+	{
+		try {
+			const auto relative = a_path.lexically_relative(a_root);
+			if (!relative.empty()) {
+				return relative.generic_string();
+			}
+			const auto filename = a_path.filename().generic_string();
+			return filename.empty() ? std::string{ "registry entry" } : filename;
+		} catch (...) {
+			return "registry entry";
+		}
+	}
+
 	// Bounded, exception-contained discovery for author-controlled registry trees.
 	// A fatal traversal/count failure returns no files, avoiding a nondeterministic
 	// partial registry. Individual unreadable/oversized files are reported and skipped.
@@ -39,8 +54,7 @@ namespace OSF::Util
 		std::error_code ec;
 		if (!fs::is_directory(a_root, ec)) {
 			if (ec) {
-				result.problems.push_back(
-					"cannot inspect registry root '" + a_root.string() + "': " + ec.message());
+				result.problems.push_back("cannot inspect registry root: " + ec.message());
 			}
 			return result;
 		}
@@ -51,8 +65,7 @@ namespace OSF::Util
 			};
 			const fs::recursive_directory_iterator end;
 			if (ec) {
-				result.problems.push_back(
-					"cannot open registry root '" + a_root.string() + "': " + ec.message());
+				result.problems.push_back("cannot open registry root: " + ec.message());
 				result.fatal = true;
 				return result;
 			}
@@ -71,17 +84,17 @@ namespace OSF::Util
 				std::error_code typeEc;
 				const bool regular = it->is_regular_file(typeEc);
 				if (typeEc) {
-					result.problems.push_back(
-						"cannot inspect '" + path.string() + "': " + typeEc.message());
+					result.problems.push_back("cannot inspect '" + RegistryPathLabel(a_root, path) +
+						"': " + typeEc.message());
 				} else if (regular && ToLower(path.filename().string()).ends_with(a_lowerSuffix)) {
 					std::error_code sizeEc;
 					const auto bytes = fs::file_size(path, sizeEc);
 					if (sizeEc) {
-						result.problems.push_back(
-							"cannot size '" + path.string() + "': " + sizeEc.message());
+						result.problems.push_back("cannot size '" + RegistryPathLabel(a_root, path) +
+							"': " + sizeEc.message());
 					} else if (bytes > a_maxFileBytes) {
 						result.problems.push_back(
-							"'" + path.string() + "' is " + std::to_string(bytes) +
+							"'" + RegistryPathLabel(a_root, path) + "' is " + std::to_string(bytes) +
 							" bytes; maximum registry file size is " + std::to_string(a_maxFileBytes));
 					} else if (result.files.size() >= a_maxFiles) {
 						result.problems.push_back(
@@ -96,14 +109,14 @@ namespace OSF::Util
 
 				it.increment(ec);
 				if (ec) {
-					result.problems.push_back(
-						"registry traversal failed below '" + path.string() + "': " + ec.message());
+					result.problems.push_back("registry traversal failed below '" +
+						RegistryPathLabel(a_root, path) + "': " + ec.message());
 					result.fatal = true;
 					break;
 				}
 			}
 		} catch (const fs::filesystem_error& e) {
-			result.problems.push_back(std::string("registry traversal failed: ") + e.what());
+			result.problems.push_back(std::string("registry traversal failed: ") + e.code().message());
 			result.fatal = true;
 		} catch (const std::exception& e) {
 			result.problems.push_back(std::string("registry discovery failed: ") + e.what());
@@ -128,8 +141,7 @@ namespace OSF::Util
 			std::vector<KeyedPath> keyed;
 			keyed.reserve(result.files.size());
 			for (auto& file : result.files) {
-				const auto relative = file.lexically_relative(a_root);
-				const auto display = (relative.empty() ? file.filename() : relative).generic_string();
+				const auto display = RegistryPathLabel(a_root, file);
 				keyed.push_back({ std::move(file), ToLower(display), display });
 			}
 			std::sort(keyed.begin(), keyed.end(), [](const KeyedPath& a_lhs, const KeyedPath& a_rhs) {

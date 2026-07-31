@@ -10,6 +10,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 
+#include "Util/DiagnosticText.h"
 namespace OSF::API::Health
 {
 	namespace
@@ -202,7 +203,7 @@ namespace OSF::API::Health
 			}
 			context["problems"] = a_lines.size();
 			for (std::size_t i = 0; i < a_lines.size() && i < kShownProblems; ++i) {
-				context["problem" + std::to_string(i + 1)] = a_lines[i];
+				context["problem" + std::to_string(i + 1)] = Util::SanitizeDiagnosticPaths(a_lines[i]);
 			}
 			return context;
 		};
