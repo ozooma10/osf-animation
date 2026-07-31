@@ -565,7 +565,7 @@ namespace OSF::Registry
 			}
 		}
 
-		// Expand the `sound` ladder sugar: an object { role?, spec, repeat?, volume?, at } whose shared
+		// Expand the `sound` ladder sugar: an object { role?, spec, repeat?, at } whose shared
 		// fields apply to every hit, appending each hit's tag(s) to the base `spec`. `{gender}` in the base
 		// stays for fire-time substitution (SceneRuntime::PlaySound). The lane's `at` holds many positions
 		// (vs. a flat entry's single scalar `at`), in one of two shapes:
@@ -576,24 +576,22 @@ namespace OSF::Registry
 		//   ARRAY (ordered, heterogeneous, per-hit overrides) — each entry is:
 		//     0.5                  -> at 0.5, the base spec, lane defaults
 		//     [0.5, "loud"]        -> at 0.5, spec = base + ",loud"   (extra elements append more tags)
-		//     { at, tags?, spec?, role?, repeat?, volume? }  -> per-hit overrides (spec replaces the base)
+		//     { at, tags?, spec?, role?, repeat? }  -> per-hit overrides (spec replaces the base)
 		void ExpandSoundLadder(const json& a_lane, SceneNode& a_node_out)
 		{
 			const std::string baseSpec = a_lane.value("spec", a_lane.value("sound", a_lane.value("pool", std::string{})));
 			const std::string laneRole = a_lane.value("role", std::string{});
-			const float laneVolume = a_lane.value("volume", 1.0f);
 			const std::string laneRepeat = ToLower(a_lane.value("repeat", "none"));  // ladders opt in with "loop"
 
 			// Emit one entry; timing (at/repeat) reuses the shared track-timing parse + validation.
 			const auto emit = [&](const std::string& a_spec, const json& a_at, const std::string& a_repeat,
-				const std::string& a_role, float a_volume) {
+				const std::string& a_role) {
 				if (a_spec.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound mark has no spec (set the lane 'spec' or a per-mark 'spec')");
 				}
 				SoundEntry se;
 				se.spec = a_spec;
 				se.role = a_role;
-				se.volume = a_volume;
 				json timing = json::object();
 				timing["at"] = a_at;
 				timing["repeat"] = a_repeat;
@@ -620,7 +618,7 @@ namespace OSF::Registry
 						spec += "," + it.key();  // the group key is the tag(s) appended to the base
 					}
 					for (const auto& at : it.value()) {
-						emit(spec, at, laneRepeat, laneRole, laneVolume);
+						emit(spec, at, laneRepeat, laneRole);
 					}
 				}
 				return;
@@ -630,7 +628,7 @@ namespace OSF::Registry
 			}
 			for (const auto& m : positions) {
 				if (m.is_number() || m.is_string()) {
-					emit(baseSpec, m, laneRepeat, laneRole, laneVolume);  // bare position -> base spec
+					emit(baseSpec, m, laneRepeat, laneRole);  // bare position -> base spec
 				} else if (m.is_array()) {
 					if (m.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': an empty sound ladder position");
@@ -642,7 +640,7 @@ namespace OSF::Registry
 						}
 						spec += "," + m[i].get<std::string>();
 					}
-					emit(spec, m[0], laneRepeat, laneRole, laneVolume);
+					emit(spec, m[0], laneRepeat, laneRole);
 				} else if (m.is_object()) {
 					std::string spec = baseSpec;
 					if (auto it = m.find("spec"); it != m.end()) {
@@ -668,7 +666,7 @@ namespace OSF::Registry
 						}
 					}
 					const json at = m.contains("at") ? m.at("at") : json();
-					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole), m.value("volume", laneVolume));
+					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole));
 				} else {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder hit must be a number, [at, tags...] array, or { at, ... } object");
 				}
@@ -704,7 +702,6 @@ namespace OSF::Registry
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound track entry is missing 'spec'/'sound'/'pool'");
 				}
 				se.role = s.value("role", std::string{});
-				se.volume = s.value("volume", 1.0f);
 				ParseTrackTiming(s, se, a_node_out.id, "sound '" + se.spec + "'", /*a_atRequired*/ false);
 				a_node_out.sounds.push_back(std::move(se));
 			}

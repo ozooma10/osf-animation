@@ -145,8 +145,7 @@ namespace OSF::Audio
 		return true;
 	}
 
-	void SoundService::Play(std::uint64_t a_slot, const std::string& a_dataRelPath,
-		[[maybe_unused]] const RE::NiPoint3& a_worldPos, float a_volume)
+	void SoundService::Play(std::uint64_t a_slot, const std::string& a_dataRelPath)
 	{
 		const PlayTicket ticket = BeginPlay();
 
@@ -165,8 +164,8 @@ namespace OSF::Audio
 		}
 
 		if (!Wwise::Available() || !Wwise::IsWwiseExternalSource(a_dataRelPath)) {
-			REX::WARN("[Audio] no engine path for '{}' (Wwise {}; unsupported codec?) — cue skipped (vol {:.2f})",
-				a_dataRelPath, Wwise::Available() ? "available" : "unavailable", a_volume);
+			REX::WARN("[Audio] no engine path for '{}' (Wwise {}; unsupported codec?) — cue skipped",
+				a_dataRelPath, Wwise::Available() ? "available" : "unavailable");
 			return;
 		}
 

@@ -114,8 +114,7 @@ namespace OSF::Registry
 		float        fraction = 0.0f;
 		bool         everyLoop = false;
 		std::string  spec;    // file path or event: spec
-		std::string  role;    // optional; positions the sound at this actor (else the player)
-		float        volume = 1.0f;
+		std::string  role;    // optional voice channel, gender source, and subtitle speaker
 	};
 
 	// One `camera` track entry: a held camera state, auto-restored on cleanup. States:

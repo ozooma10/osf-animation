@@ -104,9 +104,10 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role, float a_volume)
+	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role)
 	{
-		// Resolve the role actor up front — it positions the sound AND supplies the {gender} substitution.
+		// Resolve the role actor up front: it supplies the voice channel, subtitle speaker, and
+		// {gender} substitution. The current Wwise route posts audio at the listener.
 		RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role);
 
 		// A '$'-prefixed spec is a sound-pool reference ("$seduce,{gender},moan,loud"): substitute the
@@ -127,21 +128,15 @@ namespace OSF::Scene
 			spec = std::move(*resolved);
 		}
 
-		RE::NiPoint3 pos{};
-		if (actor) {
-			pos = actor->data.location;
-		} else if (auto* player = RE::PlayerCharacter::GetSingleton()) {
-			pos = player->data.location;  // listener-centered fallback (full volume)
-		}
 		// Per-actor VOICE slot: a new sound on a channel replaces (cuts) the prior one so cues on the same
 		// actor never overlap. Key on the role actor's formID; with no actor, fall back to the scene handle so
 		// the scene still has a single channel. The high-bit tag keeps the actor and scene key spaces disjoint.
 		const std::uint64_t slot = actor
 			? ((1ull << 62) | static_cast<std::uint64_t>(actor->formID))
 			: ((2ull << 62) | static_cast<std::uint64_t>(static_cast<std::uint32_t>(a_handle)));
-		REX::DEBUG("[Scene] scene {:#010x} sound '{}' (role '{}') at ({:.0f},{:.0f},{:.0f}) vol {:.2f} slot {:#x}",
-			a_handle, spec, a_role, pos.x, pos.y, pos.z, a_volume, slot);
-		Audio::SoundService::GetSingleton().Play(slot, spec, pos, a_volume);
+		REX::DEBUG("[Scene] scene {:#010x} sound '{}' (role '{}') slot {:#x}",
+			a_handle, spec, a_role, slot);
+		Audio::SoundService::GetSingleton().Play(slot, spec);
 
 		// Voice/subtitle: if this clip carries text (authored alongside it in its sound pool), show it
 		// in the box, attributed to the speaking actor. The "voice" feature is folded into normal sound
@@ -167,7 +162,7 @@ namespace OSF::Scene
 		const auto wantPos = a_enter ? Registry::SoundPos::kEnter : Registry::SoundPos::kExit;
 		for (const auto& snd : node->sounds) {
 			if (snd.pos == wantPos) {
-				PlaySound(a_handle, snd.spec, snd.role, snd.volume);
+				PlaySound(a_handle, snd.spec, snd.role);
 			}
 		}
 	}
@@ -425,7 +420,7 @@ namespace OSF::Scene
 				REX::WARN("[Scene] scene {:#010x} osf.voice.play — missing 'set' spec, skipped", a_handle);
 			} else {
 				REX::DEBUG("[Scene] scene {:#010x} osf.voice.play (role '{}', set '{}')", a_handle, a_action.role, a_action.set);
-				PlaySound(a_handle, a_action.set, a_action.role, 1.0f);
+				PlaySound(a_handle, a_action.set, a_action.role);
 			}
 		} else if (type.rfind("osf.", 0) == 0) {
 			// recognised built-in mechanism we don't execute yet.

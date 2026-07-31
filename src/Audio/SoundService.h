@@ -30,16 +30,16 @@ namespace OSF::Audio
 	public:
 		static SoundService& GetSingleton();
 
-		// Playback of a Data-relative file ("OSF/Sounds/x.wav") or "event:" spec. The world position and
-		// a_volume are carried for the deferred positioned-posting follow-up; today's listener-centered Wwise
-		// posts ignore them (the mix is engine-owned). Safe from any thread; cheap on failure.
+		// Playback of a Data-relative file ("OSF/Sounds/x.wav") or "event:" spec. The current
+		// Wwise route posts at the listener; role selection and subtitle attribution live above this
+		// service. Safe from any thread; cheap on failure.
 		//
 		// a_slot is a VOICE-CHANNEL key (per-actor, computed by the caller from the role actor's formID;
 		// 0 = unslotted/always layer). When nonzero, a new Play for a slot REPLACES that slot's currently
 		// playing voice: the prior clip is cut via Wwise::StopVoice (runtime-proven AK ExecuteActionOnPlayingID
 		// — see WwiseBackend; self-disables only on a future patch) so cues on the same channel never overlap.
 		// Two different slots play independently.
-		void Play(std::uint64_t a_slot, const std::string& a_dataRelPath, const RE::NiPoint3& a_worldPos, float a_volume = 1.0f);
+		void Play(std::uint64_t a_slot, const std::string& a_dataRelPath);
 
 		// Cuts every live voice (GraphManager::StopAll, a loaded save should not have last-world sounds ringing over it).
 		// Normal scene teardown deliberately lets sub-second tails finish on their own.

@@ -576,7 +576,7 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
 | `action` | `{ "at", "type", "role", "hold", "duration", "set", "item", "prop", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
-| `sound` | `{ "at", "spec", "role", "volume", "repeat" }` — an **array/object `at`** makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases); `role` positions it (else player). One **voice channel per actor** — see below. A clip can carry **subtitle text** (a spoken line) — see below. |
+| `sound` | `{ "at", "spec", "role", "repeat" }` — an **array/object `at`** makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker; audio currently posts at the listener. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
 #### Sound: one voice channel per actor
@@ -592,7 +592,7 @@ entry - `ExecuteActionOnPlayingID` - so the replace is an instant hard cut.)
 
 A `sound` entry's `at` is normally a single position. Make `at` an **array** (or a tag-keyed **object**)
 instead and the entry becomes a **ladder** — one lane that fires at **many** positions. The lane's
-`spec` / `role` / `volume` / `repeat` are shared defaults, and each hit appends its tag(s) to the base
+`spec` / `role` / `repeat` are shared defaults, and each hit appends its tag(s) to the base
 `spec` (so a tag/pool spec picks an intensity-tagged variant per hit). The array/object `at` is exactly
 what distinguishes a ladder from a flat entry (whose `at` is a scalar fraction or
 `"enter"`/`"exit"`/`"end"`). Two shapes:
@@ -603,7 +603,7 @@ what distinguishes a ladder from a flat entry (whose `at` is a scalar fraction o
 
 // ARRAY - ordered, heterogeneous; each entry is a bare position, [pos, "tag", …], or a per-hit object:
 { "spec": "event:Vocal", "role": "lead",
-  "at": [ 0.2, [0.5, "loud"], { "at": 0.9, "tags": ["loud"], "volume": 1.2 } ] }
+  "at": [ 0.2, [0.5, "loud"], { "at": 0.9, "tags": ["loud"] } ] }
 ```
 
 The lane's `at` carries the positions; inside a per-hit object the inner `at` is that one hit's position,
@@ -634,7 +634,7 @@ pool clip's path key is `spec` (canonical), or `file` as an alias.
 
 A "voice" line is just a **sound clip that carries subtitle text**: when that clip plays — through any
 path (the `sound` lane, `osf.voice.play`, or a `$pool` query) — the text shows in the dialogue box,
-attributed to the actor the sound is positioned on. There is no separate lane: audio and the box are
+attributed to the actor selected by `role`. There is no separate lane: audio and the box are
 the same clip. The text lives **with the clip in its `*.sounds.json` pool**, so authoring it once gives
 that clip a subtitle everywhere it's used.
 
@@ -880,7 +880,7 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
 | `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/node without cloning it again. | ✓ | `prop`; attach also requires `source` and `node`, with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
-| `osf.voice.play` | Play a sound spec positioned at the role. If that clip carries subtitle text in its pool, the line shows in the box (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
+| `osf.voice.play` | Play a sound spec on the role's voice channel. Audio posts at the listener; if the clip carries subtitle text, the role actor is its speaker (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
 
 > **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/props/fade in
 > reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — you never
