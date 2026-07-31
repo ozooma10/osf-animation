@@ -48,7 +48,10 @@ namespace OSF::Props
 				if (keyword) {
 					keywords.push_back(keyword);
 				} else {
-					REX::WARN("[Scene] equipped-armor prop source keyword '{}' was not found", editorID);
+					// The list is any-of: a missing fallback is expected when another
+					// editor ID resolves on this load order. The enclosing prop action
+					// emits the actionable warning if none of the alternatives works.
+					REX::DEBUG("[Scene] equipped-armor prop source alternative keyword '{}' was not found", editorID);
 				}
 			}
 			if (keywords.empty()) {
