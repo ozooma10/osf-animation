@@ -5,6 +5,7 @@ All notable changes to OSF Animation are documented here.
 ## [1.5.0] - 2026-07-31
 
 ### Fixed
+- **A model-update hook no longer loses Starfield's output-transform argument.** The bad forward could make the engine write through an invalid destination during ordinary actor model updates, even before an OSF scene started.
 - **Alternative equipped-armor prop keywords no longer create false warnings.** A prop source may name several keyword editor IDs as any-of fallbacks; an unavailable alternative is now author-debug detail, while a warning is reserved for the action actually failing to resolve a source.
 - **Masked and additive playback no longer flashes back to the full vanilla pose during a live actor-3D rebuild.** When equipment or cosmetic visibility replaces the current model node between animation evaluation and composition, the compose hook now verifies the new node against the managed actor, rebuilds the bone binding, and stamps that same pass instead of waiting several frames for a later animation update.
 - **Sound authoring now describes what the engine actually does.** OSF's current Wwise external-source route posts at the listener and cannot apply per-cue volume, so the inert position/volume plumbing and misleading schema claims were removed. `role` still selects the voice channel, `{gender}` substitution, and subtitle speaker; legacy `volume` keys remain harmless unknown data.
