@@ -17,6 +17,7 @@
 #include "REX/W32/KERNEL32.h"  // REX::W32::GetModuleHandleW / GetProcAddress / HMODULE (no <Windows.h>)
 
 #include <cstdint>
+#include <string>
 
 namespace OSF::API
 {
@@ -27,6 +28,84 @@ namespace OSF::API
 
 	inline constexpr const wchar_t* kOSFModuleName     = L"OSF Animation.dll";
 	inline constexpr const char*    kRequestExportName = "OSF_RequestSceneAPI";
+	inline constexpr const char*    kReportMinimumVersionExportName = "OSF_ReportMinimumVersion";
+
+	// Result from ReportMinimumVersion. The report export is deliberately
+	// independent of the scene-interface minor: a consumer can report its
+	// requirement before requesting whatever scene ABI it needs.
+	enum class MinimumVersionResult : std::uint32_t
+	{
+		kSupported = 0,
+		kUpgradeRequired = 1,
+		kUnavailable = 2,  // OSF is absent or has no readable version metadata
+		kInvalidRequest = 3,
+	};
+
+	using ReportMinimumVersion_t = std::uint32_t (*)(
+		const char* a_consumer, std::uint32_t a_major,
+		std::uint32_t a_minor, std::uint32_t a_patch);
+
+	// Call once from kPostDataLoad. New OSF builds centralize and deduplicate the
+	// report. If the installed build predates the report export, the helper reads
+	// its standard SFSE version metadata and emits the same HUD warning from the
+	// consumer, so the version-mismatch path still works against older engines.
+	inline MinimumVersionResult ReportMinimumVersion(
+		const char* a_consumer, std::uint32_t a_major,
+		std::uint32_t a_minor = 0, std::uint32_t a_patch = 0) noexcept
+	{
+		const REX::W32::HMODULE mod = REX::W32::GetModuleHandleW(kOSFModuleName);
+		if (!mod) {
+			return MinimumVersionResult::kUnavailable;
+		}
+		if (const auto fn = reinterpret_cast<ReportMinimumVersion_t>(
+				REX::W32::GetProcAddress(mod, kReportMinimumVersionExportName))) {
+			return static_cast<MinimumVersionResult>(
+				fn(a_consumer, a_major, a_minor, a_patch));
+		}
+
+		// Compatibility fallback for OSF builds released before this export. Every
+		// SFSE plugin exposes SFSEPlugin_Version; only its fixed two-field prefix is
+		// needed here. The packed layout is REL::Version's public format.
+		struct PluginVersionPrefix
+		{
+			std::uint32_t dataVersion;
+			std::uint32_t pluginVersion;
+		};
+		const auto* metadata = reinterpret_cast<const PluginVersionPrefix*>(
+			REX::W32::GetProcAddress(mod, "SFSEPlugin_Version"));
+		if (!metadata) {
+			return MinimumVersionResult::kUnavailable;
+		}
+		const std::uint32_t packed = metadata->pluginVersion;
+		const std::uint32_t installedMajor = (packed >> 24) & 0xFFu;
+		const std::uint32_t installedMinor = (packed >> 16) & 0xFFu;
+		const std::uint32_t installedPatch = (packed >> 4) & 0xFFFu;
+		const bool supported =
+			installedMajor != a_major ? installedMajor > a_major :
+			installedMinor != a_minor ? installedMinor > a_minor :
+			installedPatch >= a_patch;
+		if (supported) {
+			return MinimumVersionResult::kSupported;
+		}
+
+		try {
+			if (auto* source = RE::ShowHUDMessageEvent::GetEventSource()) {
+				const std::string name = a_consumer && a_consumer[0] ? a_consumer : "An installed mod";
+				const std::string text = name + " requires OSF Animation v" +
+					std::to_string(a_major) + "." + std::to_string(a_minor) + "." +
+					std::to_string(a_patch) + " or newer. Upgrade OSF Animation.";
+				RE::ShowHUDMessageEvent event{};
+				event.text = RE::BSFixedString(text.c_str());
+				event.sound = RE::BSFixedString();
+				event.canThrottle = true;
+				event.isWarning = true;
+				source->Notify(event);
+			}
+		} catch (...) {
+			// Reporting must never take the consumer down.
+		}
+		return MinimumVersionResult::kUpgradeRequired;
+	}
 
 	// -------------------------------------------------------------------------
 	// Per-start overrides. Tri-states: 1 = force on, 0 = force off, anything else (incl. -1) = inherit the scene def / pack default. 

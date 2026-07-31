@@ -135,6 +135,11 @@ bool Function IsReady() Global Native
 ; Framework version
 string Function GetVersion() Global Native
 
+; Reports the oldest OSF Animation version this consumer supports. Call once at startup.
+; Returns True when the installed version meets the requirement. When False because OSF is
+; older, OSF shows one deduplicated Upgrade warning and records the requirement in System Health.
+bool Function ReportMinimumVersion(string asConsumer, int aiMajor, int aiMinor = 0, int aiPatch = 0) Global Native
+
 ; Open the in-game scene browser (the OSF UI overlay)
 bool Function OpenBrowser() Global Native
 

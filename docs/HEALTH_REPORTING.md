@@ -26,6 +26,7 @@ is true right now.
 | Condition | Code | Severity | Why it qualifies |
 |---|---|---|---|
 | Game version not the tested one (`main.cpp` boot check) | `boot.untested-game-version` | warning | True for the whole session; the player just updated Starfield and needs to know why things may misbehave. |
+| A consumer requires a newer OSF Animation (`MinimumVersion`) | `compat.needs-newer-osf-animation` | warning | The consumer may be disabled or incompatible until the player upgrades; the card records consumer, installed version, and minimum version. |
 | A scene pack could not be loaded (`SceneRegistry`, per file) | `catalog.pack-load` | error / warning | Those animations are silently absent from the browser — until now the only trace was a log line. Severity follows the worst line for that file. |
 | A sound pack could not be loaded (`SoundRegistry`, per file) | `sound.pack-load` | error / warning | Same, for voice/sound pools; different code because it is fixed somewhere else. |
 | Cross-file problems with no single owner (a dangling `use`) | `catalog.cross-file` | error / warning | No file to name, so they share one card rather than being dropped. |
@@ -66,6 +67,7 @@ none has to think about version gating. The vendored `src/API/OSFUI_API.h` is
 refreshed to 1.7. Wired at `main.cpp` (boot version, registry sweep),
 `OSFScript.cpp` (`ReloadPacks` re-reports and reconciles), `WheelPins.cpp`, and
 `FadeService.cpp`. Every site keeps its existing log line — the card is additive.
+`MinimumVersion.cpp` also reports consumer version mismatches and owns their startup HUD warning.
 
 Two things worth knowing before adding a producer:
 

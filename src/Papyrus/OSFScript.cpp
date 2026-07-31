@@ -1,6 +1,7 @@
 #include "OSFScript.h"
 
 #include "API/Health.h"    // registry problems -> OSF UI System Health (re-reported on ReloadPacks)
+#include "API/MinimumVersion.h"
 #include "API/UIBridge.h"  // PushCatalogUpdate (duration rescan on ReloadPacks)
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
@@ -317,6 +318,22 @@ namespace OSF::Papyrus
 		{
 			const auto v = SFSE::GetPluginVersion();
 			return RE::BSFixedString(std::format("{}.{}.{}", v.major(), v.minor(), v.patch()));
+		}
+
+		// Report the minimum OSF Animation version this consumer supports. False
+		// means the installed engine is older (and has raised the shared warning)
+		// or the request itself was invalid.
+		bool ReportMinimumVersion(OSFVM&, uint32_t, std::monostate,
+			RE::BSFixedString a_consumer, std::int32_t a_major,
+			std::int32_t a_minor, std::int32_t a_patch)
+		{
+			if (a_major < 0 || a_minor < 0 || a_patch < 0) {
+				REX::WARN("[Papyrus] ReportMinimumVersion rejected negative version component");
+				return false;
+			}
+			return API::MinimumVersion::Report(a_consumer.c_str(),
+				static_cast<std::uint32_t>(a_major), static_cast<std::uint32_t>(a_minor),
+				static_cast<std::uint32_t>(a_patch)) == API::MinimumVersionResult::kSupported;
 		}
 
 		// True once OSF is loaded and initialized (playback hooks installed).
@@ -836,6 +853,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "IsReady", &IsReady, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetVersion", &GetVersion, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "OpenBrowser", &OpenBrowser, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ReportMinimumVersion", &ReportMinimumVersion, true, false);
 		REX::INFO("[Papyrus] registered natives on script '{}'", SCRIPT_NAME);
 	}
 

@@ -22,6 +22,54 @@ EndIf
 String v = OSF.GetVersion()         ; semver "major.minor.patch"
 ```
 
+## Minimum supported OSF Animation version
+
+A consumer can report the oldest OSF Animation release it supports. Call this once
+during `kPostDataLoad`, before requesting the scene API:
+
+```cpp
+using OSF::API::MinimumVersionResult;
+
+switch (OSF::API::ReportMinimumVersion("Suit Protocol", 1, 5, 0)) {
+case MinimumVersionResult::kSupported:
+    // Safe to request and use the OSF features this consumer needs.
+    break;
+case MinimumVersionResult::kUpgradeRequired:
+    // OSF has already shown the player an Upgrade warning; leave this feature off.
+    return;
+case MinimumVersionResult::kUnavailable:
+case MinimumVersionResult::kInvalidRequest:
+    // Missing OSF / malformed request remains the consumer's own dependency error.
+    return;
+}
+```
+
+The helper resolves the standalone `OSF_ReportMinimumVersion` export; it does not
+depend on scene-API readiness or change the scene ABI. A current host deduplicates
+reports by consumer, retains the highest requested version, writes a warning to
+the log, and publishes a durable `compat.needs-newer-osf-animation` System Health
+issue containing the installed and required versions. Requirements reported
+during plugin load are buffered and shown once the HUD exists. Several early
+reports produce one summary warning.
+
+The copyable header also handles an installed OSF build that predates the report
+export: it reads that DLL's standard `SFSEPlugin_Version` metadata and emits the
+Upgrade HUD warning from the consumer. This is why native consumers should use
+this helper instead of requesting a too-new scene ABI and treating `nullptr` as
+an unexplained failure.
+
+Papyrus consumers have the matching call:
+
+```papyrus
+If !OSF.ReportMinimumVersion("My Mod", 1, 5, 0)
+    Return ; warning already raised when an upgrade is required
+EndIf
+```
+
+The Papyrus native necessarily exists only from the release that introduces this
+reporter onward; it is a baseline for declaring requirements on later releases.
+The native header fallback is the path that can warn against pre-reporter builds.
+
 ## Handles
 
 Every `Start*` returns an opaque **scene handle** (`Int`): `0` = failed (bad id, no match, or an

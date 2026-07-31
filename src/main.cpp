@@ -1,4 +1,5 @@
 #include "API/Health.h"
+#include "API/MinimumVersion.h"
 #include "API/SceneAPIControl.h"
 #include "API/UIBridge.h"
 #include "API/UISettings.h"
@@ -36,6 +37,7 @@ namespace
 			// Separate from InstallUIBridge because health reporting has to
 			// survive a host too old for the browser view.
 			OSF::API::Health::Connect();
+			OSF::API::MinimumVersion::EnablePrompts();
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
 			OSF::API::Health::ReportRegistryLoad();

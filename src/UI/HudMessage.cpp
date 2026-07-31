@@ -55,6 +55,11 @@ namespace OSF::UI::HudMessage
 		}
 	}
 
+	void Warning(std::string_view a_text)
+	{
+		Fire(a_text, true);
+	}
+
 	void Error(std::string_view a_text)
 	{
 		// Always shown — bypasses the debug gate. A player needs to know when something
