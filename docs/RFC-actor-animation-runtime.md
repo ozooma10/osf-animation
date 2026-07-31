@@ -1,7 +1,12 @@
 # Actor animation composition and state routing
 
 Status: proposed. This document describes a target architecture; none of the new runtime, API, or
-schema names below should be read as implemented behavior.
+schema names below should be read as implemented behavior. This is the simplified revision: the
+procedural IK tier, hierarchical claim registry, capability vocabulary, three-tier enforcement,
+two-phase prop handoff, and locomotion blending profiles from the first draft were cut or moved to
+the [deferred appendix](#appendix-deferred-and-sketched). A separate candidate RE track investigates
+whether engine-side conditional clip replacement can cover restricted locomotion without runtime
+pose blending.
 
 Related current contracts: [scene schema](SCENE_SCHEMA.md), [consumer API overview](API.md), and the
 authoritative [native scene ABI header](../src/API/OSFSceneAPI.h).
@@ -16,13 +21,16 @@ The runtime accepts several kinds of presentation intent for an actor:
 - a short **route** between presentation stations, such as helmet Head -> Held -> Stowed;
 - a persistent **condition assertion**, matched to a presentation profile such as front handcuffs or
   an armbinder;
-- an optional **locomotion profile**, such as an ankle-cuffed idle/walk/run set;
 - the actor's role in one OSF **scene**; and
 - small compatible gestures or additive layers.
 
 It arbitrates those intents, samples every accepted layer against one captured Starfield pose, and
-stamps one final pose. Consumer mods continue to own gameplay truth and policy. OSF owns the
-temporary animation state needed to present that truth.
+stamps one final pose. Separately, OSF should investigate whether asserted conditions can drive
+engine-side **clip replacement**. If an actor-aware substitution seam is proven, that optional
+backend could replace selected locomotion clips without OSF composing those poses itself.
+
+Consumer mods continue to own gameplay truth and policy. OSF owns the temporary animation state
+needed to present that truth.
 
 This gives Suit Protocol a cohesive helmet route without making a stowed helmet monopolize the
 actor's scene slot. It also gives a restraint mod a path to keep cuffs visible in ordinary
@@ -59,11 +67,13 @@ or scene-wide control policy. Those remain `SceneRuntime` responsibilities.
 4. Separate a mod's durable semantic state from OSF's reconstructible presentation state.
 5. Make interruption, reversal, suspension, and reconciliation explicit.
 6. Detect semantic conflicts before two clips happen to fight over the same bones.
-7. Support a quality ladder for restraints: generic masked pose, procedural constraint, and fully
-   authored scene variant.
-8. Keep existing scene definitions and APIs working while the lower runtime changes incrementally.
-9. Reuse the route model already present in Studio instead of creating a second helmet-specific
-   authoring format.
+7. Support two restraint quality tiers: a generic masked pose over compatible content, and a fully
+   authored restrained variant selected by matchmaking.
+8. Prefer engine-native locomotion mechanisms; investigate conditional clip replacement before
+   committing to any OSF-side locomotion blender.
+9. Keep existing scene definitions and APIs working while the lower runtime changes incrementally.
+10. Reuse the route model already present in Studio instead of creating a second helmet-specific
+    authoring format.
 
 ## Non-goals
 
@@ -73,10 +83,12 @@ or scene-wide control policy. Those remain `SceneRuntime` responsibilities.
   world.
 - OSF does not change actor movement speed, inventory, AI packages, combat rules, or escape logic.
 - This is not a replacement for Starfield's complete locomotion graph.
-- Bone blending and IK cannot automatically make a scene physically plausible when the original
-  pose depends on a restrained limb for balance or contact.
-- The first implementation does not need arbitrary cross-actor physics, cloth simulation, or an
-  unbounded number of layers.
+- Bone masking cannot automatically make a scene physically plausible when the original pose
+  depends on a restrained limb for balance or contact; those scenes need authored variants or
+  rejection.
+- No runtime IK/constraint solving in this design (deferred; see appendix).
+- The first implementation does not need cross-actor physics, cloth simulation, or an unbounded
+  number of layers.
 
 ## Vocabulary
 
@@ -95,18 +107,16 @@ The names matter because `Graph` currently means several different things in the
   `example-restraints.hands.front`. OSF does not discover or persist it. Equipping and removing a
   device may use routes, while the consumer keeps the worn condition asserted.
 - **Presentation profile:** A data-driven continuous visual selected by conditions. It contributes
-  pose/constraint layers, capabilities, claims, props, and optionally a locomotion profile. It is
-  not a scene and does not own gameplay truth.
-- **Layer:** One contribution to an actor pose: a clip, cached pose, additive motion, or procedural
-  constraint. A layer declares where it composes, which bones it writes, and which semantic
-  resources it claims.
-- **Locomotion profile:** A movement-driven group of in-place clips or poses. It maps generic
-  movement parameters to an appropriate visual rather than duplicating gameplay movement policy.
-- **Claim:** A semantic resource needed for an animation to make sense, such as both hands, the left
-  arm as a support limb, or lower-body stride. Claims prevent combinations that a bone mask alone
-  cannot diagnose.
-- **Constraint target:** A scene- or actor-relative target used by a procedural solver, for example
-  a paired-wrist target in front of the pelvis.
+  pose layers, claims, and props. It is not a scene and does not own gameplay truth.
+- **Layer:** One contribution to an actor pose: a clip, cached pose, or additive motion. A layer
+  declares where it composes, which bones it writes, and which claim targets it holds.
+- **Candidate clip replacement:** A proposed condition-gated substitution of the animation file the
+  engine itself plays. If the RE track proves an actor-aware seam, this would run inside the vanilla
+  pipeline rather than as an OSF pose layer.
+- **Claim:** A coarse semantic resource a layer controls, such as `pose.arms` or
+  `attachment.hand.right`. Claims prevent combinations that a bone mask alone cannot diagnose, and
+  they double as the capability query surface: "can this actor hold something" is answered by
+  asking what exclusively claims the hand targets.
 - **Scene body layer:** The per-role pose submitted by `SceneRuntime` to the actor runtime. There is
   still at most one live cinematic OSF scene per actor, but compatible persistent actor layers may
   compose with it.
@@ -125,7 +135,8 @@ For every integration, this should answer four questions:
 OSF must never infer that a device has been removed merely because its animation was suspended. A
 consumer must never need to serialize an OSF clip time or internal node handle. On a world-replacing
 load, OSF clears its actor runtime; consumers restore semantic truth and submit fresh presentation
-requests.
+requests. Load-time reconstruction is the universal repair path for every failure in this document:
+any state OSF can lose is state a consumer can cheaply reassert.
 
 ## Target architecture
 
@@ -133,26 +144,29 @@ requests.
   Suit Protocol       restraint mod       other consumer
   semantic state      equipped devices    semantic state
         |                    |                   |
-        +------- desired stations / conditions / profiles -------+
-                                                                 |
-  Matchmaker + SceneRuntime ---------------- scene-role intent ---+
-                                                                 v
-                ActorAnimationService (one controller per actor)
-                +-----------------------------------------------+
-                | route instances and desired stations          |
-                | condition assertions and resolved profiles   |
-                | semantic claim arbitration                    |
-                | suspension, interruption, and reconciliation  |
-                +----------------------+------------------------+
-                                       |
-                                  accepted layers
-                                       v
-                              PoseCompositor
-                live Starfield pose -> base -> overlays -> constraints
-                                       |
-                                  one final stamp
-                                       |
-                                  actor skeleton
+        +----- desired stations / condition assertions -----+
+                                                            |
+  Matchmaker + SceneRuntime ----------- scene-role intent ---+
+                                                            v
+               ActorAnimationService (one controller per actor)
+               +-----------------------------------------------+
+               | route instances and desired stations          |
+               | condition assertions and resolved profiles    |
+               | claim arbitration                             |
+               | suspension, interruption, and reconciliation  |
+               +----------------------+------------------------+
+                                      |
+                                 accepted layers
+                                      v
+                             PoseCompositor
+          live Starfield pose -> base -> overlays -> restraints
+                                      |
+                                 one final stamp
+                                      |
+                                 actor skeleton
+
+  A candidate RE track may add condition-gated clip replacement
+  inside the vanilla pipeline before capture; it is not required here.
 
   SceneRuntime continues to own: roster, sync clock, placement/anchor,
   graph navigation, cue/action/sound/camera lanes, locks, strip/equip, ledger.
@@ -178,7 +192,6 @@ Conceptually, one controller contains:
 ActorController
 |- captured Starfield base pose (owned per-frame scratch)
 |- zero or one cinematic scene body layer
-|- zero or one locomotion profile
 |- zero or more route instances
 |- zero or more owner-scoped condition assertions
 |- zero or more resolved presentation profiles
@@ -189,13 +202,15 @@ ActorController
 
 Every request has an owner identity. Releasing or unloading one owner removes only that owner's
 routes, conditions, profiles, and props. A caller-supplied request token is correlation data only;
-OSF assigns its own monotonic instance and transition generations for stale-work rejection. An
-at-most-once event key includes the world epoch, instance generation, transition generation, and
-marker index.
+OSF assigns its own monotonic instance and transition generations, and a result arriving from a
+superseded generation is dropped. Beyond that, delivery relies on the callback contract: reached-
+station and ownership-marker callbacks must be idempotent, and a consumer may reassert its current
+desired station or condition at any time without duplicating a prop or replaying a completed
+transition.
 
-An instance pins immutable route/profile, mask, skeleton, and claim-registry snapshots for its
-lifetime. Reloading packs affects new instances or an explicit safe reconcile, never the meaning of
-an in-flight edge or its cleanup plan.
+An instance pins immutable route/profile, mask, and skeleton snapshots for its lifetime. Reloading
+packs affects new instances or an explicit safe reconcile, never the meaning of an in-flight edge or
+its cleanup plan.
 
 A stable station can contain zero layers. When every accepted entry is zero-layer, the controller
 has no sampling cost and does not occupy the actor's cinematic scene slot.
@@ -207,25 +222,29 @@ A resolved layer needs at least:
 | Field | Purpose |
 | --- | --- |
 | owner and instance | Isolated cleanup and callback routing |
-| source | Clip, static pose, additive pose, or solver |
-| phase | Base, overlay, or hard constraint |
+| source | Clip, static pose, or additive pose |
+| phase | Base, overlay, or restraint |
 | write mask | Bones and feather weights that the compositor actually changes |
 | pose mode and weight | Override or rest-relative additive composition |
 | blend policy | Enter, exit, transition, and interruption blends |
-| claims | Semantic resources required or made unavailable |
-| enforcement | Required, preferred, or cosmetic intent supplied by the consumer |
+| claims | Claim targets held, exclusive or composable |
+| enforcement | Required or cosmetic, supplied by the consumer |
 | lifetime | Transition, station, profile, controller, scene, or external |
-| order | Deterministic visual ordering among compatible layers in the same phase/target |
+| order | Deterministic visual ordering among compatible layers in the same phase |
 
 Layer order is not request urgency, scene matchmaking priority, or a substitute for compatibility.
-If a base scene uses both arms to support the actor, silently sorting a handcuff layer later produces
-a broken pose. That combination must instead select a compatible variant, use an authored
-constraint target, or be rejected under the consumer's policy.
+If a base scene uses both arms to support the actor, silently sorting a handcuff layer later
+produces a broken pose. That combination must instead select an authored variant or be rejected
+under the consumer's policy.
 
 Pose layers are only one actor-local resource domain. Root/world placement, movement/AI control,
 equipment visibility or protection, and attachment ownership also require explicit claims. Root
 placement is exclusive and is not blended as a local-pose layer. Scene-global camera, fade, sound,
 and player-control mechanisms remain in `SceneRuntime` and its ledger.
+
+Face/expression channels (gags, blindfolds, pained expressions — heavily used by device mods) are a
+foreseen future layer source with their own `pose.face` claim target. They are not designed here;
+the layer contract and claim list simply must not paint them out.
 
 ## Pose composition
 
@@ -237,31 +256,21 @@ thread publishes an immutable pose plan for animation hooks to consume. A hook c
 locals into compose-owned per-frame scratch before any OSF write; it never retains a borrowed rig
 buffer pointer in controller state and never rereads a buffer containing OSF's prior stamp. Marker
 crossings discovered off the game thread are sequence-stamped and queued for ordered game-thread
-dispatch.
+dispatch, draining in frame order before new API commands are applied. The reclamation invariant is
+that plan publication precedes reclamation: no hook thread may ever read freed plan, clip, or mask
+data. The mechanism (shared ownership, epochs, or otherwise) is an implementation choice, not part
+of this contract.
 
-At the controller command barrier, completed-frame marker events drain in frame/track order before
-new API commands are applied and the next immutable plan is published. Every event names the plan
-and transition generation that crossed it. A result from an older plan after a countermand is
-dropped; a checkpoint that genuinely crossed before the countermand is journaled and delivered
-before the newer request is planned.
+For each actor and frame the compositor should:
 
-Published plans use shared ownership or epoch/RCU-style reclamation. Animation/compose threads pin
-the exact plan, clip, skeleton binding, masks, and immutable definitions they read. Owner release
-publishes a tombstone/new plan first; physical reclamation and destruction of related OSF props wait
-until every reader of the retired epoch is quiescent. World clear stops publication, establishes the
-same quiescence fence, then frees raw actor/model references.
-
-For each actor and frame it should:
-
-1. Capture the live Starfield local pose once. This remains the immutable base for the frame.
-2. Evaluate the accepted **base** source:
-   - ordinary play keeps the live Starfield pose;
-   - a locomotion profile may replace only its declared movement bones; and
-   - a cinematic scene body layer normally supersedes a locomotion profile on the bones it owns.
-3. Apply compatible **overlay** layers, including equipment gestures, upper-body poses, and additive
-   motion. Masks and feathered seams determine the numerical blend.
-4. Apply accepted **hard constraints** after the scene and soft overlays. A hard restraint uses a
-   full-weight chain pose or a solver; partial weighting is only for entering and leaving it.
+1. Capture the live Starfield local pose once. This remains the immutable base for the frame. If the
+   candidate engine-side replacement track graduates, any replaced clip is simply part of this base.
+2. Evaluate the accepted **base** source: ordinary play keeps the live pose; a cinematic scene body
+   layer supersedes it on the bones it owns.
+3. Apply compatible **overlay** layers, including equipment gestures and upper-body poses. Masks and
+   feathered seams determine the numerical blend.
+4. Apply accepted **restraint** layers after the scene and soft overlays. A restraint is a
+   full-weight masked chain pose; partial weighting is only for entering and leaving it.
 5. Convert and stamp the final local pose once.
 6. Update render props from the final skeleton transforms.
 
@@ -274,10 +283,6 @@ computes rotational `delta = inverse(restRotation) * sampledRotation`, shortest-
 delta from identity by the same weight, and post-composes it onto the accumulated rotation. Its
 translation adds `(sampledTranslation - restTranslation) * weight`; additive scale remains
 engine/underlay-driven, matching current pose math.
-
-Procedural constraints are a distinct post-local step. They build the fully composed model-space
-chain parent-first, solve effectors/joint limits there, and convert the solved transforms back to
-locals against their final parents. They are not ordinary cached local-pose clips.
 
 This order is intentional. The profile realizing a handcuff condition should constrain the arms
 produced by a compatible scene, not be erased by that scene. An incompatible scene never reaches
@@ -328,8 +333,7 @@ A route instance records these separately:
 - the latest desired destination;
 - the last fully reached station;
 - the active edge and pose progress;
-- the most recent irreversible ownership/gameplay checkpoint;
-- an at-most-once journal of markers already delivered for the transition generation; and
+- the most recent irreversible ownership/gameplay checkpoint; and
 - OSF's internal transition generation.
 
 This distinction matters when an ownership transfer happens before the destination pose is reached.
@@ -429,7 +433,6 @@ station/transition vocabulary. Reverse edges and full socket/body-pose data are 
         "source": { "clipId": "suit.helmet-off" },
         "phase": "overlay",
         "mask": "upperBody",
-        "preserveBones": [],
         "mode": "override",
         "rootPolicy": "preserve-engine",
         "claims": [
@@ -449,7 +452,6 @@ station/transition vocabulary. Reverse edges and full socket/body-pose data are 
         "source": { "clipId": "suit.helmet-stow" },
         "phase": "overlay",
         "mask": "upperBody",
-        "preserveBones": [],
         "mode": "override",
         "rootPolicy": "preserve-engine",
         "claims": [
@@ -480,49 +482,41 @@ name or translate a marker for its handoff payload, but the actor runtime must n
 hard-coded Suit action.
 
 Every transition clip needs the same explicit layer contract as a station layer, or a documented
-inheritance rule that resolves to one. Validation maps its write mask to the claim hierarchy and
+inheritance rule that resolves to one. Validation maps its write mask to the claim table and
 rejects uncovered writes. Equipment routes preserve the engine root by default; a clip that writes
-root/world motion is rejected unless its definition explicitly acquires the corresponding exclusive
-root/motion claim.
+root/world motion is rejected unless its definition explicitly acquires the exclusive `motion.root`
+claim.
 
-## Persistent conditions and locomotion
+## Persistent conditions and profiles
 
 A device integration normally has four independent pieces:
 
 1. owner-scoped condition assertions while equipment is active;
-2. presentation profiles whose `when` clauses match those conditions;
+2. presentation profiles and, if the candidate RE track graduates, clip-replacement rules whose
+   `when` clauses match those conditions;
 3. equip/remove transitions, optionally authored as routes; and
 4. device visuals, which may be OSF render props or consumer-owned objects.
 
-Condition IDs are opaque, lowercase, and namespaced to their consumer. OSF standardizes coarse
-capabilities, constraint targets, and claim targets, not every mod's device names. A device or
-compatibility pack connects its conditions to profiles in data. Assertions are volatile and
-owner-scoped/ref-counted; clearing one owner's assertion cannot clear another owner's matching fact.
-If several owners assert the same fact, its effective enforcement is the strongest active request,
-while outcomes are still reported to each owner.
+Condition IDs are opaque, lowercase, and namespaced to their consumer. OSF standardizes the coarse
+claim targets, not every mod's device names. A device or compatibility pack connects its conditions
+to profiles in data. Assertions are volatile and owner-scoped/ref-counted; clearing one owner's
+assertion cannot clear another owner's matching fact. If several owners assert the same fact, its
+effective enforcement is the strongest active request, while outcomes are still reported to each
+owner.
 
 Every matching profile becomes a candidate. Packs should make overlapping profiles mutually
 exclusive in `when` or declare an explicit replacement/selection group. Two matching profiles that
 both exclusively realize the same target without such a relation are a structured content conflict,
 not an invitation for registration order to choose a winner.
 
-A device mod should derive one aggregate desired constraint set for an actor. Individual equipped
+A device mod should derive one aggregate desired condition set for an actor. Individual equipped
 items should not each create an unaware controller that competes for the same arm or leg chains.
 For example, an armbinder can supersede a weaker wrist-cuff arm pose while both device visuals and
 both pieces of gameplay state remain owned by the mod.
 
-Handcuffs mostly need an upper-body profile. The live Starfield idle/walk/run can remain beneath a
-full-weight arm-chain constraint. Ankle cuffs are different: the restriction changes stride, so
-their profile may include both a paired-ankle constraint and a locomotion profile.
-
-A locomotion profile consumes generic observed parameters such as grounded state, planar speed,
-movement direction, and turning. It selects and blends in-place visuals while Starfield continues to
-move the actor through the world. The consumer remains responsible for any gameplay speed limit.
-
-OSF should begin with a small explicit profile contract rather than clone Starfield's behavior
-graph. Idle and basic directional walk/run coverage is sufficient for the first version; starts,
-stops, slopes, jumps, weapons, and every engine posture can remain on the live base until separately
-supported.
+Handcuffs mostly need an upper-body profile: the live Starfield idle/walk/run remains beneath a
+full-weight arm-chain restraint pose. Ankle cuffs are different because the restriction changes
+stride; the candidate RE track below tests whether engine-side clip replacement is a viable answer.
 
 ### Illustrative restraint profile
 
@@ -532,26 +526,14 @@ supported.
   "kind": "actor-profile",
   "id": "example-restraints.front-cuffs",
   "when": { "all": ["example-restraints.hands.front"] },
-  "capabilities": { "suppress": ["hands.free", "hands.hold"] },
   "layers": [
     {
       "id": "arms",
-      "phase": "constraint",
+      "phase": "restraint",
       "claims": [{ "target": "pose.arms", "access": "exclusive" }],
-      "fallback": {
-        "pose": "Poses/Restraints/front-cuffs.pose",
-        "mask": "bothArmChains",
-        "mode": "override"
-      },
-      "solver": {
-        "type": "paired-effectors",
-        "chains": [
-          { "root": "L_UpperArm", "mid": "L_Forearm", "end": "L_Wrist" },
-          { "root": "R_UpperArm", "mid": "R_Forearm", "end": "R_Wrist" }
-        ],
-        "target": "pairedWrists.front",
-        "jointLimits": "human.arms"
-      }
+      "pose": "Poses/Restraints/front-cuffs.pose",
+      "mask": "bothArmChains",
+      "mode": "override"
     }
   ]
 }
@@ -561,71 +543,117 @@ The exact bones must be resolved through a skeleton-family definition. Missing r
 the profile unavailable for that actor; the asserted condition remains true and the owner receives
 a structured realization failure. It must not degrade into partial, undefined writes.
 
-## Semantic claims and arbitration
+## Candidate RE track: conditional clip replacement
 
-Four pieces of metadata answer different questions:
+OSF should investigate whether restricted locomotion can use a DAR/OAR-style native backend: when
+conditions match, the engine resolves a different clip while its graph retains state selection,
+timing, blending, root motion, and transitions. If proven, the compositor would simply capture the
+result as part of the live base pose. The hook cadence, actor context, cache invalidation, runtime
+cost, and first-/third-person graph coverage are not yet known.
+
+The following JSON sketches desired semantics only. It is not a committed registry kind or schema;
+the runtime seam must be proven before the data contract is frozen.
+
+```json
+{
+  "schema": "draft/osf-actor-runtime/0",
+  "kind": "clip-replacement",
+  "id": "example-restraints.shackled-gait",
+  "when": { "all": ["example-restraints.ankles.cuffed"] },
+  "priority": 100,
+  "map": [
+    { "match": "actors/human/locomotion/walk*", "replace": "packs/example-restraints/locomotion/walk-shackled" },
+    { "match": "actors/human/locomotion/run*", "replace": "packs/example-restraints/locomotion/run-shackled" }
+  ]
+}
+```
+
+Candidate semantics, contingent on the proven backend:
+
+- Rule sets are registry data keyed on conditions; there is no per-actor replacement API. Asserting
+  the condition is the activation.
+- Higher `priority` wins among matching rule sets; ties are a structured content conflict.
+- A replacement clip must match the original's rig fingerprint and hold the same duration/root-
+  motion contract the surrounding graph assumes, or the rule is rejected at validation.
+- Activation timing follows whatever binding/cache boundary the RE spike proves. The track must
+  characterize whether an already-playing clip can change and how a consumer requests a safe state
+  refresh; this RFC does not promise next-bind behavior.
+- The consumer still owns any gameplay speed limit. Replacement changes what the gait looks like,
+  never how fast the actor actually moves.
+
+The prerequisite is RE work: locate a safe point that has both the resolved animation asset and the
+actor/graph-instance context needed for per-actor conditions, then prove its threading, lifetime,
+caching, and restoration behavior in game. Until that succeeds, OSF commits to no replacement API,
+registry kind, wildcard syntax, or performance claim. If the runtime hook proves infeasible, offline
+behavior-graph patching with an OSF-toggled variable is a separate fallback investigation; it may
+need graph-specific data rather than the mapping sketch above.
+
+The initial proof target is idle plus basic directional walk/run on two actors with different active
+conditions. Starts, stops, slopes, jumps, weapons, and other engine postures are out of scope until
+the seam and basic isolation are demonstrated.
+
+## Claims and arbitration
+
+Three pieces of metadata answer different questions:
 
 - a condition says what persistent fact the consumer asserted;
-- a capability says what the resulting actor presentation can still do, such as `hands.free` or
-  `stride.full`;
-- a claim says which semantic pose/motion/attachment target a layer controls and whether that
-  access is exclusive or composable; and
+- a claim says which coarse semantic target a layer controls and whether that access is exclusive
+  or composable; and
 - a bone mask says which exact transforms the compositor writes.
 
-Initial standard claim targets should be coarse, hierarchical, and stable:
+The claim list is flat, closed, and small:
 
-- `pose.root`, `pose.body`, `pose.upper-body`, `pose.arms`, `pose.arm.left`, and `pose.arm.right`;
-- `pose.hands`, `pose.lower-body`, `pose.leg.left`, and `pose.leg.right`;
-- `motion.root`, `motion.lower-body`, and `motion.stride`;
-- `attachment.hand.left`, `attachment.hand.right`, and `attachment.hip`; and
-- explicit contact resources where needed, such as `support.arm.left`.
+| Target | Overlaps |
+| --- | --- |
+| `pose.body` | `pose.upper-body`, `pose.arms`, `pose.lower-body` |
+| `pose.upper-body` | `pose.body`, `pose.arms` |
+| `pose.arms` | `pose.body`, `pose.upper-body` |
+| `pose.lower-body` | `pose.body` |
+| `pose.face` | (reserved for future face layers) |
+| `motion.root` | — |
+| `attachment.hand.left` | — |
+| `attachment.hand.right` | — |
+| `attachment.hip` | — |
 
-For example, an exclusive `pose.arms` claim overlaps either individual arm target. A lower-body
-locomotion profile does not overlap a front-cuff `pose.arms` profile. Exact masks still decide the
-math after these semantic checks pass.
+Every target overlaps itself. There is no hierarchy expansion, no ancestor closure, and no separate
+capability vocabulary: "are the hands free" is answered by querying whether anything exclusively
+claims `pose.arms` or the hand attachment targets. If real content later demands finer targets
+(per-arm, stride), they can be added with their overlap rows without breaking existing data; the
+Skyrim device ecosystem ran for a decade on biped slots and keywords, so the burden of proof is on
+the finer target.
 
-Standard targets and capabilities provide interoperability. Packs may add namespaced extensions
-without changing the ABI, but they should not mint a new target when a standard coarse target
-describes the same resource.
-
-The claim registry expands every target to a canonical hierarchy. Two claims overlap when either
-target is the other or its ancestor. `exclusive` access conflicts with any overlapping writer unless
-the scene explicitly `supports` the post-pose constraint or `covers` its condition. `composable`
-access is allowed only for declared phases/orders and compatible pose modes. Requirements and
-suppressed capabilities are eligibility data, not writers, and do not participate in numerical layer
-ordering. Validation also verifies that every weighted bone in a mask is covered by the layer's pose
-claim; a semantic right-arm claim cannot conceal an `upperBody` write.
+`exclusive` access conflicts with any overlapping writer unless the scene explicitly `covers` the
+claiming condition. `composable` access is allowed only for declared phases/orders and compatible
+pose modes. Validation also verifies that every weighted bone in a mask is covered by the layer's
+pose claim; an arms claim cannot conceal an `upperBody` write.
 
 For each state change or scene start, arbitration should:
 
-1. collect routes, asserted conditions, resolved profiles, explicit locomotion, gestures, and scene
-   entries;
+1. collect routes, asserted conditions, resolved profiles, gestures, and scene entries;
 2. compare claims, requirements, scene compatibility, and consumer enforcement;
-3. select an exact variant or constraint target where available;
+3. select an authored variant where available;
 4. accept, suspend, or reject each entry deterministically;
 5. construct the layer plan; and
 6. emit a reasoned outcome to affected owners.
 
-Suggested enforcement meanings are:
+Enforcement has two tiers:
 
 | Enforcement | Meaning |
 | --- | --- |
 | required | Do not hide or weaken this condition's realization. Reject an incompatible scene/request. |
-| preferred | Keep it when compatible; a policy-selected exclusive presentation may suspend it, then reconcile. |
-| cosmetic | May fade or suspend when its claimed resource is needed elsewhere. |
+| cosmetic | May suspend or fade when its claimed resource is needed elsewhere; reconciled afterward. |
 
 The consumer chooses enforcement. A restraint mod may mark locked handcuffs required. Suit Protocol
-can mark a temporary held-helmet gesture preferred, allowing a cinematic scene to settle or suspend
-it while the semantic helmet state remains intact.
+marks a held-helmet gesture cosmetic, allowing a cinematic scene to suspend it while the semantic
+helmet state remains intact.
 
 Enforcement does not grant OSF gameplay preemption authority. If a required assertion arrives while
 an incompatible scene is already committed, OSF retains the assertion, reports its realization as
 conflicted/pending, and does not silently stop the scene. The consumer may stop the scene, queue the
 realization, or apply an instant gameplay-specific fallback. The same assertion present during a new
 scene preflight rejects that start under strict policy. This is intentional **committed-holder
-precedence**, so the immediate presentation can differ across that commit boundary. It is gameplay
-policy rather than registration-order pose math; a consumer that needs required mid-scene preemption
-must explicitly stop/replace the scene.
+precedence**: a consumer that needs required mid-scene preemption must explicitly stop/replace the
+scene.
 
 Suspension retains desired state but releases pose and prop resources according to their lifetime.
 When the conflict ends, the controller re-runs arbitration and reconciles from current semantic
@@ -665,15 +693,11 @@ Any failure unwinds the ledger and reservations in reverse order. Mutations are 
 compensatable, not forbidden during preparation, and no partially started roster becomes public.
 
 At each node/stage change, the scene adapter replaces the role's clip source while preserving the
-outer scene handle, ledger, and synchronization identity. The new low-level playback/node clock
-starts for the destination; current registry-authored graph edges use the runtime's default
-crossfade because they do not author per-edge blend duration. The target route/scene schema may add
-that duration explicitly.
-
-A scene either proves one compatibility contract for every reachable node or preflights each node
-transition as a smaller group transaction. A failed navigation remains at the current node or ends
-the scene according to explicit scene policy; it never advances only part of the roster. A changed
-condition also triggers this preflight before the next node.
+outer scene handle, ledger, and synchronization identity. A scene either proves one compatibility
+contract for every reachable node or preflights each node transition as a smaller group
+transaction. A failed navigation remains at the current node or ends the scene according to
+explicit scene policy; it never advances only part of the roster. A changed condition also triggers
+this preflight before the next node.
 
 Scene end ordering is an observable invariant:
 
@@ -688,40 +712,33 @@ suppresses public callbacks, clears scene and actor-runtime state, and relies on
 reassert after load.
 
 Legacy scenes require no new metadata to play exactly as they do today when no actor conditions are
-registered. A restraint integration must choose its policy for legacy/unknown scenes: permissive
-generic overlay, temporary suspension, or strict rejection. OSF should report that the match was
-unknown rather than silently claim it was compatible.
-
-For the compatibility adapter, a legacy role with no claims is treated as today's exclusive
-full-body scene posture. Non-required profile realizations suspend while it plays, but their
+registered. For the compatibility adapter, a legacy role with no claims is treated as today's
+exclusive full-body scene posture. Cosmetic profile realizations suspend while it plays, but their
 conditions remain asserted. A consumer that marks a realization required must explicitly choose
-whether unknown legacy scenes are rejected or allowed to use a generic fallback; OSF must not make
-that policy choice invisibly.
+whether unknown legacy scenes are rejected or allowed to use the generic masked fallback; OSF must
+not make that policy choice invisibly, and it reports that the match was unknown rather than
+silently claim it was compatible.
 
 Equipment stripping is a separate preflight. A required restraint can expose protected forms,
 slots, or keywords that the scene's strip plan must retain. A scene that truly requires their
-removal is incompatible; merely accepting the restraint's bone constraint is not enough. Existing
+removal is incompatible; merely accepting the restraint's bone pose is not enough. Existing
 `stripActors` behavior remains unchanged for actors with no protected equipment claim.
 
 ## Restraints over a scene
 
-There are three useful quality tiers.
+There are two quality tiers.
 
 | Tier | Technique | Appropriate use | Limitation |
 | --- | --- | --- | --- |
-| 1 | Full-weight masked pose | Front cuffs in many standing/kneeling poses; simple upright armbinders | Fixed arms can intersect the body, partner, furniture, or floor |
-| 2 | Procedural limb constraint/IK | Front/back cuffs whose target moves with pelvis, chest, partner, or furniture | Still cannot repair a base pose that requires those arms for support |
-| 3 | Fully authored restrained variant | Load-bearing, close-contact, furniture-bound, or silhouette-critical scenes | Requires additional content |
+| 1 | Full-weight masked pose over the scene | Front cuffs in many standing/kneeling poses; simple upright armbinders | Fixed arms can intersect the body, partner, furniture, or floor |
+| 2 | Fully authored restrained variant | Load-bearing, close-contact, furniture-bound, or silhouette-critical scenes | Requires additional content |
 
-A tier-1 hard constraint must drive complete limb chains, not just wrists. Blending a cuff pose at
-50 percent does not keep the hands together; use blends only while its profile realization enters
-or exits.
+This mirrors what actually shipped in a decade of Skyrim device content: full-weight bound poses
+plus an animation filter that swapped incompatible scenes for authored bound variants. A tier-1
+restraint must drive complete limb chains, not just wrists — blending a cuff pose at 50 percent
+does not keep the hands together; use blends only while its realization enters or exits.
 
-Tier 2 samples the scene first, resolves an actor/scene-relative target, and then solves both limb
-chains with elbow pole vectors, reach limits, and joint limits. A scene author may provide a named
-target such as `pairedWrists.front` without authoring an entirely separate animation.
-
-Tier 3 remains necessary when the original animation assumes:
+Tier 2 remains necessary when the original animation assumes:
 
 - an arm bears weight or prevents a fall;
 - a hand contacts a partner, prop, wall, or furniture;
@@ -732,12 +749,13 @@ Tier 3 remains necessary when the original animation assumes:
 The matchmaker should prefer, in order:
 
 1. an exact authored variant for the active condition set;
-2. a compatible scene with an authored constraint target;
-3. a scene explicitly allowing the generic constraint fallback; and
-4. rejection or an explicit consumer-selected degradation policy.
+2. a scene explicitly allowing the generic masked fallback (`covers` or compatible claims); and
+3. rejection or an explicit consumer-selected degradation policy.
 
 This avoids both extremes: authoring every possible scene/device combination and pretending a bone
-mask can solve every physical interaction.
+mask can solve every physical interaction. A runtime IK middle tier is deliberately deferred (see
+appendix); if authored variants plus the masked fallback prove insufficient in practice, that is
+the evidence that would justify building it.
 
 ### Illustrative scene compatibility metadata
 
@@ -754,16 +772,7 @@ mask can solve every physical interaction.
         "claims": [
           { "target": "pose.body", "access": "exclusive" }
         ],
-        "supports": ["pairedWrists.front"],
-        "constraintTargets": {
-          "pairedWrists.front": {
-            "space": "role",
-            "bone": "C_Hips",
-            "translation": [0.12, 0.18, 0.08],
-            "rotationDegrees": [0, 0, 0]
-          }
-        },
-        "covers": []
+        "covers": ["example-restraints.hands.front"]
       }
     }
   ]
@@ -771,19 +780,15 @@ mask can solve every physical interaction.
 ```
 
 This shape is illustrative. `requirements` decides whether the actor may fill the role. `claims`
-describes what the playback controls. `supports` opts into a generic post-pose constraint, while
-`covers` means the authored clip already depicts a named condition and its overlapping persistent
-pose/motion layers should yield. The assertion, suppressed capabilities, and protected device
-visuals remain active unless their own ownership contract explicitly transfers them.
+describes what the playback controls. `covers` means the authored clip already depicts a named
+condition, so that condition's overlapping persistent pose layers yield while the role plays. The
+assertion and protected device visuals remain active unless their own ownership contract explicitly
+transfers them.
 
-Each `supports` entry is the canonical constraint-target ID and must exactly match both its
-`constraintTargets` key and the selected profile solver's `target`; there is no implicit string
-mapping.
-
-For example, a custom front-cuffed variant would require
-`example-restraints.hands.front`, list that same condition in `covers`, and claim its authored arm
-pose exclusively. Compatibility and targets are role-local, survive node changes only where
-declared valid, and are queryable by matchmaking before the scene starts.
+For example, a custom front-cuffed variant would require `example-restraints.hands.front`, list
+that same condition in `covers`, and claim its authored arm pose exclusively. Compatibility is
+role-local, survives node changes only where declared valid, and is queryable by matchmaking before
+the scene starts.
 
 ## Props and ownership transfer
 
@@ -809,22 +814,16 @@ Studio's current station ownership kinds already express the helmet case:
 The draft runtime schema makes `owner` and `lifetime` explicit even when today's Studio kind implies
 them, so cleanup never infers that a consumer-owned socket clone belongs to OSF.
 
-An ownership marker produces an ordered, idempotent handoff; it is not magically atomic across a
-consumer callback. For two OSF-owned visuals, the route can prepare the destination and ledger both
-sides internally. Whenever either endpoint is external, the target API uses a
-prepare/acknowledge/commit/compensate protocol:
-
-1. reserve the route resources and ask each external owner to prepare a restorable source or
-   destination for the transfer generation, without declaring the transfer committed;
-2. create/reveal and acknowledge the destination while the source is still retained or restorable;
-3. ask the source owner to hide/release and acknowledge, then journal the irreversible checkpoint
-   and commit both endpoints; or
-4. on any failure, remove/hide the prepared destination, restore the source, and report a
-   compensatable route failure.
-
-Every step is idempotent for the transfer generation. A compatibility adapter over today's void
-scene callback can preserve the existing ordered overlap and post-event reconciliation, but cannot
-promise rollback of an external mutation.
+An ownership marker produces an ordered, idempotent handoff — not a transaction. Each transfer
+carries a generation; every handoff step is idempotent for that generation, and the ordering
+guarantee is that the destination is created/revealed before the source is asked to hide/release,
+so the object never visibly vanishes mid-transfer. Callbacks to external owners are synchronous on
+the game thread and return an acknowledgement/failure result. On a failure partway through, OSF
+removes any OSF-owned prop it prepared, reports a structured route failure naming the last
+completed step, and leaves the consumer's own objects alone. There is no rollback protocol for
+external mutations: the consumer's load/reassert reconciliation — which it must implement anyway —
+is the universal repair path, and reasserting the current desired station after a failed handoff
+must converge to a correct visual.
 
 Suit Protocol should continue owning its persistent hip clone unless OSF gains all of the required
 maintenance guarantees. It already knows helmet identity, save reconciliation, actor-root
@@ -848,12 +847,16 @@ AcquireOwner(pluginId, callbacks) -> owner
 CreateRoute(owner, actor, routeId, initialStation) -> routeInstance
 RequestStation(routeInstance, destination, requestToken) -> accepted/pending/rejected
 AssertCondition(owner, actor, conditionId, enforcement, requestToken) -> assertion
+AssertConditions(owner, batch) -> assertions          (bulk; one arbitration pass)
 ClearCondition(assertion, requestToken)
-SetLocomotionProfile(owner, actor, profileId or none, enforcement, requestToken)
 QueryActorPresentation(actor) -> accepted/suspended/failed entries + scene compatibility
 ReleaseRoute(routeInstance)
 ReleaseOwner(owner)
 ```
+
+`AssertConditions` exists specifically for load-time reconstruction: a consumer restoring a dozen
+device conditions after load must be able to do it in one game-thread call with one arbitration
+pass, not a dozen round-trips through the SFSE task queue.
 
 Callbacks/events should include:
 
@@ -864,18 +867,16 @@ authored marker id, outcome/reason, current scene handle (if relevant)
 ```
 
 Callbacks used for an external ownership endpoint must be synchronous on the game thread, as
-current native scene cues are, and the proposed prepare/apply callbacks return an
-acknowledgement/failure result.
-Informational Papyrus events may remain asynchronous. The caller token is echoed for correlation;
-only OSF's generation controls at-most-once delivery and stale suppression. Reentrant calls should
-be queued and applied after the current dispatch boundary, while start-time events are buffered
-until the returned handle is bound, matching the safety property already needed by Suit Protocol.
+current native scene cues are. Informational Papyrus events may remain asynchronous. The caller
+token is echoed for correlation; OSF's generation controls stale suppression. Reentrant calls are
+queued and applied after the current dispatch boundary, while start-time events are buffered until
+the returned handle is bound, matching the safety property already needed by Suit Protocol.
 
 `ReleaseOwner` is a callback/deferred-command barrier: after it returns, no later dispatch may
 reference that owner. A release called reentrantly marks the owner closing immediately, suppresses
 further events, and completes logical cleanup after the current callback unwinds. Retired immutable
-pose data may remain alive without the owner context until the compose-reader quiescence rule permits
-physical reclamation.
+pose data may outlive the owner context until the compose-reader reclamation invariant permits
+freeing it.
 
 No API should expose a raw `ClipInstance`, pose buffer, or internal node pointer to consumers.
 
@@ -900,22 +901,18 @@ Today Studio can render route-derived OSF actions and Suit handoff output, but i
 the proposed actor-route/profile runtime schema. The draft blocks in this RFC are requirements and
 examples for that future compiler, not files that current OSF will accept.
 
-For persistent constraints, Studio needs:
-
-- named chain definitions and bone validation against the selected rig;
-- a fallback pose and mask previewed over arbitrary base clips;
-- target and pole-vector gizmos;
-- reach, joint-limit, and intersection diagnostics; and
-- a way for a scene role/node to publish or override compatible targets.
-
-Profile authoring also needs a `when` condition selector plus standard capabilities and claim
-targets. Validation should distinguish an unknown namespaced condition (valid but supplied by an
-optional consumer) from an unknown standard target (an interoperability error).
+For profiles, Studio needs a fallback pose and mask previewed over arbitrary base clips, a `when`
+condition selector, and claim-target validation. Validation should distinguish an unknown
+namespaced condition (valid but supplied by an optional consumer) from an unknown claim target (an
+interoperability error).
 
 For authored variants, Studio should let an author preview the base scene with active conditions,
 then save only the replacement role clip or sparse correction where possible. The registry and
-matchmaker need the compatibility metadata regardless of whether the result is a full variant or a
-constraint target.
+matchmaker need the compatibility metadata regardless.
+
+If the candidate clip-replacement track graduates, its authoring flow will be designed around the
+proven seam. The mapping sketch suggests rule data plus replacement clips, but its validation and
+tooling requirements are deliberately not frozen yet.
 
 ## End-to-end examples
 
@@ -934,7 +931,7 @@ constraint target.
 7. Stowed has no pose layer. OSF stops sampling while Suit Protocol maintains the durable clone.
 8. A reverse request follows Stowed -> Held -> Head, using the same ownership rules.
 
-If a cinematic scene starts during this preferred gesture, the controller reports suspension or a
+If a cinematic scene starts during this cosmetic gesture, the controller reports suspension or a
 safe interrupted station. Suit Protocol retains Unsealed as semantic truth and requests the correct
 presentation again when the scene ends.
 
@@ -948,37 +945,36 @@ saves the preference, never the clip time.
 2. It asserts required `example-restraints.hands.front`; the registry selects the matching
    front-cuff profile, while the mod owns or leases the cuff visuals.
 3. Starfield continues to provide idle, walk, and run poses.
-4. The constraint phase overwrites/solves the complete arm chains after the live base pose.
+4. The restraint phase overwrites the complete arm chains after the live base pose.
 5. On removal, the mod runs any remove route, clears its condition assertion, and OSF blends the
    profile realization to the live underlying arms.
 
-No custom walk and idle clips are required if the lower body and torso remain plausible. An author
-may add speed-specific arm targets or a locomotion profile for better quality.
+No custom walk and idle clips are required if the lower body and torso remain plausible.
 
 ### Handcuffs during an intimate multi-actor scene
 
-1. The matchmaker queries each actor controller and sees a required front-cuff condition and its
-   resolved presentation requirements.
-2. It selects an authored cuffed variant, a scene with a paired-wrist target, or an explicitly
-   generic-compatible scene.
+1. The matchmaker queries each actor controller and sees a required front-cuff condition.
+2. It selects an authored cuffed variant, or a scene whose role `covers` the condition or leaves
+   the arm claims uncontested for the generic masked fallback.
 3. `SceneRuntime` submits the synchronized scene body clip as the actor's base scene layer.
-4. The cuff solver samples that result and constrains the wrists/arm chains to the scene target.
+4. The restraint layer overrides the arm chains after that base.
 5. Cuff pieces follow the final wrist transforms; a connector follows both endpoints.
 6. When the scene ends, the scene body layer disappears. The still-asserted condition reselects its
    profile over Starfield locomotion.
 
-If the scene uses the actor's arms for support, the generic constraint fallback is rejected and an
-authored restrained variant is required. No blend weight can repair the missing support assumption.
+If the scene uses the actor's arms for support, the generic fallback is rejected and an authored
+restrained variant is required. No blend weight can repair the missing support assumption.
 
-### Ankle cuffs
+### Ankle cuffs: candidate native-backend outcome
 
-1. The device mod asserts its paired-ankle condition; the matching profile selects an ankle-cuffed
-   locomotion profile.
-2. In ordinary play, the profile supplies narrower idle/walk/run visuals while Starfield still owns
-   movement and world translation.
+If the clip-replacement RE track graduates:
+
+1. The device mod asserts its ankle condition; a matching replacement rule set becomes eligible.
+2. In ordinary play, the engine plays shackled idle/walk/run replacements while retaining ownership
+   of movement and world translation; OSF's compositor is not involved.
 3. A cinematic scene that authors a sufficiently narrow lower-body pose may accept the condition
-   without the locomotion profile.
-4. A wide stance or load-bearing foot placement requires a compatible variant or rejection.
+   without any replacement mattering because scenes bypass locomotion.
+4. A wide stance or load-bearing foot placement still requires a compatible variant or rejection.
 
 ## Interruption, failure, and reconciliation
 
@@ -988,29 +984,34 @@ The runtime must make failure observable and leave semantic ownership unambiguou
   reason. The consumer chooses an instant visual fallback or retains its previous presentation.
 - **Countermand:** advance OSF's transition generation, follow the authored reversal policy, and
   suppress stale work while echoing the consumer's token only as correlation data.
-- **Cinematic conflict:** required condition realizations reject incompatible starts;
-  preferred/cosmetic entries may suspend and later reconcile.
+- **Cinematic conflict:** required condition realizations reject incompatible starts; cosmetic
+  entries suspend and later reconcile.
 - **Actor 3D unavailable:** retain desired state without sampling/stamping. Rebind and reconstruct
   when a valid skeleton returns.
 - **Owner release/plugin unload:** remove only that owner's entries and clean its OSF-owned props.
 - **Scene abort:** release all scene body layers through the existing ledger end path, then reconcile
   controllers.
 - **World-replacing load:** clear every runtime instance and raw actor reference. Consumers rebuild
-  from persisted semantic state; in-flight transitions are never restored.
+  from persisted semantic state (see `AssertConditions`); in-flight transitions are never restored.
 - **Death, furniture, combat, or menus:** OSF exposes presentation availability and reasons; each
   consumer decides whether its request is required, deferred, instant, or cancelled.
 
 Reached-station and ownership-marker callbacks must be idempotent. A consumer should be able to
 reassert its current desired station/condition at any time without duplicating a prop or replaying a
-completed transition.
+completed transition; this reassert-to-converge property is also the repair path after any failed
+handoff.
 
 ## Delivery plan
+
+Phases 1–3 are sequential. The candidate clip-replacement RE track is independent and is not a
+dependency of the actor runtime. No product or schema work for it lands before the runtime seam is
+proven.
 
 ### Phase 0: formalize assets and contracts
 
 - Keep the current Suit Protocol implementation working.
 - Specify route runtime data from Studio's existing station/transition model.
-- Define standard claims, skeleton-family masks, request outcomes, and compatibility metadata.
+- Define the claim table, skeleton-family masks, request outcomes, and compatibility metadata.
 - Add registry/parser fixtures before shipping authored graph/route content.
 - Add a compatibility adapter that can compile the Studio route to today's scenes and typed
   callbacks, allowing current assets and the new route source to be parity-tested side by side.
@@ -1044,24 +1045,33 @@ suspended or failed realization, never treated as silent actor-wide coverage.
 - Add owner claims, enforcement, arbitration, and deterministic suspend/resume.
 - Preserve existing scene behavior when no additional layers are active.
 
-This phase makes generic masked restraint poses possible over compatible scenes.
+This phase makes conditions, profiles, and generic masked restraint poses possible — including over
+compatible scenes.
 
-### Phase 3: procedural constraints and scene compatibility
+### Phase 3: scene compatibility and variant matchmaking
 
-- Add human limb-chain definitions, paired-effector solving, joint limits, and pole targets.
-- Add role/node constraint targets and matchmaker compatibility queries.
-- Add exact-variant preference and structured rejection/degradation outcomes.
-- Add Studio preview and diagnostics for constraints over scene clips.
+- Add role `requirements`/`claims`/`covers` metadata and matchmaker compatibility queries.
+- Add authored-variant preference and structured rejection/degradation outcomes.
+- Add equipment-strip protection preflight.
+- Add Studio preview of profiles/variants over scene clips.
 
-This phase provides the practical middle tier between a fixed cuff pose and custom animation for
-every scene.
+Together with Phase 2 this covers a Devious-Devices-class integration's launch needs: persistent
+restraint presentation plus scene filtering/variant selection — the combination that carried the
+Skyrim device ecosystem.
 
-### Phase 4: locomotion profiles and richer composition
+### Candidate RE track: conditional clip replacement
 
-- Add generic movement parameters and a small idle/walk/run profile resolver.
-- Add lower-body device profiles and transition rules.
-- Extend claims, masks, and constraint types only from demonstrated content needs.
-- Consider multiple soft gesture/additive channels after two real integrations need them.
+- Pin an actor-aware substitution seam and characterize threading, caching, invalidation, and
+  first-/third-person graph coverage.
+- Prove condition-isolated replacement on two actors, followed by clean deactivation, graph rebuild,
+  save/load, and world-replacement behavior.
+- Only after that proof, decide whether a registry kind, priority rules, wildcard syntax, and
+  rig/duration validation are appropriate.
+- If the hook is infeasible, separately evaluate offline behavior-graph patching with an OSF-toggled
+  variable; do not assume it can use the same mapping data.
+
+Anything beyond this — finer claim targets, additional gesture channels, face layers, runtime IK —
+is pulled by demonstrated content needs, not scheduled. See the appendix.
 
 ## Compatibility and migration
 
@@ -1073,8 +1083,8 @@ every scene.
 - Current scene graph nodes and timed lanes remain the orchestration source during migration.
 - Suit Protocol can migrate transition by transition. Its transactional core, persistent hip clone,
   and load reconciliation remain authoritative.
-- A device mod can first use a generic persistent upper-body pose, then adopt constraints and
-  variants as those phases land.
+- A device mod can first use a generic persistent upper-body pose, then adopt variants; conditional
+  clip replacement remains optional unless its RE track graduates.
 
 Internally, `GraphManager` can initially adapt the old one-graph path into the compositor. A large
 rename is not a prerequisite. The invariant to establish early is that only the compositor writes
@@ -1083,11 +1093,11 @@ the final actor pose.
 ## Performance and safety constraints
 
 - Capture and convert the live actor pose once per actor per frame.
-- Sample only active layers; cache static station/constraint fallback poses.
+- Sample only active layers; cache static station/restraint poses.
 - Stamp the flat rig buffers once after all composition.
-- Bound active layers and solver iterations; log rejected overflow rather than degrade unpredictably.
-- Keep arbitration event-driven. Only movement parameters and active clip/solver sampling belong in
-  the frame path.
+- Bound active layers; log rejected overflow rather than degrade unpredictably.
+- Keep arbitration event-driven. Only active clip sampling belongs in the frame path. Any candidate
+  clip-replacement hook must measure its cadence and avoid per-frame registry or pose work.
 - Do not add per-frame scene registry lookups, form resolution, prop cloning, or skeleton topology
   mutation.
 - Retain generational handles and never keep raw actor/skeleton references across world replacement.
@@ -1104,35 +1114,67 @@ The architecture is successful when all of these are true:
    the same route.
 2. A zero-animation Head or Stowed station does not block an unrelated OSF scene.
 3. Front cuffs can override arm chains over Starfield locomotion without replacing the legs.
-4. A compatible multi-actor scene and a required cuff constraint compose in one deterministic final
+4. A compatible multi-actor scene and a required cuff restraint compose in one deterministic final
    pose.
 5. An arm-supported incompatible scene is rejected or selects an authored variant rather than
    silently breaking the pose.
-6. Ankle cuffs can select a restricted locomotion profile without OSF taking ownership of gameplay
-   speed.
-7. Every ownership transfer shows exactly the intended visual through completion, countermand,
+6. Every ownership transfer shows exactly the intended visual through completion, countermand,
    abort, actor 3D rebuild, and load reconciliation.
-8. With no actor routes, assertions, or profiles active, legacy scene output and timing are
+7. With no actor routes, assertions, or profiles active, legacy scene output and timing are
    unchanged.
-9. Layer registration order cannot change the final pose.
-10. Tests cover arbitration, masks, composition order, transition markers, stale request tokens,
-    suspension/reconciliation, cleanup, and transactional multi-role scene start.
+8. Layer registration order cannot change the final pose.
+9. Tests cover arbitration, masks, composition order, transition markers, stale request tokens,
+   suspension/reconciliation, cleanup, and transactional multi-role scene start.
+
+The candidate clip-replacement track has separate graduation criteria: condition-isolated swaps on
+two actors, correct first-/third-person behavior, clean restoration across graph and world rebuilds,
+and measured hook cadence without cross-actor leakage.
 
 ## Open design decisions
 
 The architecture does not depend on these spellings, but implementation must settle them before the
 new schema/API is public:
 
-- whether route/presentation-profile/locomotion assets live in the unified scene file or separate
-  registries;
-- the standard claim namespace and how packs extend it;
+- whether route/profile assets live in the unified scene file or separate registries;
 - the exact compatibility policy for legacy scenes when a consumer does not specify one;
-- the canonical actor-/scene-local target spaces and their conversion into the model-space solver;
-- how cross-actor/furniture targets avoid evaluation cycles;
 - whether route reversal can scrub a transition backward or always follows authored reverse clips;
   and
 - how two-parent connectors such as chains are rendered and culled.
 
-The defaults recommended by this RFC are conservative: explicit reverse clips, actor-local targets,
-consumer-selected legacy policy, one cinematic scene per actor, required restraints never silently
-suspended, and one final pose stamp.
+The defaults recommended by this RFC are conservative: explicit reverse clips, consumer-selected
+legacy policy, one cinematic scene per actor, required restraints never silently suspended, and one
+final pose stamp.
+
+## Appendix: deferred and sketched
+
+Cut from the committed design, recorded so later additions extend rather than contradict it. Each
+item ships only when real content demonstrates the need.
+
+- **Runtime IK / procedural constraints.** The first draft specified a middle restraint tier:
+  paired-effector limb solving against scene-authored constraint targets (`pairedWrists.front`
+  published per role, pole vectors, joint limits, reach diagnostics), composing as a distinct
+  post-local model-space solve. Deferred because the equivalent tier effectively never existed in
+  the Skyrim device ecosystem and content did fine on masked poses plus authored variants. If
+  revived: it slots in as a new layer source in the restraint phase, scene roles gain a
+  `supports`/`constraintTargets` block, and nothing in the current claim table changes.
+- **Finer claim targets.** Per-arm/per-leg pose targets, `motion.stride`, and explicit contact
+  resources (`support.arm.left`), plus hierarchical expansion. Add rows to the flat table with
+  explicit overlap entries instead; hierarchy only if the table grows past what a human can audit.
+- **Capability vocabulary.** `hands.free`-style derived facts. Currently answered by claim queries;
+  a first-class vocabulary returns only if consumers demonstrably need facts that claims cannot
+  express.
+- **`preferred` enforcement tier.** "Keep when compatible, suspend under an exclusive scene, then
+  reconcile" — dropped because it was nearly indistinguishable from `cosmetic`. Revive only with a
+  concrete case where the two must diverge.
+- **Locomotion blending profiles.** Movement-parameter-driven in-place clip selection blended by
+  OSF (grounded state, planar speed, direction, turning). Deferred while the candidate native
+  replacement track is investigated; reconsider only if no safe native backend proves sufficient
+  for demonstrated restricted-movement content.
+- **Face/expression layers.** A `pose.face` layer source for gags, blindfolds, and expressions,
+  with morph-set references in profiles. The claim target is reserved; the design is not started.
+- **Multiple simultaneous gesture channels.** More than one soft additive/gesture layer per actor;
+  consider after two real integrations need them.
+- **Transactional external prop handoff.** The first draft specified a
+  prepare/acknowledge/commit/compensate protocol with an at-most-once marker journal. Replaced by
+  the ordered idempotent handoff plus reassert-to-converge repair; revive only if a consumer
+  appears whose external mutations genuinely cannot be repaired by load-style reconciliation.
