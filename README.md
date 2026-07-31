@@ -23,7 +23,10 @@ Key Features:
 
 - **Pack authors:** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
   ship animation scenes with JSON plus GLB/AF clips, no Papyrus or scripting required; full schema in [docs/SCENE_SCHEMA.md](docs/SCENE_SCHEMA.md).
-  
+
+- **Architecture:** [actor animation composition and state routing](docs/RFC-actor-animation-runtime.md)
+  proposes how equipment routes, persistent constraints, locomotion profiles, and cinematic scenes
+  can share one per-actor pose runtime.
 
 ## Requirements
 
