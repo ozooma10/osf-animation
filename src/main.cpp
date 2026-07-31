@@ -9,6 +9,7 @@
 #include "Input/InputService.h"
 #include "Props/PropService.h"
 #include "Papyrus/OSFScript.h"
+#include "Registry/RequirementRegistry.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneRuntime.h"
@@ -37,6 +38,7 @@ namespace
 			// Separate from InstallUIBridge because health reporting has to
 			// survive a host too old for the browser view.
 			OSF::API::Health::Connect();
+			OSF::Registry::RequirementRegistry::LoadAll();
 			OSF::API::MinimumVersion::EnablePrompts();
 			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();

@@ -11,6 +11,12 @@ namespace OSF::API::MinimumVersion
 		const char* a_consumer, std::uint32_t a_major,
 		std::uint32_t a_minor, std::uint32_t a_patch);
 
+	// Manifest path: use a stable machine id for deduplication and a separate
+	// player-facing name. The native/Papyrus surface above uses its label as both.
+	MinimumVersionResult ReportForConsumer(
+		const char* a_consumerId, const char* a_consumerName,
+		std::uint32_t a_major, std::uint32_t a_minor, std::uint32_t a_patch);
+
 	// Allow player-facing warnings and flush requirements reported during plugin
 	// load. Called once at kPostDataLoad after System Health connects.
 	void EnablePrompts();

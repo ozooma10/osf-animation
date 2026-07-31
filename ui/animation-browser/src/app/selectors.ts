@@ -243,7 +243,7 @@ export function matchesPlayableSearch(state: BrowserState, item: PlayableItem): 
   if (!state.filters.search) return true;
   const scene = item.scene;
   const roles = scene.roles.map((role) => `${role.name} ${role.gender}`).join(" ");
-  return `${item.title} ${item.collection} ${scene.title} ${scene.id} ${scene.tags.join(" ")} ${item.stage?.tags.join(" ") ?? ""} ${roles} ${scene.pack} ${scene.sourceFile}`
+  return `${item.title} ${item.collection} ${scene.title} ${scene.id} ${scene.tags.join(" ")} ${item.stage?.tags.join(" ") ?? ""} ${roles} ${scene.pack} ${scene.sourceFile} ${scene.sourcePath}`
     .toLowerCase().includes(state.filters.search);
 }
 
@@ -367,7 +367,7 @@ export function matchesSearch(state: BrowserState, scene: SceneModel): boolean {
   if (!state.filters.search) return true;
   const roles = scene.roles.map((role) => `${role.name} ${role.gender}`).join(" ");
   const stages = scene.library ? ` ${scene.stageHay ?? ""}` : "";
-  return `${scene.title} ${scene.id} ${scene.tags.join(" ")} ${roles} ${scene.pack} ${scene.folder} ${scene.sourceFile}${stages}`
+  return `${scene.title} ${scene.id} ${scene.tags.join(" ")} ${roles} ${scene.pack} ${scene.folder} ${scene.sourceFile} ${scene.sourcePath}${stages}`
     .toLowerCase()
     .includes(state.filters.search);
 }
@@ -555,32 +555,115 @@ export function stageLabel(scene: SceneModel, index: number): string {
 
 /** Worst state a file reached: an error outranks a warning, which outranks a silent oddity. */
 export type ImportSeverity = "ok" | "note" | "warn" | "error";
+export type ImportOutcome = "clean" | "empty" | "missing" | "partial" | "rejected";
+
+export function importOutcome(file: ImportFile): ImportOutcome {
+  if (file.rejected || (!file.scenes && !file.clipEntries && file.errors > 0)) return "rejected";
+  if (file.errors || file.warnings) return "partial";
+  if (file.missingClips || file.hidden) return "missing";
+  if (!file.scenes && !file.clipEntries) return "empty";
+  return "clean";
+}
 
 export function importSeverity(file: ImportFile): ImportSeverity {
-  if (file.errors) return "error";
-  if (file.warnings || file.missingClips || file.hidden) return "warn";
-  // Loaded cleanly but contributed nothing playable — never an error, always worth seeing.
-  if (!file.scenes && !file.clipEntries) return "note";
-  return "ok";
+  const outcome = importOutcome(file);
+  if (outcome === "rejected" || outcome === "partial" && file.errors > 0) return "error";
+  if (outcome === "partial" || outcome === "missing") return "warn";
+  return outcome === "empty" ? "note" : "ok";
+}
+
+export function importResult(file: ImportFile): string {
+  const outcome = importOutcome(file);
+  if (outcome === "rejected") {
+    return file.declaredScenes
+      ? `Rejected all ${file.declaredScenes} authored scene${file.declaredScenes === 1 ? "" : "s"}; fix the errors and reload.`
+      : "Rejected before it could contribute any content.";
+  }
+  if (outcome === "partial") {
+    if (file.rejectedScenes) return `${file.scenes} of ${file.declaredScenes} scenes loaded; ${file.rejectedScenes} rejected.`;
+    return `Loaded ${file.scenes} scene${file.scenes === 1 ? "" : "s"} with ${file.errors + file.warnings} diagnostic${file.errors + file.warnings === 1 ? "" : "s"}.`;
+  }
+  if (outcome === "missing") {
+    if (file.hidden) return `${file.hidden} scene${file.hidden === 1 ? "" : "s"} unavailable because ${file.missingClips} clip${file.missingClips === 1 ? " is" : "s are"} missing.`;
+    return `${file.missingClips} referenced clip${file.missingClips === 1 ? " is" : "s are"} missing; loaded content may still be incomplete.`;
+  }
+  if (outcome === "empty") return "Loaded successfully, but contributed no scenes or clip entries.";
+  const parts: string[] = [];
+  if (file.scenes) parts.push(`${file.scenes} scene${file.scenes === 1 ? "" : "s"}`);
+  if (file.clipEntries) parts.push(`${file.clipEntries} clip entr${file.clipEntries === 1 ? "y" : "ies"}`);
+  return `Loaded ${parts.join(" and ")} cleanly.`;
+}
+
+export interface ImportOutcomeCounts {
+  all: number;
+  attention: number;
+  clean: number;
+  empty: number;
+  missing: number;
+  partial: number;
+  rejected: number;
+}
+
+export function importOutcomeCounts(files: readonly ImportFile[]): ImportOutcomeCounts {
+  const counts: ImportOutcomeCounts = { all: files.length, attention: 0, clean: 0, empty: 0, missing: 0, partial: 0, rejected: 0 };
+  for (const file of files) {
+    const outcome = importOutcome(file);
+    counts[outcome]++;
+    if (outcome !== "clean") counts.attention++;
+  }
+  return counts;
 }
 
 const SEVERITY_RANK: Record<ImportSeverity, number> = { error: 0, warn: 1, note: 2, ok: 3 };
 
-/** Files the IMPORTS panel should show: search + problems-only filter, worst-first. */
+function importMatchesFilter(state: BrowserState, file: ImportFile): boolean {
+  const outcome = importOutcome(file);
+  return state.importsFilter === "all"
+    || state.importsFilter === "attention" && outcome !== "clean"
+    || state.importsFilter === outcome;
+}
+
 export function visibleImports(state: BrowserState): ImportFile[] {
   const search = state.importsSearch;
   return state.imports
     .filter((file) => {
-      if (state.importsProblemsOnly && importSeverity(file) === "ok") return false;
+      if (!importMatchesFilter(state, file)) return false;
       if (!search) return true;
-      // Match the problem text too: an author usually searches for the message, not the file.
-      return `${file.path} ${file.file} ${file.pack} ${file.species.join(" ")} ${file.problems.join(" ")}`
+      const diagnostics = file.problems.map((problem) =>
+        `${problem.code} ${problem.message} ${problem.hint} ${problem.scene} ${problem.node} ${problem.role} ${problem.clip}`).join(" ");
+      return `${file.path} ${file.file} ${file.pack} ${file.species.join(" ")} ${file.missingClipExamples.join(" ")} ${diagnostics}`
         .toLowerCase().includes(search);
     })
     .sort((a, b) => SEVERITY_RANK[importSeverity(a)] - SEVERITY_RANK[importSeverity(b)]
       || a.path.localeCompare(b.path));
 }
 
+export interface ImportGroup {
+  key: string;
+  label: string;
+  files: ImportFile[];
+  severity: ImportSeverity;
+  problems: number;
+}
+
+export function importGroups(state: BrowserState): ImportGroup[] {
+  const groups = new Map<string, ImportGroup>();
+  for (const file of visibleImports(state)) {
+    const folder = file.path.split("/").filter(Boolean)[0] || "";
+    const key = !file.path ? "cross-file" : file.pack ? `pack:${file.pack.toLowerCase()}` : `folder:${folder.toLowerCase() || "unlabeled"}`;
+    const label = !file.path ? "Registry-wide" : file.pack || (folder ? `${folder} folder` : "Unlabeled files");
+    const existing = groups.get(key);
+    if (existing) {
+      existing.files.push(file);
+      existing.problems += file.errors + file.warnings;
+      if (SEVERITY_RANK[importSeverity(file)] < SEVERITY_RANK[existing.severity]) existing.severity = importSeverity(file);
+    } else {
+      groups.set(key, { key, label, files: [file], severity: importSeverity(file), problems: file.errors + file.warnings });
+    }
+  }
+  return [...groups.values()];
+
+}
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;

@@ -15,6 +15,10 @@ import {
   playableItems,
   playableGroupOpen,
   playableVisible,
+  importGroups,
+  importOutcome,
+  importOutcomeCounts,
+  importResult,
   readableAnimationName,
   validSelection,
   importSeverity,
@@ -463,23 +467,58 @@ describe("import report panel", () => {
     expect(importSeverity(file({ scenes: 3, warnings: 1, errors: 1 }))).toBe("error");
   });
 
-  it("sorts worst-first and filters by search and problems-only", () => {
+  it("sorts worst-first and filters by outcome and search", () => {
     const report = normalizeImportReport({ files: [
       { path: "a/clean.osf.json", file: "clean.osf.json", scenes: 2 },
       { path: "b/broken.osf.json", file: "broken.osf.json", errors: 1, problems: ["[error] 'broken.osf.json': schema 0 unsupported"] },
       { path: "c/warned.osf.json", file: "warned.osf.json", scenes: 1, warnings: 1, problems: ["[warn] 'warned.osf.json': 1 scene(s) hidden"] },
     ] });
-    const state = { ...createInitialState(), imports: report.files, importsReceived: true };
+    const state = { ...createInitialState(), imports: report.files, importsReceived: true, importsFilter: "all" as const };
 
     expect(visibleImports(state).map((entry) => entry.file))
       .toEqual(["broken.osf.json", "warned.osf.json", "clean.osf.json"]);
-    expect(visibleImports({ ...state, importsProblemsOnly: true }).map((entry) => entry.file))
+    expect(visibleImports({ ...state, importsFilter: "attention" }).map((entry) => entry.file))
       .toEqual(["broken.osf.json", "warned.osf.json"]);
-    // Search covers the problem text, because an author usually has the message, not the filename.
     expect(visibleImports({ ...state, importsSearch: "schema 0" }).map((entry) => entry.file))
       .toEqual(["broken.osf.json"]);
     expect(visibleImports({ ...state, importsSearch: "a/clean" }).map((entry) => entry.file))
       .toEqual(["clean.osf.json"]);
+  });
+
+  it("explains outcomes and groups files for author triage", () => {
+    const partial = file({ path: "Pack/scenes.osf.json", file: "scenes.osf.json", pack: "Pack A",
+      declaredScenes: 2, scenes: 1, rejectedScenes: 1, errors: 1 });
+    const rejected = file({ path: "Pack/bad.osf.json", file: "bad.osf.json", declaredScenes: 1,
+      rejectedScenes: 1, rejected: true, errors: 1 });
+    const missing = file({ path: "Pack/assets.osf.json", file: "assets.osf.json", scenes: 2, hidden: 2, missingClips: 3 });
+    const empty = file({ path: "Pack/empty.osf.json", file: "empty.osf.json" });
+    const clean = file({ path: "Other/clean.osf.json", file: "clean.osf.json", scenes: 2 });
+
+    expect([partial, rejected, missing, empty, clean].map(importOutcome))
+      .toEqual(["partial", "rejected", "missing", "empty", "clean"]);
+    expect(importResult(partial)).toBe("1 of 2 scenes loaded; 1 rejected.");
+    expect(importOutcomeCounts([partial, rejected, missing, empty, clean]))
+      .toMatchObject({ all: 5, attention: 4, clean: 1, partial: 1, rejected: 1, missing: 1, empty: 1 });
+    const grouped = importGroups({ ...createInitialState(), imports: [partial, rejected, missing, empty, clean], importsFilter: "all" });
+    expect(grouped.map((group) => group.label)).toEqual(["Pack folder", "Pack A", "Other folder"]);
+  });
+
+  it("records reload deltas and jumps from a file to its loaded content", () => {
+    const before = normalizeImportReport({ files: [{ path: "Pack/scenes.osf.json", file: "scenes.osf.json",
+      errors: 1, problems: [{ code: "scene-invalid", message: "Bad role." }] }] });
+    let state = { ...createInitialState(), imports: before.files, importTotals: before.totals, importsOpen: true };
+    state = browserReducer(state, { type: "imports/reloadStarted" });
+    expect(state.importReload.status).toBe("running");
+
+    const after = normalizeImportReport({ files: [{ path: "Pack/scenes.osf.json", file: "scenes.osf.json", scenes: 1 }] });
+    state = browserReducer(state, { type: "imports/reloadSucceeded", files: after.files, totals: after.totals,
+      durationMs: 42, scenes: 1, completedAt: 100 });
+    expect(state.importReload).toMatchObject({ status: "success", durationMs: 42, scenes: 1 });
+    expect(state.importReload.delta.resolvedProblems).toHaveLength(1);
+
+    const viewed = browserReducer(state, { type: "imports/viewContent", path: "Pack/scenes.osf.json" });
+    expect(viewed).toMatchObject({ importsOpen: false, mode: "scenes", browseAll: true, allSpecies: true });
+    expect(viewed.filters).toEqual({ search: "pack/scenes.osf.json", debugMode: true });
   });
 
   it("formats sizes and durations at readable magnitudes", () => {

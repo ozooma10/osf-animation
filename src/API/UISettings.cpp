@@ -54,7 +54,7 @@ namespace OSF::API
         "hint": "Unbound by default to avoid conflicts. Opens the radial emote picker and targets the crosshair NPC when one is in reach." }
     ] },
     { "id": "browser-behavior", "label": "Behavior", "page": "browser", "settings": [
-      { "key": "browser.afterLaunch", "type": "enum", "default": "minimize",
+      { "key": "browser.afterLaunch", "type": "enum", "default": "stay",
         "options": ["minimize", "stay", "close"],
         "optionLabels": ["Live controls", "Stay open", "Close browser"],
         "label": "After launching a scene",

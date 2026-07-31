@@ -24,6 +24,43 @@ String v = OSF.GetVersion()         ; semver "major.minor.patch"
 
 ## Minimum supported OSF Animation version
 
+For a fixed dependency, ship one manifest anywhere below `Data/OSF` whose name
+ends in `.requirements.json`:
+
+```json
+{
+  "schema": 1,
+  "consumer": {
+    "id": "ozooma10.suit-protocol",
+    "name": "Suit Protocol"
+  },
+  "requires": {
+    "osf.animation": "1.5.0"
+  }
+}
+```
+
+`consumer.id` is the stable machine identity used for deduplication and may
+contain letters, numbers, `.`, `_`, and `-`; `consumer.name` is shown to the
+player. The version must be an exact `major.minor.patch` value. OSF scans these
+manifests at startup, combines duplicate IDs by taking the highest declared
+minimum, reports malformed or duplicate declarations in the log, and feeds
+unmet requirements into the same System Health issue and aggregated Upgrade
+prompt as the runtime APIs below.
+
+Use one manifest per consumer rather than repeating the requirement in every
+scene file. A consumer may ship no scenes or many scene files, and its OSF
+dependency should still have one source of truth. Manifest edits take effect on
+the next game launch.
+
+Keep the native helper when supporting OSF releases older than the manifest
+scanner: an older host cannot discover a new data-file convention, while the
+copyable native header can inspect that host's plugin metadata and warn the
+player. On a current host, a manifest's display name is aliased to its stable ID,
+so reporting the same consumer through both paths still produces one issue and
+one prompt. The runtime API also remains appropriate for conditional
+integrations.
+
 A consumer can report the oldest OSF Animation release it supports. Call this once
 during `kPostDataLoad`, before requesting the scene API:
 

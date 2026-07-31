@@ -1748,16 +1748,49 @@ namespace OSF::Registry
 			return def;
 		}
 
+		struct PendingImportProblem
+		{
+			std::filesystem::path owner;
+			bool                  warning = false;
+			std::string           code;
+			std::string           hint;
+			std::string           scene;
+			std::string           node;
+			std::string           role;
+			std::string           clip;
+		};
+
+		// Load problems remain plain strings for the stable Papyrus API, with structured metadata in
+		// a parallel vector for the Imports panel. Every producer names its owner and repair category
+		// here, so the view never has to infer meaning from prose.
+		struct ProblemSink
+		{
+			std::vector<std::string>&          lines;
+			std::vector<PendingImportProblem>& records;
+
+			void Push(std::string a_line, const std::filesystem::path& a_owner,
+				std::string a_code, std::string a_hint = {}, std::string a_scene = {},
+				std::string a_node = {}, std::string a_role = {}, std::string a_clip = {})
+			{
+				const bool warning = a_line.starts_with("[warn]");
+				lines.push_back(std::move(a_line));
+				records.push_back(PendingImportProblem{
+					a_owner, warning, std::move(a_code), std::move(a_hint), std::move(a_scene),
+					std::move(a_node), std::move(a_role), std::move(a_clip)
+				});
+			}
+		};
 		void LoadOsfFile(const json& a_json, const std::filesystem::path& a_file,
 			std::unordered_map<std::string, SceneDef>& a_out, std::vector<ClipLibraryRegistration>& a_clipLibrary,
-			SceneLoadBudget& a_budget, std::vector<std::string>& a_errors)
+			SceneLoadBudget& a_budget, ProblemSink& a_problems)
 		{
 			const std::string fileName = a_file.filename().string();
 
 			// One reject shape for every whole-file failure: the author-visible LoadError (Health
 			// parses the "[error] '<file>'" prefix) plus the log line. The caller still `return`s.
-			const auto rejectFile = [&](const std::string& a_what) {
-				a_errors.push_back("[error] " + a_what);
+			const auto rejectFile = [&](const std::string& a_what, std::string a_code = "file-invalid",
+				std::string a_hint = "Fix the named file field, then reload packs.") {
+				a_problems.Push("[error] " + a_what, a_file, std::move(a_code), std::move(a_hint));
 				REX::ERROR("[Registry] {} — skipped", a_what);
 			};
 
@@ -1957,6 +1990,9 @@ namespace OSF::Registry
 
 			for (const auto* sj : sceneJsons) {
 				std::vector<std::string> warnings;
+				const std::string authoredId = sj->is_object() && sj->contains("id") && (*sj)["id"].is_string()
+				                               ? (*sj)["id"].get<std::string>()
+				                               : std::string{};
 				try {
 					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, clearHeldItemsDefault,
 						fadeDefault, unlistedDefault, inPlaceDefault, cameraDefault, packRoles, roleRegistry,
@@ -1981,8 +2017,10 @@ namespace OSF::Registry
 					def.library = library;
 					auto key = ToLower(def.id);
 					if (const auto f = a_out.find(key); f != a_out.end()) {
-						a_errors.push_back("[error] duplicate scene id '" + def.id + "' in '" + fileName +
-							"' (already from '" + f->second.sourceFile.filename().string() + "') — keeping the first");
+						a_problems.Push("[error] duplicate scene id '" + def.id + "' in '" + fileName +
+							"' (already from '" + f->second.sourceFile.filename().string() + "') — keeping the first",
+							a_file, "duplicate-scene-id", "Rename this scene id or remove the duplicate; OSF keeps the first definition.",
+							def.id);
 						REX::ERROR("[Registry] duplicate scene id '{}' in '{}' — keeping first from '{}'",
 							def.id, fileName, f->second.sourceFile.filename().string());
 						continue;
@@ -1991,12 +2029,15 @@ namespace OSF::Registry
 						def.nodes.size() > kMaxNodesTotal - a_budget.nodes ||
 						stageCount > kMaxStagesTotal - a_budget.stages ||
 						clipCount > kMaxClipsTotal - a_budget.clips) {
-						a_errors.push_back("[error] scene registry aggregate scene/node/stage/clip limit reached — remaining scenes skipped");
+						a_problems.Push("[error] scene registry aggregate scene/node/stage/clip limit reached — remaining scenes skipped",
+							a_file, "registry-limit", "Reduce the installed scene content below the registry limits, then reload packs.",
+							def.id);
 						REX::ERROR("[Registry] aggregate scene/node/stage/clip limit reached — remaining scenes skipped");
 						break;
 					}
 					for (const auto& w : warnings) {
-						a_errors.push_back("[warn] " + w);
+						a_problems.Push("[warn] " + w, a_file, "scene-warning",
+							"Review the authored value; the scene loaded with a fallback.", def.id);
 						REX::WARN("[Registry] {}", w);
 					}
 					const auto nodeCount = def.nodes.size();
@@ -2007,35 +2048,13 @@ namespace OSF::Registry
 					a_budget.stages += stageCount;
 					a_budget.clips += clipCount;
 				} catch (const std::exception& e) {
-					a_errors.push_back("[error] '" + fileName + "': " + e.what());
+					a_problems.Push("[error] '" + fileName + "': " + e.what(), a_file, "scene-invalid",
+						"Fix the named scene field; only this scene was skipped.", authoredId);
 					REX::ERROR("[Registry] skipping scene in '{}': {}", fileName, e.what());
 				}
 			}
 		}
 
-		// Load problems paired with the source file each one belongs to. `lines` stays exactly what
-		// OSF.GetSceneLoadErrors() has always returned; `owners` runs alongside it so a per-file
-		// import record can claim its own lines without re-parsing the message text. An empty owner
-		// is a problem no single file owns.
-		struct ProblemSink
-		{
-			std::vector<std::string>& lines;
-			std::vector<std::string>& owners;
-
-			void Push(std::string a_line, const std::filesystem::path& a_owner)
-			{
-				lines.push_back(std::move(a_line));
-				owners.emplace_back(a_owner.string());
-			}
-
-			// Attribute every line pushed straight through `lines` (LoadOsfFile still takes the plain
-			// vector) since the last claim. resize() only fills the NEW slots, so already-owned lines
-			// keep their owner.
-			void Claim(const std::filesystem::path& a_owner)
-			{
-				owners.resize(lines.size(), a_owner.string());
-			}
-		};
 
 		// Post-load: resolve every node `use` against the loaded set. A use only splices the target's
 		// single inline-stage node (RFC §9), so the target must exist and be a single-node inline scene.
@@ -2049,14 +2068,18 @@ namespace OSF::Registry
 					const auto tit = a_scenes.find(ToLower(nd.use));
 					if (tit == a_scenes.end()) {
 						a_problems.Push("[error] scene '" + def.id + "' node '" + nd.id +
-							"': use references unknown scene '" + nd.use + "'", def.sourceFile);
+							"': use references unknown scene '" + nd.use + "'", def.sourceFile,
+							"unknown-scene-reference", "Fix the node's use target or install the pack that defines it.",
+							def.id, nd.id);
 						REX::ERROR("[Registry] scene '{}' node '{}' use references unknown scene '{}'", def.id, nd.id, nd.use);
 						continue;
 					}
 					const auto& target = tit->second;
 					if (target.nodes.size() != 1 || target.nodes[0].stages.empty()) {
 						a_problems.Push("[error] scene '" + def.id + "' node '" + nd.id + "': use target '" + nd.use +
-							"' is not a single inline-stage scene (use splices one node's stages)", def.sourceFile);
+							"' is not a single inline-stage scene (use splices one node's stages)", def.sourceFile,
+							"invalid-use-target", "Reference a scene with one inline-stage node, then reload packs.",
+							def.id, nd.id);
 						REX::ERROR("[Registry] scene '{}' node '{}' use target '{}' is not single inline-stage", def.id, nd.id, nd.use);
 					}
 				}
@@ -2270,7 +2293,9 @@ namespace OSF::Registry
 				const auto file = tally.source.filename().string();
 				a_problems.Push("[warn] '" + file + "': " + std::to_string(tally.hidden) +
 					" scene(s) hidden — clips not installed (e.g. '" + tally.firstMissing +
-					"'); install the animation pack this file references", tally.source);
+					"'); install the animation pack this file references", tally.source,
+					"missing-clips", "Install the referenced animation pack or correct the clip path, then reload packs.",
+					{}, {}, {}, tally.firstMissing);
 				REX::WARN("[Registry] '{}': {} scene(s) hidden — clips not installed (e.g. '{}')",
 					file, tally.hidden, tally.firstMissing);
 			}
@@ -2320,7 +2345,9 @@ namespace OSF::Registry
 					a_problems.Push("[error] duplicate clipLibrary registration for '" + display +
 						(reg.clip.animId.empty() ? "" : (":" + reg.clip.animId)) + "' in pack/file group '" +
 						(reg.pack.empty() ? reg.sourceFile.filename().string() : reg.pack) + "' — keeping the first",
-						reg.sourceFile);
+						reg.sourceFile, "duplicate-clip-library",
+						"Remove or rename the duplicate clipLibrary registration; OSF keeps the first.",
+						{}, {}, {}, reg.clip.file);
 					REX::ERROR("[Registry] duplicate clipLibrary registration '{}' in group '{}' — keeping first",
 						display, reg.pack.empty() ? reg.sourceFile.filename().string() : reg.pack);
 					continue;
@@ -2333,7 +2360,9 @@ namespace OSF::Registry
 				}
 				if (!iit->second) {
 					a_problems.Push("[warn] '" + reg.sourceFile.filename().string() +
-						"': clipLibrary entry hidden — clip not installed ('" + reg.clip.file + "')", reg.sourceFile);
+						"': clipLibrary entry hidden — clip not installed ('" + reg.clip.file + "')", reg.sourceFile,
+						"missing-library-clip", "Install the referenced animation pack or correct this clip path, then reload packs.",
+						{}, {}, {}, reg.clip.file);
 					REX::WARN("[Registry] '{}': clipLibrary entry hidden — clip not installed ('{}')",
 						reg.sourceFile.filename().string(), reg.clip.file);
 					continue;
@@ -2488,12 +2517,18 @@ namespace OSF::Registry
 			for (std::size_t i = 0; i < a_files.size(); ++i) {
 				auto& stats = a_files[i];
 				stats.distinctClips = static_cast<std::uint32_t>(clipSets[i].size());
+				std::vector<std::string> missing;
 				for (const auto& clip : clipSets[i]) {
 					// The sweep already probed these specs; the shared memo makes this free.
 					if (!ClipInstalled(a_cache, clip)) {
-						++stats.missingClips;
+						missing.push_back(clip);
 					}
 				}
+				std::sort(missing.begin(), missing.end());
+				stats.missingClips = static_cast<std::uint32_t>(missing.size());
+				constexpr std::size_t kMaxMissingExamples = 8;
+				stats.missingClipExamples.assign(missing.begin(),
+					missing.begin() + std::min(missing.size(), kMaxMissingExamples));
 				stats.species.assign(speciesSets[i].begin(), speciesSets[i].end());
 				std::sort(stats.species.begin(), stats.species.end());
 			}
@@ -2505,8 +2540,8 @@ namespace OSF::Registry
 		namespace fs = std::filesystem;
 		std::unordered_map<std::string, SceneDef> loaded;
 		std::vector<std::string> errors;
-		std::vector<std::string> errorOwners;  // parallel to `errors`; see ProblemSink
-		ProblemSink problems{ errors, errorOwners };
+		std::vector<PendingImportProblem> pendingProblems;
+		ProblemSink problems{ errors, pendingProblems };
 		std::vector<ClipLibraryRegistration> clipLibrary;
 		std::vector<SceneFileStats> fileStats;
 		std::unordered_map<std::string, std::size_t> fileIndex;  // full source path -> index into fileStats
@@ -2518,16 +2553,16 @@ namespace OSF::Registry
 		std::error_code cwdEc;
 		const fs::path cwd = fs::current_path(cwdEc);
 		if (cwdEc) {
-			errors.push_back("[error] scene discovery: cannot resolve the game directory: " + cwdEc.message());
-			errorOwners.emplace_back();
+			problems.Push("[error] scene discovery: cannot resolve the game directory: " + cwdEc.message(), {},
+				"discovery-failed", "Restore access to the game Data/OSF directory, then reload packs.");
 			REX::ERROR("[Registry] cannot resolve the game directory: {}", cwdEc.message());
 		} else {
 			dir = cwd / "Data" / "OSF";
 			auto discovery = Util::DiscoverRegistryFiles(dir, ".osf.json");
 			paths = std::move(discovery.files);
 			for (const auto& problem : discovery.problems) {
-				errors.push_back("[error] scene discovery: " + problem);
-				errorOwners.emplace_back();
+				problems.Push("[error] scene discovery: " + problem, {}, "discovery-failed",
+					"Restore access to the named Data/OSF path, then reload packs.");
 				REX::ERROR("[Registry] discovery: {}", problem);
 			}
 		}
@@ -2552,6 +2587,11 @@ namespace OSF::Registry
 					throw std::runtime_error("file could not be opened");
 				}
 				const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
+				if (const auto scenes = j.find("scenes"); scenes != j.end() && scenes->is_array()) {
+					stats.declaredScenes = static_cast<std::uint32_t>(scenes->size());
+				} else if (j.contains("id")) {
+					stats.declaredScenes = 1;
+				}
 				// Header fields read leniently and separately from LoadOsfFile's validating
 				// parse: a file whose scenes were ALL rejected still has to show what it
 				// declared, and that is usually exactly where the mistake is.
@@ -2564,16 +2604,17 @@ namespace OSF::Registry
 				if (const auto secIt = j.find("section"); secIt != j.end() && secIt->is_string()) {
 					stats.library = ToLower(secIt->get<std::string>()) == "library";
 				}
-				LoadOsfFile(j, file, loaded, clipLibrary, loadBudget, errors);
+				LoadOsfFile(j, file, loaded, clipLibrary, loadBudget, problems);
 			} catch (const std::exception& e) {
-				errors.push_back("[error] '" + stats.file + "': parse failed: " + e.what());
+				problems.Push("[error] '" + stats.file + "': parse failed: " + e.what(), file,
+					"parse-failed", "Fix the JSON syntax near the reported byte or field, then reload packs.");
 				REX::ERROR("[Registry] failed to parse '{}': {}", stats.file, e.what());
 			} catch (...) {
-				errors.push_back("[error] '" + stats.file + "': parse failed with an unknown exception");
+				problems.Push("[error] '" + stats.file + "': parse failed with an unknown exception", file,
+					"parse-failed", "Validate this file as JSON, then reload packs.");
 				REX::ERROR("[Registry] failed to parse '{}' with an unknown exception", stats.file);
 			}
 			stats.parseMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - begun).count();
-			problems.Claim(file);  // everything LoadOsfFile pushed belongs to this file
 		}
 
 		// Resolve every node `use` now that the whole set is loaded (catches dangling refs at load).
@@ -2590,17 +2631,23 @@ namespace OSF::Registry
 				fileStats[it->second].clipEntries = count;
 			}
 		}
+		for (auto& stats : fileStats) {
+			stats.rejectedScenes = stats.declaredScenes > stats.scenes ? stats.declaredScenes - stats.scenes : 0;
+		}
+
 		const auto problemCount = errors.size();
 
-		// Hand every problem line to the file that owns it. Anything unowned lands in one trailing
-		// record rather than being dropped — a problem nobody can see is worse than an odd row.
-		problems.Claim({});
+		// Hand each structured record to its file. Anything unowned lands in one trailing bucket.
 		SceneFileStats crossFile;
-		for (std::size_t i = 0; i < errors.size(); ++i) {
-			const auto it = fileIndex.find(errorOwners[i]);
+		for (std::size_t i = 0; i < errors.size() && i < pendingProblems.size(); ++i) {
+			const auto& pending = pendingProblems[i];
+			const auto it = fileIndex.find(pending.owner.string());
 			auto& target = it != fileIndex.end() ? fileStats[it->second] : crossFile;
-			(errors[i].starts_with("[warn]") ? target.warnings : target.errors) += 1;
-			target.problems.push_back(errors[i]);
+			(pending.warning ? target.warnings : target.errors) += 1;
+			target.problems.push_back(SceneImportProblem{
+				pending.warning, pending.code, errors[i], pending.hint, pending.scene, pending.node,
+				pending.role, pending.clip
+			});
 		}
 		std::sort(fileStats.begin(), fileStats.end(), [](const SceneFileStats& a_lhs, const SceneFileStats& a_rhs) {
 			return a_lhs.path < a_rhs.path;

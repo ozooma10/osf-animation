@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateScene, normalizeImportReport, normalizeScene, safeNormalizeScene } from "../src/model";
+import { diffImportReports, evaluateScene, normalizeImportReport, normalizeScene, safeNormalizeScene } from "../src/model";
 
 describe("scene normalization", () => {
   it("normalizes registry defaults and duration values", () => {
@@ -102,5 +102,32 @@ describe("import report normalization", () => {
     expect(truncated.files[0].problemCount).toBe(40);
     const understated = normalizeImportReport({ files: [{ problems: ["[warn] a", "[error] b"], problemCount: 1 }] });
     expect(understated.files[0].problemCount).toBe(2);
+  });
+
+  it("preserves structured repair guidance and compares reloads", () => {
+    const before = normalizeImportReport({ files: [{
+      path: "Pack/scenes.osf.json",
+      file: "scenes.osf.json",
+      declaredScenes: 2,
+      scenes: 1,
+      rejectedScenes: 1,
+      errors: 1,
+      problems: [{ severity: "error", code: "scene-invalid", message: "Bad role.", hint: "Fix the role.", scene: "pack.bad", role: "lead" }],
+    }] });
+    expect(before.files[0].problems[0]).toEqual({
+      severity: "error",
+      code: "scene-invalid",
+      message: "Bad role.",
+      hint: "Fix the role.",
+      scene: "pack.bad",
+      node: "",
+      role: "lead",
+      clip: "",
+    });
+
+    const after = normalizeImportReport({ files: [{ path: "Pack/scenes.osf.json", file: "scenes.osf.json", declaredScenes: 2, scenes: 2 }] });
+    expect(diffImportReports(before.files, after.files)).toMatchObject({
+      newProblems: [], resolvedProblems: [{ code: "scene-invalid" }], changedFiles: 1, addedFiles: 0, removedFiles: 0,
+    });
   });
 });

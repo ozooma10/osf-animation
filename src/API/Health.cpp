@@ -173,7 +173,7 @@ namespace OSF::API::Health
 			rec.subject = stats.file;
 			rec.error = rec.error || stats.errors > 0;
 			for (const auto& line : stats.problems) {
-				rec.lines.push_back(StripPrefix(line));
+				rec.lines.push_back(StripPrefix(line.message));
 			}
 		}
 		for (const auto& stats : Registry::SoundRegistry::GetSingleton().FileStats()) {

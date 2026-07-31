@@ -34,7 +34,12 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   size, and the load problems attributed to it, plus rolled-up `totals`. Fetched
   only while the panel is open, and re-fetched on every open because the report
   describes the *last* load and `ReloadPacks` can have happened since. Problem
-  lines are bounded per file; `problemCount` carries the true total),
+  lines are bounded per file; `problemCount` carries the true total).
+  `imports.reload`→`imports.reloadResult` runs the same full scene/sound/gear and
+  clip-cache refresh as Papyrus `ReloadPacks`, returning the new report so the
+  view can diff new/resolved diagnostics. `imports.copy {path}`→`imports.copyResult`
+  copies the authoritative, untruncated per-file report through the native Windows
+  clipboard path,
   `projectPickables {slot,width,height}`→`pickTargets` (tokened marker
   geometry the view both renders and resolves clicks against), `pickScreen {slot,token}`→`pick`
   (validation only — the token is the hot marker's), `scanNearby`→`scanResults`,

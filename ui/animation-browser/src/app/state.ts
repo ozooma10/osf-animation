@@ -1,4 +1,4 @@
-import { EMPTY_IMPORT_TOTALS, type ImportFile, type ImportTotals, type SceneModel } from "../model";
+import { EMPTY_IMPORT_TOTALS, type ImportFile, type ImportReloadDelta, type ImportTotals, type SceneModel } from "../model";
 
 export const PLAYER_TOKEN = -1;
 
@@ -83,6 +83,25 @@ export type BrowseKind = "all" | "animation" | "action" | "scene";
 export type AfterLaunch = "minimize" | "stay" | "close";
 export type OpenTo = "last" | BrowseMode;
 export type UnavailableScenes = "ask" | "show" | "hide";
+export type ImportFilter = "attention" | "rejected" | "partial" | "missing" | "empty" | "all";
+
+export interface ImportReloadState {
+  status: "idle" | "running" | "success" | "error";
+  completedAt: number;
+  durationMs: number;
+  scenes: number;
+  error: string;
+  delta: ImportReloadDelta;
+  newProblemKeys: ReadonlySet<string>;
+}
+
+const EMPTY_IMPORT_DELTA: ImportReloadDelta = {
+  newProblems: [], resolvedProblems: [], changedFiles: 0, addedFiles: 0, removedFiles: 0,
+};
+
+function emptyImportReload(): ImportReloadState {
+  return { status: "idle", completedAt: 0, durationMs: 0, scenes: 0, error: "", delta: EMPTY_IMPORT_DELTA, newProblemKeys: new Set() };
+}
 
 export interface BrowserPreferences {
   afterLaunch: AfterLaunch;
@@ -100,7 +119,7 @@ export interface BrowserPreferences {
 }
 
 export const DEFAULT_PREFERENCES: BrowserPreferences = {
-  afterLaunch: "minimize",
+  afterLaunch: "stay",
   openTo: "last",
   rememberBrowsing: true,
   actorLabels: true,
@@ -205,9 +224,10 @@ export interface BrowserState {
   importsReceived: boolean;
   /** Expanded import rows, keyed by file path. */
   importsExpanded: ReadonlySet<string>;
-  /** Hide files that loaded cleanly, leaving only the ones with something to fix. */
-  importsProblemsOnly: boolean;
+  /** Outcome filter; attention is the author-first default while All remains one click away. */
+  importsFilter: ImportFilter;
   importsSearch: string;
+  importReload: ImportReloadState;
   lastBrowseMode: BrowseMode;
   minimized: boolean;
   /** Explicit group disclosure choices. Missing keys fall back to selection-driven opening. */
@@ -262,9 +282,10 @@ export function createInitialState(): BrowserState {
     importTotals: { ...EMPTY_IMPORT_TOTALS },
     importsReceived: false,
     importsExpanded: new Set(),
-    importsProblemsOnly: false,
+    importsFilter: "attention",
     importsSearch: "",
     lastBrowseMode: "scenes",
+    importReload: emptyImportReload(),
     minimized: false,
     libOpen: new Map(),
     libFull: false,

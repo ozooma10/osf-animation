@@ -1,3 +1,4 @@
+import { diffImportReports } from "../model";
 import type { BrowserAction } from "./actions";
 import { PLAYER_CAST, type BrowserState, type CastMember } from "./state";
 
@@ -121,10 +122,45 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       else importsExpanded.delete(action.path);
       return { ...state, importsExpanded };
     }
-    case "imports/problemsOnly":
-      return { ...state, importsProblemsOnly: !state.importsProblemsOnly };
+    case "imports/filter":
+      return { ...state, importsFilter: action.filter };
     case "imports/search":
       return { ...state, importsSearch: action.search };
+    case "imports/reloadStarted":
+      return {
+        ...state,
+        importReload: { ...state.importReload, status: "running", error: "", newProblemKeys: new Set() },
+      };
+    case "imports/reloadSucceeded": {
+      const delta = diffImportReports(state.imports, action.files);
+      return {
+        ...state,
+        importsReceived: true,
+        imports: action.files,
+        importTotals: action.totals,
+        importReload: {
+          status: "success",
+          completedAt: action.completedAt,
+          durationMs: action.durationMs,
+          scenes: action.scenes,
+          error: "",
+          delta,
+          newProblemKeys: new Set(delta.newProblems.map((problem) => problem.key)),
+        },
+      };
+    }
+    case "imports/reloadFailed":
+      return {
+        ...state,
+        importReload: { ...state.importReload, status: "error", completedAt: action.completedAt,
+          durationMs: action.durationMs, error: action.error, newProblemKeys: new Set() },
+      };
+    case "imports/viewContent":
+      return {
+        ...state, importsOpen: false, mode: "scenes", browseKind: "all", browseAll: true,
+        allSpecies: true, libFull: true, libCustomOnly: false,
+        filters: { ...state.filters, search: action.path.toLowerCase(), debugMode: true },
+      };
     case "cast/replaced":
       return { ...state, cast: action.members };
     case "cast/toggled": {

@@ -1,4 +1,4 @@
-import type { BrowseKind, BrowserMode, BrowserPreferences, LocationMode } from "./state";
+import type { BrowseKind, BrowserMode, BrowserPreferences, ImportFilter, LocationMode } from "./state";
 
 export interface BrowserCommands {
   refresh(): void;
@@ -9,9 +9,12 @@ export interface BrowserCommands {
   /** Open/close the per-file import report; opening (re)requests it from the engine. */
   toggleImports(open?: boolean): void;
   refreshImports(): void;
+  reloadImports(): void;
   toggleImportFile(path: string, open: boolean): void;
-  toggleImportProblemsOnly(): void;
+  setImportFilter(filter: ImportFilter): void;
   setImportSearch(value: string): void;
+  viewImportContent(path: string): void;
+  copyImportReport(path: string): void;
   setPreference<K extends keyof BrowserPreferences>(key: K, value: BrowserPreferences[K]): void;
   toggleBrowseAll(): void;
   setBrowseKind(kind: BrowseKind): void;

@@ -1,7 +1,7 @@
 import type { BrowserCommands } from "../../app/commands";
-import { formatBytes, formatMillis, importSeverity, visibleImports, type ImportSeverity } from "../../app/selectors";
-import type { BrowserState } from "../../app/state";
-import type { ImportFile } from "../../model";
+import { formatBytes, formatMillis, importGroups, importOutcome, importOutcomeCounts, importResult, importSeverity, type ImportSeverity } from "../../app/selectors";
+import type { BrowserState, ImportFilter } from "../../app/state";
+import { importProblemKey, type ImportFile, type ImportProblem } from "../../model";
 import { Empty } from "../shared/Shared";
 
 // The per-file import report: one row per *.osf.json the engine scanned, whether or not it
@@ -26,7 +26,9 @@ function Summary({ state }: { state: BrowserState }) {
   const totals = state.importTotals;
   return <div class="imp-summary">
     <Readout label="Files" value={String(totals.files)}/>
+    <Readout label="Authored" value={String(totals.declaredScenes)}/>
     <Readout label="Scenes" value={String(totals.scenes)}/>
+    <Readout label="Rejected scenes" value={String(totals.rejectedScenes)} tone={totals.rejectedScenes ? "error" : ""}/>
     <Readout label="Clip entries" value={String(totals.clipEntries)}/>
     <Readout label="Errors" value={String(totals.errors)} tone={totals.errors ? "error" : ""}/>
     <Readout label="Warnings" value={String(totals.warnings)} tone={totals.warnings ? "warn" : ""}/>
@@ -75,61 +77,106 @@ function Detail({ file }: { file: ImportFile }) {
 
   const hiddenProblems = file.problemCount - file.problems.length;
   return <div class="imp-detail">
+    {!!file.missingClipExamples.length && <div class="imp-missing">
+      <span class="lbl">Missing clip examples</span>
+      <div>{file.missingClipExamples.map((clip) => <code key={clip}>{clip}</code>)}</div>
+    </div>}
+    <details class="imp-technical">
+      <summary>Technical details</summary>
     <div class="imp-grid">
       {cells.map((cell) => <div class="imp-cell" key={cell.label}>
         <span class="lbl">{cell.label}</span><span class="mono">{cell.value}</span>
       </div>)}
     </div>
+    </details>
     {!!file.problems.length && <ul class="imp-problems">
       {file.problems.map((problem, index) => {
-        const warn = problem.startsWith("[warn]");
-        return <li class={`imp-problem ${warn ? "warn" : "error"}`} key={index}>
-          <span class="imp-problem-tag mono">{warn ? "WARN" : "ERROR"}</span>
-          <span class="imp-problem-text">{problem.replace(/^\[(?:warn|error)\]\s*/, "")}</span>
+        const context = problemContext(problem);
+        return <li class={`imp-problem ${problem.severity}`} key={`${problem.code}-${index}`}>
+          <div class="imp-problem-line">
+            <span class="imp-problem-tag mono">{problem.severity}</span>
+            <code class="imp-problem-code">{problem.code}</code>
+            <span class="imp-problem-text">{problem.message}</span>
+          </div>
+          {!!context.length && <div class="imp-problem-context">
+            {context.map((value) => <span class="mono" key={value}>{value}</span>)}
+          </div>}
+          {problem.hint && <p class="imp-hint"><strong>Next:</strong> {problem.hint}</p>}
         </li>;
       })}
       {hiddenProblems > 0 && <li class="imp-problem more mono">
-        + {hiddenProblems} more in the log and OSF.GetSceneLoadErrors()
+        + {hiddenProblems} more available through COPY REPORT and OSF.GetSceneLoadErrors()
       </li>}
     </ul>}
   </div>;
 }
 
+function problemContext(problem: ImportProblem): string[] {
+  const fields = [
+    problem.scene && `scene ${problem.scene}`,
+    problem.node && `node ${problem.node}`,
+    problem.role && `role ${problem.role}`,
+    problem.clip && `clip ${problem.clip}`,
+  ];
+  return fields.filter(Boolean) as string[];
+}
+
 function Row({ state, file, commands }: { state: BrowserState; file: ImportFile; commands: BrowserCommands }) {
   const severity = importSeverity(file);
-  // The cross-file bucket has no path — it is where problems that name no single file land.
   const crossFile = !file.path;
   const key = file.path || "\0cross-file";
   const open = state.importsExpanded.has(key);
   const problems = file.errors + file.warnings;
+  const outcome = importOutcome(file);
+  const newProblems = file.problems.filter((problem) => state.importReload.newProblemKeys.has(importProblemKey(file.path, problem))).length;
   return <div class={`imp-row ${severity} ${open ? "open" : ""}`}>
-    <button class="imp-head" aria-expanded={open} onClick={() => commands.toggleImportFile(key, !open)}>
+    <div class="imp-head">
+    <button class="imp-main" aria-expanded={open} onClick={() => commands.toggleImportFile(key, !open)}>
       <span class="chev">{open ? "▾" : "▸"}</span>
       <span class={`dot ${severity}`} title={SEVERITY_TITLE[severity]}/>
       <span class="imp-name">
         <span class="imp-file">
-          {crossFile ? "Cross-file problems" : file.file}
+          {crossFile ? "Registry-wide problems" : file.file}
           {/* A chip, not another dot-separated word: pack labels contain "·" themselves. */}
           {file.library && <span class="imp-lane mono">LIBRARY</span>}
         </span>
         <span class="imp-path mono">{crossFile
           ? "not attributable to one file"
           : `${file.path}${file.pack ? ` · ${file.pack}` : ""}`}</span>
+        <span class="imp-result">{importResult(file)}</span>
       </span>
       {!crossFile && <span class="imp-traits mono">{traits(file)}</span>}
-      {file.rejected && <span class="imp-badge error">REJECTED</span>}
+      <span class={`imp-badge outcome ${severity}`}>{outcome}</span>
       {!!problems && <span class={`imp-badge ${file.errors ? "error" : "warn"}`}>{problems}</span>}
+      {!!newProblems && <span class="imp-badge fresh">{newProblems} NEW</span>}
     </button>
+    <div class="imp-row-actions">
+      {!crossFile && file.scenes + file.clipEntries > file.hidden &&
+        <button type="button" onClick={() => commands.viewImportContent(file.path)}>VIEW CONTENT</button>}
+      <button type="button" onClick={() => commands.copyImportReport(file.path)}>COPY REPORT</button>
+    </div>
+    </div>
     {open && <Detail file={file}/>}
   </div>;
 }
 
 export function ImportsPanel({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  const files = visibleImports(state);
-  const problemFiles = state.imports.filter((file) => importSeverity(file) !== "ok").length;
+  const groups = importGroups(state);
+  const counts = importOutcomeCounts(state.imports);
+  const filters: { id: ImportFilter; label: string; count: number }[] = [
+    { id: "attention", label: "Needs attention", count: counts.attention },
+    { id: "rejected", label: "Rejected", count: counts.rejected },
+    { id: "partial", label: "Partial", count: counts.partial },
+    { id: "missing", label: "Missing assets", count: counts.missing },
+    { id: "empty", label: "Empty", count: counts.empty },
+    { id: "all", label: "All files", count: counts.all },
+  ];
+  const reload = state.importReload;
+  const delta = reload.delta;
+  const changedFiles = delta.changedFiles + delta.addedFiles + delta.removedFiles;
   return <section class="settings-panel imports-panel" aria-label="Scene file imports">
     <div class="settings-head">
-      <div><p class="eb">Registry load</p><h2>Scene file imports</h2></div>
+      <div><p class="eb">Author diagnostics</p><h2>Import workshop</h2></div>
       <div class="imp-head-tools">
         <button class="iconbtn" type="button" title="Re-read the import report" onClick={commands.refreshImports}>⟳</button>
         <button class="iconbtn" type="button" title="Close imports" aria-label="Close imports"
@@ -138,24 +185,68 @@ export function ImportsPanel({ state, commands }: { state: BrowserState; command
     </div>
     <div class="settings-scroll">
       <Summary state={state}/>
+      <div class="imp-workflow">
+        <div>
+          <p class="eb">Edit → reload → compare</p>
+          <strong>Repair packs without leaving the browser</strong>
+          <p>Save your JSON or assets, reload all registries, then review exactly what changed.</p>
+        </div>
+        <button class="primary" type="button" disabled={reload.status === "running"} onClick={commands.reloadImports}>
+          {reload.status === "running" ? "RELOADING…" : "RELOAD PACKS"}
+        </button>
+      </div>
+      {reload.status === "running" && <div class="imp-reload running">Reloading scenes, sounds, gear, and clip caches…</div>}
+      {reload.status === "error" && <div class="imp-reload error"><strong>Reload failed.</strong> {reload.error}</div>}
+      {reload.status === "success" && <div class={`imp-reload ${delta.newProblems.length ? "warn" : "ok"}`}>
+        <strong>{reload.scenes} scenes loaded in {formatMillis(reload.durationMs)}.</strong>
+        <span>{changedFiles ? `${changedFiles} file${changedFiles === 1 ? "" : "s"} changed.` : "No import outcomes changed."}</span>
+        {!!delta.resolvedProblems.length && <span class="resolved">{delta.resolvedProblems.length} resolved</span>}
+        {!!delta.newProblems.length && <span class="introduced">{delta.newProblems.length} new</span>}
+      </div>}
+      {reload.status === "success" && !!(delta.resolvedProblems.length || delta.newProblems.length) &&
+        <div class="imp-delta">
+          {!!delta.resolvedProblems.length && <details class="resolved">
+            <summary>{delta.resolvedProblems.length} resolved diagnostic{delta.resolvedProblems.length === 1 ? "" : "s"}</summary>
+            <ul>{delta.resolvedProblems.slice(0, 8).map((problem) =>
+              <li key={problem.key}><strong>{problem.file || "Registry-wide"}</strong><code>{problem.code}</code>{problem.message}</li>)}
+            </ul>
+          </details>}
+          {!!delta.newProblems.length && <details class="introduced" open>
+            <summary>{delta.newProblems.length} new diagnostic{delta.newProblems.length === 1 ? "" : "s"}</summary>
+            <ul>{delta.newProblems.slice(0, 8).map((problem) =>
+              <li key={problem.key}><strong>{problem.file || "Registry-wide"}</strong><code>{problem.code}</code>{problem.message}</li>)}
+            </ul>
+          </details>}
+        </div>}
+      <div class="imp-outcomes" role="group" aria-label="Filter imports by outcome">
+        {filters.map((filter) => <button type="button" key={filter.id}
+          class={state.importsFilter === filter.id ? "on" : ""}
+          aria-pressed={state.importsFilter === filter.id}
+          onClick={() => commands.setImportFilter(filter.id)}>
+          {filter.label}<strong>{filter.count}</strong>
+        </button>)}
+      </div>
       <div class="imp-filterbar">
         <div class="search-field grow">
-          <input type="text" value={state.importsSearch} placeholder="⌕ filter by file · pack · message"
+          <input type="text" value={state.importsSearch} placeholder="⌕ file · pack · code · scene · clip"
             autocomplete="off" spellcheck={false}
             onInput={(event) => commands.setImportSearch(event.currentTarget.value)}/>
         </div>
-        <button class={`filter-chip ${state.importsProblemsOnly ? "on" : ""}`} onClick={commands.toggleImportProblemsOnly}>
-          {state.importsProblemsOnly ? `NEEDS ATTENTION · ${problemFiles}` : "ALL FILES"}
-        </button>
       </div>
       {!state.importsReceived
         ? <Empty>Reading the import report…</Empty>
         : !state.imports.length
           ? <Empty>No *.osf.json files were found under Data/OSF. No scene pack is installed, or OSF is not deployed where the game runs.</Empty>
-          : !files.length
+          : !groups.length
             ? <Empty>No file matches the current filter.</Empty>
-            : <div class="imp-list">{files.map((file) =>
-              <Row key={file.path || "cross-file"} state={state} file={file} commands={commands}/>)}</div>}
+            : <div class="imp-list">{groups.map((group) => <section class="imp-group" key={group.key}>
+              <h3>
+                <span>{group.label}</span>
+                <span class={`imp-group-state ${group.severity}`}>{group.files.length} files · {group.problems} diagnostics</span>
+              </h3>
+              {group.files.map((file) =>
+                <Row key={file.path || "cross-file"} state={state} file={file} commands={commands}/>)}
+            </section>)}</div>}
     </div>
   </section>;
 }

@@ -436,6 +436,8 @@ int main()
 		Check(bare && bare->scenes == 1, "the bare single-scene fixture reports one scene");
 		Check(bare && bare->schema == OSF::Registry::kSchemaVersion, "the declared schema is recorded");
 		Check(bare && bare->bytes > 0, "the file size is recorded");
+		Check(bare && bare->declaredScenes == 1 && bare->rejectedScenes == 0,
+			"clean files report exact authored and rejected scene counts");
 		Check(bare && bare->nodes > 0 && bare->stages > 0 && bare->clips > 0,
 			"node/stage/clip totals are recorded");
 		Check(bare && bare->distinctClips > 0 && bare->distinctClips <= bare->clips,
@@ -448,12 +450,19 @@ int main()
 		const auto* malformed = find("fixture_malformed_type.osf.json");
 		Check(malformed && malformed->scenes == 0 && malformed->errors == 1,
 			"a rejected file keeps a record carrying its reject line");
+		Check(malformed && malformed->declaredScenes == 1 && malformed->rejectedScenes == 1,
+			"whole-file rejection preserves its authored scene count");
+		Check(malformed && malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(), "rejected files carry structured repair guidance");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
 		// Partial file: some scenes in, nine rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
 		Check(partial && partial->scenes == 1 && partial->errors == 9,
 			"a partially-loaded file reports both its scenes and its rejected ones");
+		Check(partial && partial->declaredScenes == 10 && partial->rejectedScenes == 9,
+			"partial files report exact authored and rejected scene counts");
+		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
+			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");
 		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
 
 		const auto* clipLib = find("fixture_clip_library.osf.json");

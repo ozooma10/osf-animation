@@ -7,6 +7,7 @@ import type {
   CastMember,
   FurnitureTarget,
   LocationMode,
+  ImportFilter,
   NearbyTarget,
   PluginVersion,
   WheelEntry,
@@ -29,7 +30,11 @@ export type BrowserAction =
   | { type: "imports/requested" }
   | { type: "imports/received"; files: ImportFile[]; totals: ImportTotals }
   | { type: "imports/expanded"; path: string; open: boolean }
-  | { type: "imports/problemsOnly" }
+  | { type: "imports/filter"; filter: ImportFilter }
+  | { type: "imports/reloadStarted" }
+  | { type: "imports/reloadSucceeded"; files: ImportFile[]; totals: ImportTotals; durationMs: number; scenes: number; completedAt: number }
+  | { type: "imports/reloadFailed"; error: string; durationMs: number; completedAt: number }
+  | { type: "imports/viewContent"; path: string }
   | { type: "imports/search"; search: string }
   | { type: "cast/replaced"; members: CastMember[] }
   | { type: "cast/toggled"; member: CastMember }

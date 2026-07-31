@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <filesystem>
 #include <cstdint>
 #include <format>
 #include <string>
@@ -197,6 +198,7 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              pack;        // file-level `pack` label — the browser's group-by-pack key ("" = none authored)
 			std::string              folder;      // optional slash-delimited catalog path within the pack
 			std::string              sourceFile;  // scene file name only (no directories) — the browser's grouping fallback
+			std::string              sourcePath;  // Data/OSF-relative path for exact Imports -> catalog navigation
 			std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
 			std::vector<std::string> tags;
 			std::uint32_t            actorCount = 0;
@@ -221,7 +223,10 @@ namespace OSF::API::UIBridgeCatalog
 			bool                     openEnded = false;   // some stage holds until advanced
 		};
 		std::vector<Card> cards;
-		Registry::SceneRegistry::GetSingleton().ForEachDef([&cards, &wheelOrder, a_library](const Registry::SceneDef& d) {
+		std::error_code sourceRootEc;
+		const auto sourceRoot = std::filesystem::current_path(sourceRootEc) / "Data" / "OSF";
+		Registry::SceneRegistry::GetSingleton().ForEachDef(
+			[&cards, &wheelOrder, &sourceRoot, sourceRootEc, a_library](const Registry::SceneDef& d) {
 			if (d.library != a_library) {
 				return;  // each lane serializes only its own scenes
 			}
@@ -238,6 +243,14 @@ namespace OSF::API::UIBridgeCatalog
 			const auto srcName = d.sourceFile.filename().u8string();
 			c.sourceFile.assign(srcName.begin(), srcName.end());
 			c.species = d.species.empty() ? std::string{ "human" } : d.species;
+			c.sourcePath = c.sourceFile;
+			if (!sourceRootEc) {
+				const auto relative = d.sourceFile.lexically_relative(sourceRoot);
+				const auto text = relative.generic_string();
+				if (!text.empty() && text != ".." && !text.starts_with("../")) {
+					c.sourcePath = text;
+				}
+			}
 			c.tags = d.tags;
 			c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
 			c.roles.reserve(d.roles.size());
@@ -370,6 +383,7 @@ namespace OSF::API::UIBridgeCatalog
 				{ "sourceFile", c.sourceFile },
 				{ "species", c.species },
 				{ "tags", c.tags },
+				{ "sourcePath", c.sourcePath },
 				{ "actorCount", c.actorCount },
 				{ "roles", [&c]() {
 					 json roles = json::array();
@@ -414,12 +428,15 @@ namespace OSF::API::UIBridgeCatalog
 		const auto stats = Registry::SceneRegistry::GetSingleton().FileStats();
 
 		json files = json::array();
-		std::uint64_t totalScenes = 0, totalClipEntries = 0, totalErrors = 0, totalWarnings = 0;
+		std::uint64_t totalDeclared = 0, totalScenes = 0, totalRejectedScenes = 0;
+		std::uint64_t totalClipEntries = 0, totalErrors = 0, totalWarnings = 0;
 		std::uint64_t totalHidden = 0, totalMissing = 0, totalBytes = 0;
 		std::uint32_t rejectedFiles = 0, realFiles = 0;
 		float totalMs = 0.0f;
 		for (const auto& s : stats) {
 			totalScenes += s.scenes;
+			totalDeclared += s.declaredScenes;
+			totalRejectedScenes += s.rejectedScenes;
 			totalClipEntries += s.clipEntries;
 			totalErrors += s.errors;
 			totalWarnings += s.warnings;
@@ -436,7 +453,17 @@ namespace OSF::API::UIBridgeCatalog
 
 			json problems = json::array();
 			for (std::size_t i = 0; i < s.problems.size() && i < kMaxProblemsPerFile; ++i) {
-				problems.push_back(s.problems[i]);
+				const auto& problem = s.problems[i];
+				problems.push_back({
+					{ "severity", problem.warning ? "warn" : "error" },
+					{ "code", problem.code },
+					{ "message", problem.message },
+					{ "hint", problem.hint },
+					{ "scene", problem.scene },
+					{ "node", problem.node },
+					{ "role", problem.role },
+					{ "clip", problem.clip },
+				});
 			}
 			files.push_back({
 				{ "path", s.path },
@@ -446,6 +473,8 @@ namespace OSF::API::UIBridgeCatalog
 				{ "schema", s.schema },
 				{ "bytes", s.bytes },
 				{ "parseMs", s.parseMs },
+				{ "declaredScenes", s.declaredScenes },
+				{ "rejectedScenes", s.rejectedScenes },
 				{ "scenes", s.scenes },
 				{ "hidden", s.hidden },
 				{ "unlisted", s.unlisted },
@@ -456,6 +485,7 @@ namespace OSF::API::UIBridgeCatalog
 				{ "clips", s.clips },
 				{ "distinctClips", s.distinctClips },
 				{ "missingClips", s.missingClips },
+				{ "missingClipExamples", s.missingClipExamples },
 				{ "cues", s.cues },
 				{ "actions", s.actions },
 				{ "sounds", s.sounds },
@@ -477,6 +507,8 @@ namespace OSF::API::UIBridgeCatalog
 			{ "totals", {
 				{ "files", realFiles },
 				{ "rejectedFiles", rejectedFiles },
+				{ "declaredScenes", totalDeclared },
+				{ "rejectedScenes", totalRejectedScenes },
 				{ "scenes", totalScenes },
 				// The registry's own authored count, so a mismatch with the per-file sum is
 				// visible rather than silently averaged away.
@@ -490,6 +522,63 @@ namespace OSF::API::UIBridgeCatalog
 				{ "parseMs", totalMs },
 			} },
 		};
+	}
+	std::optional<std::string> BuildImportTextReport(std::string_view a_path)
+	{
+		const auto stats = Registry::SceneRegistry::GetSingleton().FileStats();
+		const auto found = std::find_if(stats.begin(), stats.end(), [&](const Registry::SceneFileStats& a_stats) {
+			return a_stats.path == a_path;
+		});
+		if (found == stats.end()) {
+			return std::nullopt;
+		}
+
+		const auto& file = *found;
+		std::string text = "OSF Animation - scene import report\r\n";
+		text += std::format("File: {}\r\n", file.path.empty() ? "Cross-file problems" : file.path);
+		if (!file.pack.empty()) {
+			text += std::format("Pack: {}\r\n", file.pack);
+		}
+		text += std::format("Result: {} accepted / {} declared; {} rejected; {} hidden; {} missing clips\r\n",
+			file.scenes, file.declaredScenes, file.rejectedScenes, file.hidden, file.missingClips);
+		text += std::format("Schema: {} | Size: {} bytes | Load: {:.2f} ms\r\n", file.schema, file.bytes, file.parseMs);
+		text += std::format("Content: {} nodes | {} stages | {} roles | {} clip slots | {} distinct clips | {} library entries\r\n",
+			file.nodes, file.stages, file.roles, file.clips, file.distinctClips, file.clipEntries);
+		text += std::format("Tracks: {} cues | {} actions | {} sounds | {} cameras\r\n",
+			file.cues, file.actions, file.sounds, file.cameras);
+		if (!file.species.empty()) {
+			text += "Species:";
+			for (const auto& species : file.species) {
+				text += " " + species;
+			}
+			text += "\r\n";
+		}
+		text += std::format("Diagnostics: {} error(s), {} warning(s)\r\n", file.errors, file.warnings);
+
+		if (!file.missingClipExamples.empty()) {
+			text += "\r\nMissing clip examples:\r\n";
+			for (const auto& clip : file.missingClipExamples) {
+				text += "- " + clip + "\r\n";
+			}
+		}
+		if (!file.problems.empty()) {
+			text += "\r\nProblems:\r\n";
+			for (const auto& problem : file.problems) {
+				text += std::format("[{}] {}\r\n", problem.code.empty() ? (problem.warning ? "warning" : "error") : problem.code,
+					problem.message);
+				if (!problem.scene.empty() || !problem.node.empty() || !problem.role.empty() || !problem.clip.empty()) {
+					text += std::format("  Context: scene={} node={} role={} clip={}\r\n",
+						problem.scene.empty() ? "-" : problem.scene,
+						problem.node.empty() ? "-" : problem.node,
+						problem.role.empty() ? "-" : problem.role,
+						problem.clip.empty() ? "-" : problem.clip);
+				}
+				if (!problem.hint.empty()) {
+					text += "  Next: " + problem.hint + "\r\n";
+				}
+			}
+		}
+		return text;
 	}
 
 }

@@ -307,6 +307,21 @@ namespace OSF::Registry
 		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
+	// A structured view of one legacy load-error line. `message` remains the exact text published
+	// through OSF.GetSceneLoadErrors(); the remaining fields let the browser explain and group it
+	// without reverse-engineering prose. Fields are additive and may be empty when not applicable.
+	struct SceneImportProblem
+	{
+		bool        warning = false;
+		std::string code;
+		std::string message;
+		std::string hint;
+		std::string scene;
+		std::string node;
+		std::string role;
+		std::string clip;
+	};
+
 	// What ONE *.osf.json contributed to the registry: the author-facing import record behind the
 	// browser's IMPORTS panel. Every discovered file gets one, including a file that was rejected
 	// whole and contributed nothing — "my pack is missing" is answered by the row being present with
@@ -325,7 +340,9 @@ namespace OSF::Registry
 		float         parseMs = 0.0f;    // read + parse + validate wall time for this file
 
 		std::uint32_t scenes = 0;        // scenes accepted into the registry
+		std::uint32_t declaredScenes = 0; // scene objects authored in this file (before validation)
 		std::uint32_t hidden = 0;        //   ...of those, hidden by the availability sweep (!clipsAvailable)
+		std::uint32_t rejectedScenes = 0; // declaredScenes - scenes (whole-file rejection included)
 		std::uint32_t unlisted = 0;      //   ...of those, out of the matchmaking pool (direct id only)
 		std::uint32_t anchored = 0;      //   ...of those, anchor-bound (furniture/marker required)
 		std::uint32_t nodes = 0;
@@ -341,9 +358,10 @@ namespace OSF::Registry
 		std::uint32_t clipEntries = 0;    // generated one-clip library entries sourced from this file
 		std::vector<std::string> species;  // distinct skeleton families, sorted
 
+		std::vector<std::string> missingClipExamples;  // bounded, deterministic examples for repair UI
 		std::uint32_t errors = 0;
 		std::uint32_t warnings = 0;
-		std::vector<std::string> problems;  // this file's "[error] ..."/"[warn] ..." lines, in load order
+		std::vector<SceneImportProblem> problems;  // full structured set, in legacy load-error order
 
 		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && clipEntries == 0 && errors > 0; }
 	};

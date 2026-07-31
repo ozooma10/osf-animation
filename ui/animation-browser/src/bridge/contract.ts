@@ -4,6 +4,8 @@ export type BridgeCommand =
   | "osf.animation.catalog.get"
   | "osf.animation.closed"
   | "osf.animation.imports.get"
+  | "osf.animation.imports.copy"
+  | "osf.animation.imports.reload"
   | "osf.animation.launch"
   | "osf.animation.library.get"
   | "osf.animation.opened"

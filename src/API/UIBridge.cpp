@@ -8,6 +8,7 @@
 #include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
 #include "Registry/SceneRegistry.h"
+#include "Packs/PackReload.h"
 #include "Scene/AnchorResolve.h"  // rendered-world reference anchors + in-front-of-player placement
 #include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/WheelPins.h"  // ordered animation-wheel customization
@@ -21,6 +22,13 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#ifndef NOMINMAX
+#	define NOMINMAX
+#endif
+#include <Windows.h>
+#ifdef ERROR
+#	undef ERROR
+#endif
 #include <format>
 #include <limits>
 #include <optional>
@@ -39,6 +47,7 @@ namespace OSF::API
 	namespace
 	{
 		using json = nlohmann::json;
+		using UIBridgeCatalog::BuildImportTextReport;
 		using UIBridgeCatalog::BuildCatalog;
 		using UIBridgeCatalog::BuildFileReport;
 		using UIBridgeCatalog::BuildWheelData;
@@ -514,6 +523,92 @@ namespace OSF::API
 		void OnImportsGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.imports.data", BuildFileReport());
+		}
+		bool CopyUtf8ToClipboard(std::string_view a_text) noexcept
+		{
+			constexpr std::size_t kMaxClipboardBytes = 1024 * 1024;
+			if (a_text.empty() || a_text.size() > kMaxClipboardBytes ||
+				a_text.size() > static_cast<std::size_t>((std::numeric_limits<int>::max)())) {
+				return false;
+			}
+			const auto bytes = static_cast<int>(a_text.size());
+			const int chars = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, a_text.data(), bytes, nullptr, 0);
+			if (chars <= 0) {
+				return false;
+			}
+			HGLOBAL memory = ::GlobalAlloc(GMEM_MOVEABLE, static_cast<SIZE_T>(chars + 1) * sizeof(wchar_t));
+			if (!memory) {
+				return false;
+			}
+			auto* wide = static_cast<wchar_t*>(::GlobalLock(memory));
+			if (!wide) {
+				::GlobalFree(memory);
+				return false;
+			}
+			const int written = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, a_text.data(), bytes, wide, chars);
+			if (written != chars) {
+				::GlobalUnlock(memory);
+				::GlobalFree(memory);
+				return false;
+			}
+			wide[chars] = L'\0';
+			::GlobalUnlock(memory);
+
+			if (!::OpenClipboard(nullptr)) {
+				::GlobalFree(memory);
+				return false;
+			}
+			if (!::EmptyClipboard() || !::SetClipboardData(CF_UNICODETEXT, memory)) {
+				::CloseClipboard();
+				::GlobalFree(memory);
+				return false;
+			}
+			::CloseClipboard();
+			return true;
+		}
+
+		bool g_importReloading = false;
+
+		void OnImportsReload(const char*, const char*, const char* a_srcView, void*) noexcept
+		{
+			if (g_importReloading) {
+				SendJson(a_srcView, "osf.animation.imports.reloadResult",
+					json{ { "ok", false }, { "error", "A pack reload is already running." } });
+				return;
+			}
+			g_importReloading = true;
+			const auto begun = std::chrono::steady_clock::now();
+			json reply;
+			try {
+				reply["scenes"] = Packs::ReloadAll();
+				reply["report"] = BuildFileReport();
+				reply["ok"] = true;
+			} catch (const std::exception& e) {
+				reply = { { "ok", false }, { "error", std::string{ "Reload failed: " } + e.what() } };
+				REX::ERROR("[UI] Imports pack reload failed: {}", e.what());
+			} catch (...) {
+				reply = { { "ok", false }, { "error", "Reload failed with an unknown exception." } };
+				REX::ERROR("[UI] Imports pack reload failed with an unknown exception");
+			}
+			reply["durationMs"] = std::chrono::duration<float, std::milli>(
+				std::chrono::steady_clock::now() - begun).count();
+			g_importReloading = false;
+			SendJson(a_srcView, "osf.animation.imports.reloadResult", reply);
+		}
+
+		void OnImportsCopy(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json payload = ParsePayload(a_payload);
+			const std::string path = payload.is_object() && payload.contains("path") && payload["path"].is_string()
+			                           ? payload["path"].get<std::string>()
+			                           : std::string{};
+			const auto text = BuildImportTextReport(path);
+			const bool ok = text && CopyUtf8ToClipboard(*text);
+			SendJson(a_srcView, "osf.animation.imports.copyResult", json{
+				{ "ok", ok },
+				{ "path", path },
+				{ "error", ok ? "" : (text ? "Windows could not open the clipboard." : "That import record no longer exists.") },
+			});
 		}
 
 		struct SafeViewProjection
@@ -2159,6 +2254,8 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.imports.get", &OnImportsGet, nullptr);
+		g_ui.RegisterCommand("osf.animation.imports.reload", &OnImportsReload, nullptr);
+		g_ui.RegisterCommand("osf.animation.imports.copy", &OnImportsCopy, nullptr);
 		g_ui.RegisterCommand("osf.animation.pickScreen", &OnPickScreen, nullptr);
 		g_ui.RegisterCommand("osf.animation.projectPickables", &OnProjectPickables, nullptr);
 		g_ui.RegisterCommand("osf.animation.projectActors", &OnProjectActors, nullptr);

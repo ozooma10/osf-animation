@@ -39,6 +39,8 @@ export class StandaloneBridge implements AnimationBridge {
   private pins: Array<{ scene: string; stage?: number }> = [];
   /** Last catalog payload served, so a wheel edit re-pins it instead of re-fetching. */
   private catalogRaw: unknown[] | null = null;
+  private importReport: any = JSON.parse(JSON.stringify(MOCK_IMPORTS));
+  private importReloaded = false;
 
   constructor(private readonly getState: () => BrowserState) {}
 
@@ -84,7 +86,26 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.library.get") {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
     } else if (command === "osf.animation.imports.get") {
-      this.later({ type: "osf.animation.imports.data", payload: MOCK_IMPORTS }, 90);
+      this.later({ type: "osf.animation.imports.data", payload: this.importReport }, 90);
+    } else if (command === "osf.animation.imports.reload") {
+      const report: any = JSON.parse(JSON.stringify(this.importReport));
+      if (!this.importReloaded) {
+        report.files = report.files.filter((file: any) => file.path !== "Broken/oldpack.osf.json");
+        report.totals = {
+          ...report.totals,
+          files: report.totals.files - 1,
+          rejectedFiles: 0,
+          declaredScenes: report.totals.declaredScenes - 1,
+          rejectedScenes: report.totals.rejectedScenes - 1,
+          errors: report.totals.errors - 1,
+          bytes: report.totals.bytes - 3_140,
+        };
+        this.importReloaded = true;
+      }
+      this.importReport = report;
+      this.later({ type: "osf.animation.imports.reloadResult", payload: { ok: true, scenes: report.totals.scenes, durationMs: 47.2, report } }, 420);
+    } else if (command === "osf.animation.imports.copy") {
+      this.later({ type: "osf.animation.imports.copyResult", payload: { ok: true, path: fields.path } }, 80);
     } else if (command === "osf.animation.anchorMatch") {
       this.later({ type: "osf.animation.anchorMatch", payload: { token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[Number(fields.token)] ?? [] } }, 70);
     } else if (command === "osf.animation.pickScreen") {

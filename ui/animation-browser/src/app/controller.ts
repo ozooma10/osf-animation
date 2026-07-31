@@ -242,6 +242,26 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         dispatch({ type: "imports/received", files: report.files, totals: report.totals });
         break;
       }
+      case "osf.animation.imports.reloadResult": {
+        const durationMs = Number(record.durationMs) || 0;
+        if (record.ok && isRecord(record.report)) {
+          const report = normalizeImportReport(record.report);
+          dispatch({ type: "imports/reloadSucceeded", files: report.files, totals: report.totals,
+            durationMs, scenes: Number(record.scenes) || report.totals.scenes, completedAt: Date.now() });
+          requestCatalog(true);
+          requestLibrary(true);
+          showNotice("ok", `Packs reloaded in ${Math.max(1, Math.round(durationMs))} ms. Review the import changes.`);
+        } else {
+          const error = String(record.error || "Pack reload failed.");
+          dispatch({ type: "imports/reloadFailed", error, durationMs, completedAt: Date.now() });
+          showNotice("err", error);
+        }
+        break;
+      }
+      case "osf.animation.imports.copyResult":
+        if (record.ok) showNotice("ok", "Full import report copied to the Windows clipboard.");
+        else showNotice("err", String(record.error || "The import report could not be copied."));
+        break;
       case "osf.animation.wheel.data": {
         if (!stateRef.current.wheel) break;
         const entries: WheelEntry[] = Array.isArray(record.entries) ? record.entries.filter(isRecord).map((entry) => {
@@ -448,9 +468,16 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       if (next) requestImports(true);
     },
     refreshImports: () => requestImports(true),
+    reloadImports: () => {
+      if (stateRef.current.importReload.status === "running") return;
+      dispatch({ type: "imports/reloadStarted" });
+      send("osf.animation.imports.reload");
+    },
     toggleImportFile: (path, open) => dispatch({ type: "imports/expanded", path, open }),
-    toggleImportProblemsOnly: () => dispatch({ type: "imports/problemsOnly" }),
+    setImportFilter: (filter) => dispatch({ type: "imports/filter", filter }),
     setImportSearch: (value) => dispatch({ type: "imports/search", search: value.trim().toLowerCase() }),
+    viewImportContent: (path) => dispatch({ type: "imports/viewContent", path }),
+    copyImportReport: (path) => send("osf.animation.imports.copy", { path }),
     setPreference: (key, value) => {
       dispatch({ type: "settings/received", preferences: { [key]: value } as Partial<BrowserPreferences> });
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });

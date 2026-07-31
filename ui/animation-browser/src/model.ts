@@ -37,6 +37,7 @@ export interface SceneModel {
   pack: string;
   folder: string;
   sourceFile: string;
+  sourcePath: string;
   policy: {
     stripActors: "on" | "off" | "inherit";
     lockPlayer: "on" | "off" | "inherit";
@@ -79,6 +80,7 @@ export function normalizeScene(raw: Raw): SceneModel {
     pack: String(raw.pack || "").trim(),
     folder: normalizeFolder(raw.folder),
     sourceFile: String(raw.sourceFile || raw.source || ""),
+    sourcePath: String(raw.sourcePath || raw.sourceFile || raw.source || "").replace(/\\/g, "/"),
     policy: normalizePolicy(raw),
     stages: normalizeStages(raw.stages),
     estSec: numberOrNull(raw.estSec),
@@ -177,6 +179,17 @@ function normalizePolicy(raw: Raw): SceneModel["policy"] {
 // missing" is exactly the question only this shape can answer.
 
 /** What one *.osf.json contributed to the registry. */
+export interface ImportProblem {
+  severity: "error" | "warn";
+  code: string;
+  message: string;
+  hint: string;
+  scene: string;
+  node: string;
+  role: string;
+  clip: string;
+}
+
 export interface ImportFile {
   /** Data/OSF-relative, forward-slashed. Empty on the trailing cross-file problem bucket. */
   path: string;
@@ -188,7 +201,9 @@ export interface ImportFile {
   bytes: number;
   parseMs: number;
   scenes: number;
+  declaredScenes: number;
   hidden: number;
+  rejectedScenes: number;
   unlisted: number;
   anchored: number;
   nodes: number;
@@ -197,6 +212,7 @@ export interface ImportFile {
   clips: number;
   distinctClips: number;
   missingClips: number;
+  missingClipExamples: string[];
   cues: number;
   actions: number;
   sounds: number;
@@ -208,7 +224,7 @@ export interface ImportFile {
   /** Contributed nothing and reported at least one error. */
   rejected: boolean;
   /** Bounded by the native side; `problemCount` is the true total. */
-  problems: string[];
+  problems: ImportProblem[];
   problemCount: number;
 }
 
@@ -216,6 +232,8 @@ export interface ImportTotals {
   files: number;
   rejectedFiles: number;
   scenes: number;
+  declaredScenes: number;
+  rejectedScenes: number;
   /** The registry's own authored count, so a drift from the per-file sum stays visible. */
   registered: number;
   clipEntries: number;
@@ -236,6 +254,8 @@ export const EMPTY_IMPORT_TOTALS: ImportTotals = {
   files: 0,
   rejectedFiles: 0,
   scenes: 0,
+  declaredScenes: 0,
+  rejectedScenes: 0,
   registered: 0,
   clipEntries: 0,
   hidden: 0,
@@ -251,6 +271,30 @@ function count(value: unknown): number {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
+function normalizeImportProblem(value: unknown): ImportProblem {
+  if (typeof value === "string") {
+    const severity = value.startsWith("[warn]") ? "warn" : "error";
+    return {
+      severity,
+      code: severity === "warn" ? "legacy-warning" : "legacy-error",
+      message: value.replace(/^\[(?:warn|error)\]\s*/, ""),
+      hint: "",
+      scene: "",
+      node: "",
+      role: "",
+      clip: "",
+    };
+  }
+  const problem: Raw = value && typeof value === "object" ? value as Raw : {};
+  return {
+    severity: problem.severity === "warn" ? "warn" : "error",
+    code: String(problem.code || "load-problem"),
+    message: String(problem.message || "Unknown import problem.").replace(/^\[(?:warn|error)\]\s*/, ""),
+    hint: String(problem.hint || ""), scene: String(problem.scene || ""),
+    node: String(problem.node || ""), role: String(problem.role || ""), clip: String(problem.clip || ""),
+  };
+}
+
 export function normalizeImportReport(payload: unknown): ImportReport {
   const raw: Raw = payload && typeof payload === "object" ? (payload as Raw) : {};
   const files = Array.isArray(raw.files) ? raw.files : [];
@@ -258,7 +302,7 @@ export function normalizeImportReport(payload: unknown): ImportReport {
   return {
     files: files.map((value): ImportFile => {
       const entry: Raw = value && typeof value === "object" ? value : {};
-      const problems = Array.isArray(entry.problems) ? entry.problems.map(String) : [];
+      const problems = Array.isArray(entry.problems) ? entry.problems.map(normalizeImportProblem) : [];
       return {
         path: String(entry.path || ""),
         file: String(entry.file || ""),
@@ -268,7 +312,9 @@ export function normalizeImportReport(payload: unknown): ImportReport {
         bytes: count(entry.bytes),
         parseMs: Number.isFinite(Number(entry.parseMs)) ? Math.max(0, Number(entry.parseMs)) : 0,
         scenes: count(entry.scenes),
+        declaredScenes: count(entry.declaredScenes),
         hidden: count(entry.hidden),
+        rejectedScenes: count(entry.rejectedScenes),
         unlisted: count(entry.unlisted),
         anchored: count(entry.anchored),
         nodes: count(entry.nodes),
@@ -277,6 +323,7 @@ export function normalizeImportReport(payload: unknown): ImportReport {
         clips: count(entry.clips),
         distinctClips: count(entry.distinctClips),
         missingClips: count(entry.missingClips),
+        missingClipExamples: Array.isArray(entry.missingClipExamples) ? entry.missingClipExamples.map(String) : [],
         cues: count(entry.cues),
         actions: count(entry.actions),
         sounds: count(entry.sounds),
@@ -294,6 +341,8 @@ export function normalizeImportReport(payload: unknown): ImportReport {
     totals: {
       files: count(totals.files),
       rejectedFiles: count(totals.rejectedFiles),
+      declaredScenes: count(totals.declaredScenes),
+      rejectedScenes: count(totals.rejectedScenes),
       scenes: count(totals.scenes),
       registered: count(totals.registered),
       clipEntries: count(totals.clipEntries),
@@ -307,6 +356,65 @@ export function normalizeImportReport(payload: unknown): ImportReport {
   };
 }
 
+export interface ImportProblemRef {
+  key: string;
+  path: string;
+  file: string;
+  code: string;
+  message: string;
+}
+
+export interface ImportReloadDelta {
+  newProblems: ImportProblemRef[];
+  resolvedProblems: ImportProblemRef[];
+  changedFiles: number;
+  addedFiles: number;
+  removedFiles: number;
+}
+
+export function importProblemKey(path: string, problem: ImportProblem): string {
+  return `${path || "\0cross-file"}\n${problem.code}\n${problem.message}`;
+}
+
+function problemRefs(files: readonly ImportFile[]): Map<string, ImportProblemRef> {
+  const refs = new Map<string, ImportProblemRef>();
+  for (const file of files) {
+    for (const problem of file.problems) {
+      const key = importProblemKey(file.path, problem);
+      refs.set(key, { key, path: file.path, file: file.file, code: problem.code, message: problem.message });
+    }
+  }
+  return refs;
+}
+
+function importFileFingerprint(file: ImportFile): string {
+  return [
+    file.declaredScenes, file.scenes, file.rejectedScenes, file.hidden, file.missingClips,
+    file.clipEntries, file.errors, file.warnings, file.problemCount,
+  ].join(":");
+}
+
+export function diffImportReports(before: readonly ImportFile[], after: readonly ImportFile[]): ImportReloadDelta {
+  const previousProblems = problemRefs(before);
+  const currentProblems = problemRefs(after);
+  const newProblems = [...currentProblems].filter(([key]) => !previousProblems.has(key)).map(([, value]) => value);
+  const resolvedProblems = [...previousProblems].filter(([key]) => !currentProblems.has(key)).map(([, value]) => value);
+
+  const previousFiles = new Map(before.map((file) => [file.path || "\0cross-file", file]));
+  const currentFiles = new Map(after.map((file) => [file.path || "\0cross-file", file]));
+  let changedFiles = 0;
+  for (const [path, file] of currentFiles) {
+    const previous = previousFiles.get(path);
+    if (previous && importFileFingerprint(previous) !== importFileFingerprint(file)) changedFiles++;
+  }
+  return {
+    newProblems,
+    resolvedProblems,
+    changedFiles,
+    addedFiles: [...currentFiles.keys()].filter((key) => !previousFiles.has(key)).length,
+    removedFiles: [...previousFiles.keys()].filter((key) => !currentFiles.has(key)).length,
+  };
+}
 export interface SceneEvaluationContext {
   castCount: number;
   furnitureToken: number | null;

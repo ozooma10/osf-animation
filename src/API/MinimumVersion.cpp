@@ -30,6 +30,7 @@ namespace OSF::API::MinimumVersion
 
 		struct Requirement
 		{
+			std::string id;
 			std::string consumer;
 			Version     required;
 			Version     notified;
@@ -39,6 +40,7 @@ namespace OSF::API::MinimumVersion
 
 		std::mutex                         g_lock;
 		std::map<std::string, Requirement> g_requirements;
+		std::map<std::string, std::string> g_aliases;
 		bool                               g_promptsEnabled = false;
 
 		Version InstalledVersion()
@@ -77,16 +79,23 @@ namespace OSF::API::MinimumVersion
 			return label;
 		}
 
+		std::string ConsumerId(const char* a_id)
+		{
+			const auto id = ConsumerLabel(a_id);
+			return id.empty() ? std::string{} : Util::ToLower(id);
+		}
+
 		void Publish(const Requirement& a_requirement, const Version& a_installed)
 		{
 			const std::string required = FormatVersion(a_requirement.required);
 			const std::string installed = FormatVersion(a_installed);
 			const nlohmann::json context{
+				{ "consumerId", a_requirement.id },
 				{ "consumer", a_requirement.consumer },
 				{ "installedVersion", installed },
 				{ "minimumVersion", required },
 			};
-			Health::Report("consumer-version:" + Util::ToLower(a_requirement.consumer),
+			Health::Report("consumer-version:" + a_requirement.id,
 				"compat.needs-newer-osf-animation", Health::Severity::kWarning,
 				a_requirement.consumer, &context);
 			REX::WARN("[API] '{}' requires OSF Animation v{} or newer; installed version is v{}",
@@ -105,9 +114,18 @@ namespace OSF::API::MinimumVersion
 		const char* a_consumer, std::uint32_t a_major,
 		std::uint32_t a_minor, std::uint32_t a_patch)
 	{
-		const std::string consumer = ConsumerLabel(a_consumer);
-		if (consumer.empty()) {
-			REX::WARN("[API] rejected minimum-version report with an empty, oversized, or invalid consumer name");
+		return ReportForConsumer(a_consumer, a_consumer, a_major, a_minor, a_patch);
+	}
+
+	MinimumVersionResult ReportForConsumer(
+		const char* a_consumerId, const char* a_consumerName,
+		std::uint32_t a_major, std::uint32_t a_minor, std::uint32_t a_patch)
+	{
+		const std::string id = ConsumerId(a_consumerId);
+		const std::string consumer = ConsumerLabel(a_consumerName);
+		const std::string nameKey = Util::ToLower(consumer);
+		if (id.empty() || consumer.empty()) {
+			REX::WARN("[API] rejected minimum-version report with an invalid consumer id or name");
 			return MinimumVersionResult::kInvalidRequest;
 		}
 
@@ -122,8 +140,32 @@ namespace OSF::API::MinimumVersion
 		bool        prompt = false;
 		{
 			std::lock_guard lock(g_lock);
-			const std::string key = Util::ToLower(consumer);
-			auto [it, inserted] = g_requirements.try_emplace(key, Requirement{ consumer, required, {} });
+			std::string key = id;
+			if (id != nameKey) {
+				g_aliases[nameKey] = id;
+				if (auto legacy = g_requirements.find(nameKey); legacy != g_requirements.end()) {
+					const std::string legacyHealthId = "consumer-version:" + nameKey;
+					auto [target, inserted] = g_requirements.try_emplace(
+						id, Requirement{ id, consumer, legacy->second.required, legacy->second.notified });
+					if (!inserted) {
+						if (target->second.required < legacy->second.required) {
+							target->second.required = legacy->second.required;
+						}
+						if (target->second.notified < legacy->second.notified) {
+							target->second.notified = legacy->second.notified;
+						}
+					}
+					target->second.id = id;
+					target->second.consumer = consumer;
+					g_requirements.erase(legacy);
+					Health::Clear(legacyHealthId);
+					publish = true;
+				}
+			} else if (const auto alias = g_aliases.find(id); alias != g_aliases.end()) {
+				key = alias->second;
+			}
+			auto [it, inserted] = g_requirements.try_emplace(
+				key, Requirement{ key, consumer, required, {} });
 			auto& entry = it->second;
 			if (inserted || entry.required < required) {
 				entry.consumer = consumer;

@@ -1,22 +1,17 @@
 #include "OSFScript.h"
 
-#include "API/Health.h"    // registry problems -> OSF UI System Health (re-reported on ReloadPacks)
 #include "API/MinimumVersion.h"
-#include "API/UIBridge.h"  // PushCatalogUpdate (duration rescan on ReloadPacks)
+#include "API/UIBridge.h"  // OpenBrowser
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
 #include "Audio/SoundService.h"
-#include "Equipment/GearRegistry.h"  // Gear::LoadAll on ReloadPacks
 #include "Matchmaking/Matchmaker.h"
+#include "Packs/PackReload.h"
 #include "Registry/SceneRegistry.h"
-#include "Registry/SoundRegistry.h"
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneLauncher.h"
 #include "Scene/SceneRuntime.h"
-#include "Serialization/AFImport.h"
-#include "Serialization/ClipDurations.h"
-#include "Serialization/GLTFImport.h"
 #include "UI/HudMessage.h"
 #include "Util/ClipPath.h"
 #include "Util/Math.h"
@@ -208,21 +203,7 @@ namespace OSF::Papyrus
 		// edited animation files re-import. (Name kept for the existing Papyrus binding.)
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
-			Serialization::GLTFImport::ClearCache();
-			Serialization::AFImport::ClearCache();
-			REX::DEBUG("[Papyrus] ReloadPacks: clip cache cleared");
-			auto& registry = Registry::SceneRegistry::GetSingleton();
-			registry.LoadAll();
-			Registry::SoundRegistry::GetSingleton().LoadAll();
-			Equipment::Gear::LoadAll();
-			// Reconcile the health cards against what is wrong NOW: a pack the
-			// player just fixed moves to "Resolved this session" instead of
-			// leaving a card that outlived its condition.
-			API::Health::ReportRegistryLoad();
-			// Re-probe clip durations: edited files fail the size/mtime check and get fresh values,
-			// then the catalog re-pushes so the browser's time estimates follow the edit loop.
-			Serialization::ClipDurations::ScanSceneClipsAsync(&API::PushCatalogUpdate);
-			return static_cast<int32_t>(registry.Size());
+			return Packs::ReloadAll();
 		}
 
 		// Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
