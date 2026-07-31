@@ -630,7 +630,7 @@ namespace OSF::Scene
 				pc = def->playerControl;
 			}
 		}
-		//playerControl override takes priortity
+		// The launch override takes priority over the authored policy.
 		if (a_controlOverride.has_value()) {
 			pc.enabled = *a_controlOverride;
 		}
@@ -638,8 +638,7 @@ namespace OSF::Scene
 			REX::DEBUG("[Scene] scene {:#010x} playerControl disabled by scene config", a_handle);
 			return;  // scene opted out (or disabled every capability) — no input channel
 		}
-		// v1: the local human drives only when they're a participant (director mode — a non-participant
-		// player driving an NPC-only scene — is a later addition; controlRole is parsed but unused here).
+		// The local human drives only while participating; NPC-only scenes have no local input channel.
 		auto*      player = RE::PlayerCharacter::GetSingleton();
 		const bool hasPlayer = player &&
 			std::find(a_participants.begin(), a_participants.end(), static_cast<RE::Actor*>(player)) != a_participants.end();

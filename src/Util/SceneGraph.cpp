@@ -6,7 +6,6 @@
 
 #include "RE/N/NiSmartPointer.h"
 #include "RE/T/TESBoundObject.h"
-#include "RE/T/TESObjectREFR.h"
 
 #include <Windows.h>
 
@@ -29,12 +28,9 @@ namespace OSF::RE
         constexpr std::ptrdiff_t kRefCount = 0x08;
         constexpr std::ptrdiff_t kChildIndex = 0x0C;    // u16; 0xFFFF = detached
         constexpr std::ptrdiff_t kParent = 0x38;
-        constexpr std::ptrdiff_t kChildrenVtbl = 0x130; // NiTObjectArray vtable
         constexpr std::ptrdiff_t kChildrenBase = 0x138; // NiAVObject** m_pBase
         constexpr std::ptrdiff_t kChildrenMax = 0x140;  // u16 maxSize
         constexpr std::ptrdiff_t kChildrenSize = 0x142; // u16 size (used range)
-        constexpr std::ptrdiff_t kChildrenFree = 0x144; // u16 free slots below size
-        constexpr std::ptrdiff_t kChildrenGrow = 0x146; // u16 growBy
 
         // --- vtable slot byte offsets (NiNode-added virtuals) ---
         constexpr std::ptrdiff_t kSlotDeleteThis = 0x08;
@@ -46,13 +42,10 @@ namespace OSF::RE
 
         // --- AddrLib IDs (all verified nonzero + unique on 1.16.244) ---
         constexpr std::uint64_t kIdNiNodeVtbl = 497979;       // 0x4EEFB60
-        constexpr std::uint64_t kIdChildrenVtbl = 497983;     // 0x4EEFE60 NiTObjectArray
         constexpr std::uint64_t kIdAttachChild = 147173;      // 0x2BD15E0
         constexpr std::uint64_t kIdSetAt = 147174;            // 0x2BD1820
         constexpr std::uint64_t kIdDetachChildOut = 147178;   // 0x2BD1B20
         constexpr std::uint64_t kIdDetachChild = 147177;      // 0x2BD1AD0
-        constexpr std::uint64_t kIdNiAVObjectCtor = 147220;   // 0x2BD3F70
-        constexpr std::uint64_t kIdAlloc = 37205;             // 0x316C00 alloc(size)
 
         constexpr std::size_t kNiNodeSize = 0x150;
         constexpr std::uint16_t kDetachedIndex = 0xFFFF;
@@ -62,19 +55,14 @@ namespace OSF::RE
         using DetachChildOutFn = void (*)(void* a_node, void* a_child, void** a_out);
         using DeleteThisFn = void (*)(void* a_obj);
         using GetRttiFn = void* (*)(void* a_obj);
-        using NiAVObjectCtorFn = void* (*)(void* a_mem);
-        using AllocFn = void* (*)(std::size_t a_size);
 
         struct Resolved
         {
             bool ok{ false };
             std::string detail;
             std::uintptr_t niNodeVtbl{ 0 };
-            std::uintptr_t childrenVtbl{ 0 };
             std::uintptr_t attachChild{ 0 };
             std::uintptr_t detachChildOut{ 0 };
-            std::uintptr_t niAVObjectCtor{ 0 };
-            std::uintptr_t alloc{ 0 };
             const void* niNodeRtti{ nullptr };  // canonical NiRTTI for the chain walk
             std::uintptr_t textBegin{ 0 };
             std::uintptr_t textEnd{ 0 };
@@ -152,16 +140,12 @@ namespace OSF::RE
             };
 
             r.niNodeVtbl = resolve(kIdNiNodeVtbl);
-            r.childrenVtbl = resolve(kIdChildrenVtbl);
             r.attachChild = resolve(kIdAttachChild);
             r.detachChildOut = resolve(kIdDetachChildOut);
-            r.niAVObjectCtor = resolve(kIdNiAVObjectCtor);
-            r.alloc = resolve(kIdAlloc);
             const auto setAt = resolve(kIdSetAt);
             const auto detachNoOut = resolve(kIdDetachChild);
 
-            if (!r.niNodeVtbl || !r.attachChild || !r.detachChildOut ||
-                !r.niAVObjectCtor || !r.alloc || !r.childrenVtbl) {
+            if (!r.niNodeVtbl || !r.attachChild || !r.detachChildOut) {
                 r.detail = "AddrLib ID resolution failed (wrong/missing versionlib?)";
                 return;
             }
@@ -193,7 +177,7 @@ namespace OSF::RE
             }
 
             // Canonical NiNode NiRTTI: slot 2 GetRTTI is `lea rax,[rip+X]; ret`
-            // (no this-use); call it once to anchor the IsNiNode chain walk.
+            // (no this-use); call it once to anchor NiNode checks.
             std::uintptr_t getRtti = 0;
             if (!Util::SafeReadQword(r.niNodeVtbl + kSlotGetRtti, getRtti) ||
                 !InImage(r, getRtti)) {
@@ -396,14 +380,6 @@ namespace OSF::RE
         return r.detail;
     }
 
-    bool IsNiNode(::RE::NiAVObject* a_obj)
-    {
-        const auto& r = Resolve();
-        return r.ok && a_obj &&
-               Util::IsReadableRange(Addr(a_obj), 0x130) &&
-               RttiChainContains(r, a_obj, r.niNodeRtti);
-    }
-
     ::RE::NiNode* GetParent(::RE::NiAVObject* a_obj)
     {
         std::uintptr_t parent = 0;
@@ -413,7 +389,7 @@ namespace OSF::RE
         return reinterpret_cast<::RE::NiNode*>(parent);
     }
 
-    std::uint16_t GetChildIndex(::RE::NiAVObject* a_obj)
+    static std::uint16_t GetChildIndex(::RE::NiAVObject* a_obj)
     {
         std::uint16_t idx = kDetachedIndex;
         if (a_obj) {
@@ -422,36 +398,13 @@ namespace OSF::RE
         return idx;
     }
 
-    std::uint32_t GetRefCount(::RE::NiAVObject* a_obj)
+    static std::uint32_t GetRefCount(::RE::NiAVObject* a_obj)
     {
         std::uint32_t rc = 0;
         if (a_obj) {
             (void)ReadU32(Addr(a_obj) + kRefCount, rc);
         }
         return rc;
-    }
-
-    int CountChildEntries(::RE::NiNode* a_parent, ::RE::NiAVObject* a_child)
-    {
-        if (!a_parent || !a_child) {
-            return -1;
-        }
-        return CountEntries(a_parent, a_child);
-    }
-
-    void IncRef(::RE::NiAVObject* a_obj)
-    {
-        if (a_obj) {
-            RawIncRef(a_obj);
-        }
-    }
-
-    void DecRef(::RE::NiAVObject* a_obj)
-    {
-        const auto& r = Resolve();
-        if (r.ok && a_obj) {
-            RawDecRef(r, a_obj);
-        }
     }
 
     bool AttachChild(::RE::NiNode* a_parent, ::RE::NiAVObject* a_child, std::string* a_err)
@@ -598,8 +551,8 @@ namespace OSF::RE
         return ok;
     }
 
-    bool CreateEquippedHelmetVisual(::RE::TESObjectREFR* a_requester,
-        ::RE::TESBoundObject* a_helmet, ::RE::NiPointer<::RE::NiAVObject>& a_out,
+    bool CreateWorldModelVisual(::RE::TESBoundObject* a_form,
+        ::RE::NiPointer<::RE::NiAVObject>& a_out,
         std::string* a_err)
     {
         constexpr std::uint64_t kIdClone3DThunk = 59627;  // vt slot 0x78 on 1.16.244
@@ -610,17 +563,17 @@ namespace OSF::RE
             Fail(a_err, r.detail);
             return false;
         }
-        if (!a_requester || !a_helmet) {
-            Fail(a_err, "null requester/helmet");
+        if (!a_form) {
+            Fail(a_err, "null form");
             return false;
         }
         a_out.reset();
 
         // Version fingerprint: the object's Clone3D slot must be the proven thunk.
         std::uintptr_t vt = 0, slotFn = 0;
-        if (!Util::SafeReadQword(Addr(a_helmet), vt) || !InImage(r, vt) ||
+        if (!Util::SafeReadQword(Addr(a_form), vt) || !InImage(r, vt) ||
             !Util::SafeReadQword(vt + kClone3DSlot, slotFn)) {
-            Fail(a_err, "helmet form vtable unreadable");
+            Fail(a_err, "form vtable unreadable");
             return false;
         }
         const auto expected =
@@ -634,18 +587,12 @@ namespace OSF::RE
         // Base-form integrity snapshot (+0x260..0x298 — runtime-proven invariant).
         std::array<std::uintptr_t, 8> before{};
         for (std::size_t i = 0; i < before.size(); ++i) {
-            (void)Util::SafeReadQword(Addr(a_helmet) + 0x260 + i * 8, before[i]);
+            (void)Util::SafeReadQword(Addr(a_form) + 0x260 + i * 8, before[i]);
         }
 
-        // Requester semantics (runtime-proven 2026-07-30): a non-null actor-ish
-        // requester routes ARMO clones into the SKELETON path (a bare 163-node
-        // HumanExportRoot rig with no geometry — what Suit Protocol originally
-        // got by passing the player). A NULL requester takes the world-model
-        // path: root BSFadeNode '<Model>_GO' + the item's BSGeometry children,
-        // scale 1.0. a_requester is accepted for future scale use but NOT
-        // passed to the engine.
-        (void)a_requester;
-        a_helmet->Clone3D(nullptr, a_out);
+        // A null requester selects the item's world model; an actor would route
+        // armor clones into a bare-skeleton path with no geometry.
+        a_form->Clone3D(nullptr, a_out);
 
         if (!a_out) {
             Fail(a_err, "Clone3D produced no visual (model not loadable for this form?)");
@@ -672,40 +619,13 @@ namespace OSF::RE
         }
         for (std::size_t i = 0; i < before.size(); ++i) {
             std::uintptr_t now = 0;
-            (void)Util::SafeReadQword(Addr(a_helmet) + 0x260 + i * 8, now);
+            (void)Util::SafeReadQword(Addr(a_form) + 0x260 + i * 8, now);
             if (now != before[i]) {
-                Fail(a_err, std::format("helmet base form mutated at +0x{:X} — refusing", 0x260 + i * 8));
+                Fail(a_err, std::format("base form mutated at +0x{:X} — refusing", 0x260 + i * 8));
                 a_out.reset();
                 return false;
             }
         }
         return true;
-    }
-
-    ::RE::NiNode* CreateNiNode(std::string* a_err)
-    {
-        const auto& r = Resolve();
-        if (!r.ok) {
-            Fail(a_err, r.detail);
-            return nullptr;
-        }
-        auto* mem = reinterpret_cast<AllocFn>(r.alloc)(kNiNodeSize);
-        if (!mem) {
-            Fail(a_err, "engine alloc(0x150) failed");
-            return nullptr;
-        }
-        reinterpret_cast<NiAVObjectCtorFn>(r.niAVObjectCtor)(mem);
-
-        // Mirror the engine's inlined NiNode construction (0x14031608E):
-        // install the NiNode vtable and the empty children NiTObjectArray.
-        const auto node = Addr(mem);
-        *reinterpret_cast<std::uintptr_t*>(node) = r.niNodeVtbl;
-        *reinterpret_cast<std::uintptr_t*>(node + kChildrenVtbl) = r.childrenVtbl;
-        *reinterpret_cast<std::uintptr_t*>(node + kChildrenBase) = 0;
-        *reinterpret_cast<std::uint32_t*>(node + kChildrenMax) = 0;         // maxSize=0, size=0
-        *reinterpret_cast<std::uint32_t*>(node + kChildrenFree) = 0x10000;  // free=0, growBy=1
-
-        RawIncRef(mem);  // refcount 0 -> 1: caller owns it (release with DecRef)
-        return reinterpret_cast<::RE::NiNode*>(mem);
     }
 }

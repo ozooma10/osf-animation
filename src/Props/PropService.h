@@ -41,9 +41,10 @@ namespace OSF::Props
 			const Attachment& a_attachment, std::string* a_error = nullptr);
 
 		// GAME THREAD. Move an existing scene prop to another actor-relative
-		// attachment. The actor root must still be the one captured at create.
+		// attachment. Reattaching may hand the same visual to a different role.
 		[[nodiscard]] bool Attach(
-			Instance& a_instance, const Attachment& a_attachment,
+			Instance& a_instance, ::RE::Actor* a_actor,
+			const Attachment& a_attachment,
 			std::string* a_error = nullptr);
 
 		// GAME THREAD. Detach and release exactly this scene-owned visual.

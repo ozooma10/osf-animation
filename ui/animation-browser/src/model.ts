@@ -1,8 +1,6 @@
 export interface SceneRole {
   name: string;
   gender: string;
-  filters: Record<string, unknown>;
-  equip: boolean;
 }
 
 export interface SceneStage {
@@ -24,7 +22,6 @@ export interface SceneModel {
   species: string;
   tags: string[];
   actorCount: number;
-  genders: unknown[];
   roles: SceneRole[];
   requiresFurniture: boolean;
   inPlace: boolean;
@@ -40,13 +37,10 @@ export interface SceneModel {
   pack: string;
   folder: string;
   sourceFile: string;
-  shape: { kind: string; stages: number; nodes: number; branches: number };
   policy: {
     stripActors: "on" | "off" | "inherit";
     lockPlayer: "on" | "off" | "inherit";
     fade: "on" | "off";
-    camera: string;
-    playerControl: unknown;
   };
   stages: SceneStage[];
   estSec: number | null;
@@ -63,8 +57,7 @@ type Raw = Record<string, any>;
 export function normalizeScene(raw: Raw): SceneModel {
   const id = String(raw.id || "");
   const actorCount = clampCount(raw.actorCount, raw.roles);
-  const genders = Array.isArray(raw.genders) ? raw.genders : [];
-  const roles = normalizeRoles(raw.roles, genders, actorCount);
+  const roles = normalizeRoles(raw.roles, actorCount);
   const tags = Array.isArray(raw.tags) ? raw.tags.map(String) : [];
   const requiresFurniture = Boolean(raw.requiresFurniture);
   return {
@@ -73,7 +66,6 @@ export function normalizeScene(raw: Raw): SceneModel {
     species: String(raw.species || "human").toLowerCase(),
     tags,
     actorCount,
-    genders,
     roles,
     requiresFurniture,
     inPlace: Boolean(raw.inPlace),
@@ -87,7 +79,6 @@ export function normalizeScene(raw: Raw): SceneModel {
     pack: String(raw.pack || "").trim(),
     folder: normalizeFolder(raw.folder),
     sourceFile: String(raw.sourceFile || raw.source || ""),
-    shape: normalizeShape(raw, actorCount),
     policy: normalizePolicy(raw),
     stages: normalizeStages(raw.stages),
     estSec: numberOrNull(raw.estSec),
@@ -149,38 +140,20 @@ function clampCount(actorCount: unknown, roles: unknown): number {
   return 0;
 }
 
-function normalizeRoles(roles: unknown, genders: unknown[], actorCount: number): SceneRole[] {
+function normalizeRoles(roles: unknown, actorCount: number): SceneRole[] {
   if (Array.isArray(roles) && roles.length) {
     return roles.map((raw, index) => {
       const role: Raw = raw && typeof raw === "object" ? raw : {};
       return {
         name: String(role.name || `role ${index + 1}`),
         gender: String(role.gender || role.filters?.gender || "any"),
-        filters: role.filters && typeof role.filters === "object" ? role.filters : {},
-        equip: Boolean(role.equip),
       };
     });
   }
-  const total = actorCount || genders.length;
-  return Array.from({ length: total }, (_, index) => ({
+  return Array.from({ length: actorCount }, (_, index) => ({
     name: `role ${index + 1}`,
-    gender: String(genders[index] || "any"),
-    filters: {},
-    equip: false,
+    gender: "any",
   }));
-}
-
-// Derived from the only shape signal the bridge actually sends (stageCount): the card
-// payload has no shape/nodeCount/branchCount keys, so a graph scene simply reports its
-// linear stages (0) — the old alias keys were a contract the native side never honoured.
-function normalizeShape(raw: Raw, actorCount: number): SceneModel["shape"] {
-  const stages = Number(raw.stageCount || 0);
-  return {
-    kind: "linear",
-    stages: stages || (actorCount ? 1 : 0),
-    nodes: stages || 1,
-    branches: 0,
-  };
 }
 
 function policyText(value: unknown, fallback: unknown, empty: "inherit" | "off"): "on" | "off" | "inherit" {
@@ -195,8 +168,6 @@ function normalizePolicy(raw: Raw): SceneModel["policy"] {
     stripActors: policyText(raw.stripActors, undefined, "inherit"),
     lockPlayer: policyText(raw.lockPlayer, undefined, "inherit"),
     fade: policyText(raw.fade, undefined, "off") as "on" | "off",
-    camera: String(raw.camera || "inherit"),
-    playerControl: raw.playerControl || null,
   };
 }
 

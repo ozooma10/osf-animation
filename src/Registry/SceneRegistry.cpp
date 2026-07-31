@@ -1092,12 +1092,6 @@ namespace OSF::Registry
 							def.playerControl.capabilities &= ~bit;  // remove from the default-all set
 						}
 					}
-					if (auto r = it->find("controlRole"); r != it->end()) {
-						if (!r->is_string()) {
-							throw std::runtime_error("scene '" + def.id + "': 'playerControl.controlRole' must be a string");
-						}
-						def.playerControl.controlRole = r->get<std::string>();
-					}
 					if (auto lk = it->find("locked"); lk != it->end()) {
 						if (!lk->is_boolean()) {
 							throw std::runtime_error("scene '" + def.id + "': 'playerControl.locked' must be a boolean");

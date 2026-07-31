@@ -188,21 +188,13 @@ namespace OSF::Props
 			Fail(a_error, "prop source resolved no equipped or loaded form");
 			return result;
 		}
-		result.actorRoot = ResolveActorRoot(a_actor);
-		if (!result.actorRoot) {
-			Fail(a_error, "actor 3D root is unavailable");
-			return {};
-		}
-
-		if (!OSF::RE::CreateEquippedHelmetVisual(
-				a_actor, source, result.object, a_error)) {
-			result.actorRoot.reset();
+		if (!OSF::RE::CreateWorldModelVisual(source, result.object, a_error)) {
 			return {};
 		}
 		result.sourceForm = source->formID;
 		result.object->name = "OSF_SceneProp";
 
-		if (!Attach(result, a_attachment, a_error)) {
+		if (!Attach(result, a_actor, a_attachment, a_error)) {
 			result.object.reset();
 			result.actorRoot.reset();
 			result.sourceForm = 0;
@@ -212,15 +204,20 @@ namespace OSF::Props
 	}
 
 	bool PropService::Attach(
-		Instance& a_instance, const Attachment& a_attachment,
+		Instance& a_instance, ::RE::Actor* a_actor,
+		const Attachment& a_attachment,
 		std::string* a_error)
 	{
-		if (!a_instance.object || !a_instance.actorRoot) {
+		if (!a_instance.object) {
 			Fail(a_error, "scene prop instance is empty");
 			return false;
 		}
-		auto* target = ResolveAttachmentNode(
-			a_instance.actorRoot.get(), a_attachment.node);
+		auto actorRoot = ResolveActorRoot(a_actor);
+		if (!actorRoot) {
+			Fail(a_error, "actor 3D root is unavailable");
+			return false;
+		}
+		auto* target = ResolveAttachmentNode(actorRoot.get(), a_attachment.node);
 		if (!target) {
 			Fail(a_error, "attachment node '" + a_attachment.node +
 				"' was not found or is not an NiNode");
@@ -230,13 +227,18 @@ namespace OSF::Props
 		auto* current = OSF::RE::GetParent(a_instance.object.get());
 		ApplyTransform(*a_instance.object, a_attachment);
 		if (current == target) {
+			a_instance.actorRoot = std::move(actorRoot);
 			return true;
 		}
 
 		const bool attached = current ?
 			OSF::RE::Reparent(a_instance.object.get(), target, a_error) :
 			OSF::RE::AttachChild(target, a_instance.object.get(), a_error);
-		return attached && OSF::RE::GetParent(a_instance.object.get()) == target;
+		if (!attached || OSF::RE::GetParent(a_instance.object.get()) != target) {
+			return false;
+		}
+		a_instance.actorRoot = std::move(actorRoot);
+		return true;
 	}
 
 	bool PropService::Destroy(Instance& a_instance, std::string* a_error)

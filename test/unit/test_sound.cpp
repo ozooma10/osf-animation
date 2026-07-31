@@ -20,6 +20,17 @@ int main()
 	// xmake runs this target with test/fixtures as cwd, so LoadAll sees Data/OSF.
 	auto& reg = OSF::Registry::SoundRegistry::GetSingleton();
 	reg.LoadAll();
+	const auto files = reg.FileStats();
+	bool sawFixture = false;
+	for (const auto& file : files) {
+		if (file.file == "sounds_text.sounds.json") {
+			sawFixture = true;
+			Check(file.errors == 0 && file.warnings == 0 && file.problems.empty(), "sound file stats: clean fixture");
+			Check(file.path == "sounds_text.sounds.json", "sound file stats: Data/OSF-relative path");
+		}
+	}
+	Check(sawFixture, "sound file stats: fixture present");
+
 
 	Check(reg.TextForClip("Sound/OSF/Test/a.wav") == "Line A spoken.", "object-form subtitle");
 	Check(reg.TextForClip("Sound/OSF/Test/silent.wav").empty(), "empty object-form subtitle");

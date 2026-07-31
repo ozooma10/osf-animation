@@ -367,7 +367,7 @@ describe("browser selectors", () => {
       curated: true,
       unlisted: true,
       actorCount: 1,
-      genders: ["any"],
+      roles: [{ name: "", gender: "any" }],
       pack: "Moods of Andromas",
       folder: "Standing",
       stages: [{ index: 0, name: "Hand Extended 01", tags: ["scene.clip"], clipCount: 1, openEnded: true }],
@@ -378,7 +378,7 @@ describe("browser selectors", () => {
       tags: ["scene.clip"],
       unlisted: true,
       actorCount: 1,
-      genders: ["any"],
+      roles: [{ name: "", gender: "any" }],
       stages: [{ index: 0, name: "NAF\\RZSPU02.glb", tags: ["scene.clip"], clipCount: 1, openEnded: true }],
     });
     expect(isGeneratedSceneClip(registered)).toBe(false);

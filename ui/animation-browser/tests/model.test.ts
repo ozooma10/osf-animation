@@ -22,6 +22,11 @@ describe("scene normalization", () => {
       inPlace: true,
     });
     expect(scene.stages[0]).toMatchObject({ index: 0, loopSec: 2.5, loops: 0 });
+    expect(scene).not.toHaveProperty("genders");
+    expect(scene).not.toHaveProperty("shape");
+    expect(scene.roles[0]).not.toHaveProperty("filters");
+    expect(scene.roles[0]).not.toHaveProperty("equip");
+    expect(scene.policy).not.toHaveProperty("camera");
   });
 
   it("does not let an invalid record blank a catalog", () => {

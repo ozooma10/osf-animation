@@ -115,8 +115,8 @@ function Diagnostics({ scene, evaluation }: { scene: SceneModel; evaluation: Sce
   const rows = [
     ["weight · priority", `${scene.weight} · ${scene.priority}`],
     ["anchor", `${scene.requiresFurniture ? anchorFull(scene) || "required" : "free-space"} · ${evaluation.anchorGate ? "pass" : "fail"}`],
-    ["stages · shape", `${scene.stages.length} · ${scene.shape.kind}`],
-    ["policies", `strip ${scene.policy.stripActors} · lock ${scene.policy.lockPlayer} · fade ${scene.policy.fade} · cam ${scene.policy.camera}`],
+    ["stages", String(scene.stages.length)],
+    ["policies", `strip ${scene.policy.stripActors} · lock ${scene.policy.lockPlayer} · fade ${scene.policy.fade}`],
     ["est duration", formatEstimate(scene) || "unmeasured"],
   ];
   return <div class="info-box hud"><div class="lbl">DIAGNOSTICS</div><div class="kv-list">{rows.map(([key, value]) => <div class="kv" key={key}><span class="k">{key}</span><span class="v">{value}</span></div>)}</div></div>;

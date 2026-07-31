@@ -16,7 +16,7 @@ namespace OSF::Scene
 			return;
 		}
 
-		// Reattaching a named live prop changes only its node/transform. Copying
+		// Reattaching a named live prop moves it to the action's resolved role/node. Copying
 		// the NiPointers keeps the object alive while the service runs outside
 		// the scene-table lock; the slot remains its logical owner.
 		Props::Instance existing;
@@ -39,9 +39,33 @@ namespace OSF::Scene
 		std::string error;
 		auto& service = Props::PropService::GetSingleton();
 		if (!existing.Empty()) {
-			if (!service.Attach(existing, a_action.propAttachment, &error)) {
+			if (!service.Attach(existing, actor, a_action.propAttachment, &error)) {
 				REX::WARN("[Scene] scene {:#010x} prop reattach '{}' failed: {}",
 					a_handle, a_action.prop, error);
+				return;
+			}
+
+			bool retained = false;
+			{
+				std::lock_guard l{ _lock };
+				if (Slot* slot = Resolve(a_handle)) {
+					const auto it = std::find_if(
+						slot->props.begin(), slot->props.end(),
+						[&](const ActiveProp& a_prop) {
+							return a_prop.id == a_action.prop &&
+								a_prop.instance.object.get() == existing.object.get();
+						});
+					if (it != slot->props.end()) {
+						it->instance.actorRoot = existing.actorRoot;
+						retained = true;
+					}
+				}
+			}
+			if (!retained) {
+				if (!service.Destroy(existing, &error)) {
+					REX::ERROR("[Scene] scene {:#010x} orphaned prop '{}' cleanup failed: {}",
+						a_handle, a_action.prop, error);
+				}
 			}
 			return;
 		}

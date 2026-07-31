@@ -2,7 +2,6 @@
 
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -56,12 +55,6 @@ namespace OSF::API::Health
 	// call unconditionally — clearing something that was never raised does
 	// nothing.
 	void Clear(std::string_view a_id);
-
-	// Reconcile: withdraw every active condition of ours whose id is not listed.
-	// The primitive for producers that recompute a whole set — report what is
-	// wrong now, then sweep away what no longer is. Passing an empty list clears
-	// all of ours.
-	void KeepOnly(const std::vector<std::string>& a_ids);
 
 	// Report the scene + sound registries' load problems as one card per failed
 	// file, then sweep the files that are now clean. Call after LoadAll() —

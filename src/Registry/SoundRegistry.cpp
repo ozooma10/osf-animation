@@ -201,21 +201,31 @@ namespace OSF::Registry
 		namespace fs = std::filesystem;
 		std::vector<SoundPool> loaded;
 		std::vector<std::string> errors;
+		std::vector<SoundFileStats> stats;
+		SoundFileStats crossFile;
 		std::size_t loadedClipCount = 0;
 
 		std::error_code cwdEc;
 		const fs::path cwd = fs::current_path(cwdEc);
 		if (cwdEc) {
 			errors.push_back("[error] cannot resolve the game directory: " + cwdEc.message());
+			crossFile.errors += 1;
+			crossFile.problems.push_back(errors.back());
 			REX::ERROR("[Sound] cannot resolve the game directory: {}", cwdEc.message());
 		} else {
 			const fs::path dir = cwd / "Data" / "OSF";
 			auto discovery = Util::DiscoverRegistryFiles(dir, ".sounds.json");
 			for (const auto& problem : discovery.problems) {
 				errors.push_back("[error] sound discovery: " + problem);
+				crossFile.errors += 1;
+				crossFile.problems.push_back(errors.back());
 				REX::ERROR("[Sound] discovery: {}", problem);
 			}
 			for (const auto& file : discovery.files) {
+				const auto relative = file.lexically_relative(dir);
+				SoundFileStats fileRecord{ .file = file.filename().string(),
+					.path = relative.empty() ? file.filename().generic_string() : relative.generic_string() };
+				const auto before = errors.size();
 				try {
 					std::ifstream in(file, std::ios::binary);
 					if (!in) {
@@ -230,7 +240,16 @@ namespace OSF::Registry
 					errors.push_back("[error] '" + file.filename().string() + "': parse failed with an unknown exception");
 					REX::ERROR("[Sound] failed to parse '{}' with an unknown exception", file.filename().string());
 				}
+				for (std::size_t i = before; i < errors.size(); ++i) {
+					(errors[i].starts_with("[warn]") ? fileRecord.warnings : fileRecord.errors) += 1;
+					fileRecord.problems.push_back(errors[i]);
+				}
+				stats.push_back(std::move(fileRecord));
 			}
+		}
+
+		if (!crossFile.problems.empty()) {
+			stats.push_back(std::move(crossFile));
 		}
 
 		// Flatten clip spec -> subtitle text across every pool (first-wins on a duplicate path) so a
@@ -252,6 +271,7 @@ namespace OSF::Registry
 			pools = std::move(loaded);
 			clipText = std::move(textMap);
 			loadErrors = std::move(errors);
+			fileStats = std::move(stats);
 			lastPick.clear();
 		}
 		REX::INFO("[Sound] {} pool(s) loaded, {} subtitled clip(s), {} problem(s)", poolCount, textCount, problemCount);
@@ -365,5 +385,11 @@ namespace OSF::Registry
 	{
 		std::shared_lock l{ lock };
 		return loadErrors;
+	}
+
+	std::vector<SoundFileStats> SoundRegistry::FileStats() const
+	{
+		std::shared_lock l{ lock };
+		return fileStats;
 	}
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the standalone dev view's library snapshot offline.
 
-Replicates UIBridge.cpp BuildCatalog(a_library=true) over the generated packs in
+Replicates UIBridgeCatalog.cpp BuildCatalog(a_library=true) over the generated packs in
 dist/OSF (section:"library"), writing the card array the in-game view would
 receive to ui/animation-browser/fixtures/live/library.json. The library lane is
 fully static — pack-authored clip durations, no pins, no probe cache — so the
@@ -245,7 +245,6 @@ def build_card(scene, file_defaults, kw_by_formid):
         "species": species or "human",
         "tags": scene.get("tags", []),
         "actorCount": actor_count,
-        "genders": ["any"] * actor_count,  # library packs author no roles -> anonymous any-gender slots
         "roles": [{"name": "", "gender": "any"} for _ in range(actor_count)],
         "priority": 0,
         "weight": 1,
@@ -257,7 +256,6 @@ def build_card(scene, file_defaults, kw_by_formid):
         "anchors": anchor_names,
         "unlisted": unlisted,
         "pinned": 0,  # the library lane never pins
-        "stageCount": len(stages),
         "stages": stages,
         "estSec": sec_or_null(est_sec),
         "estPartial": est_partial,
@@ -293,7 +291,7 @@ def main():
     with open(OUT, "w", encoding="utf-8", newline="") as f:
         json.dump(cards, f, ensure_ascii=False, separators=(",", ":"))
 
-    n_stages = sum(c["stageCount"] for c in cards)
+    n_stages = sum(len(c["stages"]) for c in cards)
     n_anchored = sum(1 for c in cards if c["requiresFurniture"])
     species = sorted({c["species"] for c in cards})
     print(f"{packs} library pack(s) -> {len(cards)} card(s), {n_stages} stage(s), "

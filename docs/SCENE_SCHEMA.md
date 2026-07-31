@@ -815,9 +815,8 @@ Set **`"inPlace": true`** for scenes that should play on each actor **exactly wh
 are advance / navigate / speed / reposition / freecam / end; `locked: true` means the player may not end
 the scene via the input channel (story scenes).
 
-The object form also accepts **`"enabled": <bool>`** (an explicit on/off toggle — same effect as the
-boolean `"playerControl": true|false` form) and **`"controlRole": "<roleName>"`** (advanced — names the
-participant role the input grant is bound to; defaults to the player).
+The object form also accepts **`"enabled": <bool>`**, an explicit on/off toggle with the same effect as
+the boolean `"playerControl": true|false` form.
 
 ### Furniture anchoring (`anchor`)
 
@@ -879,7 +878,7 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 | `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). **All participants are stripped by default** — see *Actor strip*; author these only to override. | ✓ | |
 | `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A copy is added if the actor doesn't own one and **destroyed on cleanup** (no inventory residue); a form the actor already wears is left untouched both ways. | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
-| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it. | ✓ | `prop`; attach also requires `source` and `node`, with optional `position`, `rotation`, `scale` |
+| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/node without cloning it again. | ✓ | `prop`; attach also requires `source` and `node`, with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
 | `osf.voice.play` | Play a sound spec positioned at the role. If that clip carries subtitle text in its pool, the line shows in the box (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
 

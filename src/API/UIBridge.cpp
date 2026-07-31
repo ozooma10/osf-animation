@@ -60,9 +60,6 @@ namespace OSF::API
 		// RE-engage the browse orbit on a closed browser, and nothing would ever release it
 		// (the classic "camera stuck orbiting after closing the browser"). Game main thread only.
 		bool g_viewVisible = false;
-		// User preference replayed by UISettings. Defaults to the schema default when OSF UI is
-		// absent/old; only browser launches consume it (wheel launches always close).
-		bool g_browserAutoMinimize = true;
 
 		// The in-space "orbit unavailable" notice fired this browser session (OnOrbit runs per
 		// drag-delta batch while the orbit stays disengaged — the view must not be spammed).
@@ -1098,23 +1095,22 @@ namespace OSF::API
 			}
 			reply["ok"] = true;
 			reply["handle"] = handle;
-			reply["autoMinimize"] = g_browserAutoMinimize;
 			REX::DEBUG("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})", sceneId, handle, actors.size(),
 				furniture ? ", anchored" : "", castHasPlayer ? "" : ", NPC-only — outlives the browser");
 			SendJson(a_srcView, "osf.animation.launchResult", reply);
 			PushActiveScenes();
 		}
 
-		void OnStop(const char*, const char* a_payload, const char*, void*) noexcept
+		std::optional<std::int32_t> CommandHandle(const char* a_payload)
 		{
-			const json   j = ParsePayload(a_payload);
+			const json j = ParsePayload(a_payload);
 			std::int32_t handle = 0;
 			if (j.is_object()) {
 				if (const auto it = j.find("handle"); it != j.end()) {
 					const auto parsed = Int32Value(*it);
 					if (!parsed) {
 						REX::WARN("[UI] scene command refused an invalid/out-of-range handle");
-						return;
+						return std::nullopt;
 					}
 					handle = *parsed;
 				}
@@ -1122,6 +1118,16 @@ namespace OSF::API
 			if (handle == 0) {
 				handle = g_lastHandle;
 			}
+			return handle;
+		}
+
+		void OnStop(const char*, const char* a_payload, const char*, void*) noexcept
+		{
+			const auto parsed = CommandHandle(a_payload);
+			if (!parsed) {
+				return;
+			}
+			const auto handle = *parsed;
 			bool ok = false;
 			if (auto* api = SceneAPI(); api && handle != 0) {
 				ok = api->StopScene(handle);
@@ -1142,21 +1148,11 @@ namespace OSF::API
 		// engages a director grant at all. Handle 0 targets the last browser launch, like stop.
 		void OnAdvance(const char*, const char* a_payload, const char*, void*) noexcept
 		{
-			const json   j = ParsePayload(a_payload);
-			std::int32_t handle = 0;
-			if (j.is_object()) {
-				if (const auto it = j.find("handle"); it != j.end()) {
-					const auto parsed = Int32Value(*it);
-					if (!parsed) {
-						REX::WARN("[UI] scene command refused an invalid/out-of-range handle");
-						return;
-					}
-					handle = *parsed;
-				}
+			const auto parsed = CommandHandle(a_payload);
+			if (!parsed) {
+				return;
 			}
-			if (handle == 0) {
-				handle = g_lastHandle;
-			}
+			const auto handle = *parsed;
 			bool ok = false;
 			if (auto* api = SceneAPI(); api && handle != 0) {
 				ok = api->Advance(handle);
@@ -2066,12 +2062,6 @@ namespace OSF::API
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
 		SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
-	}
-
-	void SetBrowserAutoMinimize(bool a_enabled)
-	{
-		g_browserAutoMinimize = a_enabled;
-		REX::DEBUG("[UI] browser Auto-Minimize {}", a_enabled ? "enabled" : "disabled");
 	}
 
 	bool OpenBrowser()

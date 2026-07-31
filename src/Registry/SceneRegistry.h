@@ -229,7 +229,6 @@ namespace OSF::Registry
 	{
 		bool          enabled = true;                  // false => no input channel at all
 		std::uint32_t capabilities = Input::kAllCapabilities;  // capabilities granted (default: all; `disable` removes)
-		std::string   controlRole;                     // role whose scene the local input drives ("" => the player participant)
 		bool          locked = false;                  // player may not end the scene via the input channel (story scenes)
 	};
 

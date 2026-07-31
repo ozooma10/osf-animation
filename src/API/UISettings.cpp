@@ -171,8 +171,6 @@ namespace OSF::API
 			};
 			if (key == "logLevel") {
 				SetLogLevel(unquote(value));
-			} else if (key == "browser.afterLaunch") {
-				SetBrowserAutoMinimize(unquote(value) == "minimize");
 			} else if (key == "debugNotifications") {
 				UI::HudMessage::SetDebugEnabled(value == "true");
 			} else if (key == "gear.autoEquip") {

@@ -60,8 +60,8 @@ mod (`MOD_COPY`) instead of telling the player to update OSF UI, and the rail
 severity marker attributes a mod's own reports by `source`.
 
 **Slice 2 — Animation reports (done, 2026-07-25).** `src/API/Health.{h,cpp}` owns
-the producer side: `Connect` / `Report` / `Clear` / `KeepOnly` /
-`ReportRegistryLoad`, with the mod id baked in so no call site repeats it and
+the producer side: `Connect` / `Report` / `Clear` / `ReportRegistryLoad`,
+with the mod id baked in so no call site repeats it and
 none has to think about version gating. The vendored `src/API/OSFUI_API.h` is
 refreshed to 1.7. Wired at `main.cpp` (boot version, registry sweep),
 `OSFScript.cpp` (`ReloadPacks` re-reports and reconciles), `WheelPins.cpp`, and
@@ -72,12 +72,10 @@ Two things worth knowing before adding a producer:
 - **Reports made before the bridge exists are buffered.** The game-version check
   runs at plugin load, long before `Connect()`; `Health` holds up to 32 ops and
   replays them in order. Report freely from anywhere.
-- **The host's sweep is mod-wide, not per-producer.** `ClearIssuesExcept`
-  withdraws every active issue of *this mod* that is not in the keep list, so a
-  producer reconciling its own set must hand over every OTHER live id too or it
-  silently clears their cards. `Health` tracks what it has raised for exactly
-  this reason (`LiveNonPackIssues`); use that, don't call `KeepOnly` with a bare
-  subset.
+- **Registry reconciliation is producer-local.** `ReportRegistryLoad` owns the
+  registry issue ids it publishes and clears only ids that disappear from the
+  next typed registry snapshot. Other producers' cards are never part of that
+  sweep.
 
 **Slice 3 — copy.** Once the codes are live and stable, OSF UI can graduate the
 common ones from the generic mod card to authored, localizable copy in

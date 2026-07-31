@@ -34,7 +34,6 @@ namespace OSF::API::Health
 			{
 				kReport,
 				kClear,
-				kKeepOnly,
 			};
 			Kind                     kind{ Kind::kReport };
 			std::string              id;
@@ -42,7 +41,6 @@ namespace OSF::API::Health
 			Severity                 severity{ Severity::kWarning };
 			std::string              subject;
 			std::string              contextJson;  // "" when there is none
-			std::vector<std::string> keep;
 		};
 
 		std::mutex         g_lock;
@@ -50,13 +48,8 @@ namespace OSF::API::Health
 		bool               g_connected = false;
 		std::vector<Op>    g_buffered;
 
-		// Every id we currently have raised. The host's sweep (ClearIssuesExcept)
-		// is scoped to the whole MOD, not to one producer's ids, so a producer
-		// that reconciles its own set has to hand over the complete live list or
-		// it silently withdraws every OTHER producer's card. Tracking here is
-		// what lets ReportRegistryLoad reconcile packs without clearing the
-		// game-version or wheel-pins conditions.
-		std::set<std::string> g_live;
+		std::mutex            g_registryLock;
+		std::set<std::string> g_registryIssues;
 
 		// Caller must hold g_lock and have checked g_connected.
 		void ApplyLocked(const Op& a_op)
@@ -73,43 +66,12 @@ namespace OSF::API::Health
 			case Op::Kind::kClear:
 				g_client.ClearIssue(kModId, a_op.id.c_str());
 				break;
-			case Op::Kind::kKeepOnly:
-				{
-					json ids = json::array();
-					for (const auto& id : a_op.keep) {
-						ids.push_back(id);
-					}
-					g_client.ClearIssuesExcept(kModId, ids.dump().c_str());
-				}
-				break;
-			}
-		}
-
-		// Caller must hold g_lock. Mirrors what the registry will hold after
-		// a_op is applied, so it stays true whether the op is applied now or
-		// replayed from the buffer later.
-		void TrackLocked(const Op& a_op)
-		{
-			switch (a_op.kind) {
-			case Op::Kind::kReport:
-				g_live.insert(a_op.id);
-				break;
-			case Op::Kind::kClear:
-				g_live.erase(a_op.id);
-				break;
-			case Op::Kind::kKeepOnly:
-				{
-					const std::set<std::string> keep(a_op.keep.begin(), a_op.keep.end());
-					std::erase_if(g_live, [&](const std::string& a_id) { return !keep.contains(a_id); });
-				}
-				break;
 			}
 		}
 
 		void Submit(Op&& a_op)
 		{
 			std::lock_guard lock(g_lock);
-			TrackLocked(a_op);
 			if (g_connected) {
 				ApplyLocked(a_op);
 				return;
@@ -122,49 +84,8 @@ namespace OSF::API::Health
 
 		// ---- registry load problems -----------------------------------------
 
-		// Both registries record their problems as prose lines, "[error] ..." /
-		// "[warn] ...", for OSF.GetSceneLoadErrors and the browser's refusal
-		// hints. A card wants the FILE, so that a player can find and fix (or
-		// remove) it — and a line names its file in different positions
-		// depending on which check failed ("'<file>' missing 'schema'", but
-		// "duplicate scene id 'x' in '<file>'"). The one thing every shape has
-		// in common is that the filename is the quoted token ending in .json,
-		// so that is what we look for rather than "the first quoted token".
-		// Anchor on ".json" and grow outwards to the surrounding quotes rather
-		// than walking quote pairs left to right: a filename may itself contain
-		// an apostrophe ("bob's pack.osf.json" is a legal Windows name), which
-		// makes pairing quotes ambiguous. An opening quote is one that starts
-		// the line or follows a space; the closing quote is the first after the
-		// extension. Anything else (no ".json", no quotes) yields "" and the
-		// line joins the cross-file card instead of being dropped.
-		std::string FileOf(std::string_view a_line)
-		{
-			const auto dot = a_line.find(".json");
-			if (dot == std::string_view::npos) {
-				return {};
-			}
-			const auto close = a_line.find('\'', dot);
-			if (close == std::string_view::npos) {
-				return {};
-			}
-			std::size_t open = std::string_view::npos;
-			for (std::size_t i = dot; i-- > 0;) {
-				if (a_line[i] == '\'' && (i == 0 || a_line[i - 1] == ' ')) {
-					open = i;
-					break;
-				}
-			}
-			if (open == std::string_view::npos) {
-				return {};
-			}
-			return std::string(a_line.substr(open + 1, close - open - 1));
-		}
-
-		bool IsError(std::string_view a_line)
-		{
-			return a_line.starts_with("[error]");
-		}
-
+		// Registry snapshots own file/severity attribution; Health only removes the
+		// redundant prose severity prefix before forwarding their problem text.
 		// "[error] '<file>': ..." -> "'<file>': ..." — the severity is already
 		// carried by the card, three ways.
 		std::string StripPrefix(const std::string& a_line)
@@ -178,30 +99,12 @@ namespace OSF::API::Health
 
 		struct FileProblems
 		{
+			std::string              code;
+			std::string              subject;
 			bool                     error{ false };
 			std::vector<std::string> lines;
 		};
 
-		// The ids ReportRegistryLoad owns, and therefore the only ones its sweep
-		// may retire.
-		bool IsPackIssue(std::string_view a_id)
-		{
-			return a_id.starts_with("pack:") || a_id == "packs:cross-file";
-		}
-
-		// Everything currently raised that is NOT ours to reconcile — the other
-		// producers' cards, which have to survive the sweep.
-		std::vector<std::string> LiveNonPackIssues()
-		{
-			std::lock_guard          lock(g_lock);
-			std::vector<std::string> out;
-			for (const auto& id : g_live) {
-				if (!IsPackIssue(id)) {
-					out.push_back(id);
-				}
-			}
-			return out;
-		}
 	}
 
 	void Connect()
@@ -228,9 +131,9 @@ namespace OSF::API::Health
 			}
 		}
 		if (!replay.empty()) {
-			REX::INFO("[Health] OSF UI System Health connected — {} buffered report(s) flushed", replay.size());
+			REX::INFO("[UI] System Health connected — {} buffered report(s) flushed", replay.size());
 		} else {
-			REX::INFO("[Health] OSF UI System Health connected");
+			REX::INFO("[UI] System Health connected");
 		}
 	}
 
@@ -252,80 +155,71 @@ namespace OSF::API::Health
 		Submit(Op{ .kind = Op::Kind::kClear, .id = std::string(a_id) });
 	}
 
-	void KeepOnly(const std::vector<std::string>& a_ids)
-	{
-		Submit(Op{ .kind = Op::Kind::kKeepOnly, .keep = a_ids });
-	}
-
 	void ReportRegistryLoad()
 	{
-		// One card per FILE, not per problem: twelve rejected scenes in one bad
-		// pack are one thing to fix, and twelve cards would bury every other
-		// condition in the pane.
-		std::map<std::string, FileProblems> byFile;
-		std::vector<std::string>            unattributed;
-		bool                                unattributedError = false;
+		std::lock_guard registryLock(g_registryLock);
 
-		const auto collect = [&](const std::vector<std::string>& a_lines) {
-			for (const auto& line : a_lines) {
-				const auto file = FileOf(line);
-				if (file.empty()) {
-					// A cross-file problem (a dangling `use` between packs, say):
-					// no single file to name, so it goes to one shared card
-					// rather than being dropped.
-					unattributedError = unattributedError || IsError(line);
-					unattributed.push_back(StripPrefix(line));
-					continue;
-				}
-				auto& rec = byFile[file];
-				rec.error = rec.error || IsError(line);
+		// One card per file, not per problem: one broken pack should produce one
+		// actionable condition regardless of how many entries it rejected.
+		std::map<std::string, FileProblems> byId;
+		for (const auto& stats : Registry::SceneRegistry::GetSingleton().FileStats()) {
+			if (stats.problems.empty()) {
+				continue;
+			}
+			const std::string id = stats.path.empty() ? "packs:cross-file" : "pack:" + stats.path;
+			auto& rec = byId[id];
+			rec.code = stats.path.empty() ? "catalog.cross-file" : "catalog.pack-load";
+			rec.subject = stats.file;
+			rec.error = rec.error || stats.errors > 0;
+			for (const auto& line : stats.problems) {
 				rec.lines.push_back(StripPrefix(line));
 			}
-		};
-		collect(Registry::SceneRegistry::GetSingleton().LoadErrors());
-		collect(Registry::SoundRegistry::GetSingleton().LoadErrors());
+		}
+		for (const auto& stats : Registry::SoundRegistry::GetSingleton().FileStats()) {
+			if (stats.problems.empty()) {
+				continue;
+			}
+			const std::string id = stats.path.empty() ? "packs:cross-file" : "pack:" + stats.path;
+			auto& rec = byId[id];
+			if (rec.code.empty()) {
+				rec.code = stats.file.empty() ? "catalog.cross-file" : "sound.pack-load";
+			}
+			rec.subject = stats.file;
+			rec.error = rec.error || stats.errors > 0;
+			for (const auto& line : stats.problems) {
+				rec.lines.push_back(StripPrefix(line));
+			}
+		}
 
 		// `context` is capped at 8 entries and 240 chars per value by the host,
 		// so the card shows the first few problems and says how many there were.
 		// Someone who needs all of them has the log and OSF.GetSceneLoadErrors.
 		constexpr std::size_t kShownProblems = 4;
 		const auto            buildContext = [](const std::vector<std::string>& a_lines, const std::string& a_file) {
-            json context = json::object();
-            if (!a_file.empty()) {
-                context["file"] = a_file;  // bare filename: an absolute path would name the player's machine
-            }
-            context["problems"] = a_lines.size();
-            for (std::size_t i = 0; i < a_lines.size() && i < kShownProblems; ++i) {
-                context["problem" + std::to_string(i + 1)] = a_lines[i];
-            }
-            return context;
+			json context = json::object();
+			if (!a_file.empty()) {
+				context["file"] = a_file;  // bare filename: an absolute path would name the player's machine
+			}
+			context["problems"] = a_lines.size();
+			for (std::size_t i = 0; i < a_lines.size() && i < kShownProblems; ++i) {
+				context["problem" + std::to_string(i + 1)] = a_lines[i];
+			}
+			return context;
 		};
 
-		std::vector<std::string> live;
-		for (const auto& [file, problems] : byFile) {
-			// Sound packs and scene packs fail for different reasons and are
-			// fixed in different places, so they get different codes even though
-			// they arrive through the same sweep.
-			const std::string code = file.ends_with(".sounds.json") ? "sound.pack-load" : "catalog.pack-load";
-			const std::string id = "pack:" + file;
-			const auto        context = buildContext(problems.lines, file);
-			Report(id, code, problems.error ? Severity::kError : Severity::kWarning, file, &context);
-			live.push_back(id);
-		}
-		if (!unattributed.empty()) {
-			const auto context = buildContext(unattributed, {});
-			Report("packs:cross-file", "catalog.cross-file", unattributedError ? Severity::kError : Severity::kWarning,
-				"", &context);
-			live.push_back("packs:cross-file");
+		std::set<std::string> live;
+		for (const auto& [id, problems] : byId) {
+			const auto context = buildContext(problems.lines, problems.subject);
+			Report(id, problems.code, problems.error ? Severity::kError : Severity::kWarning,
+				problems.subject, &context);
+			live.insert(id);
 		}
 
-		// The reconcile that makes a reload worth doing: a pack the player has
-		// since fixed loses its card (to "Resolved this session"), and one that
-		// is still broken keeps its identity and its occurrence count. The keep
-		// list carries every OTHER producer's live id too — the host's sweep is
-		// mod-wide, so anything omitted here would be withdrawn as collateral.
-		auto keep = LiveNonPackIssues();
-		keep.insert(keep.end(), live.begin(), live.end());
-		KeepOnly(keep);
+		for (const auto& id : g_registryIssues) {
+			if (!live.contains(id)) {
+				Clear(id);
+			}
+		}
+		g_registryIssues = std::move(live);
 	}
 }

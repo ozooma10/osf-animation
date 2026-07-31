@@ -213,6 +213,11 @@ namespace OSF::API::UIBridgeCatalog
 			bool                     openEnded = false; // hold with no timer: runs until advanced
 			float                    estSec = -1.0f;
 		};
+		struct RoleCard
+		{
+			std::string name;
+			std::string gender;
+		};
 		struct Card
 		{
 			std::string              id;
@@ -223,12 +228,10 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
 			std::vector<std::string> tags;
 			std::uint32_t            actorCount = 0;
-			std::vector<std::string> genders;
-			std::vector<std::string> roleNames;  // authored role names ("" for anonymous slots) — labels/search only, binding stays positional
+			std::vector<RoleCard>    roles;
 			std::int32_t             priority = 0;
 			std::int32_t             weight = 1;
 			bool                     stripActors = true;
-			bool                     clearHeldItems = true;
 			bool                     lockPlayer = true;
 			bool                     fade = false;
 			bool                     requiresFurniture = false;
@@ -265,16 +268,13 @@ namespace OSF::API::UIBridgeCatalog
 			c.species = d.species.empty() ? std::string{ "human" } : d.species;
 			c.tags = d.tags;
 			c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
-			c.genders.reserve(d.roles.size());
-			c.roleNames.reserve(d.roles.size());
+			c.roles.reserve(d.roles.size());
 			for (const auto& r : d.roles) {
-				c.genders.emplace_back(GenderTag(r.gender));
-				c.roleNames.emplace_back(r.name);
+				c.roles.push_back({ r.name, GenderTag(r.gender) });
 			}
 			c.priority = d.priority;
 			c.weight = d.weight;
 			c.stripActors = d.stripActors;
-			c.clearHeldItems = d.clearHeldItems;
 			c.lockPlayer = d.lockPlayer;
 			c.fade = d.fade;
 			c.requiresFurniture = d.RequiresAnchor();
@@ -399,19 +399,16 @@ namespace OSF::API::UIBridgeCatalog
 				{ "species", c.species },
 				{ "tags", c.tags },
 				{ "actorCount", c.actorCount },
-				{ "genders", c.genders },
 				{ "roles", [&c]() {
 					 json roles = json::array();
-					 for (std::size_t i = 0; i < c.roleNames.size(); i++) {
-						 roles.push_back({ { "name", c.roleNames[i] },
-							 { "gender", i < c.genders.size() ? c.genders[i] : "any" } });
+					 for (const auto& role : c.roles) {
+						 roles.push_back({ { "name", role.name }, { "gender", role.gender } });
 					 }
 					 return roles;
 				 }() },
 				{ "priority", c.priority },
 				{ "weight", c.weight },
 				{ "stripActors", c.stripActors },
-				{ "clearHeldItems", c.clearHeldItems },
 				{ "lockPlayer", c.lockPlayer },
 				{ "fade", c.fade },
 				{ "requiresFurniture", c.requiresFurniture },
@@ -421,7 +418,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "curated", c.curated },
 				{ "wheelCustomized", wheelCustomized },
 				{ "pinned", c.pinned },
-				{ "stageCount", static_cast<std::int32_t>(c.stages.size()) },
 				{ "stages", std::move(stages) },
 				{ "estSec", secOrNull(c.estSec) },
 				{ "estPartial", c.estPartial },

@@ -90,7 +90,16 @@ def build_file(path, kw_by_formid, cards, seen):
         roles = side.get("roles") or pack_roles
         if roles:
             card["actorCount"] = len(roles)
-            card["genders"] = [r.get("gender", "any") if isinstance(r, dict) else "any" for r in roles]
+            card["roles"] = [
+                {
+                    "name": r.get("name", "") if isinstance(r, dict) else "",
+                    "gender": (
+                        r.get("gender", r.get("filters", {}).get("gender", "any"))
+                        if isinstance(r, dict) else "any"
+                    ),
+                }
+                for r in roles
+            ]
         key = card["id"].lower()
         if key in seen:
             print(f"warn: duplicate scene id '{card['id']}' in {os.path.basename(path)} — keeping the first")

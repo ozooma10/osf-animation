@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeCommand, parseNativeMessage } from "../src/bridge";
+import { encodeCommand, parseNativeMessage } from "../src/bridge/contract";
 
 describe("bridge contract", () => {
   it("encodes the stable ui.command envelope", () => {

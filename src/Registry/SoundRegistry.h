@@ -37,6 +37,15 @@ namespace OSF::Registry
 		std::filesystem::path    sourceFile;
 	};
 
+	struct SoundFileStats
+	{
+		std::string              file;  // file name only; empty for cross-file/discovery problems
+		std::string              path;  // slash-delimited, relative to Data/OSF
+		std::uint32_t            errors = 0;
+		std::uint32_t            warnings = 0;
+		std::vector<std::string> problems;
+	};
+
 	class SoundRegistry
 	{
 	public:
@@ -64,11 +73,15 @@ namespace OSF::Registry
 		// Problems (errors + warnings) from the last LoadAll, for diagnostics.
 		std::vector<std::string> LoadErrors() const;
 
+		// Per-file problem attribution from the last LoadAll.
+		std::vector<SoundFileStats> FileStats() const;
+
 	private:
-		mutable std::shared_mutex lock;
-		std::vector<SoundPool>    pools;
+		mutable std::shared_mutex        lock;
+		std::vector<SoundPool>           pools;
 		std::unordered_map<std::string, std::string> clipText;  // clip spec -> subtitle text (built at load; first-wins on dup)
-		std::vector<std::string>  loadErrors;
-		mutable std::string       lastPick;  // anti-repeat memory (guarded by `lock`)
+		std::vector<std::string>          loadErrors;
+		std::vector<SoundFileStats>       fileStats;
+		mutable std::string               lastPick;  // anti-repeat memory (guarded by `lock`)
 	};
 }
