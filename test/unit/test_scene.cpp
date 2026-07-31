@@ -49,6 +49,13 @@ int main()
 	using OSF::Animation::PoseMode;
 
 	// xmake runs this target with test/fixtures as cwd, so LoadAll sees Data/OSF.
+	Check(OSF::Registry::ParseCameraState("Scene_Orbit") == OSF::Registry::CameraState::kSceneOrbit,
+		"camera state parse is case-insensitive and typed");
+	Check(OSF::Registry::CameraStateName(OSF::Registry::CameraState::kThirdPersonHold) == "thirdperson_hold",
+		"camera state serializes to its canonical name");
+	Check(!OSF::Registry::ParseCameraState("cinematic"),
+		"unknown camera state is rejected");
+
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
@@ -176,6 +183,8 @@ int main()
 			const auto& destroy = s->nodes[0].actions[1];
 			Check(attach.type == "osf.prop.attach" && attach.role == "player" &&
 				attach.prop == "helmet", "prop attach identity and role parse");
+			Check(attach.kind == OSF::Registry::ActionKind::kPropAttach, "prop attach parses to its action kind");
+			Check(destroy.kind == OSF::Registry::ActionKind::kPropDestroy, "prop destroy parses to its action kind");
 			Check(attach.propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
 				attach.propSource.keywords.size() == 2 &&
 				attach.propSource.keywords[0] == "ArmorTypeSpacesuitHelmet",

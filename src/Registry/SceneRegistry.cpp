@@ -344,20 +344,29 @@ namespace OSF::Registry
 			return e;
 		}
 
-		// The built-in osf.* action mechanisms this build recognizes (a subset are executed;
-		// the rest are validated + accepted but logged-not-executed by the runtime).
-		bool IsKnownBuiltinAction(const std::string& a_typeLower)
+		std::optional<ActionKind> ParseBuiltinAction(std::string_view a_type)
 		{
-			static const std::unordered_set<std::string> kKnown{
-				"osf.control.lock", "osf.control.release",
-				"osf.equipment.hide", "osf.equipment.restore",
-				"osf.equipment.equip", "osf.equipment.unequip",
-				"osf.weapon.sheathe", "osf.weapon.restore",
-				"osf.fade.out", "osf.fade.in",
-				"osf.voice.play",
-				"osf.prop.attach", "osf.prop.destroy"
+			static constexpr std::pair<std::string_view, ActionKind> kBuiltins[]{
+				{ "osf.control.lock", ActionKind::kControlLock },
+				{ "osf.control.release", ActionKind::kControlRelease },
+				{ "osf.equipment.hide", ActionKind::kEquipmentHide },
+				{ "osf.equipment.restore", ActionKind::kEquipmentRestore },
+				{ "osf.equipment.equip", ActionKind::kEquipmentEquip },
+				{ "osf.equipment.unequip", ActionKind::kEquipmentUnequip },
+				{ "osf.weapon.sheathe", ActionKind::kWeaponSheathe },
+				{ "osf.weapon.restore", ActionKind::kWeaponRestore },
+				{ "osf.fade.out", ActionKind::kFadeOut },
+				{ "osf.fade.in", ActionKind::kFadeIn },
+				{ "osf.voice.play", ActionKind::kVoicePlay },
+				{ "osf.prop.attach", ActionKind::kPropAttach },
+				{ "osf.prop.destroy", ActionKind::kPropDestroy },
 			};
-			return kKnown.count(a_typeLower) != 0;
+			for (const auto& [name, kind] : kBuiltins) {
+				if (name == a_type) {
+					return kind;
+				}
+			}
+			return std::nullopt;
 		}
 
 		// Parse the timing fields shared by every track lane (cue/action/sound/camera): the
@@ -528,25 +537,27 @@ namespace OSF::Registry
 				ae.prop = a.value("prop", std::string{});  // osf.prop.*: scene-local prop id
 				const auto typeLower = ToLower(ae.type);
 				if (typeLower.rfind("osf.", 0) == 0) {
-					if (!IsKnownBuiltinAction(typeLower)) {
+					const auto kind = ParseBuiltinAction(typeLower);
+					if (!kind) {
 						throw std::runtime_error("node '" + a_node_out.id + "': unknown built-in action '" + ae.type + "'");
 					}
+					ae.kind = *kind;
 					// Per-action required fields: voice needs its sound set, equip its item. `role` is
 					// OPTIONAL on every action — an omitted/empty role targets the scene's first
 					// participant (ResolveRoleActor), matching the sound lane's default. A NAMED role
 					// must still exist (ValidateGraph rejects undeclared references).
-					if (typeLower == "osf.voice.play" && ae.set.empty()) {
+					if (ae.kind == ActionKind::kVoicePlay && ae.set.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.voice.play' requires 'set'");
 					}
-					if (typeLower == "osf.equipment.equip" && ae.item.empty()) {
+					if (ae.kind == ActionKind::kEquipmentEquip && ae.item.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.equipment.equip' requires 'item'");
 					}
-					if ((typeLower == "osf.prop.attach" ||
-						 typeLower == "osf.prop.destroy") && ae.prop.empty()) {
+					if ((ae.kind == ActionKind::kPropAttach ||
+						 ae.kind == ActionKind::kPropDestroy) && ae.prop.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action '" +
 							ae.type + "' requires a non-empty 'prop'");
 					}
-					if (typeLower == "osf.prop.attach") {
+					if (ae.kind == ActionKind::kPropAttach) {
 						const auto source = a.find("source");
 						if (source == a.end()) {
 							throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.prop.attach' requires 'source'");
@@ -710,11 +721,6 @@ namespace OSF::Registry
 		// The camera postures the runtime understands — shared by node `camera` tracks and the
 		// pack-level `camera` default. (Tethered orbit / photo mode / cinematic between-actor shots
 		// aren't wired yet.)
-		bool IsKnownCameraState(std::string_view a_stateLower)
-		{
-			return a_stateLower == "thirdperson_hold" || a_stateLower == "freefly" ||
-			       a_stateLower == "vanity_orbit" || a_stateLower == "scene_orbit";
-		}
 
 		void ParseCameraTrack(const json& a_entries, SceneNode& a_node_out)
 		{
@@ -723,19 +729,21 @@ namespace OSF::Registry
 			}
 			for (const auto& c : a_entries) {
 				CameraEntry ce;
-				ce.state = c.value("state", std::string{});
-				if (ce.state.empty()) {
+				const std::string stateName = c.value("state", std::string{});
+				if (stateName.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a camera track entry is missing 'state'");
 				}
-				if (!IsKnownCameraState(ToLower(ce.state))) {
-					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + ce.state +
+				const auto state = ParseCameraState(stateName);
+				if (!state || *state == CameraState::kNone) {
+					throw std::runtime_error("node '" + a_node_out.id + "': unknown camera state '" + stateName +
 						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit')");
 				}
-				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + ce.state + "'", /*a_atRequired*/ false);
+				ce.state = *state;
+				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + stateName + "'", /*a_atRequired*/ false);
 				ce.distance = c.value("distance", 0.0f);  // thirdperson_hold opening zoom; 0 = engine default
-				if (ce.distance != 0.0f && ToLower(ce.state) != "thirdperson_hold") {
+				if (ce.distance != 0.0f && ce.state != CameraState::kThirdPersonHold) {
 					REX::DEBUG("[Registry] node '{}': camera 'distance' is only honored for 'thirdperson_hold' — state '{}' ignores it",
-						a_node_out.id, ce.state);
+						a_node_out.id, stateName);
 				}
 				a_node_out.cameras.push_back(std::move(ce));
 			}
@@ -1548,7 +1556,7 @@ namespace OSF::Registry
 		// or { "id", ...overrides } object); a_anchorDefault is the file-level `anchor` (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault,
 			bool a_stripDefault, bool a_clearHeldItemsDefault, bool a_fadeDefault, bool a_unlistedDefault,
-			bool a_inPlaceDefault, std::string_view a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
+			bool a_inPlaceDefault, std::optional<CameraState> a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
 			const RoleRegistry& a_roleRegistry, std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
@@ -1702,13 +1710,13 @@ namespace OSF::Registry
 			// entry node's enter so a scene picks it up without authoring a per-node camera track. The
 			// state override is held by the ledger until scene-stop, so engaging it on the entry node
 			// holds it across every stage. An explicit node-level camera track on the entry node wins.
-			if (!a_cameraDefault.empty()) {
+			if (a_cameraDefault) {
 				const std::string entryLower = ToLower(def.entry);
 				for (auto& nd : def.nodes) {
 					if (ToLower(nd.id) == entryLower) {
 						if (nd.cameras.empty()) {
 							CameraEntry ce;
-							ce.state = std::string(a_cameraDefault);  // already validated + lowercased by the caller
+							ce.state = *a_cameraDefault;
 							nd.cameras.push_back(std::move(ce));
 						}
 						break;
@@ -1835,21 +1843,20 @@ namespace OSF::Registry
 			// entry node (unless that node already declares its own camera track). The default orbit
 			// bootstraps native TFC's close-actor renderer policy, then hands transform control to OSF
 			// for automatic cast framing and orbit input. Pure native freefly remains author-selectable.
-			std::string cameraDefault = "scene_orbit";
+			std::optional<CameraState> cameraDefault = CameraState::kSceneOrbit;
 			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
 				if (!cit->is_string()) {
 					rejectFile("'" + fileName + "': 'camera' must be a string");
 					return;
 				}
-				cameraDefault = ToLower(cit->get<std::string>());
-				// "none" opts a pack out of the default camera override entirely.
-				if (cameraDefault == "none") {
-					cameraDefault.clear();
-				} else if (!IsKnownCameraState(cameraDefault)) {
+				const auto parsed = ParseCameraState(cit->get<std::string>());
+				if (!parsed) {
 					rejectFile("'" + fileName + "': unknown camera state '" + cit->get<std::string>() +
 						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit', 'none')");
 					return;
 				}
+				// "none" opts a pack out of the default camera override entirely.
+				cameraDefault = *parsed == CameraState::kNone ? std::optional<CameraState>{} : parsed;
 			}
 
 		// A file holds a single bare scene, or { schema, scenes: [...] }. In the multi-scene form the
@@ -2115,6 +2122,39 @@ namespace OSF::Registry
 		}
 		return SlotGender::kAny;  // "any"/"" and anything else
 	}
+	std::optional<CameraState> ParseCameraState(std::string_view a_state)
+	{
+		const auto state = ToLower(a_state);
+		if (state == "none") {
+			return CameraState::kNone;
+		}
+		if (state == "thirdperson_hold") {
+			return CameraState::kThirdPersonHold;
+		}
+		if (state == "freefly") {
+			return CameraState::kFreeFly;
+		}
+		if (state == "vanity_orbit") {
+			return CameraState::kVanityOrbit;
+		}
+		if (state == "scene_orbit") {
+			return CameraState::kSceneOrbit;
+		}
+		return std::nullopt;
+	}
+
+	std::string_view CameraStateName(CameraState a_state)
+	{
+		switch (a_state) {
+		case CameraState::kNone: return "none";
+		case CameraState::kThirdPersonHold: return "thirdperson_hold";
+		case CameraState::kFreeFly: return "freefly";
+		case CameraState::kVanityOrbit: return "vanity_orbit";
+		case CameraState::kSceneOrbit: return "scene_orbit";
+		}
+		return "none";
+	}
+
 
 	const SceneNode* SceneDef::FindNode(std::string_view a_id) const
 	{

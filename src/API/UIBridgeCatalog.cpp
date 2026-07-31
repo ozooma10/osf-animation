@@ -1,4 +1,5 @@
 #include "API/UIBridgeCatalog.h"
+#include "API/UIKeywordLabel.h"
 
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"
@@ -8,10 +9,10 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cstdint>
 #include <format>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace OSF::API::UIBridgeCatalog
@@ -20,35 +21,6 @@ namespace OSF::API::UIBridgeCatalog
 
 	namespace
 	{
-		std::string KeywordLabel(RE::BGSKeyword* a_kw)
-		{
-			const char* edid = a_kw ? a_kw->GetFormEditorID() : nullptr;
-			if (!edid || !edid[0]) {
-				return {};
-			}
-			std::string_view sv{ edid };
-			for (const std::string_view prefix : { "AnimFurn", "Anim" }) {
-				if (sv.starts_with(prefix)) {
-					sv.remove_prefix(prefix.size());
-					break;
-				}
-			}
-			std::string out;
-			out.reserve(sv.size() + 8);
-			for (std::size_t i = 0; i < sv.size(); ++i) {
-				const char c = sv[i];
-				// Break lower/digit->Upper ("ChairScrappy") and acronym->word ("HVACUnit" -> "HVAC Unit").
-				if (i > 0 && std::isupper(static_cast<unsigned char>(c)) &&
-					(!std::isupper(static_cast<unsigned char>(sv[i - 1])) ||
-						(i + 1 < sv.size() && std::islower(static_cast<unsigned char>(sv[i + 1]))))) {
-					out += ' ';
-				}
-				out += (c == '_') ? ' ' : c;
-			}
-			return out;
-		}
-
-
 		const char* GenderTag(Registry::SlotGender a_gender)
 		{
 			switch (a_gender) {

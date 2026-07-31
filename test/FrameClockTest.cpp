@@ -1,6 +1,7 @@
 #include "Animation/FrameClock.h"
 #include "Util/ClipPath.h"
 #include "Util/DiagnosticText.h"
+#include "Util/KeywordLabel.h"
 #include "Util/RegistryFiles.h"
 
 #include <algorithm>
@@ -78,6 +79,12 @@ int main()
 			R"(cannot inspect 'C:\Users\Player\Game\Data\OSF\bad.osf.json': denied)");
 		Check(safe.find("C:\\Users") == std::string::npos, "health context removes absolute paths");
 		Check(safe.find("'bad.osf.json'") != std::string::npos, "health context keeps the filename");
+	}
+	{
+		Check(OSF::Util::AnimationKeywordLabel("AnimFurnChairScrappy") == "Chair Scrappy",
+			"animation keyword prefix and CamelCase are humanized");
+		Check(OSF::Util::AnimationKeywordLabel("AnimHVACUnit") == "HVAC Unit",
+			"animation keyword acronym boundary is preserved");
 	}
 
 	std::cout << "Core runtime tests passed\n";

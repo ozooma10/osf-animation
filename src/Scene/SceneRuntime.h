@@ -343,15 +343,15 @@ namespace OSF::Scene
 		// Engage one camera state (held, ledger-tracked, auto-restored).
 		// "thirdperson_hold" -> the standalone camera lock (kCamera); "freefly" / "vanity_orbit" / "scene_orbit" -> a PlayerCamera state override (kCameraState).
 		// a_distance (> 0) seeds the opening third-person zoom pull-back for "thirdperson_hold"; ignored by the other states.
-		static void RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer, float a_distance = 0.0f);
+		static void RunCamera(std::int32_t a_handle, Registry::CameraState a_state, bool a_hasPlayer, float a_distance = 0.0f);
 
 		// Run a node's enter (a_enter) or exit action-track entries (the lifecycle anchors).
 		// Numeric/end-timed actions run via OnTimedMarks instead. Call OUTSIDE _lock. No-op for
 		// a non-def scene.
 		static void DispatchLifecycleActions(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
-		// Execute one action entry: built-in osf.* mechanisms (control.lock/release executed;
-		// the rest recognized + logged), custom actions emitted as EVENT_ACTION. Shared by the
+		// Execute one action entry: built-in osf.* mechanisms run directly; custom actions emit
+		// EVENT_ACTION. Shared by the
 		// lifecycle + timed dispatch paths. Call OUTSIDE _lock (may Acquire/Release the lock).
 		// a_hasPlayer = the player is a participant (gates player-only mechanisms).
 		static void RunAction(std::int32_t a_handle, std::string_view a_node, const Registry::ActionEntry& a_action,

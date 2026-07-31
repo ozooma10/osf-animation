@@ -88,7 +88,18 @@ namespace OSF::Registry
 		std::string  id;
 	};
 
-	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the  runtime); 
+	enum class ActionKind : std::uint8_t
+	{
+		kCustom,
+		kControlLock, kControlRelease,
+		kEquipmentHide, kEquipmentRestore, kEquipmentEquip, kEquipmentUnequip,
+		kWeaponSheathe, kWeaponRestore,
+		kFadeOut, kFadeIn,
+		kVoicePlay,
+		kPropAttach, kPropDestroy
+	};
+
+	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the runtime);
 	// any other namespace is a custom action emitted as EVENT_ACTION (notification).
 	struct ActionEntry
 	{
@@ -96,6 +107,7 @@ namespace OSF::Registry
 		float        fraction = 0.0f;    // when pos == kFraction
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  type;   // namespaced (osf.* built-in, else custom)
+		ActionKind   kind = ActionKind::kCustom;
 		std::string  role;   // optional role the action targets
 		bool         hold = false;       // osf.fade.out: end faded (opt out of the cleanup fade-in)
 		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
@@ -117,7 +129,18 @@ namespace OSF::Registry
 		std::string  role;    // optional voice channel, gender source, and subtitle speaker
 	};
 
-	// One `camera` track entry: a held camera state, auto-restored on cleanup. States:
+	// One `camera` track entry: a held camera state, auto-restored on cleanup.
+	enum class CameraState : std::uint8_t
+	{
+		kNone,
+		kThirdPersonHold,
+		kFreeFly,
+		kVanityOrbit,
+		kSceneOrbit
+	};
+	std::optional<CameraState> ParseCameraState(std::string_view a_state);
+	std::string_view CameraStateName(CameraState a_state);
+
 	// "thirdperson_hold" (force/hold third person via the standalone camera lock), "freefly" and
 	// "vanity_orbit" (PlayerCamera state overrides). Also synthesized from a pack-level `camera`
 	// default, attached to a scene's entry node.
@@ -126,7 +149,7 @@ namespace OSF::Registry
 		CameraPos    pos = CameraPos::kEnter;
 		float        fraction = 0.0f;
 		bool         everyLoop = false;
-		std::string  state;      // camera state id ("thirdperson_hold" / "freefly" / "vanity_orbit")
+		CameraState  state = CameraState::kNone;
 		float        distance = 0.0f;  // thirdperson_hold opening zoom pull-back (0 = engine default); ignored by other states
 	};
 

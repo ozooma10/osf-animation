@@ -167,41 +167,38 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneRuntime::RunCamera(std::int32_t a_handle, std::string_view a_state, bool a_hasPlayer, float a_distance)
+	void SceneRuntime::RunCamera(std::int32_t a_handle, Registry::CameraState a_state, bool a_hasPlayer, float a_distance)
 	{
+		const auto stateName = Registry::CameraStateName(a_state);
 		// Camera affects the player's view, so an NPC-only scene must not seize it.
 		if (!a_hasPlayer) {
-			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — no player participant, no-op", a_handle, a_state);
+			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — no player participant, no-op", a_handle, stateName);
 			return;
 		}
 		// thirdperson_hold engages the ref-counted standalone lock (kCamera); freefly / vanity_orbit engage a PlayerCamera state override (kCameraState) that suppresses the hold's bounce while held.
-		const std::string state = Util::ToLower(std::string{ a_state });
-		if (state == "thirdperson_hold") {
-			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — third-person hold engaged", a_handle, a_state);
+		if (a_state == Registry::CameraState::kThirdPersonHold) {
+			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — third-person hold engaged", a_handle, stateName);
 			GetSingleton().RecordMechanism(a_handle, Mechanism::kCamera);
 			// Seed the opening zoom AFTER the lock: SetStandaloneLock posts its ForceThirdPerson task first,
 			// so it lands first and the seed writes into the now-live third-person state. a_distance 0 (the
 			// default) opens as far OUT as possible; a positive value overrides; negative = don't seed (exit
 			// pass). Fire-and-forget, not ledger-tracked — scene end's ForceThirdPerson restores the POV.
 			Camera::CameraService::GetSingleton().SeedThirdPersonZoom(a_distance);
-		} else if (state == "freefly") {
-			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — free-fly engaged (native, ToggleFreeCameraMode)", a_handle, a_state);
+		} else if (a_state == Registry::CameraState::kFreeFly) {
+			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — free-fly engaged (native, ToggleFreeCameraMode)", a_handle, stateName);
 			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kFreeFly);
-		} else if (state == "scene_orbit") {
+		} else if (a_state == Registry::CameraState::kSceneOrbit) {
 			if (GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kSceneOrbit)) {
-				REX::DEBUG("[Scene] scene {:#010x} camera '{}' — scene orbit engaged (mouse-steered)", a_handle, a_state);
+				REX::DEBUG("[Scene] scene {:#010x} camera '{}' — scene orbit engaged (mouse-steered)", a_handle, stateName);
 			} else {
-				REX::DEBUG("[Scene] scene {:#010x} camera '{}' — scene orbit skipped aboard a ship in space", a_handle, a_state);
+				REX::DEBUG("[Scene] scene {:#010x} camera '{}' — scene orbit skipped aboard a ship in space", a_handle, stateName);
 			}
-		} else if (state == "vanity_orbit") {
-			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — vanity orbit engaged", a_handle, a_state);
+		} else if (a_state == Registry::CameraState::kVanityOrbit) {
+			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — vanity orbit engaged", a_handle, stateName);
 			GetSingleton().RecordCameraState(a_handle, Camera::CameraMode::kVanityOrbit);
-		} else if (state == "none") {
+		} else {
 			// Explicit hands-off (per-start override or authored): the vanilla camera is left alone.
 			REX::DEBUG("[Scene] scene {:#010x} camera 'none' — vanilla camera untouched", a_handle);
-		} else {
-			// SceneRegistry validation restricts authored states to the known set; an unknown one here is a no-op.
-			REX::DEBUG("[Scene] scene {:#010x} camera '{}' — unknown state, no-op", a_handle, a_state);
 		}
 	}
 
@@ -310,18 +307,17 @@ namespace OSF::Scene
 	void SceneRuntime::RunAction(std::int32_t a_handle, std::string_view a_node, const Registry::ActionEntry& a_action,
 		std::string_view a_anchor, bool a_hasPlayer)
 	{
-		const auto type = Util::ToLower(a_action.type);
-		if (type == "osf.control.lock") {
+		if (a_action.kind == Registry::ActionKind::kControlLock) {
 			if (a_hasPlayer) {
 				REX::DEBUG("[Scene] scene {:#010x} action osf.control.lock (role '{}')", a_handle, a_action.role);
 				GetSingleton().RecordMechanism(a_handle, Mechanism::kControlLock);
 			} else {
 				REX::DEBUG("[Scene] scene {:#010x} osf.control.lock — no player participant, no-op", a_handle);
 			}
-		} else if (type == "osf.control.release") {
+		} else if (a_action.kind == Registry::ActionKind::kControlRelease) {
 			REX::DEBUG("[Scene] scene {:#010x} action osf.control.release", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kControlLock);
-		} else if (type == "osf.fade.out") {
+		} else if (a_action.kind == Registry::ActionKind::kFadeOut) {
 			// Screen fade only matters when the player is watching (NPC-only scenes must not
 			// black out the player's screen).
 			if (!a_hasPlayer) {
@@ -337,12 +333,12 @@ namespace OSF::Scene
 					GetSingleton().RecordMechanism(a_handle, Mechanism::kFade);
 				}
 			}
-		} else if (type == "osf.fade.in") {
+		} else if (a_action.kind == Registry::ActionKind::kFadeIn) {
 			// Fade back in + drop the fade debt so the cleanup ledger won't redo it. (Uses the
 			// mechanism's default ramp; the authored `duration` is honoured on fade.out only.)
 			REX::DEBUG("[Scene] scene {:#010x} osf.fade.in", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kFade);
-		} else if (type == "osf.equipment.hide") {
+		} else if (a_action.kind == Registry::ActionKind::kEquipmentHide) {
 			// Strip the role's actor's worn apparel; record the snapshot in the ledger so cleanup
 			// (or osf.equipment.restore) re-equips it.
 			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
@@ -356,12 +352,12 @@ namespace OSF::Scene
 				REX::DEBUG("[Scene] scene {:#010x} osf.equipment.hide — role '{}' resolved no actor, skipped",
 					a_handle, a_action.role);
 			}
-		} else if (type == "osf.equipment.restore") {
+		} else if (a_action.kind == Registry::ActionKind::kEquipmentRestore) {
 			// Re-equip everything this scene hid + drop the equipment debt so cleanup won't redo
 			// it. (Restores the whole scene's hidden apparel; per-role restore isn't done yet.)
 			REX::DEBUG("[Scene] scene {:#010x} osf.equipment.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipment);
-		} else if (type == "osf.equipment.equip") {
+		} else if (a_action.kind == Registry::ActionKind::kEquipmentEquip) {
 			// Equip an arbitrary item on the role's actor for the scene; record it so cleanup (or
 			// osf.equipment.unequip) takes it back off + removes any copy we added. The form ref is
 			// "<plugin>|0xLOCAL" (resolved at fire time; the local id's load-order byte is ignored).
@@ -385,15 +381,15 @@ namespace OSF::Scene
 				REX::DEBUG("[Scene] scene {:#010x} osf.equipment.equip — role '{}' resolved no actor, skipped",
 					a_handle, a_action.role);
 			}
-		} else if (type == "osf.equipment.unequip") {
+		} else if (a_action.kind == Registry::ActionKind::kEquipmentUnequip) {
 			// Take back off everything this scene equipped + drop the debt so cleanup won't redo it.
 			REX::DEBUG("[Scene] scene {:#010x} osf.equipment.unequip", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kEquipItem);
-		} else if (type == "osf.prop.attach") {
+		} else if (a_action.kind == Registry::ActionKind::kPropAttach) {
 			GetSingleton().AttachSceneProp(a_handle, a_action);
-		} else if (type == "osf.prop.destroy") {
+		} else if (a_action.kind == Registry::ActionKind::kPropDestroy) {
 			GetSingleton().DestroySceneProp(a_handle, a_action.prop);
-		} else if (type == "osf.weapon.sheathe") {
+		} else if (a_action.kind == Registry::ActionKind::kWeaponSheathe) {
 			// Holster the role's actor's weapon; record it so cleanup (or osf.weapon.restore)
 			// re-draws it. Symmetric pair (see WeaponService): re-draw on cleanup is unconditional,
 			// so author this only on a role that's armed.
@@ -408,11 +404,11 @@ namespace OSF::Scene
 				REX::DEBUG("[Scene] scene {:#010x} osf.weapon.sheathe — role '{}' resolved no actor, skipped",
 					a_handle, a_action.role);
 			}
-		} else if (type == "osf.weapon.restore") {
+		} else if (a_action.kind == Registry::ActionKind::kWeaponRestore) {
 			// Re-draw everything this scene sheathed + drop the weapon debt so cleanup won't redo it.
 			REX::DEBUG("[Scene] scene {:#010x} osf.weapon.restore", a_handle);
 			GetSingleton().UndoMechanism(a_handle, Mechanism::kWeapon);
-		} else if (type == "osf.voice.play") {
+		} else if (a_action.kind == Registry::ActionKind::kVoicePlay) {
 			// Fire-and-forget voice line: play the `set` spec at the role's actor. Not reversible
 			// (a one-shot sound has nothing to undo), so no ledger entry. If the clip carries text in
 			// its sound pool, PlaySound shows it in the subtitle box.
@@ -422,10 +418,6 @@ namespace OSF::Scene
 				REX::DEBUG("[Scene] scene {:#010x} osf.voice.play (role '{}', set '{}')", a_handle, a_action.role, a_action.set);
 				PlaySound(a_handle, a_action.set, a_action.role);
 			}
-		} else if (type.rfind("osf.", 0) == 0) {
-			// recognised built-in mechanism we don't execute yet.
-			REX::DEBUG("[Scene] scene {:#010x} action '{}' (role '{}') — recognized, not yet executed",
-				a_handle, a_action.type, a_action.role);
 		} else {
 			// custom namespaced action -> EVENT_ACTION (best-effort notification).
 			DispatchAction(a_handle, a_node, a_action.type, a_action.role, a_anchor);

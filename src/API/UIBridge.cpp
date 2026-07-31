@@ -1,5 +1,6 @@
 #include "API/UIBridge.h"
 #include "API/UIBridgeCatalog.h"
+#include "API/UIKeywordLabel.h"
 
 #include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
 #include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
@@ -17,7 +18,6 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -130,37 +130,6 @@ namespace OSF::API
 			g_tokens[token] = Picked{ a_ref, fid, a_ref->IsActor() };
 			g_formToken[fid] = token;
 			return token;
-		}
-
-		// "AnimFurnChairScrappy" -> "Chair Scrappy": strip the AnimFurn prefix, split CamelCase.
-		// The anchor keyword is the only human-readable runtime name an invisible AI marker has
-		// (FURN base forms don't retain editor IDs; keywords do), and it names what the spot hosts.
-		std::string KeywordLabel(RE::BGSKeyword* a_kw)
-		{
-			const char* edid = a_kw ? a_kw->GetFormEditorID() : nullptr;
-			if (!edid || !edid[0]) {
-				return {};
-			}
-			std::string_view sv{ edid };
-			for (const std::string_view prefix : { "AnimFurn", "Anim" }) {
-				if (sv.starts_with(prefix)) {
-					sv.remove_prefix(prefix.size());
-					break;
-				}
-			}
-			std::string out;
-			out.reserve(sv.size() + 8);
-			for (std::size_t i = 0; i < sv.size(); ++i) {
-				const char c = sv[i];
-				// Break lower/digit->Upper ("ChairScrappy") and acronym->word ("HVACUnit" -> "HVAC Unit").
-				if (i > 0 && std::isupper(static_cast<unsigned char>(c)) &&
-					(!std::isupper(static_cast<unsigned char>(sv[i - 1])) ||
-						(i + 1 < sv.size() && std::islower(static_cast<unsigned char>(sv[i + 1]))))) {
-					out += ' ';
-				}
-				out += (c == '_') ? ' ' : c;
-			}
-			return out;
 		}
 
 		// Direct crosshair/world picks do not come through Scan Nearby's inverted anchor

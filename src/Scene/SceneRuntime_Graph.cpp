@@ -369,7 +369,12 @@ namespace OSF::Scene
 		// A per-start camera override (SceneOptions.Camera) takes priority over authored/default cameras.
 		if (!a_cameraOverride.empty()) {
 			REX::DEBUG("[Scene] scene {:#010x} camera overridden at start -> '{}'", a_handle, a_cameraOverride);
-			RunCamera(a_handle, a_cameraOverride, hasPlayer, 0.0f);
+			const auto state = Registry::ParseCameraState(a_cameraOverride);
+			if (!state) {
+				REX::DEBUG("[Scene] scene {:#010x} camera override '{}' is unknown — no-op", a_handle, a_cameraOverride);
+				return;
+			}
+			RunCamera(a_handle, *state, hasPlayer, 0.0f);
 			return;
 		}
 		// An authored enter-camera on the entry node wins — DispatchLifecycleCamera engages it on NODE_ENTER.
@@ -384,7 +389,7 @@ namespace OSF::Scene
 			}
 		}
 		REX::DEBUG("[Scene] scene {:#010x} default camera engaged — no authored camera, framing cast with native-assisted orbit", a_handle);
-		RunCamera(a_handle, "scene_orbit", hasPlayer, 0.0f);  // native TFC renderer policy + OSF cast framing/input
+		RunCamera(a_handle, Registry::CameraState::kSceneOrbit, hasPlayer, 0.0f);  // native TFC renderer policy + OSF cast framing/input
 	}
 
 	void SceneRuntime::ClearHeldItems(std::int32_t a_handle, bool a_clearHeldItems,
