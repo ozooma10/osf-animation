@@ -48,7 +48,7 @@ namespace OSF::Animation
 		constexpr REL::ID AnimManagerUpdateFnID(122232);
 		constexpr size_t UpdateVFuncIdx = 4;
 		
-		// BGSModelNode::Update - slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*).
+		// BGSModelNode::Update - slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*, outputTransform).
 		// Stamping before the original runs is the rig-buffer write point (that same call composes + commits).
 		// TODO: move to commonlib
 		constexpr REL::ID ModelNodeVTableID(400534);
@@ -1677,7 +1677,8 @@ namespace OSF::Animation
 		FlushDeferredTasks(deferred);
 	}
 
-	uint64_t GraphManager::Hook_ModelNodeUpdate(RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData)
+	uint64_t GraphManager::Hook_ModelNodeUpdate(
+		RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData, void* a_outputTransform)
 	{
 		// Stamp the latest sampled pose for the graph driving this skeleton before the engine's compose+commit runs (the verified write point).
 		// Unmanaged skeletons fall through with one map scan; managed graph counts are small (scene participants).
@@ -1777,6 +1778,6 @@ namespace OSF::Animation
 			}
 		}
 
-		return _origModelNodeUpdate(a_this, a_parentTransform, a_updateData);
+		return _origModelNodeUpdate(a_this, a_parentTransform, a_updateData, a_outputTransform);
 	}
 }

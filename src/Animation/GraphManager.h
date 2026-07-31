@@ -152,12 +152,13 @@ namespace OSF::Animation
 		// BGSModelNode::Update (vfunc 2), called once per skeleton per frame from BSFadeNode::Update on scene-update threads. 
 		// Stamping rig locals before the original runs is the right write point: that same call composes and commits them deterministically 
 		// (and it keeps running for AI-frozen actors, whose AnimationManager updates stop).
-		static uint64_t Hook_ModelNodeUpdate(RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData);
+		static uint64_t Hook_ModelNodeUpdate(
+			RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData, void* a_outputTransform);
 
 		using AnimUpdateFn = void(void*, RE::BSAnimationUpdateData*);
 		static inline AnimUpdateFn* _origAnimGraphUpdate = nullptr;
 
-		using ModelNodeUpdateFn = uint64_t(RE::BGSModelNode*, void*, void*);
+		using ModelNodeUpdateFn = uint64_t(RE::BGSModelNode*, void*, void*, void*);
 		static inline ModelNodeUpdateFn* _origModelNodeUpdate = nullptr;
 
 		std::shared_mutex stateLock;
