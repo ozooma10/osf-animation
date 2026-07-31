@@ -4,6 +4,45 @@
 
 namespace OSF::API
 {
+	namespace
+	{
+		struct ActiveCallback
+		{
+			const void* entry = nullptr;
+			ActiveCallback* previous = nullptr;
+		};
+
+		thread_local ActiveCallback* g_activeCallback = nullptr;
+
+		class ActiveCallbackScope
+		{
+		public:
+			explicit ActiveCallbackScope(const void* a_entry) :
+				_frame{ .entry = a_entry, .previous = g_activeCallback }
+			{
+				g_activeCallback = &_frame;
+			}
+
+			~ActiveCallbackScope()
+			{
+				g_activeCallback = _frame.previous;
+			}
+
+		private:
+			ActiveCallback _frame;
+		};
+
+		[[nodiscard]] std::size_t ActiveCountOnThisThread(const void* a_entry)
+		{
+			std::size_t count = 0;
+			for (auto* frame = g_activeCallback; frame; frame = frame->previous) {
+				if (frame->entry == a_entry) {
+					++count;
+				}
+			}
+			return count;
+		}
+	}
 	std::uint64_t NativeSceneEventRegistry::MakeToken(
 		std::uint32_t a_generation, std::uint32_t a_slot)
 	{
@@ -23,7 +62,7 @@ namespace OSF::API
 		std::lock_guard lock{ _lock };
 		std::size_t slot = 0;
 		for (; slot < _slots.size(); ++slot) {
-			if (_slots[slot].generation == 0) {
+			if (!_slots[slot]) {
 				break;
 			}
 		}
@@ -39,13 +78,13 @@ namespace OSF::API
 			_nextGeneration = 1;
 		}
 
-		_slots[slot] = Entry{
-			.generation = generation,
-			.callback = a_callback,
-			.context = a_context,
-			.sceneFilter = a_sceneFilter,
-			.eventMask = a_eventMask == 0 ? SceneEventType::kAll : a_eventMask
-		};
+		auto entry = std::make_shared<Entry>();
+		entry->generation = generation;
+		entry->callback = a_callback;
+		entry->context = a_context;
+		entry->sceneFilter = a_sceneFilter;
+		entry->eventMask = a_eventMask == 0 ? SceneEventType::kAll : a_eventMask;
+		_slots[slot] = std::move(entry);
 		return MakeToken(generation, static_cast<std::uint32_t>(slot));
 	}
 
@@ -58,43 +97,65 @@ namespace OSF::API
 		}
 		const auto slot = encodedSlot - 1;
 
-		std::lock_guard lock{ _lock };
-		if (slot >= _slots.size() ||
-			_slots[slot].generation != generation) {
-			return false;
+		std::shared_ptr<Entry> entry;
+		{
+			std::lock_guard lock{ _lock };
+			if (slot >= _slots.size() || !_slots[slot] ||
+				_slots[slot]->generation != generation) {
+				return false;
+			}
+			entry = std::move(_slots[slot]);
 		}
-		_slots[slot] = {};
+
+		const auto activeHere = ActiveCountOnThisThread(entry.get());
+		std::unique_lock lifetimeLock{ entry->lifetimeMutex };
+		entry->active = false;
+		entry->lifetimeCV.wait(lifetimeLock, [&] {
+			// A callback may unregister itself (including through nested dispatch),
+			// but it still waits for every invocation running on another thread.
+			return entry->inFlight <= activeHere;
+		});
 		return true;
 	}
 
 	std::size_t NativeSceneEventRegistry::Dispatch(
 		const OSFSceneEvent& a_event)
 	{
-		struct Target
-		{
-			OSFSceneEventCallback callback;
-			void* context;
-		};
-		std::vector<Target> targets;
+		std::vector<std::shared_ptr<Entry>> targets;
 		{
 			std::lock_guard lock{ _lock };
 			for (const auto& entry : _slots) {
-				if (entry.generation == 0 || !entry.callback ||
-					(entry.eventMask & a_event.eventType) == 0 ||
-					(entry.sceneFilter != 0 &&
-					 entry.sceneFilter != a_event.sceneHandle)) {
+				if (!entry || !entry->callback ||
+					(entry->eventMask & a_event.eventType) == 0 ||
+					(entry->sceneFilter != 0 &&
+					 entry->sceneFilter != a_event.sceneHandle)) {
 					continue;
 				}
-				targets.push_back({ entry.callback, entry.context });
+				targets.push_back(entry);
 			}
 		}
 
 		std::size_t failures = 0;
-		for (const auto& target : targets) {
+		for (const auto& entry : targets) {
+			{
+				std::lock_guard lifetimeLock{ entry->lifetimeMutex };
+				if (!entry->active) {
+					continue;
+				}
+				++entry->inFlight;
+			}
+
+			ActiveCallbackScope activeScope{ entry.get() };
 			try {
-				target.callback(&a_event, target.context);
+				entry->callback(&a_event, entry->context);
 			} catch (...) {
 				++failures;
+			}
+
+			{
+				std::lock_guard lifetimeLock{ entry->lifetimeMutex };
+				--entry->inFlight;
+				entry->lifetimeCV.notify_all();
 			}
 		}
 		return failures;

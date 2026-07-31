@@ -18,6 +18,8 @@ namespace OSF::Camera
 	namespace
 	{
 		constexpr std::uint32_t kNativeFreeCamState = 13;  // RE::CameraState::kFreeWalk (== plain `tfc`)
+		std::atomic<bool> g_rawCameraLayoutsAvailable{ false };
+
 		using ToggleFreeCam_t = void (*)(RE::PlayerCamera*, std::uint32_t, bool);
 
 		// The engine's two native free-cam flags on PlayerCamera
@@ -28,6 +30,9 @@ namespace OSF::Camera
 
 		std::uint8_t* FreeCamFlag(std::ptrdiff_t a_off)
 		{
+			if (!g_rawCameraLayoutsAvailable.load(std::memory_order_acquire)) {
+				return nullptr;
+			}
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			return camera ? reinterpret_cast<std::uint8_t*>(reinterpret_cast<std::byte*>(camera) + a_off) : nullptr;
 		}
@@ -209,6 +214,9 @@ namespace OSF::Camera
 
 		void WriteFreeFlyTransform(void* a_state, const RE::NiPoint3& a_pos, float a_yaw, float a_pitch)
 		{
+			if (!g_rawCameraLayoutsAvailable.load(std::memory_order_acquire)) {
+				return;
+			}
 			auto* base = reinterpret_cast<std::byte*>(a_state);
 			auto* pos = reinterpret_cast<float*>(base + kFreeFlyPosOffset);
 			pos[0] = a_pos.x;
@@ -227,6 +235,16 @@ namespace OSF::Camera
 	{
 		static CameraService instance;
 		return instance;
+	}
+
+	void CameraService::SetRawLayoutSupport(bool a_enabled)
+	{
+		g_rawCameraLayoutsAvailable.store(a_enabled, std::memory_order_release);
+	}
+
+	bool CameraService::RawLayoutSupport() const
+	{
+		return g_rawCameraLayoutsAvailable.load(std::memory_order_acquire);
 	}
 
 	void CameraService::QueueTask(std::function<void()> a_task)
@@ -391,6 +409,9 @@ namespace OSF::Camera
 
 	void CameraService::SeedThirdPersonZoom(float a_distance, bool a_snapCurrent)
 	{
+		if (!RawLayoutSupport()) {
+			return;
+		}
 		if (a_distance < 0.0f) {
 			return;  // sentinel (< 0): caller asked NOT to seed (e.g. a node-exit teardown pass).
 		}
@@ -445,6 +466,13 @@ namespace OSF::Camera
 
 	void CameraService::SetLiveCameraState(CameraMode a_mode)
 	{
+		if ((a_mode == CameraMode::kFreeFly || a_mode == CameraMode::kSceneOrbit) && !RawLayoutSupport()) {
+			static std::atomic<bool> warned{ false };
+			if (!warned.exchange(true, std::memory_order_relaxed)) {
+				REX::WARN("[Camera] free-fly/orbit disabled: raw camera layouts are not verified for this game version; using vanity orbit");
+			}
+			a_mode = CameraMode::kVanityOrbit;
+		}
 		if (a_mode == CameraMode::kFreeFly) {
 			NativeFreeCamEnter(/*a_gamepadPassthrough*/ true);  // pure `tfc`: engine owns camera + input
 			return;
@@ -605,6 +633,9 @@ namespace OSF::Camera
 
 	void CameraService::NativeFreeCamEnter(bool a_gamepadPassthrough)
 	{
+		if (!RawLayoutSupport()) {
+			return;
+		}
 		QueueTask([this, a_gamepadPassthrough]() {
 			if (!suppressBounce.load(std::memory_order_relaxed)) {
 				return;  // the override was released before this task ran
@@ -708,6 +739,10 @@ namespace OSF::Camera
 
 	void CameraService::DriveSceneOrbit()
 	{
+		if (!RawLayoutSupport()) {
+			orbitDriving.store(false, std::memory_order_relaxed);
+			return;
+		}
 		std::unique_lock l{ driveLock, std::try_to_lock };
 		if (!l.owns_lock()) {
 			return;  // another job-thread Tick is already driving this frame
@@ -934,6 +969,10 @@ namespace OSF::Camera
 
 	void CameraService::ToggleFreeCam()
 	{
+		if (!RawLayoutSupport()) {
+			REX::DEBUG("[Camera] player free camera unavailable on this game version");
+			return;
+		}
 		// Re-entrant-safe alternation: the flag flips exactly once per press, so the on/off paths can't
 		// double-acquire or double-release the override even if presses land back-to-back.
 		if (!playerFreeCamHeld.exchange(true, std::memory_order_relaxed)) {
@@ -999,6 +1038,10 @@ namespace OSF::Camera
 
 	bool CameraService::SceneOrbitAvailable() const
 	{
+		if (!RawLayoutSupport()) {
+			REX::DEBUG("[Camera] scene orbit unavailable — raw layouts are not verified for this game version");
+			return false;
+		}
 		// DriveSceneOrbit writes an ABSOLUTE world transform captured once at engage. In space the
 		// ship/interior frame moves or re-bases underneath it every frame, which teleports the camera
 		// around the hull and reads as violent spinning. The engine-owned camera is the only safe

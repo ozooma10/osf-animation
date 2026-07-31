@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <unordered_map>
 
 // Cue-driven sound playback. The ONLY path is the game's own Wwise engine (WwiseBackend.*),
@@ -18,8 +19,9 @@
 // There is no private-device fallback: a cue the Wwise path can't take (Wwise unavailable, or a codec the
 // external source can't stream) is logged and skipped — OSF never plays audio outside the game mix.
 //
-// Threading: Play() is called from animation job threads (under the scene lock) and must never block.
-// The Wwise post only enqueues into AK's command queue (any-thread-safe). Slot state is guarded by one mutex.
+// Threading: Play() is safe from any thread and returns without doing file I/O or decoding. External
+// media preparation runs on a bounded worker queue; Wwise posting is any-thread-safe. Slot and teardown
+// state are guarded by one mutex, and StopAll invalidates queued/in-flight work with an epoch.
 
 namespace OSF::Audio
 {
@@ -44,11 +46,33 @@ namespace OSF::Audio
 		void StopAll();
 
 	private:
-		// caller holds `lock`. Cut the Wwise voice that currently owns a_slot and drop the slot entry.
-		// No-op for slot 0 or an unowned slot.
-		void ClearSlotLocked(std::uint64_t a_slot);
+		struct PlayTicket
+		{
+			std::uint64_t epoch = 0;
+			std::uint64_t sequence = 0;
+		};
+
+		struct SlotVoice
+		{
+			std::uint64_t sequence = 0;
+			std::uint32_t playingID = 0;
+		};
+
+		struct SlotOrderEntry
+		{
+			std::uint64_t slot = 0;
+			std::uint64_t sequence = 0;
+		};
+
+		[[nodiscard]] PlayTicket BeginPlay();
+		[[nodiscard]] bool TicketCurrent(const PlayTicket& a_ticket);
+		[[nodiscard]] bool PublishVoice(std::uint64_t a_slot, std::uint32_t a_playingID, const PlayTicket& a_ticket);
 
 		std::mutex lock;
-		std::unordered_map<std::uint64_t, std::uint32_t> slots;  // voice channel -> live AkPlayingID (guarded by `lock`)
+		std::unordered_map<std::uint64_t, SlotVoice> slots;  // bounded channel -> newest live voice
+		std::deque<SlotOrderEntry> slotOrder;                // lazy FIFO for bounded channel eviction
+		std::deque<std::uint32_t> unslottedVoices;           // bounded layered voices, stopped on world teardown
+		std::uint64_t teardownEpoch = 1;
+		std::uint64_t nextSequence = 1;
 	};
 }

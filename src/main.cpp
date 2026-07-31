@@ -3,6 +3,7 @@
 #include "API/UIBridge.h"
 #include "API/UISettings.h"
 #include "Animation/GraphManager.h"
+#include "Camera/CameraService.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputService.h"
 #include "Props/PropService.h"
@@ -56,6 +57,8 @@ namespace
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
+			REX::INFO("[Feature] Raw-layout Camera Controls {}",
+				OSF::Camera::CameraService::GetSingleton().RawLayoutSupport() ? "AVAILABLE" : "UNAVAILABLE");
 			REX::INFO("[Feature] Scene Props {}",
 				OSF::Props::PropService::GetSingleton().Available() ? "AVAILABLE" : "UNAVAILABLE");
 			break;
@@ -85,6 +88,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	SFSE::Init(a_sfse, { .trampoline = true, .trampolineSize = kTrampolineBytes });
 
 	const auto runtime = a_sfse->RuntimeVersion();
+	OSF::Camera::CameraService::GetSingleton().SetRawLayoutSupport(runtime == kVerifiedGameVersion);
 	REX::INFO("[Boot] {} v{} loading — supported game version {}, running on {}",
 		SFSE::GetPluginName(), SFSE::GetPluginVersion().string(),
 		kVerifiedGameVersion.string(), runtime.string());

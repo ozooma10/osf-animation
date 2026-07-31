@@ -227,27 +227,57 @@ namespace OSF::Serialization
 			using RawSkeleton = ozz::animation::offline::RawSkeleton;
 			RawSkeleton raw;
 
-			// Recursively attach a bone's children (bones whose parent == this index), preserving order.
-			auto addJoint = [&](this auto&& self, int32_t a_boneIdx, RawSkeleton::Joint::Children& a_dest) -> void {
-				const auto& bone = a_rig.bones[static_cast<size_t>(a_boneIdx)];
-				auto& joint = a_dest.emplace_back();
+			constexpr std::size_t kMaxSkeletonDepth = 512;
+			const std::size_t boneCount = a_rig.bones.size();
+			std::vector<std::vector<std::size_t>> children(boneCount);
+			std::vector<std::size_t> roots;
+			roots.reserve(boneCount);
+			for (std::size_t i = 0; i < boneCount; ++i) {
+				const auto parent = a_rig.bones[i].parent;
+				if (parent < 0) {
+					roots.push_back(i);
+				} else if (static_cast<std::size_t>(parent) >= boneCount) {
+					return nullptr;
+				} else {
+					children[static_cast<std::size_t>(parent)].push_back(i);
+				}
+			}
+
+			struct PendingJoint
+			{
+				std::size_t boneIdx;
+				RawSkeleton::Joint::Children* destination;
+				std::size_t depth;
+			};
+			std::vector<PendingJoint> pending;
+			for (auto root = roots.rbegin(); root != roots.rend(); ++root) {
+				pending.push_back({ *root, &raw.roots, 1 });
+			}
+			std::vector<bool> visited(boneCount, false);
+			std::size_t visitedCount = 0;
+			while (!pending.empty()) {
+				const PendingJoint current = pending.back();
+				pending.pop_back();
+				if (visited[current.boneIdx] || current.depth > kMaxSkeletonDepth) {
+					return nullptr;
+				}
+				visited[current.boneIdx] = true;
+				++visitedCount;
+
+				const auto& bone = a_rig.bones[current.boneIdx];
+				auto& joint = current.destination->emplace_back();
 				joint.name = bone.name.c_str();
 				joint.transform.translation = bone.bindTrans;
 				joint.transform.rotation = bone.bindRot;
 				joint.transform.scale = ozz::math::Float3(1.f, 1.f, 1.f);
-				for (int32_t child = 0; child < static_cast<int32_t>(a_rig.bones.size()); child++) {
-					if (a_rig.bones[static_cast<size_t>(child)].parent == a_boneIdx) {
-						self(child, joint.children);
-					}
-				}
-			};
-
-			for (int32_t i = 0; i < static_cast<int32_t>(a_rig.bones.size()); i++) {
-				if (a_rig.bones[static_cast<size_t>(i)].parent < 0) {
-					addJoint(i, raw.roots);
+				const auto& boneChildren = children[current.boneIdx];
+				for (auto child = boneChildren.rbegin(); child != boneChildren.rend(); ++child) {
+					pending.push_back({ *child, &joint.children, current.depth + 1 });
 				}
 			}
-
+			if (visitedCount != boneCount) {
+				return nullptr;  // cycle or disconnected parent component
+			}
 			if (!raw.Validate()) {
 				return nullptr;
 			}

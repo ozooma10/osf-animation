@@ -58,8 +58,10 @@ if (token != 0) {
 }
 ```
 
-Registration and unregistration are thread-safe. For authored scenes the callback runs
-**synchronously on the game thread at the runtime mark**, after earlier timed lanes at that mark
+Registration and unregistration are thread-safe. Unregistration is quiescent: when it returns,
+callbacks executing on other threads have finished. Self-unregistration does not wait on the
+current invocation itself, but it does wait for concurrent invocations on other threads.
+For authored scenes the callback runs **synchronously on the game thread at the runtime mark**, after earlier timed lanes at that mark
 (action → camera → sound) and before OSF queues the equivalent Papyrus event. The payload is a
 borrowed immutable view: the struct and all string pointers are valid only until the callback
 returns. Copy anything you retain, do not throw across the DLL boundary, and keep the callback
@@ -203,7 +205,8 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 > **Participants at scene end:** the one exception to "no live getters" — the event's
 > `sceneHandle` stays *roster-queryable* through the `EVENT_SCENE_END` callback, so
 > `OSF.GetSceneParticipants(akEvent.sceneHandle)` returns who took part even though the scene has
-> ended (the retired roster is retained for the loaded world). `SCENE_END` carries no
+> ended. Retired rosters use a bounded recent-history window (currently 256), so copy the roster
+> during the callback rather than caching the handle indefinitely. `SCENE_END` carries no
 > `actorRef` itself, so this is how an end handler enumerates participants. Note `SCENE_END` fires on
 > runtime termination (normal finish or `Stop()`). World-replacing load teardown clears the VM relay
 > and native handle table without dispatching callbacks into the discarded world. Native C++
@@ -247,9 +250,9 @@ first event, after OSF has applied start setup (player lock, strip, role equip, 
 input channel) and the entry node's animation is playing — so the scene is fully live. Its `node`
 field carries the entry node; like `SCENE_END` it carries no `actorRef`. The handle is live when
 `SCENE_BEGIN` is dispatched; because Papyrus dispatch is async (the callback runs on a later VM tick), it
-carries the same roster-survival guarantee as `SCENE_END` — `GetSceneParticipants(akEvent.sceneHandle)`
-stays readable for the callback, but a getter may return empty for a very short (`once`/0-duration)
-scene that already ended before the queued callback ran.
+uses the same bounded recent-roster window as `SCENE_END`. Read/copy participants promptly; a getter
+may return empty for a very short (`once`/0-duration) scene that ended before the queued callback ran,
+or after an extreme burst has expired that handle from the recent-history window.
 
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode
 `akEvent.result`.

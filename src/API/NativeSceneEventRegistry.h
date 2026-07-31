@@ -2,6 +2,8 @@
 
 #include "API/OSFSceneAPI.h"
 
+#include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -9,7 +11,8 @@ namespace OSF::API
 {
 	// Engine-independent storage for the public native callback surface.
 	// Dispatch snapshots registrations under the lock and invokes callbacks
-	// after releasing it, allowing safe self-unregistration.
+	// after releasing it. Per-registration leases make Unregister quiescent
+	// without preventing safe self-unregistration.
 	class NativeSceneEventRegistry
 	{
 	public:
@@ -30,13 +33,18 @@ namespace OSF::API
 			void* context = nullptr;
 			std::int32_t sceneFilter = 0;
 			std::int32_t eventMask = 0;
+
+			std::mutex lifetimeMutex;
+			std::condition_variable lifetimeCV;
+			bool active = true;
+			std::uint32_t inFlight = 0;
 		};
 
 		[[nodiscard]] static std::uint64_t MakeToken(
 			std::uint32_t a_generation, std::uint32_t a_slot);
 
 		std::mutex _lock;
-		std::vector<Entry> _slots;
+		std::vector<std::shared_ptr<Entry>> _slots;
 		std::uint32_t _nextGeneration = 1;
 	};
 }

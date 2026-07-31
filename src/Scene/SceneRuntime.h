@@ -7,6 +7,7 @@
 #include "Registry/SceneRegistry.h"      // SceneRef pins a live scene's immutable definition snapshot
 
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <optional>
 
@@ -136,10 +137,9 @@ namespace OSF::Scene
 		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only; else -1
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
-		// Participant roster of a live — OR just-ended — scene, in scene-internal (role-declaration)
-		// order. The roster survives into the post-end SCENE_END callback and normally for the
-		// remainder of the loaded world, so an end handler can reliably read who took part.
-		// Empty only if the handle is stale/invalid (or the emergency 65k-slot pressure valve fired).
+		// Participant roster of a live — OR recently ended — scene, in scene-internal
+		// (role-declaration) order. Ended rosters use a bounded FIFO so asynchronous callbacks can
+		// read them without pinning actors indefinitely. Empty once the handle expires or is invalid.
 		std::vector<RE::Actor*> GetParticipants(std::int32_t a_scene);
 
 		// One live scene's identity, snapshotted for enumeration (ListScenes).
@@ -213,10 +213,8 @@ namespace OSF::Scene
 			std::uint16_t           generation = 0;  // 0 = empty
 			// Retired-but-not-reclaimed: ReleaseSlot keeps the roster + generation so the
 			// post-end ASYNC SCENE_END dispatch can still resolve GetParticipants(handle),
-			// while liveness queries (FindSlotForActor) treat the actors as free and every
-			// mutating/lifecycle path (Resolve, default) rejects the handle. Tombstones remain for
-			// the loaded world so an asynchronous SCENE_END handler cannot lose its roster merely
-			// because another scene started; only extreme table pressure reclaims one.
+			// while liveness queries treat the actors as free. Retention is FIFO-bounded so
+			// repeated short scenes cannot pin actors or grow the handle table for the world.
 			bool                    ended = false;
 			// One-transition-at-a-time guard. ApplyTransition runs OUTSIDE _lock (it enters the VM
 			// and drives the GraphManager), so two transition triggers on one scene (a Papyrus
@@ -229,8 +227,8 @@ namespace OSF::Scene
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
-			// Ended rosters remain queryable for the loaded world. Keep the actors alive while the
-			// raw-pointer API view is retained so an unloaded ref cannot turn that roster dangling.
+			// Recently ended rosters remain queryable. Keep actors alive while the bounded
+			// raw-pointer API view is retained so an unloaded ref cannot turn it dangling.
 			std::vector<RE::NiPointer<RE::Actor>> retiredParticipantRefs;
 			Animation::PlaybackId   playbackId = 0;
 			Registry::SceneRef      definition;
@@ -503,6 +501,7 @@ namespace OSF::Scene
 
 		std::mutex        _lock;
 		std::vector<Slot> _slots;
+		std::deque<std::int32_t> _retiredHandles;
 		std::uint16_t     _nextGen = 1;
 		std::function<void()> _sceneObserver;     // see SetSceneObserver
 	};

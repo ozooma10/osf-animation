@@ -5,6 +5,7 @@
 #include "Util/ClipPath.h"
 #include "Util/FormRef.h"
 #include "Util/Math.h"
+#include "Util/RegistryFiles.h"
 #include "Util/Species.h"
 #include "Util/StringUtil.h"
 
@@ -27,6 +28,27 @@ namespace OSF::Registry
 	namespace
 	{
 		using json = nlohmann::json;
+
+		constexpr std::size_t kMaxScenesPerFile = 4096;
+		constexpr std::size_t kMaxRolesPerFile = 512;
+		constexpr std::size_t kMaxClipLibraryEntriesPerFile = 65536;
+		constexpr std::size_t kMaxNodesPerScene = 4096;
+		constexpr std::size_t kMaxStagesPerScene = 16384;
+		constexpr std::size_t kMaxClipsPerScene = 65536;
+		constexpr std::size_t kMaxScenesTotal = 32768;
+		constexpr std::size_t kMaxNodesTotal = 131072;
+		constexpr std::size_t kMaxStagesTotal = 262144;
+		constexpr std::size_t kMaxClipsTotal = 1048576;
+		constexpr std::size_t kMaxClipLibraryEntriesTotal = 262144;
+
+		struct SceneLoadBudget
+		{
+			std::size_t scenes = 0;
+			std::size_t nodes = 0;
+			std::size_t stages = 0;
+			std::size_t clips = 0;
+			std::size_t clipLibraryEntries = 0;
+		};
 
 		// --- Form-ref resolution ("Plugin.esm|0xLOCAL") ------------------------------------------
 		// Resolve a form ref to T* (BGSKeyword / TESRace). Throws (rejecting the scene) with a precise
@@ -238,6 +260,10 @@ namespace OSF::Registry
 			const std::string fileName = a_file.filename().string();
 			if (!it->is_array()) {
 				throw std::runtime_error("'" + fileName + "': 'clipLibrary' must be an array");
+			}
+			if (it->size() > kMaxClipLibraryEntriesPerFile) {
+				throw std::runtime_error("'" + fileName + "': 'clipLibrary' exceeds the " +
+					std::to_string(kMaxClipLibraryEntriesPerFile) + "-entry limit");
 			}
 			out.reserve(it->size());
 			for (std::size_t i = 0; i < it->size(); ++i) {
@@ -1725,7 +1751,7 @@ namespace OSF::Registry
 
 		void LoadOsfFile(const json& a_json, const std::filesystem::path& a_file,
 			std::unordered_map<std::string, SceneDef>& a_out, std::vector<ClipLibraryRegistration>& a_clipLibrary,
-			std::vector<std::string>& a_errors)
+			SceneLoadBudget& a_budget, std::vector<std::string>& a_errors)
 		{
 			const std::string fileName = a_file.filename().string();
 
@@ -1850,6 +1876,10 @@ namespace OSF::Registry
 					rejectFile("'" + fileName + "': 'scenes' must be an array");
 					return;
 				}
+				if (sit->size() > kMaxScenesPerFile) {
+					rejectFile("'" + fileName + "': contains more than " + std::to_string(kMaxScenesPerFile) + " scenes");
+					return;
+				}
 				try {
 					packAnchor = ParseAnchorBlock(a_json, "'" + fileName + "' file-level anchor");
 				} catch (const std::exception& e) {
@@ -1857,6 +1887,11 @@ namespace OSF::Registry
 					return;
 				}
 				if (auto rit = a_json.find("roles"); rit != a_json.end()) {
+					if ((rit->is_array() || rit->is_object()) && rit->size() > kMaxRolesPerFile) {
+						rejectFile("'" + fileName + "': file-level roles exceed the " +
+							std::to_string(kMaxRolesPerFile) + "-entry limit");
+						return;
+					}
 					if (rit->is_array()) {
 						try {
 							for (const auto& jRole : *rit) {
@@ -1909,8 +1944,14 @@ namespace OSF::Registry
 
 			try {
 				auto registrations = ParseClipLibrary(a_json, a_file, packName, packClipRoot, folderDefault);
+				if (registrations.size() > kMaxClipLibraryEntriesTotal - a_budget.clipLibraryEntries) {
+					rejectFile("'" + fileName + "': aggregate clipLibrary entry limit would be exceeded");
+					return;
+				}
+				const auto registrationCount = registrations.size();
 				a_clipLibrary.insert(a_clipLibrary.end(),
 					std::make_move_iterator(registrations.begin()), std::make_move_iterator(registrations.end()));
+				a_budget.clipLibraryEntries += registrationCount;
 			} catch (const std::exception& e) {
 				rejectFile(e.what());
 				return;
@@ -1922,6 +1963,20 @@ namespace OSF::Registry
 					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, clearHeldItemsDefault,
 						fadeDefault, unlistedDefault, inPlaceDefault, cameraDefault, packRoles, roleRegistry,
 						packClipRoot, packAnchor);
+					if (def.nodes.size() > kMaxNodesPerScene) {
+						throw std::runtime_error("scene '" + def.id + "': too many nodes");
+					}
+					std::size_t stageCount = 0;
+					std::size_t clipCount = 0;
+					for (const auto& node : def.nodes) {
+						stageCount += node.stages.size();
+						for (const auto& stage : node.stages) {
+							clipCount += stage.clips.size();
+						}
+					}
+					if (stageCount > kMaxStagesPerScene || clipCount > kMaxClipsPerScene) {
+						throw std::runtime_error("scene '" + def.id + "': stage/clip limit exceeded");
+					}
 					def.sourceFile = a_file;
 					def.pack = packName;
 					def.folder = folderDefault;
@@ -1934,12 +1989,25 @@ namespace OSF::Registry
 							def.id, fileName, f->second.sourceFile.filename().string());
 						continue;
 					}
+					if (a_budget.scenes >= kMaxScenesTotal ||
+						def.nodes.size() > kMaxNodesTotal - a_budget.nodes ||
+						stageCount > kMaxStagesTotal - a_budget.stages ||
+						clipCount > kMaxClipsTotal - a_budget.clips) {
+						a_errors.push_back("[error] scene registry aggregate scene/node/stage/clip limit reached — remaining scenes skipped");
+						REX::ERROR("[Registry] aggregate scene/node/stage/clip limit reached — remaining scenes skipped");
+						break;
+					}
 					for (const auto& w : warnings) {
 						a_errors.push_back("[warn] " + w);
 						REX::WARN("[Registry] {}", w);
 					}
-					REX::DEBUG("[Registry] loaded scene '{}' ({} node(s)) from '{}'", def.id, def.nodes.size(), fileName);
-					a_out[std::move(key)] = std::move(def);
+					const auto nodeCount = def.nodes.size();
+					REX::DEBUG("[Registry] loaded scene '{}' ({} node(s)) from '{}'", def.id, nodeCount, fileName);
+					a_out.emplace(std::move(key), std::move(def));
+					++a_budget.scenes;
+					a_budget.nodes += nodeCount;
+					a_budget.stages += stageCount;
+					a_budget.clips += clipCount;
 				} catch (const std::exception& e) {
 					a_errors.push_back("[error] '" + fileName + "': " + e.what());
 					REX::ERROR("[Registry] skipping scene in '{}': {}", fileName, e.what());
@@ -2412,65 +2480,76 @@ namespace OSF::Registry
 		std::vector<SceneFileStats> fileStats;
 		std::unordered_map<std::string, std::size_t> fileIndex;  // full source path -> index into fileStats
 		ClipInstalledCache clipCache;
+		SceneLoadBudget loadBudget;
 
-		const fs::path dir = fs::current_path() / "Data" / "OSF";
-		std::error_code ec;
-		if (fs::is_directory(dir, ec)) {
-			std::vector<fs::path> paths;
-			for (const auto& entry : fs::recursive_directory_iterator(dir, ec)) {
-				if (entry.is_regular_file(ec) && ToLower(entry.path().filename().string()).ends_with(".osf.json")) {
-					paths.push_back(entry.path());
-				}
+		std::vector<fs::path> paths;
+		fs::path dir;
+		std::error_code cwdEc;
+		const fs::path cwd = fs::current_path(cwdEc);
+		if (cwdEc) {
+			errors.push_back("[error] scene discovery: cannot resolve the game directory: " + cwdEc.message());
+			errorOwners.emplace_back();
+			REX::ERROR("[Registry] cannot resolve the game directory: {}", cwdEc.message());
+		} else {
+			dir = cwd / "Data" / "OSF";
+			auto discovery = Util::DiscoverRegistryFiles(dir, ".osf.json");
+			paths = std::move(discovery.files);
+			for (const auto& problem : discovery.problems) {
+				errors.push_back("[error] scene discovery: " + problem);
+				errorOwners.emplace_back();
+				REX::ERROR("[Registry] discovery: {}", problem);
 			}
-			// Sorted by filename so "first-loaded wins" on an id collision is deterministic.
-			std::sort(paths.begin(), paths.end(), [](const fs::path& a_lhs, const fs::path& a_rhs) {
-				return ToLower(a_lhs.filename().string()) < ToLower(a_rhs.filename().string());
-			});
-			fileStats.reserve(paths.size());  // `stats` below is a reference into it — no reallocation mid-file
-			for (const auto& file : paths) {
-				auto& stats = fileStats.emplace_back();
-				fileIndex.emplace(file.string(), fileStats.size() - 1);
-				stats.file = file.filename().string();
-				// Data/OSF-relative, forward-slashed. lexically_relative is pure string work (no
-				// second stat per file), and a relative path can never leak the install location.
-				const auto relative = file.lexically_relative(dir);
-				stats.path = relative.empty() ? stats.file : relative.generic_string();
-				std::error_code sizeEc;
-				const auto bytes = fs::file_size(file, sizeEc);
-				stats.bytes = sizeEc ? 0 : static_cast<std::uint64_t>(bytes);
-
-				const auto begun = std::chrono::steady_clock::now();
-				try {
-					std::ifstream in(file, std::ios::binary);
-					const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
-					// Header fields read leniently and separately from LoadOsfFile's validating
-					// parse: a file whose scenes were ALL rejected still has to show what it
-					// declared, and that is usually exactly where the mistake is.
-					if (const auto sit = j.find("schema"); sit != j.end() && sit->is_number_integer()) {
-						stats.schema = sit->get<std::int64_t>();
-					}
-					if (const auto pit = j.find("pack"); pit != j.end() && pit->is_string()) {
-						stats.pack = pit->get<std::string>();
-					}
-					if (const auto secIt = j.find("section"); secIt != j.end() && secIt->is_string()) {
-						stats.library = ToLower(secIt->get<std::string>()) == "library";
-					}
-					LoadOsfFile(j, file, loaded, clipLibrary, errors);
-				} catch (const std::exception& e) {
-					errors.push_back("[error] '" + stats.file + "': parse failed: " + e.what());
-					REX::ERROR("[Registry] failed to parse '{}': {}", stats.file, e.what());
-				}
-				stats.parseMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - begun).count();
-				problems.Claim(file);  // everything LoadOsfFile pushed belongs to this file
-			}
-
-			// Resolve every node `use` now that the whole set is loaded (catches dangling refs at load).
-			ValidateUseRefs(loaded, problems);
-
-			// Hide scenes whose clips aren't installed (compat pack without its source mod).
-			SweepClipAvailability(loaded, problems, clipCache);
 		}
 
+		fileStats.reserve(paths.size());  // `stats` below is a reference into it — no reallocation mid-file
+		for (const auto& file : paths) {
+			auto& stats = fileStats.emplace_back();
+			fileIndex.emplace(file.string(), fileStats.size() - 1);
+			stats.file = file.filename().string();
+			// Data/OSF-relative, forward-slashed. lexically_relative is pure string work (no
+			// second stat per file), and a relative path can never leak the install location.
+			const auto relative = file.lexically_relative(dir);
+			stats.path = relative.empty() ? stats.file : relative.generic_string();
+			std::error_code sizeEc;
+			const auto bytes = fs::file_size(file, sizeEc);
+			stats.bytes = sizeEc ? 0 : static_cast<std::uint64_t>(bytes);
+
+			const auto begun = std::chrono::steady_clock::now();
+			try {
+				std::ifstream in(file, std::ios::binary);
+				if (!in) {
+					throw std::runtime_error("file could not be opened");
+				}
+				const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
+				// Header fields read leniently and separately from LoadOsfFile's validating
+				// parse: a file whose scenes were ALL rejected still has to show what it
+				// declared, and that is usually exactly where the mistake is.
+				if (const auto sit = j.find("schema"); sit != j.end() && sit->is_number_integer()) {
+					stats.schema = sit->get<std::int64_t>();
+				}
+				if (const auto pit = j.find("pack"); pit != j.end() && pit->is_string()) {
+					stats.pack = pit->get<std::string>();
+				}
+				if (const auto secIt = j.find("section"); secIt != j.end() && secIt->is_string()) {
+					stats.library = ToLower(secIt->get<std::string>()) == "library";
+				}
+				LoadOsfFile(j, file, loaded, clipLibrary, loadBudget, errors);
+			} catch (const std::exception& e) {
+				errors.push_back("[error] '" + stats.file + "': parse failed: " + e.what());
+				REX::ERROR("[Registry] failed to parse '{}': {}", stats.file, e.what());
+			} catch (...) {
+				errors.push_back("[error] '" + stats.file + "': parse failed with an unknown exception");
+				REX::ERROR("[Registry] failed to parse '{}' with an unknown exception", stats.file);
+			}
+			stats.parseMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - begun).count();
+			problems.Claim(file);  // everything LoadOsfFile pushed belongs to this file
+		}
+
+		// Resolve every node `use` now that the whole set is loaded (catches dangling refs at load).
+		ValidateUseRefs(loaded, problems);
+
+		// Hide scenes whose clips aren't installed (compat pack without its source mod).
+		SweepClipAvailability(loaded, problems, clipCache);
 		const auto sceneCount = loaded.size();
 		AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
 		std::map<std::string, std::uint32_t> clipEntriesByFile;

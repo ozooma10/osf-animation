@@ -1,5 +1,6 @@
 #include "Registry/SoundRegistry.h"
 
+#include "Util/RegistryFiles.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>
@@ -17,6 +18,13 @@ namespace OSF::Registry
 	namespace
 	{
 		using json = nlohmann::json;
+
+		constexpr std::size_t kMaxPoolsPerFile = 2048;
+		constexpr std::size_t kMaxTagsPerPool = 64;
+		constexpr std::size_t kMaxClipsPerPool = 4096;
+		constexpr std::size_t kMaxSoundPoolsTotal = 8192;
+		constexpr std::size_t kMaxSoundClipsTotal = 131072;
+		constexpr std::size_t kMaxSoundStringBytes = 16384;
 
 		std::int32_t ClampWeight(std::int64_t a_w)
 		{
@@ -44,6 +52,9 @@ namespace OSF::Registry
 			if (clip.spec.empty()) {
 				throw std::runtime_error(a_subject + ": empty clip spec");
 			}
+			if (clip.spec.size() > kMaxSoundStringBytes || clip.text.size() > kMaxSoundStringBytes) {
+				throw std::runtime_error(a_subject + ": clip spec/text exceeds the string-size limit");
+			}
 			return clip;
 		}
 
@@ -51,6 +62,9 @@ namespace OSF::Registry
 		{
 			SoundPool pool;
 			pool.name = a_pool.value("name", std::string{});
+			if (pool.name.size() > kMaxSoundStringBytes) {
+				throw std::runtime_error("pool name exceeds the string-size limit");
+			}
 			pool.sourceFile = a_file;
 			const std::string subject = pool.name.empty() ? std::string("pool") : ("pool '" + pool.name + "'");
 
@@ -58,11 +72,18 @@ namespace OSF::Registry
 			if (tit == a_pool.end() || !tit->is_array() || tit->empty()) {
 				throw std::runtime_error(subject + ": needs a non-empty 'tags' array");
 			}
+			if (tit->size() > kMaxTagsPerPool) {
+				throw std::runtime_error(subject + ": too many tags");
+			}
 			for (const auto& t : *tit) {
 				if (!t.is_string()) {
 					throw std::runtime_error(subject + ": tag entries must be strings");
 				}
-				pool.tags.push_back(ToLower(t.get<std::string>()));
+				auto tag = t.get<std::string>();
+				if (tag.size() > kMaxSoundStringBytes) {
+					throw std::runtime_error(subject + ": tag exceeds the string-size limit");
+				}
+				pool.tags.push_back(ToLower(tag));
 			}
 
 			// `clips` is EITHER an array (paths / { spec, weight, text } objects) OR a terse object
@@ -76,6 +97,9 @@ namespace OSF::Registry
 				if (cit->empty()) {
 					throw std::runtime_error(subject + ": 'clips' object is empty");
 				}
+				if (cit->size() > kMaxClipsPerPool) {
+					throw std::runtime_error(subject + ": too many clips");
+				}
 				for (auto it = cit->begin(); it != cit->end(); ++it) {
 					SoundClip clip;
 					clip.spec = it.key();
@@ -88,11 +112,17 @@ namespace OSF::Registry
 					} else if (!it.value().is_null()) {
 						throw std::runtime_error(subject + ": clip '" + clip.spec + "': value must be a subtitle string (or null)");
 					}
+					if (clip.spec.size() > kMaxSoundStringBytes || clip.text.size() > kMaxSoundStringBytes) {
+						throw std::runtime_error(subject + ": clip spec/text exceeds the string-size limit");
+					}
 					pool.clips.push_back(std::move(clip));
 				}
 			} else if (cit->is_array()) {
 				if (cit->empty()) {
 					throw std::runtime_error(subject + ": 'clips' array is empty");
+				}
+				if (cit->size() > kMaxClipsPerPool) {
+					throw std::runtime_error(subject + ": too many clips");
 				}
 				for (const auto& c : *cit) {
 					pool.clips.push_back(ParseClip(c, subject));
@@ -105,7 +135,8 @@ namespace OSF::Registry
 
 		// A file is { schema, pools: [...] }. Bad pools are skipped (recorded), not fatal to the file.
 		void LoadSoundFile(const json& a_json, const std::filesystem::path& a_file,
-			std::vector<SoundPool>& a_out, std::vector<std::string>& a_errors)
+			std::vector<SoundPool>& a_out, std::size_t& a_clipCount,
+			std::vector<std::string>& a_errors)
 		{
 			const std::string fileName = a_file.filename().string();
 
@@ -130,12 +161,27 @@ namespace OSF::Registry
 				REX::ERROR("[Sound] '{}' needs a 'pools' array — skipped", fileName);
 				return;
 			}
+			if (pit->size() > kMaxPoolsPerFile) {
+				a_errors.push_back("[error] '" + fileName + "': too many pools");
+				REX::ERROR("[Sound] '{}' contains more than {} pools — skipped", fileName, kMaxPoolsPerFile);
+				return;
+			}
 			for (const auto& jp : *pit) {
+				if (a_out.size() >= kMaxSoundPoolsTotal || a_clipCount >= kMaxSoundClipsTotal) {
+					a_errors.push_back("[error] sound registry reached its global pool/clip limit");
+					REX::ERROR("[Sound] global pool/clip limit reached — remaining pools skipped");
+					break;
+				}
 				try {
 					auto pool = ParsePool(jp, a_file);
+					if (pool.clips.size() > kMaxSoundClipsTotal - a_clipCount) {
+						throw std::runtime_error("global sound clip limit would be exceeded");
+					}
+					const auto poolClipCount = pool.clips.size();
 					REX::DEBUG("[Sound] loaded pool '{}' ({} clip(s), {} tag(s)) from '{}'",
-						pool.name.empty() ? "<unnamed>" : pool.name, pool.clips.size(), pool.tags.size(), fileName);
+						pool.name.empty() ? "<unnamed>" : pool.name, poolClipCount, pool.tags.size(), fileName);
 					a_out.push_back(std::move(pool));
+					a_clipCount += poolClipCount;
 				} catch (const std::exception& e) {
 					a_errors.push_back("[error] '" + fileName + "': " + e.what());
 					REX::ERROR("[Sound] skipping pool in '{}': {}", fileName, e.what());
@@ -155,28 +201,34 @@ namespace OSF::Registry
 		namespace fs = std::filesystem;
 		std::vector<SoundPool> loaded;
 		std::vector<std::string> errors;
+		std::size_t loadedClipCount = 0;
 
-		const fs::path dir = fs::current_path() / "Data" / "OSF";
-		std::error_code ec;
-		if (fs::is_directory(dir, ec)) {
-			std::vector<fs::path> files;
-			for (const auto& entry : fs::recursive_directory_iterator(dir, ec)) {
-				if (entry.is_regular_file(ec) && ToLower(entry.path().filename().string()).ends_with(".sounds.json")) {
-					files.push_back(entry.path());
-				}
+		std::error_code cwdEc;
+		const fs::path cwd = fs::current_path(cwdEc);
+		if (cwdEc) {
+			errors.push_back("[error] cannot resolve the game directory: " + cwdEc.message());
+			REX::ERROR("[Sound] cannot resolve the game directory: {}", cwdEc.message());
+		} else {
+			const fs::path dir = cwd / "Data" / "OSF";
+			auto discovery = Util::DiscoverRegistryFiles(dir, ".sounds.json");
+			for (const auto& problem : discovery.problems) {
+				errors.push_back("[error] sound discovery: " + problem);
+				REX::ERROR("[Sound] discovery: {}", problem);
 			}
-			// Deterministic load order (mirrors SceneRegistry).
-			std::sort(files.begin(), files.end(), [](const fs::path& a_lhs, const fs::path& a_rhs) {
-				return ToLower(a_lhs.filename().string()) < ToLower(a_rhs.filename().string());
-			});
-			for (const auto& file : files) {
+			for (const auto& file : discovery.files) {
 				try {
 					std::ifstream in(file, std::ios::binary);
+					if (!in) {
+						throw std::runtime_error("file could not be opened");
+					}
 					const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
-					LoadSoundFile(j, file, loaded, errors);
+					LoadSoundFile(j, file, loaded, loadedClipCount, errors);
 				} catch (const std::exception& e) {
 					errors.push_back("[error] '" + file.filename().string() + "': parse failed: " + e.what());
 					REX::ERROR("[Sound] failed to parse '{}': {}", file.filename().string(), e.what());
+				} catch (...) {
+					errors.push_back("[error] '" + file.filename().string() + "': parse failed with an unknown exception");
+					REX::ERROR("[Sound] failed to parse '{}' with an unknown exception", file.filename().string());
 				}
 			}
 		}
@@ -204,7 +256,6 @@ namespace OSF::Registry
 		}
 		REX::INFO("[Sound] {} pool(s) loaded, {} subtitled clip(s), {} problem(s)", poolCount, textCount, problemCount);
 	}
-
 	std::optional<std::string> SoundRegistry::Resolve(std::string_view a_ref) const
 	{
 		// Strip the optional leading '$', split on ',', trim + lowercase each tag.
@@ -274,7 +325,7 @@ namespace OSF::Registry
 		}
 
 		// Weight-proportional random (mirrors Matchmaker::Pick; uint64 sum is overflow-safe for the cap).
-		std::mt19937 rng{ std::random_device{}() };
+		static thread_local std::mt19937 rng{ std::random_device{}() };
 		const auto rollOnce = [&]() -> const SoundClip* {
 			std::uniform_int_distribution<std::uint64_t> dist(1, total);
 			auto roll = dist(rng);

@@ -371,7 +371,7 @@ namespace OSF::Matchmaking
 		REX::TRACE("[Match] {} candidate(s) in pool, {} in top priority tier {} (total weight {})",
 			pool.size(), tier.size(), maxPriority, total);
 		// Weight-proportional random within the tier (uint64 sum is overflow-safe for the [1,1e6] cap).
-		std::mt19937 rng{ std::random_device{}() };
+		static thread_local std::mt19937 rng{ std::random_device{}() };
 		std::uniform_int_distribution<std::uint64_t> dist(1, total);
 		auto roll = dist(rng);
 		REX::TRACE("[Match] weighted roll {} of {}", roll, total);

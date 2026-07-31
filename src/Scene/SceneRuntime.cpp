@@ -18,6 +18,7 @@ namespace OSF::Scene
 {
 	namespace
 	{
+		constexpr std::size_t kMaxRetiredRosters = 256;
 		// Execute one director verb against the active grant. Runs on the game thread (the InputService posts it via the SFSE task queue), so it may safely touch scene/graph state.
 		// Bails if the scene ended between the keypress and now (a load ran Clear); that keeps us off a stale driver Actor*, since a live handle implies live participants.
 		void DispatchInputVerb(Input::Verb a_verb, const Input::Grant& a_grant)
@@ -236,9 +237,8 @@ namespace OSF::Scene
 		std::uint16_t slot = 0;
 		bool reused = false;
 		for (; slot < _slots.size(); slot++) {
-			// Do not eagerly reclaim retired slots: Papyrus event dispatch is asynchronous, and a
-			// later scene can start before an earlier SCENE_END handler runs. Keeping tombstones for
-			// the current world makes the documented participant-roster lookup deterministic.
+			// Do not immediately reclaim a retired slot: Papyrus event dispatch is asynchronous.
+			// ReleaseSlot expires the oldest roster once the bounded retention window fills.
 			if (_slots[slot].generation == 0) {
 				reused = true;
 				break;
@@ -282,12 +282,8 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 		if (Slot* s = Resolve(a_handle)) {
-			// Retire, don't erase: keep the generation (handle still resolves) and the participant
-			// roster (the async SCENE_END dispatch reads it via GetParticipants), but drop every
-			// other field — the undo ledger already replayed before SCENE_END, so equipment/weapon/
-			// grant state is spent. The actors are freed for a new scene (FindSlotForActor skips
-			// ended). The tombstone normally survives until Clear() on world load; MintSlot only
-			// reclaims one under the emergency 65k-slot pressure valve.
+			// Keep only a bounded FIFO of final rosters for asynchronous SCENE_END consumers.
+			// Every other field is spent after the undo ledger runs; live-scene lookups skip ended slots.
 			const std::uint16_t gen = s->generation;
 			std::vector<RE::Actor*> roster = std::move(s->participants);
 			std::vector<RE::NiPointer<RE::Actor>> retained;
@@ -300,9 +296,17 @@ namespace OSF::Scene
 			s->ended = true;
 			s->participants = std::move(roster);
 			s->retiredParticipantRefs = std::move(retained);
+			_retiredHandles.push_back(a_handle);
+
+			while (_retiredHandles.size() > kMaxRetiredRosters) {
+				const auto expiredHandle = _retiredHandles.front();
+				_retiredHandles.pop_front();
+				if (Slot* expired = Resolve(expiredHandle, true); expired && expired->ended) {
+					*expired = Slot{};
+				}
+			}
 		}
 	}
-
 	std::string SceneRuntime::GetNode(std::int32_t a_scene)
 	{
 		std::lock_guard l{ _lock };
@@ -420,6 +424,7 @@ namespace OSF::Scene
 				}
 			}
 			_slots.clear();
+			_retiredHandles.clear();
 		}
 		// World-replacing load teardown suppresses scene callbacks and therefore
 		// cannot rely on Fire(SCENE_END). Detach props explicitly while the old

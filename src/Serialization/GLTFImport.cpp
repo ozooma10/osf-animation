@@ -290,32 +290,54 @@ namespace OSF::Serialization
 			using RawSkeleton = ozz::animation::offline::RawSkeleton;
 			RawSkeleton raw;
 
-			// visited guards against child cycles in a hostile/corrupt file (a node listing itself
-			// or an ancestor would otherwise recurse to a stack-overflow process kill — and
-			// fastgltf::validate does NOT reject it). A revisited node is simply skipped.
-			std::vector<bool> visited(nodes.size(), false);
-			auto addJoint = [&](this auto&& self, size_t a_nodeIdx, RawSkeleton::Joint::Children& a_dest) -> void {
-				if (visited[a_nodeIdx]) {
-					return;
-				}
-				visited[a_nodeIdx] = true;
-				const auto& n = nodes[a_nodeIdx];
-				auto& joint = a_dest.emplace_back();
-				joint.name = n.name.c_str();
-				joint.transform = GetNodeLocalTransform(n, hasCom);
-				for (auto childIdx : n.children) {
-					if (childIdx < nodes.size()) {
-						self(childIdx, joint.children);
-					}
-				}
-			};
+			constexpr std::size_t kMaxSkeletonNodes = 4096;
+			constexpr std::size_t kMaxSkeletonDepth = 512;
+			if (nodes.size() > kMaxSkeletonNodes) {
+				return nullptr;
+			}
 
-			for (size_t i = 0; i < nodes.size(); i++) {
+			// Iterative depth-first construction: malformed deep-but-acyclic input cannot consume
+			// the process stack. visited also rejects cycles/disconnected cyclic components.
+			struct PendingJoint
+			{
+				std::size_t nodeIdx;
+				RawSkeleton::Joint::Children* destination;
+				std::size_t depth;
+			};
+			std::vector<bool> visited(nodes.size(), false);
+			std::vector<PendingJoint> pending;
+			for (std::size_t i = nodes.size(); i-- > 0;) {
 				if (!isChild[i]) {
-					addJoint(i, raw.roots);
+					pending.push_back({ i, &raw.roots, 1 });
 				}
 			}
 
+			std::size_t visitedCount = 0;
+			while (!pending.empty()) {
+				const PendingJoint current = pending.back();
+				pending.pop_back();
+				if (current.nodeIdx >= nodes.size() || visited[current.nodeIdx]) {
+					return nullptr;  // invalid child index, cycle, or multiple parents
+				}
+				if (current.depth > kMaxSkeletonDepth) {
+					return nullptr;
+				}
+
+				visited[current.nodeIdx] = true;
+				++visitedCount;
+				const auto& node = nodes[current.nodeIdx];
+				auto& joint = current.destination->emplace_back();
+				joint.name = node.name.c_str();
+				joint.transform = GetNodeLocalTransform(node, hasCom);
+				for (auto child = node.children.rbegin(); child != node.children.rend(); ++child) {
+					if (*child < nodes.size()) {
+						pending.push_back({ *child, &joint.children, current.depth + 1 });
+					}
+				}
+			}
+			if (visitedCount != nodes.size()) {
+				return nullptr;
+			}
 			if (!raw.Validate()) {
 				return nullptr;
 			}

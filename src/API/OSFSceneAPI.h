@@ -151,8 +151,9 @@ namespace OSF::API
 		virtual std::int32_t GetSceneStage(std::int32_t a_handle) = 0;  // linear scenes; -1 otherwise
 
 		// Writes up to a_cap entries into a_out (caller-owned); returns the TOTAL participant count.
-		// A just-ended handle retains its final roster for the loaded world, so an end handler can
-		// read who took part; those actors may be mid-teardown, so touch them only on the game thread.
+		// Recently ended handles retain their final roster through a bounded asynchronous-event
+		// window, so an end handler can read who took part. Copy it during the callback; old ended
+		// handles eventually expire. Actors may be mid-teardown, so touch them only on the game thread.
 		virtual std::uint32_t GetSceneParticipants(std::int32_t a_handle,
 			RE::Actor** a_out, std::uint32_t a_cap) = 0;
 
@@ -160,7 +161,9 @@ namespace OSF::API
 		// Registration is thread-safe and process-lifetime: tokens survive world
 		// replacement until explicitly unregistered. a_sceneFilter == 0 accepts
 		// every scene; a_eventMask == 0 is treated as SceneEventType::kAll.
-		// Returns a 64-bit generational token, or 0 for a null callback.
+		// Returns a 64-bit generational token, or 0 for a null callback. Once
+		// Unregister returns, callbacks running on other threads have finished;
+		// self-unregistration never waits on the current invocation itself.
 		virtual std::uint64_t RegisterSceneEventCallback(
 			OSFSceneEventCallback a_callback, void* a_context,
 			std::int32_t a_sceneFilter = 0,

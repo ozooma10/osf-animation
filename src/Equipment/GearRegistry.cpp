@@ -1,6 +1,7 @@
 #include "Equipment/GearRegistry.h"
 
 #include "Util/FormRef.h"
+#include "Util/RegistryFiles.h"
 #include "Util/StringUtil.h"
 
 #include <nlohmann/json.hpp>
@@ -46,6 +47,23 @@ namespace OSF::Equipment::Gear
 		std::vector<OverrideRow> g_overrides;
 		std::atomic<bool>        g_autoEquip{ true };
 
+		constexpr std::size_t kMaxGearRows = 8192;
+		constexpr std::size_t kMaxGearStringBytes = 4096;
+
+		bool ReadStringField(const json& a_object, const char* a_key, std::string& a_out)
+		{
+			const auto it = a_object.find(a_key);
+			if (it == a_object.end()) {
+				a_out.clear();
+				return true;
+			}
+			if (!it->is_string()) {
+				return false;
+			}
+			a_out = it->get<std::string>();
+			return a_out.size() <= kMaxGearStringBytes;
+		}
+
 		// <Documents>\My Games\Starfield\SFSE\OSF\scene-gear.json (same home as wheel-pins.json),
 		// or empty when the SFSE log directory can't be resolved.
 		std::filesystem::path UserFilePath()
@@ -61,21 +79,32 @@ namespace OSF::Equipment::Gear
 		// Parse one gear document's "items" array into a_items. a_seen dedups by lowercased ref —
 		// first-loaded wins (user lane loads first, Data files in sorted order), mirroring the scene
 		// registry's collision policy. Malformed entries warn and are skipped individually.
-		void ParseItems(const json& a_doc, const std::string& a_source,
+		bool ParseItems(const json& a_doc, const std::string& a_source,
 			std::vector<Entry>& a_items, std::unordered_map<std::string, std::string>& a_seen)
 		{
 			const auto it = a_doc.find("items");
-			if (it == a_doc.end() || !it->is_array()) {
-				return;
+			if (it == a_doc.end()) {
+				return true;
+			}
+			if (!it->is_array() || it->size() > kMaxGearRows) {
+				REX::ERROR("[Equip] gear '{}': 'items' must be an array with at most {} entries", a_source, kMaxGearRows);
+				return false;
 			}
 			for (const auto& v : *it) {
 				if (!v.is_object()) {
+					REX::WARN("[Equip] gear '{}': item entry must be an object — skipped", a_source);
 					continue;
 				}
 				Entry entry;
-				entry.ref = v.value("item", std::string{});
-				entry.slot = ToLower(v.value("slot", std::string{}));
-				entry.label = v.value("label", std::string{});
+				std::string slot;
+				if (!ReadStringField(v, "item", entry.ref) ||
+					!ReadStringField(v, "slot", slot) ||
+					!ReadStringField(v, "label", entry.label)) {
+					REX::WARN("[Equip] gear '{}': item/slot/label must be strings no longer than {} bytes — skipped",
+						a_source, kMaxGearStringBytes);
+					continue;
+				}
+				entry.slot = ToLower(slot);
 				entry.source = a_source;
 				if (entry.ref.empty() || entry.slot.empty()) {
 					REX::WARN("[Equip] gear '{}': entry missing required 'item' or 'slot' — skipped", a_source);
@@ -87,57 +116,105 @@ namespace OSF::Equipment::Gear
 						a_source, entry.ref, seen->second);
 					continue;
 				}
+				if (a_items.size() >= kMaxGearRows) {
+					REX::ERROR("[Equip] gear registry reached the {}-item aggregate limit", kMaxGearRows);
+					return false;
+				}
 				a_seen.emplace(key, a_source);
 				a_items.push_back(std::move(entry));
-			}
-		}
-
-		// Parse the user file's "overrides" array. Only the user lane carries overrides; an
-		// "overrides" key in a Data-lane file is ignored (those files are read-only registrations).
-		void ParseOverrides(const json& a_doc, const std::string& a_source, std::vector<OverrideRow>& a_overrides)
-		{
-			const auto it = a_doc.find("overrides");
-			if (it == a_doc.end() || !it->is_array()) {
-				return;
-			}
-			for (const auto& v : *it) {
-				if (!v.is_object()) {
-					continue;
-				}
-				OverrideRow row;
-				row.actor = v.value("actor", std::string{});
-				row.slot = ToLower(v.value("slot", std::string{}));
-				row.item = v.value("item", std::string{});
-				if (row.actor.empty() || row.slot.empty() || row.item.empty()) {
-					REX::WARN("[Equip] gear '{}': override missing 'actor', 'slot', or 'item' — skipped", a_source);
-					continue;
-				}
-				a_overrides.push_back(std::move(row));
-			}
-		}
-
-		// Load one gear file into the accumulators. Returns false only when the file exists but
-		// won't parse (the caller logs); a missing file is a silent true.
-		bool LoadFile(const std::filesystem::path& a_file, bool a_userLane,
-			std::vector<Entry>& a_items, std::vector<OverrideRow>& a_overrides,
-			std::unordered_map<std::string, std::string>& a_seen)
-		{
-			std::ifstream in(a_file, std::ios::binary);
-			if (!in) {
-				return true;
-			}
-			const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
-			if (!doc.is_object()) {
-				return false;
-			}
-			const std::string source = a_file.filename().string();
-			ParseItems(doc, source, a_items, a_seen);
-			if (a_userLane) {
-				ParseOverrides(doc, source, a_overrides);
 			}
 			return true;
 		}
 
+		// Parse the user file's "overrides" array. Only the user lane carries overrides; an
+		// "overrides" key in a Data-lane file is ignored (those files are read-only registrations).
+		bool ParseOverrides(const json& a_doc, const std::string& a_source, std::vector<OverrideRow>& a_overrides)
+		{
+			const auto it = a_doc.find("overrides");
+			if (it == a_doc.end()) {
+				return true;
+			}
+			if (!it->is_array() || it->size() > kMaxGearRows) {
+				REX::ERROR("[Equip] gear '{}': 'overrides' must be an array with at most {} entries", a_source, kMaxGearRows);
+				return false;
+			}
+			for (const auto& v : *it) {
+				if (!v.is_object()) {
+					REX::WARN("[Equip] gear '{}': override entry must be an object — skipped", a_source);
+					continue;
+				}
+				OverrideRow row;
+				std::string slot;
+				if (!ReadStringField(v, "actor", row.actor) ||
+					!ReadStringField(v, "slot", slot) ||
+					!ReadStringField(v, "item", row.item)) {
+					REX::WARN("[Equip] gear '{}': override actor/slot/item must be strings no longer than {} bytes — skipped",
+						a_source, kMaxGearStringBytes);
+					continue;
+				}
+				row.slot = ToLower(slot);
+				if (row.actor.empty() || row.slot.empty() || row.item.empty()) {
+					REX::WARN("[Equip] gear '{}': override missing 'actor', 'slot', or 'item' — skipped", a_source);
+					continue;
+				}
+				if (a_overrides.size() >= kMaxGearRows) {
+					REX::ERROR("[Equip] gear registry reached the {}-override aggregate limit", kMaxGearRows);
+					return false;
+				}
+				a_overrides.push_back(std::move(row));
+			}
+			return true;
+		}
+
+		// Load one gear file into the accumulators. Every failure is contained here so malformed
+		// author content cannot unwind through an SFSE message or Papyrus native callback.
+		bool LoadFile(const std::filesystem::path& a_file, bool a_userLane,
+			std::vector<Entry>& a_items, std::vector<OverrideRow>& a_overrides,
+			std::unordered_map<std::string, std::string>& a_seen) noexcept
+		{
+			const auto itemStart = a_items.size();
+			const auto overrideStart = a_overrides.size();
+			const auto rollback = [&] {
+				for (std::size_t i = itemStart; i < a_items.size(); ++i) {
+					a_seen.erase(ToLower(a_items[i].ref));
+				}
+				a_items.resize(itemStart);
+				a_overrides.resize(overrideStart);
+			};
+			try {
+				std::error_code sizeEc;
+				const auto bytes = std::filesystem::file_size(a_file, sizeEc);
+				if (!sizeEc && bytes > Util::kMaxRegistryFileBytes) {
+					REX::ERROR("[Equip] gear file '{}' is {} bytes; maximum is {} — skipped",
+						a_file.filename().string(), bytes, Util::kMaxRegistryFileBytes);
+					return false;
+				}
+
+				std::ifstream in(a_file, std::ios::binary);
+				if (!in) {
+					return true;
+				}
+				const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
+				if (!doc.is_object()) {
+					return false;
+				}
+				const std::string source = a_file.filename().string();
+				if (!ParseItems(doc, source, a_items, a_seen) ||
+					(a_userLane && !ParseOverrides(doc, source, a_overrides))) {
+					rollback();
+					return false;
+				}
+				return true;
+			} catch (const std::exception& e) {
+				rollback();
+				REX::ERROR("[Equip] gear file '{}' failed: {} — skipped", a_file.filename().string(), e.what());
+				return false;
+			} catch (...) {
+				rollback();
+				REX::ERROR("[Equip] gear file '{}' failed with an unknown exception — skipped", a_file.filename().string());
+				return false;
+			}
+		}
 		// Resolve a_entry's form ref (game thread; caller holds g_lock). kBad warns once at first use
 		// — a ref naming an uninstalled plugin is expected (optional gear mods) and never fatal.
 		void Resolve(Entry& a_entry)
@@ -189,19 +266,17 @@ namespace OSF::Equipment::Gear
 			}
 		}
 
-		const fs::path  dir = fs::current_path() / "Data" / "OSF";
-		std::error_code ec;
-		if (fs::is_directory(dir, ec)) {
-			std::vector<fs::path> files;
-			for (const auto& entry : fs::recursive_directory_iterator(dir, ec)) {
-				if (entry.is_regular_file(ec) && ToLower(entry.path().filename().string()).ends_with(".osfgear.json")) {
-					files.push_back(entry.path());
-				}
+		std::error_code cwdEc;
+		const fs::path cwd = fs::current_path(cwdEc);
+		if (cwdEc) {
+			REX::ERROR("[Equip] cannot resolve the game directory for gear discovery: {}", cwdEc.message());
+		} else {
+			const fs::path dir = cwd / "Data" / "OSF";
+			auto discovery = Util::DiscoverRegistryFiles(dir, ".osfgear.json");
+			for (const auto& problem : discovery.problems) {
+				REX::ERROR("[Equip] gear discovery: {}", problem);
 			}
-			std::sort(files.begin(), files.end(), [](const fs::path& a_lhs, const fs::path& a_rhs) {
-				return ToLower(a_lhs.filename().string()) < ToLower(a_rhs.filename().string());
-			});
-			for (const auto& file : files) {
+			for (const auto& file : discovery.files) {
 				if (!LoadFile(file, /*userLane*/ false, items, overrides, seen)) {
 					REX::ERROR("[Equip] gear file '{}' won't parse — skipped", file.filename().string());
 				}
@@ -219,7 +294,6 @@ namespace OSF::Equipment::Gear
 			REX::INFO("[Equip] gear registry: {} item(s), {} override(s) loaded", itemCount, overrideCount);
 		}
 	}
-
 	bool AutoEquip()
 	{
 		return g_autoEquip.load(std::memory_order_relaxed);

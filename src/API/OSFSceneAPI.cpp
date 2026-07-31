@@ -51,7 +51,11 @@ namespace OSF::API
 		Scene::SceneRuntime::AnchorOverride MakeAnchor(const OSFStartOptions& a_opts)
 		{
 			Scene::SceneRuntime::AnchorOverride anchor{};
-			if (a_opts.hasAnchor) {
+			if (a_opts.anchorRef) {
+				anchor.set = true;
+				anchor.pos = a_opts.anchorRef->data.location;
+				anchor.heading = a_opts.anchorRef->data.angle.z;
+			} else if (a_opts.hasAnchor) {
 				anchor.set = true;
 				anchor.pos = RE::NiPoint3{ a_opts.anchorX, a_opts.anchorY, a_opts.anchorZ };
 				anchor.heading = a_opts.anchorHeadingRad;  // RADIANS (the POD documents this)

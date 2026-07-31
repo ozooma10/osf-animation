@@ -5,11 +5,13 @@
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <condition_variable>
 #include <cstring>
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
 #include <malloc.h>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -26,6 +28,12 @@
 #define MA_NO_DEVICE_IO
 #include <miniaudio.h>
 #pragma warning(pop)
+
+// Some miniaudio platform headers expose a generic ERROR macro, which corrupts
+// the qualified REX::ERROR logging token below.
+#ifdef ERROR
+#undef ERROR
+#endif
 
 namespace OSF::Audio::Wwise
 {
@@ -79,10 +87,21 @@ namespace OSF::Audio::Wwise
 			RE::BGSAudio::AkCodecID codec{ RE::BGSAudio::AkCodecID::kVorbis };
 		};
 
-		constexpr std::size_t kMaxMediaBytes = 64u << 20;  // 64 MiB guard per clip
+		constexpr std::size_t kMaxMediaBytes = 64u << 20;       // 64 MiB guard per clip
+		constexpr std::size_t kMaxMediaCacheBytes = 256u << 20;  // aggregate process-lifetime budget
+		constexpr std::size_t kMaxMediaCacheEntries = 4096;
+
+		struct MediaCacheEntry
+		{
+			std::mutex mutex;
+			std::condition_variable readyCV;
+			bool ready = false;
+			MediaBuffer media;
+		};
 
 		std::mutex g_mediaCacheMutex;
-		std::unordered_map<std::wstring, MediaBuffer> g_mediaCache;
+		std::unordered_map<std::wstring, std::shared_ptr<MediaCacheEntry>> g_mediaCache;
+		std::size_t g_mediaCacheBytes = 0;
 
 		// AkCodecID from a .wem's RIFF 'fmt ' tag: 0xFFFF = Wwise Vorbis, 0xFFFE = Wwise PCM.
 		// Anything unrecognized -> Vorbis (the most common case); a non-.wem file won't match here.
@@ -233,17 +252,81 @@ namespace OSF::Audio::Wwise
 			return (LowerExtensionW(a_path) == L"wem") ? LoadWemFile(a_path) : DecodeToPcmWem(a_path);
 		}
 
-		// Loads + prepares a clip once and caches it for the WHOLE PROCESS (success AND failure, so a missing/bad file doesn't re-hit disk). 
-		// The cache is NEVER evicted on purpose: AK references pInMemory zero-copy for the entire playback and the external-source duplicator copies only the 0x20 descriptor, 
-		// NOT the bytes — freeing a buffer while a voice still reads it is an audio-thread use-after-free. Process-lifetime ownership is the invariant that keeps it safe.
+		void FreeUnpublishedMedia(MediaBuffer& a_media)
+		{
+			if (a_media.data) {
+				_aligned_free(a_media.data);
+				a_media = {};
+			}
+		}
+
+		// Loads + prepares each path once. Different paths decode concurrently; callers for the same
+		// path share one in-flight load. Successful buffers remain process-lifetime because AK reads
+		// pInMemory zero-copy, but aggregate bytes and entry count are hard-bounded.
 		MediaBuffer GetOrLoadMedia(const std::wstring& a_path)
 		{
-			const std::scoped_lock lock{ g_mediaCacheMutex };
-			if (const auto it = g_mediaCache.find(a_path); it != g_mediaCache.end()) {
-				return it->second;
+			std::shared_ptr<MediaCacheEntry> entry;
+			bool loader = false;
+			{
+				std::lock_guard cacheLock{ g_mediaCacheMutex };
+				if (const auto it = g_mediaCache.find(a_path); it != g_mediaCache.end()) {
+					entry = it->second;
+				} else {
+					if (g_mediaCache.size() >= kMaxMediaCacheEntries) {
+						REX::WARN("[Audio] media cache entry limit ({}) reached — '{}' skipped",
+							kMaxMediaCacheEntries, std::filesystem::path(a_path).string());
+						return {};
+					}
+					entry = std::make_shared<MediaCacheEntry>();
+					g_mediaCache.emplace(a_path, entry);
+					loader = true;
+				}
 			}
-			const MediaBuffer media = LoadMedia(a_path);
-			g_mediaCache.emplace(a_path, media);
+
+			if (!loader) {
+				std::unique_lock entryLock{ entry->mutex };
+				entry->readyCV.wait(entryLock, [&] { return entry->ready; });
+				return entry->media;
+			}
+
+			MediaBuffer media;
+			struct ReadyPublisher
+			{
+				std::shared_ptr<MediaCacheEntry> entry;
+				MediaBuffer& media;
+
+				~ReadyPublisher()
+				{
+					{
+						std::lock_guard entryLock{ entry->mutex };
+						entry->media = media;
+						entry->ready = true;
+					}
+					entry->readyCV.notify_all();
+				}
+			} publishReady{ entry, media };
+
+			try {
+				media = LoadMedia(a_path);
+				if (media.data) {
+					std::lock_guard cacheLock{ g_mediaCacheMutex };
+					if (media.size > kMaxMediaCacheBytes - g_mediaCacheBytes) {
+						REX::WARN("[Audio] media cache byte limit ({} MiB) reached — '{}' skipped",
+							kMaxMediaCacheBytes >> 20, std::filesystem::path(a_path).string());
+						FreeUnpublishedMedia(media);
+					} else {
+						g_mediaCacheBytes += media.size;
+					}
+				}
+			} catch (const std::exception& e) {
+				FreeUnpublishedMedia(media);
+				REX::ERROR("[Audio] media preparation failed for '{}': {}",
+					std::filesystem::path(a_path).string(), e.what());
+			} catch (...) {
+				FreeUnpublishedMedia(media);
+				REX::ERROR("[Audio] media preparation failed for '{}' with an unknown exception",
+					std::filesystem::path(a_path).string());
+			}
 			return media;
 		}
 

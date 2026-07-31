@@ -25,6 +25,11 @@ namespace OSF::Camera
 	public:
 		static CameraService& GetSingleton();
 
+		// Enables features that write runtime-verified PlayerCamera/FreeFly fields.
+		// Startup sets this once for the exact game build whose layouts were checked.
+		void SetRawLayoutSupport(bool a_enabled);
+		[[nodiscard]] bool RawLayoutSupport() const;
+
 		// THIRD-PERSON HOLD. Ref-counted across owners; engages on the first holder, restores the prior POV on the last. Each true must be matched by one false.
 		void SetStandaloneLock(bool a_enable);
 
