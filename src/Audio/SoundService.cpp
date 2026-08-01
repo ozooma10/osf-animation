@@ -16,6 +16,7 @@ namespace OSF::Audio
 		constexpr std::size_t kMaxTrackedUnslottedVoices = 256;
 		constexpr std::size_t kMaxTrackedSlottedVoices = 4096;
 		constexpr std::size_t kMaxSlotOrderRecords = 8192;
+		constexpr std::uint64_t kRoleEmitterNamespace = 1ull << 62;
 
 		// Process-lifetime worker pool. SFSE plugins are not unloaded during play, and deliberately
 		// leaking the pool avoids static-destruction races with decoder/Wwise code at process exit.
@@ -82,6 +83,25 @@ namespace OSF::Audio
 		return *instance;
 	}
 
+	std::uint64_t SoundService::PrepareRoleEmitter(RE::Actor* a_actor)
+	{
+		if (!a_actor || a_actor->formID == 0) {
+			return 0;
+		}
+		const std::uint64_t gameObject = kRoleEmitterNamespace | static_cast<std::uint64_t>(a_actor->formID);
+		return Wwise::PositionEmitter(gameObject, a_actor->GetPosition(), a_actor->data.angle.z,
+			/*a_registerIfMissing*/ true) ? gameObject : 0;
+	}
+
+	void SoundService::UpdateRoleEmitter(RE::Actor* a_actor, const RE::NiPoint3& a_position, float a_heading)
+	{
+		if (!a_actor || a_actor->formID == 0) {
+			return;
+		}
+		const std::uint64_t gameObject = kRoleEmitterNamespace | static_cast<std::uint64_t>(a_actor->formID);
+		Wwise::PositionEmitter(gameObject, a_position, a_heading, /*a_registerIfMissing*/ false);
+	}
+
 	SoundService::PlayTicket SoundService::BeginPlay()
 	{
 		std::lock_guard l{ lock };
@@ -146,20 +166,20 @@ namespace OSF::Audio
 		return true;
 	}
 
-	void SoundService::Play(std::uint64_t a_slot, const std::string& a_dataRelPath)
+	void SoundService::Play(std::uint64_t a_slot, const std::string& a_dataRelPath, std::uint64_t a_gameObject)
 	{
 		const PlayTicket ticket = BeginPlay();
 
 		// Baked events need no file work; post immediately through the engine command queue.
 		if (const auto eventID = Wwise::ParseEventSpec(a_dataRelPath)) {
-			const auto playingID = Wwise::PostEvent(*eventID);
+			const auto playingID = Wwise::PostEvent(*eventID, a_gameObject);
 			if (playingID == 0) {
 				REX::WARN("[Audio] Wwise rejected '{}' (event 0x{:08X} not in any loaded bank?) — cue skipped", a_dataRelPath, *eventID);
 				return;
 			}
 			if (PublishVoice(a_slot, playingID, ticket)) {
-				REX::DEBUG("[Audio] posted Wwise event '{}' (0x{:08X}) -> playingID {} (slot {:#x})",
-					a_dataRelPath, *eventID, playingID, a_slot);
+				REX::DEBUG("[Audio] posted Wwise event '{}' (0x{:08X}) -> playingID {} (slot {:#x}, emitter {})",
+					a_dataRelPath, *eventID, playingID, a_slot, a_gameObject != 0 ? "role" : "listener");
 			}
 			return;
 		}
@@ -172,18 +192,18 @@ namespace OSF::Audio
 
 		const auto rel = (std::filesystem::path("Data") / a_dataRelPath).make_preferred().wstring();
 		const bool queued = AudioWorker::GetSingleton().Enqueue(
-			[this, ticket, a_slot, rel, path = a_dataRelPath]() {
+			[this, ticket, a_slot, a_gameObject, rel, path = a_dataRelPath]() {
 				if (!TicketCurrent(ticket)) {
 					return;  // queued before a world-replacing teardown
 				}
-				const auto playingID = Wwise::PostExternalFile(rel);
+				const auto playingID = Wwise::PostExternalFile(rel, a_gameObject);
 				if (playingID == 0) {
 					REX::WARN("[Audio] Wwise external-source post rejected '{}' — cue skipped", path);
 					return;
 				}
 				if (PublishVoice(a_slot, playingID, ticket)) {
-					REX::DEBUG("[Audio] posted external '{}' -> playingID {} (engine-mixed, slot {:#x})",
-						path, playingID, a_slot);
+					REX::DEBUG("[Audio] posted external '{}' -> playingID {} (engine-mixed, slot {:#x}, emitter {})",
+						path, playingID, a_slot, a_gameObject != 0 ? "role" : "listener");
 				}
 			});
 		if (!queued) {

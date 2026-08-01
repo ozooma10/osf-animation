@@ -575,8 +575,8 @@ Every track entry has a **position** (`at`) and optional **repeat**:
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
 | `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
-| `action` | `{ "at", "type", "role", "hold", "duration", "set", "item", "prop", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
-| `sound` | `{ "at", "spec", "role", "repeat" }` — an **array/object `at`** makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker; audio currently posts at the listener. A clip can carry **subtitle text** (a spoken line) — see below. |
+| `action` | `{ "at", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
+| `sound` | `{ "at", "spec", "role", "emitter", "repeat" }` — an **array/object `at`** makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
 #### Sound: one voice channel per actor
@@ -588,11 +588,26 @@ stacks over itself and a one-shot line cuts an ongoing loop. Different actors pl
 engine-native Wwise path tracks each voice's `AkPlayingID` and cuts it via the AK stop
 entry - `ExecuteActionOnPlayingID` - so the replace is an instant hard cut.)
 
+#### Sound emitters: listener or role actor
+
+Sound remains listener-relative by default for compatibility. Set `"emitter":"role"` to post the
+sound on a positioned Wwise game object that follows the actor selected by `role`:
+
+```jsonc
+{ "at": 0.35, "spec": "Sound/OSF/MyPack/voice01.wem",
+  "role": "other", "emitter": "role" }
+```
+
+If the role has no live actor, or positioned Wwise audio is unavailable on the running game build,
+OSF falls back to the listener. The emitter controls where the audio is heard; `role` still owns
+voice-channel replacement and subtitle attribution. The Wwise event controls the actual attenuation
+and spatialization curve.
+
 #### Sound ladders: one lane fires at many positions
 
 A `sound` entry's `at` is normally a single position. Make `at` an **array** (or a tag-keyed **object**)
 instead and the entry becomes a **ladder** — one lane that fires at **many** positions. The lane's
-`spec` / `role` / `repeat` are shared defaults, and each hit appends its tag(s) to the base
+`spec` / `role` / `emitter` / `repeat` are shared defaults, and each hit appends its tag(s) to the base
 `spec` (so a tag/pool spec picks an intensity-tagged variant per hit). The array/object `at` is exactly
 what distinguishes a ladder from a flat entry (whose `at` is a scalar fraction or
 `"enter"`/`"exit"`/`"end"`). Two shapes:
@@ -607,7 +622,7 @@ what distinguishes a ladder from a flat entry (whose `at` is a scalar fraction o
 ```
 
 The lane's `at` carries the positions; inside a per-hit object the inner `at` is that one hit's position,
-and a per-hit `spec` replaces the base.
+a per-hit `spec` replaces the base, and a per-hit `emitter` can override the lane's shared emitter.
 
 #### Sound pools (`*.sounds.json`) and `$` specs
 
@@ -880,7 +895,7 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
 | `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/node without cloning it again. | ✓ | `prop`; attach also requires `source` and `node`, with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
-| `osf.voice.play` | Play a sound spec on the role's voice channel. Audio posts at the listener; if the clip carries subtitle text, the role actor is its speaker (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`) |
+| `osf.voice.play` | Play a sound spec on the role's voice channel. If the clip carries subtitle text, the role actor is its speaker (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`); `emitter` (`"listener"` default or `"role"`) |
 
 > **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/props/fade in
 > reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — you never

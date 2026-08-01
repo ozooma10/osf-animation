@@ -369,6 +369,28 @@ namespace OSF::Registry
 			return std::nullopt;
 		}
 
+		SoundEmitter ParseSoundEmitter(const json& a_entry, SoundEmitter a_default,
+			const std::string& a_nodeId, std::string_view a_label)
+		{
+			const auto it = a_entry.find("emitter");
+			if (it == a_entry.end()) {
+				return a_default;
+			}
+			if (!it->is_string()) {
+				throw std::runtime_error("node '" + a_nodeId + "': " + std::string(a_label) +
+					" 'emitter' must be a string");
+			}
+			const auto value = ToLower(it->get<std::string>());
+			if (value == "listener") {
+				return SoundEmitter::kListener;
+			}
+			if (value == "role") {
+				return SoundEmitter::kRole;
+			}
+			throw std::runtime_error("node '" + a_nodeId + "': " + std::string(a_label) +
+				" has unknown 'emitter' value '" + value + "' (expected 'listener' or 'role')");
+		}
+
 		// Parse the timing fields shared by every track lane (cue/action/sound/camera): the
 		// `repeat` flag and the `at` position (enter/exit/end anchor or a numeric clip-fraction
 		// in [0,1)). Writes pos/fraction/everyLoop onto a_out, whose `pos` enum supplies the
@@ -546,8 +568,12 @@ namespace OSF::Registry
 					// OPTIONAL on every action — an omitted/empty role targets the scene's first
 					// participant (ResolveRoleActor), matching the sound lane's default. A NAMED role
 					// must still exist (ValidateGraph rejects undeclared references).
-					if (ae.kind == ActionKind::kVoicePlay && ae.set.empty()) {
-						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.voice.play' requires 'set'");
+					if (ae.kind == ActionKind::kVoicePlay) {
+						ae.emitter = ParseSoundEmitter(a, SoundEmitter::kListener, a_node_out.id,
+							"action '" + ae.type + "'");
+						if (ae.set.empty()) {
+							throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.voice.play' requires 'set'");
+						}
 					}
 					if (ae.kind == ActionKind::kEquipmentEquip && ae.item.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.equipment.equip' requires 'item'");
@@ -593,16 +619,19 @@ namespace OSF::Registry
 			const std::string baseSpec = a_lane.value("spec", a_lane.value("sound", a_lane.value("pool", std::string{})));
 			const std::string laneRole = a_lane.value("role", std::string{});
 			const std::string laneRepeat = ToLower(a_lane.value("repeat", "none"));  // ladders opt in with "loop"
+			const SoundEmitter laneEmitter = ParseSoundEmitter(a_lane, SoundEmitter::kListener,
+				a_node_out.id, "sound ladder");
 
 			// Emit one entry; timing (at/repeat) reuses the shared track-timing parse + validation.
 			const auto emit = [&](const std::string& a_spec, const json& a_at, const std::string& a_repeat,
-				const std::string& a_role) {
+				const std::string& a_role, SoundEmitter a_emitter) {
 				if (a_spec.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound mark has no spec (set the lane 'spec' or a per-mark 'spec')");
 				}
 				SoundEntry se;
 				se.spec = a_spec;
 				se.role = a_role;
+				se.emitter = a_emitter;
 				json timing = json::object();
 				timing["at"] = a_at;
 				timing["repeat"] = a_repeat;
@@ -629,7 +658,7 @@ namespace OSF::Registry
 						spec += "," + it.key();  // the group key is the tag(s) appended to the base
 					}
 					for (const auto& at : it.value()) {
-						emit(spec, at, laneRepeat, laneRole);
+						emit(spec, at, laneRepeat, laneRole, laneEmitter);
 					}
 				}
 				return;
@@ -639,7 +668,7 @@ namespace OSF::Registry
 			}
 			for (const auto& m : positions) {
 				if (m.is_number() || m.is_string()) {
-					emit(baseSpec, m, laneRepeat, laneRole);  // bare position -> base spec
+					emit(baseSpec, m, laneRepeat, laneRole, laneEmitter);  // bare position -> base spec
 				} else if (m.is_array()) {
 					if (m.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': an empty sound ladder position");
@@ -651,7 +680,7 @@ namespace OSF::Registry
 						}
 						spec += "," + m[i].get<std::string>();
 					}
-					emit(spec, m[0], laneRepeat, laneRole);
+					emit(spec, m[0], laneRepeat, laneRole, laneEmitter);
 				} else if (m.is_object()) {
 					std::string spec = baseSpec;
 					if (auto it = m.find("spec"); it != m.end()) {
@@ -677,7 +706,8 @@ namespace OSF::Registry
 						}
 					}
 					const json at = m.contains("at") ? m.at("at") : json();
-					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole));
+					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole),
+						ParseSoundEmitter(m, laneEmitter, a_node_out.id, "sound ladder mark"));
 				} else {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder hit must be a number, [at, tags...] array, or { at, ... } object");
 				}
@@ -713,6 +743,8 @@ namespace OSF::Registry
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound track entry is missing 'spec'/'sound'/'pool'");
 				}
 				se.role = s.value("role", std::string{});
+				se.emitter = ParseSoundEmitter(s, SoundEmitter::kListener, a_node_out.id,
+					"sound '" + se.spec + "'");
 				ParseTrackTiming(s, se, a_node_out.id, "sound '" + se.spec + "'", /*a_atRequired*/ false);
 				a_node_out.sounds.push_back(std::move(se));
 			}

@@ -1772,6 +1772,13 @@ namespace OSF::Animation
 							*reinterpret_cast<float*>(
 								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff) = 1.0f;
 						}
+
+						// emitter:"role" uses an OSF-owned Wwise object. Keep it on the exact pinned
+						// scene placement (not the capsule's prior location); this is a no-op for actors
+						// that have never fired a positioned cue.
+						Audio::SoundService::GetSingleton().UpdateRoleEmitter(
+							static_cast<RE::Actor*>(refr), doPin ? pinWorld : refr->GetPosition(),
+							hasPinHeading ? pinHeading : refr->data.angle.z);
 						break;
 					}
 				}

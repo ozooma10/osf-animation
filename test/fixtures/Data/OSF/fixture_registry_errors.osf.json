@@ -18,6 +18,13 @@
     { "id": "test.err.mask", "roles": [{ "name": "p", "mask": "torso" }], "clip": "Fixture/x.glb" },
     { "id": "test.err.mask-type", "roles": [{ "name": "p", "mask": 7 }], "clip": "Fixture/x.glb" },
     { "id": "test.err.clear-held-type", "clearHeldItems": "sometimes", "roles": ["f"], "clip": "Fixture/x.glb" },
+    {
+      "id": "test.err.sound-emitter", "roles": ["f"],
+      "stages": [{
+        "clips": ["Fixture/x.glb"],
+        "sound": [{ "at": 0.5, "spec": "Sound/OSF/test.wem", "emitter": "actor" }]
+      }]
+    },
     { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
   ]
 }

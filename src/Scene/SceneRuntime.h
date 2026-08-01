@@ -332,9 +332,9 @@ namespace OSF::Scene
 		static void DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter);
 
 		// Play one content-neutral sound spec. The role selects its voice channel, gender substitution,
-		// and subtitle speaker; audio itself posts at the listener. Shared by the sound lane +
-		// osf.voice.play.
-		static void PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role);
+		// subtitle speaker, and optional world emitter. Shared by the sound lane + osf.voice.play.
+		static void PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role,
+			Registry::SoundEmitter a_emitter);
 
 		// Engage a node's enter (a_enter) or exit camera-track entries. Numeric/end-timed camera
 		// entries engage via OnTimedMarks instead. Call OUTSIDE _lock. No-op for a non-def scene.

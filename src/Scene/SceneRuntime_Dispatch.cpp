@@ -104,10 +104,11 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role)
+	void SceneRuntime::PlaySound(std::int32_t a_handle, std::string_view a_spec, std::string_view a_role,
+		Registry::SoundEmitter a_emitter)
 	{
-		// Resolve the role actor up front: it supplies the voice channel, subtitle speaker, and
-		// {gender} substitution. The current Wwise route posts audio at the listener.
+		// Resolve the role actor up front: it supplies the voice channel, subtitle speaker,
+		// {gender} substitution, and the optional world emitter.
 		RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role);
 
 		// A '$'-prefixed spec is a sound-pool reference ("$seduce,{gender},moan,loud"): substitute the
@@ -134,9 +135,19 @@ namespace OSF::Scene
 		const std::uint64_t slot = actor
 			? ((1ull << 62) | static_cast<std::uint64_t>(actor->formID))
 			: ((2ull << 62) | static_cast<std::uint64_t>(static_cast<std::uint32_t>(a_handle)));
-		REX::DEBUG("[Scene] scene {:#010x} sound '{}' (role '{}') slot {:#x}",
-			a_handle, spec, a_role, slot);
-		Audio::SoundService::GetSingleton().Play(slot, spec);
+		auto& soundService = Audio::SoundService::GetSingleton();
+		std::uint64_t gameObject = 0;  // listener unless emitter:"role" resolves and positions
+		if (a_emitter == Registry::SoundEmitter::kRole) {
+			gameObject = soundService.PrepareRoleEmitter(actor);
+			if (gameObject == 0) {
+				REX::DEBUG("[Scene] scene {:#010x} sound '{}' role emitter unavailable (role '{}') — using listener",
+					a_handle, spec, a_role);
+			}
+		}
+		REX::DEBUG("[Scene] scene {:#010x} sound '{}' (role '{}', emitter {}) slot {:#x}",
+			a_handle, spec, a_role,
+			a_emitter == Registry::SoundEmitter::kRole && gameObject != 0 ? "role" : "listener", slot);
+		soundService.Play(slot, spec, gameObject);
 
 		// Voice/subtitle: if this clip carries text (authored alongside it in its sound pool), show it
 		// in the box, attributed to the speaking actor. The "voice" feature is folded into normal sound
@@ -162,7 +173,7 @@ namespace OSF::Scene
 		const auto wantPos = a_enter ? Registry::SoundPos::kEnter : Registry::SoundPos::kExit;
 		for (const auto& snd : node->sounds) {
 			if (snd.pos == wantPos) {
-				PlaySound(a_handle, snd.spec, snd.role);
+				PlaySound(a_handle, snd.spec, snd.role, snd.emitter);
 			}
 		}
 	}
@@ -416,7 +427,7 @@ namespace OSF::Scene
 				REX::WARN("[Scene] scene {:#010x} osf.voice.play — missing 'set' spec, skipped", a_handle);
 			} else {
 				REX::DEBUG("[Scene] scene {:#010x} osf.voice.play (role '{}', set '{}')", a_handle, a_action.role, a_action.set);
-				PlaySound(a_handle, a_action.set, a_action.role);
+				PlaySound(a_handle, a_action.set, a_action.role, a_action.emitter);
 			}
 		} else {
 			// custom namespaced action -> EVENT_ACTION (best-effort notification).

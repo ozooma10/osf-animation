@@ -48,6 +48,7 @@ int main()
 	using OSF::Registry::ActionKind;
 	using OSF::Registry::LoopMode;
 	using OSF::Registry::SlotGender;
+	using OSF::Registry::SoundEmitter;
 	using OSF::Registry::TrackPos;
 	using OSF::Animation::PoseMode;
 
@@ -179,11 +180,12 @@ int main()
 		Check(false, "test.reg.anonymous loads");
 	}
 	if (const auto s = reg.Find("test.reg.props")) {
-		Check(s->nodes.size() == 1 && s->nodes[0].actions.size() == 2,
-			"prop scene keeps its attach and destroy actions");
-		if (s->nodes.size() == 1 && s->nodes[0].actions.size() == 2) {
+		Check(s->nodes.size() == 1 && s->nodes[0].actions.size() == 3 && s->nodes[0].sounds.size() == 3,
+			"prop scene keeps its actions and expanded sound marks");
+		if (s->nodes.size() == 1 && s->nodes[0].actions.size() == 3 && s->nodes[0].sounds.size() == 3) {
 			const auto& attach = s->nodes[0].actions[0];
 			const auto& destroy = s->nodes[0].actions[1];
+			const auto& voice = s->nodes[0].actions[2];
 			Check(attach.type == "osf.prop.attach" && attach.role == "player" &&
 				attach.prop == "helmet", "prop attach identity and role parse");
 			Check(attach.kind == OSF::Registry::ActionKind::kPropAttach, "prop attach parses to its action kind");
@@ -201,6 +203,16 @@ int main()
 				"prop node and local transform parse");
 			Check(destroy.type == "osf.prop.destroy" && destroy.prop == "helmet",
 				"prop destroy addresses the scene-local id");
+			Check(voice.kind == ActionKind::kVoicePlay && voice.role == "player" &&
+				voice.set == "Sound/OSF/test-voice.wem" && voice.emitter == SoundEmitter::kRole,
+				"osf.voice.play parses its positioned role emitter");
+			Check(s->nodes[0].sounds[0].spec == "Sound/OSF/test-flat.wem" &&
+				s->nodes[0].sounds[0].emitter == SoundEmitter::kRole,
+				"flat sound parses its positioned role emitter");
+			Check(s->nodes[0].sounds[1].spec == "$test,voice" &&
+				s->nodes[0].sounds[1].emitter == SoundEmitter::kRole &&
+				s->nodes[0].sounds[2].emitter == SoundEmitter::kListener,
+				"sound ladder inherits and per-mark overrides its emitter");
 		}
 	} else {
 		Check(false, "test.reg.props loads");
@@ -441,6 +453,7 @@ int main()
 	Check(!reg.Find("test.err.mask"), "unknown mask rejects its scene");
 	Check(!reg.Find("test.err.mask-type"), "wrong-type mask rejects its scene");
 	Check(!reg.Find("test.err.clear-held-type"), "wrong-type clearHeldItems rejects its scene");
+	Check(!reg.Find("test.err.sound-emitter"), "unknown sound emitter rejects its scene");
 	Check(!reg.Find("test.route.compiled.error.mask"), "compiled route rejects an unknown mask");
 	Check(!reg.Find("test.route.compiled.error.scale"), "compiled route rejects a zero prop scale");
 	Check(!reg.Find("test.route.compiled.error.source"), "compiled route rejects a malformed prop source");
@@ -462,7 +475,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 21, "exactly the twenty-one expected diagnostics");
+	Check(errors.size() == 22, "exactly the twenty-two expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -479,6 +492,8 @@ int main()
 		"wrong-type mask diagnostic names the scene, role, and contract");
 	CheckError(errors, "scene 'test.err.clear-held-type': 'clearHeldItems' must be a boolean",
 		"wrong-type clearHeldItems diagnostic names the scene and contract");
+	CheckError(errors, "sound 'Sound/OSF/test.wem' has unknown 'emitter' value 'actor'",
+		"unknown sound emitter diagnostic names the scene, node, cue, and value");
 	CheckError(errors, "scene 'test.route.compiled.error.mask': role 'player': unknown 'mask' value 'torso'",
 		"compiled-route mask diagnostic names the scene, role, and value");
 	CheckError(errors, "action 'osf.prop.attach' scale must be finite and in (0,10]",
@@ -558,11 +573,11 @@ int main()
 		Check(malformed && malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(), "rejected files carry structured repair guidance");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
-		// Partial file: some scenes in, nine rejected, so it is NOT "rejected".
+		// Partial file: some scenes in, ten rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 9,
+		Check(partial && partial->scenes == 1 && partial->errors == 10,
 			"a partially-loaded file reports both its scenes and its rejected ones");
-		Check(partial && partial->declaredScenes == 10 && partial->rejectedScenes == 9,
+		Check(partial && partial->declaredScenes == 11 && partial->rejectedScenes == 10,
 			"partial files report exact authored and rejected scene counts");
 		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
 			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");

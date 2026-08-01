@@ -79,6 +79,12 @@ namespace OSF::Registry
 	using SoundPos = TrackPos;
 	using CameraPos = TrackPos;
 
+	enum class SoundEmitter : std::uint8_t
+	{
+		kListener,
+		kRole
+	};
+
 	// One `cue` track entry: fires EVENT_CUE (and, later, drives a trigger:<id> edge).
 	struct CueEntry
 	{
@@ -112,6 +118,7 @@ namespace OSF::Registry
 		bool         hold = false;       // osf.fade.out: end faded (opt out of the cleanup fade-in)
 		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
 		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
+		SoundEmitter emitter = SoundEmitter::kListener;  // osf.voice.play: listener (default) or role actor
 		std::string  item;   // osf.equipment.equip: form ref "<plugin>|0xLOCAL" of the item to equip
 		std::string  prop;    // osf.prop.*: scene-local prop id
 		Props::Source     propSource;      // osf.prop.attach: fixed form or equipped-armor selector
@@ -127,6 +134,7 @@ namespace OSF::Registry
 		bool         everyLoop = false;
 		std::string  spec;    // file path or event: spec
 		std::string  role;    // optional voice channel, gender source, and subtitle speaker
+		SoundEmitter emitter = SoundEmitter::kListener;  // Wwise listener (default) or positioned role actor
 	};
 
 	// One `camera` track entry: a held camera state, auto-restored on cleanup.

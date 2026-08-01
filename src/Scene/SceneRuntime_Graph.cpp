@@ -189,7 +189,7 @@ namespace OSF::Scene
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->sounds.size(), idx)) {
 					const auto& snd = node->sounds[idx];
-					PlaySound(handle, snd.spec, snd.role);
+					PlaySound(handle, snd.spec, snd.role, snd.emitter);
 				}
 			} else if (m.lane == kLaneCamera && node && !cameraOverridden) {
 				// token = index into node->cameras (set by ApplyNodeMarks). A per-start camera

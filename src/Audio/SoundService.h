@@ -8,13 +8,14 @@
 // so everything rides the game mix — master/SFX volume sliders, the pause menu, ducking and busses all apply:
 //
 // - "event:<WwiseEventName>" / "event:0x<akEventID>" specs:
-//	 posted as a BAKED event (events already in a loaded soundbank), engine-mixed, at the listener.
+//	 posted as a BAKED event (events already in a loaded soundbank), engine-mixed.
 //
 // - Plain file paths (the default for pack cues): posted as a Wwise EXTERNAL SOURCE through a shipped event's
 //   "External_Source" slot. A loose .wem plays as-is; a .wav/.mp3/.ogg/.flac is decoded to PCM and wrapped in
 //   a PCM .wem at runtime (WwiseBackend), so it rides the same engine-mixed path with no soundbank authoring
 //   and no bank to load. This is the GAME'S OWN loose voice-file mechanism (RE-proven on 1.16.244).
-//	 v1 posts at the listener (player game object); positioned posting is a deferred follow-up.
+//   Authored emitter:"role" cues post on a bounded OSF-owned Wwise game object whose position follows
+//   that scene actor; omitted/listener cues retain the player/listener object.
 //
 // There is no private-device fallback: a cue the Wwise path can't take (Wwise unavailable, or a codec the
 // external source can't stream) is logged and skipped — OSF never plays audio outside the game mix.
@@ -30,16 +31,23 @@ namespace OSF::Audio
 	public:
 		static SoundService& GetSingleton();
 
-		// Playback of a Data-relative file ("OSF/Sounds/x.wav") or "event:" spec. The current
-		// Wwise route posts at the listener; role selection and subtitle attribution live above this
-		// service. Safe from any thread; cheap on failure.
+		// Creates and positions the actor's process-lifetime Wwise emitter. Game-thread only because it
+		// snapshots the actor; the returned ID is POD and safe to carry onto the audio worker. 0 = fall
+		// back to the listener. UpdateRoleEmitter is cheap/no-op until this actor has opted in once.
+		std::uint64_t PrepareRoleEmitter(RE::Actor* a_actor);
+		void UpdateRoleEmitter(RE::Actor* a_actor, const RE::NiPoint3& a_position, float a_heading);
+
+		// Playback of a Data-relative file ("OSF/Sounds/x.wav") or "event:" spec. It posts on the
+		// supplied Wwise game object, or the listener when none is supplied. Role selection and subtitle
+		// attribution live above this service. Safe from any thread; cheap on failure.
 		//
 		// a_slot is a VOICE-CHANNEL key (per-actor, computed by the caller from the role actor's formID;
 		// 0 = unslotted/always layer). When nonzero, a new Play for a slot REPLACES that slot's currently
 		// playing voice: the prior clip is cut via Wwise::StopVoice (runtime-proven AK ExecuteActionOnPlayingID
 		// — see WwiseBackend; self-disables only on a future patch) so cues on the same channel never overlap.
 		// Two different slots play independently.
-		void Play(std::uint64_t a_slot, const std::string& a_dataRelPath);
+		// a_gameObject 0 retains listener-relative playback; PrepareRoleEmitter returns the positioned ID.
+		void Play(std::uint64_t a_slot, const std::string& a_dataRelPath, std::uint64_t a_gameObject = 0);
 
 		// Cuts every live voice (GraphManager::StopAll, a loaded save should not have last-world sounds ringing over it).
 		// Normal scene teardown deliberately lets sub-second tails finish on their own.

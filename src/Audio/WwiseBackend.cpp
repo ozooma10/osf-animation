@@ -5,6 +5,7 @@
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <cmath>
 #include <condition_variable>
 #include <cstring>
 #include <cwctype>
@@ -51,6 +52,54 @@ namespace OSF::Audio::Wwise
 			0x48, 0x89, 0x74, 0x24, 0x18, 0x4C
 		};
 
+		// AK::SoundEngine::RegisterGameObj / SetPosition. Both enqueue commands into AK and are
+		// byte-identical on 1.16.242 and 1.16.244. Bethesda's WwiseGameObjectMgr resolver needs a
+		// private audio-space key, so OSF owns a disjoint, bounded game-object namespace instead.
+		constexpr REL::ID kAkRegisterGameObjID{ 150401 };
+		constexpr REL::ID kAkSetPositionID{ 150420 };
+
+		constexpr std::array<std::uint8_t, 16> kRegisterGameObjPrologue{
+			0x40, 0x53, 0x48, 0x83, 0xEC, 0x20, 0x48, 0x8B, 0xD9, 0x48, 0x83, 0xF9, 0xE0, 0x72, 0x0B, 0xB8
+		};
+		constexpr std::array<std::uint8_t, 16> kSetPositionPrologue{
+			0x48, 0x89, 0x5C, 0x24, 0x10, 0x57, 0x48, 0x83, 0xEC, 0x30, 0x48, 0x8B, 0xDA, 0x48, 0x8B, 0xF9
+		};
+
+		using RegisterGameObjFn = std::uint32_t (*)(std::uint64_t);
+		using SetPositionFn = std::uint32_t (*)(std::uint64_t, const RE::BGSAudio::AkSoundPosition*);
+
+		struct PositioningFunctions
+		{
+			RegisterGameObjFn registerGameObj = nullptr;
+			SetPositionFn setPosition = nullptr;
+		};
+
+		const PositioningFunctions& GetPositioningFunctions()
+		{
+			static const PositioningFunctions functions = []() {
+				PositioningFunctions out;
+				const auto* registerCode = reinterpret_cast<const std::uint8_t*>(kAkRegisterGameObjID.address());
+				const auto* positionCode = reinterpret_cast<const std::uint8_t*>(kAkSetPositionID.address());
+				if (!registerCode ||
+					std::memcmp(registerCode, kRegisterGameObjPrologue.data(), kRegisterGameObjPrologue.size()) != 0) {
+					REX::WARN("[Audio] positioned Wwise audio disabled: AK RegisterGameObj (ID {}) prologue mismatch",
+						kAkRegisterGameObjID.id());
+					return out;
+				}
+				if (!positionCode ||
+					std::memcmp(positionCode, kSetPositionPrologue.data(), kSetPositionPrologue.size()) != 0) {
+					REX::WARN("[Audio] positioned Wwise audio disabled: AK SetPosition (ID {}) prologue mismatch",
+						kAkSetPositionID.id());
+					return out;
+				}
+				out.registerGameObj = reinterpret_cast<RegisterGameObjFn>(kAkRegisterGameObjID.address());
+				out.setPosition = reinterpret_cast<SetPositionFn>(kAkSetPositionID.address());
+				REX::DEBUG("[Audio] positioned Wwise audio available: RegisterGameObj/SetPosition prologues verified");
+				return out;
+			}();
+			return functions;
+		}
+
 		// Shipped event that already carries an "External_Source" placeholder slot and streamed a loose file live.
 		// It is already resident in a loaded bank, so NO LoadBank is needed: we just substitute our own media through its external-source slot.
 		// (Equivalent at runtime: AkSoundEngine::GetIDFromString("Dialogue_6_Combat").)
@@ -90,6 +139,7 @@ namespace OSF::Audio::Wwise
 		constexpr std::size_t kMaxMediaBytes = 64u << 20;       // 64 MiB guard per clip
 		constexpr std::size_t kMaxMediaCacheBytes = 256u << 20;  // aggregate process-lifetime budget
 		constexpr std::size_t kMaxMediaCacheEntries = 4096;
+		constexpr std::size_t kMaxSpatialEmitters = 4096;
 
 		struct MediaCacheEntry
 		{
@@ -102,6 +152,15 @@ namespace OSF::Audio::Wwise
 		std::mutex g_mediaCacheMutex;
 		std::unordered_map<std::wstring, std::shared_ptr<MediaCacheEntry>> g_mediaCache;
 		std::size_t g_mediaCacheBytes = 0;
+
+		struct SpatialEmitterState
+		{
+			RE::BGSAudio::AkSoundPosition position{};
+			bool positioned = false;
+		};
+
+		std::mutex g_spatialEmitterMutex;
+		std::unordered_map<std::uint64_t, SpatialEmitterState> g_spatialEmitters;
 
 		// AkCodecID from a .wem's RIFF 'fmt ' tag: 0xFFFF = Wwise Vorbis, 0xFFFE = Wwise PCM.
 		// Anything unrecognized -> Vorbis (the most common case); a non-.wem file won't match here.
@@ -396,13 +455,64 @@ namespace OSF::Audio::Wwise
 		return available;
 	}
 
-	std::uint32_t PostEvent(std::uint32_t a_eventID)
+	std::uint32_t PostEvent(std::uint32_t a_eventID, std::uint64_t a_gameObject)
 	{
 		if (!Available()) {
 			return 0;
 		}
-		// cExternals 0 = no external source: a plain baked event on the player object.
-		return RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, RE::BGSAudio::AkSoundEngine::kPlayerGameObject, 0, nullptr, nullptr, 0, nullptr, 0);
+		// cExternals 0 = no external source: a plain baked event on the selected game object.
+		const auto gameObject = a_gameObject != 0 ? a_gameObject : RE::BGSAudio::AkSoundEngine::kPlayerGameObject;
+		return RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, gameObject, 0, nullptr, nullptr, 0, nullptr, 0);
+	}
+
+	bool PositionEmitter(std::uint64_t a_gameObject, const RE::NiPoint3& a_position, float a_heading,
+		bool a_registerIfMissing)
+	{
+		if (a_gameObject == 0 || a_gameObject == RE::BGSAudio::AkSoundEngine::kPlayerGameObject ||
+			!std::isfinite(a_position.x) || !std::isfinite(a_position.y) ||
+			!std::isfinite(a_position.z) || !std::isfinite(a_heading) || !Available()) {
+			return false;
+		}
+		const auto& functions = GetPositioningFunctions();
+		if (!functions.registerGameObj || !functions.setPosition) {
+			return false;
+		}
+
+		RE::BGSAudio::AkSoundPosition position{};
+		position.orientationFront = { -std::sin(a_heading), std::cos(a_heading), 0.0f };
+		position.orientationTop = { 0.0f, 0.0f, 1.0f };
+		position.position = { a_position.x, a_position.y, a_position.z };
+
+		std::lock_guard lock{ g_spatialEmitterMutex };
+		auto it = g_spatialEmitters.find(a_gameObject);
+		if (it == g_spatialEmitters.end()) {
+			if (!a_registerIfMissing) {
+				return false;
+			}
+			if (g_spatialEmitters.size() >= kMaxSpatialEmitters) {
+				REX::WARN("[Audio] spatial-emitter limit ({}) reached — cue falls back to listener",
+					kMaxSpatialEmitters);
+				return false;
+			}
+			if (functions.registerGameObj(a_gameObject) != RE::BGSAudio::AkSoundEngine::kAkSuccess) {
+				REX::WARN("[Audio] Wwise rejected spatial emitter {:#x} — cue falls back to listener", a_gameObject);
+				return false;
+			}
+			it = g_spatialEmitters.emplace(a_gameObject, SpatialEmitterState{}).first;
+			REX::DEBUG("[Audio] registered spatial emitter {:#x}", a_gameObject);
+		}
+
+		if (it->second.positioned &&
+			std::memcmp(&it->second.position, &position, sizeof(position)) == 0) {
+			return true;
+		}
+		if (functions.setPosition(a_gameObject, &position) != RE::BGSAudio::AkSoundEngine::kAkSuccess) {
+			REX::WARN("[Audio] Wwise rejected position for spatial emitter {:#x}", a_gameObject);
+			return false;
+		}
+		it->second.position = position;
+		it->second.positioned = true;
+		return true;
 	}
 
 	namespace
@@ -464,11 +574,12 @@ namespace OSF::Audio::Wwise
 		return ext == "wem" || ext == "wav" || ext == "mp3" || ext == "ogg" || ext == "flac";
 	}
 
-	std::uint32_t PostExternalFile(const std::wstring& a_path)
+	std::uint32_t PostExternalFile(const std::wstring& a_path, std::uint64_t a_gameObject)
 	{
 		if (!Available()) {
 			return 0;
 		}
-		return PostExternalOn(kExternalSourceEvent, a_path, RE::BGSAudio::AkSoundEngine::kPlayerGameObject);
+		const auto gameObject = a_gameObject != 0 ? a_gameObject : RE::BGSAudio::AkSoundEngine::kPlayerGameObject;
+		return PostExternalOn(kExternalSourceEvent, a_path, gameObject);
 	}
 }
