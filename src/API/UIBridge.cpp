@@ -1022,6 +1022,11 @@ namespace OSF::API
 			o.playerControlMode = OptTri(opts, "playerControl");
 			o.fadeMode = OptTri(opts, "fade");
 			o.speed = NumOr(opts, "speed", 1.0f);
+			const bool inspect = !g_wheel.active && BoolOr(j, "inspect", false);
+			const float inspectResumeSpeed = o.speed > 0.0f ? o.speed : 1.0f;
+			if (inspect) {
+				o.speed = 0.0f;  // applied as part of the synchronous start, before a short scene can expire
+			}
 			// Enter the scene on a specific linear stage. 0 = the scene's entry; resolved to the stage's
 			// node BEFORE the start (ResolveStartStageNode), so the scene opens directly on it.
 			o.startStage = 0;
@@ -1124,6 +1129,7 @@ namespace OSF::API
 				if (busy != 0) {
 					api->StopScene(busy);
 					std::erase(g_closeStops, busy);
+					g_resumeSpeeds.erase(busy);
 					if (busy == g_lastHandle) {
 						g_lastHandle = 0;
 					}
@@ -1156,6 +1162,9 @@ namespace OSF::API
 			}
 
 			g_lastHandle = handle;
+			if (inspect) {
+				g_resumeSpeeds[handle] = inspectResumeSpeed;
+			}
 			// A stage-scoped browser item and a wheel entry both mean "play this
 			// animation", never "start here and continue through the parent collection."
 			// Post-start on purpose: this is launch posture, not authored scene policy.
@@ -1172,6 +1181,7 @@ namespace OSF::API
 			}
 			reply["ok"] = true;
 			reply["handle"] = handle;
+			reply["inspect"] = inspect;
 			REX::DEBUG("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})", sceneId, handle, actors.size(),
 				furniture ? ", anchored" : "", castHasPlayer ? "" : ", NPC-only — outlives the browser");
 			SendJson(a_srcView, "osf.animation.launchResult", reply);
@@ -1234,6 +1244,14 @@ namespace OSF::API
 			bool ok = false;
 			if (auto* api = SceneAPI(); api && handle != 0) {
 				ok = api->Advance(handle);
+			}
+			// A paused/inspection scene stays paused across a synchronous NEXT transition.
+			// Auto transitions cannot race this path because their clock is already stopped.
+			if (ok && g_resumeSpeeds.contains(handle)) {
+				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
+				if (!actors.empty() && actors.front()) {
+					Animation::GraphManager::GetSingleton().SetSpeed(actors.front(), 0.0f);
+				}
 			}
 			REX::DEBUG("[UI] osf.animation.advance handle={} -> {}", handle, ok);
 		}

@@ -132,6 +132,13 @@ describe("browser reducer", () => {
     expect(closed).toMatchObject({ lastHandle: 13, minimized: false });
   });
 
+  it("opens an inspected scene in Active without minimizing", () => {
+    const inspected = browserReducer({ ...createInitialState(), mode: "scenes" }, {
+      type: "launch/succeeded", handle: 14, sceneId: "solo", afterLaunch: "minimize", inspect: true,
+    });
+    expect(inspected).toMatchObject({ lastHandle: 14, lastSceneId: "solo", mode: "active", minimized: false });
+  });
+
   it("applies synchronized browser and launch preferences", () => {
     const state = browserReducer(createInitialState(), {
       type: "settings/received",

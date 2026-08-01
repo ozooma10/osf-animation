@@ -22,7 +22,7 @@ export type BrowserAction =
   | { type: "catalog/received"; scenes: SceneModel[] }
   | { type: "library/received"; scenes: SceneModel[] }
   | { type: "active/received"; scenes: ActiveScene[] }
-  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch }
+  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch; inspect?: boolean }
   | { type: "launch/failed"; error: string }
   | { type: "settings/received"; preferences: Partial<BrowserPreferences> }
   | { type: "settings/open"; open: boolean }

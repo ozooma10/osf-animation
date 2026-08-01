@@ -80,7 +80,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ...state,
         lastHandle: action.handle,
         lastSceneId: action.sceneId,
-        minimized: !state.wheel && action.afterLaunch === "minimize",
+        minimized: action.inspect ? false : !state.wheel && action.afterLaunch === "minimize",
+        mode: action.inspect ? "active" : state.mode,
       };
     case "launch/failed":
       return state.wheel

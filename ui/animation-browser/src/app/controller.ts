@@ -328,11 +328,14 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "osf.animation.launchResult":
         if (record.ok && record.handle) {
           const sceneId = String(record.sceneId || stateRef.current.selectedId || "");
+          const inspect = !!record.inspect;
           const wheelLaunch = !!stateRef.current.wheel;
-          const afterLaunch = stateRef.current.preferences.afterLaunch;
-          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch });
+          const afterLaunch = inspect ? "stay" : stateRef.current.preferences.afterLaunch;
+          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch, inspect });
           if (wheelLaunch || afterLaunch === "close") send("osf.animation.requestClose");
-          else showNotice("ok", `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
+          else showNotice("ok", inspect
+            ? `Inspecting "${sceneTitle(stateRef.current, sceneId)}" — paused at the first frame.`
+            : `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
         } else {
           const error = String(record.error || "Launch failed.");
           dispatch({ type: "launch/failed", error });
@@ -541,7 +544,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleBriefAnimations: () => dispatch({ type: "brief/fullAnimations" }),
     toggleOptions: () => dispatch({ type: "brief/options" }),
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),
-    launch: (stageIndex, singleAnimation = false, sceneId) => {
+    launch: (stageIndex, singleAnimation = false, sceneId, inspect = false) => {
       const current = stateRef.current;
       const scene = sceneById(current, sceneId ?? current.selectedId);
       if (!scene) return;
@@ -554,6 +557,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         castTokens: current.cast.map((member) => member.token),
         opts: options,
         singleAnimation: stageOnly,
+        inspect,
       };
       fields.location = {
         mode: scene.requiresFurniture ? "furniture" : scene.inPlace ? "cast" : current.locationMode,
@@ -563,7 +567,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       if (roleNames.length === current.cast.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
       if (scene.requiresFurniture && current.furniture) fields.furnitureToken = current.furniture.token;
       const title = playableSceneTitle(scene);
-      showNotice("info", `Launching "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
+      showNotice("info", `${inspect ? "Preparing inspection" : "Launching"} "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
       send("osf.animation.launch", fields);
     },
     stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "scene/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },

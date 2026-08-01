@@ -34,6 +34,7 @@ export class StandaloneBridge implements AnimationBridge {
   private readonly listeners = new Set<NativeMessageListener>();
   private readonly timers = new Set<number>();
   private active: ActiveScene[] = [];
+  private readonly resumeSpeeds = new Map<number, number>();
   private nextHandle = 42;
   private customized = false;
   private pins: Array<{ scene: string; stage?: number }> = [];
@@ -150,6 +151,7 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "settings.set" && fields.mod === "osf.animation" && typeof fields.key === "string") {
       this.later({ type: "settings.changed", payload: { mod: fields.mod, key: fields.key, value: fields.value } }, 10);
     } else if (command === "osf.animation.stop") {
+      this.resumeSpeeds.delete(Number(fields.handle));
       this.active = this.active.filter((scene) => scene.handle !== Number(fields.handle));
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
     } else if (command === "osf.animation.advance") {
@@ -163,8 +165,13 @@ export class StandaloneBridge implements AnimationBridge {
       const active = this.active.find((scene) => scene.handle === Number(fields.handle));
       if (active) {
         if (typeof fields.time === "number") active.time = Math.max(0, Math.min(active.duration, fields.time));
-        if (fields.paused === true) active.speed = 0;
-        else if (fields.paused === false) active.speed = 1;
+        if (fields.paused === true) {
+          if (active.speed > 0) this.resumeSpeeds.set(active.handle, active.speed);
+          active.speed = 0;
+        } else if (fields.paused === false) {
+          active.speed = this.resumeSpeeds.get(active.handle) ?? 1;
+          this.resumeSpeeds.delete(active.handle);
+        }
       }
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
     } else if (command === "osf.animation.wheel.set") {
@@ -176,6 +183,11 @@ export class StandaloneBridge implements AnimationBridge {
       // the snapshot (up to ~600KB) on every pin or reorder buys nothing.
       this.emitCatalog(this.catalogRaw ?? MOCK_CATALOG);
     } else if (command === "osf.animation.closed") {
+      for (const active of this.active) {
+        const resume = this.resumeSpeeds.get(active.handle);
+        if (resume != null) active.speed = resume;
+      }
+      this.resumeSpeeds.clear();
       this.active = this.active.filter((scene) => !scene.player);
     } else if (command === "osf.animation.opened") {
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 50);
@@ -200,6 +212,9 @@ export class StandaloneBridge implements AnimationBridge {
     this.active = this.active.filter((scene) => !scene.cast.some((member) => tokens.includes(member.token)));
     const handle = this.nextHandle++;
     const options = isRecord(fields.opts) ? fields.opts : {};
+    const speed = Number(options.speed) || 1;
+    const inspect = !!fields.inspect;
+    if (inspect) this.resumeSpeeds.set(handle, speed);
     this.active.push({
       handle,
       sceneId,
@@ -208,9 +223,9 @@ export class StandaloneBridge implements AnimationBridge {
       cast: tokens.map((token) => ({ token, name: token === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === token)?.name ?? "actor", player: token === PLAYER_TOKEN })),
       time: 0,
       duration: sceneById(this.getState(), sceneId)?.stages[Number(options.stage) || 0]?.loopSec ?? 5,
-      speed: Number(options.speed) || 1,
+      speed: inspect ? 0 : speed,
     });
-      this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId } }, 80);
+      this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, inspect } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);
   }
 

@@ -153,7 +153,7 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
     <div class="brief-scroll"><RoleMap state={state} scene={scene} evaluation={evaluation} commands={commands}/><AnimationList state={state} scene={scene} canPlay={canPlay} focusStage={focusedStage?.index} commands={commands}/>{state.filters.debugMode && <Diagnostics scene={scene} evaluation={evaluation}/>}</div>
     <div class="brief-foot"><Overrides state={state} commands={commands}/><div class="launch-stack">
       {reason && <div class="mono wrap" style={{ color: "var(--text-faint)", textAlign: "center" }}>{reason}</div>}
-      {canPlay ? <button class="launch-btn go" onClick={() => commands.launch(focusedStage?.index, !!focusedStage)}>▶ {focusedStage ? "Play Animation" : action ? "Play Action" : "Launch Scene"}</button> : <button class="launch-btn blocked" disabled>{!state.ready ? "Engine Offline" : `Blocked · ${evaluation.gaps} gap${evaluation.gaps > 1 ? "s" : ""}`}</button>}
+      {canPlay ? <div class="launch-actions"><button class="launch-btn inspect" title="Launch paused at the first frame and open the timeline" onClick={() => commands.launch(focusedStage?.index, !!focusedStage, undefined, true)}>◇ Inspect</button><button class="launch-btn go" onClick={() => commands.launch(focusedStage?.index, !!focusedStage)}>▶ {focusedStage ? "Play Animation" : action ? "Play Action" : "Launch Scene"}</button></div> : <button class="launch-btn blocked" disabled>{!state.ready ? "Engine Offline" : `Blocked · ${evaluation.gaps} gap${evaluation.gaps > 1 ? "s" : ""}`}</button>}
       {!!state.lastHandle && <button class="stop-btn" onClick={() => commands.stop()}>■ Stop #{state.lastHandle}</button>}
     </div></div>
   </>;

@@ -42,7 +42,7 @@ export interface BrowserCommands {
   toggleBriefAnimations(): void;
   toggleOptions(): void;
   setOption(field: "strip" | "lock" | "camera" | "speed", value: string): void;
-  launch(stage?: number, singleAnimation?: boolean, sceneId?: string): void;
+  launch(stage?: number, singleAnimation?: boolean, sceneId?: string, inspect?: boolean): void;
   stop(handle?: number): void;
   stopAll(): void;
   advance(handle?: number): void;
