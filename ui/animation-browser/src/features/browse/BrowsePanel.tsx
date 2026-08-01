@@ -7,6 +7,7 @@ import {
   evaluateForState,
   formatDuration,
   formatEstimate,
+  hiddenSceneCount,
   isWheelEmote,
   isWheelStage,
   needsText,
@@ -26,6 +27,7 @@ import {
 import type { BrowseKind, BrowserState } from "../../app/state";
 import type { SceneEvaluation, SceneModel } from "../../model";
 import { Dot, Empty, SpeciesFilter } from "../shared/Shared";
+import { TIMELINE_FPS, timelineFrame } from "./timeline";
 
 interface EvaluatedPlayable {
   item: PlayableItem;
@@ -137,10 +139,11 @@ function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: 
   </div>;
 }
 
-function BrowseFilters({ state, commands, count }: {
+function BrowseFilters({ state, commands, count, hiddenCount }: {
   state: BrowserState;
   commands: BrowserCommands;
   count: number;
+  hiddenCount: number;
 }) {
   const kinds: { value: BrowseKind; label: string }[] = [
     { value: "all", label: "ALL" },
@@ -160,6 +163,11 @@ function BrowseFilters({ state, commands, count }: {
       {!state.filters.search && <button class={`filter-chip ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>
         {state.libFull ? "FULL DETAIL" : "POSES & LOOPS"}
       </button>}
+      {(state.showHidden || hiddenCount > 0) && <button class={`filter-chip ${state.showHidden ? "on" : ""}`}
+        title={`${state.showHidden ? "Hide" : "Show"} ${hiddenCount} hidden scene${hiddenCount === 1 ? "" : "s"}`}
+        aria-pressed={state.showHidden} onClick={commands.toggleHidden}>
+        {state.showHidden ? "HIDE HIDDEN" : "SHOW HIDDEN"} · {hiddenCount}
+      </button>}
     </div>
     <SpeciesFilter state={state} onToggle={commands.toggleSpecies}/>
     <div class="browse-note"><Dot active/><span class="lbl">PLAYABLE NOW · {count}</span></div>
@@ -178,9 +186,10 @@ function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: Br
   const wheelKeys = new Set(wheelPool(state).map((candidate) => candidate.key));
   const unavailable = state.preferences.unavailableScenes;
   const showRest = showUnavailable(state);
+  const hiddenCount = hiddenSceneCount(state);
 
   return <>
-    <BrowseFilters state={state} commands={commands} count={ready.length}/>
+    <BrowseFilters state={state} commands={commands} count={ready.length} hiddenCount={hiddenCount}/>
     {ready.length ? <PlayableGroups state={state} entries={ready} wheelKeys={wheelKeys} commands={commands}/>
       : <Empty>No installed playable fits the current cast, furniture, and filters.</Empty>}
     {unavailable === "ask" && !!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`}
@@ -198,7 +207,7 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
     <div class="active-list">{scenes.map((active) => {
       const scene = sceneById(state, active.sceneId);
       const stages = scene?.stages ?? [];
-      const frame = 1 / 30;
+      const frame = 1 / TIMELINE_FPS;
       const time = Math.min(active.time, active.duration);
       const clock = (value: number) => `${Math.floor(value / 60)}:${(value % 60).toFixed(2).padStart(5, "0")}`;
       return <div class={`active-card ${state.selectedId === active.sceneId ? "selected" : ""}`} key={active.handle}>
@@ -213,9 +222,12 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
           <button class={`play-toggle ${active.speed > 0 ? "" : "paused"}`} title={active.speed > 0 ? "Pause" : "Resume"} onClick={() => commands.setPlayback(active.handle, undefined, active.speed > 0)}>{active.speed > 0 ? "Ⅱ" : "▶"}</button>
           <button class="frame-step" title="Next frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.min(active.duration, time + frame), true)}>|▶</button>
           <input class="timeline-range" type="range" min="0" max={active.duration || 1} step={frame} value={time} disabled={!active.duration}
-            aria-label={`Scene time ${clock(time)} of ${clock(active.duration)}`}
+            aria-label={`Scene time ${clock(time)}, frame ${timelineFrame(time)}, of ${clock(active.duration)}, frame ${timelineFrame(active.duration)}`}
             onInput={(event) => commands.setPlayback(active.handle, Number(event.currentTarget.value), true)}/>
-          <span class="timeline-clock mono">{clock(time)} / {clock(active.duration)}</span>
+          <span class="timeline-clock mono">
+            <span>{clock(time)} / {clock(active.duration)}</span>
+            <span class="timeline-frames">FRAME {timelineFrame(time)} / {timelineFrame(active.duration)}</span>
+          </span>
         </div>
       </div>;
     })}</div></>;

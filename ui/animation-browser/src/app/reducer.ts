@@ -159,7 +159,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "imports/viewContent":
       return {
         ...state, importsOpen: false, mode: "scenes", browseKind: "all", browseAll: true,
-        allSpecies: true, libFull: true, libCustomOnly: false,
+        showHidden: true, allSpecies: true, libFull: true, libCustomOnly: false,
         filters: { ...state.filters, search: action.path.toLowerCase(), debugMode: true },
       };
     case "cast/replaced":
@@ -261,6 +261,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ...(action.resetBrowsing ? {
           filters: { ...state.filters, search: "" },
           browseAll: false,
+          showHidden: false,
           browseKind: "all",
           allSpecies: false,
           libOpen: new Map<string, boolean>(),
@@ -272,6 +273,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return { ...state, allSpecies: !state.allSpecies };
     case "browse/all":
       return { ...state, browseAll: !state.browseAll };
+    case "browse/hidden":
+      return { ...state, showHidden: !state.showHidden };
     case "browse/kind":
       return { ...state, browseKind: action.kind };
     case "library/group": {

@@ -17,6 +17,7 @@ export interface BrowserCommands {
   copyImportReport(path: string): void;
   setPreference<K extends keyof BrowserPreferences>(key: K, value: BrowserPreferences[K]): void;
   toggleBrowseAll(): void;
+  toggleHidden(): void;
   setBrowseKind(kind: BrowseKind): void;
   toggleSpecies(): void;
   toggleStep(step: "cast" | "anchor"): void;

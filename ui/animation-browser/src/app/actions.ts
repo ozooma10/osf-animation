@@ -55,6 +55,7 @@ export type BrowserAction =
   | { type: "filter/search"; search: string }
   | { type: "filter/species" }
   | { type: "browse/all" }
+  | { type: "browse/hidden" }
   | { type: "browse/kind"; kind: BrowseKind }
   | { type: "library/group"; key: string; open: boolean }
   | { type: "brief/fullAnimations" }

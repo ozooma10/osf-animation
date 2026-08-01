@@ -424,7 +424,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const first = visible[0];
       dispatch({ type: "selection/changed", sceneId: first?.scene.id ?? null, stage: first?.stage?.index ?? null });
     }
-  }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.browseKind, state.libCustomOnly, state.libFull, state.cast, state.furniture, state.anchorMatch]);
+  }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.showHidden, state.browseKind, state.libCustomOnly, state.libFull, state.cast, state.furniture, state.anchorMatch]);
 
   useEffect(() => {
     document.body.classList.toggle("wheel-mode", !!state.wheel);
@@ -497,6 +497,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });
     },
     toggleBrowseAll: () => dispatch({ type: "browse/all" }),
+    toggleHidden: () => dispatch({ type: "browse/hidden" }),
     setBrowseKind: (kind) => dispatch({ type: "browse/kind", kind }),
     toggleSpecies: () => dispatch({ type: "filter/species" }),
     toggleStep: (step) => dispatch({ type: "step/toggled", step }),

@@ -214,6 +214,7 @@ export interface BrowserState {
   plugin: PluginVersion | null;
   anchorMatch: { token: number; ids: ReadonlySet<string> } | null;
   browseAll: boolean;
+  showHidden: boolean;
   browseKind: BrowseKind;
   allSpecies: boolean;
   mode: BrowserMode;
@@ -274,6 +275,7 @@ export function createInitialState(): BrowserState {
     plugin: null,
     anchorMatch: null,
     browseAll: false,
+    showHidden: false,
     browseKind: "all",
     allSpecies: false,
     mode: "scenes",

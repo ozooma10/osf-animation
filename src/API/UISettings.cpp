@@ -88,7 +88,7 @@ namespace OSF::API
         "hint": "Tag selected cast members and furniture in the world while the browser is open." },
       { "key": "browser.authorDetails", "type": "bool", "default": false,
         "label": "Show author details",
-        "hint": "Reveal IDs, source files, diagnostics, and generated or unlisted entries." }
+        "hint": "Reveal scene IDs, source files, and diagnostics." }
     ] },
     { "id": "scene-launch", "label": "Launch defaults", "page": "scenes", "settings": [
       { "key": "launch.strip", "type": "enum", "default": "-1",

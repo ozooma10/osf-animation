@@ -94,14 +94,14 @@ export function sceneCatalog(state: BrowserState): SceneModel[] {
 }
 
 export function emoteCatalog(state: BrowserState): SceneModel[] {
-  return state.catalog.filter(isEmote);
+  return state.catalog.filter((scene) => isEmote(scene) && unlistedVisible(state, scene));
 }
 
 /** A clip entry the engine HARVESTED from a scene's stages — the author-only debug surface that
  *  lets a multi-actor scene be inspected one raw clip at a time. Entries a pack REGISTERED via
  *  `clipLibrary` share the same id namespace but are authored content whose whole purpose is to
  *  appear under Animations, so `curated` excludes them: without that check a pack shipping only a
- *  clip library (no scenes) was invisible unless the user found "Show author details". */
+ *  clip library (no scenes) was invisible unless the user revealed hidden content. */
 export function isGeneratedSceneClip(scene: SceneModel): boolean {
   return !scene.curated && scene.id.toLowerCase().startsWith("osf.scene-clip/");
 }
@@ -148,13 +148,12 @@ export function playableStageTitle(scene: SceneModel, stage: SceneStage): string
 
 // Single-entry memo: the full playable list is ~6k items over the shipped fixtures and was
 // measured at ~23 ms per rebuild — and it used to rebuild at least twice per render while the
-// 12.5 Hz projectActors poll forced renders. The result only depends on the four inputs below,
+// 12.5 Hz projectActors poll forced renders. The result only depends on the three inputs below,
 // all of which change by reference/value, so one cached entry suffices.
 let playableMemo: {
   catalog: BrowserState["catalog"];
   library: BrowserState["library"];
   libCustomOnly: boolean;
-  debugMode: boolean;
   items: PlayableItem[];
 } | null = null;
 
@@ -162,8 +161,7 @@ export function playableItems(state: BrowserState): PlayableItem[] {
   if (playableMemo &&
     playableMemo.catalog === state.catalog &&
     playableMemo.library === state.library &&
-    playableMemo.libCustomOnly === state.libCustomOnly &&
-    playableMemo.debugMode === state.filters.debugMode) {
+    playableMemo.libCustomOnly === state.libCustomOnly) {
     return playableMemo.items;
   }
   const items = buildPlayableItems(state);
@@ -171,7 +169,6 @@ export function playableItems(state: BrowserState): PlayableItem[] {
     catalog: state.catalog,
     library: state.library,
     libCustomOnly: state.libCustomOnly,
-    debugMode: state.filters.debugMode,
     items,
   };
   return items;
@@ -180,7 +177,6 @@ export function playableItems(state: BrowserState): PlayableItem[] {
 function buildPlayableItems(state: BrowserState): PlayableItem[] {
   const items: PlayableItem[] = [];
   for (const scene of state.catalog) {
-    if (!unlistedVisible(state, scene)) continue;
     const kind: PlayableKind = isEmote(scene) ? "action" : "scene";
     items.push({
       key: playableKey(scene.id, null),
@@ -192,7 +188,6 @@ function buildPlayableItems(state: BrowserState): PlayableItem[] {
     });
   }
   for (const scene of filteredLibrary(state)) {
-    if (!state.filters.debugMode && isGeneratedSceneClip(scene)) continue;
     for (const stage of scene.stages) {
       items.push({
         key: playableKey(scene.id, stage.index),
@@ -248,6 +243,7 @@ export function matchesPlayableSearch(state: BrowserState, item: PlayableItem): 
 }
 
 export function playableVisible(state: BrowserState, item: PlayableItem): boolean {
+  if (isHiddenPlayable(item) && !state.showHidden) return false;
   if (state.browseKind !== "all" && state.browseKind !== item.kind) return false;
   if (!speciesVisible(state, item.scene) || !matchesPlayableSearch(state, item)) return false;
   if (item.kind === "animation") {
@@ -256,6 +252,20 @@ export function playableVisible(state: BrowserState, item: PlayableItem): boolea
     if (!matchKnown && !state.libFull && !state.filters.search && item.stage && !stageClean(item.stage)) return false;
   }
   return true;
+}
+
+export function isHiddenPlayable(item: PlayableItem): boolean {
+  return item.kind === "animation"
+    ? isGeneratedSceneClip(item.scene)
+    : !item.scene.library && item.scene.unlisted;
+}
+
+/** Distinct hidden scene records that the current Browse filters would reveal. */
+export function hiddenSceneCount(state: BrowserState): number {
+  const revealed = state.showHidden ? state : { ...state, showHidden: true };
+  return new Set(playableItems(state)
+    .filter((item) => isHiddenPlayable(item) && playableVisible(revealed, item))
+    .map((item) => item.scene.id)).size;
 }
 
 export function selectedPlayable(state: BrowserState): PlayableItem | null {
@@ -267,7 +277,10 @@ export function selectedPlayable(state: BrowserState): PlayableItem | null {
 }
 
 export function animationList(state: BrowserState): SceneModel[] {
-  return [...emoteCatalog(state), ...filteredLibrary(state)];
+  return [
+    ...emoteCatalog(state),
+    ...filteredLibrary(state).filter((scene) => state.showHidden || !isGeneratedSceneClip(scene)),
+  ];
 }
 
 export function isVanillaAnimation(scene: SceneModel): boolean {
@@ -332,7 +345,7 @@ export function labeledFurniture(state: BrowserState): FurnitureTarget | null {
 }
 
 export function unlistedVisible(state: BrowserState, scene: SceneModel): boolean {
-  return !!scene.library || !scene.unlisted || state.filters.debugMode;
+  return !!scene.library || !scene.unlisted || state.showHidden;
 }
 
 export function evaluateForState(state: BrowserState, scene: SceneModel): SceneEvaluation {

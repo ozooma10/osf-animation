@@ -112,7 +112,7 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
 
       <section class="settings-group">
         <h3>Advanced</h3>
-        <ToggleRow label="Show author details" hint="Reveal scene IDs, source files, diagnostics, and generated or unlisted entries."
+        <ToggleRow label="Show author details" hint="Reveal scene IDs, source files, and diagnostics."
           enabled={preferences.authorDetails} onChange={(value) => set("authorDetails", value)}/>
         <p class="settings-footnote">Stage-transition popups and log verbosity remain in OSF UI’s OSF Animation settings card.</p>
       </section>

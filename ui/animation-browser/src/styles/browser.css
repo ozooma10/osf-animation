@@ -621,7 +621,8 @@ button,input,select{font:inherit;color:inherit}
 .frame-step:disabled{opacity:.3;cursor:default}
 .play-toggle.paused{color:var(--signal-go);border-color:rgba(92,190,150,.55)}
 .timeline-range{flex:1;min-width:80px;accent-color:var(--accent)}
-.timeline-clock{width:86px;flex:none;text-align:right;font-size:8px;color:var(--text-muted)}
+.timeline-clock{width:112px;flex:none;display:flex;flex-direction:column;gap:1px;text-align:right;font-size:8px;line-height:1.2;color:var(--text-muted)}
+.timeline-frames{color:var(--text-body)}
 .reveal.inline.stop-all{color:var(--signal-stop);border-color:rgba(200,80,58,.5)}
 .reveal.inline.stop-all:hover{background:rgba(200,80,58,.12)}
 

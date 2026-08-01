@@ -7,6 +7,7 @@ import {
   filteredLibrary,
   formatDuration,
   formatEstimate,
+  hiddenSceneCount,
   hottestPickTarget,
   isVanillaAnimation,
   labeledFurniture,
@@ -146,6 +147,7 @@ describe("browser reducer", () => {
     });
     expect(state.preferences.afterLaunch).toBe("stay");
     expect(state).toMatchObject({ libFull: true, libCustomOnly: true, opts: { strip: "0" }, filters: { debugMode: true } });
+    expect(state.showHidden).toBe(false);
   });
 
 
@@ -352,7 +354,7 @@ describe("browser selectors", () => {
     expect(formatEstimate({ estSec: 150, estPartial: true, openEnded: true })).toBe("~2:30+∞");
   });
 
-  it("filters vanilla animations and keeps generated source clips author-only", () => {
+  it("filters vanilla animations and keeps generated source clips hidden until requested", () => {
     const vanilla = normalizeScene({ id: "vanilla/common/idle", title: "Vanilla Idle", tags: ["vanilla"], stages: [{ name: "Idle" }] });
     const imported = normalizeScene({ id: "osf.scene-clip/abc", title: "Imported Clip", tags: ["scene.clip"], stages: [{ name: "Pack\\Clip.glb" }] });
     const state = {
@@ -370,7 +372,8 @@ describe("browser selectors", () => {
     expect(playableItems(state).some((item) => item.scene.id === vanilla.id)).toBe(false);
     expect(validSelection(state)).toBeNull();
     const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
-    expect(validSelection(authorState)).toBe(imported.id);
+    expect(validSelection(authorState)).toBeNull();
+    expect(validSelection({ ...state, showHidden: true })).toBe(imported.id);
   });
 
   it("shows clipLibrary registrations to everyone, not only to authors", () => {
@@ -407,12 +410,16 @@ describe("browser selectors", () => {
     const state = { ...createInitialState(), library: [registered, harvested], libraryReceived: true };
     const visible = playableItems(state).filter((item) => playableVisible(state, item));
     expect(visible.map((item) => item.scene.id)).toEqual([registered.id]);
+    expect(hiddenSceneCount(state)).toBe(1);
     // Ready with the default player-only cast, so it lands in the playable list, not the
     // "needs a different cast" bucket that stays folded away.
     expect(evaluateForState(state, registered).gaps).toBe(0);
 
     const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
-    expect(playableItems(authorState).map((item) => item.scene.id).sort())
+    expect(playableItems(authorState).filter((item) => playableVisible(authorState, item)).map((item) => item.scene.id))
+      .toEqual([registered.id]);
+    const revealedState = { ...state, showHidden: true };
+    expect(playableItems(revealedState).filter((item) => playableVisible(revealedState, item)).map((item) => item.scene.id).sort())
       .toEqual([registered.id, harvested.id].sort());
   });
 
@@ -532,7 +539,7 @@ describe("import report panel", () => {
     expect(state.importReload.delta.resolvedProblems).toHaveLength(1);
 
     const viewed = browserReducer(state, { type: "imports/viewContent", path: "Pack/scenes.osf.json" });
-    expect(viewed).toMatchObject({ importsOpen: false, mode: "scenes", browseAll: true, allSpecies: true });
+    expect(viewed).toMatchObject({ importsOpen: false, mode: "scenes", browseAll: true, showHidden: true, allSpecies: true });
     expect(viewed.filters).toEqual({ search: "pack/scenes.osf.json", debugMode: true });
   });
 
