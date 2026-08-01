@@ -31,6 +31,7 @@ namespace OSF::Registry
 
 		constexpr std::size_t kMaxScenesPerFile = 4096;
 		constexpr std::size_t kMaxRolesPerFile = 512;
+		constexpr std::size_t kMaxPropsPerFile = 512;
 		constexpr std::size_t kMaxClipLibraryEntriesPerFile = 65536;
 		constexpr std::size_t kMaxNodesPerScene = 4096;
 		constexpr std::size_t kMaxStagesPerScene = 16384;
@@ -81,6 +82,13 @@ namespace OSF::Registry
 			SceneRole parsed;  // the validated parse of `raw` — copied directly by plain-string references
 		};
 		using RoleRegistry = std::map<std::string, RoleTemplate>;
+
+		// File-local reusable prop TEMPLATES: a file's top-level `props`. Exact, case-sensitive id ->
+		// the definition's RAW json, deliberately left unparsed: a template may be PARTIAL (source
+		// only, node only), so only the merged action is a complete, validatable attachment. An
+		// `osf.prop.attach` looks its template up by `use` when present, else by its own `prop` id.
+		// Never leaves the file — no aliases or cross-file references.
+		using PropRegistry = std::map<std::string, json>;
 
 		// How a scene-level role slot got its runtime name (drives AssignRoleNames).
 		enum class RoleNameKind : std::uint8_t
@@ -392,18 +400,24 @@ namespace OSF::Registry
 		}
 
 		// Parse the timing fields shared by every track lane (cue/action/sound/camera): the
-		// `repeat` flag and the `at` position (enter/exit/end anchor or a numeric clip-fraction
-		// in [0,1)). Writes pos/fraction/everyLoop onto a_out, whose `pos` enum supplies the
-		// kEnter/kExit/kEnd/kFraction values (all four lane enums share those names). a_subject is
-		// the entry descriptor for diagnostics, e.g. "action 'osf.fade.out'". When a_atRequired,
-		// a missing `at` is rejected (cues); otherwise a missing `at` defaults to the enter anchor.
+		// `repeat` flag and the position — either `at` (enter/exit/end anchor or a numeric
+		// clip-fraction in [0,1)) or `atFrame` (a zero-based clip frame at kFrameRate). The two are
+		// mutually exclusive. Writes pos/fraction/frame/everyLoop onto a_out, whose `pos` enum
+		// supplies the kEnter/kExit/kEnd/kFraction values (all four lane enums share those names);
+		// an `atFrame` entry is a kFraction entry that carries `frame` instead of `fraction`.
+		// a_subject is the entry descriptor for diagnostics, e.g. "action 'osf.fade.out'". When
+		// a_atRequired, a missing position is rejected (cues); otherwise it defaults to the enter anchor.
 		template <class Entry>
 		void ParseTrackTiming(const json& a_entry, Entry& a_out, const std::string& a_nodeId,
 			const std::string& a_subject, bool a_atRequired)
 		{
 			using Pos = decltype(a_out.pos);
 			const auto atIt = a_entry.find("at");
-			if (a_atRequired && atIt == a_entry.end()) {
+			const auto frameIt = a_entry.find("atFrame");
+			if (atIt != a_entry.end() && frameIt != a_entry.end()) {
+				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " sets both 'at' and 'atFrame' (pick one)");
+			}
+			if (a_atRequired && atIt == a_entry.end() && frameIt == a_entry.end()) {
 				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " is missing 'at'");
 			}
 			const auto repeat = ToLower(a_entry.value("repeat", "none"));
@@ -411,6 +425,22 @@ namespace OSF::Registry
 				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " has unknown repeat '" + repeat + "'");
 			}
 			a_out.everyLoop = (repeat == "loop");
+			if (frameIt != a_entry.end()) {
+				// A frame is an ABSOLUTE clip-local position (frame / kFrameRate seconds), so unlike a
+				// fraction it needs no clip duration here — and a frame past the clip end simply never
+				// fires (nothing to validate it against at load time).
+				if (!frameIt->is_number()) {
+					throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " 'atFrame' must be a whole frame number");
+				}
+				const double frame = frameIt->get<double>();
+				if (!std::isfinite(frame) || frame < 0.0 || frame != std::floor(frame)) {
+					throw std::runtime_error("node '" + a_nodeId + "': " + a_subject +
+						" 'atFrame' must be a whole frame number >= 0 (frame 0 is the clip start)");
+				}
+				a_out.pos = Pos::kFraction;
+				a_out.frame = static_cast<float>(frame);
+				return;
+			}
 			if (atIt == a_entry.end() || atIt->is_string()) {
 				const std::string at = (atIt != a_entry.end()) ? ToLower(atIt->get<std::string>()) : "enter";
 				if (at == "enter") {
@@ -432,7 +462,7 @@ namespace OSF::Registry
 					throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " numeric 'at' must be in [0,1) (use 'end' for 1.0)");
 				}
 			} else {
-				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " 'at' must be a number or enter/exit/end");
+				throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " 'at' must be a number or enter/exit/end (use 'atFrame' for a frame index)");
 			}
 		}
 
@@ -622,9 +652,14 @@ namespace OSF::Registry
 			const SoundEmitter laneEmitter = ParseSoundEmitter(a_lane, SoundEmitter::kListener,
 				a_node_out.id, "sound ladder");
 
-			// Emit one entry; timing (at/repeat) reuses the shared track-timing parse + validation.
+			// A ladder can carry its positions under `atFrame` instead of `at` (both shapes), in which
+			// case every bare position is a clip frame; a per-hit object still picks its own key.
+			const bool laneFrames = a_lane.contains("atFrame");
+			const char* const laneKey = laneFrames ? "atFrame" : "at";
+
+			// Emit one entry; timing (at/atFrame/repeat) reuses the shared track-timing parse + validation.
 			const auto emit = [&](const std::string& a_spec, const json& a_at, const std::string& a_repeat,
-				const std::string& a_role, SoundEmitter a_emitter) {
+				const std::string& a_role, SoundEmitter a_emitter, const char* a_key) {
 				if (a_spec.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound mark has no spec (set the lane 'spec' or a per-mark 'spec')");
 				}
@@ -633,13 +668,16 @@ namespace OSF::Registry
 				se.role = a_role;
 				se.emitter = a_emitter;
 				json timing = json::object();
-				timing["at"] = a_at;
+				timing[a_key] = a_at;
 				timing["repeat"] = a_repeat;
 				ParseTrackTiming(timing, se, a_node_out.id, "sound '" + se.spec + "'", /*a_atRequired*/ true);
 				a_node_out.sounds.push_back(std::move(se));
 			};
 
-			const auto positionsIt = a_lane.find("at");
+			if (laneFrames && a_lane.contains("at")) {
+				throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder sets both 'at' and 'atFrame' (pick one)");
+			}
+			const auto positionsIt = a_lane.find(laneKey);
 			if (positionsIt == a_lane.end()) {
 				throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder needs 'at' (an array or tag-keyed object of positions)");
 			}
@@ -647,28 +685,28 @@ namespace OSF::Registry
 
 			if (positions.is_object()) {
 				if (positions.empty()) {
-					throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'at' object is empty");
+					throw std::runtime_error("node '" + a_node_out.id + "': sound ladder '" + laneKey + "' object is empty");
 				}
 				for (auto it = positions.begin(); it != positions.end(); ++it) {
 					if (!it.value().is_array()) {
-						throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'at' group '" + it.key() + "' must be an array of positions");
+						throw std::runtime_error("node '" + a_node_out.id + "': sound ladder '" + laneKey + "' group '" + it.key() + "' must be an array of positions");
 					}
 					std::string spec = baseSpec;
 					if (!it.key().empty()) {
 						spec += "," + it.key();  // the group key is the tag(s) appended to the base
 					}
 					for (const auto& at : it.value()) {
-						emit(spec, at, laneRepeat, laneRole, laneEmitter);
+						emit(spec, at, laneRepeat, laneRole, laneEmitter, laneKey);
 					}
 				}
 				return;
 			}
 			if (!positions.is_array() || positions.empty()) {
-				throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'at' must be a non-empty array or an object keyed by tag");
+				throw std::runtime_error("node '" + a_node_out.id + "': sound ladder '" + laneKey + "' must be a non-empty array or an object keyed by tag");
 			}
 			for (const auto& m : positions) {
 				if (m.is_number() || m.is_string()) {
-					emit(baseSpec, m, laneRepeat, laneRole, laneEmitter);  // bare position -> base spec
+					emit(baseSpec, m, laneRepeat, laneRole, laneEmitter, laneKey);  // bare position -> base spec
 				} else if (m.is_array()) {
 					if (m.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': an empty sound ladder position");
@@ -680,7 +718,7 @@ namespace OSF::Registry
 						}
 						spec += "," + m[i].get<std::string>();
 					}
-					emit(spec, m[0], laneRepeat, laneRole, laneEmitter);
+					emit(spec, m[0], laneRepeat, laneRole, laneEmitter, laneKey);
 				} else if (m.is_object()) {
 					std::string spec = baseSpec;
 					if (auto it = m.find("spec"); it != m.end()) {
@@ -705,9 +743,12 @@ namespace OSF::Registry
 							throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'tags' must be a string or an array of strings");
 						}
 					}
-					const json at = m.contains("at") ? m.at("at") : json();
+					// A per-hit object picks its own timing key; falling back to the lane's keeps a bare
+					// `{ tags: [...] }` hit on the lane's units (and still errors as a missing position).
+					const char* const hitKey = m.contains("atFrame") ? "atFrame" : m.contains("at") ? "at" : laneKey;
+					const json at = m.contains(hitKey) ? m.at(hitKey) : json();
 					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole),
-						ParseSoundEmitter(m, laneEmitter, a_node_out.id, "sound ladder mark"));
+						ParseSoundEmitter(m, laneEmitter, a_node_out.id, "sound ladder mark"), hitKey);
 				} else {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound ladder hit must be a number, [at, tags...] array, or { at, ... } object");
 				}
@@ -729,7 +770,11 @@ namespace OSF::Registry
 				// one lane (e.g. a per-role vocal ladder). A scalar `at` (a fraction or "enter"/"exit"/"end")
 				// is a single flat cue. This lets `sound` mix flat cues and role ladders in one list.
 				if (s.is_object()) {
-					if (auto it = s.find("at"); it != s.end() && (it->is_array() || it->is_object())) {
+					auto it = s.find("at");
+					if (it == s.end()) {
+						it = s.find("atFrame");
+					}
+					if (it != s.end() && (it->is_array() || it->is_object())) {
 						ExpandSoundLadder(s, a_node_out);
 						continue;
 					}
@@ -1084,16 +1129,32 @@ namespace OSF::Registry
 			}
 		}
 
-		// Top-level metadata (name/priority/weight/unlisted/lockPlayer/stripActors/clearHeldItems/fade/playerControl). id, tags,
-		// roles, and the playable (clip/stages/nodes) are parsed by the caller. a_lockDefault/
-		// a_stripDefault/a_clearHeldItemsDefault/a_fadeDefault/a_unlistedDefault/a_playerControlDefault
-		// seed the policy opt-outs (the file-level defaults).
-		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault,
-			bool a_clearHeldItemsDefault, bool a_fadeDefault, bool a_unlistedDefault, bool a_inPlaceDefault,
-			const PlayerControl& a_playerControlDefault)
+		// Every file-level key a scene inherits when it omits its own. One struct so hoisting another
+		// field to the pack level stays a one-line change here plus one line in LoadOsfFile. (`roles`,
+		// `anchor`, `camera` and `clipRoot` are threaded separately — each carries its own
+		// registry/optional/string shape.)
+		struct PackDefaults
+		{
+			bool                     lockPlayer = true;
+			bool                     stripActors = true;
+			bool                     clearHeldItems = true;
+			bool                     fade = false;
+			bool                     unlisted = false;
+			bool                     inPlace = false;
+			PlayerControl            playerControl{};
+			std::int32_t             priority = 0;
+			std::int32_t             weight = 1;
+			std::vector<std::string> tags;  // UNION-ed with a scene's own tags, not replaced by them
+		};
+
+		// Top-level metadata (name/priority/weight/unlisted/lockPlayer/stripActors/clearHeldItems/fade/
+		// playerControl). id, tags, roles, and the playable (clip/stages/nodes) are parsed by the caller.
+		// a_defaults seeds every inherited field with the file-level value.
+		void ParseSceneMeta(const json& a_json, SceneDef& def, const PackDefaults& a_defaults)
 		{
 			def.name = a_json.value("name", def.id);
-			def.priority = a_json.value("priority", 0);
+			def.priority = a_json.value("priority", a_defaults.priority);
+			def.weight = a_defaults.weight;
 			if (auto it = a_json.find("weight"); it != a_json.end()) {
 				if (!it->is_number_integer()) {
 					throw std::runtime_error("scene '" + def.id + "': 'weight' must be an integer");
@@ -1104,42 +1165,42 @@ namespace OSF::Registry
 				}
 				def.weight = static_cast<std::int32_t>(w);
 			}
-			def.unlisted = a_unlistedDefault;
+			def.unlisted = a_defaults.unlisted;
 			if (auto it = a_json.find("unlisted"); it != a_json.end()) {
 				if (!it->is_boolean()) {
 					throw std::runtime_error("scene '" + def.id + "': 'unlisted' must be a boolean");
 				}
 				def.unlisted = it->get<bool>();
 			}
-			def.lockPlayer = a_lockDefault;
+			def.lockPlayer = a_defaults.lockPlayer;
 			if (auto it = a_json.find("lockPlayer"); it != a_json.end()) {
 				if (!it->is_boolean()) {
 					throw std::runtime_error("scene '" + def.id + "': 'lockPlayer' must be a boolean");
 				}
 				def.lockPlayer = it->get<bool>();
 			}
-			def.stripActors = a_stripDefault;
+			def.stripActors = a_defaults.stripActors;
 			if (auto it = a_json.find("stripActors"); it != a_json.end()) {
 				if (!it->is_boolean()) {
 					throw std::runtime_error("scene '" + def.id + "': 'stripActors' must be a boolean");
 				}
 				def.stripActors = it->get<bool>();
 			}
-			def.clearHeldItems = a_clearHeldItemsDefault;
+			def.clearHeldItems = a_defaults.clearHeldItems;
 			if (auto it = a_json.find("clearHeldItems"); it != a_json.end()) {
 				if (!it->is_boolean()) {
 					throw std::runtime_error("scene '" + def.id + "': 'clearHeldItems' must be a boolean");
 				}
 				def.clearHeldItems = it->get<bool>();
 			}
-			def.fade = a_fadeDefault;
+			def.fade = a_defaults.fade;
 			if (auto it = a_json.find("fade"); it != a_json.end()) {
 				if (!it->is_boolean()) {
 					throw std::runtime_error("scene '" + def.id + "': 'fade' must be a boolean");
 				}
 				def.fade = it->get<bool>();
 			}
-			def.inPlace = a_inPlaceDefault;
+			def.inPlace = a_defaults.inPlace;
 			if (auto it = a_json.find("inPlace"); it != a_json.end()) {
 				if (!it->is_boolean()) {
 					throw std::runtime_error("scene '" + def.id + "': 'inPlace' must be a boolean");
@@ -1149,7 +1210,7 @@ namespace OSF::Registry
 			// Input control is enabled-by-default (a_playerControlDefault is the built-in all-capabilities
 			// grant unless the pack narrowed it). `"playerControl": false` turns it off; an object narrows
 			// what was inherited via `disable`/`locked`.
-			def.playerControl = a_playerControlDefault;
+			def.playerControl = a_defaults.playerControl;
 			if (auto it = a_json.find("playerControl"); it != a_json.end()) {
 				ApplyPlayerControl(*it, def.playerControl, "scene '" + def.id + "'");
 			}
@@ -1595,16 +1656,14 @@ namespace OSF::Registry
 			return req;
 		}
 
-		// Parse one unified scene. a_lockDefault/a_stripDefault/a_clearHeldItemsDefault/a_fadeDefault/
-		// a_unlistedDefault/a_playerControlDefault are the file-level policy defaults;
+		// Parse one unified scene. a_defaults holds the file-level policy/catalog defaults;
 		// a_packRoles are the ARRAY form of the file-level `roles` (inherited by a scene that omits its own);
 		// a_roleRegistry is the OBJECT form (id -> reusable template a scene's `roles` references by id string
 		// or { "id", ...overrides } object); a_anchorDefault is the file-level `anchor` (likewise inherited).
-		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault,
-			bool a_stripDefault, bool a_clearHeldItemsDefault, bool a_fadeDefault, bool a_unlistedDefault,
-			bool a_inPlaceDefault, const PlayerControl& a_playerControlDefault,
-			std::optional<CameraState> a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
-			const RoleRegistry& a_roleRegistry, std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
+		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings,
+			const PackDefaults& a_defaults, std::optional<CameraState> a_cameraDefault,
+			const std::vector<SceneRole>& a_packRoles, const RoleRegistry& a_roleRegistry,
+			std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
 			def.id = a_json.value("id", std::string{});
@@ -1615,15 +1674,23 @@ namespace OSF::Registry
 			const std::string clipRoot = a_json.contains("clipRoot") ?
 				NormalizeClipRoot(a_json.value("clipRoot", std::string{}), "scene '" + def.id + "'") :
 				std::string(a_packClipRoot);
-			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_clearHeldItemsDefault,
-				a_fadeDefault, a_unlistedDefault, a_inPlaceDefault, a_playerControlDefault);
+			ParseSceneMeta(a_json, def, a_defaults);
+			// File-level `tags` are UNION-ed with the scene's own (pack tags first, in author order) —
+			// unlike `roles`, a scene declaring tags narrows nothing, it adds. Matchmaking is a set
+			// membership test, so a pack-wide tag every scene must carry belongs at the file level.
+			// De-duplicated case-insensitively via tagSet, which matchmaking queries anyway.
+			const auto addTag = [&def](const std::string& a_tag) {
+				if (def.tagSet.insert(ToLower(a_tag)).second) {
+					def.tags.push_back(a_tag);
+				}
+			};
+			for (const auto& t : a_defaults.tags) {
+				addTag(t);
+			}
 			if (const auto it = a_json.find("tags"); it != a_json.end()) {
 				for (const auto& t : *it) {
-					def.tags.push_back(t.get<std::string>());
+					addTag(t.get<std::string>());
 				}
-			}
-			for (const auto& t : def.tags) {
-				def.tagSet.insert(ToLower(t));
 			}
 		// roles[]: unified participant list; `name` optional (anonymous positional slot). Entries are
 		// inline role objects, or references to the file-level roles REGISTRY — a plain id string, or
@@ -1896,25 +1963,55 @@ namespace OSF::Registry
 					return;
 				}
 			}
-			const bool lockDefault = a_json.value("lockPlayer", true);
+			PackDefaults packDefaults;
+			packDefaults.lockPlayer = a_json.value("lockPlayer", true);
 			// Library packs default to NO strip
-			const bool stripDefault = a_json.value("stripActors", !library);
-			const bool clearHeldItemsDefault = a_json.value("clearHeldItems", true);
-			const bool fadeDefault = a_json.value("fade", false);
-			const bool unlistedDefault = a_json.value("unlisted", false);
+			packDefaults.stripActors = a_json.value("stripActors", !library);
+			packDefaults.clearHeldItems = a_json.value("clearHeldItems", true);
+			packDefaults.fade = a_json.value("fade", false);
+			packDefaults.unlisted = a_json.value("unlisted", false);
 			// Pack-level `inPlace:true` = every scene plays on the actors where they stand (no teleport,
 			// no per-frame root/heading pin) — the emote-pack posture; scenes may override per-scene.
-			const bool inPlaceDefault = a_json.value("inPlace", false);
+			packDefaults.inPlace = a_json.value("inPlace", false);
 			// Pack-level `playerControl` seeds every scene's director-input grant — `false` revokes input
 			// across the whole file (the route-pack posture), an object narrows it pack-wide. Scenes
 			// override/narrow further per-scene.
-			PlayerControl playerControlDefault{};
 			if (const auto pcit = a_json.find("playerControl"); pcit != a_json.end()) {
 				try {
-					ApplyPlayerControl(*pcit, playerControlDefault, "'" + fileName + "'");
+					ApplyPlayerControl(*pcit, packDefaults.playerControl, "'" + fileName + "'");
 				} catch (const std::exception& e) {
 					rejectFile(e.what());
 					return;
+				}
+			}
+			// Pack-level matchmaking defaults: a tier/weight every scene shares, and tags every scene
+			// carries (UNION-ed with each scene's own, never replaced).
+			if (const auto prit = a_json.find("priority"); prit != a_json.end()) {
+				if (!prit->is_number_integer()) {
+					rejectFile("'" + fileName + "': 'priority' must be an integer");
+					return;
+				}
+				packDefaults.priority = prit->get<std::int32_t>();
+			}
+			if (const auto wit = a_json.find("weight"); wit != a_json.end()) {
+				const auto w = wit->is_number_integer() ? wit->get<std::int64_t>() : 0;
+				if (w < 1 || w > 1000000) {
+					rejectFile("'" + fileName + "': 'weight' must be an integer in [1, 1000000]");
+					return;
+				}
+				packDefaults.weight = static_cast<std::int32_t>(w);
+			}
+			if (const auto tit = a_json.find("tags"); tit != a_json.end()) {
+				if (!tit->is_array()) {
+					rejectFile("'" + fileName + "': 'tags' must be an array of strings");
+					return;
+				}
+				for (const auto& t : *tit) {
+					if (!t.is_string()) {
+						rejectFile("'" + fileName + "': 'tags' entries must be strings");
+						return;
+					}
+					packDefaults.tags.push_back(t.get<std::string>());
 				}
 			}
 			std::string packClipRoot;
@@ -2053,8 +2150,7 @@ namespace OSF::Registry
 				                               ? (*sj)["id"].get<std::string>()
 				                               : std::string{};
 				try {
-					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, clearHeldItemsDefault,
-						fadeDefault, unlistedDefault, inPlaceDefault, playerControlDefault, cameraDefault,
+					auto def = ParseOsfScene(*sj, warnings, packDefaults, cameraDefault,
 						packRoles, roleRegistry, packClipRoot, packAnchor);
 					if (def.nodes.size() > kMaxNodesPerScene) {
 						throw std::runtime_error("scene '" + def.id + "': too many nodes");

@@ -41,7 +41,7 @@ namespace OSF::Animation
 					if (mark.atEnd || duration <= 0.0f) {
 						continue;
 					}
-					const float markTime = mark.fraction * duration;
+					const float markTime = MarkTime(mark, duration);
 					if (!(prevTime <= markTime && markTime < nextTime)) {
 						continue;
 					}
@@ -143,7 +143,7 @@ namespace OSF::Animation
 		if (duration > 0.0f) {
 			for (size_t i = 0; i < marks.size(); i++) {
 				const auto& mark = marks[i];
-				if (!mark.everyLoop && !mark.atEnd && mark.fraction * duration < clock.time) {
+				if (!mark.everyLoop && !mark.atEnd && MarkTime(mark, duration) < clock.time) {
 					markFired[i] = true;
 				}
 			}

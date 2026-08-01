@@ -65,6 +65,46 @@
           }
         ]
       }]
+    },
+    {
+      "id": "test.reg.props.defaults",
+      "roles": [{ "name": "player" }],
+      "stages": [{
+        "clips": ["Fixture/x.glb"],
+        "action": [
+          {
+            "at": 0.1, "type": "osf.prop.attach", "role": "player", "prop": "helmet",
+            "source": {
+              "equippedArmor": { "keyword": ["ArmorTypeSpacesuitHelmet"] }
+            },
+            "node": "R_Wrist"
+          }
+        ]
+      }]
+    },
+    {
+      "id": "test.reg.frames",
+      "roles": [{ "name": "player" }],
+      "stages": [{
+        "clips": ["Fixture/x.glb"],
+        "cue": [
+          { "atFrame": 0, "id": "frames.start" },
+          { "atFrame": 24, "id": "frames.beat" },
+          { "at": 0.5, "id": "frames.fraction" }
+        ],
+        "action": [
+          { "atFrame": 15, "type": "osf.fade.out" }
+        ],
+        "camera": [
+          { "atFrame": 9, "state": "thirdperson_hold" }
+        ],
+        "sound": [
+          {
+            "spec": "$test,voice", "role": "player",
+            "atFrame": [12, { "atFrame": 30, "emitter": "listener" }, { "at": 0.9 }]
+          }
+        ]
+      }]
     }
   ]
 }

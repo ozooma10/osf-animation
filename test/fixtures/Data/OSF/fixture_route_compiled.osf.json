@@ -4,6 +4,10 @@
   "unlisted": true,
   "camera": "none",
   "inPlace": true,
+  "playerControl": false,
+  "priority": 3,
+  "weight": 7,
+  "tags": ["route", "fixture"],
   "roles": [
     { "name": "player", "mask": "upperBody" }
   ],
@@ -42,6 +46,9 @@
     },
     {
       "id": "test.route.compiled.two-stage",
+      "playerControl": { "enabled": true, "disable": ["speed"] },
+      "priority": 9,
+      "tags": ["Fixture", "two-stage"],
       "stages": [
         {
           "loops": 1,

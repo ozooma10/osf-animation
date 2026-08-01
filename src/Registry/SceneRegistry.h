@@ -9,6 +9,7 @@
 #include "Input/InputTypes.h"  // PlayerControl capabilities default to Input::kAllCapabilities
 #include "Props/PropTypes.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
@@ -79,6 +80,12 @@ namespace OSF::Registry
 	using SoundPos = TrackPos;
 	using CameraPos = TrackPos;
 
+	// `atFrame` frame rate. An authored frame is a clip-local position at the Creation-Engine 30 fps
+	// convention (AFImport::kAfFps, the rate an `.af` decodes at, and the rate the studio route
+	// compiler bakes its `at` fractions with), so frame N is exactly N / 30 clip-local SECONDS —
+	// independent of how long the clip turns out to be, unlike a fraction.
+	inline constexpr float kFrameRate = 30.0f;
+
 	enum class SoundEmitter : std::uint8_t
 	{
 		kListener,
@@ -89,7 +96,8 @@ namespace OSF::Registry
 	struct CueEntry
 	{
 		CuePos       pos = CuePos::kEnter;
-		float        fraction = 0.0f;   // when pos == kFraction
+		float        fraction = 0.0f;   // when pos == kFraction and frame < 0
+		float        frame = -1.0f;     // when pos == kFraction: authored `atFrame` (< 0 = authored as a fraction)
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  id;
 	};
@@ -110,7 +118,8 @@ namespace OSF::Registry
 	struct ActionEntry
 	{
 		ActionPos    pos = ActionPos::kEnter;
-		float        fraction = 0.0f;    // when pos == kFraction
+		float        fraction = 0.0f;    // when pos == kFraction and frame < 0
+		float        frame = -1.0f;      // when pos == kFraction: authored `atFrame` (< 0 = authored as a fraction)
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  type;   // namespaced (osf.* built-in, else custom)
 		ActionKind   kind = ActionKind::kCustom;
@@ -131,6 +140,7 @@ namespace OSF::Registry
 	{
 		SoundPos     pos = SoundPos::kFraction;
 		float        fraction = 0.0f;
+		float        frame = -1.0f;  // authored `atFrame` (< 0 = authored as a fraction)
 		bool         everyLoop = false;
 		std::string  spec;    // file path or event: spec
 		std::string  role;    // optional voice channel, gender source, and subtitle speaker
@@ -156,10 +166,35 @@ namespace OSF::Registry
 	{
 		CameraPos    pos = CameraPos::kEnter;
 		float        fraction = 0.0f;
+		float        frame = -1.0f;  // authored `atFrame` (< 0 = authored as a fraction)
 		bool         everyLoop = false;
 		CameraState  state = CameraState::kNone;
 		float        distance = 0.0f;  // thirdperson_hold opening zoom pull-back (0 = engine default); ignored by other states
 	};
+
+	// Clip-local seconds for a track entry authored with `atFrame`; -1 when it was authored with a
+	// fraction `at` (which only means something once the clip duration is known).
+	template <class Entry>
+	constexpr float TrackSeconds(const Entry& a_entry)
+	{
+		return a_entry.frame >= 0.0f ? a_entry.frame / kFrameRate : -1.0f;
+	}
+
+	// A kFraction entry's position as a clip fraction. An `atFrame` entry needs the clip duration to
+	// place itself on that axis; with no duration to scale against (a_durationSec <= 0) only frame 0
+	// has a knowable place, so later frames report the clip end rather than pretending to be at the start.
+	template <class Entry>
+	inline float TrackFraction(const Entry& a_entry, float a_durationSec)
+	{
+		const float sec = TrackSeconds(a_entry);
+		if (sec < 0.0f) {
+			return a_entry.fraction;
+		}
+		if (a_durationSec > 0.0f) {
+			return std::clamp(sec / a_durationSec, 0.0f, 1.0f);
+		}
+		return sec > 0.0f ? 1.0f : 0.0f;
+	}
 
 	// One actor's clip for one stage (one per role in StageDef::clips, role order).
 	struct StageClip

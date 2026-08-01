@@ -80,7 +80,8 @@ namespace OSF::Scene
 		};
 
 		RE::Actor* RoleActor(const Preview& a_preview, std::string_view a_role) const;
-		void ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd);
+		// a_durationSec is the previewed clip's length (0 = not known yet); only `atFrame` actions need it.
+		void ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd, float a_durationSec = 0.0f);
 		void DestroyProps(Preview& a_preview);
 		bool Retire(std::int32_t a_handle, bool a_stopGraph);
 

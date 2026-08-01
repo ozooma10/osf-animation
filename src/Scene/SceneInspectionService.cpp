@@ -104,7 +104,16 @@ namespace OSF::Scene
 			a_error = "Could not allocate a browser preview handle";
 			return 0;
 		}
-		ReconcileProps(inserted->second, 0.0f, false);
+		// The graph is live, so the clip length is already known — `atFrame` actions need it to place
+		// themselves against the scrub position.
+		float openedDuration = 0.0f;
+		if (!inserted->second.participants.empty() && inserted->second.participants.front()) {
+			if (const auto opened = Animation::GraphManager::GetSingleton().GetScenePlayback(
+					inserted->second.participants.front(), playbackId)) {
+				openedDuration = opened->duration;
+			}
+		}
+		ReconcileProps(inserted->second, 0.0f, false, openedDuration);
 		return handle;
 	}
 
@@ -137,13 +146,14 @@ namespace OSF::Scene
 		a_preview.props.clear();
 	}
 
-	void SceneInspectionService::ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd)
+	void SceneInspectionService::ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd,
+		float a_durationSec)
 	{
 		const auto* node = a_preview.definition ? a_preview.definition->FindNode(a_preview.node) : nullptr;
 		if (!node) {
 			return;
 		}
-		const auto desired = InspectionPropsAt(node->actions, a_fraction, a_atEnd);
+		const auto desired = InspectionPropsAt(node->actions, a_fraction, a_atEnd, a_durationSec);
 		auto& service = Props::PropService::GetSingleton();
 
 		for (auto it = a_preview.props.begin(); it != a_preview.props.end();) {
@@ -214,7 +224,7 @@ namespace OSF::Scene
 		const bool atEnd = playback->duration > 0.0f && a_time >= playback->duration;
 		const float fraction = playback->duration > 0.0f ?
 			std::clamp(a_time / playback->duration, 0.0f, 1.0f) : 0.0f;
-		ReconcileProps(preview, fraction, atEnd);
+		ReconcileProps(preview, fraction, atEnd, playback->duration);
 		return true;
 	}
 

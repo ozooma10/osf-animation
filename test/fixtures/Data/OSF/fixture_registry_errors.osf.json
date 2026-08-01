@@ -25,6 +25,20 @@
         "sound": [{ "at": 0.5, "spec": "Sound/OSF/test.wem", "emitter": "actor" }]
       }]
     },
+    {
+      "id": "test.err.frame-fractional", "roles": ["f"],
+      "stages": [{
+        "clips": ["Fixture/x.glb"],
+        "cue": [{ "atFrame": 12.5, "id": "half.frame" }]
+      }]
+    },
+    {
+      "id": "test.err.frame-both", "roles": ["f"],
+      "stages": [{
+        "clips": ["Fixture/x.glb"],
+        "cue": [{ "at": 0.5, "atFrame": 12, "id": "two.clocks" }]
+      }]
+    },
     { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
   ]
 }

@@ -57,6 +57,9 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
   "lockPlayer": true,                    // file-level default; each scene may override
   "fade": false,                         // optional file-level start-curtain default; each scene may override
   "camera": "thirdperson_hold",          // file-level default camera posture (default "scene_orbit"; "none" opts out)
+  "playerControl": false,                 // file-level default director-input grant; each scene may override
+  "priority": 0, "weight": 1,             // file-level matchmaking defaults; each scene may override
+  "tags": ["my-pack"],                    // file-level tags UNION-ed into every scene's own tags
   "scenes": [
     { "id": "author.one", "clip": "OSF/Anims/One.glb" },
     { "id": "author.two", "stages": [ { "loops": 0, "clips": ["OSF/Anims/Two.glb"] } ] }
@@ -64,8 +67,10 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
 }
 ```
 
-- File-level `lockPlayer` / `stripActors` / `clearHeldItems` / `fade` are optional **defaults** every
-  scene in the file may override.
+- File-level `lockPlayer` / `stripActors` / `clearHeldItems` / `fade` / `inPlace` / `playerControl` /
+  `priority` / `weight` are optional **defaults** every scene in the file may override.
+- File-level `tags` are **added to** every scene's own tags rather than overridden by them (union,
+  de-duplicated case-insensitively) — see § Matchmaking.
 - File-level `anchor` (multi-scene envelope only) is a furniture-anchoring **default** every scene in
   the file inherits unless it declares its own — see § Furniture anchoring.
 - File-level `unlisted` holds every scene in the file out of the matchmaking pool by default.
@@ -565,19 +570,49 @@ use. It's optional — only needed when a graph scene wants the linear stage con
 Track lanes are **flat keys** (`cue`, `action`, `sound`, `camera`) — there is no `tracks` wrapper
 object. They attach to a graph **node** or, equally, to a linear **stage** (a stage's lanes are
 forwarded onto its desugared node), so a linear scene gets the full lane vocabulary without `nodes[]`.
-Every track entry has a **position** (`at`) and optional **repeat**:
+Every track entry has a **position** (`at` **or** `atFrame`) and optional **repeat**:
 
 - **`at`**: a lifecycle anchor `"enter"` | `"exit"` | `"end"`, **or** a numeric **clip-fraction in
   `[0,1)`** (e.g. `0.6` = 60% through the clip). `at` is **not** wall-clock seconds.
+- **`atFrame`**: a **zero-based clip frame** at 30 fps (e.g. `24` = 0.8 s into the clip). Use it
+  whenever you picked the moment in an animation tool — no dividing by the clip length. See
+  [Frames vs. fractions](#frames-vs-fractions) below.
 - **`repeat`**: `"none"` (default) or `"loop"` (re-fire every clip loop). `repeat:"loop"` is only valid
   on numeric positions, not named anchors.
 
+`at` and `atFrame` are mutually exclusive — an entry that sets both is rejected.
+
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
-| `cue` | `{ "at", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
-| `action` | `{ "at", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
-| `sound` | `{ "at", "spec", "role", "emitter", "repeat" }` — an **array/object `at`** makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
-| `camera` | `{ "at", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
+| `cue` | `{ "at"\|"atFrame", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
+| `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
+| `sound` | `{ "at"\|"atFrame", "spec", "role", "emitter", "repeat" }` — an **array/object** position makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
+| `camera` | `{ "at"\|"atFrame", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
+
+#### Frames vs. fractions
+
+```jsonc
+"cue":    [ { "atFrame": 24, "id": "beat" } ],          // frame 24 = 0.8 s in
+"action": [ { "atFrame": 0,  "type": "osf.fade.in" } ]  // frame 0 = the clip start
+```
+
+`atFrame` must be a **whole number ≥ 0**. Frames are counted at **30 fps** — the rate an `.af`
+decodes at, and the rate the studio route compiler already bakes its `at` fractions with — so
+`atFrame: N` is exactly `N / 30` **clip-local seconds**.
+
+That makes the two positions behave differently when the clip length changes:
+
+| | `at: 0.5` | `atFrame: 15` |
+|---|---|---|
+| 1 s clip | fires at 0.5 s | fires at 0.5 s |
+| 2 s clip | fires at 1.0 s (**slides**) | fires at 0.5 s (**stays**) |
+
+So a frame keeps the moment you authored even if the clip is re-exported longer, while a fraction
+re-scales with it. The flip side: a frame **past the end** of the clip it plays on has nowhere to
+land and simply never fires (there is no clip length at load time to validate it against, so this is
+not a load error — check the frame against your clip). Use `"at": "end"` for the clip's final frame.
+
+`repeat: "loop"` works the same for both: the position is measured from the start of **each** loop.
 
 #### Sound: one voice channel per actor
 
@@ -625,6 +660,15 @@ what distinguishes a ladder from a flat entry (whose `at` is a scalar fraction o
 
 The lane's `at` carries the positions; inside a per-hit object the inner `at` is that one hit's position,
 a per-hit `spec` replaces the base, and a per-hit `emitter` can override the lane's shared emitter.
+
+A ladder can carry its positions under **`atFrame`** instead (same two shapes), in which case every
+bare position is a clip frame. A per-hit object still picks its own key, so a single ladder can mix
+the two:
+
+```jsonc
+{ "spec": "event:Vocal", "role": "lead",
+  "atFrame": [ 6, [15, "loud"], { "at": 0.9, "tags": ["loud"] } ] }
+```
 
 #### Sound pools (`*.sounds.json`) and `$` specs
 
@@ -744,7 +788,7 @@ seed is applied per scene start and does not permanently change the player's own
 ## Policy
 
 Set on a scene (or as a file-level default for `lockPlayer` / `stripActors` / `clearHeldItems` / `fade` /
-`inPlace`):
+`inPlace` / `playerControl`):
 
 ### Player input lock (`lockPlayer`, default-on)
 
@@ -835,6 +879,12 @@ the scene via the input channel (story scenes).
 The object form also accepts **`"enabled": <bool>`**, an explicit on/off toggle with the same effect as
 the boolean `"playerControl": true|false` form.
 
+`playerControl` may also sit at **file level**, where it seeds every scene in the file — `"playerControl":
+false` at the top of a pack revokes input for all of its scenes (the prop-route posture), and the object
+form narrows the pack-wide grant. A scene's own `playerControl` applies **on top of** what it inherited:
+a boolean re-enables/revokes wholesale, and a scene `disable` list composes with the pack's (both sets of
+capabilities come off).
+
 ### Furniture anchoring (`anchor`)
 
 An **anchor-bound** scene declares WHAT it plays on with an inline `anchor` block — on the scene, or
@@ -872,6 +922,11 @@ file inherits unless it declares its own). Works for linear AND graph scenes; 47
 - **`tags[]`**: free-form matchmaking tags (matched by `StartSceneByTags*`).
 - **`priority`** (int, default `0`): matchmaking tier — higher wins.
 - **`weight`** (int, default `1`): weighted-random sampling within the top priority tier.
+
+All three may be set at **file level**. `priority` / `weight` are plain defaults a scene overrides.
+`tags` are the exception to file-level-is-a-default: they are **UNION-ed** with each scene's own tags
+(pack tags first, de-duplicated case-insensitively), so a tag every scene in the pack must carry is
+authored once at the top rather than repeated per scene.
 - **`unlisted`** (bool, default `false`): hold the scene **out of the matchmaking pool**  .
 
 Matchmaking is over the one scene registry: a single query (tags + per-role gender/keyword/race fit)
@@ -938,7 +993,9 @@ remain after the animation should create and own a separate persistent object.
   that keyword. `keyword` may be an array of alternative editor IDs.
 
 `position` and `rotation` are three-number arrays in node-local units and degrees; both default to
-zero. `scale` defaults to `1` and must be in `(0,10]`. The visual is best-effort: a missing source,
+zero. `scale` defaults to `1` and must be in `(0,10]`. All three are optional — omitting them is
+exactly equivalent to authoring `[0,0,0]` / `[0,0,0]` / `1`, so an identity attachment can drop them.
+The visual is best-effort: a missing source,
 actor 3D, or attachment node logs the failed action without aborting the animation.
 
 ---

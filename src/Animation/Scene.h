@@ -72,12 +72,21 @@ namespace OSF::Animation
 	// The scene fires purely by time and never interprets either field. (Enter/exit lifecycle entries are fired by the runtime directly, not through this list.)
 	struct TimedMark
 	{
-		float         fraction = 0.0f;   // clip-local fraction in [0,1); ignored when atEnd
+		float         fraction = 0.0f;   // clip-local fraction in [0,1); ignored when atEnd or seconds >= 0
+		float         seconds = -1.0f;   // clip-local SECONDS (an authored frame); < 0 = position by `fraction`
 		bool          everyLoop = false;  // fire every loop (else first loop only)
 		bool          atEnd = false;      // fire once at the clip end of the first loop
 		std::uint8_t  lane = 0;          // opaque lane id (the runtime assigns meaning + ordering)
 		std::string   token;             // opaque payload (cue id, action index, ...)
 	};
+
+	// Where a mark sits on the clip's own clock. An absolute mark (`seconds`, authored as a frame)
+	// stays put however long the clip turns out to be; a fractional one scales with it. A mark past
+	// the clip end never lands inside a loop's [0, duration) window, so it simply never fires.
+	inline float MarkTime(const TimedMark& a_mark, float a_duration)
+	{
+		return a_mark.seconds >= 0.0f ? a_mark.seconds : a_mark.fraction * a_duration;
+	}
 
 	// A mark the scene fired this frame, drained by the hook and handed to the runtime. 
 	// The lane+token are exactly what the runtime stamped onto the TimedMark; the scene just round-trips them.

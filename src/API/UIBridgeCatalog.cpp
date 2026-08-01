@@ -307,6 +307,18 @@ namespace OSF::API::UIBridgeCatalog
 				sc.clipCount = static_cast<std::int32_t>(st.clips.size());
 				sc.pinned = wheelOrder(d.id, sc.index);
 
+				// Stage timing, from the node the desugar produce: loop length comes from clips[0].
+				// A pack-authored duration wins over the probe cache (generated vanilla packs).
+				// Resolved before the track lanes: an `atFrame` mark needs it to report a fraction.
+				if (!st.clips.empty()) {
+					const auto& first = st.clips.front();
+					if (first.sec > 0.0f) {
+						sc.loopSec = first.sec;
+					} else if (const auto sec = Serialization::ClipDurations::Lookup(first.file, first.animId)) {
+						sc.loopSec = *sec;
+					}
+				}
+
 				const auto addTrack = [&sc](std::string kind, Registry::TrackPos pos, float fraction,
 					bool repeat, std::string label, std::string detail = {}, std::string role = {}) {
 					const char* anchor = "fraction";
@@ -331,17 +343,21 @@ namespace OSF::API::UIBridgeCatalog
 					sc.tracks.push_back({ std::move(kind), anchor, std::move(label), std::move(detail),
 						std::move(role), at, repeat });
 				};
+				// The browser's track axis is fractional, so an `atFrame` entry is placed against the
+				// stage's own clip length; a stage whose length hasn't been probed yet parks them at
+				// the end of the axis rather than claiming they sit at the clip start.
+				const float clipSec = sc.loopSec;
 				for (const auto& cue : node->cues) {
-					addTrack("cue", cue.pos, cue.fraction, cue.everyLoop, cue.id);
+					addTrack("cue", cue.pos, Registry::TrackFraction(cue, clipSec), cue.everyLoop, cue.id);
 				}
 				for (const auto& action : node->actions) {
 					std::string detail = !action.prop.empty() ? action.prop :
 						!action.set.empty() ? action.set : action.item;
-					addTrack("action", action.pos, action.fraction, action.everyLoop,
+					addTrack("action", action.pos, Registry::TrackFraction(action, clipSec), action.everyLoop,
 						action.type, std::move(detail), action.role);
 				}
 				for (const auto& sound : node->sounds) {
-					addTrack("sound", sound.pos, sound.fraction, sound.everyLoop,
+					addTrack("sound", sound.pos, Registry::TrackFraction(sound, clipSec), sound.everyLoop,
 						sound.spec, {}, sound.role);
 				}
 				for (const auto& camera : node->cameras) {
@@ -349,20 +365,10 @@ namespace OSF::API::UIBridgeCatalog
 					if (camera.distance != 0.0f) {
 						detail = std::format("distance {}", camera.distance);
 					}
-					addTrack("camera", camera.pos, camera.fraction, camera.everyLoop,
+					addTrack("camera", camera.pos, Registry::TrackFraction(camera, clipSec), camera.everyLoop,
 						std::string(Registry::CameraStateName(camera.state)), std::move(detail));
 				}
 
-				// Stage timing, from the node the desugar produce: loop length comes from clips[0].
-				// A pack-authored duration wins over the probe cache (generated vanilla packs).
-				if (!st.clips.empty()) {
-					const auto& first = st.clips.front();
-					if (first.sec > 0.0f) {
-						sc.loopSec = first.sec;
-					} else if (const auto sec = Serialization::ClipDurations::Lookup(first.file, first.animId)) {
-						sc.loopSec = *sec;
-					}
-				}
 				sc.timerSec = node->timerSec;
 				switch (node->loopMode) {
 				case Registry::LoopMode::kOnce:

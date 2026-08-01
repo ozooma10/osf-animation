@@ -64,10 +64,11 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 24 authored scenes load: the prior 22 plus the two compiled-route contract scenes. The compiled-route
-	// error fixture and the two malformed-registry files load nothing. (Generated clip-debug
-	// entries and clipLibrary registrations don't count here.)
-	Check(reg.Size() == 24, "authored scene count");
+	// 26 authored scenes load: the prior 22, the two compiled-route contract scenes, the
+	// prop-transform-default scene, and the `atFrame` scene. The compiled-route error fixture and the
+	// two malformed-registry files load nothing. (Generated clip-debug entries and clipLibrary
+	// registrations don't count here.)
+	Check(reg.Size() == 26, "authored scene count");
 
 	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
@@ -218,10 +219,65 @@ int main()
 	} else {
 		Check(false, "test.reg.props loads");
 	}
+	// An attach that omits the local transform is identical to authoring the identity transform,
+	// so authors can drop all three keys.
+	if (const auto s = reg.Find("test.reg.props.defaults")) {
+		if (s->nodes.size() == 1 && s->nodes[0].actions.size() == 1) {
+			const auto& attach = s->nodes[0].actions[0];
+			Check(attach.propAttachment.position == std::array<float, 3>{ 0.0f, 0.0f, 0.0f } &&
+				attach.propAttachment.rotation == std::array<float, 3>{ 0.0f, 0.0f, 0.0f } &&
+				attach.propAttachment.scale == 1.0f,
+				"omitted prop position/rotation/scale default to identity");
+		} else {
+			Check(false, "test.reg.props.defaults keeps its single attach action");
+		}
+	} else {
+		Check(false, "test.reg.props.defaults loads");
+	}
+
+	// -- `atFrame` positions: authored frames, resolved as clip-local seconds ---------------------
+	if (const auto s = reg.Find("test.reg.frames")) {
+		if (s->nodes.size() == 1) {
+			const auto& node = s->nodes[0];
+			Check(node.cues.size() == 3 && node.cues[0].pos == TrackPos::kFraction &&
+				node.cues[0].frame == 0.0f && node.cues[1].frame == 24.0f,
+				"atFrame cues parse as frame-carrying fraction positions");
+			Check(node.cues[2].frame < 0.0f && node.cues[2].fraction == 0.5f,
+				"a fractional cue alongside them keeps frame unset");
+			Check(OSF::Registry::TrackSeconds(node.cues[1]) == 24.0f / OSF::Registry::kFrameRate,
+				"a frame resolves to clip-local seconds at the scene frame rate");
+			Check(OSF::Registry::TrackSeconds(node.cues[2]) < 0.0f,
+				"a fractional entry reports no absolute seconds");
+			// The fraction axis (browser + inspection scrub) needs a duration; 1.6 s = 48 frames.
+			Check(OSF::Registry::TrackFraction(node.cues[1], 1.6f) == 0.5f,
+				"a frame maps onto the fraction axis against the clip length");
+			Check(OSF::Registry::TrackFraction(node.cues[1], 0.0f) == 1.0f &&
+				OSF::Registry::TrackFraction(node.cues[0], 0.0f) == 0.0f,
+				"with no clip length only frame 0 has a knowable place on the fraction axis");
+			Check(node.actions.size() == 1 && node.actions[0].frame == 15.0f,
+				"atFrame parses on the action lane");
+			Check(node.cameras.size() == 1 && node.cameras[0].frame == 9.0f,
+				"atFrame parses on the camera lane");
+			Check(node.sounds.size() == 3 && node.sounds[0].frame == 12.0f &&
+				node.sounds[1].frame == 30.0f &&
+				node.sounds[2].frame < 0.0f && node.sounds[2].fraction == 0.9f,
+				"an atFrame sound ladder expands in frames, and a per-hit `at` opts back into fractions");
+		} else {
+			Check(false, "test.reg.frames desugars to one node");
+		}
+	} else {
+		Check(false, "test.reg.frames loads");
+	}
 
 	// -- compiled route contract: document defaults and stage-local cue/action lanes -------------
 	if (const auto s = reg.Find("test.route.compiled.single")) {
 		Check(s->unlisted && s->inPlace, "compiled route inherits unlisted and inPlace document defaults");
+		Check(!s->playerControl.enabled,
+			"document-level playerControl:false revokes input for a scene that omits its own");
+		Check(s->priority == 3 && s->weight == 7,
+			"scene inherits the file-level matchmaking priority and weight");
+		Check(s->tags.size() == 2 && s->tagSet.contains("route") && s->tagSet.contains("fixture"),
+			"scene with no tags of its own inherits the file-level tags");
 		Check(s->roles.size() == 1 && s->roles[0].name == "player" && s->roles[0].mask == "upperBody",
 			"compiled route inherits the upperBody role mask");
 		Check(s->nodes.size() == 1 && s->linearStages.size() == 1 && s->entry == "#s0",
@@ -295,6 +351,17 @@ int main()
 	if (const auto s = reg.Find("test.route.compiled.two-stage")) {
 		Check(s->unlisted && s->inPlace && s->roles.size() == 1 && s->roles[0].mask == "upperBody",
 			"two-stage route inherits document policy and mask defaults");
+		Check(s->playerControl.enabled &&
+			(s->playerControl.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kSpeed)) == 0 &&
+			(s->playerControl.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kAdvance)) != 0,
+			"scene playerControl re-enables over the document default and narrows capabilities");
+		// File tags come first in author order, the scene's own append, and "Fixture" collapses into
+		// the inherited "fixture" (matchmaking is case-insensitive).
+		Check(s->tags.size() == 3 && s->tags[0] == "route" && s->tags[1] == "fixture" &&
+			s->tags[2] == "two-stage" && s->tagSet.size() == 3,
+			"scene tags union with the file-level tags, de-duplicated case-insensitively");
+		Check(s->priority == 9 && s->weight == 7,
+			"scene priority overrides the file default while weight still inherits");
 		Check(s->nodes.size() == 2 && s->linearStages.size() == 2 &&
 			s->linearStages[0] == "#s0" && s->linearStages[1] == "#s1",
 			"two-stage route desugars in authored order");
@@ -491,7 +558,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 22, "exactly the twenty-two expected diagnostics");
+	Check(errors.size() == 24, "exactly the twenty-four expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -518,6 +585,10 @@ int main()
 		"compiled-route source diagnostic identifies the malformed selector");
 	CheckError(errors, "cue 'route.out-of-range' numeric 'at' must be in [0,1)",
 		"compiled-route cue diagnostic states the fraction range");
+	CheckError(errors, "cue 'half.frame' 'atFrame' must be a whole frame number >= 0",
+		"fractional atFrame diagnostic states the whole-frame contract");
+	CheckError(errors, "cue 'two.clocks' sets both 'at' and 'atFrame'",
+		"a lane entry cannot carry both position keys");
 	CheckError(errors, "'fixture_malformed_def.osf.json': roles registry entry 'bad'", "malformed-definition diagnostic");
 	CheckError(errors, "'fixture_malformed_type.osf.json': file-level 'roles' must be an array", "registry type diagnostic");
 	CheckError(errors, "'fixture_registry_template_errors.osf.json': scene 'test.terr.unknown': role reference 'nope'",
@@ -556,6 +627,65 @@ int main()
 		Check(!scene.Seek(std::numeric_limits<float>::quiet_NaN()), "scene seek rejects non-finite time");
 	}
 
+	// -- absolute (frame-authored) marks vs. fractional ones ------------------------------------
+	{
+		// The same mark pair on two clips of different lengths: the frame mark (0.5 s = frame 15 at
+		// 30 fps) holds its wall position, the fractional one slides with the clip.
+		const auto firedTimes = [](float a_duration) {
+			OSF::Animation::Scene scene;
+			OSF::Animation::Scene::StageData stage;
+			stage.duration = a_duration;
+			stage.marks.push_back({ .seconds = 0.5f, .lane = 0, .token = "frame" });
+			stage.marks.push_back({ .fraction = 0.5f, .lane = 1, .token = "half" });
+			scene.stages.push_back(std::move(stage));
+			(void)scene.SetStage(0);
+			int owner = 0;
+			std::vector<std::pair<std::string, float>> hits;
+			std::vector<OSF::Animation::FiredMark> fired;
+			for (float t = 0.0f; t < a_duration; t += 0.05f) {
+				(void)scene.Advance(&owner, 0.05f);
+				scene.DrainFiredMarks(fired);
+				for (const auto& f : fired) {
+					hits.emplace_back(f.token, t + 0.05f);
+				}
+			}
+			return hits;
+		};
+		const auto shortClip = firedTimes(1.0f);   // frame 15 = halfway
+		const auto longClip = firedTimes(2.0f);    // frame 15 = a quarter in
+		const auto at = [](const auto& a_hits, std::string_view a_token) {
+			for (const auto& h : a_hits) {
+				if (h.first == a_token) {
+					return h.second;
+				}
+			}
+			return -1.0f;
+		};
+		Check(std::abs(at(shortClip, "frame") - 0.5f) < 0.051f &&
+			std::abs(at(longClip, "frame") - 0.5f) < 0.051f,
+			"an absolute mark fires at its authored clip time whatever the clip's length");
+		Check(std::abs(at(shortClip, "half") - 0.5f) < 0.051f &&
+			std::abs(at(longClip, "half") - 1.0f) < 0.051f,
+			"a fractional mark still scales with the clip's length");
+
+		// A frame past the clip end has nowhere to land and never fires (documented, not an error).
+		OSF::Animation::Scene late;
+		OSF::Animation::Scene::StageData stage;
+		stage.duration = 1.0f;
+		stage.marks.push_back({ .seconds = 4.0f, .everyLoop = true, .lane = 0, .token = "past-end" });
+		late.stages.push_back(std::move(stage));
+		(void)late.SetStage(0);
+		int owner = 0;
+		std::size_t lateHits = 0;
+		std::vector<OSF::Animation::FiredMark> fired;
+		for (int i = 0; i < 40; i++) {  // two full loops of the clip
+			(void)late.Advance(&owner, 0.05f);
+			late.DrainFiredMarks(fired);
+			lateHits += fired.size();
+		}
+		Check(lateHits == 0, "a mark past the clip end never fires");
+	}
+
 	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
 	{
 		const auto files = reg.FileStats();
@@ -585,7 +715,7 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 24, "per-file scene counts sum to the authored total");
+		Check(accepted == 26, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
@@ -613,11 +743,11 @@ int main()
 		Check(malformed && malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(), "rejected files carry structured repair guidance");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
-		// Partial file: some scenes in, ten rejected, so it is NOT "rejected".
+		// Partial file: some scenes in, twelve rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 10,
+		Check(partial && partial->scenes == 1 && partial->errors == 12,
 			"a partially-loaded file reports both its scenes and its rejected ones");
-		Check(partial && partial->declaredScenes == 11 && partial->rejectedScenes == 10,
+		Check(partial && partial->declaredScenes == 13 && partial->rejectedScenes == 12,
 			"partial files report exact authored and rejected scene counts");
 		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
 			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");

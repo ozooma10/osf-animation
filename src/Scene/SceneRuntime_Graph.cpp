@@ -31,8 +31,9 @@ namespace OSF::Scene
 		constexpr std::uint8_t kLaneSound = 2;
 		constexpr std::uint8_t kLaneCue = 3;
 
-		// Schedule a node's timed-track entries (numeric `at` -> a fraction mark; `end` -> an end mark) onto a_marks as opaque lane+token marks.
+		// Schedule a node's timed-track entries (numeric `at`/`atFrame` -> a timeline mark; `end` -> an end mark) onto a_marks as opaque lane+token marks.
 		// a_token maps an entry + its list index to the mark token.
+		// An `atFrame` entry rides the mark's absolute `seconds` (frame / kFrameRate) instead of a fraction, so it lands on the authored frame whatever the clip's length.
 		// Lifecycle enter/exit entries carry other pos values and are skipped here (they're fired directly by the lifecycle dispatch, not via the timeline).
 		template <class Entry, class Pos, class TokenFn>
 		void ScheduleMarks(std::vector<Animation::TimedMark>& a_marks, const std::vector<Entry>& a_entries,
@@ -41,9 +42,10 @@ namespace OSF::Scene
 			for (std::size_t i = 0; i < a_entries.size(); i++) {
 				const auto& e = a_entries[i];
 				if (e.pos == a_fractionPos) {
-					a_marks.push_back({ e.fraction, e.everyLoop, false, a_lane, a_token(e, i) });
+					a_marks.push_back({ .fraction = e.fraction, .seconds = Registry::TrackSeconds(e),
+						.everyLoop = e.everyLoop, .atEnd = false, .lane = a_lane, .token = a_token(e, i) });
 				} else if (e.pos == a_endPos) {
-					a_marks.push_back({ 0.0f, false, true, a_lane, a_token(e, i) });
+					a_marks.push_back({ .atEnd = true, .lane = a_lane, .token = a_token(e, i) });
 				}
 			}
 		}
