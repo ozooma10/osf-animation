@@ -64,11 +64,12 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 26 authored scenes load: the prior 22, the two compiled-route contract scenes, the
-	// prop-transform-default scene, and the `atFrame` scene. The compiled-route error fixture and the
-	// two malformed-registry files load nothing. (Generated clip-debug entries and clipLibrary
-	// registrations don't count here.)
-	Check(reg.Size() == 26, "authored scene count");
+	// 33 authored scenes load: the prior 22, the two compiled-route contract scenes, the
+	// prop-transform-default scene, the `atFrame` scene, the five props-registry scenes, the bare
+	// props file, and the one surviving scene of the props reference-error fixture. The
+	// compiled-route error fixture and the four malformed-registry files load nothing. (Generated
+	// clip-debug entries and clipLibrary registrations don't count here.)
+	Check(reg.Size() == 33, "authored scene count");
 
 	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
@@ -233,6 +234,84 @@ int main()
 		}
 	} else {
 		Check(false, "test.reg.props.defaults loads");
+	}
+
+	// -- file-level `props` registry: templates desugar at load, inline keys keep the last word ----
+	// The registry is a pure parse-time desugar, so every assertion below reads the SAME
+	// propSource/propAttachment fields an inline attach produces — nothing downstream can tell.
+	const auto firstAttach = [&](const char* a_scene) -> const OSF::Registry::ActionEntry* {
+		const auto s = reg.Find(a_scene);
+		if (!s || s->nodes.size() != 1 || s->nodes[0].actions.empty()) {
+			return nullptr;
+		}
+		return &s->nodes[0].actions[0];
+	};
+
+	if (const auto* attach = firstAttach("test.props.ref")) {
+		Check(attach->prop == "helmet" && attach->kind == ActionKind::kPropAttach &&
+			attach->propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
+			attach->propSource.keywords.size() == 2 &&
+			attach->propSource.keywords[0] == "ArmorTypeSpacesuitHelmet",
+			"a bare 'prop' id resolves its file-level template's source");
+		Check(attach->propAttachment.node == "R_AnimObject1" &&
+			attach->propAttachment.rotation[1] == -90.0f &&
+			attach->propAttachment.scale == 0.75f,
+			"a template supplies node and transform the action never authored");
+		const auto s = reg.Find("test.props.ref");
+		Check(s->nodes[0].actions.size() == 2 &&
+			s->nodes[0].actions[1].kind == ActionKind::kPropDestroy &&
+			s->nodes[0].actions[1].prop == "helmet",
+			"destroy still addresses the scene-local id, untouched by the registry");
+	} else {
+		Check(false, "test.props.ref loads with its attach");
+	}
+
+	if (const auto* attach = firstAttach("test.props.use")) {
+		// `prop` stays the RUNTIME id; `use` only picks which definition to copy.
+		Check(attach->prop == "helmet_l" && attach->propAttachment.node == "L_AnimObject1",
+			"'use' names the template while 'prop' remains the runtime id");
+		Check(attach->propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
+			attach->propAttachment.scale == 0.75f,
+			"a 'use' reference inherits every key it does not override");
+	} else {
+		Check(false, "test.props.use loads with its attach");
+	}
+
+	// The deep-merge regression: an inline `source` must REPLACE the template's selector outright.
+	// A key-by-key merge would leave both `form` and `equippedArmor` set and fail to parse.
+	if (const auto* attach = firstAttach("test.props.source")) {
+		Check(attach->propSource.kind == OSF::Props::SourceKind::kForm &&
+			attach->propSource.form == "Fixture.esm|0x801" &&
+			attach->propSource.keywords.empty(),
+			"an inline source replaces the inherited selector whole");
+		Check(attach->propAttachment.node == "R_AnimObject1",
+			"overriding source still inherits the template's other keys");
+	} else {
+		Check(false, "test.props.source loads with its attach");
+	}
+
+	if (const auto* attach = firstAttach("test.props.partial")) {
+		Check(attach->propSource.kind == OSF::Props::SourceKind::kForm &&
+			attach->propAttachment.node == "R_Wrist" && attach->propAttachment.scale == 1.0f,
+			"a partial template is completed by the action, validated only once merged");
+	} else {
+		Check(false, "test.props.partial loads with its attach");
+	}
+
+	if (const auto* attach = firstAttach("test.props.inline")) {
+		Check(attach->propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
+			attach->propAttachment.node == "R_Wrist",
+			"a prop id matching no template is an ordinary inline attach");
+	} else {
+		Check(false, "test.props.inline loads with its attach");
+	}
+
+	// A bare single-scene file gets the registry too — unlike `roles`, `props` is not envelope-only.
+	if (const auto* attach = firstAttach("test.props.bare")) {
+		Check(attach->propAttachment.node == "R_AnimObject1" && attach->propAttachment.scale == 0.5f,
+			"a bare single-scene file resolves its own top-level 'props'");
+	} else {
+		Check(false, "test.props.bare loads with its attach");
 	}
 
 	// -- `atFrame` positions: authored frames, resolved as clip-local seconds ---------------------
@@ -553,12 +632,25 @@ int main()
 	} else {
 		Check(false, "test.terr.ok loads");
 	}
+	Check(!reg.Find("test.props.err.use"), "a 'use' naming no prop template rejects its scene");
+	Check(!reg.Find("test.props.err.use-type"), "a non-string 'use' rejects its scene, never silently ignored");
+	Check(!reg.Find("test.props.err.typo"), "a prop id matching neither a template nor an inline source rejects its scene");
+	Check(!reg.Find("test.props.err.use-elsewhere"), "'use' on a non-attach action rejects its scene");
+	Check(!reg.Find("test.props.badtype.never"), "a non-object 'props' rejects its file");
+	Check(!reg.Find("test.props.baddef.never"), "a malformed prop template rejects its file");
+	if (const auto s = reg.Find("test.props.err.ok")) {
+		Check(s->nodes.size() == 1 && s->nodes[0].actions.size() == 1 &&
+			s->nodes[0].actions[0].propAttachment.node == "R_AnimObject1",
+			"prop reference errors reject only their own scene");
+	} else {
+		Check(false, "test.props.err.ok loads");
+	}
 
 	const auto errors = reg.LoadErrors();
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 24, "exactly the twenty-four expected diagnostics");
+	Check(errors.size() == 30, "exactly the thirty expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -596,6 +688,18 @@ int main()
 	CheckError(errors, "scene 'test.terr.empty': a role object's 'id' must be a non-empty string", "empty-id diagnostic");
 	CheckError(errors, "scene 'test.terr.num': a role object's 'id' must be a non-empty string", "non-string-id diagnostic");
 	CheckError(errors, "scene 'test.terr.dup': duplicate role name 'lead'", "duplicate explicit-name diagnostic");
+	CheckError(errors, "action 'osf.prop.attach' prop template 'nope' is not defined in this file's top-level 'props' registry",
+		"dangling prop-template diagnostic mirrors the roles-registry wording");
+	CheckError(errors, "action 'osf.prop.attach' 'use' must be a non-empty string",
+		"non-string 'use' diagnostic states the contract");
+	CheckError(errors, "prop 'helmt' has no inline 'source' and no matching entry",
+		"a typo'd prop id points at the registry instead of just 'requires source'");
+	CheckError(errors, "'use' is only meaningful on 'osf.prop.attach'",
+		"'use' outside an attach names the one action that accepts it");
+	CheckError(errors, "'fixture_props_bad_type.osf.json': 'props' must be an object",
+		"non-object props diagnostic rejects the file by name");
+	CheckError(errors, "'fixture_props_bad_def.osf.json': props template 'helmet' has unknown key 'at'",
+		"malformed-template diagnostic names the file, template, and offending key");
 	CheckError(errors, "duplicate clipLibrary registration for",
 		"duplicate clipLibrary diagnostic names the registered clip");
 	CheckError(errors, "'folder' contains an empty segment",
@@ -689,7 +793,7 @@ int main()
 	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 14, "one import record per discovered *.osf.json");
+		Check(files.size() == 19, "one import record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::SceneFileStats* {
 			for (const auto& f : files) {
@@ -715,7 +819,7 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 26, "per-file scene counts sum to the authored total");
+		Check(accepted == 33, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");

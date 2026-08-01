@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "name": "fixture props bad definition",
+  "props": {
+    // A template holds only source/node/position/rotation/scale. `at` would silently do nothing,
+    // so it is rejected — and a malformed template rejects the WHOLE file.
+    "helmet": {
+      "source": { "equippedArmor": { "keyword": "ArmorTypeHelmet" } },
+      "node": "R_AnimObject1",
+      "at": 0.5
+    }
+  },
+  "scenes": [
+    { "id": "test.props.baddef.never", "clip": "Fixture/x.glb" }
+  ]
+}

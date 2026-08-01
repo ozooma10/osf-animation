@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  // A BARE single-scene file: `props` means the same thing here as in a `scenes` envelope.
+  // (Contrast `roles`, whose top-level array form is this scene's cast.)
+  "id": "test.props.bare",
+  "props": {
+    "helmet": {
+      "source": { "equippedArmor": { "keyword": "ArmorTypeSpacesuitHelmet" } },
+      "node": "R_AnimObject1",
+      "scale": 0.5
+    }
+  },
+  "roles": [{ "name": "player" }],
+  "stages": [{
+    "clips": ["Fixture/x.glb"],
+    "action": [
+      { "at": 0.1, "type": "osf.prop.attach", "role": "player", "prop": "helmet" }
+    ]
+  }]
+}

@@ -73,6 +73,10 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
   de-duplicated case-insensitively) — see § Matchmaking.
 - File-level `anchor` (multi-scene envelope only) is a furniture-anchoring **default** every scene in
   the file inherits unless it declares its own — see § Furniture anchoring.
+- File-level `props` is a **registry** of reusable prop definitions an `osf.prop.attach` inherits
+  from — see § Scene props. Unlike `roles`, it is **also valid on a bare single-scene file** (a bare
+  file's top-level `roles` already means that scene's cast, so it has no room for a registry;
+  `props` has no scene-level meaning to collide with). Declaring `props` on a scene is a load error.
 - File-level `unlisted` holds every scene in the file out of the matchmaking pool by default.
 - File-level `section` accepts exactly one value, `"library"`, which routes the file into the browser's
   ANIMATIONS lane (reference content); it also flips the file's `stripActors` default to **false**
@@ -585,7 +589,7 @@ Every track entry has a **position** (`at` **or** `atFrame`) and optional **repe
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
 | `cue` | `{ "at"\|"atFrame", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
-| `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
+| `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
 | `sound` | `{ "at"\|"atFrame", "spec", "role", "emitter", "repeat" }` — an **array/object** position makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at"\|"atFrame", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
@@ -950,7 +954,7 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 | `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). **All participants are stripped by default** — see *Actor strip*; author these only to override. | ✓ | |
 | `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A copy is added if the actor doesn't own one and **destroyed on cleanup** (no inventory residue); a form the actor already wears is left untouched both ways. | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
-| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/node without cloning it again. | ✓ | `prop`; attach also requires `source` and `node`, with optional `position`, `rotation`, `scale` |
+| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/node without cloning it again. | ✓ | `prop`; attach also requires `source` and `node` — inline or inherited from the file-level `props` registry (`use` names a template) — with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
 | `osf.voice.play` | Play a sound spec on the role's voice channel. If the clip carries subtitle text, the role actor is its speaker (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`); `emitter` (`"listener"` default or `"role"`) |
 
@@ -998,6 +1002,55 @@ exactly equivalent to authoring `[0,0,0]` / `[0,0,0]` / `1`, so an identity atta
 The visual is best-effort: a missing source,
 actor 3D, or attachment node logs the failed action without aborting the animation.
 
+#### Prop registry (file-level `props`)
+
+Repeating a `source` + `node` block on every attach is the common case, so a file may declare its
+props **once** at the top level and let each action name one. The registry is a file-local map of an
+**exact, case-sensitive id** to a prop definition:
+
+```jsonc
+{
+  "schema": 1,
+  "props": {
+    "helmet": {
+      "source": { "equippedArmor": { "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"] } },
+      "node": "R_AnimObject1"
+    }
+  },
+  "scenes": [ /* ... */
+    "action": [
+      { "at": 0.058, "type": "osf.prop.attach", "role": "player", "prop": "helmet" },
+      { "at": 0.798, "type": "osf.prop.destroy", "prop": "helmet" }
+    ]
+  ]
+}
+```
+
+**An attach's `prop` id is itself the lookup key** — the common case needs no reference syntax at
+all. `use: "<id>"` overrides which template to pull, for a second instance of one definition:
+
+```jsonc
+{ "at": 0, "type": "osf.prop.attach", "prop": "helmet_l", "use": "helmet", "node": "L_AnimObject1" }
+```
+
+`prop` stays the runtime id either way — it is what `osf.prop.destroy` addresses and what a
+re-attach matches. Two ids sharing one template are two independent clones.
+
+- **Inline keys win.** Any of `source`, `node`, `position`, `rotation`, `scale` authored on the
+  action overrides the template; the rest are inherited.
+- **`source` is inherited or overridden whole**, never merged key-by-key — so an action may select
+  `{ "form": … }` over an `equippedArmor` template without the two selectors colliding.
+- **Templates may be partial.** A definition carrying only `source` lets each action pick its own
+  `node`. Only the *merged* result must be a complete attachment.
+- A template holds **only** those five keys. Timing (`at`/`atFrame`/`repeat`), `type`, `role` and
+  `prop` are never inheritable, so a template can neither move an action in time nor retarget it;
+  any other key is a load error.
+- A `prop` id matching no template is an ordinary self-contained attach — **files without `props`
+  are entirely unaffected.**
+
+The registry never leaves its file: there are no cross-file references, and a node `use` splices
+only the target's stages, never its action lanes.
+
 ---
 
 ## Validation (at load)
@@ -1009,6 +1062,10 @@ Surfaced in `OSF Animation.log`:
 - A `use` target that is **not a single-node inline-stage scene** is a load error.
 - An authored id containing **`#`** is a load error (reserved for synthetic desugar nodes).
 - A **duplicate id** within the one namespace → first-loaded-wins + a logged warning.
+- A malformed **`props` template** (unknown key, bad `source`/`node`/transform) rejects the **whole
+  file** — a broken shared definition is a pack-level bug, not one scene's.
+- An attach whose **`use` names no template** is a load error for that **scene** only.
+- **`props` on a scene** (rather than at file level) is a load error.
 
 ---
 

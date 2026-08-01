@@ -466,51 +466,52 @@ namespace OSF::Registry
 			}
 		}
 
+		// The prop parsers below take a_subject — the full diagnostic prefix of whatever owns the
+		// keys, e.g. "node 'x': action 'osf.prop.attach'" for an action or "props template 'helmet'"
+		// for a file-level definition — so one set of validators serves both.
 		std::array<float, 3> ParsePropVector(
-			const json& a_action, const char* a_field, const std::string& a_nodeId)
+			const json& a_owner, const char* a_field, const std::string& a_subject)
 		{
 			std::array<float, 3> result{};
-			const auto it = a_action.find(a_field);
-			if (it == a_action.end()) {
+			const auto it = a_owner.find(a_field);
+			if (it == a_owner.end()) {
 				return result;
 			}
 			if (!it->is_array() || it->size() != result.size()) {
-				throw std::runtime_error("node '" + a_nodeId + "': action 'osf.prop.attach' field '" +
+				throw std::runtime_error(a_subject + " field '" +
 					a_field + "' must be an array of exactly three finite numbers");
 			}
 			for (std::size_t i = 0; i < result.size(); ++i) {
 				if (!(*it)[i].is_number()) {
-					throw std::runtime_error("node '" + a_nodeId + "': action 'osf.prop.attach' field '" +
+					throw std::runtime_error(a_subject + " field '" +
 						a_field + "' must be an array of exactly three finite numbers");
 				}
 				result[i] = (*it)[i].get<float>();
 				if (!std::isfinite(result[i])) {
-					throw std::runtime_error("node '" + a_nodeId + "': action 'osf.prop.attach' field '" +
+					throw std::runtime_error(a_subject + " field '" +
 						a_field + "' must contain only finite numbers");
 				}
 			}
 			return result;
 		}
 
-		Props::Source ParsePropSource(const json& a_source, const std::string& a_nodeId)
+		Props::Source ParsePropSource(const json& a_source, const std::string& a_subject)
 		{
 			if (!a_source.is_object()) {
-				throw std::runtime_error("node '" + a_nodeId +
-					"': action 'osf.prop.attach' field 'source' must be an object");
+				throw std::runtime_error(a_subject + " field 'source' must be an object");
 			}
 			const bool hasForm = a_source.contains("form");
 			const bool hasEquipped = a_source.contains("equippedArmor");
 			if (hasForm == hasEquipped) {
-				throw std::runtime_error("node '" + a_nodeId +
-					"': action 'osf.prop.attach' source must contain exactly one of 'form' or 'equippedArmor'");
+				throw std::runtime_error(a_subject +
+					" source must contain exactly one of 'form' or 'equippedArmor'");
 			}
 
 			Props::Source result;
 			if (hasForm) {
 				const auto& form = a_source.at("form");
 				if (!form.is_string() || form.get<std::string>().empty()) {
-					throw std::runtime_error("node '" + a_nodeId +
-						"': action 'osf.prop.attach' source.form must be a non-empty form ref");
+					throw std::runtime_error(a_subject + " source.form must be a non-empty form ref");
 				}
 				result.kind = Props::SourceKind::kForm;
 				result.form = form.get<std::string>();
@@ -519,14 +520,13 @@ namespace OSF::Registry
 
 			const auto& equipped = a_source.at("equippedArmor");
 			if (!equipped.is_object() || !equipped.contains("keyword")) {
-				throw std::runtime_error("node '" + a_nodeId +
-					"': action 'osf.prop.attach' source.equippedArmor requires 'keyword'");
+				throw std::runtime_error(a_subject + " source.equippedArmor requires 'keyword'");
 			}
 			const auto& keyword = equipped.at("keyword");
 			const auto append = [&](const json& a_value) {
 				if (!a_value.is_string() || a_value.get<std::string>().empty()) {
-					throw std::runtime_error("node '" + a_nodeId +
-						"': action 'osf.prop.attach' equippedArmor.keyword entries must be non-empty strings");
+					throw std::runtime_error(a_subject +
+						" equippedArmor.keyword entries must be non-empty strings");
 				}
 				result.keywords.push_back(a_value.get<std::string>());
 			};
@@ -537,40 +537,153 @@ namespace OSF::Registry
 					append(entry);
 				}
 			} else {
-				throw std::runtime_error("node '" + a_nodeId +
-					"': action 'osf.prop.attach' source.equippedArmor.keyword must be a string or array");
+				throw std::runtime_error(a_subject +
+					" source.equippedArmor.keyword must be a string or array");
 			}
 			if (result.keywords.empty()) {
-				throw std::runtime_error("node '" + a_nodeId +
-					"': action 'osf.prop.attach' source.equippedArmor.keyword cannot be empty");
+				throw std::runtime_error(a_subject + " source.equippedArmor.keyword cannot be empty");
 			}
 			result.kind = Props::SourceKind::kEquippedArmor;
 			return result;
 		}
 
+		// Split out of ParsePropAttachment so a file-level `props` template can validate its own
+		// `scale` without carrying the `node` that only a complete attachment needs.
+		float ParsePropScale(const json& a_owner, const std::string& a_subject)
+		{
+			const float scale = a_owner.value("scale", 1.0f);
+			if (!std::isfinite(scale) || scale <= 0.0f || scale > 10.0f) {
+				throw std::runtime_error(a_subject + " scale must be finite and in (0,10]");
+			}
+			return scale;
+		}
+
 		Props::Attachment ParsePropAttachment(
-			const json& a_action, const std::string& a_nodeId)
+			const json& a_owner, const std::string& a_subject)
 		{
 			Props::Attachment result;
-			const auto node = a_action.find("node");
-			if (node == a_action.end() || !node->is_string() ||
+			const auto node = a_owner.find("node");
+			if (node == a_owner.end() || !node->is_string() ||
 				node->get<std::string>().empty()) {
-				throw std::runtime_error("node '" + a_nodeId +
-					"': action 'osf.prop.attach' requires a non-empty 'node'");
+				throw std::runtime_error(a_subject + " requires a non-empty 'node'");
 			}
 			result.node = node->get<std::string>();
-			result.position = ParsePropVector(a_action, "position", a_nodeId);
-			result.rotation = ParsePropVector(a_action, "rotation", a_nodeId);
-			result.scale = a_action.value("scale", 1.0f);
-			if (!std::isfinite(result.scale) || result.scale <= 0.0f ||
-				result.scale > 10.0f) {
-				throw std::runtime_error("node '" + a_nodeId +
-					"': action 'osf.prop.attach' scale must be finite and in (0,10]");
-			}
+			result.position = ParsePropVector(a_owner, "position", a_subject);
+			result.rotation = ParsePropVector(a_owner, "rotation", a_subject);
+			result.scale = ParsePropScale(a_owner, a_subject);
 			return result;
 		}
 
-		void ParseActionTrack(const json& a_entries, SceneNode& a_node_out)
+		// The prop keys a `props` template may supply, and that an action may override. Deliberately a
+		// STRICT SUBSET of an action's keys: timing (`at`/`atFrame`/`repeat`), dispatch (`type`) and
+		// identity (`prop`, `role`) are never inheritable, so a template can neither move an action in
+		// time nor retarget it.
+		constexpr std::array<const char*, 5> kPropTemplateKeys{ "source", "node", "position", "rotation", "scale" };
+
+		// Validate ONE file-level `props` definition. A template is deliberately allowed to be
+		// PARTIAL — source-only, node-only — so only the keys it actually carries are checked here;
+		// completeness is enforced on the MERGED action, the only place it can be known.
+		//
+		// Unknown keys ARE rejected: because the template namespace is that strict subset, a stray
+		// "at" or "role" would otherwise sit in the file doing exactly nothing.
+		void ValidatePropTemplate(const json& a_templ, const std::string& a_subject)
+		{
+			for (const auto& [key, value] : a_templ.items()) {
+				if (std::find(kPropTemplateKeys.begin(), kPropTemplateKeys.end(), key) ==
+					kPropTemplateKeys.end()) {
+					throw std::runtime_error(a_subject + " has unknown key '" + key +
+						"' (a prop template holds only 'source', 'node', 'position', 'rotation', 'scale')");
+				}
+			}
+			if (const auto it = a_templ.find("source"); it != a_templ.end()) {
+				(void)ParsePropSource(*it, a_subject);
+			}
+			if (const auto it = a_templ.find("node"); it != a_templ.end()) {
+				if (!it->is_string() || it->get_ref<const std::string&>().empty()) {
+					throw std::runtime_error(a_subject + " 'node' must be a non-empty string");
+				}
+			}
+			(void)ParsePropVector(a_templ, "position", a_subject);  // absent = no-op
+			(void)ParsePropVector(a_templ, "rotation", a_subject);
+			(void)ParsePropScale(a_templ, a_subject);
+		}
+
+		// Every id a `props` registry defines, for a "you probably meant one of these" diagnostic.
+		std::string DescribePropRegistry(const PropRegistry& a_props)
+		{
+			if (a_props.empty()) {
+				return "this file's top-level 'props' registry is empty";
+			}
+			constexpr std::size_t kMaxListed = 8;
+			std::string listed = "defined: ";
+			std::size_t shown = 0;
+			for (const auto& [id, templ] : a_props) {
+				if (shown == kMaxListed) {
+					listed += ", ...";
+					break;
+				}
+				if (shown++ != 0) {
+					listed += ", ";
+				}
+				listed += "'" + id + "'";
+			}
+			return listed;
+		}
+
+		// Resolve an `osf.prop.attach` entry against the file's `props` registry. The template is
+		// named by `use` when present, else by the action's own `prop` id — so the common case
+		// ({ "prop": "helmet" }) needs no reference syntax at all.
+		//
+		// Returns a REFERENCE to whichever object the attach keys should be read from: the action
+		// itself when no template applies, so a file without `props` copies nothing and behaves
+		// exactly as it always has. Otherwise the merge lands in a_merged_out and that is returned.
+		//
+		// Merging is SHALLOW and key-level — a key the action authors wins outright, otherwise the
+		// template supplies it. Notably `source` is inherited or overridden WHOLE, never deep-merged:
+		// it is exactly-one-of `form`/`equippedArmor`, so a deep merge of a `form` override onto an
+		// `equippedArmor` template would yield an object carrying BOTH and trip ParsePropSource with
+		// an error blaming a `source` the author never wrote.
+		//
+		// Nothing is validated here. A partial template that merges to an incomplete attachment still
+		// lands on the ordinary ParsePropSource/ParsePropAttachment errors, naming the same node.
+		const json& ResolvePropAttach(const json& a_action, const PropRegistry& a_props,
+			const std::string& a_prop, const std::string& a_subject, json& a_merged_out)
+		{
+			const auto useIt = a_action.find("use");
+			const bool hasUse = useIt != a_action.end();
+			// Deliberately NOT as lenient as a node's `use` (which treats a non-string as absent):
+			// a silently-dropped template reference is the failure mode this feature exists to kill.
+			if (hasUse && (!useIt->is_string() || useIt->get_ref<const std::string&>().empty())) {
+				throw std::runtime_error(a_subject +
+					" 'use' must be a non-empty string naming a top-level 'props' definition");
+			}
+			const std::string& templateId = hasUse ? useIt->get_ref<const std::string&>() : a_prop;
+
+			const auto templ = a_props.find(templateId);  // exact, case-sensitive — as the roles registry
+			if (templ == a_props.end()) {
+				if (hasUse) {
+					throw std::runtime_error(a_subject + " prop template '" + templateId +
+						"' is not defined in this file's top-level 'props' registry (" +
+						DescribePropRegistry(a_props) + ")");
+				}
+				// A bare `prop` matching no template is an ordinary fully-inline attach, judged by
+				// the caller's existing "requires 'source'".
+				return a_action;
+			}
+
+			a_merged_out = a_action;
+			for (const char* const key : kPropTemplateKeys) {
+				if (a_merged_out.contains(key)) {
+					continue;  // authored inline: the action wins
+				}
+				if (const auto it = templ->second.find(key); it != templ->second.end()) {
+					a_merged_out[key] = *it;
+				}
+			}
+			return a_merged_out;
+		}
+
+		void ParseActionTrack(const json& a_entries, SceneNode& a_node_out, const PropRegistry& a_props)
 		{
 			if (!a_entries.is_array()) {
 				throw std::runtime_error("node '" + a_node_out.id + "': 'action' track must be an array");
@@ -614,12 +727,30 @@ namespace OSF::Registry
 							ae.type + "' requires a non-empty 'prop'");
 					}
 					if (ae.kind == ActionKind::kPropAttach) {
-						const auto source = a.find("source");
-						if (source == a.end()) {
-							throw std::runtime_error("node '" + a_node_out.id + "': action 'osf.prop.attach' requires 'source'");
+						// Fill anything the action left out from the file's `props` template of the same
+						// id (or the one `use` names), then validate the MERGED entry exactly as before —
+						// so every pre-existing diagnostic still fires, word for word.
+						const std::string subject = "node '" + a_node_out.id + "': action 'osf.prop.attach'";
+						json merged;  // populated only when a template actually applies
+						const json& attach = ResolvePropAttach(a, a_props, ae.prop, subject, merged);
+						const auto source = attach.find("source");
+						if (source == attach.end()) {
+							// With no registry in play this is the plain old "you forgot source". With one,
+							// the likeliest cause is a typo'd `prop` id, so name that possibility.
+							if (a_props.empty()) {
+								throw std::runtime_error(subject + " requires 'source'");
+							}
+							throw std::runtime_error(subject + " prop '" + ae.prop +
+								"' has no inline 'source' and no matching entry in this file's top-level "
+								"'props' registry (" + DescribePropRegistry(a_props) + ")");
 						}
-						ae.propSource = ParsePropSource(*source, a_node_out.id);
-						ae.propAttachment = ParsePropAttachment(a, a_node_out.id);
+						ae.propSource = ParsePropSource(*source, subject);
+						ae.propAttachment = ParsePropAttachment(attach, subject);
+					} else if (a.contains("use")) {
+						// `use` is only a prop-template reference. Silently ignoring it elsewhere would
+						// hide a mistyped `type` — the very failure this feature exists to remove.
+						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type +
+							"': 'use' is only meaningful on 'osf.prop.attach'");
 					}
 				} else if (a.value("required", false)) {
 					// Custom actions are best-effort notifications; `required` is reserved.
@@ -1238,7 +1369,8 @@ namespace OSF::Registry
 		// participant count: when a_fixed it is authoritative (every stage must match it); else the
 		// first stage's clip count sets it.
 		std::vector<StageDef> ParseOsfStageList(const json& a_stages, const std::string& a_subject,
-			size_t& a_ioActorCount, bool a_fixed, std::string_view a_clipRoot, bool a_allowStageLanes = true)
+			size_t& a_ioActorCount, bool a_fixed, std::string_view a_clipRoot, const PropRegistry& a_props,
+			bool a_allowStageLanes = true)
 		{
 			if (!a_stages.is_array() || a_stages.empty()) {
 				throw std::runtime_error(a_subject + ": 'stages' must be a non-empty array");
@@ -1292,7 +1424,7 @@ namespace OSF::Registry
 							ParseOsfCueLane(*it, scratch);
 						}
 						if (auto it = jStage.find("action"); it != jStage.end()) {
-							ParseActionTrack(*it, scratch);
+							ParseActionTrack(*it, scratch, a_props);
 						}
 						if (auto it = jStage.find("sound"); it != jStage.end()) {
 							ParseSoundTrack(*it, scratch);
@@ -1354,7 +1486,7 @@ namespace OSF::Registry
 
 		// A unified graph node: `use` XOR inline `stages`, optional loop policy, edges, and the four
 		// node-level track lanes (cue/action/sound/camera, flat — not nested under a `tracks` block).
-		SceneNode ParseOsfNode(const json& a_node, std::vector<std::string>& a_warnings, const std::string& a_sceneId, std::string_view a_clipRoot)
+		SceneNode ParseOsfNode(const json& a_node, std::vector<std::string>& a_warnings, const std::string& a_sceneId, std::string_view a_clipRoot, const PropRegistry& a_props)
 		{
 			SceneNode n;
 			n.id = a_node.value("id", std::string{});
@@ -1377,7 +1509,7 @@ namespace OSF::Registry
 			} else {
 				size_t ac = 0;
 				n.stages = ParseOsfStageList(a_node.at("stages"), "node '" + n.id + "'", ac, /*a_fixed*/ false, a_clipRoot,
-					/*a_allowStageLanes*/ false);
+					a_props, /*a_allowStageLanes*/ false);
 			}
 
 			// Node loop policy — one `loops` int, identical to a linear stage:
@@ -1442,7 +1574,7 @@ namespace OSF::Registry
 				ParseOsfCueLane(*it, n);
 			}
 			if (auto it = a_node.find("action"); it != a_node.end()) {
-				ParseActionTrack(*it, n);
+				ParseActionTrack(*it, n, a_props);
 			}
 			if (auto it = a_node.find("sound"); it != a_node.end()) {
 				ParseSoundTrack(*it, n);
@@ -1659,10 +1791,13 @@ namespace OSF::Registry
 		// Parse one unified scene. a_defaults holds the file-level policy/catalog defaults;
 		// a_packRoles are the ARRAY form of the file-level `roles` (inherited by a scene that omits its own);
 		// a_roleRegistry is the OBJECT form (id -> reusable template a scene's `roles` references by id string
-		// or { "id", ...overrides } object); a_anchorDefault is the file-level `anchor` (likewise inherited).
+		// or { "id", ...overrides } object); a_propRegistry is the file-level `props` (id -> reusable
+		// prop template an `osf.prop.attach` inherits from); a_anchorDefault is the file-level `anchor`
+		// (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings,
 			const PackDefaults& a_defaults, std::optional<CameraState> a_cameraDefault,
 			const std::vector<SceneRole>& a_packRoles, const RoleRegistry& a_roleRegistry,
+			const PropRegistry& a_propRegistry,
 			std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
@@ -1763,7 +1898,7 @@ namespace OSF::Registry
 				}
 				std::unordered_set<std::string> nodeIds;
 				for (const auto& jNode : jNodes) {
-					auto nd = ParseOsfNode(jNode, a_warnings, def.id, clipRoot);
+					auto nd = ParseOsfNode(jNode, a_warnings, def.id, clipRoot, a_propRegistry);
 					if (!nodeIds.insert(ToLower(nd.id)).second) {
 						throw std::runtime_error("scene '" + def.id + "': duplicate node id '" + nd.id + "'");
 					}
@@ -1811,7 +1946,7 @@ namespace OSF::Registry
 					actorCount = 1;
 					stages.push_back(std::move(st));
 				} else {
-					stages = ParseOsfStageList(a_json.at("stages"), "scene '" + def.id + "'", actorCount, rolesGiven, clipRoot);
+					stages = ParseOsfStageList(a_json.at("stages"), "scene '" + def.id + "'", actorCount, rolesGiven, clipRoot, a_propRegistry);
 				}
 				if (!rolesGiven) {
 					def.roles.assign(actorCount, SceneRole{});  // synthesize anonymous slots
@@ -2057,7 +2192,43 @@ namespace OSF::Registry
 			std::vector<const json*> sceneJsons;
 			std::vector<SceneRole>   packRoles;
 			RoleRegistry             roleRegistry;  // multi-scene envelope, object-form `roles` only
+			PropRegistry             propRegistry;  // file-level `props`, BOTH file shapes (see below)
 			AnchorReq                packAnchor;    // file-level `anchor` default (multi-scene envelope only)
+
+			// File-local prop templates, parsed BEFORE the envelope/bare split so `props` means the same
+			// thing in either file shape. (`roles` is envelope-only because a bare file's top-level
+			// `roles` already means "this scene's cast", and the object form is loudly rejected there.
+			// `props` has no scene-level meaning to collide with, so the restriction would buy nothing
+			// and would silently drop the block in a bare file — exactly the failure this feature exists
+			// to remove.) Every template is validated NOW: a malformed one rejects the WHOLE file, as
+			// with the roles registry, because a broken shared definition is a pack-level authoring bug,
+			// not one scene's problem.
+			if (auto pit = a_json.find("props"); pit != a_json.end()) {
+				if (!pit->is_object()) {
+					rejectFile("'" + fileName + "': 'props' must be an object of prop templates keyed by id");
+					return;
+				}
+				if (pit->size() > kMaxPropsPerFile) {
+					rejectFile("'" + fileName + "': file-level props exceed the " +
+						std::to_string(kMaxPropsPerFile) + "-entry limit");
+					return;
+				}
+				for (const auto& [propId, propJson] : pit->items()) {
+					if (propId.empty() || !propJson.is_object()) {
+						rejectFile("'" + fileName + "': props registry entry '" + propId +
+							"': definitions must be prop objects keyed by a non-empty id");
+						return;
+					}
+					try {
+						ValidatePropTemplate(propJson, "props template '" + propId + "'");
+					} catch (const std::exception& e) {
+						rejectFile("'" + fileName + "': " + std::string(e.what()));
+						return;
+					}
+					propRegistry.emplace(propId, propJson);
+				}
+			}
+
 			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
 				if (!sit->is_array()) {
 					rejectFile("'" + fileName + "': 'scenes' must be an array");
@@ -2120,6 +2291,14 @@ namespace OSF::Registry
 					}
 				}
 				for (const auto& s : *sit) {
+					// `props` is file-level only. Unknown keys are otherwise ignored throughout this
+					// parser, but a silently-dropped scene-level registry would leave every attach in
+					// that scene failing on a missing `source` — so say so instead.
+					if (s.is_object() && s.contains("props")) {
+						rejectFile("'" + fileName + "': scene '" + s.value("id", std::string{}) +
+							"': 'props' is a file-level registry — move it beside 'scenes'");
+						return;
+					}
 					sceneJsons.push_back(&s);
 				}
 			} else if (a_json.contains("id")) {
@@ -2151,7 +2330,7 @@ namespace OSF::Registry
 				                               : std::string{};
 				try {
 					auto def = ParseOsfScene(*sj, warnings, packDefaults, cameraDefault,
-						packRoles, roleRegistry, packClipRoot, packAnchor);
+						packRoles, roleRegistry, propRegistry, packClipRoot, packAnchor);
 					if (def.nodes.size() > kMaxNodesPerScene) {
 						throw std::runtime_error("scene '" + def.id + "': too many nodes");
 					}
