@@ -45,7 +45,10 @@ namespace
 int main()
 {
 	using OSF::Registry::SceneRegistry;
+	using OSF::Registry::ActionKind;
+	using OSF::Registry::LoopMode;
 	using OSF::Registry::SlotGender;
+	using OSF::Registry::TrackPos;
 	using OSF::Animation::PoseMode;
 
 	// xmake runs this target with test/fixtures as cwd, so LoadAll sees Data/OSF.
@@ -59,10 +62,10 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 22 authored scenes load: bare(1) + legacy(2) + registry(5) + errors(1 of 10) + templates(11) +
-	// template-errors(1 of 5); the two malformed-registry files load nothing. (Generated clip-debug
+	// 24 authored scenes load: the prior 22 plus the two compiled-route contract scenes. The compiled-route
+	// error fixture and the two malformed-registry files load nothing. (Generated clip-debug
 	// entries and clipLibrary registrations don't count here.)
-	Check(reg.Size() == 22, "authored scene count");
+	Check(reg.Size() == 24, "authored scene count");
 
 	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
@@ -201,6 +204,94 @@ int main()
 		}
 	} else {
 		Check(false, "test.reg.props loads");
+	}
+
+	// -- compiled route contract: document defaults and stage-local cue/action lanes -------------
+	if (const auto s = reg.Find("test.route.compiled.single")) {
+		Check(s->unlisted && s->inPlace, "compiled route inherits unlisted and inPlace document defaults");
+		Check(s->roles.size() == 1 && s->roles[0].name == "player" && s->roles[0].mask == "upperBody",
+			"compiled route inherits the upperBody role mask");
+		Check(s->nodes.size() == 1 && s->linearStages.size() == 1 && s->entry == "#s0",
+			"single-stage route desugars to one linear node");
+		if (s->nodes.size() == 1) {
+			const auto& node = s->nodes[0];
+			Check(node.cameras.empty(), "camera:none suppresses the document camera default");
+			Check(node.loopMode == LoopMode::kCount && node.loopCount == 1,
+				"compiled single stage keeps loops:1");
+			Check(node.stages.size() == 1 && node.stages[0].loops == 1 &&
+				node.stages[0].clips.size() == 1 &&
+				node.stages[0].clips[0].file == "Fixture/Route/single.glb",
+				"compiled single-stage clip and loop policy parse");
+			Check(node.cues.size() == 3 && node.stages[0].cues.size() == 3,
+				"compiled stage cue lane is retained and forwarded to its node");
+			if (node.cues.size() == 3) {
+				Check(node.cues[0].id == "route.start" && node.cues[0].pos == TrackPos::kFraction &&
+					node.cues[0].fraction == 0.0f &&
+					node.cues[1].id == "route.source.hidden" && node.cues[1].fraction == 0.375f &&
+					node.cues[2].id == "route.end" && node.cues[2].pos == TrackPos::kEnd,
+					"compiled numeric and named cue positions parse");
+			}
+			Check(node.actions.size() == 2 && node.stages[0].actions.size() == 2,
+				"compiled stage action lane is retained and forwarded to its node");
+			if (node.actions.size() == 2) {
+				const auto& attach = node.actions[0];
+				const auto& destroy = node.actions[1];
+				Check(attach.kind == ActionKind::kPropAttach && attach.pos == TrackPos::kFraction &&
+					attach.fraction == 0.25f && attach.role == "player" && attach.prop == "helmet",
+					"compiled prop attach identity and timing parse");
+				Check(attach.propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
+					attach.propSource.keywords.size() == 2 &&
+					attach.propSource.keywords[0] == "ArmorTypeSpacesuitHelmet" &&
+					attach.propSource.keywords[1] == "ArmorTypeHelmet",
+					"compiled equipped-armor source parses");
+				Check(attach.propAttachment.node == "R_AnimObject1" &&
+					attach.propAttachment.position[0] == 1.25f &&
+					attach.propAttachment.position[1] == -2.5f &&
+					attach.propAttachment.position[2] == 3.75f &&
+					attach.propAttachment.rotation[0] == 10.0f &&
+					attach.propAttachment.rotation[1] == -20.0f &&
+					attach.propAttachment.rotation[2] == 30.0f &&
+					attach.propAttachment.scale == 0.875f,
+					"compiled prop node, three-component transforms, and scale parse");
+				Check(destroy.kind == ActionKind::kPropDestroy && destroy.pos == TrackPos::kFraction &&
+					destroy.fraction == 0.75f && destroy.prop == "helmet",
+					"compiled prop destroy identity and timing parse");
+			}
+			const auto plan = reg.BuildNodePlan(s, node, 1);
+			Check(plan && !plan->anchored && plan->masks.size() == 1 && plan->masks[0] == "upperBody",
+				"compiled route builds an in-place upperBody scene plan");
+		}
+	} else {
+		Check(false, "test.route.compiled.single loads");
+	}
+	if (const auto s = reg.Find("test.route.compiled.two-stage")) {
+		Check(s->unlisted && s->inPlace && s->roles.size() == 1 && s->roles[0].mask == "upperBody",
+			"two-stage route inherits document policy and mask defaults");
+		Check(s->nodes.size() == 2 && s->linearStages.size() == 2 &&
+			s->linearStages[0] == "#s0" && s->linearStages[1] == "#s1",
+			"two-stage route desugars in authored order");
+		const auto* first = s->FindNode("#s0");
+		const auto* second = s->FindNode("#s1");
+		Check(first && second, "two-stage route exposes both synthetic nodes");
+		if (first && second) {
+			Check(first->loopMode == LoopMode::kCount && first->loopCount == 1 &&
+				second->loopMode == LoopMode::kCount && second->loopCount == 1,
+				"both compiled route stages preserve loops:1");
+			Check(first->stages.size() == 1 && first->stages[0].clips[0].file == "Fixture/Route/handoff.glb" &&
+				second->stages.size() == 1 && second->stages[0].clips[0].file == "Fixture/Route/hold.glb",
+				"two-stage route clip order parses");
+			Check(first->actions.size() == 1 && first->actions[0].kind == ActionKind::kPropAttach,
+				"carry-forward stage omits a destroy before the next stage");
+			Check(second->cues.size() == 1 && second->stages[0].cues.size() == 1 &&
+				second->cues[0].id == "route.station.entered" && second->cues[0].pos == TrackPos::kEnter,
+				"stage-two enter cue is retained and forwarded");
+			Check(second->actions.size() == 2 && second->stages[0].actions.size() == 2 &&
+				second->actions[0].kind == ActionKind::kPropAttach &&
+				second->actions[0].pos == TrackPos::kFraction && second->actions[0].fraction == 0.0f,
+				"stage-two numeric-zero prop reattach is retained and forwarded");
+		}
+	} else {
+		Check(false, "test.route.compiled.two-stage loads");
 	}
 	if (const auto s = reg.Find("test.err.ok")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "f", "one bad scene does not reject its file's other scenes");
@@ -350,6 +441,10 @@ int main()
 	Check(!reg.Find("test.err.mask"), "unknown mask rejects its scene");
 	Check(!reg.Find("test.err.mask-type"), "wrong-type mask rejects its scene");
 	Check(!reg.Find("test.err.clear-held-type"), "wrong-type clearHeldItems rejects its scene");
+	Check(!reg.Find("test.route.compiled.error.mask"), "compiled route rejects an unknown mask");
+	Check(!reg.Find("test.route.compiled.error.scale"), "compiled route rejects a zero prop scale");
+	Check(!reg.Find("test.route.compiled.error.source"), "compiled route rejects a malformed prop source");
+	Check(!reg.Find("test.route.compiled.error.at"), "compiled route rejects an out-of-range cue position");
 	Check(!reg.Find("test.bad.def"), "malformed registry definition rejects its file");
 	Check(!reg.Find("test.bad.type"), "non-array/non-object file-level roles rejects its file");
 	Check(!reg.Find("test.terr.unknown"), "an unknown object-override id rejects its scene");
@@ -367,7 +462,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 17, "exactly the seventeen expected diagnostics");
+	Check(errors.size() == 21, "exactly the twenty-one expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -384,6 +479,14 @@ int main()
 		"wrong-type mask diagnostic names the scene, role, and contract");
 	CheckError(errors, "scene 'test.err.clear-held-type': 'clearHeldItems' must be a boolean",
 		"wrong-type clearHeldItems diagnostic names the scene and contract");
+	CheckError(errors, "scene 'test.route.compiled.error.mask': role 'player': unknown 'mask' value 'torso'",
+		"compiled-route mask diagnostic names the scene, role, and value");
+	CheckError(errors, "action 'osf.prop.attach' scale must be finite and in (0,10]",
+		"compiled-route scale diagnostic states the accepted range");
+	CheckError(errors, "action 'osf.prop.attach' source.equippedArmor requires 'keyword'",
+		"compiled-route source diagnostic identifies the malformed selector");
+	CheckError(errors, "cue 'route.out-of-range' numeric 'at' must be in [0,1)",
+		"compiled-route cue diagnostic states the fraction range");
 	CheckError(errors, "'fixture_malformed_def.osf.json': roles registry entry 'bad'", "malformed-definition diagnostic");
 	CheckError(errors, "'fixture_malformed_type.osf.json': file-level 'roles' must be an array", "registry type diagnostic");
 	CheckError(errors, "'fixture_registry_template_errors.osf.json': scene 'test.terr.unknown': role reference 'nope'",
@@ -401,7 +504,7 @@ int main()
 	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 12, "one import record per discovered *.osf.json");
+		Check(files.size() == 14, "one import record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::SceneFileStats* {
 			for (const auto& f : files) {
@@ -427,7 +530,7 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 22, "per-file scene counts sum to the authored total");
+		Check(accepted == 24, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
@@ -464,6 +567,21 @@ int main()
 		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
 			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");
 		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
+
+		const auto* route = find("fixture_route_compiled.osf.json");
+		Check(route && route->scenes == 2 && route->declaredScenes == 2 && route->rejectedScenes == 0,
+			"compiled route fixture reports both accepted scenes");
+		Check(route && route->unlisted == 2 && route->anchored == 0 && route->nodes == 3 && route->stages == 3,
+			"compiled route fixture reports document policy and stage totals");
+		Check(route && route->cues == 5 && route->actions == 5 && route->cameras == 0,
+			"compiled route fixture reports its cue/action lanes and camera:none default");
+
+		const auto* routeErrors = find("fixture_route_compiled_errors.osf.json");
+		Check(routeErrors && routeErrors->scenes == 0 && routeErrors->declaredScenes == 4 &&
+			routeErrors->rejectedScenes == 4 && routeErrors->errors == 4,
+			"compiled route error fixture reports four independent scene rejections");
+		Check(routeErrors && routeErrors->Rejected(),
+			"compiled route error fixture is flagged rejected after contributing no scenes");
 
 		const auto* clipLib = find("fixture_clip_library.osf.json");
 		Check(clipLib && clipLib->clipEntries > 0, "generated clip entries are attributed to their file");

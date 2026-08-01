@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "name": "compiled route contract error fixture",
+  "scenes": [
+    {
+      "id": "test.route.compiled.error.mask",
+      "roles": [{ "name": "player", "mask": "torso" }],
+      "clip": "Fixture/Route/error.glb"
+    },
+    {
+      "id": "test.route.compiled.error.scale",
+      "roles": [{ "name": "player" }],
+      "stages": [{
+        "clips": ["Fixture/Route/error.glb"],
+        "action": [{
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": { "form": "Starfield.esm|0x00000007" },
+          "node": "R_AnimObject1",
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": 0
+        }]
+      }]
+    },
+    {
+      "id": "test.route.compiled.error.source",
+      "roles": [{ "name": "player" }],
+      "stages": [{
+        "clips": ["Fixture/Route/error.glb"],
+        "action": [{
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": { "equippedArmor": {} },
+          "node": "R_AnimObject1"
+        }]
+      }]
+    },
+    {
+      "id": "test.route.compiled.error.at",
+      "roles": [{ "name": "player" }],
+      "stages": [{
+        "clips": ["Fixture/Route/error.glb"],
+        "cue": [{ "at": 1.0, "id": "route.out-of-range" }]
+      }]
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "name": "compiled route contract fixture",
+  "unlisted": true,
+  "camera": "none",
+  "inPlace": true,
+  "roles": [
+    { "name": "player", "mask": "upperBody" }
+  ],
+  "scenes": [
+    {
+      "id": "test.route.compiled.single",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": ["Fixture/Route/single.glb"],
+          "cue": [
+            { "at": 0.0, "id": "route.start" },
+            { "at": 0.375, "id": "route.source.hidden" },
+            { "at": "end", "id": "route.end" }
+          ],
+          "action": [
+            {
+              "at": 0.25,
+              "type": "osf.prop.attach",
+              "role": "player",
+              "prop": "helmet",
+              "source": {
+                "equippedArmor": {
+                  "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"]
+                }
+              },
+              "node": "R_AnimObject1",
+              "position": [1.25, -2.5, 3.75],
+              "rotation": [10, -20, 30],
+              "scale": 0.875
+            },
+            { "at": 0.75, "type": "osf.prop.destroy", "prop": "helmet" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "test.route.compiled.two-stage",
+      "stages": [
+        {
+          "loops": 1,
+          "clips": ["Fixture/Route/handoff.glb"],
+          "cue": [
+            { "at": 0.5, "id": "route.handoff.begin" }
+          ],
+          "action": [
+            {
+              "at": 0.25,
+              "type": "osf.prop.attach",
+              "role": "player",
+              "prop": "helmet",
+              "source": {
+                "equippedArmor": { "keyword": "ArmorTypeSpacesuitHelmet" }
+              },
+              "node": "R_AnimObject1",
+              "position": [0, 0, 0],
+              "rotation": [0, 0, 0],
+              "scale": 1
+            }
+          ]
+        },
+        {
+          "loops": 1,
+          "clips": ["Fixture/Route/hold.glb"],
+          "cue": [
+            { "at": "enter", "id": "route.station.entered" }
+          ],
+          "action": [
+            {
+              "at": 0.0,
+              "type": "osf.prop.attach",
+              "role": "player",
+              "prop": "helmet",
+              "source": {
+                "equippedArmor": { "keyword": "ArmorTypeSpacesuitHelmet" }
+              },
+              "node": "R_AnimObject1",
+              "position": [0, 0, 0],
+              "rotation": [0, 0, 0],
+              "scale": 1
+            },
+            { "at": 0.75, "type": "osf.prop.destroy", "prop": "helmet" }
+          ]
+        }
+      ]
+    }
+  ]
+}
