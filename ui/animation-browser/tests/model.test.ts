@@ -9,7 +9,10 @@ describe("scene normalization", () => {
       folder: "Furniture / Seated",
       roles: [{ name: "lead", filters: { gender: "female" } }],
       inPlace: true,
-      stages: [{ name: "idle", loopSec: "2.5", loops: 0 }],
+      stages: [{ name: "idle", loopSec: "2.5", loops: 0, tracks: [
+        { kind: "cue", at: 0.25, anchor: "fraction", label: "helmet.off", repeat: true },
+        { kind: "invalid", at: 2, label: "drop me" },
+      ] }],
     });
     expect(scene).toMatchObject({
       id: "test.scene",
@@ -21,7 +24,12 @@ describe("scene normalization", () => {
       folder: "Furniture/Seated",
       inPlace: true,
     });
-    expect(scene.stages[0]).toMatchObject({ index: 0, loopSec: 2.5, loops: 0 });
+    expect(scene.stages[0]).toMatchObject({
+      index: 0,
+      loopSec: 2.5,
+      loops: 0,
+      tracks: [{ kind: "cue", at: 0.25, anchor: "fraction", label: "helmet.off", repeat: true }],
+    });
     expect(scene).not.toHaveProperty("genders");
     expect(scene).not.toHaveProperty("shape");
     expect(scene.roles[0]).not.toHaveProperty("filters");

@@ -34,7 +34,14 @@ export const MOCK_CATALOG = [
     sourceFile: "Data/OSF/Emotes/immersion.osf.json",
   })),
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, requiresFurniture: false, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
-  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, anchors: ["Chair"], stages: [{ index: 0, name: "Missionary06", tags: ["paired"], clipCount: 2, loopSec: 18.7, openEnded: true, estSec: 37.3 }, { index: 1, name: "Cowgirl07", tags: ["paired"], clipCount: 2, loopSec: 20, openEnded: true, estSec: 40 }], estSec: 77.3, openEnded: true, priority: 2, weight: 40, pack: "Gergel Ebanex", sourceFile: "Data/OSF/GE/chair.osf.json" },
+  { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, anchors: ["Chair"], stages: [{ index: 0, name: "Missionary06", tags: ["paired"], clipCount: 2, loopSec: 18.7, openEnded: true, estSec: 37.3, tracks: [
+    { kind: "action", at: 0, anchor: "enter", label: "osf.prop.attach", detail: "helmet", role: "bottom" },
+    { kind: "sound", at: 0.22, anchor: "fraction", label: "$scene,{gender},soft", role: "bottom", repeat: true },
+    { kind: "cue", at: 0.42, anchor: "fraction", label: "helmet.stow", role: "bottom" },
+    { kind: "sound", at: 0.72, anchor: "fraction", label: "$scene,{gender},loud", role: "bottom" },
+    { kind: "camera", at: 0, anchor: "enter", label: "scene_orbit" },
+    { kind: "action", at: 1, anchor: "end", label: "osf.prop.destroy", detail: "helmet", role: "bottom" },
+  ] }, { index: 1, name: "Cowgirl07", tags: ["paired"], clipCount: 2, loopSec: 20, openEnded: true, estSec: 40 }], estSec: 77.3, openEnded: true, priority: 2, weight: 40, pack: "Gergel Ebanex", sourceFile: "Data/OSF/GE/chair.osf.json" },
 ];
 
 // A representative import report: one clean pack, one partially-rejected pack, one file rejected

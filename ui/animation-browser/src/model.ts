@@ -3,6 +3,20 @@ export interface SceneRole {
   gender: string;
 }
 
+export type TimelineTrackKind = "cue" | "action" | "sound" | "camera";
+export type TimelineTrackAnchor = "enter" | "exit" | "end" | "fraction";
+
+export interface TimelineTrackMark {
+  kind: TimelineTrackKind;
+  /** Clip-local position: named enter anchors map to 0, exit/end to 1. */
+  at: number;
+  anchor: TimelineTrackAnchor;
+  label: string;
+  detail: string;
+  role: string;
+  repeat: boolean;
+}
+
 export interface SceneStage {
   index: number;
   name: string;
@@ -14,6 +28,7 @@ export interface SceneStage {
   loops: number | null;
   openEnded: boolean;
   estSec: number | null;
+  tracks: TimelineTrackMark[];
 }
 
 export interface SceneModel {
@@ -120,7 +135,33 @@ export function normalizeStages(stages: unknown): SceneStage[] {
       loops: numberOrNull(stage.loops),
       openEnded: Boolean(stage.openEnded),
       estSec: numberOrNull(stage.estSec),
+      tracks: normalizeTimelineTracks(stage.tracks),
     };
+  });
+}
+
+const TRACK_KINDS = new Set<TimelineTrackKind>(["cue", "action", "sound", "camera"]);
+const TRACK_ANCHORS = new Set<TimelineTrackAnchor>(["enter", "exit", "end", "fraction"]);
+
+export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw): TimelineTrackMark[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const mark = raw as Raw;
+    const kind = String(mark.kind || "") as TimelineTrackKind;
+    const anchor = String(mark.anchor || "fraction") as TimelineTrackAnchor;
+    const at = Number(mark.at);
+    const label = String(mark.label || "").trim();
+    if (!TRACK_KINDS.has(kind) || !TRACK_ANCHORS.has(anchor) || !Number.isFinite(at) || !label) return [];
+    return [{
+      kind,
+      at: Math.max(0, Math.min(1, at)),
+      anchor,
+      label,
+      detail: String(mark.detail || "").trim(),
+      role: String(mark.role || "").trim(),
+      repeat: Boolean(mark.repeat),
+    }];
   });
 }
 

@@ -173,9 +173,20 @@ namespace OSF::API::UIBridgeCatalog
 		};
 		struct StageCard
 		{
+			struct TrackMark
+			{
+				std::string kind;
+				std::string anchor;
+				std::string label;
+				std::string detail;
+				std::string role;
+				float       at = 0.0f;
+				bool        repeat = false;
+			};
 			std::int32_t             index = 0;
 			std::string              name;   // stage label ("" = unlabeled)
 			std::vector<std::string> tags;
+			std::vector<TrackMark>   tracks;
 			std::int32_t             clipCount = 0;
 			std::int32_t             pinned = 0;  // 1-based animation-wheel order
 			// Timing. loopSec = the clip's loop length (the honest per-animation number);
@@ -296,6 +307,52 @@ namespace OSF::API::UIBridgeCatalog
 				sc.clipCount = static_cast<std::int32_t>(st.clips.size());
 				sc.pinned = wheelOrder(d.id, sc.index);
 
+				const auto addTrack = [&sc](std::string kind, Registry::TrackPos pos, float fraction,
+					bool repeat, std::string label, std::string detail = {}, std::string role = {}) {
+					const char* anchor = "fraction";
+					float at = fraction;
+					switch (pos) {
+					case Registry::TrackPos::kEnter:
+						anchor = "enter";
+						at = 0.0f;
+						break;
+					case Registry::TrackPos::kExit:
+						anchor = "exit";
+						at = 1.0f;
+						break;
+					case Registry::TrackPos::kEnd:
+						anchor = "end";
+						at = 1.0f;
+						break;
+					case Registry::TrackPos::kFraction:
+						at = std::clamp(fraction, 0.0f, 1.0f);
+						break;
+					}
+					sc.tracks.push_back({ std::move(kind), anchor, std::move(label), std::move(detail),
+						std::move(role), at, repeat });
+				};
+				for (const auto& cue : node->cues) {
+					addTrack("cue", cue.pos, cue.fraction, cue.everyLoop, cue.id);
+				}
+				for (const auto& action : node->actions) {
+					std::string detail = !action.prop.empty() ? action.prop :
+						!action.set.empty() ? action.set : action.item;
+					addTrack("action", action.pos, action.fraction, action.everyLoop,
+						action.type, std::move(detail), action.role);
+				}
+				for (const auto& sound : node->sounds) {
+					addTrack("sound", sound.pos, sound.fraction, sound.everyLoop,
+						sound.spec, {}, sound.role);
+				}
+				for (const auto& camera : node->cameras) {
+					std::string detail;
+					if (camera.distance != 0.0f) {
+						detail = std::format("distance {}", camera.distance);
+					}
+					addTrack("camera", camera.pos, camera.fraction, camera.everyLoop,
+						std::string(Registry::CameraStateName(camera.state)), std::move(detail));
+				}
+
 				// Stage timing, from the node the desugar produce: loop length comes from clips[0].
 				// A pack-authored duration wins over the probe cache (generated vanilla packs).
 				if (!st.clips.empty()) {
@@ -362,12 +419,25 @@ namespace OSF::API::UIBridgeCatalog
 		for (const auto& c : cards) {
 			json stages = json::array();
 			for (const auto& s : c.stages) {
+				json tracks = json::array();
+				for (const auto& mark : s.tracks) {
+					tracks.push_back({
+						{ "kind", mark.kind },
+						{ "at", mark.at },
+						{ "anchor", mark.anchor },
+						{ "label", mark.label },
+						{ "detail", mark.detail },
+						{ "role", mark.role },
+						{ "repeat", mark.repeat },
+					});
+				}
 				stages.push_back({
 					{ "index", s.index },
 					{ "name", s.name },
 					{ "tags", s.tags },
 					{ "clipCount", s.clipCount },
 					{ "pinned", s.pinned },
+					{ "tracks", std::move(tracks) },
 					{ "loopSec", secOrNull(s.loopSec) },
 					{ "timerSec", s.timerSec > 0.0f ? json(s.timerSec) : json(nullptr) },
 					{ "loops", s.loops >= 0 ? json(s.loops) : json(nullptr) },

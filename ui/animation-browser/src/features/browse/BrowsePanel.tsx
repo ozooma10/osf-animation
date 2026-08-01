@@ -25,9 +25,9 @@ import {
   type PlayableItem,
 } from "../../app/selectors";
 import type { BrowseKind, BrowserState } from "../../app/state";
-import type { SceneEvaluation, SceneModel } from "../../model";
+import type { SceneEvaluation, SceneModel, SceneStage, TimelineTrackMark } from "../../model";
 import { Dot, Empty, SpeciesFilter } from "../shared/Shared";
-import { TIMELINE_FPS, timelineFrame } from "./timeline";
+import { TIMELINE_FPS, timelineFrame, timelineMarkMoment, timelineTracks } from "./timeline";
 
 interface EvaluatedPlayable {
   item: PlayableItem;
@@ -210,6 +210,7 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
       const frame = 1 / TIMELINE_FPS;
       const time = Math.min(active.time, active.duration);
       const clock = (value: number) => `${Math.floor(value / 60)}:${(value % 60).toFixed(2).padStart(5, "0")}`;
+      const showTracks = active.duration > 0 && active.speed === 0;
       return <div class={`active-card ${state.selectedId === active.sceneId ? "selected" : ""}`} key={active.handle}>
         <button class="active-main" onClick={() => commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{scene ? playableSceneTitle(scene) : active.sceneId}</span><span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
           {stages.length > 1 && active.stage >= 0 && active.stage < stages.length && <div class="active-stage mono">STAGE {active.stage + 1}/{stages.length} · {stageLabel(scene!, active.stage).toUpperCase()}</div>}
@@ -228,9 +229,44 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
             <span>{clock(time)} / {clock(active.duration)}</span>
             <span class="timeline-frames">FRAME {timelineFrame(time)} / {timelineFrame(active.duration)}</span>
           </span>
+          {showTracks && <InspectionTracks stage={stages.find((stage) => stage.index === active.stage)}
+            time={time} duration={active.duration}
+            onSeek={(mark) => commands.setPlayback(active.handle, mark.at * active.duration, true)}/>}
         </div>
       </div>;
     })}</div></>;
+}
+
+function InspectionTracks({ stage, time, duration, onSeek }: {
+  stage?: SceneStage;
+  time: number;
+  duration: number;
+  onSeek: (mark: TimelineTrackMark) => void;
+}) {
+  const lanes = timelineTracks(stage?.tracks ?? []);
+  const count = lanes.reduce((sum, lane) => sum + lane.marks.length, 0);
+  const playhead = duration > 0 ? Math.max(0, Math.min(100, time / duration * 100)) : 0;
+  return <section class="timeline-tracks" aria-label="Authored scene tracks">
+    <div class="timeline-tracks-head"><span>AUTHORED TRACKS</span><span>{count || "NONE"}</span></div>
+    {!lanes.length && <div class="timeline-tracks-empty">This animation has no authored cues, actions, sounds, or camera marks.</div>}
+    {lanes.map((lane) => <div class="timeline-lane" data-kind={lane.kind} key={lane.kind}>
+      <div class="timeline-lane-head mono"><span>{lane.label}</span><span>{lane.marks.length}</span></div>
+      <div class="timeline-lane-rail">
+        <span class="timeline-playhead" style={{ left: `${playhead}%` }}/>
+        {lane.marks.map((mark, index) => {
+          const moment = timelineMarkMoment(mark, duration);
+          const detail = [mark.label, mark.detail, mark.role && `role ${mark.role}`, mark.repeat && "every loop", moment].filter(Boolean).join(" · ");
+          return <button class="timeline-marker" style={{ left: `${mark.at * 100}%` }} title={detail}
+            aria-label={detail} disabled={!duration} onClick={() => onSeek(mark)} key={`${mark.anchor}:${mark.at}:${index}`}><span/></button>;
+        })}
+      </div>
+      <div class="timeline-events">
+        {lane.marks.map((mark, index) => <button disabled={!duration} onClick={() => onSeek(mark)}
+          title={[mark.detail, mark.role && `role ${mark.role}`, mark.repeat && "repeats every loop"].filter(Boolean).join(" · ")}
+          key={`${mark.label}:${index}`}><strong>{mark.label}</strong><span class="mono">{timelineMarkMoment(mark, duration)}{mark.repeat ? " · LOOP" : ""}{mark.role ? ` · ${mark.role}` : ""}</span></button>)}
+      </div>
+    </div>)}
+  </section>;
 }
 
 export function BrowsePanel({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
