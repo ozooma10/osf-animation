@@ -31,6 +31,7 @@ import {
 } from "../src/app/selectors";
 import { PLAYER_CAST, createInitialState } from "../src/app/state";
 import { decodePreferences, preferredOpenMode } from "../src/app/settings";
+import { normalizeActive } from "../src/app/controller";
 import { normalizeImportReport, normalizeScene, type ImportFile } from "../src/model";
 
 const solo = normalizeScene({
@@ -43,6 +44,13 @@ const solo = normalizeScene({
 const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2, pinned: 1 });
 
 describe("browser reducer", () => {
+  it("normalizes authoritative playback clock fields for the active timeline", () => {
+    expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, cast: [] }])[0])
+      .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0 });
+    expect(normalizeActive([{ handle: 8, sceneId: "legacy", cast: [] }])[0])
+      .toMatchObject({ time: 0, duration: 0, speed: 0 });
+  });
+
   it("self-heals engine readiness from a catalog reply after a web-view reload", () => {
     const reloaded = createInitialState();
     expect(reloaded.ready).toBe(false);

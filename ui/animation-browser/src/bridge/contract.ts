@@ -11,6 +11,8 @@ export type BridgeCommand =
   | "osf.animation.opened"
   | "osf.animation.orbit"
   | "osf.animation.pickScreen"
+  | "osf.animation.playback.get"
+  | "osf.animation.playback.set"
   | "osf.animation.projectActors"
   | "osf.animation.projectPickables"
   | "osf.animation.requestClose"
@@ -53,5 +55,4 @@ export function parseNativeMessage(text: string): NativeMessage | null {
 export function isRecord(value: unknown): value is Record<string, any> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
-
 

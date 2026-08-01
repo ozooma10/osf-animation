@@ -46,6 +46,7 @@ export interface BrowserCommands {
   stop(handle?: number): void;
   stopAll(): void;
   advance(handle?: number): void;
+  setPlayback(handle: number, time?: number, paused?: boolean): void;
   setMinimized(value: boolean): void;
   toggleWheelEntry(scene: string, stage?: number | null): void;
   moveWheelEntry(scene: string, stage: number | null, direction: -1 | 1): void;

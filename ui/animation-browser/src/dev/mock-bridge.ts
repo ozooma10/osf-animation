@@ -154,6 +154,19 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
     } else if (command === "osf.animation.advance") {
       this.advance(Number(fields.handle));
+    } else if (command === "osf.animation.playback.get") {
+      for (const active of this.active) {
+        active.time = active.duration > 0 ? (active.time + 0.1 * active.speed) % active.duration : 0;
+      }
+      this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
+    } else if (command === "osf.animation.playback.set") {
+      const active = this.active.find((scene) => scene.handle === Number(fields.handle));
+      if (active) {
+        if (typeof fields.time === "number") active.time = Math.max(0, Math.min(active.duration, fields.time));
+        if (fields.paused === true) active.speed = 0;
+        else if (fields.paused === false) active.speed = 1;
+      }
+      this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
     } else if (command === "osf.animation.wheel.set") {
       this.customized = !fields.reset;
       this.pins = fields.reset ? [] : Array.isArray(fields.entries)
@@ -193,6 +206,9 @@ export class StandaloneBridge implements AnimationBridge {
       stage: Number(options.stage) || 0,
       player: tokens.includes(PLAYER_TOKEN),
       cast: tokens.map((token) => ({ token, name: token === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === token)?.name ?? "actor", player: token === PLAYER_TOKEN })),
+      time: 0,
+      duration: sceneById(this.getState(), sceneId)?.stages[Number(options.stage) || 0]?.loopSec ?? 5,
+      speed: Number(options.speed) || 1,
     });
       this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);

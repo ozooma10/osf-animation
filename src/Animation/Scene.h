@@ -184,6 +184,13 @@ namespace OSF::Animation
 			const void* owner;
 			std::int64_t ownerAgeMs;
 		};
+		struct PlaybackSnapshot
+		{
+			float time;
+			float duration;
+			float speed;
+			uint32_t stage;
+		};
 
 		std::mutex lock;
 		float duration = 0.0f;  // current stage's clip length
@@ -235,6 +242,12 @@ namespace OSF::Animation
 
 		// Manual stage jump (also the initial stage). Resets the stage clock; false if out of range.
 		bool SetStage(int32_t a_stage);
+
+		// Move within the current stage without firing timed marks. Marks before the new time are
+		// treated as consumed so resuming playback cannot replay authored side effects.
+		bool Seek(float a_time);
+
+		PlaybackSnapshot GetPlaybackSnapshot();
 
 		// Authoritative current stage index - updated immediately by SetStage / auto-advance, unlike the per-graph `appliedStage` which lags until the next sample.
 		// Caller must NOT hold `lock`.

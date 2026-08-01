@@ -46,6 +46,9 @@ export interface ActiveScene {
   stage: number;
   player: boolean;
   cast: ActiveCastMember[];
+  time: number;
+  duration: number;
+  speed: number;
 }
 
 export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";

@@ -118,6 +118,45 @@ namespace OSF::Animation
 		return true;
 	}
 
+	bool Scene::Seek(float a_time)
+	{
+		if (!std::isfinite(a_time)) {
+			return false;
+		}
+		std::scoped_lock l{ lock };
+		if (stages.empty()) {
+			return false;
+		}
+
+		// SamplingJob accepts the end ratio, but the normal scene sampling path wraps a live clip.
+		// Keep a scrub at 100% on the last representable pose instead of snapping to frame zero.
+		const float lastPose = duration > 0.0f ? std::nextafter(duration, 0.0f) : 0.0f;
+		clock.time = std::clamp(a_time, 0.0f, lastPose);
+		stageElapsed = clock.time;
+		stageLoops = 0;
+		ended.store(false, std::memory_order_relaxed);
+		endQueued.store(false, std::memory_order_relaxed);
+		firedMarks.clear();
+
+		const auto& marks = stages[currentStage].marks;
+		markFired.assign(marks.size(), false);
+		if (duration > 0.0f) {
+			for (size_t i = 0; i < marks.size(); i++) {
+				const auto& mark = marks[i];
+				if (!mark.everyLoop && !mark.atEnd && mark.fraction * duration < clock.time) {
+					markFired[i] = true;
+				}
+			}
+		}
+		return true;
+	}
+
+	Scene::PlaybackSnapshot Scene::GetPlaybackSnapshot()
+	{
+		std::scoped_lock l{ lock };
+		return { clock.time, duration, speed.load(std::memory_order_relaxed), currentStage };
+	}
+
 	uint32_t Scene::CurrentStage()
 	{
 		std::scoped_lock l{ lock };

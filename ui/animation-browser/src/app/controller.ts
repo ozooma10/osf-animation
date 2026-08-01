@@ -71,13 +71,16 @@ function normalizeNearby(payload: unknown): NearbyTarget[] {
   })).filter((item) => item.token !== 0);
 }
 
-function normalizeActive(payload: unknown): ActiveScene[] {
+export function normalizeActive(payload: unknown): ActiveScene[] {
   if (!Array.isArray(payload)) return [];
   return payload.filter(isRecord).map((scene) => ({
     handle: Number(scene.handle) || 0,
     sceneId: String(scene.sceneId || ""),
     stage: Number.isInteger(scene.stage) ? scene.stage : 0,
     player: !!scene.player,
+    time: Math.max(0, Number(scene.time) || 0),
+    duration: Math.max(0, Number(scene.duration) || 0),
+    speed: Math.max(0, Number(scene.speed) || 0),
     cast: Array.isArray(scene.cast) ? scene.cast.filter(isRecord).map((member) => ({
       token: Number(member.token), name: String(member.name || "actor"), player: !!member.player,
     })) : [],
@@ -454,6 +457,14 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     return () => clearInterval(timer);
   }, [state.pickMode, state.viewVisible, send]);
 
+  useEffect(() => {
+    if (state.mode !== "active" || !state.viewVisible || !state.active?.length) return;
+    const refreshPlayback = () => send("osf.animation.playback.get");
+    refreshPlayback();
+    const timer = window.setInterval(refreshPlayback, 100);
+    return () => clearInterval(timer);
+  }, [state.mode, state.viewVisible, state.active?.length, send]);
+
   const commands = useMemo<BrowserCommands>(() => ({
     refresh: () => { requestCatalog(true); requestLibrary(true); },
     setMode: (mode) => { dispatch({ type: "mode/changed", mode: mode === "library" ? "scenes" : mode }); if (!stateRef.current.libraryReceived) requestLibrary(true); },
@@ -558,6 +569,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "scene/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },
     stopAll: () => { for (const scene of activeScenes(stateRef.current)) { send("osf.animation.stop", { handle: scene.handle }); dispatch({ type: "scene/stopped", handle: scene.handle }); } },
     advance: (handle) => { const target = Number(handle) || stateRef.current.lastHandle || (activeScenes(stateRef.current).length === 1 ? activeScenes(stateRef.current)[0].handle : 0); if (!target || Date.now() - lastAdvance.current < 350) return; lastAdvance.current = Date.now(); send("osf.animation.advance", { handle: target }); },
+    setPlayback: (handle, time, paused) => send("osf.animation.playback.set", {
+      handle,
+      ...(time == null ? {} : { time }),
+      ...(paused == null ? {} : { paused }),
+    }),
     setMinimized: (minimized) => dispatch({ type: "minimized/changed", minimized }),
     toggleWheelEntry: (scene, stage = null) => {
       const current = stateRef.current;

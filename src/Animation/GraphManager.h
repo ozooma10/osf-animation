@@ -67,6 +67,18 @@ namespace OSF::Animation
 		// false if the actor is not in a scene or the stage is out of range.
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage);
 
+		struct ScenePlayback
+		{
+			float time = 0.0f;
+			float duration = 0.0f;
+			float speed = 0.0f;
+			int32_t stage = -1;
+		};
+
+		// Browser/director inspection of the current scene clock. Seek never fires timed marks.
+		bool SetSceneTime(RE::Actor* a_actor, float a_time);
+		std::optional<ScenePlayback> GetScenePlayback(RE::Actor* a_actor);
+
 		// Stops the scene that a_actor participates in (all its participants).
 		bool StopScene(RE::Actor* a_actor);
 

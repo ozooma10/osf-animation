@@ -296,7 +296,7 @@ export function sceneTitle(state: BrowserState, id: string): string {
 export function activeScenes(state: BrowserState): ActiveScene[] {
   if (state.active) return state.active;
   return state.lastHandle
-    ? [{ handle: state.lastHandle, sceneId: state.lastSceneId, stage: 0, player: true, cast: [] }]
+    ? [{ handle: state.lastHandle, sceneId: state.lastSceneId, stage: 0, player: true, cast: [], time: 0, duration: 0, speed: 0 }]
     : [];
 }
 

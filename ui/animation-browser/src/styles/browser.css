@@ -601,7 +601,7 @@ button,input,select{font:inherit;color:inherit}
 
 /* ---- ACTIVE tab (running-scenes manager) ------------------- */
 .active-list{display:flex;flex-direction:column;gap:6px}
-.active-card{display:flex;align-items:center;gap:10px;background:var(--void-800);
+.active-card{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--void-800);
   border:1px solid var(--line);border-left:2px solid var(--signal-go);border-radius:2px;padding:9px 11px}
 .active-card.selected{border-color:var(--accent);border-left-color:var(--signal-go);background:rgba(240,113,48,.06)}
 .active-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;background:none;border:0;padding:0;text-align:left;cursor:pointer}
@@ -615,6 +615,13 @@ button,input,select{font:inherit;color:inherit}
 .active-actor.player{border-color:var(--accent);color:var(--accent)}
 .active-card .stop-mini{margin-left:0}
 .active-card .next-mini{margin-left:0}
+.active-timeline{flex:0 0 100%;display:flex;align-items:center;gap:6px;padding-top:7px;border-top:1px solid var(--line)}
+.frame-step,.play-toggle{width:28px;height:24px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--void-900);color:var(--text-body);font:700 9px var(--font-mono);cursor:pointer}
+.frame-step:hover:not(:disabled),.play-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.frame-step:disabled{opacity:.3;cursor:default}
+.play-toggle.paused{color:var(--signal-go);border-color:rgba(92,190,150,.55)}
+.timeline-range{flex:1;min-width:80px;accent-color:var(--accent)}
+.timeline-clock{width:86px;flex:none;text-align:right;font-size:8px;color:var(--text-muted)}
 .reveal.inline.stop-all{color:var(--signal-stop);border-color:rgba(200,80,58,.5)}
 .reveal.inline.stop-all:hover{background:rgba(200,80,58,.12)}
 

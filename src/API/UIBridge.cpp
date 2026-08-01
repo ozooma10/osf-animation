@@ -4,6 +4,7 @@
 
 #include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
 #include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
+#include "Animation/GraphManager.h"  // browser playback clock inspection + seek
 #include "Camera/CameraService.h"  // browse orbit: osf.orbit engages drag-to-look when no scene camera is live
 #include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
 #include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
@@ -80,6 +81,8 @@ namespace OSF::API
 
 		// Last scene handle we launched, so an osf.stop with no handle can target it.
 		std::int32_t g_lastHandle = 0;
+		// Browser pause is reversible without flattening a custom launch speed to 1x.
+		std::unordered_map<std::int32_t, float> g_resumeSpeeds;
 
 		// PLAYER-cast scenes launched from the browser console, aborted when the browser
 		// closes: once the UI is gone there is no stop button left, so a player mid-scene
@@ -259,6 +262,7 @@ namespace OSF::API
 		json BuildActiveScenes()
 		{
 			auto& rt = Scene::SceneRuntime::GetSingleton();
+			auto& gm = Animation::GraphManager::GetSingleton();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			json scenes = json::array();
 			for (const auto& s : rt.ListScenes()) {
@@ -276,13 +280,22 @@ namespace OSF::API
 						{ "player", isPlayer },
 					});
 				}
-				scenes.push_back(json{
+				json item{
 					{ "handle", s.handle },
 					{ "sceneId", s.id.empty() ? std::string{ "runtime.files" } : s.id },
 					{ "stage", rt.GetStage(s.handle) },
 					{ "player", hasPlayer },
 					{ "cast", std::move(cast) },
-				});
+				};
+				if (!s.participants.empty()) {
+					if (const auto playback = gm.GetScenePlayback(s.participants.front())) {
+						item["stage"] = playback->stage;
+						item["time"] = playback->time;
+						item["duration"] = playback->duration;
+						item["speed"] = playback->speed;
+					}
+				}
+				scenes.push_back(std::move(item));
 			}
 			return json{ { "scenes", std::move(scenes) } };
 		}
@@ -1198,6 +1211,7 @@ namespace OSF::API
 			}
 			if (ok) {
 				std::erase(g_closeStops, handle);
+				g_resumeSpeeds.erase(handle);
 				if (handle == g_lastHandle) {
 					g_lastHandle = 0;
 				}
@@ -1222,6 +1236,46 @@ namespace OSF::API
 				ok = api->Advance(handle);
 			}
 			REX::DEBUG("[UI] osf.animation.advance handle={} -> {}", handle, ok);
+		}
+
+		void OnPlaybackGet(const char*, const char*, const char* a_srcView, void*) noexcept
+		{
+			SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());
+		}
+
+		void OnPlaybackSet(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			if (!j.is_object()) {
+				return;
+			}
+			const auto handle = IntOr(j, "handle", 0);
+			auto participants = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
+			if (handle == 0 || participants.empty() || !participants.front()) {
+				return;
+			}
+
+			auto& gm = Animation::GraphManager::GetSingleton();
+			if (const auto paused = j.find("paused"); paused != j.end() && paused->is_boolean()) {
+				if (paused->get<bool>()) {
+					const float speed = gm.GetSpeed(participants.front());
+					if (speed > 0.0f) {
+						g_resumeSpeeds[handle] = speed;
+					}
+					gm.SetSpeed(participants.front(), 0.0f);
+				} else {
+					const auto found = g_resumeSpeeds.find(handle);
+					gm.SetSpeed(participants.front(), found != g_resumeSpeeds.end() ? found->second : 1.0f);
+					g_resumeSpeeds.erase(handle);
+				}
+			}
+			if (const auto time = j.find("time"); time != j.end() && time->is_number()) {
+				const double value = time->get<double>();
+				if (std::isfinite(value) && value >= 0.0 && value <= std::numeric_limits<float>::max()) {
+					gm.SetSceneTime(participants.front(), static_cast<float>(value));
+				}
+			}
+			SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());
 		}
 
 		void OnWheelGet(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
@@ -2033,6 +2087,15 @@ namespace OSF::API
 			g_tokens.clear();
 			g_formToken.clear();  // picked refs are scoped to one browser session
 			g_orbitSpaceNoticed = false;  // re-arm the in-space orbit notice for the next session
+			// A scrub pauses playback. NPC-only scenes survive the browser, so restore their
+			// pre-scrub speeds before their only director surface disappears.
+			for (const auto& [handle, speed] : g_resumeSpeeds) {
+				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
+				if (!actors.empty() && actors.front()) {
+					Animation::GraphManager::GetSingleton().SetSpeed(actors.front(), speed);
+				}
+			}
+			g_resumeSpeeds.clear();
 			// Abort console-launched PLAYER scenes (see g_closeStops): the browser was the only
 			// stop button, so one outliving it would leave the player stuck. NPC-only scenes
 			// are not in the list — they keep running until stopped from a reopened browser.
@@ -2264,6 +2327,8 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
 		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
 		g_ui.RegisterCommand("osf.animation.advance", &OnAdvance, nullptr);
+		g_ui.RegisterCommand("osf.animation.playback.get", &OnPlaybackGet, nullptr);
+		g_ui.RegisterCommand("osf.animation.playback.set", &OnPlaybackSet, nullptr);
 		g_ui.RegisterCommand("osf.animation.wheel.get", &OnWheelGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.wheel.set", &OnWheelSet, nullptr);
 		g_ui.RegisterCommand("osf.animation.opened", &OnOpened, nullptr);
