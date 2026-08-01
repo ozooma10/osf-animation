@@ -590,16 +590,18 @@ entry - `ExecuteActionOnPlayingID` - so the replace is an instant hard cut.)
 
 #### Sound emitters: listener or role actor
 
-Sound remains listener-relative by default for compatibility. Set `"emitter":"role"` to post the
-sound on a positioned Wwise game object that follows the actor selected by `role`:
+Sound remains listener-relative by default for compatibility. `"emitter":"role"` requests a
+positioned Wwise game object associated with the actor selected by `role`:
 
 ```jsonc
 { "at": 0.35, "spec": "Sound/OSF/MyPack/voice01.wem",
   "role": "other", "emitter": "role" }
 ```
 
-If the role has no live actor, or positioned Wwise audio is unavailable on the running game build,
-OSF falls back to the listener. The emitter controls where the audio is heard; `role` still owns
+If the role has no live actor, or no verified engine-owned Wwise object is available, OSF falls back
+to the listener. The current Starfield 1.16.244 backend takes this fallback: the former guessed
+registration entry point was removed rather than invoking an unverified ABI. The emitter controls
+where the audio is heard; `role` still owns
 voice-channel replacement and subtitle attribution. The Wwise event controls the actual attenuation
 and spatialization curve.
 

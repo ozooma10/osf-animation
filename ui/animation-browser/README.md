@@ -2,7 +2,7 @@
 
 The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Preact app in this directory; `build/osfui/SFSE/Plugins/OSFUI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
 **OSF UI** and driven **natively** by OSF Animation's own
-DLL over OSF UI's bridge API (protocol **1.0**). Only JSON text crosses the
+DLL over OSF UI's bridge API (protocol **2.0**). Only JSON text crosses the
 boundary.
 
 ## Development and build
@@ -14,9 +14,9 @@ This directory is the only editable copy — `build/osfui/` is disposable toolch
 ## How it's wired
 
 ```
-ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.animation/browser/ ──► OSF UI  MessageBridge  ──►  OSF Animation DLL
-   window.osfui.postMessage        (ui.command)              src/API/UIBridge.cpp
-   window.osfui.onMessage      ◄── SendToWeb ────────────────  osf.animation.* handlers
+ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.animation/browser/ ──► OSF UI MessageBridge ──► OSF Animation DLL
+   window.osfui.send/request       (2.0 helper)               src/API/UIBridge.cpp
+   window.osfui.on/state       ◄── events/state ────────────── osf.animation.* handlers
 ```
 
 - **Native side:** `src/API/UIBridge.{h,cpp}` (vendored bridge header
@@ -46,7 +46,11 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`.
   A launch may carry additive `singleAnimation:true`; after entering the requested
   `opts.stage`, any edge out ends playback instead of continuing through the
-  parent registry definition.
+  parent registry definition. `inspect:true` bypasses `SceneRuntime` entirely and
+  starts a browser-owned, scrub-only Layer-A graph. It has no lifecycle callbacks,
+  cues, sounds, cameras, equipment policy, or external consumers; the browser owns
+  temporary render props and reconstructs them from the selected node's
+  enter/numeric/end `osf.prop.*` actions at each seek.
   `wheel.get`→`wheel.data`,
   `wheel.set {entries:[{scene,stage?},...]}` (persist the complete ordered animation-wheel loadout)
   or `wheel.set {reset:true}` (return to installed defaults); the reply is an
@@ -54,7 +58,7 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   `orbit {dx,dy,wheel}` (world-drag steers the native orbit camera; no reply),
   `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
   `requestClose` (view asks the host to hide it — used by the animation wheel).
-  Native→web `activeScenes {scenes:[{handle, sceneId, stage, player,
+  Native→web `activeScenes {scenes:[{handle, sceneId, stage, inspection, player,
   cast:[{token,name,player}]}]}` is the authoritative live-scene list, pushed
   on `opened`, after a launch, and on every scene lifecycle change (stage
   advance, any termination — natural ends included). The view surfaces it as
@@ -63,19 +67,21 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   current stage, full cast, per-scene stop (`stop {handle}`), STOP ALL —
   plus a compact header chip (a single scene shows directly with its stop;
   several collapse to a count) that opens the tab, and LIVE badges on busy
-  crew. **Close semantics:** only scenes whose cast includes
-  the *player* are aborted when the browser closes; NPC-only scenes keep
-  running (vignettes/machinima) and resurface in this list on the next open.
+  crew. Ordinary runtime timelines are forward-only (pause/resume); only a
+  browser prop-preview handle exposes frame stepping and seeking. **Close semantics:**
+  every browser preview and every runtime scene whose cast includes the *player* is
+  aborted when the browser closes; ordinary NPC-only scenes keep running
+  (vignettes/machinima) and resurface in this list on the next open.
   Native→web `mode {mode:"wheel", tagPrefix, target:{token,name}|null}`
   switches the view into **animation-wheel mode** (see below); any other `mode`
   restores the console. Flash-free wheel opens rely on OSF UI **queuing
   messages sent to a not-yet-visible view and delivering them before its
   first paint** (C ABI MINOR ≥ 2): the DLL pushes the mode before
   `RequestMenu(open)`.
-- The view becomes ready when the bridge announces `runtime.ready`, or when
+- The view becomes ready when the 2.0 helper's `ready` promise resolves, or when
   OSF Animation answers the catalog/version request that every page mount sends.
   The response path lets a manually reloaded web view self-heal after the host's
-  one-shot ready handshake has already gone by. It never gates on the
+  ready lifecycle has already completed. It never gates on the
   protocol/version strings — the contract evolves additively. Platform pushes it consumes: `ui.visibility` (open/close relay,
   wheel-mode exit, orbit-drag reset) and `ui.error` (surfaced in the notice
   footer). **Gamepad:** the view takes the `osfui.gamepadRaw` grant on

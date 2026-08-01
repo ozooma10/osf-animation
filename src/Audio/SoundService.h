@@ -14,8 +14,8 @@
 //   "External_Source" slot. A loose .wem plays as-is; a .wav/.mp3/.ogg/.flac is decoded to PCM and wrapped in
 //   a PCM .wem at runtime (WwiseBackend), so it rides the same engine-mixed path with no soundbank authoring
 //   and no bank to load. This is the GAME'S OWN loose voice-file mechanism (RE-proven on 1.16.244).
-//   Authored emitter:"role" cues post on a bounded OSF-owned Wwise game object whose position follows
-//   that scene actor; omitted/listener cues retain the player/listener object.
+//   Authored emitter:"role" cues retain listener playback until a verified engine-managed actor
+//   game-object lookup is available; omitted/listener cues use that same safe path.
 //
 // There is no private-device fallback: a cue the Wwise path can't take (Wwise unavailable, or a codec the
 // external source can't stream) is logged and skipped — OSF never plays audio outside the game mix.
@@ -31,11 +31,9 @@ namespace OSF::Audio
 	public:
 		static SoundService& GetSingleton();
 
-		// Creates and positions the actor's process-lifetime Wwise emitter. Game-thread only because it
-		// snapshots the actor; the returned ID is POD and safe to carry onto the audio worker. 0 = fall
-		// back to the listener. UpdateRoleEmitter is cheap/no-op until this actor has opted in once.
+		// Returns a verified engine-owned role emitter when available. The current backend deliberately
+		// returns 0, preserving listener playback instead of inventing/registering Wwise object IDs.
 		std::uint64_t PrepareRoleEmitter(RE::Actor* a_actor);
-		void UpdateRoleEmitter(RE::Actor* a_actor, const RE::NiPoint3& a_position, float a_heading);
 
 		// Playback of a Data-relative file ("OSF/Sounds/x.wav") or "event:" spec. It posts on the
 		// supplied Wwise game object, or the listener when none is supplied. Role selection and subtitle
@@ -46,7 +44,7 @@ namespace OSF::Audio
 		// playing voice: the prior clip is cut via Wwise::StopVoice (runtime-proven AK ExecuteActionOnPlayingID
 		// — see WwiseBackend; self-disables only on a future patch) so cues on the same channel never overlap.
 		// Two different slots play independently.
-		// a_gameObject 0 retains listener-relative playback; PrepareRoleEmitter returns the positioned ID.
+		// a_gameObject 0 retains listener-relative playback.
 		void Play(std::uint64_t a_slot, const std::string& a_dataRelPath, std::uint64_t a_gameObject = 0);
 
 		// Cuts every live voice (GraphManager::StopAll, a loaded save should not have last-world sounds ringing over it).

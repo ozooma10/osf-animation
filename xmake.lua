@@ -213,8 +213,8 @@ target("osf-scene-registry-test")
     set_languages("c++23")
     add_deps("commonlibsf")
     add_packages("nlohmann_json", "ozz-animation")
-    add_files("src/Registry/SceneRegistry.cpp", "src/Util/ClipPath.cpp", "src/Util/Species.cpp",
-              "test/unit/test_scene.cpp")
+      add_files("src/Animation/Scene.cpp", "src/Registry/SceneRegistry.cpp", "src/Util/ClipPath.cpp", "src/Util/Species.cpp",
+                "test/unit/test_scene.cpp")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")

@@ -32,7 +32,7 @@ Key Features:
 
 - **SFSE** matching your game version.
 - **Address Library for SFSE Plugins**
-- **OSF UI 1.5.0+** — hosts the scene browser, emote wheel, settings menu, hotkeys, and
+- **OSF UI 2.0.0+** — hosts the scene browser, emote wheel, settings menu, hotkeys, and
   consented bug reporting. When Starfield exits unexpectedly while the OSF Animation browser is active, reports are routed to the
   OSF Animation issue tracker and include a locally redacted, bounded tail of
   `OSF Animation.log`. The engine runs without OSF UI, but the entire in-game UI and
@@ -58,6 +58,13 @@ under:
 ```
 
 The Papyrus API is exposed as `OSF.*`.
+
+### OSF Studio live preview
+
+Once the plugin reaches `kPostDataLoad`, it creates a session-scoped authoring inbox under
+`Documents\My Games\Starfield\SFSE\OSF\Studio Link`. OSF Studio's **Preview in game** button can
+pair with that folder and play its current unsaved human `.af` on the player at normal speed.
+Studio previews are transient, never enter the registry, and refuse to replace non-Studio playback.
 
 
 ### Intellisense

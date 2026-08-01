@@ -2,26 +2,37 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { hasOsfUiBridge, OsfUiBridge } from "../src/bridge/client";
 import type { NativeMessage } from "../src/bridge/contract";
 
-// OsfUiBridge only touches window.osfui; stub a bare window so these run in the node env.
+const eventHandlers = new Map<string, (payload: unknown) => void>();
+
+// OsfUiBridge only touches window.osfui; stub the public helper so these run in node.
 function deliver(type: string, payload: unknown): void {
-  (globalThis as any).window.osfui.onMessage(JSON.stringify({ type, payload }));
+  eventHandlers.get(type)?.(payload);
+}
+
+function installHelper(ready: Promise<Record<string, unknown>> = new Promise(() => undefined)): void {
+  eventHandlers.clear();
+  (globalThis as any).window = { osfui: {
+    send() { return true; },
+    request() { return Promise.resolve({}); },
+    ready,
+    on(name: string, fn: (payload: unknown) => void) { eventHandlers.set(name, fn); return () => eventHandlers.delete(name); },
+    state: { on() { return () => {}; } },
+  } };
 }
 
 describe("OsfUiBridge subscription race", () => {
-  beforeEach(() => { (globalThis as any).window = {}; });
+  beforeEach(() => installHelper());
   afterEach(() => { delete (globalThis as any).window; });
 
-  it("replays a runtime.ready flushed before the first subscribe", () => {
+  it("replays helper readiness resolved before the first subscribe", async () => {
+    installHelper(Promise.resolve({ bridgeVersion: "2.0" }));
     const bridge = new OsfUiBridge();
-    // The host queues messages for a not-yet-visible view and flushes them at first paint —
-    // which lands before the controller's post-paint useEffect subscribes. Buffering keeps
-    // the normal startup immediate; manual page reload recovery is covered in app.test.ts.
-    deliver("runtime.ready", { bridgeVersion: "1.3" });
+    await Promise.resolve();
 
     const received: NativeMessage[] = [];
     bridge.subscribe((m) => received.push(m));
 
-    expect(received).toEqual([{ type: "runtime.ready", payload: { bridgeVersion: "1.3" } }]);
+    expect(received).toEqual([{ type: "runtime.ready", payload: { bridgeVersion: "2.0", protocol: "2.0" } }]);
   });
 
   it("delivers live messages to an already-subscribed listener", () => {
@@ -37,13 +48,13 @@ describe("bridge environment detection", () => {
   afterEach(() => { delete (globalThis as any).window; });
 
   it("uses the native bridge whenever the host injected one", () => {
-    (globalThis as any).window = { osfui: { postMessage() {} } };
+    (globalThis as any).window = { osfui: { send() {} } };
     expect(hasOsfUiBridge()).toBe(true);
   });
 
   it("uses the native bridge even when the view is nested in a frame", () => {
     // Frame topology must not decide this: a nested game view is still the game.
-    (globalThis as any).window = { parent: {}, osfui: { postMessage() {} } };
+    (globalThis as any).window = { parent: {}, osfui: { send() {} } };
     expect(hasOsfUiBridge()).toBe(true);
   });
 
@@ -51,7 +62,7 @@ describe("bridge environment detection", () => {
     (globalThis as any).window = {
       parent: {},
       __osfuiHarness: { meta: {} },
-      osfui: { postMessage() {} },
+      osfui: { send() {} },
     };
     expect(hasOsfUiBridge()).toBe(false);
   });

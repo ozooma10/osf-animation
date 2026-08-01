@@ -210,26 +210,26 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
       const frame = 1 / TIMELINE_FPS;
       const time = Math.min(active.time, active.duration);
       const clock = (value: number) => `${Math.floor(value / 60)}:${(value % 60).toFixed(2).padStart(5, "0")}`;
-      const showTracks = active.duration > 0 && active.speed === 0;
       return <div class={`active-card ${state.selectedId === active.sceneId ? "selected" : ""}`} key={active.handle}>
-        <button class="active-main" onClick={() => commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{scene ? playableSceneTitle(scene) : active.sceneId}</span><span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
+        <button class="active-main" onClick={() => commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{scene ? playableSceneTitle(scene) : active.sceneId}</span>{active.inspection && <span class="inspection-badge mono">PROP PREVIEW</span>}<span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
           {stages.length > 1 && active.stage >= 0 && active.stage < stages.length && <div class="active-stage mono">STAGE {active.stage + 1}/{stages.length} · {stageLabel(scene!, active.stage).toUpperCase()}</div>}
           {!!active.cast.length && <div class="active-cast">{active.cast.map((member) => <span class={`active-actor ${member.player ? "player" : ""}`} key={member.token}>{member.name}{member.player ? " · YOU" : ""}</span>)}</div>}
         </button>
-        {stages.length > 1 && <button class="next-mini" onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}
+        {!active.inspection && stages.length > 1 && <button class="next-mini" onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}
         <button class="stop-mini" onClick={() => commands.stop(active.handle)}>■ STOP</button>
         <div class="active-timeline">
-          <button class="frame-step" title="Previous frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.max(0, time - frame), true)}>◀|</button>
-          <button class={`play-toggle ${active.speed > 0 ? "" : "paused"}`} title={active.speed > 0 ? "Pause" : "Resume"} onClick={() => commands.setPlayback(active.handle, undefined, active.speed > 0)}>{active.speed > 0 ? "Ⅱ" : "▶"}</button>
-          <button class="frame-step" title="Next frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.min(active.duration, time + frame), true)}>|▶</button>
-          <input class="timeline-range" type="range" min="0" max={active.duration || 1} step={frame} value={time} disabled={!active.duration}
+          {active.inspection && <button class="frame-step" title="Previous frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.max(0, time - frame), true)}>◀|</button>}
+          {!active.inspection && <button class={`play-toggle ${active.speed > 0 ? "" : "paused"}`} title={active.speed > 0 ? "Pause" : "Resume runtime playback"} onClick={() => commands.setPlayback(active.handle, undefined, active.speed > 0)}>{active.speed > 0 ? "Ⅱ" : "▶"}</button>}
+          {active.inspection && <button class="frame-step" title="Next frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.min(active.duration, time + frame), true)}>|▶</button>}
+          <input class="timeline-range" type="range" min="0" max={active.duration || 1} step={frame} value={time} disabled={!active.inspection || !active.duration}
             aria-label={`Scene time ${clock(time)}, frame ${timelineFrame(time)}, of ${clock(active.duration)}, frame ${timelineFrame(active.duration)}`}
-            onInput={(event) => commands.setPlayback(active.handle, Number(event.currentTarget.value), true)}/>
+            title={active.inspection ? "Scrub side-effect-free pose and OSF scene props" : "Runtime playback is forward-only; use Inspect to scrub"}
+            onInput={(event) => active.inspection && commands.setPlayback(active.handle, Number(event.currentTarget.value), true)}/>
           <span class="timeline-clock mono">
             <span>{clock(time)} / {clock(active.duration)}</span>
             <span class="timeline-frames">FRAME {timelineFrame(time)} / {timelineFrame(active.duration)}</span>
           </span>
-          {showTracks && <InspectionTracks stage={stages.find((stage) => stage.index === active.stage)}
+          {active.inspection && <InspectionTracks stage={stages.find((stage) => stage.index === active.stage)}
             time={time} duration={active.duration}
             onSeek={(mark) => commands.setPlayback(active.handle, mark.at * active.duration, true)}/>}
         </div>

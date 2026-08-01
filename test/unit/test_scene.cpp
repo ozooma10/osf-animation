@@ -1,4 +1,5 @@
 #include "Registry/SceneRegistry.h"
+#include "Scene/InspectionPropTimeline.h"
 
 #include "Util/Math.h"  // kDegToRad (offset.heading expectation)
 
@@ -268,6 +269,21 @@ int main()
 				Check(destroy.kind == ActionKind::kPropDestroy && destroy.pos == TrackPos::kFraction &&
 					destroy.fraction == 0.75f && destroy.prop == "helmet",
 					"compiled prop destroy identity and timing parse");
+				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.249f, false).empty(),
+					"inspection prop state is absent before attach");
+				const auto attached = OSF::Scene::InspectionPropsAt(node.actions, 0.25f, false);
+				Check(attached.size() == 1 && attached[0].prop == "helmet" &&
+					attached[0].propAttachment.node == "R_AnimObject1",
+					"inspection prop state includes attach at its exact mark");
+				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.749f, false).size() == 1,
+					"inspection prop state persists between marks");
+				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.75f, false).empty(),
+					"inspection prop state removes the prop at its destroy mark");
+				auto reverseAuthored = node.actions;
+				std::reverse(reverseAuthored.begin(), reverseAuthored.end());
+				Check(OSF::Scene::InspectionPropsAt(reverseAuthored, 0.5f, false).size() == 1 &&
+					OSF::Scene::InspectionPropsAt(reverseAuthored, 0.75f, false).empty(),
+					"inspection prop state follows mark time rather than authored array order");
 			}
 			const auto plan = reg.BuildNodePlan(s, node, 1);
 			Check(plan && !plan->anchored && plan->masks.size() == 1 && plan->masks[0] == "upperBody",
@@ -515,6 +531,30 @@ int main()
 		"invalid clipLibrary folder diagnostic names the path problem");
 	Check(!OSF::Animation::NormalizePoseWeight(std::numeric_limits<double>::quiet_NaN()).has_value(),
 		"non-finite poseWeight normalization rejects NaN");
+
+	// -- scrub-only scene clock ---------------------------------------------------------------
+	{
+		OSF::Animation::Scene scene;
+		OSF::Animation::Scene::StageData stage;
+		stage.duration = 2.0f;
+		stage.marks.push_back({ .fraction = 0.25f, .lane = 1, .token = "quarter" });
+		scene.stages.push_back(std::move(stage));
+		Check(scene.SetStage(0), "scene seek fixture selects its stage");
+		int owner = 0;
+		(void)scene.Advance(&owner, 0.75f);
+		std::vector<OSF::Animation::FiredMark> fired;
+		scene.DrainFiredMarks(fired);
+		Check(fired.size() == 1 && fired[0].token == "quarter", "scene fires a crossed mark before seeking");
+		Check(scene.Seek(1.25f), "scene seek accepts a finite in-range time");
+		scene.DrainFiredMarks(fired);
+		Check(fired.empty(), "scene seek itself does not fire marks");
+		(void)scene.Advance(&owner, 0.1f);
+		scene.DrainFiredMarks(fired);
+		Check(fired.empty(), "resuming after a seek does not replay consumed marks");
+		Check(scene.Seek(2.0f) && scene.GetPlaybackSnapshot().time < 2.0f,
+			"scene seek clamps clip end to the final representable pose");
+		Check(!scene.Seek(std::numeric_limits<float>::quiet_NaN()), "scene seek rejects non-finite time");
+	}
 
 	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
 	{

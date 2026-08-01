@@ -565,6 +565,47 @@ namespace OSF::Animation
 			return false;
 		}
 
+		const bool played = PlayDecodedAnimation(a_actor, std::move(loadResult.skeleton),
+			std::move(loadResult.anim), std::string(a_file));
+		if (played) {
+			REX::DEBUG("[Anim] Playing '{}' on actor {:X}", loadResult.source.empty() ? file.display : loadResult.source, a_actor->formID);
+		}
+		return played;
+	}
+
+	bool GraphManager::PlayAnimationBytes(RE::Actor* a_actor, const std::vector<std::uint8_t>& a_bytes,
+		std::string_view a_clipKey, std::string* a_error)
+	{
+		if (!a_actor) {
+			if (a_error) *a_error = "The player is unavailable";
+			return false;
+		}
+		if (!_origAnimGraphUpdate) {
+			if (a_error) *a_error = "OSF Animation playback hooks are unavailable";
+			return false;
+		}
+
+		constexpr std::string_view kRigKey = "human-skeleton";
+		auto loaded = Serialization::AFImport::LoadAnimation(a_clipKey, a_bytes, kRigKey, &LoadHumanRigBytes);
+		Serialization::AFImport::EvictAnimation(a_clipKey, kRigKey);
+		if (loaded.error != Serialization::AFError::kSuccess) {
+			if (a_error) *a_error = loaded.detail;
+			REX::ERROR("[Anim] Studio preview '{}' failed to decode: {}", a_clipKey, loaded.detail);
+			return false;
+		}
+
+		if (!PlayDecodedAnimation(a_actor, std::move(loaded.skeleton), std::move(loaded.anim), std::string(a_clipKey))) {
+			if (a_error) *a_error = "The player is already participating in an OSF scene";
+			return false;
+		}
+		return true;
+	}
+
+	bool GraphManager::PlayDecodedAnimation(RE::Actor* a_actor,
+		std::shared_ptr<const OzzSkeleton> a_skeleton,
+		std::shared_ptr<const OzzAnimation> a_anim,
+		std::string a_source)
+	{
 		std::shared_ptr<Graph> g;
 		{
 			std::unique_lock l{ stateLock };
@@ -591,10 +632,8 @@ namespace OSF::Animation
 			g->SetPosePolicy(PoseMode::kOverride, 1.0f);
 			g->SetPreserveBones(kNoPreservedBones);
 			g->SetBoneMask({});
-			g->SetAnimation(loadResult.skeleton, loadResult.anim, std::string(a_file));
+			g->SetAnimation(std::move(a_skeleton), std::move(a_anim), std::move(a_source));
 		}
-
-		REX::DEBUG("[Anim] Playing '{}' on actor {:X}", loadResult.source.empty() ? file.display : loadResult.source, a_actor->formID);
 		return true;
 	}
 
@@ -817,7 +856,7 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool GraphManager::SetSceneTime(RE::Actor* a_actor, float a_time)
+	bool GraphManager::SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback)
 	{
 		if (!a_actor || !std::isfinite(a_time)) {
 			return false;
@@ -832,10 +871,11 @@ namespace OSF::Animation
 			std::scoped_lock gl{ iter->second->stateLock };
 			scene = iter->second->scene;
 		}
-		return scene && scene->Seek(a_time);
+		return scene && (!a_expectedPlayback || scene->playbackId == a_expectedPlayback) && scene->Seek(a_time);
 	}
 
-	std::optional<GraphManager::ScenePlayback> GraphManager::GetScenePlayback(RE::Actor* a_actor)
+	std::optional<GraphManager::ScenePlayback> GraphManager::GetScenePlayback(
+		RE::Actor* a_actor, PlaybackId a_expectedPlayback)
 	{
 		if (!a_actor) {
 			return std::nullopt;
@@ -850,14 +890,16 @@ namespace OSF::Animation
 			std::scoped_lock gl{ iter->second->stateLock };
 			scene = iter->second->scene;
 		}
-		if (!scene) {
+		if (!scene || (a_expectedPlayback && scene->playbackId != a_expectedPlayback)) {
 			return std::nullopt;
 		}
 		const auto snapshot = scene->GetPlaybackSnapshot();
-		return ScenePlayback{ snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage) };
+		return ScenePlayback{
+			snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage), scene->playbackId
+		};
 	}
 
-	bool GraphManager::StopScene(RE::Actor* a_actor)
+	bool GraphManager::StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback)
 	{
 		if (!a_actor) {
 			return false;
@@ -867,7 +909,8 @@ namespace OSF::Animation
 		{
 			std::unique_lock l{ stateLock };
 			auto iter = graphs.find(a_actor);
-			if (iter == graphs.end() || !iter->second->scene) {
+			if (iter == graphs.end() || !iter->second->scene ||
+				(a_expectedPlayback && iter->second->scene->playbackId != a_expectedPlayback)) {
 				return false;
 			}
 			StopSceneLocked(iter->second->scene, deferred);
@@ -1030,6 +1073,53 @@ namespace OSF::Animation
 			return {};
 		}
 		return iter->second->currentFile;
+	}
+
+	bool GraphManager::SetAnimationTime(RE::Actor* a_actor, float a_time)
+	{
+		if (!a_actor || !std::isfinite(a_time)) return false;
+		std::shared_lock lock{ stateLock };
+		const auto iter = graphs.find(a_actor);
+		if (iter == graphs.end()) return false;
+		std::scoped_lock graphLock{ iter->second->stateLock };
+		auto& graph = *iter->second;
+		if (graph.scene || !graph.syncGroup || !graph.anim || !graph.anim->data) return false;
+		const float duration = graph.anim->data->duration();
+		const float time = std::clamp(a_time, 0.0f, (std::max)(duration - 0.0001f, 0.0f));
+		std::scoped_lock groupLock{ graph.syncGroup->lock };
+		graph.syncGroup->clock.time = time;
+		graph.localTime = time;
+		return true;
+	}
+
+	std::optional<GraphManager::AnimationPlayback> GraphManager::GetAnimationPlayback(RE::Actor* a_actor)
+	{
+		if (!a_actor) return std::nullopt;
+		std::shared_lock lock{ stateLock };
+		const auto iter = graphs.find(a_actor);
+		if (iter == graphs.end()) return std::nullopt;
+		std::scoped_lock graphLock{ iter->second->stateLock };
+		const auto& graph = *iter->second;
+		if (graph.scene || !graph.syncGroup || !graph.anim || !graph.anim->data || graph.IsFadedOut()) {
+			return std::nullopt;
+		}
+		return AnimationPlayback{
+			.time = graph.localTime,
+			.duration = graph.anim->data->duration(),
+			.speed = graph.syncGroup->speed.load(std::memory_order_relaxed)
+		};
+	}
+
+	bool GraphManager::SetAnimationHoldAtEnd(RE::Actor* a_actor, bool a_hold)
+	{
+		if (!a_actor) return false;
+		std::shared_lock lock{ stateLock };
+		const auto iter = graphs.find(a_actor);
+		if (iter == graphs.end()) return false;
+		std::scoped_lock graphLock{ iter->second->stateLock };
+		if (iter->second->scene) return false;
+		iter->second->holdClipAtEnd = a_hold;
+		return true;
 	}
 
 	bool GraphManager::SetSpeed(RE::Actor* a_actor, float a_speed)
@@ -1813,12 +1903,6 @@ namespace OSF::Animation
 								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff) = 1.0f;
 						}
 
-						// emitter:"role" uses an OSF-owned Wwise object. Keep it on the exact pinned
-						// scene placement (not the capsule's prior location); this is a no-op for actors
-						// that have never fired a positioned cue.
-						Audio::SoundService::GetSingleton().UpdateRoleEmitter(
-							static_cast<RE::Actor*>(refr), doPin ? pinWorld : refr->GetPosition(),
-							hasPinHeading ? pinHeading : refr->data.angle.z);
 						break;
 					}
 				}

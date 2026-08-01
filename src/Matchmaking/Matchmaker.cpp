@@ -264,6 +264,54 @@ namespace OSF::Matchmaking
 		return true;
 	}
 
+	bool BindSceneRoles(const Registry::SceneDef& a_def, const std::vector<RE::Actor*>& a_actors,
+		const std::vector<std::string>& a_roleNames, std::vector<RE::Actor*>& a_ordered, std::string& a_error)
+	{
+		if (a_actors.size() != a_def.roles.size()) {
+			a_error = std::format("Scene needs {} cast member(s), but {} selected",
+				a_def.roles.size(), a_actors.size());
+			return false;
+		}
+		if (!a_roleNames.empty() && a_roleNames.size() != a_actors.size()) {
+			a_error = std::format("Expected {} role name(s), but {} supplied",
+				a_actors.size(), a_roleNames.size());
+			return false;
+		}
+
+		a_ordered = a_actors;
+		if (!a_roleNames.empty()) {
+			a_ordered.assign(a_def.roles.size(), nullptr);
+			for (std::size_t i = 0; i < a_actors.size(); ++i) {
+				const auto want = ToLower(a_roleNames[i]);
+				const auto role = std::ranges::find_if(a_def.roles,
+					[&](const Registry::SceneRole& a_candidate) { return ToLower(a_candidate.name) == want; });
+				if (role == a_def.roles.end()) {
+					a_error = "Unknown role '" + a_roleNames[i] + "'";
+					return false;
+				}
+				const auto index = static_cast<std::size_t>(std::distance(a_def.roles.begin(), role));
+				if (a_ordered[index]) {
+					a_error = "Role '" + a_roleNames[i] + "' was assigned twice";
+					return false;
+				}
+				a_ordered[index] = a_actors[i];
+			}
+		}
+
+		std::unordered_set<RE::Actor*> unique;
+		for (std::size_t i = 0; i < a_ordered.size(); ++i) {
+			if (!a_ordered[i] || !unique.insert(a_ordered[i]).second) {
+				a_error = "Cast contains a missing or duplicate actor";
+				return false;
+			}
+			if (!RoleAccepts(a_def.roles[i], a_ordered[i])) {
+				a_error = "A selected actor does not satisfy role '" + a_def.roles[i].name + "'";
+				return false;
+			}
+		}
+		return true;
+	}
+
 	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword)
 	{
 		if (a_matchedKeyword) {

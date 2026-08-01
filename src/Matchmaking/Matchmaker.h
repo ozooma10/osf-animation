@@ -47,6 +47,11 @@ namespace OSF::Matchmaking
 	// Does a_actor satisfy a_role's filters (gender + any-of keyword + any-of race)? shared by matchmaking and SceneRuntime's per-start filter enforcement.
 	bool RoleAccepts(const Registry::SceneRole& a_role, RE::Actor* a_actor);
 
+	// Orders actors into a scene definition's role slots and validates the complete binding.
+	// Empty role names preserve caller order; otherwise every actor must name exactly one role.
+	bool BindSceneRoles(const Registry::SceneDef& a_def, const std::vector<RE::Actor*>& a_actors,
+		const std::vector<std::string>& a_roleNames, std::vector<RE::Actor*>& a_ordered, std::string& a_error);
+
 	// Does a_ref satisfy a_def's anchor requirement (any-of: its base form is listed, OR it carries a listed keyword)? Shared by anchor-first matchmaking and the start-path anchor enforcement.
 	// a_matchedKeyword (optional) receives the keyword that matched — null on a base-form match (Scan Nearby labels unnamed markers by it).
 	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword = nullptr);

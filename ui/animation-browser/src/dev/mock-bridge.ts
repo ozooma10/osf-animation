@@ -164,11 +164,11 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.playback.set") {
       const active = this.active.find((scene) => scene.handle === Number(fields.handle));
       if (active) {
-        if (typeof fields.time === "number") active.time = Math.max(0, Math.min(active.duration, fields.time));
-        if (fields.paused === true) {
+        if (active.inspection && typeof fields.time === "number") active.time = Math.max(0, Math.min(active.duration, fields.time));
+        if (!active.inspection && fields.paused === true) {
           if (active.speed > 0) this.resumeSpeeds.set(active.handle, active.speed);
           active.speed = 0;
-        } else if (fields.paused === false) {
+        } else if (!active.inspection && fields.paused === false) {
           active.speed = this.resumeSpeeds.get(active.handle) ?? 1;
           this.resumeSpeeds.delete(active.handle);
         }
@@ -188,7 +188,7 @@ export class StandaloneBridge implements AnimationBridge {
         if (resume != null) active.speed = resume;
       }
       this.resumeSpeeds.clear();
-      this.active = this.active.filter((scene) => !scene.player);
+      this.active = this.active.filter((scene) => !scene.player && !scene.inspection);
     } else if (command === "osf.animation.opened") {
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 50);
       const target = new URLSearchParams(location.search).get("target");
@@ -214,7 +214,7 @@ export class StandaloneBridge implements AnimationBridge {
     const options = isRecord(fields.opts) ? fields.opts : {};
     const speed = Number(options.speed) || 1;
     const inspect = !!fields.inspect;
-    if (inspect) this.resumeSpeeds.set(handle, speed);
+    if (inspect) this.resumeSpeeds.set(handle, 1);
     this.active.push({
       handle,
       sceneId,
@@ -224,6 +224,7 @@ export class StandaloneBridge implements AnimationBridge {
       time: 0,
       duration: sceneById(this.getState(), sceneId)?.stages[Number(options.stage) || 0]?.loopSec ?? 5,
       speed: inspect ? 0 : speed,
+      inspection: inspect,
     });
       this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, inspect } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);

@@ -11,6 +11,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Packs/PackReload.h"
 #include "Scene/AnchorResolve.h"  // rendered-world reference anchors + in-front-of-player placement
+#include "Scene/SceneInspectionService.h"  // scrub-only playback and preview prop ownership
 #include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/WheelPins.h"  // ordered animation-wheel customization
 #include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
@@ -84,9 +85,9 @@ namespace OSF::API
 		// Browser pause is reversible without flattening a custom launch speed to 1x.
 		std::unordered_map<std::int32_t, float> g_resumeSpeeds;
 
-		// PLAYER-cast scenes launched from the browser console, aborted when the browser
-		// closes: once the UI is gone there is no stop button left, so a player mid-scene
-		// would be stuck. NPC-only scenes are deliberately NOT tracked — they outlive the
+		// PLAYER-cast runtime scenes launched from the browser console are aborted when
+		// the browser closes: once the UI is gone there is no stop surface left.
+		// Ordinary NPC-only scenes are deliberately NOT tracked — they outlive the
 		// browser (vignettes / machinima; the player can just walk away), and the ACTIVE
 		// list on reopen is their stop surface. Every player-affecting mechanism (control
 		// lock, camera, fade) is already engine-gated on the player being a participant, so
@@ -94,7 +95,8 @@ namespace OSF::API
 		// the wheel closes itself right after a successful pick, and the emote must survive
 		// that close. Stale entries are harmless (handles are generational; StopScene on an
 		// ended scene returns false) and the list is cleared on every close, so it never
-		// outgrows one browser session. Main thread only.
+		// outgrows one browser session. The inspection service always destroys browser
+		// previews on close. Main thread only.
 		std::vector<std::int32_t> g_closeStops;
 
 		// Pending animation-wheel open (OpenWheel): the osf.mode push must survive the open race,
@@ -209,10 +211,9 @@ namespace OSF::API
 		// installed host reports an older version, the browser's status line grows an
 		// UPDATE badge pointing at the OSF UI Nexus page. Bump alongside any new
 		// host feature this file starts depending on.
-		// OSF UI 1.5 is the first release whose consented reporter recognizes
-		// osf.animation/* as the OSF Animation target, attaches this plugin's
-		// session log, and routes the resulting issue to the Animation repo.
-		constexpr std::uint32_t kOSFUITested[3] = { 1, 5, 0 };
+		// The browser now uses OSF UI's 2.0 helper transport. Keep the advisory
+		// version aligned with the shipped view manifest.
+		constexpr std::uint32_t kOSFUITested[3] = { 2, 0, 0 };
 		constexpr const char*   kOSFUINexusURL  = "https://www.nexusmods.com/starfield/mods/17711";
 
 		// ---- helpers ---------------------------------------------------------
@@ -263,6 +264,7 @@ namespace OSF::API
 		{
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			auto& gm = Animation::GraphManager::GetSingleton();
+			auto inspections = Scene::SceneInspectionService::GetSingleton().List();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			json scenes = json::array();
 			for (const auto& s : rt.ListScenes()) {
@@ -284,17 +286,48 @@ namespace OSF::API
 					{ "handle", s.handle },
 					{ "sceneId", s.id.empty() ? std::string{ "runtime.files" } : s.id },
 					{ "stage", rt.GetStage(s.handle) },
+					{ "inspection", false },
 					{ "player", hasPlayer },
 					{ "cast", std::move(cast) },
 				};
 				if (!s.participants.empty()) {
 					if (const auto playback = gm.GetScenePlayback(s.participants.front())) {
-						item["stage"] = playback->stage;
+						if (s.id.empty()) {
+							item["stage"] = playback->stage;  // ad-hoc plans have no registry node/stage mapping
+						}
 						item["time"] = playback->time;
 						item["duration"] = playback->duration;
 						item["speed"] = playback->speed;
 					}
 				}
+				scenes.push_back(std::move(item));
+			}
+			for (const auto& preview : inspections) {
+				json cast = json::array();
+				bool hasPlayer = false;
+				for (RE::Actor* actor : preview.participants) {
+					if (!actor) {
+						continue;
+					}
+					const bool isPlayer = player && actor == static_cast<RE::Actor*>(player);
+					hasPlayer = hasPlayer || isPlayer;
+					cast.push_back(json{
+						{ "token", isPlayer ? -1 : AllocToken(actor) },
+						{ "name", isPlayer ? std::string{ "Player" } : ScanLabel(actor) },
+						{ "player", isPlayer },
+					});
+				}
+				json item{
+					{ "handle", preview.handle },
+					{ "sceneId", preview.sceneId },
+					{ "stage", preview.stage },
+					{ "inspection", true },
+					{ "player", hasPlayer },
+					{ "cast", std::move(cast) },
+					{ "speed", 0.0f },
+				};
+				item["time"] = preview.playback.time;
+				item["duration"] = preview.playback.duration;
 				scenes.push_back(std::move(item));
 			}
 			return json{ { "scenes", std::move(scenes) } };
@@ -1023,9 +1056,8 @@ namespace OSF::API
 			o.fadeMode = OptTri(opts, "fade");
 			o.speed = NumOr(opts, "speed", 1.0f);
 			const bool inspect = !g_wheel.active && BoolOr(j, "inspect", false);
-			const float inspectResumeSpeed = o.speed > 0.0f ? o.speed : 1.0f;
 			if (inspect) {
-				o.speed = 0.0f;  // applied as part of the synchronous start, before a short scene can expire
+				o.speed = 0.0f;  // preview graphs are scrub-only; runtime launch options are otherwise irrelevant
 			}
 			// Enter the scene on a specific linear stage. 0 = the scene's entry; resolved to the stage's
 			// node BEFORE the start (ResolveStartStageNode), so the scene opens directly on it.
@@ -1118,14 +1150,57 @@ namespace OSF::API
 				std::snprintf(o.camera, sizeof(o.camera), "none");
 			}
 
+			// Named-role binding if the view supplied roleNames (one per cast token); else order-based auto-bind.
+			std::vector<std::string> roleNames;
+			if (j.contains("roleNames") && j["roleNames"].is_array()) {
+				for (const auto& r : j["roleNames"]) {
+					roleNames.push_back(r.is_string() ? r.get<std::string>() : std::string{});
+				}
+			}
+			if (!roleNames.empty() && roleNames.size() != actors.size()) {
+				return fail("Role names do not match the selected cast");
+			}
+
+			auto& inspectionService = Scene::SceneInspectionService::GetSingleton();
+			std::optional<Scene::PreparedInspection> preparedInspection;
+			if (inspect) {
+				auto definition = Registry::SceneRegistry::GetSingleton().Find(sceneId);
+				if (!definition) {
+					return fail("The selected scene definition is no longer loaded");
+				}
+
+				Scene::InspectionAnchor anchor{};
+				if (o.anchorRef) {
+					const auto resolved = Scene::ResolveSceneAnchor(sceneId, o.anchorRef, std::nullopt,
+						/*a_emitHud*/ false);
+					if (!resolved) {
+						return fail("The selected scene cannot use that anchor");
+					}
+					anchor = Scene::InspectionAnchor{ resolved->set, resolved->pos, resolved->heading };
+				} else if (definition->RequiresAnchor()) {
+					return fail("This scene requires compatible furniture");
+				} else if (o.hasAnchor) {
+					anchor = Scene::InspectionAnchor{
+						true, RE::NiPoint3{ o.anchorX, o.anchorY, o.anchorZ }, o.anchorHeadingRad };
+				}
+				std::string prepareError;
+				preparedInspection = inspectionService.Prepare(
+					Scene::InspectionRequest{ definition, actors, roleNames, o.startStage, anchor }, prepareError);
+				if (!preparedInspection) {
+					return fail(prepareError);
+				}
+			}
+
 			auto* api = SceneAPI();
 			if (!api) {
 				return fail("OSF Animation engine is not ready yet");
 			}
 
-			// Replace-in-place: if a cast member is already mid-scene, stop that scene first so this launch supersedes it 
-			for (RE::Actor* a : actors) {
-				const std::int32_t busy = api->GetSceneForActor(a);
+			// Validation above is non-destructive. Only a launch that can be constructed gets
+			// to supersede existing ownership for the selected cast.
+			for (RE::Actor* actor : actors) {
+				inspectionService.StopForActor(actor);
+				const std::int32_t busy = api->GetSceneForActor(actor);
 				if (busy != 0) {
 					api->StopScene(busy);
 					std::erase(g_closeStops, busy);
@@ -1137,15 +1212,14 @@ namespace OSF::API
 				}
 			}
 
-			// Named-role binding if the view supplied roleNames (one per cast token); else order-based auto-bind.
 			std::int32_t handle = 0;
-			std::vector<std::string> roleNames;
-			if (j.contains("roleNames") && j["roleNames"].is_array()) {
-				for (const auto& r : j["roleNames"]) {
-					roleNames.push_back(r.is_string() ? r.get<std::string>() : std::string{});
+			if (inspect) {
+				std::string startError;
+				handle = inspectionService.Start(std::move(*preparedInspection), startError);
+				if (handle == 0) {
+					return fail(startError);
 				}
-			}
-			if (!roleNames.empty() && roleNames.size() == actors.size()) {
+			} else if (!roleNames.empty()) {
 				std::vector<const char*> rolePtrs;
 				rolePtrs.reserve(roleNames.size());
 				for (const auto& r : roleNames) {
@@ -1162,13 +1236,10 @@ namespace OSF::API
 			}
 
 			g_lastHandle = handle;
-			if (inspect) {
-				g_resumeSpeeds[handle] = inspectResumeSpeed;
-			}
 			// A stage-scoped browser item and a wheel entry both mean "play this
 			// animation", never "start here and continue through the parent collection."
 			// Post-start on purpose: this is launch posture, not authored scene policy.
-			if (g_wheel.active || singleAnimation) {
+			if (!inspect && (g_wheel.active || singleAnimation)) {
 				Scene::SceneRuntime::GetSingleton().SetSingleStage(handle);
 			}
 			// Console launch with the PLAYER in the cast: abort on browser close (see
@@ -1176,7 +1247,7 @@ namespace OSF::API
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			const bool castHasPlayer = player &&
 				std::find(actors.begin(), actors.end(), static_cast<RE::Actor*>(player)) != actors.end();
-			if (!g_wheel.active && castHasPlayer) {
+			if (!inspect && !g_wheel.active && castHasPlayer) {
 				g_closeStops.push_back(handle);
 			}
 			reply["ok"] = true;
@@ -1215,9 +1286,11 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = *parsed;
-			bool ok = false;
-			if (auto* api = SceneAPI(); api && handle != 0) {
-				ok = api->StopScene(handle);
+			bool ok = Scene::SceneInspectionService::GetSingleton().Stop(handle);
+			if (!ok) {
+				if (auto* api = SceneAPI(); api && handle != 0) {
+					ok = api->StopScene(handle);
+				}
 			}
 			if (ok) {
 				std::erase(g_closeStops, handle);
@@ -1242,10 +1315,12 @@ namespace OSF::API
 			}
 			const auto handle = *parsed;
 			bool ok = false;
-			if (auto* api = SceneAPI(); api && handle != 0) {
-				ok = api->Advance(handle);
+			if (!Scene::SceneInspectionService::GetSingleton().Contains(handle)) {
+				if (auto* api = SceneAPI(); api && handle != 0) {
+					ok = api->Advance(handle);
+				}
 			}
-			// A paused/inspection scene stays paused across a synchronous NEXT transition.
+			// A paused runtime scene stays paused across a synchronous NEXT transition.
 			// Auto transitions cannot race this path because their clock is already stopped.
 			if (ok && g_resumeSpeeds.contains(handle)) {
 				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
@@ -1268,6 +1343,18 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = IntOr(j, "handle", 0);
+			auto& inspectionService = Scene::SceneInspectionService::GetSingleton();
+			if (inspectionService.Contains(handle)) {
+				if (const auto time = j.find("time"); time != j.end() && time->is_number()) {
+					const double value = time->get<double>();
+					if (std::isfinite(value) && value >= 0.0 && value <= std::numeric_limits<float>::max() &&
+						!inspectionService.Seek(handle, static_cast<float>(value))) {
+						REX::WARN("[UI] preview seek failed for stale handle={}", handle);
+					}
+				}
+				SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());
+				return;
+			}
 			auto participants = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
 			if (handle == 0 || participants.empty() || !participants.front()) {
 				return;
@@ -1285,12 +1372,6 @@ namespace OSF::API
 					const auto found = g_resumeSpeeds.find(handle);
 					gm.SetSpeed(participants.front(), found != g_resumeSpeeds.end() ? found->second : 1.0f);
 					g_resumeSpeeds.erase(handle);
-				}
-			}
-			if (const auto time = j.find("time"); time != j.end() && time->is_number()) {
-				const double value = time->get<double>();
-				if (std::isfinite(value) && value >= 0.0 && value <= std::numeric_limits<float>::max()) {
-					gm.SetSceneTime(participants.front(), static_cast<float>(value));
 				}
 			}
 			SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());
@@ -2105,6 +2186,7 @@ namespace OSF::API
 			g_tokens.clear();
 			g_formToken.clear();  // picked refs are scoped to one browser session
 			g_orbitSpaceNoticed = false;  // re-arm the in-space orbit notice for the next session
+			Scene::SceneInspectionService::GetSingleton().StopAll();
 			// A scrub pauses playback. NPC-only scenes survive the browser, so restore their
 			// pre-scrub speeds before their only director surface disappears.
 			for (const auto& [handle, speed] : g_resumeSpeeds) {

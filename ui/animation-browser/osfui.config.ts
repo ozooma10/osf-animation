@@ -12,10 +12,8 @@ export default defineConfig({
     height: 900,
     pausesGame: false,
     transparent: true,
-    // 1.5 adds OSF Animation-aware consented bug reports: the host recognizes
-    // this qualified view id, includes OSF Animation.log, and routes the issue
-    // to the Animation repository.
-    targetVersion: "1.5.0",
+    // The view uses the 2.0 helper transport; older hosts cannot satisfy this contract.
+    targetVersion: "2.0.0",
     permissions: {
       nativeBridge: true,
     },

@@ -945,42 +945,16 @@ namespace OSF::Scene
 			return 0;
 		}
 		if (a_actors.size() != a_roles.size()) {
-			REX::ERROR("[Scene] StartSceneRoles '{}': {} actor(s) vs {} role name(s)", a_sceneId, a_actors.size(), a_roles.size());
+			REX::ERROR("[Scene] StartSceneRoles '{}': {} actor(s) vs {} role name(s)",
+				a_sceneId, a_actors.size(), a_roles.size());
 			return 0;
 		}
-		if (a_actors.size() != def->roles.size()) {
-			REX::ERROR("[Scene] StartSceneRoles '{}': scene declares {} role(s), got {}", a_sceneId, def->roles.size(), a_actors.size());
+		std::vector<RE::Actor*> ordered;
+		std::string bindingError;
+		if (!Matchmaking::BindSceneRoles(*def, a_actors, a_roles, ordered, bindingError)) {
+			REX::ERROR("[Scene] StartSceneRoles '{}': {}", a_sceneId, bindingError);
 			return 0;
 		}
-
-		// Place each actor into its named role's declaration slot. Rejects unknown roles,
-		// a role filled twice, and null actors; missing roles fall out as an unfilled slot.
-		std::vector<RE::Actor*> ordered(def->roles.size(), nullptr);
-		for (std::size_t i = 0; i < a_actors.size(); i++) {
-			if (!a_actors[i]) {
-				REX::ERROR("[Scene] StartSceneRoles '{}': null actor for role '{}'", a_sceneId, a_roles[i]);
-				return 0;
-			}
-			const auto want = Util::ToLower(a_roles[i]);
-			std::int32_t roleIdx = -1;
-			for (std::size_t r = 0; r < def->roles.size(); r++) {
-				if (Util::ToLower(def->roles[r].name) == want) {
-					roleIdx = static_cast<std::int32_t>(r);
-					break;
-				}
-			}
-			if (roleIdx < 0) {
-				REX::ERROR("[Scene] StartSceneRoles '{}': unknown role '{}'", a_sceneId, a_roles[i]);
-				return 0;
-			}
-			if (ordered[roleIdx]) {
-				REX::ERROR("[Scene] StartSceneRoles '{}': role '{}' assigned twice", a_sceneId, a_roles[i]);
-				return 0;
-			}
-			ordered[roleIdx] = a_actors[i];
-		}
-		// Every role filled (size match + each filled at most once => all filled); a duplicate
-		// actor across two roles is caught by MintSlot's same-actor-twice check.
 
 		// Bind by role-declaration order, then enter at the def's entry — or the caller's override
 		// (SceneOptions.Stage) — (MintSlot enforces actor exclusivity + the duplicate-actor reject).

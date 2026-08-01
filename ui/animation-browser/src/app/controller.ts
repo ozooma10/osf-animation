@@ -81,10 +81,11 @@ export function normalizeActive(payload: unknown): ActiveScene[] {
     time: Math.max(0, Number(scene.time) || 0),
     duration: Math.max(0, Number(scene.duration) || 0),
     speed: Math.max(0, Number(scene.speed) || 0),
+    inspection: !!scene.inspection,
     cast: Array.isArray(scene.cast) ? scene.cast.filter(isRecord).map((member) => ({
       token: Number(member.token), name: String(member.name || "actor"), player: !!member.player,
     })) : [],
-  })).filter((scene) => scene.handle > 0);
+  })).filter((scene) => scene.handle !== 0);
 }
 
 function normalizeIndicators(payload: unknown): ActorIndicator[] {
@@ -334,7 +335,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch, inspect });
           if (wheelLaunch || afterLaunch === "close") send("osf.animation.requestClose");
           else showNotice("ok", inspect
-            ? `Inspecting "${sceneTitle(stateRef.current, sceneId)}" — paused at the first frame.`
+            ? `Inspecting "${sceneTitle(stateRef.current, sceneId)}" — scrub-only pose and scene-prop preview.`
             : `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
         } else {
           const error = String(record.error || "Launch failed.");

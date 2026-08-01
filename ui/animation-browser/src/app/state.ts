@@ -49,6 +49,7 @@ export interface ActiveScene {
   time: number;
   duration: number;
   speed: number;
+  inspection: boolean;
 }
 
 export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";

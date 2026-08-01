@@ -16,7 +16,6 @@ namespace OSF::Audio
 		constexpr std::size_t kMaxTrackedUnslottedVoices = 256;
 		constexpr std::size_t kMaxTrackedSlottedVoices = 4096;
 		constexpr std::size_t kMaxSlotOrderRecords = 8192;
-		constexpr std::uint64_t kRoleEmitterNamespace = 1ull << 62;
 
 		// Process-lifetime worker pool. SFSE plugins are not unloaded during play, and deliberately
 		// leaking the pool avoids static-destruction races with decoder/Wwise code at process exit.
@@ -85,21 +84,8 @@ namespace OSF::Audio
 
 	std::uint64_t SoundService::PrepareRoleEmitter(RE::Actor* a_actor)
 	{
-		if (!a_actor || a_actor->formID == 0) {
-			return 0;
-		}
-		const std::uint64_t gameObject = kRoleEmitterNamespace | static_cast<std::uint64_t>(a_actor->formID);
-		return Wwise::PositionEmitter(gameObject, a_actor->GetPosition(), a_actor->data.angle.z,
-			/*a_registerIfMissing*/ true) ? gameObject : 0;
-	}
-
-	void SoundService::UpdateRoleEmitter(RE::Actor* a_actor, const RE::NiPoint3& a_position, float a_heading)
-	{
-		if (!a_actor || a_actor->formID == 0) {
-			return;
-		}
-		const std::uint64_t gameObject = kRoleEmitterNamespace | static_cast<std::uint64_t>(a_actor->formID);
-		Wwise::PositionEmitter(gameObject, a_position, a_heading, /*a_registerIfMissing*/ false);
+		(void)a_actor;
+		return 0;
 	}
 
 	SoundService::PlayTicket SoundService::BeginPlay()

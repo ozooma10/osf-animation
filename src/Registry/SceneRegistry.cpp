@@ -1040,12 +1040,57 @@ namespace OSF::Registry
 			}
 		}
 
+		// Apply one `playerControl` value onto a grant that already holds the inherited default (the
+		// built-in all-capabilities grant at file level, the file-level grant at scene level). Boolean
+		// form toggles `enabled`; object form narrows what it inherited (`disable` removes bits from the
+		// set already in a_out, so a scene's disable list composes with the pack's). a_ctx labels errors
+		// ("scene 'x'" / "'pack.json'").
+		void ApplyPlayerControl(const json& a_value, PlayerControl& a_out, const std::string& a_ctx)
+		{
+			if (a_value.is_boolean()) {
+				a_out.enabled = a_value.get<bool>();
+				return;
+			}
+			if (!a_value.is_object()) {
+				throw std::runtime_error(a_ctx + ": 'playerControl' must be a boolean or an object");
+			}
+			if (auto en = a_value.find("enabled"); en != a_value.end()) {
+				if (!en->is_boolean()) {
+					throw std::runtime_error(a_ctx + ": 'playerControl.enabled' must be a boolean");
+				}
+				a_out.enabled = en->get<bool>();
+			}
+			if (auto d = a_value.find("disable"); d != a_value.end()) {
+				if (!d->is_array()) {
+					throw std::runtime_error(a_ctx + ": 'playerControl.disable' must be an array of strings");
+				}
+				for (const auto& v : *d) {
+					if (!v.is_string()) {
+						throw std::runtime_error(a_ctx + ": 'playerControl.disable' entries must be strings");
+					}
+					const auto name = v.get<std::string>();
+					const auto bit = Input::CapabilityBit(name);
+					if (bit == 0) {
+						REX::WARN("[Registry] {}: unknown playerControl capability '{}' — ignored (typo, or a newer OSF Animation?)", a_ctx, name);
+					}
+					a_out.capabilities &= ~bit;  // remove from the inherited set
+				}
+			}
+			if (auto lk = a_value.find("locked"); lk != a_value.end()) {
+				if (!lk->is_boolean()) {
+					throw std::runtime_error(a_ctx + ": 'playerControl.locked' must be a boolean");
+				}
+				a_out.locked = lk->get<bool>();
+			}
+		}
+
 		// Top-level metadata (name/priority/weight/unlisted/lockPlayer/stripActors/clearHeldItems/fade/playerControl). id, tags,
 		// roles, and the playable (clip/stages/nodes) are parsed by the caller. a_lockDefault/
-		// a_stripDefault/a_clearHeldItemsDefault/a_fadeDefault/a_unlistedDefault seed the policy opt-outs
-		// (the file-level defaults).
+		// a_stripDefault/a_clearHeldItemsDefault/a_fadeDefault/a_unlistedDefault/a_playerControlDefault
+		// seed the policy opt-outs (the file-level defaults).
 		void ParseSceneMeta(const json& a_json, SceneDef& def, bool a_lockDefault, bool a_stripDefault,
-			bool a_clearHeldItemsDefault, bool a_fadeDefault, bool a_unlistedDefault, bool a_inPlaceDefault)
+			bool a_clearHeldItemsDefault, bool a_fadeDefault, bool a_unlistedDefault, bool a_inPlaceDefault,
+			const PlayerControl& a_playerControlDefault)
 		{
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", 0);
@@ -1101,43 +1146,12 @@ namespace OSF::Registry
 				}
 				def.inPlace = it->get<bool>();
 			}
-			// Input control is enabled-by-default (def.playerControl starts enabled with all capabilities).
-			// `"playerControl": false` turns it off; an object narrows it via `disable`/`locked`.
+			// Input control is enabled-by-default (a_playerControlDefault is the built-in all-capabilities
+			// grant unless the pack narrowed it). `"playerControl": false` turns it off; an object narrows
+			// what was inherited via `disable`/`locked`.
+			def.playerControl = a_playerControlDefault;
 			if (auto it = a_json.find("playerControl"); it != a_json.end()) {
-				if (it->is_boolean()) {
-					def.playerControl.enabled = it->get<bool>();
-				} else if (it->is_object()) {
-					if (auto en = it->find("enabled"); en != it->end()) {
-						if (!en->is_boolean()) {
-							throw std::runtime_error("scene '" + def.id + "': 'playerControl.enabled' must be a boolean");
-						}
-						def.playerControl.enabled = en->get<bool>();
-					}
-					if (auto d = it->find("disable"); d != it->end()) {
-						if (!d->is_array()) {
-							throw std::runtime_error("scene '" + def.id + "': 'playerControl.disable' must be an array of strings");
-						}
-						for (const auto& v : *d) {
-							if (!v.is_string()) {
-								throw std::runtime_error("scene '" + def.id + "': 'playerControl.disable' entries must be strings");
-							}
-							const auto name = v.get<std::string>();
-							const auto bit = Input::CapabilityBit(name);
-							if (bit == 0) {
-								REX::WARN("[Registry] scene '{}': unknown playerControl capability '{}' — ignored (typo, or a newer OSF Animation?)", def.id, name);
-							}
-							def.playerControl.capabilities &= ~bit;  // remove from the default-all set
-						}
-					}
-					if (auto lk = it->find("locked"); lk != it->end()) {
-						if (!lk->is_boolean()) {
-							throw std::runtime_error("scene '" + def.id + "': 'playerControl.locked' must be a boolean");
-						}
-						def.playerControl.locked = lk->get<bool>();
-					}
-				} else {
-					throw std::runtime_error("scene '" + def.id + "': 'playerControl' must be a boolean or an object");
-				}
+				ApplyPlayerControl(*it, def.playerControl, "scene '" + def.id + "'");
 			}
 		}
 
@@ -1582,13 +1596,14 @@ namespace OSF::Registry
 		}
 
 		// Parse one unified scene. a_lockDefault/a_stripDefault/a_clearHeldItemsDefault/a_fadeDefault/
-		// a_unlistedDefault are the file-level policy defaults;
+		// a_unlistedDefault/a_playerControlDefault are the file-level policy defaults;
 		// a_packRoles are the ARRAY form of the file-level `roles` (inherited by a scene that omits its own);
 		// a_roleRegistry is the OBJECT form (id -> reusable template a scene's `roles` references by id string
 		// or { "id", ...overrides } object); a_anchorDefault is the file-level `anchor` (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings, bool a_lockDefault,
 			bool a_stripDefault, bool a_clearHeldItemsDefault, bool a_fadeDefault, bool a_unlistedDefault,
-			bool a_inPlaceDefault, std::optional<CameraState> a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
+			bool a_inPlaceDefault, const PlayerControl& a_playerControlDefault,
+			std::optional<CameraState> a_cameraDefault, const std::vector<SceneRole>& a_packRoles,
 			const RoleRegistry& a_roleRegistry, std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
 			SceneDef def;
@@ -1601,7 +1616,7 @@ namespace OSF::Registry
 				NormalizeClipRoot(a_json.value("clipRoot", std::string{}), "scene '" + def.id + "'") :
 				std::string(a_packClipRoot);
 			ParseSceneMeta(a_json, def, a_lockDefault, a_stripDefault, a_clearHeldItemsDefault,
-				a_fadeDefault, a_unlistedDefault, a_inPlaceDefault);
+				a_fadeDefault, a_unlistedDefault, a_inPlaceDefault, a_playerControlDefault);
 			if (const auto it = a_json.find("tags"); it != a_json.end()) {
 				for (const auto& t : *it) {
 					def.tags.push_back(t.get<std::string>());
@@ -1890,6 +1905,18 @@ namespace OSF::Registry
 			// Pack-level `inPlace:true` = every scene plays on the actors where they stand (no teleport,
 			// no per-frame root/heading pin) — the emote-pack posture; scenes may override per-scene.
 			const bool inPlaceDefault = a_json.value("inPlace", false);
+			// Pack-level `playerControl` seeds every scene's director-input grant — `false` revokes input
+			// across the whole file (the route-pack posture), an object narrows it pack-wide. Scenes
+			// override/narrow further per-scene.
+			PlayerControl playerControlDefault{};
+			if (const auto pcit = a_json.find("playerControl"); pcit != a_json.end()) {
+				try {
+					ApplyPlayerControl(*pcit, playerControlDefault, "'" + fileName + "'");
+				} catch (const std::exception& e) {
+					rejectFile(e.what());
+					return;
+				}
+			}
 			std::string packClipRoot;
 			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
 				if (!crit->is_string()) {
@@ -2027,8 +2054,8 @@ namespace OSF::Registry
 				                               : std::string{};
 				try {
 					auto def = ParseOsfScene(*sj, warnings, lockDefault, stripDefault, clearHeldItemsDefault,
-						fadeDefault, unlistedDefault, inPlaceDefault, cameraDefault, packRoles, roleRegistry,
-						packClipRoot, packAnchor);
+						fadeDefault, unlistedDefault, inPlaceDefault, playerControlDefault, cameraDefault,
+						packRoles, roleRegistry, packClipRoot, packAnchor);
 					if (def.nodes.size() > kMaxNodesPerScene) {
 						throw std::runtime_error("scene '" + def.id + "': too many nodes");
 					}

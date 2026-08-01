@@ -1,4 +1,4 @@
-import { encodeCommand, parseNativeMessage, type BridgeCommand, type NativeMessage } from "./contract";
+import { type BridgeCommand, type NativeMessage } from "./contract";
 
 export type NativeMessageListener = (message: NativeMessage) => void;
 
@@ -12,27 +12,47 @@ export interface AnimationBridge {
 export class OsfUiBridge implements AnimationBridge {
   readonly standalone = false;
   private readonly listeners = new Set<NativeMessageListener>();
-  // Messages delivered by the host before any listener has subscribed. The bridge's
-  // onMessage handler is installed synchronously in the constructor (render phase), but
-  // the controller only calls subscribe() from a post-paint useEffect. The host queues
-  // messages for a not-yet-visible view and flushes them at first paint — which lands in
-  // that gap. Buffer here and replay on the first subscribe so normal startup becomes
-  // ready immediately; a full page reload also self-heals from the catalog response.
+  // The shared helper can replay readiness/state while the controller is still
+  // mounting. Hold those adapter messages until its post-paint subscription exists.
   private readonly pending: NativeMessage[] = [];
-  private readonly previousHandler = window.osfui?.onMessage;
+  private readonly unsubscribers: Array<() => void> = [];
 
   constructor() {
-    window.osfui ??= {};
-    window.osfui.onMessage = (text) => {
-      const message = parseNativeMessage(text);
-      if (!message) return;
-      if (this.listeners.size === 0) { this.pending.push(message); return; }
-      for (const listener of this.listeners) listener(message);
-    };
+    const bridge = window.osfui;
+    const events = [
+      "osf.animation.version", "settings.changed", "osf.animation.catalog.data",
+      "osf.animation.library.data", "osf.animation.imports.data",
+      "osf.animation.imports.reloadResult", "osf.animation.imports.copyResult",
+      "osf.animation.wheel.data", "osf.animation.pick", "osf.animation.openTarget",
+      "osf.animation.scanResults", "osf.animation.actorIndicators",
+      "osf.animation.pickTargets", "osf.animation.anchorMatch",
+      "osf.animation.activeScenes", "osf.animation.launchResult",
+      "osf.animation.notice", "osf.animation.mode", "ui.visibility", "ui.gamepad",
+      "osfui.debug.error",
+    ];
+    for (const name of events) {
+      const off = bridge?.on?.(name, (payload) => this.emit({
+        type: name === "osfui.debug.error" ? "ui.error" : name,
+        payload,
+      }));
+      if (off) this.unsubscribers.push(off);
+    }
+    const offSettings = bridge?.state?.on?.("osfui/settings", (value) =>
+      this.emit({ type: "settings.data", payload: value }));
+    if (offSettings) this.unsubscribers.push(offSettings);
+    bridge?.ready?.then((runtime) => this.emit({
+      type: "runtime.ready",
+      payload: { ...runtime, protocol: runtime.bridgeVersion },
+    })).catch(() => undefined);
   }
 
   send(command: BridgeCommand, fields: Record<string, unknown> = {}): void {
-    window.osfui?.postMessage?.(encodeCommand(command, fields));
+    if (command === "settings.get") return; // osfui/settings state replays on subscribe
+    if (command === "settings.set" || command === "osfui.openModPage") {
+      void window.osfui?.request?.(command, fields).catch(() => undefined);
+      return;
+    }
+    window.osfui?.send?.(command, fields);
   }
 
   subscribe(listener: NativeMessageListener): () => void {
@@ -46,7 +66,12 @@ export class OsfUiBridge implements AnimationBridge {
 
   dispose(): void {
     this.listeners.clear();
-    if (window.osfui) window.osfui.onMessage = this.previousHandler;
+    for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
+  }
+
+  private emit(message: NativeMessage): void {
+    if (this.listeners.size === 0) { this.pending.push(message); return; }
+    for (const listener of this.listeners) listener(message);
   }
 }
 
@@ -58,6 +83,6 @@ export function hasOsfUiBridge(): boolean {
   // shipped view must never decide "this is only a simulation" from topology it
   // does not control.
   if (window.__osfuiHarness) return false;
-  return typeof window.osfui?.postMessage === "function";
+  return typeof window.osfui?.send === "function";
 }
 

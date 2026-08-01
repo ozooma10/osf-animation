@@ -35,16 +35,8 @@ namespace OSF::Audio::Wwise
 	// A RAW vanilla .wav posted as bytes is silent, which is why non-.wem inputs are decoded first. Returns false for anything miniaudio can't decode;
 	bool IsWwiseExternalSource(std::string_view a_path);
 
-	// Register/update a bounded OSF-owned Wwise game object. The ID must be stable and outside Wwise's
-	// reserved top-32 range. Call with a_registerIfMissing=false from per-frame updates so ordinary
-	// managed actors never allocate an emitter until an authored cue opts in. Registered objects remain
-	// process-lifetime and bounded, so no end-of-voice callback is needed merely to keep a moving emitter
-	// valid. Position/orientation are copied into AK's command queue.
-	bool PositionEmitter(std::uint64_t a_gameObject, const RE::NiPoint3& a_position, float a_heading,
-		bool a_registerIfMissing);
-
 	// Plays a loose audio file as an external source through a shipped event's "External_Source" slot.
-	// gameObject 0 selects the player/listener; a registered positioned ID makes the event spatial.
+	// gameObject 0 selects the player/listener.
 	// a_path is opened through the process file API (game-root-relative 'Data\...', so MO2/USVFS loose files resolve) and prepared ONCE into a process-lifetime media cache: 
 	// a .wem is cached as-is; a .wav/.mp3/.ogg/.flac is decoded to PCM and wrapped in a PCM .wem. Posted via pInMemory (codec from the .wem fmt tag, or PCM for a built one).
 	// The caller manages no memory and may free a_path immediately. Returns the AkPlayingID (0 = rejected / load failed / !Available()). Safe from any thread. Gate on IsWwiseExternalSource first.

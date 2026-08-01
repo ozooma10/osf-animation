@@ -767,6 +767,14 @@ namespace OSF::Serialization
 		ClipCache().emplace(cacheKey, result);
 		return result;
 	}
+
+	void AFImport::EvictAnimation(std::string_view a_clipKey, std::string_view a_rigKey)
+	{
+		const std::string cacheKey = LowerKey(a_clipKey) + '|' + std::string{ a_rigKey };
+		std::scoped_lock l{ g_cacheLock };
+		ClipCache().erase(cacheKey);
+	}
+
 	void AFImport::ClearCache()
 	{
 		std::scoped_lock l{ g_cacheLock };

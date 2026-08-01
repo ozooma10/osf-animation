@@ -50,6 +50,11 @@ namespace OSF::Animation
 		// Synchronously loads a_file (relative to the game's Data folder, or absolute) and starts playing it on a_actor.
 		bool PlayAnimation(RE::Actor* a_actor, std::string_view a_file, std::string_view a_animId);
 
+		// Decodes an engine-native human `.af` directly from caller-owned bytes and starts it as a
+		// normal looping solo graph. Used by the transient Studio link; never enters the pack registry.
+		bool PlayAnimationBytes(RE::Actor* a_actor, const std::vector<std::uint8_t>& a_bytes,
+			std::string_view a_clipKey, std::string* a_error = nullptr);
+
 		// Starts a fade-out (the graph keeps sampling while its stamp weight ramps to 0, landing on the engine's live pose, then removes itself).
 		// Refuses for scene participants, use StopScene in that case.
 		bool StopAnimation(RE::Actor* a_actor);
@@ -73,14 +78,25 @@ namespace OSF::Animation
 			float duration = 0.0f;
 			float speed = 0.0f;
 			int32_t stage = -1;
+			PlaybackId playbackId = 0;
+		};
+		struct AnimationPlayback
+		{
+			float time = 0.0f;
+			float duration = 0.0f;
+			float speed = 0.0f;
 		};
 
 		// Browser/director inspection of the current scene clock. Seek never fires timed marks.
-		bool SetSceneTime(RE::Actor* a_actor, float a_time);
-		std::optional<ScenePlayback> GetScenePlayback(RE::Actor* a_actor);
+		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
+		std::optional<ScenePlayback> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
+		// Solo-clip transport used by the transient Studio preview. Scene actors are rejected.
+		bool SetAnimationTime(RE::Actor* a_actor, float a_time);
+		std::optional<AnimationPlayback> GetAnimationPlayback(RE::Actor* a_actor);
+		bool SetAnimationHoldAtEnd(RE::Actor* a_actor, bool a_hold);
 
 		// Stops the scene that a_actor participates in (all its participants).
-		bool StopScene(RE::Actor* a_actor);
+		bool StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
 
 		// Current scene stage for a_actor, or -1 if not in a scene.
 		int32_t GetSceneStage(RE::Actor* a_actor);
@@ -125,6 +141,11 @@ namespace OSF::Animation
 		void OnSaveEnd();
 
 	private:
+		bool PlayDecodedAnimation(RE::Actor* a_actor,
+			std::shared_ptr<const OzzSkeleton> a_skeleton,
+			std::shared_ptr<const OzzAnimation> a_anim,
+			std::string a_source);
+
 		// Detaches all participants of a_scene (revert movement mode, drop graphs) and removes it from `scenes`. Caller holds stateLock unique.
 		// Game-thread follow-ups are appended to a_deferred; the caller MUST hand them to SFSE
 		// (FlushDeferredTasks) after releasing stateLock — AddTask under stateLock inverts lock

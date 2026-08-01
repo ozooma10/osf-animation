@@ -46,10 +46,12 @@ const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2, pinned: 
 
 describe("browser reducer", () => {
   it("normalizes authoritative playback clock fields for the active timeline", () => {
-    expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, cast: [] }])[0])
-      .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0 });
+    expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, inspection: true, cast: [] }])[0])
+      .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0, inspection: true });
     expect(normalizeActive([{ handle: 8, sceneId: "legacy", cast: [] }])[0])
-      .toMatchObject({ time: 0, duration: 0, speed: 0 });
+      .toMatchObject({ time: 0, duration: 0, speed: 0, inspection: false });
+    expect(normalizeActive([{ handle: -1, sceneId: "preview", inspection: true, cast: [] }])[0])
+      .toMatchObject({ handle: -1, sceneId: "preview", inspection: true });
   });
 
   it("self-heals engine readiness from a catalog reply after a web-view reload", () => {
