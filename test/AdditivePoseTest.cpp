@@ -1,6 +1,8 @@
 #include "Animation/BoneMask.h"
+#include "Animation/LiveBasePose.h"
 #include "Animation/PoseMath.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -189,6 +191,49 @@ int main()
 		WriteAdditive(repeated.data(), immutableLive.data(), reference.data(), sampled.data(), 1.0f);
 		Check(Near(first[12], 5.0f) && Near(repeated[12], 5.0f),
 			"repeated stamping does not accumulate an already-written delta");
+	}
+
+	// A 3D rebuild can reorder every live rig slot. Preserve the proven vanilla base by stable
+	// skeleton joint identity so the feathered spine never blends against a new rig's rest pose.
+	{
+		struct Binding
+		{
+			std::uint16_t rigIndex;
+			std::uint16_t jointIndex;
+		};
+		const std::array oldBinding{ Binding{ 8, 2 }, Binding{ 3, 5 } };
+		const auto joint2 = Transform({}, 2.0f);
+		const auto joint5 = Transform({}, 5.0f);
+		std::array<float, 32> oldBase{};
+		std::copy(joint2.begin(), joint2.end(), oldBase.begin());
+		std::copy(joint5.begin(), joint5.end(), oldBase.begin() + 16);
+		OSF::Animation::LiveBasePose::Cache cache;
+		cache.Store(std::span{ oldBinding }, std::span<const float>{ oldBase }, 8);
+
+		const std::array rebound{ Binding{ 11, 5 }, Binding{ 1, 2 } };
+		std::array<float, 32> restored{};
+		const bool complete = cache.Restore(std::span{ rebound }, std::span<float>{ restored });
+		Check(complete && std::memcmp(restored.data(), joint5.data(), sizeof(Matrix)) == 0 &&
+			std::memcmp(restored.data() + 16, joint2.data(), sizeof(Matrix)) == 0,
+			"rig rebind restores the live base by joint identity, not old slot order");
+
+		const std::array missing{ Binding{ 4, 7 } };
+		std::array<float, 16> missingPose{};
+		Check(!cache.Restore(std::span{ missing }, std::span<float>{ missingPose }),
+			"rig rebind refuses an incomplete carried base");
+	}
+
+	// A post-engine evaluation belongs to one binding generation. Rebinding during compose must
+	// invalidate that authorization even when the engine revision counter has not advanced yet.
+	{
+		OSF::Animation::LiveBasePose::Evaluation evaluated;
+		evaluated.Mark(12, 4);
+		Check(evaluated.IsCurrent(12, 4), "current binding accepts its post-engine evaluation");
+		Check(!evaluated.IsCurrent(12, 5),
+			"compose-time rebind cannot capture under the previous binding authorization");
+		evaluated.Mark(13, 5);
+		Check(evaluated.IsCurrent(13, 5),
+			"new binding becomes capture-ready after its own post-engine evaluation");
 	}
 
 	// Named driven-bone masks: the tables the registry validates against and the graph binds with.

@@ -102,7 +102,7 @@ namespace OSF::Animation
 		InvalidateBinding();
 	}
 
-	void Graph::InvalidateBinding()
+	void Graph::InvalidateBinding(bool a_preserveLiveBase)
 	{
 		cachedModelNode.store(nullptr, std::memory_order_relaxed);
 		cachedRig = nullptr;
@@ -111,8 +111,13 @@ namespace OSF::Animation
 		cachedRigBoneCount = 0;
 		binding.clear();
 		liveBasePose.clear();
+		liveBaseValid = false;
 		basePoseRevision = 0;
+		evaluatedBinding.Clear();
 		stampProbeValid = false;
+		if (!a_preserveLiveBase) {
+			liveBaseCache.Clear();
+		}
 	}
 
 	void Graph::SetPosePolicy(PoseMode a_mode, float a_weight, std::string a_roleName)
@@ -168,7 +173,9 @@ namespace OSF::Animation
 			cachedRigBoneCount = 0;
 			binding.clear();
 			liveBasePose.clear();
+			liveBaseValid = false;
 			basePoseRevision = 0;
+			evaluatedBinding.Clear();
 			stampProbeValid = false;
 			// A failure while the COMPOSE hook expected a specific node means composes are running
 			// unstamped (a visible vanilla-pose frame) — the previously silent glitch path.
@@ -288,9 +295,17 @@ namespace OSF::Animation
 				binding.push_back({ entry.rigIndex, iter->second, boneWeight });
 			}
 		}
+		if (++bindingRevision == 0) {
+			++bindingRevision;  // zero is reserved for a binding that has never existed
+		}
 		// Allocate the immutable live-base buffer only when the binding changes, never in StampPose.
+		// A compose-time rebind may run before Starfield evaluates the new rig. Seed it from the last
+		// proven base by skeleton joint, not the remapped rig-slot order, until Sample authorizes capture.
 		liveBasePose.assign(binding.size() * 16, 0.0f);
+		liveBaseValid = liveBaseCache.Restore(
+			std::span{ binding }, std::span{ liveBasePose });
 		basePoseRevision = 0;
+		evaluatedBinding.Clear();
 		stampProbeValid = false;  // rig indices may have been remapped; the old probe is meaningless
 
 		if (!loggedBind) {
@@ -329,7 +344,7 @@ namespace OSF::Animation
 		// unloaded), a stale cachedModelNode could later match a REUSED address and stamp a
 		// foreign actor's rig. Sample re-resolves and re-binds on the next update, so a live
 		// fade keeps stamping.
-		InvalidateBinding();
+		InvalidateBinding(true);
 	}
 
 	void Graph::DetachAndFadeOut()
@@ -411,6 +426,9 @@ namespace OSF::Animation
 		if (!ResolveAndBind()) {
 			return;
 		}
+		// Hook_AnimGraphUpdate calls Sample only after Starfield evaluated this actor. Capture is now
+		// safe for this exact binding generation; an earlier compose-time rebind cannot inherit it.
+		evaluatedBinding.Mark(enginePoseRevision, bindingRevision);
 
 		const float duration = anim->data->duration();
 		if (duration <= 0.0f) {
@@ -527,6 +545,18 @@ namespace OSF::Animation
 				return false;  // binding/base must be prepared together; never allocate from the stamp hook
 			}
 			if (basePoseRevision != enginePoseRevision) {
+				if (!evaluatedBinding.IsCurrent(enginePoseRevision, bindingRevision)) {
+					if (!liveBaseValid) {
+						return false;
+					}
+					basePoseRevision = enginePoseRevision;
+					rebindBaseCarryCount++;
+					if (rebindBaseCarryCount == 1 || (rebindBaseCarryCount & 63u) == 0) {
+						REX::TRACE("[Anim] live-base capture deferred — binding has no post-engine evaluation; reusing prior base (actor {:08X}, #{})",
+							target ? target->formID : 0, rebindBaseCarryCount);
+					}
+					return true;
+				}
 				// The revision counts update-stream calls, not proven buffer writes. If the probe
 				// slot still holds OUR previous write, the engine has not re-applied its pose since
 				// we stamped — adopting the buffer would poison the feather/additive base with our
@@ -543,16 +573,26 @@ namespace OSF::Animation
 					}
 					return true;
 				}
+				bool capturedAll = true;
 				for (std::size_t i = 0; i < binding.size(); ++i) {
 					const auto rigIdx = binding[i].rigIndex;
 					if (rigIdx < rigBoneCount) {
 						std::memcpy(liveBasePose.data() + i * 16,
 							buf + static_cast<std::size_t>(rigIdx) * 16, 16 * sizeof(float));
+					} else {
+						capturedAll = false;
 					}
 				}
+				if (!capturedAll) {
+					liveBaseValid = false;
+					return false;
+				}
+				liveBaseValid = true;
+				liveBaseCache.Store(std::span{ binding }, std::span{ liveBasePose },
+					outputPose.size());
 				basePoseRevision = enginePoseRevision;
 			}
-			return true;
+			return liveBaseValid;
 		};
 
 		// Record the bytes we leave in the first written slot; the next capture's probe.

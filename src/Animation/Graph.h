@@ -6,6 +6,7 @@
 
 #include "Animation/BoneMask.h"
 #include "Animation/FrameClock.h"
+#include "Animation/LiveBasePose.h"
 #include "Animation/OzzTypes.h"
 #include "Animation/Scene.h"  // ParticipantPlacement
 
@@ -126,7 +127,8 @@ namespace OSF::Animation
 		// on the new node's first update without accepting an unrelated skeleton.
 		bool ResolveAndBind(const RE::BGSModelNode* a_expectedModelNode = nullptr);
 		// Drop the cached modelNode/rig identity and binding so the next Sample re-resolves.
-		void InvalidateBinding();
+		// Runtime-only rebinds retain the last proven engine base by skeleton joint.
+		void InvalidateBinding(bool a_preserveLiveBase = false);
 
 		ozz::animation::SamplingJob::Context samplingContext;
 		std::vector<ozz::math::SoaTransform> localPose;
@@ -158,8 +160,12 @@ namespace OSF::Animation
 		// after the engine graph evaluation; the first compose for that revision snapshots each bound
 		// live slot. Any repeated compose call reuses that snapshot, so OSF never layers over itself.
 		std::vector<float> liveBasePose;  // binding order, 16 floats per entry; allocated only on bind
+		bool liveBaseValid = false;
+		LiveBasePose::Cache liveBaseCache;  // stable joint-indexed carry-over across rig-slot remaps
 		std::uint64_t enginePoseRevision = 1;
 		std::uint64_t basePoseRevision = 0;
+		std::uint64_t bindingRevision = 0;
+		LiveBasePose::Evaluation evaluatedBinding;
 		// The bytes of the first slot the last StampPose wrote. enginePoseRevision counts
 		// update-stream calls, not proven engine buffer writes: before adopting the buffer as a
 		// fresh live base, the capture compares this probe — if the slot still holds OUR write,
@@ -169,6 +175,7 @@ namespace OSF::Animation
 		bool stampProbeValid = false;
 		// glitch-frame diagnostics (all guarded by stateLock)
 		std::uint32_t captureGateCount = 0;        // live-base captures rejected by the probe
+		std::uint32_t rebindBaseCarryCount = 0;    // compose rebinds that reused the prior proven base
 		std::uint32_t staleStampRebindCount = 0;   // same-address node-table mutations healed at compose
 		std::uint32_t composeResolveFailCount = 0; // compose-time recovery attempts that failed
 
