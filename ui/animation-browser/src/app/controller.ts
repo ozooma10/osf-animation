@@ -469,6 +469,36 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     return () => clearInterval(timer);
   }, [state.mode, state.viewVisible, state.active?.length, send]);
 
+  // Launching and inspecting are the same start with one flag flipped, so switching the
+  // inspected stage is simply this call again at another stage: the engine retires the
+  // running preview for that cast before it starts the new one.
+  const startPlayable = useCallback<BrowserCommands["launch"]>((stageIndex, singleAnimation = false, sceneId, inspect = false) => {
+    const current = stateRef.current;
+    const scene = sceneById(current, sceneId ?? current.selectedId);
+    if (!scene) return;
+    const effectiveStage = Number.isInteger(stageIndex) ? Number(stageIndex) : sceneId ? null : current.selectedStage;
+    const stageOnly = singleAnimation || (!!scene.library && effectiveStage != null);
+    const options: Record<string, unknown> = { strip: Number(current.opts.strip), lockPlayer: Number(current.opts.lock), camera: current.opts.camera, speed: Number(current.opts.speed) };
+    if (effectiveStage != null && effectiveStage > 0) options.stage = effectiveStage;
+    const fields: Record<string, unknown> = {
+      sceneId: scene.id,
+      castTokens: current.cast.map((member) => member.token),
+      opts: options,
+      singleAnimation: stageOnly,
+      inspect,
+    };
+    fields.location = {
+      mode: scene.requiresFurniture ? "furniture" : scene.inPlace ? "cast" : current.locationMode,
+      token: scene.requiresFurniture ? current.furniture?.token ?? 0 : current.locationToken ?? 0,
+    };
+    const roleNames = scene.roles.map((role) => role.name);
+    if (roleNames.length === current.cast.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
+    if (scene.requiresFurniture && current.furniture) fields.furnitureToken = current.furniture.token;
+    const title = playableSceneTitle(scene);
+    showNotice("info", `${inspect ? "Preparing inspection" : "Launching"} "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
+    send("osf.animation.launch", fields);
+  }, [send, showNotice]);
+
   const commands = useMemo<BrowserCommands>(() => ({
     refresh: () => { requestCatalog(true); requestLibrary(true); },
     setMode: (mode) => { dispatch({ type: "mode/changed", mode: mode === "library" ? "scenes" : mode }); if (!stateRef.current.libraryReceived) requestLibrary(true); },
@@ -546,35 +576,29 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleBriefAnimations: () => dispatch({ type: "brief/fullAnimations" }),
     toggleOptions: () => dispatch({ type: "brief/options" }),
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),
-    launch: (stageIndex, singleAnimation = false, sceneId, inspect = false) => {
-      const current = stateRef.current;
-      const scene = sceneById(current, sceneId ?? current.selectedId);
-      if (!scene) return;
-      const effectiveStage = Number.isInteger(stageIndex) ? Number(stageIndex) : sceneId ? null : current.selectedStage;
-      const stageOnly = singleAnimation || (!!scene.library && effectiveStage != null);
-      const options: Record<string, unknown> = { strip: Number(current.opts.strip), lockPlayer: Number(current.opts.lock), camera: current.opts.camera, speed: Number(current.opts.speed) };
-      if (effectiveStage != null && effectiveStage > 0) options.stage = effectiveStage;
-      const fields: Record<string, unknown> = {
-        sceneId: scene.id,
-        castTokens: current.cast.map((member) => member.token),
-        opts: options,
-        singleAnimation: stageOnly,
-        inspect,
-      };
-      fields.location = {
-        mode: scene.requiresFurniture ? "furniture" : scene.inPlace ? "cast" : current.locationMode,
-        token: scene.requiresFurniture ? current.furniture?.token ?? 0 : current.locationToken ?? 0,
-      };
-      const roleNames = scene.roles.map((role) => role.name);
-      if (roleNames.length === current.cast.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
-      if (scene.requiresFurniture && current.furniture) fields.furnitureToken = current.furniture.token;
-      const title = playableSceneTitle(scene);
-      showNotice("info", `${inspect ? "Preparing inspection" : "Launching"} "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
-      send("osf.animation.launch", fields);
-    },
+    launch: startPlayable,
+    inspectStage: (sceneId, stage) => startPlayable(stage, false, sceneId, true),
     stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "scene/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },
     stopAll: () => { for (const scene of activeScenes(stateRef.current)) { send("osf.animation.stop", { handle: scene.handle }); dispatch({ type: "scene/stopped", handle: scene.handle }); } },
-    advance: (handle) => { const target = Number(handle) || stateRef.current.lastHandle || (activeScenes(stateRef.current).length === 1 ? activeScenes(stateRef.current)[0].handle : 0); if (!target || Date.now() - lastAdvance.current < 350) return; lastAdvance.current = Date.now(); send("osf.animation.advance", { handle: target }); },
+    advance: (handle) => {
+      const current = stateRef.current;
+      const scenes = activeScenes(current);
+      const target = Number(handle) || current.lastHandle || (scenes.length === 1 ? scenes[0].handle : 0);
+      if (!target || Date.now() - lastAdvance.current < 350) return;
+      lastAdvance.current = Date.now();
+      // A preview has no runtime stage machine (the engine no-ops advance on inspection
+      // handles), so NEXT on one means "inspect the next animation" — a fresh scrub-only
+      // start on the same cast, wrapping at the end because this is a browsing tool.
+      const preview = scenes.find((scene) => scene.handle === target && scene.inspection);
+      if (preview) {
+        const stages = sceneById(current, preview.sceneId)?.stages ?? [];
+        if (stages.length < 2) return;
+        const at = stages.findIndex((stage) => stage.index === preview.stage);
+        startPlayable(stages[(Math.max(at, 0) + 1) % stages.length].index, false, preview.sceneId, true);
+        return;
+      }
+      send("osf.animation.advance", { handle: target });
+    },
     setPlayback: (handle, time, paused) => send("osf.animation.playback.set", {
       handle,
       ...(time == null ? {} : { time }),
@@ -610,7 +634,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     requestClose: () => send("osf.animation.requestClose"),
     orbit: (dx, dy, wheel) => send("osf.animation.orbit", { dx, dy, wheel }),
     openModPage: (url) => { if (standalone) window.open(url, "_blank", "noopener"); else send("osfui.openModPage"); },
-  }), [requestCatalog, requestLibrary, requestImports, send, showNotice, standalone]);
+  }), [requestCatalog, requestLibrary, requestImports, send, showNotice, standalone, startPlayable]);
 
   const debugCommands = useMemo<DevCommands>(
     () => import.meta.env.DEV ? createDebugCommands({ dispatch, send, requestCatalog, stateRef }) : NO_DEV_COMMANDS,

@@ -75,14 +75,20 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         mode: state.mode === "active" && action.scenes.length === 0 ? "scenes" : state.mode,
       };
     }
-    case "launch/succeeded":
+    case "launch/succeeded": {
+      // An inspection launch opens the timeline rather than minimizing — except when it
+      // IS the minimized preview switching stages (live-bar NEXT), which must not yank
+      // the console back over the world the user is watching.
+      const reInspect = !!action.inspect && state.minimized
+        && !!state.active?.some((scene) => scene.handle === state.lastHandle && scene.inspection);
       return {
         ...state,
         lastHandle: action.handle,
         lastSceneId: action.sceneId,
-        minimized: action.inspect ? false : !state.wheel && action.afterLaunch === "minimize",
+        minimized: action.inspect ? reInspect : !state.wheel && action.afterLaunch === "minimize",
         mode: action.inspect ? "active" : state.mode,
       };
+    }
     case "launch/failed":
       return state.wheel
         ? { ...state, wheel: { ...state.wheel, launching: "", error: action.error } }

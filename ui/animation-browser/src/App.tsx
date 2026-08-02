@@ -26,7 +26,7 @@ function RunningSummary({ state, commands }: { state: BrowserState; commands: Br
   if (scenes.length > 1) return <div class="take-chip live"><span class="live-dot"/><button class="take-body take-open" onClick={() => commands.setMode("active")}><span class="lbl">RUNNING · {scenes.length} SCENES</span><strong>{scenes.map((scene) => sceneTitle(state, scene.sceneId)).join(" · ")}</strong><span class="take-cast mono">manage in ACTIVE ▸</span></button></div>;
   const active = scenes[0];
   const scene = sceneById(state, active.sceneId);
-  return <div class="take-chip live"><span class="live-dot"/><button class="take-body take-open" onClick={() => commands.setMode("active")}><span class="lbl">{active.inspection ? "PROP PREVIEW" : "RUNNING"} · #{active.handle}{active.player ? " · YOU" : ""}</span><strong>{sceneTitle(state, active.sceneId)}</strong>{!!active.cast.length && <span class="take-cast mono">{active.cast.map((member) => member.name).join(" + ")}</span>}</button>{!active.inspection && (scene?.stages.length ?? 0) > 1 && <button class="next-mini" onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}<button class="stop-mini" onClick={() => commands.stop(active.handle)}>■ STOP</button></div>;
+  return <div class="take-chip live"><span class="live-dot"/><button class="take-body take-open" onClick={() => commands.setMode("active")}><span class="lbl">{active.inspection ? "PROP PREVIEW" : "RUNNING"} · #{active.handle}{active.player ? " · YOU" : ""}</span><strong>{sceneTitle(state, active.sceneId)}</strong>{!!active.cast.length && <span class="take-cast mono">{active.cast.map((member) => member.name).join(" + ")}</span>}</button>{(scene?.stages.length ?? 0) > 1 && <button class="next-mini" title={active.inspection ? "Inspect the next animation (Space)" : "Advance to the next stage (Space)"} onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}<button class="stop-mini" onClick={() => commands.stop(active.handle)}>■ STOP</button></div>;
 }
 
 function Header({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
@@ -42,7 +42,9 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
   const scene = sceneById(state, state.lastSceneId);
   const active = activeScenes(state).find((candidate) => candidate.handle === state.lastHandle);
   const stages = scene?.stages ?? [];
-  const canAdvance = !active?.inspection && stages.length > 1;
+  // NEXT works while inspecting too — the controller turns it into a re-inspect of the
+  // following animation, so a minimized preview is still steppable from the live bar.
+  const canAdvance = stages.length > 1;
   const stage = scene && active && canAdvance && active.stage >= 0 && active.stage < stages.length ? { current: active.stage + 1, total: stages.length, name: stageLabel(scene, active.stage), nextName: active.stage + 1 < stages.length ? stageLabel(scene, active.stage + 1) : undefined } : null;
   return <LiveBar running={!!state.lastHandle} handle={state.lastHandle} title={scene ? playableSceneTitle(scene) : state.lastSceneId} stage={stage} canAdvance={canAdvance} onAdvance={() => commands.advance()} onStop={() => commands.stop()} onExpand={() => commands.setMinimized(false)}/>;
 }

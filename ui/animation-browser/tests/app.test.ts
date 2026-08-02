@@ -142,6 +142,26 @@ describe("browser reducer", () => {
     expect(inspected).toMatchObject({ lastHandle: 14, lastSceneId: "solo", mode: "active", minimized: false });
   });
 
+  it("keeps a minimized preview minimized when it switches stages", () => {
+    const preview = {
+      ...createInitialState(),
+      minimized: true,
+      lastHandle: -1,
+      lastSceneId: "solo",
+      active: [{ handle: -1, sceneId: "solo", stage: 0, player: true, cast: [], time: 0, duration: 2, speed: 0, inspection: true }],
+    };
+    const restaged = browserReducer(preview, {
+      type: "launch/succeeded", handle: -2, sceneId: "solo", afterLaunch: "stay", inspect: true,
+    });
+    expect(restaged).toMatchObject({ lastHandle: -2, minimized: true });
+
+    // A fresh inspection launched from a minimized RUNNING scene still opens the timeline.
+    const fromLive = browserReducer({ ...preview, active: [{ ...preview.active[0], inspection: false }] }, {
+      type: "launch/succeeded", handle: -3, sceneId: "solo", afterLaunch: "stay", inspect: true,
+    });
+    expect(fromLive).toMatchObject({ lastHandle: -3, minimized: false });
+  });
+
   it("applies synchronized browser and launch preferences", () => {
     const state = browserReducer(createInitialState(), {
       type: "settings/received",

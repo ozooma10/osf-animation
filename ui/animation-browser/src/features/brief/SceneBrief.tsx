@@ -86,6 +86,7 @@ function AnimationList({ state, scene, canPlay, focusStage, commands }: { state:
       return <div class="anim-row" key={stage.index}><div class="anim-main"><span class="anim-name">{label}</span><div class="anim-tags">{stage.tags.slice(0, 3).map((tag) => <span class="pill" key={tag}>{tag}</span>)}</div></div>
         {duration && <span class="anim-dur" title={loop ? "Loop length" : "Stage time"}>{duration}{stage.openEnded ? "∞" : ""}</span>}
         <WheelControls state={state} scene={scene} stage={stage} commands={commands}/>
+        <button class="anim-inspect" disabled={!canPlay} title="Inspect this animation — paused on frame 0, scrubbable" onClick={() => commands.launch(stage.index, !!scene.library, undefined, true)}>◇</button>
         <button class="anim-play" disabled={!canPlay} title="Play this animation" onClick={() => commands.launch(stage.index, !!scene.library)}>▶</button>
       </div>;
     })}

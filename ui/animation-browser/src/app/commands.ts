@@ -44,6 +44,9 @@ export interface BrowserCommands {
   toggleOptions(): void;
   setOption(field: "strip" | "lock" | "camera" | "speed", value: string): void;
   launch(stage?: number, singleAnimation?: boolean, sceneId?: string, inspect?: boolean): void;
+  /** Re-enter inspection on another stage of the scene already being previewed —
+   *  the running preview for that cast is retired by the launch itself. */
+  inspectStage(sceneId: string, stage: number): void;
   stop(handle?: number): void;
   stopAll(): void;
   advance(handle?: number): void;

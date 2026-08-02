@@ -616,6 +616,20 @@ button,input,select{font:inherit;color:inherit}
 .active-actor.player{border-color:var(--accent);color:var(--accent)}
 .active-card .stop-mini{margin-left:0}
 .active-card .next-mini{margin-left:0}
+/* Preview stage switcher — a scrub-only preview has no runtime stage machine, so every
+   chip re-enters inspection on that animation from frame 0 with the same cast. */
+.inspect-stages{flex:0 0 100%;display:flex;align-items:center;gap:6px;padding-top:7px;border-top:1px solid var(--line)}
+.inspect-stages .lbl{flex:none;font:600 8px var(--font-mono);letter-spacing:.12em;color:var(--text-muted)}
+.stage-step{width:22px;height:22px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--void-900);color:var(--text-body);font:700 9px var(--font-mono);cursor:pointer}
+.stage-step:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.stage-step:disabled{opacity:.3;cursor:default}
+.stage-strip{flex:1;min-width:0;display:flex;gap:4px;overflow:hidden}
+.stage-chip{display:flex;align-items:center;gap:5px;min-width:0;padding:3px 7px;border:1px solid var(--line);border-radius:2px;background:var(--void-900);color:var(--text-body);font:500 9px var(--font-display);cursor:pointer}
+.stage-chip:hover{border-color:var(--accent);color:var(--text-bright)}
+.stage-chip.on{border-color:var(--signal-go);color:var(--signal-go);background:rgba(92,190,150,.08);cursor:default}
+.stage-chip-n{flex:none;color:var(--text-faint);font-size:8px}
+.stage-chip.on .stage-chip-n{color:var(--signal-go)}
+.stage-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .active-timeline{flex:0 0 100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:7px;border-top:1px solid var(--line)}
 .frame-step,.play-toggle{width:28px;height:24px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--void-900);color:var(--text-body);font:700 9px var(--font-mono);cursor:pointer}
 .frame-step:hover:not(:disabled),.play-toggle:hover{border-color:var(--accent);color:var(--accent)}
@@ -738,6 +752,10 @@ button,input,select{font:inherit;color:inherit}
 .anim-play{width:26px;height:26px;flex:none;border:1px solid var(--line-strong);background:var(--void-700);border-radius:2px;color:var(--accent);font-size:12px;display:inline-flex;align-items:center;justify-content:center}
 .anim-play:hover:not(:disabled){background:var(--accent);color:var(--text-on-amber);border-color:var(--accent)}
 .anim-play:disabled{color:var(--text-faint);border-color:var(--line);opacity:.5}
+/* ◇ = start this animation as a scrub-only preview (same signal-go as the brief's Inspect). */
+.anim-inspect{width:26px;height:26px;flex:none;border:1px solid var(--line-strong);background:var(--void-900);border-radius:2px;color:var(--text-body);font-size:11px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.anim-inspect:hover:not(:disabled){border-color:var(--signal-go);color:var(--signal-go);background:rgba(92,190,150,.08)}
+.anim-inspect:disabled{color:var(--text-faint);border-color:var(--line);opacity:.5}
 
 /* live take */
 

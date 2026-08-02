@@ -215,8 +215,11 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
           {stages.length > 1 && active.stage >= 0 && active.stage < stages.length && <div class="active-stage mono">STAGE {active.stage + 1}/{stages.length} · {stageLabel(scene!, active.stage).toUpperCase()}</div>}
           {!!active.cast.length && <div class="active-cast">{active.cast.map((member) => <span class={`active-actor ${member.player ? "player" : ""}`} key={member.token}>{member.name}{member.player ? " · YOU" : ""}</span>)}</div>}
         </button>
-        {!active.inspection && stages.length > 1 && <button class="next-mini" onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}
+        {stages.length > 1 && <button class="next-mini" title={active.inspection ? "Inspect the next animation in this scene (Space)" : "Advance to the next stage (Space)"}
+          onClick={() => commands.advance(active.handle)}>NEXT ▸</button>}
         <button class="stop-mini" onClick={() => commands.stop(active.handle)}>■ STOP</button>
+        {active.inspection && scene && <InspectionStages scene={scene} stage={active.stage}
+          onPick={(index) => commands.inspectStage(active.sceneId, index)}/>}
         <div class="active-timeline">
           {active.inspection && <button class="frame-step" title="Previous frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.max(0, time - frame), true)}>◀|</button>}
           {!active.inspection && <button class={`play-toggle ${active.speed > 0 ? "" : "paused"}`} title={active.speed > 0 ? "Pause" : "Resume runtime playback"} onClick={() => commands.setPlayback(active.handle, undefined, active.speed > 0)}>{active.speed > 0 ? "Ⅱ" : "▶"}</button>}
@@ -235,6 +238,36 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
         </div>
       </div>;
     })}</div></>;
+}
+
+// Chips shown around the inspected stage. A window instead of the whole list: a
+// generated pack scene can carry hundreds of stages, and the current one always sits
+// inside it, so the strip stays readable without scroll bookkeeping.
+const STAGE_WINDOW = 5;
+
+function InspectionStages({ scene, stage, onPick }: {
+  scene: SceneModel;
+  stage: number;
+  onPick: (stageIndex: number) => void;
+}) {
+  const stages = scene.stages;
+  if (stages.length < 2) return null;
+  const at = Math.max(0, stages.findIndex((candidate) => candidate.index === stage));
+  const start = Math.min(Math.max(0, at - Math.floor(STAGE_WINDOW / 2)), Math.max(0, stages.length - STAGE_WINDOW));
+  return <div class="inspect-stages" aria-label="Inspected animation">
+    <span class="lbl">INSPECT</span>
+    <button class="stage-step" disabled={at <= 0} title="Inspect the previous animation" onClick={() => onPick(stages[at - 1].index)}>◀</button>
+    <div class="stage-strip">{stages.slice(start, start + STAGE_WINDOW).map((candidate, offset) => {
+      const label = stageLabel(scene, candidate.index);
+      const current = candidate.index === stage;
+      return <button class={`stage-chip ${current ? "on" : ""}`} key={candidate.index} aria-pressed={current}
+        title={current ? `${label} — inspecting` : `Inspect ${label}`}
+        onClick={() => { if (!current) onPick(candidate.index); }}>
+        <span class="stage-chip-n mono">{start + offset + 1}</span><span class="stage-chip-name">{label}</span>
+      </button>;
+    })}</div>
+    <button class="stage-step" disabled={at >= stages.length - 1} title="Inspect the next animation" onClick={() => onPick(stages[at + 1].index)}>▶</button>
+  </div>;
 }
 
 function InspectionTracks({ stage, time, duration, onSeek }: {

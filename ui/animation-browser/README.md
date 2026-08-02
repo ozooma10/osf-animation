@@ -68,7 +68,12 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   plus a compact header chip (a single scene shows directly with its stop;
   several collapse to a count) that opens the tab, and LIVE badges on busy
   crew. Ordinary runtime timelines are forward-only (pause/resume); only a
-  browser prop-preview handle exposes frame stepping and seeking. **Close semantics:**
+  browser prop-preview handle exposes frame stepping and seeking. A preview also has
+  no runtime stage machine (`advance` no-ops on its handle), so its card carries a
+  **stage strip** — ◀ / windowed per-stage chips / ▶, with NEXT ▸ and Space wrapping
+  through them. Each re-issues `launch {inspect:true, opts.stage}` for the same cast,
+  which retires the running preview and re-enters inspection on that animation at
+  frame 0; the brief's per-animation ◇ starts one the same way. **Close semantics:**
   every browser preview and every runtime scene whose cast includes the *player* is
   aborted when the browser closes; ordinary NPC-only scenes keep running
   (vignettes/machinima) and resurface in this list on the next open.
