@@ -461,13 +461,17 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     return () => clearInterval(timer);
   }, [state.pickMode, state.viewVisible, send]);
 
+  // Playback poll. It feeds the ACTIVE list's clocks, and it is also the game-thread beat the
+  // engine uses to step a RUNNING preview's props — so it keeps running for one while the user
+  // browses elsewhere, otherwise a played-back preview would animate with its props frozen.
+  const previewRunning = !!state.active?.some((scene) => scene.inspection && scene.speed > 0);
   useEffect(() => {
-    if (state.mode !== "active" || !state.viewVisible || !state.active?.length) return;
+    if ((state.mode !== "active" && !previewRunning) || !state.viewVisible || !state.active?.length) return;
     const refreshPlayback = () => send("osf.animation.playback.get");
     refreshPlayback();
     const timer = window.setInterval(refreshPlayback, 100);
     return () => clearInterval(timer);
-  }, [state.mode, state.viewVisible, state.active?.length, send]);
+  }, [state.mode, state.viewVisible, state.active?.length, previewRunning, send]);
 
   // Launching and inspecting are the same start with one flag flipped, so switching the
   // inspected stage is simply this call again at another stage: the engine retires the

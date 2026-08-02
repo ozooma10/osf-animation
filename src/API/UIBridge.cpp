@@ -264,6 +264,9 @@ namespace OSF::API
 		{
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			auto& gm = Animation::GraphManager::GetSingleton();
+			// The view polls this at 10 Hz while the ACTIVE list is up, which is also the game-thread
+			// beat a RUNNING preview needs to keep its render-only props in step with its clock.
+			Scene::SceneInspectionService::GetSingleton().Tick();
 			auto inspections = Scene::SceneInspectionService::GetSingleton().List();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			json scenes = json::array();
@@ -324,7 +327,7 @@ namespace OSF::API
 					{ "inspection", true },
 					{ "player", hasPlayer },
 					{ "cast", std::move(cast) },
-					{ "speed", 0.0f },
+					{ "speed", preview.playback.speed },  // 0 = paused (the state a preview starts in)
 				};
 				item["time"] = preview.playback.time;
 				item["duration"] = preview.playback.duration;
@@ -1350,6 +1353,14 @@ namespace OSF::API
 					if (std::isfinite(value) && value >= 0.0 && value <= std::numeric_limits<float>::max() &&
 						!inspectionService.Seek(handle, static_cast<float>(value))) {
 						REX::WARN("[UI] preview seek failed for stale handle={}", handle);
+					}
+				}
+				// Preview transport. A preview carries no timers, loop targets, or authored marks, so
+				// running one simply loops its clip with the render-only props reconciled per poll —
+				// it still fires no cues, no sounds, and no scene actions.
+				if (const auto paused = j.find("paused"); paused != j.end() && paused->is_boolean()) {
+					if (!inspectionService.SetSpeed(handle, paused->get<bool>() ? 0.0f : 1.0f)) {
+						REX::WARN("[UI] preview transport failed for stale handle={}", handle);
 					}
 				}
 				SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());

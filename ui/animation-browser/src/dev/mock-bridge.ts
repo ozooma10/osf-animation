@@ -164,12 +164,16 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.playback.set") {
       const active = this.active.find((scene) => scene.handle === Number(fields.handle));
       if (active) {
-        if (active.inspection && typeof fields.time === "number") active.time = Math.max(0, Math.min(active.duration, fields.time));
-        if (!active.inspection && fields.paused === true) {
-          if (active.speed > 0) this.resumeSpeeds.set(active.handle, active.speed);
+        if (active.inspection && typeof fields.time === "number") {
+          active.time = Math.max(0, Math.min(active.duration, fields.time));
+          active.speed = 0;  // scrubbing takes the transport, like the engine's preview seek
+        }
+        if (fields.paused === true) {
+          if (!active.inspection && active.speed > 0) this.resumeSpeeds.set(active.handle, active.speed);
           active.speed = 0;
-        } else if (!active.inspection && fields.paused === false) {
-          active.speed = this.resumeSpeeds.get(active.handle) ?? 1;
+        } else if (fields.paused === false) {
+          // A preview always resumes at authored speed; a runtime scene returns to the speed it was paused at.
+          active.speed = active.inspection ? 1 : this.resumeSpeeds.get(active.handle) ?? 1;
           this.resumeSpeeds.delete(active.handle);
         }
       }

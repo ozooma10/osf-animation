@@ -60,6 +60,10 @@ namespace OSF::Scene
 		for (auto& stage : plan->stages) {
 			stage.timer = 0.0f;
 			stage.loops = 0;
+			// A preview is a transport over the whole clip: a `hold` stage would pin the clock and
+			// make both the scrubber and PLAY inert. The browser shows what the clip contains; the
+			// authored freeze is a scene-timing policy, not a property of the animation.
+			stage.hold = -1.0f;
 			stage.marks.clear();
 		}
 		plan->loopWhole = false;
@@ -208,6 +212,39 @@ namespace OSF::Scene
 			desired.size(), std::clamp(a_fraction, 0.0f, 1.0f), a_atEnd ? " (end)" : "");
 	}
 
+	bool SceneInspectionService::SetSpeed(std::int32_t a_handle, float a_speed)
+	{
+		const auto found = _previews.find(a_handle);
+		if (found == _previews.end() || found->second.participants.empty() ||
+			!found->second.participants.front() || !std::isfinite(a_speed) || a_speed < 0.0f) {
+			return false;
+		}
+		auto& preview = found->second;
+		auto& manager = Animation::GraphManager::GetSingleton();
+		// Playback-id guarded: SetSpeed only knows about actors, and a retired preview's actor can
+		// already be carrying a production scene by the time a stale view command lands.
+		if (!manager.GetScenePlayback(preview.participants.front(), preview.playbackId)) {
+			return false;
+		}
+		return manager.SetSpeed(preview.participants.front(), a_speed);
+	}
+
+	void SceneInspectionService::Tick()
+	{
+		auto& manager = Animation::GraphManager::GetSingleton();
+		for (auto& [handle, preview] : _previews) {
+			if (preview.participants.empty() || !preview.participants.front()) {
+				continue;
+			}
+			const auto playback = manager.GetScenePlayback(preview.participants.front(), preview.playbackId);
+			if (!playback || playback->speed <= 0.0f || playback->duration <= 0.0f) {
+				continue;
+			}
+			const float fraction = std::clamp(playback->time / playback->duration, 0.0f, 1.0f);
+			ReconcileProps(preview, fraction, /*a_atEnd*/ false, playback->duration);
+		}
+	}
+
 	bool SceneInspectionService::Seek(std::int32_t a_handle, float a_time)
 	{
 		const auto found = _previews.find(a_handle);
@@ -220,6 +257,9 @@ namespace OSF::Scene
 		const auto playback = manager.GetScenePlayback(preview.participants.front(), preview.playbackId);
 		if (!playback || !manager.SetSceneTime(preview.participants.front(), a_time, preview.playbackId)) {
 			return false;
+		}
+		if (playback->speed > 0.0f) {
+			manager.SetSpeed(preview.participants.front(), 0.0f);  // scrubbing takes the transport
 		}
 		const bool atEnd = playback->duration > 0.0f && a_time >= playback->duration;
 		const float fraction = playback->duration > 0.0f ?

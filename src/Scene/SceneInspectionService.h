@@ -52,7 +52,17 @@ namespace OSF::Scene
 
 		std::optional<PreparedInspection> Prepare(const InspectionRequest& a_request, std::string& a_error) const;
 		std::int32_t Start(PreparedInspection a_prepared, std::string& a_error);
+		// Scrubbing is frame-accurate transport, so a seek always pauses: dragging the timeline (or
+		// stepping a frame) while the preview runs would otherwise fight the clock.
 		bool Seek(std::int32_t a_handle, float a_time);
+		// Preview transport: 0 = paused (the state a preview starts in), 1 = play at authored speed.
+		// A running preview loops its clip — a browser preview has no timers, loop targets, or marks,
+		// so it can only end when the view stops it.
+		bool SetSpeed(std::int32_t a_handle, float a_speed);
+		// Game-thread pump for RUNNING previews: reconciles their render-only props against the clock
+		// the engine advanced since the last call. Paused previews reconcile on Seek instead, so this
+		// is a no-op for them. Called from the view's playback poll (BuildActiveScenes).
+		void Tick();
 		bool Stop(std::int32_t a_handle);
 		void StopForActor(RE::Actor* a_actor);
 		void StopAll();

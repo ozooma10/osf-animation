@@ -222,7 +222,11 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
           onPick={(index) => commands.inspectStage(active.sceneId, index)}/>}
         <div class="active-timeline">
           {active.inspection && <button class="frame-step" title="Previous frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.max(0, time - frame), true)}>◀|</button>}
-          {!active.inspection && <button class={`play-toggle ${active.speed > 0 ? "" : "paused"}`} title={active.speed > 0 ? "Pause" : "Resume runtime playback"} onClick={() => commands.setPlayback(active.handle, undefined, active.speed > 0)}>{active.speed > 0 ? "Ⅱ" : "▶"}</button>}
+          <button class={`play-toggle ${active.speed > 0 ? "" : "paused"}`} disabled={active.inspection && !active.duration}
+            title={active.speed > 0
+              ? (active.inspection ? "Pause the preview" : "Pause")
+              : (active.inspection ? "Play the preview — loops, still fires no cues, sounds, or scene actions" : "Resume runtime playback")}
+            onClick={() => commands.setPlayback(active.handle, undefined, active.speed > 0)}>{active.speed > 0 ? "Ⅱ" : "▶"}</button>
           {active.inspection && <button class="frame-step" title="Next frame (30 fps)" disabled={!active.duration} onClick={() => commands.setPlayback(active.handle, Math.min(active.duration, time + frame), true)}>|▶</button>}
           <input class="timeline-range" type="range" min="0" max={active.duration || 1} step={frame} value={time} disabled={!active.inspection || !active.duration}
             aria-label={`Scene time ${clock(time)}, frame ${timelineFrame(time)}, of ${clock(active.duration)}, frame ${timelineFrame(active.duration)}`}

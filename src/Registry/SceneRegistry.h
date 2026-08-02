@@ -213,6 +213,10 @@ namespace OSF::Registry
 		std::vector<std::string> tags;          // per-stage tags (browse/filter); separate from scene tags
 		float                    timer = 0.0f;  // seconds; 0 = no time-based auto-advance
 		std::int32_t             loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
+		// JSON `hold`: freeze the stage's clips on ONE frame instead of playing them. The value is a
+		// normalized clip position (`true` = 1.0 = the last frame). < 0 = not frozen (the default).
+		// A frozen stage never loops, so only `timer` or a manual advance leaves it.
+		float                    hold = -1.0f;
 		std::vector<StageClip>   clips;         // one per role, role order
 		// Optional per-stage track lanes. DesugarLinear forwards each onto the stage's synthetic node,
 		// where the runtime's dispatch reads them — so a linear stage can carry cues, actions, audio,

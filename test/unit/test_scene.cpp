@@ -1,12 +1,14 @@
 #include "Registry/SceneRegistry.h"
 #include "Scene/InspectionPropTimeline.h"
 
-#include "Util/Math.h"  // kDegToRad (offset.heading expectation)
+#include "Animation/Scene.h"  // the frozen-stage clock (`hold`)
+#include "Util/Math.h"        // kDegToRad (offset.heading expectation)
 
 #include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <string>
+#include <vector>
 
 // No game runtime / no mounted archives in this harness: the clip-availability probe reads every
 // spec as installed, so the sweep never hides a fixture scene or adds a stray warning.
@@ -64,12 +66,13 @@ int main()
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
 
-	// 33 authored scenes load: the prior 22, the two compiled-route contract scenes, the
+	// 35 authored scenes load: the prior 22, the two compiled-route contract scenes, the
 	// prop-transform-default scene, the `atFrame` scene, the five props-registry scenes, the bare
-	// props file, and the one surviving scene of the props reference-error fixture. The
-	// compiled-route error fixture and the four malformed-registry files load nothing. (Generated
-	// clip-debug entries and clipLibrary registrations don't count here.)
-	Check(reg.Size() == 33, "authored scene count");
+	// props file, the one surviving scene of the props reference-error fixture, and the two valid
+	// `hold` scenes (that fixture's two malformed ones are rejected). The compiled-route error
+	// fixture and the four malformed-registry files load nothing. (Generated clip-debug entries and
+	// clipLibrary registrations don't count here.)
+	Check(reg.Size() == 35, "authored scene count");
 
 	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
@@ -467,6 +470,72 @@ int main()
 	} else {
 		Check(false, "test.route.compiled.two-stage loads");
 	}
+	// -- `hold`: a stage frozen on one frame ------------------------------------------------------
+	if (const auto s = reg.Find("test.hold.frame")) {
+		Check(s->nodes.size() == 2 && s->nodes[0].stages[0].hold < 0.0f && s->nodes[1].stages[0].hold == 1.0f,
+			"'hold': true freezes a stage on its last frame and leaves its neighbours playing");
+		Check(s->nodes.size() == 2 && s->nodes[1].loopMode == LoopMode::kHold &&
+			s->nodes[1].stages[0].loops == 0,
+			"an untimed frozen stage holds until advanced instead of taking the play-once default");
+		Check(s->nodes.size() == 2 && s->nodes[1].cues.size() == 1,
+			"a frozen stage still carries its track lanes");
+	} else {
+		Check(false, "test.hold.frame loads");
+	}
+	if (const auto s = reg.Find("test.hold.timed")) {
+		Check(s->nodes.size() == 1 && s->nodes[0].stages[0].hold == 0.25f && s->nodes[0].timerSec == 2.0f,
+			"a fractional hold parks mid-clip and keeps its timer as the way out");
+	} else {
+		Check(false, "test.hold.timed loads");
+	}
+	Check(!reg.Find("test.hold.loops"), "'hold' with 'loops' is rejected — a frozen clip never loops");
+	Check(!reg.Find("test.hold.range"), "a hold outside [0, 1] is rejected");
+	{
+		const auto errors = reg.LoadErrors();
+		CheckError(errors, "cannot combine with 'loops'", "the hold/loops rejection explains itself");
+		CheckError(errors, "clip position in [0, 1]", "an out-of-range hold rejection names the valid range");
+	}
+
+	// The frozen clock itself: entering a hold stage parks the clip and fires the marks at or before
+	// the hold pose exactly once, and only a timer moves on from there.
+	{
+		using OSF::Animation::Scene;
+		using OSF::Animation::TimedMark;
+		const auto mark = [](float a_fraction, const char* a_token) {
+			TimedMark m;
+			m.fraction = a_fraction;
+			m.token = a_token;
+			return m;
+		};
+		Scene scene;
+		Scene::StageData frozen;
+		frozen.hold = 1.0f;
+		frozen.duration = 4.0f;
+		frozen.timer = 1.0f;
+		frozen.marks.push_back(mark(0.0f, "enter"));
+		frozen.marks.push_back(mark(0.5f, "midway"));
+		Scene::StageData after;
+		after.duration = 4.0f;
+		scene.stages = { frozen, after };
+		Check(scene.SetStage(0), "a frozen stage can be entered");
+
+		const int token = 0;
+		auto tick = scene.Advance(&token, 0.5f);
+		Check(tick.stage == 0 && tick.time > 3.9f && tick.time < 4.0f,
+			"a hold of 1.0 parks on the last representable pose, never frame zero");
+		std::vector<OSF::Animation::FiredMark> fired;
+		scene.DrainFiredMarks(fired);
+		Check(fired.size() == 2, "marks at or before the hold pose fire once on entry");
+
+		tick = scene.Advance(&token, 0.4f);
+		scene.DrainFiredMarks(fired);
+		Check(tick.stage == 0 && tick.time > 3.9f && tick.time < 4.0f && fired.empty(),
+			"the frozen clock does not advance and does not re-fire its marks");
+
+		tick = scene.Advance(&token, 0.2f);
+		Check(tick.stage == 1 && tick.time == 0.0f, "only the timer leaves a frozen stage");
+	}
+
 	if (const auto s = reg.Find("test.err.ok")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "f", "one bad scene does not reject its file's other scenes");
 	} else {
@@ -650,7 +719,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 30, "exactly the thirty expected diagnostics");
+	Check(errors.size() == 32, "exactly the thirty-two expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -793,7 +862,7 @@ int main()
 	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 19, "one import record per discovered *.osf.json");
+		Check(files.size() == 20, "one import record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::SceneFileStats* {
 			for (const auto& f : files) {
@@ -819,7 +888,7 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 33, "per-file scene counts sum to the authored total");
+		Check(accepted == 35, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");

@@ -198,7 +198,7 @@ when no explicit registration supplies metadata.
 
 - **`clip`** (string) is sugar for a single one-clip stage with one inferred role:
   `clip: "X.glb"` ≡ `roles: [{}], stages: [{ clips: ["X.glb"] }]`. A bare `clip` plays once, then ends.
-- **`stages[]`**: one or more stages, each `{ timer?, loops?, clips[] }`.
+- **`stages[]`**: one or more stages, each `{ timer?, loops?, hold?, clips[] }`.
 - **`clips`** entries are either a bare Data-relative path string, or `{ "file": ..., "offset": {...} }`
   to override that role's placement for that stage. Every stage must have the same number of clips —
   equal to `roles.length` when `roles` is given, otherwise to the first stage's clip count. Clips
@@ -222,6 +222,27 @@ when no explicit registration supplies metadata.
   When a final stage finishes **by loop count** (including the play-once default), the cast **holds the
   clip's final frame** while the scene's stop and fade-out complete — a one-shot gesture settles on its
   end pose and fades to the engine from there, it never flashes back to the clip's first frame.
+- **`hold` — freeze on one frame instead of playing.** `"hold": true` parks the stage on its clips'
+  **last** frame; `"hold": <0..1>` parks it on that normalized clip position (same axis as a track's
+  `at`). The clock does not advance, so the pose is dead still and the clip never wraps:
+
+  ```jsonc
+  { "clips": ["OSF/Anims/HelmetOff.af"] },              // play the take-off once
+  { "hold": true, "clips": ["OSF/Anims/HelmetOff.af"] } // then stand frozen on its final pose
+  ```
+
+  This is the way to author a **static hold state** — a "carrying it" or "waiting" beat between two
+  animations. Freezing the *previous* stage's own last frame costs nothing at the seam: the stage
+  change blends from a pose identical to the one it blends to, so there is no transition at all.
+  Borrowing some other clip's idle instead re-poses the body to whatever that clip was authored
+  against, which with a `mask` reads as the masked part popping to a different orientation.
+
+  Because a frozen clip never loops, `hold` **cannot combine with `loops`** (the scene is rejected at
+  load). `timer` still works and is the only automatic way out; otherwise the stage holds until a
+  manual advance (Space / `AdvanceScene`) or an edge fires. Marks at or before the hold position fire
+  once when the stage activates, so an `action`/`cue` at `at: 0` still runs; later marks never fire.
+  Track lanes, `name`, and `tags` behave as on any other stage. The browser previews a frozen stage as
+  its full clip — a preview is a transport over the animation, not a replay of the scene's timing.
 - **Stage shorthand:** a stage may be written as a bare array of clips instead of a
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a

@@ -106,6 +106,7 @@ namespace OSF::Animation
 			std::vector<ParticipantPlacement> placements;  // empty = all zero
 			float timer = 0.0f;                            // seconds; <= 0 = no auto-advance
 			int32_t loops = 0;                             // clip loops; <= 0 = no auto-advance
+			float hold = -1.0f;                            // freeze on ONE frame at this clip position [0,1]; < 0 = play normally
 			float blendIn = -1.0f;                         // secs; < 0 = use plan blendIn
 			std::vector<TimedMark> marks;                  // timed marks (numeric/end) for this stage
 		};
@@ -169,6 +170,9 @@ namespace OSF::Animation
 		{
 			float timer = 0.0f;     // <= 0: hold
 			int32_t loops = 0;      // <= 0: no loop-count advance
+			// Freeze-frame stage: the clock parks at hold * duration and the clip never advances or
+			// wraps, so only `timer` (or a manual advance/stop) leaves it. < 0 = a normal playing stage.
+			float hold = -1.0f;
 			float duration = 0.0f;  // clip length (s)
 			std::vector<ParticipantSlot> participants;
 			std::vector<ParticipantPlacement> placements;
@@ -277,6 +281,9 @@ namespace OSF::Animation
 		uint32_t currentStage = 0;
 		float stageElapsed = 0.0f;  // time in stage (doesn't wrap, unlike clock.time)
 		int32_t stageLoops = 0;     // completed wraps in stage = 0-based loop index
+		// A frozen stage (StageData::hold) fires the marks at or before its hold point ONCE, on the
+		// first update after it activates; this gates that pass (reset by every stage change).
+		bool holdMarksFired = false;
 
 		// Timed-mark scheduling state (all under `lock`). firedMarks accumulates the marks  (lane+token) whose times crossed this frame; 
 		// markFired[i] gates a non-repeating mark to fire once per stage pass (parallel to the current stage's `marks`, reset on every stage change).

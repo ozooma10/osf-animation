@@ -50,7 +50,13 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   starts a browser-owned, scrub-only Layer-A graph. It has no lifecycle callbacks,
   cues, sounds, cameras, equipment policy, or external consumers; the browser owns
   temporary render props and reconstructs them from the selected node's
-  enter/numeric/end `osf.prop.*` actions at each seek.
+  enter/numeric/end `osf.prop.*` actions at each seek. A preview starts paused;
+  `playback.set {handle, paused:false}` runs it at authored speed (looping its clip,
+  props reconciled on the playback poll) and `paused:true` freezes it again — still
+  side-effect-free, since a preview carries no timers, loop targets, or marks. Any
+  seek takes the transport back, so scrubbing or frame-stepping pauses it. An
+  authored `hold` stage is previewed as its full clip: a preview is a transport over
+  the animation, not a replay of the scene's timing.
   `wheel.get`→`wheel.data`,
   `wheel.set {entries:[{scene,stage?},...]}` (persist the complete ordered animation-wheel loadout)
   or `wheel.set {reset:true}` (return to installed defaults); the reply is an
@@ -67,8 +73,8 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.
   current stage, full cast, per-scene stop (`stop {handle}`), STOP ALL —
   plus a compact header chip (a single scene shows directly with its stop;
   several collapse to a count) that opens the tab, and LIVE badges on busy
-  crew. Ordinary runtime timelines are forward-only (pause/resume); only a
-  browser prop-preview handle exposes frame stepping and seeking. A preview also has
+  crew. Ordinary runtime timelines are forward-only (pause/resume); a browser
+  prop-preview handle adds frame stepping and seeking to the same play/pause. A preview also has
   no runtime stage machine (`advance` no-ops on its handle), so its card carries a
   **stage strip** — ◀ / windowed per-stage chips / ▶, with NEXT ▸ and Space wrapping
   through them. Each re-issues `launch {inspect:true, opts.stage}` for the same cast,

@@ -421,6 +421,8 @@ namespace OSF::Animation
 				Scene::StageData stage;
 				stage.timer = planStage.timer;
 				stage.loops = planStage.loops;
+				stage.hold = std::isfinite(planStage.hold) && planStage.hold >= 0.0f ?
+				                 std::min(planStage.hold, 1.0f) : -1.0f;
 				const float defaultBlend = std::isfinite(a_plan.blendIn) && a_plan.blendIn >= 0.0f ? a_plan.blendIn : 0.4f;
 				stage.blendIn = std::isfinite(planStage.blendIn) && planStage.blendIn >= 0.0f ? planStage.blendIn : defaultBlend;
 				stage.placements = planStage.placements.empty() ?

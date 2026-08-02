@@ -1387,6 +1387,26 @@ namespace OSF::Registry
 					info.timer = jStage.value("timer", 0.0f);
 					info.loops = jStage.value("loops", 0);
 					timingGiven = jStage.contains("timer") || jStage.contains("loops");
+					// `hold`: freeze on one frame instead of playing the clip. A frozen clip never
+					// wraps, so a loop count could never expire — reject the pair rather than let it
+					// read as "hold for N loops". A timer (or a manual advance) still leaves the stage.
+					if (auto it = jStage.find("hold"); it != jStage.end()) {
+						if (it->is_boolean()) {
+							info.hold = it->get<bool>() ? 1.0f : -1.0f;
+						} else if (it->is_number()) {
+							const float at = it->get<float>();
+							if (!std::isfinite(at) || at < 0.0f || at > 1.0f) {
+								throw std::runtime_error(a_subject + ": stage 'hold' must be true or a clip position in [0, 1]");
+							}
+							info.hold = at;
+						} else {
+							throw std::runtime_error(a_subject + ": stage 'hold' must be true or a clip position in [0, 1]");
+						}
+						if (info.hold >= 0.0f && jStage.contains("loops")) {
+							throw std::runtime_error(a_subject + ": stage 'hold' cannot combine with 'loops' — a frozen "
+								"clip never loops; use 'timer' or a manual advance to leave the stage");
+						}
+					}
 					// Optional stage identity (label + tags) for the browsable-animation catalog.
 					if (auto it = jStage.find("name"); it != jStage.end()) {
 						if (!it->is_string()) {
@@ -1445,9 +1465,11 @@ namespace OSF::Registry
 				} else {
 					throw std::runtime_error(a_subject + ": a stage must be a clips array (shorthand) or a { timer, loops, clips } object");
 				}
-				if (!timingGiven) {
+				if (!timingGiven && info.hold < 0.0f) {
 					info.loops = 1;  // untimed -> play once, then advance / end
 				}
+				// An untimed frozen stage holds its frame until something advances it (loops stay 0),
+				// which is exactly the hold policy DesugarLinear reads.
 				for (const auto& jClip : *clipsNode) {
 					info.clips.push_back(ParseStageClip(jClip, a_clipRoot, a_subject));
 				}
@@ -2456,6 +2478,7 @@ namespace OSF::Registry
 				Animation::ScenePlan::Stage stage;
 				stage.timer = sd.timer;
 				stage.loops = sd.loops;
+				stage.hold = sd.hold;
 				for (size_t a = 0; a < a_actorCount; a++) {
 					const auto& clip = sd.clips[a];
 					stage.files.push_back(clip.file);

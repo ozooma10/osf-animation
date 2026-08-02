@@ -369,6 +369,23 @@ namespace OSF::API::UIBridgeCatalog
 						std::string(Registry::CameraStateName(camera.state)), std::move(detail));
 				}
 
+				// A frozen stage never plays its clip, so the clip length is not time this stage
+				// spends: its cost is its timer, or nothing at all when it holds until advanced.
+				if (st.hold >= 0.0f) {
+					sc.timerSec = node->timerSec;
+					sc.loops = 0;
+					if (sc.timerSec > 0.0f) {
+						sc.estSec = sc.timerSec;
+					} else {
+						sc.openEnded = true;
+						sc.estSec = 0.0f;
+					}
+					c.estSec = (c.estSec < 0.0f ? 0.0f : c.estSec) + sc.estSec;
+					c.openEnded = c.openEnded || sc.openEnded;
+					c.stages.push_back(std::move(sc));
+					continue;
+				}
+
 				sc.timerSec = node->timerSec;
 				switch (node->loopMode) {
 				case Registry::LoopMode::kOnce:

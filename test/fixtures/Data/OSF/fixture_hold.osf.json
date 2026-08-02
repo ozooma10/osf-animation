@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "name": "Hold Fixture",
+  "unlisted": true,
+  "roles": [{ "name": "solo" }],
+  "scenes": [
+    {
+      "id": "test.hold.frame",
+      "stages": [
+        { "clips": ["Fixture/gesture.glb"] },
+        {
+          "hold": true,
+          "clips": ["Fixture/gesture.glb"],
+          "cue": [{ "at": 0, "id": "test.hold.entered" }]
+        }
+      ]
+    },
+    {
+      "id": "test.hold.timed",
+      "stages": [
+        { "hold": 0.25, "timer": 2.0, "clips": ["Fixture/gesture.glb"] }
+      ]
+    },
+    {
+      "id": "test.hold.loops",
+      "stages": [
+        { "hold": true, "loops": 3, "clips": ["Fixture/gesture.glb"] }
+      ]
+    },
+    {
+      "id": "test.hold.range",
+      "stages": [
+        { "hold": 1.5, "clips": ["Fixture/gesture.glb"] }
+      ]
+    }
+  ]
+}

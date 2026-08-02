@@ -26,6 +26,45 @@ namespace OSF::Animation
 			// repeat:loop marks exact even when a high playback speed crosses several loops at once.
 			while (remaining > 0.0f && !ended.load(std::memory_order_relaxed) && !stages.empty()) {
 				const auto& stage = stages[currentStage];
+				if (stage.hold >= 0.0f) {
+					// Freeze-frame stage: the clip does not advance, so no wrap and no loop count can
+					// ever expire. Only `timer` (or a manual advance/stop) leaves it. The clock is
+					// already parked on the hold pose by ApplyStageLocked; the marks that sit at or
+					// before that pose fire once, here, so an authored `action at:0` still runs.
+					const float segment = stage.timer > 0.0f ?
+					                          std::min(remaining, std::max(0.0f, stage.timer - stageElapsed)) :
+					                          remaining;
+					if (!holdMarksFired) {
+						holdMarksFired = true;
+						for (size_t i = 0; i < stage.marks.size(); i++) {
+							const auto& mark = stage.marks[i];
+							const bool reached = mark.atEnd ? stage.hold >= 1.0f :
+							                                  duration > 0.0f && MarkTime(mark, duration) <= clock.time;
+							if (!reached || i >= markFired.size() || markFired[i]) {
+								continue;
+							}
+							firedMarks.push_back({ mark.lane, mark.token });
+							markFired[i] = true;
+						}
+					}
+					stageElapsed += std::max(segment, 0.0f);
+					remaining = 0.0f;
+					if (!(stage.timer > 0.0f && stageElapsed >= stage.timer)) {
+						break;  // still holding
+					}
+					if (currentStage + 1 < stages.size()) {
+						ApplyStageLocked(currentStage + 1);
+						REX::DEBUG("[Anim] held stage timer expired — advanced to stage {}/{}", currentStage + 1, stages.size());
+					} else if (loopWhole) {
+						ApplyStageLocked(0);
+						REX::DEBUG("[Anim] final held stage timer expired — looping to stage 0");
+					} else {
+						endReason.store(SceneEndReason::kTimer, std::memory_order_relaxed);
+						ended.store(true, std::memory_order_relaxed);
+						REX::DEBUG("[Anim] final held stage timer expired — holding pose, requesting stop");
+					}
+					break;
+				}
 				const float toWrap = duration > 0.0f ? std::max(0.0f, duration - clock.time) : remaining;
 				const float toTimer = stage.timer > 0.0f ? std::max(0.0f, stage.timer - stageElapsed) : remaining;
 				float segment = std::min({ remaining, toWrap, toTimer });
@@ -132,7 +171,12 @@ namespace OSF::Animation
 		// Keep a scrub at 100% on the last representable pose instead of snapping to frame zero.
 		const float lastPose = duration > 0.0f ? std::nextafter(duration, 0.0f) : 0.0f;
 		clock.time = std::clamp(a_time, 0.0f, lastPose);
-		stageElapsed = clock.time;
+		// On a playing stage the clip position IS the time spent in it, so a scrub carries any timer
+		// with it. A frozen stage's clock is a pose, not elapsed time — moving it must not rewind
+		// (or expire) the timer that is the only way out.
+		if (stages[currentStage].hold < 0.0f) {
+			stageElapsed = clock.time;
+		}
 		stageLoops = 0;
 		ended.store(false, std::memory_order_relaxed);
 		endQueued.store(false, std::memory_order_relaxed);
@@ -186,6 +230,13 @@ namespace OSF::Animation
 
 		const auto& stage = stages[a_stage];
 		duration = stage.duration;
+
+		// A frozen stage shows its hold pose from the very first sample, before any Advance runs.
+		// The last frame is the pose at nextafter(duration, 0) — a ratio of exactly 1 wraps to frame 0.
+		holdMarksFired = false;
+		if (stage.hold >= 0.0f && duration > 0.0f) {
+			clock.time = std::clamp(stage.hold * duration, 0.0f, std::nextafter(duration, 0.0f));
+		}
 
 		// Reset per-pass gating for this stage's marks (all unfired).
 		markFired.assign(stage.marks.size(), false);
