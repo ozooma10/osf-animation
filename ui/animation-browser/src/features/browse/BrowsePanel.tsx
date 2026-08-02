@@ -27,7 +27,7 @@ import {
 import type { BrowseKind, BrowserState } from "../../app/state";
 import type { SceneEvaluation, SceneModel, SceneStage, TimelineTrackMark } from "../../model";
 import { Dot, Empty, SpeciesFilter } from "../shared/Shared";
-import { TIMELINE_FPS, timelineFrame, timelineMarkMoment, timelineTracks } from "./timeline";
+import { TIMELINE_FPS, timelineFrame, timelineMarkAt, timelineMarkMoment, timelineTracks } from "./timeline";
 
 interface EvaluatedPlayable {
   item: PlayableItem;
@@ -238,7 +238,7 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
           </span>
           {active.inspection && <InspectionTracks stage={stages.find((stage) => stage.index === active.stage)}
             time={time} duration={active.duration}
-            onSeek={(mark) => commands.setPlayback(active.handle, mark.at * active.duration, true)}/>}
+            onSeek={(mark) => commands.setPlayback(active.handle, timelineMarkAt(mark, active.duration) * active.duration, true)}/>}
         </div>
       </div>;
     })}</div></>;
@@ -292,9 +292,10 @@ function InspectionTracks({ stage, time, duration, onSeek }: {
         <span class="timeline-playhead" style={{ left: `${playhead}%` }}/>
         {lane.marks.map((mark, index) => {
           const moment = timelineMarkMoment(mark, duration);
-          const detail = [mark.label, mark.detail, mark.role && `role ${mark.role}`, mark.repeat && "every loop", moment].filter(Boolean).join(" · ");
-          return <button class="timeline-marker" style={{ left: `${mark.at * 100}%` }} title={detail}
-            aria-label={detail} disabled={!duration} onClick={() => onSeek(mark)} key={`${mark.anchor}:${mark.at}:${index}`}><span/></button>;
+          const unreachable = mark.anchor === "unreachable";
+          const detail = [mark.label, mark.detail, mark.role && `role ${mark.role}`, mark.repeat && "every loop", moment, unreachable && "never fires — authored past the clip end"].filter(Boolean).join(" · ");
+          return <button class={`timeline-marker${unreachable ? " unreachable" : ""}`} style={{ left: `${timelineMarkAt(mark, duration) * 100}%` }} title={detail}
+            aria-label={detail} disabled={!duration || unreachable} onClick={() => onSeek(mark)} key={`${mark.anchor}:${mark.at}:${index}`}><span/></button>;
         })}
       </div>
       <div class="timeline-events">

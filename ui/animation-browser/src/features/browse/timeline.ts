@@ -20,8 +20,21 @@ export function timelineTracks(marks: readonly TimelineTrackMark[]) {
   })).filter((lane) => lane.marks.length > 0);
 }
 
+/** Effective rail fraction: an `atFrame` mark re-places itself against the live decoded
+ *  duration when one is known — the catalog's fraction was computed from the pack-authored
+ *  clip length, which can disagree with what actually decoded. */
+export function timelineMarkAt(mark: TimelineTrackMark, duration: number): number {
+  if (mark.atSec != null && duration > 0) return Math.max(0, Math.min(1, mark.atSec / duration));
+  return mark.at;
+}
+
 export function timelineMarkMoment(mark: TimelineTrackMark, duration: number): string {
+  if (mark.anchor === "unreachable") return `PAST END · F${timelineFrame(mark.atSec ?? 0)}`;
   if (mark.anchor !== "fraction") return mark.anchor.toUpperCase();
+  if (mark.atSec != null) {
+    const frame = `F${timelineFrame(mark.atSec)}`;
+    return duration > 0 ? `${Math.round(timelineMarkAt(mark, duration) * 100)}% · ${frame}` : frame;
+  }
   const percent = `${Math.round(mark.at * 100)}%`;
   return duration > 0 ? `${percent} · F${timelineFrame(mark.at * duration)}` : percent;
 }

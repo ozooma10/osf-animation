@@ -643,7 +643,9 @@ That makes the two positions behave differently when the clip length changes:
 So a frame keeps the moment you authored even if the clip is re-exported longer, while a fraction
 re-scales with it. The flip side: a frame **past the end** of the clip it plays on has nowhere to
 land and simply never fires (there is no clip length at load time to validate it against, so this is
-not a load error — check the frame against your clip). Use `"at": "end"` for the clip's final frame.
+not a load error — check the frame against your clip). The browser's track rail flags such a mark
+as **PAST END** (dashed marker) and the inspector skips it, matching the runtime. Use
+`"at": "end"` for the clip's final frame.
 
 `repeat: "loop"` works the same for both: the position is measured from the start of **each** loop.
 

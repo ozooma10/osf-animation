@@ -132,6 +132,13 @@ namespace OSF::Animation
 
 		RE::NiPoint3 anchorPos{};
 		float anchorHeading = 0.0f;  // radians
+
+		// Pre-scene participant transforms to restore on teardown, parallel to the actors (empty =
+		// sample at start, the default). A caller replacing its own scene for the same cast (browser
+		// stage switch) supplies the original baseline here: the actors are already placed by the
+		// outgoing scene when the replacement starts, so sampling then would "restore" them to the
+		// old scene's placement instead of where they stood before any scene ran.
+		std::vector<std::pair<RE::NiPoint3, float>> baselineTransforms;
 	};
 
 	// ScenePlan is internal, but several construction paths build it. Keep every optional per-role

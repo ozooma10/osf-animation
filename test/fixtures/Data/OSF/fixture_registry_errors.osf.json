@@ -39,6 +39,13 @@
         "cue": [{ "at": 0.5, "atFrame": 12, "id": "two.clocks" }]
       }]
     },
+    {
+      "id": "test.err.ladder-both", "roles": ["f"],
+      "stages": [{
+        "clips": ["Fixture/x.glb"],
+        "sound": { "spec": "Sound/OSF/test.wem", "at": [{ "at": 0.9, "atFrame": 6, "tags": ["loud"] }] }
+      }]
+    },
     { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
   ]
 }

@@ -196,6 +196,18 @@ namespace OSF::Registry
 		return sec > 0.0f ? 1.0f : 0.0f;
 	}
 
+	// Whether the runtime can ever fire this kFraction entry. Scene::Advance fires numeric marks
+	// through a [prev, next) window whose upper bound never exceeds the clip duration, so an
+	// `atFrame` at or past the clip end never fires — while the clamped TrackFraction above would
+	// still report it at 1.0, letting an inspector scrubbed to the end "fire" a mark the shipped
+	// scene provably skips. `at`-fraction entries and unknown durations are not judged (true).
+	template <class Entry>
+	inline bool TrackFires(const Entry& a_entry, float a_durationSec)
+	{
+		const float sec = TrackSeconds(a_entry);
+		return sec < 0.0f || a_durationSec <= 0.0f || sec < a_durationSec;
+	}
+
 	// One actor's clip for one stage (one per role in StageDef::clips, role order).
 	struct StageClip
 	{

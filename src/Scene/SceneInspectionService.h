@@ -32,6 +32,7 @@ namespace OSF::Scene
 		std::int32_t stage = -1;
 		std::vector<RE::Actor*> participants;
 		Animation::ScenePlan plan;
+		bool anchorImplicit = false;  // plan anchor was sampled from (or inherited for) actor[0], not caller-supplied
 	};
 
 	struct InspectionSnapshot
@@ -87,6 +88,15 @@ namespace OSF::Scene
 			std::vector<RE::Actor*> participants;
 			Animation::PlaybackId playbackId = 0;
 			std::vector<PreviewProp> props;
+			// Pre-inspection baseline, carried across stage switches: the anchor the first preview
+			// resolved (only meaningful when anchorImplicit) and the cast's pre-inspection transforms.
+			// A replacement preview for the same cast inherits both in Prepare — sampling live state
+			// there would re-anchor on the already-placed actors (walking the cast by role 0's offset
+			// per switch) and restore them to the outgoing stage's placement on final stop.
+			bool anchorImplicit = false;
+			RE::NiPoint3 anchorPos{};
+			float anchorHeading = 0.0f;
+			std::vector<std::pair<RE::NiPoint3, float>> baseline;
 		};
 
 		RE::Actor* RoleActor(const Preview& a_preview, std::string_view a_role) const;

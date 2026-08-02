@@ -746,6 +746,15 @@ namespace OSF::Registry
 						const json& attach = ResolvePropAttach(a, a_props, ae.prop, subject, merged);
 						const auto source = attach.find("source");
 						if (source == attach.end()) {
+							// Three distinct author mistakes, three messages. A matched template that
+							// still yields no `source` (identified by ResolvePropAttach returning the
+							// merge, not the action) is a partial template — do NOT claim "no matching
+							// entry" while DescribePropRegistry lists that very id as defined.
+							if (&attach != &a) {
+								const std::string templateId = a.contains("use") ? a["use"].get<std::string>() : ae.prop;
+								throw std::runtime_error(subject + " prop template '" + templateId +
+									"' supplies no 'source' and the action authors none");
+							}
 							// With no registry in play this is the plain old "you forgot source". With one,
 							// the likeliest cause is a typo'd `prop` id, so name that possibility.
 							if (a_props.empty()) {
@@ -887,6 +896,13 @@ namespace OSF::Registry
 					}
 					// A per-hit object picks its own timing key; falling back to the lane's keeps a bare
 					// `{ tags: [...] }` hit on the lane's units (and still errors as a missing position).
+					// `at` and `atFrame` are mutually exclusive everywhere else (ParseTrackTiming), but the
+					// emit lambda rebuilds a single-key timing object so that guard never sees the pair —
+					// reject it here or the losing key is silently discarded.
+					if (m.contains("at") && m.contains("atFrame")) {
+						throw std::runtime_error("node '" + a_node_out.id +
+							"': a sound ladder hit sets both 'at' and 'atFrame' (pick one)");
+					}
 					const char* const hitKey = m.contains("atFrame") ? "atFrame" : m.contains("at") ? "at" : laneKey;
 					const json at = m.contains(hitKey) ? m.at(hitKey) : json();
 					emit(spec, at, ToLower(m.value("repeat", laneRepeat)), m.value("role", laneRole),
@@ -2328,7 +2344,12 @@ namespace OSF::Registry
 					// parser, but a silently-dropped scene-level registry would leave every attach in
 					// that scene failing on a missing `source` — so say so instead.
 					if (s.is_object() && s.contains("props")) {
-						rejectFile("'" + fileName + "': scene '" + s.value("id", std::string{}) +
+						// Type-guarded id read: value() throws on a present-but-non-string "id", and
+						// nothing catches that here — it would surface as a bogus "parse failed" JSON
+						// diagnostic instead of this message.
+						const auto idIt = s.find("id");
+						const std::string sid = idIt != s.end() && idIt->is_string() ? idIt->get<std::string>() : std::string{};
+						rejectFile("'" + fileName + "': scene '" + sid +
 							"': 'props' is a file-level registry — move it beside 'scenes'");
 						return;
 					}

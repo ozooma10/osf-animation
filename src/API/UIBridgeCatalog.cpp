@@ -181,6 +181,7 @@ namespace OSF::API::UIBridgeCatalog
 				std::string detail;
 				std::string role;
 				float       at = 0.0f;
+				float       atSec = -1.0f;  // authored `atFrame` position in seconds (< 0 = `at`-fraction mark)
 				bool        repeat = false;
 			};
 			std::int32_t             index = 0;
@@ -319,54 +320,56 @@ namespace OSF::API::UIBridgeCatalog
 					}
 				}
 
-				const auto addTrack = [&sc](std::string kind, Registry::TrackPos pos, float fraction,
-					bool repeat, std::string label, std::string detail = {}, std::string role = {}) {
+				// The browser's track axis is fractional, so an `atFrame` entry is placed against the
+				// stage's own clip length; a stage whose length hasn't been probed yet parks them at
+				// the end of the axis rather than claiming they sit at the clip start. The authored
+				// position is shipped in seconds too (`atSec`) so the view can re-place the mark
+				// against the LIVE decoded duration during inspection — the authored `sec` and the
+				// decoded length can disagree. A frame at or past the clip end is anchored
+				// "unreachable": the runtime provably never fires it (see Registry::TrackFires).
+				const float clipSec = sc.loopSec;
+				const auto addTrack = [&sc, clipSec](std::string kind, const auto& entry, std::string label,
+					std::string detail = {}, std::string role = {}) {
 					const char* anchor = "fraction";
-					float at = fraction;
-					switch (pos) {
+					float at = 1.0f;
+					switch (entry.pos) {
 					case Registry::TrackPos::kEnter:
 						anchor = "enter";
 						at = 0.0f;
 						break;
 					case Registry::TrackPos::kExit:
 						anchor = "exit";
-						at = 1.0f;
 						break;
 					case Registry::TrackPos::kEnd:
 						anchor = "end";
-						at = 1.0f;
 						break;
 					case Registry::TrackPos::kFraction:
-						at = std::clamp(fraction, 0.0f, 1.0f);
+						at = Registry::TrackFraction(entry, clipSec);
+						if (!Registry::TrackFires(entry, clipSec)) {
+							anchor = "unreachable";
+						}
 						break;
 					}
 					sc.tracks.push_back({ std::move(kind), anchor, std::move(label), std::move(detail),
-						std::move(role), at, repeat });
+						std::move(role), at, Registry::TrackSeconds(entry), entry.everyLoop });
 				};
-				// The browser's track axis is fractional, so an `atFrame` entry is placed against the
-				// stage's own clip length; a stage whose length hasn't been probed yet parks them at
-				// the end of the axis rather than claiming they sit at the clip start.
-				const float clipSec = sc.loopSec;
 				for (const auto& cue : node->cues) {
-					addTrack("cue", cue.pos, Registry::TrackFraction(cue, clipSec), cue.everyLoop, cue.id);
+					addTrack("cue", cue, cue.id);
 				}
 				for (const auto& action : node->actions) {
 					std::string detail = !action.prop.empty() ? action.prop :
 						!action.set.empty() ? action.set : action.item;
-					addTrack("action", action.pos, Registry::TrackFraction(action, clipSec), action.everyLoop,
-						action.type, std::move(detail), action.role);
+					addTrack("action", action, action.type, std::move(detail), action.role);
 				}
 				for (const auto& sound : node->sounds) {
-					addTrack("sound", sound.pos, Registry::TrackFraction(sound, clipSec), sound.everyLoop,
-						sound.spec, {}, sound.role);
+					addTrack("sound", sound, sound.spec, {}, sound.role);
 				}
 				for (const auto& camera : node->cameras) {
 					std::string detail;
 					if (camera.distance != 0.0f) {
 						detail = std::format("distance {}", camera.distance);
 					}
-					addTrack("camera", camera.pos, Registry::TrackFraction(camera, clipSec), camera.everyLoop,
-						std::string(Registry::CameraStateName(camera.state)), std::move(detail));
+					addTrack("camera", camera, std::string(Registry::CameraStateName(camera.state)), std::move(detail));
 				}
 
 				// A frozen stage never plays its clip, so the clip length is not time this stage
@@ -444,7 +447,7 @@ namespace OSF::API::UIBridgeCatalog
 			for (const auto& s : c.stages) {
 				json tracks = json::array();
 				for (const auto& mark : s.tracks) {
-					tracks.push_back({
+					json markJson{
 						{ "kind", mark.kind },
 						{ "at", mark.at },
 						{ "anchor", mark.anchor },
@@ -452,7 +455,11 @@ namespace OSF::API::UIBridgeCatalog
 						{ "detail", mark.detail },
 						{ "role", mark.role },
 						{ "repeat", mark.repeat },
-					});
+					};
+					if (mark.atSec >= 0.0f) {
+						markJson["atSec"] = mark.atSec;  // authored `atFrame` position in seconds
+					}
+					tracks.push_back(std::move(markJson));
 				}
 				stages.push_back({
 					{ "index", s.index },

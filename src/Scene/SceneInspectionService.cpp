@@ -68,19 +68,51 @@ namespace OSF::Scene
 		}
 		plan->loopWhole = false;
 		plan->speed = 0.0f;
+		// A stage switch is a fresh Prepare while the outgoing preview still owns this cast (the
+		// caller retires it between Prepare and Start). Its actors are already placed, so live
+		// anchor/transform samples would describe the OUTGOING stage: inherit the first preview's
+		// pre-inspection baseline instead. Only an identical cast inherits — a different binding
+		// starts a genuinely new preview.
+		const Preview* superseded = nullptr;
+		for (const auto& [handle, preview] : _previews) {
+			if (preview.participants == ordered) {
+				superseded = &preview;
+				break;
+			}
+		}
+
+		bool anchorImplicit = false;
 		if (a_request.anchor.set) {
 			plan->anchorExplicit = true;
 			plan->anchorPos = a_request.anchor.pos;
 			plan->anchorHeading = a_request.anchor.heading;
 		} else if (plan->anchored) {
 			// Preserve actor-relative placement while ensuring Layer A restores transforms on stop.
+			anchorImplicit = true;
 			plan->anchorExplicit = true;
-			plan->anchorPos = ordered.front()->data.location;
-			plan->anchorHeading = ordered.front()->data.angle.z;
+			if (superseded && superseded->anchorImplicit) {
+				plan->anchorPos = superseded->anchorPos;
+				plan->anchorHeading = superseded->anchorHeading;
+			} else {
+				plan->anchorPos = ordered.front()->data.location;
+				plan->anchorHeading = ordered.front()->data.angle.z;
+			}
+		}
+		if (plan->anchored && plan->anchorExplicit) {
+			if (superseded && superseded->baseline.size() == ordered.size()) {
+				plan->baselineTransforms = superseded->baseline;
+			} else {
+				plan->baselineTransforms.reserve(ordered.size());
+				for (const auto* actor : ordered) {
+					plan->baselineTransforms.emplace_back(actor->data.location, actor->data.angle.z);
+				}
+			}
 		}
 
 		const auto stage = definition->LinearStageOf(nodeId);
-		return PreparedInspection{ definition, std::move(nodeId), stage, std::move(ordered), std::move(*plan) };
+		return PreparedInspection{
+			definition, std::move(nodeId), stage, std::move(ordered), std::move(*plan), anchorImplicit
+		};
 	}
 
 	std::int32_t SceneInspectionService::Start(PreparedInspection a_prepared, std::string& a_error)
@@ -100,7 +132,9 @@ namespace OSF::Scene
 		_nextHandle = _nextHandle == (std::numeric_limits<std::int32_t>::min)() ? -1 : _nextHandle - 1;
 		Preview preview{
 			handle, a_prepared.definition->id, std::move(a_prepared.node), a_prepared.stage,
-			std::move(a_prepared.definition), std::move(a_prepared.participants), playbackId, {}
+			std::move(a_prepared.definition), std::move(a_prepared.participants), playbackId, {},
+			a_prepared.anchorImplicit, a_prepared.plan.anchorPos, a_prepared.plan.anchorHeading,
+			std::move(a_prepared.plan.baselineTransforms)
 		};
 		auto [inserted, ok] = _previews.emplace(handle, std::move(preview));
 		if (!ok) {

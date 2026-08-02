@@ -181,6 +181,35 @@ namespace OSF::Animation::PoseMath
 		});
 	}
 
+	// Per-bone decision for the override stamp path (StampPose), extracted so the zero-weight
+	// boundary behavior is testable without an engine link.
+	enum class OverrideStampKind : std::uint8_t
+	{
+		kSkip,      // leave the engine pose alone
+		kSnapshot,  // stamp the cross-fade-from snapshot verbatim (zero-weight stage handoff)
+		kTarget,    // stamp the sampled pose absolutely (total weight >= 1)
+		kBlend      // cross-fade from -> target at the total weight
+	};
+
+	// a_weight = transition blend weight (exactly 0 on the first stamp after a stage/node handoff
+	// resets the blend clock), a_poseWeight = persistent layer strength, a_maskWeight = the bone's
+	// mask weight, a_fromSnapshot = the outgoing stage stamped this joint and its snapshot is valid.
+	// A zero TOTAL weight normally leaves the engine pose in place — EXCEPT at the handoff boundary
+	// with a live snapshot, where skipping would expose the vanilla pose for the compose(s) before
+	// the next animation update advances the clock: clip A -> B must begin at A, not flash through
+	// vanilla. A deliberately zero-strength role or bone (poseWeight/maskWeight zero) still skips.
+	inline OverrideStampKind ClassifyOverrideStamp(float a_weight, float a_poseWeight,
+		float a_maskWeight, bool a_fromSnapshot)
+	{
+		const float w = a_weight * a_poseWeight * a_maskWeight;
+		if (w <= 0.0f) {
+			return a_fromSnapshot && a_weight <= 0.0f && a_poseWeight > 0.0f && a_maskWeight > 0.0f ?
+			           OverrideStampKind::kSnapshot :
+			           OverrideStampKind::kSkip;
+		}
+		return w >= 1.0f ? OverrideStampKind::kTarget : OverrideStampKind::kBlend;
+	}
+
 	// Existing override cross-fade behavior, extracted unchanged for focused regression tests.
 	inline void WriteOverrideBlended(float* a_slot, const float* a_from, const float* a_target, float a_weight)
 	{

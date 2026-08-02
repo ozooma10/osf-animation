@@ -146,6 +146,31 @@ int main()
 			"override keeps its existing linear translation and unit scale");
 	}
 
+	// The override stamp's per-bone decision, especially the zero-weight stage-handoff boundary:
+	// a handoff resets the blend clock to exactly zero, and skipping there would expose the
+	// vanilla pose for the compose(s) before the next animation update (the "pose dropout at
+	// clip transitions" fix). A deliberately zero-strength role or bone must still skip.
+	{
+		using OSF::Animation::PoseMath::ClassifyOverrideStamp;
+		using OSF::Animation::PoseMath::OverrideStampKind;
+		Check(ClassifyOverrideStamp(0.0f, 1.0f, 1.0f, true) == OverrideStampKind::kSnapshot,
+			"zero-weight handoff with a valid snapshot stamps the snapshot, not vanilla");
+		Check(ClassifyOverrideStamp(0.0f, 1.0f, 0.25f, true) == OverrideStampKind::kSnapshot,
+			"a feathered (fractional-mask) bone also holds its snapshot across the handoff");
+		Check(ClassifyOverrideStamp(0.0f, 1.0f, 1.0f, false) == OverrideStampKind::kSkip,
+			"zero weight without a snapshot leaves the engine pose alone");
+		Check(ClassifyOverrideStamp(0.0f, 0.0f, 1.0f, true) == OverrideStampKind::kSkip,
+			"a deliberately zero-strength layer never stamps");
+		Check(ClassifyOverrideStamp(0.0f, 1.0f, 0.0f, true) == OverrideStampKind::kSkip,
+			"a zero-weight mask bone never stamps");
+		Check(ClassifyOverrideStamp(0.25f, 1.0f, 1.0f, true) == OverrideStampKind::kBlend,
+			"mid-blend keeps cross-fading even when a snapshot exists");
+		Check(ClassifyOverrideStamp(1.0f, 1.0f, 1.0f, false) == OverrideStampKind::kTarget,
+			"full weight stamps the sampled pose absolutely");
+		Check(ClassifyOverrideStamp(1.0f, 0.5f, 1.0f, false) == OverrideStampKind::kBlend,
+			"persistent partial strength blends at steady state");
+	}
+
 	// Transition weight and persistent role strength multiply; this covers both blend-in and fade-out.
 	{
 		Check(Near(EffectiveWeight(0.5f, 0.25f), 0.125f),

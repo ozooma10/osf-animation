@@ -118,10 +118,23 @@ namespace OSF::Studio
 
 		void Reply(std::string_view a_id, bool a_ok, std::string_view a_message)
 		{
-			WriteJson(g_directory / "response.json", json{
-				{ "version", kProtocolVersion }, { "session", g_session },
-				{ "id", a_id }, { "ok", a_ok }, { "message", a_message }
-			});
+			// Replies come from both the monitor thread (parse failures) and SFSE game-thread tasks.
+			// Serialize writers, and publish atomically — write a temp file, then rename over
+			// response.json — so Studio never reads a truncated or interleaved document.
+			static std::mutex replyLock;
+			const std::scoped_lock lock{ replyLock };
+			const auto target = g_directory / "response.json";
+			const auto tmp = g_directory / "response.json.tmp";
+			if (WriteJson(tmp, json{
+					{ "version", kProtocolVersion }, { "session", g_session },
+					{ "id", a_id }, { "ok", a_ok }, { "message", a_message }
+				})) {
+				std::error_code ec;
+				std::filesystem::rename(tmp, target, ec);
+				if (ec) {
+					std::filesystem::remove(tmp, ec);
+				}
+			}
 		}
 
 		std::optional<std::vector<std::uint8_t>> ReadClip(
@@ -363,10 +376,14 @@ namespace OSF::Studio
 			const auto& segment = g_helmet.sequence[g_helmet.segment];
 			if (!ApplyState(segment.from, a_player, a_error)) return false;
 			auto& manager = Animation::GraphManager::GetSingleton();
-			g_helmet.source = "studio-helmet:" + segment.id;
-			if (!manager.PlayAnimationBytes(a_player, segment.bytes, g_helmet.source, &a_error)) {
+			// Commit the source key only once the play succeeded: StopHelmetPreview only stops the
+			// graph when the CURRENT animation matches g_helmet.source, so committing before a failed
+			// play would leave the previous (still-playing) segment unstoppable.
+			const std::string source = "studio-helmet:" + segment.id;
+			if (!manager.PlayAnimationBytes(a_player, segment.bytes, source, &a_error)) {
 				return false;
 			}
+			g_helmet.source = source;
 			manager.SetSpeed(a_player, 1.0F);
 			manager.SetAnimationHoldAtEnd(a_player, true);
 			const auto playback = manager.GetAnimationPlayback(a_player);
@@ -391,8 +408,10 @@ namespace OSF::Studio
 			}
 			if (!ApplyState(a_state, a_player, a_error)) return false;
 			auto& manager = Animation::GraphManager::GetSingleton();
-			g_helmet.source = "studio-helmet:state";
-			if (!manager.PlayAnimationBytes(a_player, poseClip->bytes, g_helmet.source, &a_error)) return false;
+			// Same commit-on-success ordering as StartSegment.
+			const std::string source = "studio-helmet:state";
+			if (!manager.PlayAnimationBytes(a_player, poseClip->bytes, source, &a_error)) return false;
+			g_helmet.source = source;
 			manager.SetAnimationHoldAtEnd(a_player, true);
 			const auto playback = manager.GetAnimationPlayback(a_player);
 			if (!playback) return false;
@@ -457,18 +476,10 @@ namespace OSF::Studio
 		class PreviewTickTask final : public SFSE::ITaskDelegate
 		{
 		public:
-			void Run() override
-			{
-				if (_pending.exchange(true, std::memory_order_acq_rel)) return;
-				SFSE::GetTaskInterface()->AddTask([this] {
-					TickHelmetPreview();
-					_pending.store(false, std::memory_order_release);
-				});
-			}
+			// Permanent tasks already run on the game thread inside the same drain as the transient
+			// queue — tick directly rather than re-posting a heap-allocated hop every frame.
+			void Run() override { TickHelmetPreview(); }
 			void Destroy() override {}
-
-		private:
-			std::atomic_bool _pending{ false };
 		};
 
 		void QueuePing(std::string id, std::uint64_t generation)
@@ -505,7 +516,15 @@ namespace OSF::Studio
 					g_rawPreviewActive = false;
 					g_rawPreviewSource.clear();
 				}
-				if (!g_rawPreviewActive && manager.IsPlaying(player)) return Reply(id, false, "The player is already playing a non-Studio OSF animation");
+				// A just-stopped Studio graph keeps IsPlaying true through its fade-out ramp (and
+				// indefinitely while the game is paused) — only a graph this service did NOT start
+				// counts as foreign ownership. A live helmet preview is ours too: retire it (suit
+				// lease, prop) before the raw clip takes the player.
+				if (!g_rawPreviewActive && manager.IsPlaying(player) &&
+					!manager.GetCurrentAnimation(player).starts_with("studio-")) {
+					return Reply(id, false, "The player is already playing a non-Studio OSF animation");
+				}
+				StopHelmetPreview();
 				const std::string source = "studio-preview:" + id;
 				std::string error;
 				if (!manager.PlayAnimationBytes(player, bytes, source, &error)) return Reply(id, false, error);
@@ -531,7 +550,10 @@ namespace OSF::Studio
 				if (g_helmet.active && manager.GetCurrentAnimation(player) != g_helmet.source) {
 					StopHelmetPreview();
 				}
-				if ((!g_helmet.active && manager.IsPlaying(player)) || g_rawPreviewActive) {
+				// Same own-fade carve-out as QueuePlay: a fading "studio-*" graph is ours, not foreign.
+				if ((!g_helmet.active && manager.IsPlaying(player) &&
+						!manager.GetCurrentAnimation(player).starts_with("studio-")) ||
+					g_rawPreviewActive) {
 					return Reply(id, false, "The player is already playing a non-Studio OSF animation");
 				}
 				StopHelmetPreview();
@@ -576,28 +598,35 @@ namespace OSF::Studio
 
 		void ProcessRequest(const json& a_request)
 		{
-			if (!a_request.is_object() || a_request.value("version", 0u) != kProtocolVersion ||
-				a_request.value("session", std::string{}) != g_session) return;
+			// The caller already type-checked "id"; everything else is untrusted. A wrong-typed
+			// field throws out of value()/at() — reply with the parse failure instead of letting
+			// it escape to the monitor's catch-all, which would drop the request without a reply.
 			const std::string id = a_request.value("id", std::string{});
-			const std::string command = a_request.value("command", std::string{});
 			if (id.empty() || id.size() > 128) return;
-			const auto generation = g_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
-			if (command == "ping") return QueuePing(id, generation);
-			if (command == "stop") return QueueStop(id, generation, false);
-			if (command == "helmet.stop") return QueueStop(id, generation, true);
-			if (command == "play") {
-				std::string error;
-				auto bytes = ReadClip(a_request.value("clip", std::string{}), error);
-				if (!bytes) return Reply(id, false, error);
-				return QueuePlay(id, std::move(*bytes), generation);
+			try {
+				if (!a_request.is_object() || a_request.value("version", 0u) != kProtocolVersion ||
+					a_request.value("session", std::string{}) != g_session) return;
+				const std::string command = a_request.value("command", std::string{});
+				const auto generation = g_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
+				if (command == "ping") return QueuePing(id, generation);
+				if (command == "stop") return QueueStop(id, generation, false);
+				if (command == "helmet.stop") return QueueStop(id, generation, true);
+				if (command == "play") {
+					std::string error;
+					auto bytes = ReadClip(a_request.value("clip", std::string{}), error);
+					if (!bytes) return Reply(id, false, error);
+					return QueuePlay(id, std::move(*bytes), generation);
+				}
+				if (command == "helmet.preview") {
+					std::string error;
+					auto request = ParseHelmetRequest(a_request, error);
+					if (!request) return Reply(id, false, error);
+					return QueueHelmet(id, std::move(*request), generation);
+				}
+				Reply(id, false, "Unknown Studio Link command");
+			} catch (const json::exception& e) {
+				Reply(id, false, std::string{ "Malformed Studio Link request: " } + e.what());
 			}
-			if (command == "helmet.preview") {
-				std::string error;
-				auto request = ParseHelmetRequest(a_request, error);
-				if (!request) return Reply(id, false, error);
-				return QueueHelmet(id, std::move(*request), generation);
-			}
-			Reply(id, false, "Unknown Studio Link command");
 		}
 
 		void Monitor()
@@ -611,7 +640,11 @@ namespace OSF::Studio
 					if (!ec && size > 0 && size <= kMaxRequestBytes) {
 						std::ifstream in(requestFile, std::ios::binary);
 						const json request = json::parse(in, nullptr, false);
-						const std::string id = request.is_object() ? request.value("id", std::string{}) : std::string{};
+						// Type-guarded id read: value() throws on a present-but-non-string "id", and an
+						// escape here would skip the lastId latch below — re-reading the same file into
+						// the same throw at 10 Hz forever, with no reply ever written.
+						const auto idIt = request.is_object() ? request.find("id") : request.end();
+						const std::string id = idIt != request.end() && idIt->is_string() ? idIt->get<std::string>() : std::string{};
 						if (!id.empty() && id != lastId) { lastId = id; ProcessRequest(request); }
 					}
 				} catch (...) {

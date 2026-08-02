@@ -652,37 +652,31 @@ namespace OSF::Animation
 				// blend from Starfield's live pose instead of the unshown parts of its clip.
 				const bool fromSnapshot = hasSnapshot && bound.jointIndex < blendFromDriven.size() &&
 				                          blendFromDriven[bound.jointIndex] != 0;
+				// Zero-total-weight bones normally skip; the stage-handoff snapshot case must not
+				// (clip A -> B begins at A instead of flashing through vanilla). The decision is
+				// PoseMath::ClassifyOverrideStamp so the boundary behavior is pinned by tests.
 				const float w = weight * poseWeight * bound.weight;
-				if (w <= 0.0f) {
-					// A stage/node handoff resets the blend clock to exactly zero. When an
-					// outgoing snapshot exists, that endpoint is still a valid OSF pose; leaving
-					// the slot untouched exposes the engine pose for the compose(s) before the
-					// next animation update advances the clock. Stamp the snapshot so clip A -> B
-					// begins at A instead of flashing through vanilla. A deliberately zero-strength
-					// role/bone still leaves the engine pose alone.
-					if (!(fromSnapshot && weight <= 0.0f && poseWeight > 0.0f && bound.weight > 0.0f)) {
-						continue;
-					}
+				switch (PoseMath::ClassifyOverrideStamp(weight, poseWeight, bound.weight, fromSnapshot)) {
+				case PoseMath::OverrideStampKind::kSkip:
+					continue;
+				case PoseMath::OverrideStampKind::kSnapshot:
 					WriteNiTransformRowsBlended(slot,
 						reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]),
 						outputPose[bound.jointIndex], 0.0f);
-					if (!probeRecorded) {
-						recordProbe(slot, bound.rigIndex);
-					}
-					continue;
-				}
-				if (w >= 1.0f) {
+					break;
+				case PoseMath::OverrideStampKind::kTarget:
 					WriteNiTransformRows(slot, outputPose[bound.jointIndex]);
-					if (!probeRecorded) {
-						recordProbe(slot, bound.rigIndex);
+					break;
+				case PoseMath::OverrideStampKind::kBlend:
+					{
+						const float* from = fromSnapshot ?
+						                        reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) :
+						                        (persistentPartial ? liveBasePose.data() + i * 16 :
+						                                             slot);  // engine's live pose this frame
+						WriteNiTransformRowsBlended(slot, from, outputPose[bound.jointIndex], w);
 					}
-					continue;
+					break;
 				}
-				const float* from = fromSnapshot ?
-				                        reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) :
-				                        (persistentPartial ? liveBasePose.data() + i * 16 :
-				                                             slot);  // engine's live pose this frame
-				WriteNiTransformRowsBlended(slot, from, outputPose[bound.jointIndex], w);
 				if (!probeRecorded) {
 					recordProbe(slot, bound.rigIndex);
 				}

@@ -655,6 +655,8 @@ button,input,select{font:inherit;color:inherit}
 .timeline-marker span{display:block;width:7px;height:7px;margin:1px;border:1px solid var(--track-color);background:var(--void-700);transform:rotate(45deg)}
 .timeline-marker:hover span{background:var(--track-color);box-shadow:0 0 6px var(--track-color)}
 .timeline-marker:disabled{cursor:default}
+/* authored past the clip end — the runtime never fires it */
+.timeline-marker.unreachable span{border-style:dashed;border-color:var(--alert, #c4553a);background:transparent;opacity:.6}
 .timeline-events{display:flex;flex-wrap:wrap;gap:3px}
 .timeline-events button{display:flex;align-items:baseline;gap:5px;max-width:100%;padding:2px 5px;border:1px solid var(--line);border-radius:2px;background:var(--void-800);color:var(--text-body);font:500 9px var(--font-display);cursor:pointer}
 .timeline-events button:hover:not(:disabled){border-color:var(--track-color);color:var(--text-bright)}

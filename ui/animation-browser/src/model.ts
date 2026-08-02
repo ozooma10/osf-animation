@@ -4,12 +4,16 @@ export interface SceneRole {
 }
 
 export type TimelineTrackKind = "cue" | "action" | "sound" | "camera";
-export type TimelineTrackAnchor = "enter" | "exit" | "end" | "fraction";
+/** "unreachable" = an `atFrame` at/past the clip end — the runtime never fires it. */
+export type TimelineTrackAnchor = "enter" | "exit" | "end" | "fraction" | "unreachable";
 
 export interface TimelineTrackMark {
   kind: TimelineTrackKind;
   /** Clip-local position: named enter anchors map to 0, exit/end to 1. */
   at: number;
+  /** Authored `atFrame` position in seconds; lets the rail re-place the mark against the
+   *  live decoded duration (the pack-authored clip length can disagree with it). */
+  atSec?: number;
   anchor: TimelineTrackAnchor;
   label: string;
   detail: string;
@@ -141,7 +145,7 @@ export function normalizeStages(stages: unknown): SceneStage[] {
 }
 
 const TRACK_KINDS = new Set<TimelineTrackKind>(["cue", "action", "sound", "camera"]);
-const TRACK_ANCHORS = new Set<TimelineTrackAnchor>(["enter", "exit", "end", "fraction"]);
+const TRACK_ANCHORS = new Set<TimelineTrackAnchor>(["enter", "exit", "end", "fraction", "unreachable"]);
 
 export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
   if (!Array.isArray(value)) return [];
@@ -153,9 +157,11 @@ export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
     const at = Number(mark.at);
     const label = String(mark.label || "").trim();
     if (!TRACK_KINDS.has(kind) || !TRACK_ANCHORS.has(anchor) || !Number.isFinite(at) || !label) return [];
+    const atSec = Number(mark.atSec);
     return [{
       kind,
       at: Math.max(0, Math.min(1, at)),
+      ...(Number.isFinite(atSec) && atSec >= 0 ? { atSec } : {}),
       anchor,
       label,
       detail: String(mark.detail || "").trim(),

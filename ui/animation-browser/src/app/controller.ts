@@ -475,8 +475,14 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
 
   // Launching and inspecting are the same start with one flag flipped, so switching the
   // inspected stage is simply this call again at another stage: the engine retires the
-  // running preview for that cast before it starts the new one.
-  const startPlayable = useCallback<BrowserCommands["launch"]>((stageIndex, singleAnimation = false, sceneId, inspect = false) => {
+  // running preview for that cast before it starts the new one. A stage switch must re-send
+  // the PREVIEW'S binding, not the console's — the user may have edited CREW or the anchor
+  // since the preview started, and launching the new stage from that mutable state either
+  // fails ("No cast selected") or re-casts the preview while the old actors stay frozen.
+  // lastInspectBinding remembers the location/furniture the running inspection was
+  // launched with so a stage switch reuses them verbatim.
+  const lastInspectBinding = useRef<{ sceneId: string; location: Record<string, unknown>; furnitureToken?: number } | null>(null);
+  const startPlayable = useCallback((stageIndex?: number, singleAnimation = false, sceneId?: string, inspect = false, reuseCastTokens?: number[]) => {
     const current = stateRef.current;
     const scene = sceneById(current, sceneId ?? current.selectedId);
     if (!scene) return;
@@ -484,20 +490,24 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     const stageOnly = singleAnimation || (!!scene.library && effectiveStage != null);
     const options: Record<string, unknown> = { strip: Number(current.opts.strip), lockPlayer: Number(current.opts.lock), camera: current.opts.camera, speed: Number(current.opts.speed) };
     if (effectiveStage != null && effectiveStage > 0) options.stage = effectiveStage;
+    const castTokens = reuseCastTokens ?? current.cast.map((member) => member.token);
     const fields: Record<string, unknown> = {
       sceneId: scene.id,
-      castTokens: current.cast.map((member) => member.token),
+      castTokens,
       opts: options,
       singleAnimation: stageOnly,
       inspect,
     };
-    fields.location = {
+    const reuseBinding = reuseCastTokens && lastInspectBinding.current?.sceneId === scene.id ? lastInspectBinding.current : null;
+    fields.location = reuseBinding?.location ?? {
       mode: scene.requiresFurniture ? "furniture" : scene.inPlace ? "cast" : current.locationMode,
       token: scene.requiresFurniture ? current.furniture?.token ?? 0 : current.locationToken ?? 0,
     };
     const roleNames = scene.roles.map((role) => role.name);
-    if (roleNames.length === current.cast.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
-    if (scene.requiresFurniture && current.furniture) fields.furnitureToken = current.furniture.token;
+    if (roleNames.length === castTokens.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
+    const furnitureToken = reuseBinding ? reuseBinding.furnitureToken : scene.requiresFurniture && current.furniture ? current.furniture.token : undefined;
+    if (furnitureToken != null) fields.furnitureToken = furnitureToken;
+    if (inspect) lastInspectBinding.current = { sceneId: scene.id, location: fields.location as Record<string, unknown>, furnitureToken };
     const title = playableSceneTitle(scene);
     showNotice("info", `${inspect ? "Preparing inspection" : "Launching"} "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
     send("osf.animation.launch", fields);
@@ -581,7 +591,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleOptions: () => dispatch({ type: "brief/options" }),
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),
     launch: startPlayable,
-    inspectStage: (sceneId, stage) => startPlayable(stage, false, sceneId, true),
+    inspectStage: (sceneId, stage) => {
+      // Re-inspect on the preview's own cast — the console cast may have been edited since.
+      const preview = activeScenes(stateRef.current).find((scene) => scene.inspection && scene.sceneId === sceneId);
+      startPlayable(stage, false, sceneId, true, preview?.cast.length ? preview.cast.map((member) => member.token) : undefined);
+    },
     stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "scene/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },
     stopAll: () => { for (const scene of activeScenes(stateRef.current)) { send("osf.animation.stop", { handle: scene.handle }); dispatch({ type: "scene/stopped", handle: scene.handle }); } },
     advance: (handle) => {
@@ -598,7 +612,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         const stages = sceneById(current, preview.sceneId)?.stages ?? [];
         if (stages.length < 2) return;
         const at = stages.findIndex((stage) => stage.index === preview.stage);
-        startPlayable(stages[(Math.max(at, 0) + 1) % stages.length].index, false, preview.sceneId, true);
+        startPlayable(stages[(Math.max(at, 0) + 1) % stages.length].index, false, preview.sceneId, true,
+          preview.cast.length ? preview.cast.map((member) => member.token) : undefined);
         return;
       }
       send("osf.animation.advance", { handle: target });

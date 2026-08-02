@@ -269,22 +269,29 @@ namespace OSF::API
 			Scene::SceneInspectionService::GetSingleton().Tick();
 			auto inspections = Scene::SceneInspectionService::GetSingleton().List();
 			auto* player = RE::PlayerCharacter::GetSingleton();
-			json scenes = json::array();
-			for (const auto& s : rt.ListScenes()) {
+			// One serializer for both loops below — preview rows and runtime rows must agree on the
+			// shape of cast[].
+			const auto buildCast = [player](const std::vector<RE::Actor*>& a_participants, bool& a_hasPlayer) {
 				json cast = json::array();
-				bool hasPlayer = false;
-				for (RE::Actor* a : s.participants) {
+				a_hasPlayer = false;
+				for (RE::Actor* a : a_participants) {
 					if (!a) {
 						continue;
 					}
 					const bool isPlayer = player && a == static_cast<RE::Actor*>(player);
-					hasPlayer = hasPlayer || isPlayer;
+					a_hasPlayer = a_hasPlayer || isPlayer;
 					cast.push_back(json{
 						{ "token", isPlayer ? -1 : AllocToken(a) },
 						{ "name", isPlayer ? std::string{ "Player" } : ScanLabel(a) },
 						{ "player", isPlayer },
 					});
 				}
+				return cast;
+			};
+			json scenes = json::array();
+			for (const auto& s : rt.ListScenes()) {
+				bool hasPlayer = false;
+				json cast = buildCast(s.participants, hasPlayer);
 				json item{
 					{ "handle", s.handle },
 					{ "sceneId", s.id.empty() ? std::string{ "runtime.files" } : s.id },
@@ -306,20 +313,8 @@ namespace OSF::API
 				scenes.push_back(std::move(item));
 			}
 			for (const auto& preview : inspections) {
-				json cast = json::array();
 				bool hasPlayer = false;
-				for (RE::Actor* actor : preview.participants) {
-					if (!actor) {
-						continue;
-					}
-					const bool isPlayer = player && actor == static_cast<RE::Actor*>(player);
-					hasPlayer = hasPlayer || isPlayer;
-					cast.push_back(json{
-						{ "token", isPlayer ? -1 : AllocToken(actor) },
-						{ "name", isPlayer ? std::string{ "Player" } : ScanLabel(actor) },
-						{ "player", isPlayer },
-					});
-				}
+				json cast = buildCast(preview.participants, hasPlayer);
 				json item{
 					{ "handle", preview.handle },
 					{ "sceneId", preview.sceneId },

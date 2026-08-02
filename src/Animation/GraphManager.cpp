@@ -461,9 +461,13 @@ namespace OSF::Animation
 			scene->restoreParticipantTransforms = a_plan.anchored && a_plan.anchorExplicit;
 			scene->loopWhole = a_plan.loopWhole;
 			if (scene->restoreParticipantTransforms) {
-				scene->originalTransforms.reserve(a_actors.size());
-				for (const auto* actor : a_actors) {
-					scene->originalTransforms.emplace_back(actor->data.location, actor->data.angle.z);
+				if (a_plan.baselineTransforms.size() == a_actors.size()) {
+					scene->originalTransforms = a_plan.baselineTransforms;  // caller-carried pre-scene baseline (see ScenePlan)
+				} else {
+					scene->originalTransforms.reserve(a_actors.size());
+					for (const auto* actor : a_actors) {
+						scene->originalTransforms.emplace_back(actor->data.location, actor->data.angle.z);
+					}
 				}
 			}
 			const float requestedSpeed = std::isfinite(a_plan.speed) ? a_plan.speed : 1.0f;

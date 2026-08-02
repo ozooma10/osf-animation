@@ -336,6 +336,16 @@ int main()
 			Check(OSF::Registry::TrackFraction(node.cues[1], 0.0f) == 1.0f &&
 				OSF::Registry::TrackFraction(node.cues[0], 0.0f) == 0.0f,
 				"with no clip length only frame 0 has a knowable place on the fraction axis");
+			// Reachability mirrors Scene::Advance's [prev, next) window: a frame at or past the
+			// clip end never fires, so the inspector/catalog must not present it as an end mark.
+			Check(OSF::Registry::TrackFires(node.cues[1], 1.6f) &&
+				!OSF::Registry::TrackFires(node.cues[1], 0.8f) &&
+				!OSF::Registry::TrackFires(node.cues[1], 0.5f),
+				"a frame fires only strictly inside the clip");
+			Check(OSF::Registry::TrackFires(node.cues[1], 0.0f),
+				"an unknown clip length is not judged unreachable");
+			Check(OSF::Registry::TrackFires(node.cues[2], 0.4f),
+				"fraction entries are never judged by TrackFires");
 			Check(node.actions.size() == 1 && node.actions[0].frame == 15.0f,
 				"atFrame parses on the action lane");
 			Check(node.cameras.size() == 1 && node.cameras[0].frame == 9.0f,
@@ -726,7 +736,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 32, "exactly the thirty-two expected diagnostics");
+	Check(errors.size() == 33, "exactly the thirty-three expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -757,6 +767,8 @@ int main()
 		"fractional atFrame diagnostic states the whole-frame contract");
 	CheckError(errors, "cue 'two.clocks' sets both 'at' and 'atFrame'",
 		"a lane entry cannot carry both position keys");
+	CheckError(errors, "a sound ladder hit sets both 'at' and 'atFrame'",
+		"a ladder per-hit object cannot carry both position keys either");
 	CheckError(errors, "'fixture_malformed_def.osf.json': roles registry entry 'bad'", "malformed-definition diagnostic");
 	CheckError(errors, "'fixture_malformed_type.osf.json': file-level 'roles' must be an array", "registry type diagnostic");
 	CheckError(errors, "'fixture_registry_template_errors.osf.json': scene 'test.terr.unknown': role reference 'nope'",
@@ -923,11 +935,11 @@ int main()
 		Check(malformed && malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(), "rejected files carry structured repair guidance");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
-		// Partial file: some scenes in, twelve rejected, so it is NOT "rejected".
+		// Partial file: some scenes in, thirteen rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 12,
+		Check(partial && partial->scenes == 1 && partial->errors == 13,
 			"a partially-loaded file reports both its scenes and its rejected ones");
-		Check(partial && partial->declaredScenes == 13 && partial->rejectedScenes == 12,
+		Check(partial && partial->declaredScenes == 14 && partial->rejectedScenes == 13,
 			"partial files report exact authored and rejected scene counts");
 		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
 			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");

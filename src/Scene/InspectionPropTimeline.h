@@ -43,7 +43,10 @@ namespace OSF::Scene
 		const float fraction = std::clamp(a_fraction, 0.0f, 1.0f);
 		std::vector<const Registry::ActionEntry*> timed;
 		for (const auto& action : a_actions) {
+			// TrackFires: an `atFrame` past the clip end clamps to fraction 1.0, but the runtime
+			// never fires it — skip it here too so the preview matches the shipped scene.
 			if (action.pos == Registry::ActionPos::kFraction &&
+				Registry::TrackFires(action, a_durationSec) &&
 				Registry::TrackFraction(action, a_durationSec) <= fraction) {
 				timed.push_back(&action);
 			}
