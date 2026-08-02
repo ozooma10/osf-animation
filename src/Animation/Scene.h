@@ -104,6 +104,7 @@ namespace OSF::Animation
 			std::vector<std::string> files;                // one per actor
 			std::vector<std::string> animIds;              // optional, parallel to files; empty string = first/default animation
 			std::vector<ParticipantPlacement> placements;  // empty = all zero
+			std::vector<std::string> masks;                 // optional, one effective bone mask per actor for this stage
 			float timer = 0.0f;                            // seconds; <= 0 = no auto-advance
 			int32_t loops = 0;                             // clip loops; <= 0 = no auto-advance
 			float hold = -1.0f;                            // freeze on ONE frame at this clip position [0,1]; < 0 = play normally
@@ -153,6 +154,11 @@ namespace OSF::Animation
 			return std::isfinite(a_weight) && a_weight >= 0.0f && a_weight <= 1.0f;
 		}) && std::ranges::all_of(a_plan.masks, [](const std::string& a_mask) {
 			return a_mask.empty() || BoneMask::Find(a_mask) != nullptr;
+		}) && std::ranges::all_of(a_plan.stages, [a_actorCount](const ScenePlan::Stage& a_stage) {
+			return (a_stage.masks.empty() || a_stage.masks.size() == a_actorCount) &&
+				std::ranges::all_of(a_stage.masks, [](const std::string& a_mask) {
+					return a_mask.empty() || BoneMask::Find(a_mask) != nullptr;
+				});
 		});
 	}
 
@@ -176,6 +182,7 @@ namespace OSF::Animation
 			float duration = 0.0f;  // clip length (s)
 			std::vector<ParticipantSlot> participants;
 			std::vector<ParticipantPlacement> placements;
+			std::vector<std::string> masks;  // effective per-participant mask for this stage
 			float blendIn = 0.4f;   // blend-in secs when this stage activates
 			std::vector<TimedMark> marks;  // timed marks fired by Advance (see firedMarks)
 		};

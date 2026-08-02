@@ -203,6 +203,7 @@ namespace OSF::Registry
 		std::string animId;
 		float       sec = 0.0f;  // pack-authored clip duration in seconds (0 = unknown, probe at runtime)
 		std::optional<Animation::ParticipantPlacement> offset;  // overrides the role's default placement
+		std::optional<std::string> mask;  // overrides the role's bone mask for this stage
 	};
 
 	// One stage of a timeline: timing + one clip per role. timer/loops 0 = no auto-advance (hold);

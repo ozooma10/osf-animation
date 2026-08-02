@@ -91,7 +91,7 @@ namespace OSF::Animation
 		void SetPreserveBones(const std::vector<std::string>& a_bones);
 		// Named driven-bone whitelist ("" = none): with a mask this graph stamps ONLY the mask's
 		// bones (per-bone weighted), leaving the rest of the rig engine-driven — the partial-body
-		// gesture path. Forces a rebind when it changes; survives stage changes like the other policies.
+		// gesture path. Forces a rebind when it changes; a scene stage may override the role default.
 		void SetBoneMask(const std::string& a_maskName);
 
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
@@ -187,6 +187,7 @@ namespace OSF::Animation
 		FrameClock blendClock;  // blend ramps; owner-token gated, reset at SetAnimation/BeginFadeOut
 
 		std::vector<ozz::math::Float4x4> blendFromPose;  // cross-fade-from pose (our joint indexing)
+		std::vector<std::uint8_t> blendFromDriven;       // joints actually stamped before the stage/clip change
 		bool blendFromValid = false;
 
 		// one-shot diagnostics

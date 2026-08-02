@@ -63,8 +63,15 @@ namespace OSF::Animation
 		if (hasPose && !outputPose.empty() &&
 			outputPose.size() == static_cast<size_t>(a_skeleton->data->num_joints())) {
 			blendFromPose = outputPose;
+			blendFromDriven.assign(outputPose.size(), 0);
+			for (const auto& bound : binding) {
+				if (bound.jointIndex < blendFromDriven.size()) {
+					blendFromDriven[bound.jointIndex] = 1;
+				}
+			}
 			blendFromValid = true;
 		} else {
+			blendFromDriven.clear();
 			blendFromValid = false;
 		}
 		blendPhase = BlendPhase::kIn;
@@ -402,6 +409,7 @@ namespace OSF::Animation
 				const auto& stage = scene->stages[tick.stage];
 				const auto& slot = stage.participants[participantIndex];
 				SetAnimation(slot.skeleton, slot.anim, slot.file);
+				SetBoneMask(stage.masks[participantIndex]);
 				blendDuration = stage.blendIn;  // per-stage blend-in
 				scenePlacement = stage.placements[participantIndex];
 				appliedStage = tick.stage;
@@ -632,13 +640,18 @@ namespace OSF::Animation
 			if (persistentPartial && !captureLiveBase()) {
 				return;
 			}
-			const bool fromSnapshot = blendPhase == BlendPhase::kIn && blendFromValid;
+			const bool hasSnapshot = blendPhase == BlendPhase::kIn && blendFromValid;
 			for (std::size_t i = 0; i < binding.size(); ++i) {
 				const auto& bound = binding[i];
 				if (bound.rigIndex >= rigBoneCount) {
 					continue;
 				}
 				float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
+				// A stage-local mask may expand at this boundary. Only joints the outgoing
+				// stage actually stamped have a valid OSF snapshot; newly admitted joints
+				// blend from Starfield's live pose instead of the unshown parts of its clip.
+				const bool fromSnapshot = hasSnapshot && bound.jointIndex < blendFromDriven.size() &&
+				                          blendFromDriven[bound.jointIndex] != 0;
 				const float w = weight * poseWeight * bound.weight;
 				if (w <= 0.0f) {
 					// A stage/node handoff resets the blend clock to exactly zero. When an

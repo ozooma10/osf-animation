@@ -74,7 +74,9 @@
         },
         {
           "loops": 1,
-          "clips": ["Fixture/Route/hold.glb"],
+          "clips": [
+            { "file": "Fixture/Route/hold.glb", "mask": "rightArm" }
+          ],
           "cue": [
             { "at": "enter", "id": "route.station.entered" }
           ],

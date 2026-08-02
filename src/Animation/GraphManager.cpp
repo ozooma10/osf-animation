@@ -384,9 +384,10 @@ namespace OSF::Animation
 				const auto& stage = a_plan.stages[s];
 				if (stage.files.size() != a_actors.size() ||
 					(!stage.animIds.empty() && stage.animIds.size() != stage.files.size()) ||
-					(!stage.placements.empty() && stage.placements.size() != a_actors.size())) {
-					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} anim ids, {} placements, {} actors)",
-						s, stage.files.size(), stage.animIds.size(), stage.placements.size(), a_actors.size());
+					(!stage.placements.empty() && stage.placements.size() != a_actors.size()) ||
+					(!stage.masks.empty() && stage.masks.size() != a_actors.size())) {
+					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} anim ids, {} placements, {} masks, {} actors)",
+						s, stage.files.size(), stage.animIds.size(), stage.placements.size(), stage.masks.size(), a_actors.size());
 					return false;
 				}
 				if (!std::isfinite(stage.timer)) {
@@ -428,6 +429,9 @@ namespace OSF::Animation
 				stage.placements = planStage.placements.empty() ?
 				                       std::vector<ParticipantPlacement>(a_actors.size()) :
 				                       planStage.placements;
+				stage.masks = planStage.masks.empty() ?
+				                  (a_plan.masks.empty() ? std::vector<std::string>(a_actors.size()) : a_plan.masks) :
+				                  planStage.masks;
 				stage.marks = planStage.marks;
 				for (std::size_t clipIdx = 0; clipIdx < planStage.files.size(); clipIdx++) {
 					const auto& fileSpec = planStage.files[clipIdx];
@@ -747,7 +751,7 @@ namespace OSF::Animation
 					const std::string roleName = a_plan.roleNames.empty() ? std::string{} : a_plan.roleNames[i];
 					slot->SetPosePolicy(poseMode, poseWeight, roleName);
 					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
-					slot->SetBoneMask(a_plan.masks.empty() ? std::string{} : a_plan.masks[i]);
+					slot->SetBoneMask(scene->stages[startStage].masks[i]);
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
 					slot->blendDuration = scene->stages[startStage].blendIn;
 					slot->scene = scene.get();

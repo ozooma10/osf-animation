@@ -345,6 +345,14 @@ Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, mask?, preserv
   { "name": "gesturer", "mask": "upperBody" }
   ```
 
+  An object-form stage clip may override that role default for only that stage:
+
+  ```jsonc
+  { "clips": [{ "file": "OSF/Anims/HelmetHold.af", "mask": "rightArm" }] }
+  ```
+
+  The override is validated like a role mask and reverts to the role's mask on the next stage.
+
 - **`preserveBones`**: an array of exact, case-insensitive rig bone names that remain engine-driven
   for this role. It is a hard write exclusion in both pose modes: OSF omits only those bone slots
   while continuing to animate independently bound child bones. This is useful when a baked full-pose

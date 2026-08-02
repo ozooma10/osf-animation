@@ -193,6 +193,17 @@ namespace OSF::Registry
 				if (auto oit = a_clip.find("offset"); oit != a_clip.end()) {
 					clip.offset = ParseOffsetField(*oit);
 				}
+				if (auto mit = a_clip.find("mask"); mit != a_clip.end()) {
+					if (!mit->is_string()) {
+						throw std::runtime_error(a_subject + ": clip 'mask' must be a string");
+					}
+					const auto* mask = Animation::BoneMask::Find(mit->get<std::string>());
+					if (!mask) {
+						throw std::runtime_error(a_subject + ": clip has unknown 'mask' value '" +
+							mit->get<std::string>() + "' (known: " + Animation::BoneMask::KnownList() + ")");
+					}
+					clip.mask = mask->id;
+				}
 				// Pre-measured duration (the generated vanilla packs carry these) — spares the
 				// duration scan a per-clip walk of the game archive.
 				if (auto sit = a_clip.find("sec"); sit != a_clip.end()) {
@@ -202,7 +213,7 @@ namespace OSF::Registry
 					clip.sec = sit->get<float>();
 				}
 			} else {
-				throw std::runtime_error(a_subject + ": a clip must be a file string or a { file, anim?, offset?, sec? } object");
+				throw std::runtime_error(a_subject + ": a clip must be a file string or a { file, anim?, offset?, mask?, sec? } object");
 			}
 			if (clip.file.empty()) {
 				throw std::runtime_error(a_subject + ": empty clip file");
@@ -2484,6 +2495,7 @@ namespace OSF::Registry
 					stage.files.push_back(clip.file);
 					stage.animIds.push_back(clip.animId);
 					stage.placements.push_back(clip.offset.value_or(a_roles[a].offset));
+					stage.masks.push_back(clip.mask.value_or(a_roles[a].mask));
 				}
 				plan.stages.push_back(std::move(stage));
 			}

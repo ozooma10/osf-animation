@@ -457,6 +457,8 @@ int main()
 			Check(first->stages.size() == 1 && first->stages[0].clips[0].file == "Fixture/Route/handoff.glb" &&
 				second->stages.size() == 1 && second->stages[0].clips[0].file == "Fixture/Route/hold.glb",
 				"two-stage route clip order parses");
+			Check(!first->stages[0].clips[0].mask.has_value() && second->stages[0].clips[0].mask == "rightArm",
+				"a clip-local mask applies only to its stage");
 			Check(first->actions.size() == 1 && first->actions[0].kind == ActionKind::kPropAttach,
 				"carry-forward stage omits a destroy before the next stage");
 			Check(second->cues.size() == 1 && second->stages[0].cues.size() == 1 &&
@@ -466,6 +468,11 @@ int main()
 				second->actions[0].kind == ActionKind::kPropAttach &&
 				second->actions[0].pos == TrackPos::kFraction && second->actions[0].fraction == 0.0f,
 				"stage-two numeric-zero prop reattach is retained and forwarded");
+			const auto firstPlan = reg.BuildNodePlan(s, *first, 1);
+			const auto secondPlan = reg.BuildNodePlan(s, *second, 1);
+			Check(firstPlan && firstPlan->stages[0].masks[0] == "upperBody" &&
+				secondPlan && secondPlan->stages[0].masks[0] == "rightArm",
+				"a stage mask overrides and then falls back to the scene role mask");
 		}
 	} else {
 		Check(false, "test.route.compiled.two-stage loads");
