@@ -131,6 +131,12 @@ int main()
 	{
 		const Matrix from = Transform({}, 2.0f, 4.0f, 6.0f);
 		const Matrix target = Transform(AxisAngle(0.0f, 0.0f, 1.0f, kHalfPi), 10.0f, 12.0f, 14.0f);
+		Matrix endpoint{};
+		WriteOverrideBlended(endpoint.data(), from.data(), target.data(), 0.0f);
+		CheckZRotation(endpoint, 0.0f, "override blend at zero keeps the outgoing rotation");
+		Check(Near(endpoint[12], 2.0f) && Near(endpoint[13], 4.0f) && Near(endpoint[14], 6.0f),
+			"override blend at zero keeps the outgoing translation");
+
 		Matrix out{};
 		WriteOverrideBlended(out.data(), from.data(), target.data(), 0.5f);
 		CheckZRotation(out, kHalfPi * 0.5f, "override keeps its existing normalized-lerp rotation");

@@ -601,7 +601,22 @@ namespace OSF::Animation
 				float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
 				const float w = weight * poseWeight * bound.weight;
 				if (w <= 0.0f) {
-					continue;  // fully faded / zero-weight bone — leave the engine pose alone
+					// A stage/node handoff resets the blend clock to exactly zero. When an
+					// outgoing snapshot exists, that endpoint is still a valid OSF pose; leaving
+					// the slot untouched exposes the engine pose for the compose(s) before the
+					// next animation update advances the clock. Stamp the snapshot so clip A -> B
+					// begins at A instead of flashing through vanilla. A deliberately zero-strength
+					// role/bone still leaves the engine pose alone.
+					if (!(fromSnapshot && weight <= 0.0f && poseWeight > 0.0f && bound.weight > 0.0f)) {
+						continue;
+					}
+					WriteNiTransformRowsBlended(slot,
+						reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]),
+						outputPose[bound.jointIndex], 0.0f);
+					if (!probeRecorded) {
+						recordProbe(slot, bound.rigIndex);
+					}
+					continue;
 				}
 				if (w >= 1.0f) {
 					WriteNiTransformRows(slot, outputPose[bound.jointIndex]);
