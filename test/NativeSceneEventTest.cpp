@@ -1,28 +1,20 @@
+#include "Check.h"
+
 #include "API/NativeSceneEventRegistry.h"
 
 #include <chrono>
 #include <condition_variable>
 #include <future>
-#include <iostream>
 #include <mutex>
-#include <thread>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
+
+using OSF::Test::Finish;
 
 namespace
 {
-	int failures = 0;
-
-#define CHECK(expr)                                                            \
-	do {                                                                        \
-		if (!(expr)) {                                                          \
-			std::cerr << __FILE__ << ':' << __LINE__                            \
-			          << ": CHECK failed: " #expr << '\n';                     \
-			++failures;                                                         \
-		}                                                                       \
-	} while (false)
-
 	struct Recorder
 	{
 		std::vector<std::string> calls;
@@ -85,6 +77,7 @@ namespace
 		int entered = 0;
 		bool unregisterStarted = false;
 		bool releasePeer = false;
+		bool abort = false;
 		bool unregisterReturned = false;
 		bool unregisterResult = false;
 	};
@@ -96,7 +89,8 @@ namespace
 		const int ordinal = ++state.entered;
 		state.cv.notify_all();
 		if (ordinal == 1) {
-			state.cv.wait(lock, [&] { return state.entered == 2; });
+			state.cv.wait(lock, [&] { return state.entered == 2 || state.abort; });
+			if (state.abort) return;
 			state.unregisterStarted = true;
 			state.cv.notify_all();
 			lock.unlock();
@@ -106,7 +100,7 @@ namespace
 			state.unregisterReturned = true;
 			state.cv.notify_all();
 		} else {
-			state.cv.wait(lock, [&] { return state.releasePeer; });
+			state.cv.wait(lock, [&] { return state.releasePeer || state.abort; });
 		}
 	}
 
@@ -119,7 +113,7 @@ namespace
 
 		const auto token = registry.Register(
 			&Record, &recorder, 42, SceneEventType::kCue);
-		CHECK(token != 0);
+		if (!CHECK(token != 0)) return;
 
 		OSFSceneEvent event;
 		event.sceneHandle = 41;
@@ -195,7 +189,7 @@ namespace
 		BlockingCallback state;
 		const auto token = registry.Register(
 			&Block, &state, 0, SceneEventType::kCue);
-		CHECK(token != 0);
+		if (!CHECK(token != 0)) return;
 
 		OSFSceneEvent event;
 		event.eventType = SceneEventType::kCue;
@@ -204,9 +198,19 @@ namespace
 			dispatchFailures = registry.Dispatch(event);
 		});
 
+		bool entered = false;
 		{
 			std::unique_lock lock{ state.lock };
-			state.cv.wait(lock, [&] { return state.entered; });
+			entered = state.cv.wait_for(lock, 2s, [&] { return state.entered; });
+		}
+		if (!CHECK(entered)) {
+			{
+				std::lock_guard lock{ state.lock };
+				state.release = true;
+			}
+			state.cv.notify_all();
+			dispatchThread.join();
+			return;
 		}
 
 		std::promise<void> unregisterStarted;
@@ -215,7 +219,16 @@ namespace
 			unregisterStarted.set_value();
 			return registry.Unregister(token);
 		});
-		started.wait();
+		if (!CHECK(started.wait_for(2s) == std::future_status::ready)) {
+			{
+				std::lock_guard lock{ state.lock };
+				state.release = true;
+			}
+			state.cv.notify_all();
+			dispatchThread.join();
+			unregister.wait();
+			return;
+		}
 		CHECK(unregister.wait_for(50ms) == std::future_status::timeout);
 
 		{
@@ -238,28 +251,44 @@ namespace
 		SelfRemovingWithPeer state{ .registry = &registry };
 		state.token = registry.Register(
 			&RemoveSelfWhilePeerRuns, &state, 0, SceneEventType::kCue);
-		CHECK(state.token != 0);
+		if (!CHECK(state.token != 0)) return;
 
 		OSFSceneEvent event;
 		event.eventType = SceneEventType::kCue;
 		std::size_t firstFailures = 1;
 		std::size_t secondFailures = 1;
 		std::thread first([&] { firstFailures = registry.Dispatch(event); });
+		bool firstEntered = false;
 		{
 			std::unique_lock lock{ state.lock };
-			state.cv.wait(lock, [&] { return state.entered == 1; });
+			firstEntered = state.cv.wait_for(lock, 2s, [&] { return state.entered == 1; });
+		}
+		if (!CHECK(firstEntered)) {
+			{
+				std::lock_guard lock{ state.lock };
+				state.abort = true;
+			}
+			state.cv.notify_all();
+			first.join();
+			return;
 		}
 		std::thread second([&] { secondFailures = registry.Dispatch(event); });
 
+		bool unregisterStarted = false;
 		{
 			std::unique_lock lock{ state.lock };
-			state.cv.wait(lock, [&] { return state.unregisterStarted; });
-			CHECK(!state.cv.wait_for(lock, 50ms, [&] { return state.unregisterReturned; }));
-			state.releasePeer = true;
+			unregisterStarted = state.cv.wait_for(lock, 2s, [&] { return state.unregisterStarted; });
+			if (unregisterStarted) {
+				CHECK(!state.cv.wait_for(lock, 50ms, [&] { return state.unregisterReturned; }));
+				state.releasePeer = true;
+			} else {
+				state.abort = true;
+			}
 		}
 		state.cv.notify_all();
 		first.join();
 		second.join();
+		if (!CHECK(unregisterStarted)) return;
 		CHECK(firstFailures == 0);
 		CHECK(secondFailures == 0);
 		CHECK(state.unregisterReturned);
@@ -275,10 +304,5 @@ int main()
 	TestZeroMaskAndExceptionIsolation();
 	TestConcurrentUnregisterWaitsForCallback();
 	TestSelfUnregisterWaitsForConcurrentPeer();
-	if (failures != 0) {
-		std::cerr << failures << " native scene-event test(s) failed\n";
-		return 1;
-	}
-	std::cout << "Native scene-event tests passed\n";
-	return 0;
+	return Finish("Native scene-event");
 }

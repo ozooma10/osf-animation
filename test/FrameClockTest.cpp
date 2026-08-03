@@ -1,3 +1,5 @@
+#include "Check.h"
+
 #include "Animation/FrameClock.h"
 #include "Util/ClipPath.h"
 #include "Util/DiagnosticText.h"
@@ -7,19 +9,9 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
-#include <cstdlib>
-#include <iostream>
 
-namespace
-{
-	void Check(bool a_condition, const char* a_message)
-	{
-		if (!a_condition) {
-			std::cerr << "FAIL: " << a_message << '\n';
-			std::exit(1);
-		}
-	}
-}
+using OSF::Test::Check;
+using OSF::Test::Finish;
 
 int main()
 {
@@ -87,6 +79,5 @@ int main()
 			"animation keyword acronym boundary is preserved");
 	}
 
-	std::cout << "Core runtime tests passed\n";
-	return 0;
+	return Finish("Core runtime");
 }

@@ -1,14 +1,18 @@
+#include "Check.h"
+
 #include "Registry/SceneRegistry.h"
 #include "Scene/InspectionPropTimeline.h"
 
 #include "Animation/Scene.h"  // the frozen-stage clock (`hold`)
 #include "Util/Math.h"        // kDegToRad (offset.heading expectation)
 
-#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <vector>
+
+using OSF::Test::Check;
+using OSF::Test::Finish;
 
 // No game runtime / no mounted archives in this harness: the clip-availability probe reads every
 // spec as installed, so the sweep never hides a fixture scene or adds a stray warning.
@@ -22,16 +26,6 @@ namespace OSF::Animation
 
 namespace
 {
-	int g_failures = 0;
-
-	void Check(bool a_condition, const char* a_message)
-	{
-		if (!a_condition) {
-			std::cerr << "FAIL: " << a_message << '\n';
-			++g_failures;
-		}
-	}
-
 	// One substring that must appear in SOME load error.
 	void CheckError(const std::vector<std::string>& a_errors, const std::string& a_needle, const char* a_message)
 	{
@@ -40,8 +34,8 @@ namespace
 				return;
 			}
 		}
-		std::cerr << "FAIL: " << a_message << " (missing error containing \"" << a_needle << "\")\n";
-		++g_failures;
+		const auto detail = std::string{ a_message } + " (missing error containing \"" + a_needle + "\")";
+		Check(false, detail);
 	}
 }
 
@@ -128,9 +122,11 @@ int main()
 	Check(harvestedFlagged > 0, "clips harvested from scene stages are NOT flagged curated");
 	// -- bare single-scene file: top-level roles is that scene's roles (unchanged) --------------
 	if (const auto s = reg.Find("test.bare")) {
-		Check(s->roles.size() == 1 && s->roles[0].name == "solo", "bare scene keeps its inline roles");
-		Check(s->roles[0].poseMode == PoseMode::kOverride && s->roles[0].poseWeight == 1.0f,
-			"omitted pose policy defaults to override at full weight");
+		if (Check(s->roles.size() == 1, "bare scene keeps one inline role")) {
+			Check(s->roles[0].name == "solo", "bare scene keeps its inline role name");
+			Check(s->roles[0].poseMode == PoseMode::kOverride && s->roles[0].poseWeight == 1.0f,
+				"omitted pose policy defaults to override at full weight");
+		}
 		Check(s->clearHeldItems, "omitted clearHeldItems policy defaults on");
 	} else {
 		Check(false, "test.bare loads");
@@ -138,10 +134,12 @@ int main()
 
 	// -- ARRAY file-level roles: the legacy pack default ----------------------------------------
 	if (const auto s = reg.Find("test.legacy.inherit")) {
-		Check(s->roles.size() == 2, "legacy inherit: role count");
-		Check(s->roles[0].name == "bottom", "legacy inherit: role 0 name");
+		if (Check(s->roles.size() == 2, "legacy inherit: role count")) {
+			Check(s->roles[0].name == "bottom", "legacy inherit: role 0 name");
+			Check(s->roles[1].name == "top" && s->roles[1].equip.any == "Any.esm|0x123",
+				"legacy inherit: role 1 name + equip");
+		}
 		Check(!s->clearHeldItems, "legacy inherit: file-level clearHeldItems default");
-		Check(s->roles[1].name == "top" && s->roles[1].equip.any == "Any.esm|0x123", "legacy inherit: role 1 name + equip");
 	} else {
 		Check(false, "test.legacy.inherit loads");
 	}
@@ -154,22 +152,25 @@ int main()
 
 	// -- OBJECT file-level roles: the registry ---------------------------------------------------
 	if (const auto s = reg.Find("test.reg.refs")) {
-		Check(s->roles.size() == 2, "refs: role count");
-		Check(s->roles[0].name == "m", "refs: explicit name overrides the registry id");
-		Check(s->roles[0].equip.male == "Robert S Body Replacer.esm|0x804" &&
-			s->roles[0].equip.female == "Dick.esm|0x81D", "refs: equip expanded");
-		Check(s->roles[1].name == "f", "refs: preserved role name");
-		Check(s->roles[1].preserveBones.size() == 1 && s->roles[1].preserveBones[0] == "C_GenitalsRoot",
-			"refs: preserveBones expanded");
+		if (Check(s->roles.size() == 2, "refs: role count")) {
+			Check(s->roles[0].name == "m", "refs: explicit name overrides the registry id");
+			Check(s->roles[0].equip.male == "Robert S Body Replacer.esm|0x804" &&
+				s->roles[0].equip.female == "Dick.esm|0x81D", "refs: equip expanded");
+			Check(s->roles[1].name == "f", "refs: preserved role name");
+			Check(s->roles[1].preserveBones.size() == 1 && s->roles[1].preserveBones[0] == "C_GenitalsRoot",
+				"refs: preserveBones expanded");
+		}
 	} else {
 		Check(false, "test.reg.refs loads");
 	}
 	if (const auto s = reg.Find("test.reg.mixed")) {
-		Check(s->roles.size() == 3, "mixed: role count");
-		Check(s->roles[0].name == "m", "mixed: ref role 0");
-		Check(s->roles[1].name == "f" && s->roles[1].equip.Empty() && s->roles[1].preserveBones.empty(),
-			"mixed: omitted name defaults to the registry id");
-		Check(s->roles[2].name == "extra" && s->roles[2].offset.y == 1.0f, "mixed: inline object entry");
+		if (Check(s->roles.size() == 3, "mixed: role count")) {
+			Check(s->roles[0].name == "m", "mixed: ref role 0");
+			Check(s->roles[1].name == "f" && s->roles[1].equip.Empty() && s->roles[1].preserveBones.empty(),
+				"mixed: omitted name defaults to the registry id");
+			Check(s->roles[2].name == "extra" && s->roles[2].offset.y == 1.0f,
+				"mixed: inline object entry");
+		}
 	} else {
 		Check(false, "test.reg.mixed loads");
 	}
@@ -376,14 +377,14 @@ int main()
 			"single-stage route desugars to one linear node");
 		if (s->nodes.size() == 1) {
 			const auto& node = s->nodes[0];
+			const auto* stage = node.stages.size() == 1 ? &node.stages[0] : nullptr;
 			Check(node.cameras.empty(), "camera:none suppresses the document camera default");
 			Check(node.loopMode == LoopMode::kCount && node.loopCount == 1,
 				"compiled single stage keeps loops:1");
-			Check(node.stages.size() == 1 && node.stages[0].loops == 1 &&
-				node.stages[0].clips.size() == 1 &&
-				node.stages[0].clips[0].file == "Fixture/Route/single.glb",
+			Check(stage && stage->loops == 1 && stage->clips.size() == 1 &&
+				stage->clips[0].file == "Fixture/Route/single.glb",
 				"compiled single-stage clip and loop policy parse");
-			Check(node.cues.size() == 3 && node.stages[0].cues.size() == 3,
+			Check(stage && node.cues.size() == 3 && stage->cues.size() == 3,
 				"compiled stage cue lane is retained and forwarded to its node");
 			if (node.cues.size() == 3) {
 				Check(node.cues[0].id == "route.start" && node.cues[0].pos == TrackPos::kFraction &&
@@ -392,7 +393,7 @@ int main()
 					node.cues[2].id == "route.end" && node.cues[2].pos == TrackPos::kEnd,
 					"compiled numeric and named cue positions parse");
 			}
-			Check(node.actions.size() == 2 && node.stages[0].actions.size() == 2,
+			Check(stage && node.actions.size() == 2 && stage->actions.size() == 2,
 				"compiled stage action lane is retained and forwarded to its node");
 			if (node.actions.size() == 2) {
 				const auto& attach = node.actions[0];
@@ -932,7 +933,9 @@ int main()
 			"a rejected file keeps a record carrying its reject line");
 		Check(malformed && malformed->declaredScenes == 1 && malformed->rejectedScenes == 1,
 			"whole-file rejection preserves its authored scene count");
-		Check(malformed && malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(), "rejected files carry structured repair guidance");
+		Check(malformed && !malformed->problems.empty() &&
+			malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(),
+			"rejected files carry structured repair guidance");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
 		// Partial file: some scenes in, thirteen rejected, so it is NOT "rejected".
@@ -972,10 +975,5 @@ int main()
 		Check(clipOnly && !clipOnly->Rejected(), "a file contributing only clip entries is not rejected");
 	}
 
-	if (g_failures) {
-		std::cerr << g_failures << " scene registry test(s) FAILED\n";
-		return 1;
-	}
-	std::cout << "Scene registry tests passed\n";
-	return 0;
+	return Finish("Scene registry");
 }

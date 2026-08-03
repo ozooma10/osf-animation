@@ -1,3 +1,5 @@
+#include "Check.h"
+
 #include "Animation/BoneMask.h"
 #include "Animation/LiveBasePose.h"
 #include "Animation/PoseMath.h"
@@ -6,23 +8,15 @@
 #include <array>
 #include <cmath>
 #include <cstring>
-#include <iostream>
 #include <numbers>
+
+using OSF::Test::Check;
+using OSF::Test::Finish;
 
 namespace
 {
 	using Matrix = std::array<float, 16>;
 	using OSF::Animation::PoseMath::Quat;
-
-	int g_failures = 0;
-
-	void Check(bool a_condition, const char* a_message)
-	{
-		if (!a_condition) {
-			std::cerr << "FAIL: " << a_message << '\n';
-			++g_failures;
-		}
-	}
 
 	bool Near(float a_lhs, float a_rhs, float a_epsilon = 1e-4f)
 	{
@@ -304,10 +298,5 @@ int main()
 			"the diagnostic known-mask list names the canonical ids");
 	}
 
-	if (g_failures != 0) {
-		std::cerr << g_failures << " additive pose test(s) FAILED\n";
-		return 1;
-	}
-	std::cout << "Additive pose tests passed\n";
-	return 0;
+	return Finish("Additive pose");
 }

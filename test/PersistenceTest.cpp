@@ -1,3 +1,5 @@
+#include "Check.h"
+
 #include "Serialization/PersistenceBroker.h"
 
 #include <algorithm>
@@ -5,7 +7,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -49,13 +50,6 @@ namespace
 		int reverts{};
 		std::vector<std::uint32_t> deleted;
 	};
-
-	[[noreturn]] void Fail(const char* expression, int line)
-	{
-		throw std::runtime_error(std::string("line ") + std::to_string(line) + ": " + expression);
-	}
-
-#define CHECK(expression) do { if (!(expression)) Fail(#expression, __LINE__); } while (false)
 
 	std::uint8_t OSF_PERSISTENCE_CALL Save(void* context, OSFRecordWriterV1* writer)
 	{
@@ -126,7 +120,9 @@ namespace
 
 	std::uint32_t ReadU32(const std::vector<std::byte>& bytes, std::size_t offset)
 	{
-		CHECK(offset + 4 <= bytes.size());
+		if (!CHECK(offset <= bytes.size() && bytes.size() - offset >= 4)) {
+			return 0;
+		}
 		return static_cast<std::uint32_t>(bytes[offset]) |
 			(static_cast<std::uint32_t>(bytes[offset + 1]) << 8) |
 			(static_cast<std::uint32_t>(bytes[offset + 2]) << 16) |
@@ -135,7 +131,9 @@ namespace
 
 	void PatchU32(std::vector<std::byte>& bytes, std::size_t offset, std::uint32_t value)
 	{
-		CHECK(offset + 4 <= bytes.size());
+		if (!CHECK(offset <= bytes.size() && bytes.size() - offset >= 4)) {
+			return;
+		}
 		for (std::size_t i = 0; i < 4; ++i) {
 			bytes[offset + i] = static_cast<std::byte>((value >> (i * 8)) & 0xFF);
 		}
@@ -175,10 +173,13 @@ namespace
 		CHECK(consumer.RegisterClient(Client(B, "B", loadedB)));
 		const auto stats = consumer.LoadFromBytes(bytes);
 		CHECK(stats.clientsLoaded == 2);
-		CHECK(loadedA.loadedRecords.size() == 2);
-		CHECK(loadedA.loadedRecords[0].data == std::vector<std::uint8_t>({ 1, 2, 3 }));
-		CHECK(loadedA.loadedRecords[1].version == 7);
-		CHECK(loadedB.loadedRecords.size() == 1 && loadedB.loadedRecords[0].data[0] == 9);
+		if (CHECK(loadedA.loadedRecords.size() == 2)) {
+			CHECK(loadedA.loadedRecords[0].data == std::vector<std::uint8_t>({ 1, 2, 3 }));
+			CHECK(loadedA.loadedRecords[1].version == 7);
+		}
+		if (CHECK(loadedB.loadedRecords.size() == 1)) {
+			CHECK(loadedB.loadedRecords[0].data == std::vector<std::uint8_t>({ 9 }));
+		}
 		CHECK(loadedA.reverts == 1 && loadedB.reverts == 1);
 	}
 
@@ -221,9 +222,10 @@ namespace
 		CHECK(consumer.RegisterClient(Client(A, "A", target)));
 		CHECK(consumer.LoadFromBytes(bytes).clientsLoaded == 1);
 		CHECK(target.seenTypes == std::vector<std::uint32_t>({ R1, RX, R2 }));
-		CHECK(target.loadedRecords.size() == 2);
-		CHECK(target.loadedRecords[0].data == std::vector<std::uint8_t>({ 1 }));
-		CHECK(target.loadedRecords[1].data == std::vector<std::uint8_t>({ 5, 6 }));
+		if (CHECK(target.loadedRecords.size() == 2)) {
+			CHECK(target.loadedRecords[0].data == std::vector<std::uint8_t>({ 1 }));
+			CHECK(target.loadedRecords[1].data == std::vector<std::uint8_t>({ 5, 6 }));
+		}
 	}
 
 	void TestTruncationAndCaps()
@@ -243,6 +245,9 @@ namespace
 		truncatedClient.resize(30);
 		CHECK(consumer.LoadFromBytes(truncatedClient).clientsLoaded == 0);
 		auto truncatedPayload = good;
+		if (!CHECK(!truncatedPayload.empty())) {
+			return;
+		}
 		truncatedPayload.pop_back();
 		CHECK(consumer.LoadFromBytes(truncatedPayload).clientsLoaded == 0);
 
@@ -255,6 +260,10 @@ namespace
 		auto oversizedRecord = good;
 		const auto payloadLength = ReadU32(oversizedRecord, 32);
 		PatchU32(oversizedRecord, 52, PersistenceBroker::kMaxRecordBytes + 1);
+		if (!CHECK(oversizedRecord.size() >= 44 &&
+			payloadLength <= oversizedRecord.size() - 44)) {
+			return;
+		}
 		PatchU32(oversizedRecord, 36, CRC32(oversizedRecord.data() + 44, payloadLength));
 		CHECK(consumer.LoadFromBytes(oversizedRecord).corruptBlocks == 1);
 	}
@@ -274,7 +283,9 @@ namespace
 		const auto stats = consumer.LoadFromBytes(bytes);
 		CHECK(stats.corruptBlocks == 1 && stats.clientsLoaded == 1);
 		CHECK(loadedA.loadedRecords.empty());
-		CHECK(loadedB.loadedRecords.size() == 1 && loadedB.loadedRecords[0].data[0] == 2);
+		if (CHECK(loadedB.loadedRecords.size() == 1)) {
+			CHECK(loadedB.loadedRecords[0].data == std::vector<std::uint8_t>({ 2 }));
+		}
 	}
 
 	void TestCallbackIsolation()
@@ -392,10 +403,10 @@ int main()
 		TestRevertResolverAndDeleted();
 		TestDeterministicOrdering();
 		TestAtomicFailurePreservesOld();
-		std::cout << "Persistence tests passed\n";
-		return 0;
 	} catch (const std::exception& error) {
-		std::cerr << "Persistence test failed: " << error.what() << '\n';
-		return 1;
+		OSF::Test::Check(false, error.what());
+	} catch (...) {
+		OSF::Test::Check(false, "unexpected non-standard exception");
 	}
+	return OSF::Test::Finish("Persistence");
 }
