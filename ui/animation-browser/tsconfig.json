@@ -11,7 +11,7 @@
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
-    "types": ["@osfui/cli/view", "vite/client", "vitest/globals"]
+    "types": ["@osfui/cli/view", "vite/client"]
   },
   "include": ["src", "tests", "osfui.config.ts", "osfui.mock.ts"]
 }

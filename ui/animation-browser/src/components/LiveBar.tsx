@@ -1,4 +1,4 @@
-export interface LiveBarProps {
+interface LiveBarProps {
   running: boolean;
   handle: number;
   title: string;

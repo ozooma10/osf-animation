@@ -562,10 +562,6 @@ button,input,select{font:inherit;color:inherit}
 .libx-group{border:1px solid var(--line);border-radius:2px;background:var(--void-800);overflow:hidden}
 .libx-head{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:var(--void-700);border:0;border-left:2px solid var(--steel-500);padding:8px 11px;cursor:pointer}
 .libx-head:hover{border-left-color:var(--accent)}
-.libx-head.static{cursor:default;border-left-color:var(--accent);background:linear-gradient(90deg,rgba(240,113,48,.1),var(--void-700) 35%)}
-.libx-head.static:hover{border-left-color:var(--accent)}
-
-.libx-group.emotes{border-color:var(--line-strong);margin-bottom:2px}
 .libx-row.emote .libx-spine{background:rgba(240,113,48,.45)}
 .libx-head .chev{font-size:9px;color:var(--text-faint);flex:none;width:10px}
 .libx-name{font:600 9.5px var(--font-mono);letter-spacing:.14em;color:var(--text-body)}

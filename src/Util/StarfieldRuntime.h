@@ -19,16 +19,6 @@ namespace OSF::Util
         return (base != 0 && a_address >= base) ? (a_address - base) : 0;
     }
 
-    [[nodiscard]] inline bool IsHeapPtr(const std::uintptr_t a_value) noexcept
-    {
-        return a_value > 0x10000 && a_value < 0x00007fffffffffff && (a_value & 0x3) == 0;
-    }
-
-    [[nodiscard]] inline bool IsImagePtr(const std::uintptr_t a_value) noexcept
-    {
-        return a_value > 0x00007ff000000000 && a_value < 0x00007fffffffffff;
-    }
-
     [[nodiscard]] inline bool IsReadableRange(const std::uintptr_t a_address, const std::size_t a_size)
     {
         if (a_address == 0 || a_size == 0) {
