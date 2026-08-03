@@ -114,50 +114,43 @@ namespace OSF::Registry::RequirementRegistry
 
 	void LoadAll()
 	{
-		namespace fs = std::filesystem;
 		std::map<std::string, Requirement> requirements;
 		std::size_t problems = 0;
 
-		std::error_code cwdError;
-		const fs::path cwd = fs::current_path(cwdError);
-		if (cwdError) {
-			REX::ERROR("[Registry] requirement discovery cannot resolve the game directory: {}", cwdError.message());
-			return;
-		}
-
-		const fs::path root = cwd / "Data" / "OSF";
-		auto discovery = Util::DiscoverRegistryFiles(root, ".requirements.json", kMaxManifestBytes);
-		for (const auto& problem : discovery.problems) {
-			++problems;
-			REX::ERROR("[Registry] requirement discovery: {}", problem);
-		}
-
-		for (const auto& file : discovery.files) {
-			const std::string source = Util::RegistryPathLabel(root, file);
-			try {
-				std::ifstream in(file, std::ios::binary);
-				if (!in) {
-					throw std::runtime_error("file could not be opened");
-				}
-				auto requirement = Parse(nlohmann::json::parse(in, nullptr, true, true), source);
+		const auto visit = Util::ForEachRegistryJson(".requirements.json",
+			[](std::ifstream& a_input) {
+				return nlohmann::json::parse(a_input, nullptr, true, true);
+			},
+			[&](const Util::RegistryJsonSource& a_source, const nlohmann::json& a_json) {
+				const std::string source = Util::RegistryPathLabel(a_source.root, a_source.file);
+				auto requirement = Parse(a_json, source);
 				const std::string key = Util::ToLower(requirement.id);
-				auto [it, inserted] = requirements.try_emplace(key, requirement);
+				auto [found, inserted] = requirements.try_emplace(key, requirement);
 				if (!inserted) {
 					++problems;
 					REX::WARN("[Registry] duplicate requirement consumer id '{}' in '{}' and '{}'; highest minimum wins",
-						requirement.id, it->second.source, source);
-					if (it->second.minimum < requirement.minimum) {
-						it->second = std::move(requirement);
+						requirement.id, found->second.source, source);
+					if (found->second.minimum < requirement.minimum) {
+						found->second = std::move(requirement);
 					}
 				}
-			} catch (const std::exception& e) {
+			},
+			[&](Util::RegistryJsonProblemKind a_kind, const Util::RegistryJsonSource* a_source,
+				const std::string& a_message) {
 				++problems;
-				REX::ERROR("[Registry] skipping requirement manifest '{}': {}", source, e.what());
-			} catch (...) {
-				++problems;
-				REX::ERROR("[Registry] skipping requirement manifest '{}' after an unknown error", source);
-			}
-		}
+				if (a_kind == Util::RegistryJsonProblemKind::kGameDirectory) {
+					REX::ERROR("[Registry] requirement discovery {}", a_message);
+				} else if (a_kind == Util::RegistryJsonProblemKind::kDiscovery) {
+					REX::ERROR("[Registry] requirement discovery: {}", a_message);
+				} else if (a_source) {
+					const std::string source = Util::RegistryPathLabel(a_source->root, a_source->file);
+					if (a_message == "unknown exception") {
+						REX::ERROR("[Registry] skipping requirement manifest '{}' after an unknown error", source);
+					} else {
+						REX::ERROR("[Registry] skipping requirement manifest '{}': {}", source, a_message);
+					}
+				}
+			}, kMaxManifestBytes);
 
 		std::size_t accepted = 0;
 		for (const auto& [_, requirement] : requirements) {
@@ -173,6 +166,6 @@ namespace OSF::Registry::RequirementRegistry
 		}
 
 		REX::INFO("[Registry] loaded {} requirement manifest(s): {} consumer(s), {} problem(s)",
-			discovery.files.size(), accepted, problems);
+			visit.discovered, accepted, problems);
 	}
 }

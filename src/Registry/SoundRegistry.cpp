@@ -198,55 +198,63 @@ namespace OSF::Registry
 
 	void SoundRegistry::LoadAll()
 	{
-		namespace fs = std::filesystem;
 		std::vector<SoundPool> loaded;
 		std::vector<std::string> errors;
 		std::vector<SoundFileStats> stats;
 		SoundFileStats crossFile;
 		std::size_t loadedClipCount = 0;
 
-		std::error_code cwdEc;
-		const fs::path cwd = fs::current_path(cwdEc);
-		if (cwdEc) {
-			errors.push_back("[error] cannot resolve the game directory: " + cwdEc.message());
-			crossFile.errors += 1;
-			crossFile.problems.push_back(errors.back());
-			REX::ERROR("[Sound] cannot resolve the game directory: {}", cwdEc.message());
-		} else {
-			const fs::path dir = cwd / "Data" / "OSF";
-			auto discovery = Util::DiscoverRegistryFiles(dir, ".sounds.json");
-			for (const auto& problem : discovery.problems) {
-				errors.push_back("[error] sound discovery: " + problem);
-				crossFile.errors += 1;
-				crossFile.problems.push_back(errors.back());
-				REX::ERROR("[Sound] discovery: {}", problem);
+		std::unordered_map<std::string, std::size_t> statsByFile;
+		const auto ensureStats = [&](const Util::RegistryJsonSource& a_source) -> SoundFileStats& {
+			if (const auto found = statsByFile.find(a_source.file.string()); found != statsByFile.end()) {
+				return stats[found->second];
 			}
-			for (const auto& file : discovery.files) {
-				const auto relative = file.lexically_relative(dir);
-				SoundFileStats fileRecord{ .file = file.filename().string(),
-					.path = relative.empty() ? file.filename().generic_string() : relative.generic_string() };
+			const auto relative = a_source.file.lexically_relative(a_source.root);
+			SoundFileStats record{ .file = a_source.file.filename().string(),
+				.path = relative.empty() ? a_source.file.filename().generic_string() : relative.generic_string() };
+			statsByFile.emplace(a_source.file.string(), stats.size());
+			return stats.emplace_back(std::move(record));
+		};
+
+		Util::ForEachRegistryJson(".sounds.json",
+			[](std::ifstream& a_input) {
+				return nlohmann::json::parse(a_input, nullptr, true, true);
+			},
+			[&](const Util::RegistryJsonSource& a_source, const nlohmann::json& a_json) {
+				auto& record = ensureStats(a_source);
 				const auto before = errors.size();
-				try {
-					std::ifstream in(file, std::ios::binary);
-					if (!in) {
-						throw std::runtime_error("file could not be opened");
-					}
-					const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
-					LoadSoundFile(j, file, loaded, loadedClipCount, errors);
-				} catch (const std::exception& e) {
-					errors.push_back("[error] '" + file.filename().string() + "': parse failed: " + e.what());
-					REX::ERROR("[Sound] failed to parse '{}': {}", file.filename().string(), e.what());
-				} catch (...) {
-					errors.push_back("[error] '" + file.filename().string() + "': parse failed with an unknown exception");
-					REX::ERROR("[Sound] failed to parse '{}' with an unknown exception", file.filename().string());
-				}
+				LoadSoundFile(a_json, a_source.file, loaded, loadedClipCount, errors);
 				for (std::size_t i = before; i < errors.size(); ++i) {
-					(errors[i].starts_with("[warn]") ? fileRecord.warnings : fileRecord.errors) += 1;
-					fileRecord.problems.push_back(errors[i]);
+					(errors[i].starts_with("[warn]") ? record.warnings : record.errors) += 1;
+					record.problems.push_back(errors[i]);
 				}
-				stats.push_back(std::move(fileRecord));
-			}
-		}
+			},
+			[&](Util::RegistryJsonProblemKind a_kind, const Util::RegistryJsonSource* a_source,
+				const std::string& a_message) {
+				if (a_kind == Util::RegistryJsonProblemKind::kFile && a_source) {
+					auto& record = ensureStats(*a_source);
+					const bool unknown = a_message == "unknown exception";
+					errors.push_back("[error] '" + record.file + "': " +
+						(unknown ? "parse failed with an unknown exception" : "parse failed: " + a_message));
+					++record.errors;
+					record.problems.push_back(errors.back());
+					if (unknown) {
+						REX::ERROR("[Sound] failed to parse '{}' with an unknown exception", record.file);
+					} else {
+						REX::ERROR("[Sound] failed to parse '{}': {}", record.file, a_message);
+					}
+					return;
+				}
+				const bool directory = a_kind == Util::RegistryJsonProblemKind::kGameDirectory;
+				errors.push_back("[error] " + std::string(directory ? "" : "sound discovery: ") + a_message);
+				++crossFile.errors;
+				crossFile.problems.push_back(errors.back());
+				if (directory) {
+					REX::ERROR("[Sound] {}", a_message);
+				} else {
+					REX::ERROR("[Sound] discovery: {}", a_message);
+				}
+			});
 
 		if (!crossFile.problems.empty()) {
 			stats.push_back(std::move(crossFile));

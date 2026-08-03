@@ -3,9 +3,12 @@
 #include "Util/StringUtil.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <fstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -22,6 +25,27 @@ namespace OSF::Util
 		std::vector<std::filesystem::path> files;
 		std::vector<std::string> problems;
 		bool fatal = false;
+	};
+
+	enum class RegistryJsonProblemKind : std::uint8_t
+	{
+		kGameDirectory,
+		kDiscovery,
+		kFile
+	};
+
+	struct RegistryJsonSource
+	{
+		std::filesystem::path root;
+		std::filesystem::path file;
+		std::uint64_t         bytes = 0;
+		std::chrono::steady_clock::time_point begun;
+	};
+
+	struct RegistryJsonVisit
+	{
+		std::filesystem::path root;
+		std::size_t           discovered = 0;
 	};
 
 	inline std::string RegistryPathLabel(
@@ -162,5 +186,57 @@ namespace OSF::Util
 			result.fatal = true;
 		}
 		return result;
+	}
+
+	// Shared, bounded registry-load prologue: resolve Data/OSF, discover matching files in stable
+	// order, open and parse comment-tolerant JSON, and contain per-file failures. Registry-specific
+	// validation and reporting stay in the callbacks. a_onProblem receives nullptr for game-directory
+	// and discovery failures, or the owning source for a file read/parse/callback failure.
+	template <class ParseJson, class OnJson, class OnProblem>
+	RegistryJsonVisit ForEachRegistryJson(std::string_view a_lowerSuffix,
+		ParseJson&& a_parseJson, OnJson&& a_onJson, OnProblem&& a_onProblem,
+		std::uintmax_t a_maxFileBytes = kMaxRegistryFileBytes,
+		std::size_t a_maxFiles = kMaxRegistryFiles,
+		std::size_t a_maxEntriesScanned = kMaxRegistryEntriesScanned)
+	{
+		namespace fs = std::filesystem;
+		RegistryJsonVisit visit;
+		std::error_code cwdError;
+		const fs::path cwd = fs::current_path(cwdError);
+		if (cwdError) {
+			a_onProblem(RegistryJsonProblemKind::kGameDirectory, nullptr,
+				"cannot resolve the game directory: " + cwdError.message());
+			return visit;
+		}
+
+		visit.root = cwd / "Data" / "OSF";
+		auto discovery = DiscoverRegistryFiles(
+			visit.root, a_lowerSuffix, a_maxFileBytes, a_maxFiles, a_maxEntriesScanned);
+		visit.discovered = discovery.files.size();
+		for (const auto& problem : discovery.problems) {
+			a_onProblem(RegistryJsonProblemKind::kDiscovery, nullptr, problem);
+		}
+
+		for (const auto& file : discovery.files) {
+			RegistryJsonSource source;
+			source.root = visit.root;
+			source.file = file;
+			std::error_code sizeError;
+			const auto bytes = fs::file_size(file, sizeError);
+			source.bytes = sizeError ? 0 : static_cast<std::uint64_t>(bytes);
+			source.begun = std::chrono::steady_clock::now();
+			try {
+				std::ifstream input(file, std::ios::binary);
+				if (!input) {
+					throw std::runtime_error("file could not be opened");
+				}
+				a_onJson(source, a_parseJson(input));
+			} catch (const std::exception& e) {
+				a_onProblem(RegistryJsonProblemKind::kFile, &source, e.what());
+			} catch (...) {
+				a_onProblem(RegistryJsonProblemKind::kFile, &source, "unknown exception");
+			}
+		}
+		return visit;
 	}
 }

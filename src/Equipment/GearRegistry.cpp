@@ -166,9 +166,9 @@ namespace OSF::Equipment::Gear
 			return true;
 		}
 
-		// Load one gear file into the accumulators. Every failure is contained here so malformed
-		// author content cannot unwind through an SFSE message or Papyrus native callback.
-		bool LoadFile(const std::filesystem::path& a_file, bool a_userLane,
+		// Apply one already-parsed gear document atomically. Malformed content rolls back every item
+		// and override this document appended, including its first-wins de-dup keys.
+		bool LoadDocument(const json& a_document, const std::filesystem::path& a_file, bool a_userLane,
 			std::vector<Entry>& a_items, std::vector<OverrideRow>& a_overrides,
 			std::unordered_map<std::string, std::string>& a_seen) noexcept
 		{
@@ -182,25 +182,12 @@ namespace OSF::Equipment::Gear
 				a_overrides.resize(overrideStart);
 			};
 			try {
-				std::error_code sizeEc;
-				const auto bytes = std::filesystem::file_size(a_file, sizeEc);
-				if (!sizeEc && bytes > Util::kMaxRegistryFileBytes) {
-					REX::ERROR("[Equip] gear file '{}' is {} bytes; maximum is {} — skipped",
-						a_file.filename().string(), bytes, Util::kMaxRegistryFileBytes);
-					return false;
-				}
-
-				std::ifstream in(a_file, std::ios::binary);
-				if (!in) {
-					return true;
-				}
-				const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
-				if (!doc.is_object()) {
+				if (!a_document.is_object()) {
 					return false;
 				}
 				const std::string source = a_file.filename().string();
-				if (!ParseItems(doc, source, a_items, a_seen) ||
-					(a_userLane && !ParseOverrides(doc, source, a_overrides))) {
+				if (!ParseItems(a_document, source, a_items, a_seen) ||
+					(a_userLane && !ParseOverrides(a_document, source, a_overrides))) {
 					rollback();
 					return false;
 				}
@@ -211,6 +198,38 @@ namespace OSF::Equipment::Gear
 				return false;
 			} catch (...) {
 				rollback();
+				REX::ERROR("[Equip] gear file '{}' failed with an unknown exception — skipped", a_file.filename().string());
+				return false;
+			}
+		}
+
+		// The user lane is a single file outside the discovered Data tree, so it keeps a small direct
+		// loader while Data-lane documents use Util::ForEachRegistryJson below.
+		bool LoadFile(const std::filesystem::path& a_file, bool a_userLane,
+			std::vector<Entry>& a_items, std::vector<OverrideRow>& a_overrides,
+			std::unordered_map<std::string, std::string>& a_seen) noexcept
+		{
+			try {
+				// Data-lane files are bounded by ForEachRegistryJson discovery. The user lane sits
+				// outside that tree, so retain the same limit at its one direct read boundary.
+				std::error_code sizeError;
+				const auto bytes = std::filesystem::file_size(a_file, sizeError);
+				if (!sizeError && bytes > Util::kMaxRegistryFileBytes) {
+					REX::ERROR("[Equip] gear file '{}' is {} bytes; maximum is {} — skipped",
+						a_file.filename().string(), bytes, Util::kMaxRegistryFileBytes);
+					return false;
+				}
+				std::ifstream input(a_file, std::ios::binary);
+				if (!input) {
+					return true;
+				}
+				const json document = json::parse(
+					input, nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
+				return LoadDocument(document, a_file, a_userLane, a_items, a_overrides, a_seen);
+			} catch (const std::exception& e) {
+				REX::ERROR("[Equip] gear file '{}' failed: {} — skipped", a_file.filename().string(), e.what());
+				return false;
+			} catch (...) {
 				REX::ERROR("[Equip] gear file '{}' failed with an unknown exception — skipped", a_file.filename().string());
 				return false;
 			}
@@ -254,7 +273,6 @@ namespace OSF::Equipment::Gear
 
 	void LoadAll()
 	{
-		namespace fs = std::filesystem;
 		std::vector<Entry>                           items;
 		std::vector<OverrideRow>                     overrides;
 		std::unordered_map<std::string, std::string> seen;  // lowercased ref -> source (first wins)
@@ -266,22 +284,24 @@ namespace OSF::Equipment::Gear
 			}
 		}
 
-		std::error_code cwdEc;
-		const fs::path cwd = fs::current_path(cwdEc);
-		if (cwdEc) {
-			REX::ERROR("[Equip] cannot resolve the game directory for gear discovery: {}", cwdEc.message());
-		} else {
-			const fs::path dir = cwd / "Data" / "OSF";
-			auto discovery = Util::DiscoverRegistryFiles(dir, ".osfgear.json");
-			for (const auto& problem : discovery.problems) {
-				REX::ERROR("[Equip] gear discovery: {}", problem);
-			}
-			for (const auto& file : discovery.files) {
-				if (!LoadFile(file, /*userLane*/ false, items, overrides, seen)) {
-					REX::ERROR("[Equip] gear file '{}' won't parse — skipped", file.filename().string());
+		Util::ForEachRegistryJson(".osfgear.json",
+			[](std::ifstream& a_input) {
+				return json::parse(a_input, nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
+			},
+			[&](const Util::RegistryJsonSource& a_source, const json& a_document) {
+				if (!LoadDocument(a_document, a_source.file, /*userLane*/ false, items, overrides, seen)) {
+					REX::ERROR("[Equip] gear file '{}' won't parse — skipped", a_source.file.filename().string());
 				}
-			}
-		}
+			},
+			[](Util::RegistryJsonProblemKind a_kind, const Util::RegistryJsonSource* a_source,
+				const std::string& a_message) {
+				if (a_kind == Util::RegistryJsonProblemKind::kFile && a_source) {
+					REX::ERROR("[Equip] gear file '{}' won't parse — skipped ({})",
+						a_source->file.filename().string(), a_message);
+				} else {
+					REX::ERROR("[Equip] gear discovery: {}", a_message);
+				}
+			});
 
 		const auto itemCount = items.size();
 		const auto overrideCount = overrides.size();
