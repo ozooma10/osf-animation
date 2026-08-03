@@ -8,9 +8,10 @@ fully static — pack-authored clip durations, no pins, no probe cache — so th
 runtime and this script produce the same payload; the runtime PersistSnapshot
 path was removed in favor of this.
 
-The card math mirrors the C++ exactly (see BuildCatalog / ParseOsfStageList /
-DesugarLinear in SceneRegistry.cpp), including float32 rounding, so durations
-serialize with the same values the DLL would emit. Anchor keyword form ids are
+The card math mirrors the C++ exactly (see BuildCatalog / ParseOsfStageList in
+SceneRegistry.cpp and DesugarLinear in SceneRegistryClips.cpp), including
+float32 rounding, so durations serialize with the same values the DLL would emit.
+Anchor keyword form ids are
 prettified via tools/vanilla-packs/anim-furn-keywords.json (the ESM extractor
 output) — the offline stand-in for GetFormEditorID.
 

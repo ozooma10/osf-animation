@@ -1,8 +1,7 @@
 #include "Registry/SceneRegistry.h"
+#include "Registry/SceneRegistryClips.h"
 
-#include "Animation/GraphManager.h"  // ResourceExists (clip-availability probe)
 #include "Input/InputTypes.h"
-#include "Util/ClipPath.h"
 #include "Util/FormRef.h"
 #include "Util/Math.h"
 #include "Util/RegistryFiles.h"
@@ -28,6 +27,15 @@ namespace OSF::Registry
 	namespace
 	{
 		using json = nlohmann::json;
+		using SceneRegistryClips::ClipInstalledCache;
+		using SceneRegistryClips::ClipLibraryRegistration;
+		using SceneRegistryClips::PendingImportProblem;
+		using SceneRegistryClips::ProblemSink;
+		using SceneRegistryClips::AccumulateFileStats;
+		using SceneRegistryClips::AddSceneClipEntries;
+		using SceneRegistryClips::ClipSpecInstalled;
+		using SceneRegistryClips::DesugarLinear;
+		using SceneRegistryClips::SweepClipAvailability;
 
 		constexpr std::size_t kMaxScenesPerFile = 4096;
 		constexpr std::size_t kMaxRolesPerFile = 512;
@@ -221,16 +229,6 @@ namespace OSF::Registry
 			ApplyClipRoot(clip, a_clipRoot);
 			return clip;
 		}
-
-		struct ClipLibraryRegistration
-		{
-			std::string              name;
-			std::string              folder;
-			std::vector<std::string> tags;
-			StageClip                clip;
-			std::filesystem::path    sourceFile;
-			std::string              pack;
-		};
 
 		std::string ParseCatalogFolder(const json& a_value, std::string_view a_subject)
 		{
@@ -1653,60 +1651,6 @@ namespace OSF::Registry
 			return n;
 		}
 
-		// Rewrite a linear scene (top-level clip/stages, no nodes[]) into a synthetic node chain so the
-		// runtime only ever sees graph-shaped data. Fills def.nodes/entry/linearStages. Per stage:
-		// timer>0 -> hold + timer edge; loops>0 -> count + loops edge; both -> count + both edges;
-		// neither (explicit hold) -> hold-forever, no auto edge. See RFC §4.
-		void DesugarLinear(SceneDef& def, const std::vector<StageDef>& a_stages)
-		{
-			const size_t n = a_stages.size();
-			for (size_t i = 0; i < n; i++) {
-				const auto& st = a_stages[i];
-				SceneNode node;
-				node.id = "#s" + std::to_string(i);
-				node.stages = { st };
-				// Forward the stage's track lanes onto the node, where the runtime's dispatch reads them.
-				node.cues = st.cues;
-				node.actions = st.actions;
-				node.sounds = st.sounds;
-				node.cameras = st.cameras;
-				const std::string to = (i + 1 == n) ? std::string("$end") : ("#s" + std::to_string(i + 1));
-				auto autoEdge = [&](EdgeWhen a_when) {
-					SceneEdge e;
-					e.to = to;
-					e.when = a_when;
-					return e;
-				};
-				if (st.timer > 0.0f && st.loops > 0) {
-					node.loopMode = LoopMode::kCount;
-					node.loopCount = st.loops;
-					node.timerSec = st.timer;
-					node.edges.push_back(autoEdge(EdgeWhen::kTimer));
-					node.edges.push_back(autoEdge(EdgeWhen::kLoops));
-				} else if (st.timer > 0.0f) {
-					node.loopMode = LoopMode::kHold;
-					node.timerSec = st.timer;
-					node.edges.push_back(autoEdge(EdgeWhen::kTimer));
-				} else if (st.loops > 0) {
-					node.loopMode = LoopMode::kCount;
-					node.loopCount = st.loops;
-					node.edges.push_back(autoEdge(EdgeWhen::kLoops));
-				} else {
-					node.loopMode = LoopMode::kHold;  // explicit hold (timer:0, loops:0): hold until the player advances
-				}
-				// Every linear stage also gets a DEFAULT advance edge so the player can step to the next
-				// stage manually (space / AdvanceScene), independent of any timer/loops auto-end above.
-				// It carries no id/label (it isn't a branch choice — AdvanceEdges skips id-less edges).
-				{
-					SceneEdge adv = autoEdge(EdgeWhen::kAdvance);
-					adv.isDefault = true;
-					node.edges.push_back(std::move(adv));
-				}
-				def.linearStages.push_back(node.id);
-				def.nodes.push_back(std::move(node));
-			}
-			def.entry = "#s0";
-		}
 
 		// Cross-node validation of a graph scene: edge targets, entry-is-a-node, and action/sound role
 		// references. Anonymous roles are intentionally unreferenceable.
@@ -2597,337 +2541,9 @@ namespace OSF::Registry
 		return singleton;
 	}
 
-	namespace
-	{
-		// True when an authored clip spec resolves to SOMETHING the runtime could open: any
-		// ResolveClipSpec candidate that either opens through BSResource (loose OR archive-resident —
-		// the vanilla packs' .af clips live inside the game BA2s) or, for an absolute spec outside
-		// Data, exists on disk. Mirrors GraphManager::LoadClip's candidate walk, minus the decode.
-		bool ClipSpecInstalled(const std::string& a_spec)
-		{
-			const auto spec = Util::ResolveClipSpec(std::filesystem::path{ a_spec });
-			for (const auto& cand : spec.candidates) {
-				if (cand.resource) {
-					if (Animation::ResourceExists(cand.resourcePath)) {
-						return true;
-					}
-				} else {
-					std::error_code ec;
-					if (std::filesystem::exists(cand.filePath, ec)) {
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-
-		// Shared installed-probe memo, keyed by clip spec. A probe touches BSResource or the disk, and
-		// the availability sweep and the per-file stats ask about the very same specs.
-		using ClipInstalledCache = std::unordered_map<std::string, bool>;
-
-		bool ClipInstalled(ClipInstalledCache& a_cache, const std::string& a_file)
-		{
-			auto [it, fresh] = a_cache.try_emplace(a_file, false);
-			if (fresh) {
-				it->second = ClipSpecInstalled(a_file);
-			}
-			return it->second;
-		}
-
-		// Availability sweep over a freshly loaded scene set: a scene referencing at least one clip
-		// with no installed file is marked !clipsAvailable (hidden from the catalog + matchmaking,
-		// still registered for direct-id starts and diagnostics). Compat packs ship scene JSON that
-		// points at another mod's files, so "pack installed without its source mod" must degrade to
-		// hidden scenes, not a browser full of unplayable cards. One warning per source file.
-		void SweepClipAvailability(std::unordered_map<std::string, SceneDef>& a_scenes, ProblemSink& a_problems,
-			ClipInstalledCache& a_cache)
-		{
-			struct FileTally
-			{
-				std::filesystem::path source;
-				int                   hidden = 0;
-				std::string           firstMissing;
-			};
-			// Keyed by full source path (two packs may both ship "scenes.osf.json") and ordered, so
-			// the warning list — and the file each warning is attributed to — stays deterministic.
-			std::map<std::string, FileTally> byFile;
-			for (auto& [key, def] : a_scenes) {
-				std::string missing;
-				for (const auto& node : def.nodes) {
-					for (const auto& stage : node.stages) {
-						for (const auto& clip : stage.clips) {
-							if (!ClipInstalled(a_cache, clip.file)) {
-								missing = clip.file;
-								break;
-							}
-						}
-						if (!missing.empty()) {
-							break;
-						}
-					}
-					if (!missing.empty()) {
-						break;
-					}
-				}
-				if (!missing.empty()) {
-					def.clipsAvailable = false;
-					auto& tally = byFile[def.sourceFile.string()];
-					tally.source = def.sourceFile;
-					++tally.hidden;
-					if (tally.firstMissing.empty()) {
-						tally.firstMissing = missing;
-					}
-				}
-			}
-			for (const auto& [path, tally] : byFile) {
-				const auto file = tally.source.filename().string();
-				a_problems.Push("[warn] '" + file + "': " + std::to_string(tally.hidden) +
-					" scene(s) hidden — clips not installed (e.g. '" + tally.firstMissing +
-					"'); install the animation pack this file references", tally.source,
-					"missing-clips", "Install the referenced animation pack or correct the clip path, then reload packs.",
-					{}, {}, {}, tally.firstMissing);
-				REX::WARN("[Registry] '{}': {} scene(s) hidden — clips not installed (e.g. '{}')",
-					file, tally.hidden, tally.firstMissing);
-			}
-		}
-
-		// Publish every distinct clip referenced by a non-library scene as a generated one-actor,
-		// one-stage definition in the library lane. This is the browser's clip-level debug surface:
-		// a multi-actor scene can still be inspected one raw clip at a time without authors having to
-		// mint parallel solo scenes. Generated vanilla/reference-library scenes and emotes are
-		// deliberately excluded because they already populate Animations.
-		std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
-			const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems,
-			std::map<std::string, std::uint32_t>& a_addedByFile)
-		{
-			struct ClipEntry
-			{
-				std::string              display;
-				std::string              name;
-				std::string              folder;
-				std::vector<std::string> tags;
-				StageClip                clip;
-				std::filesystem::path sourceFile;
-				std::string           pack;
-				bool                  curated = false;  // from an explicit clipLibrary registration
-			};
-
-			const auto groupOf = [](std::string_view a_pack, const std::filesystem::path& a_sourceFile) {
-				return !a_pack.empty()
-				         ? "pack:" + ToLower(std::string(a_pack))
-				         : "file:" + ToLower(a_sourceFile.filename().string());
-			};
-			const auto clipKey = [&groupOf](std::string_view a_pack, const std::filesystem::path& a_sourceFile,
-				                    std::string_view a_display, std::string_view a_animId) {
-				return groupOf(a_pack, a_sourceFile) + '\n' + ToLower(std::string(a_display)) + '\n' + std::string(a_animId);
-			};
-
-			std::map<std::string, ClipEntry> unique;
-			std::unordered_map<std::string, bool> installed;
-			std::unordered_set<std::string> explicitKeys;
-
-			// Explicit registrations go first so their friendly names/tags win over raw filename
-			// entries discovered from scenes. Registration identity is pack/file group + file + anim.
-			for (const auto& reg : a_registrations) {
-				const std::string display = Util::ClipSpecDisplay(std::filesystem::path{ reg.clip.file });
-				const std::string key = clipKey(reg.pack, reg.sourceFile, display, reg.clip.animId);
-				if (!explicitKeys.insert(key).second) {
-					a_problems.Push("[error] duplicate clipLibrary registration for '" + display +
-						(reg.clip.animId.empty() ? "" : (":" + reg.clip.animId)) + "' in pack/file group '" +
-						(reg.pack.empty() ? reg.sourceFile.filename().string() : reg.pack) + "' — keeping the first",
-						reg.sourceFile, "duplicate-clip-library",
-						"Remove or rename the duplicate clipLibrary registration; OSF keeps the first.",
-						{}, {}, {}, reg.clip.file);
-					REX::ERROR("[Registry] duplicate clipLibrary registration '{}' in group '{}' — keeping first",
-						display, reg.pack.empty() ? reg.sourceFile.filename().string() : reg.pack);
-					continue;
-				}
-
-				const std::string installKey = ToLower(display);
-				auto [iit, fresh] = installed.try_emplace(installKey, false);
-				if (fresh) {
-					iit->second = ClipSpecInstalled(reg.clip.file);
-				}
-				if (!iit->second) {
-					a_problems.Push("[warn] '" + reg.sourceFile.filename().string() +
-						"': clipLibrary entry hidden — clip not installed ('" + reg.clip.file + "')", reg.sourceFile,
-						"missing-library-clip", "Install the referenced animation pack or correct this clip path, then reload packs.",
-						{}, {}, {}, reg.clip.file);
-					REX::WARN("[Registry] '{}': clipLibrary entry hidden — clip not installed ('{}')",
-						reg.sourceFile.filename().string(), reg.clip.file);
-					continue;
-				}
-				unique.emplace(key, ClipEntry{ display, reg.name, reg.folder, reg.tags, reg.clip, reg.sourceFile, reg.pack, true });
-			}
-			// The source map is unordered. Sort first so both de-dup winners and generated IDs stay
-			// stable across launches and ReloadPacks calls.
-			std::vector<const SceneDef*> sources;
-			sources.reserve(a_scenes.size());
-			for (const auto& [key, def] : a_scenes) {
-				const bool alreadyAnEmote = std::ranges::any_of(def.tagSet,
-					[](const std::string& a_tag) { return a_tag.starts_with("player.emote."); });
-				if (!def.library && !alreadyAnEmote) {
-					sources.push_back(&def);
-				}
-			}
-			std::sort(sources.begin(), sources.end(), [](const SceneDef* a_lhs, const SceneDef* a_rhs) {
-				const auto lf = ToLower(a_lhs->sourceFile.filename().string());
-				const auto rf = ToLower(a_rhs->sourceFile.filename().string());
-				return lf != rf ? lf < rf : ToLower(a_lhs->id) < ToLower(a_rhs->id);
-			});
-
-			for (const SceneDef* def : sources) {
-				for (const auto& node : def->nodes) {
-					for (const auto& stage : node.stages) {
-						for (const auto& clip : stage.clips) {
-							const std::string display = Util::ClipSpecDisplay(std::filesystem::path{ clip.file });
-							const std::string installKey = ToLower(display);
-							auto [iit, fresh] = installed.try_emplace(installKey, false);
-							if (fresh) {
-								iit->second = ClipSpecInstalled(clip.file);
-							}
-							if (!iit->second) {
-								continue;  // an Animations entry must be runnable even if its parent scene is not
-							}
-
-							const std::string key = clipKey(def->pack, def->sourceFile, display, clip.animId);
-							unique.try_emplace(key, ClipEntry{ display, {}, def->folder, {}, clip, def->sourceFile, def->pack });
-						}
-					}
-				}
-			}
-
-			const auto stableHash = [](std::string_view a_text) {
-				std::uint64_t hash = 14695981039346656037ull;  // FNV-1a 64
-				for (const unsigned char ch : a_text) {
-					hash ^= ch;
-					hash *= 1099511628211ull;
-				}
-				return hash;
-			};
-
-			std::size_t added = 0;
-			for (auto& [key, entry] : unique) {
-				std::string id = std::format("osf.scene-clip/{:016x}", stableHash(key));
-				for (std::uint32_t collision = 1; a_scenes.contains(ToLower(id)); ++collision) {
-					id = std::format("osf.scene-clip/{:016x}-{}", stableHash(key), collision);
-				}
-
-				SceneDef def;
-				def.id = std::move(id);
-				def.name = entry.name;
-				if (def.name.empty()) {
-					const std::filesystem::path displayPath{ entry.display };
-					def.name = displayPath.filename().string();
-					if (def.name.empty()) {
-						def.name = entry.display;
-					}
-					if (!entry.clip.animId.empty()) {
-						def.name += " · " + entry.clip.animId;
-					}
-				}
-				def.species = Util::SpeciesFromAnimPath(entry.clip.file);
-				if (def.species.empty()) {
-					def.species = "human";
-				}
-				def.unlisted = true;  // direct/browser only; never enter tag matchmaking
-				def.library = true;   // Animations lane, beside (but not duplicated from) vanilla
-				def.curatedClip = entry.curated;  // authored registration vs harvested debug clip
-				def.lockPlayer = false;
-				def.stripActors = false;
-				def.fade = false;
-				def.inPlace = true;   // raw-clip debugging must not teleport or root-pin the actor
-				def.tags = { "scene.clip" };
-				def.tagSet = { "scene.clip" };
-				def.roles.emplace_back();
-				for (const auto& tag : entry.tags) {
-					const auto lower = ToLower(tag);
-					if (def.tagSet.insert(lower).second) {
-						def.tags.push_back(tag);
-					}
-				}
-				def.sourceFile = std::move(entry.sourceFile);
-				def.pack = std::move(entry.pack);
-				def.folder = std::move(entry.folder);
-
-				StageDef stage;
-				stage.name = def.name;
-				stage.tags = def.tags;
-				entry.clip.offset.reset();  // isolate the animation, not its role placement
-				stage.clips.push_back(std::move(entry.clip));
-				DesugarLinear(def, { stage });  // one holding node; Advance/Space ends it
-
-				const std::string generatedKey = ToLower(def.id);
-				++a_addedByFile[def.sourceFile.string()];  // before the move — the import record wants a per-file count
-				a_scenes.emplace(generatedKey, std::move(def));
-				++added;
-			}
-			return added;
-		}
-
-		// Fold the accepted scene set into the per-file import records. Runs on the AUTHORED set,
-		// before the generated one-clip entries land, so every count describes what an author wrote.
-		void AccumulateFileStats(const std::unordered_map<std::string, SceneDef>& a_scenes,
-			ClipInstalledCache& a_cache, std::vector<SceneFileStats>& a_files,
-			const std::unordered_map<std::string, std::size_t>& a_index)
-		{
-			// Kept beside the records rather than inside them so the fold stays one walk over the
-			// scene map; a pack repeats the same clip across stages and scenes constantly.
-			std::vector<std::unordered_set<std::string>> clipSets(a_files.size());
-			std::vector<std::unordered_set<std::string>> speciesSets(a_files.size());
-			for (const auto& [key, def] : a_scenes) {
-				const auto it = a_index.find(def.sourceFile.string());
-				if (it == a_index.end()) {
-					continue;  // not from a discovered file — nothing produces this today
-				}
-				auto& stats = a_files[it->second];
-				++stats.scenes;
-				stats.hidden += def.clipsAvailable ? 0u : 1u;
-				stats.unlisted += def.unlisted ? 1u : 0u;
-				stats.anchored += def.RequiresAnchor() ? 1u : 0u;
-				stats.nodes += static_cast<std::uint32_t>(def.nodes.size());
-				stats.roles += static_cast<std::uint32_t>(def.roles.size());
-				if (!def.species.empty()) {
-					speciesSets[it->second].insert(def.species);
-				}
-				for (const auto& node : def.nodes) {
-					stats.cues += static_cast<std::uint32_t>(node.cues.size());
-					stats.actions += static_cast<std::uint32_t>(node.actions.size());
-					stats.sounds += static_cast<std::uint32_t>(node.sounds.size());
-					stats.cameras += static_cast<std::uint32_t>(node.cameras.size());
-					stats.stages += static_cast<std::uint32_t>(node.stages.size());
-					for (const auto& stage : node.stages) {
-						stats.clips += static_cast<std::uint32_t>(stage.clips.size());
-						for (const auto& clip : stage.clips) {
-							clipSets[it->second].insert(clip.file);
-						}
-					}
-				}
-			}
-			for (std::size_t i = 0; i < a_files.size(); ++i) {
-				auto& stats = a_files[i];
-				stats.distinctClips = static_cast<std::uint32_t>(clipSets[i].size());
-				std::vector<std::string> missing;
-				for (const auto& clip : clipSets[i]) {
-					// The sweep already probed these specs; the shared memo makes this free.
-					if (!ClipInstalled(a_cache, clip)) {
-						missing.push_back(clip);
-					}
-				}
-				std::sort(missing.begin(), missing.end());
-				stats.missingClips = static_cast<std::uint32_t>(missing.size());
-				constexpr std::size_t kMaxMissingExamples = 8;
-				stats.missingClipExamples.assign(missing.begin(),
-					missing.begin() + std::min(missing.size(), kMaxMissingExamples));
-				stats.species.assign(speciesSets[i].begin(), speciesSets[i].end());
-				std::sort(stats.species.begin(), stats.species.end());
-			}
-		}
-	}
 
 	void SceneRegistry::LoadAll()
 	{
-		namespace fs = std::filesystem;
 		std::unordered_map<std::string, SceneDef> loaded;
 		std::vector<std::string> errors;
 		std::vector<PendingImportProblem> pendingProblems;
@@ -2938,74 +2554,72 @@ namespace OSF::Registry
 		ClipInstalledCache clipCache;
 		SceneLoadBudget loadBudget;
 
-		std::vector<fs::path> paths;
-		fs::path dir;
-		std::error_code cwdEc;
-		const fs::path cwd = fs::current_path(cwdEc);
-		if (cwdEc) {
-			problems.Push("[error] scene discovery: cannot resolve the game directory: " + cwdEc.message(), {},
-				"discovery-failed", "Restore access to the game Data/OSF directory, then reload packs.");
-			REX::ERROR("[Registry] cannot resolve the game directory: {}", cwdEc.message());
-		} else {
-			dir = cwd / "Data" / "OSF";
-			auto discovery = Util::DiscoverRegistryFiles(dir, ".osf.json");
-			paths = std::move(discovery.files);
-			for (const auto& problem : discovery.problems) {
-				problems.Push("[error] scene discovery: " + problem, {}, "discovery-failed",
-					"Restore access to the named Data/OSF path, then reload packs.");
-				REX::ERROR("[Registry] discovery: {}", problem);
+		auto ensureFileStats = [&](const Util::RegistryJsonSource& a_source) -> SceneFileStats& {
+			if (const auto found = fileIndex.find(a_source.file.string()); found != fileIndex.end()) {
+				return fileStats[found->second];
 			}
-		}
-
-		fileStats.reserve(paths.size());  // `stats` below is a reference into it — no reallocation mid-file
-		for (const auto& file : paths) {
 			auto& stats = fileStats.emplace_back();
-			fileIndex.emplace(file.string(), fileStats.size() - 1);
-			stats.file = file.filename().string();
-			// Data/OSF-relative, forward-slashed. lexically_relative is pure string work (no
-			// second stat per file), and a relative path can never leak the install location.
-			const auto relative = file.lexically_relative(dir);
+			fileIndex.emplace(a_source.file.string(), fileStats.size() - 1);
+			stats.file = a_source.file.filename().string();
+			const auto relative = a_source.file.lexically_relative(a_source.root);
 			stats.path = relative.empty() ? stats.file : relative.generic_string();
-			std::error_code sizeEc;
-			const auto bytes = fs::file_size(file, sizeEc);
-			stats.bytes = sizeEc ? 0 : static_cast<std::uint64_t>(bytes);
+			stats.bytes = a_source.bytes;
+			return stats;
+		};
 
-			const auto begun = std::chrono::steady_clock::now();
-			try {
-				std::ifstream in(file, std::ios::binary);
-				if (!in) {
-					throw std::runtime_error("file could not be opened");
-				}
-				const auto j = nlohmann::json::parse(in, nullptr, true, true);  // tolerate // comments
-				if (const auto scenes = j.find("scenes"); scenes != j.end() && scenes->is_array()) {
+		Util::ForEachRegistryJson(".osf.json",
+			[](std::ifstream& a_input) {
+				return nlohmann::json::parse(a_input, nullptr, true, true);
+			},
+			[&](const Util::RegistryJsonSource& a_source, const nlohmann::json& a_json) {
+				auto& stats = ensureFileStats(a_source);
+				if (const auto scenes = a_json.find("scenes"); scenes != a_json.end() && scenes->is_array()) {
 					stats.declaredScenes = static_cast<std::uint32_t>(scenes->size());
-				} else if (j.contains("id")) {
+				} else if (a_json.contains("id")) {
 					stats.declaredScenes = 1;
 				}
-				// Header fields read leniently and separately from LoadOsfFile's validating
-				// parse: a file whose scenes were ALL rejected still has to show what it
-				// declared, and that is usually exactly where the mistake is.
-				if (const auto sit = j.find("schema"); sit != j.end() && sit->is_number_integer()) {
-					stats.schema = sit->get<std::int64_t>();
+				// Keep lenient header metadata even when every declared scene is later rejected.
+				if (const auto schema = a_json.find("schema"); schema != a_json.end() && schema->is_number_integer()) {
+					stats.schema = schema->get<std::int64_t>();
 				}
-				if (const auto pit = j.find("pack"); pit != j.end() && pit->is_string()) {
-					stats.pack = pit->get<std::string>();
+				if (const auto pack = a_json.find("pack"); pack != a_json.end() && pack->is_string()) {
+					stats.pack = pack->get<std::string>();
 				}
-				if (const auto secIt = j.find("section"); secIt != j.end() && secIt->is_string()) {
-					stats.library = ToLower(secIt->get<std::string>()) == "library";
+				if (const auto section = a_json.find("section"); section != a_json.end() && section->is_string()) {
+					stats.library = ToLower(section->get<std::string>()) == "library";
 				}
-				LoadOsfFile(j, file, loaded, clipLibrary, loadBudget, problems);
-			} catch (const std::exception& e) {
-				problems.Push("[error] '" + stats.file + "': parse failed: " + e.what(), file,
-					"parse-failed", "Fix the JSON syntax near the reported byte or field, then reload packs.");
-				REX::ERROR("[Registry] failed to parse '{}': {}", stats.file, e.what());
-			} catch (...) {
-				problems.Push("[error] '" + stats.file + "': parse failed with an unknown exception", file,
-					"parse-failed", "Validate this file as JSON, then reload packs.");
-				REX::ERROR("[Registry] failed to parse '{}' with an unknown exception", stats.file);
-			}
-			stats.parseMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - begun).count();
-		}
+				LoadOsfFile(a_json, a_source.file, loaded, clipLibrary, loadBudget, problems);
+				stats.parseMs = std::chrono::duration<float, std::milli>(
+					std::chrono::steady_clock::now() - a_source.begun).count();
+			},
+			[&](Util::RegistryJsonProblemKind a_kind, const Util::RegistryJsonSource* a_source,
+				const std::string& a_message) {
+				if (a_kind != Util::RegistryJsonProblemKind::kFile || !a_source) {
+					problems.Push("[error] scene discovery: " + a_message, {}, "discovery-failed",
+						"Restore access to the named Data/OSF path, then reload packs.");
+					if (a_kind == Util::RegistryJsonProblemKind::kGameDirectory) {
+						REX::ERROR("[Registry] {}", a_message);
+					} else {
+						REX::ERROR("[Registry] discovery: {}", a_message);
+					}
+					return;
+				}
+				auto& stats = ensureFileStats(*a_source);
+				const bool unknown = a_message == "unknown exception";
+				const std::string detail = unknown
+					? "parse failed with an unknown exception"
+					: "parse failed: " + a_message;
+				problems.Push("[error] '" + stats.file + "': " + detail, a_source->file,
+					"parse-failed", unknown ? "Validate this file as JSON, then reload packs."
+					                              : "Fix the JSON syntax near the reported byte or field, then reload packs.");
+				if (unknown) {
+					REX::ERROR("[Registry] failed to parse '{}' with an unknown exception", stats.file);
+				} else {
+					REX::ERROR("[Registry] failed to parse '{}': {}", stats.file, a_message);
+				}
+				stats.parseMs = std::chrono::duration<float, std::milli>(
+					std::chrono::steady_clock::now() - a_source->begun).count();
+			});
 
 		// Resolve every node `use` now that the whole set is loaded (catches dangling refs at load).
 		ValidateUseRefs(loaded, problems);
