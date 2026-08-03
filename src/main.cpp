@@ -16,7 +16,6 @@
 #include "Serialization/ClipDurations.h"
 #include "Serialization/PersistenceHost.h"
 #include "Serialization/SaveSafety.h"
-#include "Studio/StudioPreviewService.h"
 #include "Util/CrashHandler.h"
 
 #include <REX/W32/KERNEL32.h>
@@ -60,7 +59,6 @@ namespace
 			// Probe clip loop lengths for the catalog's time estimates After InstallUIBridge so the push hook exists.
 			OSF::Serialization::ClipDurations::ScanSceneClipsAsync(&OSF::API::PushCatalogUpdate);
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
-			OSF::Studio::StartPreviewService();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
 			REX::INFO("[Feature] Raw-layout Camera Controls {}",

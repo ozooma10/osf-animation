@@ -7,12 +7,16 @@
 #include "Util/Gzip.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <mutex>
 #include <random>
+#include <stop_token>
 #include <thread>
 #include <unordered_map>
 
@@ -65,14 +69,21 @@ namespace OSF::Studio
 			double expiresAt{};
 		};
 
-		std::mutex g_startMutex;
+		std::mutex g_lifecycleMutex;
+		std::mutex g_replyMutex;
+		bool g_initialized = false;  // lifecycle mutex
 		bool g_started = false;
+		bool g_tickInstalled = false;  // lifecycle mutex
+		std::atomic_bool g_running{ false };
 		std::atomic<std::uint64_t> g_generation{ 0 };
 		std::filesystem::path g_directory;
 		std::string g_session;
 		bool g_rawPreviewActive = false;  // game thread only
 		std::string g_rawPreviewSource;   // game thread only
 		HelmetPlayback g_helmet;          // game thread only
+		// Declared last so its destructor requests stop and joins while every object the monitor
+		// can touch is still alive during process shutdown.
+		std::jthread g_monitor;
 
 		double NowSeconds()
 		{
@@ -121,8 +132,7 @@ namespace OSF::Studio
 			// Replies come from both the monitor thread (parse failures) and SFSE game-thread tasks.
 			// Serialize writers, and publish atomically — write a temp file, then rename over
 			// response.json — so Studio never reads a truncated or interleaved document.
-			static std::mutex replyLock;
-			const std::scoped_lock lock{ replyLock };
+			const std::scoped_lock lock{ g_replyMutex };
 			const auto target = g_directory / "response.json";
 			const auto tmp = g_directory / "response.json.tmp";
 			if (WriteJson(tmp, json{
@@ -427,8 +437,8 @@ namespace OSF::Studio
 			if (player) {
 				auto& manager = Animation::GraphManager::GetSingleton();
 				if (manager.GetCurrentAnimation(player) == g_helmet.source) manager.StopAnimation(player);
-				DestroyHeld();
 			}
+			DestroyHeld();
 			if (g_helmet.suit) g_helmet.suit->Stop();
 			g_helmet = {};
 		}
@@ -477,22 +487,32 @@ namespace OSF::Studio
 		{
 		public:
 			// Permanent tasks already run on the game thread inside the same drain as the transient
-			// queue — tick directly rather than re-posting a heap-allocated hop every frame.
-			void Run() override { TickHelmetPreview(); }
+			// queue. It cannot be unregistered, so install it once and make it inert while the
+			// runtime-switchable service is disabled.
+			void Run() override
+			{
+				if (g_running.load(std::memory_order_acquire)) TickHelmetPreview();
+			}
 			void Destroy() override {}
 		};
+
+		bool IsCurrentGeneration(std::uint64_t a_generation)
+		{
+			return g_running.load(std::memory_order_acquire) &&
+			       a_generation == g_generation.load(std::memory_order_acquire);
+		}
 
 		void QueuePing(std::string id, std::uint64_t generation)
 		{
 			SFSE::GetTaskInterface()->AddTask([id = std::move(id), generation]() {
-				if (generation == g_generation.load(std::memory_order_acquire)) Reply(id, true, "OSF Animation is ready");
+				if (IsCurrentGeneration(generation)) Reply(id, true, "OSF Animation is ready");
 			});
 		}
 
 		void QueueStop(std::string id, std::uint64_t generation, bool a_helmet)
 		{
 			SFSE::GetTaskInterface()->AddTask([id = std::move(id), generation, a_helmet]() {
-				if (generation != g_generation.load(std::memory_order_acquire)) return;
+				if (!IsCurrentGeneration(generation)) return;
 				if (a_helmet) StopHelmetPreview();
 				else {
 					auto* player = RE::PlayerCharacter::GetSingleton();
@@ -508,7 +528,7 @@ namespace OSF::Studio
 		void QueuePlay(std::string id, std::vector<std::uint8_t> bytes, std::uint64_t generation)
 		{
 			SFSE::GetTaskInterface()->AddTask([id = std::move(id), bytes = std::move(bytes), generation]() mutable {
-				if (generation != g_generation.load(std::memory_order_acquire)) return;
+				if (!IsCurrentGeneration(generation)) return;
 				auto* player = RE::PlayerCharacter::GetSingleton();
 				if (!player) return Reply(id, false, "The player is not available in the loaded world");
 				auto& manager = Animation::GraphManager::GetSingleton();
@@ -539,7 +559,7 @@ namespace OSF::Studio
 		void QueueHelmet(std::string id, HelmetRequest request, std::uint64_t generation)
 		{
 			SFSE::GetTaskInterface()->AddTask([id = std::move(id), request = std::move(request), generation]() mutable {
-				if (generation != g_generation.load(std::memory_order_acquire)) return;
+				if (!IsCurrentGeneration(generation)) return;
 				auto* player = RE::PlayerCharacter::GetSingleton();
 				if (!player) return Reply(id, false, "The player is not available in the loaded world");
 				auto& manager = Animation::GraphManager::GetSingleton();
@@ -598,6 +618,7 @@ namespace OSF::Studio
 
 		void ProcessRequest(const json& a_request)
 		{
+			if (!g_running.load(std::memory_order_acquire)) return;
 			// The caller already type-checked "id"; everything else is untrusted. A wrong-typed
 			// field throws out of value()/at() — reply with the parse failure instead of letting
 			// it escape to the monitor's catch-all, which would drop the request without a reply.
@@ -629,12 +650,55 @@ namespace OSF::Studio
 			}
 		}
 
-		void Monitor()
+		bool HasSession(const std::filesystem::path& a_file, std::string_view a_session) noexcept
 		{
+			if (a_session.empty()) return true;
+			try {
+				std::error_code ec;
+				const auto size = std::filesystem::file_size(a_file, ec);
+				if (ec || size == 0 || size > kMaxRequestBytes) return false;
+				std::ifstream in(a_file, std::ios::binary);
+				const json value = json::parse(in, nullptr, false);
+				const auto session = value.is_object() ? value.find("session") : value.end();
+				return session != value.end() && session->is_string() &&
+				       session->get_ref<const std::string&>() == a_session;
+			} catch (...) {
+				return false;
+			}
+		}
+
+		void CleanupInbox(const std::filesystem::path& a_directory, std::string_view a_session) noexcept
+		{
+			if (a_directory.empty()) return;
+			try {
+				// session.json is the readiness sentinel, so retire it first. Preserve files if a
+				// different process/session replaced them while this instance was shutting down.
+				for (const auto* name : { "session.json", "request.json", "response.json", "response.json.tmp" }) {
+					const auto file = a_directory / name;
+					std::error_code ec;
+					if (a_session.empty()) {
+						// Startup owns these protocol filenames and must also clear a dangling symlink.
+						std::filesystem::remove(file, ec);
+					} else if (std::filesystem::is_regular_file(file, ec) && !ec && HasSession(file, a_session)) {
+						std::filesystem::remove(file, ec);
+					}
+				}
+			} catch (...) {}
+		}
+
+		void Monitor(std::stop_token a_stop, std::filesystem::path a_directory, std::string a_session)
+		{
+			// std::jthread also requests stop from its destructor. Close admission in that
+			// process-shutdown path, where there is no game-thread settings callback to do it.
+			std::stop_callback closeAdmission{ a_stop, [] {
+				g_running.store(false, std::memory_order_release);
+			} };
+			std::mutex waitMutex;
+			std::condition_variable_any wait;
 			std::string lastId;
-			for (;;) {
+			while (!a_stop.stop_requested()) {
 				try {
-					const auto requestFile = g_directory / "request.json";
+					const auto requestFile = a_directory / "request.json";
 					std::error_code ec;
 					const auto size = std::filesystem::file_size(requestFile, ec);
 					if (!ec && size > 0 && size <= kMaxRequestBytes) {
@@ -648,48 +712,128 @@ namespace OSF::Studio
 						if (!id.empty() && id != lastId) { lastId = id; ProcessRequest(request); }
 					}
 				} catch (...) {
-					REX::WARN("[Anim] Studio Link request monitor recovered from a filesystem error");
+					if (!a_stop.stop_requested()) {
+						REX::WARN("[Anim] Studio Link request monitor recovered from a filesystem error");
+					}
 				}
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				if (!a_stop.stop_requested()) {
+					std::unique_lock waitLock{ waitMutex };
+					(void)wait.wait_for(waitLock, a_stop, std::chrono::milliseconds(100), [] {
+						return false;
+					});
+				}
 			}
+			CleanupInbox(a_directory, a_session);
+		}
+
+		void StopRawPreview()
+		{
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			auto& manager = Animation::GraphManager::GetSingleton();
+			if (g_rawPreviewActive && player && manager.GetCurrentAnimation(player) == g_rawPreviewSource) {
+				manager.StopAnimation(player);
+			}
+			g_rawPreviewActive = false;
+			g_rawPreviewSource.clear();
+		}
+
+		void StopPreviewServiceLocked()
+		{
+			if (!g_started) return;
+			// Close admission before invalidating the queue. A request already being parsed may
+			// still enqueue, but it cannot pass both the running and generation checks, including
+			// after a later restart (which advances the generation again).
+			g_running.store(false, std::memory_order_release);
+			g_generation.fetch_add(1, std::memory_order_acq_rel);
+			g_monitor.request_stop();
+			if (g_monitor.joinable()) g_monitor.join();
+
+			// Setting callbacks and permanent tasks run on the game thread. Keep every engine/RE
+			// operation here; the monitor only performs file IO and queues work.
+			StopHelmetPreview();
+			StopRawPreview();
+			g_started = false;
+			g_directory.clear();
+			g_session.clear();
+			REX::DEBUG("[Anim] Studio Link disabled");
+		}
+
+		void StartPreviewServiceLocked()
+		{
+			if (g_started) return;
+			g_directory = LinkDirectory();
+			if (g_directory.empty()) {
+				REX::WARN("[Anim] Studio Link unavailable: SFSE user-data directory could not be resolved");
+				return;
+			}
+			std::error_code ec;
+			std::filesystem::create_directories(g_directory, ec);
+			if (ec) {
+				REX::WARN("[Anim] Studio Link unavailable: '{}' could not be created ({})", g_directory.string(), ec.message());
+				g_directory.clear();
+				return;
+			}
+			// A stopped or crashed prior session must not look live, and an old request id must
+			// not become the new monitor's duplicate-suppression latch.
+			CleanupInbox(g_directory, {});
+			g_session = NewSessionToken();
+			const bool helmetAvailable = Suit::Acquire() && Props::PropService::GetSingleton().Available();
+			json session{
+				{ "version", kProtocolVersion }, { "session", g_session }, { "game", "Starfield" },
+				{ "runtime", "OSF Animation" },
+				{ "capabilities", helmetAvailable ? json::array({ "raw-clip.v1", "helmet-preview.v1" }) : json::array({ "raw-clip.v1" }) },
+				{ "components", {
+					{ "osf-animation", "1.5.0 (helmet-preview API v1)" },
+					{ "suit-protocol", helmetAvailable ? "0.1.14+ (helmet-preview API v1)" : "missing/outdated (requires 0.1.14+)" }
+				} }
+			};
+			if (!WriteJson(g_directory / "session.json", session)) {
+				REX::WARN("[Anim] Studio Link unavailable: session file could not be written");
+				CleanupInbox(g_directory, {});
+				g_directory.clear();
+				g_session.clear();
+				return;
+			}
+			if (!g_tickInstalled) {
+				static PreviewTickTask tickTask;
+				SFSE::GetTaskInterface()->AddPermanentTask(&tickTask);
+				g_tickInstalled = true;
+			}
+			g_generation.fetch_add(1, std::memory_order_acq_rel);
+			g_running.store(true, std::memory_order_release);
+			try {
+				g_monitor = std::jthread(Monitor, g_directory, g_session);
+			} catch (const std::exception& e) {
+				g_running.store(false, std::memory_order_release);
+				g_generation.fetch_add(1, std::memory_order_acq_rel);
+				CleanupInbox(g_directory, g_session);
+				g_directory.clear();
+				g_session.clear();
+				REX::ERROR("[Anim] Studio Link monitor could not start: {}", e.what());
+				return;
+			}
+			g_started = true;
+			REX::INFO("[Anim] Studio Link v{} ready at '{}' (helmet preview {})", kProtocolVersion,
+				g_directory.string(), helmetAvailable ? "available" : "unavailable");
 		}
 	}
 
-	void StartPreviewService()
+	void SetPreviewServiceEnabled(bool a_enabled) noexcept
 	{
-		std::lock_guard startLock{ g_startMutex };
-		if (g_started) return;
-		g_directory = LinkDirectory();
-		if (g_directory.empty()) {
-			REX::WARN("[Anim] Studio Link unavailable: SFSE user-data directory could not be resolved");
-			return;
+		try {
+			std::lock_guard lifecycleLock{ g_lifecycleMutex };
+			if (!g_initialized) {
+				g_initialized = true;
+				// Default-off startup also clears the readiness marker left by an interrupted
+				// previous game session, even when OSF UI is absent.
+				CleanupInbox(LinkDirectory(), {});
+			}
+			if (a_enabled) StartPreviewServiceLocked();
+			else StopPreviewServiceLocked();
+		} catch (const std::exception& e) {
+			REX::ERROR("[Anim] Studio Link lifecycle change failed: {}", e.what());
+		} catch (...) {
+			REX::ERROR("[Anim] Studio Link lifecycle change failed");
 		}
-		std::error_code ec;
-		std::filesystem::create_directories(g_directory, ec);
-		if (ec) {
-			REX::WARN("[Anim] Studio Link unavailable: '{}' could not be created ({})", g_directory.string(), ec.message());
-			return;
-		}
-		g_session = NewSessionToken();
-		const bool helmetAvailable = Suit::Acquire() && Props::PropService::GetSingleton().Available();
-		json session{
-			{ "version", kProtocolVersion }, { "session", g_session }, { "game", "Starfield" },
-			{ "runtime", "OSF Animation" },
-			{ "capabilities", helmetAvailable ? json::array({ "raw-clip.v1", "helmet-preview.v1" }) : json::array({ "raw-clip.v1" }) },
-			{ "components", {
-				{ "osf-animation", "1.5.0 (helmet-preview API v1)" },
-				{ "suit-protocol", helmetAvailable ? "0.1.14+ (helmet-preview API v1)" : "missing/outdated (requires 0.1.14+)" }
-			} }
-		};
-		if (!WriteJson(g_directory / "session.json", session)) {
-			REX::WARN("[Anim] Studio Link unavailable: session file could not be written");
-			return;
-		}
-		static PreviewTickTask tickTask;
-		SFSE::GetTaskInterface()->AddPermanentTask(&tickTask);
-		g_started = true;
-		REX::INFO("[Anim] Studio Link v{} ready at '{}' (helmet preview {})", kProtocolVersion,
-			g_directory.string(), helmetAvailable ? "available" : "unavailable");
-		std::thread(Monitor).detach();
 	}
 }
