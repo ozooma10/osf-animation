@@ -54,4 +54,5 @@ Settings and hotkeys live in OSF UI's in-game settings menu (schema registered o
 - `OSFTest.pex/.psc` — the console smoke-test harness (dev-only; enforced by the script).
 - `ui/animation-browser/` sources and `node_modules` — only the built output under `views/` ships.
 - The `.pdb` by default (opt in with `-IncludePdb`).
-- Anything under `tools/`, `test/`, `packaging/branding` (Nexus page assets — see `packaging/README` material and `nexus-page.bbcode`).
+- Anything under `tools/`, `test/`, `packaging/branding` (Nexus page assets — see
+  [`packaging/nexus-page.bbcode`](../packaging/nexus-page.bbcode)).

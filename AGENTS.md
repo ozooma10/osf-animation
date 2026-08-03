@@ -74,7 +74,7 @@ Each entry: **system** (`path`) — role.
 - **Save-safety** (`src/Serialization/SaveSafety.*`) — `GraphManager::StopAll` drops ALL scene/graph
   state on a world-replacing load (SaveLoadEvent begin sink + TESLoadGameEvent backstop + manual).
 - **Shared persistence** (`src/API/OSFPersistenceAPI.h`, `src/Serialization/Persistence{Broker,Host}.*`) —
-  public C ABI for per-plugin record streams in one atomic `.osf` sidecar (`OSFP` container); deterministic/bounded broker, load remap/delete forwarding, save/load/delete hooks, and internal `OSFA` client. See `docs/RFC-persistence-api.md`.
+  public C ABI for per-plugin record streams in one atomic `.osf` sidecar (`OSFP` container); deterministic/bounded broker, load remap/delete forwarding, save/load/delete hooks, and internal `OSFA` client. See `docs/PERSISTENCE_API.md`.
 - **Startup** (`src/main.cpp`) — logs game-version vs RE build, loads packs+scenes+sound pools, inits
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 
@@ -153,7 +153,7 @@ file). Two rules keep it cohesive:
 - **Tag by subsystem.** Every line starts with one bracketed tag so the log greps cleanly:
   `[Boot] [Feature] [Anim] [Scene] [Registry] [Sound] [Match] [Papyrus] [API] [Audio] [Camera] [Player]
   [Input] [Hotkey] [Equip] [Weapon] [UI] [Save] [Config]`. Don't restate the subsystem in the message text.
-  (`[API]` = the native C++ inter-plugin API in `src/API/`; see docs/RFC-native-api.md.)
+  (`[API]` = the native C++ inter-plugin API in `src/API/`; see `docs/API.md`.)
 
 A dev gets the full firehose without recompiling via the in-game OSF UI settings menu — OSF
 Animation › Logging › Log level → Trace (handled in `src/API/UISettings.cpp`, persists across

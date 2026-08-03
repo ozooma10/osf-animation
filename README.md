@@ -78,8 +78,8 @@ xmake project -k compile_commands
 xmake test
 ```
 
-runs the engine-free C++ suites (persistence broker, frame clock/clip specs, additive pose math,
-sound registry, scene registry). The browser view has its own suite:
+runs the engine-free C++ suites (persistence broker, native scene-event callbacks, frame clock/clip
+specs, additive pose math, sound registry, scene registry). The browser view has its own suite:
 `npm --prefix ui/animation-browser run verify`.
 
 ## Test Harness

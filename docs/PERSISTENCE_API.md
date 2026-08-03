@@ -1,6 +1,6 @@
 # Shared native persistence API
 
-Status: implemented in OSF Animation 1.2.0. Public ABI: `OSFPersistenceAPI` 1.0. Disk format: `OSFP` 1.
+**Status:** Implemented in OSF Animation 1.2.0. Public ABI: `OSFPersistenceAPI` 1.0. Disk format: `OSFP` 1.
 
 ## Purpose and ownership
 

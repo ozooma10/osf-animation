@@ -1,8 +1,6 @@
-> WARNING: This file was AI-generated and is likely incorrect. Treat it as a rough draft, not authoritative documentation.
-
 # OSF APIs
 
-Native SFSE plugins that need per-save records should use the [shared persistence C ABI](RFC-persistence-api.md).
+Native SFSE plugins that need per-save records should use the [shared persistence C ABI](PERSISTENCE_API.md).
 
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —

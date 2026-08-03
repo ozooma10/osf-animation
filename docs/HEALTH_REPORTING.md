@@ -1,27 +1,14 @@
 # Health reporting
 
-**Decision: OSF Animation does not get its own diagnostics page.** It reports into
-OSF UI's **System Health** pane, which every OSF module and every third-party mod
-shares.
+OSF Animation reports durable, actionable issues into OSF UI's shared **System
+Health** pane through native ABI **1.7** (`Feature::kDiagnostics`). The producer
+implementation is `src/API/Health.{h,cpp}`; the host contract is documented in
+`OSF UI/docs/native-plugin-api.md` §5d.
 
-Two health pages would mean a player has to know *which mod broke* before they
-know *where to look* — exactly backwards for diagnostics. System Health also owns
-things Animation cannot see on its own: the host version, the renderer path, view
-load failures, settings parse errors. Animation-specific detail still lives here,
-but as issue records with stable codes and bounded context, not as a second UI.
+Codes are local to the `osf.animation` source. OSF UI exposes them under the
+`osf.animation:<code>` namespace.
 
-The mechanism is OSF UI's native ABI **1.7** (`Feature::kDiagnostics`), added
-2026-07-25. Contract and rules: `OSF UI/docs/native-plugin-api.md` §5d.
-
-## What belongs in the pane
-
-Report only conditions that are **durable** (still true when the player reads the
-card), **actionable** (they can do something, even if that something is "tell the
-author"), and **worth interrupting them for**. Everything else stays in the log.
-
-That test excludes more than it admits, on purpose. A pane full of noise is a
-pane players learn to skip, and the pane's whole promise is that everything on it
-is true right now.
+## Codes
 
 | Condition | Code | Severity | Why it qualifies |
 |---|---|---|---|
@@ -36,7 +23,8 @@ is true right now.
 One card per **file**, not per problem: twelve rejected scenes in one bad pack
 are one thing to fix, and twelve cards would bury every other condition in the
 pane. The card carries the file name, the problem count, and the first four
-lines; anything more is in the log and in `OSF.GetSceneLoadErrors`.
+lines. Complete registry diagnostics stay in the log; scene problems are also
+available from `OSFAdvanced.GetSceneLoadErrors()`.
 
 Deliberately **not** reported:
 
@@ -50,48 +38,15 @@ Deliberately **not** reported:
   OSF UI's own `compat.needs-newer-osfui` producer then raises it, with the
   **Update OSF UI** action already wired. Do not hand-roll a second card for it.
 
-## Slices
+## Producer rules
 
-**Slice 1 — host support (done, 2026-07-25, in the OSF UI repo).** ABI 1.7:
-`ReportIssue` / `ClearIssue` / `ClearIssuesExcept` on `IOSFUIBridge` + `Client`;
-`BridgeApi` validates synchronously and queues, `Runtime::DrainDiagnosticOps`
-applies on the main tick with the source, id and code namespaced to the calling
-mod; the frontend renders an unrecognised third-party code as a card naming that
-mod (`MOD_COPY`) instead of telling the player to update OSF UI, and the rail
-severity marker attributes a mod's own reports by `source`.
-
-**Slice 2 — Animation reports (done, 2026-07-25).** `src/API/Health.{h,cpp}` owns
-the producer side: `Connect` / `Report` / `Clear` / `ReportRegistryLoad`,
-with the mod id baked in so no call site repeats it and
-none has to think about version gating. The vendored `src/API/OSFUI_API.h` is
-refreshed to 1.7. Wired at `main.cpp` (boot version, registry sweep),
-`OSFScript.cpp` (`ReloadPacks` re-reports and reconciles), `WheelPins.cpp`, and
-`FadeService.cpp`. Every site keeps its existing log line — the card is additive.
-`MinimumVersion.cpp` also reports consumer version mismatches and owns their startup HUD warning.
-
-Two things worth knowing before adding a producer:
-
-- **Reports made before the bridge exists are buffered.** The game-version check
-  runs at plugin load, long before `Connect()`; `Health` holds up to 32 ops and
-  replays them in order. Report freely from anywhere.
-- **Registry reconciliation is producer-local.** `ReportRegistryLoad` owns the
-  registry issue ids it publishes and clears only ids that disappear from the
-  next typed registry snapshot. Other producers' cards are never part of that
-  sweep.
-
-**Slice 3 — copy.** Once the codes are live and stable, OSF UI can graduate the
-common ones from the generic mod card to authored, localizable copy in
-`frontend/src/lib/settings/diagnostics.ts` (`COPY`), keyed on the namespaced code
-(e.g. `osf.animation:catalog.pack-load`). Not required — the generic card is a
-complete, honest fallback — but it is what turns "OSF Animation reported a
-problem" into "A scene pack could not be read".
-
-## Rules that are not negotiable
-
+- Report only conditions that are durable, actionable, and worth interrupting
+  the player for. Keep the existing log line; the card is additive.
+- Reports made before the bridge exists are buffered and replayed by `Connect()`.
+- `ReportRegistryLoad()` reconciles only the registry issue IDs it owns; it does
+  not clear cards raised by other producers.
 - **Never put player-facing prose in a report.** The `code` is machine-readable;
-  OSF UI owns the wording so it stays localizable and no mod can write the words
-  on its own card. If a condition needs explaining, the explanation goes in
-  slice 3, not in the payload.
+  OSF UI owns the localizable wording.
 - **Never pass an absolute path in `context`.** It identifies the player's
   machine and account. The host redacts path-shaped values to their trailing
   component anyway — pass the bare filename yourself and keep the report honest.

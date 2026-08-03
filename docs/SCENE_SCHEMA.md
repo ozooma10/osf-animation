@@ -1,5 +1,3 @@
-> WARNING: This file was AI-generated and is likely incorrect. Treat it as a rough draft, not authoritative documentation.
-
 # OSF scene schema (`*.osf.json`)
 
 OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. An `*.osf.json`
@@ -1109,4 +1107,3 @@ can join them without another schema layer (the shipped set lives in `Data/OSF/i
 |-----|-------------|----------|
 | `player.emote.<name>` | Browse as an Action and the default Quick Access wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the Action's `name` is the wheel slice label. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
 | `immersion` | — | Umbrella tag for the shipped immersion pack; free for browsing/filtering. |
-

@@ -1,5 +1,3 @@
-> WARNING: This file was AI-generated and is likely incorrect. Treat it as a rough draft, not authoritative documentation.
-
 # Getting started with OSF
 
 Two kinds of mods build on OSF:
