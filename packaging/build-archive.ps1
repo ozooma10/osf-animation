@@ -92,6 +92,7 @@ if ($CompilePapyrus) {
     $pc = 'C:\Program Files (x86)\Steam\steamapps\common\Starfield\Tools\Papyrus Compiler\PapyrusCompiler.exe'
     if (-not (Test-Path $pc)) { Die "-CompilePapyrus: compiler not found at $pc" }
     Step 'Compiling Papyrus (dist/Scripts/Source -> dist/Scripts)'
+    # Keep these options aligned with AGENTS.md and .vscode/tasks.json so every path emits the same bytecode.
     & $pc (Join-Path $repo 'dist\Scripts\Source') `
         -i="$repo\dist\Scripts\Source;C:\Modding\Starfield\PapyrusSource" `
         -o="$repo\dist\Scripts" -f='C:\Modding\Starfield\PapyrusSource\Starfield_Papyrus_Flags.flg' -all

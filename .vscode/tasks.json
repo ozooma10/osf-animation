@@ -7,11 +7,10 @@
       "command": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Starfield\\Tools\\Papyrus Compiler\\PapyrusCompiler.exe",
       "args": [
         "${workspaceFolder}\\dist\\Scripts\\Source",
-        "-all",
-        "-import=${workspaceFolder}\\dist\\Scripts\\Source;C:\\Modding\\Starfield\\PapyrusSource",
-        "-output=${workspaceFolder}\\dist\\Scripts",
-        "-flags=Starfield_Papyrus_Flags.flg",
-        "-optimize"
+        "-i=${workspaceFolder}\\dist\\Scripts\\Source;C:\\Modding\\Starfield\\PapyrusSource",
+        "-o=${workspaceFolder}\\dist\\Scripts",
+        "-f=C:\\Modding\\Starfield\\PapyrusSource\\Starfield_Papyrus_Flags.flg",
+        "-all"
       ],
       "group": "build",
       "presentation": {

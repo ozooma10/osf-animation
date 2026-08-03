@@ -13,6 +13,15 @@ voice/sound, camera hold);
   frame clock/clip specs, additive pose math, sound registry, scene registry — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
+- **UI dependency:** `ui/animation-browser` intentionally resolves `@osfui/cli` from
+  `file:../../../OSF UI/packages/cli`. Check out the OSF UI repository beside this repository, with
+  the directory names unchanged, before running `npm ci` or any UI script:
+  ```text
+  parent/
+  ├── OSF Animation/
+  └── OSF UI/
+      └── packages/cli/
+  ```
 - **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see
   `docs/PACKAGING.md`). Output: `packaging\out\OSF Animation v<version>.zip`.
 - **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): recompile after editing a `.psc`, THEN `xmake`
@@ -21,6 +30,7 @@ voice/sound, camera hold);
   static function on linked type OSF. Function will not be bound.` Compile with the CK Papyrus
   compiler (`OSFTypes.psc` sits in the import path so `OSFTypes:*` signatures resolve):
   ```powershell
+  # Canonical invocation; keep it aligned with .vscode/tasks.json and the packager.
   & "C:\Program Files (x86)\Steam\steamapps\common\Starfield\Tools\Papyrus Compiler\PapyrusCompiler.exe" `
     "dist\Scripts\Source" `
     -i="dist\Scripts\Source;C:\Modding\Starfield\PapyrusSource" `
