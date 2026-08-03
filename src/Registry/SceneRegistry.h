@@ -368,7 +368,7 @@ namespace OSF::Registry
 	};
 
 	// A structured view of one legacy load-error line. `message` remains the exact text published
-	// through OSF.GetSceneLoadErrors(); the remaining fields let the browser explain and group it
+	// through OSFAdvanced.GetSceneLoadErrors(); the remaining fields let the browser explain and group it
 	// without reverse-engineering prose. Fields are additive and may be empty when not applicable.
 	struct SceneImportProblem
 	{
@@ -490,7 +490,7 @@ namespace OSF::Registry
 
 		size_t Size() const;
 
-		// Problems (errors + warnings) from the last LoadAll, for OSF.GetSceneLoadErrors().
+		// Problems (errors + warnings) from the last LoadAll, for OSFAdvanced.GetSceneLoadErrors().
 		std::vector<std::string> LoadErrors() const;
 
 		// Per-file import records from the last LoadAll, sorted by path (see SceneFileStats).

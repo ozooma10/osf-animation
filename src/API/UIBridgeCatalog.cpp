@@ -515,7 +515,7 @@ namespace OSF::API::UIBridgeCatalog
 	}
 
 	// At most this many problem lines travel per file. The full set stays in the log and in
-	// OSF.GetSceneLoadErrors(); a pack with 300 bad scenes must not turn one reply into a
+	// OSFAdvanced.GetSceneLoadErrors(); a pack with 300 bad scenes must not turn one reply into a
 	// megabyte of text the panel cannot render anyway. The counts are always exact.
 	constexpr std::size_t kMaxProblemsPerFile = 12;
 

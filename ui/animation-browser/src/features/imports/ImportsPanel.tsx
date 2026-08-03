@@ -105,7 +105,7 @@ function Detail({ file }: { file: ImportFile }) {
         </li>;
       })}
       {hiddenProblems > 0 && <li class="imp-problem more mono">
-        + {hiddenProblems} more available through COPY REPORT and OSF.GetSceneLoadErrors()
+        + {hiddenProblems} more available through COPY REPORT and OSFAdvanced.GetSceneLoadErrors()
       </li>}
     </ul>}
   </div>;

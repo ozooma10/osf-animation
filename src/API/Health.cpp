@@ -194,7 +194,7 @@ namespace OSF::API::Health
 
 		// `context` is capped at 8 entries and 240 chars per value by the host,
 		// so the card shows the first few problems and says how many there were.
-		// Someone who needs all of them has the log and OSF.GetSceneLoadErrors.
+		// Someone who needs all of them has the log and OSFAdvanced.GetSceneLoadErrors.
 		constexpr std::size_t kShownProblems = 4;
 		const auto            buildContext = [](const std::vector<std::string>& a_lines, const std::string& a_file) {
 			json context = json::object();
