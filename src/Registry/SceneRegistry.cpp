@@ -1990,391 +1990,351 @@ namespace OSF::Registry
 			return def;
 		}
 
-		struct PendingImportProblem
+		struct OsfFileDefaults
 		{
-			std::filesystem::path owner;
-			bool                  warning = false;
-			std::string           code;
-			std::string           hint;
-			std::string           scene;
-			std::string           node;
-			std::string           role;
-			std::string           clip;
+			bool                       library = false;
+			std::string                packName;
+			std::string                folder;
+			PackDefaults               scene;
+			std::string                clipRoot;
+			std::optional<CameraState> camera = CameraState::kSceneOrbit;
 		};
 
-		// Load problems remain plain strings for the stable Papyrus API, with structured metadata in
-		// a parallel vector for the Imports panel. Every producer names its owner and repair category
-		// here, so the view never has to infer meaning from prose.
-		struct ProblemSink
+		struct OsfFileContents
 		{
-			std::vector<std::string>&          lines;
-			std::vector<PendingImportProblem>& records;
-
-			void Push(std::string a_line, const std::filesystem::path& a_owner,
-				std::string a_code, std::string a_hint = {}, std::string a_scene = {},
-				std::string a_node = {}, std::string a_role = {}, std::string a_clip = {})
-			{
-				const bool warning = a_line.starts_with("[warn]");
-				lines.push_back(std::move(a_line));
-				records.push_back(PendingImportProblem{
-					a_owner, warning, std::move(a_code), std::move(a_hint), std::move(a_scene),
-					std::move(a_node), std::move(a_role), std::move(a_clip)
-				});
-			}
-		};
-		void LoadOsfFile(const json& a_json, const std::filesystem::path& a_file,
-			std::unordered_map<std::string, SceneDef>& a_out, std::vector<ClipLibraryRegistration>& a_clipLibrary,
-			SceneLoadBudget& a_budget, ProblemSink& a_problems)
-		{
-			const std::string fileName = a_file.filename().string();
-
-			// One reject shape for every whole-file failure: the author-visible LoadError (Health
-			// parses the "[error] '<file>'" prefix) plus the log line. The caller still `return`s.
-			const auto rejectFile = [&](const std::string& a_what, std::string a_code = "file-invalid",
-				std::string a_hint = "Fix the named file field, then reload packs.") {
-				a_problems.Push("[error] " + a_what, a_file, std::move(a_code), std::move(a_hint));
-				REX::ERROR("[Registry] {} — skipped", a_what);
-			};
-
-			const auto it = a_json.find("schema");
-			if (it == a_json.end() || !it->is_number_integer()) {
-				rejectFile("'" + fileName + "': missing/non-integer 'schema'");
-				return;
-			}
-			const auto schema = it->get<std::int64_t>();
-			if (schema != kSchemaVersion) {
-				rejectFile("'" + fileName + "': *.osf.json schema " + std::to_string(schema) +
-					" unsupported (expected " + std::to_string(kSchemaVersion) + ")");
-				return;
-			}
-
-			// File-level catalog lane. "library" = reference content (the generated vanilla packs):
-			bool library = false;
-			if (const auto secIt = a_json.find("section"); secIt != a_json.end()) {
-				const std::string section = secIt->is_string() ? ToLower(secIt->get<std::string>()) : std::string{};
-				if (section == "library") {
-					library = true;
-				} else {
-					rejectFile("'" + fileName + "': unknown 'section' value (supported: 'library')");
-					return;
-				}
-			}
-
-			// Optional content-pack label: the browser groups scenes under it, so a pack spanning
-			// many files (one per furniture, say) still reads as ONE collapsible entry. File-level
-			// only — every scene in the file inherits it; absent = the browser falls back to grouping
-			// by the file itself.
-			std::string packName;
-			if (const auto pit = a_json.find("pack"); pit != a_json.end()) {
-				if (!pit->is_string()) {
-					rejectFile("'" + fileName + "': 'pack' must be a string");
-					return;
-				}
-				packName = pit->get<std::string>();
-			}
-			std::string folderDefault;
-			if (const auto fit = a_json.find("folder"); fit != a_json.end()) {
-				try {
-					folderDefault = ParseCatalogFolder(*fit, "'" + fileName + "'");
-				} catch (const std::exception& e) {
-					rejectFile(e.what());
-					return;
-				}
-			}
-
-			// File-level policy booleans, type-checked up front: value() throws on a wrong-typed
-			// field, which used to reject the file with an unlabeled "parse failed" instead of
-			// naming the key the author typo'd.
-			for (const char* key : { "lockPlayer", "stripActors", "clearHeldItems", "fade", "unlisted", "inPlace" }) {
-				if (const auto bit = a_json.find(key); bit != a_json.end() && !bit->is_boolean()) {
-					rejectFile("'" + fileName + "': '" + std::string(key) + "' must be true or false");
-					return;
-				}
-			}
-			PackDefaults packDefaults;
-			packDefaults.lockPlayer = a_json.value("lockPlayer", true);
-			// Library packs default to NO strip
-			packDefaults.stripActors = a_json.value("stripActors", !library);
-			packDefaults.clearHeldItems = a_json.value("clearHeldItems", true);
-			packDefaults.fade = a_json.value("fade", false);
-			packDefaults.unlisted = a_json.value("unlisted", false);
-			// Pack-level `inPlace:true` = every scene plays on the actors where they stand (no teleport,
-			// no per-frame root/heading pin) — the emote-pack posture; scenes may override per-scene.
-			packDefaults.inPlace = a_json.value("inPlace", false);
-			// Pack-level `playerControl` seeds every scene's director-input grant — `false` revokes input
-			// across the whole file (the route-pack posture), an object narrows it pack-wide. Scenes
-			// override/narrow further per-scene.
-			if (const auto pcit = a_json.find("playerControl"); pcit != a_json.end()) {
-				try {
-					ApplyPlayerControl(*pcit, packDefaults.playerControl, "'" + fileName + "'");
-				} catch (const std::exception& e) {
-					rejectFile(e.what());
-					return;
-				}
-			}
-			// Pack-level matchmaking defaults: a tier/weight every scene shares, and tags every scene
-			// carries (UNION-ed with each scene's own, never replaced).
-			if (const auto prit = a_json.find("priority"); prit != a_json.end()) {
-				if (!prit->is_number_integer()) {
-					rejectFile("'" + fileName + "': 'priority' must be an integer");
-					return;
-				}
-				packDefaults.priority = prit->get<std::int32_t>();
-			}
-			if (const auto wit = a_json.find("weight"); wit != a_json.end()) {
-				const auto w = wit->is_number_integer() ? wit->get<std::int64_t>() : 0;
-				if (w < 1 || w > 1000000) {
-					rejectFile("'" + fileName + "': 'weight' must be an integer in [1, 1000000]");
-					return;
-				}
-				packDefaults.weight = static_cast<std::int32_t>(w);
-			}
-			if (const auto tit = a_json.find("tags"); tit != a_json.end()) {
-				if (!tit->is_array()) {
-					rejectFile("'" + fileName + "': 'tags' must be an array of strings");
-					return;
-				}
-				for (const auto& t : *tit) {
-					if (!t.is_string()) {
-						rejectFile("'" + fileName + "': 'tags' entries must be strings");
-						return;
-					}
-					packDefaults.tags.push_back(t.get<std::string>());
-				}
-			}
-			std::string packClipRoot;
-			if (auto crit = a_json.find("clipRoot"); crit != a_json.end()) {
-				if (!crit->is_string()) {
-					rejectFile("'" + fileName + "': 'clipRoot' must be a string");
-					return;
-				}
-				try {
-					packClipRoot = NormalizeClipRoot(crit->get<std::string>(), "'" + fileName + "'");
-				} catch (const std::exception& e) {
-					rejectFile(e.what());
-					return;
-				}
-			}
-
-			// Pack-level default camera: "camera": "<state>" attaches that posture to each scene's
-			// entry node (unless that node already declares its own camera track). The default orbit
-			// bootstraps native TFC's close-actor renderer policy, then hands transform control to OSF
-			// for automatic cast framing and orbit input. Pure native freefly remains author-selectable.
-			std::optional<CameraState> cameraDefault = CameraState::kSceneOrbit;
-			if (const auto cit = a_json.find("camera"); cit != a_json.end()) {
-				if (!cit->is_string()) {
-					rejectFile("'" + fileName + "': 'camera' must be a string");
-					return;
-				}
-				const auto parsed = ParseCameraState(cit->get<std::string>());
-				if (!parsed) {
-					rejectFile("'" + fileName + "': unknown camera state '" + cit->get<std::string>() +
-						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit', 'none')");
-					return;
-				}
-				// "none" opts a pack out of the default camera override entirely.
-				cameraDefault = *parsed == CameraState::kNone ? std::optional<CameraState>{} : parsed;
-			}
-
-		// A file holds a single bare scene, or { schema, scenes: [...] }. In the multi-scene form the
-		// file-level `roles` is interpreted BY JSON TYPE: an ARRAY is a PACK default inherited by every
-		// scene that omits its own `roles`; an OBJECT is a file-local registry of reusable role
-		// templates a scene's `roles` references by id (string or { "id", ...overrides } — never a
-		// default cast). (A bare file's top-level `roles` is just that one scene's roles, parsed by
-		// ParseOsfScene.)
 			std::vector<const json*> sceneJsons;
 			std::vector<SceneRole>   packRoles;
-			RoleRegistry             roleRegistry;  // multi-scene envelope, object-form `roles` only
-			PropRegistry             propRegistry;  // file-level `props`, BOTH file shapes (see below)
-			AnchorReq                packAnchor;    // file-level `anchor` default (multi-scene envelope only)
+			RoleRegistry             roles;
+			PropRegistry             props;
+			AnchorReq                anchor;
+		};
 
-			// File-local prop templates, parsed BEFORE the envelope/bare split so `props` means the same
-			// thing in either file shape. (`roles` is envelope-only because a bare file's top-level
-			// `roles` already means "this scene's cast", and the object form is loudly rejected there.
-			// `props` has no scene-level meaning to collide with, so the restriction would buy nothing
-			// and would silently drop the block in a bare file — exactly the failure this feature exists
-			// to remove.) Every template is validated NOW: a malformed one rejects the WHOLE file, as
-			// with the roles registry, because a broken shared definition is a pack-level authoring bug,
-			// not one scene's problem.
-			if (auto pit = a_json.find("props"); pit != a_json.end()) {
-				if (!pit->is_object()) {
-					rejectFile("'" + fileName + "': 'props' must be an object of prop templates keyed by id");
-					return;
+		struct FileRejector
+		{
+			const std::filesystem::path& file;
+			ProblemSink&                 problems;
+
+			void operator()(const std::string& a_what, std::string a_code = "file-invalid",
+				std::string a_hint = "Fix the named file field, then reload packs.") const
+			{
+				problems.Push("[error] " + a_what, file, std::move(a_code), std::move(a_hint));
+				REX::ERROR("[Registry] {} — skipped", a_what);
+			}
+		};
+
+		bool ParseOsfFileDefaults(const json& a_json, const std::string& a_fileName,
+			const FileRejector& a_reject, OsfFileDefaults& a_out)
+		{
+			const auto schemaIt = a_json.find("schema");
+			if (schemaIt == a_json.end() || !schemaIt->is_number_integer()) {
+				a_reject("'" + a_fileName + "': missing/non-integer 'schema'");
+				return false;
+			}
+			const auto schema = schemaIt->get<std::int64_t>();
+			if (schema != kSchemaVersion) {
+				a_reject("'" + a_fileName + "': *.osf.json schema " + std::to_string(schema) +
+					" unsupported (expected " + std::to_string(kSchemaVersion) + ")");
+				return false;
+			}
+
+			if (const auto sectionIt = a_json.find("section"); sectionIt != a_json.end()) {
+				const std::string section = sectionIt->is_string()
+				                              ? ToLower(sectionIt->get<std::string>())
+				                              : std::string{};
+				if (section == "library") {
+					a_out.library = true;
+				} else {
+					a_reject("'" + a_fileName + "': unknown 'section' value (supported: 'library')");
+					return false;
 				}
-				if (pit->size() > kMaxPropsPerFile) {
-					rejectFile("'" + fileName + "': file-level props exceed the " +
+			}
+
+			if (const auto packIt = a_json.find("pack"); packIt != a_json.end()) {
+				if (!packIt->is_string()) {
+					a_reject("'" + a_fileName + "': 'pack' must be a string");
+					return false;
+				}
+				a_out.packName = packIt->get<std::string>();
+			}
+			if (const auto folderIt = a_json.find("folder"); folderIt != a_json.end()) {
+				try {
+					a_out.folder = ParseCatalogFolder(*folderIt, "'" + a_fileName + "'");
+				} catch (const std::exception& e) {
+					a_reject(e.what());
+					return false;
+				}
+			}
+
+			for (const char* key : { "lockPlayer", "stripActors", "clearHeldItems", "fade", "unlisted", "inPlace" }) {
+				if (const auto value = a_json.find(key); value != a_json.end() && !value->is_boolean()) {
+					a_reject("'" + a_fileName + "': '" + std::string(key) + "' must be true or false");
+					return false;
+				}
+			}
+			a_out.scene.lockPlayer = a_json.value("lockPlayer", true);
+			a_out.scene.stripActors = a_json.value("stripActors", !a_out.library);
+			a_out.scene.clearHeldItems = a_json.value("clearHeldItems", true);
+			a_out.scene.fade = a_json.value("fade", false);
+			a_out.scene.unlisted = a_json.value("unlisted", false);
+			a_out.scene.inPlace = a_json.value("inPlace", false);
+			if (const auto controlIt = a_json.find("playerControl"); controlIt != a_json.end()) {
+				try {
+					ApplyPlayerControl(*controlIt, a_out.scene.playerControl, "'" + a_fileName + "'");
+				} catch (const std::exception& e) {
+					a_reject(e.what());
+					return false;
+				}
+			}
+
+			if (const auto priorityIt = a_json.find("priority"); priorityIt != a_json.end()) {
+				if (!priorityIt->is_number_integer()) {
+					a_reject("'" + a_fileName + "': 'priority' must be an integer");
+					return false;
+				}
+				a_out.scene.priority = priorityIt->get<std::int32_t>();
+			}
+			if (const auto weightIt = a_json.find("weight"); weightIt != a_json.end()) {
+				const auto weight = weightIt->is_number_integer() ? weightIt->get<std::int64_t>() : 0;
+				if (weight < 1 || weight > 1000000) {
+					a_reject("'" + a_fileName + "': 'weight' must be an integer in [1, 1000000]");
+					return false;
+				}
+				a_out.scene.weight = static_cast<std::int32_t>(weight);
+			}
+			if (const auto tagsIt = a_json.find("tags"); tagsIt != a_json.end()) {
+				if (!tagsIt->is_array()) {
+					a_reject("'" + a_fileName + "': 'tags' must be an array of strings");
+					return false;
+				}
+				for (const auto& tag : *tagsIt) {
+					if (!tag.is_string()) {
+						a_reject("'" + a_fileName + "': 'tags' entries must be strings");
+						return false;
+					}
+					a_out.scene.tags.push_back(tag.get<std::string>());
+				}
+			}
+			if (const auto rootIt = a_json.find("clipRoot"); rootIt != a_json.end()) {
+				if (!rootIt->is_string()) {
+					a_reject("'" + a_fileName + "': 'clipRoot' must be a string");
+					return false;
+				}
+				try {
+					a_out.clipRoot = NormalizeClipRoot(rootIt->get<std::string>(), "'" + a_fileName + "'");
+				} catch (const std::exception& e) {
+					a_reject(e.what());
+					return false;
+				}
+			}
+
+			if (const auto cameraIt = a_json.find("camera"); cameraIt != a_json.end()) {
+				if (!cameraIt->is_string()) {
+					a_reject("'" + a_fileName + "': 'camera' must be a string");
+					return false;
+				}
+				const auto parsed = ParseCameraState(cameraIt->get<std::string>());
+				if (!parsed) {
+					a_reject("'" + a_fileName + "': unknown camera state '" + cameraIt->get<std::string>() +
+						"' (supported: 'thirdperson_hold', 'freefly', 'vanity_orbit', 'scene_orbit', 'none')");
+					return false;
+				}
+				a_out.camera = *parsed == CameraState::kNone ? std::optional<CameraState>{} : parsed;
+			}
+			return true;
+		}
+
+		bool ParseOsfFileContents(const json& a_json, const std::string& a_fileName,
+			const FileRejector& a_reject, OsfFileContents& a_out)
+		{
+			if (const auto propsIt = a_json.find("props"); propsIt != a_json.end()) {
+				if (!propsIt->is_object()) {
+					a_reject("'" + a_fileName + "': 'props' must be an object of prop templates keyed by id");
+					return false;
+				}
+				if (propsIt->size() > kMaxPropsPerFile) {
+					a_reject("'" + a_fileName + "': file-level props exceed the " +
 						std::to_string(kMaxPropsPerFile) + "-entry limit");
-					return;
+					return false;
 				}
-				for (const auto& [propId, propJson] : pit->items()) {
+				for (const auto& [propId, propJson] : propsIt->items()) {
 					if (propId.empty() || !propJson.is_object()) {
-						rejectFile("'" + fileName + "': props registry entry '" + propId +
+						a_reject("'" + a_fileName + "': props registry entry '" + propId +
 							"': definitions must be prop objects keyed by a non-empty id");
-						return;
+						return false;
 					}
 					try {
 						ValidatePropTemplate(propJson, "props template '" + propId + "'");
 					} catch (const std::exception& e) {
-						rejectFile("'" + fileName + "': " + std::string(e.what()));
-						return;
+						a_reject("'" + a_fileName + "': " + std::string(e.what()));
+						return false;
 					}
-					propRegistry.emplace(propId, propJson);
+					a_out.props.emplace(propId, propJson);
 				}
 			}
 
-			if (auto sit = a_json.find("scenes"); sit != a_json.end()) {
-				if (!sit->is_array()) {
-					rejectFile("'" + fileName + "': 'scenes' must be an array");
-					return;
+			if (const auto scenesIt = a_json.find("scenes"); scenesIt != a_json.end()) {
+				if (!scenesIt->is_array()) {
+					a_reject("'" + a_fileName + "': 'scenes' must be an array");
+					return false;
 				}
-				if (sit->size() > kMaxScenesPerFile) {
-					rejectFile("'" + fileName + "': contains more than " + std::to_string(kMaxScenesPerFile) + " scenes");
-					return;
+				if (scenesIt->size() > kMaxScenesPerFile) {
+					a_reject("'" + a_fileName + "': contains more than " +
+						std::to_string(kMaxScenesPerFile) + " scenes");
+					return false;
 				}
 				try {
-					packAnchor = ParseAnchorBlock(a_json, "'" + fileName + "' file-level anchor");
+					a_out.anchor = ParseAnchorBlock(a_json, "'" + a_fileName + "' file-level anchor");
 				} catch (const std::exception& e) {
-					rejectFile(e.what());
-					return;
+					a_reject(e.what());
+					return false;
 				}
-				if (auto rit = a_json.find("roles"); rit != a_json.end()) {
-					if ((rit->is_array() || rit->is_object()) && rit->size() > kMaxRolesPerFile) {
-						rejectFile("'" + fileName + "': file-level roles exceed the " +
+				if (const auto rolesIt = a_json.find("roles"); rolesIt != a_json.end()) {
+					if ((rolesIt->is_array() || rolesIt->is_object()) && rolesIt->size() > kMaxRolesPerFile) {
+						a_reject("'" + a_fileName + "': file-level roles exceed the " +
 							std::to_string(kMaxRolesPerFile) + "-entry limit");
-						return;
+						return false;
 					}
-					if (rit->is_array()) {
+					if (rolesIt->is_array()) {
 						try {
-							for (const auto& jRole : *rit) {
-								packRoles.push_back(ParseRole(jRole, "<pack:" + fileName + ">"));
+							for (const auto& roleJson : *rolesIt) {
+								a_out.packRoles.push_back(ParseRole(roleJson, "<pack:" + a_fileName + ">"));
 							}
 						} catch (const std::exception& e) {
-							rejectFile("'" + fileName + "': pack-level roles: " + std::string(e.what()));
-							return;
+							a_reject("'" + a_fileName + "': pack-level roles: " + std::string(e.what()));
+							return false;
 						}
-				} else if (rit->is_object()) {
-					// Roles registry: parse every template now (a malformed one rejects the whole
-					// file, unlike a bad scene-level reference which rejects only that scene). A
-					// template omitting `name` defaults its runtime name to the registry id — in the
-					// raw JSON too, so an object override inherits (or explicitly clears) it.
-					for (const auto& [roleId, roleJson] : rit->items()) {
-						if (roleId.empty() || !roleJson.is_object()) {
-							rejectFile("'" + fileName + "': roles registry entry '" + roleId +
-								"': definitions must be role objects keyed by a non-empty id");
-							return;
-						}
-						try {
-							RoleTemplate templ;
-							templ.raw = roleJson;
-							templ.parsed = ParseRole(roleJson, "<pack:" + fileName + ">");
-							if (!roleJson.contains("name")) {
-								templ.parsed.name = roleId;
-								templ.raw["name"] = roleId;
+					} else if (rolesIt->is_object()) {
+						for (const auto& [roleId, roleJson] : rolesIt->items()) {
+							if (roleId.empty() || !roleJson.is_object()) {
+								a_reject("'" + a_fileName + "': roles registry entry '" + roleId +
+									"': definitions must be role objects keyed by a non-empty id");
+								return false;
 							}
-							roleRegistry.emplace(roleId, std::move(templ));
-						} catch (const std::exception& e) {
-							rejectFile("'" + fileName + "': roles registry entry '" + roleId + "': " + std::string(e.what()));
-							return;
+							try {
+								RoleTemplate role;
+								role.raw = roleJson;
+								role.parsed = ParseRole(roleJson, "<pack:" + a_fileName + ">");
+								if (!roleJson.contains("name")) {
+									role.parsed.name = roleId;
+									role.raw["name"] = roleId;
+								}
+								a_out.roles.emplace(roleId, std::move(role));
+							} catch (const std::exception& e) {
+								a_reject("'" + a_fileName + "': roles registry entry '" + roleId +
+									"': " + std::string(e.what()));
+								return false;
+							}
 						}
-					}
-				} else {
-						rejectFile("'" + fileName +
+					} else {
+						a_reject("'" + a_fileName +
 							"': file-level 'roles' must be an array (default cast) or an object (roles registry)");
-						return;
+						return false;
 					}
 				}
-				for (const auto& s : *sit) {
-					// `props` is file-level only. Unknown keys are otherwise ignored throughout this
-					// parser, but a silently-dropped scene-level registry would leave every attach in
-					// that scene failing on a missing `source` — so say so instead.
-					if (s.is_object() && s.contains("props")) {
-						// Type-guarded id read: value() throws on a present-but-non-string "id", and
-						// nothing catches that here — it would surface as a bogus "parse failed" JSON
-						// diagnostic instead of this message.
-						const auto idIt = s.find("id");
-						const std::string sid = idIt != s.end() && idIt->is_string() ? idIt->get<std::string>() : std::string{};
-						rejectFile("'" + fileName + "': scene '" + sid +
+				for (const auto& scene : *scenesIt) {
+					if (scene.is_object() && scene.contains("props")) {
+						const auto idIt = scene.find("id");
+						const std::string id = idIt != scene.end() && idIt->is_string()
+						                         ? idIt->get<std::string>()
+						                         : std::string{};
+						a_reject("'" + a_fileName + "': scene '" + id +
 							"': 'props' is a file-level registry — move it beside 'scenes'");
-						return;
+						return false;
 					}
-					sceneJsons.push_back(&s);
+					a_out.sceneJsons.push_back(&scene);
 				}
 			} else if (a_json.contains("id")) {
-				sceneJsons.push_back(&a_json);  // bare single-scene file
+				a_out.sceneJsons.push_back(&a_json);
 			} else if (!a_json.contains("clipLibrary")) {
-				rejectFile("'" + fileName + "': expected a bare scene 'id', 'scenes', or 'clipLibrary'");
-				return;
+				a_reject("'" + a_fileName + "': expected a bare scene 'id', 'scenes', or 'clipLibrary'");
+				return false;
 			}
+			return true;
+		}
 
+		bool AppendClipLibrary(const json& a_json, const std::filesystem::path& a_file,
+			const OsfFileDefaults& a_defaults, SceneLoadBudget& a_budget,
+			std::vector<ClipLibraryRegistration>& a_out, const FileRejector& a_reject)
+		{
 			try {
-				auto registrations = ParseClipLibrary(a_json, a_file, packName, packClipRoot, folderDefault);
+				auto registrations = ParseClipLibrary(a_json, a_file, a_defaults.packName,
+					a_defaults.clipRoot, a_defaults.folder);
 				if (registrations.size() > kMaxClipLibraryEntriesTotal - a_budget.clipLibraryEntries) {
-					rejectFile("'" + fileName + "': aggregate clipLibrary entry limit would be exceeded");
-					return;
+					a_reject("'" + a_file.filename().string() +
+						"': aggregate clipLibrary entry limit would be exceeded");
+					return false;
 				}
-				const auto registrationCount = registrations.size();
-				a_clipLibrary.insert(a_clipLibrary.end(),
-					std::make_move_iterator(registrations.begin()), std::make_move_iterator(registrations.end()));
-				a_budget.clipLibraryEntries += registrationCount;
+				const auto count = registrations.size();
+				a_out.insert(a_out.end(), std::make_move_iterator(registrations.begin()),
+					std::make_move_iterator(registrations.end()));
+				a_budget.clipLibraryEntries += count;
+				return true;
 			} catch (const std::exception& e) {
-				rejectFile(e.what());
-				return;
+				a_reject(e.what());
+				return false;
 			}
+		}
 
-			for (const auto* sj : sceneJsons) {
+		void LoadOsfScenes(const OsfFileContents& a_contents, const OsfFileDefaults& a_defaults,
+			const std::filesystem::path& a_file, std::unordered_map<std::string, SceneDef>& a_out,
+			SceneLoadBudget& a_budget, ProblemSink& a_problems)
+		{
+			const std::string fileName = a_file.filename().string();
+			for (const auto* sceneJson : a_contents.sceneJsons) {
 				std::vector<std::string> warnings;
-				const std::string authoredId = sj->is_object() && sj->contains("id") && (*sj)["id"].is_string()
-				                               ? (*sj)["id"].get<std::string>()
-				                               : std::string{};
+				const std::string authoredId = sceneJson->is_object() && sceneJson->contains("id") &&
+					(*sceneJson)["id"].is_string() ? (*sceneJson)["id"].get<std::string>() : std::string{};
 				try {
-					auto def = ParseOsfScene(*sj, warnings, packDefaults, cameraDefault,
-						packRoles, roleRegistry, propRegistry, packClipRoot, packAnchor);
-					if (def.nodes.size() > kMaxNodesPerScene) {
-						throw std::runtime_error("scene '" + def.id + "': too many nodes");
+					auto definition = ParseOsfScene(*sceneJson, warnings, a_defaults.scene, a_defaults.camera,
+						a_contents.packRoles, a_contents.roles, a_contents.props,
+						a_defaults.clipRoot, a_contents.anchor);
+					if (definition.nodes.size() > kMaxNodesPerScene) {
+						throw std::runtime_error("scene '" + definition.id + "': too many nodes");
 					}
 					std::size_t stageCount = 0;
 					std::size_t clipCount = 0;
-					for (const auto& node : def.nodes) {
+					for (const auto& node : definition.nodes) {
 						stageCount += node.stages.size();
 						for (const auto& stage : node.stages) {
 							clipCount += stage.clips.size();
 						}
 					}
 					if (stageCount > kMaxStagesPerScene || clipCount > kMaxClipsPerScene) {
-						throw std::runtime_error("scene '" + def.id + "': stage/clip limit exceeded");
+						throw std::runtime_error("scene '" + definition.id + "': stage/clip limit exceeded");
 					}
-					def.sourceFile = a_file;
-					def.pack = packName;
-					def.folder = folderDefault;
-					def.library = library;
-					auto key = ToLower(def.id);
-					if (const auto f = a_out.find(key); f != a_out.end()) {
-						a_problems.Push("[error] duplicate scene id '" + def.id + "' in '" + fileName +
-							"' (already from '" + f->second.sourceFile.filename().string() + "') — keeping the first",
-							a_file, "duplicate-scene-id", "Rename this scene id or remove the duplicate; OSF keeps the first definition.",
-							def.id);
+					definition.sourceFile = a_file;
+					definition.pack = a_defaults.packName;
+					definition.folder = a_defaults.folder;
+					definition.library = a_defaults.library;
+					auto key = ToLower(definition.id);
+					if (const auto found = a_out.find(key); found != a_out.end()) {
+						a_problems.Push("[error] duplicate scene id '" + definition.id + "' in '" + fileName +
+							"' (already from '" + found->second.sourceFile.filename().string() + "') — keeping the first",
+							a_file, "duplicate-scene-id",
+							"Rename this scene id or remove the duplicate; OSF keeps the first definition.", definition.id);
 						REX::ERROR("[Registry] duplicate scene id '{}' in '{}' — keeping first from '{}'",
-							def.id, fileName, f->second.sourceFile.filename().string());
+							definition.id, fileName, found->second.sourceFile.filename().string());
 						continue;
 					}
 					if (a_budget.scenes >= kMaxScenesTotal ||
-						def.nodes.size() > kMaxNodesTotal - a_budget.nodes ||
+						definition.nodes.size() > kMaxNodesTotal - a_budget.nodes ||
 						stageCount > kMaxStagesTotal - a_budget.stages ||
 						clipCount > kMaxClipsTotal - a_budget.clips) {
 						a_problems.Push("[error] scene registry aggregate scene/node/stage/clip limit reached — remaining scenes skipped",
-							a_file, "registry-limit", "Reduce the installed scene content below the registry limits, then reload packs.",
-							def.id);
+							a_file, "registry-limit",
+							"Reduce the installed scene content below the registry limits, then reload packs.", definition.id);
 						REX::ERROR("[Registry] aggregate scene/node/stage/clip limit reached — remaining scenes skipped");
 						break;
 					}
-					for (const auto& w : warnings) {
-						a_problems.Push("[warn] " + w, a_file, "scene-warning",
-							"Review the authored value; the scene loaded with a fallback.", def.id);
-						REX::WARN("[Registry] {}", w);
+					for (const auto& warning : warnings) {
+						a_problems.Push("[warn] " + warning, a_file, "scene-warning",
+							"Review the authored value; the scene loaded with a fallback.", definition.id);
+						REX::WARN("[Registry] {}", warning);
 					}
-					const auto nodeCount = def.nodes.size();
-					REX::DEBUG("[Registry] loaded scene '{}' ({} node(s)) from '{}'", def.id, nodeCount, fileName);
-					a_out.emplace(std::move(key), std::move(def));
+					const auto nodeCount = definition.nodes.size();
+					REX::DEBUG("[Registry] loaded scene '{}' ({} node(s)) from '{}'",
+						definition.id, nodeCount, fileName);
+					a_out.emplace(std::move(key), std::move(definition));
 					++a_budget.scenes;
 					a_budget.nodes += nodeCount;
 					a_budget.stages += stageCount;
@@ -2385,6 +2345,24 @@ namespace OSF::Registry
 					REX::ERROR("[Registry] skipping scene in '{}': {}", fileName, e.what());
 				}
 			}
+		}
+
+		void LoadOsfFile(const json& a_json, const std::filesystem::path& a_file,
+			std::unordered_map<std::string, SceneDef>& a_out, std::vector<ClipLibraryRegistration>& a_clipLibrary,
+			SceneLoadBudget& a_budget, ProblemSink& a_problems)
+		{
+			const FileRejector reject{ a_file, a_problems };
+			OsfFileDefaults defaults;
+			if (!ParseOsfFileDefaults(a_json, a_file.filename().string(), reject, defaults)) {
+				return;
+			}
+
+			OsfFileContents contents;
+			if (!ParseOsfFileContents(a_json, a_file.filename().string(), reject, contents) ||
+				!AppendClipLibrary(a_json, a_file, defaults, a_budget, a_clipLibrary, reject)) {
+				return;
+			}
+			LoadOsfScenes(contents, defaults, a_file, a_out, a_budget, a_problems);
 		}
 
 
