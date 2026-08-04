@@ -12,6 +12,34 @@ namespace OSF::Overlay
 {
 	namespace
 	{
+		// CommonLibSF leaves RE::TESObjectLoadedEvent::GetEventSource bound to
+		// REL::ID(0), and its nearby candidate 107177 is not a parameterless event
+		// accessor. The engine source is a global BSTEventSource (the same direct
+		// binding used by SFSE's GameEvents table). Validate its live vptr before use
+		// so a stale Address Library entry disables only 3D tracking.
+		constexpr REL::ID kObjectLoadedEventSourceGlobalID{ 838433 };
+		constexpr REL::ID kObjectLoadedEventSourceVtableID{ 413689 };
+
+		RE::BSTEventSource<RE::TESObjectLoadedEvent>* ObjectLoadedEventSource()
+		{
+			static auto* source = []() -> RE::BSTEventSource<RE::TESObjectLoadedEvent>* {
+				auto* candidate = reinterpret_cast<RE::BSTEventSource<RE::TESObjectLoadedEvent>*>(
+					kObjectLoadedEventSourceGlobalID.address());
+				const auto liveVtable = candidate ?
+					*reinterpret_cast<const std::uintptr_t*>(candidate) : 0;
+				const auto expectedVtable = kObjectLoadedEventSourceVtableID.address();
+				if (liveVtable != expectedVtable) {
+					REX::WARN("[Anim] overlay actor-3D event tracking disabled: "
+						"TESObjectLoadedEvent source vtable mismatch (global ID {}, vtable ID {})",
+						kObjectLoadedEventSourceGlobalID.id(),
+						kObjectLoadedEventSourceVtableID.id());
+					return nullptr;
+				}
+				return candidate;
+			}();
+			return source;
+		}
+
 		constexpr std::uint8_t kLaneCommit = 0;
 		constexpr std::uint8_t kLaneProp = 1;
 		constexpr std::uint8_t kLaneSound = 2;
@@ -234,7 +262,7 @@ namespace OSF::Overlay
 		};
 		sink.clear = []() { GetSingleton().ClearWorld(); };
 		_playbackSinkId = Animation::GraphManager::GetSingleton().RegisterPlaybackSink(std::move(sink));
-		if (auto* source = RE::TESObjectLoadedEvent::GetEventSource()) source->RegisterSink(this);
+		if (auto* source = ObjectLoadedEventSource()) source->RegisterSink(this);
 		_registered = true;
 	}
 
