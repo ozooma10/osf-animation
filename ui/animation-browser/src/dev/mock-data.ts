@@ -55,10 +55,11 @@ export const MOCK_IMPORTS = {
     { path: "Vanilla/vanilla-photomode.osf.json", file: "vanilla-photomode.osf.json", pack: "Vanilla · Photomode", library: true, schema: 1, bytes: 1_204_886, parseMs: 148.2, scenes: 312, unlisted: 312, nodes: 312, stages: 1_842, roles: 312, clips: 1_842, distinctClips: 1_811, species: ["human"] },
     { path: "Broken/oldpack.osf.json", file: "oldpack.osf.json", schema: 0, bytes: 3_140, parseMs: 0.6, declaredScenes: 1, rejectedScenes: 1, rejected: true, errors: 1, problems: [{ severity: "error", code: "file-invalid", message: "Schema 0 is unsupported; expected schema 1.", hint: "Update the file to schema 1, then reload." }], problemCount: 1 },
     { path: "Scenes/test.osf.json", file: "test.osf.json", schema: 1, bytes: 812, parseMs: 0.4, scenes: 1, nodes: 1, stages: 1, roles: 1, clips: 1, distinctClips: 1, clipEntries: 1, species: ["human"] },
+	{ path: "Suit/routes.osf.json", file: "routes.osf.json", pack: "Suit Protocol", schema: 1, bytes: 4210, parseMs: 1.2, declaredRoutes: 3, routes: 2, rejectedRoutes: 1, errors: 1, problems: [{ severity: "error", code: "route-invalid", message: "Route transition mask is missing.", hint: "Add a named mask and reload." }], problemCount: 1 },
     { path: "Notes/placeholder.osf.json", file: "placeholder.osf.json", schema: 1, bytes: 96, parseMs: 0.2 },
     { path: "", file: "", errors: 1, problems: [{ severity: "error", code: "unknown-scene-reference", message: "Use target 'ge.chair.finish' does not name a loaded scene.", hint: "Correct the target id or restore the referenced scene.", scene: "ge.chair.love", node: "n3" }], problemCount: 1 },
   ],
-  totals: { files: 7, rejectedFiles: 1, declaredScenes: 377, scenes: 374, rejectedScenes: 3, registered: 374, clipEntries: 148, hidden: 6, missingClips: 12, errors: 4, warnings: 2, bytes: 1_454_354, parseMs: 181.7 },
+	totals: { files: 8, rejectedFiles: 1, declaredScenes: 377, scenes: 374, rejectedScenes: 3, declaredRoutes: 3, routes: 2, rejectedRoutes: 1, registered: 374, clipEntries: 148, hidden: 6, missingClips: 12, errors: 5, warnings: 2, bytes: 1_458_564, parseMs: 182.9 },
 };
 
 export const MOCK_LIBRARY = [

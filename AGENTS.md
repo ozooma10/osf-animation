@@ -8,9 +8,9 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the six engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the seven engine-free C++ suites (persistence broker,
   native scene-event callbacks,
-  frame clock/clip specs, additive pose math, sound registry, scene registry — the registry pair run from
+  frame clock/clip specs, additive pose math, sound registry, scene registry, route planner/controller plus owner/admission contracts — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
 - **UI dependency:** `ui/animation-browser` intentionally resolves `@osfui/cli` from
@@ -79,6 +79,11 @@ Each entry: **system** (`path`) — role.
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 
 ### Layer B - scene runtime
+- **OverlayService** (`src/Overlay/*`, `src/API/OSFOverlayAPI.*`) — Phase-1 persistent one-actor
+  overlay routes with owner-scoped callbacks, generational handles, authored-order BFS,
+  checkpoint-safe commit acknowledgement, zero-animation stations, 3D/scene suspension, and
+  strict post-decode route marks. Reuses unanchored staged `Graph` playback; one route occupies an
+  actor even while its station has no graph. Scenes always win and reconcile the overlay on end.
 - **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
   Each load also publishes a **per-file import record** in the snapshot (`SceneFileStats` / `FileStats()`):

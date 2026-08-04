@@ -409,6 +409,7 @@ namespace OSF::Animation
 				const auto& stage = scene->stages[tick.stage];
 				const auto& slot = stage.participants[participantIndex];
 				SetAnimation(slot.skeleton, slot.anim, slot.file);
+				SetPosePolicy(stage.poseModes[participantIndex], stage.poseWeights[participantIndex], roleName);
 				SetBoneMask(stage.masks[participantIndex]);
 				blendDuration = stage.blendIn;  // per-stage blend-in
 				scenePlacement = stage.placements[participantIndex];

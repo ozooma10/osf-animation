@@ -117,17 +117,21 @@ namespace OSF::Scene
 	void SceneRuntime::RegisterWithGraphManager()
 	{
 		auto& gm = Animation::GraphManager::GetSingleton();
-		gm.SetSceneAutoEndHandler(
-			[](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason a_reason) {
+		if (_playbackSinkId != 0) {
+			return;
+		}
+		Animation::GraphManager::PlaybackSink sink;
+		sink.autoEnd = [](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason a_reason) {
 				return SceneRuntime::GetSingleton().OnGraphAutoEnd(a_playbackId, a_actors, a_reason);
-			});
+			};
 		// Drop the handle table on any load teardown (handles hold raw Actor* participants).
-		gm.SetSceneClearHandler([]() { SceneRuntime::GetSingleton().Clear(); });
+		sink.clear = []() { SceneRuntime::GetSingleton().Clear(); };
 		// Decode the timed marks a scene's stage crosses (cue -> EVENT_CUE/trigger, action -> run).
-		gm.SetSceneTimedMarkHandler([](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors,
+		sink.timedMarks = [](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors,
 			const std::vector<Animation::FiredMark>& a_marks) {
 			SceneRuntime::GetSingleton().OnTimedMarks(a_playbackId, a_actors, a_marks);
-		});
+		};
+		_playbackSinkId = gm.RegisterPlaybackSink(std::move(sink));
 		// How a player director verb (from the InputService input hook) drives the active scene.
 		Input::InputService::GetSingleton().SetVerbHandler(
 			[](Input::Verb a_verb, const Input::Grant& a_grant) { DispatchInputVerb(a_verb, a_grant); });
@@ -364,7 +368,7 @@ namespace OSF::Scene
 		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		if (!def) {
 			// ad-hoc files scene: jump the live GraphManager scene (it range-checks the stage).
-			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage);
+			return Animation::GraphManager::GetSingleton().SetSceneStage(first, a_stage, view.playbackId);
 		}
 		// registry scene: linear only via linearStages; jumping a stage = transitioning to its node.
 		if (a_stage < 0 || static_cast<std::size_t>(a_stage) >= def->linearStages.size()) {

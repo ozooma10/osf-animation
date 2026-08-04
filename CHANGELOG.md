@@ -2,6 +2,19 @@
 
 All notable changes to OSF Animation are documented here.
 
+## [Unreleased]
+
+### Added
+- **Persistent actor overlay routes (native ABI 1.0).** External SFSE plugins can own one masked,
+  content-neutral route per actor, request zero-animation or animated stations, acknowledge exact
+  commit handoffs, and receive typed marker, external-prop, reached, and failure outcomes without
+  consuming a SceneRuntime slot. Route start itself has a structured accepted/pending/rejected result,
+  including deferred reentrant realization. Routes use deterministic authored-order BFS, strict
+  decoded-duration timing, explicit prop lifetimes, one-shot sound and instantaneous marker semantics,
+  owner callback barriers, immediate scene suspension, actor-3D suspension, and world-load cleanup.
+  The Animation Browser import report now includes accepted/declared/rejected route counts. See
+  [`docs/ROUTE_SCHEMA.md`](docs/ROUTE_SCHEMA.md).
+
 ## [1.5.0] - 2026-07-31
 
 ### Fixed

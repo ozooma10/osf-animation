@@ -1,6 +1,8 @@
 #include "GraphManager.h"
 #include "GraphManagerClipLoad.h"
 
+#include "Animation/PlaybackAdmission.h"
+
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Input/InputService.h"
@@ -141,9 +143,12 @@ namespace OSF::Animation
 				if (stage.files.size() != a_actors.size() ||
 					(!stage.animIds.empty() && stage.animIds.size() != stage.files.size()) ||
 					(!stage.placements.empty() && stage.placements.size() != a_actors.size()) ||
-					(!stage.masks.empty() && stage.masks.size() != a_actors.size())) {
-					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} anim ids, {} placements, {} masks, {} actors)",
-						s, stage.files.size(), stage.animIds.size(), stage.placements.size(), stage.masks.size(), a_actors.size());
+					(!stage.masks.empty() && stage.masks.size() != a_actors.size()) ||
+					(!stage.poseModes.empty() && stage.poseModes.size() != a_actors.size()) ||
+					(!stage.poseWeights.empty() && stage.poseWeights.size() != a_actors.size())) {
+					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} anim ids, {} placements, {} masks, {} modes, {} weights, {} actors)",
+						s, stage.files.size(), stage.animIds.size(), stage.placements.size(), stage.masks.size(),
+						stage.poseModes.size(), stage.poseWeights.size(), a_actors.size());
 					return false;
 				}
 				if (!std::isfinite(stage.timer)) {
@@ -188,6 +193,12 @@ namespace OSF::Animation
 				stage.masks = planStage.masks.empty() ?
 				                  (a_plan.masks.empty() ? std::vector<std::string>(a_actors.size()) : a_plan.masks) :
 				                  planStage.masks;
+				stage.poseModes = planStage.poseModes.empty() ?
+				                      (a_plan.poseModes.empty() ? std::vector<PoseMode>(a_actors.size(), PoseMode::kOverride) : a_plan.poseModes) :
+				                      planStage.poseModes;
+				stage.poseWeights = planStage.poseWeights.empty() ?
+				                        (a_plan.poseWeights.empty() ? std::vector<float>(a_actors.size(), 1.0f) : a_plan.poseWeights) :
+				                        planStage.poseWeights;
 				stage.marks = planStage.marks;
 				for (std::size_t clipIdx = 0; clipIdx < planStage.files.size(); clipIdx++) {
 					const auto& fileSpec = planStage.files[clipIdx];
@@ -257,6 +268,32 @@ namespace OSF::Animation
 	{
 		static GraphManager singleton;
 		return singleton;
+	}
+
+	PlaybackSinkId GraphManager::RegisterPlaybackSink(PlaybackSink a_sink)
+	{
+		PlaybackSinkId id = _nextPlaybackSinkId.fetch_add(1, std::memory_order_relaxed);
+		if (id == 0) {
+			id = _nextPlaybackSinkId.fetch_add(1, std::memory_order_relaxed);
+		}
+		std::unique_lock l{ _sinkLock };
+		_playbackSinks.emplace(id, std::move(a_sink));
+		return id;
+	}
+
+	bool GraphManager::UnregisterPlaybackSink(PlaybackSinkId a_id)
+	{
+		if (a_id == 0) return false;
+		std::unique_lock l{ _sinkLock };
+		return _playbackSinks.erase(a_id) != 0;
+	}
+
+	std::optional<GraphManager::PlaybackSink> GraphManager::GetPlaybackSink(PlaybackSinkId a_id) const
+	{
+		if (a_id == 0) return std::nullopt;
+		std::shared_lock l{ _sinkLock };
+		const auto it = _playbackSinks.find(a_id);
+		return it == _playbackSinks.end() ? std::nullopt : std::optional<PlaybackSink>{ it->second };
 	}
 
 	void GraphManager::InstallHooks()
@@ -446,7 +483,8 @@ namespace OSF::Animation
 	}
 
 	bool GraphManager::PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
-		PlaybackId* a_outPlaybackId)
+		PlaybackId* a_outPlaybackId, PlaybackId a_expectedPlayback, PlaybackSinkId a_sinkId,
+		bool a_strictTimedMarks)
 	{
 		if (a_outPlaybackId) {
 			*a_outPlaybackId = 0;
@@ -458,6 +496,10 @@ namespace OSF::Animation
 		if (!ValidateScenePlanArgs(a_actors, a_plan, a_startStage)) {
 			return false;
 		}
+		if (a_sinkId != 0 && !GetPlaybackSink(a_sinkId)) {
+			REX::ERROR("[Anim] PlayScene refused: playback sink {} is not registered", a_sinkId);
+			return false;
+		}
 
 		// Load every clip of every stage up front; a null result means one failed, so refuse a partial scene. 
 		// Preloading is what makes stage switches on the job threads IO-free.
@@ -465,23 +507,67 @@ namespace OSF::Animation
 		if (!scene) {
 			return false;
 		}
+		if (a_strictTimedMarks) {
+			for (std::size_t stageIndex = 0; stageIndex < scene->stages.size(); ++stageIndex) {
+				const auto& stage = scene->stages[stageIndex];
+				if (const auto* mark = FirstInvalidStrictTimedMark(stage.marks, stage.duration)) {
+					REX::ERROR("[Anim] PlayScene refused: strict timed mark '{}' at {:.3f}s is at/past stage {} duration {:.3f}s",
+						mark->token, MarkTime(*mark, stage.duration), stageIndex, stage.duration);
+					return false;
+				}
+			}
+		}
 		scene->playbackId = _nextPlaybackId.fetch_add(1, std::memory_order_relaxed);
 		if (scene->playbackId == 0) {
 			scene->playbackId = _nextPlaybackId.fetch_add(1, std::memory_order_relaxed);
 		}
 		scene->worldEpoch = _worldEpoch.load(std::memory_order_acquire);
+		scene->playbackSinkId = a_sinkId;
 
 		const auto startStage = static_cast<uint32_t>(a_startStage);
 		std::vector<std::function<void()>> deferred;
 		{
 			std::unique_lock l{ stateLock };
 
-			// Re-playing on actors already in a scene: tear the old scene(s) down first so movement state is restored exactly once per scene.
+			// Admission is checked for the full cast before any graph mutation. A staged owner may
+			// replace only the exact playback it names; a new owner never silently clobbers a scene.
+			std::vector<Scene*> replacements;
 			for (auto* actor : a_actors) {
-				if (auto iter = graphs.find(actor); iter != graphs.end() && iter->second->scene) {
-					REX::DEBUG("[Anim] PlayScene: actor {:X} already in a scene — stopping it first", actor->formID);
-					StopSceneLocked(iter->second->scene, deferred);
+				auto iter = graphs.find(actor);
+				PlaybackClaim claim;
+				Scene* currentScene = nullptr;
+				if (iter != graphs.end()) {
+					std::scoped_lock gl{ iter->second->stateLock };
+					currentScene = iter->second->scene;
+					if (currentScene) {
+						claim = { PlaybackOccupant::kStaged, currentScene->playbackId, currentScene->playbackSinkId };
+					} else {
+						claim.occupant = PlaybackOccupant::kStandalone;
+					}
 				}
+				const auto admission = EvaluatePlaybackAdmission(claim, a_expectedPlayback, a_sinkId);
+				if (!admission.accepted) {
+					if (admission.reason == PlaybackAdmissionReason::kExpectedMissing) {
+						REX::WARN("[Anim] PlayScene refused: expected playback {} is not present on actor {:X}", a_expectedPlayback, actor->formID);
+					} else if (admission.reason == PlaybackAdmissionReason::kStandaloneOccupied) {
+						REX::WARN("[Anim] PlayScene refused: actor {:X} has standalone playback", actor->formID);
+					} else if (admission.reason == PlaybackAdmissionReason::kOwnerMismatch) {
+						REX::WARN("[Anim] PlayScene refused: playback {} belongs to sink {}, not requesting sink {}",
+							claim.playbackId, claim.sinkId, a_sinkId);
+					} else {
+						REX::WARN("[Anim] PlayScene refused: actor {:X} is owned by playback {} (expected {})",
+							actor->formID, claim.playbackId, a_expectedPlayback);
+					}
+					return false;
+				}
+				if (admission.replace && currentScene &&
+					std::find(replacements.begin(), replacements.end(), currentScene) == replacements.end()) {
+					replacements.push_back(currentScene);
+				}
+			}
+			for (auto* replacement : replacements) {
+				REX::DEBUG("[Anim] replacing expected playback {}", replacement->playbackId);
+				StopSceneLocked(replacement, deferred);
 			}
 
 			for (size_t i = 0; i < a_actors.size(); i++) {
@@ -494,8 +580,8 @@ namespace OSF::Animation
 				{
 					std::scoped_lock gl{ slot->stateLock };
 					static const std::vector<std::string> kNoPreservedBones;
-					const PoseMode poseMode = a_plan.poseModes.empty() ? PoseMode::kOverride : a_plan.poseModes[i];
-					const float poseWeight = a_plan.poseWeights.empty() ? 1.0f : a_plan.poseWeights[i];
+					const PoseMode poseMode = scene->stages[startStage].poseModes[i];
+					const float poseWeight = scene->stages[startStage].poseWeights[i];
 					const std::string roleName = a_plan.roleNames.empty() ? std::string{} : a_plan.roleNames[i];
 					slot->SetPosePolicy(poseMode, poseWeight, roleName);
 					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
@@ -580,7 +666,7 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool GraphManager::SetSceneStage(RE::Actor* a_actor, int32_t a_stage)
+	bool GraphManager::SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback)
 	{
 		if (!a_actor) {
 			return false;
@@ -600,6 +686,11 @@ namespace OSF::Animation
 		}
 		if (!scene) {
 			REX::WARN("[Anim] SetSceneStage: actor {:X} is not in a scene", a_actor->formID);
+			return false;
+		}
+		if ((a_expectedPlayback && scene->playbackId != a_expectedPlayback) ||
+			(!a_expectedPlayback && scene->playbackSinkId != 0)) {
+			REX::WARN("[Anim] SetSceneStage refused: playback ownership does not match");
 			return false;
 		}
 		if (!scene->SetStage(a_stage)) {
@@ -625,7 +716,8 @@ namespace OSF::Animation
 			std::scoped_lock gl{ iter->second->stateLock };
 			scene = iter->second->scene;
 		}
-		return scene && (!a_expectedPlayback || scene->playbackId == a_expectedPlayback) && scene->Seek(a_time);
+		return scene && ((a_expectedPlayback && scene->playbackId == a_expectedPlayback) ||
+			(!a_expectedPlayback && scene->playbackSinkId == 0)) && scene->Seek(a_time);
 	}
 
 	std::optional<GraphManager::ScenePlayback> GraphManager::GetScenePlayback(
@@ -664,10 +756,42 @@ namespace OSF::Animation
 			std::unique_lock l{ stateLock };
 			auto iter = graphs.find(a_actor);
 			if (iter == graphs.end() || !iter->second->scene ||
-				(a_expectedPlayback && iter->second->scene->playbackId != a_expectedPlayback)) {
+				(a_expectedPlayback && iter->second->scene->playbackId != a_expectedPlayback) ||
+				(!a_expectedPlayback && iter->second->scene->playbackSinkId != 0)) {
 				return false;
 			}
 			StopSceneLocked(iter->second->scene, deferred);
+		}
+		FlushDeferredTasks(deferred);
+		return true;
+	}
+
+	bool GraphManager::StopSceneImmediate(RE::Actor* a_actor, PlaybackId a_expectedPlayback)
+	{
+		if (!a_actor || a_expectedPlayback == 0) return false;
+		std::vector<std::function<void()>> deferred;
+		{
+			std::unique_lock l{ stateLock };
+			auto iter = graphs.find(a_actor);
+			if (iter == graphs.end() || !iter->second->scene ||
+				iter->second->scene->playbackId != a_expectedPlayback) {
+				return false;
+			}
+			Scene* scene = iter->second->scene;
+			std::vector<RE::TESObjectREFR*> participants;
+			for (const auto& graph : scene->participants) {
+				if (graph && graph->target) participants.push_back(graph->target.get());
+			}
+			StopSceneLocked(scene, deferred);
+			for (auto* participant : participants) {
+				const auto found = graphs.find(participant);
+				if (found != graphs.end()) {
+					auto graph = found->second;
+					std::scoped_lock gl{ graph->stateLock };
+					if (!graph->scene) graphs.erase(found);
+				}
+			}
+			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}
 		FlushDeferredTasks(deferred);
 		return true;
@@ -706,11 +830,18 @@ namespace OSF::Animation
 		// Cut every live cue sound, a loaded save shouldn't have last-world sounds ringing over it.
 		Audio::SoundService::GetSingleton().StopAll();
 
-		// Drop the scene runtime's handles too, their participants are raw Actor* that the load invalidates, so a stashed handle must read as dead afterward. 
-		// Done even when we hold no graphs/scenes ourselves, so the handle table can never stay live across a load. 
-		// Runs before stateLock, since Clear takes the runtime's own lock.
-		if (_clearHandler) {
-			_clearHandler();
+		// Drop every playback owner's world-bound handles. Copy first so a clear callback may
+		// unregister itself without re-entering the sink registry lock.
+		std::vector<SceneClearHandler> clearHandlers;
+		{
+			std::shared_lock sinks{ _sinkLock };
+			for (const auto& [id, sink] : _playbackSinks) {
+				(void)id;
+				if (sink.clear) clearHandlers.push_back(sink.clear);
+			}
+		}
+		for (auto& clear : clearHandlers) {
+			clear();
 		}
 
 		std::unique_lock l{ stateLock };
@@ -1284,7 +1415,7 @@ namespace OSF::Animation
 			// A standalone scene (a direct StartScene* with no graph) isn't claimed, we stop it ourselves.
 			// No manager lock is held here, so the handler is free to call PlaySceneStaged/StopScene.
 			bool handled = false;
-			if (gm._autoEndHandler) {
+			if (const auto sink = gm.GetPlaybackSink(keepAlive->playbackSinkId); sink && sink->autoEnd) {
 				std::vector<RE::Actor*> actors;
 				for (const auto& p : keepAlive->participants) {
 					if (p && p->target) {
@@ -1292,7 +1423,7 @@ namespace OSF::Animation
 						actors.push_back(static_cast<RE::Actor*>(p->target.get()));
 					}
 				}
-				handled = gm._autoEndHandler(keepAlive->playbackId, actors,
+				handled = sink->autoEnd(keepAlive->playbackId, actors,
 					keepAlive->endReason.load(std::memory_order_relaxed));
 			}
 			if (!handled) {
@@ -1405,7 +1536,12 @@ namespace OSF::Animation
 
 	void GraphManager::QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
-		if (!a_graph.scene || !_timedMarkHandler) {
+		if (!a_graph.scene) {
+			return;
+		}
+		const PlaybackSinkId sinkId = a_graph.scene->playbackSinkId;
+		const auto sink = GetPlaybackSink(sinkId);
+		if (!sink || !sink->timedMarks) {
 			return;
 		}
 		// Drain the marks the scene fired this frame (token-gated, so only the advancing graph populates them, any participant draining gets them once).
@@ -1424,7 +1560,7 @@ namespace OSF::Animation
 		}
 		const PlaybackId playbackId = a_graph.scene->playbackId;
 		const std::uint64_t worldEpoch = a_graph.scene->worldEpoch;
-		a_deferred.emplace_back([keep, marks, playbackId, worldEpoch]() {
+		a_deferred.emplace_back([keep, marks, playbackId, worldEpoch, sinkId]() {
 			auto& gm = GetSingleton();
 			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
 				return;
@@ -1434,8 +1570,8 @@ namespace OSF::Animation
 			for (auto& a : keep) {
 				actors.push_back(a.get());
 			}
-			if (gm._timedMarkHandler) {
-				gm._timedMarkHandler(playbackId, actors, marks);
+			if (const auto currentSink = gm.GetPlaybackSink(sinkId); currentSink && currentSink->timedMarks) {
+				currentSink->timedMarks(playbackId, actors, marks);
 			}
 		});
 	}

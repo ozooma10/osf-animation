@@ -537,10 +537,12 @@ describe("import report panel", () => {
     const missing = file({ path: "Pack/assets.osf.json", file: "assets.osf.json", scenes: 2, hidden: 2, missingClips: 3 });
     const empty = file({ path: "Pack/empty.osf.json", file: "empty.osf.json" });
     const clean = file({ path: "Other/clean.osf.json", file: "clean.osf.json", scenes: 2 });
+	const routePartial = file({ path: "Suit/routes.osf.json", file: "routes.osf.json", declaredRoutes: 3, routes: 2, rejectedRoutes: 1, errors: 1 });
 
     expect([partial, rejected, missing, empty, clean].map(importOutcome))
       .toEqual(["partial", "rejected", "missing", "empty", "clean"]);
     expect(importResult(partial)).toBe("1 of 2 scenes loaded; 1 rejected.");
+	expect(importResult(routePartial)).toBe("2 of 3 routes loaded; 1 rejected.");
     expect(importOutcomeCounts([partial, rejected, missing, empty, clean]))
       .toMatchObject({ all: 5, attention: 4, clean: 1, partial: 1, rejected: 1, missing: 1, empty: 1 });
     const grouped = importGroups({ ...createInitialState(), imports: [partial, rejected, missing, empty, clean], importsFilter: "all" });

@@ -1,7 +1,7 @@
 # Animation browser agent guide
 
 This directory is the editable source for OSF Animation's in-game browser. The OSF UI CLI generates
-the disposable view under `../../build/osfui/SFSE/Plugins/OSFUI/views/osf.animation/browser/`;
+the disposable view under `../../build/osfui-animation-browser/SFSE/Plugins/OSFUI/views/osf.animation/browser/`;
 never edit generated output.
 
 ## Required checks

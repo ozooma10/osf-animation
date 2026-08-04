@@ -251,6 +251,9 @@ export interface ImportFile {
   declaredScenes: number;
   hidden: number;
   rejectedScenes: number;
+  routes: number;
+  declaredRoutes: number;
+  rejectedRoutes: number;
   unlisted: number;
   anchored: number;
   nodes: number;
@@ -281,6 +284,9 @@ export interface ImportTotals {
   scenes: number;
   declaredScenes: number;
   rejectedScenes: number;
+  routes: number;
+  declaredRoutes: number;
+  rejectedRoutes: number;
   /** The registry's own authored count, so a drift from the per-file sum stays visible. */
   registered: number;
   clipEntries: number;
@@ -303,6 +309,9 @@ export const EMPTY_IMPORT_TOTALS: ImportTotals = {
   scenes: 0,
   declaredScenes: 0,
   rejectedScenes: 0,
+  routes: 0,
+  declaredRoutes: 0,
+  rejectedRoutes: 0,
   registered: 0,
   clipEntries: 0,
   hidden: 0,
@@ -362,6 +371,9 @@ export function normalizeImportReport(payload: unknown): ImportReport {
         declaredScenes: count(entry.declaredScenes),
         hidden: count(entry.hidden),
         rejectedScenes: count(entry.rejectedScenes),
+        routes: count(entry.routes),
+        declaredRoutes: count(entry.declaredRoutes),
+        rejectedRoutes: count(entry.rejectedRoutes),
         unlisted: count(entry.unlisted),
         anchored: count(entry.anchored),
         nodes: count(entry.nodes),
@@ -391,6 +403,9 @@ export function normalizeImportReport(payload: unknown): ImportReport {
       declaredScenes: count(totals.declaredScenes),
       rejectedScenes: count(totals.rejectedScenes),
       scenes: count(totals.scenes),
+      routes: count(totals.routes),
+      declaredRoutes: count(totals.declaredRoutes),
+      rejectedRoutes: count(totals.rejectedRoutes),
       registered: count(totals.registered),
       clipEntries: count(totals.clipEntries),
       hidden: count(totals.hidden),
@@ -437,6 +452,7 @@ function problemRefs(files: readonly ImportFile[]): Map<string, ImportProblemRef
 function importFileFingerprint(file: ImportFile): string {
   return [
     file.declaredScenes, file.scenes, file.rejectedScenes, file.hidden, file.missingClips,
+    file.declaredRoutes, file.routes, file.rejectedRoutes,
     file.clipEntries, file.errors, file.warnings, file.problemCount,
   ].join(":");
 }

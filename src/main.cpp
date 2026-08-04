@@ -1,5 +1,6 @@
 #include "API/Health.h"
 #include "API/MinimumVersion.h"
+#include "API/OverlayAPIControl.h"
 #include "API/SceneAPIControl.h"
 #include "API/UIBridge.h"
 #include "API/UISettings.h"
@@ -7,6 +8,7 @@
 #include "Camera/CameraService.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputService.h"
+#include "Overlay/OverlayService.h"
 #include "Props/PropService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/RequirementRegistry.h"
@@ -45,10 +47,12 @@ namespace
 			OSF::API::Health::ReportRegistryLoad();
 			OSF::Equipment::Gear::LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
+			OSF::Overlay::OverlayService::GetSingleton().Register();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
 			OSF::API::MarkReady();
+			OSF::API::MarkOverlayReady();
 			// Register the osf.* animation-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
 			// Runs after the registry is loaded and the scene API is ready, so catalog/launch answer live.
 			OSF::API::InstallUIBridge();

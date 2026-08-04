@@ -571,10 +571,10 @@ export type ImportSeverity = "ok" | "note" | "warn" | "error";
 export type ImportOutcome = "clean" | "empty" | "missing" | "partial" | "rejected";
 
 export function importOutcome(file: ImportFile): ImportOutcome {
-  if (file.rejected || (!file.scenes && !file.clipEntries && file.errors > 0)) return "rejected";
+  if (file.rejected || (!file.scenes && !file.routes && !file.clipEntries && file.errors > 0)) return "rejected";
   if (file.errors || file.warnings) return "partial";
   if (file.missingClips || file.hidden) return "missing";
-  if (!file.scenes && !file.clipEntries) return "empty";
+  if (!file.scenes && !file.routes && !file.clipEntries) return "empty";
   return "clean";
 }
 
@@ -588,21 +588,28 @@ export function importSeverity(file: ImportFile): ImportSeverity {
 export function importResult(file: ImportFile): string {
   const outcome = importOutcome(file);
   if (outcome === "rejected") {
-    return file.declaredScenes
-      ? `Rejected all ${file.declaredScenes} authored scene${file.declaredScenes === 1 ? "" : "s"}; fix the errors and reload.`
+    const authored: string[] = [];
+    if (file.declaredScenes) authored.push(`${file.declaredScenes} scene${file.declaredScenes === 1 ? "" : "s"}`);
+    if (file.declaredRoutes) authored.push(`${file.declaredRoutes} route${file.declaredRoutes === 1 ? "" : "s"}`);
+    return authored.length
+      ? `Rejected all authored content (${authored.join(", ")}); fix the errors and reload.`
       : "Rejected before it could contribute any content.";
   }
   if (outcome === "partial") {
-    if (file.rejectedScenes) return `${file.scenes} of ${file.declaredScenes} scenes loaded; ${file.rejectedScenes} rejected.`;
+    const rejected: string[] = [];
+    if (file.rejectedScenes) rejected.push(`${file.scenes} of ${file.declaredScenes} scenes loaded; ${file.rejectedScenes} rejected`);
+    if (file.rejectedRoutes) rejected.push(`${file.routes} of ${file.declaredRoutes} routes loaded; ${file.rejectedRoutes} rejected`);
+    if (rejected.length) return `${rejected.join(". ")}.`;
     return `Loaded ${file.scenes} scene${file.scenes === 1 ? "" : "s"} with ${file.errors + file.warnings} diagnostic${file.errors + file.warnings === 1 ? "" : "s"}.`;
   }
   if (outcome === "missing") {
     if (file.hidden) return `${file.hidden} scene${file.hidden === 1 ? "" : "s"} unavailable because ${file.missingClips} clip${file.missingClips === 1 ? " is" : "s are"} missing.`;
     return `${file.missingClips} referenced clip${file.missingClips === 1 ? " is" : "s are"} missing; loaded content may still be incomplete.`;
   }
-  if (outcome === "empty") return "Loaded successfully, but contributed no scenes or clip entries.";
+  if (outcome === "empty") return "Loaded successfully, but contributed no scenes, routes, or clip entries.";
   const parts: string[] = [];
   if (file.scenes) parts.push(`${file.scenes} scene${file.scenes === 1 ? "" : "s"}`);
+  if (file.routes) parts.push(`${file.routes} route${file.routes === 1 ? "" : "s"}`);
   if (file.clipEntries) parts.push(`${file.clipEntries} clip entr${file.clipEntries === 1 ? "y" : "ies"}`);
   return `Loaded ${parts.join(" and ")} cleanly.`;
 }

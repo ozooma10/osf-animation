@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "pack": "Overlay Route Example",
+  "routes": [{
+    "id": "example.helmet",
+    "stations": [
+      { "id": "head" },
+      { "id": "held", "layer": { "clip": "MyPack/helmet_held.af", "holdAt": 1.0, "mask": "upperBody" } },
+      { "id": "stowed" }
+    ],
+    "transitions": [
+      { "id": "head-held", "from": "head", "to": "held", "layer": { "clip": "MyPack/head_held.af", "mask": "upperBody" }, "commit": { "atFrame": 24, "marker": "example.helmet.hide_head" } },
+      { "id": "held-stowed", "from": "held", "to": "stowed", "layer": { "clip": "MyPack/held_stowed.af", "mask": "upperBody" } },
+      { "id": "stowed-held", "from": "stowed", "to": "held", "layer": { "clip": "MyPack/stowed_held.af", "mask": "upperBody" } }
+    ]
+  }]
+}

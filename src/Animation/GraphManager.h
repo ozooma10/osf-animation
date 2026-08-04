@@ -21,21 +21,20 @@ namespace OSF::Animation
 	public:
 		static GraphManager& GetSingleton();
 
-		// This is hook scene runtime sets for autoadvance. called on game thread when anchored scene auto ends at final stage.
-		// This manager doesnt know scene graph, just hands runtime the actors and reasons.
-		// returns true if runtime took over what happens (move to next node or end scene). false means manager stops the scene itself, set at load before scene runs.
 		using SceneAutoEndHandler = std::function<bool(PlaybackId, const std::vector<RE::Actor*>&, SceneEndReason)>;
-		void SetSceneAutoEndHandler(SceneAutoEndHandler a_handler) { _autoEndHandler = std::move(a_handler); }
-
-		// Hook called from StopAll (every teardown path) so scene runtime can drop handle table.
-		// its scene handles hold raw Actor* participants that would be invalidated. 
 		using SceneClearHandler = std::function<void()>;
-		void SetSceneClearHandler(SceneClearHandler a_handler) { _clearHandler = std::move(a_handler); }
-
-		// Hook called on Game Thread when scene stage fires marks (numeric or end) on any lane.
-		// hands runtime opaque (lane, token) marks and actors, and runtime decodes them (cue -> EVENT_CUE + trigger edges. action -> notify, sound/camera -> relevant service)
 		using SceneTimedMarkHandler = std::function<void(PlaybackId, const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
-		void SetSceneTimedMarkHandler(SceneTimedMarkHandler a_handler) { _timedMarkHandler = std::move(a_handler); }
+		struct PlaybackSink
+		{
+			SceneAutoEndHandler autoEnd;
+			SceneTimedMarkHandler timedMarks;
+			SceneClearHandler clear;
+		};
+
+		// Register a callback owner once, then stamp its id onto each staged playback. Dispatch is
+		// direct to that owner; registration order and PlaybackId guessing are not part of routing.
+		PlaybackSinkId RegisterPlaybackSink(PlaybackSink a_sink);
+		bool UnregisterPlaybackSink(PlaybackSinkId a_id);
 
 		// Installs the AnimationManager::Update vtable hook.
 		void InstallHooks();
@@ -66,11 +65,12 @@ namespace OSF::Animation
 		// Refuses partial scenes. stages auto-advance on timers or loop count targets.
 		// after last stage the scene stops itself (on game thread)
 		bool PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
-			PlaybackId* a_outPlaybackId = nullptr);
+			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
+			PlaybackSinkId a_sinkId = 0, bool a_strictTimedMarks = false);
 
 		// Jumps the scene containing a_actor to the given stage (0-based);
 		// false if the actor is not in a scene or the stage is out of range.
-		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage);
+		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
 
 		struct ScenePlayback
 		{
@@ -97,6 +97,9 @@ namespace OSF::Animation
 
 		// Stops the scene that a_actor participates in (all its participants).
 		bool StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
+		// Immediate no-fade removal for owner handoff (overlay suspension / zero-animation station).
+		// The expected playback is mandatory so another owner can never be erased accidentally.
+		bool StopSceneImmediate(RE::Actor* a_actor, PlaybackId a_expectedPlayback);
 
 		// Current scene stage for a_actor, or -1 if not in a scene.
 		int32_t GetSceneStage(RE::Actor* a_actor);
@@ -198,14 +201,10 @@ namespace OSF::Animation
 		std::unordered_map<RE::TESObjectREFR*, std::shared_ptr<Graph>> graphs;
 		std::vector<std::shared_ptr<Scene>> scenes;
 
-		// Auto-advance hook (see SetSceneAutoEndHandler). Empty = standalone behaviour, where auto-end just stops the scene.
-		SceneAutoEndHandler _autoEndHandler;
-
-		// Handle-table drop hook (see SetSceneClearHandler). Empty = no scene runtime registered.
-		SceneClearHandler _clearHandler;
-
-		// Timed-mark hook (see SetSceneTimedMarkHandler). Empty = marks are dropped.
-		SceneTimedMarkHandler _timedMarkHandler;
+		std::optional<PlaybackSink> GetPlaybackSink(PlaybackSinkId a_id) const;
+		mutable std::shared_mutex _sinkLock;
+		std::unordered_map<PlaybackSinkId, PlaybackSink> _playbackSinks;
+		std::atomic<PlaybackSinkId> _nextPlaybackSinkId{ 1 };
 
 		// Mirror of graphs.size(), refreshed after every mutation under unique stateLock.
 		// Both hooks run for EVERY skeleton/manager in the game, game-wide, forever - this lets the idle case (no OSF playback) early out without touching stateLock at all.

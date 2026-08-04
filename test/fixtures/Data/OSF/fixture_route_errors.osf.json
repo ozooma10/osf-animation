@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "routes": [
+    {
+      "id": "fixture.route.bad-policy", "stripActors": false,
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" } }]
+    },
+    {
+      "id": "fixture.route.bad-mask",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af" } }]
+    },
+    {
+      "id": "fixture.route.duplicate-station",
+      "stations": [{ "id": "a" }, { "id": "A" }], "transitions": []
+    },
+    {
+      "id": "fixture.route.bad-endpoint",
+      "stations": [{ "id": "a" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "missing", "layer": { "clip": "x.af", "mask": "upperBody" } }]
+    },
+    {
+      "id": "fixture.route.bad-commit",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" }, "commit": { "atFrame": 2 } }]
+    },
+    {
+      "id": "fixture.route.bad-lifetime",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" }, "props": [{ "destroyAtFrame": 2, "prop": "x", "lifetime": "forever" }] }]
+    },
+    {
+      "id": "fixture.route.marker-lifetime",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" }, "markers": [{ "atFrame": 2, "id": "instant", "lifetime": "transition" }] }]
+    },
+    {
+      "id": "fixture.route.sound-lifetime",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" }, "sound": [{ "atFrame": 2, "spec": "one-shot.wav", "lifetime": "transition" }] }]
+    },
+    {
+      "id": "fixture.route.bad-claims", "claims": ["body.upper"],
+      "stations": [{ "id": "a" }], "transitions": []
+    },
+    {
+      "id": "fixture.route.duplicate",
+      "stations": [{ "id": "a" }], "transitions": []
+    },
+    {
+      "id": "fixture.route.duplicate",
+      "stations": [{ "id": "a" }], "transitions": []
+    }
+  ]
+}

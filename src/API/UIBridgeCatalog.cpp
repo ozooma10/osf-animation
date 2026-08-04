@@ -529,6 +529,7 @@ namespace OSF::API::UIBridgeCatalog
 
 		json files = json::array();
 		std::uint64_t totalDeclared = 0, totalScenes = 0, totalRejectedScenes = 0;
+		std::uint64_t totalDeclaredRoutes = 0, totalRoutes = 0, totalRejectedRoutes = 0;
 		std::uint64_t totalClipEntries = 0, totalErrors = 0, totalWarnings = 0;
 		std::uint64_t totalHidden = 0, totalMissing = 0, totalBytes = 0;
 		std::uint32_t rejectedFiles = 0, realFiles = 0;
@@ -537,6 +538,9 @@ namespace OSF::API::UIBridgeCatalog
 			totalScenes += s.scenes;
 			totalDeclared += s.declaredScenes;
 			totalRejectedScenes += s.rejectedScenes;
+			totalRoutes += s.routes;
+			totalDeclaredRoutes += s.declaredRoutes;
+			totalRejectedRoutes += s.rejectedRoutes;
 			totalClipEntries += s.clipEntries;
 			totalErrors += s.errors;
 			totalWarnings += s.warnings;
@@ -576,6 +580,9 @@ namespace OSF::API::UIBridgeCatalog
 				{ "declaredScenes", s.declaredScenes },
 				{ "rejectedScenes", s.rejectedScenes },
 				{ "scenes", s.scenes },
+				{ "declaredRoutes", s.declaredRoutes },
+				{ "rejectedRoutes", s.rejectedRoutes },
+				{ "routes", s.routes },
 				{ "hidden", s.hidden },
 				{ "unlisted", s.unlisted },
 				{ "anchored", s.anchored },
@@ -610,6 +617,9 @@ namespace OSF::API::UIBridgeCatalog
 				{ "declaredScenes", totalDeclared },
 				{ "rejectedScenes", totalRejectedScenes },
 				{ "scenes", totalScenes },
+				{ "declaredRoutes", totalDeclaredRoutes },
+				{ "rejectedRoutes", totalRejectedRoutes },
+				{ "routes", totalRoutes },
 				// The registry's own authored count, so a mismatch with the per-file sum is
 				// visible rather than silently averaged away.
 				{ "registered", static_cast<std::uint64_t>(Registry::SceneRegistry::GetSingleton().Size()) },
@@ -641,6 +651,8 @@ namespace OSF::API::UIBridgeCatalog
 		}
 		text += std::format("Result: {} accepted / {} declared; {} rejected; {} hidden; {} missing clips\r\n",
 			file.scenes, file.declaredScenes, file.rejectedScenes, file.hidden, file.missingClips);
+		text += std::format("Routes: {} accepted / {} declared; {} rejected\r\n",
+			file.routes, file.declaredRoutes, file.rejectedRoutes);
 		text += std::format("Schema: {} | Size: {} bytes | Load: {:.2f} ms\r\n", file.schema, file.bytes, file.parseMs);
 		text += std::format("Content: {} nodes | {} stages | {} roles | {} clip slots | {} distinct clips | {} library entries\r\n",
 			file.nodes, file.stages, file.roles, file.clips, file.distinctClips, file.clipEntries);

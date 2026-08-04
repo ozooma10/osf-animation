@@ -1,6 +1,6 @@
 # OSF Animation — animation browser view
 
-The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Preact app in this directory; `build/osfui/SFSE/Plugins/OSFUI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
+The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Preact app in this directory; `build/osfui-animation-browser/SFSE/Plugins/OSFUI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
 **OSF UI** and driven **natively** by OSF Animation's own
 DLL over OSF UI's bridge API (protocol **2.0**). Only JSON text crosses the
 boundary.
@@ -9,12 +9,12 @@ boundary.
 
 Install once with `npm install` in this directory. Use `npm run dev` for the OSF UI browser harness with hot reload, `npm test` for the typed bridge/model tests, `npm run check` for host compatibility and strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
 
-This directory is the only editable copy — `build/osfui/` is disposable toolchain output and is wiped on every build. A native `xmake` re-runs the OSF UI CLI whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
+This directory is the only editable copy — `build/osfui-animation-browser/` is disposable toolchain output and is wiped on every build. A native `xmake` re-runs the OSF UI CLI whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
 
 ## How it's wired
 
 ```
-ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui/.../views/osf.animation/browser/ ──► OSF UI MessageBridge ──► OSF Animation DLL
+ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-browser/.../views/osf.animation/browser/ ──► OSF UI MessageBridge ──► OSF Animation DLL
    window.osfui.send/request       (2.0 helper)               src/API/UIBridge.cpp
    window.osfui.on/state       ◄── events/state ────────────── osf.animation.* handlers
 ```

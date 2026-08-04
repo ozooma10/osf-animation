@@ -1,4 +1,5 @@
 #include "Scene/SceneRuntime.h"
+#include "Audio/SoundPlayback.h"
 
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
@@ -111,52 +112,8 @@ namespace OSF::Scene
 		// {gender} substitution, and the optional world emitter.
 		RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_role);
 
-		// A '$'-prefixed spec is a sound-pool reference ("$seduce,{gender},moan,loud"): substitute the
-		// {gender} placeholder from the actor (empty -> the tag drops out, i.e. any gender), then resolve
-		// to a clip NOW (at fire time) so a repeated/per-loop cue re-rolls. A plain path/event spec plays verbatim.
-		std::string spec(a_spec);
-		if (!spec.empty() && spec.front() == '$') {
-			const std::string gender = actor ? Matchmaking::ActorGenderTag(actor) : std::string{};
-			for (std::size_t p = 0; (p = spec.find("{gender}", p)) != std::string::npos; p += gender.size()) {
-				spec.replace(p, 8, gender);  // 8 == len("{gender}")
-			}
-			auto resolved = Registry::SoundRegistry::GetSingleton().Resolve(spec);
-			if (!resolved) {
-				REX::DEBUG("[Scene] scene {:#010x} sound pool '{}' (role '{}') matched no clip — skipped",
-					a_handle, spec, a_role);
-				return;
-			}
-			spec = std::move(*resolved);
-		}
-
-		// Per-actor VOICE slot: a new sound on a channel replaces (cuts) the prior one so cues on the same
-		// actor never overlap. Key on the role actor's formID; with no actor, fall back to the scene handle so
-		// the scene still has a single channel. The high-bit tag keeps the actor and scene key spaces disjoint.
-		const std::uint64_t slot = actor
-			? ((1ull << 62) | static_cast<std::uint64_t>(actor->formID))
-			: ((2ull << 62) | static_cast<std::uint64_t>(static_cast<std::uint32_t>(a_handle)));
-		auto& soundService = Audio::SoundService::GetSingleton();
-		std::uint64_t gameObject = 0;  // listener unless emitter:"role" resolves and positions
-		if (a_emitter == Registry::SoundEmitter::kRole) {
-			gameObject = soundService.PrepareRoleEmitter(actor);
-			if (gameObject == 0) {
-				REX::DEBUG("[Scene] scene {:#010x} sound '{}' role emitter unavailable (role '{}') — using listener",
-					a_handle, spec, a_role);
-			}
-		}
-		REX::DEBUG("[Scene] scene {:#010x} sound '{}' (role '{}', emitter {}) slot {:#x}",
-			a_handle, spec, a_role,
-			a_emitter == Registry::SoundEmitter::kRole && gameObject != 0 ? "role" : "listener", slot);
-		soundService.Play(slot, spec, gameObject);
-
-		// Voice/subtitle: if this clip carries text (authored alongside it in its sound pool), show it
-		// in the box, attributed to the speaking actor. The "voice" feature is folded into normal sound
-		// playback — any clip that plays renders its text. Keyed by the FINAL resolved spec, so a $pool
-		// pick shows the picked clip's line and a direct path shows its own.
-		const std::string text = Registry::SoundRegistry::GetSingleton().TextForClip(spec);
-		if (!text.empty()) {
-			UI::Subtitle::Show(actor, text, 0.0f);
-		}
+		Audio::SoundPlayback::Play(actor, static_cast<std::uint32_t>(a_handle), a_spec, a_emitter,
+			std::format("scene {:#010x}", a_handle));
 	}
 
 	void SceneRuntime::DispatchLifecycleSounds(std::int32_t a_handle, std::string_view a_node, bool a_enter)

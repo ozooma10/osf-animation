@@ -1018,14 +1018,22 @@ proven.
 
 ### Phase 1: one persistent actor overlay controller
 
+**Core runtime implemented in OSF Animation (2026-08-04).** The Phase-1 contract uses owner-scoped
+`OSFOverlayAPI` routes and the existing unanchored staged `Graph` path; multi-layer composition,
+claims, and declarative conditions remain Phase 2. The downstream Studio compiler target and Suit
+Protocol dual-ship migration are the remaining external delivery gate. See
+[ROUTE_SCHEMA.md](ROUTE_SCHEMA.md).
+
 - Add owner-scoped route instances and zero-animation stations.
 - Add desired-station requests, typed lifecycle events, reversal, and reconciliation.
 - Add standalone mask/mode/weight/`preserveBones` policy, timed route markers, and route-owned prop
   leases; current standalone playback is not sufficient by itself.
-- Support transition-, station-, and external-prop reference/handoff lifetimes.
+- Support transition-, station-, controller-, and external-prop reference/handoff lifetimes;
+  markers remain instantaneous and sounds remain one-shot.
 - Allow one non-cinematic overlay at a time and suspend it around current scenes.
-- Fade/remove that overlay safely before admitting a cinematic scene, and add transition-progress
-  stall/3D-loss handling.
+- Remove that overlay immediately before admitting a cinematic scene, and add transition-progress
+  stall/3D-loss handling. Phase 1 has one stamper, so it cannot crossfade an outgoing overlay with
+  the incoming scene; that blend becomes possible only after the Phase-2 compositor exists.
 - Migrate Suit Protocol from several hard-coded scene IDs to one generated route contract.
 
 This phase solves cohesive helmet behavior and indefinite Held without requiring the final

@@ -17,6 +17,7 @@ namespace OSF::Animation
 {
 	class Graph;
 	using PlaybackId = std::uint64_t;
+	using PlaybackSinkId = std::uint64_t;
 
 	// How an authored scene role contributes its sampled local pose. This is deliberately
 	// separate from RootMode / ScenePlan::anchored: pose composition is not root anchoring.
@@ -105,6 +106,8 @@ namespace OSF::Animation
 			std::vector<std::string> animIds;              // optional, parallel to files; empty string = first/default animation
 			std::vector<ParticipantPlacement> placements;  // empty = all zero
 			std::vector<std::string> masks;                 // optional, one effective bone mask per actor for this stage
+			std::vector<PoseMode> poseModes;               // optional stage override; empty = plan policy
+			std::vector<float> poseWeights;                // optional stage override; empty = plan policy
 			float timer = 0.0f;                            // seconds; <= 0 = no auto-advance
 			int32_t loops = 0;                             // clip loops; <= 0 = no auto-advance
 			float hold = -1.0f;                            // freeze on ONE frame at this clip position [0,1]; < 0 = play normally
@@ -163,6 +166,13 @@ namespace OSF::Animation
 			return a_mask.empty() || BoneMask::Find(a_mask) != nullptr;
 		}) && std::ranges::all_of(a_plan.stages, [a_actorCount](const ScenePlan::Stage& a_stage) {
 			return (a_stage.masks.empty() || a_stage.masks.size() == a_actorCount) &&
+				(a_stage.poseModes.empty() || a_stage.poseModes.size() == a_actorCount) &&
+				(a_stage.poseWeights.empty() || a_stage.poseWeights.size() == a_actorCount) &&
+				std::ranges::all_of(a_stage.poseModes, [](PoseMode a_mode) {
+					return a_mode == PoseMode::kOverride || a_mode == PoseMode::kAdditive;
+				}) && std::ranges::all_of(a_stage.poseWeights, [](float a_weight) {
+					return std::isfinite(a_weight) && a_weight >= 0.0f && a_weight <= 1.0f;
+				}) &&
 				std::ranges::all_of(a_stage.masks, [](const std::string& a_mask) {
 					return a_mask.empty() || BoneMask::Find(a_mask) != nullptr;
 				});
@@ -190,6 +200,8 @@ namespace OSF::Animation
 			std::vector<ParticipantSlot> participants;
 			std::vector<ParticipantPlacement> placements;
 			std::vector<std::string> masks;  // effective per-participant mask for this stage
+			std::vector<PoseMode> poseModes; // effective per-participant composition mode for this stage
+			std::vector<float> poseWeights;  // effective per-participant composition weight for this stage
 			float blendIn = 0.4f;   // blend-in secs when this stage activates
 			std::vector<TimedMark> marks;  // timed marks fired by Advance (see firedMarks)
 		};
@@ -262,6 +274,7 @@ namespace OSF::Animation
 		// Stable identity for this concrete playback instance. Runtime callbacks validate it so a
 		// deferred task from an old node can never act on a replacement using the same actors.
 		PlaybackId playbackId = 0;
+		PlaybackSinkId playbackSinkId = 0;  // 0 = standalone playback (no callback owner)
 		std::uint64_t worldEpoch = 0;
 
 		// Advances the shared clock once per frame (owner-token gated), auto-advancing stages, and returns the time + stage this sample should use.

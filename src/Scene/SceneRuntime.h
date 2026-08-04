@@ -409,9 +409,11 @@ namespace OSF::Scene
 		// node has no playable or it failed to play (ApplyTransition collapses that to a clean end so
 		// the scene is never stranded animation-less with the player lock still held).
 		static Animation::PlaybackId PlayNodeAnim(const std::vector<RE::Actor*>& a_participants,
-			std::string_view a_sceneId, std::string_view a_nodeId);
+			std::string_view a_sceneId, std::string_view a_nodeId,
+			Animation::PlaybackId a_expectedPlayback = 0);
 		// StopGraph ends the participants' scene.
-		static void StopGraph(const std::vector<RE::Actor*>& a_participants);
+		static void StopGraph(const std::vector<RE::Actor*>& a_participants,
+			Animation::PlaybackId a_expectedPlayback);
 
 		// Default player lock on scene start: when the player is among a_participants and policy keeps it on. 
 		// The caller resolves a_lockPlayer from the scene def (`lockPlayer`) or pack;
@@ -504,5 +506,6 @@ namespace OSF::Scene
 		std::deque<std::int32_t> _retiredHandles;
 		std::uint16_t     _nextGen = 1;
 		std::function<void()> _sceneObserver;     // see SetSceneObserver
+		Animation::PlaybackSinkId _playbackSinkId = 0;
 	};
 }

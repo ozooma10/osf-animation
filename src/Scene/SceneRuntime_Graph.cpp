@@ -3,6 +3,7 @@
 #include "Animation/GraphManager.h"
 #include "Equipment/EquipmentService.h"
 #include "Matchmaking/Matchmaker.h"
+#include "Overlay/OverlayService.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
@@ -258,7 +259,7 @@ namespace OSF::Scene
 	}
 
 	Animation::PlaybackId SceneRuntime::PlayNodeAnim(const std::vector<RE::Actor*>& a_participants,
-		std::string_view a_sceneId, std::string_view a_nodeId)
+		std::string_view a_sceneId, std::string_view a_nodeId, Animation::PlaybackId a_expectedPlayback)
 	{
 		if (a_participants.empty()) {
 			return 0;  // synthetic scene with no participants — nothing to play
@@ -323,16 +324,18 @@ namespace OSF::Scene
 		// node transition is just a fresh PlaySceneStaged. Its bool result is the node's play
 		// status (false = clip load failed) — propagated so ApplyTransition can end cleanly.
 		Animation::PlaybackId playbackId = 0;
-		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0, &playbackId)) {
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, *plan, 0, &playbackId,
+			a_expectedPlayback, GetSingleton()._playbackSinkId)) {
 			return 0;
 		}
 		return playbackId;
 	}
 
-	void SceneRuntime::StopGraph(const std::vector<RE::Actor*>& a_participants)
+	void SceneRuntime::StopGraph(const std::vector<RE::Actor*>& a_participants,
+		Animation::PlaybackId a_expectedPlayback)
 	{
 		if (!a_participants.empty() && a_participants.front()) {
-			Animation::GraphManager::GetSingleton().StopScene(a_participants.front());
+			Animation::GraphManager::GetSingleton().StopScene(a_participants.front(), a_expectedPlayback);
 		}
 	}
 
@@ -672,8 +675,13 @@ namespace OSF::Scene
 		// ledger releases the lock. (Validation guarantees every node has a playable, so a false here
 		// is always a real failure, never an intentional marker node.)
 		bool end = a_end;
+		Animation::PlaybackId oldPlaybackId = 0;
+		{
+			std::lock_guard l{ _lock };
+			if (const Slot* s = Resolve(a_handle)) oldPlaybackId = s->playbackId;
+		}
 		Animation::PlaybackId newPlaybackId = 0;
-		if (!end && !(newPlaybackId = PlayNodeAnim(a_participants, a_sceneId, a_newNode))) {
+		if (!end && !(newPlaybackId = PlayNodeAnim(a_participants, a_sceneId, a_newNode, oldPlaybackId))) {
 			REX::WARN("[Scene] scene {:#010x} transition '{}' -> '{}' could not play the target node — ending scene",
 				a_handle, a_oldNode, a_newNode);
 			UI::HudMessage::Error(std::format("could not play '{}' — scene ended", a_newNode));
@@ -681,9 +689,10 @@ namespace OSF::Scene
 		}
 
 		if (end) {
-			StopGraph(a_participants);  // cleanup after NODE_EXIT, before SCENE_END (also tears the old graph when a failed play left it up)
+			StopGraph(a_participants, oldPlaybackId);  // cleanup after NODE_EXIT, before SCENE_END (also tears the old graph when a failed play left it up)
 			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");  // SCENE_END dispatch is async (later VM tick)
 			ReleaseSlot(a_handle);  // retires the handle (clears the transitioning guard with the slot): roster stays readable for the async SCENE_END handler, actors freed now
+			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(a_handle);
 			UI::HudMessage::Debug("OSF: scene ended");
 		} else {
 			{
@@ -737,6 +746,7 @@ namespace OSF::Scene
 		if (!handle) {
 			return 0;
 		}
+		Overlay::OverlayService::GetSingleton().SuspendForScene(handle, a_participants);
 		// Store the explicit anchor + per-start overrides on the slot BEFORE the first play, so PlayNodeAnim and every later node transition reuse them.
 		//  loopScale/inPlace must live on the slot because the plan is rebuilt fresh per node, so they re-apply on each entry rather than compounding.
 		{
@@ -761,6 +771,7 @@ namespace OSF::Scene
 		if (!playbackId) {
 			REX::WARN("[Scene] start '{}' entry node '{}' could not play — aborting start", a_id, a_entryNode);
 			ReleaseSlot(handle);
+			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(handle);
 			return 0;
 		}
 		{
@@ -919,9 +930,12 @@ namespace OSF::Scene
 		if (!handle) {
 			return 0;  // actor already in a scene
 		}
+		Overlay::OverlayService::GetSingleton().SuspendForScene(handle, a_participants);
 		Animation::PlaybackId playbackId = 0;
-		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, a_plan, a_startStage, &playbackId)) {
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, a_plan, a_startStage,
+			&playbackId, 0, _playbackSinkId)) {
 			ReleaseSlot(handle);
+			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(handle);
 			return 0;
 		}
 		{

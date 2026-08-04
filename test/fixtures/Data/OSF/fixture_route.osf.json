@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "pack": "Overlay Route Fixture",
+  "props": {
+    "helmet": {
+      "source": { "form": "Starfield.esm|0x0007F115" },
+      "node": "C_Head"
+    }
+  },
+  "routes": [{
+    "id": "fixture.overlay.helmet",
+    "stations": [
+      { "id": "head" },
+      { "id": "held", "layer": { "clip": "clips/route/held.af", "holdAt": 1.0, "mask": "upperBody", "mode": "override" } },
+      { "id": "stowed" }
+    ],
+    "transitions": [
+      {
+        "id": "head-to-held", "from": "head", "to": "held",
+        "layer": { "clip": "clips/route/head_to_held.af", "mask": "upperBody" },
+        "commit": { "atFrame": 24, "marker": "fixture.helmet.hide_head" },
+        "markers": [{ "atFrame": 20, "id": "fixture.helmet.moving" }],
+        "props": [
+          { "attachAtFrame": 18, "prop": "fixture.helmet.external", "lifetime": "external" },
+          { "attachAtFrame": 24, "prop": "helmet", "lifetime": "station" }
+        ],
+        "sound": [{ "atFrame": 23, "spec": "$fixture,helmet" }]
+      },
+      {
+        "id": "held-to-stowed", "from": "held", "to": "stowed",
+        "interrupt": "crossfade-before-commit",
+        "layer": { "clip": "clips/route/held_to_stowed.af", "mask": "upperBody" }
+      },
+      {
+        "id": "stowed-to-held", "from": "stowed", "to": "held",
+        "layer": { "clip": "clips/route/stowed_to_held.af", "mask": "upperBody" }
+      }
+    ]
+  }]
+}

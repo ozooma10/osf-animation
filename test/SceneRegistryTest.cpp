@@ -59,6 +59,20 @@ int main()
 
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
+	{
+		const auto route = reg.FindRoute("FIXTURE.OVERLAY.HELMET");
+		Check(route && route->stations.size() == 3 && route->transitions.size() == 3,
+			"overlay routes load into the case-insensitive snapshot map");
+		Check(route && !route->FindStation("head")->layer && route->FindStation("held")->layer.has_value(),
+			"zero-animation and animated stations retain their distinct shapes");
+		const auto* edge = route ? route->FindTransition("head-to-held") : nullptr;
+		Check(edge && edge->layer.mask == "upperBody" && edge->commit &&
+			edge->commit->id == "fixture.helmet.hide_head" && edge->commit->frame == 24.0f && edge->props.size() == 2,
+			"transition layer, commit, and prop contracts are retained");
+		Check(edge && edge->props[0].lifetime == OSF::Registry::RouteLifetime::kExternal &&
+			edge->props[1].lifetime == OSF::Registry::RouteLifetime::kStation && edge->props[1].attachment.node == "C_Head",
+			"external props need no OSF source while owned props resolve the file-local template");
+	}
 
 	// 35 authored scenes load: the prior 22, the two compiled-route contract scenes, the
 	// prop-transform-default scene, the `atFrame` scene, the five props-registry scenes, the bare
@@ -602,6 +616,14 @@ int main()
 			badMaskName.masks[0] = "torso";
 			Check(!OSF::Animation::HasValidRolePolicyShape(badMaskName, 3),
 				"scene-plan validation rejects an unknown mask name");
+			auto validStagePolicy = *plan;
+			validStagePolicy.stages[0].poseModes = { PoseMode::kOverride, PoseMode::kAdditive, PoseMode::kOverride };
+			validStagePolicy.stages[0].poseWeights = { 1.0f, 0.5f, 0.25f };
+			Check(OSF::Animation::HasValidRolePolicyShape(validStagePolicy, 3),
+				"scene-plan validation accepts complete stage-local pose policies");
+			validStagePolicy.stages[0].poseWeights.pop_back();
+			Check(!OSF::Animation::HasValidRolePolicyShape(validStagePolicy, 3),
+				"scene-plan validation rejects a stage-local pose-weight count mismatch");
 		}
 	} else {
 		Check(false, "test.tpl.mmf loads");
@@ -732,12 +754,21 @@ int main()
 	} else {
 		Check(false, "test.props.err.ok loads");
 	}
-
 	const auto errors = reg.LoadErrors();
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 33, "exactly the thirty-three expected diagnostics");
+	Check(errors.size() == 43, "exactly the forty-three expected diagnostics");
+	CheckError(errors, "policy/arbitration key 'stripActors'", "route policy keys are rejected");
+	CheckError(errors, "layer: 'mask'", "route animation masks are mandatory");
+	CheckError(errors, "duplicate station id", "duplicate route station ids are rejected");
+	CheckError(errors, "from/to must name declared stations", "route endpoints are validated");
+	CheckError(errors, "commit: 'marker'", "route commit syntax is validated");
+	CheckError(errors, "unknown lifetime", "route lifetimes are validated");
+	CheckError(errors, "markers are instantaneous", "route markers reject misleading lifetime promises");
+	CheckError(errors, "sounds are one-shot", "route sounds reject unsupported cancellation lifetimes");
+	CheckError(errors, "policy/arbitration key 'claims'", "phase-two claims are rejected in schema v1");
+	CheckError(errors, "duplicate route id", "duplicate route ids are rejected first-wins");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -882,7 +913,7 @@ int main()
 	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 20, "one import record per discovered *.osf.json");
+		Check(files.size() == 22, "one import record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::SceneFileStats* {
 			for (const auto& f : files) {
@@ -912,6 +943,13 @@ int main()
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
+		const auto* overlayRoute = find("fixture_route.osf.json");
+		Check(overlayRoute && overlayRoute->declaredRoutes == 1 && overlayRoute->routes == 1 &&
+			overlayRoute->rejectedRoutes == 0, "clean route files report accepted/declared/rejected route counts");
+		const auto* overlayErrors = find("fixture_route_errors.osf.json");
+		Check(overlayErrors && overlayErrors->declaredRoutes == 11 && overlayErrors->routes == 1 &&
+			overlayErrors->rejectedRoutes == 10 && !overlayErrors->Rejected(),
+			"route-local failures preserve valid sibling routes and report exact rejection counts");
 
 		const auto* bare = find("fixture_bare.osf.json");
 		Check(bare && bare->scenes == 1, "the bare single-scene fixture reports one scene");

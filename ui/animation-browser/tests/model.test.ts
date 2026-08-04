@@ -78,7 +78,7 @@ describe("import report normalization", () => {
   it("fills every field from a sparse native payload", () => {
     const report = normalizeImportReport({
       files: [{ path: "GE/chair.osf.json", file: "chair.osf.json", scenes: 3 }],
-      totals: { files: 1, scenes: 3 },
+	  totals: { files: 1, scenes: 3, routes: 2, declaredRoutes: 3, rejectedRoutes: 1 },
     });
     expect(report.files[0]).toMatchObject({
       path: "GE/chair.osf.json",
@@ -92,7 +92,7 @@ describe("import report normalization", () => {
       problemCount: 0,
       rejected: false,
     });
-    expect(report.totals).toMatchObject({ files: 1, scenes: 3, errors: 0, parseMs: 0 });
+	expect(report.totals).toMatchObject({ files: 1, scenes: 3, routes: 2, declaredRoutes: 3, rejectedRoutes: 1, errors: 0, parseMs: 0 });
   });
 
   it("survives a malformed payload instead of throwing at the panel", () => {

@@ -38,6 +38,7 @@ namespace OSF::Registry
 		using SceneRegistryClips::SweepClipAvailability;
 
 		constexpr std::size_t kMaxScenesPerFile = 4096;
+		constexpr std::size_t kMaxRoutesPerFile = 4096;
 		constexpr std::size_t kMaxRolesPerFile = 512;
 		constexpr std::size_t kMaxPropsPerFile = 512;
 		constexpr std::size_t kMaxClipLibraryEntriesPerFile = 65536;
@@ -45,6 +46,7 @@ namespace OSF::Registry
 		constexpr std::size_t kMaxStagesPerScene = 16384;
 		constexpr std::size_t kMaxClipsPerScene = 65536;
 		constexpr std::size_t kMaxScenesTotal = 32768;
+		constexpr std::size_t kMaxRoutesTotal = 32768;
 		constexpr std::size_t kMaxNodesTotal = 131072;
 		constexpr std::size_t kMaxStagesTotal = 262144;
 		constexpr std::size_t kMaxClipsTotal = 1048576;
@@ -53,6 +55,7 @@ namespace OSF::Registry
 		struct SceneLoadBudget
 		{
 			std::size_t scenes = 0;
+			std::size_t routes = 0;
 			std::size_t nodes = 0;
 			std::size_t stages = 0;
 			std::size_t clips = 0;
@@ -2003,6 +2006,7 @@ namespace OSF::Registry
 		struct OsfFileContents
 		{
 			std::vector<const json*> sceneJsons;
+			std::vector<const json*> routeJsons;
 			std::vector<SceneRole>   packRoles;
 			RoleRegistry             roles;
 			PropRegistry             props;
@@ -2245,9 +2249,23 @@ namespace OSF::Registry
 				}
 			} else if (a_json.contains("id")) {
 				a_out.sceneJsons.push_back(&a_json);
-			} else if (!a_json.contains("clipLibrary")) {
-				a_reject("'" + a_fileName + "': expected a bare scene 'id', 'scenes', or 'clipLibrary'");
+			} else if (!a_json.contains("clipLibrary") && !a_json.contains("routes")) {
+				a_reject("'" + a_fileName + "': expected a bare scene 'id', 'scenes', 'routes', or 'clipLibrary'");
 				return false;
+			}
+			if (const auto routesIt = a_json.find("routes"); routesIt != a_json.end()) {
+				if (!routesIt->is_array()) {
+					a_reject("'" + a_fileName + "': 'routes' must be an array");
+					return false;
+				}
+				if (routesIt->size() > kMaxRoutesPerFile) {
+					a_reject("'" + a_fileName + "': contains more than " +
+						std::to_string(kMaxRoutesPerFile) + " routes");
+					return false;
+				}
+				for (const auto& route : *routesIt) {
+					a_out.routeJsons.push_back(&route);
+				}
 			}
 			return true;
 		}
@@ -2272,6 +2290,256 @@ namespace OSF::Registry
 			} catch (const std::exception& e) {
 				a_reject(e.what());
 				return false;
+			}
+		}
+
+		std::string RequiredRouteString(const json& a_json, const char* a_key, const std::string& a_subject)
+		{
+			const auto it = a_json.find(a_key);
+			if (it == a_json.end() || !it->is_string() || it->get_ref<const std::string&>().empty()) {
+				throw std::runtime_error(a_subject + ": '" + a_key + "' must be a non-empty string");
+			}
+			return it->get<std::string>();
+		}
+
+		float RouteFrame(const json& a_json, const char* a_key, const std::string& a_subject)
+		{
+			const auto it = a_json.find(a_key);
+			if (it == a_json.end() || !it->is_number()) {
+				throw std::runtime_error(a_subject + ": '" + a_key + "' must be a non-negative number");
+			}
+			const float frame = it->get<float>();
+			if (!std::isfinite(frame) || frame < 0.0f || std::floor(frame) != frame) {
+				throw std::runtime_error(a_subject + ": '" + a_key + "' must be a whole frame number >= 0");
+			}
+			return frame;
+		}
+
+		RouteLifetime ParseRouteLifetime(const json& a_json, const std::string& a_subject)
+		{
+			const auto value = RequiredRouteString(a_json, "lifetime", a_subject);
+			const auto lower = ToLower(value);
+			if (lower == "transition") return RouteLifetime::kTransition;
+			if (lower == "station") return RouteLifetime::kStation;
+			if (lower == "controller") return RouteLifetime::kController;
+			if (lower == "external") return RouteLifetime::kExternal;
+			throw std::runtime_error(a_subject + ": unknown lifetime '" + value +
+				"' (expected transition, station, controller, or external)");
+		}
+
+		RouteLayer ParseRouteLayer(const json& a_json, std::string_view a_clipRoot,
+			const std::string& a_subject, bool a_station)
+		{
+			if (!a_json.is_object()) {
+				throw std::runtime_error(a_subject + ": 'layer' must be an object");
+			}
+			for (const auto& [key, value] : a_json.items()) {
+				(void)value;
+				if (key != "clip" && key != "mask" && key != "mode" && key != "weight" &&
+					key != "holdAt") {
+					throw std::runtime_error(a_subject + ": layer has unknown key '" + key + "'");
+				}
+			}
+			const auto clipIt = a_json.find("clip");
+			if (clipIt == a_json.end()) {
+				throw std::runtime_error(a_subject + ": layer requires 'clip'");
+			}
+			RouteLayer out;
+			out.clip = ParseStageClip(*clipIt, a_clipRoot, a_subject + " layer");
+			const auto mask = RequiredRouteString(a_json, "mask", a_subject + " layer");
+			const auto* named = Animation::BoneMask::Find(mask);
+			if (!named) {
+				throw std::runtime_error(a_subject + ": layer has unknown mask '" + mask +
+					"' (known: " + Animation::BoneMask::KnownList() + ")");
+			}
+			out.mask = named->id;
+			if (const auto modeIt = a_json.find("mode"); modeIt != a_json.end()) {
+				if (!modeIt->is_string()) {
+					throw std::runtime_error(a_subject + ": layer 'mode' must be 'override' or 'additive'");
+				}
+				const auto mode = ToLower(modeIt->get<std::string>());
+				if (mode == "override") out.mode = Animation::PoseMode::kOverride;
+				else if (mode == "additive") out.mode = Animation::PoseMode::kAdditive;
+				else throw std::runtime_error(a_subject + ": layer has unknown mode '" + mode + "'");
+			}
+			if (const auto weightIt = a_json.find("weight"); weightIt != a_json.end()) {
+				if (!weightIt->is_number()) {
+					throw std::runtime_error(a_subject + ": layer 'weight' must be a finite number");
+				}
+				const auto normalized = Animation::NormalizePoseWeight(weightIt->get<double>());
+				if (!normalized) {
+					throw std::runtime_error(a_subject + ": layer 'weight' must be finite");
+				}
+				out.weight = *normalized;
+			}
+			if (const auto holdIt = a_json.find("holdAt"); holdIt != a_json.end()) {
+				if (!a_station || !holdIt->is_number()) {
+					throw std::runtime_error(a_subject + ": 'holdAt' is numeric and valid only on station layers");
+				}
+				out.holdAt = holdIt->get<float>();
+				if (!std::isfinite(out.holdAt) || out.holdAt < 0.0f || out.holdAt > 1.0f) {
+					throw std::runtime_error(a_subject + ": 'holdAt' must be in [0,1]");
+				}
+			}
+			return out;
+		}
+
+		RouteDef ParseRoute(const json& a_json, const PropRegistry& a_props,
+			std::string_view a_clipRoot)
+		{
+			if (!a_json.is_object()) {
+				throw std::runtime_error("route definition must be an object");
+			}
+			RouteDef out;
+			out.id = RequiredRouteString(a_json, "id", "route");
+			RejectReservedId(out.id, "route");
+			const std::string subject = "route '" + out.id + "'";
+			for (const char* key : { "stripActors", "lockPlayer", "camera", "inPlace", "fade",
+				"playerControl", "clearHeldItems", "roles", "claims", "conditions", "when" }) {
+				if (a_json.contains(key)) {
+					throw std::runtime_error(subject + ": policy/arbitration key '" + key + "' is not valid in route schema v1");
+				}
+			}
+			const auto stationsIt = a_json.find("stations");
+			if (stationsIt == a_json.end() || !stationsIt->is_array() || stationsIt->empty()) {
+				throw std::runtime_error(subject + ": 'stations' must be a non-empty array");
+			}
+			std::unordered_set<std::string> stationIds;
+			for (const auto& stationJson : *stationsIt) {
+				if (!stationJson.is_object()) {
+					throw std::runtime_error(subject + ": station must be an object");
+				}
+				RouteStation station;
+				station.id = RequiredRouteString(stationJson, "id", subject + " station");
+				if (!stationIds.insert(ToLower(station.id)).second) {
+					throw std::runtime_error(subject + ": duplicate station id '" + station.id + "'");
+				}
+				if (const auto layer = stationJson.find("layer"); layer != stationJson.end()) {
+					station.layer = ParseRouteLayer(*layer, a_clipRoot, subject + " station '" + station.id + "'", true);
+				}
+				out.stations.push_back(std::move(station));
+			}
+
+			const auto transitionsIt = a_json.find("transitions");
+			if (transitionsIt == a_json.end() || !transitionsIt->is_array()) {
+				throw std::runtime_error(subject + ": 'transitions' must be an array");
+			}
+			std::unordered_set<std::string> transitionIds;
+			for (const auto& transitionJson : *transitionsIt) {
+				if (!transitionJson.is_object()) {
+					throw std::runtime_error(subject + ": transition must be an object");
+				}
+				RouteTransition transition;
+				transition.id = RequiredRouteString(transitionJson, "id", subject + " transition");
+				const std::string edgeSubject = subject + " transition '" + transition.id + "'";
+				if (!transitionIds.insert(ToLower(transition.id)).second) {
+					throw std::runtime_error(subject + ": duplicate transition id '" + transition.id + "'");
+				}
+				transition.from = RequiredRouteString(transitionJson, "from", edgeSubject);
+				transition.to = RequiredRouteString(transitionJson, "to", edgeSubject);
+				if (!stationIds.contains(ToLower(transition.from)) || !stationIds.contains(ToLower(transition.to))) {
+					throw std::runtime_error(edgeSubject + ": from/to must name declared stations");
+				}
+				const auto layer = transitionJson.find("layer");
+				if (layer == transitionJson.end()) {
+					throw std::runtime_error(edgeSubject + ": transition requires an animated 'layer'");
+				}
+				transition.layer = ParseRouteLayer(*layer, a_clipRoot, edgeSubject, false);
+				if (const auto interrupt = transitionJson.find("interrupt"); interrupt != transitionJson.end()) {
+					if (!interrupt->is_string()) throw std::runtime_error(edgeSubject + ": 'interrupt' must be a string");
+					const auto value = ToLower(interrupt->get<std::string>());
+					if (value == "finish") transition.interruption = RouteInterruption::kFinish;
+					else if (value == "crossfade-before-commit") transition.interruption = RouteInterruption::kCrossfadeBeforeCommit;
+					else throw std::runtime_error(edgeSubject + ": unknown interrupt mode '" + value + "'");
+				}
+				if (const auto commit = transitionJson.find("commit"); commit != transitionJson.end()) {
+					if (!commit->is_object()) throw std::runtime_error(edgeSubject + ": 'commit' must be an object");
+					RouteMarker marker;
+					marker.frame = RouteFrame(*commit, "atFrame", edgeSubject + " commit");
+					marker.id = RequiredRouteString(*commit, "marker", edgeSubject + " commit");
+					transition.commit = std::move(marker);
+				}
+				if (const auto markers = transitionJson.find("markers"); markers != transitionJson.end()) {
+					if (!markers->is_array()) throw std::runtime_error(edgeSubject + ": 'markers' must be an array");
+					for (const auto& markerJson : *markers) {
+						if (!markerJson.is_object()) throw std::runtime_error(edgeSubject + ": marker must be an object");
+						RouteMarker marker;
+						marker.frame = RouteFrame(markerJson, "atFrame", edgeSubject + " marker");
+						marker.id = RequiredRouteString(markerJson, "id", edgeSubject + " marker");
+						if (markerJson.contains("lifetime")) {
+							throw std::runtime_error(edgeSubject + " marker '" + marker.id +
+								"': markers are instantaneous and do not accept 'lifetime'");
+						}
+						transition.markers.push_back(std::move(marker));
+					}
+				}
+				if (const auto props = transitionJson.find("props"); props != transitionJson.end()) {
+					if (!props->is_array()) throw std::runtime_error(edgeSubject + ": 'props' must be an array");
+					for (const auto& propJson : *props) {
+						if (!propJson.is_object()) throw std::runtime_error(edgeSubject + ": prop must be an object");
+						RouteProp prop;
+						prop.id = RequiredRouteString(propJson, "prop", edgeSubject + " prop");
+						const bool attach = propJson.contains("attachAtFrame");
+						const bool destroy = propJson.contains("destroyAtFrame");
+						if (attach == destroy) throw std::runtime_error(edgeSubject + " prop '" + prop.id +
+							"': specify exactly one of attachAtFrame or destroyAtFrame");
+						prop.attach = attach;
+						prop.frame = RouteFrame(propJson, attach ? "attachAtFrame" : "destroyAtFrame", edgeSubject + " prop '" + prop.id + "'");
+						prop.lifetime = ParseRouteLifetime(propJson, edgeSubject + " prop '" + prop.id + "'");
+						if (attach && prop.lifetime != RouteLifetime::kExternal) {
+							json merged;
+							const json& resolved = ResolvePropAttach(propJson, a_props, prop.id, edgeSubject + " prop '" + prop.id + "'", merged);
+							const auto source = resolved.find("source");
+							if (source == resolved.end()) throw std::runtime_error(edgeSubject + " prop '" + prop.id + "': attach requires source or a matching prop template");
+							prop.source = ParsePropSource(*source, edgeSubject + " prop '" + prop.id + "'");
+							prop.attachment = ParsePropAttachment(resolved, edgeSubject + " prop '" + prop.id + "'");
+						}
+						transition.props.push_back(std::move(prop));
+					}
+				}
+				if (const auto sounds = transitionJson.find("sound"); sounds != transitionJson.end()) {
+					if (!sounds->is_array()) throw std::runtime_error(edgeSubject + ": 'sound' must be an array");
+					for (const auto& soundJson : *sounds) {
+						if (!soundJson.is_object()) throw std::runtime_error(edgeSubject + ": sound must be an object");
+						RouteSound sound;
+						sound.frame = RouteFrame(soundJson, "atFrame", edgeSubject + " sound");
+						sound.spec = RequiredRouteString(soundJson, "spec", edgeSubject + " sound");
+						if (soundJson.contains("lifetime")) {
+							throw std::runtime_error(edgeSubject + " sound: sounds are one-shot and do not accept 'lifetime'");
+						}
+						transition.sounds.push_back(std::move(sound));
+					}
+				}
+				out.transitions.push_back(std::move(transition));
+			}
+			return out;
+		}
+
+		void LoadOsfRoutes(const OsfFileContents& a_contents, const OsfFileDefaults& a_defaults,
+			const std::filesystem::path& a_file, std::unordered_map<std::string, RouteDef>& a_out,
+			SceneLoadBudget& a_budget, ProblemSink& a_problems)
+		{
+			for (const auto* routeJson : a_contents.routeJsons) {
+				const std::string authoredId = routeJson->is_object() && routeJson->contains("id") &&
+					(*routeJson)["id"].is_string() ? (*routeJson)["id"].get<std::string>() : std::string{};
+				try {
+					if (a_budget.routes >= kMaxRoutesTotal) {
+						throw std::runtime_error("route registry aggregate limit reached");
+					}
+					auto definition = ParseRoute(*routeJson, a_contents.props, a_defaults.clipRoot);
+					definition.sourceFile = a_file;
+					auto key = ToLower(definition.id);
+					if (const auto found = a_out.find(key); found != a_out.end()) {
+						throw std::runtime_error("duplicate route id '" + definition.id + "' (already from '" +
+							found->second.sourceFile.filename().string() + "')");
+					}
+					a_out.emplace(std::move(key), std::move(definition));
+					++a_budget.routes;
+				} catch (const std::exception& e) {
+					a_problems.Push("[error] '" + a_file.filename().string() + "': " + e.what(), a_file,
+						"route-invalid", "Fix the named route field; only this route was skipped.", authoredId);
+					REX::ERROR("[Registry] skipping route in '{}': {}", a_file.filename().string(), e.what());
+				}
 			}
 		}
 
@@ -2348,7 +2616,8 @@ namespace OSF::Registry
 		}
 
 		void LoadOsfFile(const json& a_json, const std::filesystem::path& a_file,
-			std::unordered_map<std::string, SceneDef>& a_out, std::vector<ClipLibraryRegistration>& a_clipLibrary,
+			std::unordered_map<std::string, SceneDef>& a_out, std::unordered_map<std::string, RouteDef>& a_routes,
+			std::vector<ClipLibraryRegistration>& a_clipLibrary,
 			SceneLoadBudget& a_budget, ProblemSink& a_problems)
 		{
 			const FileRejector reject{ a_file, a_problems };
@@ -2363,6 +2632,7 @@ namespace OSF::Registry
 				return;
 			}
 			LoadOsfScenes(contents, defaults, a_file, a_out, a_budget, a_problems);
+			LoadOsfRoutes(contents, defaults, a_file, a_routes, a_budget, a_problems);
 		}
 
 
@@ -2523,6 +2793,7 @@ namespace OSF::Registry
 	void SceneRegistry::LoadAll()
 	{
 		std::unordered_map<std::string, SceneDef> loaded;
+		std::unordered_map<std::string, RouteDef> loadedRoutes;
 		std::vector<std::string> errors;
 		std::vector<PendingImportProblem> pendingProblems;
 		ProblemSink problems{ errors, pendingProblems };
@@ -2556,6 +2827,9 @@ namespace OSF::Registry
 				} else if (a_json.contains("id")) {
 					stats.declaredScenes = 1;
 				}
+				if (const auto routes = a_json.find("routes"); routes != a_json.end() && routes->is_array()) {
+					stats.declaredRoutes = static_cast<std::uint32_t>(routes->size());
+				}
 				// Keep lenient header metadata even when every declared scene is later rejected.
 				if (const auto schema = a_json.find("schema"); schema != a_json.end() && schema->is_number_integer()) {
 					stats.schema = schema->get<std::int64_t>();
@@ -2566,7 +2840,7 @@ namespace OSF::Registry
 				if (const auto section = a_json.find("section"); section != a_json.end() && section->is_string()) {
 					stats.library = ToLower(section->get<std::string>()) == "library";
 				}
-				LoadOsfFile(a_json, a_source.file, loaded, clipLibrary, loadBudget, problems);
+				LoadOsfFile(a_json, a_source.file, loaded, loadedRoutes, clipLibrary, loadBudget, problems);
 				stats.parseMs = std::chrono::duration<float, std::milli>(
 					std::chrono::steady_clock::now() - a_source.begun).count();
 			},
@@ -2606,6 +2880,12 @@ namespace OSF::Registry
 		SweepClipAvailability(loaded, problems, clipCache);
 		const auto sceneCount = loaded.size();
 		AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
+		for (const auto& [key, route] : loadedRoutes) {
+			(void)key;
+			if (const auto it = fileIndex.find(route.sourceFile.string()); it != fileIndex.end()) {
+				++fileStats[it->second].routes;
+			}
+		}
 		std::map<std::string, std::uint32_t> clipEntriesByFile;
 		const auto clipEntryCount = AddSceneClipEntries(loaded, clipLibrary, problems, clipEntriesByFile);
 		for (const auto& [path, count] : clipEntriesByFile) {
@@ -2615,6 +2895,7 @@ namespace OSF::Registry
 		}
 		for (auto& stats : fileStats) {
 			stats.rejectedScenes = stats.declaredScenes > stats.scenes ? stats.declaredScenes - stats.scenes : 0;
+			stats.rejectedRoutes = stats.declaredRoutes > stats.routes ? stats.declaredRoutes - stats.routes : 0;
 		}
 
 		const auto problemCount = errors.size();
@@ -2641,12 +2922,14 @@ namespace OSF::Registry
 
 		auto next = std::make_shared<SceneRegistrySnapshot>();
 		next->scenes = std::move(loaded);
+		next->routes = std::move(loadedRoutes);
 		next->loadErrors = std::move(errors);
 		next->authoredSceneCount = sceneCount;
 		next->files = std::move(fileStats);
+		const auto routeCount = next->routes.size();
 		snapshot.store(std::move(next), std::memory_order_release);
-		REX::INFO("[Registry] {} scene(s) loaded from {} file(s), {} scene clip entr{}, {} problem(s)",
-			sceneCount, fileCount, clipEntryCount, clipEntryCount == 1 ? "y" : "ies", problemCount);
+		REX::INFO("[Registry] {} scene(s), {} route(s) loaded from {} file(s), {} scene clip entr{}, {} problem(s)",
+			sceneCount, routeCount, fileCount, clipEntryCount, clipEntryCount == 1 ? "y" : "ies", problemCount);
 	}
 
 	SceneRef SceneRegistry::Find(std::string_view a_id) const
@@ -2655,6 +2938,17 @@ namespace OSF::Registry
 		out.owner = snapshot.load(std::memory_order_acquire);
 		const auto it = out.owner->scenes.find(ToLower(std::string(a_id)));
 		if (it != out.owner->scenes.end()) {
+			out.value = &it->second;
+		}
+		return out;
+	}
+
+	RouteRef SceneRegistry::FindRoute(std::string_view a_id) const
+	{
+		RouteRef out;
+		out.owner = snapshot.load(std::memory_order_acquire);
+		const auto it = out.owner->routes.find(ToLower(std::string(a_id)));
+		if (it != out.owner->routes.end()) {
 			out.value = &it->second;
 		}
 		return out;

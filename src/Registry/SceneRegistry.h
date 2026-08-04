@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -367,6 +368,99 @@ namespace OSF::Registry
 		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
+	// Persistent one-actor overlay route definitions. Routes deliberately carry no scene-policy
+	// fields: they only describe masked local-pose layers and externally-observable transition marks.
+	enum class RouteLifetime : std::uint8_t
+	{
+		kTransition,
+		kStation,
+		kController,
+		kExternal
+	};
+
+	enum class RouteInterruption : std::uint8_t
+	{
+		kFinish,
+		kCrossfadeBeforeCommit
+	};
+
+	struct RouteLayer
+	{
+		StageClip             clip;
+		std::string           mask;       // mandatory named BoneMask
+		Animation::PoseMode   mode = Animation::PoseMode::kOverride;
+		float                 weight = 1.0f;
+		float                 holdAt = -1.0f;  // station only; normalized pose position
+	};
+
+	struct RouteMarker
+	{
+		float       frame = 0.0f;
+		std::string id;
+	};
+
+	struct RouteProp
+	{
+		float             frame = 0.0f;
+		std::string       id;
+		bool              attach = true;
+		RouteLifetime     lifetime = RouteLifetime::kTransition;
+		Props::Source     source;
+		Props::Attachment attachment;
+	};
+
+	struct RouteSound
+	{
+		float       frame = 0.0f;
+		std::string spec;
+	};
+
+	struct RouteStation
+	{
+		std::string               id;
+		std::optional<RouteLayer> layer;  // absent = zero-animation station
+	};
+
+	struct RouteTransition
+	{
+		std::string                 id;
+		std::string                 from;
+		std::string                 to;
+		RouteLayer                  layer;
+		std::optional<RouteMarker>  commit;
+		std::vector<RouteMarker>    markers;
+		std::vector<RouteProp>      props;
+		std::vector<RouteSound>     sounds;
+		RouteInterruption           interruption = RouteInterruption::kFinish;
+	};
+
+	struct RouteDef
+	{
+		std::string                  id;
+		std::vector<RouteStation>    stations;
+		std::vector<RouteTransition> transitions;
+		std::filesystem::path        sourceFile;
+
+		const RouteStation* FindStation(std::string_view a_id) const
+		{
+			const auto equal = [](std::string_view a_lhs, std::string_view a_rhs) {
+				return a_lhs.size() == a_rhs.size() && std::equal(a_lhs.begin(), a_lhs.end(), a_rhs.begin(),
+					[](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); });
+			};
+			const auto it = std::find_if(stations.begin(), stations.end(), [&](const RouteStation& a_station) { return equal(a_station.id, a_id); });
+			return it == stations.end() ? nullptr : &*it;
+		}
+		const RouteTransition* FindTransition(std::string_view a_id) const
+		{
+			const auto equal = [](std::string_view a_lhs, std::string_view a_rhs) {
+				return a_lhs.size() == a_rhs.size() && std::equal(a_lhs.begin(), a_lhs.end(), a_rhs.begin(),
+					[](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); });
+			};
+			const auto it = std::find_if(transitions.begin(), transitions.end(), [&](const RouteTransition& a_transition) { return equal(a_transition.id, a_id); });
+			return it == transitions.end() ? nullptr : &*it;
+		}
+	};
+
 	// A structured view of one legacy load-error line. `message` remains the exact text published
 	// through OSFAdvanced.GetSceneLoadErrors(); the remaining fields let the browser explain and group it
 	// without reverse-engineering prose. Fields are additive and may be empty when not applicable.
@@ -403,6 +497,9 @@ namespace OSF::Registry
 		std::uint32_t declaredScenes = 0; // scene objects authored in this file (before validation)
 		std::uint32_t hidden = 0;        //   ...of those, hidden by the availability sweep (!clipsAvailable)
 		std::uint32_t rejectedScenes = 0; // declaredScenes - scenes (whole-file rejection included)
+		std::uint32_t routes = 0;         // routes accepted into the registry
+		std::uint32_t declaredRoutes = 0; // route objects authored in this file
+		std::uint32_t rejectedRoutes = 0; // declaredRoutes - routes
 		std::uint32_t unlisted = 0;      //   ...of those, out of the matchmaking pool (direct id only)
 		std::uint32_t anchored = 0;      //   ...of those, anchor-bound (furniture/marker required)
 		std::uint32_t nodes = 0;
@@ -423,7 +520,7 @@ namespace OSF::Registry
 		std::uint32_t warnings = 0;
 		std::vector<SceneImportProblem> problems;  // full structured set, in legacy load-error order
 
-		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && clipEntries == 0 && errors > 0; }
+		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && routes == 0 && clipEntries == 0 && errors > 0; }
 	};
 
 	// Immutable publication unit. Reload builds one privately and atomically replaces the current
@@ -431,11 +528,40 @@ namespace OSF::Registry
 	struct SceneRegistrySnapshot
 	{
 		std::unordered_map<std::string, SceneDef> scenes;
+		std::unordered_map<std::string, RouteDef> routes;
 		std::vector<std::string> loadErrors;
 		size_t authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
 		// One record per discovered *.osf.json, sorted by `path`. A trailing record with an empty
 		// `path` collects problems no single file owns (there normally are none).
 		std::vector<SceneFileStats> files;
+	};
+
+	class RouteRef
+	{
+	public:
+		RouteRef() = default;
+		RouteRef(const RouteRef&) = default;
+		RouteRef& operator=(const RouteRef&) = default;
+		RouteRef(RouteRef&& a_other) noexcept :
+			owner(std::move(a_other.owner)), value(std::exchange(a_other.value, nullptr))
+		{}
+		RouteRef& operator=(RouteRef&& a_other) noexcept
+		{
+			if (this != &a_other) {
+				owner = std::move(a_other.owner);
+				value = std::exchange(a_other.value, nullptr);
+			}
+			return *this;
+		}
+		[[nodiscard]] explicit operator bool() const noexcept { return value != nullptr; }
+		[[nodiscard]] const RouteDef* get() const noexcept { return value; }
+		[[nodiscard]] const RouteDef* operator->() const noexcept { return value; }
+		[[nodiscard]] const RouteDef& operator*() const noexcept { return *value; }
+
+	private:
+		friend class SceneRegistry;
+		std::shared_ptr<const SceneRegistrySnapshot> owner;
+		const RouteDef* value = nullptr;
 	};
 
 	class SceneRef
@@ -479,6 +605,9 @@ namespace OSF::Registry
 		// Scene by id (case-insensitive). The returned ref pins the immutable registry snapshot,
 		// so its definition remains valid across ReloadPacks and can be retained by a live scene.
 		SceneRef Find(std::string_view a_id) const;
+
+		// Overlay route by id (case-insensitive), with independent snapshot lifetime pinning.
+		RouteRef FindRoute(std::string_view a_id) const;
 
 		// Resolve a node's inline `stages`, or a `use` target's single inline-stage node - to a ScenePlan (files + placements + timer/loops), or nullopt (reason logged).
 		// a_actorCount must equal the resolved role count.

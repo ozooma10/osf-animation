@@ -2,7 +2,8 @@ import { defineConfig } from "@osfui/cli";
 
 export default defineConfig({
   modId: "osf.animation",
-  outDir: "../../build/osfui",
+	// Dedicated CLI-owned tree. Do not point this at the legacy unmarked build/osfui directory.
+	outDir: "../../build/osfui-animation-browser",
   views: [{
     id: "browser",
     title: "OSF Animation Browser",
