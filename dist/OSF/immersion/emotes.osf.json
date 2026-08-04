@@ -1,22 +1,11 @@
 {
   "schema": 1,
   "name": "OSF Immersion — Emotes",
-  // Solo self-terminating defaults for the animation wheel (enumerated by tag prefix
-  // "player.emote."). Each scene's `name` is the wheel slice label. Linear one-stage
-  // form: `loops:0` holds the pose, `timer` ends it, and every linear stage gets a
-  // free default advance edge so Space skips early. The same scenes play on a
-  // crosshair NPC target (anonymous role, no gender filter).
   "clipRoot": "meshes/actors/human/animations",
   "stripActors": false,
-  "lockPlayer": false, // short flourishes — leave the player's controls alone
-  "camera": "none",    // never touch the camera for an emote
-  "inPlace": true,     // play where the actor stands: no teleport and no per-frame root/heading pin,
-                       // so the vanilla third-person camera (which writes the player's heading) is
-                       // never fought — the pin fight is what made the camera judder during emotes
-  // No `roles` block: each scene infers one anonymous slot from its single clip —
-  // the player when launched solo, or the crosshair NPC when the wheel targets one.
-  // No weapon sheathe either (see the wave scene's note): emotes never touch weapon
-  // state, so the third-person camera framing stays exactly as the player had it.
+  "lockPlayer": false, 
+  "camera": "none",
+  "inPlace": true,
   "scenes": [
     {
       "id": "immersion/emote/wave",
@@ -26,12 +15,6 @@
         {
           "timer": 4, // TUNE
           "loops": 0,
-          // NO osf.weapon.sheathe here (dropped 2026-07-13): the sheathe/re-draw pair flips
-          // the engine's armed/unarmed third-person camera framing — worst on an unarmed
-          // player, who got a spontaneous weapon DRAW (and the armed camera) on emote end
-          // because the ledger re-draw is unconditional. Emotes must leave the camera
-          // exactly as it was; a drawn weapon simply stays in hand during the flourish.
-          // Revisit if a verified weapon-drawn state read lands (then sheathe conditionally).
           "clips": [ { "file": "common/wave_pose.af", "sec": 0.033 } ]
         }
       ]
@@ -74,10 +57,6 @@
         }
       ]
     },
-    // NOTE: the plan's relaxed_idlepartialbody_* prop idles (coffee, data slate) are
-    // LAYER clips (~25 of 82 bones tracked) — standalone they T-pose the legs, so
-    // they're replaced by full-body furniture chains. The coffee/bar-lean drink
-    // variant was dropped (it needs a surface behind).
     {
       "id": "immersion/emote/dataslate",
       "name": "Data slate",
@@ -95,7 +74,5 @@
         { "clips": [ { "file": "furniture/standing_dataslate/exittostand.af", "sec": 4.367 } ] }
       ]
     }
-    // Stretch (per Phase-0 spike results): boxer / jump / kneeling / cower from the
-    // photomode/female/ pose set — add as player.emote.* scenes once confirmed.
   ]
 }
