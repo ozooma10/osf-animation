@@ -71,6 +71,7 @@ Use a stable, printable FourCC assigned to one plugin or subsystem. Published re
 - `OSFP`: physical container magic; never a client ID.
 - `OSFA`: OSF Animation's internal client.
 - `OSFD`: reserved for OSF Defeat.
+- `OSFO`: reserved for OSF Outpost Siege.
 
 Record types are client-local FourCCs. They need not be globally unique because the client block is the namespace. Increment a record's `version` when its payload schema changes. Load callbacks should switch on both type and version, read formats they support, and ignore unknown types or future versions. Ignoring a record requires no seek: call `GetNextRecordInfo` again and the host discards the unread tail.
 
