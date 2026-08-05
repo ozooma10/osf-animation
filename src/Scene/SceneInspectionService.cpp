@@ -157,6 +157,9 @@ namespace OSF::Scene
 		stage.masks = { transition->layer.mask };
 		stage.poseModes = { transition->layer.mode };
 		stage.poseWeights = { transition->layer.weight };
+		// Inspection must show the authored edge itself. The normal scene blend would animate
+		// from the actor's live pose while the route clock is paused at frame zero.
+		stage.blendIn = 0.0f;
 		// Debug transport owns the clock. It neither advances into the destination station nor
 		// publishes route marks; the UI reconstructs OSF-owned props at the requested frame.
 		stage.loops = 0;

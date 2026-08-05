@@ -66,9 +66,14 @@ int main()
 		Check(route && !route->FindStation("head")->layer && route->FindStation("held")->layer.has_value(),
 			"zero-animation and animated stations retain their distinct shapes");
 		const auto* edge = route ? route->FindTransition("head-to-held") : nullptr;
-		Check(edge && edge->layer.mask == "upperBody" && edge->commit &&
+		Check(edge && edge->layer.mask == "arms" && edge->commit &&
 			edge->commit->id == "fixture.helmet.hide_head" && edge->commit->frame == 24.0f && edge->props.size() == 2,
 			"transition layer, commit, and prop contracts are retained");
+		Check(edge && edge->reach && edge->reach->targetBone == "C_Head" &&
+			edge->reach->carrierBone == "R_AnimObject1" && edge->reach->secondaryLimbs.size() == 1 &&
+			edge->reach->tracking == OSF::Animation::ReachTracking::kFreezeAtContact &&
+			std::abs(edge->reach->maxCorrection - 0.25f) < 0.0001f,
+			"transition live reach contract is validated and retained");
 		Check(edge && edge->props[0].lifetime == OSF::Registry::RouteLifetime::kExternal &&
 			edge->props[1].lifetime == OSF::Registry::RouteLifetime::kStation && edge->props[1].attachment.node == "C_Head",
 			"external props need no OSF source while owned props resolve the file-local template");

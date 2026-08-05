@@ -199,6 +199,8 @@ namespace OSF::Animation
 				stage.poseWeights = planStage.poseWeights.empty() ?
 				                        (a_plan.poseWeights.empty() ? std::vector<float>(a_actors.size(), 1.0f) : a_plan.poseWeights) :
 				                        planStage.poseWeights;
+				stage.liveReach = planStage.liveReach.empty() ?
+				                     std::vector<LiveReach>(a_actors.size()) : planStage.liveReach;
 				stage.marks = planStage.marks;
 				for (std::size_t clipIdx = 0; clipIdx < planStage.files.size(); clipIdx++) {
 					const auto& fileSpec = planStage.files[clipIdx];
@@ -586,6 +588,7 @@ namespace OSF::Animation
 					slot->SetPosePolicy(poseMode, poseWeight, roleName);
 					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
 					slot->SetBoneMask(scene->stages[startStage].masks[i]);
+					slot->SetLiveReach(scene->stages[startStage].liveReach[i]);
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
 					slot->blendDuration = scene->stages[startStage].blendIn;
 					slot->scene = scene.get();

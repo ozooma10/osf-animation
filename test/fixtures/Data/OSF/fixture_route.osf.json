@@ -17,7 +17,23 @@
     "transitions": [
       {
         "id": "head-to-held", "from": "head", "to": "held",
-        "layer": { "clip": "clips/route/head_to_held.af", "mask": "upperBody" },
+        "layer": { "clip": "clips/route/head_to_held.af", "mask": "arms" },
+        "reach": {
+          "atFrame": 24,
+          "target": { "bone": "C_Head", "translation": [0, 0, 0], "rotationDegrees": [0, 0, 0], "scale": 1 },
+          "carrierBone": "R_AnimObject1",
+          "primaryLimb": "rightArm",
+          "secondaryLimbs": ["leftArm"],
+          "tracking": "freeze-at-contact",
+          "approachFrames": 12,
+          "contactLeadFrames": 2,
+          "contactTrailFrames": 1,
+          "releaseFrames": 7,
+          "maxCorrectionCm": 25,
+          "maxCorrectionDegrees": 60,
+          "maxResidualCm": 2,
+          "maxResidualDegrees": 5
+        },
         "commit": { "atFrame": 24, "marker": "fixture.helmet.hide_head" },
         "markers": [{ "atFrame": 20, "id": "fixture.helmet.moving" }],
         "props": [

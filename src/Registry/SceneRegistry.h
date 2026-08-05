@@ -432,6 +432,7 @@ namespace OSF::Registry
 		std::vector<RouteProp>      props;
 		std::vector<RouteSound>     sounds;
 		RouteInterruption           interruption = RouteInterruption::kFinish;
+		std::optional<Animation::LiveReach> reach;
 	};
 
 	struct RouteDef

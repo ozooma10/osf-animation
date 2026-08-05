@@ -185,6 +185,11 @@ namespace OSF::Overlay
 			edge.masks = { a_transition.layer.mask };
 			edge.poseModes = { a_transition.layer.mode };
 			edge.poseWeights = { a_transition.layer.weight };
+			if (a_transition.reach) edge.liveReach = { *a_transition.reach };
+			// Route edges are authored motion between station poses. Applying the generic scene
+			// blend here changes that motion (and can consume half of a short edge), rather than
+			// merely smoothing entry into an unrelated scene.
+			edge.blendIn = 0.0f;
 			edge.loops = 1;
 			if (a_transition.commit) {
 				edge.marks.push_back({ .seconds = a_transition.commit->frame / Registry::kFrameRate,

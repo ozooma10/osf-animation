@@ -2445,6 +2445,63 @@ namespace OSF::Registry
 					throw std::runtime_error(edgeSubject + ": transition requires an animated 'layer'");
 				}
 				transition.layer = ParseRouteLayer(*layer, a_clipRoot, edgeSubject, false);
+				if (const auto reach = transitionJson.find("reach"); reach != transitionJson.end()) {
+					if (!reach->is_object()) throw std::runtime_error(edgeSubject + ": 'reach' must be an object");
+					for (const auto& [key, value] : reach->items()) {
+						(void)value;
+						if (key != "atFrame" && key != "target" && key != "carrierBone" && key != "primaryLimb" &&
+							key != "secondaryLimbs" && key != "tracking" && key != "approachFrames" &&
+							key != "contactLeadFrames" && key != "contactTrailFrames" && key != "releaseFrames" &&
+							key != "maxCorrectionCm" && key != "maxCorrectionDegrees" &&
+							key != "maxResidualCm" && key != "maxResidualDegrees")
+							throw std::runtime_error(edgeSubject + ": reach has unknown key '" + key + "'");
+					}
+					Animation::LiveReach parsed;
+					parsed.enabled = true;
+					parsed.atSeconds = RouteFrame(*reach, "atFrame", edgeSubject + " reach") / kFrameRate;
+					parsed.carrierBone = RequiredRouteString(*reach, "carrierBone", edgeSubject + " reach");
+					parsed.primaryLimb = RequiredRouteString(*reach, "primaryLimb", edgeSubject + " reach");
+					if (parsed.primaryLimb != "rightArm" && parsed.primaryLimb != "leftArm")
+						throw std::runtime_error(edgeSubject + ": reach primaryLimb must be rightArm or leftArm");
+					const auto targetIt = reach->find("target");
+					if (targetIt == reach->end() || !targetIt->is_object()) throw std::runtime_error(edgeSubject + ": reach requires target object");
+					for (const auto& [key, value] : targetIt->items()) {
+						(void)value;
+						if (key != "bone" && key != "translation" && key != "rotationDegrees" && key != "scale")
+							throw std::runtime_error(edgeSubject + ": reach target has unknown key '" + key + "'");
+					}
+					parsed.targetBone = RequiredRouteString(*targetIt, "bone", edgeSubject + " reach target");
+					const auto readVec3 = [&](const char* key, std::array<float, 3>& outVec) {
+						const auto it = targetIt->find(key);
+						if (it == targetIt->end() || !it->is_array() || it->size() != 3) throw std::runtime_error(edgeSubject + ": reach target " + key + " must be a vec3");
+						for (std::size_t i = 0; i < 3; ++i) { if (!(*it)[i].is_number()) throw std::runtime_error(edgeSubject + ": reach target vec3 values must be numeric"); outVec[i] = (*it)[i].get<float>(); if (!std::isfinite(outVec[i])) throw std::runtime_error(edgeSubject + ": reach target vec3 values must be finite"); }
+					};
+					readVec3("translation", parsed.targetTranslation);
+					readVec3("rotationDegrees", parsed.targetRotationDegrees);
+					if (targetIt->value("scale", 1.0f) != 1.0f) throw std::runtime_error(edgeSubject + ": reach target scale must be 1");
+					const auto readFrames = [&](const char* key, float fallback) { return reach->contains(key) ? RouteFrame(*reach, key, edgeSubject + " reach") / kFrameRate : fallback; };
+					parsed.approachSeconds = readFrames("approachFrames", parsed.approachSeconds * kFrameRate);
+					parsed.contactLeadSeconds = readFrames("contactLeadFrames", parsed.contactLeadSeconds * kFrameRate);
+					parsed.contactTrailSeconds = readFrames("contactTrailFrames", parsed.contactTrailSeconds * kFrameRate);
+					parsed.releaseSeconds = readFrames("releaseFrames", parsed.releaseSeconds * kFrameRate);
+					if (parsed.contactLeadSeconds > parsed.approachSeconds)
+						throw std::runtime_error(edgeSubject + ": reach contactLeadFrames cannot exceed approachFrames");
+					const auto finitePositive = [&](const char* key, float scale, float fallback) { const float v = reach->value(key, fallback); if (!std::isfinite(v) || v < 0.0f) throw std::runtime_error(edgeSubject + ": reach " + key + " must be finite and >= 0"); return v * scale; };
+					parsed.maxCorrection = finitePositive("maxCorrectionCm", 0.01f, 25.0f);
+					parsed.maxCorrectionRadians = finitePositive("maxCorrectionDegrees", 0.0174532925f, 60.0f);
+					parsed.maxResidual = finitePositive("maxResidualCm", 0.01f, 2.0f);
+					parsed.maxResidualRadians = finitePositive("maxResidualDegrees", 0.0174532925f, 5.0f);
+					const auto tracking = ToLower(reach->value("tracking", std::string{ "live-through-window" }));
+					if (tracking == "freeze-at-contact") parsed.tracking = Animation::ReachTracking::kFreezeAtContact;
+					else if (tracking != "live-through-window") throw std::runtime_error(edgeSubject + ": unknown reach tracking mode '" + tracking + "'");
+					if (const auto secondary = reach->find("secondaryLimbs"); secondary != reach->end()) {
+						if (!secondary->is_array()) throw std::runtime_error(edgeSubject + ": reach secondaryLimbs must be an array");
+						for (const auto& limb : *secondary) { if (!limb.is_string()) throw std::runtime_error(edgeSubject + ": reach secondary limb must be a string"); const auto id = limb.get<std::string>(); if (id != "rightArm" && id != "leftArm") throw std::runtime_error(edgeSubject + ": reach secondary limb must be rightArm or leftArm"); parsed.secondaryLimbs.push_back(id); }
+						if (parsed.secondaryLimbs.size() > 1 || (!parsed.secondaryLimbs.empty() && parsed.secondaryLimbs.front() == parsed.primaryLimb))
+							throw std::runtime_error(edgeSubject + ": reach supports at most one secondary limb, distinct from primaryLimb");
+					}
+					transition.reach = std::move(parsed);
+				}
 				if (const auto interrupt = transitionJson.find("interrupt"); interrupt != transitionJson.end()) {
 					if (!interrupt->is_string()) throw std::runtime_error(edgeSubject + ": 'interrupt' must be a string");
 					const auto value = ToLower(interrupt->get<std::string>());
