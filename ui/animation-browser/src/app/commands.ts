@@ -6,6 +6,14 @@ export interface BrowserCommands {
   selectScene(id: string, stage?: number | null): void;
   setSearch(value: string): void;
   toggleSettings(open?: boolean): void;
+  toggleRouteDebugger(open?: boolean): void;
+  refreshRoutes(): void;
+  setRouteSearch(value: string): void;
+  selectRoute(routeId: string, transitionId?: string | null): void;
+  selectRouteTransition(transitionId: string): void;
+  selectRouteActor(token: number): void;
+  inspectRoute(routeId: string, transitionId: string, actorToken: number): void;
+  stepRouteFrame(delta: -1 | 1): void;
   /** Open/close the per-file import report; opening (re)requests it from the engine. */
   toggleImports(open?: boolean): void;
   refreshImports(): void;

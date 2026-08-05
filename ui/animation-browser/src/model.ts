@@ -171,6 +171,136 @@ export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
   });
 }
 
+export interface RouteLayerModel {
+  clip: string;
+  animId: string;
+  durationHint: number | null;
+  mask: string;
+  mode: string;
+  weight: number;
+  holdAt: number | null;
+}
+
+export interface RouteStationModel {
+  id: string;
+  layer: RouteLayerModel | null;
+}
+
+export type RouteEventKind = "commit" | "marker" | "prop" | "sound";
+
+export interface RouteEventModel {
+  kind: RouteEventKind;
+  frame: number;
+  label: string;
+  detail: string;
+  lifetime: string;
+  external: boolean;
+}
+
+export interface RouteTransitionModel {
+  id: string;
+  from: string;
+  to: string;
+  layer: RouteLayerModel;
+  interruption: "finish" | "crossfade-before-commit";
+  events: RouteEventModel[];
+}
+
+export interface RouteModel {
+  id: string;
+  sourceFile: string;
+  stations: RouteStationModel[];
+  transitions: RouteTransitionModel[];
+}
+
+function normalizeRouteLayer(value: unknown): RouteLayerModel {
+  const raw: Raw = value && typeof value === "object" ? value as Raw : {};
+  const durationHint = Number(raw.durationHint);
+  const holdAt = Number(raw.holdAt);
+  return {
+    clip: String(raw.clip || ""),
+    animId: String(raw.animId || ""),
+    durationHint: Number.isFinite(durationHint) && durationHint > 0 ? durationHint : null,
+    mask: String(raw.mask || ""),
+    mode: String(raw.mode || "override"),
+    weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
+    holdAt: Number.isFinite(holdAt) && holdAt >= 0 ? holdAt : null,
+  };
+}
+
+function routeFrame(value: unknown): number {
+  const frame = Number(value);
+  return Number.isFinite(frame) ? Math.max(0, frame) : 0;
+}
+
+function normalizeRouteEvents(raw: Raw): RouteEventModel[] {
+  const events: RouteEventModel[] = [];
+  if (raw.commit && typeof raw.commit === "object") {
+    const commit = raw.commit as Raw;
+    events.push({ kind: "commit", frame: routeFrame(commit.frame), label: String(commit.id || "commit"),
+      detail: "Consumer handoff checkpoint · callback suppressed in preview", lifetime: "", external: true });
+  }
+  if (Array.isArray(raw.markers)) raw.markers.forEach((value) => {
+    if (!value || typeof value !== "object") return;
+    const marker = value as Raw;
+    events.push({ kind: "marker", frame: routeFrame(marker.frame), label: String(marker.id || "marker"),
+      detail: "Consumer marker callback suppressed in preview", lifetime: "", external: true });
+  });
+  if (Array.isArray(raw.props)) raw.props.forEach((value) => {
+    if (!value || typeof value !== "object") return;
+    const prop = value as Raw;
+    const lifetime = String(prop.lifetime || "transition");
+    const attach = Boolean(prop.attach);
+    const external = lifetime === "external";
+    events.push({ kind: "prop", frame: routeFrame(prop.frame),
+      label: `${attach ? "ATTACH" : "DESTROY"} ${String(prop.id || "prop")}`,
+      detail: [lifetime && `${lifetime} lifetime`, prop.node && `node ${String(prop.node)}`,
+        external && "consumer callback suppressed"].filter(Boolean).join(" · "),
+      lifetime, external });
+  });
+  if (Array.isArray(raw.sounds)) raw.sounds.forEach((value) => {
+    if (!value || typeof value !== "object") return;
+    const sound = value as Raw;
+    events.push({ kind: "sound", frame: routeFrame(sound.frame), label: String(sound.spec || "sound"),
+      detail: "Audio suppressed in preview", lifetime: "", external: true });
+  });
+  return events.sort((a, b) => a.frame - b.frame);
+}
+
+export function normalizeRouteCatalog(payload: unknown): RouteModel[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.flatMap((value): RouteModel[] => {
+    if (!value || typeof value !== "object") return [];
+    const raw = value as Raw;
+    const id = String(raw.id || "").trim();
+    if (!id) return [];
+    const stations = Array.isArray(raw.stations) ? raw.stations.flatMap((value): RouteStationModel[] => {
+      if (!value || typeof value !== "object") return [];
+      const station = value as Raw;
+      const stationId = String(station.id || "").trim();
+      return stationId ? [{ id: stationId, layer: station.layer && typeof station.layer === "object"
+        ? normalizeRouteLayer(station.layer) : null }] : [];
+    }) : [];
+    const transitions = Array.isArray(raw.transitions) ? raw.transitions.flatMap((value): RouteTransitionModel[] => {
+      if (!value || typeof value !== "object") return [];
+      const transition = value as Raw;
+      const transitionId = String(transition.id || "").trim();
+      const from = String(transition.from || "").trim();
+      const to = String(transition.to || "").trim();
+      if (!transitionId || !from || !to) return [];
+      return [{
+        id: transitionId,
+        from,
+        to,
+        layer: normalizeRouteLayer(transition.layer),
+        interruption: transition.interruption === "crossfade-before-commit" ? "crossfade-before-commit" : "finish",
+        events: normalizeRouteEvents(transition),
+      }];
+    }) : [];
+    return [{ id, sourceFile: String(raw.sourceFile || "").replace(/\\/g, "/"), stations, transitions }];
+  }).sort((a, b) => a.id.localeCompare(b.id));
+}
+
 function normalizeFolder(value: unknown): string {
   if (typeof value !== "string") return "";
   const segments = value.replace(/\\/g, "/").split("/").map((segment) => segment.trim());

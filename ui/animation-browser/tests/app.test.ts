@@ -33,7 +33,7 @@ import {
 import { PLAYER_CAST, createInitialState } from "../src/app/state";
 import { decodePreferences, preferredOpenMode } from "../src/app/settings";
 import { normalizeActive } from "../src/app/controller";
-import { normalizeImportReport, normalizeScene, type ImportFile } from "../src/model";
+import { normalizeImportReport, normalizeRouteCatalog, normalizeScene, type ImportFile } from "../src/model";
 
 const solo = normalizeScene({
   id: "solo",
@@ -63,6 +63,15 @@ describe("browser reducer", () => {
     const healed = browserReducer(reloaded, { type: "catalog/received", scenes: [solo] });
 
     expect(healed).toMatchObject({ ready: true, catalogReceived: true });
+  });
+
+  it("keeps route and transition selection valid across route catalog reloads", () => {
+    const routes = normalizeRouteCatalog([{ id: "route.a", stations: [{ id: "a" }, { id: "b" }],
+      transitions: [{ id: "ab", from: "a", to: "b", layer: { clip: "ab.af", mask: "upperBody" } }] }]);
+    const loaded = browserReducer(createInitialState(), { type: "routes/received", routes });
+    expect(loaded).toMatchObject({ routesReceived: true, selectedRouteId: "route.a", selectedTransitionId: "ab" });
+    const empty = browserReducer(loaded, { type: "routes/received", routes: [] });
+    expect(empty).toMatchObject({ selectedRouteId: null, selectedTransitionId: null });
   });
 
   it("keeps cast ordering immutable", () => {
@@ -148,7 +157,7 @@ describe("browser reducer", () => {
       minimized: true,
       lastHandle: -1,
       lastSceneId: "solo",
-      active: [{ handle: -1, sceneId: "solo", stage: 0, player: true, cast: [], time: 0, duration: 2, speed: 0, inspection: true }],
+      active: [{ handle: -1, sceneId: "solo", stage: 0, player: true, cast: [], time: 0, duration: 2, speed: 0, inspection: true, inspectionKind: "scene" as const, routeId: "", transitionId: "" }],
     };
     const restaged = browserReducer(preview, {
       type: "launch/succeeded", handle: -2, sceneId: "solo", afterLaunch: "stay", inspect: true,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffImportReports, evaluateScene, normalizeImportReport, normalizeScene, safeNormalizeScene } from "../src/model";
+import { diffImportReports, evaluateScene, normalizeImportReport, normalizeRouteCatalog, normalizeScene, safeNormalizeScene } from "../src/model";
 
 describe("scene normalization", () => {
   it("normalizes registry defaults and duration values", () => {
@@ -40,6 +40,32 @@ describe("scene normalization", () => {
   it("does not let an invalid record blank a catalog", () => {
     expect(safeNormalizeScene(null)).toBeNull();
     expect(safeNormalizeScene({ id: "ok" })?.id).toBe("ok");
+  });
+});
+
+describe("route debugger normalization", () => {
+  it("builds ordered transition event lanes from the native route catalog", () => {
+    const routes = normalizeRouteCatalog([{
+      id: "helmet.route",
+      sourceFile: "Suit\\routes.osf.json",
+      stations: [{ id: "head" }, { id: "held", layer: { clip: "held.af", mask: "upperBody", holdAt: 1 } }],
+      transitions: [{
+        id: "head-to-held", from: "head", to: "held",
+        layer: { clip: "head_to_held.af", durationHint: 3.3, mask: "upperBody", mode: "override", weight: 1 },
+        commit: { frame: 24, id: "helmet.commit" },
+        markers: [{ frame: 20, id: "helmet.moving" }],
+        props: [{ frame: 18, id: "helmet", attach: true, lifetime: "station", node: "R_AnimObject1" }],
+        sounds: [{ frame: 23, spec: "$helmet,move" }],
+      }],
+    }]);
+
+    expect(routes[0]).toMatchObject({ id: "helmet.route", sourceFile: "Suit/routes.osf.json" });
+    expect(routes[0].stations[1].layer).toMatchObject({ clip: "held.af", holdAt: 1 });
+    expect(routes[0].transitions[0].events.map((event) => [event.kind, event.frame])).toEqual([
+      ["prop", 18], ["marker", 20], ["sound", 23], ["commit", 24],
+    ]);
+    expect(routes[0].transitions[0].events[0]).toMatchObject({ label: "ATTACH helmet", lifetime: "station", external: false });
+    expect(routes[0].transitions[0].events[3]).toMatchObject({ external: true });
   });
 });
 

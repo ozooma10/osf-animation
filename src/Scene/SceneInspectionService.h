@@ -35,6 +35,21 @@ namespace OSF::Scene
 		bool anchorImplicit = false;  // plan anchor was sampled from (or inherited for) actor[0], not caller-supplied
 	};
 
+	struct RouteInspectionRequest
+	{
+		Registry::RouteRef definition;
+		std::string transition;
+		RE::Actor* actor = nullptr;
+	};
+
+	struct PreparedRouteInspection
+	{
+		Registry::RouteRef definition;
+		std::string transition;
+		RE::Actor* actor = nullptr;
+		Animation::ScenePlan plan;
+	};
+
 	struct InspectionSnapshot
 	{
 		std::int32_t handle = 0;
@@ -42,6 +57,9 @@ namespace OSF::Scene
 		std::int32_t stage = -1;
 		std::vector<RE::Actor*> participants;
 		Animation::GraphManager::ScenePlayback playback;
+		std::string inspectionKind = "scene";
+		std::string routeId;
+		std::string transitionId;
 	};
 
 	// Owns scrub-only Layer-A scenes and the render-only prop state reconstructed for them.
@@ -52,7 +70,10 @@ namespace OSF::Scene
 		static SceneInspectionService& GetSingleton();
 
 		std::optional<PreparedInspection> Prepare(const InspectionRequest& a_request, std::string& a_error) const;
+		std::optional<PreparedRouteInspection> PrepareRoute(
+			const RouteInspectionRequest& a_request, std::string& a_error) const;
 		std::int32_t Start(PreparedInspection a_prepared, std::string& a_error);
+		std::int32_t StartRoute(PreparedRouteInspection a_prepared, std::string& a_error);
 		// Scrubbing is frame-accurate transport, so a seek always pauses: dragging the timeline (or
 		// stepping a frame) while the preview runs would otherwise fight the clock.
 		bool Seek(std::int32_t a_handle, float a_time);
@@ -78,6 +99,15 @@ namespace OSF::Scene
 			Props::Instance instance;
 		};
 
+		struct PreviewRouteProp
+		{
+			std::string id;
+			Registry::RouteLifetime lifetime = Registry::RouteLifetime::kTransition;
+			Props::Source source;
+			Props::Attachment attachment;
+			Props::Instance instance;
+		};
+
 		struct Preview
 		{
 			std::int32_t handle = 0;
@@ -85,9 +115,12 @@ namespace OSF::Scene
 			std::string node;
 			std::int32_t stage = -1;
 			Registry::SceneRef definition;
+			Registry::RouteRef route;
+			std::string transition;
 			std::vector<RE::Actor*> participants;
 			Animation::PlaybackId playbackId = 0;
 			std::vector<PreviewProp> props;
+			std::vector<PreviewRouteProp> routeProps;
 			// Pre-inspection baseline, carried across stage switches: the anchor the first preview
 			// resolved (only meaningful when anchorImplicit) and the cast's pre-inspection transforms.
 			// A replacement preview for the same cast inherits both in Prepare — sampling live state
@@ -97,13 +130,16 @@ namespace OSF::Scene
 			RE::NiPoint3 anchorPos{};
 			float anchorHeading = 0.0f;
 			std::vector<std::pair<RE::NiPoint3, float>> baseline;
+			bool suspendsOverlay = false;
 		};
 
 		RE::Actor* RoleActor(const Preview& a_preview, std::string_view a_role) const;
 		// a_durationSec is the previewed clip's length (0 = not known yet); only `atFrame` actions need it.
 		void ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd, float a_durationSec = 0.0f);
+		void ReconcileRouteProps(Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames = 0.0f);
 		void DestroyProps(Preview& a_preview);
 		bool Retire(std::int32_t a_handle, bool a_stopGraph);
+		std::int32_t MintHandle();
 
 		std::unordered_map<std::int32_t, Preview> _previews;
 		std::int32_t _nextHandle = -1;

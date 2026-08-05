@@ -1,7 +1,9 @@
 #include "Scene/SceneInspectionService.h"
 
 #include "Matchmaking/Matchmaker.h"
+#include "Overlay/OverlayService.h"
 #include "Scene/InspectionPropTimeline.h"
+#include "Scene/RouteInspectionTimeline.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>
@@ -14,6 +16,16 @@ namespace OSF::Scene
 	{
 		static SceneInspectionService singleton;
 		return singleton;
+	}
+
+	std::int32_t SceneInspectionService::MintHandle()
+	{
+		while (_nextHandle == 0 || _previews.contains(_nextHandle)) {
+			_nextHandle = _nextHandle == (std::numeric_limits<std::int32_t>::min)() ? -1 : _nextHandle - 1;
+		}
+		const auto handle = _nextHandle;
+		_nextHandle = _nextHandle == (std::numeric_limits<std::int32_t>::min)() ? -1 : _nextHandle - 1;
+		return handle;
 	}
 
 	std::optional<PreparedInspection> SceneInspectionService::Prepare(
@@ -115,6 +127,49 @@ namespace OSF::Scene
 		};
 	}
 
+	std::optional<PreparedRouteInspection> SceneInspectionService::PrepareRoute(
+		const RouteInspectionRequest& a_request, std::string& a_error) const
+	{
+		if (!a_request.definition) {
+			a_error = "The selected route definition is no longer loaded";
+			return std::nullopt;
+		}
+		if (!a_request.actor) {
+			a_error = "The selected route preview actor is no longer available";
+			return std::nullopt;
+		}
+		const auto* transition = a_request.definition->FindTransition(a_request.transition);
+		if (!transition) {
+			a_error = "The selected route transition is no longer loaded";
+			return std::nullopt;
+		}
+
+		Animation::ScenePlan plan;
+		plan.animId = a_request.definition->id + ":debug:" + transition->id;
+		plan.anchored = false;
+		plan.poseModes = { transition->layer.mode };
+		plan.poseWeights = { transition->layer.weight };
+		plan.masks = { transition->layer.mask };
+		plan.speed = 0.0f;
+		Animation::ScenePlan::Stage stage;
+		stage.files = { transition->layer.clip.file };
+		stage.animIds = { transition->layer.clip.animId };
+		stage.masks = { transition->layer.mask };
+		stage.poseModes = { transition->layer.mode };
+		stage.poseWeights = { transition->layer.weight };
+		// Debug transport owns the clock. It neither advances into the destination station nor
+		// publishes route marks; the UI reconstructs OSF-owned props at the requested frame.
+		stage.loops = 0;
+		stage.timer = 0.0f;
+		stage.hold = -1.0f;
+		stage.marks.clear();
+		plan.stages.push_back(std::move(stage));
+		plan.loopWhole = false;
+		return PreparedRouteInspection{
+			a_request.definition, transition->id, a_request.actor, std::move(plan)
+		};
+	}
+
 	std::int32_t SceneInspectionService::Start(PreparedInspection a_prepared, std::string& a_error)
 	{
 		auto* owner = a_prepared.participants.empty() ? nullptr : a_prepared.participants.front();
@@ -125,17 +180,19 @@ namespace OSF::Scene
 			return 0;
 		}
 
-		while (_nextHandle == 0 || _previews.contains(_nextHandle)) {
-			_nextHandle = _nextHandle == (std::numeric_limits<std::int32_t>::min)() ? -1 : _nextHandle - 1;
-		}
-		const auto handle = _nextHandle;
-		_nextHandle = _nextHandle == (std::numeric_limits<std::int32_t>::min)() ? -1 : _nextHandle - 1;
-		Preview preview{
-			handle, a_prepared.definition->id, std::move(a_prepared.node), a_prepared.stage,
-			std::move(a_prepared.definition), std::move(a_prepared.participants), playbackId, {},
-			a_prepared.anchorImplicit, a_prepared.plan.anchorPos, a_prepared.plan.anchorHeading,
-			std::move(a_prepared.plan.baselineTransforms)
-		};
+		const auto handle = MintHandle();
+		Preview preview;
+		preview.handle = handle;
+		preview.sceneId = a_prepared.definition->id;
+		preview.node = std::move(a_prepared.node);
+		preview.stage = a_prepared.stage;
+		preview.definition = std::move(a_prepared.definition);
+		preview.participants = std::move(a_prepared.participants);
+		preview.playbackId = playbackId;
+		preview.anchorImplicit = a_prepared.anchorImplicit;
+		preview.anchorPos = a_prepared.plan.anchorPos;
+		preview.anchorHeading = a_prepared.plan.anchorHeading;
+		preview.baseline = std::move(a_prepared.plan.baselineTransforms);
 		auto [inserted, ok] = _previews.emplace(handle, std::move(preview));
 		if (!ok) {
 			Animation::GraphManager::GetSingleton().StopScene(owner, playbackId);
@@ -152,6 +209,46 @@ namespace OSF::Scene
 			}
 		}
 		ReconcileProps(inserted->second, 0.0f, false, openedDuration);
+		return handle;
+	}
+
+	std::int32_t SceneInspectionService::StartRoute(
+		PreparedRouteInspection a_prepared, std::string& a_error)
+	{
+		if (!a_prepared.definition || !a_prepared.actor) {
+			a_error = "The selected route preview is no longer available";
+			return 0;
+		}
+		const auto handle = MintHandle();
+		std::vector<RE::Actor*> participants{ a_prepared.actor };
+		// A consumer route may already own the actor. Suspend it through the same blocker contract
+		// production scenes use, then resume from its checkpoint when the preview is retired.
+		Overlay::OverlayService::GetSingleton().SuspendForScene(handle, participants);
+
+		Animation::PlaybackId playbackId = 0;
+		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(
+				participants, a_prepared.plan, 0, &playbackId)) {
+			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(handle);
+			a_error = "The selected route transition clip could not be loaded";
+			return 0;
+		}
+
+		Preview preview;
+		preview.handle = handle;
+		preview.sceneId = a_prepared.definition->id;
+		preview.route = std::move(a_prepared.definition);
+		preview.transition = std::move(a_prepared.transition);
+		preview.participants = std::move(participants);
+		preview.playbackId = playbackId;
+		preview.suspendsOverlay = true;
+		auto [inserted, ok] = _previews.emplace(handle, std::move(preview));
+		if (!ok) {
+			Animation::GraphManager::GetSingleton().StopScene(a_prepared.actor, playbackId);
+			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(handle);
+			a_error = "Could not allocate a route debugger preview handle";
+			return 0;
+		}
+		ReconcileRouteProps(inserted->second, 0.0f, false);
 		return handle;
 	}
 
@@ -182,6 +279,65 @@ namespace OSF::Scene
 			}
 		}
 		a_preview.props.clear();
+		for (auto& prop : a_preview.routeProps) {
+			std::string error;
+			if (!service.Destroy(prop.instance, &error)) {
+				REX::ERROR("[UI] route preview {} prop '{}' cleanup failed: {}", a_preview.handle, prop.id, error);
+			}
+		}
+		a_preview.routeProps.clear();
+	}
+
+	void SceneInspectionService::ReconcileRouteProps(
+		Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames)
+	{
+		const auto* transition = a_preview.route ? a_preview.route->FindTransition(a_preview.transition) : nullptr;
+		if (!transition || a_preview.participants.empty() || !a_preview.participants.front()) return;
+		const auto desired = InspectionRoutePropsAt(*transition, a_frame, a_atEnd, a_durationFrames);
+		auto& service = Props::PropService::GetSingleton();
+
+		for (auto it = a_preview.routeProps.begin(); it != a_preview.routeProps.end();) {
+			const auto wanted = std::ranges::find_if(desired, [&](const Registry::RouteProp* a_prop) {
+				return Util::ToLower(a_prop->id) == Util::ToLower(it->id);
+			});
+			if (wanted != desired.end()) {
+				const auto* prop = *wanted;
+				const bool unchanged = it->lifetime == prop->lifetime && it->source.kind == prop->source.kind &&
+					it->source.form == prop->source.form && it->source.keywords == prop->source.keywords &&
+					it->attachment.node == prop->attachment.node &&
+					it->attachment.position == prop->attachment.position &&
+					it->attachment.rotation == prop->attachment.rotation &&
+					it->attachment.scale == prop->attachment.scale;
+				if (unchanged) {
+					++it;
+					continue;
+				}
+			}
+			std::string error;
+			if (!service.Destroy(it->instance, &error)) {
+				REX::ERROR("[UI] route preview {} prop '{}' destroy failed: {}", a_preview.handle, it->id, error);
+			}
+			it = a_preview.routeProps.erase(it);
+		}
+
+		for (const auto* prop : desired) {
+			const auto live = std::ranges::find_if(a_preview.routeProps, [&](const PreviewRouteProp& a_live) {
+				return Util::ToLower(a_live.id) == Util::ToLower(prop->id);
+			});
+			if (live != a_preview.routeProps.end()) continue;
+			std::string error;
+			auto instance = service.CreateAttached(
+				a_preview.participants.front(), prop->source, prop->attachment, &error);
+			if (instance.Empty()) {
+				REX::WARN("[UI] route preview {} prop '{}' attach failed: {}", a_preview.handle, prop->id, error);
+				continue;
+			}
+			a_preview.routeProps.push_back(PreviewRouteProp{
+				prop->id, prop->lifetime, prop->source, prop->attachment, std::move(instance)
+			});
+		}
+		REX::TRACE("[UI] route preview {} reconciled {} OSF-owned prop(s) at frame {:.3f}{}",
+			a_preview.handle, desired.size(), a_frame, a_atEnd ? " (end)" : "");
 	}
 
 	void SceneInspectionService::ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd,
@@ -274,8 +430,13 @@ namespace OSF::Scene
 			if (!playback || playback->speed <= 0.0f || playback->duration <= 0.0f) {
 				continue;
 			}
-			const float fraction = std::clamp(playback->time / playback->duration, 0.0f, 1.0f);
-			ReconcileProps(preview, fraction, /*a_atEnd*/ false, playback->duration);
+			if (preview.route) {
+				ReconcileRouteProps(preview, playback->time * Registry::kFrameRate, /*a_atEnd*/ false,
+					playback->duration * Registry::kFrameRate);
+			} else {
+				const float fraction = std::clamp(playback->time / playback->duration, 0.0f, 1.0f);
+				ReconcileProps(preview, fraction, /*a_atEnd*/ false, playback->duration);
+			}
 		}
 	}
 
@@ -296,9 +457,14 @@ namespace OSF::Scene
 			manager.SetSpeed(preview.participants.front(), 0.0f);  // scrubbing takes the transport
 		}
 		const bool atEnd = playback->duration > 0.0f && a_time >= playback->duration;
-		const float fraction = playback->duration > 0.0f ?
-			std::clamp(a_time / playback->duration, 0.0f, 1.0f) : 0.0f;
-		ReconcileProps(preview, fraction, atEnd, playback->duration);
+		if (preview.route) {
+			ReconcileRouteProps(preview, std::max(0.0f, a_time) * Registry::kFrameRate, atEnd,
+				playback->duration * Registry::kFrameRate);
+		} else {
+			const float fraction = playback->duration > 0.0f ?
+				std::clamp(a_time / playback->duration, 0.0f, 1.0f) : 0.0f;
+			ReconcileProps(preview, fraction, atEnd, playback->duration);
+		}
 		return true;
 	}
 
@@ -310,11 +476,14 @@ namespace OSF::Scene
 		}
 		Preview preview = std::move(found->second);
 		_previews.erase(found);
-		DestroyProps(preview);
 		if (a_stopGraph && !preview.participants.empty()) {
 			Animation::GraphManager::GetSingleton().StopScene(preview.participants.front(), preview.playbackId);
 		}
-		REX::DEBUG("[UI] stopped browser prop preview handle={}", a_handle);
+		DestroyProps(preview);
+		if (preview.suspendsOverlay) {
+			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(a_handle);
+		}
+		REX::DEBUG("[UI] stopped browser {} preview handle={}", preview.route ? "route" : "scene", a_handle);
 		return true;
 	}
 
@@ -366,9 +535,18 @@ namespace OSF::Scene
 				stale.push_back(handle);
 				continue;
 			}
-			result.push_back(InspectionSnapshot{
-				handle, preview.sceneId, preview.stage, preview.participants, *playback
-			});
+			InspectionSnapshot snapshot;
+			snapshot.handle = handle;
+			snapshot.sceneId = preview.sceneId;
+			snapshot.stage = preview.stage;
+			snapshot.participants = preview.participants;
+			snapshot.playback = *playback;
+			if (preview.route) {
+				snapshot.inspectionKind = "route";
+				snapshot.routeId = preview.route->id;
+				snapshot.transitionId = preview.transition;
+			}
+			result.push_back(std::move(snapshot));
 		}
 		for (const auto handle : stale) {
 			Retire(handle, false);

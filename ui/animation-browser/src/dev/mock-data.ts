@@ -74,3 +74,51 @@ export const MOCK_LIBRARY = [
   { id: "osf.scene-clip/a1b2c3d4e5f60002", title: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], unlisted: true, actorCount: 1, inPlace: true, pack: "Gergel Ebanex", sourceFile: "chair.osf.json", stages: [{ index: 0, name: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], clipCount: 1, loopSec: 18.7, openEnded: true, estSec: 37.3 }] },
 ];
 
+export const MOCK_ROUTES = [
+  {
+    id: "suitprotocol.route.helmet",
+    sourceFile: "SuitProtocol/suitprotocol.routes.osf.json",
+    stations: [
+      { id: "equipped", layer: null },
+      { id: "held", layer: { clip: "OSF/SuitProtocol/helmet_hold.af", animId: "", durationHint: 2.2, mask: "upperBody", mode: "override", weight: 1, holdAt: 1 } },
+      { id: "stowed", layer: null },
+    ],
+    transitions: [
+      {
+        id: "head-to-held", from: "equipped", to: "held", interruption: "finish",
+        layer: { clip: "OSF/SuitProtocol/helmet_head_to_held.af", animId: "", durationHint: 3.3, mask: "upperBody", mode: "override", weight: 1, holdAt: -1 },
+        commit: { frame: 24, id: "suitprotocol.transition.commit" },
+        markers: [{ frame: 16, id: "suitprotocol.helmet.moving" }],
+        props: [{ frame: 18, id: "helmet", attach: true, lifetime: "station", node: "R_AnimObject1" }],
+        sounds: [{ frame: 25, spec: "$helmet,unseal" }],
+      },
+      {
+        id: "held-to-stowed", from: "held", to: "stowed", interruption: "crossfade-before-commit",
+        layer: { clip: "OSF/SuitProtocol/helmet_held_to_stowed.af", animId: "", durationHint: 2.3, mask: "upperBody", mode: "override", weight: 1, holdAt: -1 },
+        commit: { frame: 65, id: "suitprotocol.transition.commit" },
+        markers: [], props: [{ frame: 64, id: "helmet", attach: false, lifetime: "station", node: "" }], sounds: [],
+      },
+      {
+        id: "stowed-to-held", from: "stowed", to: "held", interruption: "finish",
+        layer: { clip: "OSF/SuitProtocol/helmet_stowed_to_held.af", animId: "", durationHint: 2.3, mask: "upperBody", mode: "override", weight: 1, holdAt: -1 },
+        commit: { frame: 4, id: "suitprotocol.transition.commit" }, markers: [],
+        props: [{ frame: 4, id: "helmet", attach: true, lifetime: "station", node: "R_AnimObject1" }], sounds: [],
+      },
+      {
+        id: "held-to-head", from: "held", to: "equipped", interruption: "finish",
+        layer: { clip: "OSF/SuitProtocol/helmet_held_to_head.af", animId: "", durationHint: 3.3, mask: "upperBody", mode: "override", weight: 1, holdAt: -1 },
+        commit: { frame: 75, id: "suitprotocol.transition.commit" }, markers: [],
+        props: [{ frame: 74, id: "helmet", attach: false, lifetime: "station", node: "" }], sounds: [{ frame: 76, spec: "$helmet,seal" }],
+      },
+    ],
+  },
+  {
+    id: "backpack.route.demo",
+    sourceFile: "Examples/backpack-route.osf.json",
+    stations: [{ id: "worn", layer: null }, { id: "held", layer: null }],
+    transitions: [{ id: "remove", from: "worn", to: "held", interruption: "finish",
+      layer: { clip: "OSF/Examples/backpack_remove.af", animId: "", durationHint: 1.8, mask: "upperBody", mode: "override", weight: 1, holdAt: -1 },
+      commit: null, markers: [{ frame: 28, id: "backpack.removed" }], props: [], sounds: [] }],
+  },
+];
+

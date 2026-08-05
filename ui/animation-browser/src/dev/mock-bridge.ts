@@ -3,7 +3,7 @@ import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/cont
 import { WHEEL_MAX, sceneById, wheelPool } from "../app/selectors";
 import { PREFERENCE_KEYS } from "../app/settings";
 import { PLAYER_TOKEN, type ActiveScene, type BrowserPreferences, type BrowserState } from "../app/state";
-import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY } from "./mock-data";
+import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY, MOCK_ROUTES } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
   // In the CLI harness these source modules are served through Vite's /@fs/
@@ -86,6 +86,8 @@ export class StandaloneBridge implements AnimationBridge {
       void fetchFixture("catalog").then((fixture) => this.emitCatalog(fixture ?? MOCK_CATALOG));
     } else if (command === "osf.animation.library.get") {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
+    } else if (command === "osf.animation.routes.get") {
+      this.later({ type: "osf.animation.routes.data", payload: MOCK_ROUTES }, 70);
     } else if (command === "osf.animation.imports.get") {
       this.later({ type: "osf.animation.imports.data", payload: this.importReport }, 90);
     } else if (command === "osf.animation.imports.reload") {
@@ -141,6 +143,8 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.wheel.data", payload: { customized: this.getState().wheelCustomized, entries } });
     } else if (command === "osf.animation.launch") {
       this.launch(fields);
+    } else if (command === "osf.animation.route.inspect") {
+      this.inspectRoute(fields);
     } else if (command === "settings.get") {
       // Derived from PREFERENCE_KEYS so the mock host stays exhaustive by
       // construction — a new setting cannot be forgotten here.
@@ -229,9 +233,42 @@ export class StandaloneBridge implements AnimationBridge {
       duration: sceneById(this.getState(), sceneId)?.stages[Number(options.stage) || 0]?.loopSec ?? 5,
       speed: inspect ? 0 : speed,
       inspection: inspect,
+      inspectionKind: "scene",
+      routeId: "",
+      transitionId: "",
     });
       this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, inspect } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);
+  }
+
+  private inspectRoute(fields: Record<string, unknown>): void {
+    const routeId = String(fields.routeId || "");
+    const transitionId = String(fields.transitionId || "");
+    const actorToken = Number(fields.actorToken);
+    const route = MOCK_ROUTES.find((item) => item.id === routeId);
+    const transition = route?.transitions.find((item) => item.id === transitionId);
+    if (!route || !transition || !actorToken) {
+      this.later({ type: "osf.animation.routeInspectResult", payload: { ok: false, routeId, transitionId, error: "Choose a valid route, transition, and actor." } }, 80);
+      return;
+    }
+    this.active = this.active.filter((scene) => !scene.cast.some((member) => member.token === actorToken));
+    const handle = this.nextHandle++;
+    this.active.push({
+      handle,
+      sceneId: routeId,
+      stage: -1,
+      player: actorToken === PLAYER_TOKEN,
+      cast: [{ token: actorToken, name: actorToken === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === actorToken)?.name ?? "actor", player: actorToken === PLAYER_TOKEN }],
+      time: 0,
+      duration: transition.layer.durationHint ?? 3,
+      speed: 0,
+      inspection: true,
+      inspectionKind: "route",
+      routeId,
+      transitionId,
+    });
+    this.later({ type: "osf.animation.routeInspectResult", payload: { ok: true, handle, routeId, transitionId } }, 80);
+    this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 120);
   }
 
   private advance(handle: number): void {

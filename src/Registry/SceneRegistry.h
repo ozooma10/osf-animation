@@ -617,6 +617,10 @@ namespace OSF::Registry
 		// snapshot without invalidating this iteration.
 		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
 
+		// Visit every overlay route in one pinned snapshot. Used by author tooling that needs
+		// the route topology without borrowing pointers across a pack reload.
+		void ForEachRoute(const std::function<void(const RouteDef&)>& a_fn) const;
+
 		size_t Size() const;
 
 		// Problems (errors + warnings) from the last LoadAll, for OSFAdvanced.GetSceneLoadErrors().

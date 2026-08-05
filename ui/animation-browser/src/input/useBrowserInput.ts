@@ -58,6 +58,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       const active = document.activeElement;
       if (state.settingsOpen && event.key === "Escape") { event.preventDefault(); commands.toggleSettings(false); return; }
       if (state.importsOpen && event.key === "Escape") { event.preventDefault(); commands.toggleImports(false); return; }
+      if (state.routeDebuggerOpen && event.key === "Escape") { event.preventDefault(); commands.toggleRouteDebugger(false); return; }
       if (state.pickMode && event.key === "Escape") { event.preventDefault(); commands.cancelPick(); return; }
       if (state.wheel) {
         if (event.key === "Escape") { event.preventDefault(); commands.cancelWheel(); return; }
@@ -70,6 +71,9 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       if (import.meta.env.DEV && standalone && !isTextInput(active) && (event.key === "w" || event.key === "W")) {
         window.mockOpenWheel?.(event.key === "w");
         return;
+      }
+      if (state.routeDebuggerOpen && !isTextInput(active) && (event.key === "[" || event.key === "]")) {
+        event.preventDefault(); commands.stepRouteFrame(event.key === "[" ? -1 : 1); return;
       }
       const direction = ({ ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" } as Record<string, "up" | "down" | "left" | "right">)[event.key];
       if (direction) {
@@ -104,7 +108,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       document.removeEventListener("mousemove", pointer);
       document.removeEventListener("contextmenu", context);
     };
-  }, [commands, standalone, state.active, state.importsOpen, state.lastHandle, state.pickMode, state.settingsOpen, state.wheel]);
+  }, [commands, standalone, state.active, state.importsOpen, state.lastHandle, state.pickMode, state.routeDebuggerOpen, state.settingsOpen, state.wheel]);
 
   useEffect(() => {
     const orbit = { dragging: false, selecting: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, frame: 0 };

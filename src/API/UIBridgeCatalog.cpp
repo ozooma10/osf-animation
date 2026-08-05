@@ -84,6 +84,95 @@ namespace OSF::API::UIBridgeCatalog
 		return a_stage < 0 ? IsWheelScene(a_def) : WheelStage(a_def, a_stage) != nullptr;
 	}
 
+	nlohmann::json BuildRoutes()
+	{
+		auto layerJson = [](const Registry::RouteLayer& a_layer) {
+			const char* mode = "override";
+			switch (a_layer.mode) {
+			case Animation::PoseMode::kAdditive:
+				mode = "additive";
+				break;
+			default:
+				break;
+			}
+			return json{
+				{ "clip", a_layer.clip.file },
+				{ "animId", a_layer.clip.animId },
+				{ "durationHint", a_layer.clip.sec },
+				{ "mask", a_layer.mask },
+				{ "mode", mode },
+				{ "weight", a_layer.weight },
+				{ "holdAt", a_layer.holdAt },
+			};
+		};
+		auto lifetimeName = [](Registry::RouteLifetime a_lifetime) {
+			switch (a_lifetime) {
+			case Registry::RouteLifetime::kStation: return "station";
+			case Registry::RouteLifetime::kController: return "controller";
+			case Registry::RouteLifetime::kExternal: return "external";
+			default: return "transition";
+			}
+		};
+
+		json routes = json::array();
+		Registry::SceneRegistry::GetSingleton().ForEachRoute([&](const Registry::RouteDef& a_route) {
+			json stations = json::array();
+			for (const auto& station : a_route.stations) {
+				json item = { { "id", station.id } };
+				item["layer"] = station.layer ? layerJson(*station.layer) : json(nullptr);
+				stations.push_back(std::move(item));
+			}
+
+			json transitions = json::array();
+			for (const auto& transition : a_route.transitions) {
+				json markers = json::array();
+				for (const auto& marker : transition.markers) {
+					markers.push_back({ { "frame", marker.frame }, { "id", marker.id } });
+				}
+				json props = json::array();
+				for (const auto& prop : transition.props) {
+					props.push_back({
+						{ "frame", prop.frame },
+						{ "id", prop.id },
+						{ "attach", prop.attach },
+						{ "lifetime", lifetimeName(prop.lifetime) },
+						{ "node", prop.attachment.node },
+					});
+				}
+				json sounds = json::array();
+				for (const auto& sound : transition.sounds) {
+					sounds.push_back({ { "frame", sound.frame }, { "spec", sound.spec } });
+				}
+				json item = {
+					{ "id", transition.id },
+					{ "from", transition.from },
+					{ "to", transition.to },
+					{ "layer", layerJson(transition.layer) },
+					{ "markers", std::move(markers) },
+					{ "props", std::move(props) },
+					{ "sounds", std::move(sounds) },
+					{ "interruption", transition.interruption == Registry::RouteInterruption::kCrossfadeBeforeCommit ?
+						"crossfade-before-commit" : "finish" },
+				};
+				item["commit"] = transition.commit ? json{
+					{ "frame", transition.commit->frame }, { "id", transition.commit->id }
+				} : json(nullptr);
+				transitions.push_back(std::move(item));
+			}
+
+			routes.push_back({
+				{ "id", a_route.id },
+				{ "sourceFile", a_route.sourceFile.generic_string() },
+				{ "stations", std::move(stations) },
+				{ "transitions", std::move(transitions) },
+			});
+		});
+		std::sort(routes.begin(), routes.end(), [](const json& a_lhs, const json& a_rhs) {
+			return a_lhs.value("id", "") < a_rhs.value("id", "");
+		});
+		return routes;
+	}
+
 	json BuildWheelData(std::string_view a_tagPrefix)
 	{
 		using Serialization::WheelPins::Entry;

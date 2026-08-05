@@ -1,4 +1,4 @@
-import { EMPTY_IMPORT_TOTALS, type ImportFile, type ImportReloadDelta, type ImportTotals, type SceneModel } from "../model";
+import { EMPTY_IMPORT_TOTALS, type ImportFile, type ImportReloadDelta, type ImportTotals, type RouteModel, type SceneModel } from "../model";
 
 export const PLAYER_TOKEN = -1;
 
@@ -50,6 +50,9 @@ export interface ActiveScene {
   duration: number;
   speed: number;
   inspection: boolean;
+  inspectionKind: "scene" | "route";
+  routeId: string;
+  transitionId: string;
 }
 
 export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";
@@ -195,6 +198,13 @@ export interface BrowserState {
   catalogReceived: boolean;
   library: SceneModel[];
   libraryReceived: boolean;
+  routes: RouteModel[];
+  routesReceived: boolean;
+  routeDebuggerOpen: boolean;
+  selectedRouteId: string | null;
+  selectedTransitionId: string | null;
+  routeSearch: string;
+  routeActorToken: number;
   wheelCustomized: boolean;
   selectedId: string | null;
   /** Selected library stage. Null selects the whole authored action/scene. */
@@ -257,6 +267,13 @@ export function createInitialState(): BrowserState {
     catalogReceived: false,
     library: [],
     libraryReceived: false,
+    routes: [],
+    routesReceived: false,
+    routeDebuggerOpen: false,
+    selectedRouteId: null,
+    selectedTransitionId: null,
+    routeSearch: "",
+    routeActorToken: PLAYER_TOKEN,
     wheelCustomized: false,
     selectedId: null,
     selectedStage: null,

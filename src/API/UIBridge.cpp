@@ -51,6 +51,7 @@ namespace OSF::API
 		using UIBridgeCatalog::BuildImportTextReport;
 		using UIBridgeCatalog::BuildCatalog;
 		using UIBridgeCatalog::BuildFileReport;
+		using UIBridgeCatalog::BuildRoutes;
 		using UIBridgeCatalog::BuildWheelData;
 		using UIBridgeCatalog::IsWheelEntryEligible;
 		using UIBridgeWorld::AllocToken;
@@ -245,6 +246,9 @@ namespace OSF::API
 				};
 				item["time"] = preview.playback.time;
 				item["duration"] = preview.playback.duration;
+				item["inspectionKind"] = preview.inspectionKind;
+				if (!preview.routeId.empty()) item["routeId"] = preview.routeId;
+				if (!preview.transitionId.empty()) item["transitionId"] = preview.transitionId;
 				scenes.push_back(std::move(item));
 			}
 			return json{ { "scenes", std::move(scenes) } };
@@ -438,6 +442,11 @@ namespace OSF::API
 		void OnLibraryGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.library.data", BuildCatalog(true));
+		}
+
+		void OnRoutesGet(const char*, const char*, const char* a_srcView, void*) noexcept
+		{
+			SendJson(a_srcView, "osf.animation.routes.data", BuildRoutes());
 		}
 
 		// The per-file import report. Static between ReloadPacks calls like the library, but small
@@ -907,6 +916,73 @@ namespace OSF::API
 				plan.furniture ? ", anchored" : "",
 				castHasPlayer ? "" : ", NPC-only — outlives the browser");
 			SendJson(a_srcView, "osf.animation.launchResult", reply);
+			PushActiveScenes();
+		}
+
+		void OnRouteInspect(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			const std::string routeId = j.is_object() && j.contains("routeId") && j["routeId"].is_string()
+				? j["routeId"].get<std::string>() : std::string{};
+			const std::string transitionId = j.is_object() && j.contains("transitionId") && j["transitionId"].is_string()
+				? j["transitionId"].get<std::string>() : std::string{};
+			json reply{
+				{ "routeId", routeId },
+				{ "transitionId", transitionId },
+			};
+			const auto fail = [&](std::string_view a_reason) {
+				reply["ok"] = false;
+				reply["handle"] = 0;
+				reply["error"] = a_reason;
+				REX::WARN("[UI] route preview '{}:{}' refused: {}", routeId, transitionId, a_reason);
+				SendJson(a_srcView, "osf.animation.routeInspectResult", reply);
+			};
+
+			if (routeId.empty() || transitionId.empty()) {
+				return fail("Choose a route transition to inspect");
+			}
+			const auto token = j.is_object() && j.contains("actorToken") ? Int32Value(j["actorToken"]) : std::nullopt;
+			if (!token) {
+				return fail("Choose one route preview actor");
+			}
+			auto* ref = ResolveToken(*token);
+			if (!ref || !ref->IsActor()) {
+				return fail("The selected route preview actor is no longer available — re-pick it");
+			}
+			auto* actor = static_cast<RE::Actor*>(ref);
+			auto route = Registry::SceneRegistry::GetSingleton().FindRoute(routeId);
+			auto& inspection = Scene::SceneInspectionService::GetSingleton();
+			std::string error;
+			auto prepared = inspection.PrepareRoute(
+				Scene::RouteInspectionRequest{ route, transitionId, actor }, error);
+			if (!prepared) {
+				return fail(error);
+			}
+
+			// Match ordinary browser inspection admission: the explicit preview replaces another
+			// browser preview or runtime scene on this actor. Overlay routes are suspended and later
+			// reconciled by SceneInspectionService rather than being destroyed.
+			inspection.StopForActor(actor);
+			if (auto* api = SceneAPI()) {
+				const auto busy = api->GetSceneForActor(actor);
+				if (busy != 0) {
+					(void)api->StopScene(busy);
+					std::erase(g_closeStops, busy);
+					g_resumeSpeeds.erase(busy);
+					if (g_lastHandle == busy) g_lastHandle = 0;
+				}
+			}
+
+			const auto handle = inspection.StartRoute(std::move(*prepared), error);
+			if (handle == 0) {
+				return fail(error.empty() ? "The route transition preview could not start" : error);
+			}
+			g_lastHandle = handle;
+			reply["ok"] = true;
+			reply["handle"] = handle;
+			REX::DEBUG("[UI] route preview '{}:{}' -> handle {} actor={:08X}",
+				routeId, transitionId, handle, actor->formID);
+			SendJson(a_srcView, "osf.animation.routeInspectResult", reply);
 			PushActiveScenes();
 		}
 
@@ -1428,12 +1504,14 @@ namespace OSF::API
 		g_ui.SetReadyCallback(&OnBridgeReady, nullptr);
 		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
+		g_ui.RegisterCommand("osf.animation.routes.get", &OnRoutesGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.imports.get", &OnImportsGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.imports.reload", &OnImportsReload, nullptr);
 		g_ui.RegisterCommand("osf.animation.imports.copy", &OnImportsCopy, nullptr);
 		UIBridgeWorld::RegisterCommands(g_ui);
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
+		g_ui.RegisterCommand("osf.animation.route.inspect", &OnRouteInspect, nullptr);
 		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
 		g_ui.RegisterCommand("osf.animation.advance", &OnAdvance, nullptr);
 		g_ui.RegisterCommand("osf.animation.playback.get", &OnPlaybackGet, nullptr);

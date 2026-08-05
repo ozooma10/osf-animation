@@ -2996,6 +2996,14 @@ namespace OSF::Registry
 		}
 	}
 
+	void SceneRegistry::ForEachRoute(const std::function<void(const RouteDef&)>& a_fn) const
+	{
+		const auto current = snapshot.load(std::memory_order_acquire);
+		for (const auto& [key, route] : current->routes) {
+			a_fn(route);
+		}
+	}
+
 	size_t SceneRegistry::Size() const
 	{
 		return snapshot.load(std::memory_order_acquire)->authoredSceneCount;
