@@ -51,20 +51,20 @@ namespace OSF::Overlay
 
 	RouteController::RouteController(const Registry::RouteDef& a_route, std::string a_initialStation,
 		IRoutePlayback& a_playback) :
-		_route(&a_route), _playback(a_playback), _reached(std::move(a_initialStation)),
+		_route(a_route), _playback(a_playback), _reached(std::move(a_initialStation)),
 		_checkpoint(_reached), _desired(_reached)
 	{}
 
 	RequestResult RouteController::Start()
 	{
-		if (!_route || !_route->FindStation(_reached)) return Fail(RequestReason::kUnknownStation);
+		if (!_route.FindStation(_reached)) return Fail(RequestReason::kUnknownStation);
 		return Reconcile();
 	}
 
 	RequestResult RouteController::RequestStation(std::string_view a_station, std::uint64_t a_token)
 	{
 		if (_phase == ControllerPhase::kFailed) return { RequestDisposition::kRejected, RequestReason::kPlaybackFailed };
-		const auto* station = _route ? _route->FindStation(a_station) : nullptr;
+		const auto* station = _route.FindStation(a_station);
 		if (!station) return { RequestDisposition::kRejected, RequestReason::kUnknownStation };
 		_requestToken = a_token;
 		const bool same = ToLower(_desired) == ToLower(station->id);
@@ -169,8 +169,8 @@ namespace OSF::Overlay
 		}
 		if (_phase == ControllerPhase::kFailed) return { RequestDisposition::kRejected, RequestReason::kPlaybackFailed };
 		if (_phase == ControllerPhase::kTransitioning) return { RequestDisposition::kPending, RequestReason::kNone };
-		const auto* current = _route->FindStation(_reached);
-		const auto* desired = _route->FindStation(_desired);
+		const auto* current = _route.FindStation(_reached);
+		const auto* desired = _route.FindStation(_desired);
 		if (!current || !desired) return Fail(RequestReason::kUnknownStation);
 		if (ToLower(current->id) == ToLower(desired->id)) {
 			_lastReason = RequestReason::kNone;
@@ -179,13 +179,13 @@ namespace OSF::Overlay
 			_stationApplied = true;
 			return { RequestDisposition::kAccepted, RequestReason::kNone };
 		}
-		auto path = ShortestPath(*_route, current->id, desired->id);
+		auto path = ShortestPath(_route, current->id, desired->id);
 		if (path.empty()) {
 			_lastReason = RequestReason::kNoPath;
 			return { RequestDisposition::kRejected, RequestReason::kNoPath };
 		}
 		_active = path.front();
-		const auto* destination = _route->FindStation(_active->to);
+		const auto* destination = _route.FindStation(_active->to);
 		if (!destination) return Fail(RequestReason::kUnknownStation);
 		if (++_transitionGeneration == 0) ++_transitionGeneration;
 		_commitAcknowledged = false;

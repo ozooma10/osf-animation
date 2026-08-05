@@ -87,11 +87,11 @@ Follows `OSFSceneAPI.h` conventions (size-prefixed structs, generational int32 h
 - `AcquireOwner(pluginId, callback, ctx) → uint64` / `ReleaseOwner` (callback-barrier semantics)
 - `BeginRoute(owner, actor, routeId, initialStation) → { routeHandle, disposition, reason }`
 - `RequestStation(handle, station, token) → {accepted|pending|rejected}` with stable reason enums
-- `EndRoute(handle, fade)` / `GetRouteForActor` / `QueryRoute`
+- `EndRoute(handle, fade)` / `QueryRoute`; the owner retains its returned handles
 
 One active owner record per plugin ID. Owner registrations survive world replacement; route handles and actor references do not.
 
-**Owner-scoped callback, not a broadcast registry.** Instead of cloning `NativeSceneEventRegistry`, each owner registers one callback. The callback returns acknowledge/reject for **commit** events (an unacknowledged handoff must not be assumed applied); informational event results are ignored; an exception rejects the handoff. Events carry route handle, actor, route/stations/transition, typed marker or prop payload, request token, transition generation, outcome, and reason. Reentrant mutators are queued until dispatch completes; a reentrant begin returns `pending/dispatchDeferred`, and `ReleaseOwner` remains a callback barrier.
+**Owner-scoped callback, not a broadcast registry.** Instead of cloning `NativeSceneEventRegistry`, each owner registers one callback. The callback returns acknowledge/reject for **commit** events (an unacknowledged handoff must not be assumed applied); informational event results are ignored; an exception rejects the handoff. Events carry route handle, actor, route/stations/transition, typed marker or prop payload, request token, transition generation, outcome, and reason. API calls from inside a callback are rejected; consumers schedule mutations after callback return.
 
 Sound-pool resolution, gender substitution, emitter selection, and subtitles are factored out of SceneRuntime so scenes and overlays share identical sound behavior. *(Deferral candidate — see Review notes.)*
 

@@ -93,9 +93,7 @@ namespace OSF::Animation
 		// bones (per-bone weighted), leaving the rest of the rig engine-driven — the partial-body
 		// gesture path. Forces a rebind when it changes; a scene stage may override the role default.
 		void SetBoneMask(const std::string& a_maskName);
-		void SetLiveReach(const LiveReach& a_reach);
 		void SetContactPose(const ContactPose& a_contactPose);
-		void ApplyLiveReach(float* a_liveBuffer, std::uint16_t a_rigBoneCount);
 
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
 		bool IsFadedOut() const;  // fade-out ramp fully elapsed
@@ -137,10 +135,6 @@ namespace OSF::Animation
 		std::vector<ozz::math::SoaTransform> localPose;
 		std::vector<ozz::math::Float4x4> outputPose;
 		std::vector<ozz::math::Float4x4> referencePose;  // active skeleton's local rest pose, parallel to outputPose
-		std::vector<ozz::math::Float4x4> reachLocalPose;
-		std::vector<ozz::math::Float4x4> reachModelPose;
-		std::vector<ozz::math::Float4x4> reachSampledModelPose;
-		std::vector<std::uint8_t> reachDriven;
 		std::unordered_map<std::string, uint16_t> jointMap;  // lowercased joint name -> index
 		std::unordered_set<std::string> preserveBones;       // lowercased live rig names omitted from binding
 		const BoneMask::Mask* boneMask = nullptr;            // static-storage named mask; null = every body bone binds
@@ -165,11 +159,6 @@ namespace OSF::Animation
 		};
 		std::vector<BoundBone> binding;
 		std::vector<std::uint16_t> rigIndexByJoint;
-		LiveReach liveReach;
-		bool reachTargetFrozen = false;
-		std::array<float, 16> frozenReachTarget{};
-		bool loggedReachDisabled = false;
-		bool loggedReachContact = false;
 		ContactPose contactPose;
 		std::unordered_set<std::string> contactPoseBones;
 		bool loggedContactPoseFull = false;

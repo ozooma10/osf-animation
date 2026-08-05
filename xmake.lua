@@ -218,13 +218,14 @@ target("osf-scene-registry-test")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")
 
--- Pure overlay route/controller, playback-admission, owner-barrier, and native-header tests.
+-- Pure overlay route/controller/compiler, playback-admission, owner-callback, and native-header tests.
 target("osf-route-plan-test")
     set_kind("binary")
     set_default(false)
     add_tests("default")
     add_deps("commonlibsf")
     add_packages("ozz-animation")
-    add_files("src/Overlay/OwnerRegistry.cpp", "src/Overlay/RoutePlan.cpp", "test/RoutePlanTest.cpp")
+    add_files("src/Overlay/OwnerRegistry.cpp", "src/Overlay/RoutePlan.cpp",
+              "src/Overlay/RoutePlaybackPlan.cpp", "test/RoutePlanTest.cpp")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")

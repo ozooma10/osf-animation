@@ -2,6 +2,7 @@
 
 #include "Animation/GraphManager.h"
 #include "Audio/SoundPlayback.h"
+#include "Overlay/RoutePlaybackPlan.h"
 #include "Scene/SceneRuntime.h"
 #include "Util/StringUtil.h"
 
@@ -40,11 +41,18 @@ namespace OSF::Overlay
 			return source;
 		}
 
-		constexpr std::uint8_t kLaneCommit = 0;
-		constexpr std::uint8_t kLaneProp = 1;
-		constexpr std::uint8_t kLaneSound = 2;
-		constexpr std::uint8_t kLaneMarker = 3;
-		constexpr std::uint8_t kLaneReached = 4;
+		thread_local std::uint32_t g_ownerCallbackDepth = 0;
+
+		struct OwnerCallbackScope
+		{
+			OwnerCallbackScope() { ++g_ownerCallbackDepth; }
+			~OwnerCallbackScope() { --g_ownerCallbackDepth; }
+		};
+
+		bool InOwnerCallback() noexcept
+		{
+			return g_ownerCallbackDepth != 0;
+		}
 
 		std::int32_t MakeHandle(std::uint16_t a_generation, std::uint16_t a_slot)
 		{
@@ -64,25 +72,6 @@ namespace OSF::Overlay
 			const auto [end, error] = std::from_chars(a_value.data(), a_value.data() + a_value.size(), value);
 			return error == std::errc{} && end == a_value.data() + a_value.size() ?
 				std::optional<std::size_t>{ value } : std::nullopt;
-		}
-
-		API::OverlayReason PublicReason(RequestReason a_reason)
-		{
-			switch (a_reason) {
-			case RequestReason::kNone: return API::OverlayReason::kNone;
-			case RequestReason::kInvalidHandle: return API::OverlayReason::kInvalidHandle;
-			case RequestReason::kUnknownStation: return API::OverlayReason::kUnknownStation;
-			case RequestReason::kNoPath: return API::OverlayReason::kNoPath;
-			case RequestReason::kBusy: return API::OverlayReason::kBusy;
-			case RequestReason::kSceneBlocked: return API::OverlayReason::kSceneBlocked;
-			case RequestReason::kActorUnavailable: return API::OverlayReason::kActorUnavailable;
-			case RequestReason::kPlaybackFailed: return API::OverlayReason::kPlaybackFailed;
-			case RequestReason::kHandoffRejected: return API::OverlayReason::kHandoffRejected;
-			case RequestReason::kOwnerInvalid: return API::OverlayReason::kOwnerInvalid;
-			case RequestReason::kRouteUnknown: return API::OverlayReason::kRouteUnknown;
-			case RequestReason::kDispatchDeferred: return API::OverlayReason::kDispatchDeferred;
-			}
-			return API::OverlayReason::kPlaybackFailed;
 		}
 
 		API::OverlayPhase PublicPhase(ControllerPhase a_phase)
@@ -110,7 +99,6 @@ namespace OSF::Overlay
 	{
 		std::string id;
 		Registry::RouteLifetime lifetime = Registry::RouteLifetime::kTransition;
-		std::string station;
 		Props::Source source;
 		Props::Attachment attachment;
 		Props::Instance instance;
@@ -125,6 +113,7 @@ namespace OSF::Overlay
 		std::unique_ptr<PlaybackAdapter> playback;
 		std::unique_ptr<RouteController> controller;
 		std::vector<ActiveProp> props;
+		std::int32_t sceneBlocker = 0;
 	};
 
 	class OverlayService::PlaybackAdapter final : public IRoutePlayback
@@ -138,26 +127,13 @@ namespace OSF::Overlay
 		{
 			auto* slot = service.Resolve(handle);
 			if (!slot || !slot->actor) return false;
-			if (!a_station.layer) {
+			auto plan = BuildRouteStationPlan(*slot->route, a_station);
+			if (!plan) {
 				Stop(false);
 				return true;
 			}
-			Animation::ScenePlan plan;
-			plan.animId = slot->route->id + ":station:" + a_station.id;
-			plan.anchored = false;
-			plan.poseModes = { a_station.layer->mode };
-			plan.poseWeights = { a_station.layer->weight };
-			plan.masks = { a_station.layer->mask };
-			Animation::ScenePlan::Stage stage;
-			stage.files = { a_station.layer->clip.file };
-			stage.animIds = { a_station.layer->clip.animId };
-			stage.masks = { a_station.layer->mask };
-			stage.poseModes = { a_station.layer->mode };
-			stage.poseWeights = { a_station.layer->weight };
-			stage.hold = a_station.layer->holdAt >= 0.0f ? a_station.layer->holdAt : 1.0f;
-			plan.stages.push_back(std::move(stage));
 			Animation::PlaybackId next = 0;
-			if (!Animation::GraphManager::GetSingleton().PlaySceneStaged({ slot->actor.get() }, plan, 0,
+			if (!Animation::GraphManager::GetSingleton().PlaySceneStaged({ slot->actor.get() }, *plan, 0,
 				&next, playbackId, service._playbackSinkId, true)) {
 				return false;
 			}
@@ -173,52 +149,7 @@ namespace OSF::Overlay
 			service.CleanupProps(*slot, Registry::RouteLifetime::kTransition);
 			service.CleanupProps(*slot, Registry::RouteLifetime::kStation);
 
-			Animation::ScenePlan plan;
-			plan.animId = slot->route->id + ":transition:" + a_transition.id;
-			plan.anchored = false;
-			plan.poseModes = { a_transition.layer.mode };
-			plan.poseWeights = { a_transition.layer.weight };
-			plan.masks = { a_transition.layer.mask };
-			Animation::ScenePlan::Stage edge;
-			edge.files = { a_transition.layer.clip.file };
-			edge.animIds = { a_transition.layer.clip.animId };
-			edge.masks = { a_transition.layer.mask };
-			edge.poseModes = { a_transition.layer.mode };
-			edge.poseWeights = { a_transition.layer.weight };
-			if (a_transition.contactPose) edge.contactPose = { *a_transition.contactPose };
-			// Route edges are authored motion between station poses. Applying the generic scene
-			// blend here changes that motion (and can consume half of a short edge), rather than
-			// merely smoothing entry into an unrelated scene.
-			edge.blendIn = 0.0f;
-			edge.loops = 1;
-			if (a_transition.commit) {
-				edge.marks.push_back({ .seconds = a_transition.commit->frame / Registry::kFrameRate,
-					.lane = kLaneCommit, .token = a_transition.commit->id });
-			}
-			for (std::size_t i = 0; i < a_transition.props.size(); ++i) {
-				edge.marks.push_back({ .seconds = a_transition.props[i].frame / Registry::kFrameRate,
-					.lane = kLaneProp, .token = std::to_string(i) });
-			}
-			for (std::size_t i = 0; i < a_transition.sounds.size(); ++i) {
-				edge.marks.push_back({ .seconds = a_transition.sounds[i].frame / Registry::kFrameRate,
-					.lane = kLaneSound, .token = std::to_string(i) });
-			}
-			for (std::size_t i = 0; i < a_transition.markers.size(); ++i) {
-				edge.marks.push_back({ .seconds = a_transition.markers[i].frame / Registry::kFrameRate,
-					.lane = kLaneMarker, .token = std::to_string(i) });
-			}
-			edge.marks.push_back({ .atEnd = true, .lane = kLaneReached, .token = std::to_string(a_generation) });
-			plan.stages.push_back(std::move(edge));
-			if (a_destination.layer) {
-				Animation::ScenePlan::Stage hold;
-				hold.files = { a_destination.layer->clip.file };
-				hold.animIds = { a_destination.layer->clip.animId };
-				hold.masks = { a_destination.layer->mask };
-				hold.poseModes = { a_destination.layer->mode };
-				hold.poseWeights = { a_destination.layer->weight };
-				hold.hold = a_destination.layer->holdAt >= 0.0f ? a_destination.layer->holdAt : 1.0f;
-				plan.stages.push_back(std::move(hold));
-			}
+			auto plan = BuildRouteTransitionPlan(*slot->route, a_transition, a_destination, a_generation);
 			Animation::PlaybackId next = 0;
 			if (!Animation::GraphManager::GetSingleton().PlaySceneStaged({ slot->actor.get() }, plan, 0,
 				&next, playbackId, service._playbackSinkId, true)) {
@@ -274,25 +205,21 @@ namespace OSF::Overlay
 	std::uint64_t OverlayService::AcquireOwner(std::string_view a_pluginId,
 		API::OSFOverlayCallback a_callback, void* a_context)
 	{
+		if (InOwnerCallback()) return 0;
 		std::lock_guard l{ _lock };
 		return _owners.Acquire(a_pluginId, a_callback, a_context);
 	}
 
 	bool OverlayService::ReleaseOwner(std::uint64_t a_owner)
 	{
-		std::unique_lock serviceLock{ _lock };
-		if (_dispatchDepth != 0) {
-			const bool found = _owners.MarkReleasing(a_owner);
-			_deferredMutations.emplace_back([this, a_owner]() { (void)ReleaseOwner(a_owner); });
-			return found;
-		}
-		if (!_owners.MarkReleasing(a_owner)) return false;
+		if (InOwnerCallback()) return false;
+		std::lock_guard l{ _lock };
+		if (!_owners.IsUsable(a_owner)) return false;
 		std::vector<std::int32_t> handles;
 		for (std::size_t i = 0; i < _slots.size(); ++i) {
 			if (_slots[i] && _slots[i]->owner == a_owner) handles.push_back(MakeHandle(_slots[i]->generation, static_cast<std::uint16_t>(i)));
 		}
-		for (const auto handle : handles) (void)EndRoute(handle, false, false);
-		serviceLock.unlock();
+		for (const auto handle : handles) (void)EndRouteLocked(handle, false, false);
 		return _owners.Release(a_owner);
 	}
 
@@ -323,6 +250,7 @@ namespace OSF::Overlay
 	BeginResult OverlayService::BeginRoute(std::uint64_t a_owner, RE::Actor* a_actor,
 		std::string_view a_routeId, std::string_view a_initialStation)
 	{
+		if (InOwnerCallback()) return { 0, RequestDisposition::kRejected, RequestReason::kBusy };
 		if (!a_actor) return { 0, RequestDisposition::kRejected, RequestReason::kActorUnavailable };
 		std::lock_guard l{ _lock };
 		if (!_owners.IsUsable(a_owner)) return { 0, RequestDisposition::kRejected, RequestReason::kOwnerInvalid };
@@ -350,11 +278,7 @@ namespace OSF::Overlay
 		_byActor.emplace(a_actor, handle);
 		if (sceneHandle) {
 			_slots[index]->controller->SetBlocker(ControllerBlocker::kScene);
-			_sceneSuspensions[sceneHandle].push_back(handle);
-		}
-		if (_dispatchDepth != 0) {
-			_deferredMutations.emplace_back([this, handle]() { RealizeDeferredBegin(handle); });
-			return { handle, RequestDisposition::kPending, RequestReason::kDispatchDeferred };
+			_slots[index]->sceneBlocker = sceneHandle;
 		}
 		const auto result = StartRoute(handle);
 		if (result.disposition == RequestDisposition::kRejected) {
@@ -377,27 +301,6 @@ namespace OSF::Overlay
 		return result;
 	}
 
-	void OverlayService::RealizeDeferredBegin(std::int32_t a_handle)
-	{
-		Slot* slot = Resolve(a_handle);
-		if (!slot) return;
-		if (!_owners.IsUsable(slot->owner)) {
-			DropRoute(a_handle);
-			return;
-		}
-		const auto result = StartRoute(a_handle);
-		if (result.disposition != RequestDisposition::kRejected) return;
-		API::OSFOverlayEvent event;
-		event.type = API::OverlayEventType::kFailed;
-		event.routeHandle = a_handle;
-		event.actor = slot->actor.get();
-		event.route = slot->route->id.c_str();
-		event.outcome = API::OverlayRequestDisposition::kRejected;
-		event.reason = PublicReason(result.reason);
-		(void)DispatchOwner(*slot, event, false);
-		DropRoute(a_handle);
-	}
-
 	void OverlayService::DropRoute(std::int32_t a_handle)
 	{
 		Slot* slot = Resolve(a_handle);
@@ -411,12 +314,8 @@ namespace OSF::Overlay
 
 	RequestResult OverlayService::RequestStation(std::int32_t a_handle, std::string_view a_station, std::uint64_t a_token)
 	{
+		if (InOwnerCallback()) return { RequestDisposition::kRejected, RequestReason::kBusy };
 		std::lock_guard l{ _lock };
-		if (_dispatchDepth != 0) {
-			const std::string station(a_station);
-			_deferredMutations.emplace_back([this, a_handle, station, a_token]() { (void)RequestStation(a_handle, station, a_token); });
-			return { RequestDisposition::kPending, RequestReason::kNone };
-		}
 		Slot* slot = Resolve(a_handle);
 		return slot ? slot->controller->RequestStation(a_station, a_token) :
 			RequestResult{ RequestDisposition::kRejected, RequestReason::kInvalidHandle };
@@ -424,11 +323,13 @@ namespace OSF::Overlay
 
 	bool OverlayService::EndRoute(std::int32_t a_handle, bool a_fade, bool a_notify)
 	{
+		if (InOwnerCallback()) return false;
 		std::lock_guard l{ _lock };
-		if (_dispatchDepth != 0) {
-			_deferredMutations.emplace_back([this, a_handle, a_fade, a_notify]() { (void)EndRoute(a_handle, a_fade, a_notify); });
-			return Resolve(a_handle) != nullptr;
-		}
+		return EndRouteLocked(a_handle, a_fade, a_notify);
+	}
+
+	bool OverlayService::EndRouteLocked(std::int32_t a_handle, bool a_fade, bool a_notify)
+	{
 		Slot* slot = Resolve(a_handle);
 		if (!slot) return false;
 		if (a_notify) {
@@ -445,19 +346,12 @@ namespace OSF::Overlay
 		const auto index = static_cast<std::uint16_t>(a_handle & 0xFFFF);
 		REX::INFO("[Anim] overlay route '{}' ended (handle {:#010x})", slot->route->id, a_handle);
 		_slots[index].reset();
-		DrainDeferredMutations();
 		return true;
-	}
-
-	std::int32_t OverlayService::GetRouteForActor(RE::Actor* a_actor) const
-	{
-		std::lock_guard l{ _lock };
-		const auto it = _byActor.find(a_actor);
-		return it == _byActor.end() ? 0 : it->second;
 	}
 
 	bool OverlayService::QueryRoute(std::int32_t a_handle, API::OSFOverlayRouteState& a_out) const
 	{
+		if (InOwnerCallback()) return false;
 		std::lock_guard l{ _lock };
 		const Slot* slot = Resolve(a_handle);
 		if (!slot) return false;
@@ -477,24 +371,14 @@ namespace OSF::Overlay
 
 	bool OverlayService::DispatchOwner(Slot& a_slot, API::OSFOverlayEvent& a_event, bool a_commit)
 	{
-		auto lease = _owners.BeginDispatch(a_slot.owner);
-		if (!lease) return !a_commit;
-		++_dispatchDepth;
-		const auto result = InvokeOwnerCallback(std::move(lease), a_event, a_commit);
-		--_dispatchDepth;
+		const auto target = _owners.GetCallback(a_slot.owner);
+		if (!target) return !a_commit;
+		OwnerCallbackScope callbackScope;
+		const auto result = InvokeOwnerCallback(target, a_event, a_commit);
 		if (result.threw) {
 			REX::ERROR("[API] overlay owner '{}' callback threw; exception isolated", result.plugin);
 		}
 		return a_commit ? result.acknowledged : true;
-	}
-
-	void OverlayService::DrainDeferredMutations()
-	{
-		while (_dispatchDepth == 0 && !_deferredMutations.empty()) {
-			auto mutation = std::move(_deferredMutations.front());
-			_deferredMutations.pop_front();
-			mutation();
-		}
 	}
 
 	void OverlayService::CleanupProps(Slot& a_slot, std::optional<Registry::RouteLifetime> a_lifetime)
@@ -541,19 +425,15 @@ namespace OSF::Overlay
 	}
 
 	void OverlayService::OnTimedMarks(Animation::PlaybackId a_playbackId,
-		const std::vector<RE::Actor*>&, const std::vector<Animation::FiredMark>& a_marks)
+		const std::vector<RE::Actor*>& a_actors, const std::vector<Animation::FiredMark>& a_marks)
 	{
 		std::lock_guard l{ _lock };
-		Slot* slot = nullptr;
-		std::int32_t handle = 0;
-		for (std::size_t i = 0; i < _slots.size(); ++i) {
-			if (_slots[i] && _slots[i]->playback->playbackId == a_playbackId) {
-				slot = _slots[i].get();
-				handle = MakeHandle(slot->generation, static_cast<std::uint16_t>(i));
-				break;
-			}
-		}
-		if (!slot) return;
+		if (a_actors.empty()) return;
+		const auto route = _byActor.find(a_actors.front());
+		if (route == _byActor.end()) return;
+		const auto handle = route->second;
+		Slot* slot = Resolve(handle);
+		if (!slot || slot->playback->playbackId != a_playbackId) return;
 		const auto* transition = slot->controller->ActiveTransition();
 		if (!transition) return;
 		const std::string transitionId = transition->id;
@@ -564,7 +444,7 @@ namespace OSF::Overlay
 		std::stable_sort(marks.begin(), marks.end(), [](const auto& a, const auto& b) { return a.lane < b.lane; });
 		for (const auto& mark : marks) {
 			if (!Resolve(handle) || slot->controller->TransitionGeneration() != generation) break;
-			if (mark.lane == kLaneCommit) {
+			if (mark.lane == RouteLane(RouteMarkLane::kCommit)) {
 				API::OSFOverlayEvent event;
 				event.type = API::OverlayEventType::kCommit;
 				event.routeHandle = handle;
@@ -580,9 +460,11 @@ namespace OSF::Overlay
 				(void)slot->controller->OnCommit(generation, ack);
 				if (!ack) {
 					CleanupProps(*slot, Registry::RouteLifetime::kTransition);
+					CleanupProps(*slot, Registry::RouteLifetime::kStation);
 					break;  // a rejected handoff invalidates every later lane in this frame
 				}
-			} else if (mark.lane == kLaneProp) {
+			} else if (mark.lane == RouteLane(RouteMarkLane::kPropAttach) ||
+				mark.lane == RouteLane(RouteMarkLane::kPropDestroy)) {
 				const auto index = ParseIndex(mark.token);
 				if (!index || *index >= transition->props.size()) continue;
 				const auto& prop = transition->props[*index];
@@ -605,7 +487,7 @@ namespace OSF::Overlay
 					std::string error;
 					auto instance = Props::PropService::GetSingleton().CreateAttached(slot->actor.get(), prop.source, prop.attachment, &error);
 					if (instance.Empty()) REX::ERROR("[Anim] overlay prop '{}' attach failed: {}", prop.id, error);
-					else slot->props.push_back({ prop.id, prop.lifetime, to, prop.source, prop.attachment, std::move(instance) });
+					else slot->props.push_back({ prop.id, prop.lifetime, prop.source, prop.attachment, std::move(instance) });
 				} else {
 					for (auto it = slot->props.begin(); it != slot->props.end(); ++it) {
 						if (Util::ToLower(it->id) != Util::ToLower(prop.id)) continue;
@@ -615,10 +497,10 @@ namespace OSF::Overlay
 						break;
 					}
 				}
-			} else if (mark.lane == kLaneSound) {
+			} else if (mark.lane == RouteLane(RouteMarkLane::kSound)) {
 				const auto index = ParseIndex(mark.token);
 				if (index && *index < transition->sounds.size()) PlayRouteSound(*slot, transition->sounds[*index].spec);
-			} else if (mark.lane == kLaneMarker) {
+			} else if (mark.lane == RouteLane(RouteMarkLane::kMarker)) {
 				const auto index = ParseIndex(mark.token);
 				if (!index || *index >= transition->markers.size()) continue;
 				API::OSFOverlayEvent event;
@@ -633,7 +515,7 @@ namespace OSF::Overlay
 				event.requestToken = slot->controller->RequestToken();
 				event.transitionGeneration = generation;
 				(void)DispatchOwner(*slot, event, false);
-			} else if (mark.lane == kLaneReached) {
+			} else if (mark.lane == RouteLane(RouteMarkLane::kReached)) {
 				CleanupProps(*slot, Registry::RouteLifetime::kTransition);
 				(void)slot->controller->OnEdgeReached(generation);
 				API::OSFOverlayEvent event;
@@ -649,37 +531,40 @@ namespace OSF::Overlay
 				event.requestToken = slot->controller->RequestToken();
 				event.transitionGeneration = generation;
 				event.outcome = failed ? API::OverlayRequestDisposition::kRejected : API::OverlayRequestDisposition::kAccepted;
-				event.reason = PublicReason(slot->controller->LastReason());
+				event.reason = slot->controller->LastReason();
 				(void)DispatchOwner(*slot, event, false);
 			}
 		}
-		DrainDeferredMutations();
 	}
 
 	bool OverlayService::OnAutoEnd(Animation::PlaybackId a_playbackId,
-		const std::vector<RE::Actor*>&, Animation::SceneEndReason)
+		const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason)
 	{
 		std::lock_guard l{ _lock };
-		for (auto& slot : _slots) {
-			if (slot && slot->playback->playbackId == a_playbackId) {
-				slot->playback->playbackId = 0;
-				return false;  // GraphManager removes the exact retained playback
-			}
-		}
+		if (a_actors.empty()) return false;
+		const auto route = _byActor.find(a_actors.front());
+		if (route == _byActor.end()) return false;
+		if (Slot* slot = Resolve(route->second); slot && slot->playback->playbackId == a_playbackId)
+			slot->playback->playbackId = 0;
 		return false;
 	}
 
 	void OverlayService::SuspendForScene(std::int32_t a_sceneHandle, const std::vector<RE::Actor*>& a_participants)
 	{
 		std::lock_guard l{ _lock };
-		auto& suspended = _sceneSuspensions[a_sceneHandle];
 		for (auto* actor : a_participants) {
 			const auto it = _byActor.find(actor);
 			if (it == _byActor.end()) continue;
 			if (Slot* slot = Resolve(it->second)) {
+				if (slot->sceneBlocker == a_sceneHandle) continue;
+				if (slot->sceneBlocker != 0) {
+					REX::WARN("[Anim] overlay route '{}' already suspended by claim {:#010x}; ignoring claim {:#010x}",
+						slot->route->id, slot->sceneBlocker, a_sceneHandle);
+					continue;
+				}
+				slot->sceneBlocker = a_sceneHandle;
 				const bool changed = slot->controller->SetBlocker(ControllerBlocker::kScene);
 				SuspendProps(*slot);
-				suspended.push_back(it->second);
 				if (!changed) continue;
 				API::OSFOverlayEvent event;
 				event.type = API::OverlayEventType::kSuspended;
@@ -690,32 +575,28 @@ namespace OSF::Overlay
 				(void)DispatchOwner(*slot, event, false);
 			}
 		}
-		DrainDeferredMutations();
 	}
 
 	void OverlayService::ReconcileAfterScene(std::int32_t a_sceneHandle)
 	{
 		std::lock_guard l{ _lock };
-		const auto found = _sceneSuspensions.find(a_sceneHandle);
-		if (found == _sceneSuspensions.end()) return;
-		for (const auto handle : found->second) {
-			if (Slot* slot = Resolve(handle)) {
-				const bool changed = slot->controller->ClearBlocker(ControllerBlocker::kScene);
-				if (slot->controller->Blocker() == ControllerBlocker::kNone) RestoreProps(*slot);
-				if (!changed || slot->controller->Blocker() != ControllerBlocker::kNone) continue;
-				API::OSFOverlayEvent event;
-				const bool failed = slot->controller->Phase() == ControllerPhase::kFailed;
-				event.type = failed ? API::OverlayEventType::kFailed : API::OverlayEventType::kResumed;
-				event.routeHandle = handle;
-				event.actor = slot->actor.get();
-				event.route = slot->route->id.c_str();
-				event.outcome = failed ? API::OverlayRequestDisposition::kRejected : API::OverlayRequestDisposition::kAccepted;
-				event.reason = PublicReason(slot->controller->LastReason());
-				(void)DispatchOwner(*slot, event, false);
-			}
+		for (std::size_t i = 0; i < _slots.size(); ++i) {
+			auto* slot = _slots[i].get();
+			if (!slot || slot->sceneBlocker != a_sceneHandle) continue;
+			slot->sceneBlocker = 0;
+			const bool changed = slot->controller->ClearBlocker(ControllerBlocker::kScene);
+			if (slot->controller->Blocker() == ControllerBlocker::kNone) RestoreProps(*slot);
+			if (!changed || slot->controller->Blocker() != ControllerBlocker::kNone) continue;
+			API::OSFOverlayEvent event;
+			const bool failed = slot->controller->Phase() == ControllerPhase::kFailed;
+			event.type = failed ? API::OverlayEventType::kFailed : API::OverlayEventType::kResumed;
+			event.routeHandle = MakeHandle(slot->generation, static_cast<std::uint16_t>(i));
+			event.actor = slot->actor.get();
+			event.route = slot->route->id.c_str();
+			event.outcome = failed ? API::OverlayRequestDisposition::kRejected : API::OverlayRequestDisposition::kAccepted;
+			event.reason = slot->controller->LastReason();
+			(void)DispatchOwner(*slot, event, false);
 		}
-		_sceneSuspensions.erase(found);
-		DrainDeferredMutations();
 	}
 
 	void OverlayService::ClearWorld()
@@ -724,7 +605,6 @@ namespace OSF::Overlay
 		for (auto& slot : _slots) if (slot) CleanupProps(*slot);
 		_slots.clear();
 		_byActor.clear();
-		_sceneSuspensions.clear();
 	}
 
 	RE::BSEventNotifyControl OverlayService::ProcessEvent(const RE::TESObjectLoadedEvent& a_event,
@@ -757,11 +637,10 @@ namespace OSF::Overlay
 				event.actor = slot->actor.get();
 				event.route = slot->route->id.c_str();
 				event.outcome = failed ? API::OverlayRequestDisposition::kRejected : API::OverlayRequestDisposition::kAccepted;
-				event.reason = PublicReason(slot->controller->LastReason());
+				event.reason = slot->controller->LastReason();
 				(void)DispatchOwner(*slot, event, false);
 			}
 		}
-		DrainDeferredMutations();
 		return RE::BSEventNotifyControl::kContinue;
 	}
 }

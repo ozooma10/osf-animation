@@ -432,7 +432,6 @@ namespace OSF::Registry
 		std::vector<RouteProp>      props;
 		std::vector<RouteSound>     sounds;
 		RouteInterruption           interruption = RouteInterruption::kFinish;
-		std::optional<Animation::LiveReach> reach;
 		std::optional<Animation::ContactPose> contactPose;
 	};
 
@@ -538,16 +537,17 @@ namespace OSF::Registry
 		std::vector<SceneFileStats> files;
 	};
 
-	class RouteRef
+	template <class T>
+	class RegistryRef
 	{
 	public:
-		RouteRef() = default;
-		RouteRef(const RouteRef&) = default;
-		RouteRef& operator=(const RouteRef&) = default;
-		RouteRef(RouteRef&& a_other) noexcept :
+		RegistryRef() = default;
+		RegistryRef(const RegistryRef&) = default;
+		RegistryRef& operator=(const RegistryRef&) = default;
+		RegistryRef(RegistryRef&& a_other) noexcept :
 			owner(std::move(a_other.owner)), value(std::exchange(a_other.value, nullptr))
 		{}
-		RouteRef& operator=(RouteRef&& a_other) noexcept
+		RegistryRef& operator=(RegistryRef&& a_other) noexcept
 		{
 			if (this != &a_other) {
 				owner = std::move(a_other.owner);
@@ -556,43 +556,18 @@ namespace OSF::Registry
 			return *this;
 		}
 		[[nodiscard]] explicit operator bool() const noexcept { return value != nullptr; }
-		[[nodiscard]] const RouteDef* get() const noexcept { return value; }
-		[[nodiscard]] const RouteDef* operator->() const noexcept { return value; }
-		[[nodiscard]] const RouteDef& operator*() const noexcept { return *value; }
+		[[nodiscard]] const T* get() const noexcept { return value; }
+		[[nodiscard]] const T* operator->() const noexcept { return value; }
+		[[nodiscard]] const T& operator*() const noexcept { return *value; }
 
 	private:
 		friend class SceneRegistry;
 		std::shared_ptr<const SceneRegistrySnapshot> owner;
-		const RouteDef* value = nullptr;
+		const T* value = nullptr;
 	};
 
-	class SceneRef
-	{
-	public:
-		SceneRef() = default;
-		SceneRef(const SceneRef&) = default;
-		SceneRef& operator=(const SceneRef&) = default;
-		SceneRef(SceneRef&& a_other) noexcept :
-			owner(std::move(a_other.owner)), value(std::exchange(a_other.value, nullptr))
-		{}
-		SceneRef& operator=(SceneRef&& a_other) noexcept
-		{
-			if (this != &a_other) {
-				owner = std::move(a_other.owner);
-				value = std::exchange(a_other.value, nullptr);
-			}
-			return *this;
-		}
-		[[nodiscard]] explicit operator bool() const noexcept { return value != nullptr; }
-		[[nodiscard]] const SceneDef* get() const noexcept { return value; }
-		[[nodiscard]] const SceneDef* operator->() const noexcept { return value; }
-		[[nodiscard]] const SceneDef& operator*() const noexcept { return *value; }
-
-	private:
-		friend class SceneRegistry;
-		std::shared_ptr<const SceneRegistrySnapshot> owner;
-		const SceneDef* value = nullptr;
-	};
+	using RouteRef = RegistryRef<RouteDef>;
+	using SceneRef = RegistryRef<SceneDef>;
 
 	class SceneRegistry
 	{

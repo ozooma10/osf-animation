@@ -44,35 +44,6 @@ namespace OSF::Animation
 		float heading = 0.0f;  // radians, relative to anchor heading
 	};
 
-	enum class ReachTracking : std::uint8_t
-	{
-		kLiveThroughWindow,
-		kFreezeAtContact
-	};
-
-	// Optional post-sample correction for partial-body route edges. The target bone remains
-	// engine-owned; only the declared limb chains and carrier are written by the stage mask.
-	struct LiveReach
-	{
-		bool enabled = false;
-		float atSeconds = 0.0f;
-		std::string targetBone;
-		std::array<float, 3> targetTranslation{};
-		std::array<float, 3> targetRotationDegrees{};
-		std::string carrierBone;
-		std::string primaryLimb = "rightArm";
-		std::vector<std::string> secondaryLimbs;
-		ReachTracking tracking = ReachTracking::kLiveThroughWindow;
-		float approachSeconds = 0.4f;
-		float contactLeadSeconds = 2.0f / 30.0f;
-		float contactTrailSeconds = 1.0f / 30.0f;
-		float releaseSeconds = 7.0f / 30.0f;
-		float maxCorrection = 0.25f;
-		float maxCorrectionRadians = 1.04719755f;
-		float maxResidual = 0.02f;
-		float maxResidualRadians = 0.08726646f;
-	};
-
 	// Adds a small set of clip bones only around an authored contact. Unlike live reach this stays
 	// entirely in local-pose space: at full weight the head and hands come from the same clip, then
 	// the contact bones ease back to the engine pose before teardown.
@@ -168,7 +139,6 @@ namespace OSF::Animation
 			std::vector<std::string> masks;                 // optional, one effective bone mask per actor for this stage
 			std::vector<PoseMode> poseModes;               // optional stage override; empty = plan policy
 			std::vector<float> poseWeights;                // optional stage override; empty = plan policy
-			std::vector<LiveReach> liveReach;               // optional, one per actor; disabled entries are no-ops
 			std::vector<ContactPose> contactPose;            // optional local-pose contact envelope per actor
 			float timer = 0.0f;                            // seconds; <= 0 = no auto-advance
 			int32_t loops = 0;                             // clip loops; <= 0 = no auto-advance
@@ -228,7 +198,6 @@ namespace OSF::Animation
 			return a_mask.empty() || BoneMask::Find(a_mask) != nullptr;
 		}) && std::ranges::all_of(a_plan.stages, [a_actorCount](const ScenePlan::Stage& a_stage) {
 			return (a_stage.masks.empty() || a_stage.masks.size() == a_actorCount) &&
-				(a_stage.liveReach.empty() || a_stage.liveReach.size() == a_actorCount) &&
 				(a_stage.contactPose.empty() || a_stage.contactPose.size() == a_actorCount) &&
 				(a_stage.poseModes.empty() || a_stage.poseModes.size() == a_actorCount) &&
 				(a_stage.poseWeights.empty() || a_stage.poseWeights.size() == a_actorCount) &&
@@ -266,7 +235,6 @@ namespace OSF::Animation
 			std::vector<std::string> masks;  // effective per-participant mask for this stage
 			std::vector<PoseMode> poseModes; // effective per-participant composition mode for this stage
 			std::vector<float> poseWeights;  // effective per-participant composition weight for this stage
-			std::vector<LiveReach> liveReach; // effective per-participant runtime reach correction
 			std::vector<ContactPose> contactPose; // effective per-participant contact-pose envelope
 			float blendIn = 0.4f;   // blend-in secs when this stage activates
 			std::vector<TimedMark> marks;  // timed marks fired by Advance (see firedMarks)

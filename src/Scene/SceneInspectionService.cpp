@@ -2,6 +2,7 @@
 
 #include "Matchmaking/Matchmaker.h"
 #include "Overlay/OverlayService.h"
+#include "Overlay/RoutePlaybackPlan.h"
 #include "Scene/InspectionPropTimeline.h"
 #include "Scene/RouteInspectionTimeline.h"
 #include "Util/StringUtil.h"
@@ -144,30 +145,7 @@ namespace OSF::Scene
 			return std::nullopt;
 		}
 
-		Animation::ScenePlan plan;
-		plan.animId = a_request.definition->id + ":debug:" + transition->id;
-		plan.anchored = false;
-		plan.poseModes = { transition->layer.mode };
-		plan.poseWeights = { transition->layer.weight };
-		plan.masks = { transition->layer.mask };
-		plan.speed = 0.0f;
-		Animation::ScenePlan::Stage stage;
-		stage.files = { transition->layer.clip.file };
-		stage.animIds = { transition->layer.clip.animId };
-		stage.masks = { transition->layer.mask };
-		stage.poseModes = { transition->layer.mode };
-		stage.poseWeights = { transition->layer.weight };
-		// Inspection must show the authored edge itself. The normal scene blend would animate
-		// from the actor's live pose while the route clock is paused at frame zero.
-		stage.blendIn = 0.0f;
-		// Debug transport owns the clock. It neither advances into the destination station nor
-		// publishes route marks; the UI reconstructs OSF-owned props at the requested frame.
-		stage.loops = 0;
-		stage.timer = 0.0f;
-		stage.hold = -1.0f;
-		stage.marks.clear();
-		plan.stages.push_back(std::move(stage));
-		plan.loopWhole = false;
+		auto plan = Overlay::BuildRouteTransitionPreviewPlan(*a_request.definition, *transition);
 		return PreparedRouteInspection{
 			a_request.definition, transition->id, a_request.actor, std::move(plan)
 		};

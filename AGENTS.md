@@ -164,3 +164,8 @@ A dev gets the full firehose without recompiling via the in-game OSF UI settings
 Animation › Logging › Log level → Trace (handled in `src/API/UISettings.cpp`, persists across
 launches). The crash handler (`src/Util/CrashHandler.cpp`) deliberately bypasses spdlog — never
 route it through REX.
+
+## Git workflow
+
+- Commit completed work at coherent checkpoints and always before handing it back to the user.
+- Keep commits focused, and verify the staged diff so unrelated user changes are never included accidentally.

@@ -7,10 +7,11 @@ Studio/Suit Protocol repositories.
 ## Native consumer smoke path
 
 The route test target compiles `OSFOverlayAPI.h` as a consumer would and covers structured begin
-results, callback exception isolation, owner uniqueness, quiescent release, playback admission, and
-strict pre-mutation mark bounds. Run the repository gates with `xmake test` after a releasedbg build.
+results, callback exception isolation, owner uniqueness, route-plan compilation, playback admission,
+and strict pre-mutation mark bounds. Run the repository gates with `xmake test` after a releasedbg build.
 
-In a development consumer, request ABI 1.0, acquire one owner, and log every begin result and event.
+In a development consumer, request ABI 1.0, acquire one owner, retain every returned route handle,
+and log every begin result and event.
 Confirm these cases:
 
 - invalid owner -> `rejected/ownerInvalid`;
@@ -19,8 +20,7 @@ Confirm these cases:
 - occupied overlay or unrelated playback -> `rejected/busy`;
 - missing actor 3D or an active scene -> a nonzero handle with `pending/actorUnavailable` or
   `pending/sceneBlocked`;
-- begin from inside a callback -> a nonzero handle with `pending/dispatchDeferred`, followed by
-  normal realization or a `kFailed` event;
+- API calls from inside an owner callback -> rejected; schedule mutations after callback return;
 - external prop marks -> `kPropAttach`/`kPropDestroy` with `event.prop`, never `kMarker` inference.
 
 ## In-game visual and lifecycle matrix

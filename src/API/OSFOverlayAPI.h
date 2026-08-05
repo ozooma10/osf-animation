@@ -33,8 +33,7 @@ namespace OSF::API
 		kPlaybackFailed = 7,
 		kHandoffRejected = 8,
 		kOwnerInvalid = 9,
-		kRouteUnknown = 10,
-		kDispatchDeferred = 11
+		kRouteUnknown = 10
 	};
 
 	enum class OverlayEventType : std::uint32_t
@@ -99,6 +98,7 @@ namespace OSF::API
 	};
 
 	// Return true to acknowledge a commit handoff. Results are ignored for informational events.
+	// Do not call this interface from the callback; schedule route mutations after it returns.
 	using OSFOverlayCallback = bool (*)(const OSFOverlayEvent* a_event, void* a_context);
 
 	struct OSFOverlayRouteState
@@ -128,7 +128,6 @@ namespace OSF::API
 		virtual OSFOverlayRequestResult RequestStation(std::int32_t a_handle,
 			const char* a_station, std::uint64_t a_token) = 0;
 		virtual bool EndRoute(std::int32_t a_handle, bool a_fade = true) = 0;
-		virtual std::int32_t GetRouteForActor(RE::Actor* a_actor) = 0;
 		virtual bool QueryRoute(std::int32_t a_handle, OSFOverlayRouteState& a_out) = 0;
 
 	protected:

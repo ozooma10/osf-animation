@@ -1,5 +1,6 @@
 #pragma once
 
+#include "API/OSFOverlayAPI.h"
 #include "Registry/SceneRegistry.h"
 
 #include <cstdint>
@@ -9,28 +10,8 @@
 
 namespace OSF::Overlay
 {
-	enum class RequestDisposition : std::uint8_t
-	{
-		kAccepted,
-		kPending,
-		kRejected
-	};
-
-	enum class RequestReason : std::uint8_t
-	{
-		kNone,
-		kInvalidHandle,
-		kUnknownStation,
-		kNoPath,
-		kBusy,
-		kSceneBlocked,
-		kActorUnavailable,
-		kPlaybackFailed,
-		kHandoffRejected,
-		kOwnerInvalid,
-		kRouteUnknown,
-		kDispatchDeferred
-	};
+	using RequestDisposition = API::OverlayRequestDisposition;
+	using RequestReason = API::OverlayReason;
 
 	struct RequestResult
 	{
@@ -108,7 +89,7 @@ namespace OSF::Overlay
 		RequestResult Fail(RequestReason a_reason);
 		void CountermandBeforeCommit();
 
-		const Registry::RouteDef* _route = nullptr;
+		const Registry::RouteDef& _route;
 		IRoutePlayback& _playback;
 		ControllerPhase _phase = ControllerPhase::kAtStation;
 		bool _sceneBlocked = false;

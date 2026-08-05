@@ -3,6 +3,7 @@
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
 #include "Input/InputService.h"
+#include "Overlay/OverlayService.h"
 #include "Registry/SceneRegistry.h"
 
 #include <algorithm>
@@ -284,31 +285,38 @@ namespace OSF::Scene
 
 	void SceneRuntime::ReleaseSlot(std::int32_t a_handle)
 	{
-		std::lock_guard l{ _lock };
-		if (Slot* s = Resolve(a_handle)) {
-			// Keep only a bounded FIFO of final rosters for asynchronous SCENE_END consumers.
-			// Every other field is spent after the undo ledger runs; live-scene lookups skip ended slots.
-			const std::uint16_t gen = s->generation;
-			std::vector<RE::Actor*> roster = std::move(s->participants);
-			std::vector<RE::NiPointer<RE::Actor>> retained;
-			retained.reserve(roster.size());
-			for (auto* actor : roster) {
-				retained.emplace_back(actor);
-			}
-			*s = Slot{};
-			s->generation = gen;
-			s->ended = true;
-			s->participants = std::move(roster);
-			s->retiredParticipantRefs = std::move(retained);
-			_retiredHandles.push_back(a_handle);
+		bool released = false;
+		{
+			std::lock_guard l{ _lock };
+			if (Slot* s = Resolve(a_handle)) {
+				// Keep only a bounded FIFO of final rosters for asynchronous SCENE_END consumers.
+				// Every other field is spent after the undo ledger runs; live-scene lookups skip ended slots.
+				const std::uint16_t gen = s->generation;
+				std::vector<RE::Actor*> roster = std::move(s->participants);
+				std::vector<RE::NiPointer<RE::Actor>> retained;
+				retained.reserve(roster.size());
+				for (auto* actor : roster) {
+					retained.emplace_back(actor);
+				}
+				*s = Slot{};
+				s->generation = gen;
+				s->ended = true;
+				s->participants = std::move(roster);
+				s->retiredParticipantRefs = std::move(retained);
+				_retiredHandles.push_back(a_handle);
 
-			while (_retiredHandles.size() > kMaxRetiredRosters) {
-				const auto expiredHandle = _retiredHandles.front();
-				_retiredHandles.pop_front();
-				if (Slot* expired = Resolve(expiredHandle, true); expired && expired->ended) {
-					*expired = Slot{};
+				released = true;
+				while (_retiredHandles.size() > kMaxRetiredRosters) {
+					const auto expiredHandle = _retiredHandles.front();
+					_retiredHandles.pop_front();
+					if (Slot* expired = Resolve(expiredHandle, true); expired && expired->ended) {
+						*expired = Slot{};
+					}
 				}
 			}
+		}
+		if (released) {
+			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(a_handle);
 		}
 	}
 	std::string SceneRuntime::GetNode(std::int32_t a_scene)

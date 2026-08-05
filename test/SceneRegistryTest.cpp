@@ -762,7 +762,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 43, "exactly the forty-three expected diagnostics");
+	Check(errors.size() == 44, "exactly the forty-four expected diagnostics");
 	CheckError(errors, "policy/arbitration key 'stripActors'", "route policy keys are rejected");
 	CheckError(errors, "layer: 'mask'", "route animation masks are mandatory");
 	CheckError(errors, "duplicate station id", "duplicate route station ids are rejected");
@@ -772,6 +772,7 @@ int main()
 	CheckError(errors, "markers are instantaneous", "route markers reject misleading lifetime promises");
 	CheckError(errors, "sounds are one-shot", "route sounds reject unsupported cancellation lifetimes");
 	CheckError(errors, "policy/arbitration key 'claims'", "phase-two claims are rejected in schema v1");
+	CheckError(errors, "'reach' was removed", "removed live-reach syntax receives an explicit migration error");
 	CheckError(errors, "duplicate route id", "duplicate route ids are rejected first-wins");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
@@ -951,8 +952,8 @@ int main()
 		Check(overlayRoute && overlayRoute->declaredRoutes == 1 && overlayRoute->routes == 1 &&
 			overlayRoute->rejectedRoutes == 0, "clean route files report accepted/declared/rejected route counts");
 		const auto* overlayErrors = find("fixture_route_errors.osf.json");
-		Check(overlayErrors && overlayErrors->declaredRoutes == 11 && overlayErrors->routes == 1 &&
-			overlayErrors->rejectedRoutes == 10 && !overlayErrors->Rejected(),
+		Check(overlayErrors && overlayErrors->declaredRoutes == 12 && overlayErrors->routes == 1 &&
+			overlayErrors->rejectedRoutes == 11 && !overlayErrors->Rejected(),
 			"route-local failures preserve valid sibling routes and report exact rejection counts");
 
 		const auto* bare = find("fixture_bare.osf.json");

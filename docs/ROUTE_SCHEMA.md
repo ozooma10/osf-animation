@@ -37,6 +37,11 @@ are mandatory. Requests use authored-order BFS by edge count and return `noPath`
 pair is unreachable. `interrupt` is `finish` by default or `crossfade-before-commit`. Reverse travel
 requires an ordinary authored reverse transition.
 
+An override transition may add `contactPose`: an `atFrame`, 1-16 `bones`, and optional
+`approachFrames`, `fullBeforeFrames`, `fullAfterFrames`, and `releaseFrames`. Those clip bones ease in
+around contact and then return to the engine pose. The older live-IK `reach` experiment is not part
+of the route schema.
+
 Timing is always at 30 fps. A `commit` has one `atFrame` and external `marker`; the owner callback
 must acknowledge it. Numeric commit, marker, prop, and sound times are checked against the decoded
 clip duration before graph mutation, and a time at or after the clip end rejects playback.

@@ -692,7 +692,6 @@ namespace OSF::Scene
 			StopGraph(a_participants, oldPlaybackId);  // cleanup after NODE_EXIT, before SCENE_END (also tears the old graph when a failed play left it up)
 			Fire(a_handle, Event::kSceneEnd, a_oldNode, "");  // SCENE_END dispatch is async (later VM tick)
 			ReleaseSlot(a_handle);  // retires the handle (clears the transitioning guard with the slot): roster stays readable for the async SCENE_END handler, actors freed now
-			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(a_handle);
 			UI::HudMessage::Debug("OSF: scene ended");
 		} else {
 			{
@@ -771,7 +770,6 @@ namespace OSF::Scene
 		if (!playbackId) {
 			REX::WARN("[Scene] start '{}' entry node '{}' could not play — aborting start", a_id, a_entryNode);
 			ReleaseSlot(handle);
-			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(handle);
 			return 0;
 		}
 		{
@@ -935,7 +933,6 @@ namespace OSF::Scene
 		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(a_participants, a_plan, a_startStage,
 			&playbackId, 0, _playbackSinkId)) {
 			ReleaseSlot(handle);
-			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(handle);
 			return 0;
 		}
 		{

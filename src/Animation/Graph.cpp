@@ -52,55 +52,6 @@ namespace OSF::Animation
 			PoseMath::WriteOverrideBlended(a_slot, a_from, reinterpret_cast<const float*>(&a_target), a_weight);
 		}
 
-		using Matrix = ozz::math::Float4x4;
-		const float* M(const Matrix& a_m) { return reinterpret_cast<const float*>(&a_m); }
-		float* M(Matrix& a_m) { return reinterpret_cast<float*>(&a_m); }
-		Matrix Mul(const Matrix& a, const Matrix& b)
-		{
-			Matrix out = Matrix::identity();
-			for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
-				M(out)[c * 4 + r] = 0.0f;
-				for (int k = 0; k < 4; ++k) M(out)[c * 4 + r] += M(a)[k * 4 + r] * M(b)[c * 4 + k];
-			}
-			return out;
-		}
-		Matrix RigidInverse(const Matrix& a)
-		{
-			Matrix out = Matrix::identity();
-			for (int c = 0; c < 3; ++c) for (int r = 0; r < 3; ++r) M(out)[c * 4 + r] = M(a)[r * 4 + c];
-			for (int r = 0; r < 3; ++r) M(out)[12 + r] = -(M(out)[r] * M(a)[12] + M(out)[4 + r] * M(a)[13] + M(out)[8 + r] * M(a)[14]);
-			return out;
-		}
-		struct V3 { float x, y, z; };
-		V3 Pos(const Matrix& a) { return { M(a)[12], M(a)[13], M(a)[14] }; }
-		V3 Sub(V3 a, V3 b) { return { a.x-b.x, a.y-b.y, a.z-b.z }; }
-		V3 Add(V3 a, V3 b) { return { a.x+b.x, a.y+b.y, a.z+b.z }; }
-		V3 Scale(V3 a, float s) { return { a.x*s, a.y*s, a.z*s }; }
-		float Dot(V3 a, V3 b) { return a.x*b.x+a.y*b.y+a.z*b.z; }
-		V3 Cross(V3 a, V3 b) { return { a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x }; }
-		float Len(V3 a) { return std::sqrt(Dot(a,a)); }
-		V3 Unit(V3 a) { const float n=Len(a); return n>1e-6f ? Scale(a,1.0f/n) : V3{1,0,0}; }
-		PoseMath::Quat FromTo(V3 a, V3 b)
-		{
-			a=Unit(a); b=Unit(b); const float d=std::clamp(Dot(a,b),-1.0f,1.0f);
-			if (d > .99999f) return {};
-			if (d < -.99999f) { V3 axis=Unit(std::abs(a.x)<.8f ? Cross(a,{1,0,0}) : Cross(a,{0,1,0})); return {0,axis.x,axis.y,axis.z}; }
-			const V3 c=Cross(a,b); return PoseMath::Normalize({1.0f+d,c.x,c.y,c.z});
-		}
-		Matrix Transform(PoseMath::Quat q, V3 p)
-		{
-			Matrix out=Matrix::identity(); PoseMath::QuatToMatrix3x3(q,M(out)); M(out)[12]=p.x; M(out)[13]=p.y; M(out)[14]=p.z; return out;
-		}
-		PoseMath::Quat EulerDegrees(const std::array<float,3>& e)
-		{
-			constexpr float k=.00872664626f; const float cx=std::cos(e[0]*k), sx=std::sin(e[0]*k), cy=std::cos(e[1]*k), sy=std::sin(e[1]*k), cz=std::cos(e[2]*k), sz=std::sin(e[2]*k);
-			return PoseMath::Multiply(PoseMath::Multiply({cz,0,0,sz},{cy,0,sy,0}),{cx,sx,0,0});
-		}
-		float ReachWeight(const LiveReach& r, float t)
-		{
-			const float begin=r.atSeconds-r.approachSeconds, full=r.atSeconds-r.contactLeadSeconds, releaseBegin=r.atSeconds+r.contactTrailSeconds, end=releaseBegin+r.releaseSeconds;
-			if (t<=begin || t>=end) return 0.0f; if (t<full) return (t-begin)/std::max(full-begin,1e-5f); if (t<=releaseBegin) return 1.0f; return 1.0f-(t-releaseBegin)/std::max(end-releaseBegin,1e-5f);
-		}
 	}
 
 	void Graph::SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file)
@@ -145,10 +96,6 @@ namespace OSF::Animation
 		localPose.resize(skeleton->data->num_soa_joints());
 		outputPose.assign(numJoints, ozz::math::Float4x4::identity());
 		referencePose.assign(numJoints, ozz::math::Float4x4::identity());
-		reachLocalPose.assign(numJoints, ozz::math::Float4x4::identity());
-		reachModelPose.assign(numJoints, ozz::math::Float4x4::identity());
-		reachSampledModelPose.assign(numJoints, ozz::math::Float4x4::identity());
-		reachDriven.assign(numJoints, 0);
 		rigIndexByJoint.assign(numJoints, UINT16_MAX);
 		const auto restPose = skeleton->data->joint_rest_poses();
 		UnpackSoaTransforms({ restPose.data(), restPose.size() },
@@ -222,14 +169,6 @@ namespace OSF::Animation
 		InvalidateBinding();
 	}
 
-	void Graph::SetLiveReach(const LiveReach& a_reach)
-	{
-		liveReach = a_reach;
-		reachTargetFrozen = false;
-		loggedReachDisabled = false;
-		loggedReachContact = false;
-	}
-
 	void Graph::SetContactPose(const ContactPose& a_contactPose)
 	{
 		contactPose = a_contactPose;
@@ -240,118 +179,6 @@ namespace OSF::Animation
 		loggedContactPoseFull = false;
 		// Contact bones extend the ordinary stage mask, so the write binding must be rebuilt.
 		InvalidateBinding(true);
-	}
-
-	void Graph::ApplyLiveReach(float* a_liveBuffer, std::uint16_t a_rigBoneCount)
-	{
-		if (!liveReach.enabled || !skeleton || reachLocalPose.size() != outputPose.size()) return;
-		const float reachWeight = ReachWeight(liveReach, localTime);
-		if (reachWeight <= 0.0f) return;
-		const auto joint = [&](std::string_view name) -> int { const auto it=jointMap.find(ToLower(name)); return it==jointMap.end() ? -1 : static_cast<int>(it->second); };
-		const int targetJoint=joint(liveReach.targetBone), carrierJoint=joint(liveReach.carrierBone);
-		const auto limbJoints = [&](std::string_view limb) -> std::array<int,3> {
-			const bool right=limb=="rightArm"; return {joint(right?"R_Biceps":"L_Biceps"),joint(right?"R_Forearm":"L_Forearm"),joint(right?"R_Wrist":"L_Wrist")};
-		};
-		const auto primary=limbJoints(liveReach.primaryLimb);
-		if (targetJoint<0 || carrierJoint<0 || primary[0]<0 || primary[1]<0 || primary[2]<0 ||
-			targetJoint>=static_cast<int>(rigIndexByJoint.size()) || rigIndexByJoint[targetJoint]==UINT16_MAX) {
-			if (!loggedReachDisabled) { loggedReachDisabled=true; REX::WARN("[Anim] live reach disabled for actor {:08X}: required target/carrier/limb bones are unavailable", target ? target->formID : 0); }
-			return;
-		}
-		std::fill(reachDriven.begin(),reachDriven.end(),0);
-		for (const auto& b:binding) if (b.jointIndex<reachDriven.size()) reachDriven[b.jointIndex]=1;
-		if (!reachDriven[carrierJoint] || !reachDriven[primary[0]] || !reachDriven[primary[1]] || !reachDriven[primary[2]]) {
-			if (!loggedReachDisabled) { loggedReachDisabled=true; REX::WARN("[Anim] live reach disabled for actor {:08X}: active mask does not drive the primary limb and carrier", target ? target->formID : 0); }
-			return;
-		}
-		for (std::size_t i=0;i<outputPose.size();++i) {
-			reachLocalPose[i]=outputPose[i];
-			const auto ri=rigIndexByJoint[i];
-			if (!reachDriven[i] && ri!=UINT16_MAX && ri<a_rigBoneCount) std::memcpy(M(reachLocalPose[i]),a_liveBuffer+static_cast<std::size_t>(ri)*16,16*sizeof(float));
-		}
-		const auto parents=skeleton->data->joint_parents();
-		const auto rebuild=[&]() { for (std::size_t i=0;i<reachLocalPose.size();++i) reachModelPose[i]=parents[i]<0 ? reachLocalPose[i] : Mul(reachModelPose[parents[i]],reachLocalPose[i]); };
-		for (std::size_t i=0;i<outputPose.size();++i) {
-			reachSampledModelPose[i]=parents[i]<0 ? outputPose[i] : Mul(reachSampledModelPose[parents[i]],outputPose[i]);
-		}
-		rebuild();
-		if (parents[carrierJoint] != primary[2]) {
-			if (!loggedReachDisabled) { loggedReachDisabled=true; REX::WARN("[Anim] live reach disabled for actor {:08X}: carrier is not a direct child of the primary wrist", this->target ? this->target->formID : 0); }
-			return;
-		}
-		const Matrix targetSocket=Transform(EulerDegrees(liveReach.targetRotationDegrees),{liveReach.targetTranslation[0],liveReach.targetTranslation[1],liveReach.targetTranslation[2]});
-		Matrix reachTarget=Mul(reachModelPose[targetJoint],targetSocket);
-		const Matrix authoredTarget=Mul(reachSampledModelPose[targetJoint],targetSocket);
-		if (liveReach.tracking==ReachTracking::kFreezeAtContact && localTime>=liveReach.atSeconds) {
-			if (!reachTargetFrozen) { std::memcpy(frozenReachTarget.data(),M(reachTarget),16*sizeof(float)); reachTargetFrozen=true; }
-			std::memcpy(M(reachTarget),frozenReachTarget.data(),16*sizeof(float));
-		}
-		const Matrix authoredCarrier=reachSampledModelPose[carrierJoint];
-		const Matrix currentCarrier=reachModelPose[carrierJoint];
-		const Matrix retargetedCarrier=Mul(Mul(reachTarget,RigidInverse(authoredTarget)),authoredCarrier);
-		V3 delta=Sub(Pos(retargetedCarrier),Pos(currentCarrier)); const float dn=Len(delta); if (dn>liveReach.maxCorrection) delta=Scale(delta,liveReach.maxCorrection/dn);
-		const auto authoredQ=PoseMath::MatrixToUnitQuat(M(currentCarrier)); const auto targetQ=PoseMath::MatrixToUnitQuat(M(retargetedCarrier));
-		float angle=2.0f*std::acos(std::clamp(std::abs(authoredQ.w*targetQ.w+authoredQ.x*targetQ.x+authoredQ.y*targetQ.y+authoredQ.z*targetQ.z),0.0f,1.0f));
-		if (!std::isfinite(dn) || !std::isfinite(angle) || dn > liveReach.maxCorrection * 2.0f || angle > liveReach.maxCorrectionRadians * 1.5f) {
-			if (!loggedReachDisabled) {
-				loggedReachDisabled=true;
-				REX::WARN("[Anim] live reach skipped for actor {:08X}: retarget delta {:.1f} cm / {:.1f} deg exceeds safe envelope",
-					target ? target->formID : 0, dn * 100.0f, angle * 57.2957795f);
-			}
-			return;
-		}
-		if (!loggedReachContact && reachWeight >= 0.99f) {
-			loggedReachContact = true;
-			REX::DEBUG("[Anim] live reach contact — actor {:08X}, target '{}', carrier '{}', correction {:.1f} cm / {:.1f} deg{}",
-				target ? target->formID : 0, liveReach.targetBone, liveReach.carrierBone,
-				dn * 100.0f, angle * 57.2957795f, dn > liveReach.maxCorrection || angle > liveReach.maxCorrectionRadians ? " (clamped)" : "");
-		}
-		const float rotationT=angle>1e-5f ? std::min(1.0f,liveReach.maxCorrectionRadians/angle)*reachWeight : reachWeight;
-		Matrix desiredCarrier=Transform(PoseMath::Slerp(authoredQ,targetQ,rotationT),Add(Pos(currentCarrier),Scale(delta,reachWeight)));
-		Matrix secondaryRelation=Matrix::identity(); std::array<int,3> secondary{-1,-1,-1};
-		if (!liveReach.secondaryLimbs.empty()) {
-			secondary=limbJoints(liveReach.secondaryLimbs.front());
-			if (secondary[0]<0 || secondary[1]<0 || secondary[2]<0 || !reachDriven[secondary[0]] || !reachDriven[secondary[1]] || !reachDriven[secondary[2]]) {
-				if (!loggedReachDisabled) { loggedReachDisabled=true; REX::WARN("[Anim] live reach secondary limb unavailable for actor {:08X}; continuing with primary hand only", target ? target->formID : 0); }
-				secondary={-1,-1,-1};
-			} else secondaryRelation=Mul(RigidInverse(authoredCarrier),reachSampledModelPose[secondary[2]]);
-		}
-		const Matrix desiredWrist=Mul(desiredCarrier,RigidInverse(reachLocalPose[carrierJoint]));
-		const auto solve=[&](const std::array<int,3>& chain,const Matrix& goal) {
-			if (chain[0]<0||chain[1]<0||chain[2]<0) return;
-			rebuild();
-			const V3 root=Pos(reachModelPose[chain[0]]), mid=Pos(reachModelPose[chain[1]]), end=Pos(reachModelPose[chain[2]]), targetPosition=Pos(goal);
-			const float upperLength=Len(Sub(mid,root)), lowerLength=Len(Sub(end,mid));
-			if (upperLength<1e-6f || lowerLength<1e-6f) return;
-			V3 toTarget=Sub(targetPosition,root); const float distance=std::max(Len(toTarget),1e-5f); const V3 direction=Unit(toTarget);
-			const float cosAngle=std::clamp((upperLength*upperLength+distance*distance-lowerLength*lowerLength)/(2.0f*upperLength*distance),-1.0f,1.0f);
-			const float sinAngle=std::sqrt(std::max(0.0f,1.0f-cosAngle*cosAngle));
-			V3 bend=Sub(Sub(mid,root),Scale(direction,Dot(Sub(mid,root),direction)));
-			if (Len(bend)<1e-6f) bend=std::abs(direction.y)<0.9f ? Cross(direction,{0,1,0}) : Cross(direction,{1,0,0});
-			bend=Unit(bend);
-			const V3 solvedMid=Add(Add(root,Scale(direction,upperLength*cosAngle)),Scale(bend,upperLength*sinAngle));
-			const auto rotateJoint=[&](int j,V3 from,V3 to) {
-				const auto d=FromTo(from,to), worldQ=PoseMath::MatrixToUnitQuat(M(reachModelPose[j]));
-				const auto parentQ=parents[j]<0 ? PoseMath::Quat{} : PoseMath::MatrixToUnitQuat(M(reachModelPose[parents[j]]));
-				PoseMath::QuatToMatrix3x3(PoseMath::Multiply(PoseMath::InverseUnit(parentQ),PoseMath::Multiply(d,worldQ)),M(reachLocalPose[j]));
-			};
-			rotateJoint(chain[0],Sub(mid,root),Sub(solvedMid,root));
-			rebuild();
-			const V3 newMid=Pos(reachModelPose[chain[1]]), newEnd=Pos(reachModelPose[chain[2]]);
-			rotateJoint(chain[1],Sub(newEnd,newMid),Sub(targetPosition,newMid));
-			rebuild(); const auto parentQ=parents[chain[2]]<0 ? PoseMath::Quat{} : PoseMath::MatrixToUnitQuat(M(reachModelPose[parents[chain[2]]]));
-			PoseMath::QuatToMatrix3x3(PoseMath::Multiply(PoseMath::InverseUnit(parentQ),PoseMath::MatrixToUnitQuat(M(goal))),M(reachLocalPose[chain[2]])); rebuild();
-		};
-		solve(primary,desiredWrist);
-		// A small carrier-local residual closes normal solver error without allowing visible hand separation.
-		rebuild(); const Matrix desiredLocal=Mul(RigidInverse(reachModelPose[parents[carrierJoint]]),desiredCarrier); const V3 currentLocal=Pos(reachLocalPose[carrierJoint]);
-		V3 residual=Sub(Pos(desiredLocal),currentLocal); const float rn=Len(residual); if (rn>liveReach.maxResidual) residual=Scale(residual,liveReach.maxResidual/rn);
-		M(reachLocalPose[carrierJoint])[12]+=residual.x; M(reachLocalPose[carrierJoint])[13]+=residual.y; M(reachLocalPose[carrierJoint])[14]+=residual.z;
-		const auto cq=PoseMath::MatrixToUnitQuat(M(reachLocalPose[carrierJoint])), dq=PoseMath::MatrixToUnitQuat(M(desiredLocal));
-		const float ra=2.0f*std::acos(std::clamp(std::abs(cq.w*dq.w+cq.x*dq.x+cq.y*dq.y+cq.z*dq.z),0.0f,1.0f));
-		PoseMath::QuatToMatrix3x3(PoseMath::Slerp(cq,dq,ra>1e-5f?std::min(1.0f,liveReach.maxResidualRadians/ra):1.0f),M(reachLocalPose[carrierJoint])); rebuild();
-		if (secondary[2]>=0) solve(secondary,Mul(reachModelPose[carrierJoint],secondaryRelation));
-		for (int j:primary) outputPose[j]=reachLocalPose[j]; if (secondary[0]>=0) for(int j:secondary) outputPose[j]=reachLocalPose[j]; outputPose[carrierJoint]=reachLocalPose[carrierJoint];
 	}
 
 	bool Graph::ResolveAndBind(const RE::BGSModelNode* a_expectedModelNode)
@@ -609,7 +436,6 @@ namespace OSF::Animation
 				SetAnimation(slot.skeleton, slot.anim, slot.file);
 				SetPosePolicy(stage.poseModes[participantIndex], stage.poseWeights[participantIndex], roleName);
 				SetBoneMask(stage.masks[participantIndex]);
-				SetLiveReach(stage.liveReach[participantIndex]);
 				SetContactPose(stage.contactPose[participantIndex]);
 				blendDuration = stage.blendIn;  // per-stage blend-in
 				scenePlacement = stage.placements[participantIndex];
@@ -749,8 +575,6 @@ namespace OSF::Animation
 
 		// Bound every write to the LIVE buffer. binding.rigIndex was validated when the binding was built, but the rig can be rebuilt (smaller) between bind and stamp on the anim job thread;
 		const uint16_t rigBoneCount = GetRigBoneCount(a_modelNode);
-		ApplyLiveReach(buf, rigBoneCount);
-
 		// AnimationManager::Update evaluates Starfield first and increments enginePoseRevision via
 		// Sample. Capture those fresh local slots once. If BGSModelNode::Update repeats before a new
 		// engine evaluation, keep this immutable base instead of reading our own prior write. Shared

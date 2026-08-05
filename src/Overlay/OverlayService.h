@@ -5,7 +5,6 @@
 #include "Overlay/RoutePlan.h"
 #include "Props/PropService.h"
 
-#include <deque>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -25,7 +24,6 @@ namespace OSF::Overlay
 			std::string_view a_routeId, std::string_view a_initialStation);
 		RequestResult RequestStation(std::int32_t a_handle, std::string_view a_station, std::uint64_t a_token);
 		bool EndRoute(std::int32_t a_handle, bool a_fade, bool a_notify = true);
-		std::int32_t GetRouteForActor(RE::Actor* a_actor) const;
 		bool QueryRoute(std::int32_t a_handle, API::OSFOverlayRouteState& a_out) const;
 
 		// SceneRuntime calls these after its slot admission and on every rollback/end path.
@@ -49,10 +47,9 @@ namespace OSF::Overlay
 		const Slot* Resolve(std::int32_t a_handle) const;
 		std::int32_t MintHandle();
 		RequestResult StartRoute(std::int32_t a_handle);
-		void RealizeDeferredBegin(std::int32_t a_handle);
 		void DropRoute(std::int32_t a_handle);
+		bool EndRouteLocked(std::int32_t a_handle, bool a_fade, bool a_notify);
 		bool DispatchOwner(Slot& a_slot, API::OSFOverlayEvent& a_event, bool a_commit);
-		void DrainDeferredMutations();
 		void OnTimedMarks(Animation::PlaybackId a_playbackId,
 			const std::vector<RE::Actor*>& a_actors, const std::vector<Animation::FiredMark>& a_marks);
 		bool OnAutoEnd(Animation::PlaybackId a_playbackId,
@@ -62,15 +59,12 @@ namespace OSF::Overlay
 		void RestoreProps(Slot& a_slot);
 		void PlayRouteSound(Slot& a_slot, std::string_view a_spec);
 
-		mutable std::recursive_mutex _lock;
+		mutable std::mutex _lock;
 		std::vector<std::unique_ptr<Slot>> _slots;
 		std::unordered_map<RE::Actor*, std::int32_t> _byActor;
-		std::unordered_map<std::int32_t, std::vector<std::int32_t>> _sceneSuspensions;
 		OwnerRegistry _owners;
 		std::uint16_t _nextGeneration = 1;
 		Animation::PlaybackSinkId _playbackSinkId = 0;
 		bool _registered = false;
-		std::size_t _dispatchDepth = 0;
-		std::deque<std::function<void()>> _deferredMutations;
 	};
 }

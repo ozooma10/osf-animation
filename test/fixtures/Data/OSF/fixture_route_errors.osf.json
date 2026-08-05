@@ -45,6 +45,11 @@
       "stations": [{ "id": "a" }], "transitions": []
     },
     {
+      "id": "fixture.route.removed-reach",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" }, "reach": {} }]
+    },
+    {
       "id": "fixture.route.duplicate",
       "stations": [{ "id": "a" }], "transitions": []
     },

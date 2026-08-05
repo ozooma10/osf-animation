@@ -383,10 +383,9 @@ through `OSF_RequestOverlayAPI`, acquire one owner record for the consumer plugi
 `BeginRoute` and `RequestStation`. `BeginRoute` returns `OSFOverlayBeginResult`: a nonzero
 `routeHandle`, an `accepted`/`pending`/`rejected` disposition, and an exact reason. Rejections
 distinguish `ownerInvalid`, `routeUnknown`, `unknownStation`, `busy`, `actorUnavailable`, and
-`playbackFailed`. A route created while an owner callback is active returns `pending` with
-`dispatchDeferred`; if deferred realization later fails, its owner receives `kFailed` before the
-handle is retired. A scene- or 3D-blocked route likewise returns a live handle with `pending` and
-the corresponding blocker reason.
+`playbackFailed`. A scene- or 3D-blocked route returns a live handle with `pending` and the
+corresponding blocker reason. Route handles are capabilities retained by their consumer; OSF does
+not expose another owner's actor-to-handle lookup.
 
 The owner callback acknowledges `kCommit` handoffs and receives informational `kMarker`,
 `kPropAttach`, `kPropDestroy`, `kReached`, `kFailed`, `kSuspended`, `kResumed`, and `kEnded` events.
@@ -396,8 +395,8 @@ route lifetimes. `ReleaseOwner` is a quiescent callback barrier; route handles a
 world-local, while owner registration survives world replacement. See
 [`ROUTE_SCHEMA.md`](ROUTE_SCHEMA.md) for authoring, interruption, lifetime, and single-slot rules.
 
-Mutators are game-thread calls. A callback may request/end a route or release its owner; those
-reentrant mutations are deferred until callback dispatch completes. Event strings are borrowed for
-the callback only, and query strings remain valid only until the next overlay mutation. When a scene
-claims the actor, Phase 1 stops the overlay immediately before scene admission: the current one-
-stamper architecture cannot crossfade two independently owned playbacks.
+API calls are game-thread calls and are rejected while an owner callback is running; schedule route
+mutations after the callback returns. Event strings are borrowed for the callback only, and query
+strings remain valid only until the next overlay mutation. When a scene claims the actor, Phase 1
+stops the overlay immediately before scene admission: the current one-stamper architecture cannot
+crossfade two independently owned playbacks.

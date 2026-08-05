@@ -3,10 +3,9 @@
 #include "API/OSFOverlayAPI.h"
 #include "Overlay/OwnerRegistry.h"
 #include "Overlay/RoutePlan.h"
+#include "Overlay/RoutePlaybackPlan.h"
 #include "Scene/RouteInspectionTimeline.h"
 
-#include <chrono>
-#include <future>
 #include <type_traits>
 
 using OSF::Test::Check;
@@ -57,24 +56,67 @@ namespace
 
 		OSF::API::OSFOverlayEvent event;
 		event.type = OSF::API::OverlayEventType::kCommit;
-		auto result = InvokeOwnerCallback(owners.BeginDispatch(owner), event, true);
-		Check(result.delivered && result.acknowledged && !result.threw && deliveries == 1,
-			"owner callbacks acknowledge commit handoffs through a scoped dispatch lease");
+		auto result = InvokeOwnerCallback(owners.GetCallback(owner), event, true);
+		Check(result.acknowledged && !result.threw && deliveries == 1,
+			"owner callbacks acknowledge commit handoffs");
 
 		const auto throwing = owners.Acquire("throwing.plugin", ThrowCallback, nullptr);
-		result = InvokeOwnerCallback(owners.BeginDispatch(throwing), event, true);
-		Check(result.delivered && result.threw && !result.acknowledged && owners.IsUsable(throwing),
+		result = InvokeOwnerCallback(owners.GetCallback(throwing), event, true);
+		Check(result.threw && !result.acknowledged && owners.IsUsable(throwing),
 			"callback exceptions are isolated without corrupting owner registration");
 		Check(owners.Release(throwing), "an exception-throwing owner remains releasable");
+		Check(owners.Release(owner) && !owners.IsUsable(owner) && !owners.GetCallback(owner),
+			"owner release removes its callback record");
+	}
 
-		auto lease = owners.BeginDispatch(owner);
-		auto released = std::async(std::launch::async, [&]() { return owners.Release(owner); });
-		Check(released.wait_for(std::chrono::milliseconds(25)) == std::future_status::timeout,
-			"owner release waits while a callback lease is active");
-		Check(!owners.BeginDispatch(owner), "a releasing owner cannot begin another callback");
-		lease = {};
-		Check(released.get() && !owners.IsUsable(owner),
-			"owner release completes only after the callback barrier is quiescent");
+	void CheckRoutePlaybackPlans()
+	{
+		using namespace OSF;
+		Registry::RouteDef route;
+		route.id = "test.plan";
+		route.stations.push_back({ "zero", std::nullopt });
+		Registry::RouteLayer holdLayer;
+		holdLayer.clip.file = "hold.af";
+		holdLayer.mask = "upperBody";
+		holdLayer.holdAt = 0.75f;
+		route.stations.push_back({ "held", holdLayer });
+
+		Registry::RouteTransition transition;
+		transition.id = "zero-held";
+		transition.from = "zero";
+		transition.to = "held";
+		transition.layer.clip.file = "edge.af";
+		transition.layer.mask = "arms";
+		transition.commit = Registry::RouteMarker{ 10.0f, "commit" };
+		transition.props = {
+			{ .frame = 10.0f, .id = "new", .attach = true },
+			{ .frame = 10.0f, .id = "old", .attach = false },
+		};
+		Animation::ContactPose contact;
+		contact.enabled = true;
+		contact.atSeconds = 10.0f / Registry::kFrameRate;
+		contact.bones = { "C_Head" };
+		transition.contactPose = contact;
+
+		Check(!Overlay::BuildRouteStationPlan(route, route.stations[0]),
+			"zero-animation stations compile to no playback plan");
+		const auto station = Overlay::BuildRouteStationPlan(route, route.stations[1]);
+		Check(station && station->stages.size() == 1 && station->stages[0].hold == 0.75f &&
+			station->masks.empty() && station->poseModes.empty() && station->poseWeights.empty(),
+			"station plans keep pose policy only on their stage");
+
+		const auto runtime = Overlay::BuildRouteTransitionPlan(route, transition, route.stations[1], 7);
+		const auto& edge = runtime.stages.front();
+		Check(runtime.stages.size() == 2 && edge.contactPose.size() == 1 && edge.marks.size() == 4,
+			"runtime transition plans carry contact pose, side effects, reached mark, and destination hold");
+		const auto laneAt = [&](std::size_t index) { return edge.marks[index].lane; };
+		Check(laneAt(1) < laneAt(0) && laneAt(0) < laneAt(2),
+			"same-frame prop replacement attaches before commit and destroys after acknowledgement");
+
+		const auto preview = Overlay::BuildRouteTransitionPreviewPlan(route, transition);
+		Check(preview.speed == 0.0f && preview.stages.size() == 1 && preview.stages[0].marks.empty() &&
+			preview.stages[0].contactPose.size() == 1 && preview.stages[0].blendIn == 0.0f,
+			"route preview reuses production pose compilation without scheduling side effects");
 	}
 
 	void CheckPlaybackAdmission()
@@ -166,6 +208,7 @@ int main()
 	using namespace OSF::Overlay;
 	CheckOwnerRegistry();
 	CheckPlaybackAdmission();
+	CheckRoutePlaybackPlans();
 	{
 		OSF::Animation::ContactPose pose{
 			.enabled = true,
