@@ -1,5 +1,6 @@
 #include "Check.h"
 
+#include "Animation/BlendSource.h"
 #include "Animation/BoneMask.h"
 #include "Animation/LiveBasePose.h"
 #include "Animation/PoseMath.h"
@@ -9,6 +10,7 @@
 #include <cmath>
 #include <cstring>
 #include <numbers>
+#include <vector>
 
 using OSF::Test::Check;
 using OSF::Test::Finish;
@@ -55,6 +57,41 @@ int main()
 {
 	using namespace OSF::Animation::PoseMath;
 	constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
+
+	// Expected-playback replacement must retain both the sampled pose and the old graph's
+	// driven-joint set after scene teardown clears the live binding.
+	{
+		struct Binding
+		{
+			std::uint16_t rigIndex;
+			std::uint16_t jointIndex;
+		};
+
+		OSF::Animation::BlendSource::Prepared<Matrix> prepared;
+		const std::vector<Matrix> sourcePose{
+			Transform({}, 1.0f), Transform({}, 2.0f), Transform({}, 3.0f), Transform({}, 4.0f)
+		};
+		std::vector<Binding> binding{ { 7, 1 }, { 12, 3 } };
+		Check(prepared.Capture(sourcePose, binding), "replacement captures its visible blend source");
+		binding.clear();  // StopSceneLocked -> DetachAndFadeOut -> InvalidateBinding
+
+		std::vector<Matrix> capturedPose;
+		std::vector<std::uint8_t> capturedDriven;
+		Check(prepared.Consume(sourcePose.size(), capturedPose, capturedDriven),
+			"replacement consumes the source after binding teardown");
+		Check(capturedPose == sourcePose, "replacement preserves the sampled outgoing pose");
+		Check(capturedDriven == std::vector<std::uint8_t>{ 0, 1, 0, 1 },
+			"replacement preserves exactly the joints driven by the outgoing graph");
+		Check(!prepared.Consume(sourcePose.size(), capturedPose, capturedDriven),
+			"prepared replacement source is one-shot");
+
+		Check(prepared.Capture(sourcePose, std::vector<Binding>{ { 7, 1 } }),
+			"replacement source can be prepared again");
+		Check(!prepared.Consume(sourcePose.size() - 1, capturedPose, capturedDriven),
+			"replacement rejects a source from a different skeleton");
+		Check(!prepared.Consume(sourcePose.size(), capturedPose, capturedDriven),
+			"a rejected replacement source is discarded");
+	}
 
 	// Reference-pose sample: even with a non-identity reference, the zero delta is a byte-exact
 	// no-op on the complete live NiTransform (including padding and engine scale).

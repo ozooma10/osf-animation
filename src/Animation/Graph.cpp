@@ -54,15 +54,28 @@ namespace OSF::Animation
 
 	}
 
+	void Graph::PrepareBlendSource()
+	{
+		if (!hasPose) {
+			preparedBlendSource.Clear();
+			return;
+		}
+		preparedBlendSource.Capture(outputPose, binding);
+	}
+
 	void Graph::SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file)
 	{
 		if (++playbackRevision == 0) {
 			++playbackRevision;  // reserve zero for a graph that has never started
 		}
 
-		//crossfade from pose on screen when there is one. otherwise blend in from engines live pose
-		if (hasPose && !outputPose.empty() &&
-			outputPose.size() == static_cast<size_t>(a_skeleton->data->num_joints())) {
+		const auto nextJointCount = static_cast<std::size_t>(a_skeleton->data->num_joints());
+		// Crossfade from the pose on screen when there is one. Expected-playback replacement
+		// prepares it before teardown clears the old write binding; ordinary stage changes can
+		// still capture directly from the live graph.
+		if (preparedBlendSource.Consume(nextJointCount, blendFromPose, blendFromDriven)) {
+			blendFromValid = true;
+		} else if (hasPose && !outputPose.empty() && outputPose.size() == nextJointCount) {
 			blendFromPose = outputPose;
 			blendFromDriven.assign(outputPose.size(), 0);
 			for (const auto& bound : binding) {
@@ -72,6 +85,7 @@ namespace OSF::Animation
 			}
 			blendFromValid = true;
 		} else {
+			blendFromPose.clear();
 			blendFromDriven.clear();
 			blendFromValid = false;
 		}
@@ -91,7 +105,7 @@ namespace OSF::Animation
 			syncGroup = std::make_shared<SyncGroup>();	// new clip owns the clock if not in a scene
 		}
 
-		const int numJoints = skeleton->data->num_joints();
+		const int numJoints = static_cast<int>(nextJointCount);
 		samplingContext.Resize(numJoints);
 		localPose.resize(skeleton->data->num_soa_joints());
 		outputPose.assign(numJoints, ozz::math::Float4x4::identity());

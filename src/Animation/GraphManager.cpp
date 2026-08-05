@@ -567,6 +567,19 @@ namespace OSF::Animation
 					replacements.push_back(currentScene);
 				}
 			}
+			// Replacement reuses these actors' Graph objects. Preserve the currently displayed
+			// pose and its driven-joint set before StopSceneLocked invalidates the old binding.
+			for (auto* actor : a_actors) {
+				auto iter = graphs.find(actor);
+				if (iter == graphs.end() || !iter->second) {
+					continue;
+				}
+				std::scoped_lock gl{ iter->second->stateLock };
+				if (iter->second->scene &&
+					std::find(replacements.begin(), replacements.end(), iter->second->scene) != replacements.end()) {
+					iter->second->PrepareBlendSource();
+				}
+			}
 			for (auto* replacement : replacements) {
 				REX::DEBUG("[Anim] replacing expected playback {}", replacement->playbackId);
 				StopSceneLocked(replacement, deferred);

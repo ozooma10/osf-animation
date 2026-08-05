@@ -5,6 +5,7 @@
 // - The ozz plumbing is adapted from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh); 
 
 #include "Animation/BoneMask.h"
+#include "Animation/BlendSource.h"
 #include "Animation/FrameClock.h"
 #include "Animation/LiveBasePose.h"
 #include "Animation/OzzTypes.h"
@@ -82,6 +83,8 @@ namespace OSF::Animation
 		std::uint64_t playbackRevision = 0;           // incremented by SetAnimation; invalidates deferred cleanup from an older clip
 
 
+		// Capture the currently displayed graph pose before replacement teardown clears its binding.
+		void PrepareBlendSource();
 		// Start a new animation clip. Resets time and starts a blend-in. a_file is for diagnostics only ("" = none).
 		void SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file = "");
 		// Per-role local-pose composition. This is independent of root anchoring and survives stage changes.
@@ -194,6 +197,7 @@ namespace OSF::Animation
 
 		std::vector<ozz::math::Float4x4> blendFromPose;  // cross-fade-from pose (our joint indexing)
 		std::vector<std::uint8_t> blendFromDriven;       // joints actually stamped before the stage/clip change
+		BlendSource::Prepared<ozz::math::Float4x4> preparedBlendSource;  // survives replacement teardown invalidating binding
 		bool blendFromValid = false;
 
 		// one-shot diagnostics
