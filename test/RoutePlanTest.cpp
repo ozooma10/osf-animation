@@ -15,7 +15,12 @@ namespace
 {
 	using BeginMember = OSF::API::OSFOverlayBeginResult (OSF::API::IOSFOverlayAPI::*)(
 		std::uint64_t, RE::Actor*, const char*, const char*);
+	using RouteForActorMember = std::int32_t (OSF::API::IOSFOverlayAPI::*)(RE::Actor*);
+	using QueryMember = bool (OSF::API::IOSFOverlayAPI::*)(
+		std::int32_t, OSF::API::OSFOverlayRouteState&);
 	static_assert(std::is_same_v<decltype(&OSF::API::IOSFOverlayAPI::BeginRoute), BeginMember>);
+	static_assert(std::is_same_v<decltype(&OSF::API::IOSFOverlayAPI::GetRouteForActor), RouteForActorMember>);
+	static_assert(std::is_same_v<decltype(&OSF::API::IOSFOverlayAPI::QueryRoute), QueryMember>);
 	static_assert(std::is_standard_layout_v<OSF::API::OSFOverlayBeginResult>);
 	static_assert(std::is_trivially_copyable_v<OSF::API::OSFOverlayBeginResult>);
 	static_assert(OSF::API::OverlayEventType::kPropAttach != OSF::API::OverlayEventType::kMarker);

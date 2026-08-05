@@ -33,7 +33,8 @@ namespace OSF::API
 		kPlaybackFailed = 7,
 		kHandoffRejected = 8,
 		kOwnerInvalid = 9,
-		kRouteUnknown = 10
+		kRouteUnknown = 10,
+		kDispatchDeferred = 11
 	};
 
 	enum class OverlayEventType : std::uint32_t
@@ -119,6 +120,7 @@ namespace OSF::API
 
 	struct IOSFOverlayAPI
 	{
+		// ABI 1.0 is append-only: never remove or reorder these virtual slots.
 		virtual std::uint32_t GetInterfaceVersion() = 0;
 		virtual bool IsReady() = 0;
 		virtual std::uint64_t AcquireOwner(const char* a_pluginId, OSFOverlayCallback a_callback, void* a_context) = 0;
@@ -128,6 +130,7 @@ namespace OSF::API
 		virtual OSFOverlayRequestResult RequestStation(std::int32_t a_handle,
 			const char* a_station, std::uint64_t a_token) = 0;
 		virtual bool EndRoute(std::int32_t a_handle, bool a_fade = true) = 0;
+		virtual std::int32_t GetRouteForActor(RE::Actor* a_actor) = 0;
 		virtual bool QueryRoute(std::int32_t a_handle, OSFOverlayRouteState& a_out) = 0;
 
 	protected:

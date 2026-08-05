@@ -24,6 +24,7 @@ namespace OSF::Overlay
 			std::string_view a_routeId, std::string_view a_initialStation);
 		RequestResult RequestStation(std::int32_t a_handle, std::string_view a_station, std::uint64_t a_token);
 		bool EndRoute(std::int32_t a_handle, bool a_fade, bool a_notify = true);
+		std::int32_t GetRouteForActor(RE::Actor* a_actor) const;
 		bool QueryRoute(std::int32_t a_handle, API::OSFOverlayRouteState& a_out) const;
 
 		// SceneRuntime calls these after its slot admission and on every rollback/end path.

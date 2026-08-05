@@ -54,6 +54,11 @@ namespace OSF::API
 			return Overlay::OverlayService::GetSingleton().EndRoute(a_handle, a_fade);
 		}
 
+		std::int32_t GetRouteForActor(RE::Actor* a_actor) override
+		{
+			return Overlay::OverlayService::GetSingleton().GetRouteForActor(a_actor);
+		}
+
 		bool QueryRoute(std::int32_t a_handle, OSFOverlayRouteState& a_out) override
 		{
 			if (a_out.size < sizeof(OSFOverlayRouteState)) return false;

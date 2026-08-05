@@ -349,6 +349,14 @@ namespace OSF::Overlay
 		return true;
 	}
 
+	std::int32_t OverlayService::GetRouteForActor(RE::Actor* a_actor) const
+	{
+		if (InOwnerCallback()) return 0;
+		std::lock_guard l{ _lock };
+		const auto it = _byActor.find(a_actor);
+		return it == _byActor.end() ? 0 : it->second;
+	}
+
 	bool OverlayService::QueryRoute(std::int32_t a_handle, API::OSFOverlayRouteState& a_out) const
 	{
 		if (InOwnerCallback()) return false;
