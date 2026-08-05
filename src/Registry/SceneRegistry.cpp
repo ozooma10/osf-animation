@@ -2502,6 +2502,46 @@ namespace OSF::Registry
 					}
 					transition.reach = std::move(parsed);
 				}
+				if (const auto contact = transitionJson.find("contactPose"); contact != transitionJson.end()) {
+					if (transition.reach) throw std::runtime_error(edgeSubject + ": use either 'reach' or 'contactPose', not both");
+					if (transition.layer.mode != Animation::PoseMode::kOverride)
+						throw std::runtime_error(edgeSubject + ": 'contactPose' requires an override layer");
+					if (!contact->is_object()) throw std::runtime_error(edgeSubject + ": 'contactPose' must be an object");
+					for (const auto& [key, value] : contact->items()) {
+						(void)value;
+						if (key != "atFrame" && key != "bones" && key != "approachFrames" &&
+							key != "fullBeforeFrames" && key != "fullAfterFrames" &&
+							key != "releaseFrames" && key != "curve")
+							throw std::runtime_error(edgeSubject + ": contactPose has unknown key '" + key + "'");
+					}
+					Animation::ContactPose parsed;
+					parsed.enabled = true;
+					parsed.atSeconds = RouteFrame(*contact, "atFrame", edgeSubject + " contactPose") / kFrameRate;
+					const auto bones = contact->find("bones");
+					if (bones == contact->end() || !bones->is_array() || bones->empty() || bones->size() > 16)
+						throw std::runtime_error(edgeSubject + ": contactPose 'bones' must contain 1-16 bone names");
+					std::unordered_set<std::string> uniqueBones;
+					for (const auto& bone : *bones) {
+						if (!bone.is_string() || bone.get_ref<const std::string&>().empty())
+							throw std::runtime_error(edgeSubject + ": contactPose bone names must be non-empty strings");
+						auto name = bone.get<std::string>();
+						if (!uniqueBones.insert(ToLower(name)).second)
+							throw std::runtime_error(edgeSubject + ": contactPose contains duplicate bone '" + name + "'");
+						parsed.bones.push_back(std::move(name));
+					}
+					const auto readFrames = [&](const char* key, float fallback) {
+						return contact->contains(key) ? RouteFrame(*contact, key, edgeSubject + " contactPose") / kFrameRate : fallback;
+					};
+					parsed.approachSeconds = readFrames("approachFrames", parsed.approachSeconds * kFrameRate);
+					parsed.fullBeforeSeconds = readFrames("fullBeforeFrames", parsed.fullBeforeSeconds * kFrameRate);
+					parsed.fullAfterSeconds = readFrames("fullAfterFrames", parsed.fullAfterSeconds * kFrameRate);
+					parsed.releaseSeconds = readFrames("releaseFrames", parsed.releaseSeconds * kFrameRate);
+					if (parsed.fullBeforeSeconds > parsed.approachSeconds)
+						throw std::runtime_error(edgeSubject + ": contactPose fullBeforeFrames cannot exceed approachFrames");
+					const auto curve = ToLower(contact->value("curve", std::string{ "smoothstep" }));
+					if (curve != "smoothstep") throw std::runtime_error(edgeSubject + ": contactPose curve must be 'smoothstep'");
+					transition.contactPose = std::move(parsed);
+				}
 				if (const auto interrupt = transitionJson.find("interrupt"); interrupt != transitionJson.end()) {
 					if (!interrupt->is_string()) throw std::runtime_error(edgeSubject + ": 'interrupt' must be a string");
 					const auto value = ToLower(interrupt->get<std::string>());

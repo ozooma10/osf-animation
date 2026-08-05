@@ -230,6 +230,18 @@ namespace OSF::Animation
 		loggedReachContact = false;
 	}
 
+	void Graph::SetContactPose(const ContactPose& a_contactPose)
+	{
+		contactPose = a_contactPose;
+		contactPoseBones.clear();
+		for (const auto& bone : contactPose.bones) {
+			if (!bone.empty()) contactPoseBones.emplace(ToLower(bone));
+		}
+		loggedContactPoseFull = false;
+		// Contact bones extend the ordinary stage mask, so the write binding must be rebuilt.
+		InvalidateBinding(true);
+	}
+
 	void Graph::ApplyLiveReach(float* a_liveBuffer, std::uint16_t a_rigBoneCount)
 	{
 		if (!liveReach.enabled || !skeleton || reachLocalPose.size() != outputPose.size()) return;
@@ -470,15 +482,22 @@ namespace OSF::Animation
 					continue;  // node maps to a rig slot outside the live buffer; never stamp it
 				}
 				float boneWeight = 1.0f;
+				float contactWeight = 0.0f;
 				if (boneMask) {
 					const auto mit = boneMask->weights.find(lowerName);
 					if (mit == boneMask->weights.end()) {
-						skippedMasked++;  // outside the driven whitelist — stays engine-driven
-						continue;
+						if (contactPose.enabled && contactPoseBones.contains(lowerName)) {
+							boneWeight = 0.0f;
+							contactWeight = 1.0f;
+						} else {
+							skippedMasked++;  // outside the driven whitelist — stays engine-driven
+							continue;
+						}
+					} else {
+						boneWeight = mit->second;
 					}
-					boneWeight = mit->second;
 				}
-				binding.push_back({ entry.rigIndex, iter->second, boneWeight });
+				binding.push_back({ entry.rigIndex, iter->second, boneWeight, contactWeight });
 			}
 		}
 		if (++bindingRevision == 0) {
@@ -591,6 +610,7 @@ namespace OSF::Animation
 				SetPosePolicy(stage.poseModes[participantIndex], stage.poseWeights[participantIndex], roleName);
 				SetBoneMask(stage.masks[participantIndex]);
 				SetLiveReach(stage.liveReach[participantIndex]);
+				SetContactPose(stage.contactPose[participantIndex]);
 				blendDuration = stage.blendIn;  // per-stage blend-in
 				scenePlacement = stage.placements[participantIndex];
 				appliedStage = tick.stage;
@@ -692,6 +712,12 @@ namespace OSF::Animation
 			if (weight <= 0.0f) {
 				return;  // fully faded — leave the engine pose alone (no need to sample)
 			}
+		}
+		const float contactWeight = contactPose.WeightAt(localTime);
+		if (contactPose.enabled && !loggedContactPoseFull && contactWeight >= 0.99f) {
+			loggedContactPoseFull = true;
+			REX::DEBUG("[Anim] contact pose full — actor {:08X}, {} bone(s), contact {:.3f}s",
+				target ? target->formID : 0, contactPoseBones.size(), contactPose.atSeconds);
 		}
 
 		// sample active clip at the time Sample accumulated on the update stream.
@@ -808,7 +834,7 @@ namespace OSF::Animation
 				PoseMath::WriteAdditive(slot, liveBasePose.data() + i * 16,
 					reinterpret_cast<const float*>(&referencePose[bound.jointIndex]),
 					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
-					effectiveWeight * bound.weight);
+					effectiveWeight * std::max(bound.weight, bound.contactWeight * contactWeight));
 				if (!probeRecorded) {
 					recordProbe(slot, bound.rigIndex);
 				}
@@ -818,7 +844,7 @@ namespace OSF::Animation
 			// Weight-1 bones take the sampled pose absolutely; fractional bones blend against the
 			// immutable engine base (steady state) or the cross-fade-from snapshot (blend-in), so a
 			// masked gesture overrides the arm chain while the feathered seam keeps live torso sway.
-			const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f;
+			const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f || contactPose.enabled;
 			if (persistentPartial && !captureLiveBase()) {
 				return;
 			}
@@ -834,11 +860,12 @@ namespace OSF::Animation
 				// blend from Starfield's live pose instead of the unshown parts of its clip.
 				const bool fromSnapshot = hasSnapshot && bound.jointIndex < blendFromDriven.size() &&
 				                          blendFromDriven[bound.jointIndex] != 0;
+				const float maskWeight = std::max(bound.weight, bound.contactWeight * contactWeight);
 				// Zero-total-weight bones normally skip; the stage-handoff snapshot case must not
 				// (clip A -> B begins at A instead of flashing through vanilla). The decision is
 				// PoseMath::ClassifyOverrideStamp so the boundary behavior is pinned by tests.
-				const float w = weight * poseWeight * bound.weight;
-				switch (PoseMath::ClassifyOverrideStamp(weight, poseWeight, bound.weight, fromSnapshot)) {
+				const float w = weight * poseWeight * maskWeight;
+				switch (PoseMath::ClassifyOverrideStamp(weight, poseWeight, maskWeight, fromSnapshot)) {
 				case PoseMath::OverrideStampKind::kSkip:
 					continue;
 				case PoseMath::OverrideStampKind::kSnapshot:

@@ -73,6 +73,37 @@ namespace OSF::Animation
 		float maxResidualRadians = 0.08726646f;
 	};
 
+	// Adds a small set of clip bones only around an authored contact. Unlike live reach this stays
+	// entirely in local-pose space: at full weight the head and hands come from the same clip, then
+	// the contact bones ease back to the engine pose before teardown.
+	struct ContactPose
+	{
+		bool enabled = false;
+		float atSeconds = 0.0f;
+		std::vector<std::string> bones;
+		float approachSeconds = 0.4f;
+		float fullBeforeSeconds = 2.0f / 30.0f;
+		float fullAfterSeconds = 2.0f / 30.0f;
+		float releaseSeconds = 0.4f;
+
+		float WeightAt(float a_time) const
+		{
+			if (!enabled) return 0.0f;
+			const float begin = atSeconds - approachSeconds;
+			const float fullBegin = atSeconds - fullBeforeSeconds;
+			const float fullEnd = atSeconds + fullAfterSeconds;
+			const float end = fullEnd + releaseSeconds;
+			const auto smooth = [](float a_t) {
+				const float t = std::clamp(a_t, 0.0f, 1.0f);
+				return t * t * (3.0f - 2.0f * t);
+			};
+			if (a_time <= begin || a_time >= end) return 0.0f;
+			if (a_time < fullBegin) return smooth((a_time - begin) / std::max(fullBegin - begin, 1e-5f));
+			if (a_time <= fullEnd) return 1.0f;
+			return 1.0f - smooth((a_time - fullEnd) / std::max(end - fullEnd, 1e-5f));
+		}
+	};
+
 	// Anchor + (x,y,z) rotated into the anchor heading. Single source for the initial teleport and the compose-root pin. (heading applied separately.)
 	inline RE::NiPoint3 PlacementToWorld(const RE::NiPoint3& a_anchorPos, float a_anchorHeading,
 		const ParticipantPlacement& a_placement)
@@ -138,6 +169,7 @@ namespace OSF::Animation
 			std::vector<PoseMode> poseModes;               // optional stage override; empty = plan policy
 			std::vector<float> poseWeights;                // optional stage override; empty = plan policy
 			std::vector<LiveReach> liveReach;               // optional, one per actor; disabled entries are no-ops
+			std::vector<ContactPose> contactPose;            // optional local-pose contact envelope per actor
 			float timer = 0.0f;                            // seconds; <= 0 = no auto-advance
 			int32_t loops = 0;                             // clip loops; <= 0 = no auto-advance
 			float hold = -1.0f;                            // freeze on ONE frame at this clip position [0,1]; < 0 = play normally
@@ -197,6 +229,7 @@ namespace OSF::Animation
 		}) && std::ranges::all_of(a_plan.stages, [a_actorCount](const ScenePlan::Stage& a_stage) {
 			return (a_stage.masks.empty() || a_stage.masks.size() == a_actorCount) &&
 				(a_stage.liveReach.empty() || a_stage.liveReach.size() == a_actorCount) &&
+				(a_stage.contactPose.empty() || a_stage.contactPose.size() == a_actorCount) &&
 				(a_stage.poseModes.empty() || a_stage.poseModes.size() == a_actorCount) &&
 				(a_stage.poseWeights.empty() || a_stage.poseWeights.size() == a_actorCount) &&
 				std::ranges::all_of(a_stage.poseModes, [](PoseMode a_mode) {
@@ -234,6 +267,7 @@ namespace OSF::Animation
 			std::vector<PoseMode> poseModes; // effective per-participant composition mode for this stage
 			std::vector<float> poseWeights;  // effective per-participant composition weight for this stage
 			std::vector<LiveReach> liveReach; // effective per-participant runtime reach correction
+			std::vector<ContactPose> contactPose; // effective per-participant contact-pose envelope
 			float blendIn = 0.4f;   // blend-in secs when this stage activates
 			std::vector<TimedMark> marks;  // timed marks fired by Advance (see firedMarks)
 		};

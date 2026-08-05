@@ -167,6 +167,22 @@ int main()
 	CheckOwnerRegistry();
 	CheckPlaybackAdmission();
 	{
+		OSF::Animation::ContactPose pose{
+			.enabled = true,
+			.atSeconds = 1.0f,
+			.approachSeconds = 0.4f,
+			.fullBeforeSeconds = 0.1f,
+			.fullAfterSeconds = 0.1f,
+			.releaseSeconds = 0.4f,
+		};
+		Check(pose.WeightAt(0.6f) == 0.0f && pose.WeightAt(0.9f) == 1.0f &&
+			pose.WeightAt(1.1f) == 1.0f && pose.WeightAt(1.5f) == 0.0f,
+			"contact pose is exactly zero outside its authored window and full across contact");
+		Check(std::abs(pose.WeightAt(0.75f) - 0.5f) < 0.0001f &&
+			std::abs(pose.WeightAt(1.3f) - 0.5f) < 0.0001f,
+			"contact pose uses symmetric smoothstep midpoints");
+	}
+	{
 		OSF::Registry::RouteTransition transition;
 		transition.props = {
 			{ .frame = 2.0f, .id = "carrier", .attach = true, .lifetime = OSF::Registry::RouteLifetime::kTransition },

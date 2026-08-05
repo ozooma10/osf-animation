@@ -433,6 +433,7 @@ namespace OSF::Registry
 		std::vector<RouteSound>     sounds;
 		RouteInterruption           interruption = RouteInterruption::kFinish;
 		std::optional<Animation::LiveReach> reach;
+		std::optional<Animation::ContactPose> contactPose;
 	};
 
 	struct RouteDef

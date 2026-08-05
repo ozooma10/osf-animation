@@ -94,6 +94,7 @@ namespace OSF::Animation
 		// gesture path. Forces a rebind when it changes; a scene stage may override the role default.
 		void SetBoneMask(const std::string& a_maskName);
 		void SetLiveReach(const LiveReach& a_reach);
+		void SetContactPose(const ContactPose& a_contactPose);
 		void ApplyLiveReach(float* a_liveBuffer, std::uint16_t a_rigBoneCount);
 
 		void BeginFadeOut();      // start the fade-out ramp (no-op if already fading)
@@ -160,6 +161,7 @@ namespace OSF::Animation
 			uint16_t rigIndex;
 			uint16_t jointIndex;
 			float weight;  // active mask's per-bone weight; 1 when unmasked
+			float contactWeight;  // contact-only contribution; zero for ordinary mask bones
 		};
 		std::vector<BoundBone> binding;
 		std::vector<std::uint16_t> rigIndexByJoint;
@@ -168,6 +170,9 @@ namespace OSF::Animation
 		std::array<float, 16> frozenReachTarget{};
 		bool loggedReachDisabled = false;
 		bool loggedReachContact = false;
+		ContactPose contactPose;
+		std::unordered_set<std::string> contactPoseBones;
+		bool loggedContactPoseFull = false;
 		// Additive stamping reads an immutable engine base. Sample increments enginePoseRevision only
 		// after the engine graph evaluation; the first compose for that revision snapshots each bound
 		// live slot. Any repeated compose call reuses that snapshot, so OSF never layers over itself.
