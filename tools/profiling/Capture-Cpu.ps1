@@ -23,7 +23,8 @@ $safeLabel = ($Label -replace '[^A-Za-z0-9._-]', '-').Trim('-')
 if (-not $safeLabel) { $safeLabel = 'cpu' }
 $captureDir = Join-Path $repo 'build\profiles'
 New-Item -ItemType Directory -Force -Path $captureDir | Out-Null
-$etl = Join-Path $captureDir (Get-Date -Format "yyyyMMdd-HHmmss-$safeLabel.etl")
+$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$etl = Join-Path $captureDir "$timestamp-$safeLabel.etl"
 $session = 'OSFAnimationCpu'
 
 $status = (& $wpr.Source -status -instancename $session 2>&1 | Out-String)
@@ -44,6 +45,12 @@ try {
     & $wpr.Source -stop $etl "OSF Animation CPU profile: $safeLabel" -compress -instancename $session
     if ($LASTEXITCODE -ne 0) { throw "wpr -stop failed with exit code $LASTEXITCODE." }
     $started = $false
+    if (-not (Test-Path -LiteralPath $etl)) {
+        throw "WPR reported success but did not create the requested trace: $etl"
+    }
+    if ((Get-Item -LiteralPath $etl).Length -le 0) {
+        throw "WPR created an empty trace and WPA will not be launched: $etl"
+    }
 } catch {
     if ($started) {
         & $wpr.Source -cancel -instancename $session | Out-Null
