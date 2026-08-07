@@ -9,7 +9,8 @@ whether engine-side conditional clip replacement can cover restricted locomotion
 pose blending.
 
 Related current contracts: [scene schema](SCENE_SCHEMA.md), [consumer API overview](API.md), and the
-authoritative [native scene ABI header](../src/API/OSFSceneAPI.h).
+authoritative [native scene ABI header](../src/API/OSFSceneAPI.h). Proposed prose follows the
+[OSF domain vocabulary](VOCABULARY.md); names inside draft schemas remain proposals until accepted.
 
 ## Decision
 
@@ -33,7 +34,7 @@ Consumer mods continue to own gameplay truth and policy. OSF owns the temporary 
 needed to present that truth.
 
 This gives Suit Protocol a cohesive helmet route without making a stowed helmet monopolize the
-actor's scene slot. It also gives a restraint mod a path to keep cuffs visible in ordinary
+actor's exclusive scene occupancy. It also gives a restraint mod a path to keep cuffs visible in ordinary
 locomotion and in compatible multi-actor scenes without requiring a bespoke animation for every
 combination.
 
@@ -44,14 +45,14 @@ The current systems each solve a useful, narrower problem:
 | System | What it does today | Important limit |
 | --- | --- | --- |
 | Starfield animation graph | Produces the live locomotion and gameplay pose | OSF consumes its result; OSF does not control its state machine |
-| `Animation::Graph` | Samples and stamps one OSF clip for one actor | Despite its name, it is a clip player, not a high-level state graph |
-| `GraphManager` | Owns the animation hooks and one graph per actor | A second independent OSF layer cannot safely stamp the same actor |
-| `SceneRuntime` | Runs synchronized multi-actor node graphs, tracks, policy mechanisms, and callbacks | An actor may be in only one live scene, and every graph node needs a playable |
+| `Animation::Graph` | Implements one actor playback graph that samples and stamps one OSF clip | Despite its name, it is a clip player, not a high-level state graph |
+| `GraphManager` | Owns the animation hooks and one actor playback graph per actor | A second independent OSF layer cannot safely stamp the same actor |
+| `SceneRuntime` | Runs synchronized multi-actor flow graphs, tracks, policy mechanisms, and callbacks | An actor may be in only one live scene, and every flow node needs a playable source |
 | Role pose policy | Composes one override/additive clip through a mask and weight | The policy is scene-wide for the role, not a general layer stack |
-| Scene prop ledger | Creates, attaches, moves, and cleans up temporary render props | All remaining props are destroyed when the scene ends |
+| Scene prop ledger | Creates, attaches, moves, and cleans up temporary render props | All remaining props are destroyed during scene teardown |
 | Studio Prop Routes | Authors stations, ownership, endpoint poses, transition clips, and handoff frames | There is not yet a generic runtime asset for the authored route |
 
-The existing scene node graph is still the correct abstraction for a synchronized encounter. It
+The existing scene flow graph is still the correct abstraction for a synchronized encounter. It
 owns a roster, common clock, placement, camera, sound, actions, and navigation. It is the wrong
 owner for an actor's indefinite handcuffed condition or a zero-animation Stowed state.
 
@@ -168,8 +169,9 @@ any state OSF can lose is state a consumer can cheaply reassert.
   A candidate RE track may add condition-gated clip replacement
   inside the vanilla pipeline before capture; it is not required here.
 
-  SceneRuntime continues to own: roster, sync clock, placement/anchor,
-  graph navigation, cue/action/sound/camera lanes, locks, strip/equip, ledger.
+  SceneRuntime continues to own: roster, sync clock, world placement/anchor,
+  flow navigation, cue/action/sound/camera lanes, player input locks,
+  apparel hide/equip, and the ledger.
 ```
 
 The working component names are:
@@ -181,7 +183,8 @@ The working component names are:
 - `ScenePoseAdapter`: lowers a current scene role/stage into a controller-owned layer.
 
 The existing C++ names do not have to be changed in the first phase. The distinction is conceptual:
-`Animation::Graph` is a clip sampler, `SceneRuntime` owns scene graphs, and the proposed actor
+`Animation::Graph` is the actor playback graph/clip sampler, `SceneRuntime` owns scene flow graphs,
+and the proposed actor
 controller owns per-actor presentation state.
 
 ## Per-actor runtime model
@@ -209,11 +212,11 @@ desired station or condition at any time without duplicating a prop or replaying
 transition.
 
 An instance pins immutable route/profile, mask, and skeleton snapshots for its lifetime. Reloading
-packs affects new instances or an explicit safe reconcile, never the meaning of an in-flight edge or
-its cleanup plan.
+content affects new instances or an explicit safe reconcile, never the meaning of an in-flight route
+transition or its cleanup plan.
 
 A stable station can contain zero layers. When every accepted entry is zero-layer, the controller
-has no sampling cost and does not occupy the actor's cinematic scene slot.
+has no sampling cost and does not occupy the actor's exclusive scene admission.
 
 ### Layer contract
 
@@ -318,7 +321,7 @@ different bind/rest pose merely because its bone names happen to match.
 A route is a presentation state machine, but its trigger policy remains outside the asset.
 
 The controller API should accept a desired station rather than require a consumer to manually walk
-scene nodes. Given a request such as `RequestStation(instance, "stowed")`, the controller finds an
+scene flow nodes. Given a request such as `RequestStation(instance, "stowed")`, the controller finds an
 authored path from the current reached station/checkpointed ownership state, plays its transitions,
 and reports typed events:
 
@@ -332,7 +335,7 @@ A route instance records these separately:
 
 - the latest desired destination;
 - the last fully reached station;
-- the active edge and pose progress;
+- the active route transition and pose progress;
 - the most recent irreversible ownership/gameplay checkpoint; and
 - OSF's internal transition generation.
 
@@ -340,25 +343,25 @@ This distinction matters when an ownership transfer happens before the destinati
 The route cannot pretend it is still wholly at the source station, but it also has not completed the
 destination.
 
-Before an edge begins, the controller pins and validates its clip/layer binding, reserves every
+Before a route transition begins, the controller pins and validates its clip/layer binding, reserves every
 transition claim, retains a compensatable source, and acquires the resources needed to reach the
-destination checkpoint/station. A multi-edge request may acquire one edge at a time only when each
+destination checkpoint/station. A multi-transition request may acquire one transition at a time only when each
 intermediate station is independently valid and can safely wait there. A path containing a purely
 transient intermediate must reserve the whole uninterrupted segment. The runtime must never cross
 an ownership checkpoint and only then discover that the promised destination cannot be realized.
 
 Transitions define their own reversal and commit behavior. A countermand before the ownership
-marker may reverse immediately; after a one-way handoff it may need to finish the current transfer
-and follow the reverse edge. The route asset describes what is visually safe. The consumer decides
+marker may reverse immediately; after a one-way handoff it may need to complete the current transfer
+and follow the reverse transition. The route asset describes what is visually safe. The consumer decides
 which destination is now desired.
 
 The initial interruption vocabulary can stay small: `complete`, `reverse` when an authored reverse
-edge exists, `crossfade-to-latest`, and `non-interruptible`. Requests received while suspended still
+transition exists, `crossfade-to-latest`, and `non-interruptible`. Requests received while suspended still
 replace the desired destination, but they do not mutate unavailable resources. On resume the route
 reconciles from its checkpointed ownership and latest completed station rather than continuing an
-obsolete clip clock. `crossfade-to-latest` is valid only for a pose-only edge or before its first
-irreversible checkpoint; otherwise the route must finish, compensate, or follow an authored reverse
-edge.
+obsolete clip clock. `crossfade-to-latest` is valid only for a pose-only transition or before its first
+irreversible checkpoint; otherwise the route must complete the transition, compensate, or follow an
+authored reverse transition.
 
 Timers are policy inputs, not a classification of the animation. Suit Protocol may request Stowed
 three seconds after Held, or leave Held active until another input. Both use the same route. A held
@@ -367,7 +370,7 @@ station may therefore remain indefinitely without becoming a cinematic scene.
 ### Illustrative route asset
 
 This is a design sketch, not an accepted registry schema. It deliberately follows Studio's current
-station/transition vocabulary. Reverse edges and full socket/body-pose data are omitted for space.
+station/transition vocabulary. Reverse transitions and full socket/body-pose data are omitted for space.
 
 ```json
 {
@@ -467,7 +470,8 @@ station/transition vocabulary. Reverse edges and full socket/body-pose data are 
 }
 ```
 
-Studio currently stores an `eventFrame`, `holdFrames`, and endpoint `edgeBlends` in authoring frames
+Studio currently stores an `eventFrame`, `holdFrames`, and endpoint `edgeBlends` (a legacy authoring
+field for route-transition blends) in authoring frames
 under the route's declared `fps`. `holdFrames` holds the carrier transform after the event; it is not
 a general source/destination visibility-overlap interval. A runtime compiler converts marks and
 blends to documented seconds/fractions. Independent source-show/destination-hide frames are needed
@@ -477,7 +481,8 @@ Attachment translation, XYZ-degree rotation, and uniform scale must use the same
 contract as current `osf.prop.attach`; the final schema must state those units and conversion once,
 not leave Studio and runtime consumers to infer them.
 
-Core route events remain generic marker/complete/abort events. A Suit Protocol compiler adapter may
+Core route events remain generic marker/complete/cancel events. A legacy consumer adapter may
+translate `cancel` to an existing `abort` spelling. A Suit Protocol compiler adapter may
 name or translate a marker for its handoff payload, but the actor runtime must not dispatch a
 hard-coded Suit action.
 
@@ -667,12 +672,12 @@ OSF sampler; it submits one synchronized scene body layer to that actor's contro
 
 Existing responsibilities remain unchanged:
 
-- scene definition and node graph validation;
+- scene definition and flow-graph validation;
 - role binding and matchmaking;
-- shared clocks, stage timing, and navigation;
-- anchors, participant placement, and root pinning;
+- shared clocks, linear-stage/flow-node timing, and navigation;
+- world anchors, participant placement, and root pinning;
 - timed action, camera, sound, and cue lanes;
-- control, equipment, fade, and camera policy mechanisms; and
+- player input lock, scene controls, equipment, fade, and camera policy mechanisms; and
 - the per-scene undo ledger and public callbacks.
 
 Sound remains a one-shot timed lane event, not a reversible ledger mutation.
@@ -683,7 +688,7 @@ than partly starting the roster. The group transaction is:
 
 1. pin definitions and reserve every actor/claim in stable actor/resource order;
 2. validate clips, skeleton compatibility, policies, and external prerequisites;
-3. apply reversible strip/equip/visibility/placement mutations under the group ledger;
+3. apply reversible apparel-hide/equip/visibility/placement mutations under the group ledger;
 4. re-resolve actor model roots, rigs, masks, and attachments after any topology-changing equipment
    work;
 5. prepare all role clip instances and pose plans; then
@@ -692,14 +697,14 @@ than partly starting the roster. The group transaction is:
 Any failure unwinds the ledger and reservations in reverse order. Mutations are therefore
 compensatable, not forbidden during preparation, and no partially started roster becomes public.
 
-At each node/stage change, the scene adapter replaces the role's clip source while preserving the
-outer scene handle, ledger, and synchronization identity. A scene either proves one compatibility
-contract for every reachable node or preflights each node transition as a smaller group
-transaction. A failed navigation remains at the current node or ends the scene according to
+At each flow-node/linear-stage change, the scene adapter replaces the role's clip source while
+preserving the outer scene handle, ledger, and synchronization identity. A scene either proves one
+compatibility contract for every reachable flow node or preflights each scene edge as a smaller group
+transaction. A failed navigation remains at the current flow node or terminates the scene according to
 explicit scene policy; it never advances only part of the roster. A changed condition also triggers
-this preflight before the next node.
+this preflight before the next flow node.
 
-Scene end ordering is an observable invariant:
+Scene termination ordering is an observable invariant:
 
 1. stop/release scene body playback and claims;
 2. unwind the existing scene ledger;
@@ -707,7 +712,7 @@ Scene end ordering is an observable invariant:
 4. retire the scene handle; and
 5. re-arbitrate actor controllers, then dispatch profile/route resumed outcomes.
 
-This lets an end callback change consumer truth before one final reconcile. World-load teardown
+This lets a scene-end callback change consumer truth before one final reconcile. World-load teardown
 suppresses public callbacks, clears scene and actor-runtime state, and relies on consumers to
 reassert after load.
 
@@ -719,10 +724,10 @@ whether unknown legacy scenes are rejected or allowed to use the generic masked 
 not make that policy choice invisibly, and it reports that the match was unknown rather than
 silently claim it was compatible.
 
-Equipment stripping is a separate preflight. A required restraint can expose protected forms,
-slots, or keywords that the scene's strip plan must retain. A scene that truly requires their
+Apparel hiding is a separate preflight. A required restraint can expose protected forms,
+slots, or keywords that the scene's apparel-hide plan must retain. A scene that truly requires their
 removal is incompatible; merely accepting the restraint's bone pose is not enough. Existing
-`stripActors` behavior remains unchanged for actors with no protected equipment claim.
+`stripActors` compatibility behavior remains unchanged for actors with no protected equipment claim.
 
 ## Restraints over a scene
 
@@ -888,10 +893,10 @@ For routes, an author:
 
 1. defines stations and their ownership;
 2. captures station body poses and attachment sockets;
-3. links or creates one transition clip per route edge;
+3. links or creates one transition clip per route transition;
 4. aligns the clip endpoints to the station poses;
 5. places ownership and optional cue markers;
-6. previews edge blends, carrier holds, and explicit handoff overlap; and
+6. previews transition blends, carrier holds, and explicit handoff overlap; and
 7. exports a runtime route plus any consumer handoff contract/config generated from the same source.
 
 The existing Head/Held/Stowed route already contains most of this information. Its next step is a
@@ -922,9 +927,9 @@ tooling requirements are deliberately not frozen yet.
 2. The route transition plays as an upper-body overlay over live locomotion.
 3. At the ownership marker, OSF creates/attaches the carried helmet and emits the synchronous
    generation-stamped handoff event. Suit Protocol updates its render-only visibility transaction
-   and may commit Unsealed semantic state before the presentation transition fully finishes.
+   and may commit Unsealed semantic state before the presentation transition fully completes.
 4. Held becomes the committed station. Its station pose and carried prop can remain active for any
-   duration without occupying the cinematic scene slot.
+   duration without occupying exclusive scene admission.
 5. In timed mode, Suit Protocol later requests Stowed. In explicit mode, it leaves Held desired.
 6. During Held -> Stowed, the authored marker reveals Suit Protocol's persistent `C_Hips` clone at
    the matching handoff transform before the OSF carrier is destroyed.
@@ -933,7 +938,7 @@ tooling requirements are deliberately not frozen yet.
 
 If a cinematic scene starts during this cosmetic gesture, the controller reports suspension or a
 safe interrupted station. Suit Protocol retains Unsealed as semantic truth and requests the correct
-presentation again when the scene ends.
+presentation again when the scene terminates.
 
 The ordinary stable mapping is Sealed -> Head and Unsealed -> Stowed. Held remains a presentation
 station unless Suit Protocol explicitly persists a separate latched-hold preference; even then it
@@ -959,7 +964,7 @@ No custom walk and idle clips are required if the lower body and torso remain pl
 3. `SceneRuntime` submits the synchronized scene body clip as the actor's base scene layer.
 4. The restraint layer overrides the arm chains after that base.
 5. Cuff pieces follow the final wrist transforms; a connector follows both endpoints.
-6. When the scene ends, the scene body layer disappears. The still-asserted condition reselects its
+6. When the scene terminates, the scene body layer disappears. The still-asserted condition reselects its
    profile over Starfield locomotion.
 
 If the scene uses the actor's arms for support, the generic fallback is rejected and an authored
@@ -989,8 +994,8 @@ The runtime must make failure observable and leave semantic ownership unambiguou
 - **Actor 3D unavailable:** retain desired state without sampling/stamping. Rebind and reconstruct
   when a valid skeleton returns.
 - **Owner release/plugin unload:** remove only that owner's entries and clean its OSF-owned props.
-- **Scene abort:** release all scene body layers through the existing ledger end path, then reconcile
-  controllers.
+- **Scene termination:** release all scene body layers through the existing ledger teardown path,
+  then reconcile controllers after completion, cancellation, or interruption.
 - **World-replacing load:** clear every runtime instance and raw actor reference. Consumers rebuild
   from persisted semantic state (see `AssertConditions`); in-flight transitions are never restored.
 - **Death, furniture, combat, or menus:** OSF exposes presentation availability and reasons; each
@@ -1060,7 +1065,7 @@ compatible scenes.
 
 - Add role `requirements`/`claims`/`covers` metadata and matchmaker compatibility queries.
 - Add authored-variant preference and structured rejection/degradation outcomes.
-- Add equipment-strip protection preflight.
+- Add hide-apparel protection preflight.
 - Add Studio preview of profiles/variants over scene clips.
 
 Together with Phase 2 this covers a Devious-Devices-class integration's launch needs: persistent
@@ -1088,7 +1093,7 @@ is pulled by demonstrated content needs, not scheduled. See the appendix.
   and namespace.
 - Existing role mask/`preserveBones`/mode/weight settings lower into a scene body layer without
   semantic change.
-- Current scene graph nodes and timed lanes remain the orchestration source during migration.
+- Current scene flow nodes and timed lanes remain the orchestration source during migration.
 - Suit Protocol can migrate transition by transition. Its transactional core, persistent hip clone,
   and load reconciliation remain authoritative.
 - A device mod can first use a generic persistent upper-body pose, then adopt variants; conditional
@@ -1106,7 +1111,7 @@ the final actor pose.
 - Bound active layers; log rejected overflow rather than degrade unpredictably.
 - Keep arbitration event-driven. Only active clip sampling belongs in the frame path. Any candidate
   clip-replacement hook must measure its cadence and avoid per-frame registry or pose work.
-- Do not add per-frame scene registry lookups, form resolution, prop cloning, or skeleton topology
+- Do not add per-frame content-registry lookups, form resolution, prop cloning, or skeleton topology
   mutation.
 - Retain generational handles and never keep raw actor/skeleton references across world replacement.
 - Validate every deferred command against both its handle generation and the current world epoch.
@@ -1127,7 +1132,7 @@ The architecture is successful when all of these are true:
 5. An arm-supported incompatible scene is rejected or selects an authored variant rather than
    silently breaking the pose.
 6. Every ownership transfer shows exactly the intended visual through completion, countermand,
-   abort, actor 3D rebuild, and load reconciliation.
+   cancellation, actor 3D rebuild, and load reconciliation.
 7. With no actor routes, assertions, or profiles active, legacy scene output and timing are
    unchanged.
 8. Layer registration order cannot change the final pose.

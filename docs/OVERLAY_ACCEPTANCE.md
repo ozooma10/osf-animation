@@ -1,5 +1,8 @@
 # Overlay route acceptance and downstream handoff
 
+Use the canonical terms in [OSF domain vocabulary](VOCABULARY.md): route **stations** are joined by
+directed **route transitions**; *scene edge* refers only to scene-flow topology.
+
 Use this checklist before treating native overlay ABI 1.0 as frozen. The engine-free suite proves
 the contract mechanics; the following items require a running Starfield session or the downstream
 Studio/Suit Protocol repositories.
@@ -26,23 +29,24 @@ Confirm these cases:
 ## In-game visual and lifecycle matrix
 
 - Walk, run, turn, and idle indefinitely at an animated Held station; inspect the upper-body seam.
-- Traverse a multi-edge route in both authored directions and look for playback-boundary pops.
+- Traverse a multi-transition route in both authored directions and look for playback-boundary pops.
 - Countermand once before and once after commit; verify the callback is exactly-once and checkpoint
   recovery never repeats an acknowledged ownership handoff.
-- Start a cinematic scene during both a station and a transition. The overlay must stop immediately
-  before scene playback, then reconcile from its checkpoint after every normal, failed-start, abort,
-  and load-teardown path. No crossfade is expected in Phase 1.
-- Unload/reload actor 3D during a transition and at a station; requests remain pending and stale
+- Start a cinematic scene during both a station and a route transition. The overlay must stop
+  immediately before the scene playback session, then reconcile from its checkpoint after natural
+  completion, caller cancellation, runtime interruption, failed start, and world-load teardown. No
+  crossfade is expected in Phase 1.
+- Unload/reload actor 3D during a route transition and at a station; requests remain pending and stale
   generations never fire after reconciliation.
 - Exercise OSF-owned transition/station/controller props and external attach/destroy props. Verify
-  cleanup on end, scene suspension, owner release, and world replacement.
+  cleanup after `EndRoute`, scene suspension, owner release, and world replacement.
 - Save while Held, replace the world, then have the consumer reassert its semantic state. OSF must
   retain no actor/route state while the process-lifetime owner remains usable.
 
 ## Downstream Studio and Suit Protocol gate
 
 Studio should add a `routes` output target that emits the schema in `ROUTE_SCHEMA.md`, including
-mandatory masks, directed edges, explicit commit markers, prop-only lifetimes, and one-shot
+mandatory masks, directed route transitions, explicit commit markers, prop-only lifetimes, and one-shot
 marker/sound entries. Keep its existing compiled-scene output during parity testing.
 
 Suit Protocol should feature-detect overlay ABI 1.0 and dual-ship: use `BeginRoute`/`RequestStation`

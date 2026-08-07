@@ -2,12 +2,18 @@
 
 Native SFSE plugins that need per-save records should use the [shared persistence C ABI](PERSISTENCE_API.md).
 
+Domain terms in this guide follow [OSF domain vocabulary](VOCABULARY.md). The canonical JSON aliases
+documented in [SCENE_SCHEMA.md](SCENE_SCHEMA.md) do not rename existing Papyrus or native API fields;
+names shown in code remain compatibility spellings.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the
 per-native reference is the doc-commented `OSF.psc` itself.
 
-OSF is **content-neutral**: it provides playback/scene *mechanism* only. Gameplay policy — *when*,
+OSF is **content-neutral**: it provides playback and scene *mechanisms* only. A domain **scene** owns
+roles, flow, policy, events, participants, and cleanup; a lower-level **playback session** owns
+synchronized animation sampling. Gameplay policy — *when*,
 *why*, and *with what odds* to start an interaction — belongs in your mod (the SIF framework is the
 worked example; see [GETTING_STARTED.md](GETTING_STARTED.md)).
 
@@ -47,7 +53,7 @@ unmet requirements into the same System Health issue and aggregated Upgrade
 prompt as the runtime APIs below.
 
 Use one manifest per consumer rather than repeating the requirement in every
-scene file. A consumer may ship no scenes or many scene files, and its OSF
+content file. A consumer may ship no scenes or many content files, and its OSF
 dependency should still have one source of truth. Manifest edits take effect on
 the next game launch.
 
@@ -109,8 +115,9 @@ The native header fallback is the path that can warn against pre-reporter builds
 
 Every `Start*` returns an opaque **scene handle** (`Int`): `0` = failed (bad id, no match, or an
 actor already in a live scene — one live scene per actor is enforced). A nonzero handle drives
-navigation, callbacks, stop, participant lookup, and linear-stage getters. When the scene ends, the
-handle goes invalid except for the short roster-survival window described under callbacks.
+navigation, callbacks, cancellation, participant lookup, and linear-stage getters. It addresses the
+domain scene, not its internal playback session. When the scene terminates, the handle goes invalid
+except for the short roster-survival window described under callbacks.
 
 ## Native C++ scene API
 
@@ -156,9 +163,9 @@ values documented in the Papyrus callback section below. Passing event mask `0` 
 
 ## Starting scenes
 
-There are **three public ways to start a registry scene**. Each takes an optional trailing
-`SceneOptions` struct (`None` = all defaults) for anchoring and per-start policy overrides, so the
-common case stays a one-liner.
+There are **three public ways to start a registered scene** from the content registry's scene
+namespace. Each takes an optional trailing `SceneOptions` struct (`None` = all defaults) for world
+anchoring and per-start policy overrides, so the common case stays a one-liner.
 
 ```papyrus
 Actor[] actors = new Actor[2]
@@ -168,7 +175,7 @@ actors[1] = akB
 ; By id (a single registry lookup — one scene namespace, no prefixes, no fallback):
 int h = OSF.StartScene(actors, "author.scenes.demo")
 
-; By matchmaking — tags + role/gender/keyword/race fit across the one scene registry,
+; By matchmaking — tags + role/gender/keyword/race fit across the content registry's scene namespace,
 ; chosen by priority tier then weighted-random:
 string[] tags = new string[1]
 tags[0] = "takedown"
@@ -178,7 +185,8 @@ int h2 = OSF.StartSceneByTags(actors, tags)
 int h3 = OSF.StartSceneByTagsQuery(actors, allOf, anyOf, noneOf)
 ```
 
-For raw one-actor clip playback outside the scene registry, use the primitive `OSF.Play(actor, file)`.
+For raw one-actor clip playback outside a registered scene, use the primitive `OSF.Play(actor, file)`;
+it creates a solo playback session rather than a domain scene.
 
 ### Advanced / porting API
 
@@ -198,41 +206,62 @@ string[] loadProblems = OSFAdvanced.GetSceneLoadErrors()
 string[] missingClips = OSFAdvanced.GetMissingClipRefs()
 ```
 
-Dynamic file specs accept the same compatibility shortcuts as scene JSON: `naf:Path.glb` resolves under `Data/NAF`, and `File.glb:AnimName` selects a named GLB animation.
+`GetSceneLoadErrors` is an established compatibility name. Its result is the content registry's
+unified load-problem list and can include route and curated-animation problems as well as scene
+problems.
 
-`StartSceneFilesPlaced` / `StartSceneStagesPlaced` add dynamic participant placement offsets without JSON. `x`/`y`/`z` are local offsets relative to the scene anchor, and `headingDeg` is relative facing in degrees. Each placement array may be empty, which means zero for that component. For `StartSceneFilesPlaced`, non-empty placement arrays must be actor-count length. For `StartSceneStagesPlaced`, non-empty placement arrays may be actor-count length (reused for every stage) or stage-major length matching `stageMajorFiles`.
+Dynamic animation clip specs accept the same compatibility shortcuts as scene JSON:
+`naf:Path.glb` resolves under `Data/NAF`, and `File.glb:AnimName` selects a named GLB animation. The
+parameter name `file` is an established API spelling; callers are supplying an unresolved clip spec,
+not an already-loaded file object.
 
-`HideEquipment(scene, actor, slotMask)` is a ledger-safe ad-hoc strip helper for dynamic starts. The actor must be a participant in `scene`; `slotMask` uses Starfield ARMO biped slot bits, `-1` hides all apparel, and `0` hides nothing. Hidden items are restored automatically when the scene ends, or early with `RestoreEquipment(scene)`.
+`StartSceneFilesPlaced` / `StartSceneStagesPlaced` add dynamic participant placement offsets without
+JSON. `x`/`y`/`z` are local offsets relative to the scene's world anchor, and `headingDeg` is relative
+facing in degrees. Each placement array may be empty, which means zero for that component. For
+`StartSceneFilesPlaced`, non-empty placement arrays must be actor-count length. For
+`StartSceneStagesPlaced`, non-empty placement arrays may be actor-count length (reused for every
+linear stage) or stage-major length matching `stageMajorFiles`.
+
+`HideEquipment(scene, actor, slotMask)` is a ledger-safe ad-hoc **hide-apparel** helper for dynamic
+starts. The actor must be a participant in `scene`; `slotMask` uses Starfield ARMO biped slot bits,
+`-1` hides all apparel, and `0` hides nothing. Hidden items are restored automatically when the scene
+terminates, or early with `RestoreEquipment(scene)`.
 
 `SceneOptions` carries the optional modifiers (set only the fields you need; each `Start*` reads only
-the ones that apply to it):
+the ones that apply to it). Its stable Papyrus field names intentionally differ from several preferred
+JSON keys:
 
 | Field | Type | Applies to | Meaning |
 |---|---|---|---|
-| `Anchor` | `ObjectReference` | StartScene, StartSceneByTags(Query) | world-anchor at a ref (furniture/bed/marker) instead of co-locating at `actors[0]` |
-| `HeadingDeg` | `Float` | (with `Anchor`) | anchor facing in degrees; `< 0` = the ref's own heading |
-| `StripMode` | `Int` | StartScene, StartSceneByTags(Query) | override the scene's strip-actors policy: `OSF.INHERIT()`/`OFF()`/`ON()` |
-| `LockPlayerMode` | `Int` | StartScene, StartSceneByTags(Query) | override the player-input lock: `OSF.INHERIT()`/`OFF()`/`ON()` |
-| `FadeMode` | `Int` | StartScene, StartSceneByTags(Query) | override the optional start fade-to-black curtain: `OSF.INHERIT()`/`OFF()`/`ON()` |
-| `LoopScale` | `Float` | StartScene, StartSceneByTags(Query) | multiply every loop-driven stage's loop count (`1.0` = unchanged); see below |
-| `Stage` | `Int` | — | **not wired** for graph scenes in this build; use `SetSceneStageForActor()` after start |
-| `Speed` / `BlendIn` | `Float` | — | reserved for an internal files-start path; currently **no-ops** for public callers |
+| `Anchor` | `ObjectReference` | option-bearing registered and advanced starts | use a world anchor at a ref (furniture/bed/marker) instead of co-locating at `actors[0]` |
+| `HeadingDeg` | `Float` | (with `Anchor`) | world-anchor facing in degrees; `< 0` = the ref's own heading |
+| `StripMode` | `Int` | all option-bearing starts | compatibility field for JSON `hideApparel`: override with `OSF.INHERIT()`/`OFF()`/`ON()` |
+| `LockPlayerMode` | `Int` | all option-bearing starts | compatibility field for JSON `playerInputLock`: override with `OSF.INHERIT()`/`OFF()`/`ON()` |
+| `PlayerControlMode` | `Int` | all option-bearing starts | compatibility field for JSON `sceneControls`: inherit, revoke, or grant the scene-control channel wholesale |
+| `FadeMode` | `Int` | all option-bearing starts | override the optional start fade-to-black curtain: `OSF.INHERIT()`/`OFF()`/`ON()` |
+| `InPlaceMode` | `Int` | all option-bearing starts | compatibility field for JSON `placement`: `ON()` = `followActor`, `OFF()` = `anchorAndPin`, `INHERIT()` = authored default |
+| `Camera` | `String` | all option-bearing starts | override the authored camera posture; empty string inherits it |
+| `LoopScale` | `Float` | all option-bearing starts | multiply every loop-driven stage's loop count (`1.0` = unchanged); see below |
+| `Stage` | `Int` | StartScene, StartSceneRolesEx, StartSceneStages(Placed) | registered scenes enter `linearStages[index]` before any playback begins; ad-hoc staged starts select the initial playback segment. `0` uses the normal entry/first segment |
+| `Speed` / `BlendIn` | `Float` | StartSceneFiles(Placed), StartSceneStages(Placed) | set the ad-hoc playback plan's speed and default blend-in; registered scene definitions keep their authored values |
 
 `SceneOptions` holds only scalar/ref fields — **Papyrus structs can't have array members**, so named-role
-binding stays its own function, `StartSceneRoles` (which therefore takes no `SceneOptions` — overrides
-don't apply to the roles path yet).
+binding stays in separate functions. `StartSceneRoles` is the compact compatibility form without
+options; `StartSceneRolesEx` accepts the same binding plus `SceneOptions`.
 
-**Per-start overrides (`StripMode` / `LockPlayerMode` / `FadeMode`).** These are tri-state: write them with
+**Per-start tri-state overrides (`StripMode` / `LockPlayerMode` / `PlayerControlMode` / `FadeMode` /
+`InPlaceMode`).** Write these compatibility fields with
 the `OSF.INHERIT()` (= -1, leave the scene/file default), `OSF.OFF()` (= 0, force off), and `OSF.ON()`
 (= 1, force on) helpers — **not** bare `0`/`1`, because `0` means *force off*, not "leave default". An unset
-field (default `-1`) inherits the scene's authored value. Disabling strip is undo-safe (nothing recorded →
-nothing restored).
+field (default `-1`) inherits the scene's authored value. For `InPlaceMode`, "off" means canonical
+anchor-and-pin placement rather than disabling placement. Disabling apparel hiding is undo-safe
+(nothing recorded → nothing restored).
 
 **`LoopScale`.** Multiplies the loop count of every *loop-driven* stage (`new = max(1, round(loops × scale))`),
 so a terminal-driven `GlobalVariable` can lengthen/shorten scenes. It affects only stages that already loop a
 fixed number of times; "loop until advance" (hold) and timer-only stages are untouched, so on a mixed graph
 the felt effect is uneven. Sanitized: `≤ 0` / NaN → `1.0` (no scaling); clamped to a ceiling so a runaway
-value can't mint a stage that never auto-advances. Re-applied on every node entry (never compounded).
+value can't mint a stage that never auto-advances. Re-applied on every flow-node entry (never compounded).
 
 > **Capability note:** the DLL and a consumer's compiled scripts ship independently. A consumer compiled
 > against a newer `OSFTypes` but running an older DLL will have these fields silently ignored (the old native
@@ -242,8 +271,8 @@ value can't mint a stage that never auto-advances. Re-applied on every node entr
 ; World-anchored at a ref (the old StartSceneByTagsAt / StartSceneAt):
 OSFTypes:SceneOptions opts = new OSFTypes:SceneOptions
 opts.Anchor = akBed                                           ; opts.HeadingDeg stays -1.0 = bed's heading
-int h5 = OSF.StartScene(actors, "author.scenes.demo", opts)   ; by id, anchored
-int h6 = OSF.StartSceneByTags(actors, tags, opts)             ; matchmade, anchored
+int h5 = OSF.StartScene(actors, "author.scenes.demo", opts)   ; by id, anchor-and-pin placement
+int h6 = OSF.StartSceneByTags(actors, tags, opts)             ; matchmade, anchor-and-pin placement
 
 ; Bind actors to named roles (its own function — the role array can't live in a struct):
 int h7 = OSF.StartSceneRoles(actors, "author.scenes.demo", roleNames)
@@ -262,22 +291,25 @@ Bool playing = OSF.IsPlaying(akActor)
 Actor[] roster = OSF.GetSceneParticipants(h)
 ```
 
-Stopping always runs the **undo ledger**, which reverses every mechanism the scene engaged
-(control/camera/weapon/equipment/fade) in reverse order, on *every* termination path. Consumers do not
-clean up engaged mechanisms by hand.
+`StopScene*` requests **cancellation**. A scene may instead **complete** at its authored natural end or
+be **interrupted** by external runtime state. All are termination causes, and every termination path
+runs the **undo ledger**, which reverses the mechanisms the scene engaged
+(control/camera/weapon/equipment/fade) in reverse order. Consumers do not clean up engaged mechanisms
+by hand.
 
 ## Navigation (def-backed scenes)
 
 ```papyrus
-Bool moved = OSF.AdvanceScene(h)               ; take the current node's default advance edge
-Bool went  = OSF.NavigateScene(h, "finish")    ; take a named branchable edge
-int n = OSF.GetSceneEdgeCount(h)               ; branchable edges (for building a menu)
+Bool moved = OSF.AdvanceScene(h)               ; take the current flow node's default scene edge
+Bool went  = OSF.NavigateScene(h, "finish")    ; take a named branchable scene edge
+int n = OSF.GetSceneEdgeCount(h)               ; branchable scene edges (for building a menu)
 String eid = OSF.GetSceneEdgeId(h, 0)
 String lbl = OSF.GetSceneEdgeLabel(h, 0)
 ```
 
-Linear scenes (those with `linearStages`) also support `GetSceneStage`/`SetSceneStage` (by handle) and
-`GetSceneStageForActor`/`SetSceneStageForActor` (by actor).
+Linear scenes (and graph scenes that declare `linearStages`) also support
+`GetSceneStage`/`SetSceneStage` (by handle) and `GetSceneStageForActor`/`SetSceneStageForActor` (by
+actor). These expose a **linear-stage index**, never an internal playback-segment index.
 
 ## Papyrus scene-event callbacks
 
@@ -291,10 +323,12 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 > ended. Retired rosters use a bounded recent-history window (currently 256), so copy the roster
 > during the callback rather than caching the handle indefinitely. `SCENE_END` carries no
 > `actorRef` itself, so this is how an end handler enumerates participants. Note `SCENE_END` fires on
-> runtime termination (normal finish or `Stop()`). World-replacing load teardown clears the VM relay
-> and native handle table without dispatching callbacks into the discarded world. Native C++
+> runtime termination paths that dispatch callbacks, including natural completion and `Stop()`
+> cancellation. The current event ABI does not carry a complete/cancel/interrupt cause.
+> World-replacing load teardown clears the VM relay and native handle table without dispatching
+> callbacks into the discarded world. Native C++
 > registrations remain registered, but receive no teardown event. Gate on a completion cue if you
-> only want genuine finishes.
+> only want proof of natural completion.
 
 ```papyrus
 ; aiScene 0 = any scene; aiEventMask is a bitmask of OSF.EVENT_*().
@@ -312,6 +346,8 @@ Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
         Actor a = akEvent.actorRef
         ; akEvent fields: sceneHandle, eventType, node, edge, cue, actionType,
         ;                 actorRef, role, loopIndex, time, anchor, result
+        ; `node`/`edge` identify a flow node and scene edge. `anchor` is the legacy
+        ; ABI name for a named track position, not a world anchor.
     EndIf
 EndFunction
 ```
@@ -320,18 +356,18 @@ EndFunction
 
 | Function | Bit | Fires when |
 |----------|----:|------------|
-| `OSF.EVENT_NODE_ENTER()` | 1 | a node is entered (also dispatches that node's enter cues) |
-| `OSF.EVENT_NODE_EXIT()` | 2 | a node is exited |
+| `OSF.EVENT_NODE_ENTER()` | 1 | a flow node is entered (also dispatches that flow node's enter cues) |
+| `OSF.EVENT_NODE_EXIT()` | 2 | a flow node is exited |
 | `OSF.EVENT_CUE()` | 4 | a `cue` track entry fires |
 | `OSF.EVENT_ACTION()` | 8 | a custom (non-`osf.*`) action fires |
-| `OSF.EVENT_SCENE_END()` | 16 | the scene ended (normal end or `Stop()`) |
-| `OSF.EVENT_SCENE_BEGIN()` | 32 | the scene started (fires once, before the entry node's `NODE_ENTER`) |
+| `OSF.EVENT_SCENE_END()` | 16 | the scene terminated on a callback-emitting path; cause is not encoded |
+| `OSF.EVENT_SCENE_BEGIN()` | 32 | the scene started (fires once, before the entry flow node's `NODE_ENTER`) |
 | `OSF.EVENT_ALL()` | 65535 | every type |
 
 `SCENE_BEGIN` is the lifecycle-open bookend of `SCENE_END`: it fires exactly once per scene as the
-first event, after OSF has applied start setup (player lock, strip, role equip, optional fade,
-input channel) and the entry node's animation is playing — so the scene is fully live. Its `node`
-field carries the entry node; like `SCENE_END` it carries no `actorRef`. The handle is live when
+first event, after OSF has applied start setup (player input lock, hide apparel, role equip, optional
+fade, scene controls) and the entry flow node's animation is playing — so the scene is fully live.
+Its `node` field carries the entry flow node; like `SCENE_END` it carries no `actorRef`. The handle is live when
 `SCENE_BEGIN` is dispatched; because Papyrus dispatch is async (the callback runs on a later VM tick), it
 uses the same bounded recent-roster window as `SCENE_END`. Read/copy participants promptly; a getter
 may return empty for a very short (`once`/0-duration) scene that ended before the queued callback ran,
@@ -349,8 +385,9 @@ do not replace Starfield's context-sensitive or localized key assignments; OSF U
 toggle (F10) already opens the browser.
 
 Content packs join these surfaces purely by **tags**, no code: a solo, free-space, self-terminating
-scene tagged `player.emote.<name>` appears as an Action in the unified Browse catalog and in the
-default Quick Access wheel. The well-known tag contract lives in
+scene tagged `player.emote.<name>` appears as an **emote** in the unified Browse catalog and in the
+default Quick Access wheel. Older browser copy may label this playable category `Action`; that legacy
+UI term is unrelated to a scene's authored `action` track. The well-known tag contract lives in
 [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
 
 ## Discovery & diagnostics
@@ -359,14 +396,15 @@ default Quick Access wheel. The well-known tag contract lives in
 int count = OSF.ReloadPacks()  ; rescan Data/OSF/**/*.osf.json and *.sounds.json
 ```
 
-`ReloadPacks()` rebuilds the **one** scene registry, reloads sound pools, clears clip import caches, and
-returns the loaded scene count. The native keeps its `ReloadPacks` name for the existing Papyrus
-binding; there are no separate "packs" anymore.
+`ReloadPacks()` **reloads content**: it rebuilds the content registry (scenes, routes, curated animation
+entries, and per-file import results), reloads sound pools, clears clip import caches, and returns the
+loaded **scene** count for compatibility. `ReloadPacks` is the established Papyrus binding name; a
+content pack is only an author/product grouping and is not the reload boundary.
 
 ## Primitives (advanced)
 
 `Play` / `Stop` (solo clip), `SetSpeed` / `GetSpeed` (1.0 = authored, 0 = freeze),
-`SetAnchor` / `ClearAnchor` (pin a solo graph to a world point), `GetCurrentAnimation`, and linear
+`SetAnchor` / `ClearAnchor` (pin a solo playback session to a world point), `GetCurrentAnimation`, and linear
 scene stage getters/setters by handle or actor.
 
 ## API stability policy
@@ -376,6 +414,7 @@ are never removed or re-signatured within a major version (minor versions only *
 `OSFTypes:SceneEvent` struct member set is part of the ABI — new fields append at the end, so old
 callbacks keep working. The native C++ API follows the same additive rule: minor versions append
 vmethods or POD fields, while a major version is required for an incompatible layout change.
+
 ## Native C++ overlay API
 
 `src/API/OSFOverlayAPI.h` is the copyable native ABI for Phase-1 actor overlays. Request ABI 1.0
@@ -393,10 +432,12 @@ Marker ids use `event.marker`; typed external-prop events use `event.prop`, so c
 an operation from a marker name. Markers are instantaneous and sounds are one-shot; only props have
 route lifetimes. `ReleaseOwner` is a quiescent callback barrier; route handles are generational and
 world-local, while owner registration survives world replacement. See
-[`ROUTE_SCHEMA.md`](ROUTE_SCHEMA.md) for authoring, interruption, lifetime, and single-slot rules.
+[`ROUTE_SCHEMA.md`](ROUTE_SCHEMA.md) for authoring, interruption, lifetime, and one-live-route-per-actor
+rules. The schema value `interrupt: "finish"` is a legacy spelling meaning complete the current route
+transition before honoring the new station request; it does not end the route.
 
 API calls are game-thread calls and are rejected while an owner callback is running; schedule route
 mutations after the callback returns. Event strings are borrowed for the callback only, and query
 strings remain valid only until the next overlay mutation. When a scene claims the actor, Phase 1
 stops the overlay immediately before scene admission: the current one-stamper architecture cannot
-crossfade two independently owned playbacks.
+crossfade two independently owned playback sessions.

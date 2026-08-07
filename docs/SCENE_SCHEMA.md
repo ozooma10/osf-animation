@@ -1,32 +1,43 @@
 # OSF scene schema (`*.osf.json`)
 
-OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()`. An `*.osf.json`
-file may declare authored **scenes**, curated **clip-library entries**, or both; a secondary `*.sounds.json` file declares reusable **sound pools**.
+Terminology in this document follows [OSF domain vocabulary](VOCABULARY.md). Established JSON and
+Papyrus spellings remain valid even where their names predate that vocabulary.
+
+OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()` (the legacy
+Papyrus name for **reload content**). An `*.osf.json` content file may declare authored **scenes**,
+overlay **routes**, curated **animation entries**, or any combination; a secondary `*.sounds.json`
+file declares reusable **sound pools**.
 Both are plain JSON (`//` line comments are allowed):
 
 | File | Loaded by | Purpose |
 |------|-----------|---------|
-| `*.osf.json` | **SceneRegistry** | **Scenes** and optional curated `clipLibrary` entries for individually browsable raw clips. |
+| `*.osf.json` | **Content registry** (implementation name `SceneRegistry`) | **Scenes**, **routes**, and optional curated `clipLibrary` entries for individually browsable raw clips. |
 | `*.sounds.json` | **SoundRegistry** | **Sound pools** — tagged, weighted clip sets a scene `sound`/`osf.voice.play` spec can draw from by tag (`$…`), optionally carrying subtitle text. See *Sound pools*. |
 
 All `*.osf.json` files are scanned recursively under `Data/OSF`. Bad files/entries are skipped and
 reported in `OSF Animation.log`. The current schema version is **1** (`"schema": 1`).
 
-A **clip** is one raw `.glb`/`.af` animation. A `clipLibrary` entry gives that asset a friendly catalog
-name and tags. A **scene** composes one or more clips for participants, timing, policy, and optional
-navigation. A *running* scene is a handle + anchor + participants + undo ledger; `StartScene` starts
-one from a scene definition.
+A **clip** is one raw `.glb`/`.af` animation. An **animation clip spec** is the unresolved author-facing
+reference to that clip: its resource path plus an optional GLB animation id. A `clipLibrary` entry
+gives the asset a friendly catalog name and tags. A **scene** composes one or more clips for roles,
+timing, policy, and optional navigation. A *running* scene is a handle + world anchor + participants +
+undo ledger; `StartScene` starts one from a scene definition. The lower-level synchronized animation
+object used by scenes, routes, and previews is a **playback session**, not another domain scene.
 
 A scene is **minimal by default** (just clips) and **expands into graph features** (branches, tracks,
-roles, policy) only when needed. The two shapes share **one vocabulary** — a graph **node** is just a
-linear **stage** that can also branch:
+roles, policy) only when needed. The two shapes share timing and track-lane rules, but their topology
+terms remain distinct:
 
-- **Linear** (the common case): a top-level `clip` or `stages[]`, no `nodes[]`. A stage is a clip
-  timeline with `timer`/`loops` timing; stages auto-advance in order and the last one ends the scene.
-  Desugars internally into a node chain.
-- **Graph**: top-level `nodes[]` (+ `entry`). A node carries the **same** clips and the **same**
-  `timer` / `loops` timing and `cue` / `action` / `sound` / `camera` lanes as a stage — it just adds
-  `edges` (explicit transitions between nodes). The presence of `nodes[]` is the discriminator.
+- **Linear** (the common case): a top-level `clip` or `stages[]`, no `nodes[]`. A **linear stage** is a clip
+  timeline with `timer`/`loops` timing; stages auto-advance in order and the last one completes the scene.
+  It desugars internally into a flow-node chain.
+- **Graph**: top-level `nodes[]` (+ `entry`). A **flow node** selects an inline timeline or reusable
+  scene, accepts the same `timer` / `loops` timing and `cue` / `action` / `sound` / `camera` lanes as
+  a linear stage, and adds **scene edges** (`edges`) to other flow nodes. The presence of `nodes[]` is
+  the discriminator.
+
+The playback layer may lower either form into one or more **playback segments**. Segment indexes are
+an implementation detail and are not the linear-stage indexes exposed by the public scene API.
 
 The keys never change meaning between the two forms: **`timer` is always seconds, `loops` is always the
 clip-loop count** (`0` = hold, omit = play once). You learn the timeline vocabulary once on the linear
@@ -36,8 +47,9 @@ form and add `edges` only when you need branching.
 
 ## File layout
 
-A file may be a **single bare scene object**, an envelope with a `scenes[]` array, a clip-only
-`clipLibrary`, or an envelope containing both `scenes` and `clipLibrary`:
+A content file may be a **single bare scene object**, an envelope with a `scenes[]` array, a
+route/animation-only document, or an envelope combining `scenes`, `routes`, and `clipLibrary`. Route
+authoring is documented separately in [ROUTE_SCHEMA.md](ROUTE_SCHEMA.md):
 
 ```jsonc
 // single-scene file
@@ -50,12 +62,13 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
   "schema": 1,
   "name": "My Content",                  // diagnostics only
   "pack": "My Content Pack",             // optional: content-pack label the scene browser groups under
-  "stripActors": true,                   // file-level default; each scene may override
+  "hideApparel": true,                   // file-level hide-apparel default
   "clearHeldItems": true,                // file-level default; each scene may override
-  "lockPlayer": true,                    // file-level default; each scene may override
+  "playerInputLock": true,               // file-level player-input-lock default
   "fade": false,                         // optional file-level start-curtain default; each scene may override
   "camera": "thirdperson_hold",          // file-level default camera posture (default "scene_orbit"; "none" opts out)
-  "playerControl": false,                 // file-level default director-input grant; each scene may override
+  "placement": "anchorAndPin",           // file-level world-placement default
+  "sceneControls": false,                 // file-level scene-controls default
   "priority": 0, "weight": 1,             // file-level matchmaking defaults; each scene may override
   "tags": ["my-pack"],                    // file-level tags UNION-ed into every scene's own tags
   "scenes": [
@@ -65,39 +78,44 @@ A file may be a **single bare scene object**, an envelope with a `scenes[]` arra
 }
 ```
 
-- File-level `lockPlayer` / `stripActors` / `clearHeldItems` / `fade` / `inPlace` / `playerControl` /
-  `priority` / `weight` are optional **defaults** every scene in the file may override.
+- File-level `playerInputLock` / `hideApparel` / `clearHeldItems` / `fade` / `placement` /
+  `sceneControls` / `priority` / `weight` are optional **defaults** every scene in the file may
+  override. Legacy aliases `lockPlayer` / `stripActors` / `inPlace` / `playerControl` remain accepted.
+- Use either the canonical or legacy spelling for a concept in one object, never both. A scene may
+  override a file-level default using either spelling because the file root and scene are separate
+  objects.
 - File-level `tags` are **added to** every scene's own tags rather than overridden by them (union,
   de-duplicated case-insensitively) — see § Matchmaking.
-- File-level `anchor` (multi-scene envelope only) is a furniture-anchoring **default** every scene in
-  the file inherits unless it declares its own — see § Furniture anchoring.
+- File-level `anchor` (multi-scene envelope only) is a furniture world-anchor **default** every scene in
+  the file inherits unless it declares its own — see § Furniture world anchoring.
 - File-level `props` is a **registry** of reusable prop definitions an `osf.prop.attach` inherits
   from — see § Scene props. Unlike `roles`, it is **also valid on a bare single-scene file** (a bare
-  file's top-level `roles` already means that scene's cast, so it has no room for a registry;
+  file's top-level `roles` already means that scene's role list, so it has no room for a registry;
   `props` has no scene-level meaning to collide with). Declaring `props` on a scene is a load error.
 - File-level `unlisted` holds every scene in the file out of the matchmaking pool by default.
 - File-level `section` accepts exactly one value, `"library"`, which routes the file into the browser's
-  ANIMATIONS lane (reference content); it also flips the file's `stripActors` default to **false**
-  (library clips play on actors as-dressed). It is meant for generated packs — normal content packs
+  ANIMATIONS **reference catalog**; it also flips the file's `hideApparel` default to **false**
+  (reference clips play on actors as-dressed). It is meant for generated packs — normal content packs
   should omit it.
 - File-level `pack` (optional, string) names the **content pack** the file belongs to. The in-game scene
   browser shows one collapsible group per pack, so a pack that spans many files (one per furniture, say)
   reads as a single entry. Use the same string in every file of the pack; the browser shows it verbatim.
   Without it, scenes group under the file they came from. Also valid on a bare single-scene file.
-- Every scene needs a unique `id`. Within the one namespace, a duplicate id is **first-loaded-wins**
+- Every scene needs a unique `id`. Within the content registry's scene-id namespace, a duplicate id is **first-loaded-wins**
   plus a logged warning.
-- Authored ids may **not** contain `#` (reserved for synthetic desugar nodes) — such an id is a load
+- Authored ids may **not** contain `#` (reserved for synthetic desugared flow nodes) — such an id is a load
   error.
 
 ---
 
 
-## Curated clip library (`clipLibrary`)
+## Curated animations (`clipLibrary`)
 
-Use `clipLibrary` when the individual clips are the product—for example, a static-pose pack. Each
-entry becomes a one-actor item under **Animations**, grouped by the file's `pack`. It is unlisted from
-matchmaking, plays in place without stripping or locking the actor, and holds until the user advances
-or stops it. A clip-only file needs no dummy scene or `id`:
+Use the established `clipLibrary` key when the individual clips are the product—for example, a
+static-pose pack. Each curated animation entry becomes a one-actor item under **Animations**, grouped
+by the content file's `pack`. It is unlisted from matchmaking, follows the actor's live transform
+without hiding apparel or engaging the player input lock, and holds until the user advances or stops
+it. A clip-only file needs no dummy scene or `id`:
 
 ```jsonc
 {
@@ -121,11 +139,12 @@ or stops it. A clip-only file needs no dummy scene or `id`:
 }
 ```
 
-- An entry is a bare file string, or the normal clip object `{ file, anim?, sec? }` plus optional
+- An animation clip spec is a bare resource-path string, or the normal clip object
+  `{ file, anim?, sec? }`, plus optional
   `name`, `folder`, and `tags` catalog metadata.
 - `name` is the friendly browser label. When omitted, OSF falls back to the clip filename and appends
   the GLB animation id when present.
-- `tags` are copied onto the library item for browsing/filtering. OSF also adds the internal
+- `tags` are copied onto the curated animation for browsing/filtering. OSF also adds the internal
   `scene.clip` tag.
 - File-level `clipRoot` applies exactly as it does to scene clips.
 - `folder` organizes the browser within the pack. Use `/` for nesting, such as
@@ -137,16 +156,19 @@ or stops it. A clip-only file needs no dummy scene or `id`:
   Display casing is preserved, while grouping is case-insensitive.
 - Use folders for hierarchy and `tags` only for optional cross-cutting facets that may span folders.
   The pack already identifies the source mod, and `scene.clip` already identifies a raw clip.
-- A registered clip appears even when no scene references it, and it appears for every player —
+- A curated animation appears even when no scene references it, and it appears for every player —
   unlike the entries OSF derives automatically from a scene's stages, which stay behind the
-  browser's **Show author details** switch because they are a raw-clip debug surface. The two share
-  an id namespace, so the catalog marks a registration `curated:true`; a pack that ships nothing but
-  a `clipLibrary` is normal, complete content.
-- When a scene in the same pack/file group references the same file + animation id, OSF creates one
-  library item and the explicit registration's `name`/`folder`/`tags` win over derived metadata.
-- Duplicate explicit registrations for the same file + animation id in one pack/file group are a
+  browser's **Show author details** switch because they are a raw-clip inspection surface. The two share
+  an id namespace. The catalog identifies an explicit registration with
+  `sourceKind:"curatedAnimation"` and an automatic entry with
+  `sourceKind:"derivedDebugAnimation"`; legacy consumers also receive `curated:true` or `false`.
+  A pack that ships nothing but a `clipLibrary` is normal, complete content.
+- When a scene in the same catalog group (the declared content pack, or the source content file when
+  no `pack` is declared) references the same file + animation id, OSF creates one
+  curated animation and the explicit registration's `name`/`folder`/`tags` win over derived metadata.
+- Duplicate explicit registrations for the same file + animation id in one such catalog group are a
   load error; the first entry is kept.
-- A missing registered clip is reported and hidden from the library.
+- A missing registered clip is reported and hidden from the Animations catalog.
 
 `clipLibrary` and `scenes` may coexist:
 
@@ -163,12 +185,15 @@ or stops it. A clip-only file needs no dummy scene or `id`:
 }
 ```
 
-Clips referenced by ordinary non-library scenes still receive automatic filename-based debug entries
-when no explicit registration supplies metadata.
+Clips referenced by scenes in content files outside the reference catalog still receive automatic
+filename-based inspection entries when no explicit registration supplies metadata.
 
 ---
 
 ## Linear scenes (`clip` / `stages[]`)
+
+This section uses **linear stage** for each author-facing `stages[]` entry. The lower playback layer's
+segments are an implementation detail and are not addressed by these indexes.
 
 ```jsonc
 {
@@ -178,8 +203,8 @@ when no explicit registration supplies metadata.
   "tags": ["solo"],                            // free-form matchmaking tags
   "priority": 0,                               // matchmaking tier (higher wins); ties broken by "weight"
   "weight": 1,                                 // weighted-random sampling within the top priority tier
-  "lockPlayer": true,                          // disable player input while participating (false to opt out)
-  "stripActors": true,                         // hide every participant's apparel (false to opt out)
+  "playerInputLock": true,                     // player input lock while participating (false to opt out)
+  "hideApparel": true,                         // hide every participant's apparel
   "clearHeldItems": true,                      // temporarily unequip held weapons/items (false to opt out)
   "fade": true,                                // opt into a start fade-to-black curtain when the player participates
   "roles": [                                   // OPTIONAL; else inferred from the first stage's clips
@@ -189,23 +214,25 @@ when no explicit registration supplies metadata.
   "stages": [                                  // one or more stages; advance by timer/loops
     { "clips": ["A.glb", "A.glb"] },                                       // play once, then advance
     { "timer": 6.0, "clips": ["B.glb", { "file": "B2.glb", "offset": { "y": 1.5 } }] },
-    { "loops": 0,   "clips": ["C.glb", "C.glb"] }                          // hold; last stage ends the scene
+    { "loops": 0,   "clips": ["C.glb", "C.glb"] }                          // hold; final linear stage completes the scene
   ]
 }
 ```
 
-- **`clip`** (string) is sugar for a single one-clip stage with one inferred role:
-  `clip: "X.glb"` ≡ `roles: [{}], stages: [{ clips: ["X.glb"] }]`. A bare `clip` plays once, then ends.
-- **`stages[]`**: one or more stages, each `{ timer?, loops?, hold?, clips[] }`.
-- **`clips`** entries are either a bare Data-relative path string, or `{ "file": ..., "offset": {...} }`
+- **`clip`** (an animation clip spec string) is sugar for a single one-clip linear stage with one inferred role:
+  `clip: "X.glb"` ≡ `roles: [{}], stages: [{ clips: ["X.glb"] }]`. A bare `clip` plays once, then completes.
+- **`stages[]`**: one or more linear stages, each `{ timer?, loops?, hold?, clips[] }`.
+- **`clips`** entries are animation clip specs: either a bare Data-relative resource-path string, or
+  `{ "file": ..., "offset": {...} }`
   to override that role's placement for that stage. Every stage must have the same number of clips —
   equal to `roles.length` when `roles` is given, otherwise to the first stage's clip count. Clips
-  **index-align** to role order.
-- **Timing — the one timeline rule (linear _and_ graph).** A stage (linear) or a node (graph)
+  **index-align** to role order. The JSON field `file` is the established serialization spelling; it
+  is not proof that the resource has already been resolved or loaded.
+- **Timing — the one timeline rule (linear _and_ graph).** A linear stage or a flow node
   specifies `timer` and/or `loops`; this table is the whole vocabulary, with identical meaning in both
   forms:
 
-  | You write | Behaviour | Auto-advance when | (Graph) arm an edge with |
+  | You write | Behaviour | Auto-advance when | (Graph) arm a scene edge with |
   |---|---|---|---|
   | *omit `timer` & `loops`* | play through once | the clip ends | `"when": "end"` |
   | `"loops": N`  (N ≥ 1) | loop N times | the Nth loop completes | `"when": "loops"` |
@@ -213,12 +240,13 @@ when no explicit registration supplies metadata.
   | `"timer": S` | run for S seconds | S seconds elapse | `"when": "timer"` |
 
   `timer` and `loops` may combine (whichever fires first wins). In a **linear** scene these conditions
-  advance the stages automatically and the scene **ends after its final stage**; in a **graph** scene you
-  wire the matching `edges` yourself (right column). A single-stage looping idle needs `"loops": 0`, or
-  it plays once and ends.
+  advance the linear stages automatically and the scene **completes after its final stage**; in a
+  **graph** scene you wire the matching scene `edges` yourself (right column). A single-stage looping
+  idle needs `"loops": 0`, or it plays once and completes.
 
-  When a final stage finishes **by loop count** (including the play-once default), the cast **holds the
-  clip's final frame** while the scene's stop and fade-out complete — a one-shot gesture settles on its
+  When a final linear stage completes **by loop count** (including the play-once default), the
+  participants hold the **clip's final frame** while the scene's stop and fade-out complete — a
+  one-shot gesture settles on its
   end pose and fades to the engine from there, it never flashes back to the clip's first frame.
 - **`hold` — freeze on one frame instead of playing.** `"hold": true` parks the stage on its clips'
   **last** frame; `"hold": <0..1>` parks it on that normalized clip position (same axis as a track's
@@ -237,55 +265,62 @@ when no explicit registration supplies metadata.
 
   Because a frozen clip never loops, `hold` **cannot combine with `loops`** (the scene is rejected at
   load). `timer` still works and is the only automatic way out; otherwise the stage holds until a
-  manual advance (Space / `AdvanceScene`) or an edge fires. Marks at or before the hold position fire
+  manual advance (Space / `AdvanceScene`) or a scene edge fires. Marks at or before the hold position fire
   once when the stage activates, so an `action`/`cue` at `at: 0` still runs; later marks never fire.
-  Track lanes, `name`, and `tags` behave as on any other stage. The browser previews a frozen stage as
-  its full clip — a preview is a transport over the animation, not a replay of the scene's timing.
-- **Stage shorthand:** a stage may be written as a bare array of clips instead of a
+  Track lanes, `name`, and `tags` behave as on any other linear stage. The browser's preview session
+  exposes the frozen stage's full clip as a transport; inspection mode does not replay the scene's
+  authored timing or side effects.
+- **Linear-stage shorthand:** a stage may be written as a bare array of animation clip specs instead of a
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a
   bare path or a `{ "file", "offset" }` object. Mix shorthand and full-object stages freely.
-- **Track lanes on a stage:** a full-object stage may carry `cue`, `action`, `sound`, and `camera`
-  lanes (same shape as on a node — see *Track lanes*); they run while that stage plays, forwarded
-  onto the stage's desugared node. So a linear scene can fire cues, run actions, play sound, and hold
+- **Track lanes on a linear stage:** a full-object stage may carry `cue`, `action`, `sound`, and `camera`
+  lanes (same shape as on a flow node — see *Track lanes*); they run while that stage plays, forwarded
+  onto the stage's desugared flow node. So a linear scene can fire cues, run actions, play sound, and hold
   a camera posture **without** dropping to the `nodes[]` graph form. The bare-array shorthand is
   clips-only — use the `{ … }` object form to attach a lane.
-- **Stage identity (`name`, `tags`) — a browsable animation.** A full-object stage may carry an
+- **Linear-stage identity (`name`, `tags`) — a browsable animation.** A full-object stage may carry an
   optional `name` (a label) and `tags` (an array of strings). They don't affect playback; they let the
   UI catalog surface **each stage as an individually browsable animation**, so a many-stage sequence
   scene doubles as a de-duped list of its animations without minting a standalone scene per stage.
   `"name": "Missionary06", "tags": ["missionary", "mf"]`. To then play just that one animation, start
-  the scene with **`SceneOptions.Stage = <index>`** — it enters directly on that stage (a `loops:0`
-  stage holds there). Stage `tags` are separate from the scene's `tags` (which drive matchmaking).
-- **Clip-level debugging in Animations.** Every distinct, installed clip referenced by a non-library
-  scene is also published automatically as a one-actor entry under **Animations**, grouped by the
-  scene file's `pack` label (or by its `*.osf.json` filename when no pack is declared). Playing one
-  runs only that raw clip, in place, with no strip, player lock, fade, role offset, or scene tracks.
-  Generated vanilla/library scenes and emotes are excluded because they already populate Animations.
-- **`offset`** (a placement) corrects alignment relative to the scene anchor: `x`/`y`/`z` (local units)
+  the scene with **`SceneOptions.Stage = <index>`** — it enters directly on that linear stage (a `loops:0`
+  linear stage holds there). Linear-stage `tags` are separate from the scene's `tags` (which drive
+  matchmaking).
+- **Clip-level inspection in Animations.** Every distinct, installed clip referenced by a scene in a
+  content file outside the reference catalog is also published automatically as a one-actor entry
+  under **Animations**, grouped by the scene file's `pack` label (or by its `*.osf.json` filename when
+  no pack is declared). Playing one runs only that raw clip and follows the actor's live transform.
+  It neither hides apparel nor engages the player input lock, and it does not apply fade, role offset,
+  or scene tracks.
+  Generated vanilla/reference-catalog scenes and emotes are excluded because they already populate
+  Animations.
+- **`offset`** (a placement) corrects alignment relative to the scene's world anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A role-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.
 - **Clip paths are Data-relative** and load directly (they do **not** have to live under `Data/OSF` —
-  e.g. `OSF/Animations/...` resolves to `Data/OSF/Animations/...`). Only *scene JSON discovery* is
+  e.g. `OSF/Animations/...` resolves to `Data/OSF/Animations/...`). Only *content JSON discovery* is
   restricted to `Data/OSF`.
-- **NAF compatibility shortcuts:** a clip spec starting `naf:` resolves under `Data/NAF`, and if `Data/<path>`
-  is missing OSF also tries `Data/NAF/<path>`. A file or scene may set `"clipRoot": "NAF"` so bare clip paths
+- **NAF compatibility shortcuts:** an animation clip spec starting `naf:` resolves under `Data/NAF`, and if `Data/<path>`
+  is missing OSF also tries `Data/NAF/<path>`. A content file or scene may set `"clipRoot": "NAF"` so bare clip paths
   in that scope are treated as NAF-relative.
 - **GLB animation ids:** a clip object may include `{ "file": "NAF/Gangbang.glb", "anim": "COM.001" }`.
   The shorthand `"NAF/Gangbang.glb:COM.001"` is also accepted for `.glb`/`.gltf` paths.
 - A multi-stage linear scene supports `OSF.GetSceneStage`/`SetSceneStage` (by handle) for manual
-  stage jumps.
+  linear-stage jumps.
 
 ---
 
 ## Roles & filters
 
-`roles[]` is the unified participant list (it replaces the old pack `actors` and scene `roles`). It is
+`roles[]` is the authored role list. It replaces the old pack `actors` and earlier scene-role forms,
+but it is not itself the live participant roster. The caller's **cast** is bound to these roles at
+scene start; the bound actors then become the running scene's **participants**. `roles[]` is
 **optional**: omit it and the actor count is inferred from the first stage's clips, with every role
 defaulting to gender `"any"` and no offset. This works for both forms — a linear scene infers from its
-first stage, a graph scene from its **entry node's** first inline stage. The one exception: a graph
-scene whose entry node is a `use` reference must declare `roles` explicitly (the target resolves after
-load, so there is no clip list to count).
+first stage, a graph scene from its **entry flow node's** first inline stage. The one exception: a
+graph scene whose entry flow node is a `use` reference must declare `roles` explicitly (the target
+resolves after load, so there is no clip list to count).
 
 ```jsonc
 "roles": [
@@ -298,7 +333,7 @@ Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, mask?, preserv
 (A `roles` entry may also reference the file-level roles registry — a plain id **string**, or an
 `{ "id": ..., ...overrides }` object; see *File-level roles* below.)
 
-- **`name`** is **OPTIONAL**. Omit it for an anonymous positional slot (`{}`); name it to bind via
+- **`name`** is **OPTIONAL**. Omit it for an anonymous positional role (`{}`); name it to bind via
   `StartSceneRoles` and to reference from track entries (`"role": "lead"`).
 - **`gender`**: `"male"` | `"female"` | `"any"` (shorthand; or `"m"`/`"f"`). May be set directly on the
   role (as shown above) **or** nested as `filters.gender`.
@@ -367,7 +402,7 @@ Each role is `{ name?, gender?, filters?, poseMode?, poseWeight?, mask?, preserv
 
 - **`offset`**: the role's default placement for all stages.
 - **`equip`**: an item to equip onto this role's actor for the scene's duration, **auto-removed on
-  every end path**. Either a bare form-ref string (any gender) or an object keyed by the actor's
+  every termination path**. Either a bare form-ref string (any gender) or an object keyed by the actor's
   gender — `{ "male": ..., "female": ..., "any"?: ... }` (the bound actor's gender picks the ref;
   `any` is the fallback). If the actor didn't already own the item a copy is added and **destroyed on
   cleanup** (no inventory residue); a form the actor already wears is left untouched both ways.
@@ -391,12 +426,12 @@ replacers), so only the `"Plugin|0xLocal"` shape is checked at load.
 In a multi-scene file (`{ schema, "scenes": [ ... ] }`) the **file-level `roles`** key is read by its
 JSON type:
 
-- an **array** is a **default cast**;
+- an **array** is a **default role list**;
 - an **object** is a **roles registry** of reusable, referenceable definitions.
 
 (In a bare single-scene file the top-level `roles` is simply that scene's roles, and must be an array.)
 
-#### Default cast (array)
+#### Default role list (array)
 
 Every scene in `scenes` that omits its own `roles` inherits the complete array (including pose policy,
 filters, offsets, and `equip`). A scene that declares its own `roles` overrides the file-level roles
@@ -435,7 +470,7 @@ track `"role"` refs) works exactly as with inline roles.
   "scenes": [
     // MMF — the repeated template is auto-numbered: runtime names "m", "m2", "f".
     { "id": "author.scene.mmf", "roles": ["m", "m", "f"], "stages": [ { "clips": ["A0.glb", "A1.glb", "A2.glb"] } ] },
-    // A named instance (e.g. a track target: "role": "lead") with a per-slot offset override.
+    // A named instance (e.g. a track target: "role": "lead") with a per-role offset override.
     { "id": "author.scene.duo",
       "roles": [ { "id": "m", "name": "lead", "offset": { "y": 1.0 } }, "f" ],
       "stages": [ { "clips": ["B0.glb", "B1.glb"] } ] },
@@ -460,14 +495,14 @@ track `"role"` refs) works exactly as with inline roles.
 **Runtime names** are assigned deterministically:
 
 - A template that omits `name` takes its **registry id** as its base name; an explicit `name: ""`
-  (on the template or an override) stays an **anonymous positional slot**.
+  (on the template or an override) stays an **anonymous positional role**.
 - A **string** reference — or `{ "id": ... }` with no `name` — gets an **automatic** name: the
   template's effective name, suffixed `2`, `3`, … past any name already used in the scene. Three
   males and a female are simply `["m", "m", "m", "f"]` → `m`, `m2`, `m3`, `f`.
 - An **explicit** `name` (on an override object or an inline role) is kept **exactly** and reserved
   first, so automatic names skip it: `["m", { "id": "m", "name": "m" }]` → `m2`, `m`. **Duplicate
   explicit names reject the scene** (case-insensitive).
-- Anonymous slots are never numbered.
+- Anonymous roles are never numbered.
 
 **Validation:**
 
@@ -478,15 +513,15 @@ track `"role"` refs) works exactly as with inline roles.
   scene id, and role id.
 - **File-local, templates-only:** the registry is visible only to the scenes in its own file. There
   are no aliases, cross-file references, or whole-role-set references.
-- **Not a default cast:** a scene that omits `roles` under a registry gets the usual clip-count
-  inference (anonymous slots), never the registry contents.
+- **Not a default role list:** a scene that omits `roles` under a registry gets the usual clip-count
+  inference (anonymous roles), never the registry contents.
 
 ---
 
 ## Graph scenes (`nodes[]` + `entry`)
 
-When a scene needs phases, branching, self-loops, cue-triggers, or per-node tracks, give it `nodes[]`
-and an `entry` node id:
+When a scene needs phases, branching, self-loops, cue-triggers, or per-flow-node tracks, give it `nodes[]`
+and an `entry` flow-node id:
 
 ```jsonc
 {
@@ -495,17 +530,17 @@ and an `entry` node id:
   "name": "Demo Scene",
   "priority": 5, "weight": 2,                    // matchmaking
   "tags": ["paired", "demo"],
-  "lockPlayer": true, "stripActors": true,
-  "playerControl": { "disable": ["speed"], "locked": true },
+  "playerInputLock": true, "hideApparel": true,
+  "sceneControls": { "disable": ["speed"], "locked": true },
   "roles": [
     { "name": "lead",  "gender": "any" },
     { "name": "other", "gender": "female" }
   ],
-  "entry": "approach",                           // id of the node the scene starts on
+  "entry": "approach",                           // id of the flow node the scene starts on
   "nodes": [
     { "id": "approach",
       "use": "author.shared.walkin",             // REUSE: play another scene by id
-      // no `loops` -> play once, then take the `end` edge
+      // no `loops` -> play once, then take the `end` scene edge
       "edges": [ { "to": "main", "when": "end" } ] },
 
     { "id": "main",
@@ -520,103 +555,105 @@ and an `entry` node id:
         { "id": "tease",  "label": "Tease",  "to": "main",   "when": "advance" }    // self-loop
       ] },
 
-    { "id": "climax", "use": "author.shared.peak", "loops": 3,           // loop 3x -> take the `loops` edge
+    { "id": "climax", "use": "author.shared.peak", "loops": 3,           // loop 3x -> take the `loops` scene edge
       "edges": [ { "to": "cooldown", "when": "loops" } ] },
 
-    { "id": "cooldown", "use": "author.shared.winddown" }                // no `loops` -> play once -> ends
+    { "id": "cooldown", "use": "author.shared.winddown" }                // no `loops` -> play once -> completes
   ]
 }
 ```
 
-### Nodes
+### Flow nodes (`nodes[]`)
 
-A node has **EXACTLY ONE playable**:
+A flow node has **EXACTLY ONE playable source**:
 
 - **inline `stages[]`** — its own clip timeline (the default for one-offs), same shape as a linear
   scene's stages; **or**
 - **`use: "<sceneId>"`** — reference another scene by id (see *Reuse* below).
 
-Authoring **both, or neither**, is a hard load error. Beyond the playable, a node uses the **same
-`timer` / `loops` timing keys as a linear stage** (the timing table under *Linear scenes* applies
-verbatim) and adds `edges`:
+Authoring **both, or neither**, is a hard load error. Beyond its playable source, a flow node uses the
+**same `timer` / `loops` timing keys as a linear stage** (the timing table under *Linear scenes*
+applies verbatim) and adds scene `edges`:
 
 ```jsonc
 {
   "id": "main",
   "stages": [ /* inline timeline */ ],   // OR "use": "<sceneId>"
   "loops": 0,                            // omit = once, 0 = hold, N = loop N  (same as a linear stage)
-  "timer": 0.0,                          // seconds; arms a node timer — pair with a {"when":"timer"} edge
+  "timer": 0.0,                          // seconds; arms a flow-node timer — pair with a {"when":"timer"} scene edge
   "edges": [ /* see below */ ],
   "cue": [], "action": [], "sound": [], "camera": []   // track lanes (flat keys)
 }
 ```
 
-- **`loops`** is the node's loop count, identical to a linear stage: **omit** = play once (→ `end`
-  edge), **`0`** = hold (loop until advanced), **`N`** = loop N times (→ `loops` edge). For a
-  multi-stage inline node it bounds the **final** stage; earlier stages keep their own timing.
-- **`timer`** (seconds) only fires when the node also carries a `"when": "timer"` edge (a bare `timer`
+- **`loops`** is the flow node's loop count, identical to a linear stage: **omit** = play once (→ `end`
+  scene edge), **`0`** = hold (loop until advanced), **`N`** = loop N times (→ `loops` scene edge). For a
+  multi-stage inline flow node it bounds the **final** stage; earlier stages keep their own timing.
+- **`timer`** (seconds) only fires when the flow node also carries a `"when": "timer"` scene edge (a bare `timer`
   is a warning). This is the auto-advance / auto-end timer.
 
-### Edges
+### Scene edges (`edges[]`)
 
 ```jsonc
 { "id": "finish", "label": "Finish", "labelKey": "", "to": "climax",
   "when": "advance", "default": true, "priority": 0 }
 ```
 
-- **`to`**: a node id in this scene, or `"$end"` to end the scene. (Edges cannot target another scene.)
+- **`to`**: a flow-node id in this scene, or `"$end"` to complete the scene. (Scene edges cannot target
+  another scene.)
 - **`when`**: `end` (clip finished — the play-once case, `loops` omitted), `loops` (loop count reached,
-  `loops: N`), `timer` (node `timer` elapsed), `advance` (manual via `AdvanceScene`/`NavigateScene`), or **`trigger:<cueId>`**
+  `loops: N`), `timer` (flow-node `timer` elapsed), `advance` (manual via `AdvanceScene`/`NavigateScene`), or **`trigger:<cueId>`**
   (fires when that cue fires — the cue id is part of the `when` string, e.g. `"when": "trigger:beat"`;
   there is **no** separate `trigger` field, and a bare `"when": "trigger"` is a load error).
-- **Branchable** (`advance`) edges need `id` + `label` (for menus). `default: true` marks the edge
+- **Branchable** (`advance`) scene edges need `id` + `label` (for menus). `default: true` marks the scene edge
   `AdvanceScene` takes.
 
 ### Reuse (`use`)
 
-`use: "<sceneId>"` plays another scene's clips inside this node — the opt-in sharing path. Inline
+`use: "<sceneId>"` plays another scene's clips inside this flow node — the opt-in sharing path. Inline
 `stages` is the default; `use` is for genuine cross-scene reuse.
 
-- A `use` only splices the target's **entry node's stages**, so only a **single-node inline-stage
+- A `use` only splices the target's **entry flow node's stages**, so only a **single-flow-node inline-stage
   scene** is a valid `use` target. A multi-way graph target is a load error.
 - A **dangling `use`** (target id in no file) is a **load error** and is logged.
 
-### Linear stage getters on a graph scene (`linearStages`)
+### Linear-stage getters on a graph scene (`linearStages`)
 
 A graph scene can opt into the linear stage API (`OSF.GetSceneStage`/`SetSceneStage`,
-`GetSceneStageForActor`/`SetSceneStageForActor`) by listing the node ids that act as its sequential
+`GetSceneStageForActor`/`SetSceneStageForActor`) by listing the flow-node ids that act as its sequential
 "stages":
 
 ```jsonc
 "linearStages": ["approach", "main", "climax"]
 ```
 
-Each id must be a node in this scene; the list defines the stage-index ↔ node mapping the getters/setters
-use. It's optional — only needed when a graph scene wants the linear stage controls.
+Each id must be a flow node in this scene; the list defines the **linear-stage index ↔ flow-node**
+mapping used by the getters/setters. It does not expose a playback-segment index. The list is optional
+and is only needed when a graph scene wants the linear-stage controls.
 
 ---
 
 ## Track lanes (`cue` / `action` / `sound` / `camera`)
 
 Track lanes are **flat keys** (`cue`, `action`, `sound`, `camera`) — there is no `tracks` wrapper
-object. They attach to a graph **node** or, equally, to a linear **stage** (a stage's lanes are
-forwarded onto its desugared node), so a linear scene gets the full lane vocabulary without `nodes[]`.
-Every track entry has a **position** (`at` **or** `atFrame`) and optional **repeat**:
+object. They attach to a graph **flow node** or, equally, to a **linear stage** (a stage's lanes are
+forwarded onto its desugared flow node), so a linear scene gets the full lane vocabulary without
+`nodes[]`. Every track entry has a **track position** (`at` **or** `atFrame`) and optional **repeat**:
 
-- **`at`**: a lifecycle anchor `"enter"` | `"exit"` | `"end"`, **or** a numeric **clip-fraction in
+- **`at`**: a named track position `"enter"` | `"exit"` | `"end"`, **or** a numeric **clip-fraction in
   `[0,1)`** (e.g. `0.6` = 60% through the clip). `at` is **not** wall-clock seconds.
 - **`atFrame`**: a **zero-based clip frame** at 30 fps (e.g. `24` = 0.8 s into the clip). Use it
   whenever you picked the moment in an animation tool — no dividing by the clip length. See
   [Frames vs. fractions](#frames-vs-fractions) below.
 - **`repeat`**: `"none"` (default) or `"loop"` (re-fire every clip loop). `repeat:"loop"` is only valid
-  on numeric positions, not named anchors.
+  on numeric positions, not named track positions.
 
 `at` and `atFrame` are mutually exclusive — an entry that sets both is rejected.
 
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
-| `cue` | `{ "at"\|"atFrame", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` edge. |
-| `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "node", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. |
+| `cue` | `{ "at"\|"atFrame", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. |
+| `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "attachmentNode", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. For prop attach, `attachmentNode` names the actor **attachment node**, not a flow node; legacy alias `node` remains accepted. |
 | `sound` | `{ "at"\|"atFrame", "spec", "role", "emitter", "repeat" }` — an **array/object** position makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at"\|"atFrame", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
 
@@ -779,11 +816,11 @@ In a pool, the `clips` value may be the usual **array**, or — the shorthand fo
 
 #### Camera `state` values
 
-Camera postures are **held**: ledger-tracked and auto-restored to the player's prior POV on any scene
-end. Supported states: `freefly` (pure engine-native free camera using the `tfc` driver),
+Camera postures are **held**: ledger-tracked and auto-restored to the player's prior POV after any
+scene termination. Supported states: `freefly` (pure engine-native free camera using the `tfc` driver),
 `scene_orbit` (the default; enters native TFC to retain its close-actor rendering behavior, then uses
 the OSF-driven transform to frame and center the
-cast — while the scene browser is open, hold **LMB and drag** to orbit so free mouse movement keeps
+participants — while the scene browser is open, hold **LMB and drag** to orbit so free mouse movement keeps
 driving the UI cursor; on a controller use right stick to orbit, left stick to pan, LT/RT to move
 vertically, and LB/RB to zoom), `thirdperson_hold` (force and hold third person, bouncing the player back if
 they zoom to first person), and `vanity_orbit`.
@@ -791,13 +828,13 @@ they zoom to first person), and `vanity_orbit`.
 During a player scene, **MMB** or controller **R3** toggles the engine-native free camera (the same
 camera path as `tfc`); pressing it again returns to the scene's prior orbit/vanity/held posture.
 
-A file with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry node. It first enters
+A file with no `"camera"` key defaults to **`scene_orbit`** on each scene's entry flow node. It first enters
 the engine's TFC path so the native close-camera actor rendering policy remains active, then switches
-transform control to OSF: it centers on the cast's midpoint, pulls back until everyone fits, and opens
-side-on to the cast's long axis. Authors can explicitly select `"camera": "freefly"` when they want the
+transform control to OSF: it centers on the participants' midpoint, pulls back until everyone fits,
+and opens side-on to the participants' long axis. Authors can explicitly select `"camera": "freefly"` when they want the
 engine's native movement driver instead. Use
 `"camera": "none"` at the file root to opt out and leave the player's camera untouched. An explicit
-node-level `camera` track on the entry node always wins over the file-level default.
+flow-node-level `camera` track on the entry flow node always wins over the file-level default.
 
 **`thirdperson_hold` opening distance.** By default `thirdperson_hold` opens the camera **as far
 zoomed out as the third-person axis allows**, so the scene doesn't start pinned on the player's back
@@ -820,34 +857,36 @@ seed is applied per scene start and does not permanently change the player's own
 
 ## Policy
 
-Set on a scene (or as a file-level default for `lockPlayer` / `stripActors` / `clearHeldItems` / `fade` /
-`inPlace` / `playerControl`):
+Set on a scene (or as a file-level default for `playerInputLock` / `hideApparel` /
+`clearHeldItems` / `fade` / `placement` / `sceneControls`). Legacy aliases `lockPlayer` /
+`stripActors` / `inPlace` / `playerControl` remain accepted. A single object may not specify both
+spellings of the same concept.
 
-### Player input lock (`lockPlayer`, default-on)
+### Player input lock (`playerInputLock`; legacy `lockPlayer`, default-on)
 
-When the **player is a participant**, the scene engages the control lock (input-disable + AI-driven
-decouple) automatically at start — you do **not** need to author `osf.control.lock`. It is
-ledger-tracked, so it auto-releases on every end path.
+When the **player is a participant**, the scene engages the player input lock automatically at start,
+suppressing normal movement/combat input while leaving camera look available. You do **not** need to
+author `osf.control.lock`. The lock is ledger-tracked, so it auto-releases on every termination path.
 
-- Set **`"lockPlayer": false`** to leave the player free (e.g. a scene they only spectate).
+- Set **`"playerInputLock": false`** to leave the player free (e.g. a scene they only spectate).
 - The default never engages for an **NPC-only** scene (no player participant).
 - Authored `osf.control.lock` / `osf.control.release` still work: the lock is idempotent (re-locking is
   a no-op), and an authored release can drop it mid-scene.
 
-### Actor strip (`stripActors`, default-on)
+### Hide apparel (`hideApparel`; legacy `stripActors`, default-on)
 
 At scene start the runtime hides **every participant's** worn apparel (the base skin/body is always
 kept, so an actor is never made invisible) — you do **not** need to author `osf.equipment.hide`. It is
-ledger-tracked, so each actor is re-dressed on every end path.
+ledger-tracked, so each actor is re-dressed on every termination path.
 
-- Set **`"stripActors": false`** to keep actors clothed (then author per-role `osf.equipment.hide` for
-  selective stripping).
-- Unlike the player lock, this applies to **all** participants, including NPC-only scenes.
+- Set **`"hideApparel": false`** to keep actors clothed (then author per-role `osf.equipment.hide` for
+  selective apparel hiding).
+- Unlike the player input lock, this applies to **all** participants, including NPC-only scenes.
 - Authored `osf.equipment.hide` / `osf.equipment.restore` still work.
 
-**User scene gear** (`docs/RFC-scene-gear.md`) composes with the strip: items registered as scene gear
+**User scene gear** (`docs/RFC-scene-gear.md`) composes with apparel hiding: items registered as scene gear
 (via `Data/OSF/**/*.osfgear.json` or the user's `scene-gear.json`) that a participant carries are
-auto-equipped for the scene's duration — a worn one is exempted from the strip instead. A role's
+auto-equipped for the scene's duration — a worn one is exempted from default apparel hiding instead. A role's
 authored `equip` wins over user gear for the slot it occupies; gear fills the slots the scene didn't
 touch. Players can disable this globally (settings → Scene gear → Auto-equip scene gear).
 
@@ -855,8 +894,10 @@ touch. Players can disable this globally (settings → Scene gear → Auto-equip
 
 At scene start the runtime temporarily unequips each participant's equipped **non-apparel** items —
 weapons, slates, tools, consumables, and similar held props — so they cannot remain welded to a hand
-through an unrelated animation. The exact items are ledger-tracked and re-equipped on every end path.
-This policy is independent of `stripActors`: keeping apparel does not implicitly keep held items.
+through an unrelated animation. The exact items are ledger-tracked and re-equipped on every
+termination path.
+This policy is independent of `hideApparel` (legacy `stripActors`): keeping apparel does not
+implicitly keep held items.
 
 - Set **`"clearHeldItems": false`** for a partial-body or equipment gesture that deliberately needs to
   preserve the actor's current equipped item.
@@ -875,52 +916,60 @@ black until the end.
 - The default never engages for an **NPC-only** scene (the player's screen is never blacked out for a
   scene they're not in), and is a no-op where screen fades are unavailable on the runtime.
 - **Caveat — this is a curtain, not a snap-hider.** The fade is posted to the UI queue (async) while the
-  scene's actor teleport/strip/camera-cut run synchronously *this* frame, so the initial snap is already
+  scene's actor teleport/apparel-hide/camera-cut run synchronously *this* frame, so the initial snap is already
   on screen before black arrives. The default gives a cinematic dip + settle, not a hidden start.
 - Authored `osf.fade.out` / `osf.fade.in` still work (e.g. a held end-fade), independent of this default.
 
-### In-place playback (`inPlace`, default-off)
+### World placement (`placement`; legacy `inPlace`)
 
-`inPlace` and scene anchoring govern each participant's **world/root placement**. They are independent
-of role `poseMode`, which only decides how sampled local bone transforms combine with the live engine
-pose. Setting `poseMode: "additive"` does not enable root motion, disable anchoring, or imply `inPlace`.
+`placement` governs each participant's **world/root placement** and accepts exactly
+`"anchorAndPin"` (the default) or `"followActor"`. Legacy `inPlace: false` maps to
+`"anchorAndPin"`; legacy `inPlace: true` maps to `"followActor"`. World placement is independent of
+role `poseMode`, which only decides how sampled local bone transforms combine with the live engine
+pose. Setting `poseMode: "additive"` does not enable root motion or change `placement`.
 
-By default the runtime **anchors** a scene: participants are teleported to the anchor (participant[0]'s
-transform, or the furniture anchor) and their rendered root position **and heading are re-pinned every
-frame** so multi-actor placements stay aligned. That pin overwrites the player's heading each frame —
+By default the runtime uses **anchor-and-pin placement**: participants are teleported to the world
+anchor (participant[0]'s transform, or the furniture world anchor) and their rendered root position
+**and heading are re-pinned every frame** so multi-actor placements stay aligned. That pin overwrites
+the player's heading each frame —
 and in vanilla third person the *camera* writes the player's heading, so the two fight and the camera
 judders.
 
-Set **`"inPlace": true`** for scenes that should play on each actor **exactly where they stand**:
+Set **`"placement": "followActor"`** for scenes that should play on each actor **exactly where they
+stand**:
 
 - No teleport, no per-frame root/heading pin, no animation-driven AI flag — the rig follows the actor's
   live transform.
 - The player keeps vanilla camera behavior entirely (pair it with `"camera": "none"` and
-  `"lockPlayer": false` for the full hands-off posture — this is the emote-pack recipe).
-- Meant for **solo flourishes** (emotes, gestures). A multi-actor `inPlace` scene gets no relative
+  `"playerInputLock": false` for the full hands-off posture — this is the emote-pack recipe).
+- Meant for **solo flourishes** (emotes, gestures). A multi-actor follow-actor scene gets no relative
   alignment — each actor animates wherever they happen to be.
-- Incompatible with an `anchor` requirement (load error): an anchor's whole job is positioning the cast.
+- Incompatible with an `anchor` requirement (load error): a world anchor's whole job is positioning
+  the participants.
 
-### Director input grant (`playerControl`)
+### Scene controls (`sceneControls`; legacy `playerControl`)
 
-`playerControl` is the per-scene player-input grant. Input is **enabled by default**: with no
-`playerControl` block the player gets every capability while participating. A scene opts out wholesale
-(`"playerControl": false`) or narrows it: `{ "disable": ["speed", "end"], "locked": true }`. Capabilities
-are advance / navigate / speed / reposition / freecam / end; `locked: true` means the player may not end
-the scene via the input channel (story scenes).
+`sceneControls` configures the scene-control grant; it does **not** control the normal player input
+lock described by `playerInputLock`. Scene controls are **enabled by default**: with no
+`sceneControls` block the player gets every OSF capability while participating. A scene opts out
+wholesale (`"sceneControls": false`) or narrows it:
+`{ "disable": ["speed", "end"], "locked": true }`. Capabilities
+are advance / navigate / speed / freecam / end; `locked: true` means the player may not end
+the scene via the scene-control channel (story scenes).
 
-The object form also accepts **`"enabled": <bool>`**, an explicit on/off toggle with the same effect as
-the boolean `"playerControl": true|false` form.
+The object form also accepts **`"enabled": <bool>`**, an explicit on/off toggle with the same effect
+as the boolean `"sceneControls": true|false` form.
 
-`playerControl` may also sit at **file level**, where it seeds every scene in the file — `"playerControl":
-false` at the top of a pack revokes input for all of its scenes (the prop-route posture), and the object
-form narrows the pack-wide grant. A scene's own `playerControl` applies **on top of** what it inherited:
-a boolean re-enables/revokes wholesale, and a scene `disable` list composes with the pack's (both sets of
-capabilities come off).
+`sceneControls` may also sit at **content-file level**, where it seeds every scene in that file —
+`"sceneControls": false` at the document root revokes scene controls for all scenes in that one file,
+and the object form narrows the file-level grant. A scene's own `sceneControls` applies **on top of**
+what it inherited: a boolean re-enables/revokes wholesale, and a scene `disable` list composes with
+the content file's list (both sets of capabilities come off). The file's `pack` label does not extend
+this inheritance to other files in the same content pack.
 
-### Furniture anchoring (`anchor`)
+### Furniture world anchoring (`anchor`)
 
-An **anchor-bound** scene declares WHAT it plays on with an inline `anchor` block — on the scene, or
+A **world-anchor-bound** scene declares WHAT it plays on with an inline `anchor` block — on the scene, or
 at the file level of a multi-scene envelope (a file-level `anchor` is the default every scene in the
 file inherits unless it declares its own). Works for linear AND graph scenes; 475 shipped scenes
 (the vanilla furniture packs) use it.
@@ -948,7 +997,7 @@ file inherits unless it declares its own). Works for linear AND graph scenes; 47
 - At start, an anchor-bound scene **requires** a satisfying ref: `SceneOptions.Anchor` (Papyrus),
   the browser's furniture pick, or anchor-first matchmaking (`StartSceneAtAnchor`). Starting one
   with no/incompatible anchor fails with handle 0.
-- Incompatible with `inPlace: true` (load error — see above).
+- Incompatible with `placement: "followActor"` (or legacy `inPlace: true`; load error — see above).
 
 ### Matchmaking (`tags`, `priority`, `weight`)
 
@@ -958,11 +1007,13 @@ file inherits unless it declares its own). Works for linear AND graph scenes; 47
 
 All three may be set at **file level**. `priority` / `weight` are plain defaults a scene overrides.
 `tags` are the exception to file-level-is-a-default: they are **UNION-ed** with each scene's own tags
-(pack tags first, de-duplicated case-insensitively), so a tag every scene in the pack must carry is
-authored once at the top rather than repeated per scene.
+(content-file tags first, de-duplicated case-insensitively), so a tag every scene in that content file
+must carry is authored once at the document root rather than repeated per scene. The `pack` label does
+not propagate tags to other files in the content pack.
 - **`unlisted`** (bool, default `false`): hold the scene **out of the matchmaking pool**  .
 
-Matchmaking is over the one scene registry: a single query (tags + per-role gender/keyword/race fit)
+Matchmaking is over the content registry's scene namespace: a single query (tags + per-role
+gender/keyword/race fit)
 returns the best candidate, ranked purely by `priority` tier then `weight`. A richer scene simply sets
 a higher `priority` than a barer one. An `unlisted` scene sits outside this entirely.
 
@@ -979,16 +1030,17 @@ participant** (the same default as the `sound` lane). A named `role` must be dec
 
 | Action `type` | Effect | Targets a role | Extra fields |
 |---------------|--------|:---:|---|
-| `osf.control.lock` / `osf.control.release` | Player input-disable + AI-driven lock (ref-counted). **On by default when the player participates** — see *Player input lock*; author these only to override. | ✓ | |
-| `osf.equipment.hide` / `osf.equipment.restore` | Strip / restore the role's worn apparel (skin kept). **All participants are stripped by default** — see *Actor strip*; author these only to override. | ✓ | |
+| `osf.control.lock` / `osf.control.release` | Player input lock (ref-counted). **On by default when the player participates** — see *Player input lock*; author these only to override. | ✓ | |
+| `osf.equipment.hide` / `osf.equipment.restore` | Hide / restore the role's worn apparel (skin kept). **All participants' apparel is hidden by default** — see *Hide apparel*; author these only to override. | ✓ | |
 | `osf.equipment.equip` / `osf.equipment.unequip` | Equip an arbitrary item on the role for the scene, then take it back off. A copy is added if the actor doesn't own one and **destroyed on cleanup** (no inventory residue); a form the actor already wears is left untouched both ways. | ✓ | `item` (required on `equip`: form ref `"<Plugin>\|0xLOCAL"`) |
 | `osf.weapon.sheathe` / `osf.weapon.restore` | Holster / re-draw the role's weapon. | ✓ | |
-| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/node without cloning it again. | ✓ | `prop`; attach also requires `source` and `node` — inline or inherited from the file-level `props` registry (`use` names a template) — with optional `position`, `rotation`, `scale` |
+| `osf.prop.attach` / `osf.prop.destroy` | Clone a render-only visual, attach it to an actor attachment node under a scene-local id, or destroy that named visual. Re-attaching the same id moves it to the new role/attachment node without cloning it again. | ✓ | `prop`; attach also requires `source` and `attachmentNode` (legacy `node`) — inline or inherited from the file-level `props` registry (`use` names a template) — with optional `position`, `rotation`, `scale` |
 | `osf.fade.out` / `osf.fade.in` | Fade screen to/from black. | | `hold` (stay faded on cleanup), `duration` (ramp secs, 0 = default) |
 | `osf.voice.play` | Play a sound spec on the role's voice channel. If the clip carries subtitle text, the role actor is its speaker (see *Voice lines*). | ✓ | `set` (required: Data-relative path or `"event:<name>"`); `emitter` (`"listener"` default or `"role"`) |
 
 > **Cleanup is automatic.** The ledger reverses control/camera/weapon/equipment/equipped-items/props/fade in
-> reverse order on *every* end path (normal end, `StopScene`, interrupt, save-load) — you never
+> reverse order after every termination cause (natural completion, `StopScene` cancellation, runtime
+> interruption, or world-load teardown) — you never
 > author a restore.
 
 ### Scene props
@@ -1010,7 +1062,7 @@ remain after the animation should create and own a separate persistent object.
         "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"]
       }
     },
-    "node": "R_Wrist",
+    "attachmentNode": "R_Wrist",
     "position": [0, 0, 0],
     "rotation": [0, -90, -90],
     "scale": 1
@@ -1025,15 +1077,18 @@ remain after the animation should create and own a separate persistent object.
 - `{ "equippedArmor": { "keyword": "<EditorID>" } }` selects the first equipped armor carrying
   that keyword. `keyword` may be an array of alternative editor IDs.
 
-`position` and `rotation` are three-number arrays in node-local units and degrees; both default to
+`attachmentNode` is the preferred field; legacy `node` remains accepted. Supplying both on one action
+or prop template is a load error.
+
+`position` and `rotation` are three-number arrays in attachment-node-local units and degrees; both default to
 zero. `scale` defaults to `1` and must be in `(0,10]`. All three are optional — omitting them is
 exactly equivalent to authoring `[0,0,0]` / `[0,0,0]` / `1`, so an identity attachment can drop them.
 The visual is best-effort: a missing source,
-actor 3D, or attachment node logs the failed action without aborting the animation.
+actor 3D, or attachment node logs the failed action without terminating the scene.
 
 #### Prop registry (file-level `props`)
 
-Repeating a `source` + `node` block on every attach is the common case, so a file may declare its
+Repeating a `source` + `attachmentNode` block on every attach is the common case, so a file may declare its
 props **once** at the top level and let each action name one. The registry is a file-local map of an
 **exact, case-sensitive id** to a prop definition:
 
@@ -1043,7 +1098,7 @@ props **once** at the top level and let each action name one. The registry is a 
   "props": {
     "helmet": {
       "source": { "equippedArmor": { "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"] } },
-      "node": "R_AnimObject1"
+      "attachmentNode": "R_AnimObject1"
     }
   },
   "scenes": [ /* ... */
@@ -1059,25 +1114,27 @@ props **once** at the top level and let each action name one. The registry is a 
 all. `use: "<id>"` overrides which template to pull, for a second instance of one definition:
 
 ```jsonc
-{ "at": 0, "type": "osf.prop.attach", "prop": "helmet_l", "use": "helmet", "node": "L_AnimObject1" }
+{ "at": 0, "type": "osf.prop.attach", "prop": "helmet_l", "use": "helmet", "attachmentNode": "L_AnimObject1" }
 ```
 
 `prop` stays the runtime id either way — it is what `osf.prop.destroy` addresses and what a
 re-attach matches. Two ids sharing one template are two independent clones.
 
-- **Inline keys win.** Any of `source`, `node`, `position`, `rotation`, `scale` authored on the
-  action overrides the template; the rest are inherited.
+- **Inline keys win.** Any of `source`, `attachmentNode` (or legacy `node`), `position`, `rotation`,
+  `scale` authored on the action overrides the template; the rest are inherited. An inline attachment
+  node under either spelling overrides a template attachment node under either spelling.
 - **`source` is inherited or overridden whole**, never merged key-by-key — so an action may select
   `{ "form": … }` over an `equippedArmor` template without the two selectors colliding.
 - **Templates may be partial.** A definition carrying only `source` lets each action pick its own
-  `node`. Only the *merged* result must be a complete attachment.
-- A template holds **only** those five keys. Timing (`at`/`atFrame`/`repeat`), `type`, `role` and
+  `attachmentNode`. Only the *merged* result must be a complete attachment.
+- A template holds **only** those five concepts: `source`, `attachmentNode` (or legacy `node`),
+  `position`, `rotation`, and `scale`. Timing (`at`/`atFrame`/`repeat`), `type`, `role` and
   `prop` are never inheritable, so a template can neither move an action in time nor retarget it;
   any other key is a load error.
 - A `prop` id matching no template is an ordinary self-contained attach — **files without `props`
   are entirely unaffected.**
 
-The registry never leaves its file: there are no cross-file references, and a node `use` splices
+The registry never leaves its file: there are no cross-file references, and a flow-node `use` splices
 only the target's stages, never its action lanes.
 
 ---
@@ -1086,13 +1143,15 @@ only the target's stages, never its action lanes.
 
 Surfaced in `OSF Animation.log`:
 
-- A node with **both** `use` and `stages`, or **neither**, is a hard load error.
+- A flow node with **both** `use` and `stages`, or **neither**, is a hard load error.
 - A **dangling `use`** (target id in no file) is a load error.
-- A `use` target that is **not a single-node inline-stage scene** is a load error.
-- An authored id containing **`#`** is a load error (reserved for synthetic desugar nodes).
-- A **duplicate id** within the one namespace → first-loaded-wins + a logged warning.
-- A malformed **`props` template** (unknown key, bad `source`/`node`/transform) rejects the **whole
-  file** — a broken shared definition is a pack-level bug, not one scene's.
+- A `use` target that is **not a single-flow-node inline-stage scene** is a load error.
+- An authored id containing **`#`** is a load error (reserved for synthetic desugared flow nodes).
+- A **duplicate scene id** within the scene-id namespace → first-loaded-wins + a logged warning.
+- Both spellings of one vocabulary pair in the same object — including `attachmentNode` plus `node`
+  — are a load error.
+- A malformed **`props` template** (unknown key, bad `source`/attachment node/transform) rejects the
+  **whole content file** — a broken file-local shared definition is not isolated to one scene.
 - An attach whose **`use` names no template** is a load error for that **scene** only.
 - **`props` on a scene** (rather than at file level) is a load error.
 
@@ -1105,5 +1164,5 @@ can join them without another schema layer (the shipped set lives in `Data/OSF/i
 
 | Tag | Consumed by | Contract |
 |-----|-------------|----------|
-| `player.emote.<name>` | Browse as an Action and the default Quick Access wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the Action's `name` is the wheel slice label. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
+| `player.emote.<name>` | Browse as an Emote and the default Quick Access wheel | Solo, free-space, and **self-terminating** (`timer`/`loops`, not an unbounded hold); the emote's `name` is the wheel slice label. Older UI may call this category `Action`, which is unrelated to the authored `action` track. The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless the clip demands otherwise. |
 | `immersion` | — | Umbrella tag for the shipped immersion pack; free for browsing/filtering. |
