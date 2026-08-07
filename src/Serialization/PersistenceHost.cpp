@@ -135,8 +135,8 @@ namespace OSF::Serialization::PersistenceHost
 				}
 
 				const bool deleteHook = InstallDeleteHook();
-				const OSFSaveLoadHookListenerV1 listener{
-					.size = sizeof(OSFSaveLoadHookListenerV1),
+				const OSFSaveLoadHookListenerV2 listener{
+					.size = sizeof(OSFSaveLoadHookListenerV2),
 					.listenerID = kInternalClientID,
 					.listenerName = "OSF Animation persistence",
 					.context = this,
@@ -356,18 +356,21 @@ namespace OSF::Serialization::PersistenceHost
 				return g_originalDeleteSave != nullptr;
 			}
 
-			static void OSF_SAVE_LOAD_HOOK_CALL LifecycleEvent(
+			static std::uint8_t OSF_SAVE_LOAD_HOOK_CALL LifecycleEvent(
 				void* context,
 				const OSFSaveLoadHookEventV1* event) noexcept
 			{
 				if (!context || !event ||
 					event->size < sizeof(OSFSaveLoadHookEventV1)) {
-					return;
+					return 0;
 				}
 				try {
 					auto& host = *static_cast<Host*>(context);
 					switch (event->phase) {
 					case OSF_SAVE_LOAD_HOOK_PHASE_SAVE_RETURN: {
+						if ((event->flags & OSF_SAVE_LOAD_HOOK_EVENT_SAVE_VETOED) != 0) {
+							break;
+						}
 						const auto saveName = BoundedName(event->name);
 						if (!saveName.empty()) {
 							host.Save(saveName);
@@ -390,9 +393,12 @@ namespace OSF::Serialization::PersistenceHost
 					}
 				} catch (const std::exception& e) {
 					REX::CRITICAL("[Save] persistence lifecycle listener threw '{}'; swallowed", e.what());
+					return 0;
 				} catch (...) {
 					REX::CRITICAL("[Save] persistence lifecycle listener threw; swallowed");
+					return 0;
 				}
+				return 1;
 			}
 
 			static bool DeleteHook(RE::BGSSaveLoadManager* self, const char* name, void* unknown, bool flag)

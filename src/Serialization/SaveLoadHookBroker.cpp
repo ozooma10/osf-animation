@@ -53,7 +53,7 @@ namespace OSF::Serialization::SaveLoadHookBroker
         {
             std::uint32_t listenerID{ 0 };
             void* context{ nullptr };
-            void (OSF_SAVE_LOAD_HOOK_CALL *onEvent)(
+            std::uint8_t (OSF_SAVE_LOAD_HOOK_CALL *onEvent)(
                 void*, const OSFSaveLoadHookEventV1*){ nullptr };
             char name[kMaxListenerName]{};
         };
@@ -184,10 +184,10 @@ namespace OSF::Serialization::SaveLoadHookBroker
                 return _ready.load(std::memory_order_acquire) && OwnsHooks();
             }
 
-            [[nodiscard]] bool Register(const OSFSaveLoadHookListenerV1* a_listener)
+            [[nodiscard]] bool Register(const OSFSaveLoadHookListenerV2* a_listener)
             {
                 if (!IsReady() || !a_listener ||
-                    a_listener->size < sizeof(OSFSaveLoadHookListenerV1) ||
+                    a_listener->size < sizeof(OSFSaveLoadHookListenerV2) ||
                     a_listener->listenerID == 0 || !a_listener->OnEvent) {
                     return false;
                 }
@@ -235,7 +235,7 @@ namespace OSF::Serialization::SaveLoadHookBroker
                 return false;
             }
 
-            void Dispatch(const OSFSaveLoadHookEventV1& a_event) noexcept
+            [[nodiscard]] bool Dispatch(const OSFSaveLoadHookEventV1& a_event) noexcept
             {
                 std::array<ListenerRecord, kMaxListeners> listeners{};
                 std::size_t count = 0;
@@ -249,15 +249,23 @@ namespace OSF::Serialization::SaveLoadHookBroker
                                       a_event.phase, a_event.sequence);
                     } catch (...) {
                     }
-                    return;
+                    return false;
                 }
 
+                const bool saveEntry =
+                    a_event.phase == OSF_SAVE_LOAD_HOOK_PHASE_SAVE_ENTRY;
+                bool allowSave = !saveEntry || count != 0;
                 for (std::size_t i = 0; i < count; ++i) {
                     const auto listener = listeners[i];
+                    std::uint8_t listenerResult = 0;
                     SwallowAtHookBoundary("listener", [&] {
-                        listener.onEvent(listener.context, &a_event);
+                        listenerResult = listener.onEvent(listener.context, &a_event);
                     });
+                    if (saveEntry && listenerResult == 0) {
+                        allowSave = false;
+                    }
                 }
+                return allowSave;
             }
 
             [[nodiscard]] std::uint32_t Flags() const noexcept
@@ -265,7 +273,8 @@ namespace OSF::Serialization::SaveLoadHookBroker
                 auto flags = _flags.load(std::memory_order_acquire);
                 if (!OwnsHooks()) {
                     flags &= ~(OSF_SAVE_LOAD_HOOK_STATUS_SAVE_HOOK |
-                               OSF_SAVE_LOAD_HOOK_STATUS_LOAD_HOOK);
+                               OSF_SAVE_LOAD_HOOK_STATUS_LOAD_HOOK |
+                               OSF_SAVE_LOAD_HOOK_STATUS_SAVE_VETO);
                 }
                 return flags;
             }
@@ -298,7 +307,7 @@ namespace OSF::Serialization::SaveLoadHookBroker
 
         std::uint8_t OSF_SAVE_LOAD_HOOK_CALL APIRegister(
             const OSFSaveLoadHookAPI* a_api,
-            const OSFSaveLoadHookListenerV1* a_listener)
+            const OSFSaveLoadHookListenerV2* a_listener)
         {
             return a_api && a_api->context &&
                 static_cast<LocalBroker*>(a_api->context)->Register(a_listener);
@@ -480,12 +489,21 @@ namespace OSF::Serialization::SaveLoadHookBroker
                 .sequence = sequence,
                 .name = name.c_str(),
             };
-            LocalBroker::GetSingleton().Dispatch(event);
-
-            g_originalSaveGame(a_self, a_context, a_writer, a_name);
+            const bool proceed = LocalBroker::GetSingleton().Dispatch(event);
+            if (proceed) {
+                g_originalSaveGame(a_self, a_context, a_writer, a_name);
+            } else {
+                SwallowAtHookBoundary("SAVE veto log", [&] {
+                    REX::CRITICAL(
+                        "[Save] save/load broker SAVE sequence={} name='{}' vetoed before the engine gateway",
+                        sequence,
+                        name.empty() ? "<none>" : name);
+                });
+            }
 
             event.phase = OSF_SAVE_LOAD_HOOK_PHASE_SAVE_RETURN;
-            LocalBroker::GetSingleton().Dispatch(event);
+            event.flags = proceed ? 0u : OSF_SAVE_LOAD_HOOK_EVENT_SAVE_VETOED;
+            (void)LocalBroker::GetSingleton().Dispatch(event);
         }
 
         bool LoadHook(
@@ -505,14 +523,14 @@ namespace OSF::Serialization::SaveLoadHookBroker
                 .sequence = sequence,
                 .name = name.c_str(),
             };
-            LocalBroker::GetSingleton().Dispatch(event);
+            (void)LocalBroker::GetSingleton().Dispatch(event);
 
             const bool result = g_originalLoadGame(a_self, a_reader, a_flag1, a_flag2);
 
             event.phase = OSF_SAVE_LOAD_HOOK_PHASE_LOAD_RETURN;
             event.flags = OSF_SAVE_LOAD_HOOK_EVENT_RESULT_VALID;
             event.result = result;
-            LocalBroker::GetSingleton().Dispatch(event);
+            (void)LocalBroker::GetSingleton().Dispatch(event);
             return result;
         }
 
@@ -544,6 +562,7 @@ namespace OSF::Serialization::SaveLoadHookBroker
                 OSF_SAVE_LOAD_HOOK_STATUS_SAVE_GATE |
                 OSF_SAVE_LOAD_HOOK_STATUS_LOAD_GATE |
                 (g_originalSaveGame ? OSF_SAVE_LOAD_HOOK_STATUS_SAVE_HOOK : 0u) |
+                (g_originalSaveGame ? OSF_SAVE_LOAD_HOOK_STATUS_SAVE_VETO : 0u) |
                 (g_originalLoadGame ? OSF_SAVE_LOAD_HOOK_STATUS_LOAD_HOOK : 0u);
             LocalBroker::GetSingleton().SetReady(
                 flags,
@@ -563,7 +582,7 @@ namespace OSF::Serialization::SaveLoadHookBroker
 
         [[nodiscard]] bool RegisterListener(
             const OSFSaveLoadHookAPI* a_provider,
-            const OSFSaveLoadHookListenerV1& a_listener,
+            const OSFSaveLoadHookListenerV2& a_listener,
             const char* a_providerName)
         {
             if (!a_provider->RegisterListener(a_provider, &a_listener)) {
@@ -577,7 +596,7 @@ namespace OSF::Serialization::SaveLoadHookBroker
         }
     }
 
-    bool Initialize(const OSFSaveLoadHookListenerV1& a_listener)
+    bool Initialize(const OSFSaveLoadHookListenerV2& a_listener)
     {
         if (g_initializeAttempted.exchange(true, std::memory_order_acq_rel)) {
             return g_ready.load(std::memory_order_acquire);
