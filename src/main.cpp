@@ -19,7 +19,6 @@
 #include "Serialization/PersistenceHost.h"
 #include "Serialization/SaveSafety.h"
 #include "Util/CrashHandler.h"
-
 #include <REX/W32/KERNEL32.h>
 #include <nlohmann/json.hpp>
 
@@ -96,6 +95,9 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 	SFSE::Init(a_sfse, { .trampoline = true, .trampolineSize = kTrampolineBytes });
 
 	const auto runtime = a_sfse->RuntimeVersion();
+#if defined(OSF_TRACY_PROFILE_BUILD)
+	REX::WARN("[Boot] OSF_TRACY_PROFILE_BUILD — development-only Tracy instrumentation is enabled");
+#endif
 	OSF::Camera::CameraService::GetSingleton().SetRawLayoutSupport(runtime == kVerifiedGameVersion);
 	REX::INFO("[Boot] {} v{} loading — supported game version {}, running on {}",
 		SFSE::GetPluginName(), SFSE::GetPluginVersion().string(),

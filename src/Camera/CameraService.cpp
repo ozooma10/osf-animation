@@ -2,6 +2,7 @@
 
 #include "Input/InputService.h"
 #include "Player/PlayerControlService.h"
+#include "Util/Profile.h"
 
 #include <algorithm>
 #include <chrono>
@@ -739,6 +740,8 @@ namespace OSF::Camera
 
 	void CameraService::DriveSceneOrbit()
 	{
+		OSF_PROFILE_SCOPE_N("Camera.DriveSceneOrbit");
+
 		if (!RawLayoutSupport()) {
 			orbitDriving.store(false, std::memory_order_relaxed);
 			return;
@@ -1150,6 +1153,8 @@ namespace OSF::Camera
 
 	void CameraService::Tick()
 	{
+		OSF_PROFILE_SCOPE_N("Camera.Tick");
+
 		if (orbitDriving.load(std::memory_order_relaxed)) {
 			DriveSceneOrbit();  // self-driven scene orbit (independent of the third-person hold)
 		}

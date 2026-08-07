@@ -2,6 +2,7 @@
 
 #include "Animation/PoseMath.h"
 #include "Animation/Scene.h"
+#include "Util/Profile.h"
 #include "Util/StringUtil.h"
 
 #include "ozz/base/span.h"
@@ -430,6 +431,8 @@ namespace OSF::Animation
 
 	void Graph::Sample(float a_deltaTime, const void* a_token)
 	{
+		OSF_PROFILE_SCOPE_N("Graph.Sample");
+
 		if (++enginePoseRevision == 0) {
 			++enginePoseRevision;  // zero is reserved for an uncaptured base
 		}
@@ -512,11 +515,14 @@ namespace OSF::Animation
 
 	void Graph::StampPose(const RE::BGSModelNode* a_modelNode)
 	{
+		OSF_PROFILE_SCOPE_N("Graph.StampPose");
+
 		if (a_modelNode != cachedModelNode.load(std::memory_order_relaxed) ||
 			binding.empty() || !anim || !skeleton ||
 			outputPose.size() != referencePose.size()) {
 			return;
 		}
+		OSF_PROFILE_PLOT("Anim.DrivenBones", static_cast<std::int64_t>(binding.size()));
 
 		// Same-address staleness: helmet-visibility patches and prop geometry mutate the node
 		// table (and can remap rig slots) WITHOUT replacing the BGSModelNode, and Sample only
@@ -570,15 +576,21 @@ namespace OSF::Animation
 		job.context = &samplingContext;
 		job.ratio = localTime / duration;
 		job.output = ozz::make_span(localPose);
-		if (!job.Run()) {
-			if (!loggedSampleFail) {
-				loggedSampleFail = true;
-				REX::ERROR("[Anim] ozz SamplingJob failed validation (anim tracks={}, context max={}, output soa={})",
-					anim->data->num_tracks(), samplingContext.max_tracks(), localPose.size());
+		{
+			OSF_PROFILE_SCOPE_N("Graph.StampPose.OzzSample");
+			if (!job.Run()) {
+				if (!loggedSampleFail) {
+					loggedSampleFail = true;
+					REX::ERROR("[Anim] ozz SamplingJob failed validation (anim tracks={}, context max={}, output soa={})",
+						anim->data->num_tracks(), samplingContext.max_tracks(), localPose.size());
+				}
+				return;
 			}
-			return;
 		}
-		UnpackSoaTransforms({ localPose.data(), localPose.size() }, { outputPose.data(), outputPose.size() }, skeleton->data.get());
+		{
+			OSF_PROFILE_SCOPE_N("Graph.StampPose.Unpack");
+			UnpackSoaTransforms({ localPose.data(), localPose.size() }, { outputPose.data(), outputPose.size() }, skeleton->data.get());
+		}
 		hasPose = true;
 
 		auto* rig = a_modelNode->rig;
@@ -595,6 +607,8 @@ namespace OSF::Animation
 		// by additive layering and any persistent sub-unity override weight (feathered mask seam /
 		// poseWeight), which would otherwise converge onto the full pose by re-blending over itself.
 		const auto captureLiveBase = [&]() -> bool {
+			OSF_PROFILE_SCOPE_N("Graph.StampPose.LiveBase");
+
 			if (liveBasePose.size() != binding.size() * 16) {
 				return false;  // binding/base must be prepared together; never allocate from the stamp hook
 			}
@@ -658,74 +672,77 @@ namespace OSF::Animation
 			probeRecorded = true;
 		};
 
-		if (poseMode == PoseMode::kAdditive) {
-			if (!captureLiveBase()) {
-				return;
-			}
-			const float effectiveWeight = PoseMath::EffectiveWeight(weight, poseWeight);
-			for (std::size_t i = 0; i < binding.size(); ++i) {
-				const auto& bound = binding[i];
-				if (bound.rigIndex >= rigBoneCount) {
-					continue;
+		{
+			OSF_PROFILE_SCOPE_N("Graph.StampPose.WriteBones");
+			if (poseMode == PoseMode::kAdditive) {
+				if (!captureLiveBase()) {
+					return;
 				}
-				float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
-				PoseMath::WriteAdditive(slot, liveBasePose.data() + i * 16,
-					reinterpret_cast<const float*>(&referencePose[bound.jointIndex]),
-					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
-					effectiveWeight * std::max(bound.weight, bound.contactWeight * contactWeight));
-				if (!probeRecorded) {
-					recordProbe(slot, bound.rigIndex);
-				}
-			}
-		} else {
-			// Override: per-bone weight = transition * persistent layer strength * mask weight.
-			// Weight-1 bones take the sampled pose absolutely; fractional bones blend against the
-			// immutable engine base (steady state) or the cross-fade-from snapshot (blend-in), so a
-			// masked gesture overrides the arm chain while the feathered seam keeps live torso sway.
-			const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f || contactPose.enabled;
-			if (persistentPartial && !captureLiveBase()) {
-				return;
-			}
-			const bool hasSnapshot = blendPhase == BlendPhase::kIn && blendFromValid;
-			for (std::size_t i = 0; i < binding.size(); ++i) {
-				const auto& bound = binding[i];
-				if (bound.rigIndex >= rigBoneCount) {
-					continue;
-				}
-				float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
-				// A stage-local mask may expand at this boundary. Only joints the outgoing
-				// stage actually stamped have a valid OSF snapshot; newly admitted joints
-				// blend from Starfield's live pose instead of the unshown parts of its clip.
-				const bool fromSnapshot = hasSnapshot && bound.jointIndex < blendFromDriven.size() &&
-				                          blendFromDriven[bound.jointIndex] != 0;
-				const float maskWeight = std::max(bound.weight, bound.contactWeight * contactWeight);
-				// Zero-total-weight bones normally skip; the stage-handoff snapshot case must not
-				// (clip A -> B begins at A instead of flashing through vanilla). The decision is
-				// PoseMath::ClassifyOverrideStamp so the boundary behavior is pinned by tests.
-				const float w = weight * poseWeight * maskWeight;
-				switch (PoseMath::ClassifyOverrideStamp(weight, poseWeight, maskWeight, fromSnapshot)) {
-				case PoseMath::OverrideStampKind::kSkip:
-					continue;
-				case PoseMath::OverrideStampKind::kSnapshot:
-					WriteNiTransformRowsBlended(slot,
-						reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]),
-						outputPose[bound.jointIndex], 0.0f);
-					break;
-				case PoseMath::OverrideStampKind::kTarget:
-					WriteNiTransformRows(slot, outputPose[bound.jointIndex]);
-					break;
-				case PoseMath::OverrideStampKind::kBlend:
-					{
-						const float* from = fromSnapshot ?
-						                        reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) :
-						                        (persistentPartial ? liveBasePose.data() + i * 16 :
-						                                             slot);  // engine's live pose this frame
-						WriteNiTransformRowsBlended(slot, from, outputPose[bound.jointIndex], w);
+				const float effectiveWeight = PoseMath::EffectiveWeight(weight, poseWeight);
+				for (std::size_t i = 0; i < binding.size(); ++i) {
+					const auto& bound = binding[i];
+					if (bound.rigIndex >= rigBoneCount) {
+						continue;
 					}
-					break;
+					float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
+					PoseMath::WriteAdditive(slot, liveBasePose.data() + i * 16,
+						reinterpret_cast<const float*>(&referencePose[bound.jointIndex]),
+						reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
+						effectiveWeight * std::max(bound.weight, bound.contactWeight * contactWeight));
+					if (!probeRecorded) {
+						recordProbe(slot, bound.rigIndex);
+					}
 				}
-				if (!probeRecorded) {
-					recordProbe(slot, bound.rigIndex);
+			} else {
+				// Override: per-bone weight = transition * persistent layer strength * mask weight.
+				// Weight-1 bones take the sampled pose absolutely; fractional bones blend against the
+				// immutable engine base (steady state) or the cross-fade-from snapshot (blend-in), so a
+				// masked gesture overrides the arm chain while the feathered seam keeps live torso sway.
+				const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f || contactPose.enabled;
+				if (persistentPartial && !captureLiveBase()) {
+					return;
+				}
+				const bool hasSnapshot = blendPhase == BlendPhase::kIn && blendFromValid;
+				for (std::size_t i = 0; i < binding.size(); ++i) {
+					const auto& bound = binding[i];
+					if (bound.rigIndex >= rigBoneCount) {
+						continue;
+					}
+					float* slot = buf + static_cast<std::size_t>(bound.rigIndex) * 16;
+					// A stage-local mask may expand at this boundary. Only joints the outgoing
+					// stage actually stamped have a valid OSF snapshot; newly admitted joints
+					// blend from Starfield's live pose instead of the unshown parts of its clip.
+					const bool fromSnapshot = hasSnapshot && bound.jointIndex < blendFromDriven.size() &&
+					                          blendFromDriven[bound.jointIndex] != 0;
+					const float maskWeight = std::max(bound.weight, bound.contactWeight * contactWeight);
+					// Zero-total-weight bones normally skip; the stage-handoff snapshot case must not
+					// (clip A -> B begins at A instead of flashing through vanilla). The decision is
+					// PoseMath::ClassifyOverrideStamp so the boundary behavior is pinned by tests.
+					const float w = weight * poseWeight * maskWeight;
+					switch (PoseMath::ClassifyOverrideStamp(weight, poseWeight, maskWeight, fromSnapshot)) {
+					case PoseMath::OverrideStampKind::kSkip:
+						continue;
+					case PoseMath::OverrideStampKind::kSnapshot:
+						WriteNiTransformRowsBlended(slot,
+							reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]),
+							outputPose[bound.jointIndex], 0.0f);
+						break;
+					case PoseMath::OverrideStampKind::kTarget:
+						WriteNiTransformRows(slot, outputPose[bound.jointIndex]);
+						break;
+					case PoseMath::OverrideStampKind::kBlend:
+						{
+							const float* from = fromSnapshot ?
+							                        reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) :
+							                        (persistentPartial ? liveBasePose.data() + i * 16 :
+							                                             slot);  // engine's live pose this frame
+							WriteNiTransformRowsBlended(slot, from, outputPose[bound.jointIndex], w);
+						}
+						break;
+					}
+					if (!probeRecorded) {
+						recordProbe(slot, bound.rigIndex);
+					}
 				}
 			}
 		}

@@ -4,6 +4,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Serialization/ClipDurations.h"
 #include "Serialization/WheelPins.h"
+#include "Util/Profile.h"
 #include "Util/StringUtil.h"
 
 #include <nlohmann/json.hpp>
@@ -250,6 +251,8 @@ namespace OSF::API::UIBridgeCatalog
 	// Copies fields from the pinned registry snapshot, then builds JSON afterwards.
 	json BuildCatalog(bool a_library)
 	{
+		OSF_PROFILE_SCOPE_N("UI.BuildCatalog");
+
 		const bool wheelCustomized = Serialization::WheelPins::Customized();
 		const auto wheelEntries = Serialization::WheelPins::Entries();
 		const auto wheelOrder = [&wheelEntries](std::string_view a_scene, std::int32_t a_stage) {
@@ -600,6 +603,8 @@ namespace OSF::API::UIBridgeCatalog
 			});
 		}
 		REX::DEBUG("[UI] {} built -> {} entr{}", a_library ? "library" : "catalog", cards.size(), cards.size() == 1 ? "y" : "ies");
+		OSF_PROFILE_PLOT(a_library ? "UI.LibraryEntries" : "UI.CatalogEntries",
+			static_cast<std::int64_t>(cards.size()));
 		return arr;
 	}
 

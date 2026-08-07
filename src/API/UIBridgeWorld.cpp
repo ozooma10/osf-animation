@@ -5,6 +5,7 @@
 #include "Camera/CameraService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/SceneRegistry.h"
+#include "Util/Profile.h"
 #include "Util/Species.h"
 
 #include <nlohmann/json.hpp>
@@ -607,6 +608,8 @@ namespace OSF::API::UIBridgeWorld
 		// loaded actors, and a rendered scene graph is the raw-field proof of that.
 		void EnumerateLoadedActors(const RE::NiPoint3& a_origin, float a_radius, std::vector<RE::Actor*>& a_out)
 		{
+			OSF_PROFILE_SCOPE_N("UI.Pick.EnumerateActors");
+
 			EnumerateHighActors(a_out);
 			auto* tes = RE::TES::GetSingleton();
 			if (!tes || a_radius <= 0.0f) {
@@ -848,6 +851,8 @@ namespace OSF::API::UIBridgeWorld
 		// and sends back the hot marker's token (OnPickScreen just validates it).
 		void OnProjectPickables(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
+			OSF_PROFILE_SCOPE_N("UI.ProjectPickables");
+
 			const json        j = ParsePayload(a_payload);
 			const std::string slot = StrOr(j, "slot") == "furniture" ? "furniture" : "actor";
 			const float       width = std::clamp(NumOr(j, "width", 0.0f), 320.0f, 10000.0f);
@@ -878,6 +883,8 @@ namespace OSF::API::UIBridgeWorld
 			std::size_t offScreen = 0;
 			float       smallMaxPx = 0.0f;  // largest size the small-gate rejected (tuning signal)
 			const auto consider = [&](RE::TESObjectREFR* a_ref) {
+				OSF_PROFILE_SCOPE_N("UI.Pick.ProjectCandidate");
+
 				PickScreenBound bound;
 				if (!ComputePickScreenBound(*projection, a_ref, actorSlot, width, height, bound)) {
 					// Classify the failure for the stats line only: an exterior grid
@@ -940,6 +947,8 @@ namespace OSF::API::UIBridgeWorld
 					});
 				}
 			}
+			OSF_PROFILE_PLOT("UI.Pick.Enumerated", static_cast<std::int64_t>(enumerated));
+			OSF_PROFILE_PLOT("UI.Pick.Candidates", static_cast<std::int64_t>(candidates.size()));
 
 			// Periodic snapshot of what each gate saw, at DEBUG (Settings > OSF
 			// Animation > Advanced > Log level). Reading one line resolves where
