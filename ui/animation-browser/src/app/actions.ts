@@ -1,7 +1,7 @@
 import type {
-  ActiveScene,
+  ActiveLaunch,
   AfterLaunch,
-  BrowseKind,
+  BrowseKindInput,
   BrowserMode,
   BrowserPreferences,
   CastMember,
@@ -29,7 +29,7 @@ export type BrowserAction =
   | { type: "routes/transition"; transitionId: string }
   | { type: "routes/actor"; token: number }
   | { type: "routes/previewSucceeded"; handle: number; routeId: string }
-  | { type: "active/received"; scenes: ActiveScene[] }
+  | { type: "active/received"; scenes: ActiveLaunch[] }
   | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch; inspect?: boolean }
   | { type: "launch/failed"; error: string }
   | { type: "settings/received"; preferences: Partial<BrowserPreferences> }
@@ -64,15 +64,15 @@ export type BrowserAction =
   | { type: "filter/species" }
   | { type: "browse/all" }
   | { type: "browse/hidden" }
-  | { type: "browse/kind"; kind: BrowseKind }
+  | { type: "browse/kind"; kind: BrowseKindInput }
   | { type: "library/group"; key: string; open: boolean }
   | { type: "brief/fullAnimations" }
   | { type: "brief/options" }
-  | { type: "brief/option"; field: "strip" | "lock" | "camera" | "speed"; value: string }
+  | { type: "brief/option"; field: "hideApparel" | "playerInputLock" | "camera" | "speed"; value: string }
   | { type: "markers/toggled" }
   | { type: "step/toggled"; step: "cast" | "anchor" }
   | { type: "minimized/changed"; minimized: boolean }
-  | { type: "scene/stopped"; handle: number }
+  | { type: "active/stopped"; handle: number }
   | { type: "wheel/entered"; tagPrefix: string; target: { token: number; name: string } | null }
   | { type: "wheel/exited" }
   | { type: "wheel/requested" }

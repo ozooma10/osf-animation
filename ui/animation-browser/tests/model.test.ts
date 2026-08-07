@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffImportReports, evaluateScene, normalizeImportReport, normalizeRouteCatalog, normalizeScene, safeNormalizeScene } from "../src/model";
+import { diffImportReports, evaluateScene, normalizeCatalog, normalizeImportReport, normalizeRouteCatalog, normalizeScene, safeNormalizeScene } from "../src/model";
 
 describe("scene normalization", () => {
   it("normalizes registry defaults and duration values", () => {
@@ -10,7 +10,7 @@ describe("scene normalization", () => {
       roles: [{ name: "lead", filters: { gender: "female" } }],
       inPlace: true,
       stages: [{ name: "idle", loopSec: "2.5", loops: 0, tracks: [
-        { kind: "cue", at: 0.25, anchor: "fraction", label: "helmet.off", repeat: true },
+        { kind: "cue", at: 0.25, trackPosition: "fraction", label: "helmet.off", repeat: true },
         { kind: "invalid", at: 2, label: "drop me" },
       ] }],
     });
@@ -20,15 +20,15 @@ describe("scene normalization", () => {
       species: "human",
       actorCount: 1,
       roles: [{ name: "lead", gender: "female" }],
-      policy: { stripActors: "inherit", lockPlayer: "inherit", fade: "off" },
+      policy: { hideApparel: "inherit", playerInputLock: "inherit", fade: "off" },
       folder: "Furniture/Seated",
-      inPlace: true,
+      worldPlacement: "followActor",
     });
     expect(scene.stages[0]).toMatchObject({
       index: 0,
       loopSec: 2.5,
       loops: 0,
-      tracks: [{ kind: "cue", at: 0.25, anchor: "fraction", label: "helmet.off", repeat: true }],
+      tracks: [{ kind: "cue", at: 0.25, trackPosition: "fraction", label: "helmet.off", repeat: true }],
     });
     expect(scene).not.toHaveProperty("genders");
     expect(scene).not.toHaveProperty("shape");
@@ -40,6 +40,50 @@ describe("scene normalization", () => {
   it("does not let an invalid record blank a catalog", () => {
     expect(safeNormalizeScene(null)).toBeNull();
     expect(safeNormalizeScene({ id: "ok" })?.id).toBe("ok");
+  });
+
+  it("normalizes the legacy temporal anchor field without retaining spatially ambiguous language", () => {
+    const scene = normalizeScene({ id: "legacy.tracks", stages: [{ tracks: [
+      { kind: "cue", at: 0, anchor: "enter", label: "legacy" },
+      { kind: "cue", at: 1, anchor: "enter", trackPosition: "end", label: "canonical" },
+    ] }] });
+    expect(scene.stages[0].tracks.map((mark) => mark.trackPosition)).toEqual(["enter", "end"]);
+    expect(scene.stages[0].tracks[0]).not.toHaveProperty("anchor");
+  });
+
+  it("uses explicit catalog source kinds while preserving legacy bridge inference", () => {
+    expect(normalizeScene({
+      id: "osf.scene-clip/registered",
+      curated: true,
+      sourceKind: "derivedDebugAnimation",
+    })).toMatchObject({ sourceKind: "derivedDebugAnimation", curated: false });
+    expect(normalizeScene({
+      id: "plain",
+      curated: false,
+      sourceKind: "curatedAnimation",
+    })).toMatchObject({ sourceKind: "curatedAnimation", curated: true });
+    expect(normalizeScene({ id: "osf.scene-clip/curated", curated: true }).sourceKind).toBe("curatedAnimation");
+    expect(normalizeScene({ id: "osf.scene-clip/harvested" }).sourceKind).toBe("derivedDebugAnimation");
+    expect(normalizeScene({ id: "pack.scene" }).sourceKind).toBe("authoredScene");
+    expect(normalizeCatalog([
+      { id: "a", sourceKind: "authoredScene" },
+      { id: "c", sourceKind: "curatedAnimation" },
+      { id: "d", sourceKind: "derivedDebugAnimation" },
+      { id: "r", sourceKind: "referenceAnimation" },
+    ], true).map(({ sourceKind, library }) => [sourceKind, library])).toEqual([
+      ["referenceAnimation", true],
+      ["curatedAnimation", true],
+      ["derivedDebugAnimation", true],
+      ["referenceAnimation", true],
+    ]);
+  });
+
+  it("prefers canonical placement and policy fields while accepting legacy bridge fields", () => {
+    expect(normalizeScene({ placement: "anchorAndPin", inPlace: true,
+      hideApparel: false, stripActors: true, playerInputLock: false, lockPlayer: true })).toMatchObject({
+      worldPlacement: "anchorAndPin",
+      policy: { hideApparel: "off", playerInputLock: "off" },
+    });
   });
 });
 
@@ -54,17 +98,21 @@ describe("route debugger normalization", () => {
         layer: { clip: "head_to_held.af", durationHint: 3.3, mask: "upperBody", mode: "override", weight: 1 },
         commit: { frame: 24, id: "helmet.commit" },
         markers: [{ frame: 20, id: "helmet.moving" }],
-        props: [{ frame: 18, id: "helmet", attach: true, lifetime: "station", node: "R_AnimObject1" }],
+        props: [{ frame: 18, id: "helmet", attach: true, lifetime: "station",
+          attachmentNode: "R_Canonical", node: "R_Legacy" }],
         sounds: [{ frame: 23, spec: "$helmet,move" }],
       }],
     }]);
 
     expect(routes[0]).toMatchObject({ id: "helmet.route", sourceFile: "Suit/routes.osf.json" });
     expect(routes[0].stations[1].layer).toMatchObject({ clip: "held.af", holdAt: 1 });
+    expect(routes[0].transitions[0].interruption).toBe("finish-transition");
     expect(routes[0].transitions[0].events.map((event) => [event.kind, event.frame])).toEqual([
       ["prop", 18], ["marker", 20], ["sound", 23], ["commit", 24],
     ]);
     expect(routes[0].transitions[0].events[0]).toMatchObject({ label: "ATTACH helmet", lifetime: "station", external: false });
+    expect(routes[0].transitions[0].events[0].detail).toContain("attachment node R_Canonical");
+    expect(routes[0].transitions[0].events[0].detail).not.toContain("R_Legacy");
     expect(routes[0].transitions[0].events[3]).toMatchObject({ external: true });
   });
 });

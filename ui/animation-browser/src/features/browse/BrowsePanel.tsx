@@ -1,6 +1,6 @@
 import type { BrowserCommands } from "../../app/commands";
 import {
-  activeScenes,
+  activeLaunches,
   anchorShort,
   comparePlayableGroupKeys,
   comparePlayableItems,
@@ -35,22 +35,22 @@ interface EvaluatedPlayable {
 }
 
 function playableGroupKey(item: PlayableItem): string {
-  if (item.kind === "action" && !item.scene.pack && !item.scene.sourceFile) {
-    return `action-pack:${item.scene.id.split("/").filter(Boolean)[0] || "actions"}`;
+  if (item.kind === "emote" && !item.scene.pack && !item.scene.sourceFile) {
+    return `emote-pack:${item.scene.id.split("/").filter(Boolean)[0] || "emotes"}`;
   }
   return packKey(item.scene);
 }
 
 function playableGroupLabel(key: string, scenes: readonly SceneModel[]): string {
-  if (key.startsWith("action-pack:")) {
-    return key.slice("action-pack:".length).replace(/[-_]+/g, " ").toUpperCase();
+  if (key.startsWith("emote-pack:")) {
+    return key.slice("emote-pack:".length).replace(/[-_]+/g, " ").toUpperCase();
   }
   const label = packLabel(key, scenes);
   return scenes[0]?.library && /^vanilla-/i.test(key) ? `VANILLA / ${label}` : label;
 }
 
 function kindLabel(item: PlayableItem): string {
-  if (item.kind === "action") return item.scene.openEnded ? "ACTION · HOLDS" : "ACTION · ENDS";
+  if (item.kind === "emote") return item.scene.openEnded ? "EMOTE · HOLDS" : "EMOTE · ENDS";
   if (item.kind === "scene") return "SCENE";
   if (item.stage?.tags.includes("pose")) return "POSE · HOLDS";
   return item.stage?.openEnded ? "LOOP · HOLDS" : "ANIMATION";
@@ -64,7 +64,7 @@ function itemDuration(item: PlayableItem): string {
 function wheelEligible(item: PlayableItem): boolean {
   return item.stage
     ? isWheelStage(item.scene, item.stage)
-    : item.kind === "action" && isWheelEmote(item.scene);
+    : item.kind === "emote" && isWheelEmote(item.scene);
 }
 
 function PlayableRow({ state, entry, wheelKeys, commands }: {
@@ -148,7 +148,7 @@ function BrowseFilters({ state, commands, count, hiddenCount }: {
   const kinds: { value: BrowseKind; label: string }[] = [
     { value: "all", label: "ALL" },
     { value: "animation", label: "ANIMATIONS" },
-    { value: "action", label: "ACTIONS" },
+    { value: "emote", label: "EMOTES" },
     { value: "scene", label: "SCENES" },
   ];
   return <>
@@ -201,17 +201,17 @@ function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: Br
 }
 
 function ActiveBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  const scenes = activeScenes(state);
-  if (!scenes.length) return <Empty>No playables running.</Empty>;
-  return <><div class="browse-note"><Dot active/><span class="lbl">RUNNING · {scenes.length}</span>{scenes.length > 1 && <button class="reveal inline stop-all" onClick={commands.stopAll}>■ STOP ALL</button>}</div>
-    <div class="active-list">{scenes.map((active) => {
+  const launches = activeLaunches(state);
+  if (!launches.length) return <Empty>Nothing active.</Empty>;
+  return <><div class="browse-note"><Dot active/><span class="lbl">ACTIVE · {launches.length}</span>{launches.length > 1 && <button class="reveal inline stop-all" onClick={commands.stopAll}>■ STOP ALL</button>}</div>
+    <div class="active-list">{launches.map((active) => {
       const scene = sceneById(state, active.sceneId);
       const stages = scene?.stages ?? [];
       const frame = 1 / TIMELINE_FPS;
       const time = Math.min(active.time, active.duration);
       const clock = (value: number) => `${Math.floor(value / 60)}:${(value % 60).toFixed(2).padStart(5, "0")}`;
       return <div class={`active-card ${state.selectedId === active.sceneId ? "selected" : ""}`} key={active.handle}>
-        <button class="active-main" onClick={() => active.inspectionKind === "route" ? commands.toggleRouteDebugger(true) : commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{active.inspectionKind === "route" ? `${active.routeId} · ${active.transitionId}` : scene ? playableSceneTitle(scene) : active.sceneId}</span>{active.inspection && <span class="inspection-badge mono">{active.inspectionKind === "route" ? "ROUTE PREVIEW" : "PROP PREVIEW"}</span>}<span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
+        <button class="active-main" onClick={() => active.inspectionKind === "route" ? commands.toggleRouteDebugger(true) : commands.selectScene(active.sceneId)}><div class="active-headline"><span class="live-dot"/><span class="active-title">{active.inspectionKind === "route" ? `${active.routeId} · ${active.transitionId}` : scene ? playableSceneTitle(scene) : active.sceneId}</span>{active.inspection && <span class="inspection-badge mono">{active.inspectionKind === "route" ? "ROUTE PREVIEW" : "SCENE PREVIEW"}</span>}<span class="active-handle mono">#{active.handle}{scene && formatEstimate(scene) ? ` · ${formatEstimate(scene)}` : ""}</span></div>
           {stages.length > 1 && active.stage >= 0 && active.stage < stages.length && <div class="active-stage mono">STAGE {active.stage + 1}/{stages.length} · {stageLabel(scene!, active.stage).toUpperCase()}</div>}
           {!!active.cast.length && <div class="active-cast">{active.cast.map((member) => <span class={`active-actor ${member.player ? "player" : ""}`} key={member.token}>{member.name}{member.player ? " · YOU" : ""}</span>)}</div>}
         </button>
@@ -292,10 +292,10 @@ function InspectionTracks({ stage, time, duration, onSeek }: {
         <span class="timeline-playhead" style={{ left: `${playhead}%` }}/>
         {lane.marks.map((mark, index) => {
           const moment = timelineMarkMoment(mark, duration);
-          const unreachable = mark.anchor === "unreachable";
+          const unreachable = mark.trackPosition === "unreachable";
           const detail = [mark.label, mark.detail, mark.role && `role ${mark.role}`, mark.repeat && "every loop", moment, unreachable && "never fires — authored past the clip end"].filter(Boolean).join(" · ");
           return <button class={`timeline-marker${unreachable ? " unreachable" : ""}`} style={{ left: `${timelineMarkAt(mark, duration) * 100}%` }} title={detail}
-            aria-label={detail} disabled={!duration || unreachable} onClick={() => onSeek(mark)} key={`${mark.anchor}:${mark.at}:${index}`}><span/></button>;
+            aria-label={detail} disabled={!duration || unreachable} onClick={() => onSeek(mark)} key={`${mark.trackPosition}:${mark.at}:${index}`}><span/></button>;
         })}
       </div>
       <div class="timeline-events">
@@ -308,14 +308,14 @@ function InspectionTracks({ stage, time, duration, onSeek }: {
 }
 
 export function BrowsePanel({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  const live = activeScenes(state);
+  const live = activeLaunches(state);
   return <>
     <div class="browse-head">
       <div class="mode-switch">
         <button class={`mode-btn ${state.mode !== "active" ? "on" : ""}`} onClick={() => commands.setMode("scenes")}>BROWSE</button>
         {!!live.length && <button class={`mode-btn live ${state.mode === "active" ? "on" : ""}`} onClick={() => commands.setMode("active")}><span class="live-dot"/>ACTIVE · {live.length}</button>}
       </div>
-      <div class="search-field grow"><input type="text" value={state.filters.search} onInput={(event) => commands.setSearch(event.currentTarget.value)} placeholder="⌕ search animations · actions · scenes · tags" autocomplete="off" spellcheck={false}/></div>
+      <div class="search-field grow"><input type="text" value={state.filters.search} onInput={(event) => commands.setSearch(event.currentTarget.value)} placeholder="⌕ search animations · emotes · scenes · tags" autocomplete="off" spellcheck={false}/></div>
     </div>
     <div class="browse-body">{state.mode === "active" ? <ActiveBrowser state={state} commands={commands}/> : <UnifiedBrowser state={state} commands={commands}/>}</div>
   </>;

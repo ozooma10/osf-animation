@@ -1,5 +1,5 @@
 import { evaluateScene, type ImportFile, type SceneEvaluation, type SceneModel, type SceneStage } from "../model";
-import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember, type FurnitureTarget, type PickTarget } from "./state";
+import { PLAYER_TOKEN, type ActiveLaunch, type BrowserState, type CastMember, type FurnitureTarget, type PickTarget } from "./state";
 
 /** The pick target under the pointer. THE one scoring function for world picking:
  *  the marker layer uses it to light the hot marker and the click handler uses it
@@ -61,7 +61,7 @@ export interface WheelCandidate {
   source: SceneModel | SceneStage;
 }
 
-export type PlayableKind = "animation" | "action" | "scene";
+export type PlayableKind = "animation" | "emote" | "scene";
 
 /**
  * Browser-facing launch target. A collection is deliberately absent: packs,
@@ -97,14 +97,13 @@ export function emoteCatalog(state: BrowserState): SceneModel[] {
   return state.catalog.filter((scene) => isEmote(scene) && unlistedVisible(state, scene));
 }
 
-/** A clip entry the engine HARVESTED from a scene's stages — the author-only debug surface that
- *  lets a multi-actor scene be inspected one raw clip at a time. Entries a pack REGISTERED via
- *  `clipLibrary` share the same id namespace but are authored content whose whole purpose is to
- *  appear under Animations, so `curated` excludes them: without that check a pack shipping only a
- *  clip library (no scenes) was invisible unless the user revealed hidden content. */
-export function isGeneratedSceneClip(scene: SceneModel): boolean {
-  return !scene.curated && scene.id.toLowerCase().startsWith("osf.scene-clip/");
+/** A clip entry the engine harvested from authored stages for the author-only debug surface. */
+export function isDerivedDebugAnimation(scene: SceneModel): boolean {
+  return scene.sourceKind === "derivedDebugAnimation";
 }
+
+/** Compatibility spelling retained for view extensions compiled against the earlier selector. */
+export const isGeneratedSceneClip = isDerivedDebugAnimation;
 
 export function playableKey(sceneId: string, stage: number | null): string {
   return wheelKey(sceneId, stage);
@@ -177,7 +176,7 @@ export function playableItems(state: BrowserState): PlayableItem[] {
 function buildPlayableItems(state: BrowserState): PlayableItem[] {
   const items: PlayableItem[] = [];
   for (const scene of state.catalog) {
-    const kind: PlayableKind = isEmote(scene) ? "action" : "scene";
+    const kind: PlayableKind = isEmote(scene) ? "emote" : "scene";
     items.push({
       key: playableKey(scene.id, null),
       kind,
@@ -256,7 +255,7 @@ export function playableVisible(state: BrowserState, item: PlayableItem): boolea
 
 export function isHiddenPlayable(item: PlayableItem): boolean {
   return item.kind === "animation"
-    ? isGeneratedSceneClip(item.scene)
+    ? isDerivedDebugAnimation(item.scene)
     : !item.scene.library && item.scene.unlisted;
 }
 
@@ -279,7 +278,7 @@ export function selectedPlayable(state: BrowserState): PlayableItem | null {
 export function animationList(state: BrowserState): SceneModel[] {
   return [
     ...emoteCatalog(state),
-    ...filteredLibrary(state).filter((scene) => state.showHidden || !isGeneratedSceneClip(scene)),
+    ...filteredLibrary(state).filter((scene) => state.showHidden || !isDerivedDebugAnimation(scene)),
   ];
 }
 
@@ -306,17 +305,20 @@ export function sceneTitle(state: BrowserState, id: string): string {
   return scene ? playableSceneTitle(scene) : id || "scene";
 }
 
-export function activeScenes(state: BrowserState): ActiveScene[] {
+export function activeLaunches(state: BrowserState): ActiveLaunch[] {
   if (state.active) return state.active;
   return state.lastHandle
     ? [{ handle: state.lastHandle, sceneId: state.lastSceneId, stage: 0, player: true, cast: [], time: 0, duration: 0, speed: 0, inspection: false, inspectionKind: "scene" as const, routeId: "", transitionId: "" }]
     : [];
 }
 
+/** Compatibility spelling aligned with the frozen native `activeScenes` event name. */
+export const activeScenes = activeLaunches;
+
 export function busyTokens(state: BrowserState): ReadonlySet<number> {
   const tokens = new Set<number>();
-  for (const scene of activeScenes(state)) {
-    for (const member of scene.cast) tokens.add(member.token);
+  for (const launch of activeLaunches(state)) {
+    for (const member of launch.cast) tokens.add(member.token);
   }
   return tokens;
 }
@@ -434,7 +436,7 @@ export function needsText(state: BrowserState, scene: SceneModel, evaluation = e
   }
   if (evaluation.overCast) {
     const count = evaluation.castCount - evaluation.actorCount;
-    return `-${count} crew`;
+    return `-${count} cast`;
   }
   return "";
 }

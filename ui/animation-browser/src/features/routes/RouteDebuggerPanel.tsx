@@ -1,5 +1,5 @@
 import type { BrowserCommands } from "../../app/commands";
-import { PLAYER_TOKEN, type ActiveScene, type BrowserState, type CastMember } from "../../app/state";
+import { PLAYER_TOKEN, type ActiveLaunch, type BrowserState, type CastMember } from "../../app/state";
 import type { RouteEventKind, RouteEventModel, RouteModel, RouteTransitionModel } from "../../model";
 import { TIMELINE_FPS, timelineFrame } from "../browse/timeline";
 import { Empty } from "../shared/Shared";
@@ -15,7 +15,7 @@ function routeTarget(state: BrowserState): CastMember | null {
   return state.cast.find((member) => member.token === state.routeActorToken) ?? state.cast[0] ?? null;
 }
 
-function activePreview(state: BrowserState, route: RouteModel | null, transition: RouteTransitionModel | null): ActiveScene | null {
+function activeRoutePreview(state: BrowserState, route: RouteModel | null, transition: RouteTransitionModel | null): ActiveLaunch | null {
   if (!route || !transition) return null;
   return state.active?.find((item) => item.inspectionKind === "route"
     && item.routeId === route.id && item.transitionId === transition.id) ?? null;
@@ -52,14 +52,14 @@ function TargetPicker({ state, commands }: { state: BrowserState; commands: Brow
   const target = routeTarget(state);
   return <div class="route-target">
     <div class="route-target-copy"><span class="eb">Preview actor</span><strong>{target?.name ?? "No actor selected"}</strong>
-      <span>Routes are one-actor overlays. The debugger uses one member of the current crew.</span></div>
+      <span>The debugger runs side-effect-free preview sessions in inspection mode with one actor from the current cast.</span></div>
     <div class="route-target-choices">
       {state.cast.map((member) => <button class={target?.token === member.token ? "on" : ""}
         title={`Use ${member.name} for route previews`} onClick={() => commands.selectRouteActor(member.token)} key={member.token}>
         {member.token === PLAYER_TOKEN ? "YOU" : member.name}
       </button>)}
       {!state.cast.length && <button onClick={commands.togglePlayer}>+ PLAYER</button>}
-      <button class="quiet" onClick={() => commands.toggleRouteDebugger(false)}>EDIT CREW</button>
+      <button class="quiet" onClick={() => commands.toggleRouteDebugger(false)}>EDIT CAST</button>
     </div>
   </div>;
 }
@@ -74,11 +74,11 @@ function Topology({ route, selected, commands }: { route: RouteModel; selected: 
       </div>)}
     </div>
     <div class="route-transitions">
-      {route.transitions.map((transition, index) => <button class={`route-edge ${selected?.id === transition.id ? "selected" : ""}`}
+      {route.transitions.map((transition, index) => <button class={`route-transition ${selected?.id === transition.id ? "selected" : ""}`}
         onClick={() => commands.selectRouteTransition(transition.id)} key={transition.id}>
-        <span class="route-edge-index mono">{String(index + 1).padStart(2, "0")}</span>
-        <span class="route-edge-path"><strong>{transition.from}</strong><i>→</i><strong>{transition.to}</strong><small>{transition.id}</small></span>
-        <span class="route-edge-meta mono">{transition.events.length} EVENTS<br/>{transition.interruption === "finish" ? "FINISH" : "XFADE PRE-COMMIT"}</span>
+        <span class="route-transition-index mono">{String(index + 1).padStart(2, "0")}</span>
+        <span class="route-transition-path"><strong>{transition.from}</strong><i>→</i><strong>{transition.to}</strong><small>{transition.id}</small></span>
+        <span class="route-transition-meta mono">{transition.events.length} EVENTS<br/>{transition.interruption === "finish-transition" ? "FINISH TRANSITION" : "XFADE PRE-COMMIT"}</span>
       </button>)}
     </div>
   </section>;
@@ -93,7 +93,7 @@ function nearestEvent(events: RouteEventModel[], frame: number, direction: -1 | 
 
 function EventLanes({ transition, preview, totalFrames, currentFrame, commands }: {
   transition: RouteTransitionModel;
-  preview: ActiveScene | null;
+  preview: ActiveLaunch | null;
   totalFrames: number;
   currentFrame: number;
   commands: BrowserCommands;
@@ -142,7 +142,7 @@ function TransitionInspector({ state, route, transition, commands }: {
   transition: RouteTransitionModel;
   commands: BrowserCommands;
 }) {
-  const preview = activePreview(state, route, transition);
+  const preview = activeRoutePreview(state, route, transition);
   const target = routeTarget(state);
   const hintFrames = transition.layer.durationHint ? timelineFrame(transition.layer.durationHint) : 0;
   const eventFrames = transition.events.reduce((max, event) => Math.max(max, Math.ceil(event.frame) + 1), 1);
@@ -160,7 +160,7 @@ function TransitionInspector({ state, route, transition, commands }: {
       <div class="route-transition-actions">
         <button class="route-preview-btn" disabled={!state.ready || !target}
           onClick={() => target && commands.inspectRoute(route.id, transition.id, target.token)}>
-          ◇ {preview ? "RESTART PREVIEW" : "PREVIEW TRANSITION"}
+          ◇ {preview ? "RESTART PREVIEW" : "START PREVIEW"}
         </button>
         {preview && <button class="route-stop-btn" onClick={() => commands.stop(preview.handle)}>■ STOP</button>}
       </div>
@@ -169,14 +169,14 @@ function TransitionInspector({ state, route, transition, commands }: {
       <span><label>CLIP</label><strong title={transition.layer.clip}>{transition.layer.clip || "—"}</strong></span>
       <span><label>MASK</label><strong>{transition.layer.mask || "—"}</strong></span>
       <span><label>POSE</label><strong>{transition.layer.mode} · {transition.layer.weight.toFixed(2)}</strong></span>
-      <span><label>INTERRUPT</label><strong>{transition.interruption}</strong></span>
+      <span><label>INTERRUPT</label><strong>{transition.interruption.replace(/-/g, " ")}</strong></span>
       <span><label>DURATION</label><strong>{preview?.duration ? `${preview.duration.toFixed(3)}s decoded` : transition.layer.durationHint ? `${transition.layer.durationHint.toFixed(3)}s authored` : "decode on preview"}</strong></span>
     </div>
     <div class={`route-transport ${preview ? "live" : "idle"}`}>
       <button class="route-event-step" disabled={!preview || !before} title="Previous authored event" onClick={() => seekEvent(before)}>◀ EVENT</button>
       <button class="frame-step" disabled={!preview || currentFrame <= 0} title="Previous frame ([)" onClick={() => commands.stepRouteFrame(-1)}>◀|</button>
       <button class={`play-toggle ${preview?.speed ? "" : "paused"}`} disabled={!preview}
-        title={preview?.speed ? "Pause preview" : "Play preview — loops with callbacks and audio suppressed"}
+        title={preview?.speed ? "Pause preview" : "Play preview — loops in inspection mode with callbacks and audio suppressed"}
         onClick={() => preview && commands.setPlayback(preview.handle, undefined, preview.speed > 0)}>{preview?.speed ? "Ⅱ" : "▶"}</button>
       <button class="frame-step" disabled={!preview || currentFrame >= totalFrames} title="Next frame (])" onClick={() => commands.stepRouteFrame(1)}>|▶</button>
       <button class="route-event-step" disabled={!preview || !after || isUnreachable(after, totalFrames)} title="Next authored event" onClick={() => seekEvent(after)}>EVENT ▶</button>
@@ -187,7 +187,7 @@ function TransitionInspector({ state, route, transition, commands }: {
       <span class="route-clock mono"><strong>FRAME {currentFrame} / {totalFrames}</strong><span>{seconds(time)} / {seconds(preview?.duration ?? totalFrames / TIMELINE_FPS)}</span></span>
     </div>
     <EventLanes transition={transition} preview={preview} totalFrames={totalFrames} currentFrame={currentFrame} commands={commands}/>
-    <div class="route-debug-boundary"><strong>DEBUG PREVIEW BOUNDARY</strong><span>Pose and OSF-owned props are reconstructed at the selected frame. Commit/marker callbacks, external props, audio, destination-station entry, and consumer state changes are not fired. <kbd>[</kbd> / <kbd>]</kbd> steps one 30 fps frame.</span></div>
+    <div class="route-debug-boundary"><strong>INSPECTION MODE BOUNDARY</strong><span>Pose and OSF-owned props are reconstructed at the selected frame. Commit/marker callbacks, external props, audio, destination-station entry, and consumer state changes are not fired. <kbd>[</kbd> / <kbd>]</kbd> steps one 30 fps frame.</span></div>
   </section>;
 }
 
@@ -197,7 +197,7 @@ export function RouteDebuggerPanel({ state, commands }: { state: BrowserState; c
   const transition = route?.transitions.find((item) => item.id === state.selectedTransitionId) ?? route?.transitions[0] ?? null;
   return <section class="route-debugger" aria-label="Route Debugger">
     <div class="settings-head route-debugger-head">
-      <div><p class="eb">Overlay route inspection</p><h2>Route Debugger</h2></div>
+      <div><p class="eb">Overlay route debugger</p><h2>Route Debugger</h2></div>
       <div class="route-head-actions"><button class="iconbtn" type="button" title="Refresh route catalog" onClick={commands.refreshRoutes}>⟳</button>
         <button class="iconbtn" type="button" title="Close Route Debugger" aria-label="Close Route Debugger" onClick={() => commands.toggleRouteDebugger(false)}>×</button></div>
     </div>

@@ -6,7 +6,7 @@ import { SexTag, memberSex } from "../shared/Shared";
 function StepHead({ open, summary, onClick }: { open: boolean; summary: string; onClick(): void }) {
   return (
     <button class="step-head" onClick={onClick}>
-      <span class="step-num">1</span><span class="eb">CREW</span>
+      <span class="step-num">1</span><span class="eb">CAST</span>
       <span class="step-note">{summary}</span><span class="chev">{open ? "▾" : "▸"}</span>
     </button>
   );
@@ -35,7 +35,7 @@ function CastChip({ member, index, live, sex, commands }: {
         </span>
       )}
       {live && <span class="cast-busy" title="Currently in a running scene — launching on them replaces it">LIVE</span>}
-      <button class="chip-x" title={player ? "Remove player (NPC-only scene)" : "Remove from crew"}
+      <button class="chip-x" title={player ? "Remove player (NPC-only scene)" : "Remove from cast"}
         onClick={() => player ? commands.togglePlayer() : commands.removeMember(index)}>×</button>
     </span>
   );
@@ -59,7 +59,7 @@ export function CastPanel({ state, commands }: { state: BrowserState; commands: 
           <CastChip key={member.token} member={member} index={index} live={busy.has(member.token)}
             sex={memberSex(state, member)} commands={commands}/>
         ))}
-        {!hasPlayer(state) && <button class="castline ghost" title="Add player back to the crew" onClick={commands.togglePlayer}>＋ Player</button>}
+        {!hasPlayer(state) && <button class="castline ghost" title="Add player back to the cast" onClick={commands.togglePlayer}>＋ Player</button>}
       </div>
       {state.cast.length > 1 && <div class="cast-order-hint mono">A·B·C order sets roles — arrange in ROLES →</div>}
       <div class="step-sub"><span class="lbl">NEARBY</span><span class="step-tools">

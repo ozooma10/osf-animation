@@ -66,7 +66,7 @@ function Detail({ file }: { file: ImportFile }) {
     { label: "Nodes", value: String(file.nodes) },
     { label: "Stages", value: String(file.stages) },
     { label: "Roles", value: String(file.roles) },
-    { label: "Clip slots", value: String(file.clips) },
+    { label: "Clip specs", value: String(file.clips) },
     { label: "Distinct clips", value: String(file.distinctClips) },
   ];
   if (file.missingClips) cells.push({ label: "Missing clips", value: String(file.missingClips) });
@@ -181,7 +181,7 @@ export function ImportsPanel({ state, commands }: { state: BrowserState; command
   const reload = state.importReload;
   const delta = reload.delta;
   const changedFiles = delta.changedFiles + delta.addedFiles + delta.removedFiles;
-  return <section class="settings-panel imports-panel" aria-label="Scene file imports">
+  return <section class="settings-panel imports-panel" aria-label="Content file imports">
     <div class="settings-head">
       <div><p class="eb">Author diagnostics</p><h2>Import workshop</h2></div>
       <div class="imp-head-tools">
@@ -199,10 +199,10 @@ export function ImportsPanel({ state, commands }: { state: BrowserState; command
           <p>Save your JSON or assets, reload all registries, then review exactly what changed.</p>
         </div>
         <button class="primary" type="button" disabled={reload.status === "running"} onClick={commands.reloadImports}>
-          {reload.status === "running" ? "RELOADING…" : "RELOAD PACKS"}
+          {reload.status === "running" ? "RELOADING…" : "RELOAD CONTENT"}
         </button>
       </div>
-      {reload.status === "running" && <div class="imp-reload running">Reloading scenes, sounds, gear, and clip caches…</div>}
+      {reload.status === "running" && <div class="imp-reload running">Reloading content registries, gear, and clip caches…</div>}
       {reload.status === "error" && <div class="imp-reload error"><strong>Reload failed.</strong> {reload.error}</div>}
       {reload.status === "success" && <div class={`imp-reload ${delta.newProblems.length ? "warn" : "ok"}`}>
         <strong>{reload.scenes} scenes loaded in {formatMillis(reload.durationMs)}.</strong>

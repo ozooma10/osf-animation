@@ -40,7 +40,8 @@ export interface ActiveCastMember {
   player: boolean;
 }
 
-export interface ActiveScene {
+/** A handle-bearing active item: either a runtime scene or a side-effect-free preview session. */
+export interface ActiveLaunch {
   handle: number;
   sceneId: string;
   stage: number;
@@ -54,6 +55,9 @@ export interface ActiveScene {
   routeId: string;
   transitionId: string;
 }
+
+/** Compatibility spelling for callers that consume the frozen `activeScenes` bridge event. */
+export type ActiveScene = ActiveLaunch;
 
 export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";
 
@@ -78,15 +82,21 @@ export interface PluginVersion {
 }
 
 export interface LaunchOptions {
-  strip: "-1" | "0" | "1";
-  lock: "-1" | "0" | "1";
+  hideApparel: "-1" | "0" | "1";
+  playerInputLock: "-1" | "0" | "1";
   camera: string;
   speed: string;
 }
 
 export type BrowserMode = "scenes" | "library" | "active" | "wheel";
 export type BrowseMode = Exclude<BrowserMode, "wheel">;
-export type BrowseKind = "all" | "animation" | "action" | "scene";
+export type BrowseKind = "all" | "animation" | "emote" | "scene";
+/** Input accepted at state boundaries while old browser snapshots still say `action`. */
+export type BrowseKindInput = BrowseKind | "action";
+
+export function normalizeBrowseKind(value: BrowseKindInput): BrowseKind {
+  return value === "action" ? "emote" : value;
+}
 export type AfterLaunch = "minimize" | "stay" | "close";
 export type OpenTo = "last" | BrowseMode;
 export type UnavailableScenes = "ask" | "show" | "hide";
@@ -118,8 +128,8 @@ export interface BrowserPreferences {
   libraryDetail: "curated" | "full";
   librarySource: "all" | "custom";
   unavailableScenes: UnavailableScenes;
-  strip: "-1" | "0" | "1";
-  lock: "-1" | "0" | "1";
+  hideApparel: "-1" | "0" | "1";
+  playerInputLock: "-1" | "0" | "1";
   camera: "" | "thirdperson_hold" | "scene_orbit" | "freefly" | "vanity_orbit";
   speed: string;
   authorDetails: boolean;
@@ -133,8 +143,8 @@ export const DEFAULT_PREFERENCES: BrowserPreferences = {
   libraryDetail: "curated",
   librarySource: "all",
   unavailableScenes: "ask",
-  strip: "-1",
-  lock: "-1",
+  hideApparel: "-1",
+  playerInputLock: "-1",
   camera: "",
   speed: "1",
   authorDetails: false,
@@ -207,7 +217,7 @@ export interface BrowserState {
   routeActorToken: number;
   wheelCustomized: boolean;
   selectedId: string | null;
-  /** Selected library stage. Null selects the whole authored action/scene. */
+  /** Selected library stage. Null selects the whole authored emote/scene. */
   selectedStage: number | null;
   cast: CastMember[];
   furniture: FurnitureTarget | null;
@@ -218,7 +228,7 @@ export interface BrowserState {
   pickMode: "actor" | "furniture" | null;
   lastHandle: number;
   lastSceneId: string;
-  active: ActiveScene[] | null;
+  active: ActiveLaunch[] | null;
   opts: LaunchOptions;
   optsOpen: boolean;
   filters: { search: string; debugMode: boolean };
@@ -287,7 +297,7 @@ export function createInitialState(): BrowserState {
     lastHandle: 0,
     lastSceneId: "",
     active: null,
-    opts: { strip: "-1", lock: "-1", camera: "", speed: "1" },
+    opts: { hideApparel: "-1", playerInputLock: "-1", camera: "", speed: "1" },
     optsOpen: false,
     filters: { search: "", debugMode: DEFAULT_PREFERENCES.authorDetails },
     plugin: null,

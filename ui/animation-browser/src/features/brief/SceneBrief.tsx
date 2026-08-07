@@ -48,9 +48,9 @@ function RoleMap({ state, scene, evaluation, commands }: { state: BrowserState; 
   const dragFrom = useRef(-1);
   const actorCount = evaluation.actorCount;
   if (actorCount < 2 || !state.cast.length) return null;
-  const slots = Math.max(actorCount, state.cast.length);
+  const bindingRows = Math.max(actorCount, state.cast.length);
   return <div class="info-box"><div class="lbl">ROLES · {actorCount}</div><div class="role-map">
-    {Array.from({ length: slots }, (_, index) => {
+    {Array.from({ length: bindingRows }, (_, index) => {
       const inScene = index < actorCount;
       const role = inScene ? scene.roles[index] : null;
       const member = state.cast[index];
@@ -66,7 +66,7 @@ function RoleMap({ state, scene, evaluation, commands }: { state: BrowserState; 
           : <span class="role-empty mono">add an actor →</span>}
       </div>;
     })}
-  </div>{state.cast.length > actorCount && <div class="role-note mono">{state.cast.length - actorCount} extra beyond this scene's roles — trim in CREW</div>}</div>;
+  </div>{state.cast.length > actorCount && <div class="role-note mono">{state.cast.length - actorCount} extra beyond this scene's roles — trim in CAST</div>}</div>;
 }
 
 function AnimationList({ state, scene, canPlay, focusStage, commands }: { state: BrowserState; scene: SceneModel; canPlay: boolean; focusStage?: number | null; commands: BrowserCommands }) {
@@ -97,15 +97,15 @@ function AnimationList({ state, scene, canPlay, focusStage, commands }: { state:
 function Overrides({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const options = state.opts;
   const tweaks: string[] = [];
-  if (options.strip !== "-1") tweaks.push(`strip ${options.strip === "1" ? "on" : "off"}`);
-  if (options.lock !== "-1") tweaks.push(`lock ${options.lock === "1" ? "on" : "off"}`);
+  if (options.hideApparel !== "-1") tweaks.push(`apparel ${options.hideApparel === "1" ? "hidden" : "shown"}`);
+  if (options.playerInputLock !== "-1") tweaks.push(`input lock ${options.playerInputLock === "1" ? "on" : "off"}`);
   if (options.camera) tweaks.push(`cam ${options.camera.replace("thirdperson_hold", "3rd person").replace("scene_orbit", "orbit").replace("freefly", "free fly").replace("vanity_orbit", "vanity")}`);
   if (Number(options.speed) !== 1) tweaks.push(`${Number(options.speed).toFixed(1)}x`);
   return <div class={`overrides ${state.optsOpen ? "open" : ""}`}>
     <button class="overrides-head" title={`${state.optsOpen ? "Collapse" : "Expand"} start overrides`} onClick={commands.toggleOptions}><span class="chev">{state.optsOpen ? "▾" : "▸"}</span><span class="lbl">START OVERRIDES</span>{!state.optsOpen && <span class={`overrides-sum mono ${tweaks.length ? "hot" : ""}`}>{tweaks.length ? tweaks.join(" · ") : "defaults"}</span>}</button>
     {state.optsOpen && <div class="override-grid">
-      <Segmented label="STRIP" value={options.strip} onSelect={(value) => commands.setOption("strip", value)} options={[{ value: "-1", label: "Inherit" }, { value: "1", label: "On" }, { value: "0", label: "Off" }]}/>
-      <Segmented label="LOCK PLAYER" value={options.lock} onSelect={(value) => commands.setOption("lock", value)} options={[{ value: "-1", label: "Inherit" }, { value: "1", label: "On" }, { value: "0", label: "Off" }]}/>
+      <Segmented label="HIDE APPAREL" value={options.hideApparel} onSelect={(value) => commands.setOption("hideApparel", value)} options={[{ value: "-1", label: "Inherit" }, { value: "1", label: "On" }, { value: "0", label: "Off" }]}/>
+      <Segmented label="PLAYER INPUT LOCK" value={options.playerInputLock} onSelect={(value) => commands.setOption("playerInputLock", value)} options={[{ value: "-1", label: "Inherit" }, { value: "1", label: "On" }, { value: "0", label: "Off" }]}/>
       <Segmented label="CAMERA" wide value={options.camera} onSelect={(value) => commands.setOption("camera", value)} options={[{ value: "", label: "Inherit" }, { value: "thirdperson_hold", label: "3rd", title: "Third person" }, { value: "scene_orbit", label: "Orbit", title: "Scene orbit" }, { value: "freefly", label: "Free", title: "Free fly" }, { value: "vanity_orbit", label: "Vanity", title: "Vanity orbit" }]}/>
       <label class="override wide"><span class="lbl">SPEED <b>{Number(options.speed).toFixed(1)}x</b></span><input class="range" type="range" min="0.1" max="3" step="0.1" value={options.speed} onInput={(event) => commands.setOption("speed", event.currentTarget.value)}/></label>
     </div>}
@@ -117,7 +117,7 @@ function Diagnostics({ scene, evaluation }: { scene: SceneModel; evaluation: Sce
     ["weight · priority", `${scene.weight} · ${scene.priority}`],
     ["anchor", `${scene.requiresFurniture ? anchorFull(scene) || "required" : "free-space"} · ${evaluation.anchorGate ? "pass" : "fail"}`],
     ["stages", String(scene.stages.length)],
-    ["policies", `strip ${scene.policy.stripActors} · lock ${scene.policy.lockPlayer} · fade ${scene.policy.fade}`],
+    ["policies", `apparel ${scene.policy.hideApparel} · input lock ${scene.policy.playerInputLock} · fade ${scene.policy.fade}`],
     ["est duration", formatEstimate(scene) || "unmeasured"],
   ];
   return <div class="info-box hud"><div class="lbl">DIAGNOSTICS</div><div class="kv-list">{rows.map(([key, value]) => <div class="kv" key={key}><span class="k">{key}</span><span class="v">{value}</span></div>)}</div></div>;
@@ -128,7 +128,7 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
   if (!scene) return <div class="brief-empty"><span class="mono">Nothing selected.</span></div>;
   const evaluation = evaluateForState(state, scene);
   const ready = evaluation.gaps === 0;
-  const action = isEmote(scene);
+  const emote = isEmote(scene);
   const focusedStage = scene.library && state.selectedStage != null
     ? scene.stages.find((stage) => stage.index === state.selectedStage) ?? null
     : null;
@@ -138,11 +138,11 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
     : "free-space";
   const summary = focusedStage
     ? `${focusedStage.openEnded ? "holds until stopped" : "ends automatically"} · ${anchor}`
-    : action ? `${scene.openEnded ? "holds until stopped" : "ends automatically"} · ${anchor}`
-      : `${evaluation.seated}/${evaluation.actorCount || "?"} crew · ${anchor}`;
+    : emote ? `${scene.openEnded ? "holds until stopped" : "ends automatically"} · ${anchor}`
+      : `${evaluation.seated}/${evaluation.actorCount || "?"} cast · ${anchor}`;
   const wholeWheel = isWheelEmote(scene);
   const itemTitle = focusedStage ? playableStageTitle(scene, focusedStage) : playableSceneTitle(scene);
-  const itemKind = focusedStage ? "ANIMATION" : action ? "ACTION" : "SCENE";
+  const itemKind = focusedStage ? "ANIMATION" : emote ? "EMOTE" : "SCENE";
   const reason = !state.ready ? "Engine not connected." : ready ? "" : evaluation.reason;
   return <>
     <div class={`brief-status ${ready ? "" : "warn"}`}><span class="dot"/><p class="eb">{ready ? `${itemKind} · READY TO PLAY` : `${itemKind} · NOT READY`}</p></div>
@@ -154,7 +154,7 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
     <div class="brief-scroll"><RoleMap state={state} scene={scene} evaluation={evaluation} commands={commands}/><AnimationList state={state} scene={scene} canPlay={canPlay} focusStage={focusedStage?.index} commands={commands}/>{state.filters.debugMode && <Diagnostics scene={scene} evaluation={evaluation}/>}</div>
     <div class="brief-foot"><Overrides state={state} commands={commands}/><div class="launch-stack">
       {reason && <div class="mono wrap" style={{ color: "var(--text-faint)", textAlign: "center" }}>{reason}</div>}
-      {canPlay ? <div class="launch-actions"><button class="launch-btn inspect" title="Launch paused at the first frame and open the timeline" onClick={() => commands.launch(focusedStage?.index, !!focusedStage, undefined, true)}>◇ Inspect</button><button class="launch-btn go" onClick={() => commands.launch(focusedStage?.index, !!focusedStage)}>▶ {focusedStage ? "Play Animation" : action ? "Play Action" : "Launch Scene"}</button></div> : <button class="launch-btn blocked" disabled>{!state.ready ? "Engine Offline" : `Blocked · ${evaluation.gaps} gap${evaluation.gaps > 1 ? "s" : ""}`}</button>}
+      {canPlay ? <div class="launch-actions"><button class="launch-btn inspect" title="Launch paused at the first frame and open the timeline" onClick={() => commands.launch(focusedStage?.index, !!focusedStage, undefined, true)}>◇ Inspect</button><button class="launch-btn go" onClick={() => commands.launch(focusedStage?.index, !!focusedStage)}>▶ {focusedStage ? "Play Animation" : emote ? "Play Emote" : "Launch Scene"}</button></div> : <button class="launch-btn blocked" disabled>{!state.ready ? "Engine Offline" : `Blocked · ${evaluation.gaps} gap${evaluation.gaps > 1 ? "s" : ""}`}</button>}
       {!!state.lastHandle && <button class="stop-btn" onClick={() => commands.stop()}>■ Stop #{state.lastHandle}</button>}
     </div></div>
   </>;

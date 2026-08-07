@@ -3,7 +3,7 @@ import type { BrowserCommands } from "./commands";
 import { browserReducer } from "./reducer";
 import {
   WHEEL_MAX,
-  activeScenes,
+  activeLaunches,
   comparePlayableItems,
   hottestPickTarget,
   labeledCast,
@@ -29,7 +29,7 @@ import {
   PLAYER_CAST,
   PLAYER_TOKEN,
   createInitialState,
-  type ActiveScene,
+  type ActiveLaunch,
   type ActorIndicator,
   type BrowserState,
   type BrowserPreferences,
@@ -72,9 +72,9 @@ function normalizeNearby(payload: unknown): NearbyTarget[] {
   })).filter((item) => item.token !== 0);
 }
 
-export function normalizeActive(payload: unknown): ActiveScene[] {
+export function normalizeActive(payload: unknown): ActiveLaunch[] {
   if (!Array.isArray(payload)) return [];
-  return payload.filter(isRecord).map((scene): ActiveScene => ({
+  return payload.filter(isRecord).map((scene): ActiveLaunch => ({
     handle: Number(scene.handle) || 0,
     sceneId: String(scene.sceneId || ""),
     stage: Number.isInteger(scene.stage) ? scene.stage : 0,
@@ -238,7 +238,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         const current = stateRef.current;
         const merged = { ...current.preferences, ...preferences };
         if (!current.wheel) {
-          const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeScenes(current).length > 0);
+          const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
           dispatch({ type: "browser/opened", mode, resetBrowsing: !merged.rememberBrowsing });
           if (!current.libraryReceived) requestLibrary(true);
         }
@@ -299,7 +299,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       }
       case "osf.animation.pick": {
         // A miss keeps the pick armed — re-arming per attempt made the feature
-        // read as broken. Actor picks also stay armed on success (crew building
+        // read as broken. Actor picks also stay armed on success (cast building
         // is a multi-click flow; Esc or CANCEL finishes); a furniture hit
         // disarms because there is exactly one anchor slot to fill.
         // A local miss never reaches this handler (pickAt resolves clicks against the
@@ -314,7 +314,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           const member: CastMember = Number(record.token) === PLAYER_TOKEN ? PLAYER_CAST : { token: Number(record.token), name: String(record.name || "actor"), distance: typeof record.distance === "number" ? record.distance : null, species: String(record.species || "human"), sex: String(record.sex || "").toLowerCase() };
           const removing = stateRef.current.cast.some((candidate) => candidate.token === member.token);
           dispatch({ type: "cast/toggled", member });
-          showNotice("ok", `${member.name} ${removing ? "removed from" : "added to"} the crew — click more, Esc to finish.`);
+          showNotice("ok", `${member.name} ${removing ? "removed from" : "added to"} the cast — click more, Esc to finish.`);
         }
         break;
       }
@@ -355,7 +355,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch, inspect });
           if (wheelLaunch || afterLaunch === "close") send("osf.animation.requestClose");
           else showNotice("ok", inspect
-            ? `Inspecting "${sceneTitle(stateRef.current, sceneId)}" — scrub-only pose and scene-prop preview.`
+            ? `Inspecting "${sceneTitle(stateRef.current, sceneId)}" — scrub-only pose, tracks, and OSF-owned props.`
             : `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
         } else {
           const error = String(record.error || "Launch failed.");
@@ -391,7 +391,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         } else {
           dispatch({ type: "visibility/shown" });
           const current = stateRef.current;
-          const mode = preferredOpenMode(current.preferences.openTo, current.lastBrowseMode, activeScenes(current).length > 0);
+          const mode = preferredOpenMode(current.preferences.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
           dispatch({ type: "browser/opened", mode, resetBrowsing: !current.preferences.rememberBrowsing });
           if (!current.libraryReceived) requestLibrary(true);
         }
@@ -507,7 +507,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   // Launching and inspecting are the same start with one flag flipped, so switching the
   // inspected stage is simply this call again at another stage: the engine retires the
   // running preview for that cast before it starts the new one. A stage switch must re-send
-  // the PREVIEW'S binding, not the console's — the user may have edited CREW or the anchor
+  // the PREVIEW'S binding, not the console's — the user may have edited CAST or the anchor
   // since the preview started, and launching the new stage from that mutable state either
   // fails ("No cast selected") or re-casts the preview while the old actors stay frozen.
   // lastInspectBinding remembers the location/furniture the running inspection was
@@ -519,7 +519,12 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     if (!scene) return;
     const effectiveStage = Number.isInteger(stageIndex) ? Number(stageIndex) : sceneId ? null : current.selectedStage;
     const stageOnly = singleAnimation || (!!scene.library && effectiveStage != null);
-    const options: Record<string, unknown> = { strip: Number(current.opts.strip), lockPlayer: Number(current.opts.lock), camera: current.opts.camera, speed: Number(current.opts.speed) };
+    const options: Record<string, unknown> = {
+      hideApparel: Number(current.opts.hideApparel),
+      playerInputLock: Number(current.opts.playerInputLock),
+      camera: current.opts.camera,
+      speed: Number(current.opts.speed),
+    };
     if (effectiveStage != null && effectiveStage > 0) options.stage = effectiveStage;
     const castTokens = reuseCastTokens ?? current.cast.map((member) => member.token);
     const fields: Record<string, unknown> = {
@@ -531,7 +536,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     };
     const reuseBinding = reuseCastTokens && lastInspectBinding.current?.sceneId === scene.id ? lastInspectBinding.current : null;
     fields.location = reuseBinding?.location ?? {
-      mode: scene.requiresFurniture ? "furniture" : scene.inPlace ? "cast" : current.locationMode,
+      mode: scene.requiresFurniture ? "furniture" : scene.worldPlacement === "followActor" ? "cast" : current.locationMode,
       token: scene.requiresFurniture ? current.furniture?.token ?? 0 : current.locationToken ?? 0,
     };
     const roleNames = scene.roles.map((role) => role.name);
@@ -561,7 +566,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     selectRouteTransition: (transitionId) => dispatch({ type: "routes/transition", transitionId }),
     selectRouteActor: (token) => dispatch({ type: "routes/actor", token }),
     inspectRoute: (routeId, transitionId, actorToken) => {
-      showNotice("info", `Preparing route transition ${routeId} · ${transitionId}…`);
+      showNotice("info", `Preparing route preview ${routeId} · ${transitionId}…`);
       send("osf.animation.route.inspect", { routeId, transitionId, actorToken });
     },
     stepRouteFrame: (delta) => {
@@ -646,21 +651,21 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     launch: startPlayable,
     inspectStage: (sceneId, stage) => {
       // Re-inspect on the preview's own cast — the console cast may have been edited since.
-      const preview = activeScenes(stateRef.current).find((scene) => scene.inspection && scene.sceneId === sceneId);
+      const preview = activeLaunches(stateRef.current).find((launch) => launch.inspection && launch.sceneId === sceneId);
       startPlayable(stage, false, sceneId, true, preview?.cast.length ? preview.cast.map((member) => member.token) : undefined);
     },
-    stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "scene/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },
-    stopAll: () => { for (const scene of activeScenes(stateRef.current)) { send("osf.animation.stop", { handle: scene.handle }); dispatch({ type: "scene/stopped", handle: scene.handle }); } },
+    stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "active/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },
+    stopAll: () => { for (const launch of activeLaunches(stateRef.current)) { send("osf.animation.stop", { handle: launch.handle }); dispatch({ type: "active/stopped", handle: launch.handle }); } },
     advance: (handle) => {
       const current = stateRef.current;
-      const scenes = activeScenes(current);
-      const target = Number(handle) || current.lastHandle || (scenes.length === 1 ? scenes[0].handle : 0);
+      const launches = activeLaunches(current);
+      const target = Number(handle) || current.lastHandle || (launches.length === 1 ? launches[0].handle : 0);
       if (!target || Date.now() - lastAdvance.current < 350) return;
       lastAdvance.current = Date.now();
       // A preview has no runtime stage machine (the engine no-ops advance on inspection
       // handles), so NEXT on one means "inspect the next animation" — a fresh scrub-only
       // start on the same cast, wrapping at the end because this is a browsing tool.
-      const preview = scenes.find((scene) => scene.handle === target && scene.inspection);
+      const preview = launches.find((launch) => launch.handle === target && launch.inspection);
       if (preview) {
         const stages = sceneById(current, preview.sceneId)?.stages ?? [];
         if (stages.length < 2) return;

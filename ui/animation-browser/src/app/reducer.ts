@@ -1,6 +1,6 @@
 import { diffImportReports } from "../model";
 import type { BrowserAction } from "./actions";
-import { PLAYER_CAST, type BrowserState, type CastMember } from "./state";
+import { normalizeBrowseKind, PLAYER_CAST, type BrowserState, type CastMember } from "./state";
 
 function moveMember(members: CastMember[], from: number, to: number, after = false): CastMember[] {
   // Dropping a row on itself is a cancel, not a reorder: without this, dropping on the
@@ -143,8 +143,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         libFull: preferences.libraryDetail === "full",
         libCustomOnly: preferences.librarySource === "custom",
         opts: {
-          strip: "strip" in carried ? preferences.strip : state.opts.strip,
-          lock: "lock" in carried ? preferences.lock : state.opts.lock,
+          hideApparel: "hideApparel" in carried ? preferences.hideApparel : state.opts.hideApparel,
+          playerInputLock: "playerInputLock" in carried ? preferences.playerInputLock : state.opts.playerInputLock,
           camera: "camera" in carried ? preferences.camera : state.opts.camera,
           speed: "speed" in carried ? preferences.speed : state.opts.speed,
         },
@@ -214,7 +214,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ? state.cast.filter((_, memberIndex) => memberIndex !== index)
         : action.member.kind === "player" ? [PLAYER_CAST, ...state.cast] : [...state.cast, action.member];
       const removedLocation = index >= 0 && state.locationMode === "actor" && state.locationToken === action.member.token;
-      // Deliberately leaves stepOpen alone: collapsing CREW on every addition
+      // Deliberately leaves stepOpen alone: collapsing CAST on every addition
       // made armed world-picking feel broken (each click folded the panel).
       return {
         ...state,
@@ -322,7 +322,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "browse/hidden":
       return { ...state, showHidden: !state.showHidden };
     case "browse/kind":
-      return { ...state, browseKind: action.kind };
+      return { ...state, browseKind: normalizeBrowseKind(action.kind) };
     case "library/group": {
       const libOpen = new Map(state.libOpen);
       libOpen.set(action.key, action.open);
@@ -340,7 +340,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return { ...state, stepOpen: { ...state.stepOpen, [action.step]: !state.stepOpen[action.step] } };
     case "minimized/changed":
       return { ...state, minimized: action.minimized };
-    case "scene/stopped":
+    case "active/stopped":
       return {
         ...state,
         active: state.active?.filter((scene) => scene.handle !== action.handle) ?? null,

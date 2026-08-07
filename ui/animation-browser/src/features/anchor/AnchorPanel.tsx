@@ -46,10 +46,10 @@ export function AnchorPanel({ state, commands }: { state: BrowserState; commands
   const keyed = state.furniture;
   const selected = sceneById(state, state.selectedId);
   const requiresFurniture = !!selected?.requiresFurniture;
-  const inPlace = !!selected?.inPlace;
+  const followsActors = selected?.worldPlacement === "followActor";
   const locationActor = state.cast.find((member) => member.token === state.locationToken);
-  const locationSummary = inPlace
-    ? "in place"
+  const locationSummary = followsActors
+    ? "follow actors"
     : requiresFurniture ? keyed?.name ?? "furniture required"
     : state.locationMode === "player" ? "player"
       : state.locationMode === "front" ? "10 ft ahead"
@@ -59,9 +59,9 @@ export function AnchorPanel({ state, commands }: { state: BrowserState; commands
   if (!state.stepOpen.anchor) {
     return <div class="step closed"><StepHead open={false} summary={locationSummary} onClick={() => commands.toggleStep("anchor")}/></div>;
   }
-  if (inPlace) {
+  if (followsActors) {
     return <div class="step">
-      <StepHead open summary="in place" onClick={() => commands.toggleStep("anchor")}/>
+      <StepHead open summary="follow actors" onClick={() => commands.toggleStep("anchor")}/>
       <div class="empty-mini"><span class="mono">This animation plays where each actor currently stands. It does not move or anchor them.</span></div>
     </div>;
   }
@@ -108,4 +108,3 @@ export function AnchorPanel({ state, commands }: { state: BrowserState; commands
     </div>
   );
 }
-

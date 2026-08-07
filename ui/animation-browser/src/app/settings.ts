@@ -14,8 +14,8 @@ export const PREFERENCE_KEYS: { [K in keyof BrowserPreferences]: string } = {
   libraryDetail: "browser.libraryDetail",
   librarySource: "browser.librarySource",
   unavailableScenes: "browser.unavailableScenes",
-  strip: "launch.strip",
-  lock: "launch.lock",
+  hideApparel: "launch.strip",
+  playerInputLock: "launch.lock",
   camera: "launch.camera",
   speed: "launch.speed",
   authorDetails: "browser.authorDetails",
@@ -33,8 +33,8 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   const libraryDetail = oneOf<BrowserPreferences["libraryDetail"]>(values[PREFERENCE_KEYS.libraryDetail], ["curated", "full"]);
   const librarySource = oneOf<BrowserPreferences["librarySource"]>(values[PREFERENCE_KEYS.librarySource], ["all", "custom"]);
   const unavailableScenes = oneOf<UnavailableScenes>(values[PREFERENCE_KEYS.unavailableScenes], ["ask", "show", "hide"]);
-  const strip = oneOf<BrowserPreferences["strip"]>(values[PREFERENCE_KEYS.strip], ["-1", "0", "1"]);
-  const lock = oneOf<BrowserPreferences["lock"]>(values[PREFERENCE_KEYS.lock], ["-1", "0", "1"]);
+  const hideApparel = oneOf<BrowserPreferences["hideApparel"]>(values[PREFERENCE_KEYS.hideApparel], ["-1", "0", "1"]);
+  const playerInputLock = oneOf<BrowserPreferences["playerInputLock"]>(values[PREFERENCE_KEYS.playerInputLock], ["-1", "0", "1"]);
   const camera = oneOf<BrowserPreferences["camera"]>(values[PREFERENCE_KEYS.camera], ["", "thirdperson_hold", "scene_orbit", "freefly", "vanity_orbit"]);
   const speed = oneOf(values[PREFERENCE_KEYS.speed], ["0.5", "0.75", "1", "1.25", "1.5", "2"]);
   const rememberBrowsing = bool(values[PREFERENCE_KEYS.rememberBrowsing]);
@@ -52,8 +52,8 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   if (libraryDetail) preferences.libraryDetail = libraryDetail;
   if (librarySource) preferences.librarySource = librarySource;
   if (unavailableScenes) preferences.unavailableScenes = unavailableScenes;
-  if (strip) preferences.strip = strip;
-  if (lock) preferences.lock = lock;
+  if (hideApparel) preferences.hideApparel = hideApparel;
+  if (playerInputLock) preferences.playerInputLock = playerInputLock;
   if (camera !== undefined) preferences.camera = camera;
   if (speed) preferences.speed = speed;
   if (authorDetails !== undefined) preferences.authorDetails = authorDetails;

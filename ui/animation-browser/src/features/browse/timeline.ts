@@ -29,8 +29,8 @@ export function timelineMarkAt(mark: TimelineTrackMark, duration: number): numbe
 }
 
 export function timelineMarkMoment(mark: TimelineTrackMark, duration: number): string {
-  if (mark.anchor === "unreachable") return `PAST END · F${timelineFrame(mark.atSec ?? 0)}`;
-  if (mark.anchor !== "fraction") return mark.anchor.toUpperCase();
+  if (mark.trackPosition === "unreachable") return `PAST END · F${timelineFrame(mark.atSec ?? 0)}`;
+  if (mark.trackPosition !== "fraction") return mark.trackPosition.toUpperCase();
   if (mark.atSec != null) {
     const frame = `F${timelineFrame(mark.atSec)}`;
     return duration > 0 ? `${Math.round(timelineMarkAt(mark, duration) * 100)}% · ${frame}` : frame;

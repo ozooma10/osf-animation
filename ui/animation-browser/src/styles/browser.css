@@ -80,7 +80,7 @@ button,input,select{font:inherit;color:inherit}
    so the focal point you framed before opening remains in view while you browse. */
 .stage{position:relative;height:100%;padding:14px;display:flex;align-items:stretch}
 /* Native-projected cast badges. These live over the transparent world area and
-   carry the same A/B/C labels as the crew chips, making role order spatially clear. */
+   carry the same A/B/C labels as the cast chips, making role order spatially clear. */
 .world-indicators{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
 /* Camera-independent fallback: selected actors remain unmistakable even when the
    current game runtime has no verified render-camera projection mapping. */
@@ -316,15 +316,15 @@ button,input,select{font:inherit;color:inherit}
 .route-station strong{color:var(--text-bright);font:600 10px var(--font-mono)}
 .route-station .mono{color:var(--text-faint);font-size:7px}
 .route-transitions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:8px}
-.route-edge{display:flex;align-items:center;gap:7px;min-width:0;border:1px solid var(--line);border-radius:2px;background:var(--void-900);padding:6px 7px;color:var(--text-body);text-align:left;cursor:pointer}
-.route-edge:hover{border-color:var(--line-strong)}
-.route-edge.selected{border-color:var(--accent);background:var(--accent-quiet)}
-.route-edge-index{flex:none;color:var(--text-faint);font-size:8px}
-.route-edge-path{min-width:0;flex:1;display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr);align-items:center;gap:2px}
-.route-edge-path strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-bright);font:600 9px var(--font-mono)}
-.route-edge-path i{color:var(--accent);font-style:normal;text-align:center}
-.route-edge-path small{grid-column:1/4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-faint);font:500 8px var(--font-mono)}
-.route-edge-meta{flex:none;color:var(--text-faint);font-size:7px;line-height:1.35;text-align:right}
+.route-transition{display:flex;align-items:center;gap:7px;min-width:0;border:1px solid var(--line);border-radius:2px;background:var(--void-900);padding:6px 7px;color:var(--text-body);text-align:left;cursor:pointer}
+.route-transition:hover{border-color:var(--line-strong)}
+.route-transition.selected{border-color:var(--accent);background:var(--accent-quiet)}
+.route-transition-index{flex:none;color:var(--text-faint);font-size:8px}
+.route-transition-path{min-width:0;flex:1;display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr);align-items:center;gap:2px}
+.route-transition-path strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-bright);font:600 9px var(--font-mono)}
+.route-transition-path i{color:var(--accent);font-style:normal;text-align:center}
+.route-transition-path small{grid-column:1/4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-faint);font:500 8px var(--font-mono)}
+.route-transition-meta{flex:none;color:var(--text-faint);font-size:7px;line-height:1.35;text-align:right}
 .route-transition-title{padding:10px 11px;border-bottom:1px solid var(--line)}
 .route-transition-title p{display:flex;align-items:center;gap:7px;margin:5px 0 0;color:var(--text-muted);font:600 9px var(--font-mono)}
 .route-transition-title p i{color:var(--accent);font-style:normal}
@@ -537,7 +537,7 @@ button,input,select{font:inherit;color:inherit}
    SHRINKS and scrolls internally rather than pushing the browse list off the bottom when the console
    is short (the browse list below keeps a usable, scrollable minimum via .browse min-height). */
 /* Two fixed columns, NOT flex: a step's width must not depend on whether it is
-   open, focused, or how many rows a scan returned — otherwise folding CREW or
+   open, focused, or how many rows a scan returned — otherwise folding CAST or
    scanning shoves LOCATION sideways and the rail visibly reflows under the cursor. */
 .rail{flex:0 1 auto;min-height:0;overflow-y:auto;padding:12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:12px;background:rgba(4,6,10,.28)}
 .stage.compact-context .rail{flex:0 0 auto;overflow:visible;padding:8px;gap:8px}
@@ -805,7 +805,7 @@ button,input,select{font:inherit;color:inherit}
 .info-box.hud{border-color:var(--hud)}
 .info-box .lbl{margin-bottom:6px}
 .info-box.hud .lbl{color:var(--hud)}
-/* Role→actor map (brief): each row pairs a named role with the actor bound to that slot. */
+/* Role→actor map (brief): each row pairs a named role with its bound actor. */
 .role-map{display:flex;flex-direction:column;gap:5px;max-height:168px;overflow-y:auto}
 .role-row{display:flex;align-items:center;gap:8px}
 .role-row .castline{flex:1;min-width:0}

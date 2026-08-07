@@ -23,6 +23,7 @@ import {
   readableAnimationName,
   validSelection,
   importSeverity,
+  isDerivedDebugAnimation,
   isGeneratedSceneClip,
   visibleImports,
   formatBytes,
@@ -45,6 +46,11 @@ const solo = normalizeScene({
 const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2, pinned: 1 });
 
 describe("browser reducer", () => {
+  it("normalizes the legacy action browse facet to emote", () => {
+    const state = browserReducer(createInitialState(), { type: "browse/kind", kind: "action" });
+    expect(state.browseKind).toBe("emote");
+  });
+
   it("normalizes authoritative playback clock fields for the active timeline", () => {
     expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, inspection: true, cast: [] }])[0])
       .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0, inspection: true });
@@ -174,10 +180,10 @@ describe("browser reducer", () => {
   it("applies synchronized browser and launch preferences", () => {
     const state = browserReducer(createInitialState(), {
       type: "settings/received",
-      preferences: { afterLaunch: "stay", libraryDetail: "full", librarySource: "custom", strip: "0", authorDetails: true },
+      preferences: { afterLaunch: "stay", libraryDetail: "full", librarySource: "custom", hideApparel: "0", authorDetails: true },
     });
     expect(state.preferences.afterLaunch).toBe("stay");
-    expect(state).toMatchObject({ libFull: true, libCustomOnly: true, opts: { strip: "0" }, filters: { debugMode: true } });
+    expect(state).toMatchObject({ libFull: true, libCustomOnly: true, opts: { hideApparel: "0" }, filters: { debugMode: true } });
     expect(state.showHidden).toBe(false);
   });
 
@@ -209,17 +215,17 @@ describe("browser reducer", () => {
     expect(atPlayer).toMatchObject({ locationMode: "player", locationToken: null, furniture: { token: 9 } });
   });
 
-  it("keeps crew and location expansion under non-header interactions", () => {
+  it("keeps cast and location expansion under non-header interactions", () => {
     const initial = {
       ...createInitialState(),
       catalog: [solo],
       stepOpen: { cast: true, anchor: true },
     };
-    const crewPicked = browserReducer(initial, {
+    const castPicked = browserReducer(initial, {
       type: "cast/replaced",
       members: [{ token: 7, name: "Sarah", species: "human", sex: "female" }],
     });
-    const locationPicked = browserReducer(crewPicked, {
+    const locationPicked = browserReducer(castPicked, {
       type: "anchor/selected",
       anchor: { token: 9, name: "Barstool", distance: 2 },
     });
@@ -228,7 +234,7 @@ describe("browser reducer", () => {
       sceneId: solo.id,
     });
 
-    expect(crewPicked.stepOpen).toEqual({ cast: true, anchor: true });
+    expect(castPicked.stepOpen).toEqual({ cast: true, anchor: true });
     expect(locationPicked.stepOpen).toEqual({ cast: true, anchor: true });
     expect(sceneSelected.stepOpen).toEqual({ cast: true, anchor: true });
   });
@@ -241,8 +247,11 @@ describe("browser settings", () => {
       "browser.afterLaunch": "close",
       "browser.rememberBrowsing": false,
       "browser.actorLabels": false,
+      "launch.strip": "0",
+      "launch.lock": "1",
       "launch.camera": "scene_orbit",
-    })).toMatchObject({ afterLaunch: "close", rememberBrowsing: false, actorLabels: false, camera: "scene_orbit" });
+    })).toMatchObject({ afterLaunch: "close", rememberBrowsing: false, actorLabels: false,
+      hideApparel: "0", playerInputLock: "1", camera: "scene_orbit" });
     // Absent keys keep their defaults rather than decoding as false.
     expect(decodePreferences({}).actorLabels).toBeUndefined();
     expect(decodePreferences({ "browser.autoMinimize": false })).toMatchObject({ afterLaunch: "stay" });
@@ -302,7 +311,7 @@ describe("browser selectors", () => {
     expect(hottestPickTarget([front, twin], 500, 200, 1000, 500)?.token).toBe(2);
   });
 
-  it("selects a ready action from the unified browse surface", () => {
+  it("selects a ready emote from the unified browse surface", () => {
     const state = { ...createInitialState(), catalog: [solo, pair], catalogReceived: true };
     expect(validSelection(state)).toBe("solo");
     // pair is unplayable for the default cast — the live split (UnifiedBrowser) buckets by gaps
@@ -310,7 +319,7 @@ describe("browser selectors", () => {
     expect(validSelection({ ...state, browseAll: true })).toBe("solo");
   });
 
-  it("prioritizes photomode poses ahead of actions and cleans exported names", () => {
+  it("prioritizes photomode poses ahead of emotes and cleans exported names", () => {
     const photomode = normalizeScene({
       id: "vanilla/photomode/female",
       title: "Vanilla · Photomode / Female",
@@ -330,7 +339,7 @@ describe("browser selectors", () => {
 
     expect(items.map((item) => [item.kind, item.title])).toEqual([
       ["animation", "Arms Crossed"],
-      ["action", "Solo"],
+      ["emote", "Solo"],
     ]);
     expect(readableAnimationName("LooseAnim_FormalApplause01")).toBe("Formal Applause 01");
     expect(readableAnimationName("SitOnGround_Pose", true)).toBe("Sit On Ground");
@@ -409,8 +418,8 @@ describe("browser selectors", () => {
 
   it("shows clipLibrary registrations to everyone, not only to authors", () => {
     // A pack may ship nothing but a clipLibrary — the registrations ARE its content. They share
-    // the osf.scene-clip/ id namespace with the harvested debug entries, so only `curated`
-    // separates them; treating both as debug made such a pack invisible in the browser.
+    // the osf.scene-clip/ id namespace with the harvested debug entries. New native builds emit
+    // `sourceKind`; `curated` remains the compatibility signal for older builds.
     // Both shapes as the engine actually serializes them: one anonymous role, unlisted, in the
     // library lane, tagged only `scene.clip` when the author supplied no tags of their own.
     const registered = normalizeScene({
@@ -436,6 +445,15 @@ describe("browser selectors", () => {
     });
     expect(isGeneratedSceneClip(registered)).toBe(false);
     expect(isGeneratedSceneClip(harvested)).toBe(true);
+
+    const explicitDerived = normalizeScene({
+      id: "plain-derived", sourceKind: "derivedDebugAnimation", curated: true,
+    });
+    const explicitCurated = normalizeScene({
+      id: "osf.scene-clip/explicit-curated", sourceKind: "curatedAnimation", curated: false,
+    });
+    expect(isDerivedDebugAnimation(explicitDerived)).toBe(true);
+    expect(isDerivedDebugAnimation(explicitCurated)).toBe(false);
 
     // Stock preferences: author details off, poses-and-loops tier, custom+vanilla, no search.
     const state = { ...createInitialState(), library: [registered, harvested], libraryReceived: true };

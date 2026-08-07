@@ -35,12 +35,12 @@ export const MOCK_CATALOG = [
   })),
   { id: "solo.calibration", title: "Solo Calibration", tags: ["test", "solo", "free"], actorCount: 1, requiresFurniture: false, priority: 1, weight: 6, sourceFile: "Data/OSF/Scenes/test.osf.json" },
   { id: "ge.chair.love", title: "GE Chair Love", tags: ["ge", "chair", "paired"], actorCount: 2, roles: [{ name: "bottom", gender: "female" }, { name: "top", gender: "male" }], requiresFurniture: true, anchors: ["Chair"], stages: [{ index: 0, name: "Missionary06", tags: ["paired"], clipCount: 2, loopSec: 18.7, openEnded: true, estSec: 37.3, tracks: [
-    { kind: "action", at: 0, anchor: "enter", label: "osf.prop.attach", detail: "helmet", role: "bottom" },
-    { kind: "sound", at: 0.22, anchor: "fraction", label: "$scene,{gender},soft", role: "bottom", repeat: true },
-    { kind: "cue", at: 0.42, anchor: "fraction", label: "helmet.stow", role: "bottom" },
-    { kind: "sound", at: 0.72, anchor: "fraction", label: "$scene,{gender},loud", role: "bottom" },
-    { kind: "camera", at: 0, anchor: "enter", label: "scene_orbit" },
-    { kind: "action", at: 1, anchor: "end", label: "osf.prop.destroy", detail: "helmet", role: "bottom" },
+    { kind: "action", at: 0, trackPosition: "enter", label: "osf.prop.attach", detail: "helmet", role: "bottom" },
+    { kind: "sound", at: 0.22, trackPosition: "fraction", label: "$scene,{gender},soft", role: "bottom", repeat: true },
+    { kind: "cue", at: 0.42, trackPosition: "fraction", label: "helmet.stow", role: "bottom" },
+    { kind: "sound", at: 0.72, trackPosition: "fraction", label: "$scene,{gender},loud", role: "bottom" },
+    { kind: "camera", at: 0, trackPosition: "enter", label: "scene_orbit" },
+    { kind: "action", at: 1, trackPosition: "end", label: "osf.prop.destroy", detail: "helmet", role: "bottom" },
   ] }, { index: 1, name: "Cowgirl07", tags: ["paired"], clipCount: 2, loopSec: 20, openEnded: true, estSec: 40 }], estSec: 77.3, openEnded: true, priority: 2, weight: 40, pack: "Gergel Ebanex", sourceFile: "Data/OSF/GE/chair.osf.json" },
 ];
 
@@ -66,12 +66,10 @@ export const MOCK_LIBRARY = [
   { id: "vanilla/furniture/chair", title: "Vanilla · Furniture / Chair", tags: ["vanilla", "furniture"], actorCount: 1, requiresFurniture: true, anchors: ["Chair"], sourceFile: "vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 2.7, openEnded: true, estSec: 5.4 }, { index: 1, name: "EnterFromStand", tags: ["transition"], clipCount: 1, loopSec: 7.3, estSec: 14.7 }] },
   { id: "vanilla/photomode", title: "Vanilla · Photomode", tags: ["vanilla", "photomode"], actorCount: 1, requiresFurniture: false, sourceFile: "vanilla-photomode.osf.json", stages: [{ index: 0, name: "Hero Pose", tags: ["pose"], clipCount: 1, loopSec: 3, openEnded: true, estSec: 6 }, { index: 1, name: "Vehicle_HangTen", tags: [], clipCount: 1, loopSec: 0.3, openEnded: true, estSec: 0.6 }] },
   { id: "vanilla/creature/terrormorph", title: "Vanilla · Terrormorph", species: "terrormorph", tags: ["vanilla", "creature"], actorCount: 1, requiresFurniture: false, sourceFile: "vanilla-creature.osf.json", stages: [{ index: 0, name: "BleedOut_Idle", tags: ["idle"], clipCount: 1, loopSec: 8.3, openEnded: true, estSec: 16.6 }] },
-  // Generated one-clip entries, both flavours. They share the osf.scene-clip/ id namespace and,
-  // when the author registers no tags, are otherwise identical — `curated` is the only thing
-  // separating a pack's registered clip (everyone sees it) from a harvested debug clip (authors
-  // only). Without both here the harness cannot exercise that filter at all.
-  { id: "osf.scene-clip/a1b2c3d4e5f60001", title: "Hand Extended 01", tags: ["scene.clip"], curated: true, unlisted: true, actorCount: 1, inPlace: true, pack: "Moods of Andromas", folder: "Standing", sourceFile: "moods-of-andromas.osf.json", stages: [{ index: 0, name: "Hand Extended 01", tags: ["scene.clip"], clipCount: 1, loopSec: 2.4, openEnded: true, estSec: 4.8 }] },
-  { id: "osf.scene-clip/a1b2c3d4e5f60002", title: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], unlisted: true, actorCount: 1, inPlace: true, pack: "Gergel Ebanex", sourceFile: "chair.osf.json", stages: [{ index: 0, name: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], clipCount: 1, loopSec: 18.7, openEnded: true, estSec: 37.3 }] },
+  // Registered and derived one-clip entries share the osf.scene-clip/ id namespace. Explicit
+  // `sourceKind` is authoritative; other mock records omit it to keep legacy bridge fallback live.
+  { id: "osf.scene-clip/a1b2c3d4e5f60001", title: "Hand Extended 01", tags: ["scene.clip"], sourceKind: "curatedAnimation", curated: true, unlisted: true, actorCount: 1, placement: "followActor", pack: "Moods of Andromas", folder: "Standing", sourceFile: "moods-of-andromas.osf.json", stages: [{ index: 0, name: "Hand Extended 01", tags: ["scene.clip"], clipCount: 1, loopSec: 2.4, openEnded: true, estSec: 4.8 }] },
+  { id: "osf.scene-clip/a1b2c3d4e5f60002", title: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], sourceKind: "derivedDebugAnimation", unlisted: true, actorCount: 1, placement: "followActor", pack: "Gergel Ebanex", sourceFile: "chair.osf.json", stages: [{ index: 0, name: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], clipCount: 1, loopSec: 18.7, openEnded: true, estSec: 37.3 }] },
 ];
 
 export const MOCK_ROUTES = [

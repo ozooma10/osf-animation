@@ -2,7 +2,7 @@ import type { AnimationBridge, NativeMessageListener } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
 import { WHEEL_MAX, sceneById, wheelPool } from "../app/selectors";
 import { PREFERENCE_KEYS } from "../app/settings";
-import { PLAYER_TOKEN, type ActiveScene, type BrowserPreferences, type BrowserState } from "../app/state";
+import { PLAYER_TOKEN, type ActiveLaunch, type BrowserPreferences, type BrowserState } from "../app/state";
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY, MOCK_ROUTES } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
@@ -33,7 +33,7 @@ export class StandaloneBridge implements AnimationBridge {
   readonly standalone = true;
   private readonly listeners = new Set<NativeMessageListener>();
   private readonly timers = new Set<number>();
-  private active: ActiveScene[] = [];
+  private active: ActiveLaunch[] = [];
   private readonly resumeSpeeds = new Map<number, number>();
   private nextHandle = 42;
   private customized = false;

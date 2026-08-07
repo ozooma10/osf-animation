@@ -5,16 +5,16 @@ export interface SceneRole {
 
 export type TimelineTrackKind = "cue" | "action" | "sound" | "camera";
 /** "unreachable" = an `atFrame` at/past the clip end — the runtime never fires it. */
-export type TimelineTrackAnchor = "enter" | "exit" | "end" | "fraction" | "unreachable";
+export type TimelineTrackPosition = "enter" | "exit" | "end" | "fraction" | "unreachable";
 
 export interface TimelineTrackMark {
   kind: TimelineTrackKind;
-  /** Clip-local position: named enter anchors map to 0, exit/end to 1. */
+  /** Clip-local position: enter maps to 0, exit/end to 1. */
   at: number;
   /** Authored `atFrame` position in seconds; lets the rail re-place the mark against the
    *  live decoded duration (the pack-authored clip length can disagree with it). */
   atSec?: number;
-  anchor: TimelineTrackAnchor;
+  trackPosition: TimelineTrackPosition;
   label: string;
   detail: string;
   role: string;
@@ -35,6 +35,9 @@ export interface SceneStage {
   tracks: TimelineTrackMark[];
 }
 
+export type CatalogSourceKind = "authoredScene" | "curatedAnimation" | "derivedDebugAnimation" | "referenceAnimation";
+export type WorldPlacement = "anchorAndPin" | "followActor";
+
 export interface SceneModel {
   id: string;
   title: string;
@@ -43,11 +46,10 @@ export interface SceneModel {
   actorCount: number;
   roles: SceneRole[];
   requiresFurniture: boolean;
-  inPlace: boolean;
+  worldPlacement: WorldPlacement;
   anchors: string[];
   unlisted: boolean;
-  /** A generated one-clip entry a pack registered via `clipLibrary` — authored content that
-   *  happens to share the `osf.scene-clip/` id namespace with the auto-harvested debug entries. */
+  /** Legacy bridge flag retained while older native builds do not emit `sourceKind`. */
   curated: boolean;
   wheelCustomized: boolean;
   pinned: number;
@@ -57,9 +59,10 @@ export interface SceneModel {
   folder: string;
   sourceFile: string;
   sourcePath: string;
+  sourceKind: CatalogSourceKind;
   policy: {
-    stripActors: "on" | "off" | "inherit";
-    lockPlayer: "on" | "off" | "inherit";
+    hideApparel: "on" | "off" | "inherit";
+    playerInputLock: "on" | "off" | "inherit";
     fade: "on" | "off";
   };
   stages: SceneStage[];
@@ -80,6 +83,16 @@ export function normalizeScene(raw: Raw): SceneModel {
   const roles = normalizeRoles(raw.roles, actorCount);
   const tags = Array.isArray(raw.tags) ? raw.tags.map(String) : [];
   const requiresFurniture = Boolean(raw.requiresFurniture);
+  const sourceKind: CatalogSourceKind = ["authoredScene", "curatedAnimation", "derivedDebugAnimation", "referenceAnimation"].includes(String(raw.sourceKind))
+    ? raw.sourceKind as CatalogSourceKind
+    : Boolean(raw.curated)
+      ? "curatedAnimation"
+      : id.toLowerCase().startsWith("osf.scene-clip/")
+        ? "derivedDebugAnimation"
+        : "authoredScene";
+  const worldPlacement: WorldPlacement = raw.placement === "anchorAndPin" || raw.placement === "followActor"
+    ? raw.placement
+    : Boolean(raw.inPlace) ? "followActor" : "anchorAndPin";
   return {
     id,
     title: String(raw.title || raw.name || id || "Unnamed scene"),
@@ -88,10 +101,10 @@ export function normalizeScene(raw: Raw): SceneModel {
     actorCount,
     roles,
     requiresFurniture,
-    inPlace: Boolean(raw.inPlace),
+    worldPlacement,
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map(String) : [],
     unlisted: Boolean(raw.unlisted),
-    curated: Boolean(raw.curated),
+    curated: sourceKind === "curatedAnimation",
     wheelCustomized: Boolean(raw.wheelCustomized),
     pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
@@ -100,6 +113,7 @@ export function normalizeScene(raw: Raw): SceneModel {
     folder: normalizeFolder(raw.folder),
     sourceFile: String(raw.sourceFile || raw.source || ""),
     sourcePath: String(raw.sourcePath || raw.sourceFile || raw.source || "").replace(/\\/g, "/"),
+    sourceKind,
     policy: normalizePolicy(raw),
     stages: normalizeStages(raw.stages),
     estSec: numberOrNull(raw.estSec),
@@ -120,7 +134,7 @@ export function safeNormalizeScene(raw: unknown): SceneModel | null {
 export function normalizeCatalog(payload: unknown, library = false): SceneModel[] {
   if (!Array.isArray(payload)) return [];
   return payload.map(safeNormalizeScene).filter((scene): scene is SceneModel => !!scene).map((scene) => library
-    ? { ...scene, library: true, stageHay: scene.stages.map((stage) => stage.name).join(" ").toLowerCase() }
+    ? { ...scene, library: true, sourceKind: scene.sourceKind === "authoredScene" ? "referenceAnimation" : scene.sourceKind, stageHay: scene.stages.map((stage) => stage.name).join(" ").toLowerCase() }
     : scene);
 }
 
@@ -145,7 +159,7 @@ export function normalizeStages(stages: unknown): SceneStage[] {
 }
 
 const TRACK_KINDS = new Set<TimelineTrackKind>(["cue", "action", "sound", "camera"]);
-const TRACK_ANCHORS = new Set<TimelineTrackAnchor>(["enter", "exit", "end", "fraction", "unreachable"]);
+const TRACK_POSITIONS = new Set<TimelineTrackPosition>(["enter", "exit", "end", "fraction", "unreachable"]);
 
 export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
   if (!Array.isArray(value)) return [];
@@ -153,16 +167,18 @@ export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
     if (!raw || typeof raw !== "object") return [];
     const mark = raw as Raw;
     const kind = String(mark.kind || "") as TimelineTrackKind;
-    const anchor = String(mark.anchor || "fraction") as TimelineTrackAnchor;
+    // `anchor` is the native bridge's legacy field. Normalized UI state uses the
+    // temporal term `trackPosition` so it cannot be confused with a world anchor.
+    const trackPosition = String(mark.trackPosition ?? mark.anchor ?? "fraction") as TimelineTrackPosition;
     const at = Number(mark.at);
     const label = String(mark.label || "").trim();
-    if (!TRACK_KINDS.has(kind) || !TRACK_ANCHORS.has(anchor) || !Number.isFinite(at) || !label) return [];
+    if (!TRACK_KINDS.has(kind) || !TRACK_POSITIONS.has(trackPosition) || !Number.isFinite(at) || !label) return [];
     const atSec = Number(mark.atSec);
     return [{
       kind,
       at: Math.max(0, Math.min(1, at)),
       ...(Number.isFinite(atSec) && atSec >= 0 ? { atSec } : {}),
-      anchor,
+      trackPosition,
       label,
       detail: String(mark.detail || "").trim(),
       role: String(mark.role || "").trim(),
@@ -202,7 +218,7 @@ export interface RouteTransitionModel {
   from: string;
   to: string;
   layer: RouteLayerModel;
-  interruption: "finish" | "crossfade-before-commit";
+  interruption: "finish-transition" | "crossfade-before-commit";
   events: RouteEventModel[];
 }
 
@@ -252,9 +268,10 @@ function normalizeRouteEvents(raw: Raw): RouteEventModel[] {
     const lifetime = String(prop.lifetime || "transition");
     const attach = Boolean(prop.attach);
     const external = lifetime === "external";
+    const attachmentNode = prop.attachmentNode ?? prop.node;
     events.push({ kind: "prop", frame: routeFrame(prop.frame),
       label: `${attach ? "ATTACH" : "DESTROY"} ${String(prop.id || "prop")}`,
-      detail: [lifetime && `${lifetime} lifetime`, prop.node && `node ${String(prop.node)}`,
+      detail: [lifetime && `${lifetime} lifetime`, attachmentNode && `attachment node ${String(attachmentNode)}`,
         external && "consumer callback suppressed"].filter(Boolean).join(" · "),
       lifetime, external });
   });
@@ -293,7 +310,10 @@ export function normalizeRouteCatalog(payload: unknown): RouteModel[] {
         from,
         to,
         layer: normalizeRouteLayer(transition.layer),
-        interruption: transition.interruption === "crossfade-before-commit" ? "crossfade-before-commit" : "finish",
+        // The route schema's legacy `finish` value means finish the current
+        // transition, not finish the whole route. Normalize that scope here.
+        interruption: transition.interruption === "crossfade-before-commit"
+          ? "crossfade-before-commit" : "finish-transition",
         events: normalizeRouteEvents(transition),
       }];
     }) : [];
@@ -344,8 +364,8 @@ function policyText(value: unknown, fallback: unknown, empty: "inherit" | "off")
 
 function normalizePolicy(raw: Raw): SceneModel["policy"] {
   return {
-    stripActors: policyText(raw.stripActors, undefined, "inherit"),
-    lockPlayer: policyText(raw.lockPlayer, undefined, "inherit"),
+    hideApparel: policyText(raw.hideApparel, raw.stripActors, "inherit"),
+    playerInputLock: policyText(raw.playerInputLock, raw.lockPlayer, "inherit"),
     fade: policyText(raw.fade, undefined, "off") as "on" | "off",
   };
 }
@@ -649,7 +669,7 @@ export function evaluateScene(scene: SceneModel, context: SceneEvaluationContext
   }
   if (overCast) {
     const count = castCount - actorCount;
-    blockers.push(`remove ${count} crew member${count === 1 ? "" : "s"}`);
+    blockers.push(`remove ${count} cast member${count === 1 ? "" : "s"}`);
   }
   if (!anchorGate) {
     const anchors = scene.anchors.join(" / ");
@@ -660,7 +680,7 @@ export function evaluateScene(scene: SceneModel, context: SceneEvaluationContext
   const gaps = issues.length + blockers.length;
   const sentenceCase = (text: string) => text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
   const reason = gaps === 0
-    ? "Ready with the current crew and furniture."
+    ? "Ready with the current cast and furniture."
     : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
   return { castCount, actorCount, hasRoles, rolesGate, overCast, anchorGate, seated, issues, blockers, gaps, reason };
 }

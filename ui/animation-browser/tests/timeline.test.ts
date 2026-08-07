@@ -10,9 +10,9 @@ describe("active timeline", () => {
 
   it("groups authored marks into stable named lanes and sorts them by time", () => {
     const tracks = timelineTracks([
-      { kind: "sound", at: 0.8, anchor: "fraction", label: "loud", detail: "", role: "f", repeat: false },
-      { kind: "cue", at: 1, anchor: "end", label: "done", detail: "", role: "", repeat: false },
-      { kind: "sound", at: 0.2, anchor: "fraction", label: "low", detail: "", role: "f", repeat: true },
+      { kind: "sound", at: 0.8, trackPosition: "fraction", label: "loud", detail: "", role: "f", repeat: false },
+      { kind: "cue", at: 1, trackPosition: "end", label: "done", detail: "", role: "", repeat: false },
+      { kind: "sound", at: 0.2, trackPosition: "fraction", label: "low", detail: "", role: "f", repeat: true },
     ]);
     expect(tracks.map((track) => [track.kind, track.marks.map((mark) => mark.label)])).toEqual([
       ["cue", ["done"]],

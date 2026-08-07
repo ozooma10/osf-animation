@@ -89,12 +89,12 @@ export function SettingsPanel({ state, commands }: { state: BrowserState; comman
 
       <section class="settings-group">
         <h3>Scene defaults</h3>
-        <p class="settings-group-note">These initialize Start Overrides. “Scene” respects each animation pack’s authored policy.</p>
-        <ChoiceRow label="Strip actors" hint="Default apparel behavior for newly launched scenes."
-          value={preferences.strip} onChange={(value) => set("strip", value)}
+        <p class="settings-group-note">These initialize Start Overrides. “Scene” respects the scene/content-file policy.</p>
+        <ChoiceRow label="Hide apparel" hint="Default apparel behavior for newly launched scenes."
+          value={preferences.hideApparel} onChange={(value) => set("hideApparel", value)}
           choices={[{ value: "-1", label: "Scene" }, { value: "1", label: "Always" }, { value: "0", label: "Never" }]}/>
-        <ChoiceRow label="Lock player controls" hint="Default input lock when the player participates."
-          value={preferences.lock} onChange={(value) => set("lock", value)}
+        <ChoiceRow label="Lock player input" hint="Default input lock when the player participates."
+          value={preferences.playerInputLock} onChange={(value) => set("playerInputLock", value)}
           choices={[{ value: "-1", label: "Scene" }, { value: "1", label: "Always" }, { value: "0", label: "Never" }]}/>
         <ChoiceRow label="Camera" hint="Default camera policy; individual launches can still override it."
           value={preferences.camera} onChange={(value) => set("camera", value)}

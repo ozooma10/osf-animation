@@ -35,9 +35,10 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   only while the panel is open, and re-fetched on every open because the report
   describes the *last* load and `ReloadPacks` can have happened since. Problem
   lines are bounded per file; `problemCount` carries the true total).
-  `imports.reload`→`imports.reloadResult` runs the same full scene/sound/gear and
-  clip-cache refresh as Papyrus `ReloadPacks`, returning the new report so the
-  view can diff new/resolved diagnostics. `imports.copy {path}`→`imports.copyResult`
+  `imports.reload`→`imports.reloadResult` runs the same full content refresh
+  (registries, gear, and clip caches) as the legacy Papyrus `ReloadPacks`, returning
+  the new report so the view can diff new/resolved diagnostics.
+  `imports.copy {path}`→`imports.copyResult`
   copies the authoritative, untruncated per-file report through the native Windows
   clipboard path,
   `projectPickables {slot,width,height}`→`pickTargets` (tokened marker
@@ -45,9 +46,9 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   (validation only — the token is the hot marker's), `scanNearby`→`scanResults`,
   `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`.
   A launch may carry additive `singleAnimation:true`; after entering the requested
-  `opts.stage`, any edge out ends playback instead of continuing through the
+  `opts.stage`, any scene edge out ends playback instead of continuing through the
   parent registry definition. `inspect:true` bypasses `SceneRuntime` entirely and
-  starts a browser-owned, scrub-only Layer-A graph. It has no lifecycle callbacks,
+  starts a browser-owned, scrub-only Layer-A playback session. It has no lifecycle callbacks,
   cues, sounds, cameras, equipment policy, or external consumers; the browser owns
   temporary render props and reconstructs them from the selected node's
   enter/numeric/end `osf.prop.*` actions at each seek. A preview starts paused;
@@ -65,16 +66,16 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
   `requestClose` (view asks the host to hide it — used by the animation wheel).
   Native→web `activeScenes {scenes:[{handle, sceneId, stage, inspection, player,
-  cast:[{token,name,player}]}]}` is the authoritative live-scene list, pushed
-  on `opened`, after a launch, and on every scene lifecycle change (stage
-  advance, any termination — natural ends included). The view surfaces it as
-  an **ACTIVE tab** in the browse mode switch (visible only while scenes run,
-  labeled with the count) holding one card per scene — title, handle, YOU,
-  current stage, full cast, per-scene stop (`stop {handle}`), STOP ALL —
-  plus a compact header chip (a single scene shows directly with its stop;
+  cast:[{token,name,player}]}]}` is the frozen bridge event carrying the authoritative active-launch
+  list: runtime scene instances and preview sessions. It is pushed on `opened`, after a launch, and
+  on every relevant lifecycle change (stage advance or any termination, including natural ends).
+  The view surfaces it as an **ACTIVE tab** in the browse mode switch (visible only while something
+  is active, labeled with the count) holding one card per launch — title, handle, YOU, current stage,
+  full cast, per-launch stop (`stop {handle}`), STOP ALL — plus a compact header chip (a single launch
+  shows directly with its stop;
   several collapse to a count) that opens the tab, and LIVE badges on busy
-  crew. Ordinary runtime timelines are forward-only (pause/resume); a browser
-  prop-preview handle adds frame stepping and seeking to the same play/pause. A preview also has
+  cast. Ordinary runtime timelines are forward-only (pause/resume); a browser
+  scene-preview handle adds frame stepping and seeking to the same play/pause. A preview also has
   no runtime stage machine (`advance` no-ops on its handle), so its card carries a
   **stage strip** — ◀ / windowed per-stage chips / ▶, with NEXT ▸ and Space wrapping
   through them. Each re-issues `launch {inspect:true, opts.stage}` for the same cast,
@@ -116,11 +117,12 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   resolves reference modes through the rendered world transform, including
   attached ship/interior frames. Furniture-authored scenes still require and
   validate compatible furniture—the free-space choices never bypass that gate.
-- Catalog = OSF Animation's **live** `SceneRegistry` (not a disk scan). The browser
+- Catalog = OSF Animation's **live content registry** (the native compatibility name is
+  `SceneRegistry`; this is not a disk scan). The browser
   projects it into one player-facing catalog of **playables**: a library stage is an
-  Animation, a `player.emote.*` definition is an Action, and an ordinary authored
+  Animation, a `player.emote.*` definition is an Emote, and an ordinary authored
   definition is a Scene. Pack/folder/set names are collections only and never launch.
-  The All / Animations / Actions / Scenes controls are facets over that one catalog.
+  The All / Animations / Emotes / Scenes controls are facets over that one catalog.
   Every entry carries `pack` (the file-level content-pack label, "" if unauthored) and
   `sourceFile` (the scene file's name, no directories); rows group into collapsible
   collection blocks keyed on `pack` → `sourceFile` → id-prefix fallback. Selecting or
@@ -176,7 +178,7 @@ defaults, and log level all live in OSF UI's in-game settings menu under
 preferences using the same `settings.get` / `settings.set` store, so changes made
 there and in OSF UI's settings card stay synchronized. It covers after-launch
 behavior, the opening tab, session browsing memory, library detail/source,
-unavailable-scene visibility, default strip/lock/camera/speed overrides, and
+unavailable-scene visibility, default apparel/input-lock/camera/speed overrides, and
 author-facing catalog details. World references such as selected actors and
 furniture are deliberately never persisted.
 
@@ -193,9 +195,9 @@ materializes that whole default pool before applying the edit—customizing one
 entry never makes every other default disappear. The explicit loadout persists
 DLL-side in `<Documents>\My Games\Starfield\OSF\wheel-pins.json`, account-global,
 surviving ReloadPacks and reinstalls. It is an ordered JSON array of minimal
-`{"scene":"...","stage":0}` launch references (stage is omitted for a whole default Action);
+`{"scene":"...","stage":0}` launch references (stage is omitted for a whole default Emote);
 deleting it restores installed defaults, while [] is an intentionally empty wheel.
-Each eligible animation or Action row offers add/remove controls; the brief also
+Each eligible animation or Emote row offers add/remove controls; the brief also
 offers **Reset Defaults**. Quick Access membership shows as ◆ on its Browse row.
 The hub names who plays—the crosshair target captured at open
 time ("→ Sarah") or "You".
@@ -241,7 +243,7 @@ To exercise the **animation wheel** standalone: press `W` (mock crosshair target
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
 console; add `?wheel` to the iframe URL (`?wheel=solo` for no target)
 boots straight into wheel mode so a plain reload keeps you there. The mock
-catalog carries 14 `player.emote.*` quick actions so the hard 12-entry cap is exercised;
+catalog carries 14 `player.emote.*` quick emotes so the hard 12-entry cap is exercised;
 picking **Facepalm** mock-fails to exercise the error path, any other pick
 "launches" and closes the wheel via the mocked `osf.animation.requestClose` →
 `ui.visibility` hide round-trip.
