@@ -4,6 +4,7 @@
 #include "API/OSFPersistenceAPI.h"
 #include "Animation/GraphManager.h"
 #include "Serialization/PersistenceBroker.h"
+#include "Serialization/SaveLoadHookBroker.h"
 #include "Util/Hooking.h"
 
 #include <REL/ASM.h>
@@ -11,6 +12,7 @@
 #include <array>
 #include <atomic>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <mutex>
 #include <unordered_map>
@@ -23,34 +25,19 @@ namespace OSF::Serialization::PersistenceHost
 		constexpr std::uint32_t kInternalClientID = OSF_PERSISTENCE_FOURCC('O', 'S', 'F', 'A');
 		constexpr std::uint32_t kHostVersion = (1u << 16) | (1u << 8) | 0u;
 
-		using SaveGameFn = void(RE::BGSSaveLoadGame*, void*, void*, const char*);
-		using LoadGameFn = bool(RE::BGSSaveLoadGame*, void*, bool, bool);
 		using DeleteSaveFn = bool(RE::BGSSaveLoadManager*, const char*, void*, bool);
 
-		SaveGameFn* g_originalSaveGame{};
-		LoadGameFn* g_originalLoadGame{};
 		DeleteSaveFn* g_originalDeleteSave{};
 
 		constexpr REL::ID kDeleteSave{ 98620 };
-		constexpr std::array<std::uint8_t, 15> kSavePrologue{
-			0x4C, 0x89, 0x4C, 0x24, 0x20,
-			0x4C, 0x89, 0x44, 0x24, 0x18,
-			0x48, 0x89, 0x54, 0x24, 0x10
-		};
-		constexpr std::array<std::uint8_t, 15> kLoadPrologue{
-			0x48, 0x8B, 0xC4,
-			0x44, 0x88, 0x48, 0x20,
-			0x44, 0x88, 0x40, 0x18,
-			0x48, 0x89, 0x50, 0x10
-		};
 		constexpr std::array<std::uint8_t, 15> kDeletePrologue{
 			0x48, 0x89, 0x5C, 0x24, 0x08,
 			0x48, 0x89, 0x74, 0x24, 0x10,
 			0x48, 0x89, 0x7C, 0x24, 0x20
 		};
 
-		// IDs 98376, 98380, and 98620 resolve the save, load, and delete workers on
-		// both 1.16.242 and 1.16.244. Prologue gates below still reject signature drift.
+		// ID 98620 resolves the delete worker on 1.16.242 and 1.16.244. The
+		// save/load IDs and complete gates live in SaveLoadHookBroker.
 
 		std::string BoundedName(const char* name)
 		{
@@ -147,7 +134,17 @@ namespace OSF::Serialization::PersistenceHost
 					return false;
 				}
 
-				const bool hooks = InstallHooks();
+				const bool deleteHook = InstallDeleteHook();
+				const OSFSaveLoadHookListenerV1 listener{
+					.size = sizeof(OSFSaveLoadHookListenerV1),
+					.listenerID = kInternalClientID,
+					.listenerName = "OSF Animation persistence",
+					.context = this,
+					.OnEvent = &LifecycleEvent,
+				};
+				const bool saveLoadHooks = deleteHook &&
+					SaveLoadHookBroker::Initialize(listener);
+				const bool hooks = deleteHook && saveLoadHooks;
 				_ready.store(hooks, std::memory_order_release);
 				if (hooks) {
 					REX::INFO("[Save] persistence host initialized (ABI {:#x}, format {}, magic OSFP)",
@@ -342,47 +339,60 @@ namespace OSF::Serialization::PersistenceHost
 				return reinterpret_cast<Fn*>(code);
 			}
 
-			bool InstallHooks()
+			bool InstallDeleteHook()
 			{
-				const auto saveTarget = RE::ID::BGSSaveLoadGame::SaveGame.address();
-				const auto loadTarget = RE::ID::BGSSaveLoadGame::LoadGame.address();
 				const auto deleteTarget = kDeleteSave.address();
-				const bool saveOK = Util::Hooking::PrologueMatches(RE::ID::BGSSaveLoadGame::SaveGame, kSavePrologue);
-				const bool loadOK = Util::Hooking::PrologueMatches(RE::ID::BGSSaveLoadGame::LoadGame, kLoadPrologue);
 				const bool deleteOK = Util::Hooking::PrologueMatches(kDeleteSave, kDeletePrologue);
-				if (!saveOK || !loadOK || !deleteOK) {
-					REX::ERROR("[Save] persistence hook validation failed: save={} load={} delete={}", saveOK, loadOK, deleteOK);
+				if (!deleteOK) {
+					REX::ERROR("[Save] persistence delete-hook validation failed");
 					return false;
 				}
 				auto& trampoline = REL::GetTrampoline();
-				g_originalSaveGame = MakeGateway<SaveGameFn>(saveTarget, 5);
-				g_originalLoadGame = MakeGateway<LoadGameFn>(loadTarget, 7);
 				g_originalDeleteSave = MakeGateway<DeleteSaveFn>(deleteTarget, 5);
-				trampoline.write_jmp<5>(saveTarget, &SaveHook);
-				trampoline.write_jmp<5>(loadTarget, &LoadHook);
-				trampoline.write_jmp<5>(deleteTarget, &DeleteHook);
-				REX::DEBUG("[Save] installed Address Library save/load/delete entry hooks");
-				return g_originalSaveGame && g_originalLoadGame && g_originalDeleteSave;
-			}
-
-			static void SaveHook(RE::BGSSaveLoadGame* self, void* context, void* writer, const char* name)
-			{
-				const std::string saveName = BoundedName(name);
-				g_originalSaveGame(self, context, writer, name);
-				if (!saveName.empty()) {
-					GetSingleton().Save(saveName);
+				if (g_originalDeleteSave) {
+					trampoline.write_jmp<5>(deleteTarget, &DeleteHook);
 				}
+				REX::DEBUG("[Save] installed Address Library delete entry hook");
+				return g_originalDeleteSave != nullptr;
 			}
 
-			static bool LoadHook(RE::BGSSaveLoadGame* self, void* reader, bool flag1, bool flag2)
+			static void OSF_SAVE_LOAD_HOOK_CALL LifecycleEvent(
+				void* context,
+				const OSFSaveLoadHookEventV1* event) noexcept
 			{
-				const std::string saveName = BoundedName(static_cast<const char*>(reader));
-				auto& host = GetSingleton();
-				host.BeginLoad("load-name hook");
-				host.MarkLoadDispatched();
-				const bool result = g_originalLoadGame(self, reader, flag1, flag2);
-				host.FinishLoad(saveName, result);
-				return result;
+				if (!context || !event ||
+					event->size < sizeof(OSFSaveLoadHookEventV1)) {
+					return;
+				}
+				try {
+					auto& host = *static_cast<Host*>(context);
+					switch (event->phase) {
+					case OSF_SAVE_LOAD_HOOK_PHASE_SAVE_RETURN: {
+						const auto saveName = BoundedName(event->name);
+						if (!saveName.empty()) {
+							host.Save(saveName);
+						}
+						break;
+					}
+					case OSF_SAVE_LOAD_HOOK_PHASE_LOAD_ENTRY:
+						host.BeginLoad("load-name hook");
+						host.MarkLoadDispatched();
+						break;
+					case OSF_SAVE_LOAD_HOOK_PHASE_LOAD_RETURN: {
+						const auto saveName = BoundedName(event->name);
+						const bool resultValid =
+							(event->flags & OSF_SAVE_LOAD_HOOK_EVENT_RESULT_VALID) != 0;
+						host.FinishLoad(saveName, resultValid && event->result != 0);
+						break;
+					}
+					default:
+						break;
+					}
+				} catch (const std::exception& e) {
+					REX::CRITICAL("[Save] persistence lifecycle listener threw '{}'; swallowed", e.what());
+				} catch (...) {
+					REX::CRITICAL("[Save] persistence lifecycle listener threw; swallowed");
+				}
 			}
 
 			static bool DeleteHook(RE::BGSSaveLoadManager* self, const char* name, void* unknown, bool flag)
