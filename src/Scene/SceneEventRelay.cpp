@@ -54,7 +54,7 @@ namespace OSF::Scene
 			v = RE::BSFixedString(a_event.role.c_str());        set("role", v);
 			v = a_event.loopIndex;                              set("loopIndex", v);
 			v = a_event.time;                                   set("time", v);
-			v = RE::BSFixedString(a_event.anchor.c_str());      set("anchor", v);
+			v = RE::BSFixedString(a_event.trackPosition.c_str()); set("anchor", v);  // frozen Papyrus field
 			v = a_event.result;                                 set("result", v);
 			// actorRef: packed as a real Actor object when the event carries one (currently
 			// EVENT_ACTION with a resolved role). Otherwise left None.

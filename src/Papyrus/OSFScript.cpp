@@ -100,19 +100,19 @@ namespace OSF::Papyrus
 				out.blendIn = RE::BSScript::get<float>(*v);
 			}
 			if (const auto* v = member("StripMode"); v && v->is<std::int32_t>()) {
-				out.stripMode = RE::BSScript::get<std::int32_t>(*v);
+				out.hideApparelMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("LockPlayerMode"); v && v->is<std::int32_t>()) {
-				out.lockPlayerMode = RE::BSScript::get<std::int32_t>(*v);
+				out.playerInputLockMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("PlayerControlMode"); v && v->is<std::int32_t>()) {
-				out.playerControlMode = RE::BSScript::get<std::int32_t>(*v);
+				out.sceneControlsMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("FadeMode"); v && v->is<std::int32_t>()) {
 				out.fadeMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("InPlaceMode"); v && v->is<std::int32_t>()) {
-				out.inPlaceMode = RE::BSScript::get<std::int32_t>(*v);
+				out.followActorMode = RE::BSScript::get<std::int32_t>(*v);
 			}
 			if (const auto* v = member("Camera"); v && v->is<RE::BSFixedString>()) {
 				out.camera = RE::BSScript::get<RE::BSFixedString>(*v).c_str();
@@ -203,7 +203,7 @@ namespace OSF::Papyrus
 		// edited animation files re-import. (Name kept for the existing Papyrus binding.)
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
-			return Packs::ReloadAll();
+			return Content::ReloadAll();  // Papyrus name remains ReloadPacks for compatibility
 		}
 
 		// Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
@@ -343,7 +343,7 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const std::string sid = a_id.c_str();
-			const auto def = Registry::SceneRegistry::GetSingleton().Find(sid);
+			const auto def = Registry::ContentRegistry::GetSingleton().Find(sid);
 			if (!def) {
 				// ERROR, not DEBUG: a typo'd scene id is an author mistake and must be visible at the
 				// shipped Info level (every sibling by-id path reports it via StartFromDef's ERROR).
@@ -382,7 +382,7 @@ namespace OSF::Papyrus
 			const std::string sid = a_id.c_str();
 			// StartSceneRoles carries no SceneOptions, so it can't supply the anchor an anchor-bound scene
 			// needs. Reject early with a clear pointer to StartScene rather than failing the placement later.
-			if (const auto def = Registry::SceneRegistry::GetSingleton().Find(sid); def && def->RequiresAnchor()) {
+			if (const auto def = Registry::ContentRegistry::GetSingleton().Find(sid); def && def->RequiresAnchor()) {
 				REX::WARN("[Papyrus] StartSceneRoles: scene '{}' is anchor-bound — use StartScene with SceneOptions.Anchor", sid);
 				UI::HudMessage::Error(std::format("scene '{}' needs a furniture anchor (use StartScene)", sid));
 				return 0;
@@ -513,9 +513,9 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().GetParticipants(a_scene);
 		}
 
-		Animation::ScenePlan::Stage MakeStageFromFiles(const std::vector<RE::BSFixedString>& a_files, std::size_t a_begin, std::size_t a_count)
+		Animation::PlaybackPlan::Segment MakeStageFromFiles(const std::vector<RE::BSFixedString>& a_files, std::size_t a_begin, std::size_t a_count)
 		{
-			Animation::ScenePlan::Stage stage;
+			Animation::PlaybackPlan::Segment stage;
 			stage.files.reserve(a_count);
 			stage.animIds.reserve(a_count);
 			for (std::size_t i = 0; i < a_count; i++) {
@@ -586,7 +586,7 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
-			Animation::ScenePlan plan;
+			Animation::PlaybackPlan plan;
 			auto stage = MakeStageFromFiles(a_files, 0, a_files.size());
 			if (a_placed) {
 				stage.placements = MakePlacements(a_actors.size(), 0, a_x, a_y, a_z, a_headingDeg);
@@ -618,7 +618,7 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
-			Animation::ScenePlan plan;
+			Animation::PlaybackPlan plan;
 			plan.speed = opts.speed;
 			plan.blendIn = opts.blendIn;
 			plan.stages.reserve(stageCount);
@@ -676,7 +676,7 @@ namespace OSF::Papyrus
 			// SceneOptions.Stage enters directly on the stage node (same semantics as StartScene) instead of
 			// the old post-start SetStage jump, which played the entry node first (visible pop, double load).
 			std::string entryNode;
-			if (const auto def = Registry::SceneRegistry::GetSingleton().Find(sid)) {
+			if (const auto def = Registry::ContentRegistry::GetSingleton().Find(sid)) {
 				auto resolved = ResolveStageEntryNode(*def, opts.stage, "OSF.StartSceneRolesEx");
 				if (!resolved) {
 					return 0;
@@ -750,7 +750,7 @@ namespace OSF::Papyrus
 		std::vector<RE::BSFixedString> GetSceneLoadErrors(OSFVM&, uint32_t, std::monostate)
 		{
 			std::vector<RE::BSFixedString> out;
-			for (const auto& e : Registry::SceneRegistry::GetSingleton().LoadErrors()) {
+			for (const auto& e : Registry::ContentRegistry::GetSingleton().LoadErrors()) {
 				out.emplace_back(e.c_str());
 			}
 			return out;
@@ -759,7 +759,7 @@ namespace OSF::Papyrus
 		std::vector<RE::BSFixedString> GetMissingClipRefs(OSFVM&, uint32_t, std::monostate)
 		{
 			std::vector<RE::BSFixedString> out;
-			for (const auto& e : Registry::SceneRegistry::GetSingleton().MissingClipRefs()) {
+			for (const auto& e : Registry::ContentRegistry::GetSingleton().MissingClipRefs()) {
 				out.emplace_back(e.c_str());
 			}
 			return out;

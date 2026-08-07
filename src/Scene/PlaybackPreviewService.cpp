@@ -1,4 +1,4 @@
-#include "Scene/SceneInspectionService.h"
+#include "Scene/PlaybackPreviewService.h"
 
 #include "Matchmaking/Matchmaker.h"
 #include "Overlay/OverlayService.h"
@@ -13,13 +13,13 @@
 
 namespace OSF::Scene
 {
-	SceneInspectionService& SceneInspectionService::GetSingleton()
+	PlaybackPreviewService& PlaybackPreviewService::GetSingleton()
 	{
-		static SceneInspectionService singleton;
+		static PlaybackPreviewService singleton;
 		return singleton;
 	}
 
-	std::int32_t SceneInspectionService::MintHandle()
+	std::int32_t PlaybackPreviewService::MintHandle()
 	{
 		while (_nextHandle == 0 || _previews.contains(_nextHandle)) {
 			_nextHandle = _nextHandle == (std::numeric_limits<std::int32_t>::min)() ? -1 : _nextHandle - 1;
@@ -29,8 +29,8 @@ namespace OSF::Scene
 		return handle;
 	}
 
-	std::optional<PreparedInspection> SceneInspectionService::Prepare(
-		const InspectionRequest& a_request, std::string& a_error) const
+	std::optional<PreparedPreview> PlaybackPreviewService::Prepare(
+		const PreviewRequest& a_request, std::string& a_error) const
 	{
 		const auto& definition = a_request.definition;
 		if (!definition) {
@@ -60,12 +60,12 @@ namespace OSF::Scene
 		if (!Matchmaking::BindSceneRoles(*definition, a_request.actors, a_request.roleNames, ordered, a_error)) {
 			return std::nullopt;
 		}
-		if (definition->RequiresAnchor() && !a_request.anchor.set) {
+		if (definition->RequiresAnchor() && !a_request.worldAnchor.set) {
 			a_error = "This scene requires compatible furniture";
 			return std::nullopt;
 		}
 
-		auto plan = Registry::SceneRegistry::GetSingleton().BuildNodePlan(definition, *node, ordered.size());
+		auto plan = Registry::ContentRegistry::GetSingleton().BuildNodePlan(definition, *node, ordered.size());
 		if (!plan || plan->stages.empty()) {
 			a_error = "The selected node has no playable preview";
 			return std::nullopt;
@@ -95,10 +95,10 @@ namespace OSF::Scene
 		}
 
 		bool anchorImplicit = false;
-		if (a_request.anchor.set) {
+		if (a_request.worldAnchor.set) {
 			plan->anchorExplicit = true;
-			plan->anchorPos = a_request.anchor.pos;
-			plan->anchorHeading = a_request.anchor.heading;
+			plan->anchorPos = a_request.worldAnchor.pos;
+			plan->anchorHeading = a_request.worldAnchor.heading;
 		} else if (plan->anchored) {
 			// Preserve actor-relative placement while ensuring Layer A restores transforms on stop.
 			anchorImplicit = true;
@@ -123,13 +123,13 @@ namespace OSF::Scene
 		}
 
 		const auto stage = definition->LinearStageOf(nodeId);
-		return PreparedInspection{
+		return PreparedPreview{
 			definition, std::move(nodeId), stage, std::move(ordered), std::move(*plan), anchorImplicit
 		};
 	}
 
-	std::optional<PreparedRouteInspection> SceneInspectionService::PrepareRoute(
-		const RouteInspectionRequest& a_request, std::string& a_error) const
+	std::optional<PreparedRoutePreview> PlaybackPreviewService::PrepareRoute(
+		const RoutePreviewRequest& a_request, std::string& a_error) const
 	{
 		if (!a_request.definition) {
 			a_error = "The selected route definition is no longer loaded";
@@ -146,16 +146,16 @@ namespace OSF::Scene
 		}
 
 		auto plan = Overlay::BuildRouteTransitionPreviewPlan(*a_request.definition, *transition);
-		return PreparedRouteInspection{
+		return PreparedRoutePreview{
 			a_request.definition, transition->id, a_request.actor, std::move(plan)
 		};
 	}
 
-	std::int32_t SceneInspectionService::Start(PreparedInspection a_prepared, std::string& a_error)
+	std::int32_t PlaybackPreviewService::Start(PreparedPreview a_prepared, std::string& a_error)
 	{
 		auto* owner = a_prepared.participants.empty() ? nullptr : a_prepared.participants.front();
 		Animation::PlaybackId playbackId = 0;
-		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(
+		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(
 				a_prepared.participants, a_prepared.plan, 0, &playbackId)) {
 			a_error = "The selected preview clip could not be loaded";
 			return 0;
@@ -193,8 +193,8 @@ namespace OSF::Scene
 		return handle;
 	}
 
-	std::int32_t SceneInspectionService::StartRoute(
-		PreparedRouteInspection a_prepared, std::string& a_error)
+	std::int32_t PlaybackPreviewService::StartRoute(
+		PreparedRoutePreview a_prepared, std::string& a_error)
 	{
 		if (!a_prepared.definition || !a_prepared.actor) {
 			a_error = "The selected route preview is no longer available";
@@ -207,7 +207,7 @@ namespace OSF::Scene
 		Overlay::OverlayService::GetSingleton().SuspendForScene(handle, participants);
 
 		Animation::PlaybackId playbackId = 0;
-		if (!Animation::GraphManager::GetSingleton().PlaySceneStaged(
+		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(
 				participants, a_prepared.plan, 0, &playbackId)) {
 			Overlay::OverlayService::GetSingleton().ReconcileAfterScene(handle);
 			a_error = "The selected route transition clip could not be loaded";
@@ -233,7 +233,7 @@ namespace OSF::Scene
 		return handle;
 	}
 
-	RE::Actor* SceneInspectionService::RoleActor(const Preview& a_preview, std::string_view a_role) const
+	RE::Actor* PlaybackPreviewService::RoleActor(const Preview& a_preview, std::string_view a_role) const
 	{
 		if (a_preview.participants.empty()) {
 			return nullptr;
@@ -250,7 +250,7 @@ namespace OSF::Scene
 		return nullptr;
 	}
 
-	void SceneInspectionService::DestroyProps(Preview& a_preview)
+	void PlaybackPreviewService::DestroyProps(Preview& a_preview)
 	{
 		auto& service = Props::PropService::GetSingleton();
 		for (auto& prop : a_preview.props) {
@@ -269,7 +269,7 @@ namespace OSF::Scene
 		a_preview.routeProps.clear();
 	}
 
-	void SceneInspectionService::ReconcileRouteProps(
+	void PlaybackPreviewService::ReconcileRouteProps(
 		Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames)
 	{
 		const auto* transition = a_preview.route ? a_preview.route->FindTransition(a_preview.transition) : nullptr;
@@ -285,7 +285,7 @@ namespace OSF::Scene
 				const auto* prop = *wanted;
 				const bool unchanged = it->lifetime == prop->lifetime && it->source.kind == prop->source.kind &&
 					it->source.form == prop->source.form && it->source.keywords == prop->source.keywords &&
-					it->attachment.node == prop->attachment.node &&
+					it->attachment.targetNode == prop->attachment.targetNode &&
 					it->attachment.position == prop->attachment.position &&
 					it->attachment.rotation == prop->attachment.rotation &&
 					it->attachment.scale == prop->attachment.scale;
@@ -321,7 +321,7 @@ namespace OSF::Scene
 			a_preview.handle, desired.size(), a_frame, a_atEnd ? " (end)" : "");
 	}
 
-	void SceneInspectionService::ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd,
+	void PlaybackPreviewService::ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd,
 		float a_durationSec)
 	{
 		const auto* node = a_preview.definition ? a_preview.definition->FindNode(a_preview.node) : nullptr;
@@ -358,7 +358,7 @@ namespace OSF::Scene
 			if (live != a_preview.props.end()) {
 				const auto& before = live->action;
 				const bool unchanged = before.role == action.role &&
-					before.propAttachment.node == action.propAttachment.node &&
+					before.propAttachment.targetNode == action.propAttachment.targetNode &&
 					before.propAttachment.position == action.propAttachment.position &&
 					before.propAttachment.rotation == action.propAttachment.rotation &&
 					before.propAttachment.scale == action.propAttachment.scale;
@@ -383,7 +383,7 @@ namespace OSF::Scene
 			desired.size(), std::clamp(a_fraction, 0.0f, 1.0f), a_atEnd ? " (end)" : "");
 	}
 
-	bool SceneInspectionService::SetSpeed(std::int32_t a_handle, float a_speed)
+	bool PlaybackPreviewService::SetSpeed(std::int32_t a_handle, float a_speed)
 	{
 		const auto found = _previews.find(a_handle);
 		if (found == _previews.end() || found->second.participants.empty() ||
@@ -400,7 +400,7 @@ namespace OSF::Scene
 		return manager.SetSpeed(preview.participants.front(), a_speed);
 	}
 
-	void SceneInspectionService::Tick()
+	void PlaybackPreviewService::Tick()
 	{
 		auto& manager = Animation::GraphManager::GetSingleton();
 		for (auto& [handle, preview] : _previews) {
@@ -421,7 +421,7 @@ namespace OSF::Scene
 		}
 	}
 
-	bool SceneInspectionService::Seek(std::int32_t a_handle, float a_time)
+	bool PlaybackPreviewService::Seek(std::int32_t a_handle, float a_time)
 	{
 		const auto found = _previews.find(a_handle);
 		if (found == _previews.end() || found->second.participants.empty() ||
@@ -449,7 +449,7 @@ namespace OSF::Scene
 		return true;
 	}
 
-	bool SceneInspectionService::Retire(std::int32_t a_handle, bool a_stopGraph)
+	bool PlaybackPreviewService::Retire(std::int32_t a_handle, bool a_stopGraph)
 	{
 		const auto found = _previews.find(a_handle);
 		if (found == _previews.end()) {
@@ -468,12 +468,12 @@ namespace OSF::Scene
 		return true;
 	}
 
-	bool SceneInspectionService::Stop(std::int32_t a_handle)
+	bool PlaybackPreviewService::Stop(std::int32_t a_handle)
 	{
 		return Retire(a_handle, true);
 	}
 
-	void SceneInspectionService::StopForActor(RE::Actor* a_actor)
+	void PlaybackPreviewService::StopForActor(RE::Actor* a_actor)
 	{
 		std::vector<std::int32_t> handles;
 		for (const auto& [handle, preview] : _previews) {
@@ -486,7 +486,7 @@ namespace OSF::Scene
 		}
 	}
 
-	void SceneInspectionService::StopAll()
+	void PlaybackPreviewService::StopAll()
 	{
 		std::vector<std::int32_t> handles;
 		handles.reserve(_previews.size());
@@ -499,14 +499,14 @@ namespace OSF::Scene
 		}
 	}
 
-	bool SceneInspectionService::Contains(std::int32_t a_handle) const
+	bool PlaybackPreviewService::Contains(std::int32_t a_handle) const
 	{
 		return _previews.contains(a_handle);
 	}
 
-	std::vector<InspectionSnapshot> SceneInspectionService::List()
+	std::vector<PreviewSnapshot> PlaybackPreviewService::List()
 	{
-		std::vector<InspectionSnapshot> result;
+		std::vector<PreviewSnapshot> result;
 		std::vector<std::int32_t> stale;
 		auto& manager = Animation::GraphManager::GetSingleton();
 		for (const auto& [handle, preview] : _previews) {
@@ -516,7 +516,7 @@ namespace OSF::Scene
 				stale.push_back(handle);
 				continue;
 			}
-			InspectionSnapshot snapshot;
+			PreviewSnapshot snapshot;
 			snapshot.handle = handle;
 			snapshot.sceneId = preview.sceneId;
 			snapshot.stage = preview.stage;

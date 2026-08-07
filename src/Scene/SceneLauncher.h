@@ -20,11 +20,11 @@ namespace OSF::Scene
 		std::int32_t       stage = 0;
 		float              speed = 1.0f;
 		float              blendIn = 0.4f;
-		std::int32_t       stripMode = -1;          // tri-state override: -1 inherit, 0 off, 1 on
-		std::int32_t       lockPlayerMode = -1;     // tri-state override
-		std::int32_t       playerControlMode = -1;  // tri-state override of the director-input grant (OFF = no advance/end)
+		std::int32_t       hideApparelMode = -1;     // tri-state override: -1 inherit, 0 off, 1 on
+		std::int32_t       playerInputLockMode = -1; // tri-state override
+		std::int32_t       sceneControlsMode = -1;   // tri-state override of OSF controls (OFF = no advance/end)
 		std::int32_t       fadeMode = -1;           // tri-state override
-		std::int32_t       inPlaceMode = -1;        // tri-state override: 1 = no teleport / per-frame root+heading pin (rig follows the actor)
+		std::int32_t       followActorMode = -1;     // tri-state override: 1 = follow actors, 0 = anchor and pin
 		std::string        camera;                  // camera state override ("" = inherit; "none" = leave the vanilla camera alone; suppresses authored node cameras)
 		float              loopScale = 1.0f;        // multiply loop-driven stage loop counts (1.0 = none)
 	};
@@ -35,11 +35,12 @@ namespace OSF::Scene
 	// A SceneRuntime world-anchor from resolved options (unset when no Anchor).
 	SceneRuntime::AnchorOverride MakeAnchor(const LaunchOpts& a_opts);
 
-	// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool> (1 = on, 0 = off, anything else incl. -1 = inherit the scene's pack default).
+	// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool>
+	// (1 = on, 0 = off, anything else incl. -1 = inherit the scene/content-file default).
 	// LoopScale is sanitized: <=0 or NaN -> 1.0 (no scaling); inf / overshoot -> clamped to kLoopScaleMax.
 	SceneRuntime::StartOverrides MakeOverrides(const LaunchOpts& a_opts);
-	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_stripMode, std::int32_t a_lockPlayerMode,
-		std::int32_t a_playerControlMode, std::int32_t a_fadeMode, std::int32_t a_inPlaceMode,
+	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_hideApparelMode, std::int32_t a_playerInputLockMode,
+		std::int32_t a_sceneControlsMode, std::int32_t a_fadeMode, std::int32_t a_followActorMode,
 		std::string_view a_camera, float a_loopScale);
 
 	// Validate the actor list, matchmake a_query across the scene registry (priority tier + weighted-random) with anchor filtering (a_mode + a_opts.anchor),

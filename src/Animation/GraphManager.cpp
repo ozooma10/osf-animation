@@ -6,7 +6,7 @@
 #include "Audio/SoundService.h"
 #include "Camera/CameraService.h"
 #include "Input/InputService.h"
-#include "Player/PlayerControlService.h"
+#include "Player/PlayerInputLockService.h"
 #include "UI/FadeService.h"
 #include "UI/Subtitle.h"
 #include "Util/ClipPath.h"
@@ -110,30 +110,30 @@ namespace OSF::Animation
 			return (std::isfinite(dt) && dt >= 0.0f && dt <= kMaxUpdateStep) ? dt : 0.0f;
 		}
 
-		// Validates a play request's shapes (actor count, per-stage file/placement counts, no null actors); 
+		// Validates a synchronized-playback request's shape (actor count, per-segment file/placement counts, no null actors);
 		// logs the specific failure. The hook-installed precondition is checked separately by the caller.
-		bool ValidateScenePlanArgs(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage)
+		bool ValidatePlaybackPlanArgs(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment)
 		{
 			if (a_actors.empty()) {
-				REX::ERROR("[Anim] PlayScene: need >= 1 actor (got 0)");
+				REX::ERROR("[Anim] synchronized playback: need >= 1 actor (got 0)");
 				return false;
 			}
 			if (a_plan.stages.empty()) {
-				REX::ERROR("[Anim] PlayScene: plan has no stages");
+				REX::ERROR("[Anim] synchronized playback: plan has no segments");
 				return false;
 			}
-			if (a_startStage < 0 || static_cast<size_t>(a_startStage) >= a_plan.stages.size()) {
-				REX::ERROR("[Anim] PlayScene: start stage {} out of range (plan has {} stages)", a_startStage, a_plan.stages.size());
+			if (a_startSegment < 0 || static_cast<size_t>(a_startSegment) >= a_plan.stages.size()) {
+				REX::ERROR("[Anim] synchronized playback: start segment {} out of range (plan has {} segments)", a_startSegment, a_plan.stages.size());
 				return false;
 			}
 			if (a_plan.anchorExplicit &&
 				(!std::isfinite(a_plan.anchorPos.x) || !std::isfinite(a_plan.anchorPos.y) ||
 					!std::isfinite(a_plan.anchorPos.z) || !std::isfinite(a_plan.anchorHeading))) {
-				REX::ERROR("[Anim] PlayScene: explicit anchor contains a non-finite value");
+				REX::ERROR("[Anim] synchronized playback: explicit anchor contains a non-finite value");
 				return false;
 			}
 			if (!HasValidRolePolicyShape(a_plan, a_actors.size())) {
-				REX::ERROR("[Anim] PlayScene: role policies do not match {} actor(s) or contain an invalid pose weight/mask "
+				REX::ERROR("[Anim] synchronized playback: role policies do not match {} actor(s) or contain an invalid pose weight/mask "
 					"({} preserve, {} modes, {} weights, {} masks, {} names)",
 					a_actors.size(), a_plan.preserveBones.size(), a_plan.poseModes.size(),
 					a_plan.poseWeights.size(), a_plan.masks.size(), a_plan.roleNames.size());
@@ -147,41 +147,41 @@ namespace OSF::Animation
 					(!stage.masks.empty() && stage.masks.size() != a_actors.size()) ||
 					(!stage.poseModes.empty() && stage.poseModes.size() != a_actors.size()) ||
 					(!stage.poseWeights.empty() && stage.poseWeights.size() != a_actors.size())) {
-					REX::ERROR("[Anim] PlayScene: stage {} does not match the actor count ({} files, {} anim ids, {} placements, {} masks, {} modes, {} weights, {} actors)",
+					REX::ERROR("[Anim] synchronized playback: segment {} does not match the actor count ({} files, {} anim ids, {} placements, {} masks, {} modes, {} weights, {} actors)",
 						s, stage.files.size(), stage.animIds.size(), stage.placements.size(), stage.masks.size(),
 						stage.poseModes.size(), stage.poseWeights.size(), a_actors.size());
 					return false;
 				}
 				if (!std::isfinite(stage.timer)) {
-					REX::ERROR("[Anim] PlayScene: stage {} timer is non-finite", s);
+					REX::ERROR("[Anim] synchronized playback: segment {} timer is non-finite", s);
 					return false;
 				}
 				for (const auto& placement : stage.placements) {
 					if (!std::isfinite(placement.x) || !std::isfinite(placement.y) ||
 						!std::isfinite(placement.z) || !std::isfinite(placement.heading)) {
-						REX::ERROR("[Anim] PlayScene: stage {} placement contains a non-finite value", s);
+						REX::ERROR("[Anim] synchronized playback: segment {} placement contains a non-finite value", s);
 						return false;
 					}
 				}
 			}
 			for (size_t i = 0; i < a_actors.size(); i++) {
 				if (!a_actors[i]) {
-					REX::ERROR("[Anim] PlayScene: null actor at index {}", i);
+					REX::ERROR("[Anim] synchronized playback: null actor at index {}", i);
 					return false;
 				}
 			}
 			return true;
 		}
 
-		// Loads every clip of every stage up front and assembles the Scene (stages, voices, sizing, initial stage, world anchor). 
-		// Returns nullptr if any clip fails to load - the caller refuses a partial scene. Touches  no GraphManager state; the caller wires up the participant graphs.
-		std::shared_ptr<Scene> BuildSceneFromPlan(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan,
-			int32_t a_startStage)
+		// Loads every clip of every segment up front and assembles the PlaybackSession. Returns nullptr
+		// if any clip fails to load; the caller refuses partial playback.
+		std::shared_ptr<PlaybackSession> BuildPlaybackFromPlan(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan,
+			int32_t a_startSegment)
 		{
-			auto scene = std::make_shared<Scene>();
+			auto scene = std::make_shared<PlaybackSession>();
 			scene->stages.reserve(a_plan.stages.size());
 			for (const auto& planStage : a_plan.stages) {
-				Scene::StageData stage;
+				PlaybackSession::SegmentData stage;
 				stage.timer = planStage.timer;
 				stage.loops = planStage.loops;
 				stage.hold = std::isfinite(planStage.hold) && planStage.hold >= 0.0f ?
@@ -204,23 +204,24 @@ namespace OSF::Animation
 				                       std::vector<ContactPose>(a_actors.size()) : planStage.contactPose;
 				stage.marks = planStage.marks;
 				for (std::size_t clipIdx = 0; clipIdx < planStage.files.size(); clipIdx++) {
-					const auto& fileSpec = planStage.files[clipIdx];
-					const std::string_view animId =
-						(clipIdx < planStage.animIds.size()) ? std::string_view{ planStage.animIds[clipIdx] } : std::string_view{};
-					auto file = Util::ResolveClipSpec(std::filesystem::path{ fileSpec });
-					auto load = GraphManagerClipLoad::Load(file, animId);
+					const AnimationClipSpec clipSpec{
+						.resourcePath = planStage.files[clipIdx],
+						.animationId = clipIdx < planStage.animIds.size() ? planStage.animIds[clipIdx] : std::string{}
+					};
+					auto file = Util::ResolveClipSpec(std::filesystem::path{ clipSpec.resourcePath });
+					auto load = GraphManagerClipLoad::Load(file, clipSpec.animationId);
 					if (!load.ok) {
-						REX::ERROR("[Anim] PlayScene: failed to load '{}' ({}) — scene not started",
+						REX::ERROR("[Anim] synchronized playback: failed to load '{}' ({}) — session not started",
 							load.source.empty() ? file.display : load.source, load.detail);
 						return nullptr;
 					}
-					stage.participants.push_back({ std::move(load.skeleton), std::move(load.anim), fileSpec });
+					stage.participants.push_back({ std::move(load.skeleton), std::move(load.anim), clipSpec.resourcePath });
 				}
 				stage.duration = stage.participants[0].anim->data->duration();
 				for (std::size_t i = 1; i < stage.participants.size(); i++) {
 					const float participantDuration = stage.participants[i].anim->data->duration();
 					if (std::abs(participantDuration - stage.duration) > 0.01f) {
-						REX::WARN("[Anim] PlayScene: stage participant {} duration {:.3f}s differs from reference {:.3f}s; sampling wraps independently",
+						REX::WARN("[Anim] synchronized playback: segment participant {} duration {:.3f}s differs from reference {:.3f}s; sampling wraps independently",
 							i, participantDuration, stage.duration);
 					}
 				}
@@ -232,7 +233,7 @@ namespace OSF::Animation
 			scene->loopWhole = a_plan.loopWhole;
 			if (scene->restoreParticipantTransforms) {
 				if (a_plan.baselineTransforms.size() == a_actors.size()) {
-					scene->originalTransforms = a_plan.baselineTransforms;  // caller-carried pre-scene baseline (see ScenePlan)
+					scene->originalTransforms = a_plan.baselineTransforms;  // caller-carried pre-playback baseline (see PlaybackPlan)
 				} else {
 					scene->originalTransforms.reserve(a_actors.size());
 					for (const auto* actor : a_actors) {
@@ -243,10 +244,10 @@ namespace OSF::Animation
 			const float requestedSpeed = std::isfinite(a_plan.speed) ? a_plan.speed : 1.0f;
 			scene->speed = std::clamp(requestedSpeed, 0.0f, 100.0f);  // same range as SetSpeed
 
-			scene->SetStage(a_startStage);
+			scene->SetSegment(a_startSegment);
 
 			// Anchor at actor[0]'s current transform by default; participant world positions are anchor + each placement's offset rotated into the anchor heading frame (see PlacementToWorld).
-			// An explicit anchor (StartSceneAt) overrides actor[0], so the scene world-anchors to a thing (furniture/marker).
+			// An explicit anchor (including the StartSceneAt compatibility API) overrides actor[0], so the playback session world-anchors to a thing (furniture/marker).
 			if (a_plan.anchorExplicit) {
 				scene->anchorPos = a_plan.anchorPos;
 				scene->anchorHeading = a_plan.anchorHeading;
@@ -255,9 +256,9 @@ namespace OSF::Animation
 				scene->anchorHeading = a_actors[0]->data.angle.z;
 			}
 
-			// Arm the stall watchdog from birth. StallWatchTick skips lastAdvanceMs == 0, so a scene the
+			// Arm the stall watchdog from birth. StallWatchTick skips lastAdvanceMs == 0, so a session the
 			// engine never ticks even once (participant 3D dropped right after start) would otherwise be
-			// invisible to it and hold the player lock forever.
+			// invisible to it and hold the player input lock forever.
 			scene->lastAdvanceMs.store(
 				std::chrono::duration_cast<std::chrono::milliseconds>(
 					std::chrono::steady_clock::now().time_since_epoch())
@@ -405,11 +406,11 @@ namespace OSF::Animation
 			std::unique_lock l{ stateLock };
 			auto& slot = graphs[a_actor];
 			if (slot) {
-				// Refuse to clobber a scene participant (it would keep g->scene set and the next stage tick would overwrite this clip anyway). 
-				// Mirror of StopAnimation's guard — use StopScene to end a scene first.
+				// Refuse to clobber a synchronized-playback participant (it would keep g->playbackSession set and the next segment tick would overwrite this clip anyway).
+				// Mirror of StopAnimation's guard — use the StopScene compatibility API to end the session first.
 				std::scoped_lock gl{ slot->stateLock };
-				if (slot->scene) {
-					REX::WARN("[Anim] Play refused: actor {:X} is in a scene — use StopScene first", a_actor->formID);
+				if (slot->playbackSession) {
+					REX::WARN("[Anim] Play refused: actor {:X} is in a synchronized playback session — use StopScene first", a_actor->formID);
 					return false;
 				}
 			} else {
@@ -443,8 +444,8 @@ namespace OSF::Animation
 			return false;
 		}
 		std::scoped_lock gl{ iter->second->stateLock };
-		if (iter->second->scene) {
-			REX::WARN("[Anim] Stop: actor {:X} is in a scene — use StopScene", a_actor->formID);
+		if (iter->second->playbackSession) {
+			REX::WARN("[Anim] Stop: actor {:X} is in a synchronized playback session — use StopScene", a_actor->formID);
 			return false;
 		}
 		iter->second->BeginFadeOut();
@@ -464,7 +465,7 @@ namespace OSF::Animation
 		bool fadedOut = false;
 		{
 			std::scoped_lock gl{ g->stateLock };
-			sceneSet = (g->scene != nullptr);
+			sceneSet = (g->playbackSession != nullptr);
 			const std::int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now().time_since_epoch()).count();
 			fadedOut = g->IsFadedOut() || g->IsStranded(now);  // stranded = the fade can never elapse (Sample stopped)
@@ -480,12 +481,12 @@ namespace OSF::Animation
 				a_refr ? a_refr->formID : 0, graphs.size());
 		} else {
 			// DIAG: removal task ran but DECLINED to remove — this is the "never returns to vanilla" smoking gun.
-			REX::DEBUG("[Anim] fade-removal KEPT — actor {:X} (scene={} fadedOut={})",
+			REX::DEBUG("[Anim] fade-removal KEPT — actor {:X} (session={} fadedOut={})",
 				a_refr ? a_refr->formID : 0, sceneSet, fadedOut);
 		}
 	}
 
-	bool GraphManager::PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
+	bool GraphManager::PlaySynchronized(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment,
 		PlaybackId* a_outPlaybackId, PlaybackId a_expectedPlayback, PlaybackSinkId a_sinkId,
 		bool a_strictTimedMarks)
 	{
@@ -493,20 +494,20 @@ namespace OSF::Animation
 			*a_outPlaybackId = 0;
 		}
 		if (!_origAnimGraphUpdate) {
-			REX::ERROR("[Anim] PlayScene refused: update hook is not installed");
+			REX::ERROR("[Anim] synchronized playback refused: update hook is not installed");
 			return false;
 		}
-		if (!ValidateScenePlanArgs(a_actors, a_plan, a_startStage)) {
+		if (!ValidatePlaybackPlanArgs(a_actors, a_plan, a_startSegment)) {
 			return false;
 		}
 		if (a_sinkId != 0 && !GetPlaybackSink(a_sinkId)) {
-			REX::ERROR("[Anim] PlayScene refused: playback sink {} is not registered", a_sinkId);
+			REX::ERROR("[Anim] synchronized playback refused: playback sink {} is not registered", a_sinkId);
 			return false;
 		}
 
-		// Load every clip of every stage up front; a null result means one failed, so refuse a partial scene. 
-		// Preloading is what makes stage switches on the job threads IO-free.
-		auto scene = BuildSceneFromPlan(a_actors, a_plan, a_startStage);
+		// Load every clip of every segment up front; a null result means one failed, so refuse a partial session.
+		// Preloading is what makes segment switches on the job threads IO-free.
+		auto scene = BuildPlaybackFromPlan(a_actors, a_plan, a_startSegment);
 		if (!scene) {
 			return false;
 		}
@@ -514,7 +515,7 @@ namespace OSF::Animation
 			for (std::size_t stageIndex = 0; stageIndex < scene->stages.size(); ++stageIndex) {
 				const auto& stage = scene->stages[stageIndex];
 				if (const auto* mark = FirstInvalidStrictTimedMark(stage.marks, stage.duration)) {
-					REX::ERROR("[Anim] PlayScene refused: strict timed mark '{}' at {:.3f}s is at/past stage {} duration {:.3f}s",
+					REX::ERROR("[Anim] synchronized playback refused: strict timed mark '{}' at {:.3f}s is at/past segment {} duration {:.3f}s",
 						mark->token, MarkTime(*mark, stage.duration), stageIndex, stage.duration);
 					return false;
 				}
@@ -527,21 +528,21 @@ namespace OSF::Animation
 		scene->worldEpoch = _worldEpoch.load(std::memory_order_acquire);
 		scene->playbackSinkId = a_sinkId;
 
-		const auto startStage = static_cast<uint32_t>(a_startStage);
+		const auto startSegment = static_cast<uint32_t>(a_startSegment);
 		std::vector<std::function<void()>> deferred;
 		{
 			std::unique_lock l{ stateLock };
 
-			// Admission is checked for the full cast before any graph mutation. A staged owner may
-			// replace only the exact playback it names; a new owner never silently clobbers a scene.
-			std::vector<Scene*> replacements;
+			// Admission is checked for the full cast before any graph mutation. A synchronized-playback owner may
+			// replace only the exact playback it names; a new owner never silently clobbers a playback session.
+			std::vector<PlaybackSession*> replacements;
 			for (auto* actor : a_actors) {
 				auto iter = graphs.find(actor);
 				PlaybackClaim claim;
-				Scene* currentScene = nullptr;
+				PlaybackSession* currentScene = nullptr;
 				if (iter != graphs.end()) {
 					std::scoped_lock gl{ iter->second->stateLock };
-					currentScene = iter->second->scene;
+					currentScene = iter->second->playbackSession;
 					if (currentScene) {
 						claim = { PlaybackOccupant::kStaged, currentScene->playbackId, currentScene->playbackSinkId };
 					} else {
@@ -551,14 +552,14 @@ namespace OSF::Animation
 				const auto admission = EvaluatePlaybackAdmission(claim, a_expectedPlayback, a_sinkId);
 				if (!admission.accepted) {
 					if (admission.reason == PlaybackAdmissionReason::kExpectedMissing) {
-						REX::WARN("[Anim] PlayScene refused: expected playback {} is not present on actor {:X}", a_expectedPlayback, actor->formID);
+						REX::WARN("[Anim] synchronized playback refused: expected playback {} is not present on actor {:X}", a_expectedPlayback, actor->formID);
 					} else if (admission.reason == PlaybackAdmissionReason::kStandaloneOccupied) {
-						REX::WARN("[Anim] PlayScene refused: actor {:X} has standalone playback", actor->formID);
+						REX::WARN("[Anim] synchronized playback refused: actor {:X} has standalone playback", actor->formID);
 					} else if (admission.reason == PlaybackAdmissionReason::kOwnerMismatch) {
-						REX::WARN("[Anim] PlayScene refused: playback {} belongs to sink {}, not requesting sink {}",
+						REX::WARN("[Anim] synchronized playback refused: playback {} belongs to sink {}, not requesting sink {}",
 							claim.playbackId, claim.sinkId, a_sinkId);
 					} else {
-						REX::WARN("[Anim] PlayScene refused: actor {:X} is owned by playback {} (expected {})",
+						REX::WARN("[Anim] synchronized playback refused: actor {:X} is owned by playback {} (expected {})",
 							actor->formID, claim.playbackId, a_expectedPlayback);
 					}
 					return false;
@@ -569,25 +570,25 @@ namespace OSF::Animation
 				}
 			}
 			// Replacement reuses these actors' Graph objects. Preserve the currently displayed
-			// pose and its driven-joint set before StopSceneLocked invalidates the old binding.
+			// pose and its driven-joint set before StopPlaybackLocked invalidates the old binding.
 			for (auto* actor : a_actors) {
 				auto iter = graphs.find(actor);
 				if (iter == graphs.end() || !iter->second) {
 					continue;
 				}
 				std::scoped_lock gl{ iter->second->stateLock };
-				if (iter->second->scene &&
-					std::find(replacements.begin(), replacements.end(), iter->second->scene) != replacements.end()) {
+				if (iter->second->playbackSession &&
+					std::find(replacements.begin(), replacements.end(), iter->second->playbackSession) != replacements.end()) {
 					iter->second->PrepareBlendSource();
 				}
 			}
 			for (auto* replacement : replacements) {
 				REX::DEBUG("[Anim] replacing expected playback {}", replacement->playbackId);
-				StopSceneLocked(replacement, deferred);
+				StopPlaybackLocked(replacement, deferred);
 			}
 
 			for (size_t i = 0; i < a_actors.size(); i++) {
-				const auto& startSlot = scene->stages[startStage].participants[i];
+				const auto& startSlot = scene->stages[startSegment].participants[i];
 				auto& slot = graphs[a_actors[i]];
 				if (!slot) {
 					slot = std::make_shared<Graph>();
@@ -596,40 +597,40 @@ namespace OSF::Animation
 				{
 					std::scoped_lock gl{ slot->stateLock };
 					static const std::vector<std::string> kNoPreservedBones;
-					const PoseMode poseMode = scene->stages[startStage].poseModes[i];
-					const float poseWeight = scene->stages[startStage].poseWeights[i];
+					const PoseMode poseMode = scene->stages[startSegment].poseModes[i];
+					const float poseWeight = scene->stages[startSegment].poseWeights[i];
 					const std::string roleName = a_plan.roleNames.empty() ? std::string{} : a_plan.roleNames[i];
 					slot->SetPosePolicy(poseMode, poseWeight, roleName);
 					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
-					slot->SetBoneMask(scene->stages[startStage].masks[i]);
-					slot->SetContactPose(scene->stages[startStage].contactPose[i]);
+					slot->SetBoneMask(scene->stages[startSegment].masks[i]);
+					slot->SetContactPose(scene->stages[startSegment].contactPose[i]);
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
-					slot->blendDuration = scene->stages[startStage].blendIn;
-					slot->scene = scene.get();
+					slot->blendDuration = scene->stages[startSegment].blendIn;
+					slot->playbackSession = scene.get();
 					slot->participantIndex = static_cast<int>(i);
-					slot->scenePlacement = scene->stages[startStage].placements[i];
-					slot->appliedStage = startStage;
-					slot->sceneFrames = 0;    // restart the HoldAnchoredParticipant re-assert cadence for this scene
-					slot->hasAnchor = false;  // the scene drives positioning; drop any solo SetAnchor
+					slot->scenePlacement = scene->stages[startSegment].placements[i];
+					slot->appliedStage = startSegment;
+					slot->sceneFrames = 0;    // restart the HoldAnchoredParticipant re-assert cadence for this session
+					slot->hasAnchor = false;  // the session drives positioning; drop any solo SetAnchor
 					slot->anchorRevision++;
-					slot->syncGroup.reset();  // the scene clock supersedes any Sync group
+					slot->syncGroup.reset();  // the session clock supersedes any Sync group
 
 				}
 				scene->participants.push_back(slot);
 			}
-			scenes.push_back(scene);
+			playbackSessions.push_back(scene);
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}
-		FlushDeferredTasks(deferred);  // old-scene teardown follow-ups, queued now that stateLock is released
+		FlushDeferredTasks(deferred);  // old-session teardown follow-ups, queued now that stateLock is released
 
 		// Initial placement, dispatched to the GAME THREAD per participant (charController teleports + AI/flag writes
-		// don't take from the Papyrus thread that calls PlaySceneStaged). Per anchored participant: move the actor
+		// don't take from the Papyrus thread that calls PlaySynchronized). Per anchored participant: move the actor
 		// FOR REAL to its placement (SetPosition updateCharController=true moves the havok CAPSULE — the position the
 		// body-skin render cull reads), set heading, and set Actor::boolFlags2 kAnimationDriven so the AI keeps the
 		// anim running but stops walking the actor back to its post (re-asserted each frame by HoldAnchoredParticipant,
-		// cleared in StopSceneLocked). See OSF RE module gameplay.actor_animation_driven.
+		// cleared in StopPlaybackLocked). See OSF RE module gameplay.actor_animation_driven.
 		for (size_t i = 0; scene->anchored && i < scene->participants.size(); i++) {
-			const auto& pl = scene->stages[startStage].placements[i];
+			const auto& pl = scene->stages[startSegment].placements[i];
 			auto* refr = scene->participants[i]->target.get();
 			if (!refr) {
 				continue;
@@ -653,7 +654,7 @@ namespace OSF::Animation
 						return;
 					}
 					std::scoped_lock gl{ it->second->stateLock };
-					if (!it->second->scene || it->second->scene->playbackId != playbackId) {
+					if (!it->second->playbackSession || it->second->playbackSession->playbackId != playbackId) {
 						return;
 					}
 				}
@@ -672,10 +673,10 @@ namespace OSF::Animation
 			}
 		}
 
-		REX::DEBUG("[Anim] started synced playback: {} actors, {} stage(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
+		REX::DEBUG("[Anim] started synchronized playback session: {} actors, {} segment(s) starting at {} (duration {:.2f}s, timer {:.1f}s, loops {}), "
 			"anchored at ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
-			a_actors.size(), scene->stages.size(), startStage, scene->duration,
-			scene->stages[startStage].timer, scene->stages[startStage].loops,
+			a_actors.size(), scene->stages.size(), startSegment, scene->duration,
+			scene->stages[startSegment].timer, scene->stages[startSegment].loops,
 			scene->anchorPos.x, scene->anchorPos.y, scene->anchorPos.z, scene->anchorHeading);
 		if (a_outPlaybackId) {
 			*a_outPlaybackId = scene->playbackId;
@@ -689,20 +690,20 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// shared stateLock keeps the scene alive (scenes only mutate under unique);
-		// the stage jump itself is guarded by the scene's own lock
+		// shared stateLock keeps the playback session alive (the collection mutates only under unique);
+		// the segment jump itself is guarded by the session's own lock
 		std::shared_lock l{ stateLock };
 		auto iter = graphs.find(a_actor);
 		if (iter == graphs.end()) {
 			return false;
 		}
-		Scene* scene = nullptr;
+		PlaybackSession* scene = nullptr;
 		{
 			std::scoped_lock gl{ iter->second->stateLock };
-			scene = iter->second->scene;
+			scene = iter->second->playbackSession;
 		}
 		if (!scene) {
-			REX::WARN("[Anim] SetSceneStage: actor {:X} is not in a scene", a_actor->formID);
+			REX::WARN("[Anim] SetSceneStage: actor {:X} is not in a synchronized playback session", a_actor->formID);
 			return false;
 		}
 		if ((a_expectedPlayback && scene->playbackId != a_expectedPlayback) ||
@@ -710,11 +711,11 @@ namespace OSF::Animation
 			REX::WARN("[Anim] SetSceneStage refused: playback ownership does not match");
 			return false;
 		}
-		if (!scene->SetStage(a_stage)) {
-			REX::WARN("[Anim] SetSceneStage: stage {} out of range ({} stages)", a_stage, scene->stages.size());
+		if (!scene->SetSegment(a_stage)) {
+			REX::WARN("[Anim] SetSceneStage: segment {} out of range ({} segments)", a_stage, scene->stages.size());
 			return false;
 		}
-		REX::DEBUG("[Anim] Scene jumped to stage {}", a_stage);
+		REX::DEBUG("[Anim] playback session jumped to segment {}", a_stage);
 		return true;
 	}
 
@@ -728,16 +729,16 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return false;
 		}
-		Scene* scene = nullptr;
+		PlaybackSession* scene = nullptr;
 		{
 			std::scoped_lock gl{ iter->second->stateLock };
-			scene = iter->second->scene;
+			scene = iter->second->playbackSession;
 		}
 		return scene && ((a_expectedPlayback && scene->playbackId == a_expectedPlayback) ||
 			(!a_expectedPlayback && scene->playbackSinkId == 0)) && scene->Seek(a_time);
 	}
 
-	std::optional<GraphManager::ScenePlayback> GraphManager::GetScenePlayback(
+	std::optional<GraphManager::SynchronizedPlaybackState> GraphManager::GetScenePlayback(
 		RE::Actor* a_actor, PlaybackId a_expectedPlayback)
 	{
 		if (!a_actor) {
@@ -748,16 +749,16 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return std::nullopt;
 		}
-		Scene* scene = nullptr;
+		PlaybackSession* scene = nullptr;
 		{
 			std::scoped_lock gl{ iter->second->stateLock };
-			scene = iter->second->scene;
+			scene = iter->second->playbackSession;
 		}
 		if (!scene || (a_expectedPlayback && scene->playbackId != a_expectedPlayback)) {
 			return std::nullopt;
 		}
 		const auto snapshot = scene->GetPlaybackSnapshot();
-		return ScenePlayback{
+		return SynchronizedPlaybackState{
 			snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage), scene->playbackId
 		};
 	}
@@ -772,12 +773,12 @@ namespace OSF::Animation
 		{
 			std::unique_lock l{ stateLock };
 			auto iter = graphs.find(a_actor);
-			if (iter == graphs.end() || !iter->second->scene ||
-				(a_expectedPlayback && iter->second->scene->playbackId != a_expectedPlayback) ||
-				(!a_expectedPlayback && iter->second->scene->playbackSinkId != 0)) {
+			if (iter == graphs.end() || !iter->second->playbackSession ||
+				(a_expectedPlayback && iter->second->playbackSession->playbackId != a_expectedPlayback) ||
+				(!a_expectedPlayback && iter->second->playbackSession->playbackSinkId != 0)) {
 				return false;
 			}
-			StopSceneLocked(iter->second->scene, deferred);
+			StopPlaybackLocked(iter->second->playbackSession, deferred);
 		}
 		FlushDeferredTasks(deferred);
 		return true;
@@ -790,22 +791,22 @@ namespace OSF::Animation
 		{
 			std::unique_lock l{ stateLock };
 			auto iter = graphs.find(a_actor);
-			if (iter == graphs.end() || !iter->second->scene ||
-				iter->second->scene->playbackId != a_expectedPlayback) {
+			if (iter == graphs.end() || !iter->second->playbackSession ||
+				iter->second->playbackSession->playbackId != a_expectedPlayback) {
 				return false;
 			}
-			Scene* scene = iter->second->scene;
+			PlaybackSession* scene = iter->second->playbackSession;
 			std::vector<RE::TESObjectREFR*> participants;
 			for (const auto& graph : scene->participants) {
 				if (graph && graph->target) participants.push_back(graph->target.get());
 			}
-			StopSceneLocked(scene, deferred);
+			StopPlaybackLocked(scene, deferred);
 			for (auto* participant : participants) {
 				const auto found = graphs.find(participant);
 				if (found != graphs.end()) {
 					auto graph = found->second;
 					std::scoped_lock gl{ graph->stateLock };
-					if (!graph->scene) graphs.erase(found);
+					if (!graph->playbackSession) graphs.erase(found);
 				}
 			}
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
@@ -814,12 +815,12 @@ namespace OSF::Animation
 		return true;
 	}
 
-	void GraphManager::StopSceneByPtr(Scene* a_scene)
+	void GraphManager::StopPlaybackByPtr(PlaybackSession* a_session)
 	{
 		std::vector<std::function<void()>> deferred;
 		{
 			std::unique_lock l{ stateLock };
-			StopSceneLocked(a_scene, deferred);  // no-op if the scene was already stopped
+			StopPlaybackLocked(a_session, deferred);  // no-op if the playback was already stopped
 		}
 		FlushDeferredTasks(deferred);
 	}
@@ -832,11 +833,11 @@ namespace OSF::Animation
 		// A pending save window must not outlive the world it was opened for (a load can begin mid-save-op).
 		_saveWindow.store(false, std::memory_order_relaxed);
 
-		// Release the player standalone lock + the persistent AI-driven flag (set by the scene runtime's control lock).
+		// Release the player input lock + the persistent AI-driven flag (possibly left by older builds or free cam).
 		// The AI-driven flag is serialized into saves, so it MUST be cleared on every load even when this process holds no in-memory lock;
 		// the input-disable layer is non-persistent.
 		Camera::CameraService::GetSingleton().OnStopAll();
-		Player::PlayerControlService::GetSingleton().OnStopAll();
+		Player::PlayerInputLockService::GetSingleton().OnStopAll();
 		// Drop any live director-input grant too (its scene is about to be cleared below).
 		Input::InputService::GetSingleton().OnStopAll();
 
@@ -849,7 +850,7 @@ namespace OSF::Animation
 
 		// Drop every playback owner's world-bound handles. Copy first so a clear callback may
 		// unregister itself without re-entering the sink registry lock.
-		std::vector<SceneClearHandler> clearHandlers;
+		std::vector<PlaybackClearHandler> clearHandlers;
 		{
 			std::shared_lock sinks{ _sinkLock };
 			for (const auto& [id, sink] : _playbackSinks) {
@@ -862,15 +863,15 @@ namespace OSF::Animation
 		}
 
 		std::unique_lock l{ stateLock };
-		if (scenes.empty() && graphs.empty()) {
+		if (playbackSessions.empty() && graphs.empty()) {
 			return;
 		}
-		REX::INFO("[Anim] StopAll ({}): dropping {} scene(s) + {} graph(s)",
-			a_reason ? a_reason : "?", scenes.size(), graphs.size());
+		REX::INFO("[Anim] StopAll ({}): dropping {} playback session(s) + {} graph(s)",
+			a_reason ? a_reason : "?", playbackSessions.size(), graphs.size());
 
 		// We do NOT fade or revert movement here: on a save load the engine has already reset every actor to the saved state, and our graphs are anchored in the world that was just discarded.
-		// Stale graphs/scenes just stop existing; the engine's rig refresh owns the pose.
-		scenes.clear();
+		// Stale graphs/playback sessions just stop existing; the engine's rig refresh owns the pose.
+		playbackSessions.clear();
 		graphs.clear();
 		graphCount.store(0, std::memory_order_relaxed);
 	}
@@ -880,9 +881,9 @@ namespace OSF::Animation
 		std::vector<RE::NiPointer<RE::Actor>> out;
 		auto* player = static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton());
 		std::shared_lock l{ stateLock };
-		for (const auto& s : scenes) {
+		for (const auto& s : playbackSessions) {
 			if (!s || !s->anchored) {
-				continue;  // only anchored scenes engage kAnimationDriven
+				continue;  // only anchored playback sessions engage kAnimationDriven
 			}
 			for (const auto& p : s->participants) {
 				if (p && p->target && p->target.get() != player) {
@@ -936,14 +937,14 @@ namespace OSF::Animation
 		if (iter == graphs.end()) {
 			return -1;
 		}
-		Scene* scene = nullptr;
+		PlaybackSession* scene = nullptr;
 		{
 			std::scoped_lock gl{ iter->second->stateLock };
-			scene = iter->second->scene;
+			scene = iter->second->playbackSession;
 		}
-		// Report the scene's authoritative current stage (set immediately on SetStage / auto-advance), not the graph's appliedStage (lags one sample). 
-		// stateLock (shared) keeps the scene alive while we read it.
-		return scene ? static_cast<int32_t>(scene->CurrentStage()) : -1;
+		// Report the session's authoritative current segment (set immediately on SetSegment / auto-advance), not the graph's legacy appliedStage field (lags one sample).
+		// stateLock (shared) keeps the playback session alive while we read it.
+		return scene ? static_cast<int32_t>(scene->CurrentSegment()) : -1;
 	}
 
 	bool GraphManager::IsPlaying(RE::Actor* a_actor)
@@ -985,7 +986,7 @@ namespace OSF::Animation
 		if (iter == graphs.end()) return false;
 		std::scoped_lock graphLock{ iter->second->stateLock };
 		auto& graph = *iter->second;
-		if (graph.scene || !graph.syncGroup || !graph.anim || !graph.anim->data) return false;
+		if (graph.playbackSession || !graph.syncGroup || !graph.anim || !graph.anim->data) return false;
 		const float duration = graph.anim->data->duration();
 		const float time = std::clamp(a_time, 0.0f, (std::max)(duration - 0.0001f, 0.0f));
 		std::scoped_lock groupLock{ graph.syncGroup->lock };
@@ -1002,7 +1003,7 @@ namespace OSF::Animation
 		if (iter == graphs.end()) return std::nullopt;
 		std::scoped_lock graphLock{ iter->second->stateLock };
 		const auto& graph = *iter->second;
-		if (graph.scene || !graph.syncGroup || !graph.anim || !graph.anim->data || graph.IsFadedOut()) {
+		if (graph.playbackSession || !graph.syncGroup || !graph.anim || !graph.anim->data || graph.IsFadedOut()) {
 			return std::nullopt;
 		}
 		return AnimationPlayback{
@@ -1019,7 +1020,7 @@ namespace OSF::Animation
 		const auto iter = graphs.find(a_actor);
 		if (iter == graphs.end()) return false;
 		std::scoped_lock graphLock{ iter->second->stateLock };
-		if (iter->second->scene) return false;
+		if (iter->second->playbackSession) return false;
 		iter->second->holdClipAtEnd = a_hold;
 		return true;
 	}
@@ -1040,10 +1041,10 @@ namespace OSF::Animation
 			return false;
 		}
 		std::scoped_lock gl{ iter->second->stateLock };
-		// Scene participants share the scene clock (Scene::Advance reads speed); 
+		// Synchronized-playback participants share the session clock (PlaybackSession::Advance reads speed);
 		// a synced solo graph shares its group clock (which advances by the group speed, not the owner's); an unsynced solo graph advances by Graph::speed.
-		if (iter->second->scene) {
-			iter->second->scene->speed = speed;
+		if (iter->second->playbackSession) {
+			iter->second->playbackSession->speed = speed;
 		} else if (iter->second->syncGroup) {  // null only in the brief window before SetAnimation runs
 			iter->second->syncGroup->speed.store(speed, std::memory_order_relaxed);
 		}
@@ -1061,8 +1062,8 @@ namespace OSF::Animation
 			return 0.0f;
 		}
 		std::scoped_lock gl{ iter->second->stateLock };
-		if (iter->second->scene) {
-			return iter->second->scene->speed.load(std::memory_order_relaxed);
+		if (iter->second->playbackSession) {
+			return iter->second->playbackSession->speed.load(std::memory_order_relaxed);
 		}
 		if (iter->second->syncGroup) {
 			return iter->second->syncGroup->speed.load(std::memory_order_relaxed);
@@ -1107,8 +1108,8 @@ namespace OSF::Animation
 				return false;
 			}
 			std::scoped_lock gl{ iter->second->stateLock };
-			if (iter->second->scene) {
-				REX::WARN("[Anim] SetAnchor: actor {:X} is a scene participant — anchoring is scene-driven (use the scene's placement offsets)",
+			if (iter->second->playbackSession) {
+				REX::WARN("[Anim] SetAnchor: actor {:X} is a synchronized-playback participant — anchoring is session-driven (use the session's placement offsets)",
 					a_actor->formID);
 				return false;
 			}
@@ -1135,7 +1136,7 @@ namespace OSF::Animation
 						return;
 					}
 					std::scoped_lock gl{ anchoredGraph->stateLock };
-					if (anchoredGraph->scene || !anchoredGraph->hasAnchor ||
+					if (anchoredGraph->playbackSession || !anchoredGraph->hasAnchor ||
 						anchoredGraph->anchorRevision != anchorRevision) {
 						return;
 					}
@@ -1174,7 +1175,7 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// Auto-anchor (the default): promote the independently-played solo graphs into ONE anchored, clock-shared scene at actor[0]'s current transform. 
+		// Auto-anchor (the default): promote the independently played solo graphs into ONE anchored, clock-shared playback session at actor[0]'s current transform.
 		// Placements are left empty (same-spot overlap), so each paired clip's baked root offset arranges the actors about one shared origin+heading
 		// Without this, Play+Sync leaves every actor animating about its own (far-apart) world position, which is the "actors stand apart" symptom.
 		if (a_anchor) {
@@ -1183,8 +1184,8 @@ namespace OSF::Animation
 			float groupSpeed = 1.0f;
 			bool gotSpeed = false;
 			{
-				// Collect the qualifying solo graphs' clips in actor order WITHOUT  mutating them, then drop stateLock before PlaySceneStaged (which takes it unique). 
-				// Skip actors with no graph, no clip, or already in a scene.
+				// Collect the qualifying solo graphs' clips in actor order WITHOUT mutating them, then drop stateLock before PlaySynchronized (which takes it unique).
+				// Skip actors with no graph, no clip, or already in a synchronized playback session.
 				std::shared_lock l{ stateLock };
 				for (auto* actor : a_actors) {
 					if (!actor) {
@@ -1196,15 +1197,15 @@ namespace OSF::Animation
 						continue;
 					}
 					std::scoped_lock gl{ iter->second->stateLock };
-					if (iter->second->scene) {
-						REX::DEBUG("[Anim] Sync: actor {:X} is already a scene participant — skipping", actor->formID);
+					if (iter->second->playbackSession) {
+						REX::DEBUG("[Anim] Sync: actor {:X} is already a synchronized-playback participant — skipping", actor->formID);
 						continue;
 					}
 					if (iter->second->currentFile.empty()) {
 						REX::DEBUG("[Anim] Sync: actor {:X} has no clip to anchor — skipping", actor->formID);
 						continue;
 					}
-					if (!gotSpeed) {  // carry a pre-Sync SetSpeed over to the scene clock
+					if (!gotSpeed) {  // carry a pre-Sync SetSpeed over to the playback-session clock
 						groupSpeed = iter->second->syncGroup->speed;
 						gotSpeed = true;
 					}
@@ -1217,18 +1218,18 @@ namespace OSF::Animation
 						  "(pass abAnchor=false for in-place clock sync)", sceneActors.size());
 				return false;
 			}
-			// One ad-hoc anchored stage; empty placements = same-spot overlap at actor[0].
-			ScenePlan plan;
-			plan.anchored = true;
+			// One ad-hoc anchored segment; empty placements = same-spot overlap at actor[0].
+			PlaybackPlan plan;
+			plan.SetWorldPlacementMode(WorldPlacementMode::kAnchorAndPin);
 			plan.speed = groupSpeed;
-			ScenePlan::Stage stage;
+			PlaybackPlan::Segment stage;
 			stage.files = std::move(sceneFiles);
 			plan.stages.push_back(std::move(stage));
-			if (!PlaySceneStaged(sceneActors, plan, 0)) {
+			if (!PlaySynchronized(sceneActors, plan, 0)) {
 				REX::WARN("[Anim] Sync: anchored promotion failed; actors left unsynced");
 				return false;
 			}
-			REX::DEBUG("[Anim] Sync: {} graphs promoted to one anchored scene (same-spot overlap at actor {:X})",
+			REX::DEBUG("[Anim] Sync: {} graphs promoted to one anchored playback session (same-spot overlap at actor {:X})",
 				sceneActors.size(), sceneActors.front()->formID);
 			return true;
 		}
@@ -1238,7 +1239,7 @@ namespace OSF::Animation
 
 		// First pass: collect the qualifying solo graphs WITHOUT mutating them, so a group that can't reach 2 members leaves nothing half-synced 
 		// (a stray 1-member assignment strands that graph on a private clock and snaps it to frame 0 even though we report failure). 
-		// Holding stateLock shared across both passes blocks scene (un)assignment, which takes stateLock unique, so the scene check from pass 1 stays valid through pass 2.
+		// Holding stateLock shared across both passes blocks playback-session (un)assignment, which takes stateLock unique, so the session check from pass 1 stays valid through pass 2.
 		std::vector<std::shared_ptr<Graph>> targets;
 		for (auto* actor : a_actors) {
 			if (!actor) {
@@ -1250,8 +1251,8 @@ namespace OSF::Animation
 				continue;
 			}
 			std::scoped_lock gl{ iter->second->stateLock };
-			if (iter->second->scene) {
-				REX::DEBUG("[Anim] Sync: actor {:X} is a scene participant (already clock-synced) — skipping", actor->formID);
+			if (iter->second->playbackSession) {
+				REX::DEBUG("[Anim] Sync: actor {:X} is a synchronized-playback participant (already clock-synced) — skipping", actor->formID);
 				continue;
 			}
 			targets.push_back(iter->second);
@@ -1288,11 +1289,11 @@ namespace OSF::Animation
 				a_files.size(), a_animIds.size(), a_loops.size(), a_blends.size());
 			return false;
 		}
-		ScenePlan plan;
+		PlaybackPlan plan;
 		plan.loopWhole = a_loopWhole;
-		plan.anchored = false;           // primitive: in place, follows the actor (no teleport/pin)
+		plan.SetWorldPlacementMode(WorldPlacementMode::kFollowActor);
 		for (size_t i = 0; i < a_files.size(); i++) {
-			ScenePlan::Stage stage;
+			PlaybackPlan::Segment stage;
 			stage.files = { a_files[i] };
 			stage.animIds = { a_animIds[i] };
 			stage.loops = a_loops[i];    // loop-count advance; <= 0 = hold this phase
@@ -1301,15 +1302,15 @@ namespace OSF::Animation
 			plan.stages.push_back(std::move(stage));
 		}
 		const std::vector<RE::Actor*> actors{ a_actor };
-		return PlaySceneStaged(actors, plan, 0);
+		return PlaySynchronized(actors, plan, 0);
 	}
 
-	void GraphManager::StopSceneLocked(Scene* a_scene, std::vector<std::function<void()>>& a_deferred)
+	void GraphManager::StopPlaybackLocked(PlaybackSession* a_session, std::vector<std::function<void()>>& a_deferred)
 	{
-		// Detach every participant of this scene and drop their graphs; the engine's own rig refresh restores the game pose next frame.
-		auto sceneIter = std::find_if(scenes.begin(), scenes.end(),
-			[&](const std::shared_ptr<Scene>& s) { return s.get() == a_scene; });
-		if (sceneIter == scenes.end()) {
+		// Detach every participant of this playback and drop their graphs; the engine's own rig refresh restores the game pose next frame.
+		auto sceneIter = std::find_if(playbackSessions.begin(), playbackSessions.end(),
+			[&](const std::shared_ptr<PlaybackSession>& s) { return s.get() == a_session; });
+		if (sceneIter == playbackSessions.end()) {
 			return;
 		}
 
@@ -1327,16 +1328,16 @@ namespace OSF::Animation
 				p->DetachAndFadeOut();
 				stoppedRevision = p->playbackRevision;
 			}
-			// DIAG: confirm the per-participant detach ran and scene was cleared, so we can tell a "never removed"
+			// DIAG: confirm the per-participant detach ran and the playback session was cleared, so we can tell a "never removed"
 			// graph apart from a "never detached" one.
-			REX::DEBUG("[Anim] scene-end detach: actor {:X} — scene cleared, fade-out begun (blendDur {:.2f}s)",
+			REX::DEBUG("[Anim] session-end detach: actor {:X} — playback session cleared, fade-out begun (blendDur {:.2f}s)",
 				p->target ? p->target->formID : 0, p->blendDuration);
-			// Revert the animation-driven movement switch from PlaySceneStaged (anchored scenes only). Game-thread only.
+			// Revert the animation-driven movement switch from PlaySynchronized (anchored playback only). Game-thread only.
 			// The direct bit reset is the PROVEN lever; MovementControllerNPC::SetMotionDriven (REL 135315) is
 			// mis-bound on this build (no-op at best, unknown code at worst — RE module
 			// gameplay.actor_animation_driven) and is deliberately NOT called.
 			if (anchored && p->target) {
-				// participants are always Actors (PlayScene takes Actor*)
+				// Participants are always actors (PlaySynchronized takes Actor*).
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
 				const auto stoppedGraph = p;
 				const PlaybackId stoppedPlayback = (*sceneIter)->playbackId;
@@ -1355,13 +1356,13 @@ namespace OSF::Animation
 						std::shared_lock l{ gm.stateLock };
 						if (const auto it = gm.graphs.find(keepAlive.get()); it != gm.graphs.end()) {
 							std::scoped_lock gl{ it->second->stateLock };
-							if (it->second->scene && it->second->scene->playbackId != stoppedPlayback) {
-								return;  // a replacement scene now owns the actor's movement mode
+							if (it->second->playbackSession && it->second->playbackSession->playbackId != stoppedPlayback) {
+								return;  // a replacement playback session now owns the actor's movement mode
 							}
 							if (applyTransformRestore &&
 								(it->second != stoppedGraph || it->second->playbackRevision != stoppedRevision)) {
 								// A replacement solo playback owns the actor. It does not need the
-								// old scene's movement flag, but must not receive its stale teleport.
+								// old session's movement flag, but must not receive its stale teleport.
 								applyTransformRestore = false;
 							}
 						}
@@ -1372,71 +1373,71 @@ namespace OSF::Animation
 						if (auto* transforms = RE::TransformService::GetSingleton()) {
 							transforms->SetHeadingZ(keepAlive.get(), originalTransform.second);
 						}
-						REX::TRACE("[Anim] scene-end restore: actor {:X} -> ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
+						REX::TRACE("[Anim] session-end restore: actor {:X} -> ({:.1f},{:.1f},{:.1f}) heading {:.2f}",
 							keepAlive->formID, originalTransform.first.x, originalTransform.first.y,
 							originalTransform.first.z, originalTransform.second);
 					}
 				});
 			}
 		}
-		scenes.erase(sceneIter);
+		playbackSessions.erase(sceneIter);
 
-		REX::DEBUG("[Anim] stopped synced playback");
+		REX::DEBUG("[Anim] stopped synchronized playback session");
 	}
 
 	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
-		// The last timed/loop-counted stage ran out. Defer the stop to the game thread (StopScene needs
+		// The last timed/loop-counted segment ran out. Defer the stop to the game thread (the StopScene compatibility API needs
 		// stateLock unique; the hook holds it shared). The endQueued load here is a cheap early-out; the
-		// authoritative once-only gate is the exchange inside QueueSceneEndDeferred. Capturing the
-		// shared_ptr keeps the Scene alive + ABA-safe.
-		if (!a_graph.scene || !a_graph.scene->ended.load(std::memory_order_relaxed) ||
-			a_graph.scene->endQueued.load(std::memory_order_relaxed)) {
+		// authoritative once-only gate is the exchange inside QueuePlaybackEndDeferred. Capturing the
+		// shared_ptr keeps the PlaybackSession alive + ABA-safe.
+		if (!a_graph.playbackSession || !a_graph.playbackSession->ended.load(std::memory_order_relaxed) ||
+			a_graph.playbackSession->endQueued.load(std::memory_order_relaxed)) {
 			return;
 		}
-		std::shared_ptr<Scene> keepAlive;
-		for (const auto& s : scenes) {
-			if (s.get() == a_graph.scene) {
+		std::shared_ptr<PlaybackSession> keepAlive;
+		for (const auto& s : playbackSessions) {
+			if (s.get() == a_graph.playbackSession) {
 				keepAlive = s;
 				break;
 			}
 		}
 		if (!keepAlive) {
-			REX::ERROR("[Anim] Scene end: scene not found in the live list — cannot stop (this should be impossible)");
+			REX::ERROR("[Anim] playback-session end: session not found in the live list — cannot stop (this should be impossible)");
 			return;
 		}
-		REX::DEBUG("[Anim] Scene finished its last stage — queueing stop task (from job thread)");
-		QueueSceneEndDeferred(std::move(keepAlive), &a_deferred);
+		REX::DEBUG("[Anim] playback session finished its final segment — queueing stop task (from job thread)");
+		QueuePlaybackEndDeferred(std::move(keepAlive), &a_deferred);
 	}
 
-	void GraphManager::QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene, std::vector<std::function<void()>>* a_deferred)
+	void GraphManager::QueuePlaybackEndDeferred(std::shared_ptr<PlaybackSession> a_session, std::vector<std::function<void()>>* a_deferred)
 	{
 		// Fire once: a concurrent caller (auto-end vs stall watchdog) that loses the exchange no-ops.
-		if (!a_scene || a_scene->endQueued.exchange(true, std::memory_order_relaxed)) {
+		if (!a_session || a_session->endQueued.exchange(true, std::memory_order_relaxed)) {
 			return;
 		}
-		auto task = [keepAlive = std::move(a_scene)]() {
-			// SetStage between the queue and now revives the scene (clears `ended`)
-			// a revived scene must not be killed by this stale task.
+		auto task = [keepAlive = std::move(a_session)]() {
+			// SetSegment between the queue and now revives the playback session (clears `ended`);
+			// a revived session must not be killed by this stale task.
 			if (!keepAlive->ended.load(std::memory_order_relaxed)) {
-				REX::DEBUG("[Anim] Scene end task: scene was revived meanwhile — not stopping");
+				REX::DEBUG("[Anim] playback-session end task: session was revived meanwhile — not stopping");
 				return;
 			}
-			REX::DEBUG("[Anim] Scene end task executing on game thread");
+			REX::DEBUG("[Anim] playback-session end task executing on game thread");
 			auto& gm = GetSingleton();
 			if (gm._worldEpoch.load(std::memory_order_acquire) != keepAlive->worldEpoch) {
 				return;
 			}
 
-			// The scene runtime gets first refusal: a graph-driven scene takes the matching auto-edge (advance to the next node / end its scene) and owns the teardown.
-			// A standalone scene (a direct StartScene* with no graph) isn't claimed, we stop it ourselves.
-			// No manager lock is held here, so the handler is free to call PlaySceneStaged/StopScene.
+			// The registered playback owner gets first refusal to advance its domain lifecycle and own teardown.
+			// An unclaimed playback session stops here. No manager lock is held, so the handler is free to
+			// call PlaySynchronized or the StopScene compatibility API.
 			bool handled = false;
 			if (const auto sink = gm.GetPlaybackSink(keepAlive->playbackSinkId); sink && sink->autoEnd) {
 				std::vector<RE::Actor*> actors;
 				for (const auto& p : keepAlive->participants) {
 					if (p && p->target) {
-						// scene participants are always actors (PlayScene takes Actor*)
+						// Synchronized-playback participants are always actors (PlaySynchronized takes Actor*).
 						actors.push_back(static_cast<RE::Actor*>(p->target.get()));
 					}
 				}
@@ -1444,7 +1445,7 @@ namespace OSF::Animation
 					keepAlive->endReason.load(std::memory_order_relaxed));
 			}
 			if (!handled) {
-				gm.StopSceneByPtr(keepAlive.get());
+				gm.StopPlaybackByPtr(keepAlive.get());
 			}
 		};
 		if (a_deferred) {
@@ -1462,18 +1463,18 @@ namespace OSF::Animation
 		}
 
 		// Thresholds (steady-clock ms). Set well above a frame so a playable-FPS hitch can't trip it; the
-		// scene must look dead for kSceneStallMs of CONTINUOUS engine-running time after any resume grace.
+		// playback session must look dead for kSceneStallMs of CONTINUOUS engine-running time after any resume grace.
 		constexpr std::int64_t kStallHookResumeGapMs = 500;   // gap since our last call that means a global pause/load
-		constexpr std::int64_t kStallGraceMs         = 2000;  // after a resume, don't judge scenes (let them re-stamp)
-		constexpr std::int64_t kSceneStallMs         = 1500;  // a live scene unticked this long (game running) = interrupted
-		constexpr std::int64_t kStallScanIntervalMs  = 250;   // throttle the scene scan (this runs ~7x/frame)
+		constexpr std::int64_t kStallGraceMs         = 2000;  // after a resume, don't judge sessions (let them re-stamp)
+		constexpr std::int64_t kSceneStallMs         = 1500;  // a live session unticked this long (game running) = interrupted
+		constexpr std::int64_t kStallScanIntervalMs  = 250;   // throttle the session scan (this runs ~7x/frame)
 
 		using namespace std::chrono;
 		const std::int64_t now = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 
 		// Pause/resume filter. This hook stops being called when the game pauses (focus loss, menus,
-		// loading). On resume every scene's lastAdvanceMs looks ancient though nothing died — so when the
-		// gap since our previous call is large, (re)arm a grace window and let live scenes re-stamp before
+		// loading). On resume every session's lastAdvanceMs looks ancient though nothing died — so when the
+		// gap since our previous call is large, (re)arm a grace window and let live sessions re-stamp before
 		// we judge. The first-ever call (prev == 0) arms it too.
 		const std::int64_t prev = _stallLastHookMs.exchange(now, std::memory_order_relaxed);
 		if (prev == 0 || now - prev > kStallHookResumeGapMs) {
@@ -1490,11 +1491,11 @@ namespace OSF::Animation
 		}
 		_stallLastScanMs.store(now, std::memory_order_relaxed);
 
-		// Collect stalled scenes under the shared lock; act on them OUTSIDE it.
-		std::vector<std::shared_ptr<Scene>> stalled;
+		// Collect stalled playback sessions under the shared lock; act on them OUTSIDE it.
+		std::vector<std::shared_ptr<PlaybackSession>> stalled;
 		{
 			std::shared_lock l{ stateLock };
-			for (const auto& s : scenes) {
+			for (const auto& s : playbackSessions) {
 				if (!s || s->ended.load(std::memory_order_relaxed) || s->endQueued.load(std::memory_order_relaxed)) {
 					continue;  // already terminal / queued — leave it to the normal path
 				}
@@ -1504,7 +1505,7 @@ namespace OSF::Animation
 					const std::int64_t stampMs = s->lastStampMs.load(std::memory_order_relaxed);
 					const std::int64_t sampleAge = now - s->lastAdvanceMs.load(std::memory_order_relaxed);
 					const std::int64_t stampAge = stampMs > 0 ? now - stampMs : -1;
-					REX::TRACE("[Anim] scene heartbeat playback={} id='{}' stage={} time={:.3f} speed={:.2f} sampleAge={}ms stampAge={}ms owner={:X} ownerAge={}ms cast={}",
+					REX::TRACE("[Anim] playback-session heartbeat playback={} id='{}' segment={} time={:.3f} speed={:.2f} sampleAge={}ms stampAge={}ms owner={:X} ownerAge={}ms cast={}",
 						s->playbackId, s->animId, diag.stage, diag.time, s->speed.load(std::memory_order_relaxed),
 						sampleAge, stampAge, reinterpret_cast<std::uintptr_t>(diag.owner), diag.ownerAgeMs, s->participants.size());
 				}
@@ -1515,11 +1516,11 @@ namespace OSF::Animation
 			}
 		}
 		for (auto& s : stalled) {
-			REX::WARN("[Anim] Scene stalled {}ms (engine stopped ticking it — actor unloaded / AI-disabled / interrupted) — ending it as interrupted",
+			REX::WARN("[Anim] playback session stalled {}ms (engine stopped ticking it — actor unloaded / AI-disabled / interrupted) — ending it as interrupted",
 				now - s->lastAdvanceMs.load(std::memory_order_relaxed));
-			s->endReason.store(SceneEndReason::kInterrupted, std::memory_order_relaxed);
+			s->endReason.store(PlaybackEndReason::kInterrupted, std::memory_order_relaxed);
 			s->ended.store(true, std::memory_order_relaxed);  // hand to the normal deferred-end machinery
-			QueueSceneEndDeferred(s);
+			QueuePlaybackEndDeferred(s);
 		}
 
 		// Stranded-graph sweep: a DETACHED graph whose actor the engine stopped updating can never
@@ -1533,8 +1534,8 @@ namespace OSF::Animation
 			std::shared_lock l{ stateLock };
 			for (auto& [refr, g] : graphs) {
 				std::scoped_lock gl{ g->stateLock };
-				if (g->scene || g->removalQueued) {
-					continue;  // scene graphs are the stall watchdog's job; queued ones are already on their way out
+				if (g->playbackSession || g->removalQueued) {
+					continue;  // playback-session graphs are the stall watchdog's job; queued ones are already on their way out
 				}
 				if (g->IsStranded(now)) {
 					g->removalQueued = true;
@@ -1553,30 +1554,30 @@ namespace OSF::Animation
 
 	void GraphManager::QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
-		if (!a_graph.scene) {
+		if (!a_graph.playbackSession) {
 			return;
 		}
-		const PlaybackSinkId sinkId = a_graph.scene->playbackSinkId;
+		const PlaybackSinkId sinkId = a_graph.playbackSession->playbackSinkId;
 		const auto sink = GetPlaybackSink(sinkId);
 		if (!sink || !sink->timedMarks) {
 			return;
 		}
-		// Drain the marks the scene fired this frame (token-gated, so only the advancing graph populates them, any participant draining gets them once).
+		// Drain the marks the playback session fired this frame (token-gated, so only the advancing graph populates them; any participant drains them once).
 		std::vector<FiredMark> marks;
-		a_graph.scene->DrainFiredMarks(marks);
+		a_graph.playbackSession->DrainFiredMarks(marks);
 		if (marks.empty()) {
 			return;
 		}
 		// Snapshot the participant actors (NiPointer keeps them alive across the deferred task); 
 		// dispatch on the game thread, the handler enters the VM (and may transition).
 		std::vector<RE::NiPointer<RE::Actor>> keep;
-		for (auto& p : a_graph.scene->participants) {
+		for (auto& p : a_graph.playbackSession->participants) {
 			if (p && p->target) {
 				keep.emplace_back(static_cast<RE::Actor*>(p->target.get()));
 			}
 		}
-		const PlaybackId playbackId = a_graph.scene->playbackId;
-		const std::uint64_t worldEpoch = a_graph.scene->worldEpoch;
+		const PlaybackId playbackId = a_graph.playbackSession->playbackId;
+		const std::uint64_t worldEpoch = a_graph.playbackSession->worldEpoch;
 		a_deferred.emplace_back([keep, marks, playbackId, worldEpoch, sinkId]() {
 			auto& gm = GetSingleton();
 			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
@@ -1597,7 +1598,7 @@ namespace OSF::Animation
 	{
 		// Fade-out finished: queue removal on the game thread (the hook holds the state lock shared here). 
 		// A replay before the task runs resets the blend state, and RemoveFadedGraph re-checks under the lock.
-		if (a_graph.scene || !a_graph.IsFadedOut() || a_graph.removalQueued) {
+		if (a_graph.playbackSession || !a_graph.IsFadedOut() || a_graph.removalQueued) {
 			return;
 		}
 		a_graph.removalQueued = true;
@@ -1608,17 +1609,17 @@ namespace OSF::Animation
 		});
 	}
 
-	// Per-update-call tick for a scene participant: keep an anchored NPC ANIMATION-DRIVEN so its AI keeps the anim
-	// running but stops pathing the body off the scene anchor. The body-skin render cull reads the havok CAPSULE; a
+	// Per-update-call tick for a synchronized-playback participant: keep an anchored NPC ANIMATION-DRIVEN so its AI keeps the anim
+	// running but stops pathing the body off the session anchor. The body-skin render cull reads the havok CAPSULE; a
 	// motion-driven NPC walks its capsule back to its package post (~4 u/s) and the body clips at orbit angles that
 	// no longer line up with the drifting capsule. The working lever is Actor::boolFlags2 kAnimationDriven (bit 19)
 	// set DIRECTLY — MovementControllerNPC::SetAnimationDriven is a no-op on 1.16.244. Re-asserted ~every 18
-	// update-calls on the game thread (the AI package re-asserts motion each update); cleared in StopSceneLocked so
-	// the NPC resumes normal movement from where the scene left it. Player excluded (movement-locked, doesn't drift).
+	// update-calls on the game thread (the AI package re-asserts motion each update); cleared in StopPlaybackLocked so
+	// the NPC resumes normal movement from where the session left it. Player excluded (movement-locked, doesn't drift).
 	// OSF RE module: gameplay.actor_animation_driven.
 	void GraphManager::HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr, std::vector<std::function<void()>>& a_deferred)
 	{
-		if (!a_graph.scene || !a_graph.scene->anchored || a_graph.participantIndex < 0 || !a_refr ||
+		if (!a_graph.playbackSession || !a_graph.playbackSession->anchored || a_graph.participantIndex < 0 || !a_refr ||
 			a_refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
 			return;
 		}
@@ -1632,8 +1633,8 @@ namespace OSF::Animation
 			return;
 		}
 		RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(a_refr) };
-		const PlaybackId playbackId = a_graph.scene->playbackId;
-		const std::uint64_t worldEpoch = a_graph.scene->worldEpoch;
+		const PlaybackId playbackId = a_graph.playbackSession->playbackId;
+		const std::uint64_t worldEpoch = a_graph.playbackSession->worldEpoch;
 		a_deferred.emplace_back([keepAlive, playbackId, worldEpoch]() {
 			auto& gm = GetSingleton();
 			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch ||
@@ -1647,7 +1648,7 @@ namespace OSF::Animation
 					return;
 				}
 				std::scoped_lock gl{ it->second->stateLock };
-				if (!it->second->scene || it->second->scene->playbackId != playbackId) {
+				if (!it->second->playbackSession || it->second->playbackSession->playbackId != playbackId) {
 					return;
 				}
 			}
@@ -1674,7 +1675,7 @@ namespace OSF::Animation
 		Camera::CameraService::GetSingleton().Tick();
 		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
 		UI::Subtitle::Tick();  // hides the subtitle box once a shown line's hold deadline passes
-		gm.StallWatchTick();  // end scenes the engine quietly stopped ticking (so the player lock never leaks)
+		gm.StallWatchTick();  // end playback sessions the engine quietly stopped ticking (so the player input lock never leaks)
 
 		// Idle early-out: this hook fires ~7x per render frame for every AnimationManager in the game; 
 		// with no managed graphs there is nothing else to do.
@@ -1706,7 +1707,7 @@ namespace OSF::Animation
 			// Per-graph follow-ups, run under both locks; game-thread-only work is collected in
 			// `deferred` and handed to SFSE only after both locks release (AddTask under stateLock
 			// inverts lock order against SFSE's drain).
-			// Marks BEFORE auto-end: the task queue drains FIFO, so on a play-once stage the final
+			// Marks BEFORE auto-end: the task queue drains FIFO, so on a play-once segment the final
 			// at:"end" marks must be queued ahead of the stop task or they resolve a dead handle.
 			gm.QueueTimedMarksIfFired(*g, deferred);
 			gm.QueueAutoEndIfFinished(*g, deferred);
@@ -1724,7 +1725,7 @@ namespace OSF::Animation
 			OSF_PROFILE_SCOPE_N("GraphManager.ModelNodeUpdate.OSF");
 
 			// Stamp the latest sampled pose for the graph driving this skeleton before the engine's compose+commit runs (the verified write point).
-			// Unmanaged skeletons fall through with one map scan; managed graph counts are small (scene participants).
+			// Unmanaged skeletons fall through with one map scan; managed graph counts are small (synchronized-playback participants).
 			auto& gm = GetSingleton();
 			// This runs once per skeleton per frame game-wide; with no OSF playback the atomic check keeps it lock-free.
 			// A racing insert is benign (the new graph stamps next frame at the latest).
@@ -1757,27 +1758,27 @@ namespace OSF::Animation
 								refr ? refr->formID : 0, static_cast<const void*>(a_this));
 						}
 						g->StampPose(a_this);
-						if (g->scene) {
+						if (g->playbackSession) {
 							const auto stampMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 								std::chrono::steady_clock::now().time_since_epoch()).count();
-							g->scene->lastStampMs.store(stampMs, std::memory_order_relaxed);
+							g->playbackSession->lastStampMs.store(stampMs, std::memory_order_relaxed);
 						}
 						// Pin the compose root TRANSLATION to the placement world position. a_parentTransform = &fadeNode->local (this compose's root input;
 						// NiTransform, translate at +0x30). Overriding the compose input pins the RENDERED skeleton without fighting physics 
-						// (capsules sit ~0.3 m off and win any refr-teleport). Scene participant -> its placement (anchored); solo graph -> its SetAnchor anchor when rootMode != kFollow.
+						// (capsules sit ~0.3 m off and win any refr-teleport). Synchronized-playback participant -> its placement (anchored); solo graph -> its SetAnchor anchor when rootMode != kFollow.
 						RE::NiPoint3 pinWorld{};
 						bool doPin = false;
-						// World heading to re-pin per frame (radians). Only known on the scene path; solo anchors retain no heading. Gated to the PLAYER below.
+						// World heading to re-pin per frame (radians). Only known on the synchronized-playback path; solo anchors retain no heading. Gated to the PLAYER below.
 						float pinHeading = 0.0f;
 						bool hasPinHeading = false;
-						if (g->scene && g->scene->anchored && g->participantIndex >= 0) {
-							pinWorld = PlacementToWorld(g->scene->anchorPos, g->scene->anchorHeading,
+						if (g->playbackSession && g->playbackSession->anchored && g->participantIndex >= 0) {
+							pinWorld = PlacementToWorld(g->playbackSession->anchorPos, g->playbackSession->anchorHeading,
 								g->scenePlacement);
-							pinHeading = g->scene->anchorHeading +
+							pinHeading = g->playbackSession->anchorHeading +
 								g->scenePlacement.heading;
 							hasPinHeading = true;
 							doPin = true;
-						} else if (!g->scene && g->hasAnchor && g->rootMode != RootMode::kFollow) {
+						} else if (!g->playbackSession && g->hasAnchor && g->rootMode != RootMode::kFollow) {
 							pinWorld = g->anchorPos;
 							doPin = true;
 						}

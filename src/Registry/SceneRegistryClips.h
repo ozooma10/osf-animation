@@ -55,6 +55,6 @@ namespace OSF::Registry::SceneRegistryClips
 		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems,
 		std::map<std::string, std::uint32_t>& a_addedByFile);
 	void AccumulateFileStats(const std::unordered_map<std::string, SceneDef>& a_scenes,
-		ClipInstalledCache& a_cache, std::vector<SceneFileStats>& a_files,
+		ClipInstalledCache& a_cache, std::vector<ContentFileStats>& a_files,
 		const std::unordered_map<std::string, std::size_t>& a_index);
 }

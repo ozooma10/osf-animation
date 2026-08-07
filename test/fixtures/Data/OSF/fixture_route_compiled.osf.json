@@ -3,8 +3,10 @@
   "name": "compiled route contract fixture",
   "unlisted": true,
   "camera": "none",
-  "inPlace": true,
-  "playerControl": false,
+  "placement": "followActor",
+  "playerInputLock": false,
+  "hideApparel": false,
+  "sceneControls": false,
   "priority": 3,
   "weight": 7,
   "tags": ["route", "fixture"],
@@ -34,7 +36,7 @@
                   "keyword": ["ArmorTypeSpacesuitHelmet", "ArmorTypeHelmet"]
                 }
               },
-              "node": "R_AnimObject1",
+              "attachmentNode": "R_AnimObject1",
               "position": [1.25, -2.5, 3.75],
               "rotation": [10, -20, 30],
               "scale": 0.875
@@ -46,7 +48,7 @@
     },
     {
       "id": "test.route.compiled.two-stage",
-      "playerControl": { "enabled": true, "disable": ["speed"] },
+      "sceneControls": { "enabled": true, "disable": ["speed"] },
       "priority": 9,
       "tags": ["Fixture", "two-stage"],
       "stages": [
@@ -96,6 +98,19 @@
             },
             { "at": 0.75, "type": "osf.prop.destroy", "prop": "helmet" }
           ]
+        }
+      ]
+    },
+    {
+      "id": "test.route.compiled.legacy-vocabulary",
+      "lockPlayer": true,
+      "stripActors": true,
+      "inPlace": false,
+      "playerControl": { "enabled": true, "disable": ["speed"] },
+      "stages": [
+        {
+          "loops": 1,
+          "clips": ["Fixture/Route/legacy-vocabulary.glb"]
         }
       ]
     }

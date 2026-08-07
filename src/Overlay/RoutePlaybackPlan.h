@@ -23,15 +23,15 @@ namespace OSF::Overlay
 	}
 
 	// A zero-animation station compiles to nullopt; callers retain route state and stop playback.
-	std::optional<Animation::ScenePlan> BuildRouteStationPlan(
+	std::optional<Animation::PlaybackPlan> BuildRouteStationPlan(
 		const Registry::RouteDef& a_route, const Registry::RouteStation& a_station);
 
-	Animation::ScenePlan BuildRouteTransitionPlan(const Registry::RouteDef& a_route,
+	Animation::PlaybackPlan BuildRouteTransitionPlan(const Registry::RouteDef& a_route,
 		const Registry::RouteTransition& a_transition, const Registry::RouteStation& a_destination,
 		std::uint32_t a_generation);
 
-	// The debugger plays only the authored edge. It owns the clock and never schedules side effects
+	// The debugger plays only the authored transition. It owns the clock and never schedules side effects
 	// or enters the destination station.
-	Animation::ScenePlan BuildRouteTransitionPreviewPlan(
+	Animation::PlaybackPlan BuildRouteTransitionPreviewPlan(
 		const Registry::RouteDef& a_route, const Registry::RouteTransition& a_transition);
 }

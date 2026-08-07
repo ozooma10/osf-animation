@@ -3,7 +3,7 @@
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
 #include "Papyrus/OSFScript.h"
-#include "Player/PlayerControlService.h"
+#include "Player/PlayerInputLockService.h"
 #include "Scene/SceneEventRelay.h"
 #include "Serialization/PersistenceHost.h"
 #include "Util/Hooking.h"
@@ -88,7 +88,7 @@ namespace OSF::Serialization::SaveSafety
 					if (IsVMEndingOp(a_event.opType)) {
 						Scene::SceneEventRelay::GetSingleton().Clear();
 					}
-					// StopAll stays scoped to world-replacing loads: it releases the player-control lock /
+					// StopAll stays scoped to world-replacing loads: it releases the player input lock /
 					// AI-driven flag, which must not be perturbed mid-save on a quit op.
 					if (IsWorldReplacingLoadOp(a_event.opType)) {
 						PersistenceHost::BeginLoad("SaveLoadEvent begin");
@@ -132,7 +132,7 @@ namespace OSF::Serialization::SaveSafety
 				// saves can serialize this flag and otherwise leave one particular save permanently
 				// non-controllable. Do not run another full StopAll here — persistence clients have just
 				// restored their state and a late global teardown would discard any OSF scenes they made.
-				Player::PlayerControlService::GetSingleton().ClearAIDriven();
+				Player::PlayerInputLockService::GetSingleton().ClearAIDriven();
 				// AFTER StopAll (impositions zeroed): if the load still left the camera in an OSF-imposed
 				// alt state (e.g. scene_orbit's kFreeFly with its driver stopped — stuck at a dead
 				// transform), force it back to third person.

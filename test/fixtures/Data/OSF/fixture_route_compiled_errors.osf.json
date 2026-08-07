@@ -45,6 +45,45 @@
         "clips": ["Fixture/Route/error.glb"],
         "cue": [{ "at": 1.0, "id": "route.out-of-range" }]
       }]
+    },
+    {
+      "id": "test.route.compiled.error.vocabulary-policy",
+      "playerInputLock": true,
+      "lockPlayer": false,
+      "clip": "Fixture/Route/error.glb"
+    },
+    {
+      "id": "test.route.compiled.error.vocabulary-apparel",
+      "hideApparel": true,
+      "stripActors": false,
+      "clip": "Fixture/Route/error.glb"
+    },
+    {
+      "id": "test.route.compiled.error.vocabulary-controls",
+      "sceneControls": true,
+      "playerControl": false,
+      "clip": "Fixture/Route/error.glb"
+    },
+    {
+      "id": "test.route.compiled.error.vocabulary-placement",
+      "placement": "anchorAndPin",
+      "inPlace": true,
+      "clip": "Fixture/Route/error.glb"
+    },
+    {
+      "id": "test.route.compiled.error.vocabulary-attachment-node",
+      "roles": [{ "name": "player" }],
+      "stages": [{
+        "clips": ["Fixture/Route/error.glb"],
+        "action": [{
+          "type": "osf.prop.attach",
+          "role": "player",
+          "prop": "helmet",
+          "source": { "form": "Starfield.esm|0x00000007" },
+          "attachmentNode": "R_AnimObject1",
+          "node": "L_AnimObject1"
+        }]
+      }]
     }
   ]
 }

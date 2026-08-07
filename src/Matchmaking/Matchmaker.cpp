@@ -29,14 +29,14 @@ namespace OSF::Matchmaking
 			return npc ? npc->GetSex() : RE::SEX::kNone;
 		}
 
-		// kAny accepts anyone (including a kNone-sex actor); a gendered slot needs the matching sex.
-		bool SlotGenderAccepts(Registry::SlotGender a_slot, RE::SEX a_sex)
+		// kAny accepts anyone (including a kNone-sex actor); a gendered role needs the matching sex.
+		bool RoleGenderAccepts(Registry::RoleGender a_roleGender, RE::SEX a_sex)
 		{
-			using G = Registry::SlotGender;
-			if (a_slot == G::kMale) {
+			using G = Registry::RoleGender;
+			if (a_roleGender == G::kMale) {
 				return a_sex == RE::SEX::kMale;
 			}
-			if (a_slot == G::kFemale) {
+			if (a_roleGender == G::kFemale) {
 				return a_sex == RE::SEX::kFemale;
 			}
 			return true;
@@ -101,8 +101,8 @@ namespace OSF::Matchmaking
 
 		std::string DescribeAnchorRef(RE::TESObjectREFR* a_ref);
 
-		// Deterministic complete assignment of a_n actors to a_n slots: perm[slot] = actor index.
-		// Iterates permutations in lexicographic order and returns the first one where every slot is compatible (so the result is the lexicographically smallest binding by slot order). 
+		// Deterministic complete assignment of a_n actors to a_n roles: perm[role] = actor index.
+		// Iterates permutations in lexicographic order and returns the first one where every role is compatible (so the result is the lexicographically smallest binding by role order).
 		// nullopt if no complete assignment exists. a_n is small (party size), so brute force is fine, this is what the pack matcher already does.
 		template <class Pred>
 		std::optional<std::vector<std::size_t>> MatchComplete(std::size_t a_n, Pred a_compatible)
@@ -113,8 +113,8 @@ namespace OSF::Matchmaking
 			}
 			do {
 				bool ok = true;
-				for (std::size_t slot = 0; slot < a_n; slot++) {
-					if (!a_compatible(slot, perm[slot])) {
+				for (std::size_t role = 0; role < a_n; role++) {
+					if (!a_compatible(role, perm[role])) {
 						ok = false;
 						break;
 					}
@@ -140,7 +140,7 @@ namespace OSF::Matchmaking
 
 			std::vector<Candidate> pool;
 
-			Registry::SceneRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
+			Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
 				if (a_def.unlisted || !a_def.clipsAvailable) {
 					return;
 				}
@@ -164,7 +164,9 @@ namespace OSF::Matchmaking
 				c.priority = a_def.priority;
 				c.weight = a_def.weight;
 				auto order = MatchComplete(static_cast<std::size_t>(count),
-					[&](std::size_t a_slot, std::size_t a_ai) { return RoleAccepts(a_def.roles[a_slot], a_actors[a_ai]); });
+					[&](std::size_t a_role, std::size_t a_actorIndex) {
+						return RoleAccepts(a_def.roles[a_role], a_actors[a_actorIndex]);
+					});
 				if (!order) {
 					return;
 				}
@@ -232,7 +234,7 @@ namespace OSF::Matchmaking
 		if (!a_actor) {
 			return false;
 		}
-		if (a_role.gender != Registry::SlotGender::kAny && !SlotGenderAccepts(a_role.gender, SexOf(a_actor))) {
+		if (a_role.gender != Registry::RoleGender::kAny && !RoleGenderAccepts(a_role.gender, SexOf(a_actor))) {
 			return false;
 		}
 		if (!a_role.keywords.empty()) {

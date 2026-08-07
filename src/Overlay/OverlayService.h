@@ -54,7 +54,7 @@ namespace OSF::Overlay
 		void OnTimedMarks(Animation::PlaybackId a_playbackId,
 			const std::vector<RE::Actor*>& a_actors, const std::vector<Animation::FiredMark>& a_marks);
 		bool OnAutoEnd(Animation::PlaybackId a_playbackId,
-			const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason a_reason);
+			const std::vector<RE::Actor*>& a_actors, Animation::PlaybackEndReason a_reason);
 		void CleanupProps(Slot& a_slot, std::optional<Registry::RouteLifetime> a_lifetime = std::nullopt);
 		void SuspendProps(Slot& a_slot);
 		void RestoreProps(Slot& a_slot);

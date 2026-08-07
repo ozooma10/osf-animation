@@ -188,8 +188,8 @@ namespace OSF::Studio
 				a_error = "A helmet attachment is missing its bone";
 				return false;
 			}
-			a_out.node = a_value["bone"].get<std::string>();
-			if (a_out.node.empty() || a_out.node.size() >= 64) {
+			a_out.targetNode = a_value["bone"].get<std::string>();
+			if (a_out.targetNode.empty() || a_out.targetNode.size() >= 64) {
 				a_error = "A helmet attachment bone is empty or exceeds 63 characters";
 				return false;
 			}
@@ -220,7 +220,7 @@ namespace OSF::Studio
 		Suit::Attachment ToSuitAttachment(const Props::Attachment& a_source)
 		{
 			Suit::Attachment result;
-			std::memcpy(result.node, a_source.node.data(), a_source.node.size());
+			std::memcpy(result.node, a_source.targetNode.data(), a_source.targetNode.size());
 			std::copy(a_source.position.begin(), a_source.position.end(), result.position);
 			std::copy(a_source.rotation.begin(), a_source.rotation.end(), result.rotation);
 			result.scale = a_source.scale;

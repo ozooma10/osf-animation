@@ -9,6 +9,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using OSF::Test::Check;
@@ -26,6 +27,15 @@ namespace OSF::Animation
 
 namespace
 {
+	static_assert(std::is_same_v<OSF::Registry::ContentImportProblem, OSF::Registry::SceneImportProblem>);
+	static_assert(std::is_same_v<OSF::Registry::ContentFileStats, OSF::Registry::SceneFileStats>);
+	static_assert(std::is_same_v<OSF::Registry::ContentRegistrySnapshot, OSF::Registry::SceneRegistrySnapshot>);
+	static_assert(std::is_same_v<OSF::Registry::ContentRegistry, OSF::Registry::SceneRegistry>);
+	static_assert(std::is_same_v<OSF::Registry::SceneControls, OSF::Registry::PlayerControl>);
+	static_assert(std::is_same_v<OSF::Registry::RoleGender, OSF::Registry::SlotGender>);
+	static_assert(std::is_same_v<OSF::Animation::PlaybackPlan, OSF::Animation::ScenePlan>);
+	static_assert(std::is_same_v<OSF::Animation::PlaybackSession, OSF::Animation::Scene>);
+
 	// One substring that must appear in SOME load error.
 	void CheckError(const std::vector<std::string>& a_errors, const std::string& a_needle, const char* a_message)
 	{
@@ -44,7 +54,7 @@ int main()
 	using OSF::Registry::SceneRegistry;
 	using OSF::Registry::ActionKind;
 	using OSF::Registry::LoopMode;
-	using OSF::Registry::SlotGender;
+	using OSF::Registry::RoleGender;
 	using OSF::Registry::SoundEmitter;
 	using OSF::Registry::TrackPos;
 	using OSF::Animation::PoseMode;
@@ -56,35 +66,56 @@ int main()
 		"camera state serializes to its canonical name");
 	Check(!OSF::Registry::ParseCameraState("cinematic"),
 		"unknown camera state is rejected");
+	Check(OSF::Registry::ParseRoleGender("F") == RoleGender::kFemale &&
+		OSF::Registry::ParseSlotGender("F") == RoleGender::kFemale,
+		"canonical and legacy gender parsers share one result");
+	Check(OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kAuthoredScene) == "authoredScene" &&
+		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kCuratedAnimation) == "curatedAnimation" &&
+		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation) == "derivedDebugAnimation" &&
+		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kReferenceAnimation) == "referenceAnimation",
+		"catalog source taxonomy uses the bridge's four canonical spellings");
 
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
+	if (const auto authored = reg.Find("test.bare")) {
+		Check(authored->sourceKind == OSF::Registry::CatalogSourceKind::kAuthoredScene,
+			"ordinary scene definitions are classified as authored scenes");
+	} else {
+		Check(false, "authored source-kind fixture loads");
+	}
+	if (const auto reference = reg.Find("test.props.bare")) {
+		Check(reference->sourceKind == OSF::Registry::CatalogSourceKind::kReferenceAnimation,
+			"section:library scene definitions are classified as reference animations");
+	} else {
+		Check(false, "reference source-kind fixture loads");
+	}
 	{
 		const auto route = reg.FindRoute("FIXTURE.OVERLAY.HELMET");
 		Check(route && route->stations.size() == 3 && route->transitions.size() == 3,
 			"overlay routes load into the case-insensitive snapshot map");
 		Check(route && !route->FindStation("head")->layer && route->FindStation("held")->layer.has_value(),
 			"zero-animation and animated stations retain their distinct shapes");
-		const auto* edge = route ? route->FindTransition("head-to-held") : nullptr;
-		Check(edge && edge->layer.mask == "arms" && edge->commit &&
-			edge->commit->id == "fixture.helmet.hide_head" && edge->commit->frame == 24.0f && edge->props.size() == 2,
+		const auto* transition = route ? route->FindTransition("head-to-held") : nullptr;
+		Check(transition && transition->layer.mask == "arms" && transition->commit &&
+			transition->commit->id == "fixture.helmet.hide_head" && transition->commit->frame == 24.0f && transition->props.size() == 2,
 			"transition layer, commit, and prop contracts are retained");
-		Check(edge && edge->contactPose && edge->contactPose->bones.size() == 3 &&
-			edge->contactPose->bones[2] == "C_Head" &&
-			std::abs(edge->contactPose->releaseSeconds - 0.4f) < 0.0001f,
+		Check(transition && transition->contactPose && transition->contactPose->bones.size() == 3 &&
+			transition->contactPose->bones[2] == "C_Head" &&
+			std::abs(transition->contactPose->releaseSeconds - 0.4f) < 0.0001f,
 			"transition contact-pose envelope is validated and retained");
-		Check(edge && edge->props[0].lifetime == OSF::Registry::RouteLifetime::kExternal &&
-			edge->props[1].lifetime == OSF::Registry::RouteLifetime::kStation && edge->props[1].attachment.node == "C_Head",
+		Check(transition && transition->props[0].lifetime == OSF::Registry::RouteLifetime::kExternal &&
+			transition->props[1].lifetime == OSF::Registry::RouteLifetime::kStation && transition->props[1].attachment.targetNode == "C_Head",
 			"external props need no OSF source while owned props resolve the file-local template");
 	}
 
-	// 35 authored scenes load: the prior 22, the two compiled-route contract scenes, the
+	// 36 authored scenes load: the prior 22, the three compiled-route contract scenes (including
+	// the legacy-vocabulary compatibility case), the
 	// prop-transform-default scene, the `atFrame` scene, the five props-registry scenes, the bare
 	// props file, the one surviving scene of the props reference-error fixture, and the two valid
 	// `hold` scenes (that fixture's two malformed ones are rejected). The compiled-route error
 	// fixture and the four malformed-registry files load nothing. (Generated clip-debug entries and
 	// clipLibrary registrations don't count here.)
-	Check(reg.Size() == 35, "authored scene count");
+	Check(reg.Size() == 36, "authored scene count");
 
 	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
@@ -99,8 +130,9 @@ int main()
 		if (d.library && d.pack == "Test Clip Library") {
 			++curatedCount;
 			if (d.name == "Friendly Pose") {
-				friendlyFound = d.folder == "Standing/Heroic" && d.unlisted && d.inPlace &&
-					!d.lockPlayer && !d.stripActors &&
+				friendlyFound = d.folder == "Standing/Heroic" && d.unlisted &&
+					d.worldPlacement == OSF::Animation::WorldPlacementMode::kFollowActor &&
+					!d.playerInputLock && !d.hideApparel &&
 					d.tagSet.contains("scene.clip") && d.tagSet.contains("pose") && d.tagSet.contains("standing") &&
 					d.nodes.size() == 1 && d.nodes[0].stages.size() == 1 &&
 					d.nodes[0].stages[0].name == "Friendly Pose" &&
@@ -122,9 +154,12 @@ int main()
 			++duplicateCount;
 		}
 		// The browser shows registered clips to everyone and keeps harvested ones behind author
-		// details, and `curatedClip` is the ONLY thing that separates them — a registration may
-		// carry no name, folder or tags at all, so nothing else in the def can stand in for it.
+		// details. `sourceKind` is the canonical taxonomy; `curatedClip` remains the legacy bridge
+		// discriminator while older consumers migrate.
 		if (d.library && d.tagSet.contains("scene.clip")) {
+			Check(d.sourceKind == (d.curatedClip ? OSF::Registry::CatalogSourceKind::kCuratedAnimation :
+				OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation),
+				"generated animation entries carry the source kind matching their origin");
 			(d.curatedClip ? curatedFlagged : harvestedFlagged) += 1;
 		}
 	});
@@ -150,7 +185,7 @@ int main()
 		Check(false, "test.bare loads");
 	}
 
-	// -- ARRAY file-level roles: the legacy pack default ----------------------------------------
+	// -- ARRAY file-level roles: inherited defaults ----------------------------------------------
 	if (const auto s = reg.Find("test.legacy.inherit")) {
 		if (Check(s->roles.size() == 2, "legacy inherit: role count")) {
 			Check(s->roles[0].name == "bottom", "legacy inherit: role 0 name");
@@ -162,7 +197,7 @@ int main()
 		Check(false, "test.legacy.inherit loads");
 	}
 	if (const auto s = reg.Find("test.legacy.override")) {
-		Check(s->roles.size() == 1 && s->roles[0].name == "only", "legacy override replaces the pack default");
+		Check(s->roles.size() == 1 && s->roles[0].name == "only", "scene roles replace the file-level default");
 		Check(s->clearHeldItems, "legacy override: scene-level clearHeldItems wins");
 	} else {
 		Check(false, "test.legacy.override loads");
@@ -219,7 +254,7 @@ int main()
 				attach.propSource.keywords.size() == 2 &&
 				attach.propSource.keywords[0] == "ArmorTypeSpacesuitHelmet",
 				"equipped-armor prop source parses its keyword fallbacks");
-			Check(attach.propAttachment.node == "R_Wrist" &&
+			Check(attach.propAttachment.targetNode == "R_Wrist" &&
 				attach.propAttachment.position[0] == 1.0f &&
 				attach.propAttachment.position[1] == 2.0f &&
 				attach.propAttachment.position[2] == 3.0f &&
@@ -275,7 +310,7 @@ int main()
 			attach->propSource.keywords.size() == 2 &&
 			attach->propSource.keywords[0] == "ArmorTypeSpacesuitHelmet",
 			"a bare 'prop' id resolves its file-level template's source");
-		Check(attach->propAttachment.node == "R_AnimObject1" &&
+		Check(attach->propAttachment.targetNode == "R_AnimObject1" &&
 			attach->propAttachment.rotation[1] == -90.0f &&
 			attach->propAttachment.scale == 0.75f,
 			"a template supplies node and transform the action never authored");
@@ -290,8 +325,8 @@ int main()
 
 	if (const auto* attach = firstAttach("test.props.use")) {
 		// `prop` stays the RUNTIME id; `use` only picks which definition to copy.
-		Check(attach->prop == "helmet_l" && attach->propAttachment.node == "L_AnimObject1",
-			"'use' names the template while 'prop' remains the runtime id");
+		Check(attach->prop == "helmet_l" && attach->propAttachment.targetNode == "L_AnimObject1",
+			"a legacy inline node overrides a canonical template attachmentNode");
 		Check(attach->propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
 			attach->propAttachment.scale == 0.75f,
 			"a 'use' reference inherits every key it does not override");
@@ -306,7 +341,7 @@ int main()
 			attach->propSource.form == "Fixture.esm|0x801" &&
 			attach->propSource.keywords.empty(),
 			"an inline source replaces the inherited selector whole");
-		Check(attach->propAttachment.node == "R_AnimObject1",
+		Check(attach->propAttachment.targetNode == "R_AnimObject1",
 			"overriding source still inherits the template's other keys");
 	} else {
 		Check(false, "test.props.source loads with its attach");
@@ -314,15 +349,15 @@ int main()
 
 	if (const auto* attach = firstAttach("test.props.partial")) {
 		Check(attach->propSource.kind == OSF::Props::SourceKind::kForm &&
-			attach->propAttachment.node == "R_Wrist" && attach->propAttachment.scale == 1.0f,
-			"a partial template is completed by the action, validated only once merged");
+			attach->propAttachment.targetNode == "R_Wrist" && attach->propAttachment.scale == 1.0f,
+			"a canonical inline attachmentNode overrides a legacy template node");
 	} else {
 		Check(false, "test.props.partial loads with its attach");
 	}
 
 	if (const auto* attach = firstAttach("test.props.inline")) {
 		Check(attach->propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
-			attach->propAttachment.node == "R_Wrist",
+			attach->propAttachment.targetNode == "R_Wrist",
 			"a prop id matching no template is an ordinary inline attach");
 	} else {
 		Check(false, "test.props.inline loads with its attach");
@@ -330,7 +365,7 @@ int main()
 
 	// A bare single-scene file gets the registry too — unlike `roles`, `props` is not envelope-only.
 	if (const auto* attach = firstAttach("test.props.bare")) {
-		Check(attach->propAttachment.node == "R_AnimObject1" && attach->propAttachment.scale == 0.5f,
+		Check(attach->propAttachment.targetNode == "R_AnimObject1" && attach->propAttachment.scale == 0.5f,
 			"a bare single-scene file resolves its own top-level 'props'");
 	} else {
 		Check(false, "test.props.bare loads with its attach");
@@ -382,9 +417,12 @@ int main()
 
 	// -- compiled route contract: document defaults and stage-local cue/action lanes -------------
 	if (const auto s = reg.Find("test.route.compiled.single")) {
-		Check(s->unlisted && s->inPlace, "compiled route inherits unlisted and inPlace document defaults");
-		Check(!s->playerControl.enabled,
-			"document-level playerControl:false revokes input for a scene that omits its own");
+		Check(s->unlisted && s->worldPlacement == OSF::Animation::WorldPlacementMode::kFollowActor,
+			"compiled scene inherits unlisted and canonical followActor placement defaults");
+		Check(!s->playerInputLock && !s->hideApparel,
+			"canonical playerInputLock and hideApparel file defaults propagate");
+		Check(!s->sceneControls.enabled,
+			"document-level sceneControls:false revokes OSF scene commands for an inheriting scene");
 		Check(s->priority == 3 && s->weight == 7,
 			"scene inherits the file-level matchmaking priority and weight");
 		Check(s->tags.size() == 2 && s->tagSet.contains("route") && s->tagSet.contains("fixture"),
@@ -424,7 +462,7 @@ int main()
 					attach.propSource.keywords[0] == "ArmorTypeSpacesuitHelmet" &&
 					attach.propSource.keywords[1] == "ArmorTypeHelmet",
 					"compiled equipped-armor source parses");
-				Check(attach.propAttachment.node == "R_AnimObject1" &&
+				Check(attach.propAttachment.targetNode == "R_AnimObject1" &&
 					attach.propAttachment.position[0] == 1.25f &&
 					attach.propAttachment.position[1] == -2.5f &&
 					attach.propAttachment.position[2] == 3.75f &&
@@ -432,7 +470,7 @@ int main()
 					attach.propAttachment.rotation[1] == -20.0f &&
 					attach.propAttachment.rotation[2] == 30.0f &&
 					attach.propAttachment.scale == 0.875f,
-					"compiled prop node, three-component transforms, and scale parse");
+					"canonical attachmentNode, three-component transforms, and scale parse");
 				Check(destroy.kind == ActionKind::kPropDestroy && destroy.pos == TrackPos::kFraction &&
 					destroy.fraction == 0.75f && destroy.prop == "helmet",
 					"compiled prop destroy identity and timing parse");
@@ -440,7 +478,7 @@ int main()
 					"inspection prop state is absent before attach");
 				const auto attached = OSF::Scene::InspectionPropsAt(node.actions, 0.25f, false);
 				Check(attached.size() == 1 && attached[0].prop == "helmet" &&
-					attached[0].propAttachment.node == "R_AnimObject1",
+					attached[0].propAttachment.targetNode == "R_AnimObject1",
 					"inspection prop state includes attach at its exact mark");
 				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.749f, false).size() == 1,
 					"inspection prop state persists between marks");
@@ -454,18 +492,19 @@ int main()
 			}
 			const auto plan = reg.BuildNodePlan(s, node, 1);
 			Check(plan && !plan->anchored && plan->masks.size() == 1 && plan->masks[0] == "upperBody",
-				"compiled route builds an in-place upperBody scene plan");
+				"compiled route builds a follow-actor upperBody playback plan");
 		}
 	} else {
 		Check(false, "test.route.compiled.single loads");
 	}
 	if (const auto s = reg.Find("test.route.compiled.two-stage")) {
-		Check(s->unlisted && s->inPlace && s->roles.size() == 1 && s->roles[0].mask == "upperBody",
+		Check(s->unlisted && s->worldPlacement == OSF::Animation::WorldPlacementMode::kFollowActor &&
+			s->roles.size() == 1 && s->roles[0].mask == "upperBody",
 			"two-stage route inherits document policy and mask defaults");
-		Check(s->playerControl.enabled &&
-			(s->playerControl.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kSpeed)) == 0 &&
-			(s->playerControl.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kAdvance)) != 0,
-			"scene playerControl re-enables over the document default and narrows capabilities");
+		Check(s->sceneControls.enabled &&
+			(s->sceneControls.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kSpeed)) == 0 &&
+			(s->sceneControls.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kAdvance)) != 0,
+			"sceneControls re-enables over the document default and narrows capabilities");
 		// File tags come first in author order, the scene's own append, and "Fixture" collapses into
 		// the inherited "fixture" (matchmaking is case-insensitive).
 		Check(s->tags.size() == 3 && s->tags[0] == "route" && s->tags[1] == "fixture" &&
@@ -505,6 +544,17 @@ int main()
 		}
 	} else {
 		Check(false, "test.route.compiled.two-stage loads");
+	}
+	if (const auto s = reg.Find("test.route.compiled.legacy-vocabulary")) {
+		Check(s->playerInputLock && s->hideApparel,
+			"legacy lockPlayer and stripActors override canonical document defaults");
+		Check(s->worldPlacement == OSF::Animation::WorldPlacementMode::kAnchorAndPin,
+			"legacy inPlace:false maps to canonical anchor-and-pin placement");
+		Check(s->sceneControls.enabled &&
+			(s->sceneControls.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kSpeed)) == 0,
+			"legacy playerControl maps to canonical scene controls");
+	} else {
+		Check(false, "legacy vocabulary scene loads through compatibility aliases");
 	}
 	// -- `hold`: a stage frozen on one frame ------------------------------------------------------
 	if (const auto s = reg.Find("test.hold.frame")) {
@@ -583,7 +633,7 @@ int main()
 		Check(s->roles.size() == 3, "mmf: role count");
 		Check(s->roles[0].name == "m" && s->roles[1].name == "m2" && s->roles[2].name == "f",
 			"mmf: a repeated template auto-numbers (m, m2, f)");
-		Check(s->roles[1].gender == SlotGender::kMale && s->roles[1].equip.male == "Top.esm|0x111",
+		Check(s->roles[1].gender == RoleGender::kMale && s->roles[1].equip.male == "Top.esm|0x111",
 			"mmf: the numbered copy keeps the template's fields");
 		Check(s->roles[0].poseMode == PoseMode::kAdditive && s->roles[1].poseMode == PoseMode::kAdditive &&
 			s->roles[0].poseWeight == 0.75f && s->roles[1].poseWeight == 0.75f &&
@@ -592,42 +642,42 @@ int main()
 		Check(s->roles[0].mask == "upperBody" && s->roles[1].mask == "upperBody" && s->roles[2].mask.empty(),
 			"mmf: an authored-lowercase mask canonicalizes and inherits; omission stays unmasked");
 		const auto plan = reg.BuildNodePlan(s, s->nodes[0], 3);
-		Check(plan.has_value(), "mmf: scene plan builds");
+		Check(plan.has_value(), "mmf: playback plan builds");
 		if (plan) {
 			Check(plan->poseModes.size() == 3 && plan->poseWeights.size() == 3 && plan->roleNames.size() == 3,
-				"mmf: scene plan carries one pose policy and role name per actor");
+				"mmf: playback plan carries one pose policy and role name per actor");
 			Check(plan->poseModes[0] == PoseMode::kAdditive && plan->poseModes[1] == PoseMode::kAdditive &&
 				plan->poseModes[2] == PoseMode::kOverride && plan->poseWeights[0] == 0.75f &&
 				plan->poseWeights[1] == 0.75f && plan->poseWeights[2] == 1.0f,
-				"mmf: scene plan preserves resolved role pose values");
+				"mmf: playback plan preserves resolved role pose values");
 			Check(plan->masks.size() == 3 && plan->masks[0] == "upperBody" &&
 				plan->masks[1] == "upperBody" && plan->masks[2].empty(),
-				"mmf: scene plan carries one bone mask per actor");
+				"mmf: playback plan carries one bone mask per actor");
 			Check(OSF::Animation::HasValidRolePolicyShape(*plan, 3), "mmf: matching policy arrays validate");
 			auto badModes = *plan;
 			badModes.poseModes.pop_back();
 			Check(!OSF::Animation::HasValidRolePolicyShape(badModes, 3),
-				"scene-plan validation rejects a pose-mode/actor count mismatch");
+				"playback-plan validation rejects a pose-mode/actor count mismatch");
 			auto badWeights = *plan;
 			badWeights.poseWeights.pop_back();
 			Check(!OSF::Animation::HasValidRolePolicyShape(badWeights, 3),
-				"scene-plan validation rejects a pose-weight/actor count mismatch");
+				"playback-plan validation rejects a pose-weight/actor count mismatch");
 			auto badMasks = *plan;
 			badMasks.masks.pop_back();
 			Check(!OSF::Animation::HasValidRolePolicyShape(badMasks, 3),
-				"scene-plan validation rejects a mask/actor count mismatch");
+				"playback-plan validation rejects a mask/actor count mismatch");
 			auto badMaskName = *plan;
 			badMaskName.masks[0] = "torso";
 			Check(!OSF::Animation::HasValidRolePolicyShape(badMaskName, 3),
-				"scene-plan validation rejects an unknown mask name");
+				"playback-plan validation rejects an unknown mask name");
 			auto validStagePolicy = *plan;
 			validStagePolicy.stages[0].poseModes = { PoseMode::kOverride, PoseMode::kAdditive, PoseMode::kOverride };
 			validStagePolicy.stages[0].poseWeights = { 1.0f, 0.5f, 0.25f };
 			Check(OSF::Animation::HasValidRolePolicyShape(validStagePolicy, 3),
-				"scene-plan validation accepts complete stage-local pose policies");
+				"playback-plan validation accepts complete segment-local pose policies");
 			validStagePolicy.stages[0].poseWeights.pop_back();
 			Check(!OSF::Animation::HasValidRolePolicyShape(validStagePolicy, 3),
-				"scene-plan validation rejects a stage-local pose-weight count mismatch");
+				"playback-plan validation rejects a segment-local pose-weight count mismatch");
 		}
 	} else {
 		Check(false, "test.tpl.mmf loads");
@@ -640,7 +690,7 @@ int main()
 	}
 	if (const auto s = reg.Find("test.tpl.named")) {
 		Check(s->roles.size() == 2, "named: role count");
-		Check(s->roles[0].name == "lead" && s->roles[0].gender == SlotGender::kMale,
+		Check(s->roles[0].name == "lead" && s->roles[0].gender == RoleGender::kMale,
 			"named: an object override's explicit name is kept exactly (template fields inherited)");
 		Check(s->roles[1].name == "m", "named: the plain ref's automatic name is unaffected");
 	} else {
@@ -664,7 +714,7 @@ int main()
 	// -- templates: merge-style overrides ---------------------------------------------------------
 	if (const auto s = reg.Find("test.tpl.merge")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "m", "merge: automatic name from the template");
-		Check(s->roles[0].gender == SlotGender::kFemale, "merge: a scalar override replaces");
+		Check(s->roles[0].gender == RoleGender::kFemale, "merge: a scalar override replaces");
 		Check(s->roles[0].offset.x == 1.0f && s->roles[0].offset.y == 9.0f,
 			"merge: offset merges by key (y replaced, x retained)");
 		Check(s->roles[0].offset.heading == static_cast<float>(90.0 * OSF::Util::kDegToRad),
@@ -680,7 +730,7 @@ int main()
 		Check(false, "test.tpl.merge loads");
 	}
 	if (const auto s = reg.Find("test.tpl.alias1")) {
-		Check(s->roles.size() == 1 && s->roles[0].gender == SlotGender::kMale && s->roles[0].name == "geared",
+		Check(s->roles.size() == 1 && s->roles[0].gender == RoleGender::kMale && s->roles[0].name == "geared",
 			"alias1: a top-level gender override drops the inherited filters.gender");
 		Check(s->roles[0].equip.male == "Suit.esm|0x333" && s->roles[0].equip.any == "Suit.esm|0x444",
 			"alias1: unspecified fields are retained");
@@ -690,7 +740,7 @@ int main()
 		Check(false, "test.tpl.alias1 loads");
 	}
 	if (const auto s = reg.Find("test.tpl.alias2")) {
-		Check(s->roles.size() == 1 && s->roles[0].gender == SlotGender::kFemale && s->roles[0].name == "m",
+		Check(s->roles.size() == 1 && s->roles[0].gender == RoleGender::kFemale && s->roles[0].name == "m",
 			"alias2: a filters.gender override drops the inherited top-level gender");
 	} else {
 		Check(false, "test.tpl.alias2 loads");
@@ -698,19 +748,19 @@ int main()
 	if (const auto s = reg.Find("test.tpl.bones")) {
 		Check(s->roles.size() == 1 && s->roles[0].preserveBones.size() == 1 && s->roles[0].preserveBones[0] == "OnlyThis",
 			"bones: an array override replaces the template's array wholesale");
-		Check(s->roles[0].gender == SlotGender::kFemale && s->roles[0].name == "geared",
+		Check(s->roles[0].gender == RoleGender::kFemale && s->roles[0].name == "geared",
 			"bones: unspecified nested fields (filters.gender) are retained");
 	} else {
 		Check(false, "test.tpl.bones loads");
 	}
 	if (const auto s = reg.Find("test.tpl.anon")) {
-		Check(s->roles.size() == 1 && s->roles[0].name.empty() && s->roles[0].gender == SlotGender::kMale,
+		Check(s->roles.size() == 1 && s->roles[0].name.empty() && s->roles[0].gender == RoleGender::kMale,
 			"anon: an explicit name:\"\" stays anonymous (template fields inherited)");
 	} else {
 		Check(false, "test.tpl.anon loads");
 	}
 	if (const auto s = reg.Find("test.tpl.null")) {
-		Check(s->roles.size() == 1 && s->roles[0].name == "m" && s->roles[0].gender == SlotGender::kMale,
+		Check(s->roles.size() == 1 && s->roles[0].name == "m" && s->roles[0].gender == RoleGender::kMale,
 			"null: scalars survive removing optional fields");
 		Check(s->roles[0].equip.Empty() && s->roles[0].preserveBones.empty() && s->roles[0].mask.empty(),
 			"null: null removes an inherited optional field");
@@ -733,6 +783,10 @@ int main()
 	Check(!reg.Find("test.route.compiled.error.scale"), "compiled route rejects a zero prop scale");
 	Check(!reg.Find("test.route.compiled.error.source"), "compiled route rejects a malformed prop source");
 	Check(!reg.Find("test.route.compiled.error.at"), "compiled route rejects an out-of-range cue position");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-policy"), "canonical and legacy policy keys conflict");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-apparel"), "canonical and legacy apparel keys conflict");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-controls"), "canonical and legacy scene-control keys conflict");
+	Check(!reg.Find("test.route.compiled.error.vocabulary-placement"), "canonical and legacy placement keys conflict");
 	Check(!reg.Find("test.bad.def"), "malformed registry definition rejects its file");
 	Check(!reg.Find("test.bad.type"), "non-array/non-object file-level roles rejects its file");
 	Check(!reg.Find("test.terr.unknown"), "an unknown object-override id rejects its scene");
@@ -753,7 +807,7 @@ int main()
 	Check(!reg.Find("test.props.baddef.never"), "a malformed prop template rejects its file");
 	if (const auto s = reg.Find("test.props.err.ok")) {
 		Check(s->nodes.size() == 1 && s->nodes[0].actions.size() == 1 &&
-			s->nodes[0].actions[0].propAttachment.node == "R_AnimObject1",
+			s->nodes[0].actions[0].propAttachment.targetNode == "R_AnimObject1",
 			"prop reference errors reject only their own scene");
 	} else {
 		Check(false, "test.props.err.ok loads");
@@ -762,7 +816,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 44, "exactly the forty-four expected diagnostics");
+	Check(errors.size() == 49, "exactly the forty-nine expected diagnostics");
 	CheckError(errors, "policy/arbitration key 'stripActors'", "route policy keys are rejected");
 	CheckError(errors, "layer: 'mask'", "route animation masks are mandatory");
 	CheckError(errors, "duplicate station id", "duplicate route station ids are rejected");
@@ -800,6 +854,16 @@ int main()
 		"compiled-route source diagnostic identifies the malformed selector");
 	CheckError(errors, "cue 'route.out-of-range' numeric 'at' must be in [0,1)",
 		"compiled-route cue diagnostic states the fraction range");
+	CheckError(errors, "use either 'playerInputLock' or legacy 'lockPlayer', not both",
+		"canonical and legacy player-input-lock keys cannot silently disagree");
+	CheckError(errors, "use either 'hideApparel' or legacy 'stripActors', not both",
+		"canonical and legacy apparel keys cannot silently disagree");
+	CheckError(errors, "use either 'sceneControls' or legacy 'playerControl', not both",
+		"canonical and legacy scene-control keys cannot silently disagree");
+	CheckError(errors, "use either 'placement' or legacy 'inPlace', not both",
+		"canonical and legacy world-placement keys cannot silently disagree");
+	CheckError(errors, "uses both 'attachmentNode' and legacy 'node'",
+		"canonical and legacy prop-attachment-node keys cannot silently disagree");
 	CheckError(errors, "cue 'half.frame' 'atFrame' must be a whole frame number >= 0",
 		"fractional atFrame diagnostic states the whole-frame contract");
 	CheckError(errors, "cue 'two.clocks' sets both 'at' and 'atFrame'",
@@ -920,7 +984,7 @@ int main()
 		const auto files = reg.FileStats();
 		Check(files.size() == 22, "one import record per discovered *.osf.json");
 
-		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::SceneFileStats* {
+		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::ContentFileStats* {
 			for (const auto& f : files) {
 				if (f.file == a_name) {
 					return &f;
@@ -944,7 +1008,7 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 35, "per-file scene counts sum to the authored total");
+		Check(accepted == 36, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
@@ -992,17 +1056,17 @@ int main()
 		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
 
 		const auto* route = find("fixture_route_compiled.osf.json");
-		Check(route && route->scenes == 2 && route->declaredScenes == 2 && route->rejectedScenes == 0,
-			"compiled route fixture reports both accepted scenes");
-		Check(route && route->unlisted == 2 && route->anchored == 0 && route->nodes == 3 && route->stages == 3,
+		Check(route && route->scenes == 3 && route->declaredScenes == 3 && route->rejectedScenes == 0,
+			"compiled route fixture reports canonical and legacy-vocabulary scenes");
+		Check(route && route->unlisted == 3 && route->anchored == 0 && route->nodes == 4 && route->stages == 4,
 			"compiled route fixture reports document policy and stage totals");
 		Check(route && route->cues == 5 && route->actions == 5 && route->cameras == 0,
 			"compiled route fixture reports its cue/action lanes and camera:none default");
 
 		const auto* routeErrors = find("fixture_route_compiled_errors.osf.json");
-		Check(routeErrors && routeErrors->scenes == 0 && routeErrors->declaredScenes == 4 &&
-			routeErrors->rejectedScenes == 4 && routeErrors->errors == 4,
-			"compiled route error fixture reports four independent scene rejections");
+		Check(routeErrors && routeErrors->scenes == 0 && routeErrors->declaredScenes == 9 &&
+			routeErrors->rejectedScenes == 9 && routeErrors->errors == 9,
+			"compiled route error fixture reports nine independent scene rejections");
 		Check(routeErrors && routeErrors->Rejected(),
 			"compiled route error fixture is flagged rejected after contributing no scenes");
 

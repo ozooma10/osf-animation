@@ -461,7 +461,7 @@ namespace OSF::Serialization::ClipDurations
 			const auto t0 = std::chrono::steady_clock::now();
 
 			std::vector<std::pair<std::string, std::string>> refs;
-			Registry::SceneRegistry::GetSingleton().ForEachDef([&refs](const Registry::SceneDef& d) {
+			Registry::ContentRegistry::GetSingleton().ForEachDef([&refs](const Registry::SceneDef& d) {
 				if (!d.clipsAvailable) {
 					return;  // clips not installed — probing would just fail-log per file
 				}

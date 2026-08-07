@@ -90,7 +90,7 @@ namespace
 		transition.id = "zero-held";
 		transition.from = "zero";
 		transition.to = "held";
-		transition.layer.clip.file = "edge.af";
+		transition.layer.clip.file = "transition.af";
 		transition.layer.mask = "arms";
 		transition.commit = Registry::RouteMarker{ 10.0f, "commit" };
 		transition.props = {
@@ -111,10 +111,10 @@ namespace
 			"station plans keep pose policy only on their stage");
 
 		const auto runtime = Overlay::BuildRouteTransitionPlan(route, transition, route.stations[1], 7);
-		const auto& edge = runtime.stages.front();
-		Check(runtime.stages.size() == 2 && edge.contactPose.size() == 1 && edge.marks.size() == 4,
+		const auto& transitionStage = runtime.stages.front();
+		Check(runtime.stages.size() == 2 && transitionStage.contactPose.size() == 1 && transitionStage.marks.size() == 4,
 			"runtime transition plans carry contact pose, side effects, reached mark, and destination hold");
-		const auto laneAt = [&](std::size_t index) { return edge.marks[index].lane; };
+		const auto laneAt = [&](std::size_t index) { return transitionStage.marks[index].lane; };
 		Check(laneAt(1) < laneAt(0) && laneAt(0) < laneAt(2),
 			"same-frame prop replacement attaches before commit and destroys after acknowledgement");
 
@@ -181,17 +181,17 @@ namespace
 		std::uint32_t generation = 0;
 	};
 
-	OSF::Registry::RouteTransition Edge(std::string id, std::string from, std::string to,
+	OSF::Registry::RouteTransition Transition(std::string id, std::string from, std::string to,
 		OSF::Registry::RouteInterruption interrupt = OSF::Registry::RouteInterruption::kFinish,
 		bool commit = false)
 	{
-		OSF::Registry::RouteTransition edge;
-		edge.id = std::move(id);
-		edge.from = std::move(from);
-		edge.to = std::move(to);
-		edge.interruption = interrupt;
-		if (commit) edge.commit = OSF::Registry::RouteMarker{ 1.0f, "commit" };
-		return edge;
+		OSF::Registry::RouteTransition transition;
+		transition.id = std::move(id);
+		transition.from = std::move(from);
+		transition.to = std::move(to);
+		transition.interruption = interrupt;
+		if (commit) transition.commit = OSF::Registry::RouteMarker{ 1.0f, "commit" };
+		return transition;
 	}
 
 	OSF::Registry::RouteDef Route()
@@ -199,11 +199,11 @@ namespace
 		OSF::Registry::RouteDef route;
 		route.id = "test.route";
 		for (const char* id : { "a", "b", "c", "d", "isolated" }) route.stations.push_back({ id, std::nullopt });
-		route.transitions.push_back(Edge("ab", "a", "b", OSF::Registry::RouteInterruption::kFinish, true));
-		route.transitions.push_back(Edge("bd", "b", "d"));
-		route.transitions.push_back(Edge("ac", "a", "c", OSF::Registry::RouteInterruption::kCrossfadeBeforeCommit));
-		route.transitions.push_back(Edge("cd", "c", "d"));
-		route.transitions.push_back(Edge("bc", "b", "c"));
+		route.transitions.push_back(Transition("ab", "a", "b", OSF::Registry::RouteInterruption::kFinish, true));
+		route.transitions.push_back(Transition("bd", "b", "d"));
+		route.transitions.push_back(Transition("ac", "a", "c", OSF::Registry::RouteInterruption::kCrossfadeBeforeCommit));
+		route.transitions.push_back(Transition("cd", "c", "d"));
+		route.transitions.push_back(Transition("bc", "b", "c"));
 		return route;
 	}
 }
@@ -245,7 +245,7 @@ int main()
 		Check(at4.size() == 2 && at4[0]->id == "carrier" && at4[1]->id == "station",
 			"route debugger reconstructs authored OSF-owned props and excludes external callbacks");
 		Check(atEnd.size() == 1 && atEnd[0]->id == "station",
-			"route debugger applies edge-reached cleanup to transition-lifetime props at clip end");
+			"route debugger applies transition-reached cleanup to transition-lifetime props at clip end");
 		Check(OSF::Scene::InspectionRoutePropsAt(transition, 6.0f, false).size() == 1,
 			"route debugger rewinds attach and destroy marks deterministically");
 		transition.props.push_back({ .frame = 10.0f, .id = "late", .attach = true,
@@ -257,7 +257,7 @@ int main()
 		auto route = Route();
 		auto path = ShortestPath(route, "A", "d");
 		Check(path.size() == 2 && path[0]->id == "ab" && path[1]->id == "bd",
-			"BFS chooses shortest edge count with authored-order tie breaking");
+			"BFS chooses shortest transition count with authored-order tie breaking");
 		Check(ShortestPath(route, "d", "a").empty(), "directed unreachable pairs remain no-path at request time");
 	}
 	{
@@ -269,15 +269,15 @@ int main()
 		Check(controller.RequestStation("a", 1).disposition == RequestDisposition::kAccepted && playback.stations == 1,
 			"reasserting the reached station is idempotent");
 		Check(controller.RequestStation("d", 2).disposition == RequestDisposition::kAccepted && playback.last == "ab",
-			"a request starts one BFS edge only");
+			"a request starts one BFS transition only");
 		const auto firstGeneration = controller.TransitionGeneration();
 		Check(controller.RequestStation("c", 3).disposition == RequestDisposition::kPending && playback.stops == 0,
-			"finish interruption records a countermand without replacing the active edge");
+			"finish interruption records a countermand without replacing the active transition");
 		Check(controller.OnCommit(firstGeneration, true) && controller.CheckpointStation() == "b" && controller.ReachedStation() == "a",
 			"acknowledged handoff advances the checkpoint before the pose reaches its destination");
 		Check(!controller.OnCommit(firstGeneration + 1, true), "stale transition generations are ignored");
-		Check(controller.OnEdgeReached(firstGeneration) && controller.ReachedStation() == "b" && playback.last == "bc",
-			"edge completion commits reached and reroutes toward the latest desired station");
+		Check(controller.OnTransitionReached(firstGeneration) && controller.ReachedStation() == "b" && playback.last == "bc",
+			"transition completion commits reached and reroutes toward the latest desired station");
 	}
 	{
 		auto route = Route();
@@ -287,7 +287,7 @@ int main()
 		(void)controller.RequestStation("c", 10);
 		Check(controller.RequestStation("b", 11).disposition == RequestDisposition::kAccepted &&
 			playback.stops == 1 && playback.last == "ab",
-			"crossfade-before-commit replaces an uncommitted edge and replans from reached");
+			"crossfade-before-commit replaces an uncommitted transition and replans from reached");
 	}
 	{
 		auto route = Route();

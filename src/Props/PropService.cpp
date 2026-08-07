@@ -220,9 +220,9 @@ namespace OSF::Props
 			Fail(a_error, "actor 3D root is unavailable");
 			return false;
 		}
-		auto* target = ResolveAttachmentNode(actorRoot.get(), a_attachment.node);
+		auto* target = ResolveAttachmentNode(actorRoot.get(), a_attachment.targetNode);
 		if (!target) {
-			Fail(a_error, "attachment node '" + a_attachment.node +
+			Fail(a_error, "attachment node '" + a_attachment.targetNode +
 				"' was not found or is not an NiNode");
 			return false;
 		}

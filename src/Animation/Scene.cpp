@@ -6,30 +6,30 @@
 
 namespace OSF::Animation
 {
-	Scene::Tick Scene::Advance(const void* a_token, float a_deltaTime)
+	PlaybackSession::Tick PlaybackSession::Advance(const void* a_token, float a_deltaTime)
 	{
 		std::scoped_lock l{ lock };
 
 		const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 			std::chrono::steady_clock::now().time_since_epoch()).count();
 		// Any participant is a liveness heartbeat. FrameClock independently re-elects a stale owner,
-		// so a surviving participant both keeps the scene alive and resumes its clock.
+		// so a surviving participant both keeps the playback session alive and resumes its clock.
 		lastAdvanceMs.store(nowMs, std::memory_order_relaxed);
 
 		if (!ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token, nowMs)) {
 			float remaining = a_deltaTime * speed.load(std::memory_order_relaxed);
 			if (!std::isfinite(remaining) || remaining <= 0.0f) {
-				return { clock.time, currentStage };
+				return { clock.time, currentSegment };
 			}
 
 			// Consume the update one loop/timer boundary at a time. This keeps loop counts and
 			// repeat:loop marks exact even when a high playback speed crosses several loops at once.
 			while (remaining > 0.0f && !ended.load(std::memory_order_relaxed) && !stages.empty()) {
-				const auto& stage = stages[currentStage];
+				const auto& stage = stages[currentSegment];
 				if (stage.hold >= 0.0f) {
-					// Freeze-frame stage: the clip does not advance, so no wrap and no loop count can
+					// Freeze-frame segment: the clip does not advance, so no wrap and no loop count can
 					// ever expire. Only `timer` (or a manual advance/stop) leaves it. The clock is
-					// already parked on the hold pose by ApplyStageLocked; the marks that sit at or
+					// already parked on the hold pose by ApplySegmentLocked; the marks that sit at or
 					// before that pose fire once, here, so an authored `action at:0` still runs.
 					const float segment = stage.timer > 0.0f ?
 					                          std::min(remaining, std::max(0.0f, stage.timer - stageElapsed)) :
@@ -52,16 +52,16 @@ namespace OSF::Animation
 					if (!(stage.timer > 0.0f && stageElapsed >= stage.timer)) {
 						break;  // still holding
 					}
-					if (currentStage + 1 < stages.size()) {
-						ApplyStageLocked(currentStage + 1);
-						REX::DEBUG("[Anim] held stage timer expired — advanced to stage {}/{}", currentStage + 1, stages.size());
+					if (currentSegment + 1 < stages.size()) {
+						ApplySegmentLocked(currentSegment + 1);
+						REX::DEBUG("[Anim] held playback segment timer expired — advanced to segment {}/{}", currentSegment + 1, stages.size());
 					} else if (loopWhole) {
-						ApplyStageLocked(0);
-						REX::DEBUG("[Anim] final held stage timer expired — looping to stage 0");
+						ApplySegmentLocked(0);
+						REX::DEBUG("[Anim] final held playback segment timer expired — looping to segment 0");
 					} else {
-						endReason.store(SceneEndReason::kTimer, std::memory_order_relaxed);
+						endReason.store(PlaybackEndReason::kTimerComplete, std::memory_order_relaxed);
 						ended.store(true, std::memory_order_relaxed);
-						REX::DEBUG("[Anim] final held stage timer expired — holding pose, requesting stop");
+						REX::DEBUG("[Anim] final held playback segment timer expired — holding pose, requesting stop");
 					}
 					break;
 				}
@@ -106,12 +106,12 @@ namespace OSF::Animation
 						}
 					}
 					stageLoops++;
-					// A one-shot final stage that just consumed its last loop ENDS here: hold the
+					// A one-shot final playback segment that just consumed its last loop ENDS here: hold the
 					// clock at the clip end so participants keep the final pose while the deferred
 					// stop lands. Resetting to 0 (the looping path) snapped the cast back to the
 					// clip's first frame for however many frames the stop task took to arrive.
 					const bool finishing = stage.loops > 0 && stageLoops >= stage.loops &&
-					                       currentStage + 1 >= stages.size() && !loopWhole;
+					                       currentSegment + 1 >= stages.size() && !loopWhole;
 					clock.time = finishing ? duration : 0.0f;
 				}
 
@@ -122,42 +122,42 @@ namespace OSF::Animation
 				}
 
 				const char* why = timerExpired ? "timer" : "loop target";
-				if (currentStage + 1 < stages.size()) {
-					ApplyStageLocked(currentStage + 1);
-					REX::DEBUG("[Anim] stage {} expired — advanced to stage {}/{}", why, currentStage + 1, stages.size());
+				if (currentSegment + 1 < stages.size()) {
+					ApplySegmentLocked(currentSegment + 1);
+					REX::DEBUG("[Anim] playback segment {} expired — advanced to segment {}/{}", why, currentSegment + 1, stages.size());
 				} else if (loopWhole) {
-					ApplyStageLocked(0);
-					REX::DEBUG("[Anim] final stage {} expired — looping to stage 0", why);
+					ApplySegmentLocked(0);
+					REX::DEBUG("[Anim] final playback segment {} expired — looping to segment 0", why);
 				} else {
-					endReason.store(timerExpired ? SceneEndReason::kTimer : SceneEndReason::kLoops,
+					endReason.store(timerExpired ? PlaybackEndReason::kTimerComplete : PlaybackEndReason::kLoopComplete,
 						std::memory_order_relaxed);
 					ended.store(true, std::memory_order_relaxed);
-					REX::DEBUG("[Anim] final stage {} expired — holding pose, requesting stop", why);
+					REX::DEBUG("[Anim] final playback segment {} expired — holding pose, requesting stop", why);
 				}
-				// Preserve the prior behavior: a stage transition consumes the current update; the
-				// next engine report begins the new stage rather than skipping through several nodes.
+				// Preserve the prior behavior: a segment transition consumes the current update; the
+				// next engine report begins the new segment rather than skipping through several segments.
 				remaining = 0.0f;
 			}
 		}
 
 		const bool holdEnd = ended.load(std::memory_order_relaxed) &&
-		                     endReason.load(std::memory_order_relaxed) == SceneEndReason::kLoops;
-		return { clock.time, currentStage, holdEnd };
+		                     endReason.load(std::memory_order_relaxed) == PlaybackEndReason::kLoopComplete;
+		return { clock.time, currentSegment, holdEnd };
 	}
 
-	bool Scene::SetStage(int32_t a_stage)
+	bool PlaybackSession::SetSegment(int32_t a_segment)
 	{
 		std::scoped_lock l{ lock };
-		if (a_stage < 0 || static_cast<size_t>(a_stage) >= stages.size()) {
+		if (a_segment < 0 || static_cast<size_t>(a_segment) >= stages.size()) {
 			return false;
 		}
-		ApplyStageLocked(static_cast<uint32_t>(a_stage));
-		ended.store(false, std::memory_order_relaxed);  // a manual jump revives an ended scene
+		ApplySegmentLocked(static_cast<uint32_t>(a_segment));
+		ended.store(false, std::memory_order_relaxed);  // a manual jump revives an ended playback session
 		endQueued.store(false, std::memory_order_relaxed);
 		return true;
 	}
 
-	bool Scene::Seek(float a_time)
+	bool PlaybackSession::Seek(float a_time)
 	{
 		if (!std::isfinite(a_time)) {
 			return false;
@@ -167,14 +167,14 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// SamplingJob accepts the end ratio, but the normal scene sampling path wraps a live clip.
+		// SamplingJob accepts the end ratio, but the normal playback-session sampling path wraps a live clip.
 		// Keep a scrub at 100% on the last representable pose instead of snapping to frame zero.
 		const float lastPose = duration > 0.0f ? std::nextafter(duration, 0.0f) : 0.0f;
 		clock.time = std::clamp(a_time, 0.0f, lastPose);
-		// On a playing stage the clip position IS the time spent in it, so a scrub carries any timer
-		// with it. A frozen stage's clock is a pose, not elapsed time — moving it must not rewind
+		// On a playing segment the clip position IS the time spent in it, so a scrub carries any timer
+		// with it. A frozen segment's clock is a pose, not elapsed time — moving it must not rewind
 		// (or expire) the timer that is the only way out.
-		if (stages[currentStage].hold < 0.0f) {
+		if (stages[currentSegment].hold < 0.0f) {
 			stageElapsed = clock.time;
 		}
 		stageLoops = 0;
@@ -182,7 +182,7 @@ namespace OSF::Animation
 		endQueued.store(false, std::memory_order_relaxed);
 		firedMarks.clear();
 
-		const auto& marks = stages[currentStage].marks;
+		const auto& marks = stages[currentSegment].marks;
 		markFired.assign(marks.size(), false);
 		if (duration > 0.0f) {
 			for (size_t i = 0; i < marks.size(); i++) {
@@ -195,50 +195,50 @@ namespace OSF::Animation
 		return true;
 	}
 
-	Scene::PlaybackSnapshot Scene::GetPlaybackSnapshot()
+	PlaybackSession::PlaybackSnapshot PlaybackSession::GetPlaybackSnapshot()
 	{
 		std::scoped_lock l{ lock };
-		return { clock.time, duration, speed.load(std::memory_order_relaxed), currentStage };
+		return { clock.time, duration, speed.load(std::memory_order_relaxed), currentSegment };
 	}
 
-	uint32_t Scene::CurrentStage()
+	uint32_t PlaybackSession::CurrentSegment()
 	{
 		std::scoped_lock l{ lock };
-		return currentStage;
+		return currentSegment;
 	}
 
-	Scene::DiagnosticSnapshot Scene::GetDiagnosticSnapshot(std::int64_t a_nowMs)
+	PlaybackSession::DiagnosticSnapshot PlaybackSession::GetDiagnosticSnapshot(std::int64_t a_nowMs)
 	{
 		std::scoped_lock l{ lock };
 		const std::int64_t ownerAge = clock.owner && clock.lastAdvanceMs > 0 ? a_nowMs - clock.lastAdvanceMs : -1;
-		return { clock.time, currentStage, clock.owner, ownerAge };
+		return { clock.time, currentSegment, clock.owner, ownerAge };
 	}
 
-	void Scene::DrainFiredMarks(std::vector<FiredMark>& a_out)
+	void PlaybackSession::DrainFiredMarks(std::vector<FiredMark>& a_out)
 	{
 		std::scoped_lock l{ lock };
 		a_out.swap(firedMarks);
 		firedMarks.clear();
 	}
 
-	void Scene::ApplyStageLocked(uint32_t a_stage)
+	void PlaybackSession::ApplySegmentLocked(uint32_t a_segment)
 	{
-		currentStage = a_stage;
+		currentSegment = a_segment;
 		stageElapsed = 0.0f;
 		stageLoops = 0;
 		clock.time = 0.0f;
 
-		const auto& stage = stages[a_stage];
+		const auto& stage = stages[a_segment];
 		duration = stage.duration;
 
-		// A frozen stage shows its hold pose from the very first sample, before any Advance runs.
+		// A frozen segment shows its hold pose from the very first sample, before any Advance runs.
 		// The last frame is the pose at nextafter(duration, 0) — a ratio of exactly 1 wraps to frame 0.
 		holdMarksFired = false;
 		if (stage.hold >= 0.0f && duration > 0.0f) {
 			clock.time = std::clamp(stage.hold * duration, 0.0f, std::nextafter(duration, 0.0f));
 		}
 
-		// Reset per-pass gating for this stage's marks (all unfired).
+		// Reset per-pass gating for this segment's marks (all unfired).
 		markFired.assign(stage.marks.size(), false);
 
 	}

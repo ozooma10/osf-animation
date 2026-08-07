@@ -51,7 +51,7 @@ namespace OSF::API::UIBridgeWorld
 
 			RE::BGSKeyword*                         match = nullptr;
 			std::unordered_map<RE::TESFormID, bool> tested;
-			Registry::SceneRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
+			Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
 				if (match || !a_def.clipsAvailable) {
 					return;
 				}
@@ -1105,7 +1105,7 @@ namespace OSF::API::UIBridgeWorld
 						baseDefs[b].push_back(idx);
 					}
 				};
-				auto& reg = Registry::SceneRegistry::GetSingleton();
+				auto& reg = Registry::ContentRegistry::GetSingleton();
 				if (!sceneId.empty()) {
 					if (const auto def = reg.Find(sceneId)) {
 						addDef(*def);

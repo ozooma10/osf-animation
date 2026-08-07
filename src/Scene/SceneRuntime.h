@@ -16,13 +16,6 @@
 // its current node, a stage, and its participants, with graph navigation, the track scheduler,
 // and the undo ledger built on top of that.
 
-namespace OSF::Animation
-{
-	enum class SceneEndReason : std::uint8_t;  // Animation/Scene.h
-	struct FiredMark;                          // Animation/Scene.h
-	struct ScenePlan;                          // Animation/Scene.h
-}
-
 namespace OSF::Camera
 {
 	enum class CameraMode : std::uint8_t;  // Camera/CameraService.h
@@ -48,12 +41,12 @@ namespace OSF::Scene
 		// Per-start policy overrides a consumer supplies via OSFTypes:SceneOptions, or a native consumer sets directly.
 		struct StartOverrides
 		{
-			std::optional<bool> strip;
-			std::optional<bool> lockPlayer;
+			std::optional<bool> hideApparel;      // legacy StripMode is normalized here
+			std::optional<bool> playerInputLock;   // legacy LockPlayerMode is normalized here
 			std::optional<bool> fade;
-			std::optional<bool> playerControl;  // override the director-input grant (false = revoke advance/end/navigate/etc.)
+			std::optional<bool> sceneControls;     // legacy PlayerControlMode; false revokes OSF scene commands
 			std::optional<std::string> camera;  // override the scene's camera ("none" = leave the vanilla camera alone); when set, authored node cameras are suppressed for the whole scene
-			std::optional<bool> inPlace;        // override the def's inPlace posture: true = no teleport / per-frame root+heading pin (rig follows the actor)
+			std::optional<Animation::WorldPlacementMode> worldPlacement;  // legacy InPlaceMode normalized once
 			float               loopScale = 1.0f;  // multiplies loop-driven (loops>0) stages only, floored
 		};
 
@@ -65,7 +58,7 @@ namespace OSF::Scene
 		// the scene completes and ends. Returns true if this runtime handled the scene, false
 		// otherwise (e.g. a direct StartScene with no graph).
 		bool OnGraphAutoEnd(Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_participants,
-			Animation::SceneEndReason a_reason);
+			Animation::PlaybackEndReason a_reason);
 
 		// Timed-mark callback registered with the GraphManager. Runs on the game thread. Resolves
 		// the handle owning a_participants, then decodes each fired mark by lane in the same-tick
@@ -94,7 +87,7 @@ namespace OSF::Scene
 		// Start an ad-hoc staged scene built by a Papyrus caller. The plan is already actor-aligned
 		// and may carry multiple stages; it receives a synthetic handle,
 		// callbacks, default mechanisms, and the undo ledger).
-		std::int32_t StartFromPlan(const std::vector<RE::Actor*>& a_participants, Animation::ScenePlan a_plan,
+		std::int32_t StartFromPlan(const std::vector<RE::Actor*>& a_participants, Animation::PlaybackPlan a_plan,
 			std::int32_t a_startStage, const AnchorOverride& a_anchor = {}, const StartOverrides& a_over = {});
 
 		// Start a def-backed scene with actors bound to NAMED roles (a_roles[i] = role for
@@ -120,7 +113,7 @@ namespace OSF::Scene
 		bool Navigate(std::int32_t a_scene, std::string_view a_edgeId);
 
 		// SINGLE-ANIMATION posture (wheel emotes): pin the scene to the stage it entered on. Every
-		// edge out of the current node — the director advance verb (space), the pack's auto
+		// edge out of the current node — the director advance verb (space), the authored auto
 		// loops/timer chain, a cue trigger, Navigate — ends the scene instead of stepping to the
 		// next stage, so the launch reads as "play this one animation", and space becomes cancel.
 		void SetSingleStage(std::int32_t a_scene);
@@ -190,7 +183,7 @@ namespace OSF::Scene
 		// depends on an authored release.
 		enum class Mechanism : std::uint8_t
 		{
-			kControlLock,   // player control + camera lock (at most one scene holds the player — MintSlot exclusivity)
+			kPlayerInputLock, // vanilla input suppression + third-person hold (at most one scene holds the player)
 			kFade,          // screen fade-to-black (undo = fade back in)
 			kEquipment,     // hidden worn apparel (undo = re-equip; per-actor snapshots in the Slot)
 			kHeldEquipment, // held items cleared at scene start (undo = re-equip only on scene cleanup)
@@ -201,6 +194,25 @@ namespace OSF::Scene
 			kInputChannel,  // player director-input channel (undo = release the InputService grant; Grant in the Slot)
 			kProps          // render-only props owned strictly for the scene's lifetime
 		};
+
+		// Why the domain scene terminated. This is intentionally distinct from PlaybackEndReason,
+		// which describes the Layer-A timer/loop condition that prompted an auto-end callback.
+		enum class TerminationCause : std::uint8_t
+		{
+			kCompleted,
+			kCancelled,
+			kInterrupted
+		};
+
+		static constexpr std::string_view TerminationCauseName(TerminationCause a_cause) noexcept
+		{
+			switch (a_cause) {
+			case TerminationCause::kCompleted: return "completed";
+			case TerminationCause::kCancelled: return "cancelled";
+			case TerminationCause::kInterrupted: return "interrupted";
+			}
+			return "interrupted";
+		}
 
 		struct ActiveProp
 		{
@@ -224,6 +236,7 @@ namespace OSF::Scene
 			// bails. Cleared at the end of a non-terminal transition (a terminal end retires the slot,
 			// which clears it with the slot).
 			bool                    transitioning = false;
+			TerminationCause        terminationCause = TerminationCause::kCompleted;
 			std::string             id;
 			std::string             node;
 			std::vector<RE::Actor*> participants;
@@ -234,7 +247,7 @@ namespace OSF::Scene
 			Registry::SceneRef      definition;
 			AnchorOverride          anchor;  // StartSceneAt world anchor (unset = anchor at participant[0])
 			float                   loopScale = 1.0f;  // per-start LoopScale, re-read per node in PlayNodeAnim (1.0 = no scaling)
-			std::optional<bool>     inPlace;  // per-start inPlace override, re-read per node in PlayNodeAnim (unset = the def's posture)
+			std::optional<Animation::WorldPlacementMode> worldPlacement;  // per-start placement override, re-read per flow node
 			bool                    singleStage = false;  // single-animation posture: any edge out of the current node ends the scene (see SetSingleStage)
 			bool                    cameraOverridden = false;  // a per-start camera override exists — authored node cameras stand down for the scene's lifetime
 			// Ordered list of reversible mechanisms this scene engaged (at most one entry per
@@ -317,11 +330,11 @@ namespace OSF::Scene
 		// Call OUTSIDE _lock (it enters the VM); the caller snapshots node/handle first.
 		// For NODE_ENTER / NODE_EXIT it also dispatches the node's enter / exit cue-track
 		// entries as EVENT_CUE.
-		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor);
+		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition);
 
 		// Dispatch one EVENT_CUE through the relay. Call OUTSIDE _lock.
 		static void DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
-			std::string_view a_anchor, float a_time);
+			std::string_view a_trackPosition, float a_time);
 
 		// Dispatch a node's enter (a_enter) or exit cue-track entries as EVENT_CUE. Call OUTSIDE
 		// _lock. No-op for a non-def scene or a node with no matching cues.
@@ -355,11 +368,11 @@ namespace OSF::Scene
 		// lifecycle + timed dispatch paths. Call OUTSIDE _lock (may Acquire/Release the lock).
 		// a_hasPlayer = the player is a participant (gates player-only mechanisms).
 		static void RunAction(std::int32_t a_handle, std::string_view a_node, const Registry::ActionEntry& a_action,
-			std::string_view a_anchor, bool a_hasPlayer);
+			std::string_view a_trackPosition, bool a_hasPlayer);
 
 		// Dispatch one EVENT_ACTION (custom action notification) through the relay.
 		static void DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
-			std::string_view a_role, std::string_view a_anchor);
+			std::string_view a_role, std::string_view a_trackPosition);
 
 		// Undo ledger. RecordMechanism engages and records a reversible mechanism for a scene
 		// (idempotent per scene+mechanism). UndoMechanism reverses one mechanism for a scene
@@ -407,7 +420,7 @@ namespace OSF::Scene
 		// onto the last stage of the plan it plays, so the GraphManager auto-ends it and reports the
 		// timer/loops back through OnGraphAutoEnd. Returns true if a scene was started; false if the
 		// node has no playable or it failed to play (ApplyTransition collapses that to a clean end so
-		// the scene is never stranded animation-less with the player lock still held).
+		// the scene is never stranded animation-less with the player input lock still held).
 		static Animation::PlaybackId PlayNodeAnim(const std::vector<RE::Actor*>& a_participants,
 			std::string_view a_sceneId, std::string_view a_nodeId,
 			Animation::PlaybackId a_expectedPlayback = 0);
@@ -415,25 +428,30 @@ namespace OSF::Scene
 		static void StopGraph(const std::vector<RE::Actor*>& a_participants,
 			Animation::PlaybackId a_expectedPlayback);
 
-		// Default player lock on scene start: when the player is among a_participants and policy keeps it on. 
-		// The caller resolves a_lockPlayer from the scene def (`lockPlayer`) or pack;
-		void EngageDefaultPlayerLock(std::int32_t a_handle, bool a_lockPlayer, const std::vector<RE::Actor*>& a_participants);
+		// Default player input lock on scene start: when the player is among a_participants and policy keeps it on.
+		// The caller resolves the canonical playerInputLock policy (including legacy lockPlayer input).
+		void EngageDefaultPlayerInputLock(std::int32_t a_handle, bool a_playerInputLock,
+			const std::vector<RE::Actor*>& a_participants);
 
 		// Default camera when the player participates and the scene specifies none: native-TFC-assisted scene orbit.
-		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_lockPlayer, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
+		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_playerInputLock, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
 		// Held-item clear on scene start: when a_clearHeldItems (caller-resolved policy), takes whatever
 		// every participant is HOLDING out of their hands (slate, tool, drawn weapon) so it can't ride
-		// through the animation. Independent of stripActors. Worn gear picks are exempt, same as the strip below.
+		// through the animation. Independent of apparel hiding. Worn gear picks are exempt there too.
 		void ClearHeldItems(std::int32_t a_handle, bool a_clearHeldItems,
 			const std::vector<RE::Actor*>& a_participants,
 			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
 
-		// Default actor strip on scene start: when a_stripActors (caller-resolved policy), hide EVERY participant's worn apparel (base skin kept). Resolved like a_lockPlayer above.
-		// a_gearPicks (index-parallel to a_participants, from BuildGearPicks): each participant's
-		// WORN picks are exempted from the strip — the item stays on through the scene.
-		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants,
+		// Default apparel policy on scene start: `hideApparel` (legacy `stripActors`) hides every
+		// participant's worn apparel while preserving the base skin. Worn gear picks are exempt.
+		void HideDefaultApparel(std::int32_t a_handle, bool a_hideApparel, const std::vector<RE::Actor*>& a_participants,
 			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
+		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants,
+			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
+		{
+			HideDefaultApparel(a_handle, a_stripActors, a_participants, a_gearPicks);
+		}
 
 		// Each participant's user-side scene-gear selection (docs/RFC-scene-gear.md): the gear
 		// registry ∩ the actor's inventory, minus slots claimed by the def's authored role `equip`
@@ -455,11 +473,16 @@ namespace OSF::Scene
 		// non-def / files scene (a_defId empty) or a def whose roles declare no `equip`.
 		void EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
 
-		// Player director-input on scene start: when the def declares a `playerControl` block and the player is a participant, hand the InputService a Grant (ledger-tracked via kInputChannel so it releases on any termination).
-		void EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants);
+		// Scene controls on start: when enabled and the player participates, hand InputService a Grant
+		// (ledger-tracked via kInputChannel so it releases on any termination).
+		void EngageDefaultSceneControls(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants);
+		void EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants)
+		{
+			EngageDefaultSceneControls(a_handle, a_defId, a_controlOverride, a_participants);
+		}
 
 		// Default screen fade on scene start: when the player is among a_participants and policy keeps it on (a_fade,
-		// resolved from the scene def `fade` / pack default). Posts a self-releasing FadeToBlack (bounded hold, auto
+		// resolved from the scene definition / content-file default). Posts a self-releasing FadeToBlack (bounded hold, auto
 		// fade-in via FadeService::Tick) — NOT ledger-recorded, so it un-fades on its own a beat into the scene rather
 		// than holding black until the scene ends. NOTE: the fade is async (UI queue) while the scene's teleport/strip
 		// run synchronously this frame, so this is a cinematic curtain, not a snap-hider (hiding the frame-0 snap would
@@ -470,7 +493,7 @@ namespace OSF::Scene
 		// identity must already be live; this applies policies, records reversible mechanisms, and
 		// emits the initial lifecycle events in one consistent order.
 		void CompleteStart(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
-			const std::vector<RE::Actor*>& a_participants, bool a_lockPlayer, bool a_stripActors,
+			const std::vector<RE::Actor*>& a_participants, bool a_playerInputLock, bool a_hideApparel,
 			bool a_clearHeldItems, bool a_fade, const StartOverrides& a_over);
 
 		// The node-transition lifecycle, shared by every transition path (SetNode / Advance /

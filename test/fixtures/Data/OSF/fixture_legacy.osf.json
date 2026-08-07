@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "name": "fixture legacy pack-default roles",
+  "name": "fixture legacy file-default roles",
   "clearHeldItems": false,
-  // ARRAY form: a pack default cast inherited by scenes that omit their own roles.
+  // ARRAY form: a file-level default cast inherited by scenes that omit their own roles.
   "roles": [
     { "name": "bottom" },
     { "name": "top", "equip": "Any.esm|0x123" }

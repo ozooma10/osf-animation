@@ -41,7 +41,7 @@ namespace
 			OSF::API::Health::Connect();
 			OSF::Registry::RequirementRegistry::LoadAll();
 			OSF::API::MinimumVersion::EnablePrompts();
-			OSF::Registry::SceneRegistry::GetSingleton().LoadAll();
+			OSF::Registry::ContentRegistry::GetSingleton().LoadAll();
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
 			OSF::API::Health::ReportRegistryLoad();
 			OSF::Equipment::Gear::LoadAll();

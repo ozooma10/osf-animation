@@ -1,7 +1,7 @@
 #include "Camera/CameraService.h"
 
 #include "Input/InputService.h"
-#include "Player/PlayerControlService.h"
+#include "Player/PlayerInputLockService.h"
 #include "Util/Profile.h"
 
 #include <algorithm>
@@ -677,7 +677,7 @@ namespace OSF::Camera
 			Input::InputService::GetSingleton().SetNativeFreeCamGamepad(false);
 			SetNativeFreeCam(false);  // clear the engine free-cam status flags 
 			// tfc set the player AI-driven (to freeze them while the camera flew) and toggling it off doesn't reliably clear it for a pinned scene participant.
-			Player::PlayerControlService::GetSingleton().ClearAIDriven();
+			Player::PlayerInputLockService::GetSingleton().ClearAIDriven();
 
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!suppressBounce.load(std::memory_order_relaxed) && camera) {

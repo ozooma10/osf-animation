@@ -102,7 +102,7 @@ namespace OSF::Animation
 		localTime = 0.0f;
 		hasPose = false;
 		holdClipAtEnd = false;
-		if(!scene) {
+		if (!playbackSession) {
 			syncGroup = std::make_shared<SyncGroup>();	// new clip owns the clock if not in a scene
 		}
 
@@ -396,7 +396,7 @@ namespace OSF::Animation
 
 	void Graph::DetachAndFadeOut()
 	{
-		scene = nullptr;
+		playbackSession = nullptr;
 		participantIndex = -1;
 		syncGroup = std::make_shared<SyncGroup>();  // return to a "solo" syncGroup (group of 1)
 		syncGroup->clock.time = localTime;          // fade resumes from current phase
@@ -444,11 +444,12 @@ namespace OSF::Animation
 			blendClock.time += a_deltaTime;
 		}
 
-		// Advance scene clock first, if it triggers stage switch (new anim), clears rig binding, which will cause below to rebind in same call.
-		if (scene) {
-			const auto tick = scene->Advance(a_token, a_deltaTime);
-			if (tick.stage != appliedStage && participantIndex >= 0 && tick.stage < scene->stages.size()) {
-				const auto& stage = scene->stages[tick.stage];
+		// Advance the synchronized playback clock first. A segment switch clears the rig binding,
+		// causing the new animation to bind again in this call.
+		if (playbackSession) {
+			const auto tick = playbackSession->Advance(a_token, a_deltaTime);
+			if (tick.stage != appliedStage && participantIndex >= 0 && tick.stage < playbackSession->stages.size()) {
+				const auto& stage = playbackSession->stages[tick.stage];
 				const auto& slot = stage.participants[participantIndex];
 				SetAnimation(slot.skeleton, slot.anim, slot.file);
 				SetPosePolicy(stage.poseModes[participantIndex], stage.poseWeights[participantIndex], roleName);
@@ -488,7 +489,7 @@ namespace OSF::Animation
 		}
 
 		//solo scenes ownly owner token advances time (so if ex. 1st/3rd person graph running, only 1 triggers time)
-		if (!scene && syncGroup) {
+		if (!playbackSession && syncGroup) {
 			std::scoped_lock sgl{ syncGroup->lock };
 			auto& clk = syncGroup->clock;
 			const int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(

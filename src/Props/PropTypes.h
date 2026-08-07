@@ -25,7 +25,7 @@ namespace OSF::Props
 
 	struct Attachment
 	{
-		std::string          node;
+		std::string          targetNode;
 		std::array<float, 3> position{};
 		std::array<float, 3> rotation{};
 		float                scale = 1.0f;

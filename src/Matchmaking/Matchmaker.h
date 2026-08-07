@@ -40,14 +40,14 @@ namespace OSF::Matchmaking
 		std::string              id;
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;
-		// slot/role index -> index into the caller's actor array (the resolved binding).
+		// role index -> index into the caller's actor array (the resolved binding).
 		std::vector<std::size_t> order;
 	};
 
 	// Does a_actor satisfy a_role's filters (gender + any-of keyword + any-of race)? shared by matchmaking and SceneRuntime's per-start filter enforcement.
 	bool RoleAccepts(const Registry::SceneRole& a_role, RE::Actor* a_actor);
 
-	// Orders actors into a scene definition's role slots and validates the complete binding.
+	// Orders actors into a scene definition's roles and validates the complete binding.
 	// Empty role names preserve caller order; otherwise every actor must name exactly one role.
 	bool BindSceneRoles(const Registry::SceneDef& a_def, const std::vector<RE::Actor*>& a_actors,
 		const std::vector<std::string>& a_roleNames, std::vector<RE::Actor*>& a_ordered, std::string& a_error);

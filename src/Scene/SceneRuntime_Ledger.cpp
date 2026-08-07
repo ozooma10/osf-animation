@@ -3,7 +3,7 @@
 #include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
 #include "Input/InputService.h"
-#include "Player/PlayerControlService.h"
+#include "Player/PlayerInputLockService.h"
 #include "Props/PropService.h"
 #include "UI/FadeService.h"
 #include "Weapon/WeaponService.h"
@@ -12,7 +12,7 @@
 
 // SceneRuntime — undo ledger slice (one class, split across translation units; see SceneRuntime.cpp).
 // Every reversible side-effect a scene engages is recorded per-handle and replayed in reverse on termination, so cleanup never depends on an authored release.
-// The control lock needs no cross-scene ref-count: only a scene containing the PLAYER records it,
+// The player input lock needs no cross-scene ref-count: only a scene containing the PLAYER records it,
 // and MintSlot refuses a start on an actor already in a live scene, so at most one live scene can
 // hold it (the services are idempotent/self-counted besides). Equipment/weapon keep their per-actor state on the Slot.
 
@@ -20,7 +20,7 @@ namespace OSF::Scene
 {
 	void SceneRuntime::RecordMechanism(std::int32_t a_handle, Mechanism a_mech)
 	{
-		bool engageLock = false;
+		bool engagePlayerInputLock = false;
 		bool engageCamera = false;
 		{
 			std::lock_guard l{ _lock };
@@ -32,15 +32,15 @@ namespace OSF::Scene
 				return;  // already recorded — idempotent per scene+mechanism
 			}
 			s->ledger.push_back(a_mech);
-			if (a_mech == Mechanism::kControlLock) {
-				engageLock = true;  // once per scene (the ledger find above); at most one scene can hold the player
+			if (a_mech == Mechanism::kPlayerInputLock) {
+				engagePlayerInputLock = true;  // once per scene; at most one scene can hold the player
 			} else if (a_mech == Mechanism::kCamera) {
-				engageCamera = true;  // the camera lock is ref-counted internally (composes w/ control lock)
+				engageCamera = true;  // the camera hold is ref-counted internally (composes w/ player input lock)
 			}
 			// kFade: the visible fade-out was posted by RunAction; recording just notes the debt.
 		}
-		if (engageLock) {
-			Player::PlayerControlService::GetSingleton().SetStandaloneLock(true);
+		if (engagePlayerInputLock) {
+			Player::PlayerInputLockService::GetSingleton().SetPlayerInputLock(true);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(true);
 		}
 		if (engageCamera) {
@@ -81,11 +81,11 @@ namespace OSF::Scene
 		// Apply the reversal OUTSIDE the lock (services enter the VM / post UI messages / touch
 		// the inventory lock).
 		switch (a_mech) {
-		case Mechanism::kControlLock:
+		case Mechanism::kPlayerInputLock:
 			// Always release: at most one scene can hold the player (MintSlot exclusivity), and the
 			// services absorb a redundant release (bool-idempotent / internally counted).
-			REX::TRACE("[Scene] scene {:#010x} control lock released — player unlocked", a_handle);
-			Player::PlayerControlService::GetSingleton().SetStandaloneLock(false);
+			REX::TRACE("[Scene] scene {:#010x} player input lock released — vanilla input restored", a_handle);
+			Player::PlayerInputLockService::GetSingleton().SetPlayerInputLock(false);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
 			break;
 		case Mechanism::kFade:
@@ -178,7 +178,7 @@ namespace OSF::Scene
 		}
 		auto snap = Equipment::EquipmentService::GetSingleton().Hide(a_actor, a_slotMask);
 		REX::DEBUG("[Scene] scene {:#010x} HideEquipment: actor {:X}, mask {:#010x}, hid {} item(s)",
-			a_handle, a_actor->formID, a_slotMask, snap.stripped.size());
+			a_handle, a_actor->formID, a_slotMask, snap.hiddenItems.size());
 		if (snap.Empty()) {
 			return false;
 		}

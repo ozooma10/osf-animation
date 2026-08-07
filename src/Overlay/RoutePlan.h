@@ -67,6 +67,9 @@ namespace OSF::Overlay
 		bool SetBlocker(ControllerBlocker a_blocker);
 		bool ClearBlocker(ControllerBlocker a_blocker);
 		bool OnCommit(std::uint32_t a_generation, bool a_acknowledged);
+		bool OnTransitionReached(std::uint32_t a_generation);
+		// Compatibility spelling for existing callers. Route topology calls these transitions;
+		// scene control-flow connections remain edges.
 		bool OnEdgeReached(std::uint32_t a_generation);
 		void End(bool a_fade);
 

@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "section": "library",
   // A BARE single-scene file: `props` means the same thing here as in a `scenes` envelope.
   // (Contrast `roles`, whose top-level array form is this scene's cast.)
   "id": "test.props.bare",

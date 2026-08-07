@@ -44,16 +44,17 @@ namespace OSF::Scene
 		return MakeAnchorAt(a_opts.anchor, OptHeadingRad(a_opts));
 	}
 
-	// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool> (1 = on, 0 = off, anything else incl. -1 = inherit the scene's pack default).
+	// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool>
+	// (1 = on, 0 = off, anything else incl. -1 = inherit the scene/content-file default).
 	// LoopScale is sanitized: <=0 or NaN -> 1.0 (no scaling); inf / overshoot -> clamped to kLoopScaleMax.
 	SceneRuntime::StartOverrides MakeOverrides(const LaunchOpts& a_opts)
 	{
-		return MakeOverrides(a_opts.stripMode, a_opts.lockPlayerMode, a_opts.playerControlMode,
-			a_opts.fadeMode, a_opts.inPlaceMode, a_opts.camera, a_opts.loopScale);
+		return MakeOverrides(a_opts.hideApparelMode, a_opts.playerInputLockMode, a_opts.sceneControlsMode,
+			a_opts.fadeMode, a_opts.followActorMode, a_opts.camera, a_opts.loopScale);
 	}
 
-	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_stripMode, std::int32_t a_lockPlayerMode,
-		std::int32_t a_playerControlMode, std::int32_t a_fadeMode, std::int32_t a_inPlaceMode,
+	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_hideApparelMode, std::int32_t a_playerInputLockMode,
+		std::int32_t a_sceneControlsMode, std::int32_t a_fadeMode, std::int32_t a_followActorMode,
 		std::string_view a_camera, float a_loopScale)
 	{
 		SceneRuntime::StartOverrides over{};
@@ -66,11 +67,13 @@ namespace OSF::Scene
 			}
 			return std::nullopt;  // -1 and any out-of-range value = inherit
 		};
-		over.strip = triState(a_stripMode);
-		over.lockPlayer = triState(a_lockPlayerMode);
-		over.playerControl = triState(a_playerControlMode);
+		over.hideApparel = triState(a_hideApparelMode);
+		over.playerInputLock = triState(a_playerInputLockMode);
+		over.sceneControls = triState(a_sceneControlsMode);
 		over.fade = triState(a_fadeMode);
-		over.inPlace = triState(a_inPlaceMode);
+		if (const auto followActor = triState(a_followActorMode)) {
+			over.worldPlacement = Animation::WorldPlacementFromFollowActor(*followActor);
+		}
 		if (!a_camera.empty()) {
 			over.camera = std::string(a_camera);
 		}
@@ -108,7 +111,7 @@ namespace OSF::Scene
 		}
 		const std::int32_t handle = StartCandidate(*pick, a_actors, *anchor, a_over);
 		if (handle) {
-			REX::INFO("{}: playing '{}' handle {:#010x}{}", a_logTag, pick->id, handle, anchor->set ? " (anchored)" : "");
+			REX::DEBUG("{}: matched '{}' handle {:#010x}{}", a_logTag, pick->id, handle, anchor->set ? " (anchored)" : "");
 		} else {
 			REX::WARN("{}: could not start matched scene '{}'", a_logTag, pick->id);
 			UI::HudMessage::Error(std::format("could not start scene '{}'", pick->id));

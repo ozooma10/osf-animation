@@ -1,7 +1,7 @@
 #include "API/UIBridgeCatalog.h"
 #include "API/UIKeywordLabel.h"
 
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Serialization/ClipDurations.h"
 #include "Serialization/WheelPins.h"
 #include "Util/Profile.h"
@@ -23,12 +23,12 @@ namespace OSF::API::UIBridgeCatalog
 
 	namespace
 	{
-		const char* GenderTag(Registry::SlotGender a_gender)
+		const char* GenderTag(Registry::RoleGender a_gender)
 		{
 			switch (a_gender) {
-			case Registry::SlotGender::kMale:
+			case Registry::RoleGender::kMale:
 				return "male";
-			case Registry::SlotGender::kFemale:
+			case Registry::RoleGender::kFemale:
 				return "female";
 			default:
 				return "any";
@@ -116,7 +116,7 @@ namespace OSF::API::UIBridgeCatalog
 		};
 
 		json routes = json::array();
-		Registry::SceneRegistry::GetSingleton().ForEachRoute([&](const Registry::RouteDef& a_route) {
+		Registry::ContentRegistry::GetSingleton().ForEachRoute([&](const Registry::RouteDef& a_route) {
 			json stations = json::array();
 			for (const auto& station : a_route.stations) {
 				json item = { { "id", station.id } };
@@ -137,7 +137,8 @@ namespace OSF::API::UIBridgeCatalog
 						{ "id", prop.id },
 						{ "attach", prop.attach },
 						{ "lifetime", lifetimeName(prop.lifetime) },
-						{ "node", prop.attachment.node },
+						{ "attachmentNode", prop.attachment.targetNode },
+						{ "node", prop.attachment.targetNode },  // legacy bridge field
 					});
 				}
 				json sounds = json::array();
@@ -208,7 +209,7 @@ namespace OSF::API::UIBridgeCatalog
 			items.push_back({ a_entry, std::move(title), a_def.priority, a_def.weight });
 		};
 
-		auto& registry = Registry::SceneRegistry::GetSingleton();
+		auto& registry = Registry::ContentRegistry::GetSingleton();
 		const bool customized = Serialization::WheelPins::Customized();
 		if (customized) {
 			for (const auto& entry : Serialization::WheelPins::Entries()) {
@@ -268,7 +269,7 @@ namespace OSF::API::UIBridgeCatalog
 			struct TrackMark
 			{
 				std::string kind;
-				std::string anchor;
+				std::string trackPosition;
 				std::string label;
 				std::string detail;
 				std::string role;
@@ -303,17 +304,18 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              folder;      // optional slash-delimited catalog path within the pack
 			std::string              sourceFile;  // scene file name only (no directories) — the browser's grouping fallback
 			std::string              sourcePath;  // Data/OSF-relative path for exact Imports -> catalog navigation
+			std::string              sourceKind;  // explicit catalog taxonomy; legacy booleans remain below
 			std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
 			std::vector<std::string> tags;
 			std::uint32_t            actorCount = 0;
 			std::vector<RoleCard>    roles;
 			std::int32_t             priority = 0;
 			std::int32_t             weight = 1;
-			bool                     stripActors = true;
-			bool                     lockPlayer = true;
+			bool                     hideApparel = true;
+			bool                     playerInputLock = true;
 			bool                     fade = false;
 			bool                     requiresFurniture = false;
-			bool                     inPlace = false;
+			std::string              worldPlacement = "anchorAndPin";
 			std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
 			bool                     unlisted = false;
 			// Generated one-clip entry that a pack REGISTERED via `clipLibrary`, as opposed to
@@ -329,7 +331,7 @@ namespace OSF::API::UIBridgeCatalog
 		std::vector<Card> cards;
 		std::error_code sourceRootEc;
 		const auto sourceRoot = std::filesystem::current_path(sourceRootEc) / "Data" / "OSF";
-		Registry::SceneRegistry::GetSingleton().ForEachDef(
+		Registry::ContentRegistry::GetSingleton().ForEachDef(
 			[&cards, &wheelOrder, &sourceRoot, sourceRootEc, a_library](const Registry::SceneDef& d) {
 			if (d.library != a_library) {
 				return;  // each lane serializes only its own scenes
@@ -348,6 +350,7 @@ namespace OSF::API::UIBridgeCatalog
 			c.sourceFile.assign(srcName.begin(), srcName.end());
 			c.species = d.species.empty() ? std::string{ "human" } : d.species;
 			c.sourcePath = c.sourceFile;
+			c.sourceKind = Registry::CatalogSourceKindName(d.sourceKind);
 			if (!sourceRootEc) {
 				const auto relative = d.sourceFile.lexically_relative(sourceRoot);
 				const auto text = relative.generic_string();
@@ -363,11 +366,12 @@ namespace OSF::API::UIBridgeCatalog
 			}
 			c.priority = d.priority;
 			c.weight = d.weight;
-			c.stripActors = d.stripActors;
-			c.lockPlayer = d.lockPlayer;
+			c.hideApparel = d.hideApparel;
+			c.playerInputLock = d.playerInputLock;
 			c.fade = d.fade;
 			c.requiresFurniture = d.RequiresAnchor();
-			c.inPlace = d.inPlace;
+			c.worldPlacement = d.worldPlacement == Animation::WorldPlacementMode::kFollowActor ?
+				"followActor" : "anchorAndPin";
 			// Name the anchor, not just the fact of one: keyword edids prettify well
 			// ("AnimFurnBarstool" -> "Barstool"); base-form anchors rarely retain an edid,
 			// so those fall back to the form id — still identifiable, never blank.
@@ -422,27 +426,27 @@ namespace OSF::API::UIBridgeCatalog
 				const float clipSec = sc.loopSec;
 				const auto addTrack = [&sc, clipSec](std::string kind, const auto& entry, std::string label,
 					std::string detail = {}, std::string role = {}) {
-					const char* anchor = "fraction";
+					const char* trackPosition = "fraction";
 					float at = 1.0f;
 					switch (entry.pos) {
 					case Registry::TrackPos::kEnter:
-						anchor = "enter";
+						trackPosition = "enter";
 						at = 0.0f;
 						break;
 					case Registry::TrackPos::kExit:
-						anchor = "exit";
+						trackPosition = "exit";
 						break;
 					case Registry::TrackPos::kEnd:
-						anchor = "end";
+						trackPosition = "end";
 						break;
 					case Registry::TrackPos::kFraction:
 						at = Registry::TrackFraction(entry, clipSec);
 						if (!Registry::TrackFires(entry, clipSec)) {
-							anchor = "unreachable";
+							trackPosition = "unreachable";
 						}
 						break;
 					}
-					sc.tracks.push_back({ std::move(kind), anchor, std::move(label), std::move(detail),
+					sc.tracks.push_back({ std::move(kind), trackPosition, std::move(label), std::move(detail),
 						std::move(role), at, Registry::TrackSeconds(entry), entry.everyLoop });
 				};
 				for (const auto& cue : node->cues) {
@@ -542,7 +546,8 @@ namespace OSF::API::UIBridgeCatalog
 					json markJson{
 						{ "kind", mark.kind },
 						{ "at", mark.at },
-						{ "anchor", mark.anchor },
+						{ "trackPosition", mark.trackPosition },
+						{ "anchor", mark.trackPosition },  // legacy bridge field
 						{ "label", mark.label },
 						{ "detail", mark.detail },
 						{ "role", mark.role },
@@ -576,6 +581,7 @@ namespace OSF::API::UIBridgeCatalog
 				{ "species", c.species },
 				{ "tags", c.tags },
 				{ "sourcePath", c.sourcePath },
+				{ "sourceKind", c.sourceKind },
 				{ "actorCount", c.actorCount },
 				{ "roles", [&c]() {
 					 json roles = json::array();
@@ -586,11 +592,14 @@ namespace OSF::API::UIBridgeCatalog
 				 }() },
 				{ "priority", c.priority },
 				{ "weight", c.weight },
-				{ "stripActors", c.stripActors },
-				{ "lockPlayer", c.lockPlayer },
+				{ "hideApparel", c.hideApparel },
+				{ "stripActors", c.hideApparel },  // legacy bridge field
+				{ "playerInputLock", c.playerInputLock },
+				{ "lockPlayer", c.playerInputLock },  // legacy bridge field
 				{ "fade", c.fade },
 				{ "requiresFurniture", c.requiresFurniture },
-				{ "inPlace", c.inPlace },
+				{ "placement", c.worldPlacement },
+				{ "inPlace", c.worldPlacement == "followActor" },  // legacy bridge field
 				{ "anchors", c.anchorNames },
 				{ "unlisted", c.unlisted },
 				{ "curated", c.curated },
@@ -614,12 +623,12 @@ namespace OSF::API::UIBridgeCatalog
 	constexpr std::size_t kMaxProblemsPerFile = 12;
 
 	// Serialize the registry's per-file import records to osf.animation.imports.data. This is a
-	// FILE-shaped view of the load, deliberately unlike the catalog's scene-shaped one: a file
-	// that produced nothing has no scene to appear as, and "my pack didn't load" is precisely
+	// FILE-shaped view of the load, deliberately unlike the catalog's card-shaped one: a file
+	// that produced no cards still needs to appear, and "my pack didn't load" is precisely
 	// the question the catalog cannot answer.
 	json BuildFileReport()
 	{
-		const auto stats = Registry::SceneRegistry::GetSingleton().FileStats();
+		const auto stats = Registry::ContentRegistry::GetSingleton().FileStats();
 
 		json files = json::array();
 		std::uint64_t totalDeclared = 0, totalScenes = 0, totalRejectedScenes = 0;
@@ -702,7 +711,7 @@ namespace OSF::API::UIBridgeCatalog
 			});
 		}
 
-		REX::DEBUG("[UI] import report built -> {} file record(s), {} problem(s)", stats.size(), totalErrors + totalWarnings);
+		REX::DEBUG("[UI] content import report built -> {} file record(s), {} problem(s)", stats.size(), totalErrors + totalWarnings);
 		return {
 			{ "files", std::move(files) },
 			{ "totals", {
@@ -716,7 +725,7 @@ namespace OSF::API::UIBridgeCatalog
 				{ "routes", totalRoutes },
 				// The registry's own authored count, so a mismatch with the per-file sum is
 				// visible rather than silently averaged away.
-				{ "registered", static_cast<std::uint64_t>(Registry::SceneRegistry::GetSingleton().Size()) },
+				{ "registered", static_cast<std::uint64_t>(Registry::ContentRegistry::GetSingleton().Size()) },
 				{ "clipEntries", totalClipEntries },
 				{ "hidden", totalHidden },
 				{ "missingClips", totalMissing },
@@ -729,8 +738,8 @@ namespace OSF::API::UIBridgeCatalog
 	}
 	std::optional<std::string> BuildImportTextReport(std::string_view a_path)
 	{
-		const auto stats = Registry::SceneRegistry::GetSingleton().FileStats();
-		const auto found = std::find_if(stats.begin(), stats.end(), [&](const Registry::SceneFileStats& a_stats) {
+		const auto stats = Registry::ContentRegistry::GetSingleton().FileStats();
+		const auto found = std::find_if(stats.begin(), stats.end(), [&](const Registry::ContentFileStats& a_stats) {
 			return a_stats.path == a_path;
 		});
 		if (found == stats.end()) {
@@ -738,7 +747,7 @@ namespace OSF::API::UIBridgeCatalog
 		}
 
 		const auto& file = *found;
-		std::string text = "OSF Animation - scene import report\r\n";
+		std::string text = "OSF Animation - content import report\r\n";
 		text += std::format("File: {}\r\n", file.path.empty() ? "Cross-file problems" : file.path);
 		if (!file.pack.empty()) {
 			text += std::format("Pack: {}\r\n", file.pack);

@@ -1,9 +1,10 @@
 #pragma once
 
-// A synced scene: one shared clock drives every participant graph, so they stay frame-locked no matter what order the job threads run in. 
-// The scene owns a world anchor and per-participant offsets; the BGSModelNode::Update pin holds the rendered skeleton there each frame. 
-// All of a stage's clips are preloaded at start; Advance() auto-advances on a timer or a loop count, or just holds when both are <= 0; 
-// after the last stage it flags `ended` and the hook defers the StopScene.
+// A synchronized playback session: one shared clock drives every participant graph, so they stay
+// frame-locked no matter what order the job threads run in. The session owns a world anchor and
+// per-participant offsets; the BGSModelNode::Update pin holds the rendered skeleton there each frame.
+// All clips for every playback segment are preloaded at start. This Layer-A type deliberately does
+// not model an authored SceneDef, flow nodes, scene edges, actions, or the runtime undo ledger.
 
 #include "Animation/BoneMask.h"
 #include "Animation/FrameClock.h"
@@ -20,7 +21,7 @@ namespace OSF::Animation
 	using PlaybackSinkId = std::uint64_t;
 
 	// How an authored scene role contributes its sampled local pose. This is deliberately
-	// separate from RootMode / ScenePlan::anchored: pose composition is not root anchoring.
+	// separate from RootMode / PlaybackPlan placement: pose composition is not root anchoring.
 	enum class PoseMode : std::uint8_t
 	{
 		kOverride,
@@ -88,16 +89,21 @@ namespace OSF::Animation
 		};
 	}
 
-	// Why an auto-advancing scene reached its final stage.
-	// Reported back to the scene runtime's auto-advance handler so it can pick the matching auto-edge: kTimer -> a `timer` edge; kLoops -> a `loops`/`end` edge.
+	// Why an auto-advancing playback session reached its final segment.
+	// Reported back to the scene runtime's auto-advance handler so it can pick the matching scene edge.
 	// kInterrupted is NOT a natural completion: the stall watchdog sets it when the engine stopped ticking
-	// the scene (actor unloaded / AI-disabled / interrupted), and the handler force-ends (takes no edge).
-	enum class SceneEndReason : std::uint8_t
+	// the playback (actor unloaded / AI-disabled / interrupted), and the handler force-ends (takes no edge).
+	enum class PlaybackEndReason : std::uint8_t
 	{
-		kTimer,
-		kLoops,
-		kInterrupted
+		kTimerComplete,
+		kLoopComplete,
+		kInterrupted,
+
+		// Compatibility spellings for existing internal callers.
+		kTimer = kTimerComplete,
+		kLoops = kLoopComplete
 	};
+	using SceneEndReason = PlaybackEndReason;
 
 	// A timed mark on a stage's clip timeline - basically "fire this opaque token at time  T, on lane L". 
 	// The scene runtime builds these from a node's tracks (cue/action/sound/camera) and decodes the lane+token on the way back. 
@@ -128,10 +134,35 @@ namespace OSF::Animation
 		std::string  token;
 	};
 
-	// Caller's scene description (files not yet loaded); PlaySceneStaged loads them.
-	struct ScenePlan
+	// An unresolved author-facing animation reference. `resourcePath` can still contain the legacy
+	// NAF/GLB clip-spec syntax; resolution happens only at the GraphManager boundary.
+	struct AnimationClipSpec
 	{
-		struct Stage
+		std::string resourcePath;
+		std::string animationId;
+	};
+
+	// Whether a playback owns participant placement or follows each actor's live transform.
+	enum class WorldPlacementMode : std::uint8_t
+	{
+		kAnchorAndPin,
+		kFollowActor
+	};
+
+	inline constexpr WorldPlacementMode WorldPlacementFromFollowActor(bool a_followActor) noexcept
+	{
+		return a_followActor ? WorldPlacementMode::kFollowActor : WorldPlacementMode::kAnchorAndPin;
+	}
+
+	inline constexpr WorldPlacementMode WorldPlacementFromLegacyInPlace(bool a_inPlace) noexcept
+	{
+		return WorldPlacementFromFollowActor(a_inPlace);
+	}
+
+	// Caller's playback description (resources not yet loaded); PlaySynchronized loads them.
+	struct PlaybackPlan
+	{
+		struct Segment
 		{
 			std::vector<std::string> files;                // one per actor
 			std::vector<std::string> animIds;              // optional, parallel to files; empty string = first/default animation
@@ -146,7 +177,8 @@ namespace OSF::Animation
 			float blendIn = -1.0f;                         // secs; < 0 = use plan blendIn
 			std::vector<TimedMark> marks;                  // timed marks (numeric/end) for this stage
 		};
-		std::vector<Stage> stages;
+		using Stage = Segment;  // compatibility with pre-vocabulary-cleanup callers
+		std::vector<Segment> stages;  // serialized/authored `stages`; Layer A treats them as playback segments
 		std::vector<std::vector<std::string>> preserveBones;  // optional, one exact-name list per actor
 		std::vector<PoseMode> poseModes;                       // optional, one mode per actor; empty = all override
 		std::vector<float> poseWeights;                        // optional, one normalized [0,1] weight per actor; empty = all 1
@@ -160,6 +192,16 @@ namespace OSF::Animation
 		// false = no teleport or pin; the rig follows each actor's live transform.
 		// true = teleport to anchor+offset and pin there.
 		bool anchored = true;
+
+		[[nodiscard]] WorldPlacementMode GetWorldPlacementMode() const noexcept
+		{
+			return anchored ? WorldPlacementMode::kAnchorAndPin : WorldPlacementMode::kFollowActor;
+		}
+
+		void SetWorldPlacementMode(WorldPlacementMode a_mode) noexcept
+		{
+			anchored = a_mode == WorldPlacementMode::kAnchorAndPin;
+		}
 		
 		// Explicit world anchor (StartSceneAt). false = anchor at actor[0]'s current transform (the default). 
 		// true = anchor at anchorPos/anchorHeading instead, so a scene can be world-anchored to a piece of furniture/marker, not an actor.
@@ -175,10 +217,11 @@ namespace OSF::Animation
 		// old scene's placement instead of where they stood before any scene ran.
 		std::vector<std::pair<RE::NiPoint3, float>> baselineTransforms;
 	};
+	using ScenePlan = PlaybackPlan;  // compatibility spelling; authored scenes live in Registry/SceneRegistry
 
-	// ScenePlan is internal, but several construction paths build it. Keep every optional per-role
+	// PlaybackPlan is internal, but several construction paths build it. Keep every optional per-role
 	// policy vector all-or-none so actor/role indexing can never silently drift.
-	inline bool HasValidRolePolicyShape(const ScenePlan& a_plan, std::size_t a_actorCount)
+	inline bool HasValidRolePolicyShape(const PlaybackPlan& a_plan, std::size_t a_actorCount)
 	{
 		const auto optionalCountMatches = [a_actorCount](std::size_t a_size) {
 			return a_size == 0 || a_size == a_actorCount;
@@ -196,7 +239,7 @@ namespace OSF::Animation
 			return std::isfinite(a_weight) && a_weight >= 0.0f && a_weight <= 1.0f;
 		}) && std::ranges::all_of(a_plan.masks, [](const std::string& a_mask) {
 			return a_mask.empty() || BoneMask::Find(a_mask) != nullptr;
-		}) && std::ranges::all_of(a_plan.stages, [a_actorCount](const ScenePlan::Stage& a_stage) {
+		}) && std::ranges::all_of(a_plan.stages, [a_actorCount](const PlaybackPlan::Segment& a_stage) {
 			return (a_stage.masks.empty() || a_stage.masks.size() == a_actorCount) &&
 				(a_stage.contactPose.empty() || a_stage.contactPose.size() == a_actorCount) &&
 				(a_stage.poseModes.empty() || a_stage.poseModes.size() == a_actorCount) &&
@@ -212,7 +255,7 @@ namespace OSF::Animation
 		});
 	}
 
-	class Scene
+	class PlaybackSession
 	{
 	public:
 		struct ParticipantSlot
@@ -222,7 +265,7 @@ namespace OSF::Animation
 			std::string file;  // source path (for GetCurrentAnimation)
 		};
 
-		struct StageData
+		struct SegmentData
 		{
 			float timer = 0.0f;     // <= 0: hold
 			int32_t loops = 0;      // <= 0: no loop-count advance
@@ -239,6 +282,7 @@ namespace OSF::Animation
 			float blendIn = 0.4f;   // blend-in secs when this stage activates
 			std::vector<TimedMark> marks;  // timed marks fired by Advance (see firedMarks)
 		};
+		using StageData = SegmentData;  // compatibility spelling
 
 		struct Tick  // what this sample should use
 		{
@@ -275,7 +319,7 @@ namespace OSF::Animation
 		RE::NiPoint3 anchorPos{};
 		float anchorHeading = 0.0f;  // radians
 
-		bool anchored = true;    // see ScenePlan::anchored; const after publish
+		bool anchored = true;    // see PlaybackPlan::GetWorldPlacementMode; const after publish
 		bool restoreParticipantTransforms = false;  // explicit world/furniture anchors return actors to their pre-scene transforms on normal teardown
 		bool loopWhole = false;  // const after publish
 		std::string animId;      // registry id, "" for ad-hoc; const after publish
@@ -303,7 +347,7 @@ namespace OSF::Animation
 
 		// Why the terminal stage ended (only meaningful once `ended` is set). 
 		// Set under `lock` in Advance; read by the deferred auto-end task to pick the auto-edge.
-		std::atomic<SceneEndReason> endReason{ SceneEndReason::kLoops };
+		std::atomic<PlaybackEndReason> endReason{ PlaybackEndReason::kLoopComplete };
 
 		// Stable identity for this concrete playback instance. Runtime callbacks validate it so a
 		// deferred task from an old node can never act on a replacement using the same actors.
@@ -315,7 +359,8 @@ namespace OSF::Animation
 		Tick Advance(const void* a_token, float a_deltaTime);
 
 		// Manual stage jump (also the initial stage). Resets the stage clock; false if out of range.
-		bool SetStage(int32_t a_stage);
+		bool SetSegment(int32_t a_segment);
+		bool SetStage(int32_t a_stage) { return SetSegment(a_stage); }  // compatibility spelling
 
 		// Move within the current stage without firing timed marks. Marks before the new time are
 		// treated as consumed so resuming playback cannot replay authored side effects.
@@ -325,7 +370,8 @@ namespace OSF::Animation
 
 		// Authoritative current stage index - updated immediately by SetStage / auto-advance, unlike the per-graph `appliedStage` which lags until the next sample.
 		// Caller must NOT hold `lock`.
-		uint32_t CurrentStage();
+		uint32_t CurrentSegment();
+		uint32_t CurrentStage() { return CurrentSegment(); }  // compatibility spelling
 
 		// Snapshot clock-owner state under the scene lock for rate-limited Trace diagnostics.
 		DiagnosticSnapshot GetDiagnosticSnapshot(std::int64_t a_nowMs);
@@ -336,10 +382,10 @@ namespace OSF::Animation
 		void DrainFiredMarks(std::vector<FiredMark>& a_out);
 
 	private:
-		void ApplyStageLocked(uint32_t a_stage);  // caller holds `lock`
+		void ApplySegmentLocked(uint32_t a_segment);  // caller holds `lock`
 
 		FrameClock clock;
-		uint32_t currentStage = 0;
+		uint32_t currentSegment = 0;
 		float stageElapsed = 0.0f;  // time in stage (doesn't wrap, unlike clock.time)
 		int32_t stageLoops = 0;     // completed wraps in stage = 0-based loop index
 		// A frozen stage (StageData::hold) fires the marks at or before its hold point ONCE, on the
@@ -351,4 +397,8 @@ namespace OSF::Animation
 		std::vector<FiredMark> firedMarks;
 		std::vector<bool>      markFired;
 	};
+
+	// Compatibility spelling retained while downstream code migrates. An authored/runtime scene is
+	// Registry::SceneDef / Scene::SceneRuntime; this Layer-A object is a PlaybackSession.
+	using Scene = PlaybackSession;
 }

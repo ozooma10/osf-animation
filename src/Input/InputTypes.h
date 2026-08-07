@@ -10,7 +10,9 @@ namespace RE
 
 namespace OSF::Input
 {
-	// Capability groups a scene's `playerControl.allow` can grant. Bitmask on the scene def + the active Grant.
+	// Capability names a scene's `sceneControls.disable` can revoke (legacy key:
+	// `playerControl.disable`).
+	// Bitmask on the scene definition and active Grant.
 	enum class Capability : std::uint32_t
 	{
 		kAdvance = 1u << 0,     // take the node's default advance edge
@@ -18,10 +20,11 @@ namespace OSF::Input
 		kSpeed = 1u << 2,       // faster / slower / reset / pause the shared scene clock
 		// bit 3 reserved (was kReposition — cut, never implemented)
 		kFreecam = 1u << 4,     // free camera (MMB / controller R3 toggle -> native free cam)
-		kEnd = 1u << 5,         // end the scene (subject to playerControl.locked)
+		kEnd = 1u << 5,         // end the scene (subject to sceneControls.locked)
 	};
 
-	// Every capability bit, the default grant when a scene doesn't opt out. Input control is ON by default; a scene narrows this set via `playerControl.disable`.
+	// Every capability bit, the default grant when a scene doesn't opt out. Scene controls are on by
+	// default; a scene narrows this set via `sceneControls.disable` (legacy: `playerControl.disable`).
 	inline constexpr std::uint32_t kAllCapabilities =
 		static_cast<std::uint32_t>(Capability::kAdvance) |
 		static_cast<std::uint32_t>(Capability::kNavigate) |
@@ -76,7 +79,7 @@ namespace OSF::Input
 		}
 	}
 
-	// The per-scene control grant the runtime hands the InputService when a playerControl scene starts. 
+	// The per-scene controls grant the runtime hands InputService when an eligible scene starts.
 	// `driver` is the participant whose scene the local input drives (the player basically).
 	struct Grant
 	{

@@ -163,7 +163,7 @@ namespace OSF::API::Health
 		// One card per file, not per problem: one broken pack should produce one
 		// actionable condition regardless of how many entries it rejected.
 		std::map<std::string, FileProblems> byId;
-		for (const auto& stats : Registry::SceneRegistry::GetSingleton().FileStats()) {
+		for (const auto& stats : Registry::ContentRegistry::GetSingleton().FileStats()) {
 			if (stats.problems.empty()) {
 				continue;
 			}

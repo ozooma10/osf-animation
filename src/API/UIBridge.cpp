@@ -11,7 +11,7 @@
 #include "Registry/SceneRegistry.h"
 #include "Packs/PackReload.h"
 #include "Scene/AnchorResolve.h"  // rendered-world reference anchors + in-front-of-player placement
-#include "Scene/SceneInspectionService.h"  // scrub-only playback and preview prop ownership
+#include "Scene/PlaybackPreviewService.h"  // scrub-only playback and preview prop ownership
 #include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
 #include "Serialization/WheelPins.h"  // ordered animation-wheel customization
 #include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
@@ -186,8 +186,8 @@ namespace OSF::API
 			auto& gm = Animation::GraphManager::GetSingleton();
 			// The view polls this at 10 Hz while the ACTIVE list is up, which is also the game-thread
 			// beat a RUNNING preview needs to keep its render-only props in step with its clock.
-			Scene::SceneInspectionService::GetSingleton().Tick();
-			auto inspections = Scene::SceneInspectionService::GetSingleton().List();
+			Scene::PlaybackPreviewService::GetSingleton().Tick();
+			auto inspections = Scene::PlaybackPreviewService::GetSingleton().List();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			// One serializer for both loops below — preview rows and runtime rows must agree on the
 			// shape of cast[].
@@ -365,7 +365,7 @@ namespace OSF::API
 		// A human-readable reason a launch returned handle 0, best-effort.
 		std::string LaunchError(const std::string& a_sceneId, std::size_t a_castCount, bool a_haveFurniture)
 		{
-			auto&       reg = Registry::SceneRegistry::GetSingleton();
+			auto&       reg = Registry::ContentRegistry::GetSingleton();
 			const auto def = reg.Find(a_sceneId);
 			if (!def) {
 				return "Unknown scene '" + a_sceneId + "'";
@@ -512,7 +512,7 @@ namespace OSF::API
 			const auto begun = std::chrono::steady_clock::now();
 			json reply;
 			try {
-				reply["scenes"] = Packs::ReloadAll();
+				reply["scenes"] = Content::ReloadAll();
 				reply["report"] = BuildFileReport();
 				reply["ok"] = true;
 			} catch (const std::exception& e) {
@@ -554,7 +554,7 @@ namespace OSF::API
 			std::string                              locationMode;
 			std::int32_t                             locationToken = 0;
 			std::vector<std::string>                 roleNames;
-			std::optional<Scene::PreparedInspection> preparedInspection;
+			std::optional<Scene::PreparedPreview> preparedPreview;
 		};
 
 		std::optional<std::string> ResolveLaunchCast(const json& a_payload, BrowserLaunchPlan& a_plan)
@@ -606,9 +606,12 @@ namespace OSF::API
 			}
 
 			auto& options = a_plan.options;
-			options.stripMode = OptTri(opts, "strip");
-			options.lockPlayerMode = OptTri(opts, "lockPlayer");
-			options.playerControlMode = OptTri(opts, "playerControl");
+			const auto vocabularyTri = [&opts](const char* a_canonical, const char* a_legacy) {
+				return opts.contains(a_canonical) ? OptTri(opts, a_canonical) : OptTri(opts, a_legacy);
+			};
+			options.stripMode = vocabularyTri("hideApparel", "strip");
+			options.lockPlayerMode = vocabularyTri("playerInputLock", "lockPlayer");
+			options.playerControlMode = vocabularyTri("sceneControls", "playerControl");
 			options.fadeMode = OptTri(opts, "fade");
 			options.speed = NumOr(opts, "speed", 1.0f);
 			a_plan.inspect = !g_wheel.active && BoolOr(a_payload, "inspect", false);
@@ -700,7 +703,7 @@ namespace OSF::API
 				return;
 			}
 			// Wheel entries are stage-pinned in-world flourishes: no placement pin,
-			// control lock, strip, fade, or authored scene camera.
+			// player input lock, apparel hiding, fade, or authored scene camera.
 			auto& options = a_plan.options;
 			options.inPlaceMode = 1;
 			options.lockPlayerMode = 0;
@@ -722,29 +725,29 @@ namespace OSF::API
 			return std::nullopt;
 		}
 
-		std::optional<std::string> PrepareLaunchInspection(
-			BrowserLaunchPlan& a_plan, Scene::SceneInspectionService& a_service)
+		std::optional<std::string> PrepareLaunchPreview(
+			BrowserLaunchPlan& a_plan, Scene::PlaybackPreviewService& a_service)
 		{
 			if (!a_plan.inspect) {
 				return std::nullopt;
 			}
-			auto definition = Registry::SceneRegistry::GetSingleton().Find(a_plan.sceneId);
+			auto definition = Registry::ContentRegistry::GetSingleton().Find(a_plan.sceneId);
 			if (!definition) {
 				return "The selected scene definition is no longer loaded";
 			}
 
-			Scene::InspectionAnchor anchor{};
+			Scene::PreviewWorldAnchor anchor{};
 			if (a_plan.options.anchorRef) {
 				const auto resolved = Scene::ResolveSceneAnchor(
 					a_plan.sceneId, a_plan.options.anchorRef, std::nullopt, /*a_emitHud*/ false);
 				if (!resolved) {
 					return "The selected scene cannot use that anchor";
 				}
-				anchor = Scene::InspectionAnchor{ resolved->set, resolved->pos, resolved->heading };
+				anchor = Scene::PreviewWorldAnchor{ resolved->set, resolved->pos, resolved->heading };
 			} else if (definition->RequiresAnchor()) {
 				return "This scene requires compatible furniture";
 			} else if (a_plan.options.hasAnchor) {
-				anchor = Scene::InspectionAnchor{
+				anchor = Scene::PreviewWorldAnchor{
 					true,
 					RE::NiPoint3{
 						a_plan.options.anchorX,
@@ -756,8 +759,8 @@ namespace OSF::API
 			}
 
 			std::string prepareError;
-			a_plan.preparedInspection = a_service.Prepare(
-				Scene::InspectionRequest{
+			a_plan.preparedPreview = a_service.Prepare(
+				Scene::PreviewRequest{
 					definition,
 					a_plan.actors,
 					a_plan.roleNames,
@@ -765,14 +768,14 @@ namespace OSF::API
 					anchor,
 				},
 				prepareError);
-			return a_plan.preparedInspection ? std::nullopt : std::optional<std::string>{ std::move(prepareError) };
+			return a_plan.preparedPreview ? std::nullopt : std::optional<std::string>{ std::move(prepareError) };
 		}
 
 		void SupersedeLaunchActors(const BrowserLaunchPlan& a_plan,
-			Scene::SceneInspectionService& a_inspectionService, IOSFSceneAPI& a_api)
+			Scene::PlaybackPreviewService& a_previewService, IOSFSceneAPI& a_api)
 		{
 			for (RE::Actor* actor : a_plan.actors) {
-				a_inspectionService.StopForActor(actor);
+				a_previewService.StopForActor(actor);
 				const std::int32_t busy = a_api.GetSceneForActor(actor);
 				if (busy == 0) {
 					continue;
@@ -795,12 +798,12 @@ namespace OSF::API
 		};
 
 		BrowserLaunchResult StartBrowserLaunch(BrowserLaunchPlan& a_plan,
-			Scene::SceneInspectionService& a_inspectionService, IOSFSceneAPI& a_api)
+			Scene::PlaybackPreviewService& a_previewService, IOSFSceneAPI& a_api)
 		{
 			if (a_plan.inspect) {
 				std::string startError;
 				const auto handle =
-					a_inspectionService.Start(std::move(*a_plan.preparedInspection), startError);
+					a_previewService.Start(std::move(*a_plan.preparedPreview), startError);
 				if (handle == 0) {
 					return { handle, std::move(startError) };
 				}
@@ -890,8 +893,8 @@ namespace OSF::API
 				return fail(*error);
 			}
 
-			auto& inspectionService = Scene::SceneInspectionService::GetSingleton();
-			if (const auto error = PrepareLaunchInspection(plan, inspectionService)) {
+			auto& previewService = Scene::PlaybackPreviewService::GetSingleton();
+			if (const auto error = PrepareLaunchPreview(plan, previewService)) {
 				return fail(*error);
 			}
 			auto* api = SceneAPI();
@@ -899,8 +902,8 @@ namespace OSF::API
 				return fail("OSF Animation engine is not ready yet");
 			}
 
-			SupersedeLaunchActors(plan, inspectionService, *api);
-			BrowserLaunchResult started = StartBrowserLaunch(plan, inspectionService, *api);
+			SupersedeLaunchActors(plan, previewService, *api);
+			BrowserLaunchResult started = StartBrowserLaunch(plan, previewService, *api);
 			if (started.handle == 0) {
 				return fail(started.error
 				                ? *started.error
@@ -950,19 +953,19 @@ namespace OSF::API
 				return fail("The selected route preview actor is no longer available — re-pick it");
 			}
 			auto* actor = static_cast<RE::Actor*>(ref);
-			auto route = Registry::SceneRegistry::GetSingleton().FindRoute(routeId);
-			auto& inspection = Scene::SceneInspectionService::GetSingleton();
+			auto route = Registry::ContentRegistry::GetSingleton().FindRoute(routeId);
+			auto& previewService = Scene::PlaybackPreviewService::GetSingleton();
 			std::string error;
-			auto prepared = inspection.PrepareRoute(
-				Scene::RouteInspectionRequest{ route, transitionId, actor }, error);
+			auto prepared = previewService.PrepareRoute(
+				Scene::RoutePreviewRequest{ route, transitionId, actor }, error);
 			if (!prepared) {
 				return fail(error);
 			}
 
 			// Match ordinary browser inspection admission: the explicit preview replaces another
 			// browser preview or runtime scene on this actor. Overlay routes are suspended and later
-			// reconciled by SceneInspectionService rather than being destroyed.
-			inspection.StopForActor(actor);
+			// reconciled by PlaybackPreviewService rather than being destroyed.
+			previewService.StopForActor(actor);
 			if (auto* api = SceneAPI()) {
 				const auto busy = api->GetSceneForActor(actor);
 				if (busy != 0) {
@@ -973,7 +976,7 @@ namespace OSF::API
 				}
 			}
 
-			const auto handle = inspection.StartRoute(std::move(*prepared), error);
+			const auto handle = previewService.StartRoute(std::move(*prepared), error);
 			if (handle == 0) {
 				return fail(error.empty() ? "The route transition preview could not start" : error);
 			}
@@ -1013,7 +1016,7 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = *parsed;
-			bool ok = Scene::SceneInspectionService::GetSingleton().Stop(handle);
+			bool ok = Scene::PlaybackPreviewService::GetSingleton().Stop(handle);
 			if (!ok) {
 				if (auto* api = SceneAPI(); api && handle != 0) {
 					ok = api->StopScene(handle);
@@ -1042,7 +1045,7 @@ namespace OSF::API
 			}
 			const auto handle = *parsed;
 			bool ok = false;
-			if (!Scene::SceneInspectionService::GetSingleton().Contains(handle)) {
+			if (!Scene::PlaybackPreviewService::GetSingleton().Contains(handle)) {
 				if (auto* api = SceneAPI(); api && handle != 0) {
 					ok = api->Advance(handle);
 				}
@@ -1070,12 +1073,12 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = IntOr(j, "handle", 0);
-			auto& inspectionService = Scene::SceneInspectionService::GetSingleton();
-			if (inspectionService.Contains(handle)) {
+			auto& previewService = Scene::PlaybackPreviewService::GetSingleton();
+			if (previewService.Contains(handle)) {
 				if (const auto time = j.find("time"); time != j.end() && time->is_number()) {
 					const double value = time->get<double>();
 					if (std::isfinite(value) && value >= 0.0 && value <= std::numeric_limits<float>::max() &&
-						!inspectionService.Seek(handle, static_cast<float>(value))) {
+						!previewService.Seek(handle, static_cast<float>(value))) {
 						REX::WARN("[UI] preview seek failed for stale handle={}", handle);
 					}
 				}
@@ -1083,7 +1086,7 @@ namespace OSF::API
 				// running one simply loops its clip with the render-only props reconciled per poll —
 				// it still fires no cues, no sounds, and no scene actions.
 				if (const auto paused = j.find("paused"); paused != j.end() && paused->is_boolean()) {
-					if (!inspectionService.SetSpeed(handle, paused->get<bool>() ? 0.0f : 1.0f)) {
+					if (!previewService.SetSpeed(handle, paused->get<bool>() ? 0.0f : 1.0f)) {
 						REX::WARN("[UI] preview transport failed for stale handle={}", handle);
 					}
 				}
@@ -1164,7 +1167,7 @@ namespace OSF::API
 					entry.stage = *stage;
 				}
 
-				const auto def = Registry::SceneRegistry::GetSingleton().Find(entry.scene);
+				const auto def = Registry::ContentRegistry::GetSingleton().Find(entry.scene);
 				const bool eligible = def && IsWheelEntryEligible(*def, entry.stage);
 				if (!eligible) {
 					REX::WARN("[UI] osf.animation.wheel.set refused ineligible animation '{}' stage {}", entry.scene, entry.stage);
@@ -1197,7 +1200,7 @@ namespace OSF::API
 			RE::TESObjectREFR* ref = ResolveToken(token);
 			if (ref) {
 				Matchmaking::AnchorMatchCache cache(ref);  // one HasKeyword per unique keyword across the def sweep
-				Registry::SceneRegistry::GetSingleton().ForEachDef([&reply, &cache](const Registry::SceneDef& d) {
+				Registry::ContentRegistry::GetSingleton().ForEachDef([&reply, &cache](const Registry::SceneDef& d) {
 					if (d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) {
 						reply["sceneIds"].push_back(d.id);
 					}
@@ -1237,7 +1240,7 @@ namespace OSF::API
 					bool       usable = isActor;
 					if (!isActor) {
 						Matchmaking::AnchorMatchCache cache(ref);
-						Registry::SceneRegistry::GetSingleton().ForEachDef([&usable, &cache](const Registry::SceneDef& d) {
+						Registry::ContentRegistry::GetSingleton().ForEachDef([&usable, &cache](const Registry::SceneDef& d) {
 							if (!usable && d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) {
 								usable = true;
 							}
@@ -1274,7 +1277,7 @@ namespace OSF::API
 			g_openPickToken = 0;  // the open-time crosshair capture never outlives its session
 			UIBridgeWorld::ClearSessionTokens();  // picked refs are scoped to one browser session
 			g_orbitSpaceNoticed = false;  // re-arm the in-space orbit notice for the next session
-			Scene::SceneInspectionService::GetSingleton().StopAll();
+			Scene::PlaybackPreviewService::GetSingleton().StopAll();
 			// A scrub pauses playback. NPC-only scenes survive the browser, so restore their
 			// pre-scrub speeds before their only director surface disappears.
 			for (const auto& [handle, speed] : g_resumeSpeeds) {

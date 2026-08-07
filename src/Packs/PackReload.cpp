@@ -3,21 +3,21 @@
 #include "API/Health.h"
 #include "API/UIBridge.h"
 #include "Equipment/GearRegistry.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Serialization/AFImport.h"
 #include "Serialization/ClipDurations.h"
 #include "Serialization/GLTFImport.h"
 
-namespace OSF::Packs
+namespace OSF::Content
 {
 	std::int32_t ReloadAll()
 	{
 		Serialization::GLTFImport::ClearCache();
 		Serialization::AFImport::ClearCache();
-		REX::DEBUG("[Registry] pack reload: clip caches cleared");
+		REX::DEBUG("[Registry] content reload: clip caches cleared");
 
-		auto& registry = Registry::SceneRegistry::GetSingleton();
+		auto& registry = Registry::ContentRegistry::GetSingleton();
 		registry.LoadAll();
 		Registry::SoundRegistry::GetSingleton().LoadAll();
 		Equipment::Gear::LoadAll();

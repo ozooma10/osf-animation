@@ -20,7 +20,7 @@ namespace OSF::Overlay
 		struct Previous
 		{
 			std::string station;
-			const Registry::RouteTransition* edge = nullptr;
+			const Registry::RouteTransition* transition = nullptr;
 		};
 		std::deque<std::string> queue{ from };
 		std::unordered_map<std::string, Previous> previous;
@@ -28,16 +28,16 @@ namespace OSF::Overlay
 		while (!queue.empty()) {
 			const std::string current = std::move(queue.front());
 			queue.pop_front();
-			for (const auto& edge : a_route.transitions) {
-				if (ToLower(edge.from) != current) continue;
-				const auto next = ToLower(edge.to);
+			for (const auto& transition : a_route.transitions) {
+				if (ToLower(transition.from) != current) continue;
+				const auto next = ToLower(transition.to);
 				if (previous.contains(next)) continue;
-				previous.emplace(next, Previous{ current, &edge });
+				previous.emplace(next, Previous{ current, &transition });
 				if (next == to) {
 					std::vector<const Registry::RouteTransition*> path;
 					for (std::string cursor = to; cursor != from;) {
 						const auto& step = previous.at(cursor);
-						path.push_back(step.edge);
+						path.push_back(step.transition);
 						cursor = step.station;
 					}
 					std::reverse(path.begin(), path.end());
@@ -136,7 +136,7 @@ namespace OSF::Overlay
 		return true;
 	}
 
-	bool RouteController::OnEdgeReached(std::uint32_t a_generation)
+	bool RouteController::OnTransitionReached(std::uint32_t a_generation)
 	{
 		if (_phase != ControllerPhase::kTransitioning || !_active || a_generation != _transitionGeneration) return false;
 		if (_active->commit && !_commitAcknowledged) {
@@ -153,6 +153,11 @@ namespace OSF::Overlay
 		_stationApplied = true;  // transition playback already carries the destination hold (or vanilla zero station)
 		(void)Reconcile();
 		return true;
+	}
+
+	bool RouteController::OnEdgeReached(std::uint32_t a_generation)
+	{
+		return OnTransitionReached(a_generation);
 	}
 
 	void RouteController::End(bool a_fade)

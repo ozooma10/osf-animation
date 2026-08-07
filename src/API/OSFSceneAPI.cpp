@@ -3,7 +3,7 @@
 #include "API/NativeSceneEventRegistry.h"
 #include "API/SceneAPIControl.h"
 #include "Animation/GraphManager.h"
-#include "Animation/Scene.h"  // Animation::ScenePlan (ad-hoc files start)
+#include "Animation/Scene.h"  // Animation::PlaybackPlan (ad-hoc files start)
 #include "Registry/SceneRegistry.h"  // SceneDef::RequiresAnchor (anchor-bound guard)
 #include "Scene/AnchorResolve.h"     // shared furniture-anchor resolution
 #include "Scene/SceneLauncher.h"     // canonical per-start option normalization
@@ -84,7 +84,7 @@ namespace OSF::API
 		// An anchorbound scene with no anchorref cant be placed.
 		bool AnchorBoundRefused(std::string_view a_sceneId, const char* a_tag)
 		{
-			const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+			const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 			if (def && def->RequiresAnchor()) {
 				REX::WARN("[API] {} '{}' is anchor-bound (furniture) - set OSFStartOptions.anchorRef to the furniture ref. Start refused", a_tag, a_sceneId);
 				return true;
@@ -112,7 +112,7 @@ namespace OSF::API
 			if (a_stage <= 0) {
 				return {};
 			}
-			const auto def = Registry::SceneRegistry::GetSingleton().Find(a_sceneId);
+			const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 			if (!def) {
 				return {};  // unknown scene — the start itself will fail with the right log
 			}
@@ -248,8 +248,8 @@ namespace OSF::API
 			if (!a_files || !ValidStartOptions(a_opts) || !CollectActors(a_actors, a_count, actors)) {
 				return 0;
 			}
-			Animation::ScenePlan        plan;
-			Animation::ScenePlan::Stage stage;
+			Animation::PlaybackPlan          plan;
+			Animation::PlaybackPlan::Segment stage;
 			stage.files.reserve(a_count);
 			stage.animIds.reserve(a_count);
 			for (std::uint32_t i = 0; i < a_count; i++) {
@@ -429,7 +429,7 @@ namespace OSF::API
 			.role = a_event.role.c_str(),
 			.loopIndex = a_event.loopIndex,
 			.time = a_event.time,
-			.anchor = a_event.anchor.c_str(),
+			.anchor = a_event.trackPosition.c_str(),  // frozen ABI field name
 			.result = a_event.result
 		};
 		SceneAPIImpl::GetSingleton().DispatchNativeSceneEvent(event);

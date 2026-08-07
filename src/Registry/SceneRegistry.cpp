@@ -101,7 +101,7 @@ namespace OSF::Registry
 		// Never leaves the file — no aliases or cross-file references.
 		using PropRegistry = std::map<std::string, json>;
 
-		// How a scene-level role slot got its runtime name (drives AssignRoleNames).
+		// How a scene-level role got its runtime name (drives AssignRoleNames).
 		enum class RoleNameKind : std::uint8_t
 		{
 			kAutomatic,  // plain string ref, or { "id": ... } with no `name`: the template's effective name, numbered on collision
@@ -560,7 +560,7 @@ namespace OSF::Registry
 		}
 
 		// Split out of ParsePropAttachment so a file-level `props` template can validate its own
-		// `scale` without carrying the `node` that only a complete attachment needs.
+		// `scale` without carrying the attachment node that only a complete attachment needs.
 		float ParsePropScale(const json& a_owner, const std::string& a_subject)
 		{
 			const float scale = a_owner.value("scale", 1.0f);
@@ -574,12 +574,16 @@ namespace OSF::Registry
 			const json& a_owner, const std::string& a_subject)
 		{
 			Props::Attachment result;
-			const auto node = a_owner.find("node");
-			if (node == a_owner.end() || !node->is_string() ||
-				node->get<std::string>().empty()) {
-				throw std::runtime_error(a_subject + " requires a non-empty 'node'");
+			const auto canonical = a_owner.find("attachmentNode");
+			const auto legacy = a_owner.find("node");
+			if (canonical != a_owner.end() && legacy != a_owner.end()) {
+				throw std::runtime_error(a_subject + " uses both 'attachmentNode' and legacy 'node'");
 			}
-			result.node = node->get<std::string>();
+			const auto node = canonical != a_owner.end() ? canonical : legacy;
+			if (node == a_owner.end() || !node->is_string() || node->get<std::string>().empty()) {
+				throw std::runtime_error(a_subject + " requires a non-empty 'attachmentNode' (legacy: 'node')");
+			}
+			result.targetNode = node->get<std::string>();
 			result.position = ParsePropVector(a_owner, "position", a_subject);
 			result.rotation = ParsePropVector(a_owner, "rotation", a_subject);
 			result.scale = ParsePropScale(a_owner, a_subject);
@@ -590,7 +594,10 @@ namespace OSF::Registry
 		// STRICT SUBSET of an action's keys: timing (`at`/`atFrame`/`repeat`), dispatch (`type`) and
 		// identity (`prop`, `role`) are never inheritable, so a template can neither move an action in
 		// time nor retarget it.
-		constexpr std::array<const char*, 5> kPropTemplateKeys{ "source", "node", "position", "rotation", "scale" };
+		constexpr std::array<const char*, 6> kPropTemplateKeys{
+			"source", "attachmentNode", "node", "position", "rotation", "scale"
+		};
+		constexpr std::array<const char*, 4> kPropMergeKeys{ "source", "position", "rotation", "scale" };
 
 		// Validate ONE file-level `props` definition. A template is deliberately allowed to be
 		// PARTIAL — source-only, node-only — so only the keys it actually carries are checked here;
@@ -604,16 +611,18 @@ namespace OSF::Registry
 				if (std::find(kPropTemplateKeys.begin(), kPropTemplateKeys.end(), key) ==
 					kPropTemplateKeys.end()) {
 					throw std::runtime_error(a_subject + " has unknown key '" + key +
-						"' (a prop template holds only 'source', 'node', 'position', 'rotation', 'scale')");
+						"' (a prop template holds only 'source', 'attachmentNode', 'position', 'rotation', 'scale')");
 				}
 			}
 			if (const auto it = a_templ.find("source"); it != a_templ.end()) {
 				(void)ParsePropSource(*it, a_subject);
 			}
-			if (const auto it = a_templ.find("node"); it != a_templ.end()) {
-				if (!it->is_string() || it->get_ref<const std::string&>().empty()) {
-					throw std::runtime_error(a_subject + " 'node' must be a non-empty string");
-				}
+			if (a_templ.contains("attachmentNode") && a_templ.contains("node")) {
+				throw std::runtime_error(a_subject + " uses both 'attachmentNode' and legacy 'node'");
+			}
+			const auto node = a_templ.contains("attachmentNode") ? a_templ.find("attachmentNode") : a_templ.find("node");
+			if (node != a_templ.end() && (!node->is_string() || node->get_ref<const std::string&>().empty())) {
+				throw std::runtime_error(a_subject + " attachment node must be a non-empty string");
 			}
 			(void)ParsePropVector(a_templ, "position", a_subject);  // absent = no-op
 			(void)ParsePropVector(a_templ, "rotation", a_subject);
@@ -684,12 +693,21 @@ namespace OSF::Registry
 			}
 
 			a_merged_out = a_action;
-			for (const char* const key : kPropTemplateKeys) {
+			for (const char* const key : kPropMergeKeys) {
 				if (a_merged_out.contains(key)) {
 					continue;  // authored inline: the action wins
 				}
 				if (const auto it = templ->second.find(key); it != templ->second.end()) {
 					a_merged_out[key] = *it;
+				}
+			}
+			// `attachmentNode` and legacy `node` are one concept, so an inline value under either
+			// spelling overrides a template value under either spelling.
+			if (!a_merged_out.contains("attachmentNode") && !a_merged_out.contains("node")) {
+				if (const auto canonical = templ->second.find("attachmentNode"); canonical != templ->second.end()) {
+					a_merged_out["attachmentNode"] = *canonical;
+				} else if (const auto legacy = templ->second.find("node"); legacy != templ->second.end()) {
+					a_merged_out["node"] = *legacy;
 				}
 			}
 			return a_merged_out;
@@ -955,7 +973,7 @@ namespace OSF::Registry
 		}
 
 		// The camera postures the runtime understands — shared by node `camera` tracks and the
-		// pack-level `camera` default. (Tethered orbit / photo mode / cinematic between-actor shots
+		// file-level `camera` default. (Tethered orbit / photo mode / cinematic between-actor shots
 		// aren't wired yet.)
 
 		void ParseCameraTrack(const json& a_entries, SceneNode& a_node_out)
@@ -990,16 +1008,16 @@ namespace OSF::Registry
 		SceneRole ParseRole(const json& a_role, const std::string& a_sceneId)
 		{
 			SceneRole r;
-			r.name = a_role.value("name", std::string{});  // "" = anonymous positional slot
+			r.name = a_role.value("name", std::string{});  // "" = anonymous positional role
 
-			std::optional<SlotGender> shorthand;
+			std::optional<RoleGender> shorthand;
 			if (auto git = a_role.find("gender"); git != a_role.end()) {
 				if (!git->is_string()) {
 					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' must be a string");
 				}
-				shorthand = ParseSlotGender(git->get<std::string>());
+				shorthand = ParseRoleGender(git->get<std::string>());
 			}
-			std::optional<SlotGender> fromFilter;
+			std::optional<RoleGender> fromFilter;
 
 			if (auto fit = a_role.find("filters"); fit != a_role.end()) {
 				if (!fit->is_object()) {
@@ -1010,7 +1028,7 @@ namespace OSF::Registry
 					if (!git->is_string()) {
 						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': filters.gender must be a string");
 					}
-					fromFilter = ParseSlotGender(git->get<std::string>());
+					fromFilter = ParseRoleGender(git->get<std::string>());
 				}
 				// keyword / race: a single string or an array of strings; resolved to forms now
 				// (any-of within each list). Unresolvable / wrong-type => the scene is rejected.
@@ -1043,7 +1061,7 @@ namespace OSF::Registry
 			if (shorthand && fromFilter && *shorthand != *fromFilter) {
 				throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' and filters.gender disagree");
 			}
-			r.gender = shorthand ? *shorthand : (fromFilter ? *fromFilter : SlotGender::kAny);
+			r.gender = shorthand ? *shorthand : (fromFilter ? *fromFilter : RoleGender::kAny);
 			// Role-local pose composition. Omission preserves the historical absolute/override path.
 			if (auto pit = a_role.find("poseMode"); pit != a_role.end()) {
 				if (!pit->is_string()) {
@@ -1108,7 +1126,7 @@ namespace OSF::Registry
 					}
 				}
 			}
-			// Optional default placement for this slot (unified *.osf.json roles).
+			// Optional default placement for this role (unified *.osf.json roles).
 			if (auto oit = a_role.find("offset"); oit != a_role.end()) {
 				r.offset = ParseOffsetField(*oit);
 			}
@@ -1207,7 +1225,7 @@ namespace OSF::Registry
 			PendingRole out;
 			out.role = ParseRole(merged, a_sceneId);
 			if (const auto nit = overrides.find("name"); nit != overrides.end()) {
-				// An explicit name ("" = an anonymous slot): kept exactly, never numbered.
+				// An explicit name ("" = an anonymous role): kept exactly, never numbered.
 				out.nameKind = (nit->is_string() && !nit->get_ref<const std::string&>().empty()) ?
 					RoleNameKind::kExplicit : RoleNameKind::kAnonymous;
 			} else {
@@ -1244,72 +1262,127 @@ namespace OSF::Registry
 			}
 		}
 
-		// Apply one `playerControl` value onto a grant that already holds the inherited default (the
+		// Apply one scene-controls value onto a grant that already holds the inherited default (the
 		// built-in all-capabilities grant at file level, the file-level grant at scene level). Boolean
 		// form toggles `enabled`; object form narrows what it inherited (`disable` removes bits from the
-		// set already in a_out, so a scene's disable list composes with the pack's). a_ctx labels errors
+		// set already in a_out, so a scene's disable list composes with the file default). a_ctx labels errors
 		// ("scene 'x'" / "'pack.json'").
-		void ApplyPlayerControl(const json& a_value, PlayerControl& a_out, const std::string& a_ctx)
+		void ApplySceneControls(const json& a_value, SceneControls& a_out, const std::string& a_ctx,
+			std::string_view a_key = "playerControl")
 		{
 			if (a_value.is_boolean()) {
 				a_out.enabled = a_value.get<bool>();
 				return;
 			}
 			if (!a_value.is_object()) {
-				throw std::runtime_error(a_ctx + ": 'playerControl' must be a boolean or an object");
+				throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + "' must be a boolean or an object");
 			}
 			if (auto en = a_value.find("enabled"); en != a_value.end()) {
 				if (!en->is_boolean()) {
-					throw std::runtime_error(a_ctx + ": 'playerControl.enabled' must be a boolean");
+					throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".enabled' must be a boolean");
 				}
 				a_out.enabled = en->get<bool>();
 			}
 			if (auto d = a_value.find("disable"); d != a_value.end()) {
 				if (!d->is_array()) {
-					throw std::runtime_error(a_ctx + ": 'playerControl.disable' must be an array of strings");
+					throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".disable' must be an array of strings");
 				}
 				for (const auto& v : *d) {
 					if (!v.is_string()) {
-						throw std::runtime_error(a_ctx + ": 'playerControl.disable' entries must be strings");
+						throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".disable' entries must be strings");
 					}
 					const auto name = v.get<std::string>();
 					const auto bit = Input::CapabilityBit(name);
 					if (bit == 0) {
-						REX::WARN("[Registry] {}: unknown playerControl capability '{}' — ignored (typo, or a newer OSF Animation?)", a_ctx, name);
+						REX::WARN("[Registry] {}: unknown {} capability '{}' — ignored (typo, or a newer OSF Animation?)", a_ctx, a_key, name);
 					}
 					a_out.capabilities &= ~bit;  // remove from the inherited set
 				}
 			}
 			if (auto lk = a_value.find("locked"); lk != a_value.end()) {
 				if (!lk->is_boolean()) {
-					throw std::runtime_error(a_ctx + ": 'playerControl.locked' must be a boolean");
+					throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".locked' must be a boolean");
 				}
 				a_out.locked = lk->get<bool>();
 			}
 		}
 
+		const json* FindVocabularyKey(const json& a_object, std::string_view a_canonical,
+			std::string_view a_legacy, const std::string& a_ctx)
+		{
+			const std::string canonicalKey{ a_canonical };
+			const std::string legacyKey{ a_legacy };
+			const auto canonical = a_object.find(canonicalKey);
+			const auto legacy = a_object.find(legacyKey);
+			if (canonical != a_object.end() && legacy != a_object.end()) {
+				throw std::runtime_error(a_ctx + ": use either '" + std::string(a_canonical) +
+					"' or legacy '" + std::string(a_legacy) + "', not both");
+			}
+			if (canonical != a_object.end()) {
+				return &*canonical;
+			}
+			return legacy != a_object.end() ? &*legacy : nullptr;
+		}
+
+		bool ReadVocabularyBool(const json& a_object, std::string_view a_canonical,
+			std::string_view a_legacy, bool a_default, const std::string& a_ctx)
+		{
+			const json* value = FindVocabularyKey(a_object, a_canonical, a_legacy, a_ctx);
+			if (!value) {
+				return a_default;
+			}
+			if (!value->is_boolean()) {
+				throw std::runtime_error(a_ctx + ": '" + std::string(
+					a_object.contains(std::string{ a_canonical }) ? a_canonical : a_legacy) + "' must be true or false");
+			}
+			return value->get<bool>();
+		}
+
+		Animation::WorldPlacementMode ReadWorldPlacement(const json& a_object,
+			Animation::WorldPlacementMode a_default, const std::string& a_ctx)
+		{
+			const json* value = FindVocabularyKey(a_object, "placement", "inPlace", a_ctx);
+			if (!value) {
+				return a_default;
+			}
+			if (a_object.contains("inPlace")) {
+				if (!value->is_boolean()) {
+					throw std::runtime_error(a_ctx + ": legacy 'inPlace' must be true or false");
+				}
+				return Animation::WorldPlacementFromLegacyInPlace(value->get<bool>());
+			}
+			if (!value->is_string()) {
+				throw std::runtime_error(a_ctx + ": 'placement' must be 'anchorAndPin' or 'followActor'");
+			}
+			const auto placement = value->get<std::string>();
+			if (placement == "anchorAndPin") return Animation::WorldPlacementMode::kAnchorAndPin;
+			if (placement == "followActor") return Animation::WorldPlacementMode::kFollowActor;
+			throw std::runtime_error(a_ctx + ": unknown 'placement' value '" + placement +
+				"' (expected 'anchorAndPin' or 'followActor')");
+		}
+
 		// Every file-level key a scene inherits when it omits its own. One struct so hoisting another
-		// field to the pack level stays a one-line change here plus one line in LoadOsfFile. (`roles`,
+		// field to the file level stays a one-line change here plus one line in LoadOsfFile. (`roles`,
 		// `anchor`, `camera` and `clipRoot` are threaded separately — each carries its own
 		// registry/optional/string shape.)
-		struct PackDefaults
+		struct ContentFileDefaults
 		{
-			bool                     lockPlayer = true;
-			bool                     stripActors = true;
+			bool                     playerInputLock = true;
+			bool                     hideApparel = true;
 			bool                     clearHeldItems = true;
 			bool                     fade = false;
 			bool                     unlisted = false;
-			bool                     inPlace = false;
-			PlayerControl            playerControl{};
+			Animation::WorldPlacementMode worldPlacement = Animation::WorldPlacementMode::kAnchorAndPin;
+			SceneControls            sceneControls{};
 			std::int32_t             priority = 0;
 			std::int32_t             weight = 1;
 			std::vector<std::string> tags;  // UNION-ed with a scene's own tags, not replaced by them
 		};
 
-		// Top-level metadata (name/priority/weight/unlisted/lockPlayer/stripActors/clearHeldItems/fade/
-		// playerControl). id, tags, roles, and the playable (clip/stages/nodes) are parsed by the caller.
+		// Top-level metadata (name/priority/weight/unlisted/playerInputLock/hideApparel/
+		// clearHeldItems/fade/sceneControls). Id, tags, roles, and the playable are parsed by the caller.
 		// a_defaults seeds every inherited field with the file-level value.
-		void ParseSceneMeta(const json& a_json, SceneDef& def, const PackDefaults& a_defaults)
+		void ParseSceneMeta(const json& a_json, SceneDef& def, const ContentFileDefaults& a_defaults)
 		{
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", a_defaults.priority);
@@ -1331,20 +1404,11 @@ namespace OSF::Registry
 				}
 				def.unlisted = it->get<bool>();
 			}
-			def.lockPlayer = a_defaults.lockPlayer;
-			if (auto it = a_json.find("lockPlayer"); it != a_json.end()) {
-				if (!it->is_boolean()) {
-					throw std::runtime_error("scene '" + def.id + "': 'lockPlayer' must be a boolean");
-				}
-				def.lockPlayer = it->get<bool>();
-			}
-			def.stripActors = a_defaults.stripActors;
-			if (auto it = a_json.find("stripActors"); it != a_json.end()) {
-				if (!it->is_boolean()) {
-					throw std::runtime_error("scene '" + def.id + "': 'stripActors' must be a boolean");
-				}
-				def.stripActors = it->get<bool>();
-			}
+			const std::string sceneContext = "scene '" + def.id + "'";
+			def.playerInputLock = ReadVocabularyBool(a_json, "playerInputLock", "lockPlayer",
+				a_defaults.playerInputLock, sceneContext);
+			def.hideApparel = ReadVocabularyBool(a_json, "hideApparel", "stripActors",
+				a_defaults.hideApparel, sceneContext);
 			def.clearHeldItems = a_defaults.clearHeldItems;
 			if (auto it = a_json.find("clearHeldItems"); it != a_json.end()) {
 				if (!it->is_boolean()) {
@@ -1359,19 +1423,13 @@ namespace OSF::Registry
 				}
 				def.fade = it->get<bool>();
 			}
-			def.inPlace = a_defaults.inPlace;
-			if (auto it = a_json.find("inPlace"); it != a_json.end()) {
-				if (!it->is_boolean()) {
-					throw std::runtime_error("scene '" + def.id + "': 'inPlace' must be a boolean");
-				}
-				def.inPlace = it->get<bool>();
-			}
-			// Input control is enabled-by-default (a_playerControlDefault is the built-in all-capabilities
-			// grant unless the pack narrowed it). `"playerControl": false` turns it off; an object narrows
-			// what was inherited via `disable`/`locked`.
-			def.playerControl = a_defaults.playerControl;
-			if (auto it = a_json.find("playerControl"); it != a_json.end()) {
-				ApplyPlayerControl(*it, def.playerControl, "scene '" + def.id + "'");
+			def.worldPlacement = ReadWorldPlacement(a_json, a_defaults.worldPlacement, sceneContext);
+			// Scene controls are enabled by default. The canonical `sceneControls` key and legacy
+			// `playerControl` key share one parser, but specifying both is rejected.
+			def.sceneControls = a_defaults.sceneControls;
+			if (const json* controls = FindVocabularyKey(a_json, "sceneControls", "playerControl", sceneContext)) {
+				ApplySceneControls(*controls, def.sceneControls, sceneContext,
+					a_json.contains("sceneControls") ? "sceneControls" : "playerControl");
 			}
 		}
 
@@ -1785,14 +1843,14 @@ namespace OSF::Registry
 		}
 
 		// Parse one unified scene. a_defaults holds the file-level policy/catalog defaults;
-		// a_packRoles are the ARRAY form of the file-level `roles` (inherited by a scene that omits its own);
+		// a_fileRoles are the ARRAY form of the file-level `roles` (inherited by a scene that omits its own);
 		// a_roleRegistry is the OBJECT form (id -> reusable template a scene's `roles` references by id string
 		// or { "id", ...overrides } object); a_propRegistry is the file-level `props` (id -> reusable
 		// prop template an `osf.prop.attach` inherits from); a_anchorDefault is the file-level `anchor`
 		// (likewise inherited).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings,
-			const PackDefaults& a_defaults, std::optional<CameraState> a_cameraDefault,
-			const std::vector<SceneRole>& a_packRoles, const RoleRegistry& a_roleRegistry,
+			const ContentFileDefaults& a_defaults, std::optional<CameraState> a_cameraDefault,
+			const std::vector<SceneRole>& a_fileRoles, const RoleRegistry& a_roleRegistry,
 			const PropRegistry& a_propRegistry,
 			std::string_view a_packClipRoot, const AnchorReq& a_anchorDefault)
 		{
@@ -1823,10 +1881,10 @@ namespace OSF::Registry
 					addTag(t.get<std::string>());
 				}
 			}
-		// roles[]: unified participant list; `name` optional (anonymous positional slot). Entries are
+		// roles[]: unified participant list; `name` optional (anonymous positional role). Entries are
 		// inline role objects, or references to the file-level roles REGISTRY — a plain id string, or
 		// an object { "id", ...overrides } that merge-patches the template (both expanded to ordinary
-		// slots here; the three forms mix freely). A scene's own `roles` overrides the pack-level
+		// roles here; the three forms mix freely). A scene's own `roles` overrides the file-level
 		// `roles`; a scene that omits the key inherits them. A registry is NOT a default cast —
 		// omitting `roles` under a registry falls through to clip-count inference.
 		bool rolesGiven = false;
@@ -1840,12 +1898,12 @@ namespace OSF::Registry
 			for (const auto& jRole : *it) {
 				pendingRoles.push_back(ExpandRoleEntry(jRole, def.id, a_roleRegistry));
 			}
-		} else if (!a_packRoles.empty()) {
-			// Inherit the pack-level roles (names, filters, offsets, equip): named slots are explicit,
+		} else if (!a_fileRoles.empty()) {
+			// Inherit the file-level roles (names, filters, offsets, equip): named roles are explicit,
 			// so duplicates still reject the scene exactly like inline roles.
 			rolesGiven = true;
-			pendingRoles.reserve(a_packRoles.size());
-			for (const auto& r : a_packRoles) {
+			pendingRoles.reserve(a_fileRoles.size());
+			for (const auto& r : a_fileRoles) {
 				pendingRoles.push_back(PendingRole{ r, r.name.empty() ? RoleNameKind::kAnonymous : RoleNameKind::kExplicit, {} });
 			}
 		}
@@ -1865,9 +1923,9 @@ namespace OSF::Registry
 				def.anchorBaseForms = anchorReq.baseForms;
 				def.anchorOffset = anchorReq.offset;
 			}
-			// An anchor-bound scene positions the cast AT the anchor — the exact thing inPlace turns off.
-			if (def.inPlace && def.RequiresAnchor()) {
-				throw std::runtime_error("scene '" + def.id + "': 'inPlace' cannot be combined with an 'anchor' requirement");
+			// An anchor-bound scene positions the cast at the anchor — incompatible with follow-actor placement.
+			if (def.worldPlacement == Animation::WorldPlacementMode::kFollowActor && def.RequiresAnchor()) {
+				throw std::runtime_error("scene '" + def.id + "': placement 'followActor' (legacy 'inPlace:true') cannot be combined with an 'anchor' requirement");
 			}
 
 			const bool hasNodes = a_json.contains("nodes");
@@ -1913,7 +1971,7 @@ namespace OSF::Registry
 				// StopScene — that is the explicit, intentional terminal-hold pattern, so it is not flagged.
 				ValidateGraph(def, nodeIds);
 				// Role inference, graph form: mirror the linear rule — a scene with no `roles` gets one
-				// anonymous slot per clip in the entry node's first inline stage. Without this a
+				// anonymous role per clip in the entry node's first inline stage. Without this a
 				// roles-less graph scene loads with ZERO roles and can never matchmake (the pool
 				// filters on roles.size() == actor count). A `use` entry resolves post-load, so it
 				// can't seed a count — those scenes must declare roles explicitly.
@@ -1951,7 +2009,7 @@ namespace OSF::Registry
 				ValidateRoleRefs(def);  // linear lanes reference roles too (graph scenes get this via ValidateGraph)
 			}
 
-			// Pack-level default camera (file-level "camera": "<state>"): attach that posture to the
+			// File-level default camera (`camera`: "<state>"): attach that posture to the
 			// entry node's enter so a scene picks it up without authoring a per-node camera track. The
 			// state override is held by the ledger until scene-stop, so engaging it on the entry node
 			// holds it across every stage. An explicit node-level camera track on the entry node wins.
@@ -1998,7 +2056,7 @@ namespace OSF::Registry
 			bool                       library = false;
 			std::string                packName;
 			std::string                folder;
-			PackDefaults               scene;
+			ContentFileDefaults        scene;
 			std::string                clipRoot;
 			std::optional<CameraState> camera = CameraState::kSceneOrbit;
 		};
@@ -2007,7 +2065,7 @@ namespace OSF::Registry
 		{
 			std::vector<const json*> sceneJsons;
 			std::vector<const json*> routeJsons;
-			std::vector<SceneRole>   packRoles;
+			std::vector<SceneRole>   fileRoles;
 			RoleRegistry             roles;
 			PropRegistry             props;
 			AnchorReq                anchor;
@@ -2069,25 +2127,33 @@ namespace OSF::Registry
 				}
 			}
 
-			for (const char* key : { "lockPlayer", "stripActors", "clearHeldItems", "fade", "unlisted", "inPlace" }) {
+			for (const char* key : { "clearHeldItems", "fade", "unlisted" }) {
 				if (const auto value = a_json.find(key); value != a_json.end() && !value->is_boolean()) {
 					a_reject("'" + a_fileName + "': '" + std::string(key) + "' must be true or false");
 					return false;
 				}
 			}
-			a_out.scene.lockPlayer = a_json.value("lockPlayer", true);
-			a_out.scene.stripActors = a_json.value("stripActors", !a_out.library);
+			const std::string fileContext = "'" + a_fileName + "'";
+			try {
+				a_out.scene.playerInputLock = ReadVocabularyBool(a_json, "playerInputLock", "lockPlayer", true, fileContext);
+				a_out.scene.hideApparel = ReadVocabularyBool(a_json, "hideApparel", "stripActors", !a_out.library, fileContext);
+				a_out.scene.worldPlacement = ReadWorldPlacement(a_json,
+					Animation::WorldPlacementMode::kAnchorAndPin, fileContext);
+			} catch (const std::exception& e) {
+				a_reject(e.what());
+				return false;
+			}
 			a_out.scene.clearHeldItems = a_json.value("clearHeldItems", true);
 			a_out.scene.fade = a_json.value("fade", false);
 			a_out.scene.unlisted = a_json.value("unlisted", false);
-			a_out.scene.inPlace = a_json.value("inPlace", false);
-			if (const auto controlIt = a_json.find("playerControl"); controlIt != a_json.end()) {
-				try {
-					ApplyPlayerControl(*controlIt, a_out.scene.playerControl, "'" + a_fileName + "'");
-				} catch (const std::exception& e) {
-					a_reject(e.what());
-					return false;
+			try {
+				if (const json* controls = FindVocabularyKey(a_json, "sceneControls", "playerControl", fileContext)) {
+					ApplySceneControls(*controls, a_out.scene.sceneControls, fileContext,
+						a_json.contains("sceneControls") ? "sceneControls" : "playerControl");
 				}
+			} catch (const std::exception& e) {
+				a_reject(e.what());
+				return false;
 			}
 
 			if (const auto priorityIt = a_json.find("priority"); priorityIt != a_json.end()) {
@@ -2201,10 +2267,10 @@ namespace OSF::Registry
 					if (rolesIt->is_array()) {
 						try {
 							for (const auto& roleJson : *rolesIt) {
-								a_out.packRoles.push_back(ParseRole(roleJson, "<pack:" + a_fileName + ">"));
+								a_out.fileRoles.push_back(ParseRole(roleJson, "<file:" + a_fileName + ">"));
 							}
 						} catch (const std::exception& e) {
-							a_reject("'" + a_fileName + "': pack-level roles: " + std::string(e.what()));
+							a_reject("'" + a_fileName + "': file-level roles: " + std::string(e.what()));
 							return false;
 						}
 					} else if (rolesIt->is_object()) {
@@ -2217,7 +2283,7 @@ namespace OSF::Registry
 							try {
 								RoleTemplate role;
 								role.raw = roleJson;
-								role.parsed = ParseRole(roleJson, "<pack:" + a_fileName + ">");
+								role.parsed = ParseRole(roleJson, "<file:" + a_fileName + ">");
 								if (!roleJson.contains("name")) {
 									role.parsed.name = roleId;
 									role.raw["name"] = roleId;
@@ -2394,8 +2460,9 @@ namespace OSF::Registry
 			out.id = RequiredRouteString(a_json, "id", "route");
 			RejectReservedId(out.id, "route");
 			const std::string subject = "route '" + out.id + "'";
-			for (const char* key : { "stripActors", "lockPlayer", "camera", "inPlace", "fade",
-				"playerControl", "clearHeldItems", "roles", "claims", "conditions", "when" }) {
+			for (const char* key : { "hideApparel", "stripActors", "playerInputLock", "lockPlayer",
+				"camera", "placement", "inPlace", "fade", "sceneControls", "playerControl",
+				"clearHeldItems", "roles", "claims", "conditions", "when" }) {
 				if (a_json.contains(key)) {
 					throw std::runtime_error(subject + ": policy/arbitration key '" + key + "' is not valid in route schema v1");
 				}
@@ -2431,123 +2498,123 @@ namespace OSF::Registry
 				}
 				RouteTransition transition;
 				transition.id = RequiredRouteString(transitionJson, "id", subject + " transition");
-				const std::string edgeSubject = subject + " transition '" + transition.id + "'";
+				const std::string transitionSubject = subject + " transition '" + transition.id + "'";
 				if (!transitionIds.insert(ToLower(transition.id)).second) {
 					throw std::runtime_error(subject + ": duplicate transition id '" + transition.id + "'");
 				}
-				transition.from = RequiredRouteString(transitionJson, "from", edgeSubject);
-				transition.to = RequiredRouteString(transitionJson, "to", edgeSubject);
+				transition.from = RequiredRouteString(transitionJson, "from", transitionSubject);
+				transition.to = RequiredRouteString(transitionJson, "to", transitionSubject);
 				if (!stationIds.contains(ToLower(transition.from)) || !stationIds.contains(ToLower(transition.to))) {
-					throw std::runtime_error(edgeSubject + ": from/to must name declared stations");
+					throw std::runtime_error(transitionSubject + ": from/to must name declared stations");
 				}
 				const auto layer = transitionJson.find("layer");
 				if (layer == transitionJson.end()) {
-					throw std::runtime_error(edgeSubject + ": transition requires an animated 'layer'");
+					throw std::runtime_error(transitionSubject + ": transition requires an animated 'layer'");
 				}
-				transition.layer = ParseRouteLayer(*layer, a_clipRoot, edgeSubject, false);
+				transition.layer = ParseRouteLayer(*layer, a_clipRoot, transitionSubject, false);
 				if (transitionJson.contains("reach")) {
-					throw std::runtime_error(edgeSubject + ": 'reach' was removed; use the simpler 'contactPose' envelope");
+					throw std::runtime_error(transitionSubject + ": 'reach' was removed; use the simpler 'contactPose' envelope");
 				}
 				if (const auto contact = transitionJson.find("contactPose"); contact != transitionJson.end()) {
 					if (transition.layer.mode != Animation::PoseMode::kOverride)
-						throw std::runtime_error(edgeSubject + ": 'contactPose' requires an override layer");
-					if (!contact->is_object()) throw std::runtime_error(edgeSubject + ": 'contactPose' must be an object");
+						throw std::runtime_error(transitionSubject + ": 'contactPose' requires an override layer");
+					if (!contact->is_object()) throw std::runtime_error(transitionSubject + ": 'contactPose' must be an object");
 					for (const auto& [key, value] : contact->items()) {
 						(void)value;
 						if (key != "atFrame" && key != "bones" && key != "approachFrames" &&
 							key != "fullBeforeFrames" && key != "fullAfterFrames" &&
 							key != "releaseFrames" && key != "curve")
-							throw std::runtime_error(edgeSubject + ": contactPose has unknown key '" + key + "'");
+							throw std::runtime_error(transitionSubject + ": contactPose has unknown key '" + key + "'");
 					}
 					Animation::ContactPose parsed;
 					parsed.enabled = true;
-					parsed.atSeconds = RouteFrame(*contact, "atFrame", edgeSubject + " contactPose") / kFrameRate;
+					parsed.atSeconds = RouteFrame(*contact, "atFrame", transitionSubject + " contactPose") / kFrameRate;
 					const auto bones = contact->find("bones");
 					if (bones == contact->end() || !bones->is_array() || bones->empty() || bones->size() > 16)
-						throw std::runtime_error(edgeSubject + ": contactPose 'bones' must contain 1-16 bone names");
+						throw std::runtime_error(transitionSubject + ": contactPose 'bones' must contain 1-16 bone names");
 					std::unordered_set<std::string> uniqueBones;
 					for (const auto& bone : *bones) {
 						if (!bone.is_string() || bone.get_ref<const std::string&>().empty())
-							throw std::runtime_error(edgeSubject + ": contactPose bone names must be non-empty strings");
+							throw std::runtime_error(transitionSubject + ": contactPose bone names must be non-empty strings");
 						auto name = bone.get<std::string>();
 						if (!uniqueBones.insert(ToLower(name)).second)
-							throw std::runtime_error(edgeSubject + ": contactPose contains duplicate bone '" + name + "'");
+							throw std::runtime_error(transitionSubject + ": contactPose contains duplicate bone '" + name + "'");
 						parsed.bones.push_back(std::move(name));
 					}
 					const auto readFrames = [&](const char* key, float fallback) {
-						return contact->contains(key) ? RouteFrame(*contact, key, edgeSubject + " contactPose") / kFrameRate : fallback;
+						return contact->contains(key) ? RouteFrame(*contact, key, transitionSubject + " contactPose") / kFrameRate : fallback;
 					};
 					parsed.approachSeconds = readFrames("approachFrames", parsed.approachSeconds * kFrameRate);
 					parsed.fullBeforeSeconds = readFrames("fullBeforeFrames", parsed.fullBeforeSeconds * kFrameRate);
 					parsed.fullAfterSeconds = readFrames("fullAfterFrames", parsed.fullAfterSeconds * kFrameRate);
 					parsed.releaseSeconds = readFrames("releaseFrames", parsed.releaseSeconds * kFrameRate);
 					if (parsed.fullBeforeSeconds > parsed.approachSeconds)
-						throw std::runtime_error(edgeSubject + ": contactPose fullBeforeFrames cannot exceed approachFrames");
+						throw std::runtime_error(transitionSubject + ": contactPose fullBeforeFrames cannot exceed approachFrames");
 					const auto curve = ToLower(contact->value("curve", std::string{ "smoothstep" }));
-					if (curve != "smoothstep") throw std::runtime_error(edgeSubject + ": contactPose curve must be 'smoothstep'");
+					if (curve != "smoothstep") throw std::runtime_error(transitionSubject + ": contactPose curve must be 'smoothstep'");
 					transition.contactPose = std::move(parsed);
 				}
 				if (const auto interrupt = transitionJson.find("interrupt"); interrupt != transitionJson.end()) {
-					if (!interrupt->is_string()) throw std::runtime_error(edgeSubject + ": 'interrupt' must be a string");
+					if (!interrupt->is_string()) throw std::runtime_error(transitionSubject + ": 'interrupt' must be a string");
 					const auto value = ToLower(interrupt->get<std::string>());
 					if (value == "finish") transition.interruption = RouteInterruption::kFinish;
 					else if (value == "crossfade-before-commit") transition.interruption = RouteInterruption::kCrossfadeBeforeCommit;
-					else throw std::runtime_error(edgeSubject + ": unknown interrupt mode '" + value + "'");
+					else throw std::runtime_error(transitionSubject + ": unknown interrupt mode '" + value + "'");
 				}
 				if (const auto commit = transitionJson.find("commit"); commit != transitionJson.end()) {
-					if (!commit->is_object()) throw std::runtime_error(edgeSubject + ": 'commit' must be an object");
+					if (!commit->is_object()) throw std::runtime_error(transitionSubject + ": 'commit' must be an object");
 					RouteMarker marker;
-					marker.frame = RouteFrame(*commit, "atFrame", edgeSubject + " commit");
-					marker.id = RequiredRouteString(*commit, "marker", edgeSubject + " commit");
+					marker.frame = RouteFrame(*commit, "atFrame", transitionSubject + " commit");
+					marker.id = RequiredRouteString(*commit, "marker", transitionSubject + " commit");
 					transition.commit = std::move(marker);
 				}
 				if (const auto markers = transitionJson.find("markers"); markers != transitionJson.end()) {
-					if (!markers->is_array()) throw std::runtime_error(edgeSubject + ": 'markers' must be an array");
+					if (!markers->is_array()) throw std::runtime_error(transitionSubject + ": 'markers' must be an array");
 					for (const auto& markerJson : *markers) {
-						if (!markerJson.is_object()) throw std::runtime_error(edgeSubject + ": marker must be an object");
+						if (!markerJson.is_object()) throw std::runtime_error(transitionSubject + ": marker must be an object");
 						RouteMarker marker;
-						marker.frame = RouteFrame(markerJson, "atFrame", edgeSubject + " marker");
-						marker.id = RequiredRouteString(markerJson, "id", edgeSubject + " marker");
+						marker.frame = RouteFrame(markerJson, "atFrame", transitionSubject + " marker");
+						marker.id = RequiredRouteString(markerJson, "id", transitionSubject + " marker");
 						if (markerJson.contains("lifetime")) {
-							throw std::runtime_error(edgeSubject + " marker '" + marker.id +
+							throw std::runtime_error(transitionSubject + " marker '" + marker.id +
 								"': markers are instantaneous and do not accept 'lifetime'");
 						}
 						transition.markers.push_back(std::move(marker));
 					}
 				}
 				if (const auto props = transitionJson.find("props"); props != transitionJson.end()) {
-					if (!props->is_array()) throw std::runtime_error(edgeSubject + ": 'props' must be an array");
+					if (!props->is_array()) throw std::runtime_error(transitionSubject + ": 'props' must be an array");
 					for (const auto& propJson : *props) {
-						if (!propJson.is_object()) throw std::runtime_error(edgeSubject + ": prop must be an object");
+						if (!propJson.is_object()) throw std::runtime_error(transitionSubject + ": prop must be an object");
 						RouteProp prop;
-						prop.id = RequiredRouteString(propJson, "prop", edgeSubject + " prop");
+						prop.id = RequiredRouteString(propJson, "prop", transitionSubject + " prop");
 						const bool attach = propJson.contains("attachAtFrame");
 						const bool destroy = propJson.contains("destroyAtFrame");
-						if (attach == destroy) throw std::runtime_error(edgeSubject + " prop '" + prop.id +
+						if (attach == destroy) throw std::runtime_error(transitionSubject + " prop '" + prop.id +
 							"': specify exactly one of attachAtFrame or destroyAtFrame");
 						prop.attach = attach;
-						prop.frame = RouteFrame(propJson, attach ? "attachAtFrame" : "destroyAtFrame", edgeSubject + " prop '" + prop.id + "'");
-						prop.lifetime = ParseRouteLifetime(propJson, edgeSubject + " prop '" + prop.id + "'");
+						prop.frame = RouteFrame(propJson, attach ? "attachAtFrame" : "destroyAtFrame", transitionSubject + " prop '" + prop.id + "'");
+						prop.lifetime = ParseRouteLifetime(propJson, transitionSubject + " prop '" + prop.id + "'");
 						if (attach && prop.lifetime != RouteLifetime::kExternal) {
 							json merged;
-							const json& resolved = ResolvePropAttach(propJson, a_props, prop.id, edgeSubject + " prop '" + prop.id + "'", merged);
+							const json& resolved = ResolvePropAttach(propJson, a_props, prop.id, transitionSubject + " prop '" + prop.id + "'", merged);
 							const auto source = resolved.find("source");
-							if (source == resolved.end()) throw std::runtime_error(edgeSubject + " prop '" + prop.id + "': attach requires source or a matching prop template");
-							prop.source = ParsePropSource(*source, edgeSubject + " prop '" + prop.id + "'");
-							prop.attachment = ParsePropAttachment(resolved, edgeSubject + " prop '" + prop.id + "'");
+							if (source == resolved.end()) throw std::runtime_error(transitionSubject + " prop '" + prop.id + "': attach requires source or a matching prop template");
+							prop.source = ParsePropSource(*source, transitionSubject + " prop '" + prop.id + "'");
+							prop.attachment = ParsePropAttachment(resolved, transitionSubject + " prop '" + prop.id + "'");
 						}
 						transition.props.push_back(std::move(prop));
 					}
 				}
 				if (const auto sounds = transitionJson.find("sound"); sounds != transitionJson.end()) {
-					if (!sounds->is_array()) throw std::runtime_error(edgeSubject + ": 'sound' must be an array");
+					if (!sounds->is_array()) throw std::runtime_error(transitionSubject + ": 'sound' must be an array");
 					for (const auto& soundJson : *sounds) {
-						if (!soundJson.is_object()) throw std::runtime_error(edgeSubject + ": sound must be an object");
+						if (!soundJson.is_object()) throw std::runtime_error(transitionSubject + ": sound must be an object");
 						RouteSound sound;
-						sound.frame = RouteFrame(soundJson, "atFrame", edgeSubject + " sound");
-						sound.spec = RequiredRouteString(soundJson, "spec", edgeSubject + " sound");
+						sound.frame = RouteFrame(soundJson, "atFrame", transitionSubject + " sound");
+						sound.spec = RequiredRouteString(soundJson, "spec", transitionSubject + " sound");
 						if (soundJson.contains("lifetime")) {
-							throw std::runtime_error(edgeSubject + " sound: sounds are one-shot and do not accept 'lifetime'");
+							throw std::runtime_error(transitionSubject + " sound: sounds are one-shot and do not accept 'lifetime'");
 						}
 						transition.sounds.push_back(std::move(sound));
 					}
@@ -2596,7 +2663,7 @@ namespace OSF::Registry
 					(*sceneJson)["id"].is_string() ? (*sceneJson)["id"].get<std::string>() : std::string{};
 				try {
 					auto definition = ParseOsfScene(*sceneJson, warnings, a_defaults.scene, a_defaults.camera,
-						a_contents.packRoles, a_contents.roles, a_contents.props,
+						a_contents.fileRoles, a_contents.roles, a_contents.props,
 						a_defaults.clipRoot, a_contents.anchor);
 					if (definition.nodes.size() > kMaxNodesPerScene) {
 						throw std::runtime_error("scene '" + definition.id + "': too many nodes");
@@ -2616,6 +2683,8 @@ namespace OSF::Registry
 					definition.pack = a_defaults.packName;
 					definition.folder = a_defaults.folder;
 					definition.library = a_defaults.library;
+					definition.sourceKind = a_defaults.library ? CatalogSourceKind::kReferenceAnimation :
+						CatalogSourceKind::kAuthoredScene;
 					auto key = ToLower(definition.id);
 					if (const auto found = a_out.find(key); found != a_out.end()) {
 						a_problems.Push("[error] duplicate scene id '" + definition.id + "' in '" + fileName +
@@ -2708,10 +2777,10 @@ namespace OSF::Registry
 			}
 		}
 
-		// Build an Animation::ScenePlan from a resolved (roles, stages) pair: a per-clip offset overrides
+		// Build an Animation::PlaybackPlan from a resolved (roles, stages) pair: a per-clip offset overrides
 		// the role's default placement; every stage's clip count must equal a_actorCount. Shared by the
 		// inline-stages and `use`-target node paths.
-		std::optional<Animation::ScenePlan> BuildPlanFromStages(const std::string& a_id,
+		std::optional<Animation::PlaybackPlan> BuildPlanFromStages(const std::string& a_id,
 			const std::vector<SceneRole>& a_roles, const std::vector<StageDef>& a_stages, size_t a_actorCount)
 		{
 			if (a_stages.empty()) {
@@ -2721,7 +2790,7 @@ namespace OSF::Registry
 				REX::WARN("[Registry] '{}' needs {} role(s), got {}", a_id, a_roles.size(), a_actorCount);
 				return std::nullopt;
 			}
-			Animation::ScenePlan plan;
+			Animation::PlaybackPlan plan;
 			plan.animId = a_id;
 			plan.preserveBones.reserve(a_roles.size());
 			plan.poseModes.reserve(a_roles.size());
@@ -2741,7 +2810,7 @@ namespace OSF::Registry
 					REX::WARN("[Registry] '{}' stage has {} clip(s) but {} role(s)", a_id, sd.clips.size(), a_actorCount);
 					return std::nullopt;
 				}
-				Animation::ScenePlan::Stage stage;
+				Animation::PlaybackPlan::Segment stage;
 				stage.timer = sd.timer;
 				stage.loops = sd.loops;
 				stage.hold = sd.hold;
@@ -2758,17 +2827,23 @@ namespace OSF::Registry
 		}
 	}
 
-	SlotGender ParseSlotGender(std::string_view a_str)
+	RoleGender ParseRoleGender(std::string_view a_str)
 	{
 		const auto s = ToLower(a_str);
 		if (s == "male" || s == "m") {
-			return SlotGender::kMale;
+			return RoleGender::kMale;
 		}
 		if (s == "female" || s == "f") {
-			return SlotGender::kFemale;
+			return RoleGender::kFemale;
 		}
-		return SlotGender::kAny;  // "any"/"" and anything else
+		return RoleGender::kAny;  // "any"/"" and anything else
 	}
+
+	SlotGender ParseSlotGender(std::string_view a_str)
+	{
+		return ParseRoleGender(a_str);
+	}
+
 	std::optional<CameraState> ParseCameraState(std::string_view a_state)
 	{
 		const auto state = ToLower(a_state);
@@ -2840,12 +2915,12 @@ namespace OSF::Registry
 		std::vector<PendingImportProblem> pendingProblems;
 		ProblemSink problems{ errors, pendingProblems };
 		std::vector<ClipLibraryRegistration> clipLibrary;
-		std::vector<SceneFileStats> fileStats;
+		std::vector<ContentFileStats> fileStats;
 		std::unordered_map<std::string, std::size_t> fileIndex;  // full source path -> index into fileStats
 		ClipInstalledCache clipCache;
 		SceneLoadBudget loadBudget;
 
-		auto ensureFileStats = [&](const Util::RegistryJsonSource& a_source) -> SceneFileStats& {
+		auto ensureFileStats = [&](const Util::RegistryJsonSource& a_source) -> ContentFileStats& {
 			if (const auto found = fileIndex.find(a_source.file.string()); found != fileIndex.end()) {
 				return fileStats[found->second];
 			}
@@ -2943,18 +3018,18 @@ namespace OSF::Registry
 		const auto problemCount = errors.size();
 
 		// Hand each structured record to its file. Anything unowned lands in one trailing bucket.
-		SceneFileStats crossFile;
+		ContentFileStats crossFile;
 		for (std::size_t i = 0; i < errors.size() && i < pendingProblems.size(); ++i) {
 			const auto& pending = pendingProblems[i];
 			const auto it = fileIndex.find(pending.owner.string());
 			auto& target = it != fileIndex.end() ? fileStats[it->second] : crossFile;
 			(pending.warning ? target.warnings : target.errors) += 1;
-			target.problems.push_back(SceneImportProblem{
+			target.problems.push_back(ContentImportProblem{
 				pending.warning, pending.code, errors[i], pending.hint, pending.scene, pending.node,
 				pending.role, pending.clip
 			});
 		}
-		std::sort(fileStats.begin(), fileStats.end(), [](const SceneFileStats& a_lhs, const SceneFileStats& a_rhs) {
+		std::sort(fileStats.begin(), fileStats.end(), [](const ContentFileStats& a_lhs, const ContentFileStats& a_rhs) {
 			return a_lhs.path < a_rhs.path;
 		});
 		const auto fileCount = fileStats.size();  // files SCANNED — before the bucket, which is not one
@@ -2962,7 +3037,7 @@ namespace OSF::Registry
 			fileStats.push_back(std::move(crossFile));  // empty path — kept last on purpose
 		}
 
-		auto next = std::make_shared<SceneRegistrySnapshot>();
+		auto next = std::make_shared<ContentRegistrySnapshot>();
 		next->scenes = std::move(loaded);
 		next->routes = std::move(loadedRoutes);
 		next->loadErrors = std::move(errors);
@@ -2996,7 +3071,7 @@ namespace OSF::Registry
 		return out;
 	}
 
-	std::optional<Animation::ScenePlan> SceneRegistry::BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const
+	std::optional<Animation::PlaybackPlan> SceneRegistry::BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const
 	{
 		if (!a_def) {
 			return std::nullopt;
@@ -3016,16 +3091,16 @@ namespace OSF::Registry
 			}
 			auto plan = BuildPlanFromStages(target.id, target.roles, target.nodes[0].stages, a_actorCount);
 			if (plan) {
-				plan->anchored = !a_def->inPlace;  // the OWNING scene's posture governs, like its other policies
+				plan->SetWorldPlacementMode(a_def->worldPlacement);
 			}
 			return plan;
 		}
 		// Inline node: this scene's roles supply the default placements.
 		auto plan = BuildPlanFromStages(a_def->id, a_def->roles, a_node.stages, a_actorCount);
 		if (plan) {
-			// inPlace scene: no teleport/pin — the rig follows each actor's live transform, so the
+			// Follow-actor scene: no teleport/pin — the rig follows each actor's live transform, so the
 			// player's heading/position (and with them the vanilla third-person camera) stay untouched.
-			plan->anchored = !a_def->inPlace;
+			plan->SetWorldPlacementMode(a_def->worldPlacement);
 		}
 		return plan;
 	}
@@ -3056,7 +3131,7 @@ namespace OSF::Registry
 		return snapshot.load(std::memory_order_acquire)->loadErrors;
 	}
 
-	std::vector<SceneFileStats> SceneRegistry::FileStats() const
+	std::vector<ContentFileStats> SceneRegistry::FileStats() const
 	{
 		return snapshot.load(std::memory_order_acquire)->files;
 	}

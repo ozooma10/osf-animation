@@ -1,7 +1,7 @@
 #pragma once
 
 // Manages an actor's worn equipment for a scene. Two independent features:
-//   - Hide()/Restore(): snapshot + strip the actor's worn apparel, then re-equip it (osf.equipment.hide / .restore).
+//   - Hide()/Restore(): snapshot + hide the actor's worn apparel, then re-equip it (osf.equipment.hide / .restore).
 //   - EquipItem()/UnequipItem(): equip an ARBITRARY item for the scene's duration, then take it back off
 //     (osf.equipment.equip / .unequip). If the actor didn't already own the item we add a transient copy and
 //     destroy it on cleanup, so an authored prop/outfit leaves no trace in the inventory after the scene.
@@ -15,7 +15,7 @@
 
 namespace OSF::Equipment
 {
-	// worn inventory entry captured at strip time. The form pointer stays valid only because the item
+	// Worn inventory entry captured when apparel is hidden. The form pointer stays valid only because the item
 	// remains in the actor's inventory for the snapshot's whole lifetime (Starfield refcounts forms —
 	// an unowned TESForm* can be destroyed); instanceData is refcounted so the snapshot keeps any
 	// mod/instance state alive across the scene.
@@ -27,9 +27,9 @@ namespace OSF::Equipment
 
 	struct Snapshot
 	{
-		std::vector<WornItem> stripped;
+		std::vector<WornItem> hiddenItems;
 
-		[[nodiscard]] bool Empty() const noexcept { return stripped.empty(); }
+		[[nodiscard]] bool Empty() const noexcept { return hiddenItems.empty(); }
 	};
 
 	// One arbitrary item EquipItem() put on an actor, with exactly what it has to undo on cleanup:
@@ -49,13 +49,13 @@ namespace OSF::Equipment
 
 		bool Available();
 
-		//G AME THREAD. Snapshots + unequips the actor's worn apparel (including weapon)
+		// GAME THREAD. Snapshots + unequips the actor's worn apparel (including weapon).
 		// Empty snapshot = nothing hidden (nothing to restore later).
 		Snapshot Hide(RE::Actor* a_actor);
 
-		// GAME THREAD. Like Hide(), but only strips equipped ARMO whose biped slot bits overlap a_slotMask.
-		// a_slotMask == 0 hides nothing; 0xFFFFFFFF full-strip (incl. weapon).
-		// a_keep: worn forms left on AND out of the snapshot (scene-gear strip exemption — the item
+		// GAME THREAD. Like Hide(), but only hides equipped ARMO whose biped slot bits overlap a_slotMask.
+		// a_slotMask == 0 hides nothing; 0xFFFFFFFF hides all eligible worn items (including weapon).
+		// a_keep: worn forms left on AND out of the snapshot (scene-gear hide exemption — the item
 		// stays worn through the scene, so restore must not touch it).
 		Snapshot Hide(RE::Actor* a_actor, std::uint32_t a_slotMask, std::span<RE::TESBoundObject* const> a_keep = {});
 

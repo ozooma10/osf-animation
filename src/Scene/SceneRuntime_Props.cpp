@@ -110,7 +110,7 @@ namespace OSF::Scene
 		}
 
 		REX::DEBUG("[Scene] scene {:#010x} attached prop '{}' (form {:08X}) to '{}'",
-			a_handle, a_action.prop, sourceForm, a_action.propAttachment.node);
+			a_handle, a_action.prop, sourceForm, a_action.propAttachment.targetNode);
 	}
 
 	void SceneRuntime::DestroySceneProp(

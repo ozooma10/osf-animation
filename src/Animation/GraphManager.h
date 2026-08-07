@@ -21,14 +21,17 @@ namespace OSF::Animation
 	public:
 		static GraphManager& GetSingleton();
 
-		using SceneAutoEndHandler = std::function<bool(PlaybackId, const std::vector<RE::Actor*>&, SceneEndReason)>;
-		using SceneClearHandler = std::function<void()>;
-		using SceneTimedMarkHandler = std::function<void(PlaybackId, const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
+		using PlaybackAutoEndHandler = std::function<bool(PlaybackId, const std::vector<RE::Actor*>&, PlaybackEndReason)>;
+		using PlaybackClearHandler = std::function<void()>;
+		using PlaybackTimedMarkHandler = std::function<void(PlaybackId, const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
+		using SceneAutoEndHandler = PlaybackAutoEndHandler;      // compatibility spelling
+		using SceneClearHandler = PlaybackClearHandler;          // compatibility spelling
+		using SceneTimedMarkHandler = PlaybackTimedMarkHandler;  // compatibility spelling
 		struct PlaybackSink
 		{
-			SceneAutoEndHandler autoEnd;
-			SceneTimedMarkHandler timedMarks;
-			SceneClearHandler clear;
+			PlaybackAutoEndHandler autoEnd;
+			PlaybackTimedMarkHandler timedMarks;
+			PlaybackClearHandler clear;
 		};
 
 		// Register a callback owner once, then stamp its id onto each staged playback. Dispatch is
@@ -61,18 +64,25 @@ namespace OSF::Animation
 		// Erases actors's graph if its fade-out has fully elapsed (no-op if it was replayed meanwhile). Called from the deferred removal task.
 		void RemoveFadedGraph(RE::TESObjectREFR* a_refr);
 
-		// Starts a staged synced scene from a ScenePlan. every stages clips are loaded up front. (stage switches are pointer swaps, not file IO)
-		// Refuses partial scenes. stages auto-advance on timers or loop count targets.
-		// after last stage the scene stops itself (on game thread)
-		bool PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
+		// Starts synchronized Layer-A playback from a PlaybackPlan. Every segment's clips are loaded up
+		// front; segment switches are pointer swaps rather than file IO. Refuses partial playback.
+		bool PlaySynchronized(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment,
 			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
 			PlaybackSinkId a_sinkId = 0, bool a_strictTimedMarks = false);
+
+		bool PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
+			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
+			PlaybackSinkId a_sinkId = 0, bool a_strictTimedMarks = false)
+		{
+			return PlaySynchronized(a_actors, a_plan, a_startStage, a_outPlaybackId,
+				a_expectedPlayback, a_sinkId, a_strictTimedMarks);
+		}
 
 		// Jumps the scene containing a_actor to the given stage (0-based);
 		// false if the actor is not in a scene or the stage is out of range.
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
 
-		struct ScenePlayback
+		struct SynchronizedPlaybackState
 		{
 			float time = 0.0f;
 			float duration = 0.0f;
@@ -80,6 +90,7 @@ namespace OSF::Animation
 			int32_t stage = -1;
 			PlaybackId playbackId = 0;
 		};
+		using ScenePlayback = SynchronizedPlaybackState;  // compatibility spelling
 		struct AnimationPlayback
 		{
 			float time = 0.0f;
@@ -89,7 +100,7 @@ namespace OSF::Animation
 
 		// Browser/director inspection of the current scene clock. Seek never fires timed marks.
 		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
-		std::optional<ScenePlayback> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
+		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
 		// Solo-clip transport used by the transient Studio preview. Scene actors are rejected.
 		bool SetAnimationTime(RE::Actor* a_actor, float a_time);
 		std::optional<AnimationPlayback> GetAnimationPlayback(RE::Actor* a_actor);
@@ -130,7 +141,8 @@ namespace OSF::Animation
 
 		// Stops a scene by pointer if it is still live (no-op otherwise). Used by the deferred auto-end task; 
 		// the caller keeps the Scene alive via shared_ptr so the pointer can never be stale.
-		void StopSceneByPtr(Scene* a_scene);
+		void StopPlaybackByPtr(PlaybackSession* a_session);
+		void StopSceneByPtr(Scene* a_scene) { StopPlaybackByPtr(a_scene); }  // compatibility spelling
 
 		// drops all inmemory scene + graph state immediately. (no fade or actor mutation)
 		// call when game loads save to nuke our state and reset from the world which is authority.
@@ -153,7 +165,7 @@ namespace OSF::Animation
 		// Game-thread follow-ups are appended to a_deferred; the caller MUST hand them to SFSE
 		// (FlushDeferredTasks) after releasing stateLock — AddTask under stateLock inverts lock
 		// order against SFSE's task drain.
-		void StopSceneLocked(Scene* a_scene, std::vector<std::function<void()>>& a_deferred);
+		void StopPlaybackLocked(PlaybackSession* a_session, std::vector<std::function<void()>>& a_deferred);
 
 		// Every live anchored NPC participant (player excluded), NiPointer-pinned. Takes stateLock shared.
 		// The save-window strip/re-assert pair (OnSaveBegin/OnSaveEnd) acts on this set.
@@ -173,11 +185,11 @@ namespace OSF::Animation
 		// the Scene alive across the deferral. Shared by QueueAutoEndIfFinished and the stall watchdog.
 		// With a_deferred (locked contexts) the end task is appended there instead of handed to
 		// SFSE directly; the caller flushes after releasing stateLock.
-		void QueueSceneEndDeferred(std::shared_ptr<Scene> a_scene, std::vector<std::function<void()>>* a_deferred = nullptr);
+		void QueuePlaybackEndDeferred(std::shared_ptr<PlaybackSession> a_session, std::vector<std::function<void()>>* a_deferred = nullptr);
 
 		// Stall watchdog: runs from the update hook every call. Finds live scenes the engine stopped
 		// ticking (lastAdvanceMs gone stale while the game runs) and ends them cleanly as kInterrupted, so
-		// an unloaded/AI-disabled/interrupted scene can't strand its participants with the player lock held.
+		// an unloaded/AI-disabled/interrupted scene can't strand its participants with the player input lock held.
 		// Pause/resume-filtered (the hook itself stalls when the game pauses) and throttled (fires ~7x/frame).
 		void StallWatchTick();
 
@@ -199,7 +211,7 @@ namespace OSF::Animation
 
 		std::shared_mutex stateLock;
 		std::unordered_map<RE::TESObjectREFR*, std::shared_ptr<Graph>> graphs;
-		std::vector<std::shared_ptr<Scene>> scenes;
+		std::vector<std::shared_ptr<PlaybackSession>> playbackSessions;
 
 		std::optional<PlaybackSink> GetPlaybackSink(PlaybackSinkId a_id) const;
 		mutable std::shared_mutex _sinkLock;

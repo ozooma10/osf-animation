@@ -5,8 +5,8 @@
 // roles, and the four track lanes (cue/action/sound/camera). A node plays an inline `stages[]` timeline
 // or `use`s another scene by id. Handles parsing, the desugar, validation, and load diagnostics.
 
-#include "Animation/Scene.h"   // ParticipantPlacement, ScenePlan
-#include "Input/InputTypes.h"  // PlayerControl capabilities default to Input::kAllCapabilities
+#include "Animation/Scene.h"   // ParticipantPlacement, PlaybackPlan
+#include "Input/InputTypes.h"  // SceneControls capabilities default to Input::kAllCapabilities
 #include "Props/PropTypes.h"
 
 #include <algorithm>
@@ -29,15 +29,17 @@ namespace OSF::Registry
 	// Scene schema version (*.osf.json declares this). Bump only on a breaking change.
 	inline constexpr std::int64_t kSchemaVersion = 1;
 
-	enum class SlotGender : std::uint8_t
+	enum class RoleGender : std::uint8_t
 	{
 		kAny,
 		kMale,
 		kFemale
 	};
+	using SlotGender = RoleGender;  // compatibility spelling
 
 	// Case-insensitive gender-string parse ("male"/"m" -> kMale, "female"/"f" -> kFemale, else kAny).
-	SlotGender ParseSlotGender(std::string_view a_str);
+	RoleGender ParseRoleGender(std::string_view a_str);
+	SlotGender ParseSlotGender(std::string_view a_str);  // compatibility forwarding symbol
 
 	enum class LoopMode : std::uint8_t
 	{
@@ -161,7 +163,7 @@ namespace OSF::Registry
 	std::string_view CameraStateName(CameraState a_state);
 
 	// "thirdperson_hold" (force/hold third person via the standalone camera lock), "freefly" and
-	// "vanity_orbit" (PlayerCamera state overrides). Also synthesized from a pack-level `camera`
+	// "vanity_orbit" (PlayerCamera state overrides). Also synthesized from a file-level `camera`
 	// default, attached to a scene's entry node.
 	struct CameraEntry
 	{
@@ -286,8 +288,8 @@ namespace OSF::Registry
 
 	struct SceneRole
 	{
-		std::string name;  // "" = an anonymous positional slot (unified *.osf.json; clips index-align to role order)
-		SlotGender  gender = SlotGender::kAny;
+		std::string name;  // "" = an anonymous positional role (unified *.osf.json; clips index-align to role order)
+		RoleGender  gender = RoleGender::kAny;
 		// Role filters, VALIDATED at scene load via the form-ref resolver but stored as FormIDs:
 		// Starfield reference-counts forms (TESFormRefCount) and destroys ones nothing loaded holds,
 		// so a raw TESForm* cached across frames can dangle — re-resolve with LookupByID at use
@@ -301,19 +303,38 @@ namespace OSF::Registry
 		std::string                mask;  // canonical named driven-bone mask ("upperBody"...); "" = every body bone binds
 		Animation::PoseMode        poseMode = Animation::PoseMode::kOverride;  // absolute replacement (default) or rest-relative layer
 		float                      poseWeight = 1.0f;  // persistent role layer strength, normalized to [0,1]
-		Animation::ParticipantPlacement offset{};  // default placement for this slot
+		Animation::ParticipantPlacement offset{};  // default placement for this role
 		RoleEquip                    equip;     // optional per-gender item equipped for the scene's duration
 	};
 
-	// Per-scene player-input grant. Input control is ENABLED BY DEFAULT: with no `playerControl` block the player gets every capability while participating. 
-	// A scene opts out wholesale (`"playerControl": false`) or narrows it (`{ "disable": ["speed","end"], "locked": true }`).
-	// capabilities is an OR of OSF::Input::Capability bits (advance/navigate/speed/freecam/end).
-	struct PlayerControl
+	// Per-scene OSF control grant. This is distinct from `lockPlayer`, which suppresses vanilla
+	// movement/combat input. The legacy JSON key remains `playerControl` for compatibility.
+	struct SceneControls
 	{
 		bool          enabled = true;                  // false => no input channel at all
 		std::uint32_t capabilities = Input::kAllCapabilities;  // capabilities granted (default: all; `disable` removes)
 		bool          locked = false;                  // player may not end the scene via the input channel (story scenes)
 	};
+	using PlayerControl = SceneControls;  // legacy domain spelling
+
+	enum class CatalogSourceKind : std::uint8_t
+	{
+		kAuthoredScene,
+		kCuratedAnimation,
+		kDerivedDebugAnimation,
+		kReferenceAnimation
+	};
+
+	inline constexpr std::string_view CatalogSourceKindName(CatalogSourceKind a_kind) noexcept
+	{
+		switch (a_kind) {
+		case CatalogSourceKind::kAuthoredScene: return "authoredScene";
+		case CatalogSourceKind::kCuratedAnimation: return "curatedAnimation";
+		case CatalogSourceKind::kDerivedDebugAnimation: return "derivedDebugAnimation";
+		case CatalogSourceKind::kReferenceAnimation: return "referenceAnimation";
+		}
+		return "authoredScene";
+	}
 
 	struct SceneDef
 	{
@@ -332,13 +353,14 @@ namespace OSF::Registry
 		// an author may register a clip with no tags, name, or folder at all.
 		bool                     curatedClip = false;
 		bool                     library = false;   // file-level `section:"library"`: reference-library lane (osf.library.data), kept out of the main catalog
+		CatalogSourceKind        sourceKind = CatalogSourceKind::kAuthoredScene;
 		bool                     clipsAvailable = true;  // false: a referenced clip resolves to no installed file (compat pack without its source mod) — hidden from the catalog and matchmaking; a direct-id start still attempts and logs the load failure
-		bool                     lockPlayer = true; //Player input disabled by default when player participant
-		bool                     stripActors = true;  // Remove every participant's worn apparel by default (base skin kept), auto-restored on end;
+		bool                     playerInputLock = true;  // legacy JSON `lockPlayer`
+		bool                     hideApparel = true;      // legacy JSON `stripActors`; base skin kept
 		bool                     clearHeldItems = true;  // Unequip equipped non-apparel at scene start, auto-restored on end;
 		bool                     fade = false;  // Screen fade-to-black on start when the player participates (self-releasing curtain); OFF by default, opt in with `fade:true`
-		bool                     inPlace = false;  // `inPlace:true`: play on each actor where they stand — no teleport, no per-frame root/heading pin (ScenePlan::anchored=false). For solo flourishes (emotes) that must leave the actor + vanilla camera untouched.
-		PlayerControl            playerControl;  // director-input grant; ENABLED by default, scene opts out/narrows
+		Animation::WorldPlacementMode worldPlacement = Animation::WorldPlacementMode::kAnchorAndPin;  // legacy JSON `inPlace`
+		SceneControls            sceneControls;  // legacy JSON `playerControl`
 		std::vector<std::string> tags;
 		// Lowercased `tags`, built once at parse: matchmaking tag-matches EVERY loaded def per
 		// query, so the per-def lowering/set-build must not happen on that path.
@@ -476,12 +498,15 @@ namespace OSF::Registry
 		std::string role;
 		std::string clip;
 	};
+	// Preferred content-wide spelling. The legacy name remains the underlying type so existing
+	// source and binary identities do not change while callers migrate.
+	using ContentImportProblem = SceneImportProblem;
 
 	// What ONE *.osf.json contributed to the registry: the author-facing import record behind the
 	// browser's IMPORTS panel. Every discovered file gets one, including a file that was rejected
 	// whole and contributed nothing — "my pack is missing" is answered by the row being present with
-	// zero scenes and its reject line attached, which a scene-shaped view can never show.
-	// Aggregated from the FINAL scene set, so the counts are what actually reached the registry.
+	// zero scenes and its reject line attached, which a scene-only view can never show.
+	// Aggregated from the final published content, so the counts are what actually reached the registry.
 	struct SceneFileStats
 	{
 		// Never an absolute path: it names the player's machine and account. `path` is relative to
@@ -519,10 +544,12 @@ namespace OSF::Registry
 		std::vector<std::string> missingClipExamples;  // bounded, deterministic examples for repair UI
 		std::uint32_t errors = 0;
 		std::uint32_t warnings = 0;
-		std::vector<SceneImportProblem> problems;  // full structured set, in legacy load-error order
+		std::vector<ContentImportProblem> problems;  // full structured set, in legacy load-error order
 
 		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && routes == 0 && clipEntries == 0 && errors > 0; }
 	};
+	// Preferred content-wide spelling; SceneFileStats remains available for compatibility.
+	using ContentFileStats = SceneFileStats;
 
 	// Immutable publication unit. Reload builds one privately and atomically replaces the current
 	// pointer; readers and live scenes retain shared ownership of the exact definitions they use.
@@ -534,8 +561,10 @@ namespace OSF::Registry
 		size_t authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
 		// One record per discovered *.osf.json, sorted by `path`. A trailing record with an empty
 		// `path` collects problems no single file owns (there normally are none).
-		std::vector<SceneFileStats> files;
+		std::vector<ContentFileStats> files;
 	};
+	// Preferred content-wide spelling; SceneRegistrySnapshot remains available for compatibility.
+	using ContentRegistrySnapshot = SceneRegistrySnapshot;
 
 	template <class T>
 	class RegistryRef
@@ -562,7 +591,7 @@ namespace OSF::Registry
 
 	private:
 		friend class SceneRegistry;
-		std::shared_ptr<const SceneRegistrySnapshot> owner;
+		std::shared_ptr<const ContentRegistrySnapshot> owner;
 		const T* value = nullptr;
 	};
 
@@ -586,9 +615,9 @@ namespace OSF::Registry
 		// Overlay route by id (case-insensitive), with independent snapshot lifetime pinning.
 		RouteRef FindRoute(std::string_view a_id) const;
 
-		// Resolve a node's inline `stages`, or a `use` target's single inline-stage node - to a ScenePlan (files + placements + timer/loops), or nullopt (reason logged).
+		// Resolve a flow node's inline authored `stages`, or a `use` target, to a Layer-A PlaybackPlan.
 		// a_actorCount must equal the resolved role count.
-		std::optional<Animation::ScenePlan> BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
+		std::optional<Animation::PlaybackPlan> BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
 
 		// Visit every definition in one pinned snapshot. A concurrent reload publishes a new
 		// snapshot without invalidating this iteration.
@@ -603,15 +632,17 @@ namespace OSF::Registry
 		// Problems (errors + warnings) from the last LoadAll, for OSFAdvanced.GetSceneLoadErrors().
 		std::vector<std::string> LoadErrors() const;
 
-		// Per-file import records from the last LoadAll, sorted by path (see SceneFileStats).
-		std::vector<SceneFileStats> FileStats() const;
+		// Per-content-file import records from the last LoadAll, sorted by path (see ContentFileStats).
+		std::vector<ContentFileStats> FileStats() const;
 
 		// Data-relative clip references from loaded scenes whose resolved file does not currently exist.
 		std::vector<std::string> MissingClipRefs() const;
 
 	private:
-		std::atomic<std::shared_ptr<const SceneRegistrySnapshot>> snapshot{
-			std::make_shared<const SceneRegistrySnapshot>()
+		std::atomic<std::shared_ptr<const ContentRegistrySnapshot>> snapshot{
+			std::make_shared<const ContentRegistrySnapshot>()
 		};
 	};
+
+	using ContentRegistry = SceneRegistry;  // preferred content-wide spelling
 }

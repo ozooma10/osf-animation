@@ -163,7 +163,7 @@ namespace OSF::Equipment
 						}
 					}
 				}
-				snapshot.stripped.push_back({ item.object, item.instanceData });
+				snapshot.hiddenItems.push_back({ item.object, item.instanceData });
 			}
 		}
 
@@ -171,12 +171,12 @@ namespace OSF::Equipment
 		if (!mgr) {
 			return snapshot;
 		}
-		for (const auto& w : snapshot.stripped) {
+		for (const auto& w : snapshot.hiddenItems) {
 			RE::BGSObjectInstance instance{ w.object, w.instanceData.get() };
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
 		}
 		
-		REX::DEBUG("[Equip] actor {:X}: hid {} worn item(s)", a_actor->formID, snapshot.stripped.size());
+		REX::DEBUG("[Equip] actor {:X}: hid {} worn item(s)", a_actor->formID, snapshot.hiddenItems.size());
 		return snapshot;
 	}
 
@@ -205,7 +205,7 @@ namespace OSF::Equipment
 				if (std::find(a_keep.begin(), a_keep.end(), item.object) != a_keep.end()) {
 					continue;
 				}
-				snapshot.stripped.push_back({ item.object, item.instanceData });
+				snapshot.hiddenItems.push_back({ item.object, item.instanceData });
 			}
 		}
 
@@ -213,12 +213,12 @@ namespace OSF::Equipment
 		if (!mgr) {
 			return snapshot;
 		}
-		for (const auto& w : snapshot.stripped) {
+		for (const auto& w : snapshot.hiddenItems) {
 			RE::BGSObjectInstance instance{ w.object, w.instanceData.get() };
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
 		}
 
-		REX::DEBUG("[Equip] actor {:X}: cleared {} held item(s)", a_actor->formID, snapshot.stripped.size());
+		REX::DEBUG("[Equip] actor {:X}: cleared {} held item(s)", a_actor->formID, snapshot.hiddenItems.size());
 		return snapshot;
 	}
 
@@ -232,7 +232,7 @@ namespace OSF::Equipment
 		if (!mgr) {
 			return;
 		}
-		for (const auto& w : a_snapshot.stripped) {
+		for (const auto& w : a_snapshot.hiddenItems) {
 			if (!w.object) {
 				continue;
 			}
@@ -254,7 +254,7 @@ namespace OSF::Equipment
 			// locked=false so the actor's own outfit logic owns the items again after the scene; forceEquip=true skips the AI veto, silent.
 			mgr->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
 		}
-		REX::DEBUG("[Equip] actor {:X}: restored {} worn item(s)", a_actor->formID, a_snapshot.stripped.size());
+		REX::DEBUG("[Equip] actor {:X}: restored {} worn item(s)", a_actor->formID, a_snapshot.hiddenItems.size());
 	}
 
 	EquippedItem EquipmentService::EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object)

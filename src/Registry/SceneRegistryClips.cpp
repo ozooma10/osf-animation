@@ -292,10 +292,12 @@ namespace OSF::Registry::SceneRegistryClips
 			definition.unlisted = true;
 			definition.library = true;
 			definition.curatedClip = entry.curated;
-			definition.lockPlayer = false;
-			definition.stripActors = false;
+			definition.sourceKind = entry.curated ? CatalogSourceKind::kCuratedAnimation :
+				CatalogSourceKind::kDerivedDebugAnimation;
+			definition.playerInputLock = false;
+			definition.hideApparel = false;
 			definition.fade = false;
-			definition.inPlace = true;
+			definition.worldPlacement = Animation::WorldPlacementMode::kFollowActor;
 			definition.tags = { "scene.clip" };
 			definition.tagSet = { "scene.clip" };
 			definition.roles.emplace_back();
@@ -325,7 +327,7 @@ namespace OSF::Registry::SceneRegistryClips
 	}
 
 	void AccumulateFileStats(const std::unordered_map<std::string, SceneDef>& a_scenes,
-		ClipInstalledCache& a_cache, std::vector<SceneFileStats>& a_files,
+		ClipInstalledCache& a_cache, std::vector<ContentFileStats>& a_files,
 		const std::unordered_map<std::string, std::size_t>& a_index)
 	{
 		std::vector<std::unordered_set<std::string>> clipSets(a_files.size());

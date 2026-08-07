@@ -148,7 +148,7 @@ namespace OSF::Camera
 		bool baselineCaptured = false;
 		bool baselineWasFirstPerson = false;
 		std::uint32_t baselineStateIndex = 0xFFFFFFFFu;  // RE::CameraState index live at capture; >= kTotal = unknown
-		int  holdCount = 0;      // third-person-hold holders (control lock + thirdperson_hold tracks)
+		int  holdCount = 0;      // third-person-hold holders (player input lock + thirdperson_hold tracks)
 		int  overrideCount = 0;  // state-override holders (free-fly / vanity-orbit scenes)
 
 		std::atomic<bool> nativeFreeCamActive{ false };  // engine-native free cam is toggled on

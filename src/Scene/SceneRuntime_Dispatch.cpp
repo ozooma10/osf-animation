@@ -22,7 +22,7 @@
 
 namespace OSF::Scene
 {
-	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_anchor)
+	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition)
 	{
 		// Undo-ledger replay before SCENE_END: reverse every reversible mechanism this scene
 		// engaged (reverse order, once, idempotently) so a listener reacting to scene-end already
@@ -44,12 +44,12 @@ namespace OSF::Scene
 
 		// Logged so the lifecycle is visible even with no registered receiver; the relay
 		// delivers the OSFTypes:SceneEvent struct to any that are registered.
-		REX::DEBUG("[Scene] scene {:#010x} event {:#x} node='{}' anchor='{}'", a_handle, a_event, a_node, a_anchor);
+		REX::DEBUG("[Scene] scene {:#010x} event {:#x} node='{}' trackPosition='{}'", a_handle, a_event, a_node, a_trackPosition);
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = a_event;
 		e.node = std::string(a_node);
-		e.anchor = std::string(a_anchor);
+		e.trackPosition = std::string(a_trackPosition);
 		// actor/role left default.
 		SceneEventRelay::GetSingleton().Dispatch(e);
 
@@ -72,16 +72,16 @@ namespace OSF::Scene
 	}
 
 	void SceneRuntime::DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
-		std::string_view a_anchor, float a_time)
+		std::string_view a_trackPosition, float a_time)
 	{
-		REX::DEBUG("[Scene] scene {:#010x} CUE '{}' node='{}' anchor='{}' time={:.3f}",
-			a_handle, a_cue, a_node, a_anchor, a_time);
+		REX::DEBUG("[Scene] scene {:#010x} CUE '{}' node='{}' trackPosition='{}' time={:.3f}",
+			a_handle, a_cue, a_node, a_trackPosition, a_time);
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kCue;
 		e.node = std::string(a_node);
 		e.cue = std::string(a_cue);
-		e.anchor = std::string(a_anchor);
+		e.trackPosition = std::string(a_trackPosition);
 		e.time = a_time;
 		SceneEventRelay::GetSingleton().Dispatch(e);
 	}
@@ -186,7 +186,7 @@ namespace OSF::Scene
 		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
-			return;  // pack/files scene or unknown node — no camera entries
+			return;  // ad-hoc files scene or unknown node — no camera entries
 		}
 		auto* player = RE::PlayerCharacter::GetSingleton();
 		const bool hasPlayer = player &&
@@ -202,17 +202,17 @@ namespace OSF::Scene
 	}
 
 	void SceneRuntime::DispatchAction(std::int32_t a_handle, std::string_view a_node, std::string_view a_type,
-		std::string_view a_role, std::string_view a_anchor)
+		std::string_view a_role, std::string_view a_trackPosition)
 	{
-		REX::DEBUG("[Scene] scene {:#010x} ACTION '{}' node='{}' role='{}' anchor='{}'",
-			a_handle, a_type, a_node, a_role, a_anchor);
+		REX::DEBUG("[Scene] scene {:#010x} ACTION '{}' node='{}' role='{}' trackPosition='{}'",
+			a_handle, a_type, a_node, a_role, a_trackPosition);
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kAction;
 		e.node = std::string(a_node);
 		e.actionType = std::string(a_type);
 		e.role = std::string(a_role);
-		e.anchor = std::string(a_anchor);
+		e.trackPosition = std::string(a_trackPosition);
 		// Carry the bound actor when the action names a role, so the receiver gets it directly
 		// (akEvent.actorRef) without a GetSceneForActor round-trip. Empty role -> None.
 		if (!a_role.empty()) {
@@ -257,7 +257,7 @@ namespace OSF::Scene
 		const auto def = view.definition;  // pinned at Start for every id-bearing scene (plan scenes have no def)
 		const auto* node = def ? def->FindNode(a_node) : nullptr;
 		if (!node) {
-			return;  // pack/files scene or unknown node — no actions
+			return;  // ad-hoc files scene or unknown node — no actions
 		}
 
 		auto* player = RE::PlayerCharacter::GetSingleton();
@@ -273,18 +273,18 @@ namespace OSF::Scene
 	}
 
 	void SceneRuntime::RunAction(std::int32_t a_handle, std::string_view a_node, const Registry::ActionEntry& a_action,
-		std::string_view a_anchor, bool a_hasPlayer)
+		std::string_view a_trackPosition, bool a_hasPlayer)
 	{
 		if (a_action.kind == Registry::ActionKind::kControlLock) {
 			if (a_hasPlayer) {
-				REX::DEBUG("[Scene] scene {:#010x} action osf.control.lock (role '{}')", a_handle, a_action.role);
-				GetSingleton().RecordMechanism(a_handle, Mechanism::kControlLock);
+				REX::DEBUG("[Scene] scene {:#010x} action osf.control.lock engaged player input lock (role '{}')", a_handle, a_action.role);
+				GetSingleton().RecordMechanism(a_handle, Mechanism::kPlayerInputLock);
 			} else {
 				REX::DEBUG("[Scene] scene {:#010x} osf.control.lock — no player participant, no-op", a_handle);
 			}
 		} else if (a_action.kind == Registry::ActionKind::kControlRelease) {
 			REX::DEBUG("[Scene] scene {:#010x} action osf.control.release", a_handle);
-			GetSingleton().UndoMechanism(a_handle, Mechanism::kControlLock);
+			GetSingleton().UndoMechanism(a_handle, Mechanism::kPlayerInputLock);
 		} else if (a_action.kind == Registry::ActionKind::kFadeOut) {
 			// Screen fade only matters when the player is watching (NPC-only scenes must not
 			// black out the player's screen).
@@ -312,7 +312,7 @@ namespace OSF::Scene
 			if (RE::Actor* actor = GetSingleton().ResolveRoleActor(a_handle, a_action.role)) {
 				auto snap = Equipment::EquipmentService::GetSingleton().Hide(actor);
 				REX::DEBUG("[Scene] scene {:#010x} osf.equipment.hide (role '{}') — hid {} item(s)",
-					a_handle, a_action.role, snap.stripped.size());
+					a_handle, a_action.role, snap.hiddenItems.size());
 				if (!snap.Empty()) {
 					GetSingleton().RecordHiddenEquip(a_handle, actor, std::move(snap));
 				}
@@ -388,7 +388,7 @@ namespace OSF::Scene
 			}
 		} else {
 			// custom namespaced action -> EVENT_ACTION (best-effort notification).
-			DispatchAction(a_handle, a_node, a_action.type, a_action.role, a_anchor);
+			DispatchAction(a_handle, a_node, a_action.type, a_action.role, a_trackPosition);
 		}
 	}
 }

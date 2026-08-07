@@ -29,8 +29,8 @@ namespace OSF::Scene
 		RE::Actor*   actor = nullptr;  // [6] participant (may be null)
 		std::string  role;             // [7] role name
 		std::int32_t loopIndex = -1;   // [8] reserved in v0.1
-		float        time = -1.0f;     // [9] clip-local fraction, or -1.0 for a named anchor
-		std::string  anchor;           // [10] "", "enter", "exit", "end"
+		float        time = -1.0f;     // [9] clip-local fraction, or -1.0 for a named track position
+		std::string  trackPosition;    // [10] "", "enter", "exit", "end"; serialized as legacy `anchor`
 		std::int32_t result = 0;       // [11] RESULT_*
 	};
 

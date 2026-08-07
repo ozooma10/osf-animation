@@ -37,7 +37,7 @@ namespace OSF::Scene
 			switch (a_verb) {
 			case Input::Verb::kAdvance: {
 				// SINGLE-ANIMATION posture (wheel emotes): the entered stage IS the whole
-				// experience — space cancels the emote instead of stepping to the pack's next
+				// experience — space cancels the emote instead of stepping to an authored next
 				// animation. No debounce (cancel must land immediately); same locked gate as kEnd.
 				if (rt.IsSingleStage(a_grant.handle)) {
 					if (!a_grant.locked) {
@@ -122,7 +122,7 @@ namespace OSF::Scene
 			return;
 		}
 		Animation::GraphManager::PlaybackSink sink;
-		sink.autoEnd = [](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason a_reason) {
+		sink.autoEnd = [](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors, Animation::PlaybackEndReason a_reason) {
 				return SceneRuntime::GetSingleton().OnGraphAutoEnd(a_playbackId, a_actors, a_reason);
 			};
 		// Drop the handle table on any load teardown (handles hold raw Actor* participants).
@@ -451,6 +451,7 @@ namespace OSF::Scene
 		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a handle
 		// minted before a save-load can never validate against a slot reused after the load (a stashed
 		// handle must read as dead — same rule as SceneEventRelay::Clear).
-		// The actual player lock is released by GraphManager::StopAll (PlayerControlService / CameraService OnStopAll) before this runs.
+		// The actual player input lock is released by GraphManager::StopAll
+		// (PlayerInputLockService / CameraService OnStopAll) before this runs.
 	}
 }

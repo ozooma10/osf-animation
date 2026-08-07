@@ -108,15 +108,15 @@ namespace OSF::API
 	}
 
 	// -------------------------------------------------------------------------
-	// Per-start overrides. Tri-states: 1 = force on, 0 = force off, anything else (incl. -1) = inherit the scene def / pack default. 
+	// Per-start overrides. Tri-states: 1 = force on, 0 = force off, anything else (incl. -1) = inherit the scene definition / content-file default.
 	// -------------------------------------------------------------------------
 	struct OSFStartOptions
 	{
 		std::uint32_t size = sizeof(OSFStartOptions);  // cbSize: stamped by YOUR compiler; OSF reads only this many bytes
 
-		std::int32_t stripMode         = -1;    // -> StartOverrides::strip
-		std::int32_t lockPlayerMode    = -1;    // -> StartOverrides::lockPlayer
-		std::int32_t playerControlMode = -1;    // -> StartOverrides::playerControl (0 = revoke advance/navigate/end)
+		std::int32_t stripMode         = -1;    // frozen ABI field -> StartOverrides::hideApparel
+		std::int32_t lockPlayerMode    = -1;    // frozen ABI field -> StartOverrides::playerInputLock
+		std::int32_t playerControlMode = -1;    // frozen ABI field -> StartOverrides::sceneControls (0 = revoke advance/navigate/end)
 		std::int32_t fadeMode          = -1;    // -> StartOverrides::fade
 
 		char  camera[64] = {};                  // "" = inherit; e.g. "thirdperson_hold" -> StartOverrides::camera
@@ -137,7 +137,7 @@ namespace OSF::API
 		RE::TESObjectREFR* anchorRef = nullptr;
 
 		// APPENDED at MINOR 2 (OSF reads it only when your stamped `size` covers it).
-		// -> StartOverrides::inPlace: 1 = play on the actors exactly where they stand — no teleport,
+		// Frozen ABI field -> StartOverrides::worldPlacement: 1 = follow actors — no teleport,
 		// no per-frame root/heading pin (leaves the player's heading, and with it the vanilla
 		// third-person camera, alone). 0 = force the anchored posture; else = inherit the scene's.
 		std::int32_t inPlaceMode = -1;
@@ -172,7 +172,7 @@ namespace OSF::API
 		const char* role = "";
 		std::int32_t loopIndex = -1;
 		float time = -1.0f;
-		const char* anchor = "";
+		const char* anchor = "";  // frozen ABI name: named track position (enter/exit/end), never a world anchor
 		std::int32_t result = 0;
 	};
 

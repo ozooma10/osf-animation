@@ -133,7 +133,7 @@ namespace OSF::Overlay
 				return true;
 			}
 			Animation::PlaybackId next = 0;
-			if (!Animation::GraphManager::GetSingleton().PlaySceneStaged({ slot->actor.get() }, *plan, 0,
+			if (!Animation::GraphManager::GetSingleton().PlaySynchronized({ slot->actor.get() }, *plan, 0,
 				&next, playbackId, service._playbackSinkId, true)) {
 				return false;
 			}
@@ -151,7 +151,7 @@ namespace OSF::Overlay
 
 			auto plan = BuildRouteTransitionPlan(*slot->route, a_transition, a_destination, a_generation);
 			Animation::PlaybackId next = 0;
-			if (!Animation::GraphManager::GetSingleton().PlaySceneStaged({ slot->actor.get() }, plan, 0,
+			if (!Animation::GraphManager::GetSingleton().PlaySynchronized({ slot->actor.get() }, plan, 0,
 				&next, playbackId, service._playbackSinkId, true)) {
 				return false;
 			}
@@ -189,7 +189,7 @@ namespace OSF::Overlay
 		if (_registered) return;
 		Animation::GraphManager::PlaybackSink sink;
 		sink.autoEnd = [](Animation::PlaybackId a_id, const std::vector<RE::Actor*>& a_actors,
-			Animation::SceneEndReason a_reason) {
+			Animation::PlaybackEndReason a_reason) {
 			return GetSingleton().OnAutoEnd(a_id, a_actors, a_reason);
 		};
 		sink.timedMarks = [](Animation::PlaybackId a_id, const std::vector<RE::Actor*>& a_actors,
@@ -255,7 +255,7 @@ namespace OSF::Overlay
 		std::lock_guard l{ _lock };
 		if (!_owners.IsUsable(a_owner)) return { 0, RequestDisposition::kRejected, RequestReason::kOwnerInvalid };
 		if (_byActor.contains(a_actor)) return { 0, RequestDisposition::kRejected, RequestReason::kBusy };
-		auto route = Registry::SceneRegistry::GetSingleton().FindRoute(a_routeId);
+		auto route = Registry::ContentRegistry::GetSingleton().FindRoute(a_routeId);
 		if (!route) return { 0, RequestDisposition::kRejected, RequestReason::kRouteUnknown };
 		if (!route->FindStation(a_initialStation)) {
 			return { 0, RequestDisposition::kRejected, RequestReason::kUnknownStation };
@@ -525,7 +525,7 @@ namespace OSF::Overlay
 				(void)DispatchOwner(*slot, event, false);
 			} else if (mark.lane == RouteLane(RouteMarkLane::kReached)) {
 				CleanupProps(*slot, Registry::RouteLifetime::kTransition);
-				(void)slot->controller->OnEdgeReached(generation);
+				(void)slot->controller->OnTransitionReached(generation);
 				API::OSFOverlayEvent event;
 				const bool failed = slot->controller->Phase() == ControllerPhase::kFailed ||
 					slot->controller->LastReason() == RequestReason::kNoPath;
@@ -546,7 +546,7 @@ namespace OSF::Overlay
 	}
 
 	bool OverlayService::OnAutoEnd(Animation::PlaybackId a_playbackId,
-		const std::vector<RE::Actor*>& a_actors, Animation::SceneEndReason)
+		const std::vector<RE::Actor*>& a_actors, Animation::PlaybackEndReason)
 	{
 		std::lock_guard l{ _lock };
 		if (a_actors.empty()) return false;

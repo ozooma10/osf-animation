@@ -1,4 +1,4 @@
-#include "Player/PlayerControlService.h"
+#include "Player/PlayerInputLockService.h"
 
 namespace OSF::Player
 {
@@ -19,11 +19,12 @@ namespace OSF::Player
 			RE::OTHER_EVENT_FLAG::HandScanner |
 			RE::OTHER_EVENT_FLAG::Favorites;
 
-		// Clears the player's AI-driven flag via the Papyrus VM (Game.SetPlayerAIDriven). The lock NO LONGER
-		// engages AI-driven — it blocked camera look (an AI-driven actor is non-controllable) WITHOUT decoupling
-		// the rig (GraphManager's compose-root rotation pin does that). This remains only to clear a STALE flag:
-		// AI-driven is PERSISTENT (serialized into saves), so a save made by an older build that set it would
-		// reload AI-driven; OnStopAll clears it on every load. No native binding; queued via SFSE task, any-thread.
+		// Clears the player's AI-driven flag via the Papyrus VM (Game.SetPlayerAIDriven). The input lock
+		// NO LONGER engages AI-driven -- it blocked camera look (an AI-driven actor is non-controllable)
+		// WITHOUT decoupling the rig (GraphManager's compose-root rotation pin does that). This remains only
+		// to clear a STALE flag: AI-driven is PERSISTENT (serialized into saves), so a save made by an older
+		// build that set it would reload AI-driven; OnStopAll clears it on every load. No native binding;
+		// queued via SFSE task, any-thread.
 		void SetPlayerAIDriven(bool a_driven)
 		{
 			SFSE::GetTaskInterface()->AddTask([a_driven]() {
@@ -42,30 +43,31 @@ namespace OSF::Player
 					},
 					RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor>(), 0);
 				if (!dispatched) {
-					REX::TRACE("[Player] Game.SetPlayerAIDriven({}) dispatch failed (VM rebuilding mid-load?) — player AI-driven state may lag until the next load", a_driven);
+					REX::TRACE("[Player] Game.SetPlayerAIDriven({}) dispatch failed (VM rebuilding mid-load?) -- player AI-driven state may lag until the next load", a_driven);
 				}
 			});
 		}
 	}
 
-	PlayerControlService::PlayerControlService() :
+	PlayerInputLockService::PlayerInputLockService() :
 		userMask(static_cast<uint32_t>(kSceneUserEvents)),
 		otherMask(static_cast<uint32_t>(kSceneOtherEvents))
 	{}
 
-	PlayerControlService& PlayerControlService::GetSingleton()
+	PlayerInputLockService& PlayerInputLockService::GetSingleton()
 	{
-		static PlayerControlService instance;
+		static PlayerInputLockService instance;
 		return instance;
 	}
 
-	void PlayerControlService::OnStopAll()
+	void PlayerInputLockService::OnStopAll()
 	{
 		const auto epoch = taskEpoch.fetch_add(1, std::memory_order_acq_rel) + 1;
-		// Defensively clear the PERSISTENT AI-driven flag on every load. The lock no longer sets it, but a save
-		// made by an OLDER build (which did) would reload the player AI-driven with no in-process memory of it,
-		// leaving them non-controllable. OnStopAll runs only on a load (every GraphManager::StopAll caller is a
-		// save-load/revert/manual-load sink). The runtime input-disable layer below is non-persistent.
+		// Defensively clear the PERSISTENT AI-driven flag on every load. The input lock no longer sets it,
+		// but a save made by an OLDER build (which did) would reload the player AI-driven with no in-process
+		// memory of it, leaving them non-controllable. OnStopAll runs only on a load (every
+		// GraphManager::StopAll caller is a save-load/revert/manual-load sink). The runtime input-disable
+		// layer below is non-persistent.
 		SetPlayerAIDriven(false);
 
 		SFSE::GetTaskInterface()->AddTask([this, epoch]() {
@@ -73,21 +75,21 @@ namespace OSF::Player
 				return;
 			}
 			std::scoped_lock l{ lock };
-			if (standaloneActive) {
-				standaloneActive = false;
+			if (playerInputLockActive) {
+				playerInputLockActive = false;
 				RestoreEnabled();
-				REX::DEBUG("[Player] control lock restored for StopAll");
+				REX::DEBUG("[Player] input lock restored for StopAll");
 			}
 		});
 	}
 
-	void PlayerControlService::ClearAIDriven()
+	void PlayerInputLockService::ClearAIDriven()
 	{
-		// Decoupled from the control lock on purpose. Posts the same VM clear used on release/load.
+		// Decoupled from the input lock on purpose. Posts the same VM clear used on release/load.
 		SetPlayerAIDriven(false);
 	}
 
-	void PlayerControlService::SetStandaloneLock(bool a_enable)
+	void PlayerInputLockService::SetPlayerInputLock(bool a_enable)
 	{
 		const auto epoch = taskEpoch.load(std::memory_order_acquire);
 		SFSE::GetTaskInterface()->AddTask([this, a_enable, epoch]() {
@@ -96,38 +98,38 @@ namespace OSF::Player
 			}
 			std::scoped_lock l{ lock };
 			if (a_enable) {
-				if (standaloneActive) {
-					return;  // already held — idempotent
+				if (playerInputLockActive) {
+					return;  // already held -- idempotent
 				}
 				if (!EnsureLayer()) {
-					REX::WARN("[Player] standalone control lock: failed to allocate input-disable layer");
+					REX::WARN("[Player] input lock: failed to allocate input-disable layer");
 					return;
 				}
-				standaloneActive = true;
+				playerInputLockActive = true;
 				ApplyDisabled();
 				// No AI-driven: it blocked camera look (an AI-driven actor is non-controllable) without
-				// actually decoupling the rig — the GraphManager compose-root rotation pin handles rig-spin.
+				// actually decoupling the rig -- the GraphManager compose-root rotation pin handles rig-spin.
 				// The input layer disables Movement/Fighting/Sneaking/Activation only; Looking stays free.
-				REX::DEBUG("[Player] standalone control lock engaged (movement only — camera look stays free)");
+				REX::DEBUG("[Player] input lock engaged (movement only -- camera look stays free)");
 			} else {
-				if (!standaloneActive) {
-					return;  // not held — nothing to release
+				if (!playerInputLockActive) {
+					return;  // not held -- nothing to release
 				}
-				standaloneActive = false;
+				playerInputLockActive = false;
 				RestoreEnabled();
-				// Clear any persistent AI-driven flag at the player-unlock point. The lock itself never
-				// sets it, BUT the native free cam (MMB -> ToggleFreeCameraMode / `tfc`) does — to freeze
-				// the player while the camera flies — and toggling tfc back off doesn't reliably clear it
+				// Clear any persistent AI-driven flag at the player-unlock point. The input lock itself never
+				// sets it, BUT the native free cam (MMB -> ToggleFreeCameraMode / `tfc`) does -- to freeze
+				// the player while the camera flies -- and toggling tfc back off doesn't reliably clear it
 				// for a pinned scene participant. Without this, that flag survives SCENE_END (it's only
 				// otherwise cleared on a game load via OnStopAll), leaving the player unlocked at OSF's
 				// level but still AI-driven (= unable to move). Idempotent: a no-op when nothing set it.
 				SetPlayerAIDriven(false);
-				REX::DEBUG("[Player] standalone control lock released");
+				REX::DEBUG("[Player] input lock released");
 			}
 		});
 	}
 
-	bool PlayerControlService::EnsureLayer()
+	bool PlayerInputLockService::EnsureLayer()
 	{
 		if (inputLayer) {
 			return true;
@@ -139,7 +141,7 @@ namespace OSF::Player
 		}
 
 		RE::BSInputEnableLayer* layer = nullptr;
-		if (!manager->AllocateNewLayer(&layer, "OSF player scene")) {
+		if (!manager->AllocateNewLayer(&layer, "OSF player input lock")) {
 			return false;
 		}
 
@@ -147,7 +149,7 @@ namespace OSF::Player
 		return inputLayer != nullptr;
 	}
 
-	void PlayerControlService::ApplyDisabled()
+	void PlayerInputLockService::ApplyDisabled()
 	{
 		if (!inputLayer) {
 			return;
@@ -160,7 +162,7 @@ namespace OSF::Player
 		}
 	}
 
-	void PlayerControlService::RestoreEnabled()
+	void PlayerInputLockService::RestoreEnabled()
 	{
 		if (!inputLayer) {
 			return;

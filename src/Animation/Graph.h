@@ -60,7 +60,7 @@ namespace OSF::Animation
 		std::shared_ptr<SyncGroup> syncGroup;
 
 		// Non-null while a scene participant; the scene owns the clock.
-		Scene* scene = nullptr;
+		PlaybackSession* playbackSession = nullptr;
 		int participantIndex = -1;   // index into scene participants; const while in the scene
 		// Current stage placement copied while applying the stage under stateLock. The compose hook
 		// reads this graph-owned value under the same lock, avoiding a scene placement data race.
