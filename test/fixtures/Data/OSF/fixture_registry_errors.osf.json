@@ -46,6 +46,24 @@
         "sound": { "spec": "Sound/OSF/test.wem", "at": [{ "at": 0.9, "atFrame": 6, "tags": ["loud"] }] }
       }]
     },
+    // sceneControls field names are built from whichever key spelling was authored. `disable` is
+    // array-ONLY: a bare string must stay a rejection, not quietly become a one-element list.
+    { "id": "test.err.controls-enabled", "sceneControls": { "enabled": 7 }, "roles": ["f"], "clip": "Fixture/x.glb" },
+    { "id": "test.err.controls-disable", "sceneControls": { "disable": "jump" }, "roles": ["f"], "clip": "Fixture/x.glb" },
+    // A ranged integer reports the wrong type and the out-of-range value differently.
+    { "id": "test.err.weight-type", "weight": "heavy", "roles": ["f"], "clip": "Fixture/x.glb" },
+    { "id": "test.err.weight-range", "weight": 0, "roles": ["f"], "clip": "Fixture/x.glb" },
+    // The string-or-array filter shape, both failure modes, plus the gender filter's type.
+    { "id": "test.err.filter-shape", "roles": [{ "name": "p", "filters": { "keyword": 7 } }], "clip": "Fixture/x.glb" },
+    { "id": "test.err.filter-entry", "roles": [{ "name": "p", "filters": { "race": ["a", 7] } }], "clip": "Fixture/x.glb" },
+    { "id": "test.err.filter-gender", "roles": [{ "name": "p", "filters": { "gender": 7 } }], "clip": "Fixture/x.glb" },
+    { "id": "test.err.anchor-shape", "roles": ["f"], "anchor": { "keyword": 7 }, "clip": "Fixture/x.glb" },
+    { "id": "test.err.anchor-entry", "roles": ["f"], "anchor": { "base": ["a", 7] }, "clip": "Fixture/x.glb" },
+    // An object-form clip states its own contract rather than leaning on the JSON library:
+    // a missing/non-string `file` and a non-object `offset` each name the field.
+    { "id": "test.err.clip-file-type", "roles": ["f"], "stages": [{ "clips": [{ "anim": "COM" }] }] },
+    { "id": "test.err.clip-offset-type", "roles": ["f"], "stages": [{ "clips": [{ "file": "Fixture/x.glb", "offset": 5 }] }] },
+    { "id": "test.err.role-offset-type", "roles": [{ "name": "p", "offset": 5 }], "clip": "Fixture/x.glb" },
     { "id": "test.err.ok", "roles": ["f"], "clip": "Fixture/x.glb" }
   ]
 }

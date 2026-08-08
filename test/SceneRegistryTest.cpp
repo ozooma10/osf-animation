@@ -816,7 +816,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 49, "exactly the forty-nine expected diagnostics");
+	Check(errors.size() == 64, "exactly the sixty-four expected diagnostics");
 	CheckError(errors, "policy/arbitration key 'stripActors'", "route policy keys are rejected");
 	CheckError(errors, "layer: 'mask'", "route animation masks are mandatory");
 	CheckError(errors, "duplicate station id", "duplicate route station ids are rejected");
@@ -870,6 +870,39 @@ int main()
 		"a lane entry cannot carry both position keys");
 	CheckError(errors, "a sound ladder hit sets both 'at' and 'atFrame'",
 		"a ladder per-hit object cannot carry both position keys either");
+	// Util::JsonView composes these; the wording must stay what the hand-written throws produced.
+	CheckError(errors, "scene 'test.err.controls-enabled': 'sceneControls.enabled' must be a boolean",
+		"sceneControls field names are built from the authored key spelling");
+	CheckError(errors, "scene 'test.err.controls-disable': 'sceneControls.disable' must be an array of strings",
+		"an array-only key does not quietly accept a bare string");
+	CheckError(errors, "transition 'ab': 'layer' must be an object",
+		"a non-object route layer names the key");
+	CheckError(errors, "transition 'ab': layer has unknown key 'blend'",
+		"the route layer namespace is closed");
+	CheckError(errors, "transition 'ab': contactPose has unknown key 'grip'",
+		"the contactPose namespace is closed");
+	CheckError(errors, "scene 'test.err.weight-type': 'weight' must be an integer",
+		"a non-integer weight is reported as a type error");
+	CheckError(errors, "scene 'test.err.weight-range': 'weight' must be in [1, 1000000]",
+		"an out-of-range weight reports the bounds, composed from the checked values");
+	CheckError(errors, "scene 'test.err.filter-shape': role 'p': filters.keyword must be a string or array of strings",
+		"a wrong-shape role filter names the field and both accepted shapes");
+	CheckError(errors, "scene 'test.err.filter-entry': role 'p': filters.race entries must be strings",
+		"a wrong-typed filter array element is reported against the element, not the array");
+	CheckError(errors, "scene 'test.err.filter-gender': role 'p': filters.gender must be a string",
+		"the gender filter states its own type contract");
+	CheckError(errors, "scene 'test.err.anchor-shape': anchor.keyword must be a string or array of strings",
+		"anchor keywords accept the same string-or-array shape as role filters");
+	CheckError(errors, "scene 'test.err.anchor-entry': anchor.base entries must be strings",
+		"a wrong-typed anchor.base element is reported against the element");
+	// These three used to surface as raw nlohmann exception prose (out_of_range.403 /
+	// type_error.306) with no subject: the contract is stated here, not inherited.
+	CheckError(errors, "scene 'test.err.clip-file-type': clip 'file' must be a string",
+		"an object-form clip states its own 'file' contract");
+	CheckError(errors, "scene 'test.err.clip-offset-type': clip 'offset' must be an { x, y, z, heading } object",
+		"a non-object clip offset names the field and the expected shape");
+	CheckError(errors, "scene 'test.err.role-offset-type': role 'p': 'offset' must be an { x, y, z, heading } object",
+		"a non-object role offset names the scene, role, field, and expected shape");
 	CheckError(errors, "'fixture_malformed_def.osf.json': roles registry entry 'bad'", "malformed-definition diagnostic");
 	CheckError(errors, "'fixture_malformed_type.osf.json': file-level 'roles' must be an array", "registry type diagnostic");
 	CheckError(errors, "'fixture_registry_template_errors.osf.json': scene 'test.terr.unknown': role reference 'nope'",
@@ -1016,8 +1049,8 @@ int main()
 		Check(overlayRoute && overlayRoute->declaredRoutes == 1 && overlayRoute->routes == 1 &&
 			overlayRoute->rejectedRoutes == 0, "clean route files report accepted/declared/rejected route counts");
 		const auto* overlayErrors = find("fixture_route_errors.osf.json");
-		Check(overlayErrors && overlayErrors->declaredRoutes == 12 && overlayErrors->routes == 1 &&
-			overlayErrors->rejectedRoutes == 11 && !overlayErrors->Rejected(),
+		Check(overlayErrors && overlayErrors->declaredRoutes == 15 && overlayErrors->routes == 1 &&
+			overlayErrors->rejectedRoutes == 14 && !overlayErrors->Rejected(),
 			"route-local failures preserve valid sibling routes and report exact rejection counts");
 
 		const auto* bare = find("fixture_bare.osf.json");
@@ -1045,11 +1078,11 @@ int main()
 			"rejected files carry structured repair guidance");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
-		// Partial file: some scenes in, thirteen rejected, so it is NOT "rejected".
+		// Partial file: some scenes in, twenty-five rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 13,
+		Check(partial && partial->scenes == 1 && partial->errors == 25,
 			"a partially-loaded file reports both its scenes and its rejected ones");
-		Check(partial && partial->declaredScenes == 14 && partial->rejectedScenes == 13,
+		Check(partial && partial->declaredScenes == 26 && partial->rejectedScenes == 25,
 			"partial files report exact authored and rejected scene counts");
 		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
 			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");

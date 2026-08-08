@@ -17,6 +17,16 @@
 #include <string_view>
 #include <vector>
 
+namespace OSF::Registry
+{
+	// Seven of the eight wire keys ARE the member names. Deliberately defined in this TU and not
+	// in SceneRegistry.h: a repo-wide serializer would let a caller emit the untruncated `problems`
+	// vector, which is exactly what kMaxProblemsPerFile exists to prevent. `warning` is renamed to
+	// `severity` by the one caller (BuildFileReport).
+	NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(SceneImportProblem,
+		code, message, hint, scene, node, role, clip)
+}
+
 namespace OSF::API::UIBridgeCatalog
 {
 	using json = nlohmann::json;
@@ -76,6 +86,156 @@ namespace OSF::API::UIBridgeCatalog
 			}
 			const auto* node = a_def.FindNode(a_def.linearStages[static_cast<std::size_t>(a_stage)]);
 			return node && !node->stages.empty() && !node->stages.front().clips.empty() ? node : nullptr;
+		}
+
+		// Unknown durations serialize as null, never a sentinel the view could mistake for seconds.
+		json SecOrNull(float a_sec)
+		{
+			return a_sec >= 0.0f ? json(a_sec) : json(nullptr);
+		}
+
+		// The catalog's wire shape. BuildCatalog gathers into these from the pinned registry
+		// snapshot and sorts them; each to_json below is the ONLY place its wire keys are spelled.
+		// The legacy bridge aliases (stripActors/lockPlayer/inPlace/anchor) are duplicates of a
+		// canonical field and sit here together rather than buried in a 38-line initializer.
+		struct RoleCard
+		{
+			std::string name;
+			std::string gender;
+		};
+		NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(RoleCard, name, gender)
+
+		struct TrackMark
+		{
+			std::string kind;
+			std::string trackPosition;
+			std::string label;
+			std::string detail;
+			std::string role;
+			float       at = 0.0f;
+			float       atSec = -1.0f;  // authored `atFrame` position in seconds (< 0 = `at`-fraction mark)
+			bool        repeat = false;
+		};
+
+		void to_json(json& a_out, const TrackMark& a_mark)
+		{
+			a_out = {
+				{ "kind", a_mark.kind },
+				{ "at", a_mark.at },
+				{ "trackPosition", a_mark.trackPosition },
+				{ "anchor", a_mark.trackPosition },  // legacy bridge field
+				{ "label", a_mark.label },
+				{ "detail", a_mark.detail },
+				{ "role", a_mark.role },
+				{ "repeat", a_mark.repeat },
+			};
+			if (a_mark.atSec >= 0.0f) {
+				a_out["atSec"] = a_mark.atSec;  // authored `atFrame` position in seconds
+			}
+		}
+
+		struct StageCard
+		{
+			std::int32_t             index = 0;
+			std::string              name;   // stage label ("" = unlabeled)
+			std::vector<std::string> tags;
+			std::vector<TrackMark>   tracks;
+			std::int32_t             clipCount = 0;
+			std::int32_t             pinned = 0;  // 1-based animation-wheel order
+			// Timing. loopSec = the clip's loop length (the honest per-animation number);
+			// estSec folds in the stage's loops/timer; either < 0 = unknown (clip not probed yet).
+			float                    loopSec = -1.0f;
+			float                    timerSec = 0.0f;   // auto-advance timer (0 = none)
+			std::int32_t             loops = -1;        // -1 = play once, 0 = hold, N = loop count
+			bool                     openEnded = false; // hold with no timer: runs until advanced
+			float                    estSec = -1.0f;
+		};
+
+		void to_json(json& a_out, const StageCard& a_stage)
+		{
+			a_out = {
+				{ "index", a_stage.index },
+				{ "name", a_stage.name },
+				{ "tags", a_stage.tags },
+				{ "clipCount", a_stage.clipCount },
+				{ "pinned", a_stage.pinned },
+				{ "tracks", a_stage.tracks },
+				{ "loopSec", SecOrNull(a_stage.loopSec) },
+				{ "timerSec", a_stage.timerSec > 0.0f ? json(a_stage.timerSec) : json(nullptr) },
+				{ "loops", a_stage.loops >= 0 ? json(a_stage.loops) : json(nullptr) },
+				{ "openEnded", a_stage.openEnded },
+				{ "estSec", SecOrNull(a_stage.estSec) },
+			};
+		}
+
+		struct Card
+		{
+			std::string              id;
+			std::string              title;
+			std::string              pack;        // file-level `pack` label — the browser's group-by-pack key ("" = none authored)
+			std::string              folder;      // optional slash-delimited catalog path within the pack
+			std::string              sourceFile;  // scene file name only (no directories) — the browser's grouping fallback
+			std::string              sourcePath;  // Data/OSF-relative path for exact Imports -> catalog navigation
+			std::string              sourceKind;  // explicit catalog taxonomy; legacy booleans remain below
+			std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
+			std::vector<std::string> tags;
+			std::uint32_t            actorCount = 0;
+			std::vector<RoleCard>    roles;
+			std::int32_t             priority = 0;
+			std::int32_t             weight = 1;
+			bool                     hideApparel = true;
+			bool                     playerInputLock = true;
+			bool                     fade = false;
+			bool                     requiresFurniture = false;
+			std::string              worldPlacement = "anchorAndPin";
+			std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
+			bool                     unlisted = false;
+			// Generated one-clip entry that a pack REGISTERED via `clipLibrary`, as opposed to
+			// one harvested from a scene's stages. Both carry the `osf.scene-clip/` id, so the
+			// browser cannot tell authored content from its own debug surface without this.
+			bool                     curated = false;
+			bool                     wheelCustomized = false;  // whole-wheel state, mirrored onto every card
+			std::int32_t             pinned = 0;  // 1-based explicit wheel order (0 = absent/default-derived)
+			std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
+			float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
+			bool                     estPartial = false;  // at least one linear stage had no estimate
+			bool                     openEnded = false;   // some stage holds until advanced
+		};
+
+		void to_json(json& a_out, const Card& a_card)
+		{
+			a_out = {
+				{ "id", a_card.id },
+				{ "title", a_card.title },
+				{ "pack", a_card.pack },
+				{ "folder", a_card.folder },
+				{ "sourceFile", a_card.sourceFile },
+				{ "species", a_card.species },
+				{ "tags", a_card.tags },
+				{ "sourcePath", a_card.sourcePath },
+				{ "sourceKind", a_card.sourceKind },
+				{ "actorCount", a_card.actorCount },
+				{ "roles", a_card.roles },
+				{ "priority", a_card.priority },
+				{ "weight", a_card.weight },
+				{ "hideApparel", a_card.hideApparel },
+				{ "stripActors", a_card.hideApparel },  // legacy bridge field
+				{ "playerInputLock", a_card.playerInputLock },
+				{ "lockPlayer", a_card.playerInputLock },  // legacy bridge field
+				{ "fade", a_card.fade },
+				{ "requiresFurniture", a_card.requiresFurniture },
+				{ "placement", a_card.worldPlacement },
+				{ "inPlace", a_card.worldPlacement == "followActor" },  // legacy bridge field
+				{ "anchors", a_card.anchorNames },
+				{ "unlisted", a_card.unlisted },
+				{ "curated", a_card.curated },
+				{ "wheelCustomized", a_card.wheelCustomized },
+				{ "pinned", a_card.pinned },
+				{ "stages", a_card.stages },
+				{ "estSec", SecOrNull(a_card.estSec) },
+				{ "estPartial", a_card.estPartial },
+				{ "openEnded", a_card.openEnded },
+			};
 		}
 
 	}
@@ -264,75 +424,11 @@ namespace OSF::API::UIBridgeCatalog
 			}
 			return 0;
 		};
-		struct StageCard
-		{
-			struct TrackMark
-			{
-				std::string kind;
-				std::string trackPosition;
-				std::string label;
-				std::string detail;
-				std::string role;
-				float       at = 0.0f;
-				float       atSec = -1.0f;  // authored `atFrame` position in seconds (< 0 = `at`-fraction mark)
-				bool        repeat = false;
-			};
-			std::int32_t             index = 0;
-			std::string              name;   // stage label ("" = unlabeled)
-			std::vector<std::string> tags;
-			std::vector<TrackMark>   tracks;
-			std::int32_t             clipCount = 0;
-			std::int32_t             pinned = 0;  // 1-based animation-wheel order
-			// Timing. loopSec = the clip's loop length (the honest per-animation number);
-			// estSec folds in the stage's loops/timer; either < 0 = unknown (clip not probed yet).
-			float                    loopSec = -1.0f;
-			float                    timerSec = 0.0f;   // auto-advance timer (0 = none)
-			std::int32_t             loops = -1;        // -1 = play once, 0 = hold, N = loop count
-			bool                     openEnded = false; // hold with no timer: runs until advanced
-			float                    estSec = -1.0f;
-		};
-		struct RoleCard
-		{
-			std::string name;
-			std::string gender;
-		};
-		struct Card
-		{
-			std::string              id;
-			std::string              title;
-			std::string              pack;        // file-level `pack` label — the browser's group-by-pack key ("" = none authored)
-			std::string              folder;      // optional slash-delimited catalog path within the pack
-			std::string              sourceFile;  // scene file name only (no directories) — the browser's grouping fallback
-			std::string              sourcePath;  // Data/OSF-relative path for exact Imports -> catalog navigation
-			std::string              sourceKind;  // explicit catalog taxonomy; legacy booleans remain below
-			std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
-			std::vector<std::string> tags;
-			std::uint32_t            actorCount = 0;
-			std::vector<RoleCard>    roles;
-			std::int32_t             priority = 0;
-			std::int32_t             weight = 1;
-			bool                     hideApparel = true;
-			bool                     playerInputLock = true;
-			bool                     fade = false;
-			bool                     requiresFurniture = false;
-			std::string              worldPlacement = "anchorAndPin";
-			std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
-			bool                     unlisted = false;
-			// Generated one-clip entry that a pack REGISTERED via `clipLibrary`, as opposed to
-			// one harvested from a scene's stages. Both carry the `osf.scene-clip/` id, so the
-			// browser cannot tell authored content from its own debug surface without this.
-			bool                     curated = false;
-			std::int32_t             pinned = 0;  // 1-based explicit wheel order (0 = absent/default-derived)
-			std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
-			float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
-			bool                     estPartial = false;  // at least one linear stage had no estimate
-			bool                     openEnded = false;   // some stage holds until advanced
-		};
 		std::vector<Card> cards;
 		std::error_code sourceRootEc;
 		const auto sourceRoot = std::filesystem::current_path(sourceRootEc) / "Data" / "OSF";
 		Registry::ContentRegistry::GetSingleton().ForEachDef(
-			[&cards, &wheelOrder, &sourceRoot, sourceRootEc, a_library](const Registry::SceneDef& d) {
+			[&cards, &wheelOrder, &sourceRoot, sourceRootEc, a_library, wheelCustomized](const Registry::SceneDef& d) {
 			if (d.library != a_library) {
 				return;  // each lane serializes only its own scenes
 			}
@@ -387,6 +483,7 @@ namespace OSF::API::UIBridgeCatalog
 			}
 			c.unlisted = d.unlisted;
 			c.curated = d.curatedClip;
+			c.wheelCustomized = wheelCustomized;
 			c.pinned = wheelOrder(d.id, -1);
 			// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 			c.stages.reserve(d.linearStages.size());
@@ -534,83 +631,7 @@ namespace OSF::API::UIBridgeCatalog
 			return la != lb ? la < lb : a.id < b.id;
 		});
 
-		// Unknown durations serialize as null (never a sentinel the view could mistake for seconds).
-		const auto secOrNull = [](float a_sec) { return a_sec >= 0.0f ? json(a_sec) : json(nullptr); };
-
-		json arr = json::array();
-		for (const auto& c : cards) {
-			json stages = json::array();
-			for (const auto& s : c.stages) {
-				json tracks = json::array();
-				for (const auto& mark : s.tracks) {
-					json markJson{
-						{ "kind", mark.kind },
-						{ "at", mark.at },
-						{ "trackPosition", mark.trackPosition },
-						{ "anchor", mark.trackPosition },  // legacy bridge field
-						{ "label", mark.label },
-						{ "detail", mark.detail },
-						{ "role", mark.role },
-						{ "repeat", mark.repeat },
-					};
-					if (mark.atSec >= 0.0f) {
-						markJson["atSec"] = mark.atSec;  // authored `atFrame` position in seconds
-					}
-					tracks.push_back(std::move(markJson));
-				}
-				stages.push_back({
-					{ "index", s.index },
-					{ "name", s.name },
-					{ "tags", s.tags },
-					{ "clipCount", s.clipCount },
-					{ "pinned", s.pinned },
-					{ "tracks", std::move(tracks) },
-					{ "loopSec", secOrNull(s.loopSec) },
-					{ "timerSec", s.timerSec > 0.0f ? json(s.timerSec) : json(nullptr) },
-					{ "loops", s.loops >= 0 ? json(s.loops) : json(nullptr) },
-					{ "openEnded", s.openEnded },
-					{ "estSec", secOrNull(s.estSec) },
-				});
-			}
-			arr.push_back({
-				{ "id", c.id },
-				{ "title", c.title },
-				{ "pack", c.pack },
-				{ "folder", c.folder },
-				{ "sourceFile", c.sourceFile },
-				{ "species", c.species },
-				{ "tags", c.tags },
-				{ "sourcePath", c.sourcePath },
-				{ "sourceKind", c.sourceKind },
-				{ "actorCount", c.actorCount },
-				{ "roles", [&c]() {
-					 json roles = json::array();
-					 for (const auto& role : c.roles) {
-						 roles.push_back({ { "name", role.name }, { "gender", role.gender } });
-					 }
-					 return roles;
-				 }() },
-				{ "priority", c.priority },
-				{ "weight", c.weight },
-				{ "hideApparel", c.hideApparel },
-				{ "stripActors", c.hideApparel },  // legacy bridge field
-				{ "playerInputLock", c.playerInputLock },
-				{ "lockPlayer", c.playerInputLock },  // legacy bridge field
-				{ "fade", c.fade },
-				{ "requiresFurniture", c.requiresFurniture },
-				{ "placement", c.worldPlacement },
-				{ "inPlace", c.worldPlacement == "followActor" },  // legacy bridge field
-				{ "anchors", c.anchorNames },
-				{ "unlisted", c.unlisted },
-				{ "curated", c.curated },
-				{ "wheelCustomized", wheelCustomized },
-				{ "pinned", c.pinned },
-				{ "stages", std::move(stages) },
-				{ "estSec", secOrNull(c.estSec) },
-				{ "estPartial", c.estPartial },
-				{ "openEnded", c.openEnded },
-			});
-		}
+		json arr = cards;  // the wire shape lives on the card structs (to_json, above)
 		REX::DEBUG("[UI] {} built -> {} entr{}", a_library ? "library" : "catalog", cards.size(), cards.size() == 1 ? "y" : "ies");
 		OSF_PROFILE_PLOT(a_library ? "UI.LibraryEntries" : "UI.CatalogEntries",
 			static_cast<std::int64_t>(cards.size()));
@@ -660,17 +681,10 @@ namespace OSF::API::UIBridgeCatalog
 
 			json problems = json::array();
 			for (std::size_t i = 0; i < s.problems.size() && i < kMaxProblemsPerFile; ++i) {
-				const auto& problem = s.problems[i];
-				problems.push_back({
-					{ "severity", problem.warning ? "warn" : "error" },
-					{ "code", problem.code },
-					{ "message", problem.message },
-					{ "hint", problem.hint },
-					{ "scene", problem.scene },
-					{ "node", problem.node },
-					{ "role", problem.role },
-					{ "clip", problem.clip },
-				});
+				// `warning` is the only field the wire renames rather than copies.
+				json problem = s.problems[i];
+				problem["severity"] = s.problems[i].warning ? "warn" : "error";
+				problems.push_back(std::move(problem));
 			}
 			files.push_back({
 				{ "path", s.path },

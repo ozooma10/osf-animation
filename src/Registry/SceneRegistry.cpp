@@ -3,6 +3,7 @@
 
 #include "Input/InputTypes.h"
 #include "Util/FormRef.h"
+#include "Util/JsonField.h"
 #include "Util/Math.h"
 #include "Util/RegistryFiles.h"
 #include "Util/Species.h"
@@ -193,7 +194,11 @@ namespace OSF::Registry
 				clip.file = a_clip.get<std::string>();
 				SplitAnimSuffix(clip);
 			} else if (a_clip.is_object()) {
-				clip.file = a_clip.at("file").get<std::string>();
+				const auto fit = a_clip.find("file");
+				if (fit == a_clip.end() || !fit->is_string()) {
+					throw std::runtime_error(a_subject + ": clip 'file' must be a string");
+				}
+				clip.file = fit->get<std::string>();
 				SplitAnimSuffix(clip);
 				if (auto ait = a_clip.find("anim"); ait != a_clip.end()) {
 					if (!ait->is_string()) {
@@ -202,6 +207,9 @@ namespace OSF::Registry
 					clip.animId = ait->get<std::string>();
 				}
 				if (auto oit = a_clip.find("offset"); oit != a_clip.end()) {
+					if (!oit->is_object()) {
+						throw std::runtime_error(a_subject + ": clip 'offset' must be an { x, y, z, heading } object");
+					}
 					clip.offset = ParseOffsetField(*oit);
 				}
 				if (auto mit = a_clip.find("mask"); mit != a_clip.end()) {
@@ -297,26 +305,14 @@ namespace OSF::Registry
 				reg.folder = a_folderDefault;
 
 				if (entry.is_object()) {
-					if (const auto nit = entry.find("name"); nit != entry.end()) {
-						if (!nit->is_string() || nit->get_ref<const std::string&>().empty()) {
-							throw std::runtime_error(subject + ": 'name' must be a non-empty string");
-						}
-						reg.name = nit->get<std::string>();
+					const Util::JsonView view{ entry, subject };
+					view.ReadNonEmpty("name", reg.name);
+					if (const auto* folder = view.Find("folder")) {
+						reg.folder = ParseCatalogFolder(*folder, subject);
 					}
-					if (const auto fit = entry.find("folder"); fit != entry.end()) {
-						reg.folder = ParseCatalogFolder(*fit, subject);
-					}
-					if (const auto tit = entry.find("tags"); tit != entry.end()) {
-						if (!tit->is_array()) {
-							throw std::runtime_error(subject + ": 'tags' must be an array of strings");
-						}
-						for (const auto& tag : *tit) {
-							if (!tag.is_string() || tag.get_ref<const std::string&>().empty()) {
-								throw std::runtime_error(subject + ": every tag must be a non-empty string");
-							}
-							reg.tags.push_back(tag.get<std::string>());
-						}
-					}
+					reg.tags = view.ReadList("tags",
+						{ .expected = "an array of strings" },
+						{ .whole = "every tag must be a non-empty string" }, /*nonEmptyItems*/ true);
 				}
 				out.push_back(std::move(reg));
 			}
@@ -534,24 +530,10 @@ namespace OSF::Registry
 			if (!equipped.is_object() || !equipped.contains("keyword")) {
 				throw std::runtime_error(a_subject + " source.equippedArmor requires 'keyword'");
 			}
-			const auto& keyword = equipped.at("keyword");
-			const auto append = [&](const json& a_value) {
-				if (!a_value.is_string() || a_value.get<std::string>().empty()) {
-					throw std::runtime_error(a_subject +
-						" equippedArmor.keyword entries must be non-empty strings");
-				}
-				result.keywords.push_back(a_value.get<std::string>());
-			};
-			if (keyword.is_string()) {
-				append(keyword);
-			} else if (keyword.is_array()) {
-				for (const auto& entry : keyword) {
-					append(entry);
-				}
-			} else {
-				throw std::runtime_error(a_subject +
-					" source.equippedArmor.keyword must be a string or array");
-			}
+			const Util::JsonView armor{ equipped, a_subject, Util::JsonJoin::kSpace };
+			result.keywords = armor.StringOrList("keyword",
+				{ .field = "source.equippedArmor.keyword", .expected = "a string or array" },
+				{ .field = "equippedArmor.keyword entries" }, /*nonEmptyItems*/ true);
 			if (result.keywords.empty()) {
 				throw std::runtime_error(a_subject + " source.equippedArmor.keyword cannot be empty");
 			}
@@ -607,13 +589,9 @@ namespace OSF::Registry
 		// "at" or "role" would otherwise sit in the file doing exactly nothing.
 		void ValidatePropTemplate(const json& a_templ, const std::string& a_subject)
 		{
-			for (const auto& [key, value] : a_templ.items()) {
-				if (std::find(kPropTemplateKeys.begin(), kPropTemplateKeys.end(), key) ==
-					kPropTemplateKeys.end()) {
-					throw std::runtime_error(a_subject + " has unknown key '" + key +
-						"' (a prop template holds only 'source', 'attachmentNode', 'position', 'rotation', 'scale')");
-				}
-			}
+			Util::JsonView{ a_templ, a_subject, Util::JsonJoin::kSpace }.RejectUnknownKeys(
+				kPropTemplateKeys, "has unknown key",
+				" (a prop template holds only 'source', 'attachmentNode', 'position', 'rotation', 'scale')");
 			if (const auto it = a_templ.find("source"); it != a_templ.end()) {
 				(void)ParsePropSource(*it, a_subject);
 			}
@@ -1023,39 +1001,22 @@ namespace OSF::Registry
 				if (!fit->is_object()) {
 					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'filters' must be an object");
 				}
-				const json& f = *fit;
-				if (auto git = f.find("gender"); git != f.end()) {
-					if (!git->is_string()) {
-						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': filters.gender must be a string");
-					}
-					fromFilter = ParseRoleGender(git->get<std::string>());
+				const Util::JsonView filters{ *fit, "scene '" + a_sceneId + "': role '" + r.name + "'" };
+				if (std::string gender; filters.Read("gender", gender, { .field = "filters.gender" })) {
+					fromFilter = ParseRoleGender(gender);
 				}
 				// keyword / race: a single string or an array of strings; resolved to forms now
 				// (any-of within each list). Unresolvable / wrong-type => the scene is rejected.
-				auto parseRefs = [&](const char* a_key, const char* a_field, auto a_push) {
-					auto kit = f.find(a_key);
-					if (kit == f.end()) {
-						return;
-					}
-					if (kit->is_string()) {
-						a_push(kit->get<std::string>(), a_field);
-					} else if (kit->is_array()) {
-						for (const auto& e : *kit) {
-							if (!e.is_string()) {
-								throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': " + a_field + " entries must be strings");
-							}
-							a_push(e.get<std::string>(), a_field);
-						}
-					} else {
-						throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': " + a_field + " must be a string or array of strings");
-					}
-				};
-				parseRefs("keyword", "filters.keyword", [&](const std::string& a_ref, const char* a_field) {
-					r.keywords.push_back(ResolveFormRef<RE::BGSKeyword>(a_ref, a_sceneId, r.name, a_field, "Keyword (KYWD)")->GetFormID());
-				});
-				parseRefs("race", "filters.race", [&](const std::string& a_ref, const char* a_field) {
-					r.races.push_back(ResolveFormRef<RE::TESRace>(a_ref, a_sceneId, r.name, a_field, "Race (RACE)")->GetFormID());
-				});
+				for (const auto& ref : filters.StringOrList("keyword",
+					{ .field = "filters.keyword" }, { .field = "filters.keyword entries" })) {
+					r.keywords.push_back(ResolveFormRef<RE::BGSKeyword>(ref, a_sceneId, r.name,
+						"filters.keyword", "Keyword (KYWD)")->GetFormID());
+				}
+				for (const auto& ref : filters.StringOrList("race",
+					{ .field = "filters.race" }, { .field = "filters.race entries" })) {
+					r.races.push_back(ResolveFormRef<RE::TESRace>(ref, a_sceneId, r.name,
+						"filters.race", "Race (RACE)")->GetFormID());
+				}
 			}
 
 			if (shorthand && fromFilter && *shorthand != *fromFilter) {
@@ -1128,6 +1089,10 @@ namespace OSF::Registry
 			}
 			// Optional default placement for this role (unified *.osf.json roles).
 			if (auto oit = a_role.find("offset"); oit != a_role.end()) {
+				if (!oit->is_object()) {
+					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
+						"': 'offset' must be an { x, y, z, heading } object");
+				}
 				r.offset = ParseOffsetField(*oit);
 			}
 			// Optional per-gender item to equip for the scene (resolved at fire time). A bare string
@@ -1277,34 +1242,24 @@ namespace OSF::Registry
 			if (!a_value.is_object()) {
 				throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + "' must be a boolean or an object");
 			}
-			if (auto en = a_value.find("enabled"); en != a_value.end()) {
-				if (!en->is_boolean()) {
-					throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".enabled' must be a boolean");
+			// The authored key is either spelling, so the field names are built rather than literal.
+			const std::string prefix = "'" + std::string(a_key) + ".";
+			const std::string enabledField = prefix + "enabled'";
+			const std::string disableField = prefix + "disable'";
+			const std::string disableEntries = disableField + " entries";
+			const std::string lockedField = prefix + "locked'";
+
+			const Util::JsonView controls{ a_value, a_ctx };
+			controls.Read("enabled", a_out.enabled, { .field = enabledField });
+			for (const auto& name : controls.ReadList("disable",
+				{ .field = disableField }, { .field = disableEntries })) {
+				const auto bit = Input::CapabilityBit(name);
+				if (bit == 0) {
+					REX::WARN("[Registry] {}: unknown {} capability '{}' — ignored (typo, or a newer OSF Animation?)", a_ctx, a_key, name);
 				}
-				a_out.enabled = en->get<bool>();
+				a_out.capabilities &= ~bit;  // remove from the inherited set
 			}
-			if (auto d = a_value.find("disable"); d != a_value.end()) {
-				if (!d->is_array()) {
-					throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".disable' must be an array of strings");
-				}
-				for (const auto& v : *d) {
-					if (!v.is_string()) {
-						throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".disable' entries must be strings");
-					}
-					const auto name = v.get<std::string>();
-					const auto bit = Input::CapabilityBit(name);
-					if (bit == 0) {
-						REX::WARN("[Registry] {}: unknown {} capability '{}' — ignored (typo, or a newer OSF Animation?)", a_ctx, a_key, name);
-					}
-					a_out.capabilities &= ~bit;  // remove from the inherited set
-				}
-			}
-			if (auto lk = a_value.find("locked"); lk != a_value.end()) {
-				if (!lk->is_boolean()) {
-					throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + ".locked' must be a boolean");
-				}
-				a_out.locked = lk->get<bool>();
-			}
+			controls.Read("locked", a_out.locked, { .field = lockedField });
 		}
 
 		const json* FindVocabularyKey(const json& a_object, std::string_view a_canonical,
@@ -1384,45 +1339,25 @@ namespace OSF::Registry
 		// a_defaults seeds every inherited field with the file-level value.
 		void ParseSceneMeta(const json& a_json, SceneDef& def, const ContentFileDefaults& a_defaults)
 		{
+			const std::string sceneContext = "scene '" + def.id + "'";
+			const Util::JsonView scene{ a_json, sceneContext };
+
+			// `name` and `priority` deliberately stay on value(): priority TRUNCATES an authored
+			// float today (3.7 -> 3) where ReadInt would reject it.
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", a_defaults.priority);
 			def.weight = a_defaults.weight;
-			if (auto it = a_json.find("weight"); it != a_json.end()) {
-				if (!it->is_number_integer()) {
-					throw std::runtime_error("scene '" + def.id + "': 'weight' must be an integer");
-				}
-				const auto w = it->get<std::int64_t>();
-				if (w < 1 || w > 1000000) {
-					throw std::runtime_error("scene '" + def.id + "': 'weight' must be in [1, 1000000]");
-				}
-				def.weight = static_cast<std::int32_t>(w);
-			}
+			scene.ReadInt("weight", def.weight, 1, 1000000);
 			def.unlisted = a_defaults.unlisted;
-			if (auto it = a_json.find("unlisted"); it != a_json.end()) {
-				if (!it->is_boolean()) {
-					throw std::runtime_error("scene '" + def.id + "': 'unlisted' must be a boolean");
-				}
-				def.unlisted = it->get<bool>();
-			}
-			const std::string sceneContext = "scene '" + def.id + "'";
+			scene.Read("unlisted", def.unlisted);
 			def.playerInputLock = ReadVocabularyBool(a_json, "playerInputLock", "lockPlayer",
 				a_defaults.playerInputLock, sceneContext);
 			def.hideApparel = ReadVocabularyBool(a_json, "hideApparel", "stripActors",
 				a_defaults.hideApparel, sceneContext);
 			def.clearHeldItems = a_defaults.clearHeldItems;
-			if (auto it = a_json.find("clearHeldItems"); it != a_json.end()) {
-				if (!it->is_boolean()) {
-					throw std::runtime_error("scene '" + def.id + "': 'clearHeldItems' must be a boolean");
-				}
-				def.clearHeldItems = it->get<bool>();
-			}
+			scene.Read("clearHeldItems", def.clearHeldItems);
 			def.fade = a_defaults.fade;
-			if (auto it = a_json.find("fade"); it != a_json.end()) {
-				if (!it->is_boolean()) {
-					throw std::runtime_error("scene '" + def.id + "': 'fade' must be a boolean");
-				}
-				def.fade = it->get<bool>();
-			}
+			scene.Read("fade", def.fade);
 			def.worldPlacement = ReadWorldPlacement(a_json, a_defaults.worldPlacement, sceneContext);
 			// Scene controls are enabled by default. The canonical `sceneControls` key and legacy
 			// `playerControl` key share one parser, but specifying both is rejected.
@@ -1793,43 +1728,28 @@ namespace OSF::Registry
 			req.given = true;
 
 			// keyword/base: a single string or an array of strings; resolved to forms now.
-			auto parseRefs = [&](const char* a_key, auto a_push) {
-				auto kit = anchor.find(a_key);
-				if (kit == anchor.end()) {
-					return;
-				}
-				if (kit->is_string()) {
-					a_push(kit->get<std::string>());
-				} else if (kit->is_array()) {
-					for (const auto& e : *kit) {
-						if (!e.is_string()) {
-							throw std::runtime_error(a_subject + ": anchor." + a_key + " entries must be strings");
-						}
-						a_push(e.get<std::string>());
-					}
-				} else {
-					throw std::runtime_error(a_subject + ": anchor." + a_key + " must be a string or array of strings");
-				}
-			};
-			parseRefs("keyword", [&](const std::string& a_ref) {
-				auto* kw = Util::ResolveFormRef<RE::BGSKeyword>(a_ref);
+			const Util::JsonView view{ anchor, a_subject };
+			for (const auto& ref : view.StringOrList("keyword",
+				{ .field = "anchor.keyword" }, { .field = "anchor.keyword entries" })) {
+				auto* kw = Util::ResolveFormRef<RE::BGSKeyword>(ref);
 				if (!kw) {
-					throw std::runtime_error(a_subject + ": anchor.keyword '" + a_ref +
+					throw std::runtime_error(a_subject + ": anchor.keyword '" + ref +
 						"' is malformed, names an unloaded plugin, or isn't a Keyword (KYWD) (use \"Plugin.esm|0xLocalID\")");
 				}
 				req.keywords.push_back(kw->GetFormID());
-			});
-			parseRefs("base", [&](const std::string& a_ref) {
-				const auto id = Util::ComposeFormID(a_ref);
+			}
+			for (const auto& ref : view.StringOrList("base",
+				{ .field = "anchor.base" }, { .field = "anchor.base entries" })) {
+				const auto id = Util::ComposeFormID(ref);
 				if (!id) {
-					throw std::runtime_error(a_subject + ": anchor.base '" + a_ref +
+					throw std::runtime_error(a_subject + ": anchor.base '" + ref +
 						"' is malformed or names an unloaded plugin (use \"Plugin.esm|0xLocalID\")");
 				}
 				if (!RE::TESForm::LookupByID(*id)) {
-					throw std::runtime_error(a_subject + ": anchor.base '" + a_ref + "' did not resolve to a form");
+					throw std::runtime_error(a_subject + ": anchor.base '" + ref + "' did not resolve to a form");
 				}
 				req.baseForms.push_back(*id);
-			});
+			}
 			if (req.keywords.empty() && req.baseForms.empty()) {
 				throw std::runtime_error(a_subject + ": 'anchor' needs at least one 'keyword' or 'base' (else nothing can satisfy it)");
 			}
@@ -2393,19 +2313,20 @@ namespace OSF::Registry
 				"' (expected transition, station, controller, or external)");
 		}
 
+		constexpr std::array<const char*, 5> kRouteLayerKeys{
+			"clip", "mask", "mode", "weight", "holdAt"
+		};
+		constexpr std::array<const char*, 7> kContactPoseKeys{
+			"atFrame", "bones", "approachFrames", "fullBeforeFrames", "fullAfterFrames",
+			"releaseFrames", "curve"
+		};
+
 		RouteLayer ParseRouteLayer(const json& a_json, std::string_view a_clipRoot,
 			const std::string& a_subject, bool a_station)
 		{
-			if (!a_json.is_object()) {
-				throw std::runtime_error(a_subject + ": 'layer' must be an object");
-			}
-			for (const auto& [key, value] : a_json.items()) {
-				(void)value;
-				if (key != "clip" && key != "mask" && key != "mode" && key != "weight" &&
-					key != "holdAt") {
-					throw std::runtime_error(a_subject + ": layer has unknown key '" + key + "'");
-				}
-			}
+			const Util::JsonView layer{ a_json, a_subject };
+			layer.RequireObject({ .field = "'layer'" });
+			layer.RejectUnknownKeys(kRouteLayerKeys, "layer has unknown key");
 			const auto clipIt = a_json.find("clip");
 			if (clipIt == a_json.end()) {
 				throw std::runtime_error(a_subject + ": layer requires 'clip'");
@@ -2519,13 +2440,8 @@ namespace OSF::Registry
 					if (transition.layer.mode != Animation::PoseMode::kOverride)
 						throw std::runtime_error(transitionSubject + ": 'contactPose' requires an override layer");
 					if (!contact->is_object()) throw std::runtime_error(transitionSubject + ": 'contactPose' must be an object");
-					for (const auto& [key, value] : contact->items()) {
-						(void)value;
-						if (key != "atFrame" && key != "bones" && key != "approachFrames" &&
-							key != "fullBeforeFrames" && key != "fullAfterFrames" &&
-							key != "releaseFrames" && key != "curve")
-							throw std::runtime_error(transitionSubject + ": contactPose has unknown key '" + key + "'");
-					}
+					Util::JsonView{ *contact, transitionSubject }.RejectUnknownKeys(
+						kContactPoseKeys, "contactPose has unknown key");
 					Animation::ContactPose parsed;
 					parsed.enabled = true;
 					parsed.atSeconds = RouteFrame(*contact, "atFrame", transitionSubject + " contactPose") / kFrameRate;

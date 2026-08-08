@@ -50,6 +50,21 @@
       "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" }, "reach": {} }]
     },
     {
+      "id": "fixture.route.layer-not-object",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": "x.af" }]
+    },
+    {
+      "id": "fixture.route.layer-unknown-key",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody", "blend": 2 } }]
+    },
+    {
+      "id": "fixture.route.contact-unknown-key",
+      "stations": [{ "id": "a" }, { "id": "b" }],
+      "transitions": [{ "id": "ab", "from": "a", "to": "b", "layer": { "clip": "x.af", "mask": "upperBody" }, "contactPose": { "atFrame": 2, "bones": ["L_Hand"], "grip": 1 } }]
+    },
+    {
       "id": "fixture.route.duplicate",
       "stations": [{ "id": "a" }], "transitions": []
     },
