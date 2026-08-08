@@ -42,6 +42,7 @@ namespace OSF::Overlay
 		auto plan = BasePlan(a_route.id + ":transition:" + a_transition.id);
 		auto transitionStage = BuildLayerSegment(a_transition.layer);
 		if (a_transition.contactPose) transitionStage.contactPose = { *a_transition.contactPose };
+		transitionStage.blendIn = 0.0f;
 		transitionStage.loops = 1;
 		if (a_transition.commit) {
 			transitionStage.marks.push_back({ .seconds = a_transition.commit->frame / Registry::kFrameRate,

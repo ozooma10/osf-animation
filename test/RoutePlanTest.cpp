@@ -112,8 +112,9 @@ namespace
 
 		const auto runtime = Overlay::BuildRouteTransitionPlan(route, transition, route.stations[1], 7);
 		const auto& transitionStage = runtime.stages.front();
-		Check(runtime.stages.size() == 2 && transitionStage.contactPose.size() == 1 && transitionStage.marks.size() == 4,
-			"runtime transition plans carry contact pose, side effects, reached mark, and destination hold");
+		Check(runtime.stages.size() == 2 && transitionStage.contactPose.size() == 1 &&
+			transitionStage.marks.size() == 4 && transitionStage.blendIn == 0.0f,
+			"runtime transition plans start at authored weight and carry contact pose, side effects, reached mark, and destination hold");
 		const auto laneAt = [&](std::size_t index) { return transitionStage.marks[index].lane; };
 		Check(laneAt(1) < laneAt(0) && laneAt(0) < laneAt(2),
 			"same-frame prop replacement attaches before commit and destroys after acknowledgement");
