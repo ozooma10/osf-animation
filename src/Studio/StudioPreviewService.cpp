@@ -31,6 +31,10 @@ namespace OSF::Studio
 
 		constexpr std::uint32_t kProtocolVersion = 2;
 		constexpr std::uintmax_t kMaxRequestBytes = 256 * 1024;
+		// Studio Link's documented per-clip ceiling. Util::kMaxClipBytes (256 MiB) is the decoder's
+		// hard bound; a preview clip is read on the monitor thread and decoded on the game thread,
+		// so it gets the much tighter contract the request replies already promise.
+		constexpr std::uintmax_t kMaxStudioClipBytes = 32ull * 1024 * 1024;
 		constexpr std::uint32_t kLeaseMs = 30000;
 		constexpr float kFramesPerSecond = 30.0F;
 		constexpr std::array<std::string_view, 4> kTransitionIDs{
@@ -159,7 +163,7 @@ namespace OSF::Studio
 			const auto file = g_directory / relative;
 			std::error_code ec;
 			const auto size = std::filesystem::file_size(file, ec);
-			if (ec || size == 0 || size > Util::kMaxClipBytes) {
+			if (ec || size == 0 || size > kMaxStudioClipBytes) {
 				a_error = "The preview clip is missing, empty, or exceeds the 32 MiB limit";
 				return std::nullopt;
 			}
@@ -457,13 +461,16 @@ namespace OSF::Studio
 			}
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			if (!player) return FailHelmetPreview("player became unavailable");
-			if (g_helmet.sequence.empty()) return;
 			auto& manager = Animation::GraphManager::GetSingleton();
+			// The replacement/playback guards apply to state holds too (HoldState commits
+			// g_helmet.source and leaves the pose clip playing at speed 0) — only the
+			// event/segment-advance logic below is sequence-only.
 			if (manager.GetCurrentAnimation(player) != g_helmet.source) {
 				return FailHelmetPreview("another OSF animation replaced it");
 			}
 			const auto playback = manager.GetAnimationPlayback(player);
 			if (!playback) return FailHelmetPreview("clip playback disappeared");
+			if (g_helmet.sequence.empty()) return;
 			const auto& segment = g_helmet.sequence[g_helmet.segment];
 			std::string error;
 			if (!g_helmet.eventApplied && playback->time >=
@@ -628,7 +635,14 @@ namespace OSF::Studio
 				if (!a_request.is_object() || a_request.value("version", 0u) != kProtocolVersion ||
 					a_request.value("session", std::string{}) != g_session) return;
 				const std::string command = a_request.value("command", std::string{});
-				const auto generation = g_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
+				// Read-only commands must not invalidate already-queued work: a keep-alive ping
+				// arriving before the game thread drains a queued play would silently cancel it
+				// (the play task would no-op with no reply, and Studio would time out).
+				const bool supersedes = command == "stop" || command == "helmet.stop" ||
+				                        command == "play" || command == "helmet.preview";
+				const auto generation = supersedes ?
+					g_generation.fetch_add(1, std::memory_order_acq_rel) + 1 :
+					g_generation.load(std::memory_order_acquire);
 				if (command == "ping") return QueuePing(id, generation);
 				if (command == "stop") return QueueStop(id, generation, false);
 				if (command == "helmet.stop") return QueueStop(id, generation, true);
@@ -696,12 +710,21 @@ namespace OSF::Studio
 			std::mutex waitMutex;
 			std::condition_variable_any wait;
 			std::string lastId;
+			std::filesystem::file_time_type lastWrite{};
+			std::uintmax_t lastSize = 0;
 			while (!a_stop.stop_requested()) {
 				try {
 					const auto requestFile = a_directory / "request.json";
 					std::error_code ec;
 					const auto size = std::filesystem::file_size(requestFile, ec);
-					if (!ec && size > 0 && size <= kMaxRequestBytes) {
+					std::error_code writeEc;
+					const auto write = std::filesystem::last_write_time(requestFile, writeEc);
+					// Re-parse only when the file actually changed: a handled (or malformed)
+					// request would otherwise cost an open+parse every 100 ms for the session.
+					if (!ec && size > 0 && size <= kMaxRequestBytes &&
+						(writeEc || write != lastWrite || size != lastSize)) {
+						lastWrite = writeEc ? std::filesystem::file_time_type{} : write;
+						lastSize = size;
 						std::ifstream in(requestFile, std::ios::binary);
 						const json request = json::parse(in, nullptr, false);
 						// Type-guarded id read: value() throws on a present-but-non-string "id", and an
