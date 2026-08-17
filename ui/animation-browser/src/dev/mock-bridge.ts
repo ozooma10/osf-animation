@@ -1,6 +1,6 @@
 import type { AnimationBridge, NativeMessageListener } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
-import { WHEEL_MAX, sceneById, wheelPool } from "../app/selectors";
+import { sceneById } from "../app/selectors";
 import { PREFERENCE_KEYS } from "../app/settings";
 import { PLAYER_TOKEN, type ActiveLaunch, type BrowserPreferences, type BrowserState } from "../app/state";
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_LIBRARY } from "./mock-data";
@@ -36,10 +36,6 @@ export class StandaloneBridge implements AnimationBridge {
   private active: ActiveLaunch[] = [];
   private readonly resumeSpeeds = new Map<number, number>();
   private nextHandle = 42;
-  private customized = false;
-  private pins: Array<{ scene: string; stage?: number }> = [];
-  /** Last catalog payload served, so a wheel edit re-pins it instead of re-fetching. */
-  private catalogRaw: unknown[] | null = null;
 
   constructor(private readonly getState: () => BrowserState) {}
 
@@ -58,23 +54,7 @@ export class StandaloneBridge implements AnimationBridge {
   }
 
   private emitCatalog(raw: unknown[]): void {
-    this.catalogRaw = raw;
-    this.emit({ type: "osf.animation.catalog.data", payload: this.applyPins(raw, false) });
-  }
-
-  private applyPins(raw: unknown[], library: boolean): unknown[] {
-    return raw.map((value) => {
-      if (!isRecord(value)) return value;
-      const scene = String(value.id || "");
-      if (!library) return { ...value, wheelCustomized: this.customized, pinned: this.pins.findIndex((pin) => pin.scene === scene && pin.stage == null) + 1 };
-      return {
-        ...value,
-        wheelCustomized: this.customized,
-        stages: Array.isArray(value.stages) ? value.stages.map((stage: unknown, index: number) => isRecord(stage)
-          ? { ...stage, pinned: this.pins.findIndex((pin) => pin.scene === scene && pin.stage === (Number.isInteger(stage.index) ? stage.index : index)) + 1 }
-          : stage) : [],
-      };
-    });
+    this.emit({ type: "osf.animation.catalog.data", payload: raw });
   }
 
   send(command: BridgeCommand, fields: Record<string, unknown> = {}): void {
@@ -83,7 +63,7 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.version", payload: { plugin: "OSF Animation", version: "0.0.0-dev", playerSex: "female" } }, 20);
       void fetchFixture("catalog").then((fixture) => this.emitCatalog(fixture ?? MOCK_CATALOG));
     } else if (command === "osf.animation.library.get") {
-      void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
+      void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: fixture ?? MOCK_LIBRARY }));
     } else if (command === "osf.animation.anchorMatch") {
       this.later({ type: "osf.animation.anchorMatch", payload: { token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[Number(fields.token)] ?? [] } }, 70);
     } else if (command === "osf.animation.pickScreen") {
@@ -113,9 +93,6 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.actorIndicators", payload: {
         items: tokens.map((token, index) => ({ token, x: 0.68 + index * 0.12, y: 0.34 + index * 0.06, visible: true })),
       } }, 5);
-    } else if (command === "osf.animation.wheel.get") {
-      const entries = wheelPool(this.getState()).map(({ scene, stage, title, detail, key }) => ({ scene, stage, title, detail, key }));
-      this.later({ type: "osf.animation.wheel.data", payload: { customized: this.getState().wheelCustomized, entries } });
     } else if (command === "osf.animation.launch") {
       this.launch(fields);
     } else if (command === "settings.get") {
@@ -150,14 +127,6 @@ export class StandaloneBridge implements AnimationBridge {
         }
       }
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } });
-    } else if (command === "osf.animation.wheel.set") {
-      this.customized = !fields.reset;
-      this.pins = fields.reset ? [] : Array.isArray(fields.entries)
-        ? fields.entries.filter(isRecord).slice(0, WHEEL_MAX).map((entry) => ({ scene: String(entry.scene || ""), ...(Number.isInteger(entry.stage) ? { stage: entry.stage } : {}) }))
-        : [];
-      // Pins are a presentation layer over the catalog already served — re-reading
-      // the snapshot (up to ~600KB) on every pin or reorder buys nothing.
-      this.emitCatalog(this.catalogRaw ?? MOCK_CATALOG);
     } else if (command === "osf.animation.closed") {
       for (const active of this.active) {
         const resume = this.resumeSpeeds.get(active.handle);
@@ -172,10 +141,6 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.requestClose") {
       this.later({ type: "ui.visibility", payload: { visible: false } }, 60);
     }
-  }
-
-  openWheel(withTarget = true): void {
-    this.emit({ type: "osf.animation.mode", payload: { mode: "wheel", tagPrefix: "player.emote.", target: withTarget ? { token: 601, name: "Sarah Morgan" } : null } });
   }
 
   private launch(fields: Record<string, unknown>): void {

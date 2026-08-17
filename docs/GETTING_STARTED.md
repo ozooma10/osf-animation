@@ -112,23 +112,22 @@ You author only the *engage* half of any `osf.*` mechanism — the undo ledger r
 termination cause. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full field reference and the
 `osf.*` action list.
 
-### e. (optional) Put an emote on the animation wheel
+### e. (optional) Add an emote to the browser
 
-A solo, free-space, **self-terminating** scene tagged `player.emote.<name>` automatically appears in
-the browser's Emotes group and the default animation wheel — this is the smallest useful pack:
+A scene tagged `player.emote.<name>` automatically appears in the browser's Emotes group:
 
 ```jsonc
 {
   "schema": 1,
   "id": "mypack.emote.salute",
-  "tags": ["player.emote.salute"],        // <name> becomes the wheel slice label
+  "tags": ["player.emote.salute"],
   "stages": [
     { "clips": ["OSF/Animations/MyPack/salute.glb"], "loops": 2 }   // must end on its own
   ]
 }
 ```
 
-The same launch preset runs on a crosshair NPC target, so keep the role anonymous/unfiltered unless
+The browser can launch the same scene on a selected NPC, so keep the role anonymous/unfiltered unless
 the clip demands otherwise. Full contract: the well-known tags table in
 [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
 

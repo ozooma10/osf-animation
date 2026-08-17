@@ -10,7 +10,6 @@ interface Window {
       on?: (key: string, listener: (value: unknown) => void) => () => void;
     };
   };
-  mockOpenWheel?: (withTarget?: boolean) => void;
   /** Set by the OSF UI CLI harness bootstrap. Absent in game. */
   __osfuiHarness?: unknown;
 }

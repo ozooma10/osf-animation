@@ -23,7 +23,7 @@ namespace OSF::API
 		// folder and the osf.animation.* command namespace. NOTE the rename
 		// from the pre-1.0 id "osf": old osf.json values files are orphaned
 		// (hotkeys default unbound anyway; users rebind once).
-		// Hotkeys default UNBOUND ("" + allowUnbound). F10 (the OSF UI console
+		// The hotkey defaults UNBOUND ("" + allowUnbound). F10 (the OSF UI console
 		// toggle) already opens the browser, while every plausible gameplay key
 		// is context-sensitive and may also be localized. In particular, B is
 		// used by several German UI actions. A default must not take ownership
@@ -35,9 +35,9 @@ namespace OSF::API
 		constexpr const char* kSchemaJson = R"json({
   "id": "osf.animation",
   "title": "OSF Animation",
-  "description": "Scene framework — browser, animation wheel, and scene hotkeys.",
+  "description": "Scene framework — animation browser, scene controls, and hotkeys.",
   "icon": "browser/osf-icon.svg",
-  "version": 5,
+  "version": 6,
   "targetVersion": "1.5.0",
   "pages": [
     { "id": "browser", "label": "Browser" },
@@ -48,10 +48,7 @@ namespace OSF::API
     { "id": "hotkeys", "label": "Hotkeys", "settings": [
       { "key": "hotkeys.openBrowser", "type": "key", "default": "", "allowUnbound": true,
         "label": "Open animation browser",
-        "hint": "Browse animations, emotes, and authored scenes." },
-      { "key": "hotkeys.openWheel", "type": "key", "default": "", "allowUnbound": true,
-        "label": "Open animation wheel",
-        "hint": "Unbound by default to avoid conflicts. Opens the radial emote picker and targets the crosshair NPC when one is in reach." }
+        "hint": "Browse animations, emotes, and authored scenes." }
     ] },
     { "id": "browser-behavior", "label": "Behavior", "page": "browser", "settings": [
       { "key": "browser.afterLaunch", "type": "enum", "default": "stay",
@@ -185,8 +182,6 @@ namespace OSF::API
 			const std::string_view key{ a_key ? a_key : "" };
 			if (key == "hotkeys.openBrowser") {
 				OpenBrowser();
-			} else if (key == "hotkeys.openWheel") {
-				OpenWheel("");  // "" -> the default player.emote. prefix
 			}
 		}
 
@@ -230,8 +225,7 @@ namespace OSF::API
 
 		if (g_bridge.Has(Feature::kHotkeys)) {
 			g_bridge.SubscribeHotkey("osf.animation", "hotkeys.openBrowser", &OnHotkey, nullptr);
-			g_bridge.SubscribeHotkey("osf.animation", "hotkeys.openWheel", &OnHotkey, nullptr);
-			REX::INFO("[Feature] MCM settings CONNECTED (schema 'osf.animation' registered, 2 hotkeys subscribed)");
+			REX::INFO("[Feature] MCM settings CONNECTED (schema 'osf.animation' registered, browser hotkey subscribed)");
 		} else {
 			REX::WARN("[Feature] MCM settings CONNECTED, but hotkey dispatch needs OSF UI bridge MINOR >= 4 — hotkeys inert");
 		}

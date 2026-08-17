@@ -112,7 +112,7 @@ namespace OSF::Scene
 		// False if the handle is invalid or no such edge on the current node.
 		bool Navigate(std::int32_t a_scene, std::string_view a_edgeId);
 
-		// SINGLE-ANIMATION posture (wheel emotes): pin the scene to the stage it entered on. Every
+		// SINGLE-ANIMATION posture (stage-scoped browser playback): pin the scene to the stage it entered on. Every
 		// edge out of the current node — the director advance verb (space), the authored auto
 		// loops/timer chain, a cue trigger, Navigate — ends the scene instead of stepping to the
 		// next stage, so the launch reads as "play this one animation", and space becomes cancel.

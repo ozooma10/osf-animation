@@ -20,7 +20,7 @@ grouping/layout against. Delete the file to fall back to the committed dump.
 Unlike the library generator this one is TOLERANT: a scene or file the offline
 model can't represent (graph nodes, unknown keys) is warned about and skipped —
 the goal is a rich dev catalog, not packaging fidelity. Fields the model can't
-know offline (probe-cache durations for un-`sec`'d clips, wheel pins, resolved
+know offline (probe-cache durations for un-`sec`'d clips and resolved
 anchor labels for other mods' base forms) come out null/raw, which the view
 already tolerates.
 

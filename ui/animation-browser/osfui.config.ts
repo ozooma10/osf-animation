@@ -7,7 +7,7 @@ export default defineConfig({
   views: [{
     id: "browser",
     title: "OSF Animation Browser",
-    description: "Animation, emote, and scene browser",
+    description: "Animation and scene browser",
     kind: "menu",
     width: 1600,
     height: 900,

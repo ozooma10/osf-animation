@@ -8,7 +8,6 @@ export interface SceneStage {
   name: string;
   tags: string[];
   clipCount: number;
-  pinned: number;
   loopSec: number | null;
   timerSec: number | null;
   loops: number | null;
@@ -32,8 +31,6 @@ export interface SceneModel {
   unlisted: boolean;
   /** Legacy bridge flag retained while older native builds do not emit `sourceKind`. */
   curated: boolean;
-  wheelCustomized: boolean;
-  pinned: number;
   priority: number;
   weight: number;
   pack: string;
@@ -85,8 +82,6 @@ export function normalizeScene(raw: Raw): SceneModel {
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map(String) : [],
     unlisted: Boolean(raw.unlisted),
     curated: sourceKind === "curatedAnimation",
-    wheelCustomized: Boolean(raw.wheelCustomized),
-    pinned: Math.max(0, Math.trunc(Number(raw.pinned) || 0)),
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
     weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
     pack: String(raw.pack || "").trim(),
@@ -126,7 +121,6 @@ export function normalizeStages(stages: unknown): SceneStage[] {
       name: String(stage.name || ""),
       tags: Array.isArray(stage.tags) ? stage.tags.map(String) : [],
       clipCount: Number(stage.clipCount || 0),
-      pinned: Math.max(0, Math.trunc(Number(stage.pinned) || 0)),
       loopSec: numberOrNull(stage.loopSec),
       timerSec: numberOrNull(stage.timerSec),
       loops: numberOrNull(stage.loops),

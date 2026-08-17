@@ -4,7 +4,7 @@ OSF Animation is a native animation and scene-runtime framework for Starfield.
 
 Key Features:
 - Synced multi-actor AF/GLTF/GLB playback
-- In-game scene browser, animation library (4,600+ base-game clips incl. creatures), and emote wheel (hosted by OSF UI)
+- In-game scene browser and animation library (4,600+ base-game clips incl. creatures), hosted by OSF UI
 - Engine-native Wwise loose-file audio playback (rides the game mix; no private-device fallback)
 - Actor anchoring/pinning in the world
 - A shared scene registry loaded from `Data/OSF/**/*.osf.json`
@@ -35,7 +35,7 @@ Key Features:
 
 - **SFSE** matching your game version.
 - **Address Library for SFSE Plugins**
-- **OSF UI 2.0.0+** — hosts the scene browser, emote wheel, settings menu, hotkeys, and
+- **OSF UI 2.0.0+** — hosts the scene browser, settings menu, hotkeys, and
   consented bug reporting. When Starfield exits unexpectedly while the OSF Animation browser is active, reports are routed to the
   OSF Animation issue tracker and include a locally redacted, bounded tail of
   `OSF Animation.log`. The engine runs without OSF UI, but the entire in-game UI and

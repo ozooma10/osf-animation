@@ -7,7 +7,6 @@ import { AnchorPanel } from "./features/anchor/AnchorPanel";
 import { SceneBrief } from "./features/brief/SceneBrief";
 import { BrowsePanel } from "./features/browse/BrowsePanel";
 import { CastPanel } from "./features/cast/CastPanel";
-import { AnimationWheel } from "./features/wheel/AnimationWheel";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 
 function Status({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
@@ -132,7 +131,6 @@ export function App({ state, commands }: { state: BrowserState; commands: Browse
     <div class="console"><span class="bracket tl"/><span class="bracket tr"/><span class="bracket bl"/><span class="bracket br"/><div class="grid-overlay"/><Header state={state} commands={commands}/>{state.settingsOpen ? <SettingsPanel state={state} commands={commands}/> : <div class="director"><aside class="rail"><CastPanel state={state} commands={commands}/><AnchorPanel state={state} commands={commands}/></aside><section class="browse"><BrowsePanel state={state} commands={commands}/></section></div>}<footer class={`notice ${state.notice.kind}`} aria-live="polite">{state.notice.text}</footer></div>
     <aside class="brief"><SceneBrief state={state} commands={commands}/></aside>
     <div class="livebar"><MinimizedBar state={state} commands={commands}/></div>
-    <div class="wheel"><AnimationWheel state={state} commands={commands}/></div>
     {state.pickMode && <div class="pick-hud mono" aria-live="polite">
       <strong>SELECT {state.pickMode === "actor" ? "ACTORS" : "FURNITURE"}</strong>
       <span>{state.pickMode === "actor" ? "Click actors to add or remove · Esc to finish" : "Click it in the world · Esc to cancel"}</span>

@@ -376,17 +376,16 @@ or after an extreme burst has expired that handle from the recent-history window
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode
 `akEvent.result`.
 
-## In-game UI, hotkeys, and the wheel tag contract
+## In-game UI and hotkeys
 
-The scene browser, animation wheel, settings menu, and hotkeys are hosted by **OSF UI** (a separate
+The scene browser, settings menu, and hotkeys are hosted by **OSF UI** (a separate
 mod) — there is no Papyrus surface for them, and no `Data/OSF/settings.json` (it is no longer read).
-Hotkeys are bound in OSF UI's settings menu on the **OSF Animation** card. Both ship unbound so they
+The browser hotkey is bound in OSF UI's settings menu on the **OSF Animation** card. It ships unbound so it
 do not replace Starfield's context-sensitive or localized key assignments; OSF UI's own console
 toggle (F10) already opens the browser.
 
-Content packs join these surfaces purely by **tags**, no code: a solo, free-space, self-terminating
-scene tagged `player.emote.<name>` appears as an **emote** in the unified Browse catalog and in the
-default Quick Access wheel. Older browser copy may label this playable category `Action`; that legacy
+Content packs join the browser purely by **tags**, no code: a scene tagged `player.emote.<name>`
+appears as an **emote** in the unified Browse catalog. Older browser copy may label this playable category `Action`; that legacy
 UI term is unrelated to a scene's authored `action` track. The well-known tag contract lives in
 [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
 

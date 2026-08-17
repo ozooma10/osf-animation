@@ -54,7 +54,6 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ready: true,
         catalogReceived: true,
         catalog: action.scenes,
-        wheelCustomized: action.scenes.some((scene) => scene.wheelCustomized),
       };
     case "library/received":
       return {
@@ -62,7 +61,6 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ready: true,
         libraryReceived: true,
         library: action.scenes,
-        wheelCustomized: state.wheelCustomized || action.scenes.some((scene) => scene.wheelCustomized),
       };
     case "active/received": {
       const lastStillActive = !state.lastHandle || action.scenes.some((scene) => scene.handle === state.lastHandle);
@@ -79,13 +77,11 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ...state,
         lastHandle: action.handle,
         lastSceneId: action.sceneId,
-        minimized: !state.wheel && action.afterLaunch === "minimize",
+        minimized: action.afterLaunch === "minimize",
       };
     }
     case "launch/failed":
-      return state.wheel
-        ? { ...state, wheel: { ...state.wheel, launching: "", error: action.error } }
-        : state;
+      return state;
     case "settings/received": {
       const preferences = { ...state.preferences, ...action.preferences };
       // Re-seed a START OVERRIDES field only when this payload actually carries its key:
@@ -194,7 +190,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       return {
         ...state,
         mode: action.mode,
-        lastBrowseMode: action.mode === "wheel" ? state.lastBrowseMode : action.mode,
+        lastBrowseMode: action.mode,
         settingsOpen: false,
       };
     case "browser/opened":
@@ -246,45 +242,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         lastHandle: state.lastHandle === action.handle ? 0 : state.lastHandle,
         minimized: state.lastHandle === action.handle ? false : state.minimized,
       };
-    case "wheel/entered": {
-      const wheel = state.wheel
-        ? { ...state.wheel, tagPrefix: action.tagPrefix, target: action.target }
-        : {
-            tagPrefix: action.tagPrefix,
-            target: action.target,
-            focus: 0,
-            error: "",
-            launching: "",
-            received: false,
-            requested: false,
-            entries: [],
-          };
-      return { ...state, mode: "wheel", wheel };
-    }
-    case "wheel/exited":
-      return { ...state, mode: "scenes", wheel: null };
-    case "wheel/requested":
-      return state.wheel ? { ...state, wheel: { ...state.wheel, requested: true } } : state;
-    case "wheel/received":
-      return state.wheel
-        ? { ...state, wheelCustomized: action.customized, wheel: { ...state.wheel, entries: action.entries, received: true } }
-        : state;
-    case "wheel/focused":
-      return state.wheel ? { ...state, wheel: { ...state.wheel, focus: action.focus } } : state;
-    case "wheel/launching":
-      return state.wheel ? { ...state, wheel: { ...state.wheel, error: "", launching: action.key } } : state;
-    case "wheel/debug":
-      return state.wheel ? {
-        ...state,
-        wheelCustomized: action.customized,
-        wheel: { ...state.wheel, entries: action.entries, received: action.received, target: action.target, error: action.error, launching: "", focus: 0 },
-      } : state;
-    case "wheel/customized":
-      return { ...state, wheelCustomized: true, catalog: action.catalog, library: action.library };
-    case "wheel/reset":
-      return { ...state, wheelCustomized: false, catalog: action.catalog, library: action.library };
     case "visibility/hidden":
-      return { ...state, wheel: null, mode: "scenes", settingsOpen: false, minimized: false, pickMode: null, actorIndicators: [], pickTargets: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
+      return { ...state, mode: "scenes", settingsOpen: false, minimized: false, pickMode: null, actorIndicators: [], pickTargets: [], viewVisible: false, visibilitySerial: state.visibilitySerial + 1 };
     case "visibility/shown":
       return { ...state, viewVisible: true };
     case "seeded/remembered": {

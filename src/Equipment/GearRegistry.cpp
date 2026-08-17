@@ -64,7 +64,7 @@ namespace OSF::Equipment::Gear
 			return a_out.size() <= kMaxGearStringBytes;
 		}
 
-		// <Documents>\My Games\Starfield\SFSE\OSF\scene-gear.json (same home as wheel-pins.json),
+		// <Documents>\My Games\Starfield\SFSE\OSF\scene-gear.json,
 		// or empty when the SFSE log directory can't be resolved.
 		std::filesystem::path UserFilePath()
 		{

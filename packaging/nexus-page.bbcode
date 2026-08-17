@@ -9,14 +9,13 @@
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620284-856347009.png[/img][/center]
 OSF is a native animation and scene engine for Starfield, inspired by [b]OStim [/b]and[b] NAF[/b]. It plays animation on actors, keeps multiple characters in sync, anchors them in the world, controls the camera, and runs whole scenes in a data-driven, json based authoring flow.
 
-You can use it directly in-game: an [b]animation browser[/b] to look through everything installed and play it on yourself or nearby NPCs, and an [b]emote wheel[/b] for one-key quick emotes. Or drive it from other mods: you describe a whole scene in a json data file and OSF runs it at runtime, instead of scripting timings and animation events in papyrus yourself.
+You can use it directly in-game: an [b]animation browser[/b] to look through everything installed and play it on yourself or nearby NPCs. Or drive it from other mods: you describe a whole scene in a json data file and OSF runs it at runtime, instead of scripting timings and animation events in papyrus yourself.
 
-The engine itself carries no content; the installer offers two optional starter packs - the game's own animation library, and an emote pack for the wheel.
+The engine itself carries no content; the installer offers two optional starter packs - the game's own animation library, and a small immersion emote pack.
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620284-2144773043.png[/img][/center]
 [list]
 [*]In-game [b]animation browser[/b] ([font=Courier New]F10[/font]): search one unified catalog, pick a cast by clicking actors in the world or from a nearby-actor scan, launch on furniture, drag to orbit the camera, and manage running scenes[/*]
-[*][b]Emote wheel[/b] (unbound by default - pick a key in OSF Animation's settings): radial quick emotes for you or the NPC in your crosshair; pin any solo animation from the browser onto it[/*]
 [*][b]Vanilla animation library[/b] (optional install): thousands of Starfield's own clips, humans plus 27 creature species, browsable and playable[/*]
 [*]Synced multi-actor [b]GLTF / GLB / .af[/b] playback on one shared clock[/*]
 [*]JSON [b]scene graphs -[/b] nodes, cues, actions, branching; no scripting needed[/*]
@@ -36,12 +35,11 @@ The engine itself carries no content; the installer offers two optional starter 
 [/list]
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620464-2115394493.png[/img][/center]
-[b]Requires:[/b] [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url] and [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url] (renders the browser, the wheel, the settings menu, and hotkeys - the engine and Papyrus API run without it). On an older OSF UI the browser warns you with an [color=#f08a24]UPDATE[/color] badge.
+[b]Requires:[/b] [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url] and [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url] (renders the browser, settings menu, and hotkeys - the engine and Papyrus API run without it). On an older OSF UI the browser warns you with an [color=#f08a24]UPDATE[/color] badge.
 
 Install with MO2 or Vortex; the installer will offer the animation library and the emote pack - take both. Then in-game:
 [list]
 [*][font=Courier New]F10[/font] opens the animation browser - pick something, hit LAUNCH.[/*]
-[*]The emote wheel ships unbound - bind a key under [b]OSF Animation[/b] in the settings menu, then aim at an NPC first to emote them instead of yourself.[/*]
 [*]Hotkeys and settings live in OSF UI's settings menu, under [b]OSF Animation[/b].[/*]
 [/list]
 No OSF UI? The engine still runs headless for content mods; smoke-test from the console (~):
@@ -50,7 +48,7 @@ cgf "OSFTest.Stop"        ; stop it[/code]
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620464-1671481126.png[/img][/center]
 [list]
-[*][b]Scene authors:[/b] ship scenes as JSON plus GLB/AF clips. No Papyrus, No scripting. Tag a pack name and your scenes group under it in the browser; tag [font=Courier New]player.emote.*[/font] and solo scenes land on the emote wheel.[/*]
+[*][b]Scene authors:[/b] ship scenes as JSON plus GLB/AF clips. No Papyrus, No scripting. Tag a pack name and your scenes group under it in the browser; tag [font=Courier New]player.emote.*[/font] to place a scene in the Emotes facet.[/*]
 [*][b]Quest mods:[/b] drive scenes from Papyrus via the [font=Courier New]OSF.*[/font] API.[/*]
 [/list]
 Getting Started, the scene schema, and the API are documented on [url=https://github.com/ozooma10/osf-animation]GitHub[/url].

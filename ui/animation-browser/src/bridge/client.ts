@@ -21,12 +21,11 @@ export class OsfUiBridge implements AnimationBridge {
     const bridge = window.osfui;
     const events = [
       "osf.animation.version", "settings.changed", "osf.animation.catalog.data",
-      "osf.animation.library.data",
-      "osf.animation.wheel.data", "osf.animation.pick", "osf.animation.openTarget",
+      "osf.animation.library.data", "osf.animation.pick", "osf.animation.openTarget",
       "osf.animation.scanResults", "osf.animation.actorIndicators",
       "osf.animation.pickTargets", "osf.animation.anchorMatch",
       "osf.animation.activeScenes", "osf.animation.launchResult",
-      "osf.animation.notice", "osf.animation.mode", "ui.visibility", "ui.gamepad",
+      "osf.animation.notice", "ui.visibility", "ui.gamepad",
       "osfui.debug.error",
     ];
     for (const name of events) {

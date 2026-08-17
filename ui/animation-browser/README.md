@@ -34,7 +34,6 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   `playback.get`/`playback.set {handle,paused}` for active runtime status and pause/resume.
   A launch may carry additive `singleAnimation:true`; after entering the requested `opts.stage`,
   any scene edge out ends playback instead of continuing through the parent definition.
-  `wheel.get`→`wheel.data` and `wheel.set` manage the ordered quick-access loadout;
   `orbit` steers the native camera; `opened`/`closed` report visibility; and `requestClose`
   asks the host to hide the view. Native→web `activeScenes` carries live scene handles, stage,
   cast, clock, duration, and speed for the ACTIVE tab and compact running controls. Runtime
@@ -43,14 +42,14 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   OSF Animation answers the catalog/version request that every page mount sends.
   The response path lets a manually reloaded web view self-heal after the host's
   ready lifecycle has already completed. It never gates on the
-  protocol/version strings — the contract evolves additively. Platform pushes it consumes: `ui.visibility` (open/close relay,
-  wheel-mode exit, orbit-drag reset) and `ui.error` (surfaced in the notice
+  protocol/version strings — the contract evolves additively. Platform pushes it consumes: `ui.visibility` (open/close relay
+  and orbit-drag reset) and `ui.error` (surfaced in the notice
   footer). **Gamepad:** the view takes the `osfui.gamepadRaw` grant on
   `runtime.ready` — the runtime's default mapping would route both sticks
   into UI nav/scroll, but the sticks belong to the native scene-orbit camera
   (the DLL polls XInput directly). The PAD NAV layer re-creates the button
   half from raw `ui.gamepad` events: D-pad → arrows (hold-repeat), A → Enter,
-  B → wheel cancel / close; stick events are dropped on purpose.
+  B → close; stick events are dropped on purpose.
 - **Targeting:** PICK arms actor or furniture selection, then a click in the
   transparent world area screen-tests loaded 3D bounds and returns the chosen
   reference; dragging more than five pixels remains camera orbit and Escape
@@ -119,9 +118,9 @@ would need the folder placed next to `OSFUI.dll` manually.
 ## Settings / hotkeys
 
 No drop-in `settings/osf.animation.json` file: the DLL registers the same
-schema document at runtime (`RegisterSettingsSchema`, see
-`src/API/UISettings.cpp`) — hotkeys (`hotkeys.openBrowser` and
-`hotkeys.openWheel`, both unbound by default), interface preferences, scene launch
+  schema document at runtime (`RegisterSettingsSchema`, see
+  `src/API/UISettings.cpp`) — the unbound `hotkeys.openBrowser` hotkey,
+  interface preferences, scene launch
 defaults, and log level all live in OSF UI's in-game settings menu under
 **OSF Animation**. The browser's header gear opens a dedicated view of its own
 preferences using the same `settings.get` / `settings.set` store, so changes made
@@ -130,31 +129,6 @@ behavior, the opening tab, session browsing memory, library detail/source,
 unavailable-scene visibility, default apparel/input-lock/camera/speed overrides, and
 author-facing catalog details. World references such as selected actors and
 furniture are deliberately never persisted.
-
-## Animation wheel (transient mode)
-
-The `openWheel` hotkey verb (native `API::OpenWheel`) opens this same view in a
-radial **wheel mode**: `osf.animation.mode {mode:"wheel", tagPrefix, target}`
-hides the console/brief and rings up to 12 solo, free-space animations; the ring's
-ellipse is count-adaptive — near-circular for a handful, widening as it fills.
-Before customization the ordered pool is derived from installed `player.emote.*` defaults, so it works out of
-the box. Any free-space, single-human animation stage in the Animation Browser can be added.
-The first **Add to Wheel**, removal, or reorder
-materializes that whole default pool before applying the edit—customizing one
-entry never makes every other default disappear. The explicit loadout persists
-DLL-side in `<Documents>\My Games\Starfield\OSF\wheel-pins.json`, account-global,
-surviving ReloadPacks and reinstalls. It is an ordered JSON array of minimal
-`{"scene":"...","stage":0}` launch references (stage is omitted for a whole default Emote);
-deleting it restores installed defaults, while [] is an intentionally empty wheel.
-Each eligible animation or Emote row offers add/remove controls; the brief also
-offers **Reset Defaults**. Quick Access membership shows as ◆ on its Browse row.
-The hub names who plays—the crosshair target captured at open
-time ("→ Sarah") or "You".
-Arrows/hover step the ring, Enter/click launches (`osf.animation.launch` with
-`castTokens:[token]` and the saved stage), success sends `osf.animation.requestClose`; a
-launch error shows in the hub and the wheel stays open. Cancel = Esc,
-right-click, or hub click. Exit is host-driven: the `ui.visibility` hide relay
-clears wheel mode, so a later browser open always shows the normal console.
 
 ## Standalone dev
 
@@ -187,15 +161,6 @@ dump. Durations the in-game probe would supply come out `null`.
 Pick/scan/launch stay stubbed (they need live refs). With no snapshot (or when
 opened via `file://`), it falls back to the built-in mock catalog. These fixtures do NOT ship in-game: they live outside the generated output copied by `xmake`.
 
-To exercise the **animation wheel** standalone: press `W` (mock crosshair target) or
-`Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
-console; add `?wheel` to the iframe URL (`?wheel=solo` for no target)
-boots straight into wheel mode so a plain reload keeps you there. The mock
-catalog carries 14 `player.emote.*` quick emotes so the hard 12-entry cap is exercised;
-picking **Facepalm** mock-fails to exercise the error path, any other pick
-"launches" and closes the wheel via the mocked `osf.animation.requestClose` →
-`ui.visibility` hide round-trip.
-
 **Backdrop:** in-game the page body is transparent over the live game world; a
 desktop browser renders that as flat white/black, which lies about contrast. In
 standalone mode a **dev backdrop** stands a fake world behind the overlay —
@@ -204,28 +169,12 @@ readability worst case → **night** exterior → flat **none**), sticky per tab
 Drop a real screenshot at `ui/animation-browser/fixtures/live/backdrop.jpg` (git-ignored, never packaged) and
 it joins the cycle as **shot** and becomes the default.
 
-While the wheel is up, a **WHEEL DEBUG strip** (top-left, standalone only —
-injected only when no bridge exists, so it can never surface in-game) drives
-every wheel state without in-game round-trips: `−`/`+` step a generated emote
-pool through wheelGeom's whole range (0 = the empty state, 1–3 = the tight
-ring, past 12 proves the hard cap, and emotes cycle with numbered titles past 14);
-`PINS×3` pins the first three emotes in *reverse* order to prove pin-order
-sorting; `TARGET` flips the hub between "→ Sarah Morgan" and "You"; `ERROR`
-plants a hub launch error; `LOADING` shows the catalog-pending state; `RESET`
-returns to the real (snapshot/mock) catalog.
-
-**Harness toolbar:** `osfui.mock.ts` contributes the view's non-wheel debug
+**Harness toolbar:** `osfui.mock.ts` contributes the view's debug
 switches to the harness shell toolbar instead of overlaying them on the layout.
 **OSF UI host** fakes the installed host version the status line reports — *no
 host info* (the default), *host up to date*, or *host older than tested*, which
 raises the amber `UPDATE` badge and its Nexus link. Clicks reach the view over a
 window event (`src/dev/harness-tools.ts`); the mock module shares the view page.
-
-**Loadout standalone:** the `wheel.set` round-trip is mocked with a session-local
-ordered loadout applied on top of whichever catalog is served. Remove or reorder
-an emote from its brief, then `W`: the wheel retains all other defaults in the
-chosen order. **Reset Defaults** drops the explicit list and derives the installed
-defaults again.
 
 ## Aesthetic
 

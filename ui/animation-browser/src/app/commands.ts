@@ -40,12 +40,6 @@ export interface BrowserCommands {
   advance(handle?: number): void;
   setPlayback(handle: number, paused: boolean): void;
   setMinimized(value: boolean): void;
-  toggleWheelEntry(scene: string, stage?: number | null): void;
-  moveWheelEntry(scene: string, stage: number | null, direction: -1 | 1): void;
-  resetWheel(): void;
-  focusWheel(index: number): void;
-  pickWheel(index: number): void;
-  cancelWheel(): void;
   requestClose(): void;
   orbit(dx: number, dy: number, wheel: number): void;
   openModPage(url: string): void;

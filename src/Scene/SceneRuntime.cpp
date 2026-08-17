@@ -36,7 +36,7 @@ namespace OSF::Scene
 			constexpr float    kMin = 0.1f;
 			switch (a_verb) {
 			case Input::Verb::kAdvance: {
-				// SINGLE-ANIMATION posture (wheel emotes): the entered stage IS the whole
+				// SINGLE-ANIMATION posture (stage-scoped browser playback): the entered stage IS the whole
 				// experience — space cancels the emote instead of stepping to an authored next
 				// animation. No debounce (cancel must land immediately); same locked gate as kEnd.
 				if (rt.IsSingleStage(a_grant.handle)) {

@@ -15,8 +15,6 @@ export type BridgeCommand =
   | "osf.animation.requestClose"
   | "osf.animation.scanNearby"
   | "osf.animation.stop"
-  | "osf.animation.wheel.get"
-  | "osf.animation.wheel.set"
   | "osfui.gamepadRaw"
   | "osfui.openModPage"
   | "settings.get"

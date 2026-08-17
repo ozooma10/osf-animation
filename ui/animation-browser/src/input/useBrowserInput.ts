@@ -51,25 +51,13 @@ function isTextInput(element: Element | null): element is HTMLInputElement {
   return element instanceof HTMLInputElement && /^(?:text|search|url|email|tel|number|password|)$/.test(element.type);
 }
 
-export function useBrowserInput(state: BrowserState, commands: BrowserCommands, standalone: boolean): void {
+export function useBrowserInput(state: BrowserState, commands: BrowserCommands): void {
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const active = document.activeElement;
       if (state.settingsOpen && event.key === "Escape") { event.preventDefault(); commands.toggleSettings(false); return; }
       if (state.pickMode && event.key === "Escape") { event.preventDefault(); commands.cancelPick(); return; }
-      if (state.wheel) {
-        if (event.key === "Escape") { event.preventDefault(); commands.cancelWheel(); return; }
-        const direction = ({ ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 } as Record<string, number>)[event.key];
-        if (direction) { event.preventDefault(); document.body.classList.add("nav-kb"); const count = state.wheel.entries.length; if (count) commands.focusWheel((state.wheel.focus + direction + count) % count); return; }
-        if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") { event.preventDefault(); commands.pickWheel(state.wheel.focus); }
-        return;
-      }
-      // Dev-only shortcut; the literal guard lets it fold out of a game build.
-      if (import.meta.env.DEV && standalone && !isTextInput(active) && (event.key === "w" || event.key === "W")) {
-        window.mockOpenWheel?.(event.key === "w");
-        return;
-      }
       const direction = ({ ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" } as Record<string, "up" | "down" | "left" | "right">)[event.key];
       if (direction) {
         document.body.classList.add("nav-kb");
@@ -92,22 +80,19 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       if (event.key === "Escape") commands.requestClose();
     };
     const pointer = () => document.body.classList.remove("nav-kb");
-    const context = (event: MouseEvent) => { if (state.wheel) { event.preventDefault(); commands.cancelWheel(); } };
     document.addEventListener("keydown", keydown);
     document.addEventListener("mousedown", pointer);
     document.addEventListener("mousemove", pointer);
-    document.addEventListener("contextmenu", context);
     return () => {
       document.removeEventListener("keydown", keydown);
       document.removeEventListener("mousedown", pointer);
       document.removeEventListener("mousemove", pointer);
-      document.removeEventListener("contextmenu", context);
     };
-  }, [commands, standalone, state.active, state.lastHandle, state.pickMode, state.settingsOpen, state.wheel]);
+  }, [commands, state.active, state.lastHandle, state.pickMode, state.settingsOpen]);
 
   useEffect(() => {
     const orbit = { dragging: false, selecting: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, frame: 0 };
-    const worldTarget = (target: EventTarget | null) => !state.wheel && !(target instanceof Element && target.closest(".console, .brief, .livebar"));
+    const worldTarget = (target: EventTarget | null) => !(target instanceof Element && target.closest(".console, .brief, .livebar"));
     const flush = () => {
       orbit.frame = 0;
       if (orbit.dx || orbit.dy || orbit.wheel) commands.orbit(orbit.dx, orbit.dy, orbit.wheel);
@@ -149,5 +134,5 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       document.removeEventListener("wheel", wheel);
       if (orbit.frame) cancelAnimationFrame(orbit.frame);
     };
-  }, [commands, state.pickMode, state.visibilitySerial, state.wheel]);
+  }, [commands, state.pickMode, state.visibilitySerial]);
 }

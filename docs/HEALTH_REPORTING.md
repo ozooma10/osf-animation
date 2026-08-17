@@ -17,7 +17,6 @@ Codes are local to the `osf.animation` source. OSF UI exposes them under the
 | A scene pack could not be loaded (`SceneRegistry`, per file) | `catalog.pack-load` | error / warning | Those animations are silently absent from the browser — until now the only trace was a log line. Severity follows the worst line for that file. |
 | A sound pack could not be loaded (`SoundRegistry`, per file) | `sound.pack-load` | error / warning | Same, for voice/sound pools; different code because it is fixed somewhere else. |
 | Cross-file problems with no single owner (a dangling `use`) | `catalog.cross-file` | error / warning | No file to name, so they share one card rather than being dropped. |
-| Wheel pins cannot be written (`WheelPins`) | `wheel.pins-not-persisted` | warning | Customization is lost on exit and stays lost until the permissions/disk problem is fixed. Cleared when a later save succeeds. |
 | Screen fades disabled (`FadeService` prologue mismatch) | `fade.disabled` | warning | A feature is off for the session, and the reason (a game patch moved the poster) is not guessable. |
 
 One card per **file**, not per problem: twelve rejected scenes in one bad pack

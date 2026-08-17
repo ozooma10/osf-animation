@@ -3,7 +3,6 @@
 
 #include "Registry/ContentRegistry.h"
 #include "Serialization/ClipDurations.h"
-#include "Serialization/WheelPins.h"
 #include "Util/Profile.h"
 #include "Util/StringUtil.h"
 
@@ -55,29 +54,6 @@ namespace OSF::API::UIBridgeCatalog
 
 		// How many loops an open-ended hold stage is assumed to run for the scene time estimate
 		constexpr float kHoldLoopEstimate = 2.0f;
-		bool IsEmote(const Registry::SceneDef& a_def)
-		{
-			return std::ranges::any_of(a_def.tagSet,
-				[](const std::string& a_tag) { return a_tag.starts_with("player.emote."); });
-		}
-
-		bool IsWheelScene(const Registry::SceneDef& a_def)
-		{
-			return !a_def.library && !a_def.unlisted && a_def.roles.size() == 1 &&
-			       !a_def.RequiresAnchor() && IsEmote(a_def);
-		}
-
-		const Registry::SceneNode* WheelStage(const Registry::SceneDef& a_def, std::int32_t a_stage)
-		{
-			if (!a_def.library || a_def.roles.size() != 1 || a_def.RequiresAnchor() ||
-			    (!a_def.species.empty() && a_def.species != "human") ||
-			    a_stage < 0 || static_cast<std::size_t>(a_stage) >= a_def.linearStages.size()) {
-				return nullptr;
-			}
-			const auto* node = a_def.FindNode(a_def.linearStages[static_cast<std::size_t>(a_stage)]);
-			return node && !node->stages.empty() && !node->stages.front().clips.empty() ? node : nullptr;
-		}
-
 		// Unknown durations serialize as null, never a sentinel the view could mistake for seconds.
 		json SecOrNull(float a_sec)
 		{
@@ -101,7 +77,6 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              name;   // stage label ("" = unlabeled)
 			std::vector<std::string> tags;
 			std::int32_t             clipCount = 0;
-			std::int32_t             pinned = 0;  // 1-based animation-wheel order
 			// Timing. loopSec = the clip's loop length (the honest per-animation number);
 			// estSec folds in the stage's loops/timer; either < 0 = unknown (clip not probed yet).
 			float                    loopSec = -1.0f;
@@ -118,7 +93,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "name", a_stage.name },
 				{ "tags", a_stage.tags },
 				{ "clipCount", a_stage.clipCount },
-				{ "pinned", a_stage.pinned },
 				{ "loopSec", SecOrNull(a_stage.loopSec) },
 				{ "timerSec", a_stage.timerSec > 0.0f ? json(a_stage.timerSec) : json(nullptr) },
 				{ "loops", a_stage.loops >= 0 ? json(a_stage.loops) : json(nullptr) },
@@ -152,8 +126,6 @@ namespace OSF::API::UIBridgeCatalog
 			// one harvested from a scene's stages. Both carry the `osf.scene-clip/` id, so the
 			// browser cannot tell authored content from its own debug surface without this.
 			bool                     curated = false;
-			bool                     wheelCustomized = false;  // whole-wheel state, mirrored onto every card
-			std::int32_t             pinned = 0;  // 1-based explicit wheel order (0 = absent/default-derived)
 			std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
 			float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
 			bool                     estPartial = false;  // at least one linear stage had no estimate
@@ -186,8 +158,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "anchors", a_card.anchorNames },
 				{ "unlisted", a_card.unlisted },
 				{ "curated", a_card.curated },
-				{ "wheelCustomized", a_card.wheelCustomized },
-				{ "pinned", a_card.pinned },
 				{ "stages", a_card.stages },
 				{ "estSec", SecOrNull(a_card.estSec) },
 				{ "estPartial", a_card.estPartial },
@@ -197,103 +167,15 @@ namespace OSF::API::UIBridgeCatalog
 
 	}
 
-	bool IsWheelEntryEligible(const Registry::SceneDef& a_def, std::int32_t a_stage)
-	{
-		return a_stage < 0 ? IsWheelScene(a_def) : WheelStage(a_def, a_stage) != nullptr;
-	}
-
-	json BuildWheelData(std::string_view a_tagPrefix)
-	{
-		using Serialization::WheelPins::Entry;
-		struct Item
-		{
-			Entry        entry;
-			std::string  title;
-			std::int32_t priority = 0;
-			std::int32_t weight = 1;
-		};
-
-		std::vector<Item> items;
-		auto add = [&items](const Registry::SceneDef& a_def, const Entry& a_entry) {
-			if (a_entry.stage < 0) {
-				if (!IsWheelScene(a_def)) {
-					return;
-				}
-				items.push_back({ a_entry, a_def.name.empty() ? a_def.id : a_def.name, a_def.priority, a_def.weight });
-				return;
-			}
-			const auto* node = WheelStage(a_def, a_entry.stage);
-			if (!node) {
-				return;
-			}
-			const auto& stage = node->stages.front();
-			std::string title = stage.name;
-			if (title.empty()) {
-				title = a_def.linearStages.size() == 1
-				          ? (a_def.name.empty() ? a_def.id : a_def.name)
-				          : std::format("{} · Stage {}", a_def.name.empty() ? a_def.id : a_def.name, a_entry.stage + 1);
-			}
-			items.push_back({ a_entry, std::move(title), a_def.priority, a_def.weight });
-		};
-
-		auto& registry = Registry::ContentRegistry::GetSingleton();
-		const bool customized = Serialization::WheelPins::Customized();
-		if (customized) {
-			for (const auto& entry : Serialization::WheelPins::Entries()) {
-				if (const auto def = registry.Find(entry.scene)) {
-					add(*def, entry);
-				}
-			}
-		} else {
-			const std::string prefix = Util::ToLower(a_tagPrefix.empty() ? std::string_view{ "player.emote." } : a_tagPrefix);
-			registry.ForEachDef([&](const Registry::SceneDef& a_def) {
-				if (a_def.clipsAvailable && IsWheelScene(a_def) && std::ranges::any_of(a_def.tagSet,
-					[&](const std::string& a_tag) { return a_tag.starts_with(prefix); })) {
-					add(a_def, Entry{ a_def.id, -1 });
-				}
-			});
-			std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
-				return a.priority != b.priority ? a.priority > b.priority :
-				       a.weight != b.weight ? a.weight > b.weight : a.title < b.title;
-			});
-			if (items.size() > 12) {
-				items.resize(12);
-			}
-		}
-
-		json entries = json::array();
-		for (const auto& item : items) {
-			json value = {
-				{ "scene", item.entry.scene },
-				{ "title", item.title },
-			};
-			if (item.entry.stage >= 0) {
-				value["stage"] = item.entry.stage;
-			}
-			entries.push_back(std::move(value));
-		}
-		return { { "customized", customized }, { "entries", std::move(entries) } };
-	}
-
 	// Serialize the live scene registry to the osf.catalog.data array (a_library=false) or the osf.library.data array (a_library=true — the reference-library lane, e.g. the generated vanilla packs).
 	// Copies fields from the pinned registry snapshot, then builds JSON afterwards.
 	json BuildCatalog(bool a_library)
 	{
 		OSF_PROFILE_SCOPE_N("UI.BuildCatalog");
 
-		const bool wheelCustomized = Serialization::WheelPins::Customized();
-		const auto wheelEntries = Serialization::WheelPins::Entries();
-		const auto wheelOrder = [&wheelEntries](std::string_view a_scene, std::int32_t a_stage) {
-			for (std::size_t i = 0; i < wheelEntries.size(); ++i) {
-				if (wheelEntries[i].scene == a_scene && wheelEntries[i].stage == a_stage) {
-					return static_cast<std::int32_t>(i) + 1;
-				}
-			}
-			return 0;
-		};
 		std::vector<Card> cards;
 		Registry::ContentRegistry::GetSingleton().ForEachDef(
-			[&cards, &wheelOrder, a_library, wheelCustomized](const Registry::SceneDef& d) {
+			[&cards, a_library](const Registry::SceneDef& d) {
 			if (d.library != a_library) {
 				return;  // each lane serializes only its own scenes
 			}
@@ -340,8 +222,6 @@ namespace OSF::API::UIBridgeCatalog
 			}
 			c.unlisted = d.unlisted;
 			c.curated = d.curatedClip;
-			c.wheelCustomized = wheelCustomized;
-			c.pinned = wheelOrder(d.id, -1);
 			// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 			c.stages.reserve(d.linearStages.size());
 			for (std::size_t i = 0; i < d.linearStages.size(); ++i) {
@@ -356,7 +236,6 @@ namespace OSF::API::UIBridgeCatalog
 				sc.name = st.name;
 				sc.tags = st.tags;
 				sc.clipCount = static_cast<std::int32_t>(st.clips.size());
-				sc.pinned = wheelOrder(d.id, sc.index);
 
 				// Stage timing, from the node the desugar produce: loop length comes from clips[0].
 				// A pack-authored duration wins over the probe cache (generated vanilla packs).

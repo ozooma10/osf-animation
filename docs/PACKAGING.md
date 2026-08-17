@@ -44,7 +44,7 @@ OSF Animation v1.0.0.zip
 │  ├─ Scripts/{OSF,OSFTypes,OSFAdvanced}.pex + Source/*.psc
 │  └─ OSF/internal.osf.json            (system scenes: health self-test solo + pair smoke-test)
 ├─ Library/OSF/vanilla/*.osf.json      (opt-in: vanilla + creature animation library)
-└─ Immersion/OSF/immersion/emotes.osf.json   (opt-in: emote-wheel content)
+└─ Immersion/OSF/immersion/emotes.osf.json   (opt-in: immersion emotes)
 ```
 
 Settings and hotkeys live in OSF UI's in-game settings menu (schema registered over the bridge at runtime) — no `Data/OSF/settings.json` ships.

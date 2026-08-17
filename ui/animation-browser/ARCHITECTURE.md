@@ -24,8 +24,8 @@ app/reducer.ts -> app/selectors.ts -> feature components
 ## State versus effects
 
 Reducer state contains facts needed to render or make a later decision: received catalogs, cast,
-anchor, selection, filters, active scenes, launch state, and transient wheel state. Values that can
-be calculated from those facts—playability, grouping, busy tokens, duration labels, wheel candidates,
+anchor, selection, filters, active scenes, and launch state. Values that can
+be calculated from those facts—playability, grouping, busy tokens, duration labels,
 and filtered lists—are selectors.
 
 Timers, bridge sends, focus movement, document listeners, animation frames, fixture loading, and
@@ -42,5 +42,5 @@ same interface, so feature code does not branch on bridge availability.
 `npm run dev` starts the OSF UI CLI harness at `/__osfui/`. It owns the game-sized reference frame,
 resolution controls, transparency, visibility, bridge injection, and HMR. Inside that harness iframe
 the browser deliberately selects its stateful standalone bridge, because animation launches, scans,
-wheel edits, and active-scene transitions need more behavior than a static command fixture. Committed
+and active-scene transitions need more behavior than a static command fixture. Committed
 snapshots under `fixtures/live/` remain the source for generated mock data and offline review.

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hook
 import type { BrowserCommands } from "./commands";
 import { browserReducer } from "./reducer";
 import {
-  WHEEL_MAX,
   activeLaunches,
   comparePlayableItems,
   hottestPickTarget,
@@ -15,9 +14,6 @@ import {
   sceneTitle,
   stageLabel,
   validSelection,
-  wheelCandidates,
-  wheelKey,
-  wheelPool,
 } from "./selectors";
 import {
   PREFERENCE_KEYS,
@@ -36,17 +32,15 @@ import {
   type CastMember,
   type NearbyTarget,
   type PickTarget,
-  type WheelEntry,
 } from "./state";
 import { OsfUiBridge, hasOsfUiBridge, type AnimationBridge } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
-import { normalizeCatalog, type SceneModel } from "../model";
+import { normalizeCatalog } from "../model";
 import type { DevCommands } from "../dev/debug";
 import {
   NO_DEV_COMMANDS,
   createDebugCommands,
   createStandaloneBridge,
-  installWheelHook,
   standaloneNearby,
 } from "../dev/standalone";
 
@@ -113,17 +107,6 @@ function normalizePickTargets(payload: unknown): PickTarget[] {
     depth: Number.isFinite(Number(item.depth)) ? Number(item.depth) : 0,
   })).filter((item) => item.token !== 0 && [item.x, item.y, item.cx, item.cy].every(Number.isFinite)
     && item.rx > 0 && item.ry > 0);
-}
-
-function cloneWithPins(state: BrowserState, keys: readonly string[]): { catalog: SceneModel[]; library: SceneModel[] } {
-  const positions = new Map(keys.map((key, index) => [key, index + 1]));
-  const catalog = state.catalog.map((scene) => ({ ...scene, pinned: positions.get(wheelKey(scene.id, null)) ?? 0 }));
-  const library = state.library.map((scene) => ({
-    ...scene,
-    pinned: 0,
-    stages: scene.stages.map((stage) => ({ ...stage, pinned: positions.get(wheelKey(scene.id, stage.index)) ?? 0 })),
-  }));
-  return { catalog, library };
 }
 
 export function useBrowserController(): { state: BrowserState; commands: BrowserCommands; debugCommands: DevCommands; standalone: boolean } {
@@ -207,11 +190,9 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         // briefly settle on the hard-coded Scenes default.
         const current = stateRef.current;
         const merged = { ...current.preferences, ...preferences };
-        if (!current.wheel) {
-          const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
-          dispatch({ type: "browser/opened", mode, resetBrowsing: !merged.rememberBrowsing });
-          if (!current.libraryReceived) requestLibrary(true);
-        }
+        const mode = preferredOpenMode(merged.openTo, current.lastBrowseMode, activeLaunches(current).length > 0);
+        dispatch({ type: "browser/opened", mode, resetBrowsing: !merged.rememberBrowsing });
+        if (!current.libraryReceived) requestLibrary(true);
         break;
       }
       case "settings.changed":
@@ -225,17 +206,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         if (libraryTimer.current) clearTimeout(libraryTimer.current);
         dispatch({ type: "library/received", scenes: normalizeCatalog(payload, true) });
         break;
-      case "osf.animation.wheel.data": {
-        if (!stateRef.current.wheel) break;
-        const entries: WheelEntry[] = Array.isArray(record.entries) ? record.entries.filter(isRecord).map((entry) => {
-          const scene = String(entry.scene || "");
-          const stage = Number.isInteger(entry.stage) ? entry.stage : null;
-          const title = String(entry.title || scene || "Animation");
-          return { scene, stage, title, detail: String(entry.detail || title), key: wheelKey(scene, stage) };
-        }).filter((entry) => entry.scene) : [];
-        dispatch({ type: "wheel/received", customized: !!record.customized, entries });
-        break;
-      }
       case "osf.animation.pick": {
         // A miss keeps the pick armed — re-arming per attempt made the feature
         // read as broken. Actor picks also stay armed on success (cast building
@@ -288,26 +258,17 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "osf.animation.launchResult":
         if (record.ok && record.handle) {
           const sceneId = String(record.sceneId || stateRef.current.selectedId || "");
-          const wheelLaunch = !!stateRef.current.wheel;
           const afterLaunch = stateRef.current.preferences.afterLaunch;
           dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch });
-          if (wheelLaunch || afterLaunch === "close") send("osf.animation.requestClose");
+          if (afterLaunch === "close") send("osf.animation.requestClose");
           else showNotice("ok", `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
         } else {
           const error = String(record.error || "Launch failed.");
           dispatch({ type: "launch/failed", error });
-          if (!stateRef.current.wheel) showNotice("err", error);
+          showNotice("err", error);
         }
         break;
       case "osf.animation.notice": if (record.text) showNotice(record.kind === "err" || record.kind === "ok" ? record.kind : "info", String(record.text)); break;
-      case "osf.animation.mode": {
-        if (record.mode !== "wheel") { dispatch({ type: "wheel/exited" }); break; }
-        const target = isRecord(record.target) && typeof record.target.token === "number" ? { token: record.target.token, name: String(record.target.name || "Target") } : null;
-        const tagPrefix = String(record.tagPrefix || "player.emote.").toLowerCase();
-        dispatch({ type: "wheel/entered", tagPrefix, target });
-        window.setTimeout(() => { if (!stateRef.current.wheel?.requested) { dispatch({ type: "wheel/requested" }); send("osf.animation.wheel.get", { tagPrefix }); } }, 0);
-        break;
-      }
       case "ui.visibility":
         if (!record.visible) {
           if (padHeld.current.timer) clearTimeout(padHeld.current.timer);
@@ -353,8 +314,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       dispatch({ type: "nearby/received", kind: "furniture", targets: normalizeNearby(nearby.anchors) });
       requestCatalog(true);
       requestLibrary(true);
-      showNotice("info", "Standalone mode. Snapshot catalog; pick/scan/launch are stubbed. W = animation wheel · B = backdrop.");
-      installWheelHook(bridge);
+      showNotice("info", "Standalone mode. Snapshot catalog; pick/scan/launch are stubbed. B = backdrop.");
     } else {
       requestCatalog(true);
       requestLibrary(true);
@@ -384,9 +344,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.showHidden, state.browseKind, state.libCustomOnly, state.libFull, state.cast, state.furniture, state.anchorMatch]);
 
   useEffect(() => {
-    document.body.classList.toggle("wheel-mode", !!state.wheel);
     document.body.classList.toggle("live-mode", state.minimized);
-  }, [state.wheel, state.minimized]);
+  }, [state.minimized]);
 
   useEffect(() => {
     // Nothing renders the projections when the label layer is dark, so skip the
@@ -402,7 +361,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     project();
     const timer = window.setInterval(project, 80);
     return () => clearInterval(timer);
-  }, [state.cast, state.furniture, state.viewVisible, state.wheel, state.minimized, state.preferences.actorLabels, send]);
+  }, [state.cast, state.furniture, state.viewVisible, state.minimized, state.preferences.actorLabels, send]);
 
   useEffect(() => {
     // Armed pick: poll the pickable targets' screen geometry so the view can
@@ -531,40 +490,14 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     },
     setPlayback: (handle, paused) => send("osf.animation.playback.set", { handle, paused }),
     setMinimized: (minimized) => dispatch({ type: "minimized/changed", minimized }),
-    toggleWheelEntry: (scene, stage = null) => {
-      const current = stateRef.current;
-      const key = wheelKey(scene, stage);
-      const candidate = wheelCandidates(current).find((item) => item.key === key);
-      if (!candidate) return;
-      const entries = wheelPool(current).slice(0, WHEEL_MAX);
-      const index = entries.findIndex((item) => item.key === key);
-      if (index < 0) { if (entries.length >= WHEEL_MAX) { showNotice("err", `The animation wheel is full (${WHEEL_MAX}/${WHEEL_MAX}).`); return; } entries.push(candidate); } else entries.splice(index, 1);
-      const pinned = cloneWithPins(current, entries.map((entry) => entry.key));
-      dispatch({ type: "wheel/customized", ...pinned });
-      send("osf.animation.wheel.set", { entries: entries.map((entry) => entry.stage == null ? { scene: entry.scene } : { scene: entry.scene, stage: entry.stage }) });
-    },
-    moveWheelEntry: (scene, stage, direction) => {
-      const current = stateRef.current;
-      const entries = wheelPool(current).slice(0, WHEEL_MAX);
-      const from = entries.findIndex((entry) => entry.key === wheelKey(scene, stage));
-      const to = from + direction;
-      if (from < 0 || to < 0 || to >= entries.length) return;
-      [entries[from], entries[to]] = [entries[to], entries[from]];
-      dispatch({ type: "wheel/customized", ...cloneWithPins(current, entries.map((entry) => entry.key)) });
-      send("osf.animation.wheel.set", { entries: entries.map((entry) => entry.stage == null ? { scene: entry.scene } : { scene: entry.scene, stage: entry.stage }) });
-    },
-    resetWheel: () => { const pinned = cloneWithPins(stateRef.current, []); dispatch({ type: "wheel/reset", ...pinned }); send("osf.animation.wheel.set", { reset: true }); showNotice("info", "Animation wheel reset to installed defaults."); },
-    focusWheel: (index) => dispatch({ type: "wheel/focused", focus: index }),
-    pickWheel: (index) => { const current = stateRef.current; const wheel = current.wheel; if (!wheel || wheel.launching) return; const entry = wheel.entries[index]; if (!entry) return; dispatch({ type: "wheel/launching", key: entry.key }); send("osf.animation.launch", { sceneId: entry.scene, castTokens: [wheel.target?.token ?? PLAYER_TOKEN], opts: entry.stage == null ? {} : { stage: entry.stage } }); },
-    cancelWheel: () => send("osf.animation.requestClose"),
     requestClose: () => send("osf.animation.requestClose"),
     orbit: (dx, dy, wheel) => send("osf.animation.orbit", { dx, dy, wheel }),
     openModPage: (url) => { if (standalone) window.open(url, "_blank", "noopener"); else send("osfui.openModPage"); },
   }), [requestCatalog, requestLibrary, send, showNotice, standalone, startPlayable]);
 
   const debugCommands = useMemo<DevCommands>(
-    () => import.meta.env.DEV ? createDebugCommands({ dispatch, send, requestCatalog, stateRef }) : NO_DEV_COMMANDS,
-    [requestCatalog, send],
+    () => import.meta.env.DEV ? createDebugCommands({ dispatch }) : NO_DEV_COMMANDS,
+    [],
   );
 
   return { state, commands, debugCommands, standalone };

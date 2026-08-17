@@ -84,8 +84,8 @@ export interface LaunchOptions {
   speed: string;
 }
 
-export type BrowserMode = "scenes" | "library" | "active" | "wheel";
-export type BrowseMode = Exclude<BrowserMode, "wheel">;
+export type BrowserMode = "scenes" | "library" | "active";
+export type BrowseMode = BrowserMode;
 export type BrowseKind = "all" | "animation" | "emote" | "scene";
 /** Input accepted at state boundaries while old browser snapshots still say `action`. */
 export type BrowseKindInput = BrowseKind | "action";
@@ -126,25 +126,6 @@ export const DEFAULT_PREFERENCES: BrowserPreferences = {
   authorDetails: false,
 };
 
-export interface WheelEntry {
-  scene: string;
-  stage: number | null;
-  title: string;
-  detail: string;
-  key: string;
-}
-
-export interface WheelState {
-  tagPrefix: string;
-  target: { token: number; name: string } | null;
-  focus: number;
-  error: string;
-  launching: string;
-  received: boolean;
-  requested: boolean;
-  entries: WheelEntry[];
-}
-
 export interface NoticeState {
   kind: "" | "info" | "ok" | "err";
   text: string;
@@ -184,7 +165,6 @@ export interface BrowserState {
   catalogReceived: boolean;
   library: SceneModel[];
   libraryReceived: boolean;
-  wheelCustomized: boolean;
   selectedId: string | null;
   /** Selected library stage. Null selects the whole authored emote/scene. */
   selectedStage: number | null;
@@ -208,7 +188,6 @@ export interface BrowserState {
   browseKind: BrowseKind;
   allSpecies: boolean;
   mode: BrowserMode;
-  wheel: WheelState | null;
   preferences: BrowserPreferences;
   settingsOpen: boolean;
   lastBrowseMode: BrowseMode;
@@ -235,7 +214,6 @@ export function createInitialState(): BrowserState {
     catalogReceived: false,
     library: [],
     libraryReceived: false,
-    wheelCustomized: false,
     selectedId: null,
     selectedStage: null,
     cast: [PLAYER_CAST],
@@ -258,7 +236,6 @@ export function createInitialState(): BrowserState {
     browseKind: "all",
     allSpecies: false,
     mode: "scenes",
-    wheel: null,
     preferences: { ...DEFAULT_PREFERENCES },
     settingsOpen: false,
     lastBrowseMode: "scenes",

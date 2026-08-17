@@ -429,8 +429,6 @@ button,input,select{font:inherit;color:inherit}
 .libx-row.selected .libx-spine{background:var(--accent)}
 .libx-title{font:600 12px var(--font-sans);letter-spacing:.01em;color:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .libx-row .libx-meta{color:var(--text-muted)}
-/* ◆ = this emote is in the effective wheel loadout */
-
 /* Unified browser: rows are launch targets; enclosing pack/folder names are
    organizational collections and never masquerade as playable scene sets. */
 .playable-groups{display:flex;flex-direction:column;gap:7px}
@@ -440,12 +438,11 @@ button,input,select{font:inherit;color:inherit}
 .playable-copy{display:flex;flex-direction:column;min-width:0;gap:1px}
 .playable-path{max-width:270px;font-size:8px;overflow:hidden;text-overflow:ellipsis}
 .playable-traits{margin-left:auto;flex:none;font-size:8px;color:var(--text-muted)}
-.playable-play,.playable-wheel{width:34px;flex:none;border:1px solid var(--line);border-radius:2px;background:var(--void-900);
+.playable-play{width:34px;flex:none;border:1px solid var(--line);border-radius:2px;background:var(--void-900);
   color:var(--text-faint);font:700 11px var(--font-mono);cursor:pointer}
-.playable-play:hover:not(:disabled),.playable-wheel:hover{border-color:var(--accent);color:var(--accent)}
+.playable-play:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
 .playable-play.go{color:var(--signal-go)}
 .playable-play:disabled{opacity:.35;cursor:default}
-.playable-wheel.on{color:var(--accent);border-color:rgba(240,113,48,.45)}
 .brief-collection{margin-top:-7px;color:var(--text-muted)}
 
 /* ---- ACTIVE tab (running-scenes manager) ------------------- */
@@ -487,16 +484,6 @@ button,input,select{font:inherit;color:inherit}
 .brief-status.warn .eb{color:var(--signal-warn)}
 .brief-status .dot{width:7px;height:7px;background:var(--accent);box-shadow:0 0 7px var(--accent)}
 .brief-status.warn .dot{background:var(--signal-warn);box-shadow:0 0 7px var(--signal-warn)}
-/* animation-wheel loadout controls */
-.brief-pin{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-.pin-btn{border:1px solid var(--line-strong);background:transparent;border-radius:2px;padding:4px 10px;
-  font:600 9.5px var(--font-mono);letter-spacing:.12em;color:var(--text-muted);cursor:pointer}
-.pin-btn:hover{border-color:var(--steel-500);color:var(--text-bright)}
-.pin-btn.on{border-color:var(--accent);color:var(--accent)}
-.pin-btn.compact{padding:4px 7px;min-width:26px}
-.pin-btn.reset{margin-left:auto;font-size:8px;color:var(--text-faint)}
-.pin-btn:disabled{opacity:.35;cursor:default;border-color:var(--line);color:var(--text-faint)}
-.wheel-order{color:var(--text-faint);padding:0 2px}
 .brief-empty{background:var(--void-900);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:20px;text-align:center}
 .brief-empty .mono{color:var(--text-muted)}
 
@@ -554,9 +541,6 @@ button,input,select{font:inherit;color:inherit}
 .anim-tags{display:flex;flex-wrap:wrap;gap:3px}
 .anim-tags .pill{font:600 7px var(--font-mono);color:var(--text-faint);border:1px solid var(--line);border-radius:2px;padding:1px 4px;text-transform:uppercase;letter-spacing:.06em}
 .anim-dur{font:600 9px var(--font-mono);color:var(--text-faint);letter-spacing:.04em;flex:none;white-space:nowrap}
-.anim-wheel-controls{display:inline-flex;align-items:center;gap:3px;flex:none}
-.anim-wheel-controls .wheel-order{font-size:8px}
-.anim-wheel-controls:not(.wide) .pin-btn{height:26px}
 .anim-play{width:26px;height:26px;flex:none;border:1px solid var(--line-strong);background:var(--void-700);border-radius:2px;color:var(--accent);font-size:12px;display:inline-flex;align-items:center;justify-content:center}
 .anim-play:hover:not(:disabled){background:var(--accent);color:var(--text-on-amber);border-color:var(--accent)}
 .anim-play:disabled{color:var(--text-faint);border-color:var(--line);opacity:.5}
@@ -626,7 +610,6 @@ button,input,select{font:inherit;color:inherit}
 body.live-mode .console,body.live-mode .brief{display:none}
 .livebar{position:absolute;left:14px;bottom:14px;z-index:6;display:none;flex-direction:column;gap:6px}
 body.live-mode .livebar{display:flex}
-body.wheel-mode .livebar{display:none}  /* the wheel owns the screen while it's up */
 .livebar .take-chip{background:rgba(6,9,13,.88);box-shadow:var(--shadow-sm);max-width:440px}
 .livebar .take-body strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 /* current animation of the set — the line NEXT ▸ steps */
@@ -640,49 +623,6 @@ body.wheel-mode .livebar{display:none}  /* the wheel owns the screen while it's 
   border-radius:2px;padding:4px 9px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
 .expand-mini:hover{border-color:var(--steel-500);color:var(--text-bright)}
 .livebar-hint{font-size:9px;letter-spacing:.14em;color:var(--text-faint);padding-left:2px}
-
-/* ============================================================
-   ANIMATION WHEEL  (transient radial mode)
-   Opened via osf.mode {mode:"wheel"}: console/brief hide, a ring
-   of emote slices circles the untouched world center. Live
-   overlay (pausesGame:false) — no world-obscuring backdrop; only
-   the slices/hub take pointer events.
-   ============================================================ */
-body.wheel-mode .console,body.wheel-mode .brief{display:none}
-.wheel{position:absolute;inset:0;z-index:8;display:none;pointer-events:none}
-body.wheel-mode .wheel{display:block}
-/* --wrx/--wry = slice-track ellipse radii, set inline by renderWheel (count-adaptive
-   wheelGeom in main.js); the defaults here only cover a ring rendered without them */
-.wheel-ring{position:absolute;left:50%;top:50%;--wrx:250px;--wry:170px}
-/* decorative dashed ellipse tracing the slice track */
-.wheel-dial{position:absolute;left:0;top:0;width:calc(var(--wrx)*2 - 30px);height:calc(var(--wry)*2 - 30px);transform:translate(-50%,-50%);
-  border:1px dashed var(--line-strong);border-radius:50%;opacity:.55}
-/* slices: inline transform (JS-computed ellipse position) — don't set transform here */
-.wheel-slice{position:absolute;left:0;top:0;max-width:170px;pointer-events:auto;cursor:pointer;
-  background:rgba(6,9,13,.88);border:1px solid var(--line-strong);border-radius:2px;padding:7px 13px;
-  font:600 12px var(--font-display);letter-spacing:.06em;text-transform:uppercase;color:var(--text-body);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:var(--shadow-sm)}
-.wheel-slice:hover{border-color:var(--steel-500);color:var(--text-bright)}
-/* amber layered OVER the dark base (not replacing it): a bare 16% amber wash goes
-   near-transparent over a bright game world and the focused label becomes unreadable */
-.wheel-slice.focused{border-color:var(--accent);color:var(--text-bright);box-shadow:var(--glow-accent);
-  background:linear-gradient(rgba(240,113,48,.18),rgba(240,113,48,.18)) rgba(6,9,13,.88)}
-.wheel-slice:focus{outline:none}  /* .focused carries the ring — no doubled outline under .nav-kb */
-.wheel-hub{position:absolute;left:0;top:0;width:128px;height:128px;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;border-radius:50%;
-  background:rgba(6,9,13,.72);border:1px solid var(--line-hud);box-shadow:inset 0 0 22px rgba(0,0,0,.55)}
-.wheel-hub:hover{border-color:var(--signal-stop)}
-.wheel-hub-who{font:700 13px var(--font-display);letter-spacing:.05em;text-transform:uppercase;color:var(--text-bright);
-  max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wheel-hub-status{font:500 8.5px var(--font-mono);color:var(--text-faint);max-width:104px;white-space:normal;text-align:center;line-height:1.35}
-.wheel-hub-status.err{color:#e6b3a8}
-/* text-shadow: keeps the free-floating captions legible over a bright game world */
-
-.wheel-caption{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);letter-spacing:.12em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}
-.wheel-empty{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:auto;width:300px;
-  background:rgba(6,9,13,.92);border:1px dashed var(--line-strong);border-radius:var(--radius);padding:18px;
-  display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
-.wheel-empty .mono{white-space:normal}
 
 /* standalone-only dev backdrop (#devbackdrop, injected by main.js when no bridge
    is present — never exists in-game): stands in for the live game world behind the
@@ -701,15 +641,3 @@ body.wheel-mode .wheel{display:block}
   radial-gradient(26% 22% at 24% 26%,rgba(205,218,238,.22),transparent 70%),
   radial-gradient(120% 60% at 50% 110%,rgba(46,58,74,.5),transparent),
   linear-gradient(180deg,#0a1019 0%,#070a11 60%,#04060a 100%)}
-
-/* standalone-only wheel debug strip (#wheeldbg, rendered by DevTools when no
-   bridge is present — never exists in-game); visible only while the wheel is up */
-.wheeldbg{position:fixed;left:14px;top:14px;z-index:9;display:none;align-items:center;gap:6px;
-  background:rgba(6,9,13,.88);border:1px solid var(--line-strong);border-radius:2px;padding:6px 10px;box-shadow:var(--shadow-sm)}
-body.wheel-mode .wheeldbg{display:flex}
-.wheeldbg-title{font:600 8.5px/1 var(--font-mono);letter-spacing:.15em;color:var(--text-faint);margin-right:2px}
-.wheeldbg-n{min-width:28px;text-align:center;font:600 11px var(--font-mono);color:var(--text-bright)}
-.wheeldbg button{border:1px solid var(--line-strong);background:none;color:var(--text-muted);border-radius:2px;
-  padding:3px 7px;font:600 9px var(--font-mono);letter-spacing:.1em;cursor:pointer}
-.wheeldbg button:hover{border-color:var(--steel-500);color:var(--text-bright)}
-.wheeldbg button.on{border-color:var(--accent);background:var(--accent-quiet);color:var(--text-bright)}

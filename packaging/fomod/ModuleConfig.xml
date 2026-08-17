@@ -36,10 +36,10 @@ Recommended. Pure data (a few MB of JSON), no extra plugin slot used.</descripti
         </group>
         <group name="Immersion Actions" type="SelectExactlyOne">
           <plugins order="Explicit">
-            <plugin name="Install Emote Wheel Content">
-              <description>Adds the emote pack (wave, what's up, hands on hips, arms crossed, data slate) that the emote wheel shows. Open the wheel with the hotkey you bind in OSF UI's settings menu; emotes can play on the NPC in your crosshair.
+            <plugin name="Install Immersion Emotes">
+              <description>Adds an emote pack (wave, what's up, hands on hips, arms crossed, data slate) to the animation browser. Emotes can play on the player or a selected NPC.
 
-Recommended if you want the emote wheel to do anything out of the box.</description>
+Recommended if you want a small starter set of character gestures.</description>
               <image path="fomod\images\header.jpg"/>
               <files>
                 <folder source="Immersion" destination="" priority="1"/>
@@ -49,7 +49,7 @@ Recommended if you want the emote wheel to do anything out of the box.</descript
               </typeDescriptor>
             </plugin>
             <plugin name="Skip">
-              <description>Installs no emotes. The emote wheel will open but have nothing to show.</description>
+              <description>Installs no starter emotes. Other animation and scene packs are unaffected.</description>
               <image path="fomod\images\header.jpg"/>
               <typeDescriptor>
                 <type name="Optional"/>

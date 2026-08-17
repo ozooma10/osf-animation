@@ -9,7 +9,6 @@ import type {
   LocationMode,
   NearbyTarget,
   PluginVersion,
-  WheelEntry,
 } from "./state";
 import type { SceneModel } from "../model";
 
@@ -40,7 +39,7 @@ export type BrowserAction =
   | { type: "location/selected"; mode: LocationMode; token?: number | null }
   | { type: "selection/changed"; sceneId: string | null; stage?: number | null }
   | { type: "mode/changed"; mode: BrowserMode }
-  | { type: "browser/opened"; mode: Exclude<BrowserMode, "wheel">; resetBrowsing: boolean }
+  | { type: "browser/opened"; mode: BrowserMode; resetBrowsing: boolean }
   | { type: "filter/search"; search: string }
   | { type: "filter/species" }
   | { type: "browse/all" }
@@ -54,15 +53,6 @@ export type BrowserAction =
   | { type: "step/toggled"; step: "cast" | "anchor" }
   | { type: "minimized/changed"; minimized: boolean }
   | { type: "active/stopped"; handle: number }
-  | { type: "wheel/entered"; tagPrefix: string; target: { token: number; name: string } | null }
-  | { type: "wheel/exited" }
-  | { type: "wheel/requested" }
-  | { type: "wheel/received"; customized: boolean; entries: WheelEntry[] }
-  | { type: "wheel/focused"; focus: number }
-  | { type: "wheel/launching"; key: string }
-  | { type: "wheel/debug"; entries: WheelEntry[]; customized: boolean; received: boolean; target: { token: number; name: string } | null; error: string }
-  | { type: "wheel/customized"; catalog: SceneModel[]; library: SceneModel[] }
-  | { type: "wheel/reset"; catalog: SceneModel[]; library: SceneModel[] }
   | { type: "visibility/hidden" }
   | { type: "visibility/shown" }
   | { type: "seeded/remembered"; token: number }

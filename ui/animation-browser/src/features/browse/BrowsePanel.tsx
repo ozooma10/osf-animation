@@ -8,8 +8,6 @@ import {
   formatDuration,
   formatEstimate,
   hiddenSceneCount,
-  isWheelEmote,
-  isWheelStage,
   needsText,
   packKey,
   packLabel,
@@ -21,7 +19,6 @@ import {
   showUnavailable,
   speciesLabel,
   stageLabel,
-  wheelPool,
   type PlayableItem,
 } from "../../app/selectors";
 import type { BrowseKind, BrowserState } from "../../app/state";
@@ -60,23 +57,15 @@ function itemDuration(item: PlayableItem): string {
   return formatDuration(item.stage.loopSec ?? item.stage.estSec);
 }
 
-function wheelEligible(item: PlayableItem): boolean {
-  return item.stage
-    ? isWheelStage(item.scene, item.stage)
-    : item.kind === "emote" && isWheelEmote(item.scene);
-}
-
-function PlayableRow({ state, entry, wheelKeys, commands }: {
+function PlayableRow({ state, entry, commands }: {
   state: BrowserState;
   entry: EvaluatedPlayable;
-  wheelKeys: ReadonlySet<string>;
   commands: BrowserCommands;
 }) {
   const { item, evaluation } = entry;
   const scene = item.scene;
   const ready = evaluation.gaps === 0;
   const selected = state.selectedId === scene.id && state.selectedStage === (item.stage?.index ?? null);
-  const onWheel = wheelKeys.has(item.key);
   const details = [kindLabel(item)];
   if (scene.actorCount > 1) details.push(`${scene.actorCount} actors`);
   if (scene.requiresFurniture) details.push(anchorShort(scene) || "furniture");
@@ -95,21 +84,15 @@ function PlayableRow({ state, entry, wheelKeys, commands }: {
       <span class="playable-traits mono">{details.join(" · ")}</span>
       {!ready && <span class="row-badge">{needsText(state, scene, evaluation)}</span>}
     </button>
-    {wheelEligible(item) && <button class={`playable-wheel ${onWheel ? "on" : ""}`}
-      title={onWheel ? "Remove from Quick Access" : "Add to Quick Access"}
-      onClick={() => commands.toggleWheelEntry(scene.id, item.stage?.index ?? null)}>
-      {onWheel ? "◆" : "◇"}
-    </button>}
     <button class={`playable-play ${ready ? "go" : ""}`} disabled={!ready}
       title={ready ? `Play ${item.title}` : evaluation.reason}
       onClick={() => commands.launch(item.stage?.index, item.kind === "animation", scene.id)}>▶</button>
   </div>;
 }
 
-function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: {
+function PlayableGroups({ state, entries, commands, muted = false }: {
   state: BrowserState;
   entries: EvaluatedPlayable[];
-  wheelKeys: ReadonlySet<string>;
   commands: BrowserCommands;
   muted?: boolean;
 }) {
@@ -132,7 +115,7 @@ function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: 
           <span class="libx-meta mono">{list.length} playable{list.length === 1 ? "" : "s"}</span>
         </button>
         {open && <div class="libx-list">{list.map((entry) =>
-          <PlayableRow key={entry.item.key} state={state} entry={entry} wheelKeys={wheelKeys} commands={commands}/>)}</div>}
+          <PlayableRow key={entry.item.key} state={state} entry={entry} commands={commands}/>)}</div>}
       </section>;
     })}
   </div>;
@@ -182,20 +165,19 @@ function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: Br
   };
   const ready = entries.filter((entry) => entry.evaluation.gaps === 0).sort(rank);
   const rest = entries.filter((entry) => entry.evaluation.gaps > 0).sort(rank);
-  const wheelKeys = new Set(wheelPool(state).map((candidate) => candidate.key));
   const unavailable = state.preferences.unavailableScenes;
   const showRest = showUnavailable(state);
   const hiddenCount = hiddenSceneCount(state);
 
   return <>
     <BrowseFilters state={state} commands={commands} count={ready.length} hiddenCount={hiddenCount}/>
-    {ready.length ? <PlayableGroups state={state} entries={ready} wheelKeys={wheelKeys} commands={commands}/>
+    {ready.length ? <PlayableGroups state={state} entries={ready} commands={commands}/>
       : <Empty>No installed playable fits the current cast, furniture, and filters.</Empty>}
     {unavailable === "ask" && !!rest.length && <button class={`reveal ${state.browseAll ? "on" : ""}`}
       onClick={commands.toggleBrowseAll}>{state.browseAll ? "▾" : "▸"} {rest.length} more need a different cast or furniture</button>}
     {showRest && unavailable === "show" && !!rest.length &&
       <div class="browse-note dim"><Dot/><span class="lbl">NEEDS DIFFERENT CAST OR FURNITURE · {rest.length}</span></div>}
-    {showRest && <PlayableGroups state={state} entries={rest} wheelKeys={wheelKeys} muted commands={commands}/>}
+    {showRest && <PlayableGroups state={state} entries={rest} muted commands={commands}/>}
   </>;
 }
 

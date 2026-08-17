@@ -4,6 +4,9 @@ All notable changes to OSF Animation are documented here.
 
 ## [Unreleased]
 
+### Removed
+- **The animation/emote wheel and its parallel quick-access system.** The radial view mode, wheel hotkey, ordered pin persistence, bridge commands, launch special-cases, and browser pin controls have been removed. Emotes remain ordinary playable content in the Animation Browser.
+
 ### Added
 - **Persistent actor overlay routes (native ABI 1.0).** External SFSE plugins can own one masked,
   content-neutral route per actor, request zero-animation or animated stations, acknowledge exact

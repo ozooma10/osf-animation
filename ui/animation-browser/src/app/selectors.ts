@@ -29,8 +29,6 @@ export function hottestPickTarget(
   return best;
 }
 
-export const WHEEL_MAX = 12;
-
 export interface LocationCastChoices {
   showPlayer: boolean;
   actors: CastMember[];
@@ -47,18 +45,6 @@ export function locationCastChoices(state: BrowserState): LocationCastChoices {
     return true;
   });
   return { showPlayer: castAToken !== PLAYER_TOKEN, actors };
-}
-
-export interface WheelCandidate {
-  key: string;
-  scene: string;
-  stage: number | null;
-  title: string;
-  detail: string;
-  pinned: number;
-  priority: number;
-  weight: number;
-  source: SceneModel | SceneStage;
 }
 
 export type PlayableKind = "animation" | "emote" | "scene";
@@ -80,15 +66,6 @@ export function isEmote(scene: SceneModel | null | undefined): boolean {
   return !!scene && scene.tags.some((tag) => tag.toLowerCase().startsWith("player.emote."));
 }
 
-export function isWheelEmote(scene: SceneModel | null | undefined): boolean {
-  return !!scene && isEmote(scene) && !scene.unlisted && scene.actorCount === 1 && !scene.requiresFurniture;
-}
-
-export function isWheelStage(scene: SceneModel, stage: SceneStage): boolean {
-  return stage.clipCount > 0 && !!scene.library && !scene.requiresFurniture
-    && scene.actorCount === 1 && scene.species === "human";
-}
-
 export function sceneCatalog(state: BrowserState): SceneModel[] {
   return state.catalog.filter((scene) => !isEmote(scene) && unlistedVisible(state, scene));
 }
@@ -106,7 +83,7 @@ export function isDerivedDebugAnimation(scene: SceneModel): boolean {
 export const isGeneratedSceneClip = isDerivedDebugAnimation;
 
 export function playableKey(sceneId: string, stage: number | null): string {
-  return wheelKey(sceneId, stage);
+  return `${sceneId}\0${stage == null ? "" : stage}`;
 }
 
 /**
@@ -333,7 +310,7 @@ export function hasPlayer(state: BrowserState): boolean {
  * gate decides whether the controller runs the 80ms projection poll at all.
  */
 export function labeledCast(state: BrowserState): { member: CastMember; index: number }[] {
-  if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized) return [];
+  if (!state.preferences.actorLabels || !state.viewVisible || state.minimized) return [];
   return state.cast
     .map((member, index) => ({ member, index }))
     .filter(({ member }) => member.kind !== "player");
@@ -342,7 +319,7 @@ export function labeledCast(state: BrowserState): { member: CastMember; index: n
 /** Selected furniture whose world label is live under the same display policy
  *  as selected-cast labels. */
 export function labeledFurniture(state: BrowserState): FurnitureTarget | null {
-  if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized) return null;
+  if (!state.preferences.actorLabels || !state.viewVisible || state.minimized) return null;
   return state.furniture;
 }
 
@@ -479,76 +456,6 @@ export function stageClean(stage: SceneStage): boolean {
   return !stage.tags.includes("transition") && !stage.tags.includes("partial");
 }
 
-export function wheelKey(scene: string, stage: number | null): string {
-  return `${scene}\0${stage == null ? "" : stage}`;
-}
-
-export function wheelStageTitle(scene: SceneModel, stage: SceneStage): string {
-  if (stage.name) return playableStageTitle(scene, stage);
-  const title = playableSceneTitle(scene);
-  return scene.stages.length === 1 ? title : `${title} · Stage ${stage.index + 1}`;
-}
-
-// Same single-entry memo shape as playableItems: the candidate sweep walks every library stage.
-let wheelMemo: {
-  catalog: BrowserState["catalog"];
-  library: BrowserState["library"];
-  candidates: WheelCandidate[];
-} | null = null;
-
-export function wheelCandidates(state: BrowserState): WheelCandidate[] {
-  if (wheelMemo && wheelMemo.catalog === state.catalog && wheelMemo.library === state.library) {
-    return wheelMemo.candidates;
-  }
-  const candidates = buildWheelCandidates(state);
-  wheelMemo = { catalog: state.catalog, library: state.library, candidates };
-  return candidates;
-}
-
-function buildWheelCandidates(state: BrowserState): WheelCandidate[] {
-  const candidates: WheelCandidate[] = emoteCatalog(state).filter(isWheelEmote).map((scene) => ({
-    key: wheelKey(scene.id, null),
-    scene: scene.id,
-    stage: null,
-    title: playableSceneTitle(scene),
-    detail: playableSceneTitle(scene),
-    pinned: scene.pinned,
-    priority: scene.priority,
-    weight: scene.weight,
-    source: scene,
-  }));
-  for (const scene of state.library) {
-    for (const stage of scene.stages) {
-      if (!isWheelStage(scene, stage)) continue;
-      const title = wheelStageTitle(scene, stage);
-      candidates.push({
-        key: wheelKey(scene.id, stage.index),
-        scene: scene.id,
-        stage: stage.index,
-        title,
-        detail: stage.name ? `${playableSceneTitle(scene)} · ${playableStageTitle(scene, stage)}` : title,
-        pinned: stage.pinned,
-        priority: scene.priority,
-        weight: scene.weight,
-        source: stage,
-      });
-    }
-  }
-  return candidates;
-}
-
-export function wheelPool(state: BrowserState): WheelCandidate[] {
-  const eligible = wheelCandidates(state);
-  const pinned = eligible.filter((item) => item.pinned > 0).sort((a, b) => a.pinned - b.pinned);
-  if (state.wheelCustomized) return pinned.slice(0, WHEEL_MAX);
-  const prefix = state.wheel?.tagPrefix || "player.emote.";
-  return eligible
-    .filter((item) => item.stage == null && "tags" in item.source
-      && item.source.tags.some((tag) => tag.toLowerCase().startsWith(prefix)))
-    .sort((a, b) => b.priority - a.priority || b.weight - a.weight || a.title.localeCompare(b.title))
-    .slice(0, WHEEL_MAX);
-}
-
 export function formatDuration(seconds: number | null): string {
   if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "";
   const rounded = Math.max(1, Math.round(seconds));
@@ -564,9 +471,4 @@ export function formatEstimate(scene: Pick<SceneModel, "estSec" | "estPartial" |
 export function stageLabel(scene: SceneModel, index: number): string {
   const stage = scene.stages.find((candidate) => candidate.index === index);
   return stage ? playableStageTitle(scene, stage) : `stage ${index}`;
-}
-
-export function wheelGeometry(count: number): { rx: number; ry: number } {
-  const scale = Math.max(0, Math.min(1, (count - 3) / 9));
-  return { rx: Math.round(150 + 100 * scale), ry: Math.round(140 + 50 * scale) };
 }

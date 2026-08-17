@@ -7,7 +7,7 @@ import "./styles/browser.css";
 
 function BrowserRoot() {
   const { state, commands, debugCommands, standalone } = useBrowserController();
-  useBrowserInput(state, commands, standalone);
+  useBrowserInput(state, commands);
   // import.meta.env.DEV is compile-time false in a production build, so the
   // DevSurface import below is dead code the bundler removes outright.
   return <><App state={state} commands={commands}/>

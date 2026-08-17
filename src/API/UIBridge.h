@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string_view>
-
 // OSF Animation's consumer of the OSF UI native bridge (src/API/OSFUI_API.h).
 namespace OSF::API
 {
@@ -16,11 +14,4 @@ namespace OSF::API
 	// native and the openBrowser hotkey. Returns false when OSF UI is absent or too old to
 	// support a native menu open (bridge MINOR < 1). Any thread.
 	bool OpenBrowser();
-
-	// Open the osf view in emote-wheel mode, filtered to solo free-space emotes whose tags start with
-	// a_tagPrefix ("" -> "player.emote."). Captures the crosshair NPC as the wheel's target
-	// (dead / in-combat / non-human fall back to a player-only wheel) and delivers
-	// osf.mode {mode:"wheel"} race-safely (immediate send + osf.opened replay). Returns false
-	// when OSF UI is absent or too old (logs + HUD-errors itself). Any thread.
-	bool OpenWheel(std::string_view a_tagPrefix);
 }

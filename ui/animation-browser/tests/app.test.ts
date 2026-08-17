@@ -20,8 +20,6 @@ import {
   validSelection,
   isDerivedDebugAnimation,
   isGeneratedSceneClip,
-  wheelGeometry,
-  wheelPool,
 } from "../src/app/selectors";
 import { PLAYER_CAST, createInitialState } from "../src/app/state";
 import { decodePreferences, preferredOpenMode } from "../src/app/settings";
@@ -33,9 +31,8 @@ const solo = normalizeScene({
   title: "Solo",
   actorCount: 1,
   tags: ["player.emote.solo"],
-  pinned: 2,
 });
-const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2, pinned: 1 });
+const pair = normalizeScene({ id: "pair", title: "Pair", actorCount: 2 });
 
 describe("browser reducer", () => {
   it("normalizes the legacy action browse facet to emote", () => {
@@ -70,14 +67,9 @@ describe("browser reducer", () => {
   });
 
   it("clears transient modes when the host hides the view", () => {
-    const state = browserReducer(createInitialState(), {
-      type: "wheel/entered",
-      tagPrefix: "player.emote.",
-      target: null,
-    });
-    const armed = browserReducer(state, { type: "pick/armed", kind: "actor" });
+    const armed = browserReducer(createInitialState(), { type: "pick/armed", kind: "actor" });
     const hidden = browserReducer({ ...armed, minimized: true }, { type: "visibility/hidden" });
-    expect(hidden).toMatchObject({ mode: "scenes", wheel: null, minimized: false, pickMode: null, actorIndicators: [], viewVisible: false });
+    expect(hidden).toMatchObject({ mode: "scenes", minimized: false, pickMode: null, actorIndicators: [], viewVisible: false });
   });
 
   it("tracks native-projected actor indicators and clears them when hidden", () => {
@@ -144,13 +136,6 @@ describe("browser reducer", () => {
     expect(state.showHidden).toBe(false);
   });
 
-
-  it("distinguishes an explicit wheel from reset defaults", () => {
-    const customized = browserReducer(createInitialState(), { type: "wheel/customized", catalog: [solo], library: [] });
-    expect(customized.wheelCustomized).toBe(true);
-    const reset = browserReducer(customized, { type: "wheel/reset", catalog: [solo], library: [] });
-    expect(reset.wheelCustomized).toBe(false);
-  });
 
   it("toggles custom-only animation filtering via the settings payload", () => {
     const state = browserReducer(createInitialState(), { type: "settings/received", preferences: { librarySource: "custom" } });
@@ -335,13 +320,6 @@ describe("browser selectors", () => {
       browseAll: true,
       preferences: { ...state.preferences, unavailableScenes: "hide" },
     })).toBe(false);
-  });
-
-  it("derives default wheel order and caps its geometry", () => {
-    const state = { ...createInitialState(), catalog: [solo], catalogReceived: true };
-    expect(wheelPool(state).map((entry) => entry.scene)).toEqual(["solo"]);
-    expect(wheelGeometry(3)).toEqual({ rx: 150, ry: 140 });
-    expect(wheelGeometry(12)).toEqual({ rx: 250, ry: 190 });
   });
 
   it("formats instrument durations", () => {

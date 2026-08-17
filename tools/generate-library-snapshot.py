@@ -256,7 +256,6 @@ def build_card(scene, file_defaults, kw_by_formid):
         "requiresFurniture": bool(anchor),
         "anchors": anchor_names,
         "unlisted": unlisted,
-        "pinned": 0,  # the library lane never pins
         "stages": stages,
         "estSec": sec_or_null(est_sec),
         "estPartial": est_partial,

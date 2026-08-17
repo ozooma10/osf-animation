@@ -6,43 +6,14 @@ import {
   formatDuration,
   formatEstimate,
   isEmote,
-  isWheelEmote,
-  isWheelStage,
   playableSceneTitle,
   playableStageTitle,
   sceneById,
   stageClean,
-  wheelKey,
-  wheelPool,
 } from "../../app/selectors";
 import type { BrowserState } from "../../app/state";
-import type { SceneEvaluation, SceneModel, SceneStage } from "../../model";
+import type { SceneEvaluation, SceneModel } from "../../model";
 import { MoveButtons, Segmented, SexTag, memberSex } from "../shared/Shared";
-
-function WheelControls({ state, scene, stage, wide, commands }: {
-  state: BrowserState;
-  scene: SceneModel;
-  stage?: SceneStage;
-  wide?: boolean;
-  commands: BrowserCommands;
-}) {
-  if (stage ? !isWheelStage(scene, stage) : !isWheelEmote(scene)) return null;
-  if (state.wheelCustomized && !state.libraryReceived) return null;
-  const stageIndex = stage?.index ?? null;
-  const pool = wheelPool(state);
-  const index = pool.findIndex((item) => item.key === wheelKey(scene.id, stageIndex));
-  const onWheel = index >= 0;
-  return <span class={`anim-wheel-controls ${wide ? "wide" : ""}`}>
-    <button class={`pin-btn ${onWheel ? "on" : ""} ${wide ? "" : "compact"}`} title={onWheel ? "Remove from the animation wheel" : "Add to the animation wheel"} onClick={() => commands.toggleWheelEntry(scene.id, stageIndex)}>
-      {wide ? onWheel ? "◆ IN QUICK ACCESS" : "◇ ADD TO QUICK ACCESS" : onWheel ? "◆" : "◇"}
-    </button>
-    {onWheel && state.wheelCustomized && <>
-      <span class="wheel-order mono">{index + 1}/{pool.length}</span>
-      <button class="pin-btn compact" disabled={index <= 0} title="Move earlier on wheel" onClick={() => commands.moveWheelEntry(scene.id, stageIndex, -1)}>←</button>
-      <button class="pin-btn compact" disabled={index >= pool.length - 1} title="Move later on wheel" onClick={() => commands.moveWheelEntry(scene.id, stageIndex, 1)}>→</button>
-    </>}
-  </span>;
-}
 
 function RoleMap({ state, scene, evaluation, commands }: { state: BrowserState; scene: SceneModel; evaluation: SceneEvaluation; commands: BrowserCommands }) {
   const dragFrom = useRef(-1);
@@ -85,7 +56,6 @@ function AnimationList({ state, scene, canPlay, focusStage, commands }: { state:
       const duration = loop || formatDuration(stage.estSec);
       return <div class="anim-row" key={stage.index}><div class="anim-main"><span class="anim-name">{label}</span><div class="anim-tags">{stage.tags.slice(0, 3).map((tag) => <span class="pill" key={tag}>{tag}</span>)}</div></div>
         {duration && <span class="anim-dur" title={loop ? "Loop length" : "Stage time"}>{duration}{stage.openEnded ? "∞" : ""}</span>}
-        <WheelControls state={state} scene={scene} stage={stage} commands={commands}/>
         <button class="anim-play" disabled={!canPlay} title="Play this animation" onClick={() => commands.launch(stage.index, !!scene.library)}>▶</button>
       </div>;
     })}
@@ -139,7 +109,6 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
     ? `${focusedStage.openEnded ? "holds until stopped" : "ends automatically"} · ${anchor}`
     : emote ? `${scene.openEnded ? "holds until stopped" : "ends automatically"} · ${anchor}`
       : `${evaluation.seated}/${evaluation.actorCount || "?"} cast · ${anchor}`;
-  const wholeWheel = isWheelEmote(scene);
   const itemTitle = focusedStage ? playableStageTitle(scene, focusedStage) : playableSceneTitle(scene);
   const itemKind = focusedStage ? "ANIMATION" : emote ? "EMOTE" : "SCENE";
   const reason = !state.ready ? "Engine not connected." : ready ? "" : evaluation.reason;
@@ -149,7 +118,6 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
     {focusedStage && scene.stages.length > 1 && <div class="mono wrap brief-collection">{playableSceneTitle(scene)}</div>}
     {state.filters.debugMode && <div class="mono wrap brief-src">{scene.id} · {scene.sourceFile || "live registry"}</div>}
     <div class={`brief-line ${ready ? "" : "warn"}`}><span class="mono">{summary}</span></div>
-    {(focusedStage || wholeWheel || state.wheelCustomized) && <div class="brief-pin">{focusedStage ? <WheelControls state={state} scene={scene} stage={focusedStage} wide commands={commands}/> : wholeWheel && <WheelControls state={state} scene={scene} wide commands={commands}/>} {state.wheelCustomized && <button class="pin-btn reset" title="Restore installed default animations" onClick={commands.resetWheel}>RESET DEFAULTS</button>}</div>}
     <div class="brief-scroll"><RoleMap state={state} scene={scene} evaluation={evaluation} commands={commands}/><AnimationList state={state} scene={scene} canPlay={canPlay} focusStage={focusedStage?.index} commands={commands}/>{state.filters.debugMode && <Diagnostics scene={scene} evaluation={evaluation}/>}</div>
     <div class="brief-foot"><Overrides state={state} commands={commands}/><div class="launch-stack">
       {reason && <div class="mono wrap" style={{ color: "var(--text-faint)", textAlign: "center" }}>{reason}</div>}
