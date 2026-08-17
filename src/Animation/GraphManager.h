@@ -52,11 +52,6 @@ namespace OSF::Animation
 		// Synchronously loads a_file (relative to the game's Data folder, or absolute) and starts playing it on a_actor.
 		bool PlayAnimation(RE::Actor* a_actor, std::string_view a_file, std::string_view a_animId);
 
-		// Decodes an engine-native human `.af` directly from caller-owned bytes and starts it as a
-		// normal looping solo graph. Used by the transient Studio link; never enters the pack registry.
-		bool PlayAnimationBytes(RE::Actor* a_actor, const std::vector<std::uint8_t>& a_bytes,
-			std::string_view a_clipKey, std::string* a_error = nullptr);
-
 		// Starts a fade-out (the graph keeps sampling while its stamp weight ramps to 0, landing on the engine's live pose, then removes itself).
 		// Refuses for scene participants, use StopScene in that case.
 		bool StopAnimation(RE::Actor* a_actor);
@@ -91,20 +86,9 @@ namespace OSF::Animation
 			PlaybackId playbackId = 0;
 		};
 		using ScenePlayback = SynchronizedPlaybackState;  // compatibility spelling
-		struct AnimationPlayback
-		{
-			float time = 0.0f;
-			float duration = 0.0f;
-			float speed = 0.0f;
-		};
-
 		// Browser/director inspection of the current scene clock. Seek never fires timed marks.
 		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
 		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
-		// Solo-clip transport used by the transient Studio preview. Scene actors are rejected.
-		bool SetAnimationTime(RE::Actor* a_actor, float a_time);
-		std::optional<AnimationPlayback> GetAnimationPlayback(RE::Actor* a_actor);
-		bool SetAnimationHoldAtEnd(RE::Actor* a_actor, bool a_hold);
 
 		// Stops the scene that a_actor participates in (all its participants).
 		bool StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);

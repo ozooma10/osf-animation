@@ -38,11 +38,6 @@ All notable changes to OSF Animation are documented here.
   track lanes (cues / actions / sounds / camera) drawn on the timeline — and the stage strip
   switches stages without leaving inspection. Previews are side-effect-free and restore the cast's
   original positions on stop.
-- **Studio Link preview inbox.** Enable **Studio Link** under Settings → OSF Animation → Advanced →
-  Authoring to create `Documents\My Games\Starfield\SFSE\OSF\Studio Link`: an authoring tool can
-  drop a request file there to play a raw `.af` clip or helmet transition preview on the player
-  in-game and read the reply back, without a scene definition. It is off by default and fully stops
-  its worker when disabled.
 - **OSF UI 2.0.0 is now the minimum host.** The browser view targets the OSF UI 2.x runtime; older
   hosts show an update prompt on the browser's status line.
 - **A stage can freeze on one frame instead of playing.** `"hold": true` parks a stage on its clips' last frame (`"hold": 0.4` on any normalized clip position), giving a scene a genuine static hold state — "carrying it", "waiting" — between two animations. Freezing the previous stage's own final frame costs nothing at the seam, where borrowing an unrelated idle re-poses the body to whatever that clip was authored against (with a `mask`, the masked part visibly pops to a different orientation). The clock does not advance, so a frozen clip never loops: `hold` is rejected alongside `loops`, `timer` is the only automatic way out, and otherwise the stage holds until a manual advance or an edge. Marks at or before the hold position fire once on entry, so an `action` at `at: 0` still runs. See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).

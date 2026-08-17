@@ -65,11 +65,6 @@ namespace OSF::Serialization
 		static AFLoadResult LoadAnimation(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_afBytes,
 			std::string_view a_rigKey, const RigBytesProvider& a_rigProvider);
 
-		// Drops one decoded clip while retaining the shared parsed rig. Transient Studio previews call
-		// this immediately after loading; their Graph keeps the returned shared_ptrs alive without
-		// allowing every edit/hash to accumulate in the process-wide clip cache.
-		static void EvictAnimation(std::string_view a_clipKey, std::string_view a_rigKey);
-
 		// Drops the clip + rig caches (the OSF.ReloadPacks dev edit loop).
 		static void ClearCache();
 	};

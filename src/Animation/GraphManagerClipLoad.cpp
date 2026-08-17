@@ -255,24 +255,5 @@ namespace OSF::Animation
 			}
 			return out;
 		}
-
-		Result LoadAfBytes(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_bytes)
-		{
-			OSF_PROFILE_SCOPE_N("Anim.LoadAfBytes");
-
-			constexpr std::string_view kRigKey = "human-skeleton";
-			auto loaded = Serialization::AFImport::LoadAnimation(a_clipKey, a_bytes, kRigKey, &LoadHumanRigBytes);
-			Serialization::AFImport::EvictAnimation(a_clipKey, kRigKey);
-
-			Result out;
-			if (loaded.error != Serialization::AFError::kSuccess) {
-				out.detail = std::move(loaded.detail);
-				return out;
-			}
-			out.skeleton = std::move(loaded.skeleton);
-			out.anim = std::move(loaded.anim);
-			out.ok = true;
-			return out;
-		}
 	}
 }

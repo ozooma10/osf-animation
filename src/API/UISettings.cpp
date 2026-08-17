@@ -3,7 +3,6 @@
 #include "API/OSFUI_API.h"
 #include "API/UIBridge.h"
 #include "Equipment/GearRegistry.h"
-#include "Studio/StudioPreviewService.h"
 #include "UI/HudMessage.h"
 #include "Util/StringUtil.h"
 
@@ -120,11 +119,6 @@ namespace OSF::API
         "options": ["trace", "debug", "info", "warn", "error"],
         "optionLabels": ["Trace", "Debug", "Info", "Warnings", "Errors"],
         "label": "Log level", "hint": "OSF Animation.log verbosity." }
-    ] },
-    { "id": "studio-link", "label": "Authoring", "page": "advanced", "settings": [
-      { "key": "studioLink.enabled", "type": "bool", "default": false,
-        "label": "Enable Studio Link",
-        "hint": "Accept live preview requests from OSF Studio while this game is running." }
     ] }
   ]
 })json";
@@ -181,8 +175,6 @@ namespace OSF::API
 				UI::HudMessage::SetDebugEnabled(value == "true");
 			} else if (key == "gear.autoEquip") {
 				Equipment::Gear::SetAutoEquip(value == "true");
-			} else if (key == "studioLink.enabled") {
-				Studio::SetPreviewServiceEnabled(value == "true");
 			}
 		}
 
@@ -215,9 +207,6 @@ namespace OSF::API
 	{
 		using namespace OSFUI::API;
 
-		// Studio Link is an authoring-only opt-in. Applying the default before bridge
-		// discovery also removes a stale session marker when OSF UI is absent/too old.
-		Studio::SetPreviewServiceEnabled(false);
 		WarnLegacyFile();
 
 		if (!g_bridge.Init()) {

@@ -370,32 +370,6 @@ namespace OSF::Animation
 		return played;
 	}
 
-	bool GraphManager::PlayAnimationBytes(RE::Actor* a_actor, const std::vector<std::uint8_t>& a_bytes,
-		std::string_view a_clipKey, std::string* a_error)
-	{
-		if (!a_actor) {
-			if (a_error) *a_error = "The player is unavailable";
-			return false;
-		}
-		if (!_origAnimGraphUpdate) {
-			if (a_error) *a_error = "OSF Animation playback hooks are unavailable";
-			return false;
-		}
-
-		auto loaded = GraphManagerClipLoad::LoadAfBytes(a_clipKey, a_bytes);
-		if (!loaded.ok) {
-			if (a_error) *a_error = loaded.detail;
-			REX::ERROR("[Anim] Studio preview '{}' failed to decode: {}", a_clipKey, loaded.detail);
-			return false;
-		}
-
-		if (!PlayDecodedAnimation(a_actor, std::move(loaded.skeleton), std::move(loaded.anim), std::string(a_clipKey))) {
-			if (a_error) *a_error = "The player is already participating in an OSF scene";
-			return false;
-		}
-		return true;
-	}
-
 	bool GraphManager::PlayDecodedAnimation(RE::Actor* a_actor,
 		std::shared_ptr<const OzzSkeleton> a_skeleton,
 		std::shared_ptr<const OzzAnimation> a_anim,
@@ -976,53 +950,6 @@ namespace OSF::Animation
 			return {};
 		}
 		return iter->second->currentFile;
-	}
-
-	bool GraphManager::SetAnimationTime(RE::Actor* a_actor, float a_time)
-	{
-		if (!a_actor || !std::isfinite(a_time)) return false;
-		std::shared_lock lock{ stateLock };
-		const auto iter = graphs.find(a_actor);
-		if (iter == graphs.end()) return false;
-		std::scoped_lock graphLock{ iter->second->stateLock };
-		auto& graph = *iter->second;
-		if (graph.playbackSession || !graph.syncGroup || !graph.anim || !graph.anim->data) return false;
-		const float duration = graph.anim->data->duration();
-		const float time = std::clamp(a_time, 0.0f, (std::max)(duration - 0.0001f, 0.0f));
-		std::scoped_lock groupLock{ graph.syncGroup->lock };
-		graph.syncGroup->clock.time = time;
-		graph.localTime = time;
-		return true;
-	}
-
-	std::optional<GraphManager::AnimationPlayback> GraphManager::GetAnimationPlayback(RE::Actor* a_actor)
-	{
-		if (!a_actor) return std::nullopt;
-		std::shared_lock lock{ stateLock };
-		const auto iter = graphs.find(a_actor);
-		if (iter == graphs.end()) return std::nullopt;
-		std::scoped_lock graphLock{ iter->second->stateLock };
-		const auto& graph = *iter->second;
-		if (graph.playbackSession || !graph.syncGroup || !graph.anim || !graph.anim->data || graph.IsFadedOut()) {
-			return std::nullopt;
-		}
-		return AnimationPlayback{
-			.time = graph.localTime,
-			.duration = graph.anim->data->duration(),
-			.speed = graph.syncGroup->speed.load(std::memory_order_relaxed)
-		};
-	}
-
-	bool GraphManager::SetAnimationHoldAtEnd(RE::Actor* a_actor, bool a_hold)
-	{
-		if (!a_actor) return false;
-		std::shared_lock lock{ stateLock };
-		const auto iter = graphs.find(a_actor);
-		if (iter == graphs.end()) return false;
-		std::scoped_lock graphLock{ iter->second->stateLock };
-		if (iter->second->playbackSession) return false;
-		iter->second->holdClipAtEnd = a_hold;
-		return true;
 	}
 
 	bool GraphManager::SetSpeed(RE::Actor* a_actor, float a_speed)

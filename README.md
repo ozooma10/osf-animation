@@ -62,15 +62,6 @@ under:
 
 The Papyrus API is exposed as `OSF.*`.
 
-### OSF Studio live preview
-
-Enable **Studio Link** under OSF Animation → Advanced → Authoring to create a session-scoped inbox
-under `Documents\My Games\Starfield\SFSE\OSF\Studio Link`. OSF Studio's **Preview in game** button
-can pair with that folder and play its current unsaved human `.af` on the player at normal speed.
-The authoring service is off by default; disabling it stops its worker and restores any preview it
-owns. Studio previews are transient, never enter the registry, and refuse to replace non-Studio playback.
-
-
 ### Intellisense
 ```bat
 xmake project -k compile_commands   
