@@ -86,11 +86,9 @@ Each entry: **system** (`path`) — role.
   actor even while its station has no graph. Scenes always win and reconcile the overlay on end.
 - **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
-  Each load also publishes a **per-file import record** in the snapshot (`SceneFileStats` / `FileStats()`):
-  one per discovered file *including files that contributed nothing*, carrying counts, size, parse time
-  and the load problems attributed to it (`ProblemSink` pairs every problem line with its owning file, so
-  attribution never depends on parsing the message text). `LoadErrors()` is unchanged. The browser's
-  IMPORTS panel is the consumer, over `osf.animation.imports.get`. Also
+  Each load keeps a compact per-file problem record in the snapshot (`ContentFileStats` / `FileStats()`)
+  for System Health. `ProblemSink` pairs every problem line with its owning file, so attribution never
+  depends on parsing the message text. `LoadErrors()` is unchanged. Also
   carries the `stripActors`/`lockPlayer` default-mechanism opt-outs (top-level → per-role). A multi-scene
   file's top-level `roles` is read by JSON type: an ARRAY is a default cast inherited by scenes omitting
   `roles`; an OBJECT is a file-local registry of reusable role TEMPLATES that scene `roles` entries

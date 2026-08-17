@@ -13,16 +13,11 @@ namespace OSF::Registry::SceneRegistryClips
 {
 	using Util::ToLower;
 
-	void ProblemSink::Push(std::string a_line, const std::filesystem::path& a_owner,
-		std::string a_code, std::string a_hint, std::string a_scene,
-		std::string a_node, std::string a_role, std::string a_clip)
+	void ProblemSink::Push(std::string a_line, const std::filesystem::path& a_owner)
 	{
 		const bool warning = a_line.starts_with("[warn]");
 		lines.push_back(std::move(a_line));
-		records.push_back(PendingImportProblem{
-			a_owner, warning, std::move(a_code), std::move(a_hint), std::move(a_scene),
-			std::move(a_node), std::move(a_role), std::move(a_clip)
-		});
+		records.push_back(PendingLoadProblem{ a_owner, warning });
 	}
 
 	void DesugarLinear(SceneDef& a_def, const std::vector<StageDef>& a_stages)
@@ -147,17 +142,14 @@ namespace OSF::Registry::SceneRegistryClips
 			const auto file = tally.source.filename().string();
 			a_problems.Push("[warn] '" + file + "': " + std::to_string(tally.hidden) +
 				" scene(s) hidden — clips not installed (e.g. '" + tally.firstMissing +
-				"'); install the animation pack this file references", tally.source,
-				"missing-clips", "Install the referenced animation pack or correct the clip path, then reload packs.",
-				{}, {}, {}, tally.firstMissing);
+				"'); install the animation pack this file references", tally.source);
 			REX::WARN("[Registry] '{}': {} scene(s) hidden — clips not installed (e.g. '{}')",
 				file, tally.hidden, tally.firstMissing);
 		}
 	}
 
 	std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
-		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems,
-		std::map<std::string, std::uint32_t>& a_addedByFile)
+		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems)
 	{
 		struct ClipEntry
 		{
@@ -192,9 +184,7 @@ namespace OSF::Registry::SceneRegistryClips
 					(registration.clip.animId.empty() ? "" : (":" + registration.clip.animId)) +
 					"' in pack/file group '" +
 					(registration.pack.empty() ? registration.sourceFile.filename().string() : registration.pack) +
-					"' — keeping the first", registration.sourceFile, "duplicate-clip-library",
-					"Remove or rename the duplicate clipLibrary registration; OSF keeps the first.",
-					{}, {}, {}, registration.clip.file);
+					"' — keeping the first", registration.sourceFile);
 				REX::ERROR("[Registry] duplicate clipLibrary registration '{}' in group '{}' — keeping first",
 					display, registration.pack.empty() ? registration.sourceFile.filename().string() : registration.pack);
 				continue;
@@ -208,9 +198,7 @@ namespace OSF::Registry::SceneRegistryClips
 			if (!installedIt->second) {
 				a_problems.Push("[warn] '" + registration.sourceFile.filename().string() +
 					"': clipLibrary entry hidden — clip not installed ('" + registration.clip.file + "')",
-					registration.sourceFile, "missing-library-clip",
-					"Install the referenced animation pack or correct this clip path, then reload packs.",
-					{}, {}, {}, registration.clip.file);
+					registration.sourceFile);
 				REX::WARN("[Registry] '{}': clipLibrary entry hidden — clip not installed ('{}')",
 					registration.sourceFile.filename().string(), registration.clip.file);
 				continue;
@@ -319,64 +307,10 @@ namespace OSF::Registry::SceneRegistryClips
 			DesugarLinear(definition, { stage });
 
 			const std::string generatedKey = ToLower(definition.id);
-			++a_addedByFile[definition.sourceFile.string()];
 			a_scenes.emplace(generatedKey, std::move(definition));
 			++added;
 		}
 		return added;
 	}
 
-	void AccumulateFileStats(const std::unordered_map<std::string, SceneDef>& a_scenes,
-		ClipInstalledCache& a_cache, std::vector<ContentFileStats>& a_files,
-		const std::unordered_map<std::string, std::size_t>& a_index)
-	{
-		std::vector<std::unordered_set<std::string>> clipSets(a_files.size());
-		std::vector<std::unordered_set<std::string>> speciesSets(a_files.size());
-		for (const auto& [key, definition] : a_scenes) {
-			const auto indexIt = a_index.find(definition.sourceFile.string());
-			if (indexIt == a_index.end()) {
-				continue;
-			}
-			auto& stats = a_files[indexIt->second];
-			++stats.scenes;
-			stats.hidden += definition.clipsAvailable ? 0u : 1u;
-			stats.unlisted += definition.unlisted ? 1u : 0u;
-			stats.anchored += definition.RequiresAnchor() ? 1u : 0u;
-			stats.nodes += static_cast<std::uint32_t>(definition.nodes.size());
-			stats.roles += static_cast<std::uint32_t>(definition.roles.size());
-			if (!definition.species.empty()) {
-				speciesSets[indexIt->second].insert(definition.species);
-			}
-			for (const auto& node : definition.nodes) {
-				stats.cues += static_cast<std::uint32_t>(node.cues.size());
-				stats.actions += static_cast<std::uint32_t>(node.actions.size());
-				stats.sounds += static_cast<std::uint32_t>(node.sounds.size());
-				stats.cameras += static_cast<std::uint32_t>(node.cameras.size());
-				stats.stages += static_cast<std::uint32_t>(node.stages.size());
-				for (const auto& stage : node.stages) {
-					stats.clips += static_cast<std::uint32_t>(stage.clips.size());
-					for (const auto& clip : stage.clips) {
-						clipSets[indexIt->second].insert(clip.file);
-					}
-				}
-			}
-		}
-		for (std::size_t i = 0; i < a_files.size(); ++i) {
-			auto& stats = a_files[i];
-			stats.distinctClips = static_cast<std::uint32_t>(clipSets[i].size());
-			std::vector<std::string> missing;
-			for (const auto& clip : clipSets[i]) {
-				if (!ClipInstalled(a_cache, clip)) {
-					missing.push_back(clip);
-				}
-			}
-			std::sort(missing.begin(), missing.end());
-			stats.missingClips = static_cast<std::uint32_t>(missing.size());
-			constexpr std::size_t kMaxMissingExamples = 8;
-			stats.missingClipExamples.assign(missing.begin(),
-				missing.begin() + std::min(missing.size(), kMaxMissingExamples));
-			stats.species.assign(speciesSets[i].begin(), speciesSets[i].end());
-			std::sort(stats.species.begin(), stats.species.end());
-		}
-	}
 }

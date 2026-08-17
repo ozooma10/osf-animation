@@ -22,7 +22,7 @@ reference to that clip: its resource path plus an optional GLB animation id. A `
 gives the asset a friendly catalog name and tags. A **scene** composes one or more clips for roles,
 timing, policy, and optional navigation. A *running* scene is a handle + world anchor + participants +
 undo ledger; `StartScene` starts one from a scene definition. The lower-level synchronized animation
-object used by scenes, routes, and previews is a **playback session**, not another domain scene.
+object used by scenes and overlay routes is a **playback session**, not another domain scene.
 
 A scene is **minimal by default** (just clips) and **expands into graph features** (branches, tracks,
 roles, policy) only when needed. The two shapes share timing and track-lane rules, but their topology
@@ -158,7 +158,7 @@ it. A clip-only file needs no dummy scene or `id`:
   The pack already identifies the source mod, and `scene.clip` already identifies a raw clip.
 - A curated animation appears even when no scene references it, and it appears for every player —
   unlike the entries OSF derives automatically from a scene's stages, which stay behind the
-  browser's **Show author details** switch because they are a raw-clip inspection surface. The two share
+  browser's **Show author details** switch because they are raw-clip debug material. The two share
   an id namespace. The catalog identifies an explicit registration with
   `sourceKind:"curatedAnimation"` and an automatic entry with
   `sourceKind:"derivedDebugAnimation"`; legacy consumers also receive `curated:true` or `false`.
@@ -186,7 +186,7 @@ it. A clip-only file needs no dummy scene or `id`:
 ```
 
 Clips referenced by scenes in content files outside the reference catalog still receive automatic
-filename-based inspection entries when no explicit registration supplies metadata.
+filename-based raw-clip entries when no explicit registration supplies metadata.
 
 ---
 
@@ -267,9 +267,7 @@ segments are an implementation detail and are not addressed by these indexes.
   load). `timer` still works and is the only automatic way out; otherwise the stage holds until a
   manual advance (Space / `AdvanceScene`) or a scene edge fires. Marks at or before the hold position fire
   once when the stage activates, so an `action`/`cue` at `at: 0` still runs; later marks never fire.
-  Track lanes, `name`, and `tags` behave as on any other linear stage. The browser's preview session
-  exposes the frozen stage's full clip as a transport; inspection mode does not replay the scene's
-  authored timing or side effects.
+  Track lanes, `name`, and `tags` behave as on any other linear stage.
 - **Linear-stage shorthand:** a stage may be written as a bare array of animation clip specs instead of a
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a
@@ -287,7 +285,7 @@ segments are an implementation detail and are not addressed by these indexes.
   the scene with **`SceneOptions.Stage = <index>`** — it enters directly on that linear stage (a `loops:0`
   linear stage holds there). Linear-stage `tags` are separate from the scene's `tags` (which drive
   matchmaking).
-- **Clip-level inspection in Animations.** Every distinct, installed clip referenced by a scene in a
+- **Automatically exposed raw clips in Animations.** Every distinct, installed clip referenced by a scene in a
   content file outside the reference catalog is also published automatically as a one-actor entry
   under **Animations**, grouped by the scene file's `pack` label (or by its `*.osf.json` filename when
   no pack is declared). Playing one runs only that raw clip and follows the actor's live transform.
@@ -678,8 +676,7 @@ That makes the two positions behave differently when the clip length changes:
 So a frame keeps the moment you authored even if the clip is re-exported longer, while a fraction
 re-scales with it. The flip side: a frame **past the end** of the clip it plays on has nowhere to
 land and simply never fires (there is no clip length at load time to validate it against, so this is
-not a load error — check the frame against your clip). The browser's track rail flags such a mark
-as **PAST END** (dashed marker) and the inspector skips it, matching the runtime. Use
+not a load error — check the frame against your clip). Use
 `"at": "end"` for the clip's final frame.
 
 `repeat: "loop"` works the same for both: the position is measured from the start of **each** loop.

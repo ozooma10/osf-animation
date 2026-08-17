@@ -40,8 +40,7 @@ import {
 } from "./state";
 import { OsfUiBridge, hasOsfUiBridge, type AnimationBridge } from "../bridge/client";
 import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/contract";
-import { normalizeCatalog, normalizeImportReport, normalizeRouteCatalog, type SceneModel } from "../model";
-import { TIMELINE_FPS } from "../features/browse/timeline";
+import { normalizeCatalog, type SceneModel } from "../model";
 import type { DevCommands } from "../dev/debug";
 import {
   NO_DEV_COMMANDS,
@@ -82,10 +81,6 @@ export function normalizeActive(payload: unknown): ActiveLaunch[] {
     time: Math.max(0, Number(scene.time) || 0),
     duration: Math.max(0, Number(scene.duration) || 0),
     speed: Math.max(0, Number(scene.speed) || 0),
-    inspection: !!scene.inspection,
-    inspectionKind: scene.inspectionKind === "route" ? "route" : "scene",
-    routeId: String(scene.routeId || ""),
-    transitionId: String(scene.transitionId || ""),
     cast: Array.isArray(scene.cast) ? scene.cast.filter(isRecord).map((member) => ({
       token: Number(member.token), name: String(member.name || "actor"), player: !!member.player,
     })) : [],
@@ -145,12 +140,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   const noticeTimer = useRef<number | undefined>();
   const catalogTimer = useRef<number | undefined>();
   const libraryTimer = useRef<number | undefined>();
-  const importsTimer = useRef<number | undefined>();
-  const routesTimer = useRef<number | undefined>();
   const catalogTries = useRef(0);
   const libraryTries = useRef(0);
-  const importsTries = useRef(0);
-  const routesTries = useRef(0);
   const lastAdvance = useRef(0);
   const padHeld = useRef<{ id: number; timer?: number }>({ id: 0 });
 
@@ -185,27 +176,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     if (standalone) return;
     if (libraryTries.current++ < 5) libraryTimer.current = window.setTimeout(() => requestLibrary(false), 1500);
     else if (!stateRef.current.libraryReceived) showNotice("err", "No response from OSF Animation. The animation library didn't load — make sure a save is loaded.");
-  }, [send, standalone, showNotice]);
-
-  const requestRoutes = useCallback((fresh = false) => {
-    if (fresh) { routesTries.current = 0; dispatch({ type: "routes/requested" }); }
-    if (routesTimer.current) clearTimeout(routesTimer.current);
-    send("osf.animation.routes.get");
-    if (standalone) return;
-    if (routesTries.current++ < 5) routesTimer.current = window.setTimeout(() => requestRoutes(false), 1200);
-    else if (!stateRef.current.routesReceived) showNotice("err", "No route catalog from OSF Animation — the engine did not answer.");
-  }, [send, standalone, showNotice]);
-
-  // Unlike the catalog and the library, this is only fetched while the IMPORTS panel is open, so
-  // it retries briefly and then gives up quietly rather than warning about a runtime the rest of
-  // the browser is plainly talking to.
-  const requestImports = useCallback((fresh = false) => {
-    if (fresh) { importsTries.current = 0; dispatch({ type: "imports/requested" }); }
-    if (importsTimer.current) clearTimeout(importsTimer.current);
-    send("osf.animation.imports.get");
-    if (standalone) return;
-    if (importsTries.current++ < 4) importsTimer.current = window.setTimeout(() => requestImports(false), 1200);
-    else if (!stateRef.current.importsReceived) showNotice("err", "No import report from OSF Animation — the engine did not answer.");
   }, [send, standalone, showNotice]);
 
   handlerRef.current = (message) => {
@@ -254,37 +224,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "osf.animation.library.data":
         if (libraryTimer.current) clearTimeout(libraryTimer.current);
         dispatch({ type: "library/received", scenes: normalizeCatalog(payload, true) });
-        break;
-      case "osf.animation.routes.data":
-        if (routesTimer.current) clearTimeout(routesTimer.current);
-        dispatch({ type: "routes/received", routes: normalizeRouteCatalog(payload) });
-        break;
-      case "osf.animation.imports.data": {
-        if (importsTimer.current) clearTimeout(importsTimer.current);
-        const report = normalizeImportReport(payload);
-        dispatch({ type: "imports/received", files: report.files, totals: report.totals });
-        break;
-      }
-      case "osf.animation.imports.reloadResult": {
-        const durationMs = Number(record.durationMs) || 0;
-        if (record.ok && isRecord(record.report)) {
-          const report = normalizeImportReport(record.report);
-          dispatch({ type: "imports/reloadSucceeded", files: report.files, totals: report.totals,
-            durationMs, scenes: Number(record.scenes) || report.totals.scenes, completedAt: Date.now() });
-          requestCatalog(true);
-          requestLibrary(true);
-          if (stateRef.current.routeDebuggerOpen) requestRoutes(true);
-          showNotice("ok", `Packs reloaded in ${Math.max(1, Math.round(durationMs))} ms. Review the import changes.`);
-        } else {
-          const error = String(record.error || "Pack reload failed.");
-          dispatch({ type: "imports/reloadFailed", error, durationMs, completedAt: Date.now() });
-          showNotice("err", error);
-        }
-        break;
-      }
-      case "osf.animation.imports.copyResult":
-        if (record.ok) showNotice("ok", "Full import report copied to the Windows clipboard.");
-        else showNotice("err", String(record.error || "The import report could not be copied."));
         break;
       case "osf.animation.wheel.data": {
         if (!stateRef.current.wheel) break;
@@ -349,29 +288,15 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "osf.animation.launchResult":
         if (record.ok && record.handle) {
           const sceneId = String(record.sceneId || stateRef.current.selectedId || "");
-          const inspect = !!record.inspect;
           const wheelLaunch = !!stateRef.current.wheel;
-          const afterLaunch = inspect ? "stay" : stateRef.current.preferences.afterLaunch;
-          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch, inspect });
+          const afterLaunch = stateRef.current.preferences.afterLaunch;
+          dispatch({ type: "launch/succeeded", handle: Number(record.handle), sceneId, afterLaunch });
           if (wheelLaunch || afterLaunch === "close") send("osf.animation.requestClose");
-          else showNotice("ok", inspect
-            ? `Inspecting "${sceneTitle(stateRef.current, sceneId)}" — scrub-only pose, tracks, and OSF-owned props.`
-            : `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
+          else showNotice("ok", `Playing "${sceneTitle(stateRef.current, sceneId)}" on handle ${record.handle}.`);
         } else {
           const error = String(record.error || "Launch failed.");
           dispatch({ type: "launch/failed", error });
           if (!stateRef.current.wheel) showNotice("err", error);
-        }
-        break;
-      case "osf.animation.routeInspectResult":
-        if (record.ok && record.handle) {
-          const routeId = String(record.routeId || stateRef.current.selectedRouteId || "route");
-          const transitionId = String(record.transitionId || stateRef.current.selectedTransitionId || "transition");
-          dispatch({ type: "routes/previewSucceeded", handle: Number(record.handle), routeId });
-          showNotice("ok", `Inspecting ${routeId} · ${transitionId} — frame transport is side-effect-safe.`);
-          send("osf.animation.playback.get");
-        } else {
-          showNotice("err", String(record.error || "The route transition preview could not start."));
         }
         break;
       case "osf.animation.notice": if (record.text) showNotice(record.kind === "err" || record.kind === "ok" ? record.kind : "info", String(record.text)); break;
@@ -435,7 +360,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       requestLibrary(true);
     }
     send("settings.get");
-    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (importsTimer.current) clearTimeout(importsTimer.current); if (routesTimer.current) clearTimeout(routesTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (padHeld.current.timer) clearTimeout(padHeld.current.timer); };
+    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (padHeld.current.timer) clearTimeout(padHeld.current.timer); };
   }, []);
 
   useEffect(() => {
@@ -492,28 +417,16 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     return () => clearInterval(timer);
   }, [state.pickMode, state.viewVisible, send]);
 
-  // Playback poll. It feeds the ACTIVE list's clocks, and it is also the game-thread beat the
-  // engine uses to step a RUNNING preview's props — so it keeps running for one while the user
-  // browses elsewhere, otherwise a played-back preview would animate with its props frozen.
-  const previewRunning = !!state.active?.some((scene) => scene.inspection && scene.speed > 0);
+  // Playback poll feeds the ACTIVE list's runtime clocks.
   useEffect(() => {
-    if ((state.mode !== "active" && !state.routeDebuggerOpen && !previewRunning) || !state.viewVisible || !state.active?.length) return;
+    if (state.mode !== "active" || !state.viewVisible || !state.active?.length) return;
     const refreshPlayback = () => send("osf.animation.playback.get");
     refreshPlayback();
     const timer = window.setInterval(refreshPlayback, 100);
     return () => clearInterval(timer);
-  }, [state.mode, state.routeDebuggerOpen, state.viewVisible, state.active?.length, previewRunning, send]);
+  }, [state.mode, state.viewVisible, state.active?.length, send]);
 
-  // Launching and inspecting are the same start with one flag flipped, so switching the
-  // inspected stage is simply this call again at another stage: the engine retires the
-  // running preview for that cast before it starts the new one. A stage switch must re-send
-  // the PREVIEW'S binding, not the console's — the user may have edited CAST or the anchor
-  // since the preview started, and launching the new stage from that mutable state either
-  // fails ("No cast selected") or re-casts the preview while the old actors stay frozen.
-  // lastInspectBinding remembers the location/furniture the running inspection was
-  // launched with so a stage switch reuses them verbatim.
-  const lastInspectBinding = useRef<{ sceneId: string; location: Record<string, unknown>; furnitureToken?: number } | null>(null);
-  const startPlayable = useCallback((stageIndex?: number, singleAnimation = false, sceneId?: string, inspect = false, reuseCastTokens?: number[]) => {
+  const startPlayable = useCallback((stageIndex?: number, singleAnimation = false, sceneId?: string) => {
     const current = stateRef.current;
     const scene = sceneById(current, sceneId ?? current.selectedId);
     if (!scene) return;
@@ -526,75 +439,32 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       speed: Number(current.opts.speed),
     };
     if (effectiveStage != null && effectiveStage > 0) options.stage = effectiveStage;
-    const castTokens = reuseCastTokens ?? current.cast.map((member) => member.token);
+    const castTokens = current.cast.map((member) => member.token);
     const fields: Record<string, unknown> = {
       sceneId: scene.id,
       castTokens,
       opts: options,
       singleAnimation: stageOnly,
-      inspect,
     };
-    const reuseBinding = reuseCastTokens && lastInspectBinding.current?.sceneId === scene.id ? lastInspectBinding.current : null;
-    fields.location = reuseBinding?.location ?? {
+    fields.location = {
       mode: scene.requiresFurniture ? "furniture" : scene.worldPlacement === "followActor" ? "cast" : current.locationMode,
       token: scene.requiresFurniture ? current.furniture?.token ?? 0 : current.locationToken ?? 0,
     };
     const roleNames = scene.roles.map((role) => role.name);
     if (roleNames.length === castTokens.length && roleNames.every((name) => name && !/^role \d+$/i.test(name))) fields.roleNames = roleNames;
-    const furnitureToken = reuseBinding ? reuseBinding.furnitureToken : scene.requiresFurniture && current.furniture ? current.furniture.token : undefined;
+    const furnitureToken = scene.requiresFurniture && current.furniture ? current.furniture.token : undefined;
     if (furnitureToken != null) fields.furnitureToken = furnitureToken;
-    if (inspect) lastInspectBinding.current = { sceneId: scene.id, location: fields.location as Record<string, unknown>, furnitureToken };
     const title = playableSceneTitle(scene);
-    showNotice("info", `${inspect ? "Preparing inspection" : "Launching"} "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
+    showNotice("info", `Launching "${effectiveStage != null ? `${title} · ${stageLabel(scene, effectiveStage)}` : title}"…`);
     send("osf.animation.launch", fields);
   }, [send, showNotice]);
 
   const commands = useMemo<BrowserCommands>(() => ({
-    refresh: () => { requestCatalog(true); requestLibrary(true); if (stateRef.current.routeDebuggerOpen) requestRoutes(true); },
+    refresh: () => { requestCatalog(true); requestLibrary(true); },
     setMode: (mode) => { dispatch({ type: "mode/changed", mode: mode === "library" ? "scenes" : mode }); if (!stateRef.current.libraryReceived) requestLibrary(true); },
     selectScene: (sceneId, stage = null) => dispatch({ type: "selection/changed", sceneId, stage }),
     setSearch: (search) => dispatch({ type: "filter/search", search: search.trim().toLowerCase() }),
     toggleSettings: (open) => dispatch({ type: "settings/open", open: open ?? !stateRef.current.settingsOpen }),
-    toggleRouteDebugger: (open) => {
-      const next = open ?? !stateRef.current.routeDebuggerOpen;
-      dispatch({ type: "routes/open", open: next });
-      if (next) requestRoutes(true);
-    },
-    refreshRoutes: () => requestRoutes(true),
-    setRouteSearch: (search) => dispatch({ type: "routes/search", search: search.trim().toLowerCase() }),
-    selectRoute: (routeId, transitionId = null) => dispatch({ type: "routes/selected", routeId, transitionId }),
-    selectRouteTransition: (transitionId) => dispatch({ type: "routes/transition", transitionId }),
-    selectRouteActor: (token) => dispatch({ type: "routes/actor", token }),
-    inspectRoute: (routeId, transitionId, actorToken) => {
-      showNotice("info", `Preparing route preview ${routeId} · ${transitionId}…`);
-      send("osf.animation.route.inspect", { routeId, transitionId, actorToken });
-    },
-    stepRouteFrame: (delta) => {
-      const current = stateRef.current;
-      const preview = current.active?.find((item) => item.inspectionKind === "route"
-        && item.routeId === current.selectedRouteId && item.transitionId === current.selectedTransitionId);
-      if (!preview || !preview.duration) return;
-      const time = Math.max(0, Math.min(preview.duration, preview.time + delta / TIMELINE_FPS));
-      send("osf.animation.playback.set", { handle: preview.handle, time, paused: true });
-    },
-    toggleImports: (open) => {
-      const next = open ?? !stateRef.current.importsOpen;
-      dispatch({ type: "imports/open", open: next });
-      // Re-fetch on every open: the report describes the last load, and ReloadPacks (or a fresh
-      // pack dropped in) can have happened since — a cached one would quietly lie.
-      if (next) requestImports(true);
-    },
-    refreshImports: () => requestImports(true),
-    reloadImports: () => {
-      if (stateRef.current.importReload.status === "running") return;
-      dispatch({ type: "imports/reloadStarted" });
-      send("osf.animation.imports.reload");
-    },
-    toggleImportFile: (path, open) => dispatch({ type: "imports/expanded", path, open }),
-    setImportFilter: (filter) => dispatch({ type: "imports/filter", filter }),
-    setImportSearch: (value) => dispatch({ type: "imports/search", search: value.trim().toLowerCase() }),
-    viewImportContent: (path) => dispatch({ type: "imports/viewContent", path }),
-    copyImportReport: (path) => send("osf.animation.imports.copy", { path }),
     setPreference: (key, value) => {
       dispatch({ type: "settings/received", preferences: { [key]: value } as Partial<BrowserPreferences> });
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });
@@ -649,11 +519,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleOptions: () => dispatch({ type: "brief/options" }),
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),
     launch: startPlayable,
-    inspectStage: (sceneId, stage) => {
-      // Re-inspect on the preview's own cast — the console cast may have been edited since.
-      const preview = activeLaunches(stateRef.current).find((launch) => launch.inspection && launch.sceneId === sceneId);
-      startPlayable(stage, false, sceneId, true, preview?.cast.length ? preview.cast.map((member) => member.token) : undefined);
-    },
     stop: (handle) => { const target = Number(handle) || stateRef.current.lastHandle; if (!target) return; send("osf.animation.stop", { handle: target }); dispatch({ type: "active/stopped", handle: target }); showNotice("info", `Stopping handle ${target}…`); },
     stopAll: () => { for (const launch of activeLaunches(stateRef.current)) { send("osf.animation.stop", { handle: launch.handle }); dispatch({ type: "active/stopped", handle: launch.handle }); } },
     advance: (handle) => {
@@ -662,25 +527,9 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const target = Number(handle) || current.lastHandle || (launches.length === 1 ? launches[0].handle : 0);
       if (!target || Date.now() - lastAdvance.current < 350) return;
       lastAdvance.current = Date.now();
-      // A preview has no runtime stage machine (the engine no-ops advance on inspection
-      // handles), so NEXT on one means "inspect the next animation" — a fresh scrub-only
-      // start on the same cast, wrapping at the end because this is a browsing tool.
-      const preview = launches.find((launch) => launch.handle === target && launch.inspection);
-      if (preview) {
-        const stages = sceneById(current, preview.sceneId)?.stages ?? [];
-        if (stages.length < 2) return;
-        const at = stages.findIndex((stage) => stage.index === preview.stage);
-        startPlayable(stages[(Math.max(at, 0) + 1) % stages.length].index, false, preview.sceneId, true,
-          preview.cast.length ? preview.cast.map((member) => member.token) : undefined);
-        return;
-      }
       send("osf.animation.advance", { handle: target });
     },
-    setPlayback: (handle, time, paused) => send("osf.animation.playback.set", {
-      handle,
-      ...(time == null ? {} : { time }),
-      ...(paused == null ? {} : { paused }),
-    }),
+    setPlayback: (handle, paused) => send("osf.animation.playback.set", { handle, paused }),
     setMinimized: (minimized) => dispatch({ type: "minimized/changed", minimized }),
     toggleWheelEntry: (scene, stage = null) => {
       const current = stateRef.current;
@@ -711,7 +560,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     requestClose: () => send("osf.animation.requestClose"),
     orbit: (dx, dy, wheel) => send("osf.animation.orbit", { dx, dy, wheel }),
     openModPage: (url) => { if (standalone) window.open(url, "_blank", "noopener"); else send("osfui.openModPage"); },
-  }), [requestCatalog, requestLibrary, requestImports, requestRoutes, send, showNotice, standalone, startPlayable]);
+  }), [requestCatalog, requestLibrary, send, showNotice, standalone, startPlayable]);
 
   const debugCommands = useMemo<DevCommands>(
     () => import.meta.env.DEV ? createDebugCommands({ dispatch, send, requestCatalog, stateRef }) : NO_DEV_COMMANDS,

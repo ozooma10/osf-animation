@@ -1,4 +1,4 @@
-import { EMPTY_IMPORT_TOTALS, type ImportFile, type ImportReloadDelta, type ImportTotals, type RouteModel, type SceneModel } from "../model";
+import type { SceneModel } from "../model";
 
 export const PLAYER_TOKEN = -1;
 
@@ -40,7 +40,7 @@ export interface ActiveCastMember {
   player: boolean;
 }
 
-/** A handle-bearing active item: either a runtime scene or a side-effect-free preview session. */
+/** A handle-bearing active runtime scene. */
 export interface ActiveLaunch {
   handle: number;
   sceneId: string;
@@ -50,10 +50,6 @@ export interface ActiveLaunch {
   time: number;
   duration: number;
   speed: number;
-  inspection: boolean;
-  inspectionKind: "scene" | "route";
-  routeId: string;
-  transitionId: string;
 }
 
 /** Compatibility spelling for callers that consume the frozen `activeScenes` bridge event. */
@@ -100,26 +96,6 @@ export function normalizeBrowseKind(value: BrowseKindInput): BrowseKind {
 export type AfterLaunch = "minimize" | "stay" | "close";
 export type OpenTo = "last" | BrowseMode;
 export type UnavailableScenes = "ask" | "show" | "hide";
-export type ImportFilter = "attention" | "rejected" | "partial" | "missing" | "empty" | "all";
-
-export interface ImportReloadState {
-  status: "idle" | "running" | "success" | "error";
-  completedAt: number;
-  durationMs: number;
-  scenes: number;
-  error: string;
-  delta: ImportReloadDelta;
-  newProblemKeys: ReadonlySet<string>;
-}
-
-const EMPTY_IMPORT_DELTA: ImportReloadDelta = {
-  newProblems: [], resolvedProblems: [], changedFiles: 0, addedFiles: 0, removedFiles: 0,
-};
-
-function emptyImportReload(): ImportReloadState {
-  return { status: "idle", completedAt: 0, durationMs: 0, scenes: 0, error: "", delta: EMPTY_IMPORT_DELTA, newProblemKeys: new Set() };
-}
-
 export interface BrowserPreferences {
   afterLaunch: AfterLaunch;
   openTo: OpenTo;
@@ -208,13 +184,6 @@ export interface BrowserState {
   catalogReceived: boolean;
   library: SceneModel[];
   libraryReceived: boolean;
-  routes: RouteModel[];
-  routesReceived: boolean;
-  routeDebuggerOpen: boolean;
-  selectedRouteId: string | null;
-  selectedTransitionId: string | null;
-  routeSearch: string;
-  routeActorToken: number;
   wheelCustomized: boolean;
   selectedId: string | null;
   /** Selected library stage. Null selects the whole authored emote/scene. */
@@ -242,17 +211,6 @@ export interface BrowserState {
   wheel: WheelState | null;
   preferences: BrowserPreferences;
   settingsOpen: boolean;
-  /** The per-file import report panel. Mutually exclusive with `settingsOpen`. */
-  importsOpen: boolean;
-  imports: ImportFile[];
-  importTotals: ImportTotals;
-  importsReceived: boolean;
-  /** Expanded import rows, keyed by file path. */
-  importsExpanded: ReadonlySet<string>;
-  /** Outcome filter; attention is the author-first default while All remains one click away. */
-  importsFilter: ImportFilter;
-  importsSearch: string;
-  importReload: ImportReloadState;
   lastBrowseMode: BrowseMode;
   minimized: boolean;
   /** Explicit group disclosure choices. Missing keys fall back to selection-driven opening. */
@@ -277,13 +235,6 @@ export function createInitialState(): BrowserState {
     catalogReceived: false,
     library: [],
     libraryReceived: false,
-    routes: [],
-    routesReceived: false,
-    routeDebuggerOpen: false,
-    selectedRouteId: null,
-    selectedTransitionId: null,
-    routeSearch: "",
-    routeActorToken: PLAYER_TOKEN,
     wheelCustomized: false,
     selectedId: null,
     selectedStage: null,
@@ -310,15 +261,7 @@ export function createInitialState(): BrowserState {
     wheel: null,
     preferences: { ...DEFAULT_PREFERENCES },
     settingsOpen: false,
-    importsOpen: false,
-    imports: [],
-    importTotals: { ...EMPTY_IMPORT_TOTALS },
-    importsReceived: false,
-    importsExpanded: new Set(),
-    importsFilter: "attention",
-    importsSearch: "",
     lastBrowseMode: "scenes",
-    importReload: emptyImportReload(),
     minimized: false,
     libOpen: new Map(),
     libFull: false,

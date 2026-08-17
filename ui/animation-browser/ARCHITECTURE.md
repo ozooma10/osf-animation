@@ -43,4 +43,4 @@ same interface, so feature code does not branch on bridge availability.
 resolution controls, transparency, visibility, bridge injection, and HMR. Inside that harness iframe
 the browser deliberately selects its stateful standalone bridge, because animation launches, scans,
 wheel edits, and active-scene transitions need more behavior than a static command fixture. Committed
-snapshots under `fixtures/live/` remain the source for generated mock data and offline inspection.
+snapshots under `fixtures/live/` remain the source for generated mock data and offline review.

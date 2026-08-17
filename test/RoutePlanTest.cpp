@@ -4,7 +4,6 @@
 #include "Overlay/OwnerRegistry.h"
 #include "Overlay/RoutePlan.h"
 #include "Overlay/RoutePlaybackPlan.h"
-#include "Scene/RouteInspectionTimeline.h"
 
 #include <type_traits>
 
@@ -119,10 +118,6 @@ namespace
 		Check(laneAt(1) < laneAt(0) && laneAt(0) < laneAt(2),
 			"same-frame prop replacement attaches before commit and destroys after acknowledgement");
 
-		const auto preview = Overlay::BuildRouteTransitionPreviewPlan(route, transition);
-		Check(preview.speed == 0.0f && preview.stages.size() == 1 && preview.stages[0].marks.empty() &&
-			preview.stages[0].contactPose.size() == 1 && preview.stages[0].blendIn == 0.0f,
-			"route preview reuses production pose compilation without scheduling side effects");
 	}
 
 	void CheckPlaybackAdmission()
@@ -230,29 +225,6 @@ int main()
 		Check(std::abs(pose.WeightAt(0.75f) - 0.5f) < 0.0001f &&
 			std::abs(pose.WeightAt(1.3f) - 0.5f) < 0.0001f,
 			"contact pose uses symmetric smoothstep midpoints");
-	}
-	{
-		OSF::Registry::RouteTransition transition;
-		transition.props = {
-			{ .frame = 2.0f, .id = "carrier", .attach = true, .lifetime = OSF::Registry::RouteLifetime::kTransition },
-			{ .frame = 3.0f, .id = "consumer", .attach = true, .lifetime = OSF::Registry::RouteLifetime::kExternal },
-			{ .frame = 4.0f, .id = "station", .attach = true, .lifetime = OSF::Registry::RouteLifetime::kStation },
-			{ .frame = 6.0f, .id = "carrier", .attach = false, .lifetime = OSF::Registry::RouteLifetime::kTransition },
-		};
-		auto at1 = OSF::Scene::InspectionRoutePropsAt(transition, 1.0f, false);
-		auto at4 = OSF::Scene::InspectionRoutePropsAt(transition, 4.0f, false);
-		auto atEnd = OSF::Scene::InspectionRoutePropsAt(transition, 4.0f, true);
-		Check(at1.empty(), "route debugger starts before authored prop marks");
-		Check(at4.size() == 2 && at4[0]->id == "carrier" && at4[1]->id == "station",
-			"route debugger reconstructs authored OSF-owned props and excludes external callbacks");
-		Check(atEnd.size() == 1 && atEnd[0]->id == "station",
-			"route debugger applies transition-reached cleanup to transition-lifetime props at clip end");
-		Check(OSF::Scene::InspectionRoutePropsAt(transition, 6.0f, false).size() == 1,
-			"route debugger rewinds attach and destroy marks deterministically");
-		transition.props.push_back({ .frame = 10.0f, .id = "late", .attach = true,
-			.lifetime = OSF::Registry::RouteLifetime::kStation });
-		Check(OSF::Scene::InspectionRoutePropsAt(transition, 10.0f, false, 10.0f).size() == 1,
-			"route debugger does not materialize an atFrame prop at the strict decoded clip end");
 	}
 	{
 		auto route = Route();

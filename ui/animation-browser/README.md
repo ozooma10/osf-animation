@@ -29,67 +29,16 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   show a "needs update" badge on the Mods surface, nothing is gated).
 - **Contract (`osf.animation.*`):**
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
-  `imports.get`→`imports.data` (the per-file registry-load report behind the
-  IMPORTS panel: one record per `*.osf.json` the engine scanned — counts, timing,
-  size, and the load problems attributed to it, plus rolled-up `totals`. Fetched
-  only while the panel is open, and re-fetched on every open because the report
-  describes the *last* load and `ReloadPacks` can have happened since. Problem
-  lines are bounded per file; `problemCount` carries the true total).
-  `imports.reload`→`imports.reloadResult` runs the same full content refresh
-  (registries, gear, and clip caches) as the legacy Papyrus `ReloadPacks`, returning
-  the new report so the view can diff new/resolved diagnostics.
-  `imports.copy {path}`→`imports.copyResult`
-  copies the authoritative, untruncated per-file report through the native Windows
-  clipboard path,
-  `projectPickables {slot,width,height}`→`pickTargets` (tokened marker
-  geometry the view both renders and resolves clicks against), `pickScreen {slot,token}`→`pick`
-  (validation only — the token is the hot marker's), `scanNearby`→`scanResults`,
-  `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`.
-  A launch may carry additive `singleAnimation:true`; after entering the requested
-  `opts.stage`, any scene edge out ends playback instead of continuing through the
-  parent registry definition. `inspect:true` bypasses `SceneRuntime` entirely and
-  starts a browser-owned, scrub-only Layer-A playback session. It has no lifecycle callbacks,
-  cues, sounds, cameras, equipment policy, or external consumers; the browser owns
-  temporary render props and reconstructs them from the selected node's
-  enter/numeric/end `osf.prop.*` actions at each seek. A preview starts paused;
-  `playback.set {handle, paused:false}` runs it at authored speed (looping its clip,
-  props reconciled on the playback poll) and `paused:true` freezes it again — still
-  side-effect-free, since a preview carries no timers, loop targets, or marks. Any
-  seek takes the transport back, so scrubbing or frame-stepping pauses it. An
-  authored `hold` stage is previewed as its full clip: a preview is a transport over
-  the animation, not a replay of the scene's timing.
-  `wheel.get`→`wheel.data`,
-  `wheel.set {entries:[{scene,stage?},...]}` (persist the complete ordered animation-wheel loadout)
-  or `wheel.set {reset:true}` (return to installed defaults); the reply is an
-  unsolicited `catalog.data` re-push carrying fresh wheel state/order fields,
-  `orbit {dx,dy,wheel}` (world-drag steers the native orbit camera; no reply),
-  `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
-  `requestClose` (view asks the host to hide it — used by the animation wheel).
-  Native→web `activeScenes {scenes:[{handle, sceneId, stage, inspection, player,
-  cast:[{token,name,player}]}]}` is the frozen bridge event carrying the authoritative active-launch
-  list: runtime scene instances and preview sessions. It is pushed on `opened`, after a launch, and
-  on every relevant lifecycle change (stage advance or any termination, including natural ends).
-  The view surfaces it as an **ACTIVE tab** in the browse mode switch (visible only while something
-  is active, labeled with the count) holding one card per launch — title, handle, YOU, current stage,
-  full cast, per-launch stop (`stop {handle}`), STOP ALL — plus a compact header chip (a single launch
-  shows directly with its stop;
-  several collapse to a count) that opens the tab, and LIVE badges on busy
-  cast. Ordinary runtime timelines are forward-only (pause/resume); a browser
-  scene-preview handle adds frame stepping and seeking to the same play/pause. A preview also has
-  no runtime stage machine (`advance` no-ops on its handle), so its card carries a
-  **stage strip** — ◀ / windowed per-stage chips / ▶, with NEXT ▸ and Space wrapping
-  through them. Each re-issues `launch {inspect:true, opts.stage}` for the same cast,
-  which retires the running preview and re-enters inspection on that animation at
-  frame 0; the brief's per-animation ◇ starts one the same way. **Close semantics:**
-  every browser preview and every runtime scene whose cast includes the *player* is
-  aborted when the browser closes; ordinary NPC-only scenes keep running
-  (vignettes/machinima) and resurface in this list on the next open.
-  Native→web `mode {mode:"wheel", tagPrefix, target:{token,name}|null}`
-  switches the view into **animation-wheel mode** (see below); any other `mode`
-  restores the console. Flash-free wheel opens rely on OSF UI **queuing
-  messages sent to a not-yet-visible view and delivering them before its
-  first paint** (C ABI MINOR ≥ 2): the DLL pushes the mode before
-  `RequestMenu(open)`.
+  `projectPickables`→`pickTargets`, `pickScreen`→`pick`, `scanNearby`→`scanResults`,
+  `anchorMatch`→`anchorMatch`, `launch`→`launchResult`, `stop`, `advance`, and
+  `playback.get`/`playback.set {handle,paused}` for active runtime status and pause/resume.
+  A launch may carry additive `singleAnimation:true`; after entering the requested `opts.stage`,
+  any scene edge out ends playback instead of continuing through the parent definition.
+  `wheel.get`→`wheel.data` and `wheel.set` manage the ordered quick-access loadout;
+  `orbit` steers the native camera; `opened`/`closed` report visibility; and `requestClose`
+  asks the host to hide the view. Native→web `activeScenes` carries live scene handles, stage,
+  cast, clock, duration, and speed for the ACTIVE tab and compact running controls. Runtime
+  playback is forward-only; the browser can pause/resume, advance, or stop it.
 - The view becomes ready when the 2.0 helper's `ready` promise resolves, or when
   OSF Animation answers the catalog/version request that every page mount sends.
   The response path lets a manually reloaded web view self-heal after the host's
@@ -213,8 +162,7 @@ The page detects a missing bridge and runs standalone, so you can iterate
 layout/logic in a normal browser. Run `npm run dev` from `ui/animation-browser`
 and open `http://localhost:8791/__osfui/`. The OSF UI CLI harness owns the
 game-sized frame, resolution controls, transparency checker, visibility and
-locale simulation, bridge traffic, and HMR. The view uses its richer stateful
-animation simulator inside the harness iframe.
+locale simulation, bridge traffic, and HMR. The view uses a stateful runtime-scene simulator inside the harness iframe.
 
 **Live data:** `fixtures/live/{catalog,library}.json` are committed snapshot fixtures of
 the payloads the DLL sends the in-game view. The standalone page resolves them
@@ -284,7 +232,7 @@ defaults again.
 Starfield "NASA-punk" maintenance-HUD, aligned to the shared **OSF design system**
 (burnt amber `--accent` + brushed steel on a near-black void, teal HUD signal):
 one framed **console** with amber corner brackets and a faint scan grid, a **slate**
-header (cast / anchor / readiness + debug toggle), three **bays** (READY NOW /
+header (cast / anchor / readiness + settings), three **bays** (READY NOW /
 NEEDS ONE THING / LIBRARY) of spine-numbered scene cards with per-gate pips, and an
 instrument **brief** module (registry id, requirements, seats, launch). Saira Semi
 Condensed (Bahnschrift stand-in) for chrome, JetBrains Mono / Cascadia for data.

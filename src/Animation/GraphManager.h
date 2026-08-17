@@ -86,8 +86,7 @@ namespace OSF::Animation
 			PlaybackId playbackId = 0;
 		};
 		using ScenePlayback = SynchronizedPlaybackState;  // compatibility spelling
-		// Browser/director inspection of the current scene clock. Seek never fires timed marks.
-		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
+		// Current runtime scene clock for status and pause/resume controls.
 		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
 
 		// Stops the scene that a_actor participates in (all its participants).

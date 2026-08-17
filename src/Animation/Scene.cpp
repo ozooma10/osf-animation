@@ -157,44 +157,6 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool PlaybackSession::Seek(float a_time)
-	{
-		if (!std::isfinite(a_time)) {
-			return false;
-		}
-		std::scoped_lock l{ lock };
-		if (stages.empty()) {
-			return false;
-		}
-
-		// SamplingJob accepts the end ratio, but the normal playback-session sampling path wraps a live clip.
-		// Keep a scrub at 100% on the last representable pose instead of snapping to frame zero.
-		const float lastPose = duration > 0.0f ? std::nextafter(duration, 0.0f) : 0.0f;
-		clock.time = std::clamp(a_time, 0.0f, lastPose);
-		// On a playing segment the clip position IS the time spent in it, so a scrub carries any timer
-		// with it. A frozen segment's clock is a pose, not elapsed time — moving it must not rewind
-		// (or expire) the timer that is the only way out.
-		if (stages[currentSegment].hold < 0.0f) {
-			stageElapsed = clock.time;
-		}
-		stageLoops = 0;
-		ended.store(false, std::memory_order_relaxed);
-		endQueued.store(false, std::memory_order_relaxed);
-		firedMarks.clear();
-
-		const auto& marks = stages[currentSegment].marks;
-		markFired.assign(marks.size(), false);
-		if (duration > 0.0f) {
-			for (size_t i = 0; i < marks.size(); i++) {
-				const auto& mark = marks[i];
-				if (!mark.everyLoop && !mark.atEnd && MarkTime(mark, duration) < clock.time) {
-					markFired[i] = true;
-				}
-			}
-		}
-		return true;
-	}
-
 	PlaybackSession::PlaybackSnapshot PlaybackSession::GetPlaybackSnapshot()
 	{
 		std::scoped_lock l{ lock };

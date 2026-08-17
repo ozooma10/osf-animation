@@ -1,4 +1,4 @@
-import type { BrowseKind, BrowserMode, BrowserPreferences, ImportFilter, LocationMode } from "./state";
+import type { BrowseKind, BrowserMode, BrowserPreferences, LocationMode } from "./state";
 
 export interface BrowserCommands {
   refresh(): void;
@@ -6,23 +6,6 @@ export interface BrowserCommands {
   selectScene(id: string, stage?: number | null): void;
   setSearch(value: string): void;
   toggleSettings(open?: boolean): void;
-  toggleRouteDebugger(open?: boolean): void;
-  refreshRoutes(): void;
-  setRouteSearch(value: string): void;
-  selectRoute(routeId: string, transitionId?: string | null): void;
-  selectRouteTransition(transitionId: string): void;
-  selectRouteActor(token: number): void;
-  inspectRoute(routeId: string, transitionId: string, actorToken: number): void;
-  stepRouteFrame(delta: -1 | 1): void;
-  /** Open/close the per-file import report; opening (re)requests it from the engine. */
-  toggleImports(open?: boolean): void;
-  refreshImports(): void;
-  reloadImports(): void;
-  toggleImportFile(path: string, open: boolean): void;
-  setImportFilter(filter: ImportFilter): void;
-  setImportSearch(value: string): void;
-  viewImportContent(path: string): void;
-  copyImportReport(path: string): void;
   setPreference<K extends keyof BrowserPreferences>(key: K, value: BrowserPreferences[K]): void;
   toggleBrowseAll(): void;
   toggleHidden(): void;
@@ -51,14 +34,11 @@ export interface BrowserCommands {
   toggleBriefAnimations(): void;
   toggleOptions(): void;
   setOption(field: "hideApparel" | "playerInputLock" | "camera" | "speed", value: string): void;
-  launch(stage?: number, singleAnimation?: boolean, sceneId?: string, inspect?: boolean): void;
-  /** Re-enter inspection on another stage of the scene already being previewed —
-   *  the running preview for that cast is retired by the launch itself. */
-  inspectStage(sceneId: string, stage: number): void;
+  launch(stage?: number, singleAnimation?: boolean, sceneId?: string): void;
   stop(handle?: number): void;
   stopAll(): void;
   advance(handle?: number): void;
-  setPlayback(handle: number, time?: number, paused?: boolean): void;
+  setPlayback(handle: number, paused: boolean): void;
   setMinimized(value: boolean): void;
   toggleWheelEntry(scene: string, stage?: number | null): void;
   moveWheelEntry(scene: string, stage: number | null, direction: -1 | 1): void;

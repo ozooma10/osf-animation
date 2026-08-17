@@ -17,16 +17,6 @@
 #include <string_view>
 #include <vector>
 
-namespace OSF::Registry
-{
-	// Seven of the eight wire keys ARE the member names. Deliberately defined in this TU and not
-	// in SceneRegistry.h: a repo-wide serializer would let a caller emit the untruncated `problems`
-	// vector, which is exactly what kMaxProblemsPerFile exists to prevent. `warning` is renamed to
-	// `severity` by the one caller (BuildFileReport).
-	NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(SceneImportProblem,
-		code, message, hint, scene, node, role, clip)
-}
-
 namespace OSF::API::UIBridgeCatalog
 {
 	using json = nlohmann::json;
@@ -105,41 +95,11 @@ namespace OSF::API::UIBridgeCatalog
 		};
 		NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(RoleCard, name, gender)
 
-		struct TrackMark
-		{
-			std::string kind;
-			std::string trackPosition;
-			std::string label;
-			std::string detail;
-			std::string role;
-			float       at = 0.0f;
-			float       atSec = -1.0f;  // authored `atFrame` position in seconds (< 0 = `at`-fraction mark)
-			bool        repeat = false;
-		};
-
-		void to_json(json& a_out, const TrackMark& a_mark)
-		{
-			a_out = {
-				{ "kind", a_mark.kind },
-				{ "at", a_mark.at },
-				{ "trackPosition", a_mark.trackPosition },
-				{ "anchor", a_mark.trackPosition },  // legacy bridge field
-				{ "label", a_mark.label },
-				{ "detail", a_mark.detail },
-				{ "role", a_mark.role },
-				{ "repeat", a_mark.repeat },
-			};
-			if (a_mark.atSec >= 0.0f) {
-				a_out["atSec"] = a_mark.atSec;  // authored `atFrame` position in seconds
-			}
-		}
-
 		struct StageCard
 		{
 			std::int32_t             index = 0;
 			std::string              name;   // stage label ("" = unlabeled)
 			std::vector<std::string> tags;
-			std::vector<TrackMark>   tracks;
 			std::int32_t             clipCount = 0;
 			std::int32_t             pinned = 0;  // 1-based animation-wheel order
 			// Timing. loopSec = the clip's loop length (the honest per-animation number);
@@ -159,7 +119,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "tags", a_stage.tags },
 				{ "clipCount", a_stage.clipCount },
 				{ "pinned", a_stage.pinned },
-				{ "tracks", a_stage.tracks },
 				{ "loopSec", SecOrNull(a_stage.loopSec) },
 				{ "timerSec", a_stage.timerSec > 0.0f ? json(a_stage.timerSec) : json(nullptr) },
 				{ "loops", a_stage.loops >= 0 ? json(a_stage.loops) : json(nullptr) },
@@ -175,7 +134,6 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              pack;        // file-level `pack` label — the browser's group-by-pack key ("" = none authored)
 			std::string              folder;      // optional slash-delimited catalog path within the pack
 			std::string              sourceFile;  // scene file name only (no directories) — the browser's grouping fallback
-			std::string              sourcePath;  // Data/OSF-relative path for exact Imports -> catalog navigation
 			std::string              sourceKind;  // explicit catalog taxonomy; legacy booleans remain below
 			std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
 			std::vector<std::string> tags;
@@ -212,7 +170,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "sourceFile", a_card.sourceFile },
 				{ "species", a_card.species },
 				{ "tags", a_card.tags },
-				{ "sourcePath", a_card.sourcePath },
 				{ "sourceKind", a_card.sourceKind },
 				{ "actorCount", a_card.actorCount },
 				{ "roles", a_card.roles },
@@ -243,96 +200,6 @@ namespace OSF::API::UIBridgeCatalog
 	bool IsWheelEntryEligible(const Registry::SceneDef& a_def, std::int32_t a_stage)
 	{
 		return a_stage < 0 ? IsWheelScene(a_def) : WheelStage(a_def, a_stage) != nullptr;
-	}
-
-	nlohmann::json BuildRoutes()
-	{
-		auto layerJson = [](const Registry::RouteLayer& a_layer) {
-			const char* mode = "override";
-			switch (a_layer.mode) {
-			case Animation::PoseMode::kAdditive:
-				mode = "additive";
-				break;
-			default:
-				break;
-			}
-			return json{
-				{ "clip", a_layer.clip.file },
-				{ "animId", a_layer.clip.animId },
-				{ "durationHint", a_layer.clip.sec },
-				{ "mask", a_layer.mask },
-				{ "mode", mode },
-				{ "weight", a_layer.weight },
-				{ "holdAt", a_layer.holdAt },
-			};
-		};
-		auto lifetimeName = [](Registry::RouteLifetime a_lifetime) {
-			switch (a_lifetime) {
-			case Registry::RouteLifetime::kStation: return "station";
-			case Registry::RouteLifetime::kController: return "controller";
-			case Registry::RouteLifetime::kExternal: return "external";
-			default: return "transition";
-			}
-		};
-
-		json routes = json::array();
-		Registry::ContentRegistry::GetSingleton().ForEachRoute([&](const Registry::RouteDef& a_route) {
-			json stations = json::array();
-			for (const auto& station : a_route.stations) {
-				json item = { { "id", station.id } };
-				item["layer"] = station.layer ? layerJson(*station.layer) : json(nullptr);
-				stations.push_back(std::move(item));
-			}
-
-			json transitions = json::array();
-			for (const auto& transition : a_route.transitions) {
-				json markers = json::array();
-				for (const auto& marker : transition.markers) {
-					markers.push_back({ { "frame", marker.frame }, { "id", marker.id } });
-				}
-				json props = json::array();
-				for (const auto& prop : transition.props) {
-					props.push_back({
-						{ "frame", prop.frame },
-						{ "id", prop.id },
-						{ "attach", prop.attach },
-						{ "lifetime", lifetimeName(prop.lifetime) },
-						{ "attachmentNode", prop.attachment.targetNode },
-						{ "node", prop.attachment.targetNode },  // legacy bridge field
-					});
-				}
-				json sounds = json::array();
-				for (const auto& sound : transition.sounds) {
-					sounds.push_back({ { "frame", sound.frame }, { "spec", sound.spec } });
-				}
-				json item = {
-					{ "id", transition.id },
-					{ "from", transition.from },
-					{ "to", transition.to },
-					{ "layer", layerJson(transition.layer) },
-					{ "markers", std::move(markers) },
-					{ "props", std::move(props) },
-					{ "sounds", std::move(sounds) },
-					{ "interruption", transition.interruption == Registry::RouteInterruption::kCrossfadeBeforeCommit ?
-						"crossfade-before-commit" : "finish" },
-				};
-				item["commit"] = transition.commit ? json{
-					{ "frame", transition.commit->frame }, { "id", transition.commit->id }
-				} : json(nullptr);
-				transitions.push_back(std::move(item));
-			}
-
-			routes.push_back({
-				{ "id", a_route.id },
-				{ "sourceFile", a_route.sourceFile.generic_string() },
-				{ "stations", std::move(stations) },
-				{ "transitions", std::move(transitions) },
-			});
-		});
-		std::sort(routes.begin(), routes.end(), [](const json& a_lhs, const json& a_rhs) {
-			return a_lhs.value("id", "") < a_rhs.value("id", "");
-		});
-		return routes;
 	}
 
 	json BuildWheelData(std::string_view a_tagPrefix)
@@ -425,10 +292,8 @@ namespace OSF::API::UIBridgeCatalog
 			return 0;
 		};
 		std::vector<Card> cards;
-		std::error_code sourceRootEc;
-		const auto sourceRoot = std::filesystem::current_path(sourceRootEc) / "Data" / "OSF";
 		Registry::ContentRegistry::GetSingleton().ForEachDef(
-			[&cards, &wheelOrder, &sourceRoot, sourceRootEc, a_library, wheelCustomized](const Registry::SceneDef& d) {
+			[&cards, &wheelOrder, a_library, wheelCustomized](const Registry::SceneDef& d) {
 			if (d.library != a_library) {
 				return;  // each lane serializes only its own scenes
 			}
@@ -445,15 +310,7 @@ namespace OSF::API::UIBridgeCatalog
 			const auto srcName = d.sourceFile.filename().u8string();
 			c.sourceFile.assign(srcName.begin(), srcName.end());
 			c.species = d.species.empty() ? std::string{ "human" } : d.species;
-			c.sourcePath = c.sourceFile;
 			c.sourceKind = Registry::CatalogSourceKindName(d.sourceKind);
-			if (!sourceRootEc) {
-				const auto relative = d.sourceFile.lexically_relative(sourceRoot);
-				const auto text = relative.generic_string();
-				if (!text.empty() && text != ".." && !text.starts_with("../")) {
-					c.sourcePath = text;
-				}
-			}
 			c.tags = d.tags;
 			c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
 			c.roles.reserve(d.roles.size());
@@ -511,58 +368,6 @@ namespace OSF::API::UIBridgeCatalog
 					} else if (const auto sec = Serialization::ClipDurations::Lookup(first.file, first.animId)) {
 						sc.loopSec = *sec;
 					}
-				}
-
-				// The browser's track axis is fractional, so an `atFrame` entry is placed against the
-				// stage's own clip length; a stage whose length hasn't been probed yet parks them at
-				// the end of the axis rather than claiming they sit at the clip start. The authored
-				// position is shipped in seconds too (`atSec`) so the view can re-place the mark
-				// against the LIVE decoded duration during inspection — the authored `sec` and the
-				// decoded length can disagree. A frame at or past the clip end is anchored
-				// "unreachable": the runtime provably never fires it (see Registry::TrackFires).
-				const float clipSec = sc.loopSec;
-				const auto addTrack = [&sc, clipSec](std::string kind, const auto& entry, std::string label,
-					std::string detail = {}, std::string role = {}) {
-					const char* trackPosition = "fraction";
-					float at = 1.0f;
-					switch (entry.pos) {
-					case Registry::TrackPos::kEnter:
-						trackPosition = "enter";
-						at = 0.0f;
-						break;
-					case Registry::TrackPos::kExit:
-						trackPosition = "exit";
-						break;
-					case Registry::TrackPos::kEnd:
-						trackPosition = "end";
-						break;
-					case Registry::TrackPos::kFraction:
-						at = Registry::TrackFraction(entry, clipSec);
-						if (!Registry::TrackFires(entry, clipSec)) {
-							trackPosition = "unreachable";
-						}
-						break;
-					}
-					sc.tracks.push_back({ std::move(kind), trackPosition, std::move(label), std::move(detail),
-						std::move(role), at, Registry::TrackSeconds(entry), entry.everyLoop });
-				};
-				for (const auto& cue : node->cues) {
-					addTrack("cue", cue, cue.id);
-				}
-				for (const auto& action : node->actions) {
-					std::string detail = !action.prop.empty() ? action.prop :
-						!action.set.empty() ? action.set : action.item;
-					addTrack("action", action, action.type, std::move(detail), action.role);
-				}
-				for (const auto& sound : node->sounds) {
-					addTrack("sound", sound, sound.spec, {}, sound.role);
-				}
-				for (const auto& camera : node->cameras) {
-					std::string detail;
-					if (camera.distance != 0.0f) {
-						detail = std::format("distance {}", camera.distance);
-					}
-					addTrack("camera", camera, std::string(Registry::CameraStateName(camera.state)), std::move(detail));
 				}
 
 				// A frozen stage never plays its clip, so the clip length is not time this stage
@@ -636,178 +441,6 @@ namespace OSF::API::UIBridgeCatalog
 		OSF_PROFILE_PLOT(a_library ? "UI.LibraryEntries" : "UI.CatalogEntries",
 			static_cast<std::int64_t>(cards.size()));
 		return arr;
-	}
-
-	// At most this many problem lines travel per file. The full set stays in the log and in
-	// OSFAdvanced.GetSceneLoadErrors(); a pack with 300 bad scenes must not turn one reply into a
-	// megabyte of text the panel cannot render anyway. The counts are always exact.
-	constexpr std::size_t kMaxProblemsPerFile = 12;
-
-	// Serialize the registry's per-file import records to osf.animation.imports.data. This is a
-	// FILE-shaped view of the load, deliberately unlike the catalog's card-shaped one: a file
-	// that produced no cards still needs to appear, and "my pack didn't load" is precisely
-	// the question the catalog cannot answer.
-	json BuildFileReport()
-	{
-		const auto stats = Registry::ContentRegistry::GetSingleton().FileStats();
-
-		json files = json::array();
-		std::uint64_t totalDeclared = 0, totalScenes = 0, totalRejectedScenes = 0;
-		std::uint64_t totalDeclaredRoutes = 0, totalRoutes = 0, totalRejectedRoutes = 0;
-		std::uint64_t totalClipEntries = 0, totalErrors = 0, totalWarnings = 0;
-		std::uint64_t totalHidden = 0, totalMissing = 0, totalBytes = 0;
-		std::uint32_t rejectedFiles = 0, realFiles = 0;
-		float totalMs = 0.0f;
-		for (const auto& s : stats) {
-			totalScenes += s.scenes;
-			totalDeclared += s.declaredScenes;
-			totalRejectedScenes += s.rejectedScenes;
-			totalRoutes += s.routes;
-			totalDeclaredRoutes += s.declaredRoutes;
-			totalRejectedRoutes += s.rejectedRoutes;
-			totalClipEntries += s.clipEntries;
-			totalErrors += s.errors;
-			totalWarnings += s.warnings;
-			totalHidden += s.hidden;
-			totalMissing += s.missingClips;
-			totalBytes += s.bytes;
-			totalMs += s.parseMs;
-			// The trailing cross-file bucket has no path and is not a file — it must not count
-			// toward "N files scanned" or it reads as a phantom pack.
-			if (!s.path.empty()) {
-				++realFiles;
-				rejectedFiles += s.Rejected() ? 1u : 0u;
-			}
-
-			json problems = json::array();
-			for (std::size_t i = 0; i < s.problems.size() && i < kMaxProblemsPerFile; ++i) {
-				// `warning` is the only field the wire renames rather than copies.
-				json problem = s.problems[i];
-				problem["severity"] = s.problems[i].warning ? "warn" : "error";
-				problems.push_back(std::move(problem));
-			}
-			files.push_back({
-				{ "path", s.path },
-				{ "file", s.file },
-				{ "pack", s.pack },
-				{ "library", s.library },
-				{ "schema", s.schema },
-				{ "bytes", s.bytes },
-				{ "parseMs", s.parseMs },
-				{ "declaredScenes", s.declaredScenes },
-				{ "rejectedScenes", s.rejectedScenes },
-				{ "scenes", s.scenes },
-				{ "declaredRoutes", s.declaredRoutes },
-				{ "rejectedRoutes", s.rejectedRoutes },
-				{ "routes", s.routes },
-				{ "hidden", s.hidden },
-				{ "unlisted", s.unlisted },
-				{ "anchored", s.anchored },
-				{ "nodes", s.nodes },
-				{ "stages", s.stages },
-				{ "roles", s.roles },
-				{ "clips", s.clips },
-				{ "distinctClips", s.distinctClips },
-				{ "missingClips", s.missingClips },
-				{ "missingClipExamples", s.missingClipExamples },
-				{ "cues", s.cues },
-				{ "actions", s.actions },
-				{ "sounds", s.sounds },
-				{ "cameras", s.cameras },
-				{ "clipEntries", s.clipEntries },
-				{ "species", s.species },
-				{ "errors", s.errors },
-				{ "warnings", s.warnings },
-				{ "rejected", s.Rejected() },
-				{ "problems", std::move(problems) },
-				// So the panel can say "12 of 40 shown" instead of silently truncating.
-				{ "problemCount", static_cast<std::uint32_t>(s.problems.size()) },
-			});
-		}
-
-		REX::DEBUG("[UI] content import report built -> {} file record(s), {} problem(s)", stats.size(), totalErrors + totalWarnings);
-		return {
-			{ "files", std::move(files) },
-			{ "totals", {
-				{ "files", realFiles },
-				{ "rejectedFiles", rejectedFiles },
-				{ "declaredScenes", totalDeclared },
-				{ "rejectedScenes", totalRejectedScenes },
-				{ "scenes", totalScenes },
-				{ "declaredRoutes", totalDeclaredRoutes },
-				{ "rejectedRoutes", totalRejectedRoutes },
-				{ "routes", totalRoutes },
-				// The registry's own authored count, so a mismatch with the per-file sum is
-				// visible rather than silently averaged away.
-				{ "registered", static_cast<std::uint64_t>(Registry::ContentRegistry::GetSingleton().Size()) },
-				{ "clipEntries", totalClipEntries },
-				{ "hidden", totalHidden },
-				{ "missingClips", totalMissing },
-				{ "errors", totalErrors },
-				{ "warnings", totalWarnings },
-				{ "bytes", totalBytes },
-				{ "parseMs", totalMs },
-			} },
-		};
-	}
-	std::optional<std::string> BuildImportTextReport(std::string_view a_path)
-	{
-		const auto stats = Registry::ContentRegistry::GetSingleton().FileStats();
-		const auto found = std::find_if(stats.begin(), stats.end(), [&](const Registry::ContentFileStats& a_stats) {
-			return a_stats.path == a_path;
-		});
-		if (found == stats.end()) {
-			return std::nullopt;
-		}
-
-		const auto& file = *found;
-		std::string text = "OSF Animation - content import report\r\n";
-		text += std::format("File: {}\r\n", file.path.empty() ? "Cross-file problems" : file.path);
-		if (!file.pack.empty()) {
-			text += std::format("Pack: {}\r\n", file.pack);
-		}
-		text += std::format("Result: {} accepted / {} declared; {} rejected; {} hidden; {} missing clips\r\n",
-			file.scenes, file.declaredScenes, file.rejectedScenes, file.hidden, file.missingClips);
-		text += std::format("Routes: {} accepted / {} declared; {} rejected\r\n",
-			file.routes, file.declaredRoutes, file.rejectedRoutes);
-		text += std::format("Schema: {} | Size: {} bytes | Load: {:.2f} ms\r\n", file.schema, file.bytes, file.parseMs);
-		text += std::format("Content: {} nodes | {} stages | {} roles | {} clip slots | {} distinct clips | {} library entries\r\n",
-			file.nodes, file.stages, file.roles, file.clips, file.distinctClips, file.clipEntries);
-		text += std::format("Tracks: {} cues | {} actions | {} sounds | {} cameras\r\n",
-			file.cues, file.actions, file.sounds, file.cameras);
-		if (!file.species.empty()) {
-			text += "Species:";
-			for (const auto& species : file.species) {
-				text += " " + species;
-			}
-			text += "\r\n";
-		}
-		text += std::format("Diagnostics: {} error(s), {} warning(s)\r\n", file.errors, file.warnings);
-
-		if (!file.missingClipExamples.empty()) {
-			text += "\r\nMissing clip examples:\r\n";
-			for (const auto& clip : file.missingClipExamples) {
-				text += "- " + clip + "\r\n";
-			}
-		}
-		if (!file.problems.empty()) {
-			text += "\r\nProblems:\r\n";
-			for (const auto& problem : file.problems) {
-				text += std::format("[{}] {}\r\n", problem.code.empty() ? (problem.warning ? "warning" : "error") : problem.code,
-					problem.message);
-				if (!problem.scene.empty() || !problem.node.empty() || !problem.role.empty() || !problem.clip.empty()) {
-					text += std::format("  Context: scene={} node={} role={} clip={}\r\n",
-						problem.scene.empty() ? "-" : problem.scene,
-						problem.node.empty() ? "-" : problem.node,
-						problem.role.empty() ? "-" : problem.role,
-						problem.clip.empty() ? "-" : problem.clip);
-				}
-				if (!problem.hint.empty()) {
-					text += "  Next: " + problem.hint + "\r\n";
-				}
-			}
-		}
-		return text;
 	}
 
 }

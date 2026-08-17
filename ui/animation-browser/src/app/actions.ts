@@ -7,12 +7,11 @@ import type {
   CastMember,
   FurnitureTarget,
   LocationMode,
-  ImportFilter,
   NearbyTarget,
   PluginVersion,
   WheelEntry,
 } from "./state";
-import type { ImportFile, ImportTotals, RouteModel, SceneModel } from "../model";
+import type { SceneModel } from "../model";
 
 export type BrowserAction =
   | { type: "runtime/ready" }
@@ -21,29 +20,11 @@ export type BrowserAction =
   | { type: "plugin/received"; plugin: PluginVersion }
   | { type: "catalog/received"; scenes: SceneModel[] }
   | { type: "library/received"; scenes: SceneModel[] }
-  | { type: "routes/requested" }
-  | { type: "routes/received"; routes: RouteModel[] }
-  | { type: "routes/open"; open: boolean }
-  | { type: "routes/search"; search: string }
-  | { type: "routes/selected"; routeId: string | null; transitionId?: string | null }
-  | { type: "routes/transition"; transitionId: string }
-  | { type: "routes/actor"; token: number }
-  | { type: "routes/previewSucceeded"; handle: number; routeId: string }
   | { type: "active/received"; scenes: ActiveLaunch[] }
-  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch; inspect?: boolean }
+  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch }
   | { type: "launch/failed"; error: string }
   | { type: "settings/received"; preferences: Partial<BrowserPreferences> }
   | { type: "settings/open"; open: boolean }
-  | { type: "imports/open"; open: boolean }
-  | { type: "imports/requested" }
-  | { type: "imports/received"; files: ImportFile[]; totals: ImportTotals }
-  | { type: "imports/expanded"; path: string; open: boolean }
-  | { type: "imports/filter"; filter: ImportFilter }
-  | { type: "imports/reloadStarted" }
-  | { type: "imports/reloadSucceeded"; files: ImportFile[]; totals: ImportTotals; durationMs: number; scenes: number; completedAt: number }
-  | { type: "imports/reloadFailed"; error: string; durationMs: number; completedAt: number }
-  | { type: "imports/viewContent"; path: string }
-  | { type: "imports/search"; search: string }
   | { type: "cast/replaced"; members: CastMember[] }
   | { type: "cast/toggled"; member: CastMember }
   | { type: "cast/removed"; index: number }

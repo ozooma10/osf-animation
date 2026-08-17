@@ -5,7 +5,7 @@
 namespace OSF::Content
 {
 	// GAME THREAD. Rebuild every content registry/cache and refresh browser/health projections.
-	// Shared by the legacy Papyrus OSF.ReloadPacks entry and the Animation Browser Imports workflow.
+	// Shared content refresh used by the legacy Papyrus OSF.ReloadPacks entry.
 	std::int32_t ReloadAll();
 }
 

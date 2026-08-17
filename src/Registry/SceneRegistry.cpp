@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <cmath>
 #include <charconv>
-#include <chrono>
 #include <fstream>
 #include <map>
 #include <optional>
@@ -30,9 +29,8 @@ namespace OSF::Registry
 		using json = nlohmann::json;
 		using SceneRegistryClips::ClipInstalledCache;
 		using SceneRegistryClips::ClipLibraryRegistration;
-		using SceneRegistryClips::PendingImportProblem;
+		using SceneRegistryClips::PendingLoadProblem;
 		using SceneRegistryClips::ProblemSink;
-		using SceneRegistryClips::AccumulateFileStats;
 		using SceneRegistryClips::AddSceneClipEntries;
 		using SceneRegistryClips::ClipSpecInstalled;
 		using SceneRegistryClips::DesugarLinear;
@@ -1996,10 +1994,9 @@ namespace OSF::Registry
 			const std::filesystem::path& file;
 			ProblemSink&                 problems;
 
-			void operator()(const std::string& a_what, std::string a_code = "file-invalid",
-				std::string a_hint = "Fix the named file field, then reload packs.") const
+			void operator()(const std::string& a_what) const
 			{
-				problems.Push("[error] " + a_what, file, std::move(a_code), std::move(a_hint));
+				problems.Push("[error] " + a_what, file);
 				REX::ERROR("[Registry] {} — skipped", a_what);
 			}
 		};
@@ -2545,8 +2542,6 @@ namespace OSF::Registry
 			SceneLoadBudget& a_budget, ProblemSink& a_problems)
 		{
 			for (const auto* routeJson : a_contents.routeJsons) {
-				const std::string authoredId = routeJson->is_object() && routeJson->contains("id") &&
-					(*routeJson)["id"].is_string() ? (*routeJson)["id"].get<std::string>() : std::string{};
 				try {
 					if (a_budget.routes >= kMaxRoutesTotal) {
 						throw std::runtime_error("route registry aggregate limit reached");
@@ -2561,8 +2556,7 @@ namespace OSF::Registry
 					a_out.emplace(std::move(key), std::move(definition));
 					++a_budget.routes;
 				} catch (const std::exception& e) {
-					a_problems.Push("[error] '" + a_file.filename().string() + "': " + e.what(), a_file,
-						"route-invalid", "Fix the named route field; only this route was skipped.", authoredId);
+					a_problems.Push("[error] '" + a_file.filename().string() + "': " + e.what(), a_file);
 					REX::ERROR("[Registry] skipping route in '{}': {}", a_file.filename().string(), e.what());
 				}
 			}
@@ -2575,8 +2569,6 @@ namespace OSF::Registry
 			const std::string fileName = a_file.filename().string();
 			for (const auto* sceneJson : a_contents.sceneJsons) {
 				std::vector<std::string> warnings;
-				const std::string authoredId = sceneJson->is_object() && sceneJson->contains("id") &&
-					(*sceneJson)["id"].is_string() ? (*sceneJson)["id"].get<std::string>() : std::string{};
 				try {
 					auto definition = ParseOsfScene(*sceneJson, warnings, a_defaults.scene, a_defaults.camera,
 						a_contents.fileRoles, a_contents.roles, a_contents.props,
@@ -2603,10 +2595,9 @@ namespace OSF::Registry
 						CatalogSourceKind::kAuthoredScene;
 					auto key = ToLower(definition.id);
 					if (const auto found = a_out.find(key); found != a_out.end()) {
-						a_problems.Push("[error] duplicate scene id '" + definition.id + "' in '" + fileName +
-							"' (already from '" + found->second.sourceFile.filename().string() + "') — keeping the first",
-							a_file, "duplicate-scene-id",
-							"Rename this scene id or remove the duplicate; OSF keeps the first definition.", definition.id);
+					a_problems.Push("[error] duplicate scene id '" + definition.id + "' in '" + fileName +
+						"' (already from '" + found->second.sourceFile.filename().string() + "') — keeping the first",
+						a_file);
 						REX::ERROR("[Registry] duplicate scene id '{}' in '{}' — keeping first from '{}'",
 							definition.id, fileName, found->second.sourceFile.filename().string());
 						continue;
@@ -2615,15 +2606,13 @@ namespace OSF::Registry
 						definition.nodes.size() > kMaxNodesTotal - a_budget.nodes ||
 						stageCount > kMaxStagesTotal - a_budget.stages ||
 						clipCount > kMaxClipsTotal - a_budget.clips) {
-						a_problems.Push("[error] scene registry aggregate scene/node/stage/clip limit reached — remaining scenes skipped",
-							a_file, "registry-limit",
-							"Reduce the installed scene content below the registry limits, then reload packs.", definition.id);
+					a_problems.Push("[error] scene registry aggregate scene/node/stage/clip limit reached — remaining scenes skipped",
+							a_file);
 						REX::ERROR("[Registry] aggregate scene/node/stage/clip limit reached — remaining scenes skipped");
 						break;
 					}
 					for (const auto& warning : warnings) {
-						a_problems.Push("[warn] " + warning, a_file, "scene-warning",
-							"Review the authored value; the scene loaded with a fallback.", definition.id);
+						a_problems.Push("[warn] " + warning, a_file);
 						REX::WARN("[Registry] {}", warning);
 					}
 					const auto nodeCount = definition.nodes.size();
@@ -2635,8 +2624,7 @@ namespace OSF::Registry
 					a_budget.stages += stageCount;
 					a_budget.clips += clipCount;
 				} catch (const std::exception& e) {
-					a_problems.Push("[error] '" + fileName + "': " + e.what(), a_file, "scene-invalid",
-						"Fix the named scene field; only this scene was skipped.", authoredId);
+					a_problems.Push("[error] '" + fileName + "': " + e.what(), a_file);
 					REX::ERROR("[Registry] skipping scene in '{}': {}", fileName, e.what());
 				}
 			}
@@ -2674,19 +2662,15 @@ namespace OSF::Registry
 					}
 					const auto tit = a_scenes.find(ToLower(nd.use));
 					if (tit == a_scenes.end()) {
-						a_problems.Push("[error] scene '" + def.id + "' node '" + nd.id +
-							"': use references unknown scene '" + nd.use + "'", def.sourceFile,
-							"unknown-scene-reference", "Fix the node's use target or install the pack that defines it.",
-							def.id, nd.id);
+					a_problems.Push("[error] scene '" + def.id + "' node '" + nd.id +
+							"': use references unknown scene '" + nd.use + "'", def.sourceFile);
 						REX::ERROR("[Registry] scene '{}' node '{}' use references unknown scene '{}'", def.id, nd.id, nd.use);
 						continue;
 					}
 					const auto& target = tit->second;
 					if (target.nodes.size() != 1 || target.nodes[0].stages.empty()) {
-						a_problems.Push("[error] scene '" + def.id + "' node '" + nd.id + "': use target '" + nd.use +
-							"' is not a single inline-stage scene (use splices one node's stages)", def.sourceFile,
-							"invalid-use-target", "Reference a scene with one inline-stage node, then reload packs.",
-							def.id, nd.id);
+					a_problems.Push("[error] scene '" + def.id + "' node '" + nd.id + "': use target '" + nd.use +
+							"' is not a single inline-stage scene (use splices one node's stages)", def.sourceFile);
 						REX::ERROR("[Registry] scene '{}' node '{}' use target '{}' is not single inline-stage", def.id, nd.id, nd.use);
 					}
 				}
@@ -2828,7 +2812,7 @@ namespace OSF::Registry
 		std::unordered_map<std::string, SceneDef> loaded;
 		std::unordered_map<std::string, RouteDef> loadedRoutes;
 		std::vector<std::string> errors;
-		std::vector<PendingImportProblem> pendingProblems;
+		std::vector<PendingLoadProblem> pendingProblems;
 		ProblemSink problems{ errors, pendingProblems };
 		std::vector<ClipLibraryRegistration> clipLibrary;
 		std::vector<ContentFileStats> fileStats;
@@ -2845,7 +2829,6 @@ namespace OSF::Registry
 			stats.file = a_source.file.filename().string();
 			const auto relative = a_source.file.lexically_relative(a_source.root);
 			stats.path = relative.empty() ? stats.file : relative.generic_string();
-			stats.bytes = a_source.bytes;
 			return stats;
 		};
 
@@ -2854,34 +2837,13 @@ namespace OSF::Registry
 				return nlohmann::json::parse(a_input, nullptr, true, true);
 			},
 			[&](const Util::RegistryJsonSource& a_source, const nlohmann::json& a_json) {
-				auto& stats = ensureFileStats(a_source);
-				if (const auto scenes = a_json.find("scenes"); scenes != a_json.end() && scenes->is_array()) {
-					stats.declaredScenes = static_cast<std::uint32_t>(scenes->size());
-				} else if (a_json.contains("id")) {
-					stats.declaredScenes = 1;
-				}
-				if (const auto routes = a_json.find("routes"); routes != a_json.end() && routes->is_array()) {
-					stats.declaredRoutes = static_cast<std::uint32_t>(routes->size());
-				}
-				// Keep lenient header metadata even when every declared scene is later rejected.
-				if (const auto schema = a_json.find("schema"); schema != a_json.end() && schema->is_number_integer()) {
-					stats.schema = schema->get<std::int64_t>();
-				}
-				if (const auto pack = a_json.find("pack"); pack != a_json.end() && pack->is_string()) {
-					stats.pack = pack->get<std::string>();
-				}
-				if (const auto section = a_json.find("section"); section != a_json.end() && section->is_string()) {
-					stats.library = ToLower(section->get<std::string>()) == "library";
-				}
+				ensureFileStats(a_source);
 				LoadOsfFile(a_json, a_source.file, loaded, loadedRoutes, clipLibrary, loadBudget, problems);
-				stats.parseMs = std::chrono::duration<float, std::milli>(
-					std::chrono::steady_clock::now() - a_source.begun).count();
 			},
 			[&](Util::RegistryJsonProblemKind a_kind, const Util::RegistryJsonSource* a_source,
 				const std::string& a_message) {
 				if (a_kind != Util::RegistryJsonProblemKind::kFile || !a_source) {
-					problems.Push("[error] scene discovery: " + a_message, {}, "discovery-failed",
-						"Restore access to the named Data/OSF path, then reload packs.");
+					problems.Push("[error] scene discovery: " + a_message, {});
 					if (a_kind == Util::RegistryJsonProblemKind::kGameDirectory) {
 						REX::ERROR("[Registry] {}", a_message);
 					} else {
@@ -2894,16 +2856,12 @@ namespace OSF::Registry
 				const std::string detail = unknown
 					? "parse failed with an unknown exception"
 					: "parse failed: " + a_message;
-				problems.Push("[error] '" + stats.file + "': " + detail, a_source->file,
-					"parse-failed", unknown ? "Validate this file as JSON, then reload packs."
-					                              : "Fix the JSON syntax near the reported byte or field, then reload packs.");
+				problems.Push("[error] '" + stats.file + "': " + detail, a_source->file);
 				if (unknown) {
 					REX::ERROR("[Registry] failed to parse '{}' with an unknown exception", stats.file);
 				} else {
 					REX::ERROR("[Registry] failed to parse '{}': {}", stats.file, a_message);
 				}
-				stats.parseMs = std::chrono::duration<float, std::milli>(
-					std::chrono::steady_clock::now() - a_source->begun).count();
 			});
 
 		// Resolve every node `use` now that the whole set is loaded (catches dangling refs at load).
@@ -2912,24 +2870,7 @@ namespace OSF::Registry
 		// Hide scenes whose clips aren't installed (compat pack without its source mod).
 		SweepClipAvailability(loaded, problems, clipCache);
 		const auto sceneCount = loaded.size();
-		AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
-		for (const auto& [key, route] : loadedRoutes) {
-			(void)key;
-			if (const auto it = fileIndex.find(route.sourceFile.string()); it != fileIndex.end()) {
-				++fileStats[it->second].routes;
-			}
-		}
-		std::map<std::string, std::uint32_t> clipEntriesByFile;
-		const auto clipEntryCount = AddSceneClipEntries(loaded, clipLibrary, problems, clipEntriesByFile);
-		for (const auto& [path, count] : clipEntriesByFile) {
-			if (const auto it = fileIndex.find(path); it != fileIndex.end()) {
-				fileStats[it->second].clipEntries = count;
-			}
-		}
-		for (auto& stats : fileStats) {
-			stats.rejectedScenes = stats.declaredScenes > stats.scenes ? stats.declaredScenes - stats.scenes : 0;
-			stats.rejectedRoutes = stats.declaredRoutes > stats.routes ? stats.declaredRoutes - stats.routes : 0;
-		}
+		const auto clipEntryCount = AddSceneClipEntries(loaded, clipLibrary, problems);
 
 		const auto problemCount = errors.size();
 
@@ -2939,11 +2880,10 @@ namespace OSF::Registry
 			const auto& pending = pendingProblems[i];
 			const auto it = fileIndex.find(pending.owner.string());
 			auto& target = it != fileIndex.end() ? fileStats[it->second] : crossFile;
-			(pending.warning ? target.warnings : target.errors) += 1;
-			target.problems.push_back(ContentImportProblem{
-				pending.warning, pending.code, errors[i], pending.hint, pending.scene, pending.node,
-				pending.role, pending.clip
-			});
+			if (!pending.warning) {
+				++target.errors;
+			}
+			target.problems.push_back(ContentLoadProblem{ errors[i] });
 		}
 		std::sort(fileStats.begin(), fileStats.end(), [](const ContentFileStats& a_lhs, const ContentFileStats& a_rhs) {
 			return a_lhs.path < a_rhs.path;
@@ -3026,14 +2966,6 @@ namespace OSF::Registry
 		const auto current = snapshot.load(std::memory_order_acquire);
 		for (const auto& [key, def] : current->scenes) {
 			a_fn(def);
-		}
-	}
-
-	void SceneRegistry::ForEachRoute(const std::function<void(const RouteDef&)>& a_fn) const
-	{
-		const auto current = snapshot.load(std::memory_order_acquire);
-		for (const auto& [key, route] : current->routes) {
-			a_fn(route);
 		}
 	}
 

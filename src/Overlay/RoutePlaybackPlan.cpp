@@ -73,15 +73,4 @@ namespace OSF::Overlay
 		return plan;
 	}
 
-	Animation::PlaybackPlan BuildRouteTransitionPreviewPlan(
-		const Registry::RouteDef& a_route, const Registry::RouteTransition& a_transition)
-	{
-		auto plan = BasePlan(a_route.id + ":debug:" + a_transition.id);
-		plan.speed = 0.0f;
-		auto transitionStage = BuildLayerSegment(a_transition.layer);
-		if (a_transition.contactPose) transitionStage.contactPose = { *a_transition.contactPose };
-		transitionStage.blendIn = 0.0f;
-		plan.stages.push_back(std::move(transitionStage));
-		return plan;
-	}
 }

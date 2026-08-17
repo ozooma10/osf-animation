@@ -30,8 +30,4 @@ namespace OSF::Overlay
 		const Registry::RouteTransition& a_transition, const Registry::RouteStation& a_destination,
 		std::uint32_t a_generation);
 
-	// The debugger plays only the authored transition. It owns the clock and never schedules side effects
-	// or enters the destination station.
-	Animation::PlaybackPlan BuildRouteTransitionPreviewPlan(
-		const Registry::RouteDef& a_route, const Registry::RouteTransition& a_transition);
 }

@@ -693,25 +693,6 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool GraphManager::SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback)
-	{
-		if (!a_actor || !std::isfinite(a_time)) {
-			return false;
-		}
-		std::shared_lock l{ stateLock };
-		auto iter = graphs.find(a_actor);
-		if (iter == graphs.end()) {
-			return false;
-		}
-		PlaybackSession* scene = nullptr;
-		{
-			std::scoped_lock gl{ iter->second->stateLock };
-			scene = iter->second->playbackSession;
-		}
-		return scene && ((a_expectedPlayback && scene->playbackId == a_expectedPlayback) ||
-			(!a_expectedPlayback && scene->playbackSinkId == 0)) && scene->Seek(a_time);
-	}
-
 	std::optional<GraphManager::SynchronizedPlaybackState> GraphManager::GetScenePlayback(
 		RE::Actor* a_actor, PlaybackId a_expectedPlayback)
 	{

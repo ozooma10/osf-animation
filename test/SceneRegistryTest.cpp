@@ -1,7 +1,6 @@
 #include "Check.h"
 
 #include "Registry/SceneRegistry.h"
-#include "Scene/InspectionPropTimeline.h"
 
 #include "Animation/Scene.h"  // the frozen-stage clock (`hold`)
 #include "Util/Math.h"        // kDegToRad (offset.heading expectation)
@@ -27,8 +26,6 @@ namespace OSF::Animation
 
 namespace
 {
-	static_assert(std::is_same_v<OSF::Registry::ContentImportProblem, OSF::Registry::SceneImportProblem>);
-	static_assert(std::is_same_v<OSF::Registry::ContentFileStats, OSF::Registry::SceneFileStats>);
 	static_assert(std::is_same_v<OSF::Registry::ContentRegistrySnapshot, OSF::Registry::SceneRegistrySnapshot>);
 	static_assert(std::is_same_v<OSF::Registry::ContentRegistry, OSF::Registry::SceneRegistry>);
 	static_assert(std::is_same_v<OSF::Registry::SceneControls, OSF::Registry::PlayerControl>);
@@ -384,22 +381,6 @@ int main()
 				"a frame resolves to clip-local seconds at the scene frame rate");
 			Check(OSF::Registry::TrackSeconds(node.cues[2]) < 0.0f,
 				"a fractional entry reports no absolute seconds");
-			// The fraction axis (browser + inspection scrub) needs a duration; 1.6 s = 48 frames.
-			Check(OSF::Registry::TrackFraction(node.cues[1], 1.6f) == 0.5f,
-				"a frame maps onto the fraction axis against the clip length");
-			Check(OSF::Registry::TrackFraction(node.cues[1], 0.0f) == 1.0f &&
-				OSF::Registry::TrackFraction(node.cues[0], 0.0f) == 0.0f,
-				"with no clip length only frame 0 has a knowable place on the fraction axis");
-			// Reachability mirrors Scene::Advance's [prev, next) window: a frame at or past the
-			// clip end never fires, so the inspector/catalog must not present it as an end mark.
-			Check(OSF::Registry::TrackFires(node.cues[1], 1.6f) &&
-				!OSF::Registry::TrackFires(node.cues[1], 0.8f) &&
-				!OSF::Registry::TrackFires(node.cues[1], 0.5f),
-				"a frame fires only strictly inside the clip");
-			Check(OSF::Registry::TrackFires(node.cues[1], 0.0f),
-				"an unknown clip length is not judged unreachable");
-			Check(OSF::Registry::TrackFires(node.cues[2], 0.4f),
-				"fraction entries are never judged by TrackFires");
 			Check(node.actions.size() == 1 && node.actions[0].frame == 15.0f,
 				"atFrame parses on the action lane");
 			Check(node.cameras.size() == 1 && node.cameras[0].frame == 9.0f,
@@ -474,21 +455,6 @@ int main()
 				Check(destroy.kind == ActionKind::kPropDestroy && destroy.pos == TrackPos::kFraction &&
 					destroy.fraction == 0.75f && destroy.prop == "helmet",
 					"compiled prop destroy identity and timing parse");
-				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.249f, false).empty(),
-					"inspection prop state is absent before attach");
-				const auto attached = OSF::Scene::InspectionPropsAt(node.actions, 0.25f, false);
-				Check(attached.size() == 1 && attached[0].prop == "helmet" &&
-					attached[0].propAttachment.targetNode == "R_AnimObject1",
-					"inspection prop state includes attach at its exact mark");
-				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.749f, false).size() == 1,
-					"inspection prop state persists between marks");
-				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.75f, false).empty(),
-					"inspection prop state removes the prop at its destroy mark");
-				auto reverseAuthored = node.actions;
-				std::reverse(reverseAuthored.begin(), reverseAuthored.end());
-				Check(OSF::Scene::InspectionPropsAt(reverseAuthored, 0.5f, false).size() == 1 &&
-					OSF::Scene::InspectionPropsAt(reverseAuthored, 0.75f, false).empty(),
-					"inspection prop state follows mark time rather than authored array order");
 			}
 			const auto plan = reg.BuildNodePlan(s, node, 1);
 			Check(plan && !plan->anchored && plan->masks.size() == 1 && plan->masks[0] == "upperBody",
@@ -929,30 +895,6 @@ int main()
 	Check(!OSF::Animation::NormalizePoseWeight(std::numeric_limits<double>::quiet_NaN()).has_value(),
 		"non-finite poseWeight normalization rejects NaN");
 
-	// -- scrub-only scene clock ---------------------------------------------------------------
-	{
-		OSF::Animation::Scene scene;
-		OSF::Animation::Scene::StageData stage;
-		stage.duration = 2.0f;
-		stage.marks.push_back({ .fraction = 0.25f, .lane = 1, .token = "quarter" });
-		scene.stages.push_back(std::move(stage));
-		Check(scene.SetStage(0), "scene seek fixture selects its stage");
-		int owner = 0;
-		(void)scene.Advance(&owner, 0.75f);
-		std::vector<OSF::Animation::FiredMark> fired;
-		scene.DrainFiredMarks(fired);
-		Check(fired.size() == 1 && fired[0].token == "quarter", "scene fires a crossed mark before seeking");
-		Check(scene.Seek(1.25f), "scene seek accepts a finite in-range time");
-		scene.DrainFiredMarks(fired);
-		Check(fired.empty(), "scene seek itself does not fire marks");
-		(void)scene.Advance(&owner, 0.1f);
-		scene.DrainFiredMarks(fired);
-		Check(fired.empty(), "resuming after a seek does not replay consumed marks");
-		Check(scene.Seek(2.0f) && scene.GetPlaybackSnapshot().time < 2.0f,
-			"scene seek clamps clip end to the final representable pose");
-		Check(!scene.Seek(std::numeric_limits<float>::quiet_NaN()), "scene seek rejects non-finite time");
-	}
-
 	// -- absolute (frame-authored) marks vs. fractional ones ------------------------------------
 	{
 		// The same mark pair on two clips of different lengths: the frame mark (0.5 s = frame 15 at
@@ -1012,10 +954,10 @@ int main()
 		Check(lateHits == 0, "a mark past the clip end never fires");
 	}
 
-	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
+	// -- compact per-file problem ownership used by the Health panel ------------------------------
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 22, "one import record per discovered *.osf.json");
+		Check(files.size() == 22, "one health record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::ContentFileStats* {
 			for (const auto& f : files) {
@@ -1026,12 +968,10 @@ int main()
 			return nullptr;
 		};
 
-		std::uint32_t accepted = 0;
 		std::uint32_t owned = 0;
 		bool sorted = true;
 		bool pathsRelative = true;
 		for (std::size_t i = 0; i < files.size(); ++i) {
-			accepted += files[i].scenes;
 			owned += static_cast<std::uint32_t>(files[i].problems.size());
 			if (i && files[i - 1].path > files[i].path) {
 				sorted = false;
@@ -1041,78 +981,29 @@ int main()
 				pathsRelative = false;
 			}
 		}
-		Check(accepted == 36, "per-file scene counts sum to the authored total");
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
-		Check(sorted, "import records are sorted by path");
-		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
-		const auto* overlayRoute = find("fixture_route.osf.json");
-		Check(overlayRoute && overlayRoute->declaredRoutes == 1 && overlayRoute->routes == 1 &&
-			overlayRoute->rejectedRoutes == 0, "clean route files report accepted/declared/rejected route counts");
-		const auto* overlayErrors = find("fixture_route_errors.osf.json");
-		Check(overlayErrors && overlayErrors->declaredRoutes == 15 && overlayErrors->routes == 1 &&
-			overlayErrors->rejectedRoutes == 14 && !overlayErrors->Rejected(),
-			"route-local failures preserve valid sibling routes and report exact rejection counts");
+		Check(sorted, "health records are sorted by path");
+		Check(pathsRelative, "health record paths are Data/OSF-relative and forward-slashed");
 
 		const auto* bare = find("fixture_bare.osf.json");
-		Check(bare && bare->scenes == 1, "the bare single-scene fixture reports one scene");
-		Check(bare && bare->schema == OSF::Registry::kSchemaVersion, "the declared schema is recorded");
-		Check(bare && bare->bytes > 0, "the file size is recorded");
-		Check(bare && bare->declaredScenes == 1 && bare->rejectedScenes == 0,
-			"clean files report exact authored and rejected scene counts");
-		Check(bare && bare->nodes > 0 && bare->stages > 0 && bare->clips > 0,
-			"node/stage/clip totals are recorded");
-		Check(bare && bare->distinctClips > 0 && bare->distinctClips <= bare->clips,
-			"distinct clips are counted and never exceed the clip slots");
-		Check(bare && bare->errors == 0 && bare->warnings == 0, "a clean file reports no problems");
-		Check(bare && !bare->Rejected(), "a clean file is not flagged rejected");
+		Check(bare && bare->errors == 0 && bare->problems.empty(), "a clean file reports no problems");
 
-		// Whole-file reject: the record still exists, which is the whole point — a pack that
-		// contributed nothing has to be visible as such, not simply absent.
+		// Whole-file rejects remain visible so Health can identify the owning file.
 		const auto* malformed = find("fixture_malformed_type.osf.json");
-		Check(malformed && malformed->scenes == 0 && malformed->errors == 1,
-			"a rejected file keeps a record carrying its reject line");
-		Check(malformed && malformed->declaredScenes == 1 && malformed->rejectedScenes == 1,
-			"whole-file rejection preserves its authored scene count");
+		Check(malformed && malformed->errors == 1 && malformed->problems.size() == 1,
+			"a rejected file keeps its owned error line");
 		Check(malformed && !malformed->problems.empty() &&
-			malformed->problems[0].code == "file-invalid" && !malformed->problems[0].hint.empty(),
-			"rejected files carry structured repair guidance");
-		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
+			malformed->problems[0].message.find("[error]") != std::string::npos,
+			"owned health problems preserve the stable Papyrus diagnostic text");
 
-		// Partial file: some scenes in, twenty-five rejected, so it is NOT "rejected".
+		// Partial files retain every independently-owned error without Workshop metrics.
 		const auto* partial = find("fixture_registry_errors.osf.json");
-		Check(partial && partial->scenes == 1 && partial->errors == 25,
-			"a partially-loaded file reports both its scenes and its rejected ones");
-		Check(partial && partial->declaredScenes == 26 && partial->rejectedScenes == 25,
-			"partial files report exact authored and rejected scene counts");
-		Check(partial && std::ranges::all_of(partial->problems, [](const auto& a_problem) {
-			return !a_problem.code.empty() && !a_problem.hint.empty(); }), "scene diagnostics carry structured codes and repair hints");
-		Check(partial && !partial->Rejected(), "a file that loaded something is not flagged rejected");
-
-		const auto* route = find("fixture_route_compiled.osf.json");
-		Check(route && route->scenes == 3 && route->declaredScenes == 3 && route->rejectedScenes == 0,
-			"compiled route fixture reports canonical and legacy-vocabulary scenes");
-		Check(route && route->unlisted == 3 && route->anchored == 0 && route->nodes == 4 && route->stages == 4,
-			"compiled route fixture reports document policy and stage totals");
-		Check(route && route->cues == 5 && route->actions == 5 && route->cameras == 0,
-			"compiled route fixture reports its cue/action lanes and camera:none default");
+		Check(partial && partial->errors == 25 && partial->problems.size() == 25,
+			"a partially-loaded file keeps each owned error");
 
 		const auto* routeErrors = find("fixture_route_compiled_errors.osf.json");
-		Check(routeErrors && routeErrors->scenes == 0 && routeErrors->declaredScenes == 9 &&
-			routeErrors->rejectedScenes == 9 && routeErrors->errors == 9,
-			"compiled route error fixture reports nine independent scene rejections");
-		Check(routeErrors && routeErrors->Rejected(),
-			"compiled route error fixture is flagged rejected after contributing no scenes");
-
-		const auto* clipLib = find("fixture_clip_library.osf.json");
-		Check(clipLib && clipLib->clipEntries > 0, "generated clip entries are attributed to their file");
-		Check(clipLib && clipLib->pack == "Test Clip Library", "the file-level pack label is recorded");
-
-		// A clipLibrary-ONLY file declares no scenes, so its contribution is visible only through
-		// the generated-entry count — and that alone has to keep it off the rejected list.
-		const auto* clipOnly = find("fixture_clip_only.osf.json");
-		Check(clipOnly && clipOnly->scenes == 0 && clipOnly->clipEntries > 0,
-			"a clipLibrary-only file reports zero scenes and its generated entries");
-		Check(clipOnly && !clipOnly->Rejected(), "a file contributing only clip entries is not rejected");
+		Check(routeErrors && routeErrors->errors == 9 && routeErrors->problems.size() == 9,
+			"compiled route errors remain grouped under their source file");
 	}
 
 	return Finish("Scene registry");

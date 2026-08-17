@@ -183,34 +183,6 @@ namespace OSF::Registry
 		return a_entry.frame >= 0.0f ? a_entry.frame / kFrameRate : -1.0f;
 	}
 
-	// A kFraction entry's position as a clip fraction. An `atFrame` entry needs the clip duration to
-	// place itself on that axis; with no duration to scale against (a_durationSec <= 0) only frame 0
-	// has a knowable place, so later frames report the clip end rather than pretending to be at the start.
-	template <class Entry>
-	inline float TrackFraction(const Entry& a_entry, float a_durationSec)
-	{
-		const float sec = TrackSeconds(a_entry);
-		if (sec < 0.0f) {
-			return a_entry.fraction;
-		}
-		if (a_durationSec > 0.0f) {
-			return std::clamp(sec / a_durationSec, 0.0f, 1.0f);
-		}
-		return sec > 0.0f ? 1.0f : 0.0f;
-	}
-
-	// Whether the runtime can ever fire this kFraction entry. Scene::Advance fires numeric marks
-	// through a [prev, next) window whose upper bound never exceeds the clip duration, so an
-	// `atFrame` at or past the clip end never fires — while the clamped TrackFraction above would
-	// still report it at 1.0, letting an inspector scrubbed to the end "fire" a mark the shipped
-	// scene provably skips. `at`-fraction entries and unknown durations are not judged (true).
-	template <class Entry>
-	inline bool TrackFires(const Entry& a_entry, float a_durationSec)
-	{
-		const float sec = TrackSeconds(a_entry);
-		return sec < 0.0f || a_durationSec <= 0.0f || sec < a_durationSec;
-	}
-
 	// One actor's clip for one stage (one per role in StageDef::clips, role order).
 	struct StageClip
 	{
@@ -484,72 +456,24 @@ namespace OSF::Registry
 		}
 	};
 
-	// A structured view of one legacy load-error line. `message` remains the exact text published
-	// through OSFAdvanced.GetSceneLoadErrors(); the remaining fields let the browser explain and group it
-	// without reverse-engineering prose. Fields are additive and may be empty when not applicable.
-	struct SceneImportProblem
+	// A file-attributed copy of one legacy load-error line. `message` remains the exact text
+	// published through OSFAdvanced.GetSceneLoadErrors().
+	struct ContentLoadProblem
 	{
-		bool        warning = false;
-		std::string code;
 		std::string message;
-		std::string hint;
-		std::string scene;
-		std::string node;
-		std::string role;
-		std::string clip;
 	};
-	// Preferred content-wide spelling. The legacy name remains the underlying type so existing
-	// source and binary identities do not change while callers migrate.
-	using ContentImportProblem = SceneImportProblem;
 
-	// What ONE *.osf.json contributed to the registry: the author-facing import record behind the
-	// browser's IMPORTS panel. Every discovered file gets one, including a file that was rejected
-	// whole and contributed nothing — "my pack is missing" is answered by the row being present with
-	// zero scenes and its reject line attached, which a scene-only view can never show.
-	// Aggregated from the final published content, so the counts are what actually reached the registry.
-	struct SceneFileStats
+	// Problems grouped by the *.osf.json file that produced them. Health reporting consumes this
+	// compact view so one broken pack produces one actionable card rather than one card per line.
+	struct ContentFileStats
 	{
 		// Never an absolute path: it names the player's machine and account. `path` is relative to
 		// Data/OSF, which is what actually disambiguates two packs both shipping "scenes.osf.json".
 		std::string   file;              // file name only
 		std::string   path;              // slash-delimited, relative to Data/OSF ("" = the cross-file bucket)
-		std::string   pack;              // file-level `pack` label ("" = none authored)
-		bool          library = false;   // file-level section:"library" (reference lane)
-		std::int64_t  schema = 0;        // declared `schema` (0 = absent, unreadable, or the file failed to parse)
-		std::uint64_t bytes = 0;         // size on disk
-		float         parseMs = 0.0f;    // read + parse + validate wall time for this file
-
-		std::uint32_t scenes = 0;        // scenes accepted into the registry
-		std::uint32_t declaredScenes = 0; // scene objects authored in this file (before validation)
-		std::uint32_t hidden = 0;        //   ...of those, hidden by the availability sweep (!clipsAvailable)
-		std::uint32_t rejectedScenes = 0; // declaredScenes - scenes (whole-file rejection included)
-		std::uint32_t routes = 0;         // routes accepted into the registry
-		std::uint32_t declaredRoutes = 0; // route objects authored in this file
-		std::uint32_t rejectedRoutes = 0; // declaredRoutes - routes
-		std::uint32_t unlisted = 0;      //   ...of those, out of the matchmaking pool (direct id only)
-		std::uint32_t anchored = 0;      //   ...of those, anchor-bound (furniture/marker required)
-		std::uint32_t nodes = 0;
-		std::uint32_t stages = 0;
-		std::uint32_t roles = 0;
-		std::uint32_t clips = 0;          // clip slots (stage x role) — what playback will actually load
-		std::uint32_t distinctClips = 0;  // distinct clip specs referenced
-		std::uint32_t missingClips = 0;   //   ...of those, ones that resolve to no installed file
-		std::uint32_t cues = 0;           // track-lane entries, summed over every accepted node
-		std::uint32_t actions = 0;
-		std::uint32_t sounds = 0;
-		std::uint32_t cameras = 0;
-		std::uint32_t clipEntries = 0;    // generated one-clip library entries sourced from this file
-		std::vector<std::string> species;  // distinct skeleton families, sorted
-
-		std::vector<std::string> missingClipExamples;  // bounded, deterministic examples for repair UI
 		std::uint32_t errors = 0;
-		std::uint32_t warnings = 0;
-		std::vector<ContentImportProblem> problems;  // full structured set, in legacy load-error order
-
-		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && routes == 0 && clipEntries == 0 && errors > 0; }
+		std::vector<ContentLoadProblem> problems;  // full set, in legacy load-error order
 	};
-	// Preferred content-wide spelling; SceneFileStats remains available for compatibility.
-	using ContentFileStats = SceneFileStats;
 
 	// Immutable publication unit. Reload builds one privately and atomically replaces the current
 	// pointer; readers and live scenes retain shared ownership of the exact definitions they use.
@@ -559,8 +483,8 @@ namespace OSF::Registry
 		std::unordered_map<std::string, RouteDef> routes;
 		std::vector<std::string> loadErrors;
 		size_t authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
-		// One record per discovered *.osf.json, sorted by `path`. A trailing record with an empty
-		// `path` collects problems no single file owns (there normally are none).
+		// One record per discovered *.osf.json, sorted by `path`. A trailing empty-path record
+		// collects problems no single file owns (there normally are none).
 		std::vector<ContentFileStats> files;
 	};
 	// Preferred content-wide spelling; SceneRegistrySnapshot remains available for compatibility.
@@ -623,16 +547,12 @@ namespace OSF::Registry
 		// snapshot without invalidating this iteration.
 		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
 
-		// Visit every overlay route in one pinned snapshot. Used by author tooling that needs
-		// the route topology without borrowing pointers across a pack reload.
-		void ForEachRoute(const std::function<void(const RouteDef&)>& a_fn) const;
-
 		size_t Size() const;
 
 		// Problems (errors + warnings) from the last LoadAll, for OSFAdvanced.GetSceneLoadErrors().
 		std::vector<std::string> LoadErrors() const;
 
-		// Per-content-file import records from the last LoadAll, sorted by path (see ContentFileStats).
+		// Per-content-file problem groups from the last LoadAll, sorted by path.
 		std::vector<ContentFileStats> FileStats() const;
 
 		// Data-relative clip references from loaded scenes whose resolved file does not currently exist.

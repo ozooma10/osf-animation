@@ -364,7 +364,6 @@ namespace OSF::Animation
 
 		// Move within the current stage without firing timed marks. Marks before the new time are
 		// treated as consumed so resuming playback cannot replay authored side effects.
-		bool Seek(float a_time);
 
 		PlaybackSnapshot GetPlaybackSnapshot();
 
