@@ -15,7 +15,7 @@ export interface SceneStage {
   estSec: number | null;
 }
 
-export type CatalogSourceKind = "authoredScene" | "curatedAnimation" | "derivedDebugAnimation" | "referenceAnimation";
+export type CatalogSourceKind = "authoredScene" | "curatedAnimation" | "referenceAnimation";
 export type WorldPlacement = "anchorAndPin" | "followActor";
 
 export interface SceneModel {
@@ -29,8 +29,6 @@ export interface SceneModel {
   worldPlacement: WorldPlacement;
   anchors: string[];
   unlisted: boolean;
-  /** Legacy bridge flag retained while older native builds do not emit `sourceKind`. */
-  curated: boolean;
   priority: number;
   weight: number;
   pack: string;
@@ -60,13 +58,11 @@ export function normalizeScene(raw: Raw): SceneModel {
   const roles = normalizeRoles(raw.roles, actorCount);
   const tags = Array.isArray(raw.tags) ? raw.tags.map(String) : [];
   const requiresFurniture = Boolean(raw.requiresFurniture);
-  const sourceKind: CatalogSourceKind = ["authoredScene", "curatedAnimation", "derivedDebugAnimation", "referenceAnimation"].includes(String(raw.sourceKind))
+  const sourceKind: CatalogSourceKind = ["authoredScene", "curatedAnimation", "referenceAnimation"].includes(String(raw.sourceKind))
     ? raw.sourceKind as CatalogSourceKind
-    : Boolean(raw.curated)
+    : id.toLowerCase().startsWith("osf.scene-clip/")
       ? "curatedAnimation"
-      : id.toLowerCase().startsWith("osf.scene-clip/")
-        ? "derivedDebugAnimation"
-        : "authoredScene";
+      : "authoredScene";
   const worldPlacement: WorldPlacement = raw.placement === "anchorAndPin" || raw.placement === "followActor"
     ? raw.placement
     : Boolean(raw.inPlace) ? "followActor" : "anchorAndPin";
@@ -81,7 +77,6 @@ export function normalizeScene(raw: Raw): SceneModel {
     worldPlacement,
     anchors: Array.isArray(raw.anchors) ? raw.anchors.map(String) : [],
     unlisted: Boolean(raw.unlisted),
-    curated: sourceKind === "curatedAnimation",
     priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 0,
     weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
     pack: String(raw.pack || "").trim(),

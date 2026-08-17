@@ -31,7 +31,7 @@ namespace OSF::Registry
 		using SceneRegistryClips::ClipLibraryRegistration;
 		using SceneRegistryClips::PendingLoadProblem;
 		using SceneRegistryClips::ProblemSink;
-		using SceneRegistryClips::AddSceneClipEntries;
+		using SceneRegistryClips::AddCuratedAnimationEntries;
 		using SceneRegistryClips::ClipSpecInstalled;
 		using SceneRegistryClips::DesugarLinear;
 		using SceneRegistryClips::SweepClipAvailability;
@@ -2870,7 +2870,7 @@ namespace OSF::Registry
 		// Hide scenes whose clips aren't installed (compat pack without its source mod).
 		SweepClipAvailability(loaded, problems, clipCache);
 		const auto sceneCount = loaded.size();
-		const auto clipEntryCount = AddSceneClipEntries(loaded, clipLibrary, problems);
+		const auto curatedAnimationCount = AddCuratedAnimationEntries(loaded, clipLibrary, problems);
 
 		const auto problemCount = errors.size();
 
@@ -2901,8 +2901,9 @@ namespace OSF::Registry
 		next->files = std::move(fileStats);
 		const auto routeCount = next->routes.size();
 		snapshot.store(std::move(next), std::memory_order_release);
-		REX::INFO("[Registry] {} scene(s), {} route(s) loaded from {} file(s), {} scene clip entr{}, {} problem(s)",
-			sceneCount, routeCount, fileCount, clipEntryCount, clipEntryCount == 1 ? "y" : "ies", problemCount);
+		REX::INFO("[Registry] {} scene(s), {} route(s) loaded from {} file(s), {} curated animation entr{}, {} problem(s)",
+			sceneCount, routeCount, fileCount, curatedAnimationCount,
+			curatedAnimationCount == 1 ? "y" : "ies", problemCount);
 	}
 
 	SceneRef SceneRegistry::Find(std::string_view a_id) const

@@ -293,7 +293,6 @@ namespace OSF::Registry
 	{
 		kAuthoredScene,
 		kCuratedAnimation,
-		kDerivedDebugAnimation,
 		kReferenceAnimation
 	};
 
@@ -302,7 +301,6 @@ namespace OSF::Registry
 		switch (a_kind) {
 		case CatalogSourceKind::kAuthoredScene: return "authoredScene";
 		case CatalogSourceKind::kCuratedAnimation: return "curatedAnimation";
-		case CatalogSourceKind::kDerivedDebugAnimation: return "derivedDebugAnimation";
 		case CatalogSourceKind::kReferenceAnimation: return "referenceAnimation";
 		}
 		return "authoredScene";
@@ -318,12 +316,6 @@ namespace OSF::Registry
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
 		bool                     unlisted = false;  // excluded from the matchmaking pool; only reachable by direct id
-		// Generated one-clip entry built from an EXPLICIT `clipLibrary` registration rather than
-		// harvested from a scene's stages. Both share the `osf.scene-clip/` id namespace, but only
-		// the harvested ones are a debug surface: a registration is authored content a pack shipped
-		// on purpose, so the browser must show it to everyone. Nothing else can tell them apart —
-		// an author may register a clip with no tags, name, or folder at all.
-		bool                     curatedClip = false;
 		bool                     library = false;   // file-level `section:"library"`: reference-library lane (osf.library.data), kept out of the main catalog
 		CatalogSourceKind        sourceKind = CatalogSourceKind::kAuthoredScene;
 		bool                     clipsAvailable = true;  // false: a referenced clip resolves to no installed file (compat pack without its source mod) — hidden from the catalog and matchmaking; a direct-id start still attempts and logs the load failure

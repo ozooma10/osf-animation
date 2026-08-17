@@ -6,6 +6,7 @@ All notable changes to OSF Animation are documented here.
 
 ### Removed
 - **The animation/emote wheel and its parallel quick-access system.** The radial view mode, wheel hotkey, ordered pin persistence, bridge commands, launch special-cases, and browser pin controls have been removed. Emotes remain ordinary playable content in the Animation Browser.
+- **Hidden raw-clip harvesting from authored scenes.** Scene clips are no longer duplicated into an author-only debug catalog. Individually browsable animations must be registered intentionally through `clipLibrary`; normal scene playback and clip importing are unchanged.
 
 ### Added
 - **Persistent actor overlay routes (native ABI 1.0).** External SFSE plugins can own one masked,

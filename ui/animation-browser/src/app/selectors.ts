@@ -74,14 +74,6 @@ export function emoteCatalog(state: BrowserState): SceneModel[] {
   return state.catalog.filter((scene) => isEmote(scene) && unlistedVisible(state, scene));
 }
 
-/** A clip entry the engine harvested from authored stages for the author-only debug surface. */
-export function isDerivedDebugAnimation(scene: SceneModel): boolean {
-  return scene.sourceKind === "derivedDebugAnimation";
-}
-
-/** Compatibility spelling retained for view extensions compiled against the earlier selector. */
-export const isGeneratedSceneClip = isDerivedDebugAnimation;
-
 export function playableKey(sceneId: string, stage: number | null): string {
   return `${sceneId}\0${stage == null ? "" : stage}`;
 }
@@ -231,9 +223,7 @@ export function playableVisible(state: BrowserState, item: PlayableItem): boolea
 }
 
 export function isHiddenPlayable(item: PlayableItem): boolean {
-  return item.kind === "animation"
-    ? isDerivedDebugAnimation(item.scene)
-    : !item.scene.library && item.scene.unlisted;
+  return item.kind !== "animation" && !item.scene.library && item.scene.unlisted;
 }
 
 /** Distinct hidden scene records that the current Browse filters would reveal. */
@@ -255,7 +245,7 @@ export function selectedPlayable(state: BrowserState): PlayableItem | null {
 export function animationList(state: BrowserState): SceneModel[] {
   return [
     ...emoteCatalog(state),
-    ...filteredLibrary(state).filter((scene) => state.showHidden || !isDerivedDebugAnimation(scene)),
+    ...filteredLibrary(state),
   ];
 }
 

@@ -18,8 +18,6 @@ import {
   playableVisible,
   readableAnimationName,
   validSelection,
-  isDerivedDebugAnimation,
-  isGeneratedSceneClip,
 } from "../src/app/selectors";
 import { PLAYER_CAST, createInitialState } from "../src/app/state";
 import { decodePreferences, preferredOpenMode } from "../src/app/settings";
@@ -328,9 +326,9 @@ describe("browser selectors", () => {
     expect(formatEstimate({ estSec: 150, estPartial: true, openEnded: true })).toBe("~2:30+∞");
   });
 
-  it("filters vanilla animations and keeps generated source clips hidden until requested", () => {
+  it("filters vanilla animations while keeping curated custom animations visible", () => {
     const vanilla = normalizeScene({ id: "vanilla/common/idle", title: "Vanilla Idle", tags: ["vanilla"], stages: [{ name: "Idle" }] });
-    const imported = normalizeScene({ id: "osf.scene-clip/abc", title: "Imported Clip", tags: ["scene.clip"], stages: [{ name: "Pack\\Clip.glb" }] });
+    const imported = normalizeScene({ id: "osf.scene-clip/abc", title: "Imported Clip", tags: ["scene.clip"], sourceKind: "curatedAnimation", stages: [{ name: "Pack\\Clip.glb" }] });
     const state = {
       ...createInitialState(),
       mode: "library" as const,
@@ -344,66 +342,17 @@ describe("browser selectors", () => {
     expect(filteredLibrary(state).map((scene) => scene.id)).toEqual([imported.id]);
     // the custom-only filter removes vanilla from the playable surface entirely
     expect(playableItems(state).some((item) => item.scene.id === vanilla.id)).toBe(false);
-    expect(validSelection(state)).toBeNull();
-    const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
-    expect(validSelection(authorState)).toBeNull();
-    expect(validSelection({ ...state, showHidden: true })).toBe(imported.id);
+    expect(validSelection(state)).toBe(imported.id);
   });
 
-  it("shows clipLibrary registrations to everyone, not only to authors", () => {
-    // A pack may ship nothing but a clipLibrary — the registrations ARE its content. They share
-    // the osf.scene-clip/ id namespace with the harvested debug entries. New native builds emit
-    // `sourceKind`; `curated` remains the compatibility signal for older builds.
-    // Both shapes as the engine actually serializes them: one anonymous role, unlisted, in the
-    // library lane, tagged only `scene.clip` when the author supplied no tags of their own.
-    const registered = normalizeScene({
-      id: "osf.scene-clip/aaa",
-      title: "Hand Extended 01",
-      tags: ["scene.clip"],
-      curated: true,
-      unlisted: true,
-      actorCount: 1,
-      roles: [{ name: "", gender: "any" }],
-      pack: "Moods of Andromas",
-      folder: "Standing",
-      stages: [{ index: 0, name: "Hand Extended 01", tags: ["scene.clip"], clipCount: 1, openEnded: true }],
-    });
-    const harvested = normalizeScene({
-      id: "osf.scene-clip/bbb",
-      title: "NAF\\RZSPU02.glb",
-      tags: ["scene.clip"],
-      unlisted: true,
-      actorCount: 1,
-      roles: [{ name: "", gender: "any" }],
-      stages: [{ index: 0, name: "NAF\\RZSPU02.glb", tags: ["scene.clip"], clipCount: 1, openEnded: true }],
-    });
-    expect(isGeneratedSceneClip(registered)).toBe(false);
-    expect(isGeneratedSceneClip(harvested)).toBe(true);
-
-    const explicitDerived = normalizeScene({
-      id: "plain-derived", sourceKind: "derivedDebugAnimation", curated: true,
-    });
-    const explicitCurated = normalizeScene({
-      id: "osf.scene-clip/explicit-curated", sourceKind: "curatedAnimation", curated: false,
-    });
-    expect(isDerivedDebugAnimation(explicitDerived)).toBe(true);
-    expect(isDerivedDebugAnimation(explicitCurated)).toBe(false);
-
-    // Stock preferences: author details off, poses-and-loops tier, custom+vanilla, no search.
-    const state = { ...createInitialState(), library: [registered, harvested], libraryReceived: true };
-    const visible = playableItems(state).filter((item) => playableVisible(state, item));
-    expect(visible.map((item) => item.scene.id)).toEqual([registered.id]);
+  it("keeps unlisted authored scenes hidden until requested", () => {
+    const hidden = normalizeScene({ id: "author.hidden", title: "Hidden Scene", unlisted: true, actorCount: 1 });
+    const state = { ...createInitialState(), catalog: [hidden], catalogReceived: true };
+    expect(playableItems(state).filter((item) => playableVisible(state, item))).toEqual([]);
     expect(hiddenSceneCount(state)).toBe(1);
-    // Ready with the default player-only cast, so it lands in the playable list, not the
-    // "needs a different cast" bucket that stays folded away.
-    expect(evaluateForState(state, registered).gaps).toBe(0);
-
-    const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
-    expect(playableItems(authorState).filter((item) => playableVisible(authorState, item)).map((item) => item.scene.id))
-      .toEqual([registered.id]);
     const revealedState = { ...state, showHidden: true };
-    expect(playableItems(revealedState).filter((item) => playableVisible(revealedState, item)).map((item) => item.scene.id).sort())
-      .toEqual([registered.id, harvested.id].sort());
+    expect(playableItems(revealedState).filter((item) => playableVisible(revealedState, item)).map((item) => item.scene.id))
+      .toEqual([hidden.id]);
   });
 
   it("projects library stages as playables while keeping their set as collection metadata", () => {

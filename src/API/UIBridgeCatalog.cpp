@@ -122,10 +122,6 @@ namespace OSF::API::UIBridgeCatalog
 			std::string              worldPlacement = "anchorAndPin";
 			std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
 			bool                     unlisted = false;
-			// Generated one-clip entry that a pack REGISTERED via `clipLibrary`, as opposed to
-			// one harvested from a scene's stages. Both carry the `osf.scene-clip/` id, so the
-			// browser cannot tell authored content from its own debug surface without this.
-			bool                     curated = false;
 			std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
 			float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
 			bool                     estPartial = false;  // at least one linear stage had no estimate
@@ -157,7 +153,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "inPlace", a_card.worldPlacement == "followActor" },  // legacy bridge field
 				{ "anchors", a_card.anchorNames },
 				{ "unlisted", a_card.unlisted },
-				{ "curated", a_card.curated },
 				{ "stages", a_card.stages },
 				{ "estSec", SecOrNull(a_card.estSec) },
 				{ "estPartial", a_card.estPartial },
@@ -221,7 +216,6 @@ namespace OSF::API::UIBridgeCatalog
 				c.anchorNames.push_back(edid && edid[0] ? std::string{ edid } : std::format("{:#010x}", b));
 			}
 			c.unlisted = d.unlisted;
-			c.curated = d.curatedClip;
 			// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
 			c.stages.reserve(d.linearStages.size());
 			for (std::size_t i = 0; i < d.linearStages.size(); ++i) {

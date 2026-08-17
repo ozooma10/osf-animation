@@ -68,9 +68,8 @@ int main()
 		"canonical and legacy gender parsers share one result");
 	Check(OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kAuthoredScene) == "authoredScene" &&
 		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kCuratedAnimation) == "curatedAnimation" &&
-		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation) == "derivedDebugAnimation" &&
 		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kReferenceAnimation) == "referenceAnimation",
-		"catalog source taxonomy uses the bridge's four canonical spellings");
+		"catalog source taxonomy uses the bridge's three canonical spellings");
 
 	auto& reg = SceneRegistry::GetSingleton();
 	reg.LoadAll();
@@ -110,14 +109,13 @@ int main()
 	// prop-transform-default scene, the `atFrame` scene, the five props-registry scenes, the bare
 	// props file, the one surviving scene of the props reference-error fixture, and the two valid
 	// `hold` scenes (that fixture's two malformed ones are rejected). The compiled-route error
-	// fixture and the four malformed-registry files load nothing. (Generated clip-debug entries and
-	// clipLibrary registrations don't count here.)
+	// fixture and the four malformed-registry files load nothing. (clipLibrary registrations don't
+	// count here.)
 	Check(reg.Size() == 36, "authored scene count");
 
-	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
+	// -- explicit clip library -------------------------------------------------------------------
 	std::int32_t curatedCount = 0;
-	std::int32_t curatedFlagged = 0;   // registered entries carrying curatedClip
-	std::int32_t harvestedFlagged = 0;  // entries harvested from a scene's stages (curatedClip false)
+	std::int32_t registeredCount = 0;
 	bool friendlyFound = false;
 	bool fallbackFound = false;
 	bool animatedFound = false;
@@ -150,17 +148,13 @@ int main()
 		if (d.library && d.pack == "Test Clip Duplicate") {
 			++duplicateCount;
 		}
-		// The browser shows registered clips to everyone and keeps harvested ones behind author
-		// details. `sourceKind` is the canonical taxonomy; `curatedClip` remains the legacy bridge
-		// discriminator while older consumers migrate.
 		if (d.library && d.tagSet.contains("scene.clip")) {
-			Check(d.sourceKind == (d.curatedClip ? OSF::Registry::CatalogSourceKind::kCuratedAnimation :
-				OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation),
-				"generated animation entries carry the source kind matching their origin");
-			(d.curatedClip ? curatedFlagged : harvestedFlagged) += 1;
+			Check(d.sourceKind == OSF::Registry::CatalogSourceKind::kCuratedAnimation,
+				"clipLibrary registrations are classified as curated animations");
+			++registeredCount;
 		}
 	});
-	Check(curatedCount == 3, "registered clip de-duplicates against the same scene-referenced clip");
+	Check(curatedCount == 3, "registered clip count is independent of scene references");
 	Check(friendlyFound, "clipLibrary friendly name, folder override, tags, clipRoot, and safe playback posture");
 	Check(fallbackFound, "bare clipLibrary entry falls back to filename and inherits file folder");
 	Check(animatedFound, "clipLibrary object preserves GLB animation id");
@@ -168,8 +162,7 @@ int main()
 
 	Check(duplicateCount == 1, "duplicate explicit clip registration keeps the first entry");
 	// 5 registrations survive across the fixtures (3 in Test Clip Library, 1 Only, 1 Duplicate).
-	Check(curatedFlagged == 5, "every clipLibrary registration is flagged curated");
-	Check(harvestedFlagged > 0, "clips harvested from scene stages are NOT flagged curated");
+	Check(registeredCount == 5, "only explicit clipLibrary registrations become animation entries");
 	// -- bare single-scene file: top-level roles is that scene's roles (unchanged) --------------
 	if (const auto s = reg.Find("test.bare")) {
 		if (Check(s->roles.size() == 1, "bare scene keeps one inline role")) {

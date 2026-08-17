@@ -43,6 +43,6 @@ namespace OSF::Registry::SceneRegistryClips
 	bool ClipSpecInstalled(const std::string& a_spec);
 	void SweepClipAvailability(std::unordered_map<std::string, SceneDef>& a_scenes,
 		ProblemSink& a_problems, ClipInstalledCache& a_cache);
-	std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
+	std::size_t AddCuratedAnimationEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
 		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems);
 }

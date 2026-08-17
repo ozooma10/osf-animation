@@ -5,7 +5,6 @@
 #include "Util/Species.h"
 #include "Util/StringUtil.h"
 
-#include <algorithm>
 #include <format>
 #include <unordered_set>
 
@@ -148,7 +147,7 @@ namespace OSF::Registry::SceneRegistryClips
 		}
 	}
 
-	std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
+	std::size_t AddCuratedAnimationEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
 		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems)
 	{
 		struct ClipEntry
@@ -160,7 +159,6 @@ namespace OSF::Registry::SceneRegistryClips
 			StageClip                clip;
 			std::filesystem::path    sourceFile;
 			std::string              pack;
-			bool                     curated = false;
 		};
 
 		const auto groupOf = [](std::string_view a_pack, const std::filesystem::path& a_sourceFile) {
@@ -204,44 +202,7 @@ namespace OSF::Registry::SceneRegistryClips
 				continue;
 			}
 			unique.emplace(key, ClipEntry{ display, registration.name, registration.folder,
-				registration.tags, registration.clip, registration.sourceFile, registration.pack, true });
-		}
-
-		// Sort the unordered source map before choosing de-dup winners and generated IDs.
-		std::vector<const SceneDef*> sources;
-		sources.reserve(a_scenes.size());
-		for (const auto& [key, definition] : a_scenes) {
-			const bool alreadyAnEmote = std::ranges::any_of(definition.tagSet,
-				[](const std::string& a_tag) { return a_tag.starts_with("player.emote."); });
-			if (!definition.library && !alreadyAnEmote) {
-				sources.push_back(&definition);
-			}
-		}
-		std::sort(sources.begin(), sources.end(), [](const SceneDef* a_lhs, const SceneDef* a_rhs) {
-			const auto leftFile = ToLower(a_lhs->sourceFile.filename().string());
-			const auto rightFile = ToLower(a_rhs->sourceFile.filename().string());
-			return leftFile != rightFile ? leftFile < rightFile : ToLower(a_lhs->id) < ToLower(a_rhs->id);
-		});
-
-		for (const SceneDef* definition : sources) {
-			for (const auto& node : definition->nodes) {
-				for (const auto& stage : node.stages) {
-					for (const auto& clip : stage.clips) {
-						const std::string display = Util::ClipSpecDisplay(std::filesystem::path{ clip.file });
-						const std::string installKey = ToLower(display);
-						auto [installedIt, fresh] = installed.try_emplace(installKey, false);
-						if (fresh) {
-							installedIt->second = ClipSpecInstalled(clip.file);
-						}
-						if (!installedIt->second) {
-							continue;
-						}
-						const std::string key = clipKey(definition->pack, definition->sourceFile, display, clip.animId);
-						unique.try_emplace(key, ClipEntry{ display, {}, definition->folder, {}, clip,
-							definition->sourceFile, definition->pack });
-					}
-				}
-			}
+				registration.tags, registration.clip, registration.sourceFile, registration.pack });
 		}
 
 		const auto stableHash = [](std::string_view a_text) {
@@ -279,9 +240,7 @@ namespace OSF::Registry::SceneRegistryClips
 			}
 			definition.unlisted = true;
 			definition.library = true;
-			definition.curatedClip = entry.curated;
-			definition.sourceKind = entry.curated ? CatalogSourceKind::kCuratedAnimation :
-				CatalogSourceKind::kDerivedDebugAnimation;
+			definition.sourceKind = CatalogSourceKind::kCuratedAnimation;
 			definition.playerInputLock = false;
 			definition.hideApparel = false;
 			definition.fade = false;

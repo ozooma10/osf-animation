@@ -75,8 +75,7 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   `sourceFile` (the scene file's name, no directories); rows group into collapsible
   collection blocks keyed on `pack` → `sourceFile` → id-prefix fallback. Selecting or
   directly playing a library row launches exactly its referenced stage; it cannot walk
-  into another animation in the collection. Generated raw clips extracted from authored
-  scenes are author-detail/debug material and stay out of the normal catalog.
+  into another animation in the collection.
   The view only ever holds opaque integer **tokens** (player = `-1`), which
   the DLL maps back to `RE::*` refs and re-validates on the main thread
   before use.

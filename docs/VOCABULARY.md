@@ -50,8 +50,8 @@ describing the behavior.
 | **content file** | One discovered `*.osf.json` document and the defaults or reusable definitions scoped to that file. | Do not call a file-level default *pack-wide*. |
 | **content pack** | An author/product grouping that may span multiple content files; `pack` is its presentation label. | It is not a parser or inheritance boundary. `ReloadPacks` is a legacy binding name for reloading all content. |
 | **playable catalog** | The umbrella collection of browsable scenes, emotes, and animations that can be launched. | Avoid using *library* for every catalog partition. |
-| **catalog source kind** | The origin taxonomy carried by browser catalog records: `authoredScene`, `curatedAnimation`, `derivedDebugAnimation`, or `referenceAnimation`. | Prefer `sourceKind` over inferring origin from an id prefix, the catalog/library channel, or the legacy `curated` boolean. |
-| **curated animation** | An explicitly registered, individually browsable animation clip. | Established JSON key `clipLibrary`; it is distinct from an automatically derived raw-clip entry. |
+| **catalog source kind** | The origin taxonomy carried by browser catalog records: `authoredScene`, `curatedAnimation`, or `referenceAnimation`. | Prefer `sourceKind` over inferring origin from an id prefix or catalog/library channel. |
+| **curated animation** | An explicitly registered, individually browsable animation clip. | Established JSON key `clipLibrary`. |
 | **reference catalog** | Non-matchmaking reference content selected by file-level `section: "library"`. | `library` is the established schema value, not the umbrella term for all playable content. |
 | **emote** | A playable solo gesture/category, such as content tagged `player.emote.*`. | Reserve *action* for entries on the authored `action` track; older UI copy may label emotes `Action`. |
 | **active launch** | A browser projection of a live scene handle. | Preferred browser type/function `ActiveLaunch`/`activeLaunches`; native event `activeScenes` remains the compatibility wire name. |

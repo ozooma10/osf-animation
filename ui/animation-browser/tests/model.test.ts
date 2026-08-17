@@ -39,29 +39,24 @@ describe("scene normalization", () => {
   });
 
 
-  it("uses explicit catalog source kinds while preserving legacy bridge inference", () => {
+  it("uses the three catalog source kinds and recognizes clipLibrary ids", () => {
     expect(normalizeScene({
       id: "osf.scene-clip/registered",
-      curated: true,
-      sourceKind: "derivedDebugAnimation",
-    })).toMatchObject({ sourceKind: "derivedDebugAnimation", curated: false });
+      sourceKind: "curatedAnimation",
+    })).toMatchObject({ sourceKind: "curatedAnimation" });
     expect(normalizeScene({
       id: "plain",
-      curated: false,
       sourceKind: "curatedAnimation",
-    })).toMatchObject({ sourceKind: "curatedAnimation", curated: true });
-    expect(normalizeScene({ id: "osf.scene-clip/curated", curated: true }).sourceKind).toBe("curatedAnimation");
-    expect(normalizeScene({ id: "osf.scene-clip/harvested" }).sourceKind).toBe("derivedDebugAnimation");
+    })).toMatchObject({ sourceKind: "curatedAnimation" });
+    expect(normalizeScene({ id: "osf.scene-clip/curated" }).sourceKind).toBe("curatedAnimation");
     expect(normalizeScene({ id: "pack.scene" }).sourceKind).toBe("authoredScene");
     expect(normalizeCatalog([
       { id: "a", sourceKind: "authoredScene" },
       { id: "c", sourceKind: "curatedAnimation" },
-      { id: "d", sourceKind: "derivedDebugAnimation" },
       { id: "r", sourceKind: "referenceAnimation" },
     ], true).map(({ sourceKind, library }) => [sourceKind, library])).toEqual([
       ["referenceAnimation", true],
       ["curatedAnimation", true],
-      ["derivedDebugAnimation", true],
       ["referenceAnimation", true],
     ]);
   });

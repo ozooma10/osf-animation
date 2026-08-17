@@ -149,23 +149,17 @@ it. A clip-only file needs no dummy scene or `id`:
 - File-level `clipRoot` applies exactly as it does to scene clips.
 - `folder` organizes the browser within the pack. Use `/` for nesting, such as
   `Furniture/Seated`. It is presentation-only and never affects playback or matchmaking.
-- A file-level `folder` is the default for every `clipLibrary` entry and for automatically exposed
-  clips from scenes in that file. An object entry's `folder` overrides that default. With no folder,
-  the item appears directly at the pack root.
+- A file-level `folder` is the default for every `clipLibrary` entry. An object entry's `folder`
+  overrides that default. With no folder, the item appears directly at the pack root.
 - Folder paths are relative: no leading/trailing `/`, backslashes, empty segments, `.` or `..`.
   Display casing is preserved, while grouping is case-insensitive.
 - Use folders for hierarchy and `tags` only for optional cross-cutting facets that may span folders.
   The pack already identifies the source mod, and `scene.clip` already identifies a raw clip.
-- A curated animation appears even when no scene references it, and it appears for every player —
-  unlike the entries OSF derives automatically from a scene's stages, which stay behind the
-  browser's **Show author details** switch because they are raw-clip debug material. The two share
-  an id namespace. The catalog identifies an explicit registration with
-  `sourceKind:"curatedAnimation"` and an automatic entry with
-  `sourceKind:"derivedDebugAnimation"`; legacy consumers also receive `curated:true` or `false`.
-  A pack that ships nothing but a `clipLibrary` is normal, complete content.
-- When a scene in the same catalog group (the declared content pack, or the source content file when
-  no `pack` is declared) references the same file + animation id, OSF creates one
-  curated animation and the explicit registration's `name`/`folder`/`tags` win over derived metadata.
+- A curated animation appears even when no scene references it, and it appears for every player.
+  The catalog identifies it with `sourceKind:"curatedAnimation"`. A pack that ships nothing but a
+  `clipLibrary` is normal, complete content.
+- OSF does not mine scene stages for extra browser entries. Register a clip in `clipLibrary` when it
+  should be individually browsable outside its authored scene.
 - Duplicate explicit registrations for the same file + animation id in one such catalog group are a
   load error; the first entry is kept.
 - A missing registered clip is reported and hidden from the Animations catalog.
@@ -285,14 +279,6 @@ segments are an implementation detail and are not addressed by these indexes.
   the scene with **`SceneOptions.Stage = <index>`** — it enters directly on that linear stage (a `loops:0`
   linear stage holds there). Linear-stage `tags` are separate from the scene's `tags` (which drive
   matchmaking).
-- **Automatically exposed raw clips in Animations.** Every distinct, installed clip referenced by a scene in a
-  content file outside the reference catalog is also published automatically as a one-actor entry
-  under **Animations**, grouped by the scene file's `pack` label (or by its `*.osf.json` filename when
-  no pack is declared). Playing one runs only that raw clip and follows the actor's live transform.
-  It neither hides apparel nor engages the player input lock, and it does not apply fade, role offset,
-  or scene tracks.
-  Generated vanilla/reference-catalog scenes and emotes are excluded because they already populate
-  Animations.
 - **`offset`** (a placement) corrects alignment relative to the scene's world anchor: `x`/`y`/`z` (local units)
   and `heading` (degrees). A role-level `offset` is the default for all stages; a clip-level `offset`
   overrides it for that stage.
