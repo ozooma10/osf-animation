@@ -24,20 +24,12 @@
 
 namespace
 {
-	// Last game version whose offsets I checked by hand. Should keep working unless AddressLib ships a breaking update.
-	constexpr REL::Version kVerifiedGameVersion{ 1, 16, 244, 0 };
-	// Persistence uses 59 bytes for three original-function gateways plus 42 bytes
-	// for their branch islands. Keep a small margin for hook implementation changes.
-	constexpr std::size_t kTrampolineBytes = 128;
+	constexpr std::size_t kTrampolineBytes = 1024;
 
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
 	{
 		switch (a_msg->type) {
 		case SFSE::MessagingInterface::kPostDataLoad:
-			// Before the loaders: they are the first real producers, and
-			// connecting here also flushes what plugin load already buffered.
-			// Separate from InstallUIBridge because health reporting has to
-			// survive a host too old for the browser view.
 			OSF::API::Health::Connect();
 			OSF::Registry::RequirementRegistry::LoadAll();
 			OSF::API::MinimumVersion::EnablePrompts();
