@@ -5,7 +5,6 @@
 #include "Serialization/ClipDurations.h"
 #include "Serialization/GLTFImport.h"
 #include "Util/ClipPath.h"
-#include "Util/Profile.h"
 #include "Util/Species.h"
 #include "Util/StringUtil.h"
 
@@ -158,8 +157,6 @@ namespace OSF::Animation
 		// an ozz {skeleton, anim} the Graph sampler consumes identically.
 		Result Load(const Util::ClipSpec& a_spec, std::string_view a_animId)
 		{
-			OSF_PROFILE_SCOPE_N("Anim.LoadClip");
-
 			Result out;
 			for (std::size_t candidateIndex = 0; candidateIndex < a_spec.candidates.size(); candidateIndex++) {
 				const auto& cand = a_spec.candidates[candidateIndex];
@@ -258,8 +255,6 @@ namespace OSF::Animation
 
 		Result LoadAfBytes(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_bytes)
 		{
-			OSF_PROFILE_SCOPE_N("Anim.LoadAfBytes");
-
 			constexpr std::string_view kRigKey = "human-skeleton";
 			auto loaded = Serialization::AFImport::LoadAnimation(a_clipKey, a_bytes, kRigKey, &LoadHumanRigBytes);
 			Serialization::AFImport::EvictAnimation(a_clipKey, kRigKey);

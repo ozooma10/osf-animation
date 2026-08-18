@@ -4,7 +4,6 @@
 #include "Util/ClipPath.h"
 #include "Util/DiagnosticText.h"
 #include "Util/KeywordLabel.h"
-#include "Util/Profile.h"
 #include "Util/RegistryFiles.h"
 
 #include <algorithm>
@@ -16,11 +15,6 @@ using OSF::Test::Finish;
 
 int main()
 {
-	int profileSideEffects = 0;
-	OSF_PROFILE_SCOPE_N("normal-build no-op scope");
-	OSF_PROFILE_PLOT("normal-build no-op plot", ++profileSideEffects);
-	Check(profileSideEffects == 0, "disabled profiling macros do not evaluate arguments");
-
 	OSF::Animation::FrameClock clock;
 	int ownerToken = 0;
 	int survivorToken = 0;

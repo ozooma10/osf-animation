@@ -64,14 +64,13 @@ if ($Tag) { $verLabel += "-$Tag" }
 Step "Packaging OSF Animation v$verLabel  (flavor=$DllFlavor)"
 
 # --- build -----------------------------------------------------------------
-# Pin mode/build directory and explicitly disable profiling. A profiling configuration must never
-# leak into a release, even when the developer last built the MO2 override.
+# Pin the build mode and output directory used by the release archive.
 if (-not $SkipBuild) {
     if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) { Die 'xmake not found on PATH.' }
     Push-Location $repo
     try {
-        Step "xmake f -c -m $DllFlavor -P . -o build --osf_profiler=n"
-        xmake f -c -m $DllFlavor -P . -o build --osf_profiler=n -y
+        Step "xmake f -c -m $DllFlavor -P . -o build"
+        xmake f -c -m $DllFlavor -P . -o build -y
         if ($LASTEXITCODE -ne 0) { Die 'xmake config failed.' }
         Step 'xmake -P .   (also refreshes the browser view + deploys to MO2)'
         xmake -P . -y
@@ -85,14 +84,6 @@ $dll = Join-Path $repo "build\windows\x64\$DllFlavor\OSF Animation.dll"
 $pdb = [IO.Path]::ChangeExtension($dll, 'pdb')
 $dist = Join-Path $repo 'dist'
 if (-not (Test-Path $dll)) { Die "DLL not found: $dll  (run xmake first; -DllFlavor $DllFlavor)" }
-
-# Profile builds carry a marker that survives optimization because the boot warning references it.
-# Scan even under -SkipBuild so a manually copied profiling DLL cannot enter an archive.
-$profileMarker = 'OSF_TRACY_PROFILE_BUILD'
-$dllAscii = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($dll))
-if ($dllAscii.Contains($profileMarker)) {
-    Die "Refusing to package a profiling DLL ($profileMarker): $dll"
-}
 
 # --- Papyrus surface -------------------------------------------------------
 # OSFTest (console smoke-test harness) is DEV-ONLY and deliberately excluded from release.

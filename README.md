@@ -28,8 +28,7 @@ Key Features:
   proposes how equipment routes, persistent constraints, locomotion profiles, and cinematic scenes
   can share one per-actor pose runtime.
 
-- **Developers:** [profiling workflow](docs/PROFILING.md) covers routine WPR/WPA sampling and the
-  isolated Tracy-instrumented MO2 override build.
+- **Developers:** [profiling workflow](docs/PROFILING.md) covers WPR/WPA CPU sampling.
 
 ## Requirements
 

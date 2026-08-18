@@ -11,7 +11,6 @@
 #include "UI/Subtitle.h"
 #include "Util/ClipPath.h"
 #include "Util/Math.h"
-#include "Util/Profile.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1664,12 +1663,8 @@ namespace OSF::Animation
 		if (!a_updateData) {
 			return;
 		}
-		OSF_PROFILE_SCOPE_N("GraphManager.AnimGraphUpdate.OSF");
-
 		auto& gm = GetSingleton();
 		const auto activeGraphCount = gm.graphCount.load(std::memory_order_relaxed);
-		OSF_PROFILE_PLOT("Anim.ActiveGraphs", static_cast<std::int64_t>(activeGraphCount));
-
 		// Player camera guard: POVSwitch stays enabled for scroll-zoom, so first person must be bounced if the player zooms all the way in while a standalone camera lock is held. 
 		// Above the managed-graph filter — its own atomic early-out makes the idle case free, and a standalone lock with no live graph still bounces.
 		Camera::CameraService::GetSingleton().Tick();
@@ -1722,8 +1717,6 @@ namespace OSF::Animation
 		RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData, void* a_outputTransform)
 	{
 		{
-			OSF_PROFILE_SCOPE_N("GraphManager.ModelNodeUpdate.OSF");
-
 			// Stamp the latest sampled pose for the graph driving this skeleton before the engine's compose+commit runs (the verified write point).
 			// Unmanaged skeletons fall through with one map scan; managed graph counts are small (synchronized-playback participants).
 			auto& gm = GetSingleton();
@@ -1732,13 +1725,7 @@ namespace OSF::Animation
 			if (gm.graphCount.load(std::memory_order_relaxed) > 0) {
 				std::shared_lock l{ gm.stateLock };
 				if (!gm.graphs.empty()) {
-#if OSF_ENABLE_PROFILING
-					std::int64_t scannedGraphs = 0;
-#endif
 					for (auto& [refr, g] : gm.graphs) {
-#if OSF_ENABLE_PROFILING
-						++scannedGraphs;
-#endif
 						// Normal case: one atomic pointer comparison, then verify under the graph lock.
 						// Recovery only pays the actor-root lookup while no stamp target is published,
 						// and ResolveAndBind accepts the candidate only if it is this graph's current
@@ -1826,9 +1813,6 @@ namespace OSF::Animation
 						break;
 						}
 					}
-#if OSF_ENABLE_PROFILING
-					OSF_PROFILE_PLOT("Anim.ModelNodeGraphsScanned", scannedGraphs);
-#endif
 				}
 			}
 		}
