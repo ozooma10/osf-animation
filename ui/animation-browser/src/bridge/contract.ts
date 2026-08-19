@@ -22,7 +22,8 @@ export type BridgeCommand =
   | "osf.animation.stop"
   | "osf.animation.wheel.get"
   | "osf.animation.wheel.set"
-  | "osfui.gamepadRaw"
+  | "osfui.gamepadMode"
+  | "osfui.handleBack"
   | "osfui.openModPage"
   | "settings.get"
   | "settings.set";

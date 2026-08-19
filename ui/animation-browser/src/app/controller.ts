@@ -152,7 +152,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   const importsTries = useRef(0);
   const routesTries = useRef(0);
   const lastAdvance = useRef(0);
-  const padHeld = useRef<{ id: number; timer?: number }>({ id: 0 });
 
   const showNotice = useCallback((kind: "info" | "ok" | "err", text: string) => {
     dispatch({ type: "notice/show", kind, text });
@@ -218,7 +217,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         // there is no `bridgeVersion` field, so gating on it wedged the view at "Engine Offline".
         dispatch({ type: "runtime/ready" });
         showNotice("ok", `Bridge online. Protocol ${record.protocol || "?"}.`);
-        send("osfui.gamepadRaw", { raw: true });
+        send("osfui.gamepadMode", { mode: "buttons" });
+        send("osfui.handleBack", { handle: true });
         // The mount effect already requested both; re-request only what hasn't landed —
         // the native side rebuilds and serializes the ~MB library payload per library.get,
         // so the unconditional duplicate cost a full extra build every view creation.
@@ -385,8 +385,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       }
       case "ui.visibility":
         if (!record.visible) {
-          if (padHeld.current.timer) clearTimeout(padHeld.current.timer);
-          padHeld.current = { id: 0 };
           dispatch({ type: "visibility/hidden" });
         } else {
           dispatch({ type: "visibility/shown" });
@@ -398,24 +396,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         send(record.visible ? "osf.animation.opened" : "osf.animation.closed");
         break;
       case "ui.error": showNotice("err", `Bridge rejected a message: ${record.message || record.code || "unknown error"}`); break;
-      case "ui.gamepad": handleGamepad(record); break;
-    }
-  };
-
-  const handleGamepad = (payload: Record<string, any>) => {
-    if (payload.kind !== "button" || !isRecord(payload.button)) return;
-    const id = Number(payload.button.id) || 0;
-    const stopRepeat = () => { if (padHeld.current.timer) clearTimeout(padHeld.current.timer); padHeld.current = { id: 0 }; };
-    if (!payload.button.down) { if (id === padHeld.current.id) stopRepeat(); return; }
-    const key = ({ 0x0001: "ArrowUp", 0x0002: "ArrowDown", 0x0004: "ArrowLeft", 0x0008: "ArrowRight", 0x1000: "Enter", 0x2000: "Escape" } as Record<number, string>)[id];
-    if (!key) return;
-    const tap = () => document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
-    stopRepeat();
-    tap();
-    if (id <= 0x0008) {
-      padHeld.current.id = id;
-      const repeat = () => { tap(); padHeld.current.timer = window.setTimeout(repeat, 110); };
-      padHeld.current.timer = window.setTimeout(repeat, 350);
     }
   };
 
@@ -435,7 +415,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       requestLibrary(true);
     }
     send("settings.get");
-    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (importsTimer.current) clearTimeout(importsTimer.current); if (routesTimer.current) clearTimeout(routesTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); if (padHeld.current.timer) clearTimeout(padHeld.current.timer); };
+    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (importsTimer.current) clearTimeout(importsTimer.current); if (routesTimer.current) clearTimeout(routesTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); };
   }, []);
 
   useEffect(() => {

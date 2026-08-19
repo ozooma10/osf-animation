@@ -10,8 +10,6 @@
 #define NOMINMAX
 #endif
 #include <Windows.h>
-#include <Xinput.h>
-#pragma comment(lib, "xinput9_1_0.lib")  // ships with Windows — no redistributable, works on every slot
 
 namespace OSF::Camera
 {
@@ -117,65 +115,6 @@ namespace OSF::Camera
 			// so a live scene-orbit follows the player's vanilla preference without a per-frame lookup.
 			static const RE::Setting* setting = RE::GetINISetting("bInvertYValues:Controls");
 			return setting && setting->GetType() == RE::Setting::Type::kBool && setting->GetBool();
-		}
-
-		// --- Gamepad orbit steering: RIGHT stick = mouse drag (orbit angle), LEFT stick = WASD
-		// (flies the orbit center horizontally), TRIGGERS = vertical translation (RT up / LT down),
-		// SHOULDERS = wheel (RB zooms in / LB out). Polled like KeyDown; axes are positions, not deltas, so DriveSceneOrbit
-		// integrates them as rate · dt into the same targets the mouse nudges.
-		struct PadOrbit
-		{
-			float lookX{ 0.0f };  // right stick X, deadzoned to [-1, 1], + = right
-			float lookY{ 0.0f };  // right stick Y, + = up
-			float panF{ 0.0f };   // left stick Y, + = forward
-			float panR{ 0.0f };   // left stick X, + = right
-			float lift{ 0.0f };   // RT − LT in [-1, 1], + = translate up
-			float zoom{ 0.0f };   // RB − LB in [-1, 1], + = zoom in
-			bool  steering{ false };  // any axis outside its deadzone this poll
-		};
-
-		// Radial deadzone; the live range outside it rescaled so full deflection reads 1.
-		void StickAxes(std::int16_t a_x, std::int16_t a_y, float a_deadzone, float& a_outX, float& a_outY)
-		{
-			const float x = static_cast<float>(a_x);
-			const float y = static_cast<float>(a_y);
-			const float mag = std::sqrt(x * x + y * y);
-			if (mag <= a_deadzone) {
-				return;
-			}
-			const float scale = std::min((mag - a_deadzone) / (32767.0f - a_deadzone), 1.0f) / mag;
-			a_outX = x * scale;
-			a_outY = y * scale;
-		}
-
-		PadOrbit ReadPadOrbit(std::int64_t a_nowMs)
-		{
-			// XInputGetState on an EMPTY slot stalls in driver enumeration, and DriveSceneOrbit runs
-			// several times a frame — after a miss, leave the pad unprobed for a while.
-			// driveLock serializes DriveSceneOrbit, so a plain static is safe here.
-			static std::int64_t s_retryAtMs = 0;
-			PadOrbit out;
-			if (a_nowMs < s_retryAtMs) {
-				return out;
-			}
-			XINPUT_STATE state{};
-			if (XInputGetState(0, &state) != ERROR_SUCCESS) {
-				s_retryAtMs = a_nowMs + 1500;
-				return out;
-			}
-			const auto& pad = state.Gamepad;
-			StickAxes(pad.sThumbRX, pad.sThumbRY, static_cast<float>(XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE), out.lookX, out.lookY);
-			StickAxes(pad.sThumbLX, pad.sThumbLY, static_cast<float>(XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE), out.panR, out.panF);
-			const auto trigger = [](std::uint8_t a_raw) {
-				return a_raw > XINPUT_GAMEPAD_TRIGGER_THRESHOLD ?
-				           static_cast<float>(a_raw - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) / (255.0f - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) :
-				           0.0f;
-			};
-			out.lift = trigger(pad.bRightTrigger) - trigger(pad.bLeftTrigger);
-			out.zoom = ((pad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 ? 1.0f : 0.0f) -
-			           ((pad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 ? 1.0f : 0.0f);
-			out.steering = out.lookX != 0.0f || out.lookY != 0.0f || out.panF != 0.0f || out.panR != 0.0f || out.lift != 0.0f || out.zoom != 0.0f;
-			return out;
 		}
 
 		// Game thread only. A seated pilot's camera lives in the ship state machine: the on-foot
@@ -787,35 +726,34 @@ namespace OSF::Camera
 		auto& input = Input::InputService::GetSingleton();
 		input.DrainMouseDelta(mdx, mdy);
 		input.DrainWheelDelta(wheel);
-		// Input SAMPLING throttle: this drive runs ~7x per render frame per AnimationManager, but one
-		// XInput + GetAsyncKeyState sample per ~8ms is all the integration needs (unthrottled this was
-		// up to ~280 XInput + ~1120 key syscalls per frame with a full cast loaded). The sampled state
-		// is HELD between polls so every call still integrates with its own dt — no behavior change.
-		// driveLock serializes this function, so plain statics are safe (same as ReadPadOrbit's).
-		static PadOrbit s_pad{};
+		const auto pad = input.ReadGamepadState();
+		const float padLift = pad.rightTrigger - pad.leftTrigger;
+		const float padZoom = (pad.rightShoulder ? 1.0f : 0.0f) - (pad.leftShoulder ? 1.0f : 0.0f);
+		const bool padSteering = pad.rightX != 0.0f || pad.rightY != 0.0f || pad.leftX != 0.0f ||
+			pad.leftY != 0.0f || padLift != 0.0f || padZoom != 0.0f;
+		// This drive runs ~7x per render frame per AnimationManager. The gamepad snapshot is atomic
+		// state populated by the engine input hook, but Windows keyboard polling is still throttled.
 		static bool s_keyW = false, s_keyS = false, s_keyD = false, s_keyA = false;
-		static std::int64_t s_lastInputPollMs = 0;
-		if (now - s_lastInputPollMs >= 8) {
-			s_lastInputPollMs = now;
-			s_pad = ReadPadOrbit(now);
+		static std::int64_t s_lastKeyboardPollMs = 0;
+		if (now - s_lastKeyboardPollMs >= 8) {
+			s_lastKeyboardPollMs = now;
 			s_keyW = KeyDown('W');
 			s_keyS = KeyDown('S');
 			s_keyD = KeyDown('D');
 			s_keyA = KeyDown('A');
 		}
-		const PadOrbit pad = s_pad;
 		// Stick up looks up = camera lowers, matching a mouse drag up (which arrives as -mdy).
-		orbitTargetAzimuth -= mdx * kOrbitMouseSens + pad.lookX * kOrbitStickLookSpeed * dt;
-		const float lookY = mdy * kOrbitMouseSens - pad.lookY * kOrbitStickLookSpeed * dt;
+		orbitTargetAzimuth -= mdx * kOrbitMouseSens + pad.rightX * kOrbitStickLookSpeed * dt;
+		const float lookY = mdy * kOrbitMouseSens - pad.rightY * kOrbitStickLookSpeed * dt;
 		orbitTargetElevation += InvertLookY() ? -lookY : lookY;
 		orbitTargetElevation = std::clamp(orbitTargetElevation, -kOrbitElevLimit, kOrbitElevLimit);
-		orbitTargetRadius -= wheel * kOrbitWheelStep + pad.zoom * kOrbitButtonZoomSpeed * dt;  // wheel up / RB (+) = zoom in = smaller radius
+		orbitTargetRadius -= wheel * kOrbitWheelStep + padZoom * kOrbitButtonZoomSpeed * dt;  // wheel up / RB (+) = zoom in = smaller radius
 		orbitTargetRadius = std::clamp(orbitTargetRadius, kOrbitMinRadius, kOrbitMaxRadius);
 
 		// WASD pans the center in its horizontal plane, relative to the current view: W/S along the camera's
 		// horizontal forward (toward/away from where it looks), A/D strafe. The center's height is unchanged.
 		const float ch = std::cos(orbitAzimuth), sh = std::sin(orbitAzimuth);
-		float panF = pad.panF, panR = pad.panR;
+		float panF = pad.leftY, panR = pad.leftX;
 		if (s_keyW) panF += 1.0f;
 		if (s_keyS) panF -= 1.0f;
 		if (s_keyD) panR += 1.0f;
@@ -827,11 +765,11 @@ namespace OSF::Camera
 			orbitCenterTargetX += (-sh * panF + ch * panR) * step;  // forward=(-sin,cos), right=(cos,sin)
 			orbitCenterTargetY += (ch * panF + sh * panR) * step;
 		}
-		orbitCenterTargetZ = std::max(orbitCenterTargetZ + pad.lift * kOrbitLiftSpeed * dt, orbitFloorZ);
+		orbitCenterTargetZ = std::max(orbitCenterTargetZ + padLift * kOrbitLiftSpeed * dt, orbitFloorZ);
 
 		// Manual steering cancels an in-flight reframe glide: the user's intent wins, and the leftover
 		// offset finishes at the snappy input time constant instead of dragging behind their drag.
-		if (mdx != 0.0f || mdy != 0.0f || wheel != 0.0f || panF != 0.0f || panR != 0.0f || pad.steering) {
+		if (mdx != 0.0f || mdy != 0.0f || wheel != 0.0f || panF != 0.0f || panR != 0.0f || padSteering) {
 			orbitReframeGlide = false;
 		}
 

@@ -21,7 +21,7 @@ User events flow back as a browser action or a typed bridge command. Keep these 
 - `src/bridge/` owns JSON/native transport and payload validation. Components never access
   `window.osfui` directly.
 - `src/features/` owns user-facing feature components and feature-local pure helpers.
-- `src/input/` owns document-level keyboard, raw-gamepad, and orbit effects. Every installed
+- `src/input/` owns document-level keyboard and orbit effects. Every installed
   listener must return cleanup.
 - `src/dev/` owns standalone mocks and debug-only UI. Nothing under it may reach the shipped
   bundle: every entry into it is guarded by a literal `import.meta.env.DEV`, which Vite folds to
@@ -49,9 +49,10 @@ state library unless the existing reducer demonstrably cannot express the behavi
 - Bridge evolution is additive. Require bridge presence, but do not gate on version strings.
 - The player token is `-1`. Other reference tokens are opaque integers and must never be treated as
   game pointers or form IDs.
-- The view takes the `osfui.gamepadRaw` grant. D-pad/A/B are recreated in the input adapter while
-  sticks remain available to the native orbit camera.
-- A hidden view must clear wheel/live transient state, pending orbit deltas, and held-pad repeats.
+- The view requests `osfui.gamepadMode` with `mode: "buttons"`. OSF UI maps D-pad/A/B while
+  sticks remain available to the native orbit camera. Keep the paired `osfui.handleBack` grant so
+  B is delivered as Escape for view-local cancellation before close.
+- A hidden view must clear wheel/live transient state and pending orbit deltas.
 - NPC-only scenes survive closing the browser. Never infer scene termination from view visibility.
 - Preserve focus across updates and keep every interactive control keyboard/gamepad reachable.
 - Keep the standalone fixture bridge behaviorally equivalent to the native bridge contract.

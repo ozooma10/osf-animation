@@ -8,6 +8,8 @@
 #include "RE/M/Main.h"
 #include "RE/U/UI.h"
 
+#include <algorithm>
+
 namespace OSF::Input
 {
 	namespace
@@ -35,8 +37,27 @@ namespace OSF::Input
 		std::atomic_bool   g_uiCursorVisible{ false };
 		std::atomic_bool   g_orbitDragHeld{ false };  // LMB is down (tracked only while capture is on)
 		std::atomic_bool   g_nativeFreeCamGamepad{ false };  // let engine TFC consume pad axes while the browser is visible
+		std::atomic<float> g_padLeftX{ 0.0f };
+		std::atomic<float> g_padLeftY{ 0.0f };
+		std::atomic<float> g_padRightX{ 0.0f };
+		std::atomic<float> g_padRightY{ 0.0f };
+		std::atomic<float> g_padLeftTrigger{ 0.0f };
+		std::atomic<float> g_padRightTrigger{ 0.0f };
+		std::atomic_bool   g_padLeftShoulder{ false };
+		std::atomic_bool   g_padRightShoulder{ false };
 		// MouseMoveEvent is an IDEvent (0x38) subclass; the two raw axis deltas (int32 x,y) follow it.
 		constexpr std::ptrdiff_t kMouseMoveDeltaOffset = 0x38;
+		// ThumbstickEvent is not yet modeled by CommonLibSF. Runtime-proven layout: IDEvent idCode
+		// 0x0B/0x0C identifies left/right; normalized float x/y follow IDEvent at +0x38/+0x3C.
+		constexpr std::ptrdiff_t kThumbstickIdOffset = 0x30;
+		constexpr std::ptrdiff_t kThumbstickXOffset = 0x38;
+		constexpr std::ptrdiff_t kThumbstickYOffset = 0x3C;
+		constexpr std::int32_t   kLeftThumbstickId = 0x0B;
+		constexpr std::int32_t   kRightThumbstickId = 0x0C;
+		constexpr std::int32_t   kLeftTriggerId = 0x09;
+		constexpr std::int32_t   kRightTriggerId = 0x0A;
+		constexpr std::int32_t   kLeftShoulderId = 0x0100;
+		constexpr std::int32_t   kRightShoulderId = 0x0200;
 		// The mouse wheel arrives as ButtonEvents on the kMouse device (confirmed in-game): idCode 0x800 =
 		// wheel up, 0x900 = wheel down, and value is the signed Windows WHEEL_DELTA (+120 up, -120 down) with
 		// a 0-value release event after each. We normalize by 120 so the accumulator counts notches.
@@ -47,6 +68,54 @@ namespace OSF::Input
 		// (0 = left, 1 = right, 2 = middle, 3/4 = X1/X2), distinct from the 0x800/0x900 wheel codes.
 		constexpr std::int32_t kMouseLeftId = 0;    // LMB -> drag-to-orbit while a UI cursor is up
 		constexpr std::int32_t kMouseMiddleId = 2;  // MMB -> toggle free camera
+
+		void ResetGamepadState()
+		{
+			g_padLeftX.store(0.0f, std::memory_order_relaxed);
+			g_padLeftY.store(0.0f, std::memory_order_relaxed);
+			g_padRightX.store(0.0f, std::memory_order_relaxed);
+			g_padRightY.store(0.0f, std::memory_order_relaxed);
+			g_padLeftTrigger.store(0.0f, std::memory_order_relaxed);
+			g_padRightTrigger.store(0.0f, std::memory_order_relaxed);
+			g_padLeftShoulder.store(false, std::memory_order_relaxed);
+			g_padRightShoulder.store(false, std::memory_order_relaxed);
+		}
+
+		void CaptureThumbstick(const RE::InputEvent* a_event)
+		{
+			const auto* bytes = reinterpret_cast<const std::byte*>(a_event);
+			const auto id = *reinterpret_cast<const std::int32_t*>(bytes + kThumbstickIdOffset);
+			const float x = *reinterpret_cast<const float*>(bytes + kThumbstickXOffset);
+			const float y = *reinterpret_cast<const float*>(bytes + kThumbstickYOffset);
+			if (id == kLeftThumbstickId) {
+				g_padLeftX.store(x, std::memory_order_relaxed);
+				g_padLeftY.store(y, std::memory_order_relaxed);
+			} else if (id == kRightThumbstickId) {
+				g_padRightX.store(x, std::memory_order_relaxed);
+				g_padRightY.store(y, std::memory_order_relaxed);
+			}
+		}
+
+		void CaptureGamepadButton(const RE::ButtonEvent* a_event)
+		{
+			const float value = std::clamp(a_event->value, 0.0f, 1.0f);
+			switch (a_event->idCode) {
+			case kLeftTriggerId:
+				g_padLeftTrigger.store(value, std::memory_order_relaxed);
+				break;
+			case kRightTriggerId:
+				g_padRightTrigger.store(value, std::memory_order_relaxed);
+				break;
+			case kLeftShoulderId:
+				g_padLeftShoulder.store(value != 0.0f, std::memory_order_relaxed);
+				break;
+			case kRightShoulderId:
+				g_padRightShoulder.store(value != 0.0f, std::memory_order_relaxed);
+				break;
+			default:
+				break;
+			}
+		}
 
 		// Index of the BSInputEventReceiver vtable in RE::UI::VTABLE (AddressLib id 475439). The IDs_VTABLE array is NOT in base-declaration order;
 		constexpr std::size_t kReceiverVtblIndex = 10;
@@ -136,12 +205,19 @@ namespace OSF::Input
 			if ((active || capture || uiVisible) && !menuOwns) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
+					if (capture && et == RE::InputEvent::EventType::kDeviceConnect) {
+						ResetGamepadState();
+					}
+					if (capture && et == RE::InputEvent::EventType::kThumbstick &&
+						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
+						CaptureThumbstick(event);
+					}
 					// Browser on screen: kill THUMBSTICK events BEFORE the forward — the player's
 					// movement dispatch runs inside g_original (post-forward flagging demonstrably
-					// did not stop the walking), and nothing downstream wants engine stick events
-					// anyway (the orbit camera polls XInput directly; the view drops kind:"stick").
-					// Gamepad BUTTONS deliberately pass through unflagged: OSF UI's FocusMenu tap
-					// (also inside g_original) must see them to relay D-pad/A/B to the browser,
+					// did not stop the walking). The orbit snapshot above has already retained them.
+					// Gamepad BUTTONS deliberately pass through unflagged: OSF UI's FocusMenu
+					// (also inside g_original) must see them to apply its engine-side capture gate;
+					// OSF UI's independent gamepad session maps D-pad/A/B for the browser,
 					// and gameplay button verbs are gated by OSF UI's ControlLayer flags (proven
 					// for buttons — only stick movement ignores them). Buttons are swept after
 					// the forward below as belt-and-suspenders.
@@ -152,6 +228,10 @@ namespace OSF::Input
 					}
 					if (active && et == RE::InputEvent::EventType::kButton) {
 						MaybeDispatch(static_cast<const RE::ButtonEvent*>(event));
+					}
+					if (capture && et == RE::InputEvent::EventType::kButton &&
+						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
+						CaptureGamepadButton(static_cast<const RE::ButtonEvent*>(event));
 					}
 					if (!capture) {
 						continue;
@@ -185,8 +265,8 @@ namespace OSF::Input
 				}
 			}
 			// Forward the queue: thumbsticks ride along flagged kStop (consumed above), while gamepad
-			// buttons pass through live so the menu walk inside — OSF UI's FocusMenu tap — can relay
-			// D-pad/A/B to the browser as ui.gamepad. Nothing is injected or unlinked.
+			// buttons pass through live so the menu walk inside — OSF UI's FocusMenu — can apply its
+			// capture gate. Browser navigation comes from OSF UI's independent gamepad session.
 			g_original(a_this, a_queueHead);
 			// Post-forward sweep: flag the remaining gamepad events (buttons) too, in case anything
 			// downstream of the UI receiver still looks at this queue. Gameplay button verbs are
@@ -306,6 +386,7 @@ namespace OSF::Input
 			g_mouseDx.store(0.0f, std::memory_order_relaxed);
 			g_mouseDy.store(0.0f, std::memory_order_relaxed);
 			g_mouseWheel.store(0.0f, std::memory_order_relaxed);
+			ResetGamepadState();
 		}
 	}
 
@@ -346,5 +427,19 @@ namespace OSF::Input
 	void InputService::DrainWheelDelta(float& a_wheel)
 	{
 		a_wheel = g_mouseWheel.exchange(0.0f, std::memory_order_relaxed);
+	}
+
+	GamepadState InputService::ReadGamepadState() const
+	{
+		return {
+			.leftX = g_padLeftX.load(std::memory_order_relaxed),
+			.leftY = g_padLeftY.load(std::memory_order_relaxed),
+			.rightX = g_padRightX.load(std::memory_order_relaxed),
+			.rightY = g_padRightY.load(std::memory_order_relaxed),
+			.leftTrigger = g_padLeftTrigger.load(std::memory_order_relaxed),
+			.rightTrigger = g_padRightTrigger.load(std::memory_order_relaxed),
+			.leftShoulder = g_padLeftShoulder.load(std::memory_order_relaxed),
+			.rightShoulder = g_padRightShoulder.load(std::memory_order_relaxed),
+		};
 	}
 }

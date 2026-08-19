@@ -96,12 +96,13 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   ready lifecycle has already completed. It never gates on the
   protocol/version strings — the contract evolves additively. Platform pushes it consumes: `ui.visibility` (open/close relay,
   wheel-mode exit, orbit-drag reset) and `ui.error` (surfaced in the notice
-  footer). **Gamepad:** the view takes the `osfui.gamepadRaw` grant on
-  `runtime.ready` — the runtime's default mapping would route both sticks
-  into UI nav/scroll, but the sticks belong to the native scene-orbit camera
-  (the DLL polls XInput directly). The PAD NAV layer re-creates the button
-  half from raw `ui.gamepad` events: D-pad → arrows (hold-repeat), A → Enter,
-  B → wheel cancel / close; stick events are dropped on purpose.
+  footer). **Gamepad:** the view requests OSF UI's `buttons` gamepad mode on
+  `runtime.ready`. OSF UI maps D-pad/A/B (including D-pad hold-repeat) while
+  leaving both sticks available to the native scene-orbit camera; the browser
+  needs no raw-gamepad adapter or stick-event subscription. It also takes the
+  `osfui.handleBack` grant so B arrives as Escape and can cancel an open wheel,
+  settings panel, import panel, route debugger, or pick operation before closing
+  the browser.
 - **Targeting:** PICK arms actor or furniture selection, then a click in the
   transparent world area screen-tests loaded 3D bounds and returns the chosen
   reference; dragging more than five pixels remains camera orbit and Escape

@@ -28,7 +28,7 @@ export class OsfUiBridge implements AnimationBridge {
       "osf.animation.scanResults", "osf.animation.actorIndicators",
       "osf.animation.pickTargets", "osf.animation.anchorMatch",
       "osf.animation.activeScenes", "osf.animation.launchResult",
-      "osf.animation.notice", "osf.animation.mode", "ui.visibility", "ui.gamepad",
+      "osf.animation.notice", "osf.animation.mode", "ui.visibility",
       "osfui.debug.error",
     ];
     for (const name of events) {

@@ -6,6 +6,18 @@
 
 namespace OSF::Input
 {
+	struct GamepadState
+	{
+		float leftX{ 0.0f };
+		float leftY{ 0.0f };
+		float rightX{ 0.0f };
+		float rightY{ 0.0f };
+		float leftTrigger{ 0.0f };
+		float rightTrigger{ 0.0f };
+		bool  leftShoulder{ false };
+		bool  rightShoulder{ false };
+	};
+
 	// input hook: a vfunc swap on RE::UI's BSInputEventReceiver::PerformInputProcessing; the point where the game's UI receives the per-frame raw InputEvent queue. 
 	class InputService
 	{
@@ -33,20 +45,21 @@ namespace OSF::Input
 		void SetMouseCapture(bool a_on);
 		void DrainMouseDelta(float& a_dx, float& a_dy);
 		void DrainWheelDelta(float& a_wheel);
+		[[nodiscard]] GamepadState ReadGamepadState() const;
 
 		// A UI cursor is on screen (the scene browser reported visible via osf.animation.opened/osf.animation.closed).
 		// While set, orbit capture only accumulates look/wheel deltas during an LMB DRAG, so plain
 		// mouse movement drives the cursor and plain wheel scrolls the UI; while clear (no cursor),
 		// the orbit free-looks as before. Sticky across scenes — it tracks the browser, not a scene.
 		// NOTE: while the OSF UI overlay is open its WndProc swallow starves the input hook of
-		// keyboard/mouse — the browser steers via InjectOrbitDelta instead. GAMEPAD input is polled
-		// (XInput), not messaged, so it still reaches the hook; while this flag is set the hook
-		// consumes gamepad events (status = kStop) so the player can't walk/jump under the browser.
+		// keyboard/mouse — the browser steers via InjectOrbitDelta instead. Gamepad events still reach
+		// this engine queue; the hook snapshots camera state before consuming them so the player cannot
+		// walk/jump under the browser.
 		void SetUiCursorVisible(bool a_on);
 
 		// Native free cam (`tfc`) owns the gamepad while active. The browser normally consumes
-		// thumbstick events before the engine sees them (the self-driven orbit polls XInput), but
-		// TFC uses the engine input path; allow those events through until free cam exits.
+		// gamepad events after snapshotting them for the self-driven orbit, but TFC uses the engine
+		// input path; allow those events through until free cam exits.
 		void SetNativeFreeCamGamepad(bool a_on);
 
 		// Bridge-fed orbit steering (osf.orbit from the scene browser): world-area LMB-drag deltas
