@@ -23,17 +23,6 @@ It incorporates, adapts, or links against the open-source components below; each
 | nlohmann/json | MIT | <https://github.com/nlohmann/json> |
 | miniaudio | public domain (Unlicense) / MIT-0 | <https://github.com/mackron/miniaudio> |
 
-## Bundled in the in-game browser view (built from `ui/animation-browser`)
-
-| Component | License | Project |
-|---|---|---|
-| Preact | MIT | <https://github.com/preactjs/preact> |
-| Rajdhani (font, subsetted woff2) | SIL Open Font License 1.1 | <https://github.com/itfoundry/rajdhani> |
-| JetBrains Mono (font, variable woff2) | SIL Open Font License 1.1 | <https://github.com/JetBrains/JetBrainsMono> |
-
-The fonts are redistributed under the OFL 1.1 (reserved font names retained, fonts not sold
-separately); the license text is at <https://openfontlicense.org>.
-
 ### CommonLibSF
 - License: GPL-3.0 (with a modding/linking exception)
 - Project: <https://github.com/libxse/commonlibsf>
