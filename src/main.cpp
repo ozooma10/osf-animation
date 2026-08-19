@@ -8,6 +8,7 @@
 #include "Camera/CameraService.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputService.h"
+#include "Maintenance/FrameMaintenance.h"
 #include "Overlay/OverlayService.h"
 #include "Props/PropService.h"
 #include "Papyrus/OSFScript.h"
@@ -33,7 +34,8 @@ namespace
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
 	{
 		switch (a_msg->type) {
-		case SFSE::MessagingInterface::kPostDataLoad:
+		case SFSE::MessagingInterface::kPostDataLoad: {
+			const bool frameMaintenanceInstalled = OSF::Maintenance::InstallFrameMaintenance();
 			// Before the loaders: they are the first real producers, and
 			// connecting here also flushes what plugin load already buffered.
 			// Separate from InstallUIBridge because health reporting has to
@@ -64,11 +66,13 @@ namespace
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
+			REX::INFO("[Feature] Main-Thread Maintenance Queue {}", frameMaintenanceInstalled ? "INSTALLED" : "UNAVAILABLE");
 			REX::INFO("[Feature] Raw-layout Camera Controls {}",
 				OSF::Camera::CameraService::GetSingleton().RawLayoutSupport() ? "AVAILABLE" : "UNAVAILABLE");
 			REX::INFO("[Feature] Scene Props {}",
 				OSF::Props::PropService::GetSingleton().Available() ? "AVAILABLE" : "UNAVAILABLE");
 			break;
+		}
 		case SFSE::MessagingInterface::kPostPostDataLoad:
 			REX::INFO("[Feature] Input Hook {}", OSF::Input::InputService::GetSingleton().Install() ? "INSTALLED" : "UNAVAILABLE");
 			OSF::Animation::GraphManager::GetSingleton().RegisterConsolePauseSink();

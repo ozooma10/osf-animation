@@ -1,6 +1,7 @@
 #include "Check.h"
 
 #include "Animation/FrameClock.h"
+#include "Animation/StallWatchdogSchedule.h"
 #include "Util/ClipPath.h"
 #include "Util/DiagnosticText.h"
 #include "Util/KeywordLabel.h"
@@ -29,6 +30,23 @@ int main()
 	Check(clock.owner == nullptr, "reset clears owner");
 	Check(clock.time == 0.0f, "reset clears time");
 	Check(clock.lastAdvanceMs == 0, "reset clears owner heartbeat");
+
+	OSF::Animation::StallWatchdogSchedule watchdog;
+	Check(!watchdog.ShouldScan(1000), "watchdog first beat arms resume grace");
+	for (std::int64_t now = 1200; now < 3000; now += 200) {
+		Check(!watchdog.ShouldScan(now), "watchdog does not scan inside resume grace");
+	}
+	Check(!watchdog.ShouldScan(2999), "watchdog does not scan inside resume grace");
+	Check(watchdog.ShouldScan(3000), "watchdog scans when resume grace expires");
+	Check(!watchdog.ShouldScan(3100), "watchdog scan interval throttles frame beats");
+	Check(watchdog.ShouldScan(3250), "watchdog scans again after its interval");
+	watchdog.Pause();
+	Check(!watchdog.ShouldScan(10000), "watchdog pause forces fresh resume grace");
+	for (std::int64_t now = 10200; now < 12000; now += 200) {
+		Check(!watchdog.ShouldScan(now), "watchdog keeps pause grace armed across frame beats");
+	}
+	Check(watchdog.ShouldScan(12000), "watchdog resumes scanning after pause grace");
+	Check(!watchdog.ShouldScan(12600), "watchdog treats a long frame gap as another resume");
 
 	{
 		auto [path, animation] = OSF::Util::SplitRuntimeClipSpec("Data/OSF/test.glb:idle");

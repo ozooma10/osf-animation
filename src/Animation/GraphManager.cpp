@@ -255,7 +255,7 @@ namespace OSF::Animation
 				scene->anchorHeading = a_actors[0]->data.angle.z;
 			}
 
-			// Arm the stall watchdog from birth. StallWatchTick skips lastAdvanceMs == 0, so a session the
+			// Arm the stall watchdog from birth. MaintenanceTick skips lastAdvanceMs == 0, so a session the
 			// engine never ticks even once (participant 3D dropped right after start) would otherwise be
 			// invisible to it and hold the player input lock forever.
 			scene->lastAdvanceMs.store(
@@ -1409,43 +1409,50 @@ namespace OSF::Animation
 		QueuePlaybackEndDeferred(std::move(keepAlive), &a_deferred);
 	}
 
+	void GraphManager::HandlePlaybackEndOnGameThread(std::shared_ptr<PlaybackSession> a_session)
+	{
+		if (!a_session) {
+			return;
+		}
+		// SetSegment between the claim and now revives the playback session (clears `ended`);
+		// a revived session must not be killed by this stale completion.
+		if (!a_session->ended.load(std::memory_order_relaxed)) {
+			REX::DEBUG("[Anim] playback-session end: session was revived meanwhile — not stopping");
+			return;
+		}
+		if (_worldEpoch.load(std::memory_order_acquire) != a_session->worldEpoch) {
+			return;
+		}
+
+		// The registered playback owner gets first refusal to advance its domain lifecycle and own teardown.
+		// An unclaimed playback session stops here. No manager lock is held, so the handler is free to
+		// call PlaySynchronized or the StopScene compatibility API.
+		bool handled = false;
+		if (const auto sink = GetPlaybackSink(a_session->playbackSinkId); sink && sink->autoEnd) {
+			std::vector<RE::Actor*> actors;
+			for (const auto& p : a_session->participants) {
+				if (p && p->target) {
+					// Synchronized-playback participants are always actors (PlaySynchronized takes Actor*).
+					actors.push_back(static_cast<RE::Actor*>(p->target.get()));
+				}
+			}
+			handled = sink->autoEnd(a_session->playbackId, actors,
+				a_session->endReason.load(std::memory_order_relaxed));
+		}
+		if (!handled) {
+			StopPlaybackByPtr(a_session.get());
+		}
+	}
+
 	void GraphManager::QueuePlaybackEndDeferred(std::shared_ptr<PlaybackSession> a_session, std::vector<std::function<void()>>* a_deferred)
 	{
-		// Fire once: a concurrent caller (auto-end vs stall watchdog) that loses the exchange no-ops.
+		// Fire once: a concurrent caller that loses the exchange no-ops.
 		if (!a_session || a_session->endQueued.exchange(true, std::memory_order_relaxed)) {
 			return;
 		}
 		auto task = [keepAlive = std::move(a_session)]() {
-			// SetSegment between the queue and now revives the playback session (clears `ended`);
-			// a revived session must not be killed by this stale task.
-			if (!keepAlive->ended.load(std::memory_order_relaxed)) {
-				REX::DEBUG("[Anim] playback-session end task: session was revived meanwhile — not stopping");
-				return;
-			}
 			REX::DEBUG("[Anim] playback-session end task executing on game thread");
-			auto& gm = GetSingleton();
-			if (gm._worldEpoch.load(std::memory_order_acquire) != keepAlive->worldEpoch) {
-				return;
-			}
-
-			// The registered playback owner gets first refusal to advance its domain lifecycle and own teardown.
-			// An unclaimed playback session stops here. No manager lock is held, so the handler is free to
-			// call PlaySynchronized or the StopScene compatibility API.
-			bool handled = false;
-			if (const auto sink = gm.GetPlaybackSink(keepAlive->playbackSinkId); sink && sink->autoEnd) {
-				std::vector<RE::Actor*> actors;
-				for (const auto& p : keepAlive->participants) {
-					if (p && p->target) {
-						// Synchronized-playback participants are always actors (PlaySynchronized takes Actor*).
-						actors.push_back(static_cast<RE::Actor*>(p->target.get()));
-					}
-				}
-				handled = sink->autoEnd(keepAlive->playbackId, actors,
-					keepAlive->endReason.load(std::memory_order_relaxed));
-			}
-			if (!handled) {
-				gm.StopPlaybackByPtr(keepAlive.get());
-			}
+			GetSingleton().HandlePlaybackEndOnGameThread(std::move(keepAlive));
 		};
 		if (a_deferred) {
 			a_deferred->emplace_back(std::move(task));  // caller holds stateLock; it flushes after release
@@ -1454,41 +1461,32 @@ namespace OSF::Animation
 		}
 	}
 
-	void GraphManager::StallWatchTick()
+	void GraphManager::MaintenanceTick()
 	{
-		//shortcircuit if there are no active graphs
+		// Main-thread-only. FrameMaintenance reaches this through the verified BSService drain;
+		// the game-wide AnimationManager report hook never enters global maintenance.
 		if (graphCount.load(std::memory_order_relaxed) == 0) {
 			return;
 		}
+		// Permanent tasks may continue while a game menu/console freezes animation reports. Do not
+		// interpret that intentional pause as participant death; force a fresh grace window on resume.
+		if (IsGameMenuPaused() || g_consoleOpen.load(std::memory_order_relaxed)) {
+			_stallWatchdog.Pause();
+			return;
+		}
 
-		// Thresholds (steady-clock ms). Set well above a frame so a playable-FPS hitch can't trip it; the
+		// Threshold (steady-clock ms). Set well above a frame so a playable-FPS hitch can't trip it; the
 		// playback session must look dead for kSceneStallMs of CONTINUOUS engine-running time after any resume grace.
-		constexpr std::int64_t kStallHookResumeGapMs = 500;   // gap since our last call that means a global pause/load
-		constexpr std::int64_t kStallGraceMs         = 2000;  // after a resume, don't judge sessions (let them re-stamp)
-		constexpr std::int64_t kSceneStallMs         = 1500;  // a live session unticked this long (game running) = interrupted
-		constexpr std::int64_t kStallScanIntervalMs  = 250;   // throttle the session scan (this runs ~7x/frame)
+		constexpr std::int64_t kSceneStallMs = 1500;  // a live session unticked this long (game running) = interrupted
 
 		using namespace std::chrono;
 		const std::int64_t now = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 
-		// Pause/resume filter. This hook stops being called when the game pauses (focus loss, menus,
-		// loading). On resume every session's lastAdvanceMs looks ancient though nothing died — so when the
-		// gap since our previous call is large, (re)arm a grace window and let live sessions re-stamp before
-		// we judge. The first-ever call (prev == 0) arms it too.
-		const std::int64_t prev = _stallLastHookMs.exchange(now, std::memory_order_relaxed);
-		if (prev == 0 || now - prev > kStallHookResumeGapMs) {
-			_stallArmedMs.store(now + kStallGraceMs, std::memory_order_relaxed);
+		// Focus-loss/loading can stop even the maintenance beat. The schedule detects that gap,
+		// re-arms a grace window, then allows only a few scans per second.
+		if (!_stallWatchdog.ShouldScan(now)) {
 			return;
 		}
-		if (now < _stallArmedMs.load(std::memory_order_relaxed)) {
-			return;  // inside the post-resume grace window
-		}
-
-		// Throttle the scan (a few checks/sec suffice; the bookkeeping above already ran this call).
-		if (now - _stallLastScanMs.load(std::memory_order_relaxed) < kStallScanIntervalMs) {
-			return;
-		}
-		_stallLastScanMs.store(now, std::memory_order_relaxed);
 
 		// Collect stalled playback sessions under the shared lock; act on them OUTSIDE it.
 		std::vector<std::shared_ptr<PlaybackSession>> stalled;
@@ -1518,8 +1516,12 @@ namespace OSF::Animation
 			REX::WARN("[Anim] playback session stalled {}ms (engine stopped ticking it — actor unloaded / AI-disabled / interrupted) — ending it as interrupted",
 				now - s->lastAdvanceMs.load(std::memory_order_relaxed));
 			s->endReason.store(PlaybackEndReason::kInterrupted, std::memory_order_relaxed);
-			s->ended.store(true, std::memory_order_relaxed);  // hand to the normal deferred-end machinery
-			QueuePlaybackEndDeferred(s);
+			s->ended.store(true, std::memory_order_relaxed);
+			// Claim against a concurrent normal auto-end, then complete inline: this beat is already
+			// on the game thread and no manager lock is held.
+			if (!s->endQueued.exchange(true, std::memory_order_relaxed)) {
+				HandlePlaybackEndOnGameThread(s);
+			}
 		}
 
 		// Stranded-graph sweep: a DETACHED graph whose actor the engine stopped updating can never
@@ -1527,7 +1529,7 @@ namespace OSF::Animation
 		// normal QueueFadeRemovalIfDone path — the map entry pins the REFR, the model hook keeps
 		// stamping the frozen pose, and graphCount never returns to 0. Judge by wall clock (the
 		// pause/resume grace above already filtered global pauses), collect under the shared lock,
-		// queue removals OUTSIDE it.
+		// remove them OUTSIDE it on this game-thread beat.
 		std::vector<RE::NiPointer<RE::TESObjectREFR>> strandedGraphs;
 		{
 			std::shared_lock l{ stateLock };
@@ -1543,11 +1545,9 @@ namespace OSF::Animation
 			}
 		}
 		for (auto& refr : strandedGraphs) {
-			REX::DEBUG("[Anim] stranded-graph sweep: actor {:X} stopped updating — queueing removal",
+			REX::DEBUG("[Anim] stranded-graph sweep: actor {:X} stopped updating — removing",
 				refr ? refr->formID : 0);
-			SFSE::GetTaskInterface()->AddTask([refr]() {
-				GetSingleton().RemoveFadedGraph(refr.get());
-			});
+			RemoveFadedGraph(refr.get());
 		}
 	}
 
@@ -1665,12 +1665,6 @@ namespace OSF::Animation
 		}
 		auto& gm = GetSingleton();
 		const auto activeGraphCount = gm.graphCount.load(std::memory_order_relaxed);
-		// Player camera guard: POVSwitch stays enabled for scroll-zoom, so first person must be bounced if the player zooms all the way in while a standalone camera lock is held. 
-		// Above the managed-graph filter — its own atomic early-out makes the idle case free, and a standalone lock with no live graph still bounces.
-		Camera::CameraService::GetSingleton().Tick();
-		UI::FadeService::GetSingleton().Tick();  // posts the deferred fade-in once a hold deadline passes
-		UI::Subtitle::Tick();  // hides the subtitle box once a shown line's hold deadline passes
-		gm.StallWatchTick();  // end playback sessions the engine quietly stopped ticking (so the player input lock never leaks)
 
 		// Idle early-out: this hook fires ~7x per render frame for every AnimationManager in the game; 
 		// with no managed graphs there is nothing else to do.

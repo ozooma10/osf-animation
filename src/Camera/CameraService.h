@@ -94,9 +94,8 @@ namespace OSF::Camera
 		void ReleaseBrowseOrbit();
 		[[nodiscard]] bool BrowseOrbitHeld() const { return browseOrbitHeld.load(std::memory_order_relaxed); }
 
-		// Rides the update-hook call stream (job threads). POVSwitch stays enabled while the hold is held so vanilla scroll-zoom works;
-		// if the player zooms/keys into first person, queue a game-thread bounce back to third person. 
-		// Atomic early-out when no hold is held OR a state override is suppressing the bounce.
+		// Once-per-frame main-thread maintenance. Drives scene orbit and bounces a locked player
+		// back out of first person after vanilla scroll-zoom. Cheap atomic early-outs while idle.
 		void Tick();
 
 		// Save/load teardown: drops every imposition without forcing a mode (the loaded save is authoritative, matching GraphManager::StopAll).
@@ -144,7 +143,6 @@ namespace OSF::Camera
 		std::atomic<std::uint64_t> taskEpoch{ 1 };
 		std::atomic<bool> holdArmed{ false };       // gates Tick: a third-person hold is active
 		std::atomic<bool> suppressBounce{ false };  // a state override owns the camera — don't bounce
-		std::atomic<bool> bouncePending{ false };
 		bool baselineCaptured = false;
 		bool baselineWasFirstPerson = false;
 		std::uint32_t baselineStateIndex = 0xFFFFFFFFu;  // RE::CameraState index live at capture; >= kTotal = unknown

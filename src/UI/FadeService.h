@@ -5,8 +5,7 @@
 // the fade rides the game's own FaderMenu (engine-paced and save-load aware).
 //
 // The poster just builds a request and enqueues it onto the UIMessageQueue, and
-// it's safe to call from any thread, so scene start/stop and the job-thread ticks
-// don't need to marshal onto the game thread.
+// it's safe to call from any thread. Deadline maintenance runs on the main thread.
 //
 // One sharp edge to respect: holding the engine's stay-faded latch across a
 // save-load crashes the game. So every hold here is (a) deadline-bounded — Tick()
@@ -42,8 +41,8 @@ namespace OSF::UI
 		// crash note above). Called synchronously from StopAll.
 		void OnStopAll();
 
-		// Rides the update-hook call stream (job threads): posts the deferred
-		// fade-in once the hold deadline passes. Atomic early-out when idle.
+		// Once-per-frame main-thread maintenance: posts the deferred fade-in once
+		// the hold deadline passes. Atomic early-out when idle.
 		void Tick();
 
 	private:
