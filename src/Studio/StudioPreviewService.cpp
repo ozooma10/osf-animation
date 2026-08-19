@@ -77,7 +77,6 @@ namespace OSF::Studio
 		std::mutex g_replyMutex;
 		bool g_initialized = false;  // lifecycle mutex
 		bool g_started = false;
-		bool g_tickInstalled = false;  // lifecycle mutex
 		std::atomic_bool g_running{ false };
 		std::atomic<std::uint64_t> g_generation{ 0 };
 		std::filesystem::path g_directory;
@@ -490,19 +489,6 @@ namespace OSF::Studio
 			g_helmet.eventApplied = true;
 		}
 
-		class PreviewTickTask final : public SFSE::ITaskDelegate
-		{
-		public:
-			// Permanent tasks already run on the game thread inside the same drain as the transient
-			// queue. It cannot be unregistered, so install it once and make it inert while the
-			// runtime-switchable service is disabled.
-			void Run() override
-			{
-				if (g_running.load(std::memory_order_acquire)) TickHelmetPreview();
-			}
-			void Destroy() override {}
-		};
-
 		bool IsCurrentGeneration(std::uint64_t a_generation)
 		{
 			return g_running.load(std::memory_order_acquire) &&
@@ -817,11 +803,6 @@ namespace OSF::Studio
 				g_session.clear();
 				return;
 			}
-			if (!g_tickInstalled) {
-				static PreviewTickTask tickTask;
-				SFSE::GetTaskInterface()->AddPermanentTask(&tickTask);
-				g_tickInstalled = true;
-			}
 			g_generation.fetch_add(1, std::memory_order_acq_rel);
 			g_running.store(true, std::memory_order_release);
 			try {
@@ -838,6 +819,13 @@ namespace OSF::Studio
 			g_started = true;
 			REX::INFO("[Anim] Studio Link v{} ready at '{}' (helmet preview {})", kProtocolVersion,
 				g_directory.string(), helmetAvailable ? "available" : "unavailable");
+		}
+	}
+
+	void MaintenanceTick()
+	{
+		if (g_running.load(std::memory_order_acquire)) {
+			TickHelmetPreview();
 		}
 	}
 

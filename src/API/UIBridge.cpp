@@ -184,9 +184,6 @@ namespace OSF::API
 		{
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			auto& gm = Animation::GraphManager::GetSingleton();
-			// The view polls this at 10 Hz while the ACTIVE list is up, which is also the game-thread
-			// beat a RUNNING preview needs to keep its render-only props in step with its clock.
-			Scene::PlaybackPreviewService::GetSingleton().Tick();
 			auto inspections = Scene::PlaybackPreviewService::GetSingleton().List();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			// One serializer for both loops below — preview rows and runtime rows must agree on the

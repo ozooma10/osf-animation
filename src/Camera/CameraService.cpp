@@ -684,7 +684,7 @@ namespace OSF::Camera
 		}
 		std::unique_lock l{ driveLock, std::try_to_lock };
 		if (!l.owns_lock()) {
-			return;  // another job-thread Tick is already driving this frame
+			return;  // a pose inspection is in flight; skip rather than stall the frame beat
 		}
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		if (!camera || !camera->QCameraEquals(RE::CameraState::kFreeFly)) {
@@ -731,17 +731,12 @@ namespace OSF::Camera
 		const float padZoom = (pad.rightShoulder ? 1.0f : 0.0f) - (pad.leftShoulder ? 1.0f : 0.0f);
 		const bool padSteering = pad.rightX != 0.0f || pad.rightY != 0.0f || pad.leftX != 0.0f ||
 			pad.leftY != 0.0f || padLift != 0.0f || padZoom != 0.0f;
-		// This drive runs ~7x per render frame per AnimationManager. The gamepad snapshot is atomic
-		// state populated by the engine input hook, but Windows keyboard polling is still throttled.
-		static bool s_keyW = false, s_keyS = false, s_keyD = false, s_keyA = false;
-		static std::int64_t s_lastKeyboardPollMs = 0;
-		if (now - s_lastKeyboardPollMs >= 8) {
-			s_lastKeyboardPollMs = now;
-			s_keyW = KeyDown('W');
-			s_keyS = KeyDown('S');
-			s_keyD = KeyDown('D');
-			s_keyA = KeyDown('A');
-		}
+		// The gamepad snapshot is populated by the input hook; keyboard state is sampled during
+		// the current main-thread maintenance pass.
+		const bool keyW = KeyDown('W');
+		const bool keyS = KeyDown('S');
+		const bool keyD = KeyDown('D');
+		const bool keyA = KeyDown('A');
 		// Stick up looks up = camera lowers, matching a mouse drag up (which arrives as -mdy).
 		orbitTargetAzimuth -= mdx * kOrbitMouseSens + pad.rightX * kOrbitStickLookSpeed * dt;
 		const float lookY = mdy * kOrbitMouseSens - pad.rightY * kOrbitStickLookSpeed * dt;
@@ -754,10 +749,10 @@ namespace OSF::Camera
 		// horizontal forward (toward/away from where it looks), A/D strafe. The center's height is unchanged.
 		const float ch = std::cos(orbitAzimuth), sh = std::sin(orbitAzimuth);
 		float panF = pad.leftY, panR = pad.leftX;
-		if (s_keyW) panF += 1.0f;
-		if (s_keyS) panF -= 1.0f;
-		if (s_keyD) panR += 1.0f;
-		if (s_keyA) panR -= 1.0f;
+		if (keyW) panF += 1.0f;
+		if (keyS) panF -= 1.0f;
+		if (keyD) panR += 1.0f;
+		if (keyA) panR -= 1.0f;
 		panF = std::clamp(panF, -1.0f, 1.0f);
 		panR = std::clamp(panR, -1.0f, 1.0f);
 		if (panF != 0.0f || panR != 0.0f) {
@@ -774,7 +769,7 @@ namespace OSF::Camera
 		}
 
 		// Low-pass the rendered values toward the targets (frame-rate-independent: alpha = 1 - e^(-dt/tau)).
-		// This is what turns raw per-tick input into a smooth glide and absorbs the ~7×/frame tick cadence.
+		// This turns raw per-frame input into a smooth glide.
 		// While a reframe glide is in flight (scene launch / node retarget) the slower constant carries the
 		// camera to the new framing as a visible move; alpha is 0 on the first frame (dt unknown — hold still).
 		const float tau = orbitReframeGlide ? kOrbitReframeTime : kOrbitSmoothTime;
@@ -1098,8 +1093,6 @@ namespace OSF::Camera
 			return;  // a state override owns the camera — don't bounce
 		}
 
-		// State read off-thread is a benign pointer compare; the actual camera mutation lands on the
-		// game thread via the task queue.
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		if (!camera) {
 			return;
@@ -1109,20 +1102,7 @@ namespace OSF::Camera
 			return;
 		}
 
-		if (bouncePending.exchange(true, std::memory_order_relaxed)) {
-			return;
-		}
-
-		QueueTask([this]() {
-			bouncePending.store(false, std::memory_order_relaxed);
-			if (!holdArmed.load(std::memory_order_relaxed) || suppressBounce.load(std::memory_order_relaxed)) {
-				return;
-			}
-			auto* camera = RE::PlayerCamera::GetSingleton();
-			if (camera && camera->IsInFirstPerson()) {
-				camera->ForceThirdPerson();
-				REX::TRACE("[Camera] bounced back to third person mid-lock");
-			}
-		});
+		camera->ForceThirdPerson();
+		REX::TRACE("[Camera] bounced back to third person mid-lock");
 	}
 }

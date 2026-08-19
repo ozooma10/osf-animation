@@ -92,9 +92,8 @@ namespace OSF::Scene
 		// A running preview loops its clip — a browser preview has no timers, loop targets, or marks,
 		// so it can only end when the view stops it.
 		bool SetSpeed(std::int32_t a_handle, float a_speed);
-		// Game-thread pump for RUNNING previews: reconciles their render-only props against the clock
-		// the engine advanced since the last call. Paused previews reconcile on Seek instead, so this
-		// is a no-op for them. Called from the view's playback poll (BuildActiveScenes).
+		// Once-per-frame game-thread pump for RUNNING previews: reconciles their render-only props
+		// against the clock the engine advanced since the last call. Paused previews reconcile on Seek.
 		void Tick();
 		bool Stop(std::int32_t a_handle);
 		void StopForActor(RE::Actor* a_actor);

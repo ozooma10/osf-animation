@@ -6,6 +6,7 @@
 
 #include "Animation/Graph.h"
 #include "Animation/Scene.h"
+#include "Animation/StallWatchdogSchedule.h"
 
 #include <functional>
 
@@ -61,7 +62,7 @@ namespace OSF::Animation
 		// Refuses for scene participants, use StopScene in that case.
 		bool StopAnimation(RE::Actor* a_actor);
 
-		// Erases actors's graph if its fade-out has fully elapsed (no-op if it was replayed meanwhile). Called from the deferred removal task.
+		// Erases an actor's graph if its fade-out has fully elapsed (no-op if replayed meanwhile). Called by main-thread deferred follow-ups and the maintenance watchdog sweep.
 		void RemoveFadedGraph(RE::TESObjectREFR* a_refr);
 
 		// Starts synchronized Layer-A playback from a PlaybackPlan. Every segment's clips are loaded up
@@ -139,7 +140,7 @@ namespace OSF::Animation
 		// Solo multi-stage sequence (no anchor)
 		bool PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<std::string>& a_animIds, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole);
 
-		// Stops a scene by pointer if it is still live (no-op otherwise). Used by the deferred auto-end task; 
+		// Stops a scene by pointer if it is still live (no-op otherwise). Used by game-thread end completion;
 		// the caller keeps the Scene alive via shared_ptr so the pointer can never be stale.
 		void StopPlaybackByPtr(PlaybackSession* a_session);
 		void StopSceneByPtr(Scene* a_scene) { StopPlaybackByPtr(a_scene); }  // compatibility spelling
@@ -154,6 +155,9 @@ namespace OSF::Animation
 		// Right now largely remove ai-driven flags on anchored NPCs (kAnimationDriven) and the player (kPlayerAnimationDriven) so they dont get stuck in a save mid-scene.
 		void OnSaveBegin();
 		void OnSaveEnd();
+
+		// Main-thread maintenance pass. FrameMaintenance coalesces worker notifications onto the BSService drain; AnimationManager::Update owns subdivided graph sampling.
+		void MaintenanceTick();
 
 	private:
 		bool PlayDecodedAnimation(RE::Actor* a_actor,
@@ -180,18 +184,11 @@ namespace OSF::Animation
 		void QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                  // fade-out elapsed -> RemoveFadedGraph
 		void HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr, std::vector<std::function<void()>>& a_deferred);  // keep an anchored scene NPC animation-driven (no AI walk-back)
 
-		// Defer a scene's end to the game thread: the runtime auto-end handler takes over (advance/end +
-		// ledger replay), else we stop it ourselves. Idempotent via Scene::endQueued; the shared_ptr keeps
-		// the Scene alive across the deferral. Shared by QueueAutoEndIfFinished and the stall watchdog.
-		// With a_deferred (locked contexts) the end task is appended there instead of handed to
-		// SFSE directly; the caller flushes after releasing stateLock.
-		void QueuePlaybackEndDeferred(std::shared_ptr<PlaybackSession> a_session, std::vector<std::function<void()>>* a_deferred = nullptr);
+		// Complete an already-claimed end on the game thread: the runtime auto-end handler takes over (advance/end + ledger replay), else we stop it ourselves. No manager lock may be held.
+		void HandlePlaybackEndOnGameThread(std::shared_ptr<PlaybackSession> a_session);
 
-		// Stall watchdog: runs from the update hook every call. Finds live scenes the engine stopped
-		// ticking (lastAdvanceMs gone stale while the game runs) and ends them cleanly as kInterrupted, so
-		// an unloaded/AI-disabled/interrupted scene can't strand its participants with the player input lock held.
-		// Pause/resume-filtered (the hook itself stalls when the game pauses) and throttled (fires ~7x/frame).
-		void StallWatchTick();
+		// Defer a scene's end to the game thread: the runtime auto-end handler takes over (advance/end + ledger replay), else we stop it ourselves. 
+		void QueuePlaybackEndDeferred(std::shared_ptr<PlaybackSession> a_session, std::vector<std::function<void()>>* a_deferred = nullptr);
 
 		// AnimationManager::Update (vfunc 4). Runs per graph ~7x per render frame on job threads with subdivided dt (timeDelta @ +0x60). 
 		// Used for clock advance + pose sampling ONLY - rig writes here dont work, the engine's snapshot applier (vfunc 7) rewrites rig locals right after every update.
@@ -227,10 +224,8 @@ namespace OSF::Animation
 		std::atomic<PlaybackId> _nextPlaybackId{ 1 };
 		std::atomic<std::uint64_t> _worldEpoch{ 1 };
 
-		// Stall watchdog bookkeeping (see StallWatchTick), all steady-clock ms, lock-free.
-		std::atomic<std::int64_t> _stallLastHookMs{ 0 };  // last time the hook ran (a big jump = the game was paused/loading)
-		std::atomic<std::int64_t> _stallArmedMs{ 0 };     // don't flag stalls before this time (post-resume grace)
-		std::atomic<std::int64_t> _stallLastScanMs{ 0 };  // last scene scan (throttles the per-call work)
+		// Main-thread-only pause/resume grace + scan throttle (see MaintenanceTick).
+		StallWatchdogSchedule _stallWatchdog;
 
 		// True between OnSaveBegin and OnSaveEnd: engine bout to serialize, so every kAnimationDriven set-point (initial placement + the per-frame re-assert) stand down.
 		std::atomic<bool> _saveWindow{ false };

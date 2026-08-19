@@ -291,8 +291,8 @@ namespace OSF::API::UIBridgeWorld
 			if (!node) {
 				return nullptr;
 			}
-			for (const auto& child : node->children) {
-				if (auto* camera = FindCameraInNode(child.get(), a_depth + 1)) {
+			for (std::uint16_t i = 0; node->children && i < node->childrenSize; ++i) {
+				if (auto* camera = FindCameraInNode(node->children[i], a_depth + 1)) {
 					return camera;
 				}
 			}

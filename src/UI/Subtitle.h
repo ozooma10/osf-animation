@@ -16,12 +16,11 @@
 // EXPIRY / TEARDOWN: the direct-Notify path does NOT auto-hide on a timer (the vanilla producer carries
 // the duration; Notify-ing the source directly bypasses it). So Show() arms a hold deadline, Tick()
 // Notify()s a HideSubtitleEvent (AddrLib 86875) once it passes, and OnStopAll() hides immediately so a
-// line in the box can't bleed into a save-load. Both are wired in GraphManager next to the other
-// per-frame services (FadeService/SoundService).
+// line in the box can't bleed into a save-load. Both are wired into the central main-thread
+// maintenance pass.
 //
-// Threading: Show()/Tick() run from the scene dispatch (job threads, under the scene lock) and must not
-// block. The event Notify only drives the engine's subtitle data model (any-thread-safe, same as
-// UI::HudMessage); resolving the speaker name is a cheap read of the ref. Cheap no-op on empty text.
+// Threading: Show() is safe from scene dispatch; Tick() runs on the main thread. The event Notify
+// copies its payload synchronously. Resolving the speaker name is a cheap read of the ref.
 
 #include <string_view>
 
@@ -36,7 +35,7 @@ namespace OSF::UI::Subtitle
 	// (<= 0 selects a default hold). Safe from any thread; a no-op on empty text.
 	void Show(RE::Actor* a_speaker, std::string_view a_text, float a_seconds = 0.0f);
 
-	// Hide the box once a shown line's hold elapses. Rides the update-hook call stream (job threads);
+	// Hide the box once a shown line's hold elapses. Called by the main-thread maintenance pass;
 	// atomic early-out when nothing is showing.
 	void Tick();
 
