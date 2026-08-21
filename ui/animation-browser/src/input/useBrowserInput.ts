@@ -121,6 +121,9 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
     const queue = () => { if (!orbit.frame) orbit.frame = requestAnimationFrame(flush); };
     const down = (event: MouseEvent) => {
       if (event.button !== 0 || !worldTarget(event.target)) return;
+      // This press belongs to the native orbit surface. Cancel the WebView's
+      // competing default drag behavior so crossing the panels cannot select text.
+      event.preventDefault();
       orbit.dragging = true;
       orbit.selecting = !!state.pickMode;
       orbit.x = event.clientX;

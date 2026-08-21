@@ -8,6 +8,7 @@ import type { BrowserCommands } from "../src/app/commands";
 import { useBrowserController } from "../src/app/controller";
 import { createInitialState } from "../src/app/state";
 import { Segmented } from "../src/features/shared/Shared";
+import { useBrowserInput } from "../src/input/useBrowserInput";
 
 afterEach(cleanup);
 
@@ -49,5 +50,21 @@ describe("Octane view runtime", () => {
     const { result } = renderHook(() => useBrowserController());
     await act(() => result.current.commands.toggleSettings());
     expect(result.current.state.settingsOpen).toBe(true);
+  });
+
+  it("reserves world presses for camera orbit without changing panel selection", () => {
+    renderHook(() => useBrowserInput(createInitialState(), commands, false));
+    const world = document.createElement("div");
+    const panel = document.createElement("div");
+    panel.className = "console";
+    document.body.append(world, panel);
+
+    const worldDown = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 });
+    const panelDown = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 });
+    world.dispatchEvent(worldDown);
+    panel.dispatchEvent(panelDown);
+
+    expect(worldDown.defaultPrevented).toBe(true);
+    expect(panelDown.defaultPrevented).toBe(false);
   });
 });
