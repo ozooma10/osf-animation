@@ -1,7 +1,5 @@
 interface Window {
   osfui?: {
-    available?: boolean | (() => boolean);
-    ready?: Promise<Record<string, unknown>>;
     send?: (name: string, payload?: Record<string, unknown>) => boolean;
     request?: (name: string, payload?: Record<string, unknown>, opts?: { timeoutMs?: number }) => Promise<unknown>;
     on?: (name: string, listener: (payload: unknown) => void) => () => void;

@@ -17,7 +17,7 @@
     "preact": "10.29.7"
   },
   "devDependencies": {
-    "@osfui/cli": "file:../../../OSF UI/packages/cli",
+    "@osfui/cli": "file:../../../OSF UI/frontend/packages/cli",
     "@types/node": "24.7.2",
     "vitest": "3.2.7"
   }

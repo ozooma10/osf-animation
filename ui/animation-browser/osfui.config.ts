@@ -15,8 +15,5 @@ export default defineConfig({
     transparent: true,
     // The view uses the 2.0 helper transport; older hosts cannot satisfy this contract.
     targetVersion: "2.0.0",
-    permissions: {
-      nativeBridge: true,
-    },
   }],
 });

@@ -42,10 +42,9 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "library/requested":
       return { ...state, libraryReceived: false };
     case "plugin/received":
-      // A full web-view reload can happen after OSF UI's one-shot runtime.ready
-      // handshake. The view requests the catalog on every mount, and this version
-      // reply comes directly from OSF Animation, so it is equally authoritative
-      // proof that the engine is connected.
+      // The view requests the catalog on every mount, and this version reply comes
+      // directly from OSF Animation, so it is independently authoritative proof
+      // that the engine is connected.
       return { ...state, ready: true, plugin: action.plugin };
     case "catalog/received":
       return {

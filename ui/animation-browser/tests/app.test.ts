@@ -64,8 +64,8 @@ describe("browser reducer", () => {
     const reloaded = createInitialState();
     expect(reloaded.ready).toBe(false);
 
-    // OSF UI's one-shot runtime.ready was delivered to the old page, but every
-    // newly mounted page sends catalog.get and OSF Animation answers directly.
+    // Every newly mounted page sends catalog.get, so OSF Animation can prove the
+    // engine connection directly even if helper initialization was interrupted.
     const healed = browserReducer(reloaded, { type: "catalog/received", scenes: [solo] });
 
     expect(healed).toMatchObject({ ready: true, catalogReceived: true });

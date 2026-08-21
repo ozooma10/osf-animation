@@ -212,11 +212,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     const record = isRecord(payload) ? payload : {};
     switch (message.type) {
       case "runtime.ready":
-        // Contract: a bridge being present (runtime.ready arriving) is the only gate — never
-        // require a specific version field. The host sends `protocol` (see bridge.test.ts);
-        // there is no `bridgeVersion` field, so gating on it wedged the view at "Engine Offline".
+        // The adapter emits this after confirming the current helper surface is complete.
+        // Helper presence, rather than a version or readiness promise, is the startup gate.
         dispatch({ type: "runtime/ready" });
-        showNotice("ok", `Bridge online. Protocol ${record.protocol || "?"}.`);
+        showNotice("ok", "Bridge online.");
         send("osfui.gamepadMode", { mode: "buttons" });
         send("osfui.handleBack", { handle: true });
         // The mount effect already requested both; re-request only what hasn't landed —
