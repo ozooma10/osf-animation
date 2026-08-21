@@ -72,6 +72,14 @@ namespace OSF::API
 		// True only when ABI 1.10 registration succeeded. It rides in the version
 		// payload so the page keeps its paced bridge fallback on older OSF UI hosts.
 		bool g_relativePointerRegistered = false;
+		// Low-volume capture diagnostics: one begin, first-update, and terminal
+		// summary per drag. These make the native hand-off observable without
+		// restoring the per-frame bridge log firehose.
+		bool          g_relativePointerTraceActive = false;
+		std::uint32_t g_relativePointerTraceUpdates = 0;
+		float         g_relativePointerTraceDx = 0.0f;
+		float         g_relativePointerTraceDy = 0.0f;
+		float         g_relativePointerTraceWheel = 0.0f;
 
 		// Browser visibility as reported by the view (osf.opened / osf.closed). Gates OnOrbit:
 		// the view batches drag deltas per animation frame, so a flush queued during the last
@@ -1378,11 +1386,43 @@ namespace OSF::API
 		void OnRelativePointer(const char* a_viewId, OSFUI::API::RelativePointerPhase a_phase,
 			float a_dx, float a_dy, float a_wheel, void*) noexcept
 		{
-			if (a_phase != OSFUI::API::RelativePointerPhase::kUpdate || !a_viewId ||
-				std::string_view(a_viewId) != kViewId) {
+			if (!a_viewId || std::string_view(a_viewId) != kViewId) {
 				return;
 			}
-			if (!EnsureBrowseOrbit(a_viewId)) {
+
+			if (a_phase == OSFUI::API::RelativePointerPhase::kBegin) {
+				g_relativePointerTraceActive = true;
+				g_relativePointerTraceUpdates = 0;
+				g_relativePointerTraceDx = 0.0f;
+				g_relativePointerTraceDy = 0.0f;
+				g_relativePointerTraceWheel = 0.0f;
+				REX::DEBUG("[UI] native relative-pointer capture began for '{}'", a_viewId);
+				return;
+			}
+
+			if (a_phase == OSFUI::API::RelativePointerPhase::kEnd ||
+				a_phase == OSFUI::API::RelativePointerPhase::kCancel) {
+				REX::DEBUG("[UI] native relative-pointer capture {} after {} update callback(s), total delta ({:.1f}, {:.1f}), wheel {:.1f}",
+					a_phase == OSFUI::API::RelativePointerPhase::kEnd ? "ended" : "cancelled",
+					g_relativePointerTraceUpdates, g_relativePointerTraceDx,
+					g_relativePointerTraceDy, g_relativePointerTraceWheel);
+				g_relativePointerTraceActive = false;
+				return;
+			}
+
+			if (a_phase != OSFUI::API::RelativePointerPhase::kUpdate) {
+				return;
+			}
+			g_relativePointerTraceUpdates++;
+			g_relativePointerTraceDx += a_dx;
+			g_relativePointerTraceDy += a_dy;
+			g_relativePointerTraceWheel += a_wheel;
+			const bool orbitReady = EnsureBrowseOrbit(a_viewId);
+			if (g_relativePointerTraceUpdates == 1) {
+				REX::DEBUG("[UI] native relative-pointer first update dx={:.1f}, dy={:.1f}, wheel={:.1f} (captureBegan={}, browserVisible={}, orbitReady={})",
+					a_dx, a_dy, a_wheel, g_relativePointerTraceActive, g_viewVisible, orbitReady);
+			}
+			if (!orbitReady) {
 				REX::TRACE("[UI] native relative-pointer update unavailable or after close — dropped");
 				return;
 			}
@@ -1572,8 +1612,8 @@ namespace OSF::API
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
 		g_ui.GetPluginVersion(mj, mn, pt);
-		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.animation.* commands registered",
-			mj, mn, pt, g_ui.GetBridgeProtocolVersion());
+		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.animation.* commands registered; relative-pointer callback {}",
+			mj, mn, pt, g_ui.GetBridgeProtocolVersion(), g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
 		if (std::tie(mj, mn, pt) < std::tie(kOSFUITested[0], kOSFUITested[1], kOSFUITested[2])) {
 			REX::WARN("[UI] installed OSF UI v{}.{}.{} predates the v{}.{}.{} this build was tested against — update it: {}",
 				mj, mn, pt, kOSFUITested[0], kOSFUITested[1], kOSFUITested[2], kOSFUINexusURL);
