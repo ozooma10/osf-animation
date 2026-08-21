@@ -92,4 +92,29 @@ describe("Octane view runtime", () => {
     expect(orbit).toHaveBeenCalledOnce();
     expect(orbit).toHaveBeenLastCalledWith(9, 12, 0);
   });
+
+  it("uses edge-only OSF UI capture when native relative pointer support is registered", () => {
+    vi.useFakeTimers();
+    const beginOrbitCapture = vi.fn();
+    const endOrbitCapture = vi.fn();
+    const orbit = vi.fn();
+    const orbitCommands = new Proxy({ beginOrbitCapture, endOrbitCapture, orbit }, {
+      get: (target, property) => property in target ? target[property as keyof typeof target] : () => undefined,
+    }) as unknown as BrowserCommands;
+    const state = createInitialState();
+    state.plugin = { relativePointer: true };
+    renderHook(() => useBrowserInput(state, orbitCommands, false));
+    const world = document.createElement("div");
+    document.body.append(world);
+
+    world.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: 20 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 20, clientY: 30 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 30, clientY: 40 }));
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0, clientX: 30, clientY: 40 }));
+    vi.runAllTimers();
+
+    expect(beginOrbitCapture).toHaveBeenCalledOnce();
+    expect(endOrbitCapture).toHaveBeenCalledOnce();
+    expect(orbit).not.toHaveBeenCalled();
+  });
 });

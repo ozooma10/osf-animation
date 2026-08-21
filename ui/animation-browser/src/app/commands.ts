@@ -67,6 +67,9 @@ export interface BrowserCommands {
   pickWheel(index: number): void;
   cancelWheel(): void;
   requestClose(): void;
+  beginOrbitCapture(): void;
+  endOrbitCapture(): void;
+  /** Pacing fallback for OSF UI hosts older than native relative-pointer capture. */
   orbit(dx: number, dy: number, wheel: number): void;
   openModPage(url: string): void;
 }

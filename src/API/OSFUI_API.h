@@ -44,7 +44,9 @@ static_assert(sizeof(std::uint32_t) == 4, "OSFUI_API: fixed-width ABI types requ
 namespace OSFUI::API
 {
 	// Packed (MAJOR << 16) | MINOR. 
-	inline constexpr std::uint32_t kBridgeAPIVersion = (1u << 16) | 7u;
+	// ABI 1.x is append-only. This consumer needs the 1.10 relative-pointer tail;
+	// Client feature gates it when an older OSF UI runtime is installed.
+	inline constexpr std::uint32_t kBridgeAPIVersion = (1u << 16) | 10u;
 	inline constexpr std::uint32_t kBridgeAPIMajor   = kBridgeAPIVersion >> 16;
 	inline constexpr std::uint32_t kBridgeAPIMinor   = kBridgeAPIVersion & 0xFFFFu;
 
@@ -61,6 +63,9 @@ namespace OSFUI::API
 	                           const char* a_payloadJson,
 	                           const char* a_sourceViewId,
 	                           void*       a_user) noexcept;
+	using SendFn = CommandFn;
+	struct Request;
+	using RequestFn = void (*)(const Request& a_request, void* a_user) noexcept;
 
 	// Fired when the bridge becomes ready (a nativeBridge view is live), and again after any re-creation. Main thread.
 	using ReadyFn = void (*)(void* a_user) noexcept;
@@ -77,6 +82,20 @@ namespace OSFUI::API
 	using HotkeyFn = void (*)(const char* a_modId,
 	                          const char* a_key,
 	                          void*       a_user) noexcept;
+
+	enum class RelativePointerPhase : std::uint32_t
+	{
+		kBegin = 0,
+		kUpdate = 1,
+		kEnd = 2,
+		kCancel = 3,
+	};
+	using RelativePointerFn = void (*)(const char* a_viewId,
+	                                   RelativePointerPhase a_phase,
+	                                   float a_dx,
+	                                   float a_dy,
+	                                   float a_wheel,
+	                                   void* a_user) noexcept;
 
 	// How bad a reported condition is (ABI 1.7). There is no "info" tier on
 	// purpose: System Health only shows conditions worth acting on, and an
@@ -257,6 +276,17 @@ namespace OSFUI::API
 		// mod id or a payload that is not a JSON array of strings.
 		virtual bool ClearIssuesExcept(const char* a_modId, const char* a_keepIdsJson) = 0;
 
+		// ABI 1.7-1.9 frozen tail slots retained in their exact published order.
+		virtual void RegisterRequest(const char* a_name, RequestFn a_handler, void* a_user) = 0;
+		virtual void UnregisterRequest(const char* a_name) = 0;
+		virtual bool SetViewState(const char* a_modId, const char* a_key, const char* a_payloadJson) = 0;
+		virtual void RegisterSend(const char* a_name, SendFn a_handler, void* a_user) = 0;
+		virtual void UnregisterSend(const char* a_name) = 0;
+
+		// ABI 1.10: view-owned raw relative-pointer capture.
+		virtual bool RegisterRelativePointer(const char* a_viewId, RelativePointerFn a_handler, void* a_user) = 0;
+		virtual void UnregisterRelativePointer(const char* a_viewId) = 0;
+
 	protected:
 		~IOSFUIBridge() = default;  // OSF UI owns the singleton; consumers never delete it.
 	};
@@ -311,6 +341,10 @@ namespace OSFUI::API
 		kRegisterView = 5,
 		kCommandShape = 6,       // "<author>.<modname>.<name>" enforcement + first-wins duplicates
 		kDiagnostics = 7,        // ReportIssue/ClearIssue/ClearIssuesExcept -> System Health
+		kRequests = 7,
+		kViewState = 8,
+		kSends = 9,
+		kRelativePointer = 10,
 	};
 
 	class Client
@@ -475,6 +509,18 @@ namespace OSFUI::API
 		bool ClearIssuesExcept(const char* a_modId, const char* a_keepIdsJson) const noexcept
 		{
 			return Has(Feature::kDiagnostics) && _bridge->ClearIssuesExcept(a_modId, a_keepIdsJson);
+		}
+
+		// --- 1.10 relative pointer capture ---
+		bool RegisterRelativePointer(const char* a_viewId, RelativePointerFn a_handler, void* a_user) const noexcept
+		{
+			return Has(Feature::kRelativePointer) && _bridge->RegisterRelativePointer(a_viewId, a_handler, a_user);
+		}
+		void UnregisterRelativePointer(const char* a_viewId) const noexcept
+		{
+			if (Has(Feature::kRelativePointer)) {
+				_bridge->UnregisterRelativePointer(a_viewId);
+			}
 		}
 
 	private:
