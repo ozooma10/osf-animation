@@ -1,6 +1,6 @@
 # Animation browser architecture
 
-The browser is a single Preact application embedded in OSF UI. Native OSF Animation owns the
+The browser is a single Octane application embedded in OSF UI. Native OSF Animation owns the
 catalog and scene runtime; this application owns selection, pre-flight configuration, presentation,
 and input translation.
 

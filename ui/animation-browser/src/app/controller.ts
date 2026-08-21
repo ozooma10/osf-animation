@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "octane";
 import type { BrowserCommands } from "./commands";
 import { browserReducer } from "./reducer";
 import {
@@ -142,11 +142,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     ? createStandaloneBridge(() => stateRef.current)
     : new OsfUiBridge(), [standalone]);
   const handlerRef = useRef<(message: NativeMessage) => void>(() => undefined);
-  const noticeTimer = useRef<number | undefined>();
-  const catalogTimer = useRef<number | undefined>();
-  const libraryTimer = useRef<number | undefined>();
-  const importsTimer = useRef<number | undefined>();
-  const routesTimer = useRef<number | undefined>();
+  const noticeTimer = useRef<number | undefined>(undefined);
+  const catalogTimer = useRef<number | undefined>(undefined);
+  const libraryTimer = useRef<number | undefined>(undefined);
+  const importsTimer = useRef<number | undefined>(undefined);
+  const routesTimer = useRef<number | undefined>(undefined);
   const catalogTries = useRef(0);
   const libraryTries = useRef(0);
   const importsTries = useRef(0);

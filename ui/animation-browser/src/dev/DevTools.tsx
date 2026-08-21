@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState } from "octane";
 import type { DevCommands, WheelDebugState } from "./debug";
 
 export function DevTools({ commands }: { commands: DevCommands }) {

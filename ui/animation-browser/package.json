@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.22.2"
+  },
   "scripts": {
     "dev": "osfui dev --port 8791",
     "dev:game": "osfui dev --game --port 8791",
@@ -14,11 +17,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "preact": "10.29.7"
+    "octane": "0.1.43"
   },
   "devDependencies": {
+    "@octanejs/testing-library": "0.1.40",
+    "@octanejs/vite-plugin": "0.1.43",
     "@osfui/cli": "file:../../../OSF UI/frontend/packages/cli",
     "@types/node": "24.7.2",
-    "vitest": "3.2.7"
+    "happy-dom": "20.11.6",
+    "vite": "8.1.5",
+    "vitest": "4.1.11"
   }
 }

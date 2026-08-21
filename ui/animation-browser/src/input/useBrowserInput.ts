@@ -1,4 +1,4 @@
-import { useEffect } from "preact/hooks";
+import { useEffect } from "octane";
 import type { BrowserCommands } from "../app/commands";
 import type { BrowserState } from "../app/state";
 

@@ -1,7 +1,9 @@
 import { defineConfig } from "@osfui/cli";
+import { octane } from "@octanejs/vite-plugin";
 
 export default defineConfig({
   modId: "osf.animation",
+	vite: { plugins: [octane()] },
 	// Dedicated CLI-owned tree. Do not point this at the legacy unmarked build/osfui directory.
 	outDir: "../../build/osfui-animation-browser",
   views: [{

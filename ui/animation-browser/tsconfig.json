@@ -10,8 +10,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "preact",
+    "jsxImportSource": "octane",
     "types": ["@osfui/cli/view", "vite/client"]
   },
-  "include": ["src", "tests", "osfui.config.ts", "osfui.mock.ts"]
+  "include": ["src", "tests", "osfui.config.ts", "osfui.mock.ts", "vitest.config.ts"]
 }
