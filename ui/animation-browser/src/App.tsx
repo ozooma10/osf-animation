@@ -12,12 +12,12 @@ import { ImportsPanel } from "./features/imports/ImportsPanel";
 import { RouteDebuggerPanel } from "./features/routes/RouteDebuggerPanel";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 
-function Status({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
+function Status({ state }: { state: BrowserState; commands: BrowserCommands }) {
   if (!state.ready) return <><span class="lamp" data-state="wait"/><span>waiting for runtime…</span></>;
   const plugin = state.plugin;
   return <><span class="lamp" data-state="ok"/><span id="statusText" title={plugin ? `${plugin.plugin || "OSF Animation"} v${plugin.version || "?"} · runtime online` : "OSF Animation · runtime online"}>
     OSF {plugin?.version || "?"}{plugin?.ui?.version && <> <span class="sep">·</span> UI {plugin.ui.version}</>}
-    {plugin?.ui?.outdated && plugin.ui.nexusUrl && <> <a class="ui-update" href={plugin.ui.nexusUrl} target="_blank" rel="noreferrer" title={`OSF UI v${plugin.ui.tested || "?"} available`} onClick={(event) => { event.preventDefault(); commands.openModPage(plugin.ui!.nexusUrl!); }}>UPDATE</a></>}
+    {plugin?.ui?.outdated && <> <span class="ui-update" title={`OSF UI v${plugin.ui.tested || "?"} is required; update it through your mod manager`}>UPDATE OSF UI</span></>}
   </span></>;
 }
 

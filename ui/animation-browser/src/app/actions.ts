@@ -43,11 +43,13 @@ export type BrowserAction =
   | { type: "imports/reloadSucceeded"; files: ImportFile[]; totals: ImportTotals; durationMs: number; scenes: number; completedAt: number }
   | { type: "imports/reloadFailed"; error: string; durationMs: number; completedAt: number }
   | { type: "imports/viewContent"; path: string }
+  | { type: "imports/viewCleared" }
   | { type: "imports/search"; search: string }
   | { type: "cast/replaced"; members: CastMember[] }
   | { type: "cast/toggled"; member: CastMember }
   | { type: "cast/removed"; index: number }
   | { type: "cast/moved"; from: number; to: number; after?: boolean }
+  | { type: "cast/matched"; tokens: readonly number[]; ids: ReadonlySet<string> }
   | { type: "nearby/received"; kind: "actor" | "furniture"; targets: NearbyTarget[] }
   | { type: "indicators/received"; items: import("./state").ActorIndicator[] }
   | { type: "pickTargets/received"; slot: "actor" | "furniture"; items: import("./state").PickTarget[] }

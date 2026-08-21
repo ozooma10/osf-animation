@@ -46,6 +46,22 @@ describe("OsfUiBridge subscription race", () => {
       { type: "osf.animation.notice", payload: { text: "hi" } },
     ]);
   });
+
+  it("surfaces rejected request commands instead of silently discarding them", async () => {
+    (window.osfui as any).request = () => Promise.reject(new Error("write refused"));
+    const bridge = new OsfUiBridge();
+    const received: NativeMessage[] = [];
+    bridge.subscribe((message) => received.push(message));
+
+    bridge.send("settings.set", { mod: "osf.animation", key: "browser.openTo", value: "active" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(received[received.length - 1]).toEqual({
+      type: "bridge.requestFailed",
+      payload: { command: "settings.set", message: "write refused" },
+    });
+  });
 });
 
 describe("bridge environment detection", () => {

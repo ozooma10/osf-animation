@@ -1,6 +1,7 @@
 export type BridgeCommand =
   | "osf.animation.advance"
   | "osf.animation.anchorMatch"
+  | "osf.animation.castMatch"
   | "osf.animation.catalog.get"
   | "osf.animation.closed"
   | "osf.animation.imports.get"
@@ -24,7 +25,6 @@ export type BridgeCommand =
   | "osf.animation.wheel.set"
   | "osfui.gamepadMode"
   | "osfui.handleBack"
-  | "osfui.openModPage"
   | "osfui.relativePointer"
   | "settings.get"
   | "settings.set";

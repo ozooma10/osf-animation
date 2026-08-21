@@ -126,7 +126,7 @@ describe("scene readiness", () => {
   });
 
   it("reports missing cast and furniture independently", () => {
-    const result = evaluateScene(scene, { castCount: 1, furnitureToken: null, anchorMatch: null });
+    const result = evaluateScene(scene, { castCount: 1, castTokens: [-1], castMatch: null, furnitureToken: null, anchorMatch: null });
     expect(result.gaps).toBe(2);
     expect(result.issues).toEqual(["needs 1 more actor", "needs Barstool"]);
   });
@@ -134,6 +134,8 @@ describe("scene readiness", () => {
   it("requires the keyed furniture to be in the authoritative match set", () => {
     const mismatch = evaluateScene(scene, {
       castCount: 2,
+      castTokens: [-1, 7],
+      castMatch: { tokens: [-1, 7], ids: new Set(["bar.scene"]) },
       furnitureToken: 7,
       anchorMatch: { token: 7, ids: new Set() },
     });
@@ -141,10 +143,31 @@ describe("scene readiness", () => {
 
     const match = evaluateScene(scene, {
       castCount: 2,
+      castTokens: [-1, 7],
+      castMatch: { tokens: [-1, 7], ids: new Set(["bar.scene"]) },
       furnitureToken: 7,
       anchorMatch: { token: 7, ids: new Set(["bar.scene"]) },
     });
     expect(match.gaps).toBe(0);
+  });
+
+  it("waits for and enforces the native role-filter result for the exact ordered cast", () => {
+    const roleScene = normalizeScene({ id: "roles.scene", actorCount: 1, roles: [{ name: "lead", gender: "female" }] });
+    const context = { castCount: 1, castTokens: [-1], furnitureToken: null, anchorMatch: null };
+
+    const pending = evaluateScene(roleScene, { ...context, castMatch: null });
+    expect(pending).toMatchObject({ roleMatchKnown: false, roleFilterGate: false, gaps: 1 });
+    expect(pending.reason).toContain("Checking whether this cast fits");
+
+    const rejected = evaluateScene(roleScene, { ...context, castMatch: { tokens: [-1], ids: new Set() } });
+    expect(rejected).toMatchObject({ roleMatchKnown: true, roleFilterGate: false, gaps: 1 });
+    expect(rejected.reason).toContain("doesn't fit the scene roles");
+
+    const accepted = evaluateScene(roleScene, { ...context, castMatch: { tokens: [-1], ids: new Set(["roles.scene"]) } });
+    expect(accepted).toMatchObject({ roleMatchKnown: true, roleFilterGate: true, gaps: 0 });
+
+    const stale = evaluateScene(roleScene, { ...context, castMatch: { tokens: [7], ids: new Set(["roles.scene"]) } });
+    expect(stale.roleMatchKnown).toBe(false);
   });
 });
 

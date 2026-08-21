@@ -235,6 +235,8 @@ export interface BrowserState {
   optsOpen: boolean;
   filters: { search: string; debugMode: boolean };
   plugin: PluginVersion | null;
+  /** Native-authoritative role-filter matches for one exact ordered cast. */
+  castMatch: { tokens: readonly number[]; ids: ReadonlySet<string> } | null;
   anchorMatch: { token: number; ids: ReadonlySet<string> } | null;
   browseAll: boolean;
   showHidden: boolean;
@@ -254,11 +256,15 @@ export interface BrowserState {
   /** Outcome filter; attention is the author-first default while All remains one click away. */
   importsFilter: ImportFilter;
   importsSearch: string;
+  /** Imports -> View Content temporarily widens source/detail filters without mutating preferences. */
+  importView: boolean;
   importReload: ImportReloadState;
   lastBrowseMode: BrowseMode;
   minimized: boolean;
   /** Explicit group disclosure choices. Missing keys fall back to selection-driven opening. */
   libOpen: ReadonlyMap<string, boolean>;
+  /** Search opens at most one bounded result group, independent of remembered library folders. */
+  searchGroupOpen: string | null;
   libFull: boolean;
   libCustomOnly: boolean;
   briefFullAnims: boolean;
@@ -303,6 +309,7 @@ export function createInitialState(): BrowserState {
     optsOpen: false,
     filters: { search: "", debugMode: DEFAULT_PREFERENCES.authorDetails },
     plugin: null,
+    castMatch: null,
     anchorMatch: null,
     browseAll: false,
     showHidden: false,
@@ -319,10 +326,12 @@ export function createInitialState(): BrowserState {
     importsExpanded: new Set(),
     importsFilter: "attention",
     importsSearch: "",
+    importView: false,
     lastBrowseMode: "scenes",
     importReload: emptyImportReload(),
     minimized: false,
     libOpen: new Map(),
+    searchGroupOpen: null,
     libFull: false,
     libCustomOnly: false,
     briefFullAnims: false,

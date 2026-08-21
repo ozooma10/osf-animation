@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { browserReducer } from "../src/app/reducer";
 import {
   evaluateForState,
+  authorDetailsVisible,
   comparePlayableGroupKeys,
   comparePlayableItems,
   filteredLibrary,
@@ -10,6 +11,8 @@ import {
   hiddenSceneCount,
   hottestPickTarget,
   isVanillaAnimation,
+  libraryCustomOnly,
+  libraryFull,
   labeledFurniture,
   showUnavailable,
   locationCastChoices,
@@ -85,6 +88,15 @@ describe("browser reducer", () => {
     const moved = browserReducer(initial, { type: "cast/moved", from: 1, to: 0 });
     expect(moved.cast.map((member) => member.token)).toEqual([7, -1]);
     expect(initial.cast.map((member) => member.token)).toEqual([-1, 7]);
+  });
+
+  it("accepts role-match replies only for the current ordered cast", () => {
+    const initial = { ...createInitialState(), cast: [PLAYER_CAST, { token: 7, name: "Sarah", species: "human", sex: "female" }] };
+    const stale = browserReducer(initial, { type: "cast/matched", tokens: [7, -1], ids: new Set(["pair"]) });
+    expect(stale.castMatch).toBeNull();
+
+    const current = browserReducer(initial, { type: "cast/matched", tokens: [-1, 7], ids: new Set(["pair"]) });
+    expect(current.castMatch).toEqual({ tokens: [-1, 7], ids: new Set(["pair"]) });
   });
 
   it("clears transient modes when the host hides the view", () => {
@@ -366,6 +378,13 @@ describe("browser selectors", () => {
     });
     expect(playableGroupOpen(collapsed, "browse:pack:vanilla", true)).toBe(false);
     expect(playableGroupOpen(collapsed, "browse:pack:other", true)).toBe(true);
+    const searching = { ...state, filters: { ...state.filters, search: "vanilla" } };
+    expect(playableGroupOpen(searching, "browse:pack:other", false)).toBe(false);
+    const openedSearch = browserReducer(searching, { type: "library/group", key: "browse:pack:other", open: true });
+    expect(playableGroupOpen(openedSearch, "browse:pack:other", false)).toBe(true);
+    const switchedSearch = browserReducer(openedSearch, { type: "library/group", key: "browse:pack:vanilla", open: true });
+    expect(playableGroupOpen(switchedSearch, "browse:pack:other", false)).toBe(false);
+    expect(playableGroupOpen(switchedSearch, "browse:pack:vanilla", false)).toBe(true);
   });
 
   it("applies the unavailable-scene visibility preference", () => {
@@ -456,7 +475,12 @@ describe("browser selectors", () => {
     expect(isDerivedDebugAnimation(explicitCurated)).toBe(false);
 
     // Stock preferences: author details off, poses-and-loops tier, custom+vanilla, no search.
-    const state = { ...createInitialState(), library: [registered, harvested], libraryReceived: true };
+    const state = {
+      ...createInitialState(),
+      library: [registered, harvested],
+      libraryReceived: true,
+      castMatch: { tokens: [-1], ids: new Set([registered.id, harvested.id]) },
+    };
     const visible = playableItems(state).filter((item) => playableVisible(state, item));
     expect(visible.map((item) => item.scene.id)).toEqual([registered.id]);
     expect(hiddenSceneCount(state)).toBe(1);
@@ -590,8 +614,17 @@ describe("import report panel", () => {
     expect(state.importReload.delta.resolvedProblems).toHaveLength(1);
 
     const viewed = browserReducer(state, { type: "imports/viewContent", path: "Pack/scenes.osf.json" });
-    expect(viewed).toMatchObject({ importsOpen: false, mode: "scenes", browseAll: true, showHidden: true, allSpecies: true });
-    expect(viewed.filters).toEqual({ search: "pack/scenes.osf.json", debugMode: true });
+    expect(viewed).toMatchObject({ importsOpen: false, mode: "scenes", browseAll: true, showHidden: true, allSpecies: true, importView: true });
+    expect(viewed.filters).toEqual({ search: "pack/scenes.osf.json", debugMode: false });
+    expect(libraryFull(viewed)).toBe(true);
+    expect(libraryCustomOnly({ ...viewed, libCustomOnly: true })).toBe(false);
+    expect(authorDetailsVisible(viewed)).toBe(true);
+    expect(viewed.preferences).toEqual(state.preferences);
+
+    const searched = browserReducer(viewed, { type: "filter/search", search: "chair" });
+    expect(searched.importView).toBe(false);
+    expect(libraryFull(searched)).toBe(false);
+    expect(authorDetailsVisible(searched)).toBe(false);
   });
 
   it("formats sizes and durations at readable magnitudes", () => {

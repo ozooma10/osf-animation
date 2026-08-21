@@ -111,6 +111,19 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.imports.copyResult", payload: { ok: true, path: fields.path } }, 80);
     } else if (command === "osf.animation.anchorMatch") {
       this.later({ type: "osf.animation.anchorMatch", payload: { token: fields.token, sceneIds: MOCK_ANCHOR_MATCH[Number(fields.token)] ?? [] } }, 70);
+    } else if (command === "osf.animation.castMatch") {
+      const tokens = Array.isArray(fields.tokens) ? fields.tokens.map(Number).filter(Number.isInteger) : [];
+      const state = this.getState();
+      const members = tokens.map((token) => state.cast.find((member) => member.token === token));
+      const sceneIds = [...state.catalog, ...state.library].filter((scene) => scene.actorCount === tokens.length
+        && scene.roles.every((role, index) => {
+          const required = role.gender.toLowerCase();
+          if (!required || required === "any") return true;
+          const member = members[index];
+          const actual = member?.kind === "player" ? state.plugin?.playerSex || member.sex : member?.sex;
+          return actual?.toLowerCase() === required;
+        })).map((scene) => scene.id);
+      this.later({ type: "osf.animation.castMatch", payload: { tokens, sceneIds: [...new Set(sceneIds)] } }, 40);
     } else if (command === "osf.animation.pickScreen") {
       // The view sends the hot marker's token (resolved against pickTargets geometry);
       // this side only validates it, mirroring the native contract.

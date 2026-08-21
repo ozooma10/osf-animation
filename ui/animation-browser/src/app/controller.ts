@@ -4,10 +4,13 @@ import { browserReducer } from "./reducer";
 import {
   WHEEL_MAX,
   activeLaunches,
+  castTokens,
   comparePlayableItems,
   hottestPickTarget,
   labeledCast,
   labeledFurniture,
+  libraryCustomOnly,
+  libraryFull,
   playableItems,
   playableSceneTitle,
   playableVisible,
@@ -32,7 +35,6 @@ import {
   type ActiveLaunch,
   type ActorIndicator,
   type BrowserState,
-  type BrowserPreferences,
   type CastMember,
   type NearbyTarget,
   type PickTarget,
@@ -344,6 +346,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         dispatch({ type: "pickTargets/received", slot: record.slot === "furniture" ? "furniture" : "actor", items: normalizePickTargets(record.items) });
         break;
       case "osf.animation.anchorMatch": dispatch({ type: "anchor/matched", token: Number(record.token), ids: new Set(Array.isArray(record.sceneIds) ? record.sceneIds.map(String) : []) }); break;
+      case "osf.animation.castMatch": dispatch({
+        type: "cast/matched",
+        tokens: Array.isArray(record.tokens) ? record.tokens.map(Number).filter(Number.isInteger) : [],
+        ids: new Set(Array.isArray(record.sceneIds) ? record.sceneIds.map(String) : []),
+      }); break;
       case "osf.animation.activeScenes": dispatch({ type: "active/received", scenes: normalizeActive(record.scenes) }); break;
       case "osf.animation.launchResult":
         if (record.ok && record.handle) {
@@ -395,6 +402,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         send(record.visible ? "osf.animation.opened" : "osf.animation.closed");
         break;
       case "ui.error": showNotice("err", `Bridge rejected a message: ${record.message || record.code || "unknown error"}`); break;
+      case "bridge.requestFailed":
+        showNotice("err", record.command === "settings.set"
+          ? "That setting could not be saved. OSF UI rejected the change."
+          : `OSF UI request failed: ${record.command || "unknown request"}.`);
+        break;
     }
   };
 
@@ -418,6 +430,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   }, []);
 
   useEffect(() => {
+    if (!state.ready || !state.viewVisible || (!state.catalogReceived && !state.libraryReceived) || !state.cast.length) return;
+    send("osf.animation.castMatch", { tokens: castTokens(state) });
+  }, [state.ready, state.viewVisible, state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.cast, send]);
+
+  useEffect(() => {
     if (state.mode === "active") {
       const selectedId = validSelection(state);
       if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", sceneId: selectedId });
@@ -435,7 +452,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const first = visible[0];
       dispatch({ type: "selection/changed", sceneId: first?.scene.id ?? null, stage: first?.stage?.index ?? null });
     }
-  }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.showHidden, state.browseKind, state.libCustomOnly, state.libFull, state.cast, state.furniture, state.anchorMatch]);
+  }, [state.catalog, state.catalogReceived, state.library, state.libraryReceived, state.mode, state.filters, state.allSpecies, state.browseAll, state.showHidden, state.browseKind, state.libCustomOnly, state.libFull, state.importView, state.cast, state.castMatch, state.furniture, state.anchorMatch]);
 
   useEffect(() => {
     document.body.classList.toggle("wheel-mode", !!state.wheel);
@@ -575,7 +592,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     viewImportContent: (path) => dispatch({ type: "imports/viewContent", path }),
     copyImportReport: (path) => send("osf.animation.imports.copy", { path }),
     setPreference: (key, value) => {
-      dispatch({ type: "settings/received", preferences: { [key]: value } as Partial<BrowserPreferences> });
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });
     },
     toggleBrowseAll: () => dispatch({ type: "browse/all" }),
@@ -615,13 +631,15 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     selectLocation: (mode, token = null) => dispatch({ type: "location/selected", mode, token }),
     toggleLibraryGroup: (key, open) => dispatch({ type: "library/group", key, open }),
     toggleLibraryFull: () => {
-      const value = stateRef.current.preferences.libraryDetail === "full" ? "curated" : "full";
-      dispatch({ type: "settings/received", preferences: { libraryDetail: value } });
+      const current = stateRef.current;
+      const value = libraryFull(current) ? "curated" : "full";
+      dispatch({ type: "imports/viewCleared" });
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS.libraryDetail, value });
     },
     toggleLibraryCustomOnly: () => {
-      const value = stateRef.current.preferences.librarySource === "custom" ? "all" : "custom";
-      dispatch({ type: "settings/received", preferences: { librarySource: value } });
+      const current = stateRef.current;
+      const value = libraryCustomOnly(current) ? "all" : "custom";
+      dispatch({ type: "imports/viewCleared" });
       send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS.librarySource, value });
     },
     toggleBriefAnimations: () => dispatch({ type: "brief/fullAnimations" }),
@@ -691,7 +709,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     beginOrbitCapture: () => send("osfui.relativePointer", { active: true }),
     endOrbitCapture: () => send("osfui.relativePointer", { active: false }),
     orbit: (dx, dy, wheel) => send("osf.animation.orbit", { dx, dy, wheel }),
-    openModPage: (url) => { if (standalone) window.open(url, "_blank", "noopener"); else send("osfui.openModPage"); },
   }), [requestCatalog, requestLibrary, requestImports, requestRoutes, send, showNotice, standalone, startPlayable]);
 
   const debugCommands = useMemo<DevCommands>(

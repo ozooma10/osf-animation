@@ -7,8 +7,10 @@ import { App } from "../src/App";
 import type { BrowserCommands } from "../src/app/commands";
 import { useBrowserController } from "../src/app/controller";
 import { createInitialState } from "../src/app/state";
+import { BrowsePanel, sameUnifiedBrowserInputs } from "../src/features/browse/BrowsePanel";
 import { Segmented } from "../src/features/shared/Shared";
 import { useBrowserInput } from "../src/input/useBrowserInput";
+import { normalizeScene } from "../src/model";
 
 afterEach(() => {
   cleanup();
@@ -38,6 +40,51 @@ describe("Octane view runtime", () => {
     render(App, { props: { state: createInitialState(), commands } });
     expect(screen.getByText("Animation Browser")).toBeTruthy();
     expect(screen.getByText("waiting for runtime…")).toBeTruthy();
+  });
+
+  it("renders an outdated-host warning without advertising a dead external link", () => {
+    const state = createInitialState();
+    state.ready = true;
+    state.plugin = { version: "1.0.0", ui: { version: "1.0.0", tested: "1.1.0", outdated: true, nexusUrl: "https://example.invalid" } };
+    render(App, { props: { state, commands } });
+
+    expect(screen.getByText("UPDATE OSF UI")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "UPDATE OSF UI" })).toBeNull();
+  });
+
+  it("caps an explicitly opened broad-search group", () => {
+    const catalog = Array.from({ length: 150 }, (_, index) => normalizeScene({
+      id: `search.scene.${index}`,
+      title: `Search Scene ${index}`,
+      pack: "Search Pack",
+      actorCount: 1,
+    }));
+    const state = {
+      ...createInitialState(),
+      ready: true,
+      catalog,
+      catalogReceived: true,
+      libraryReceived: true,
+      filters: { search: "search", debugMode: false },
+      castMatch: { tokens: [-1], ids: new Set(catalog.map((scene) => scene.id)) },
+      searchGroupOpen: "browse:pack:search pack",
+    };
+    render(BrowsePanel, { props: { state, commands } });
+
+    expect(document.querySelectorAll(".playable-row")).toHaveLength(120);
+    expect(screen.getByText("SHOWING 120 OF 150 · REFINE THE SEARCH TO NARROW THIS GROUP")).toBeTruthy();
+  });
+
+  it("isolates catalog rendering from projection-only state updates", () => {
+    const state = createInitialState();
+    expect(sameUnifiedBrowserInputs(state, {
+      ...state,
+      actorIndicators: [{ token: 7, x: 0.5, y: 0.5, visible: true }],
+    })).toBe(true);
+    expect(sameUnifiedBrowserInputs(state, {
+      ...state,
+      filters: { ...state.filters, search: "pose" },
+    })).toBe(false);
   });
 
   it("updates compiled state from native click and input events", () => {

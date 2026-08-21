@@ -50,6 +50,7 @@ namespace OSF::API
 		using json = nlohmann::json;
 		using UIBridgeCatalog::BuildImportTextReport;
 		using UIBridgeCatalog::BuildCatalog;
+		using UIBridgeCatalog::ActorCountOf;
 		using UIBridgeCatalog::BuildFileReport;
 		using UIBridgeCatalog::BuildRoutes;
 		using UIBridgeCatalog::BuildWheelData;
@@ -1219,6 +1220,55 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.anchorMatch", reply);
 		}
 
+		// One authoritative role-filter sweep for the browser's ordered cast. The registry keeps
+		// keyword/race filters as resolved FormIDs, so duplicating this check in JavaScript would
+		// make READY disagree with the actual start gate. Echo the ordered tokens so a late reply
+		// cannot be applied after the user has changed or reordered the cast.
+		void OnCastMatch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
+		{
+			const json j = ParsePayload(a_payload);
+			json reply = {
+				{ "tokens", json::array() },
+				{ "sceneIds", json::array() },
+			};
+			std::vector<RE::Actor*> actors;
+			bool valid = j.is_object() && j.contains("tokens") && j["tokens"].is_array() && j["tokens"].size() <= 32;
+			if (valid) {
+				actors.reserve(j["tokens"].size());
+				for (const auto& value : j["tokens"]) {
+					const auto token = Int32Value(value);
+					if (!token) {
+						valid = false;
+						break;
+					}
+					reply["tokens"].push_back(*token);
+					RE::TESObjectREFR* ref = ResolveToken(*token);
+					if (!ref || !ref->IsActor()) {
+						valid = false;
+						break;
+					}
+					actors.push_back(static_cast<RE::Actor*>(ref));
+				}
+			}
+
+			if (valid && !actors.empty()) {
+				Registry::ContentRegistry::GetSingleton().ForEachDef([&reply, &actors](const Registry::SceneDef& d) {
+					if (!d.clipsAvailable || ActorCountOf(d) != actors.size()) {
+						return;
+					}
+					const bool accepts = d.roles.empty() || std::ranges::equal(d.roles, actors,
+						[](const Registry::SceneRole& role, RE::Actor* actor) {
+							return Matchmaking::RoleAccepts(role, actor);
+						});
+					if (accepts) {
+						reply["sceneIds"].push_back(d.id);
+					}
+				});
+			}
+			REX::DEBUG("[UI] osf.animation.castMatch {} actor(s) -> {} scene(s)", actors.size(), reply["sceneIds"].size());
+			SendJson(a_srcView, "osf.animation.castMatch", reply);
+		}
+
 		// The view reports every visibility change (ui.visibility -> osf.opened / osf.closed): the
 		// input hook learns whether a UI cursor is on screen (visible = the scene-orbit camera
 		// steers by LMB-drag; hidden = free-look).
@@ -1578,6 +1628,7 @@ namespace OSF::API
 		g_ui.RegisterCommand("osf.animation.imports.copy", &OnImportsCopy, nullptr);
 		UIBridgeWorld::RegisterCommands(g_ui);
 		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
+		g_ui.RegisterCommand("osf.animation.castMatch", &OnCastMatch, nullptr);
 		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
 		g_ui.RegisterCommand("osf.animation.route.inspect", &OnRouteInspect, nullptr);
 		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);

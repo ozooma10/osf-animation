@@ -33,6 +33,10 @@ function sameItems<T extends object>(a: readonly T[], b: readonly T[]): boolean 
   return true;
 }
 
+function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
 export function browserReducer(state: BrowserState, action: BrowserAction): BrowserState {
   switch (action.type) {
     case "runtime/ready":
@@ -54,6 +58,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ready: true,
         catalogReceived: true,
         catalog: action.scenes,
+        castMatch: null,
         wheelCustomized: action.scenes.some((scene) => scene.wheelCustomized),
       };
     case "library/received":
@@ -62,6 +67,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ready: true,
         libraryReceived: true,
         library: action.scenes,
+        castMatch: null,
         wheelCustomized: state.wheelCustomized || action.scenes.some((scene) => scene.wheelCustomized),
       };
     case "routes/requested":
@@ -202,9 +208,11 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "imports/viewContent":
       return {
         ...state, importsOpen: false, routeDebuggerOpen: false, mode: "scenes", browseKind: "all", browseAll: true,
-        showHidden: true, allSpecies: true, libFull: true, libCustomOnly: false,
-        filters: { ...state.filters, search: action.path.toLowerCase(), debugMode: true },
+        showHidden: true, allSpecies: true, importView: true, searchGroupOpen: null,
+        filters: { ...state.filters, search: action.path.toLowerCase() },
       };
+    case "imports/viewCleared":
+      return state.importView ? { ...state, importView: false } : state;
     case "cast/replaced":
       return { ...state, cast: action.members };
     case "cast/toggled": {
@@ -236,6 +244,10 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       const cast = moveMember(state.cast, action.from, action.to, action.after);
       return cast === state.cast ? state : { ...state, cast };
     }
+    case "cast/matched":
+      return sameNumbers(state.cast.map((member) => member.token), action.tokens)
+        ? { ...state, castMatch: { tokens: action.tokens, ids: action.ids } }
+        : state;
     case "nearby/received":
       return action.kind === "actor"
         ? { ...state, nearbyActors: action.targets }
@@ -310,10 +322,16 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
           browseKind: "all",
           allSpecies: false,
           libOpen: new Map<string, boolean>(),
+          searchGroupOpen: null,
         } : {}),
       };
     case "filter/search":
-      return { ...state, filters: { ...state.filters, search: action.search } };
+      return {
+        ...state,
+        importView: false,
+        searchGroupOpen: action.search ? state.searchGroupOpen : null,
+        filters: { ...state.filters, search: action.search },
+      };
     case "filter/species":
       return { ...state, allSpecies: !state.allSpecies };
     case "browse/all":
@@ -323,6 +341,9 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "browse/kind":
       return { ...state, browseKind: normalizeBrowseKind(action.kind) };
     case "library/group": {
+      if (state.filters.search) {
+        return { ...state, searchGroupOpen: action.open ? action.key : null };
+      }
       const libOpen = new Map(state.libOpen);
       libOpen.set(action.key, action.open);
       return { ...state, libOpen };

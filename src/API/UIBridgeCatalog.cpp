@@ -44,24 +44,6 @@ namespace OSF::API::UIBridgeCatalog
 			}
 		}
 
-		// Actor count for a card: the declared role count, else the first playable stage's clip count
-		// (anonymous positional scenes have no roles[]). ForEachDef pins the immutable snapshot.
-		std::size_t ActorCountOf(const Registry::SceneDef& a_def)
-		{
-			if (!a_def.roles.empty()) {
-				return a_def.roles.size();
-			}
-			const Registry::SceneNode* node = a_def.FindNode(a_def.entry);
-			if (!node && !a_def.nodes.empty()) {
-				node = &a_def.nodes.front();
-			}
-			if (node && !node->stages.empty()) {
-				return node->stages.front().clips.size();
-			}
-			return 0;
-		}
-
-
 		// How many loops an open-ended hold stage is assumed to run for the scene time estimate
 		constexpr float kHoldLoopEstimate = 2.0f;
 		bool IsEmote(const Registry::SceneDef& a_def)
@@ -237,6 +219,23 @@ namespace OSF::API::UIBridgeCatalog
 			};
 		}
 
+	}
+
+	// Declared roles are authoritative. Anonymous positional scenes instead inherit their cast
+	// width from the first playable stage, matching the catalog card and launch-plan behavior.
+	std::size_t ActorCountOf(const Registry::SceneDef& a_def)
+	{
+		if (!a_def.roles.empty()) {
+			return a_def.roles.size();
+		}
+		const Registry::SceneNode* node = a_def.FindNode(a_def.entry);
+		if (!node && !a_def.nodes.empty()) {
+			node = &a_def.nodes.front();
+		}
+		if (node && !node->stages.empty()) {
+			return node->stages.front().clips.size();
+		}
+		return 0;
 	}
 
 	bool IsWheelEntryEligible(const Registry::SceneDef& a_def, std::int32_t a_stage)

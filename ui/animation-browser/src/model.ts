@@ -630,6 +630,8 @@ export function diffImportReports(before: readonly ImportFile[], after: readonly
 }
 export interface SceneEvaluationContext {
   castCount: number;
+  castTokens: readonly number[];
+  castMatch: { tokens: readonly number[]; ids: ReadonlySet<string> } | null;
   furnitureToken: number | null;
   anchorMatch: { token: number; ids: ReadonlySet<string> } | null;
 }
@@ -640,6 +642,8 @@ export interface SceneEvaluation {
   hasRoles: boolean;
   rolesGate: boolean;
   overCast: boolean;
+  roleMatchKnown: boolean;
+  roleFilterGate: boolean;
   anchorGate: boolean;
   seated: number;
   issues: string[];
@@ -654,6 +658,11 @@ export function evaluateScene(scene: SceneModel, context: SceneEvaluationContext
   const hasRoles = actorCount > 0;
   const rolesGate = hasRoles && castCount >= actorCount;
   const overCast = hasRoles && castCount > actorCount;
+  const exactCast = hasRoles && castCount === actorCount;
+  const roleMatchKnown = !exactCast || !!context.castMatch
+    && context.castMatch.tokens.length === context.castTokens.length
+    && context.castMatch.tokens.every((token, index) => token === context.castTokens[index]);
+  const roleFilterGate = !exactCast || roleMatchKnown && context.castMatch!.ids.has(scene.id);
   const matchKnown = context.furnitureToken != null
     && context.anchorMatch?.token === context.furnitureToken;
   const anchorFits = matchKnown ? context.anchorMatch!.ids.has(scene.id) : true;
@@ -671,6 +680,11 @@ export function evaluateScene(scene: SceneModel, context: SceneEvaluationContext
     const count = castCount - actorCount;
     blockers.push(`remove ${count} cast member${count === 1 ? "" : "s"}`);
   }
+  if (exactCast && !roleMatchKnown) {
+    issues.push("checking whether this cast fits the scene roles");
+  } else if (exactCast && !roleFilterGate) {
+    blockers.push("the current cast doesn't fit the scene roles");
+  }
   if (!anchorGate) {
     const anchors = scene.anchors.join(" / ");
     issues.push(context.furnitureToken != null
@@ -682,5 +696,5 @@ export function evaluateScene(scene: SceneModel, context: SceneEvaluationContext
   const reason = gaps === 0
     ? "Ready with the current cast and furniture."
     : [...issues, ...blockers].map(sentenceCase).join(". ") + ".";
-  return { castCount, actorCount, hasRoles, rolesGate, overCast, anchorGate, seated, issues, blockers, gaps, reason };
+  return { castCount, actorCount, hasRoles, rolesGate, overCast, roleMatchKnown, roleFilterGate, anchorGate, seated, issues, blockers, gaps, reason };
 }

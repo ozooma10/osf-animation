@@ -1,7 +1,9 @@
 import type { BrowserCommands } from "../../app/commands";
+import { memo } from "octane";
 import {
   activeLaunches,
   anchorShort,
+  authorDetailsVisible,
   comparePlayableGroupKeys,
   comparePlayableItems,
   evaluateForState,
@@ -10,6 +12,8 @@ import {
   hiddenSceneCount,
   isWheelEmote,
   isWheelStage,
+  libraryCustomOnly,
+  libraryFull,
   needsText,
   packKey,
   packLabel,
@@ -19,7 +23,6 @@ import {
   playableVisible,
   sceneById,
   showUnavailable,
-  speciesLabel,
   stageLabel,
   wheelPool,
   type PlayableItem,
@@ -33,6 +36,8 @@ interface EvaluatedPlayable {
   item: PlayableItem;
   evaluation: SceneEvaluation;
 }
+
+const SEARCH_GROUP_RESULT_LIMIT = 120;
 
 function playableGroupKey(item: PlayableItem): string {
   if (item.kind === "emote" && !item.scene.pack && !item.scene.sourceFile) {
@@ -89,7 +94,7 @@ function PlayableRow({ state, entry, wheelKeys, commands }: {
       <span class="libx-spine"/>
       <span class="playable-copy">
         <span class="libx-title">{item.title}</span>
-        <span class="playable-path mono">{state.filters.debugMode
+        <span class="playable-path mono">{authorDetailsVisible(state)
           ? `${scene.id}${item.stage ? ` · stage ${item.stage.index}` : ""}`
           : item.collection || playableGroupLabel(playableGroupKey(item), [scene])}</span>
       </span>
@@ -126,14 +131,23 @@ function PlayableGroups({ state, entries, wheelKeys, commands, muted = false }: 
         && (item.stage?.index ?? null) === state.selectedStage);
       const open = playableGroupOpen(state, stateKey, containsSelection);
       const scenes = list.map(({ item }) => item.scene);
+      let shown = list;
+      if (state.filters.search && list.length > SEARCH_GROUP_RESULT_LIMIT) {
+        shown = list.slice(0, SEARCH_GROUP_RESULT_LIMIT);
+        const selected = list.find(({ item }) => item.scene.id === state.selectedId
+          && (item.stage?.index ?? null) === state.selectedStage);
+        if (selected && !shown.includes(selected)) shown = [...shown.slice(0, -1), selected];
+      }
       return <section class="libx-group" key={stateKey}>
         <button class="libx-head" onClick={() => commands.toggleLibraryGroup(stateKey, !open)}>
           <span class="chev">{open ? "▾" : "▸"}</span>
           <span class="libx-name">{playableGroupLabel(key, scenes)}</span>
           <span class="libx-meta mono">{list.length} playable{list.length === 1 ? "" : "s"}</span>
         </button>
-        {open && <div class="libx-list">{list.map((entry) =>
-          <PlayableRow key={entry.item.key} state={state} entry={entry} wheelKeys={wheelKeys} commands={commands}/>)}</div>}
+        {open && <div class="libx-list">{shown.map((entry) =>
+          <PlayableRow key={entry.item.key} state={state} entry={entry} wheelKeys={wheelKeys} commands={commands}/>)}
+          {shown.length < list.length && <div class="browse-note dim"><span class="mono">SHOWING {shown.length} OF {list.length} · REFINE THE SEARCH TO NARROW THIS GROUP</span></div>}
+        </div>}
       </section>;
     })}
   </div>;
@@ -157,11 +171,11 @@ function BrowseFilters({ state, commands, count, hiddenCount }: {
         {kinds.map(({ value, label }) => <button class={state.browseKind === value ? "on" : ""}
           aria-pressed={state.browseKind === value} onClick={() => commands.setBrowseKind(value)} key={value}>{label}</button>)}
       </div>
-      <button class={`filter-chip ${state.libCustomOnly ? "on" : ""}`} onClick={commands.toggleLibraryCustomOnly}>
-        {state.libCustomOnly ? "CUSTOM ONLY" : "CUSTOM + VANILLA"}
+      <button class={`filter-chip ${libraryCustomOnly(state) ? "on" : ""}`} onClick={commands.toggleLibraryCustomOnly}>
+        {libraryCustomOnly(state) ? "CUSTOM ONLY" : "CUSTOM + VANILLA"}
       </button>
-      {!state.filters.search && <button class={`filter-chip ${state.libFull ? "on" : ""}`} onClick={commands.toggleLibraryFull}>
-        {state.libFull ? "FULL DETAIL" : "POSES & LOOPS"}
+      {!state.filters.search && <button class={`filter-chip ${libraryFull(state) ? "on" : ""}`} onClick={commands.toggleLibraryFull}>
+        {libraryFull(state) ? "FULL DETAIL" : "POSES & LOOPS"}
       </button>}
       {(state.showHidden || hiddenCount > 0) && <button class={`filter-chip ${state.showHidden ? "on" : ""}`}
         title={`${state.showHidden ? "Hide" : "Show"} ${hiddenCount} hidden scene${hiddenCount === 1 ? "" : "s"}`}
@@ -169,12 +183,39 @@ function BrowseFilters({ state, commands, count, hiddenCount }: {
         {state.showHidden ? "HIDE HIDDEN" : "SHOW HIDDEN"} · {hiddenCount}
       </button>}
     </div>
+    {state.importView && <div class="browse-note"><Dot active/><span class="lbl">IMPORT VIEW · TEMPORARILY SHOWING ALL SOURCES AND AUTHOR DETAILS</span></div>}
     <SpeciesFilter state={state} onToggle={commands.toggleSpecies}/>
     <div class="browse-note"><Dot active/><span class="lbl">PLAYABLE NOW · {count}</span></div>
   </>;
 }
 
-function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
+export function sameUnifiedBrowserInputs(previous: BrowserState, next: BrowserState): boolean {
+  return previous.catalogReceived === next.catalogReceived
+    && previous.libraryReceived === next.libraryReceived
+    && previous.catalog === next.catalog
+    && previous.library === next.library
+    && previous.cast === next.cast
+    && previous.castMatch === next.castMatch
+    && previous.furniture === next.furniture
+    && previous.anchorMatch === next.anchorMatch
+    && previous.selectedId === next.selectedId
+    && previous.selectedStage === next.selectedStage
+    && previous.filters === next.filters
+    && previous.browseKind === next.browseKind
+    && previous.allSpecies === next.allSpecies
+    && previous.showHidden === next.showHidden
+    && previous.browseAll === next.browseAll
+    && previous.preferences.unavailableScenes === next.preferences.unavailableScenes
+    && previous.libCustomOnly === next.libCustomOnly
+    && previous.libFull === next.libFull
+    && previous.importView === next.importView
+    && previous.libOpen === next.libOpen
+    && previous.searchGroupOpen === next.searchGroupOpen
+    && previous.wheelCustomized === next.wheelCustomized
+    && previous.wheel === next.wheel;
+}
+
+const UnifiedBrowser = memo(function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   if (!state.catalogReceived && !state.libraryReceived) return <Empty>Waiting for the playable catalog…</Empty>;
   const entries = playableItems(state).filter((item) => playableVisible(state, item))
     .map((item) => ({ item, evaluation: evaluateForState(state, item.scene) }));
@@ -198,7 +239,7 @@ function UnifiedBrowser({ state, commands }: { state: BrowserState; commands: Br
       <div class="browse-note dim"><Dot/><span class="lbl">NEEDS DIFFERENT CAST OR FURNITURE · {rest.length}</span></div>}
     {showRest && <PlayableGroups state={state} entries={rest} wheelKeys={wheelKeys} muted commands={commands}/>}
   </>;
-}
+}, (previous, next) => previous.commands === next.commands && sameUnifiedBrowserInputs(previous.state, next.state));
 
 function ActiveBrowser({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
   const launches = activeLaunches(state);

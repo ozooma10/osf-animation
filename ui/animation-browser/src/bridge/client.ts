@@ -36,7 +36,7 @@ export class OsfUiBridge implements AnimationBridge {
       "osf.animation.imports.reloadResult", "osf.animation.imports.copyResult",
       "osf.animation.wheel.data", "osf.animation.pick", "osf.animation.openTarget",
       "osf.animation.scanResults", "osf.animation.actorIndicators",
-      "osf.animation.pickTargets", "osf.animation.anchorMatch",
+      "osf.animation.pickTargets", "osf.animation.anchorMatch", "osf.animation.castMatch",
       "osf.animation.activeScenes", "osf.animation.launchResult",
       "osf.animation.notice", "osf.animation.mode", "ui.visibility",
       "osfui.debug.error",
@@ -56,8 +56,18 @@ export class OsfUiBridge implements AnimationBridge {
 
   send(command: BridgeCommand, fields: Record<string, unknown> = {}): void {
     if (command === "settings.get") return; // osfui/settings state replays on subscribe
-    if (command === "settings.set" || command === "osfui.openModPage") {
-      void window.osfui?.request?.(command, fields).catch(() => undefined);
+    if (command === "settings.set") {
+      try {
+        void window.osfui?.request?.(command, fields).catch((error: unknown) => this.emit({
+          type: "bridge.requestFailed",
+          payload: { command, message: error instanceof Error ? error.message : String(error || "request rejected") },
+        }));
+      } catch (error) {
+        this.emit({
+          type: "bridge.requestFailed",
+          payload: { command, message: error instanceof Error ? error.message : String(error || "request rejected") },
+        });
+      }
       return;
     }
     window.osfui?.send?.(command, fields);

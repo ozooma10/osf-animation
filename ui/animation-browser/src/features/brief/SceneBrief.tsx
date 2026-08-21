@@ -2,6 +2,7 @@ import type { BrowserCommands } from "../../app/commands";
 import { useRef } from "octane";
 import {
   anchorFull,
+  authorDetailsVisible,
   evaluateForState,
   formatDuration,
   formatEstimate,
@@ -148,10 +149,10 @@ export function SceneBrief({ state, commands }: { state: BrowserState; commands:
     <div class={`brief-status ${ready ? "" : "warn"}`}><span class="dot"/><p class="eb">{ready ? `${itemKind} · READY TO PLAY` : `${itemKind} · NOT READY`}</p></div>
     <div class="brief-title">{itemTitle}{(focusedStage ? formatDuration(focusedStage.loopSec ?? focusedStage.estSec) : formatEstimate(scene)) && <span class="card-dur">{focusedStage ? formatDuration(focusedStage.loopSec ?? focusedStage.estSec) : formatEstimate(scene)}</span>}</div>
     {focusedStage && scene.stages.length > 1 && <div class="mono wrap brief-collection">{playableSceneTitle(scene)}</div>}
-    {state.filters.debugMode && <div class="mono wrap brief-src">{scene.id} · {scene.sourceFile || "live registry"}</div>}
+    {authorDetailsVisible(state) && <div class="mono wrap brief-src">{scene.id} · {scene.sourceFile || "live registry"}</div>}
     <div class={`brief-line ${ready ? "" : "warn"}`}><span class="mono">{summary}</span></div>
     {(focusedStage || wholeWheel || state.wheelCustomized) && <div class="brief-pin">{focusedStage ? <WheelControls state={state} scene={scene} stage={focusedStage} wide commands={commands}/> : wholeWheel && <WheelControls state={state} scene={scene} wide commands={commands}/>} {state.wheelCustomized && <button class="pin-btn reset" title="Restore installed default animations" onClick={commands.resetWheel}>RESET DEFAULTS</button>}</div>}
-    <div class="brief-scroll"><RoleMap state={state} scene={scene} evaluation={evaluation} commands={commands}/><AnimationList state={state} scene={scene} canPlay={canPlay} focusStage={focusedStage?.index} commands={commands}/>{state.filters.debugMode && <Diagnostics scene={scene} evaluation={evaluation}/>}</div>
+    <div class="brief-scroll"><RoleMap state={state} scene={scene} evaluation={evaluation} commands={commands}/><AnimationList state={state} scene={scene} canPlay={canPlay} focusStage={focusedStage?.index} commands={commands}/>{authorDetailsVisible(state) && <Diagnostics scene={scene} evaluation={evaluation}/>}</div>
     <div class="brief-foot"><Overrides state={state} commands={commands}/><div class="launch-stack">
       {reason && <div class="mono wrap" style={{ color: "var(--text-faint)", textAlign: "center" }}>{reason}</div>}
       {canPlay ? <div class="launch-actions"><button class="launch-btn inspect" title="Launch paused at the first frame and open the timeline" onClick={() => commands.launch(focusedStage?.index, !!focusedStage, undefined, true)}>◇ Inspect</button><button class="launch-btn go" onClick={() => commands.launch(focusedStage?.index, !!focusedStage)}>▶ {focusedStage ? "Play Animation" : emote ? "Play Emote" : "Launch Scene"}</button></div> : <button class="launch-btn blocked" disabled>{!state.ready ? "Engine Offline" : `Blocked · ${evaluation.gaps} gap${evaluation.gaps > 1 ? "s" : ""}`}</button>}

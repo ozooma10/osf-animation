@@ -157,17 +157,18 @@ let playableMemo: {
 } | null = null;
 
 export function playableItems(state: BrowserState): PlayableItem[] {
+  const customOnly = libraryCustomOnly(state);
   if (playableMemo &&
     playableMemo.catalog === state.catalog &&
     playableMemo.library === state.library &&
-    playableMemo.libCustomOnly === state.libCustomOnly) {
+    playableMemo.libCustomOnly === customOnly) {
     return playableMemo.items;
   }
   const items = buildPlayableItems(state);
   playableMemo = {
     catalog: state.catalog,
     library: state.library,
-    libCustomOnly: state.libCustomOnly,
+    libCustomOnly: customOnly,
     items,
   };
   return items;
@@ -229,7 +230,7 @@ export function comparePlayableItems(state: BrowserState, a: PlayableItem, b: Pl
 }
 
 export function playableGroupOpen(state: BrowserState, key: string, containsSelection: boolean): boolean {
-  if (state.filters.search) return true;
+  if (state.filters.search) return state.searchGroupOpen === key;
   return state.libOpen.get(key) ?? containsSelection;
 }
 
@@ -248,7 +249,7 @@ export function playableVisible(state: BrowserState, item: PlayableItem): boolea
   if (item.kind === "animation") {
     const matchKnown = !!state.furniture && state.anchorMatch?.token === state.furniture.token;
     if (matchKnown && !state.anchorMatch?.ids.has(item.scene.id)) return false;
-    if (!matchKnown && !state.libFull && !state.filters.search && item.stage && !stageClean(item.stage)) return false;
+    if (!matchKnown && !libraryFull(state) && !state.filters.search && item.stage && !stageClean(item.stage)) return false;
   }
   return true;
 }
@@ -288,9 +289,23 @@ export function isVanillaAnimation(scene: SceneModel): boolean {
 }
 
 export function filteredLibrary(state: BrowserState): SceneModel[] {
-  return state.libCustomOnly
+  return libraryCustomOnly(state)
     ? state.library.filter((scene) => !isVanillaAnimation(scene))
     : state.library;
+}
+
+/** Effective browser filters. Imports -> View Content widens these temporarily without
+ * mutating the user's persisted settings or the settings panel's source of truth. */
+export function libraryFull(state: BrowserState): boolean {
+  return state.importView || state.libFull;
+}
+
+export function libraryCustomOnly(state: BrowserState): boolean {
+  return !state.importView && state.libCustomOnly;
+}
+
+export function authorDetailsVisible(state: BrowserState): boolean {
+  return state.importView || state.filters.debugMode;
 }
 
 export function sceneById(state: BrowserState, id: string | null): SceneModel | null {
@@ -353,9 +368,20 @@ export function unlistedVisible(state: BrowserState, scene: SceneModel): boolean
 export function evaluateForState(state: BrowserState, scene: SceneModel): SceneEvaluation {
   return evaluateScene(scene, {
     castCount: state.cast.length,
+    castTokens: castTokens(state),
+    castMatch: state.castMatch,
     furnitureToken: state.furniture?.token ?? null,
     anchorMatch: state.anchorMatch,
   });
+}
+
+let castTokenMemo: { cast: BrowserState["cast"]; tokens: readonly number[] } | null = null;
+
+export function castTokens(state: BrowserState): readonly number[] {
+  if (castTokenMemo?.cast === state.cast) return castTokenMemo.tokens;
+  const tokens = state.cast.map((member) => member.token);
+  castTokenMemo = { cast: state.cast, tokens };
+  return tokens;
 }
 
 export function castSpecies(state: BrowserState): ReadonlySet<string> {
@@ -438,6 +464,8 @@ export function needsText(state: BrowserState, scene: SceneModel, evaluation = e
     const count = evaluation.castCount - evaluation.actorCount;
     return `-${count} cast`;
   }
+  if (!evaluation.roleMatchKnown) return "checking cast";
+  if (!evaluation.roleFilterGate) return "cast mismatch";
   return "";
 }
 
