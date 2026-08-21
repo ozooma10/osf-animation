@@ -2,7 +2,7 @@
 
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@octanejs/testing-library";
 import { useState } from "octane";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import type { BrowserCommands } from "../src/app/commands";
 import { useBrowserController } from "../src/app/controller";
@@ -10,7 +10,10 @@ import { createInitialState } from "../src/app/state";
 import { Segmented } from "../src/features/shared/Shared";
 import { useBrowserInput } from "../src/input/useBrowserInput";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const commands = new Proxy({}, {
   get: () => () => undefined,
@@ -66,5 +69,27 @@ describe("Octane view runtime", () => {
 
     expect(worldDown.defaultPrevented).toBe(true);
     expect(panelDown.defaultPrevented).toBe(false);
+  });
+
+  it("accumulates high-refresh mouse moves into one paced orbit send", () => {
+    vi.useFakeTimers();
+    const orbit = vi.fn();
+    const orbitCommands = new Proxy({ orbit }, {
+      get: (target, property) => property === "orbit" ? target.orbit : () => undefined,
+    }) as unknown as BrowserCommands;
+    renderHook(() => useBrowserInput(createInitialState(), orbitCommands, false));
+    const world = document.createElement("div");
+    document.body.append(world);
+
+    world.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: 20 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 12, clientY: 23 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 15, clientY: 27 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 19, clientY: 32 }));
+
+    vi.advanceTimersByTime(15);
+    expect(orbit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(orbit).toHaveBeenCalledOnce();
+    expect(orbit).toHaveBeenLastCalledWith(9, 12, 0);
   });
 });
