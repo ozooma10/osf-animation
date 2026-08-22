@@ -706,8 +706,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     pickWheel: (index) => { const current = stateRef.current; const wheel = current.wheel; if (!wheel || wheel.launching) return; const entry = wheel.entries[index]; if (!entry) return; dispatch({ type: "wheel/launching", key: entry.key }); send("osf.animation.launch", { sceneId: entry.scene, castTokens: [wheel.target?.token ?? PLAYER_TOKEN], opts: entry.stage == null ? {} : { stage: entry.stage } }); },
     cancelWheel: () => send("osf.animation.requestClose"),
     requestClose: () => send("osf.animation.requestClose"),
-    beginOrbitCapture: () => send("osfui.relativePointer", { active: true }),
-    endOrbitCapture: () => send("osfui.relativePointer", { active: false }),
     orbit: (dx, dy, wheel) => send("osf.animation.orbit", { dx, dy, wheel }),
   }), [requestCatalog, requestLibrary, requestImports, requestRoutes, send, showNotice, standalone, startPlayable]);
 
