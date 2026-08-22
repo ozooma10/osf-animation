@@ -115,7 +115,10 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
   }, [commands, standalone, state.active, state.importsOpen, state.lastHandle, state.pickMode, state.routeDebuggerOpen, state.settingsOpen, state.wheel]);
 
   useEffect(() => {
-    const orbit = { dragging: false, selecting: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, timer: 0 };
+    const orbit = { dragging: false, selecting: false, native: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, timer: 0 };
+    // Pick mode keeps the established five-pixel click/drag discriminator in
+    // the page. Ordinary world drags use OSF UI's raw native path.
+    const nativeRelativePointer = !standalone && !state.pickMode && state.plugin?.relativePointer === true;
     const worldTarget = (target: EventTarget | null) => !state.wheel && !(target instanceof Element && target.closest(".console, .brief, .livebar"));
     const flush = () => {
       orbit.timer = 0;
@@ -130,9 +133,11 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       event.preventDefault();
       orbit.dragging = true;
       orbit.selecting = !!state.pickMode;
+      orbit.native = nativeRelativePointer;
       orbit.x = event.clientX;
       orbit.y = event.clientY;
       orbit.dx = orbit.dy = 0;
+      if (orbit.native) commands.beginOrbitCapture();
     };
     const move = (event: MouseEvent) => {
       if (!orbit.dragging) return;
@@ -142,14 +147,15 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       orbit.y = event.clientY;
       if (orbit.selecting && Math.hypot(orbit.dx, orbit.dy) <= 5) return;
       orbit.selecting = false;
-      queue();
+      if (!orbit.native) queue();
     };
     const up = (event: MouseEvent) => {
       if (event.button !== 0 || !orbit.dragging) return;
       if (orbit.selecting && state.pickMode) commands.pickAt(event.clientX / innerWidth, event.clientY / innerHeight, innerWidth, innerHeight);
+      if (orbit.native) commands.endOrbitCapture();
       orbit.dragging = orbit.selecting = false;
     };
-    const wheel = (event: WheelEvent) => { if (!worldTarget(event.target)) return; event.preventDefault(); orbit.wheel += Math.sign(event.deltaY); queue(); };
+    const wheel = (event: WheelEvent) => { if (!worldTarget(event.target)) return; event.preventDefault(); if (orbit.native && orbit.dragging) return; orbit.wheel += Math.sign(event.deltaY); queue(); };
     document.addEventListener("mousedown", down);
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", up);
@@ -159,7 +165,8 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
       document.removeEventListener("wheel", wheel);
+      if (orbit.dragging && orbit.native) commands.endOrbitCapture();
       if (orbit.timer) clearTimeout(orbit.timer);
     };
-  }, [commands, state.pickMode, state.visibilitySerial, state.wheel]);
+  }, [commands, standalone, state.pickMode, state.plugin?.relativePointer, state.visibilitySerial, state.wheel]);
 }
