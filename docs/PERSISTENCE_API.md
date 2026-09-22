@@ -1,10 +1,16 @@
 # Shared native persistence API
 
-**Status:** Implemented in OSF Animation 1.2.0. Public ABI: `OSFPersistenceAPI` 1.0. Disk format: `OSFP` 1.
+**Status:** Hosted by OSF Settings; originally implemented in OSF Animation 1.2.0. Public ABI: `OSFPersistenceAPI` 1.0. Disk format: `OSFP` 1.
 
 ## Purpose and ownership
 
-OSF Animation owns one `.osf` sidecar beside each Starfield save and brokers isolated record streams for native SFSE plugins. A client owns its own record types, versions, and migration logic. The broker does not understand client payloads, expose the physical file cursor, patch SFSE's `SerializationInterface`, or use the `.sfse` extension.
+OSF Settings owns one `.osf` sidecar beside each Starfield save and brokers isolated record streams for native SFSE plugins. A client owns its own record types, versions, and migration logic. The broker does not understand client payloads, expose the physical file cursor, patch SFSE's `SerializationInterface`, or use the `.sfse` extension.
+
+Animation retains `OSF_RequestPersistenceAPI` as a forwarding export for existing consumers.
+It returns the Settings-owned table and installs no persistence hooks. Without a compatible,
+ready `OSFSettings.dll`, per-save persistence is unavailable; Animation retains local scene
+teardown. New consumers should resolve the factory directly from OSF Settings. Upgrade the
+host and Animation together; an older Animation release still attempts to own these hooks.
 
 The copyable consumer header is [`src/API/OSFPersistenceAPI.h`](../src/API/OSFPersistenceAPI.h). The only exported symbol is:
 
@@ -19,11 +25,11 @@ The ABI contains only fixed-width integers, opaque pointers, and C function poin
 
 `OSF_PERSISTENCE_API_VERSION` packs `MAJOR << 16 | MINOR`. A major change may break layout or semantics. Within one major, additions are append-only at the end of a structure and increment MINOR. Existing fields are not reordered or retyped. A consumer initializes `size` to the structure size it compiled against and requests the version it understands.
 
-The 1.0 factory accepts requests for major 1 with a requested minor no newer than the host. It returns `nullptr` for an incompatible version. `GetInterfaceVersion` reports the table version; `GetPluginVersion` reports the OSF Animation semantic version.
+The 1.0 factory accepts requests for major 1 with a requested minor no newer than the host. It returns `nullptr` for an incompatible version. `GetInterfaceVersion` reports the table version; `GetPluginVersion` reports the OSF Settings semantic version.
 
 ## Acquisition and registration
 
-Consumers dynamically resolve the factory and do not link OSF Animation:
+Consumers dynamically resolve the factory and do not link OSF Settings:
 
 ```cpp
 #include "OSFPersistenceAPI.h"
@@ -33,7 +39,7 @@ const OSFPersistenceAPI* g_persistence{};
 
 bool RegisterPersistence()
 {
-    HMODULE module = GetModuleHandleW(L"OSF Animation.dll");
+    HMODULE module = GetModuleHandleW(L"OSFSettings.dll");
     if (!module) return false;
 
     auto request = reinterpret_cast<OSF_RequestPersistenceAPI_t>(
@@ -119,7 +125,7 @@ A missing sidecar is a clean load after revert; it does not invoke `load`. Save 
 
 The load reader bounds every read to the current record and client block. Calling `GetNextRecordInfo` skips any unread bytes from the previous record. `ResolveFormID` applies remap/delete information captured for the current load; a false result means the form no longer resolves. ABI 1.0 has no `ResolveHandle`, because the current host cannot promise correct cross-plugin handle remapping. It can be appended in a future minor once that support is reliable.
 
-OSF Animation registers itself through the same broker as `OSFA`. Its current internal persistence responsibility is the pre-load scene/graph teardown previously performed by `SaveSafety`; there is no privileged parallel record path.
+OSF Animation registers itself as a consumer through the same broker as `OSFA`. Its current internal persistence responsibility is the pre-load scene/graph teardown previously performed by `SaveSafety`; there is no privileged parallel record path.
 
 ## Sidecar lifecycle and format
 

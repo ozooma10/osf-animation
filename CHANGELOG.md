@@ -4,6 +4,12 @@ All notable changes to OSF Animation are documented here.
 
 ## [Unreleased]
 
+### Changed
+- Shared per-save persistence now comes from OSF Settings. Animation registers as its `OSFA`
+  client and forwards its existing persistence API export to Settings. Existing `.osf` files
+  remain compatible. Install the matching OSF Settings update for per-save records; Animation
+  still tears down scenes when Settings is absent, but does not provide a sidecar host.
+
 ### Added
 - **Persistent actor overlay routes (native ABI 1.0).** External SFSE plugins can own one masked,
   content-neutral route per actor, request zero-animation or animated stations, acknowledge exact

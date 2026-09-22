@@ -1,13 +1,13 @@
 // ============================================================================
-// OSFPersistenceAPI.h - copyable C ABI for OSF Animation per-save persistence.
+// OSFPersistenceAPI.h - copyable C ABI for OSF Settings per-save persistence.
 //
-// Drop this header into a native SFSE plugin and link nothing from OSF Animation.
+// Drop this header into a native SFSE plugin and link nothing from OSF Settings.
 // Acquire OSF_RequestPersistenceAPI with GetModuleHandleW/GetProcAddress, then
 // register at SFSE kPostDataLoad. The host copies clientName and the descriptor.
 // Callback tables and the returned service table are host-owned; never delete them.
 //
 // Compact example (error handling abbreviated):
-//   auto mod = GetModuleHandleW(L"OSF Animation.dll");
+//   auto mod = GetModuleHandleW(L"OSFSettings.dll");
 //   auto request = reinterpret_cast<OSF_RequestPersistenceAPI_t>(
 //       GetProcAddress(mod, "OSF_RequestPersistenceAPI"));
 //   const OSFPersistenceAPI* api = request(OSF_PERSISTENCE_API_VERSION);

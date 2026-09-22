@@ -150,14 +150,6 @@ target("osf-af-import-test")
     add_files("src/Serialization/AFImport.cpp", "src/Util/Ba2.cpp", "test/AFImportTest.cpp")
     add_includedirs("src")
 
--- Standalone shared-persistence broker tests (no game/CommonLib runtime needed).
-target("osf-persistence-test")
-    set_kind("binary")
-    set_default(false)
-    add_tests("default")
-    add_files("src/Serialization/PersistenceBroker.cpp", "test/PersistenceTest.cpp")
-    add_includedirs("src")
-
 -- Native scene-event callback registry tests (no game runtime needed).
 target("osf-native-scene-event-test")
     set_kind("binary")

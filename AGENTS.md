@@ -8,7 +8,7 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the seven engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the engine-free C++ suites (
   native scene-event callbacks,
   frame clock/clip specs, additive pose math, sound registry, scene registry, route planner/controller plus owner/admission contracts — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
@@ -73,8 +73,10 @@ Each entry: **system** (`path`) — role.
   load (VM is rebuilt).
 - **Save-safety** (`src/Serialization/SaveSafety.*`) — `GraphManager::StopAll` drops ALL scene/graph
   state on a world-replacing load (SaveLoadEvent begin sink + TESLoadGameEvent backstop + manual).
-- **Shared persistence** (`src/API/OSFPersistenceAPI.h`, `src/Serialization/Persistence{Broker,Host}.*`) —
-  public C ABI for per-plugin record streams in one atomic `.osf` sidecar (`OSFP` container); deterministic/bounded broker, load remap/delete forwarding, save/load/delete hooks, and internal `OSFA` client. See `docs/PERSISTENCE_API.md`.
+- **Shared persistence** (`src/API/OSFPersistenceAPI.h`, `src/Serialization/PersistenceHost.*`) -
+  Animation registers the `OSFA` client with OSF Settings, which owns the shared `.osf` sidecar
+  and all save/load/delete hooks. Animation's old factory export forwards to Settings for existing
+  consumers. Local load teardown still works without Settings. See `docs/PERSISTENCE_API.md`.
 - **Startup** (`src/main.cpp`) — logs game-version vs RE build, loads packs+scenes+sound pools, inits
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 

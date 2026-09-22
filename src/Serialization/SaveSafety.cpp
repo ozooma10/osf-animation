@@ -144,7 +144,7 @@ namespace OSF::Serialization::SaveSafety
 
 	void RegisterLoadEventSinks()
 	{
-		PersistenceHost::RegisterEventSinks();
+		PersistenceHost::RegisterClient();
 		if (!SaveLoadEventSourcePrologueMatches()) {
 			REX::WARN("[Save] SaveLoadEvent GetEventSource prologue mismatch; relying on TESLoadGameEvent backstop");
 		} else if (auto* saveLoadSrc = RE::SaveLoadEvent::GetEventSource(); saveLoadSrc) {
