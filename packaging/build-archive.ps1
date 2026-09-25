@@ -7,10 +7,8 @@
 .DESCRIPTION
   Flow:
     1. (unless -SkipBuild) clean-configure xmake with profiling disabled, then build
-       - the before_build hook rebuilds the browser view if ui/animation-browser is newer
-       - the after_build hook also deploys to MO2, which is the normal dev flow
-    2. stage the FOMOD tree (Core / Library / Immersion / fomod) from the authoritative
-       sources: build/ (DLL + generated browser view), dist/ (scripts + scene packs)
+       - the after_build hook also deploys the engine to MO2
+    2. stage the engine FOMOD from build/ (DLL) and dist/ (scripts + internal scene)
     3. add the license docs a GPL distribution must carry
     4. verify every required file is present (hard fail, never a silent skip)
     5. zip -> packaging/out/OSF Animation v<version>[-tag].zip, print size + SHA-256
@@ -72,12 +70,12 @@ if (-not $SkipBuild) {
         Step "xmake f -c -m $DllFlavor -P . -o build"
         xmake f -c -m $DllFlavor -P . -o build -y
         if ($LASTEXITCODE -ne 0) { Die 'xmake config failed.' }
-        Step 'xmake -P .   (also refreshes the browser view + deploys to MO2)'
+        Step 'xmake -P .   (also deploys the engine to MO2)'
         xmake -P . -y
         if ($LASTEXITCODE -ne 0) { Die 'Build failed.' }
     } finally { Pop-Location }
 } else {
-    Warn 'SkipBuild: packaging whatever is already in build/ + dist/ (browser view included, and possibly stale).'
+    Warn 'SkipBuild: packaging whatever is already in build/ + dist/.'
 }
 
 $dll = Join-Path $repo "build\windows\x64\$DllFlavor\OSF Animation.dll"
@@ -115,7 +113,7 @@ $core = "$stage\Core"
 @("$core\SFSE\Plugins", "$core\Scripts\Source") |
     ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 
-Step 'Staging Core (DLL + Papyrus API + browser view + internal scenes)'
+Step 'Staging Core (DLL + Papyrus API + internal scenes)'
 Copy-Item $dll "$core\SFSE\Plugins\"
 if ($IncludePdb) {
     if (-not (Test-Path $pdb)) { Die "-IncludePdb: $pdb not found." }
@@ -125,17 +123,6 @@ foreach ($s in $apiScripts) {
     Copy-Item "$dist\Scripts\$s.pex" "$core\Scripts\"
     Copy-Item "$dist\Scripts\Source\$s.psc" "$core\Scripts\Source\"
 }
-
-# Stage only Animation's generated namespace. OSF UI supplies /shared/osfui.js.
-$viewsSrc = Join-Path $repo 'build\osfui-animation-browser\SFSE\Plugins\OSF\UI\views\osf.animation'
-$viewSrc = Join-Path $viewsSrc 'browser'
-if (-not (Test-Path "$viewSrc\index.html")) { Die "Browser view missing: $viewSrc (run npm run build in ui/animation-browser, or drop -SkipBuild)" }
-$viewsDst = "$core\SFSE\Plugins\OSF\UI\views\osf.animation"
-New-Item -ItemType Directory -Force -Path $viewsDst | Out-Null
-Copy-Item "$viewsSrc\*" $viewsDst -Recurse
-# .js.map is dev-only (no in-game devtools consume it) and bloats the archive — never ship it.
-# Copy-Item -Recurse -Exclude misses files in subfolders, so prune the staged copy explicitly.
-Get-ChildItem $viewsDst -Recurse -Filter '*.map' | Remove-Item -Force
 
 # License docs a distribution must carry (GPL-3.0 + modding exception + attribution).
 # They live inside the plugin's own folder so the game's Data root stays clean.
@@ -157,24 +144,6 @@ New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
 # health self-test works on a clean install (scenes are looked up by id, independent of filename).
 Copy-Item "$dist\OSF\internal.osf.json" "$core\OSF\internal.osf.json"
 
-# --- stage Animation Library (opt-in FOMOD group "Animation Library") ------
-# The browsable vanilla + creature catalog: pure JSON packs that reference game-archive
-# .af clips (no baked animation data, ~2.3 MB). The browser's library lane is empty without these.
-$lib = "$stage\Library\OSF\vanilla"
-New-Item -ItemType Directory -Force -Path $lib | Out-Null
-$libPacks = @(Get-ChildItem "$dist\OSF\vanilla" -Filter '*.osf.json' -ErrorAction SilentlyContinue)
-if ($libPacks.Count -lt 20) {
-    Die "Animation library looks incomplete: $($libPacks.Count) packs in $dist\OSF\vanilla (expected the full vanilla+creature set; generate with tools/vanilla-packs)."
-}
-$libPacks | ForEach-Object { Copy-Item $_.FullName $lib }
-
-# --- stage Immersion Actions (opt-in FOMOD group "Immersion Actions") ------
-# Emote-wheel content: the player.emote.* scenes the wheel enumerates.
-$imm = "$stage\Immersion\OSF\immersion"
-New-Item -ItemType Directory -Force -Path $imm | Out-Null
-if (-not (Test-Path "$dist\OSF\immersion\emotes.osf.json")) { Die "Immersion pack missing: $dist\OSF\immersion\emotes.osf.json" }
-Copy-Item "$dist\OSF\immersion\emotes.osf.json" $imm
-
 # --- fomod installer -------------------------------------------------------
 # fomod/ (incl. fomod/images/ banner + plugin art referenced by ModuleConfig.xml) + stamp the version.
 Copy-Item "$PSScriptRoot\fomod" "$stage\fomod" -Recurse
@@ -190,29 +159,20 @@ $required = @(
     'Core\Scripts\OSF.pex', 'Core\Scripts\OSFTypes.pex', 'Core\Scripts\OSFAdvanced.pex',
     'Core\Scripts\Source\OSF.psc', 'Core\Scripts\Source\OSFTypes.psc', 'Core\Scripts\Source\OSFAdvanced.psc',
     'Core\SFSE\Plugins\OSF\Settings\schemas\osf.animation.json',
-    'Core\SFSE\Plugins\OSF\UI\views\osf.animation\browser\index.html',
-    'Core\SFSE\Plugins\OSF\UI\views\osf.animation\browser\manifest.json',  # OSF UI discovers the view by this
     'Core\SFSE\Plugins\OSF Animation\LICENSE',      # GPL-3.0 text (required to distribute)
     'Core\SFSE\Plugins\OSF Animation\EXCEPTIONS',   # GPL 7 modding/linking exception
     'Core\OSF\internal.osf.json',
-    'Immersion\OSF\immersion\emotes.osf.json',
     'fomod\ModuleConfig.xml', 'fomod\info.xml', 'fomod\images\header.jpg'
 )
 $missing = $required | Where-Object { -not (Test-Path (Join-Path $stage $_)) }
 if ($missing) { Die ("Staged archive is missing required files:`n    " + ($missing -join "`n    ")) }
-# Layout-independent: the CLI namespaces assets under views\<modId>\assets, so probe recursively.
-if (-not (Get-ChildItem "$core\SFSE\Plugins\OSF\UI\views" -Recurse -Filter '*.js' -ErrorAction SilentlyContinue)) {
-    Die 'Staged browser view has no generated JavaScript asset.'
+if (Test-Path "$core\SFSE\Plugins\OSF\UI\views\osf.animation") {
+    Die 'The browser view leaked into the engine archive.'
 }
 
 # The dev-only test harness must never ship.
 if (Get-ChildItem $stage -Recurse -Include 'OSFTest.pex', 'OSFTest.psc' -ErrorAction SilentlyContinue) {
     Die 'OSFTest leaked into the stage — it is dev-only and must not ship.'
-}
-
-# JS source maps are dev-only; the staging copy above prunes them, so any survivor is a bug.
-if (Get-ChildItem $stage -Recurse -Include '*.map' -ErrorAction SilentlyContinue) {
-    Die 'A .map source map leaked into the stage — source maps are dev-only and must not ship.'
 }
 
 # Every <folder source="..."> the installer references must exist in the stage,
@@ -238,8 +198,8 @@ Write-Host ''
 Write-Host 'OK  Release archive ready' -ForegroundColor Green
 Write-Host "    $zip"
 $pdbNote = if ($IncludePdb) { 'PDB included' } else { 'no PDB (-IncludePdb to ship crash-log symbols)' }
-Write-Host "    $sizeMB MB, $fileCount files ($DllFlavor, $($libPacks.Count) library packs, $pdbNote)"
+Write-Host "    $sizeMB MB, $fileCount files ($DllFlavor, $pdbNote)"
 Write-Host "    SHA256 $sha"
 Write-Host ''
-Write-Host '    FOMOD archive: install with MO2 / Vortex (Core is required; Animation Library'
-Write-Host '    and Emote Wheel Content are the opt-in steps). Requires SFSE + OSF UI + OSF Settings.'
+Write-Host '    Engine FOMOD archive: install with MO2 / Vortex. The browser and wheel ship'
+Write-Host '    separately as OSF Animation Browser. Requires SFSE + OSF Settings.'

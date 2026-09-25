@@ -41,7 +41,9 @@ state library unless the existing reducer demonstrably cannot express the behavi
 - Standalone simulation is development-only, guarded by `import.meta.env.DEV` and missing
   bridge capabilities. Production always uses the native bridge, regardless of frame nesting.
 - Only JSON text crosses `window.osfui`; decode unknown native payloads at the bridge boundary.
-- Bridge evolution is additive. Require bridge presence, but do not gate on version strings.
+- Preserve released bridge contracts unless the user requests a breaking update. For unreleased
+  contracts or an intentional breaking update, change the contract cleanly and update callers.
+  Require bridge presence, but do not gate on version strings.
 - The player token is `-1`. Other reference tokens are opaque integers and must never be treated as
   game pointers or form IDs.
 - The view requests `osfui.gamepadMode` with `mode: "buttons"`. OSF UI maps D-pad/A/B while

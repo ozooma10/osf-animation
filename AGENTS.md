@@ -164,5 +164,5 @@ route it through REX.
 
 ## Git workflow
 
-- Commit completed work at coherent checkpoints and always before handing it back to the user.
+- Commit only when the user explicitly requests it; completion, verification, and handoff do not authorize a commit.
 - Keep commits focused, and verify the staged diff so unrelated user changes are never included accidentally.

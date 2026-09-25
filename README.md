@@ -4,7 +4,7 @@ OSF Animation is a native animation and scene-runtime framework for Starfield.
 
 Key Features:
 - Synced multi-actor AF/GLTF/GLB playback
-- In-game scene browser, animation library (4,600+ base-game clips incl. creatures), and emote wheel (hosted by OSF UI)
+- Optional OSF Animation Browser addon with the scene browser, animation library (4,600+ base-game clips incl. creatures), and emote wheel
 - Engine-native Wwise loose-file audio playback (rides the game mix; no private-device fallback)
 - Actor anchoring/pinning in the world
 - A shared scene registry loaded from `Data/OSF/**/*.osf.json`
@@ -34,10 +34,9 @@ Key Features:
 
 - **SFSE** matching your game version.
 - **Address Library for SFSE Plugins**
-- **OSF UI 2.0.0+** — renders the scene browser and emote wheel.
-- **OSF Settings 1.0.0+** — owns settings, rebindable hotkeys, the browser launcher,
-  and Mod Issues. Open **OSF Animation** in its Launcher tab or bind an Animation hotkey.
-  Playback and the native/Papyrus APIs remain available without these optional interfaces.
+- **OSF Settings 1.0.0+** — owns engine settings, diagnostics, and hotkeys.
+- **OSF UI 2.0.0+ and OSF Animation Browser** — optional, together provide the in-game browser and wheel. Open **OSF Animation** in Settings' Launcher tab or bind an Animation hotkey.
+  Playback and the native/Papyrus APIs remain available without the browser.
 
 Upgrading from the combined OSF UI settings service starts with the new Settings defaults;
 old values and keybindings are not migrated. Both Animation hotkeys start unbound.
@@ -60,6 +59,14 @@ under:
 ```text
 %XSE_SF_MODS_PATH%\OSF Animation\
 ```
+
+The optional browser has its own build and MO2 folder:
+
+```powershell
+pwsh -NoProfile -File tools/BuildBrowserAddon.ps1
+```
+
+That command verifies the web view and deploys it to `%XSE_SF_MODS_PATH%\OSF Animation Browser\` when the environment variable is set. Release archives are built separately with `packaging/build-archive.ps1` and `packaging/build-browser-addon.ps1`.
 
 The Papyrus API is exposed as `OSF.*`.
 

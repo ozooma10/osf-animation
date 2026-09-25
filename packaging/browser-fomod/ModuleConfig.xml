@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+  <moduleName>OSF Animation Browser</moduleName>
+  <moduleImage path="fomod\images\header.jpg"/>
+  <requiredInstallFiles>
+    <folder source="Browser" destination="" priority="0"/>
+  </requiredInstallFiles>
+  <installSteps order="Explicit">
+    <installStep name="Content">
+      <optionalFileGroups order="Explicit">
+        <group name="Animation Library" type="SelectExactlyOne">
+          <plugins order="Explicit">
+            <plugin name="Install Vanilla + Creature Animation Library">
+              <description>Adds Starfield's built-in animation catalog to the browser.</description>
+              <files><folder source="Library" destination="" priority="1"/></files>
+              <typeDescriptor><type name="Recommended"/></typeDescriptor>
+            </plugin>
+            <plugin name="Skip">
+              <description>Install the browser without the vanilla animation catalog.</description>
+              <typeDescriptor><type name="Optional"/></typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+        <group name="Immersion Actions" type="SelectExactlyOne">
+          <plugins order="Explicit">
+            <plugin name="Install Emote Wheel Content">
+              <description>Adds the included player emotes to the wheel.</description>
+              <files><folder source="Immersion" destination="" priority="1"/></files>
+              <typeDescriptor><type name="Recommended"/></typeDescriptor>
+            </plugin>
+            <plugin name="Skip">
+              <description>Install the wheel without the included player emotes.</description>
+              <typeDescriptor><type name="Optional"/></typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+      </optionalFileGroups>
+    </installStep>
+  </installSteps>
+</config>

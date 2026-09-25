@@ -1,58 +1,18 @@
-# Packaging OSF Animation for release
+# Packaging OSF Animation
 
-`packaging/build-archive.ps1` builds OSF Animation and produces a FOMOD release archive under `packaging/out/`. It follows the same pipeline shape as OSF UI's `tools/package.ps1` (build → stage → verify → zip + SHA-256), with one structural difference: OSF Animation ships a **FOMOD installer** because it has opt-in content groups, so the archive root is `Core/ Library/ Immersion/ fomod/` rather than a bare `Data`-shaped tree.
-
-## Quick start
+The engine and the optional browser/wheel now have separate release archives. Both are built from this repository and share the version in `xmake.lua`.
 
 ```powershell
-# Full release build (releasedbg) -> packaging\out\OSF Animation v1.0.0.zip
-# (version comes from set_version(...) in xmake.lua)
 packaging\build-archive.ps1
-
-# Custom version / tag
-packaging\build-archive.ps1 -Version 1.1.0 -Tag beta
-
-# Package the current build without rebuilding
-packaging\build-archive.ps1 -SkipBuild
-
-# Recompile the Papyrus API with the CK compiler first (hard-fails on compile errors)
-packaging\build-archive.ps1 -CompilePapyrus
-
-# Ship the .pdb for crash-log symbolication (excluded by default)
-packaging\build-archive.ps1 -IncludePdb
+packaging\build-browser-addon.ps1
 ```
 
-## What it does
+`build-archive.ps1` configures `releasedbg`, builds the native DLL, stages the Papyrus API and internal scene, verifies the payload, and writes `packaging/out/OSF Animation v<version>.zip`. It deploys the engine to the configured MO2 mod folder through xmake. `-SkipBuild`, `-CompilePapyrus`, `-IncludePdb`, `-Version`, and `-Tag` remain available.
 
-1. **Configure + build** — `xmake f -m releasedbg -P .` + `xmake -P .` (the mode is pinned; a bare reconfigure silently drops it). The build's `before_build` hook uses the OSF UI CLI to rebuild the browser view from `ui/animation-browser` into `build/osfui-animation-browser/` if its sources are newer than the generated output, so a packaged archive can't ship a stale UI. The view is generated, never committed — npm is required. `-SkipBuild` packages whatever is already built, browser view included.
-2. **Papyrus surface check** — `OSF` / `OSFTypes` / `OSFAdvanced` `.pex` + `.psc` must exist (hard fail — consumers compile against the sources). A `.psc` newer than its `.pex` warns (stale `.pex` = new natives fail to bind at link time); `-CompilePapyrus` recompiles with the CK compiler instead. `OSFTest` is dev-only and must never ship — the script fails if it leaks into the stage.
-3. **Stage the FOMOD tree** from the authoritative sources (`build/` DLL + generated browser view, `dist/` scripts + scene packs):
-4. **License docs** — `LICENSE`, `EXCEPTIONS`, `THIRD_PARTY.md` go inside `SFSE/Plugins/OSF Animation/` so the game's `Data` root stays clean.
-5. **Verify** — hard-fails on any missing required file, on an incomplete animation library (< 20 packs), and on any `<folder source>` in `ModuleConfig.xml` that doesn't exist in the stage.
-6. **Zip + report** — writes `packaging/out/OSF Animation v<version>[-tag].zip`, prints size, file count, and SHA-256. The version (with tag) is also stamped into `fomod/info.xml`.
+`build-browser-addon.ps1` runs `tools/BuildBrowserAddon.ps1`, which installs npm dependencies, runs the browser tests/typecheck/build, and deploys to a separate MO2 folder when `XSE_SF_MODS_PATH` is set. It stages the web view and the optional vanilla library and emote content as a FOMOD, then writes `packaging/out/OSF Animation Browser v<version>.zip`. `-SkipBuild`, `-Version`, and `-Tag` are available.
 
-## Archive layout
+The engine archive installs `OSF Animation.dll`, `OSF`/`OSFTypes`/`OSFAdvanced` `.pex` and `.psc` files, `OSF/internal.osf.json`, the Settings schema, and license documents. It contains no browser view or vanilla/emote pack. The addon installs the browser view and can optionally install the library and emote pack; it depends on OSF Animation, OSF UI, and OSF Settings.
 
-```
-OSF Animation v1.0.0.zip
-├─ fomod/                              (installer: ModuleConfig.xml, info.xml, images/)
-├─ Core/                               (required install)
-│  ├─ SFSE/Plugins/
-│  │  ├─ OSF Animation.dll             (+ .pdb only with -IncludePdb)
-│  │  ├─ OSF Animation/                (LICENSE, EXCEPTIONS, THIRD_PARTY.md)
-│  │  └─ OSF/UI/views/osf.animation/browser/   (scene-browser view; OSF UI discovers it via VFS merge)
-│  ├─ Scripts/{OSF,OSFTypes,OSFAdvanced}.pex + Source/*.psc
-│  └─ OSF/internal.osf.json            (system scenes: health self-test solo + pair smoke-test)
-├─ Library/OSF/vanilla/*.osf.json      (opt-in: vanilla + creature animation library)
-└─ Immersion/OSF/immersion/emotes.osf.json   (opt-in: emote-wheel content)
-```
+The existing browser bridge, browser preferences, and hotkey registration still live in the engine DLL. This packaging split removes the web build and web assets from the native build and core installation. Extracting those native parts requires a versioned catalog/inspection interface so the addon can use the engine without including its private registries and preview types. Until then, ship the engine and addon from matching versions and keep the released `OSF.OpenBrowser()` Papyrus entry compatible.
 
-Settings and hotkeys are declared in `Core/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json`. OSF Settings loads that file at startup. Player values are never packaged.
-
-## What OSF Animation does not package
-
-- `OSFTest.pex/.psc` — the console smoke-test harness (dev-only; enforced by the script).
-- `ui/animation-browser/` sources and `node_modules` — only the built output under `views/` ships.
-- The `.pdb` by default (opt in with `-IncludePdb`).
-- Anything under `tools/`, `test/`, `packaging/branding` (Nexus page assets — see
-  [`packaging/nexus-page.bbcode`](../packaging/nexus-page.bbcode)).
+Neither archive includes player settings, source maps, the developer-only `OSFTest` Papyrus script, nor the browser's source and `node_modules`.

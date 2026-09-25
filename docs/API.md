@@ -378,7 +378,8 @@ or after an extreme burst has expired that handle from the recent-history window
 
 ## In-game UI, hotkeys, and the wheel tag contract
 
-The scene browser and animation wheel are rendered by **OSF UI 2.0**. **OSF Settings 1.0**
+The optional **OSF Animation Browser** addon provides the scene browser, animation wheel,
+vanilla library, and emote pack; **OSF UI 2.0** renders the view. **OSF Settings 1.0**
 owns settings and hotkeys on the **OSF Animation** page. Both hotkeys ship unbound; the browser
 is also available from the OSF Settings Launcher tab. `OSF.OpenBrowser` and `OSF.OpenWheel`
 remain available to Papyrus. The legacy `Data/OSF/settings.json` is no longer read.
