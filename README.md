@@ -34,11 +34,13 @@ Key Features:
 
 - **SFSE** matching your game version.
 - **Address Library for SFSE Plugins**
-- **OSF UI 2.0.0+** — hosts the scene browser, emote wheel, settings menu, hotkeys, and
-  consented bug reporting. When Starfield exits unexpectedly while the OSF Animation browser is active, reports are routed to the
-  OSF Animation issue tracker and include a locally redacted, bounded tail of
-  `OSF Animation.log`. The engine runs without OSF UI, but the entire in-game UI and
-  integrated reporting are unavailable.
+- **OSF UI 2.0.0+** — renders the scene browser and emote wheel.
+- **OSF Settings 1.0.0+** — owns settings, rebindable hotkeys, the browser launcher,
+  and Mod Issues. Open **OSF Animation** in its Launcher tab or bind an Animation hotkey.
+  Playback and the native/Papyrus APIs remain available without these optional interfaces.
+
+Upgrading from the combined OSF UI settings service starts with the new Settings defaults;
+old values and keybindings are not migrated. Both Animation hotkeys start unbound.
 
 ### Build (to compile from source)
 

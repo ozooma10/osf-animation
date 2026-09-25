@@ -1,6 +1,4 @@
-/** Debug-only command surface. Standalone/harness use only — never wired in-game. */
-
-export type VersionDebugState = "none" | "match" | "old";
+/** Debug-only command surface. Standalone use only — never wired in-game. */
 
 export interface WheelDebugState {
   count: number;
@@ -11,6 +9,5 @@ export interface WheelDebugState {
 }
 
 export interface DevCommands {
-  version(state: VersionDebugState): void;
   wheel(state: WheelDebugState | null): void;
 }

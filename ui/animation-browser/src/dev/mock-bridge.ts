@@ -6,7 +6,7 @@ import { PLAYER_TOKEN, type ActiveLaunch, type BrowserPreferences, type BrowserS
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY, MOCK_ROUTES } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
-  // In the CLI harness these source modules are served through Vite's /@fs/
+  // In standalone development these source modules are served through Vite's /@fs/
   // route, so resolving from import.meta.url preserves the existing fixture
   // workflow without adding a second server plugin. Deliberately uncached: the
   // refresh button exists so a regenerated snapshot is picked up without a
@@ -43,10 +43,18 @@ export class StandaloneBridge implements AnimationBridge {
   private importReport: any = JSON.parse(JSON.stringify(MOCK_IMPORTS));
   private importReloaded = false;
 
-  constructor(private readonly getState: () => BrowserState) {}
+  private preferenceValues: Record<string, unknown>;
+
+  constructor(private readonly getState: () => BrowserState) {
+    const preferences = getState().preferences;
+    this.preferenceValues = Object.fromEntries(Object.entries(PREFERENCE_KEYS)
+      .map(([field, key]) => [key, preferences[field as keyof BrowserPreferences]]));
+    if (this.preferenceValues["launch.camera"] === "") this.preferenceValues["launch.camera"] = "scene";
+  }
 
   subscribe(listener: NativeMessageListener): () => void {
     this.listeners.add(listener);
+    listener({ type: "settings.data", payload: this.preferenceValues });
     return () => this.listeners.delete(listener);
   }
 
@@ -158,15 +166,12 @@ export class StandaloneBridge implements AnimationBridge {
       this.launch(fields);
     } else if (command === "osf.animation.route.inspect") {
       this.inspectRoute(fields);
-    } else if (command === "settings.get") {
-      // Derived from PREFERENCE_KEYS so the mock host stays exhaustive by
-      // construction — a new setting cannot be forgotten here.
-      const preferences = this.getState().preferences;
-      const values = Object.fromEntries(Object.entries(PREFERENCE_KEYS)
-        .map(([field, key]) => [key, preferences[field as keyof BrowserPreferences]]));
-      this.later({ type: "settings.data", payload: { mods: [{ id: "osf.animation", values }] } }, 10);
-    } else if (command === "settings.set" && fields.mod === "osf.animation" && typeof fields.key === "string") {
-      this.later({ type: "settings.changed", payload: { mod: fields.mod, key: fields.key, value: fields.value } }, 10);
+    } else if (command === "settings.set" && typeof fields.key === "string" && Object.prototype.hasOwnProperty.call(this.preferenceValues, fields.key)) {
+      this.preferenceValues = {
+        ...this.preferenceValues,
+        [fields.key]: fields.key === "launch.camera" && fields.value === "" ? "scene" : fields.value,
+      };
+      this.later({ type: "settings.data", payload: this.preferenceValues }, 10);
     } else if (command === "osf.animation.stop") {
       this.resumeSpeeds.delete(Number(fields.handle));
       this.active = this.active.filter((scene) => scene.handle !== Number(fields.handle));

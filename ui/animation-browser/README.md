@@ -1,32 +1,31 @@
 # OSF Animation — animation browser view
 
-The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Octane TSX app in this directory; `build/osfui-animation-browser/SFSE/Plugins/OSFUI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
+The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Octane TSX app in this directory; `build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
 **OSF UI** and driven **natively** by OSF Animation's own
 DLL over OSF UI's bridge API (protocol **2.0**). Only JSON text crosses the
 boundary.
 
 ## Development and build
 
-Install once with Node.js 22.22.2 or newer by running `npm install` in this directory. Octane is alpha software, so its runtime and Vite integration are exact-version pinned together. Use `npm run dev` for the OSF UI browser harness with hot reload, `npm test` for the typed bridge/model and Octane DOM tests, `npm run check` for host compatibility and strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
+Install once with Node.js 22.22.2 or newer by running `npm install` in this directory. Octane is alpha software, so its runtime and Vite integration are exact-version pinned together. Use `npm run dev` for the standalone browser with hot reload, `npm test` for the typed bridge/model and Octane DOM tests, `npm run check` for strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
 
-This directory is the only editable copy — `build/osfui-animation-browser/` is disposable toolchain output and is wiped on every build. A native `xmake` re-runs the OSF UI CLI whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
+This directory is the only editable copy — `build/osfui-animation-browser/` is disposable toolchain output and is wiped on every build. A native `xmake` re-runs the Vite whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
 
 ## How it's wired
 
 ```
-ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-browser/.../views/osf.animation/browser/ ──► OSF UI MessageBridge ──► OSF Animation DLL
+ui/animation-browser/src/ ── Vite ──► build/osfui-animation-browser/.../views/osf.animation/browser/ ──► OSF UI MessageBridge ──► OSF Animation DLL
    window.osfui.send/request       (2.0 helper)               src/API/UIBridge.cpp
    window.osfui.on/state       ◄── events/state ────────────── osf.animation.* handlers
 ```
 
 - **Native side:** `src/API/UIBridge.{h,cpp}` (vendored bridge header
-  `src/API/OSFUI_API.h`). Registered in `src/main.cpp` at `kPostDataLoad`
+  `src/API/OSFUI.h`). Registered in `src/main.cpp` at `kPostDataLoad`
   (`OSF::API::InstallUIBridge()`), a no-op when OSF UI is absent.
 - **Identity:** mod id `osf.animation`, view name `browser`, qualified view id
   `osf.animation/browser` — the id used by `RegisterView` / `RequestMenu`.
-  The manifest declares `kind: "menu"` (focused, input-capturing) and an
-  advisory `targetVersion` (the OSF UI version authored against; older hosts
-  show a "needs update" badge on the Mods surface, nothing is gated).
+  The manifest declares `manifestVersion: 1`, `kind: "menu"`, and a launcher entry
+  under OSF Animation in OSF Settings.
 - **Contract (`osf.animation.*`):**
   `catalog.get`→`catalog.data`, `library.get`→`library.data`,
   `imports.get`→`imports.data` (the per-file registry-load report behind the
@@ -88,7 +87,7 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
   switches the view into **animation-wheel mode** (see below); any other `mode`
   restores the console. Flash-free wheel opens rely on OSF UI **queuing
   messages sent to a not-yet-visible view and delivering them before its
-  first paint** (C ABI MINOR ≥ 2): the DLL pushes the mode before
+  first paint**: the DLL pushes the mode before
   `RequestMenu(open)`.
 - The view becomes ready when the 2.0 helper's `ready` promise resolves, or when
   OSF Animation answers the catalog/version request that every page mount sends.
@@ -152,36 +151,32 @@ ui/animation-browser/src/ ── OSF UI CLI ──► build/osfui-animation-brow
 ## Deployment (VFS merge — no copy in OSF UI)
 
 OSF UI resolves its view dir relative to its own DLL
-(`<DLL dir>\OSFUI\views\`), which under MO2 is the **virtual**
-`Data\SFSE\Plugins\OSFUI\views\` — merged across all enabled mods. So this view
+(`<DLL dir>\OSF\UI\views\`), which under MO2 is the **virtual**
+`Data\SFSE\Plugins\OSF\UI\views\` — merged across all enabled mods. So this view
 ships from OSF Animation's own mod folder; **no copy lives in the OSF UI repo or
 mod**:
 
 - `xmake` (`after_build`) deploys the generated production build to
-  `MO2\mods\OSF Animation\SFSE\Plugins\OSFUI\views\osf.animation\browser\`
+  `MO2\mods\OSF Animation\SFSE\Plugins\OSF\UI\views\osf.animation\browser\`
   (the two-level `views/<modId>/<viewName>/` layout OSF UI discovers).
-- The DLL registers the view at runtime via `RegisterView("osf.animation/browser")`
-  (C ABI 1.5) — the user's `config.json` is never edited. On an older OSF UI
-  without `RegisterView`, the view only opens if the user lists it in `views`
-  themselves (the DLL logs a warning).
-
-Caveat: the merge relies on MO2's USVFS; a non-MO2 (real loose files) install
-would need the folder placed next to `OSFUI.dll` manually.
+- The DLL registers `osf.animation/browser` through the OSF UI native API 1.0.
+- OSF UI provides `/shared/osfui.js`; Animation ships only its own view assets.
 
 ## Settings / hotkeys
 
-No drop-in `settings/osf.animation.json` file: the DLL registers the same
-schema document at runtime (`RegisterSettingsSchema`, see
-`src/API/UISettings.cpp`) — hotkeys (`hotkeys.openBrowser` and
-`hotkeys.openWheel`, both unbound by default), interface preferences, scene launch
-defaults, and log level all live in OSF UI's in-game settings menu under
-**OSF Animation**. The browser's header gear opens a dedicated view of its own
-preferences using the same `settings.get` / `settings.set` store, so changes made
-there and in OSF UI's settings card stay synchronized. It covers after-launch
-behavior, the opening tab, session browsing memory, library detail/source,
-unavailable-scene visibility, default apparel/input-lock/camera/speed overrides, and
-author-facing catalog details. World references such as selected actors and
-furniture are deliberately never persisted.
+Ship `dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json`. OSF Settings loads
+it at startup; the DLL subscribes to values and registers `openBrowser` and
+`openWheel` hotkeys, both unbound by default. The browser is also available in
+OSF Settings's Launcher tab.
+
+`UISettings.cpp` forwards only browser preferences as retained state key `settings`, containing a flat map of preference keys to values.
+The web adapter sends writes to `osf.animation.settings.set`; native code checks
+the source view and preference allowlist before saving through OSF Settings.
+Changes in either interface stay synchronized. `launch.camera: "scene"` is the
+stored default; the browser maps that to its empty scene-camera override.
+
+Legacy OSF UI values and hotkeys are not migrated. World references such as
+selected actors and furniture are never persisted.
 
 ## Animation wheel (transient mode)
 
@@ -212,10 +207,9 @@ clears wheel mode, so a later browser open always shows the normal console.
 
 The page detects a missing bridge and runs standalone, so you can iterate
 layout/logic in a normal browser. Run `npm run dev` from `ui/animation-browser`
-and open `http://localhost:8791/__osfui/`. The OSF UI CLI harness owns the
-game-sized frame, resolution controls, transparency checker, visibility and
-locale simulation, bridge traffic, and HMR. The view uses its richer stateful
-animation simulator inside the harness iframe.
+and open `http://localhost:8791/`. Vite serves the page with HMR, and the view's
+stateful animation simulator supplies standalone data. Production always uses
+the OSF UI bridge.
 
 **Live data:** `fixtures/live/{catalog,library}.json` are committed snapshot fixtures of
 the payloads the DLL sends the in-game view. The standalone page resolves them
@@ -266,13 +260,6 @@ ring, past 12 proves the hard cap, and emotes cycle with numbered titles past 14
 sorting; `TARGET` flips the hub between "→ Sarah Morgan" and "You"; `ERROR`
 plants a hub launch error; `LOADING` shows the catalog-pending state; `RESET`
 returns to the real (snapshot/mock) catalog.
-
-**Harness toolbar:** `osfui.mock.ts` contributes the view's non-wheel debug
-switches to the harness shell toolbar instead of overlaying them on the layout.
-**OSF UI host** fakes the installed host version the status line reports — *no
-host info* (the default), *host up to date*, or *host older than tested*, which
-raises the amber `UPDATE` badge and its Nexus link. Clicks reach the view over a
-window event (`src/dev/harness-tools.ts`); the mock module shares the view page.
 
 **Loadout standalone:** the `wheel.set` round-trip is mocked with a session-local
 ordered loadout applied on top of whichever catalog is served. Remove or reorder

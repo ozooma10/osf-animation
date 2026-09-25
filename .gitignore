@@ -27,7 +27,3 @@ ui/animation-browser/fixtures/live/backdrop.*
 ui/animation-browser/fixtures/live/*.local.json
 # frontend dependencies
 ui/animation-browser/node_modules/
-
-# generated: Vite output for the browser view (source: ui/animation-browser)
-build/views/
-build/osfui/

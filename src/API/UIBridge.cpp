@@ -1,9 +1,10 @@
 #include "API/UIBridge.h"
+#include "Util/NativeMainThreadQueue.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/UIBridgeWorld.h"
 
 #include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
-#include "API/OSFUI_API.h"    // the OSF UI bridge surface (JSON text only)
+#include "API/OSFUI.h"    // the OSF UI bridge surface (JSON text only)
 #include "Animation/GraphManager.h"  // browser playback clock inspection + seek
 #include "Camera/CameraService.h"  // browse orbit: osf.orbit engages drag-to-look when no scene camera is live
 #include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
@@ -36,7 +37,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -61,17 +61,17 @@ namespace OSF::API
 		using UIBridgeWorld::ResolveToken;
 		using UIBridgeWorld::ScanLabel;
 
-		// The version-gated bridge wrapper (OSFUI::API::Client, header 1.7),
+		// The version-gated bridge wrapper (OSFUI::API::Client, API 1.0),
 		// initialized once at Install; unconnected => OSF UI absent (UI
 		// disabled) and every call degrades to a no-op. Static lifetime:
 		// registered handlers may fire for the remaining process life.
 		OSFUI::API::Client g_ui;
 
 		// Set by OnBridgeReady; unsolicited pushes (PushCatalogUpdate) are dropped before then.
-		// Only touched on the game main thread (ready callback, command handlers, SFSE tasks).
+		// Only touched on the game main thread (ready callback, command handlers, main-thread queue).
 		bool g_uiReady = false;
-		// True only when ABI 1.10 registration succeeded. It rides in the version
-		// payload so the page keeps its paced bridge fallback on older OSF UI hosts.
+		// True only when relative-pointer registration succeeded. It rides in the version
+		// payload so the page uses paced input when native capture is unavailable.
 		bool g_relativePointerRegistered = false;
 		// Low-volume capture diagnostics: one begin, first-update, and terminal
 		// summary per drag. These make the native hand-off observable without
@@ -139,14 +139,6 @@ namespace OSF::API
 		// Our view's manifest id; the SendToWeb target for pushes that aren't a direct reply (e.g. the catalog we push when the bridge becomes ready).
 		constexpr const char* kViewId = "osf.animation/browser";  // qualified "<modId>/<viewName>" (OSF UI api-freeze item 1)
 
-		// The OSF UI release this build was developed and tested against. When the
-		// installed host reports an older version, the browser's status line grows an
-		// UPDATE badge pointing at the OSF UI Nexus page. Bump alongside any new
-		// host feature this file starts depending on.
-		// The browser now uses OSF UI's 2.0 helper transport. Keep the advisory
-		// version aligned with the shipped view manifest.
-		constexpr std::uint32_t kOSFUITested[3] = { 2, 0, 0 };
-		constexpr const char*   kOSFUINexusURL  = "https://www.nexusmods.com/starfield/mods/17711";
 
 		// ---- helpers ---------------------------------------------------------
 
@@ -405,40 +397,15 @@ namespace OSF::API
 		// ---- command handlers (GAME MAIN THREAD) -----------------------------
 
 
-		// The host segment of the identity payload: OSF UI's installed version, plus the
-		// update verdict against kOSFUITested (the view can't compare versions it doesn't
-		// know about, and the Nexus URL is plugin knowledge, not view knowledge).
-		json UIHostInfo() noexcept
-		{
-			std::uint32_t mj = 0, mn = 0, pt = 0;
-			g_ui.GetPluginVersion(mj, mn, pt);
-			if (mj == 0 && mn == 0 && pt == 0) {
-				return nullptr;  // host absent or not reporting — the view omits the segment
-			}
-			const bool outdated =
-				std::tie(mj, mn, pt) < std::tie(kOSFUITested[0], kOSFUITested[1], kOSFUITested[2]);
-			return json{
-				{ "name", "OSF UI" },
-				{ "version", std::format("{}.{}.{}", mj, mn, pt) },
-				{ "tested", std::format("{}.{}.{}", kOSFUITested[0], kOSFUITested[1], kOSFUITested[2]) },
-				{ "outdated", outdated },
-				{ "nexusUrl", kOSFUINexusURL },
-			};
-		}
-
 		void OnCatalogGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			// The view's status line should name THIS plugin — runtime.ready carries the
-			// OSF UI host's identity, not ours. Piggyback on the catalog request the view
-			// always makes right after ready (and on every refresh). `ui` describes the
-			// HOST (installed OSF UI version + update verdict) so the browser can surface
-			// an outdated host without knowing version history itself.
+			// mod/view identity, not a plugin release version. Reply on catalog requests.
 			SendJson(a_srcView, "osf.animation.version", json{
 				{ "plugin", SFSE::GetPluginName() },
 				// major.minor.patch only — Version::string() would append the unused build
 				// field and render as "1.0.0.0" in the view's status line.
 				{ "version", std::format("{}.{}.{}", SFSE::GetPluginVersion().major(), SFSE::GetPluginVersion().minor(), SFSE::GetPluginVersion().patch()) },
-				{ "ui", UIHostInfo() },
 				{ "relativePointer", g_relativePointerRegistered },
 				// The player is a permanent crew member the view never scans, so its M/F badge
 				// has no other channel — ride along with the identity push.
@@ -1276,11 +1243,8 @@ namespace OSF::API
 		{
 			g_viewVisible = true;
 			Input::InputService::GetSingleton().SetUiCursorVisible(true);
-			// A wheel open is pending: replay the mode switch (idempotent view-side). With an
-			// OSF UI that queues sends to a not-yet-visible view (bridge MINOR >= 2) the
-			// immediate OpenWheel push already landed pre-paint and this is a no-op re-send;
-			// on an older host this replay still delivers the wheel, just after first paint
-			// (a brief console flash instead of a broken wheel).
+			// A wheel open is pending: replay the mode switch (idempotent view-side).
+			// OSF UI queues the immediate OpenWheel push before the view becomes visible.
 			if (g_wheel.active) {
 				SendWheelMode();
 			}
@@ -1367,10 +1331,6 @@ namespace OSF::API
 		// run on the game main thread and RequestMenu is thread-safe/queued, so no task hop.
 		void OnRequestClose(const char*, const char*, const char*, void*) noexcept
 		{
-			if (!g_ui.Has(OSFUI::API::Feature::kRequestMenu)) {
-				REX::WARN("[UI] osf.animation.requestClose: installed OSF UI has no RequestMenu (bridge MINOR < 1) — ignored");
-				return;
-			}
 			const bool ok = g_ui.RequestMenu(kViewId, false);
 			REX::DEBUG("[UI] osf.animation.requestClose -> RequestMenu('{}', close) -> {}", kViewId, ok);
 		}
@@ -1414,7 +1374,7 @@ namespace OSF::API
 			return cam.BrowseOrbitHeld();
 		}
 
-		// Compatibility path for OSF UI ABI < 1.10. The browser paces and combines
+		// Fallback when relative-pointer registration is unavailable. The browser paces and combines
 		// web deltas before they reach this handler.
 		void OnOrbit(const char*, const char* a_payloadJson, const char* a_srcView, void*) noexcept
 		{
@@ -1430,7 +1390,7 @@ namespace OSF::API
 				NumOr(p, "dx", 0.0f), NumOr(p, "dy", 0.0f), NumOr(p, "wheel", 0.0f));
 		}
 
-		// ABI 1.10 path: OSF UI accumulated raw WM_INPUT packets and calls this at
+		// OSF UI accumulates raw WM_INPUT packets and calls this at
 		// most once per game frame. Only updates steer the camera; begin/end/cancel
 		// are ownership edges and carry no camera semantics.
 		void OnRelativePointer(const char* a_viewId, OSFUI::API::RelativePointerPhase a_phase,
@@ -1502,18 +1462,11 @@ namespace OSF::API
 			REX::WARN("[UI] OpenBrowser: OSF UI not present — nothing to open");
 			return false;
 		}
-		// RequestMenu is an appended vmethod (bridge MINOR >= 1); the Client
-		// wrapper would no-op it on an older host — gate explicitly so the
-		// user gets an actionable message instead of a silent nothing.
-		if (!g_ui.Has(OSFUI::API::Feature::kRequestMenu)) {
-			REX::WARN("[UI] OpenBrowser: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to open the browser from native code");
-			return false;
-		}
 		// Close any open game menus FIRST, so the browser opens over the world, not over a
 		// still-open inventory or book. UIMessageQueue is main-thread-only and this can run on
-		// a Papyrus VM thread, so the whole sequence rides an SFSE task; RequestMenu itself is
+		// a Papyrus VM thread, so the whole sequence uses the main-thread queue; RequestMenu itself is
 		// thread-safe and queued, keeping the hide -> open order.
-		SFSE::GetTaskInterface()->AddTask([]() {
+		const auto queued = Util::NativeMainThreadQueue::Post([]() {
 			// A normal browser open must never land in wheel mode: drop any pending wheel
 			// state and, if the view is already up as the wheel, switch it back to the console.
 			if (g_wheel.active) {
@@ -1540,8 +1493,8 @@ namespace OSF::API
 			}
 			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::DEBUG("[UI] OpenBrowser: RequestMenu('{}', open) -> {}", kViewId, ok);
-		});
-		return true;
+		}, "open animation view");
+		return queued != Util::NativeMainThreadQueue::PostResult::kUnavailable;
 	}
 
 	bool OpenWheel(std::string_view a_tagPrefix)
@@ -1551,16 +1504,9 @@ namespace OSF::API
 			UI::HudMessage::Error("OSF UI not present or too old");
 			return false;
 		}
-		// Same gate as OpenBrowser: actionable message beats the wrapper's silent no-op.
-		if (!g_ui.Has(OSFUI::API::Feature::kRequestMenu)) {
-			REX::WARN("[UI] OpenWheel: installed OSF UI is too old (bridge MINOR < 1) — update OSF UI to use the animation wheel");
-			UI::HudMessage::Error("OSF UI not present or too old");
-			return false;
-		}
-		// Everything below touches refs and menus: ride an SFSE task so this stays callable
-		// from any thread (the hotkey verb is already on the game thread — the task just runs
-		// next frame).
-		SFSE::GetTaskInterface()->AddTask([prefix = std::string{ a_tagPrefix }]() {
+		// Settings hotkeys and Papyrus may run on workers. Queue all ref and menu
+		// access on the verified game main thread.
+		const auto queued = Util::NativeMainThreadQueue::Post([prefix = std::string{ a_tagPrefix }]() {
 			g_wheel = {};
 			g_wheel.active = true;
 			g_wheel.tagPrefix = prefix.empty() ? std::string{ "player.emote." } : prefix;
@@ -1605,8 +1551,8 @@ namespace OSF::API
 			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::DEBUG("[UI] OpenWheel: RequestMenu('{}', open) -> {} (prefix '{}', target: {})",
 				kViewId, ok, g_wheel.tagPrefix, g_wheel.targetToken != 0 ? g_wheel.targetName : "player-only");
-		});
-		return true;
+		}, "open animation view");
+		return queued != Util::NativeMainThreadQueue::PostResult::kUnavailable;
 	}
 
 	void InstallUIBridge()
@@ -1620,27 +1566,27 @@ namespace OSF::API
 
 		g_ui.SetReadyCallback(&OnBridgeReady, nullptr);
 		g_relativePointerRegistered = g_ui.RegisterRelativePointer(kViewId, &OnRelativePointer, nullptr);
-		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
-		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
-		g_ui.RegisterCommand("osf.animation.routes.get", &OnRoutesGet, nullptr);
-		g_ui.RegisterCommand("osf.animation.imports.get", &OnImportsGet, nullptr);
-		g_ui.RegisterCommand("osf.animation.imports.reload", &OnImportsReload, nullptr);
-		g_ui.RegisterCommand("osf.animation.imports.copy", &OnImportsCopy, nullptr);
+		g_ui.RegisterSend("osf.animation.catalog.get", &OnCatalogGet, nullptr);
+		g_ui.RegisterSend("osf.animation.library.get", &OnLibraryGet, nullptr);
+		g_ui.RegisterSend("osf.animation.routes.get", &OnRoutesGet, nullptr);
+		g_ui.RegisterSend("osf.animation.imports.get", &OnImportsGet, nullptr);
+		g_ui.RegisterSend("osf.animation.imports.reload", &OnImportsReload, nullptr);
+		g_ui.RegisterSend("osf.animation.imports.copy", &OnImportsCopy, nullptr);
 		UIBridgeWorld::RegisterCommands(g_ui);
-		g_ui.RegisterCommand("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
-		g_ui.RegisterCommand("osf.animation.castMatch", &OnCastMatch, nullptr);
-		g_ui.RegisterCommand("osf.animation.launch", &OnLaunch, nullptr);
-		g_ui.RegisterCommand("osf.animation.route.inspect", &OnRouteInspect, nullptr);
-		g_ui.RegisterCommand("osf.animation.stop", &OnStop, nullptr);
-		g_ui.RegisterCommand("osf.animation.advance", &OnAdvance, nullptr);
-		g_ui.RegisterCommand("osf.animation.playback.get", &OnPlaybackGet, nullptr);
-		g_ui.RegisterCommand("osf.animation.playback.set", &OnPlaybackSet, nullptr);
-		g_ui.RegisterCommand("osf.animation.wheel.get", &OnWheelGet, nullptr);
-		g_ui.RegisterCommand("osf.animation.wheel.set", &OnWheelSet, nullptr);
-		g_ui.RegisterCommand("osf.animation.opened", &OnOpened, nullptr);
-		g_ui.RegisterCommand("osf.animation.closed", &OnClosed, nullptr);
-		g_ui.RegisterCommand("osf.animation.orbit", &OnOrbit, nullptr);
-		g_ui.RegisterCommand("osf.animation.requestClose", &OnRequestClose, nullptr);
+		g_ui.RegisterSend("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
+		g_ui.RegisterSend("osf.animation.castMatch", &OnCastMatch, nullptr);
+		g_ui.RegisterSend("osf.animation.launch", &OnLaunch, nullptr);
+		g_ui.RegisterSend("osf.animation.route.inspect", &OnRouteInspect, nullptr);
+		g_ui.RegisterSend("osf.animation.stop", &OnStop, nullptr);
+		g_ui.RegisterSend("osf.animation.advance", &OnAdvance, nullptr);
+		g_ui.RegisterSend("osf.animation.playback.get", &OnPlaybackGet, nullptr);
+		g_ui.RegisterSend("osf.animation.playback.set", &OnPlaybackSet, nullptr);
+		g_ui.RegisterSend("osf.animation.wheel.get", &OnWheelGet, nullptr);
+		g_ui.RegisterSend("osf.animation.wheel.set", &OnWheelSet, nullptr);
+		g_ui.RegisterSend("osf.animation.opened", &OnOpened, nullptr);
+		g_ui.RegisterSend("osf.animation.closed", &OnClosed, nullptr);
+		g_ui.RegisterSend("osf.animation.orbit", &OnOrbit, nullptr);
+		g_ui.RegisterSend("osf.animation.requestClose", &OnRequestClose, nullptr);
 
 		// Any scene lifecycle change (start, stage advance, any termination — including
 		// natural timer/loop ends and Papyrus stops) refreshes the browser's ACTIVE list.
@@ -1648,26 +1594,13 @@ namespace OSF::API
 		// main-thread-only bridge state (the token map), so hop through the task queue —
 		// which also lets the end path's ReleaseSlot retire the slot before ListScenes reads.
 		Scene::SceneRuntime::GetSingleton().SetSceneObserver([]() {
-			SFSE::GetTaskInterface()->AddTask([]() { PushActiveScenes(); });
+			(void)Util::NativeMainThreadQueue::Post([]() { PushActiveScenes(); }, "browser scene refresh");
 		});
 
-		// Bridge ABI 1.5: register our shipped views/osf.animation/browser/
-		// folder as an openable surface — OSF UI's shipped config.views lists
-		// only its built-ins, so without this call the view never loads.
-		// Idempotent; older OSF UI runtimes lack the vmethod (wrapper-gated).
-		if (g_ui.Has(Feature::kRegisterView)) {
-			g_ui.RegisterView(kViewId);
-		} else {
-			REX::WARN("[UI] this OSF UI predates bridge ABI 1.5 (RegisterView) — the '{}' view only opens if the user's OSF UI config.json lists it in `views`", kViewId);
+		if (!g_ui.RegisterView(kViewId)) {
+			REX::ERROR("[UI] Could not register the animation browser view");
 		}
-
-		std::uint32_t mj = 0, mn = 0, pt = 0;
-		g_ui.GetPluginVersion(mj, mn, pt);
-		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.animation.* commands registered; relative-pointer callback {}",
-			mj, mn, pt, g_ui.GetBridgeProtocolVersion(), g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
-		if (std::tie(mj, mn, pt) < std::tie(kOSFUITested[0], kOSFUITested[1], kOSFUITested[2])) {
-			REX::WARN("[UI] installed OSF UI v{}.{}.{} predates the v{}.{}.{} this build was tested against — update it: {}",
-				mj, mn, pt, kOSFUITested[0], kOSFUITested[1], kOSFUITested[2], kOSFUINexusURL);
-		}
+		REX::INFO("[Feature] OSF UI connected (API {}.{}); relative pointer {}",
+			g_ui.Version() >> 16, g_ui.Version() & 0xFFFF, g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
 	}
 }

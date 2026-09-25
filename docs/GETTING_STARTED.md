@@ -137,10 +137,10 @@ The shipped `OSF.*` natives are console-callable (the `OSFTest.*` harness is dev
 NOT ship in the release):
 ```bat
 cgf "OSF.ReloadPacks"        ; legacy name: rescan Data/OSF/** and reload content
-cgf "OSF.OpenBrowser"        ; open the in-game browser (or press F10 / your bound hotkey)
+cgf "OSF.OpenBrowser"        ; open the in-game browser (or use the Settings launcher / your bound hotkey)
 ```
 Your pack groups under its `pack` name in the browser; launch it from there (the browser binds
-the cast for you). Any `[error]` your file produced shows in OSF UI's System Health pane.
+the cast for you). Any `[error]` your file produced shows in OSF Settings' Mod Issues tab.
 Iterate without restarting: edit the JSON/GLB, then `cgf "OSF.ReloadPacks"` again.
 
 ---

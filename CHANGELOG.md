@@ -4,6 +4,14 @@ All notable changes to OSF Animation are documented here.
 
 ## [Unreleased]
 
+### Changed
+- Updated to the OSF UI 2.0 and OSF Settings 1.0 native APIs. OSF Settings now owns
+  Animation's settings, hotkeys, Mod Issues, and browser launcher. Legacy values and bindings
+  are not migrated; both hotkeys start unbound.
+- Replaced the retired UI authoring CLI with a local Vite/Octane build and moved packaged
+  views to `SFSE/Plugins/OSF/UI/views/osf.animation`. Browser preferences use Animation-owned
+  retained state and a scoped write endpoint; preview and game follow the same contract.
+
 ### Added
 - **Persistent actor overlay routes (native ABI 1.0).** External SFSE plugins can own one masked,
   content-neutral route per actor, request zero-animation or animated stations, acknowledge exact

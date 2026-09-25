@@ -25,7 +25,6 @@ import {
 import {
   PREFERENCE_KEYS,
   decodePreferences,
-  preferenceFromChange,
   preferredOpenMode,
 } from "./settings";
 import {
@@ -144,6 +143,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     ? createStandaloneBridge(() => stateRef.current)
     : new OsfUiBridge(), [standalone]);
   const handlerRef = useRef<(message: NativeMessage) => void>(() => undefined);
+  const preferencesReceived = useRef(false);
   const noticeTimer = useRef<number | undefined>(undefined);
   const catalogTimer = useRef<number | undefined>(undefined);
   const libraryTimer = useRef<number | undefined>(undefined);
@@ -228,11 +228,12 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         break;
       case "osf.animation.version": dispatch({ type: "plugin/received", plugin: record }); break;
       case "settings.data": {
-        const mods = Array.isArray(record.mods) ? record.mods : [];
-        const animation = mods.find((mod) => isRecord(mod) && mod.id === "osf.animation");
-        const values = isRecord(animation) && isRecord(animation.values) ? animation.values : {};
-        const preferences = decodePreferences(values);
+        const preferences = decodePreferences(record);
         dispatch({ type: "settings/received", preferences });
+        // Retained state also updates after writes. Only the initial replay seeds
+        // the opening tab; editing a preference must preserve the current session.
+        if (preferencesReceived.current) break;
+        preferencesReceived.current = true;
         // settings.data can race the host's first visibility message. Apply the
         // opening preference here as well so a newly mounted view does not
         // briefly settle on the hard-coded Scenes default.
@@ -245,9 +246,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         }
         break;
       }
-      case "settings.changed":
-        if (record.mod === "osf.animation") dispatch({ type: "settings/received", preferences: preferenceFromChange(record.key, record.value) });
-        break;
       case "osf.animation.catalog.data":
         if (catalogTimer.current) clearTimeout(catalogTimer.current);
         dispatch({ type: "catalog/received", scenes: normalizeCatalog(payload) });
@@ -404,7 +402,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "ui.error": showNotice("err", `Bridge rejected a message: ${record.message || record.code || "unknown error"}`); break;
       case "bridge.requestFailed":
         showNotice("err", record.command === "settings.set"
-          ? "That setting could not be saved. OSF UI rejected the change."
+          ? "That preference could not be saved to OSF Settings."
           : `OSF UI request failed: ${record.command || "unknown request"}.`);
         break;
     }
@@ -425,7 +423,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       requestCatalog(true);
       requestLibrary(true);
     }
-    send("settings.get");
     return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (importsTimer.current) clearTimeout(importsTimer.current); if (routesTimer.current) clearTimeout(routesTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); };
   }, []);
 
@@ -592,7 +589,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     viewImportContent: (path) => dispatch({ type: "imports/viewContent", path }),
     copyImportReport: (path) => send("osf.animation.imports.copy", { path }),
     setPreference: (key, value) => {
-      send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS[key], value });
+      send("settings.set", { key: PREFERENCE_KEYS[key], value });
     },
     toggleBrowseAll: () => dispatch({ type: "browse/all" }),
     toggleHidden: () => dispatch({ type: "browse/hidden" }),
@@ -634,13 +631,13 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const current = stateRef.current;
       const value = libraryFull(current) ? "curated" : "full";
       dispatch({ type: "imports/viewCleared" });
-      send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS.libraryDetail, value });
+      send("settings.set", { key: PREFERENCE_KEYS.libraryDetail, value });
     },
     toggleLibraryCustomOnly: () => {
       const current = stateRef.current;
       const value = libraryCustomOnly(current) ? "all" : "custom";
       dispatch({ type: "imports/viewCleared" });
-      send("settings.set", { mod: "osf.animation", key: PREFERENCE_KEYS.librarySource, value });
+      send("settings.set", { key: PREFERENCE_KEYS.librarySource, value });
     },
     toggleBriefAnimations: () => dispatch({ type: "brief/fullAnimations" }),
     toggleOptions: () => dispatch({ type: "brief/options" }),

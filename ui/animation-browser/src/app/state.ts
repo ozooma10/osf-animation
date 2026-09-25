@@ -70,17 +70,10 @@ export interface FurnitureTarget {
 export interface PluginVersion {
   plugin?: string;
   version?: string;
-  /** OSF UI ABI 1.10 raw relative-pointer path registered by OSF Animation. */
+  /** OSF UI raw relative-pointer path registered by OSF Animation. */
   relativePointer?: boolean;
   /** The player character's sex tag, so the permanent player chip can badge M/F too. */
   playerSex?: string;
-  ui?: {
-    name?: string;
-    version?: string;
-    tested?: string;
-    outdated?: boolean;
-    nexusUrl?: string;
-  };
 }
 
 export interface LaunchOptions {

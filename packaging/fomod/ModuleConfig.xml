@@ -37,7 +37,7 @@ Recommended. Pure data (a few MB of JSON), no extra plugin slot used.</descripti
         <group name="Immersion Actions" type="SelectExactlyOne">
           <plugins order="Explicit">
             <plugin name="Install Emote Wheel Content">
-              <description>Adds the emote pack (wave, what's up, hands on hips, arms crossed, data slate) that the emote wheel shows. Open the wheel with the hotkey you bind in OSF UI's settings menu; emotes can play on the NPC in your crosshair.
+              <description>Adds the emote pack (wave, what's up, hands on hips, arms crossed, data slate) that the emote wheel shows. Open the wheel with the hotkey you bind in OSF Settings; emotes can play on the NPC in your crosshair.
 
 Recommended if you want the emote wheel to do anything out of the box.</description>
               <image path="fomod\images\header.jpg"/>

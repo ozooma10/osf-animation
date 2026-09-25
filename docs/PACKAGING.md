@@ -40,14 +40,14 @@ OSF Animation v1.0.0.zip
 │  ├─ SFSE/Plugins/
 │  │  ├─ OSF Animation.dll             (+ .pdb only with -IncludePdb)
 │  │  ├─ OSF Animation/                (LICENSE, EXCEPTIONS, THIRD_PARTY.md)
-│  │  └─ OSFUI/views/osf.animation/browser/   (scene-browser view; OSF UI discovers it via VFS merge)
+│  │  └─ OSF/UI/views/osf.animation/browser/   (scene-browser view; OSF UI discovers it via VFS merge)
 │  ├─ Scripts/{OSF,OSFTypes,OSFAdvanced}.pex + Source/*.psc
 │  └─ OSF/internal.osf.json            (system scenes: health self-test solo + pair smoke-test)
 ├─ Library/OSF/vanilla/*.osf.json      (opt-in: vanilla + creature animation library)
 └─ Immersion/OSF/immersion/emotes.osf.json   (opt-in: emote-wheel content)
 ```
 
-Settings and hotkeys live in OSF UI's in-game settings menu (schema registered over the bridge at runtime) — no `Data/OSF/settings.json` ships.
+Settings and hotkeys are declared in `Core/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json`. OSF Settings loads that file at startup. Player values are never packaged.
 
 ## What OSF Animation does not package
 

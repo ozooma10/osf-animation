@@ -29,24 +29,20 @@ const bool = (value: unknown): boolean | undefined => typeof value === "boolean"
 export function decodePreferences(values: Record<string, unknown>): Partial<BrowserPreferences> {
   const preferences: Partial<BrowserPreferences> = {};
   const afterLaunch = oneOf<AfterLaunch>(values[PREFERENCE_KEYS.afterLaunch], ["minimize", "stay", "close"]);
-  const openTo = oneOf<OpenTo>(values[PREFERENCE_KEYS.openTo], ["last", "scenes", "library", "active"]);
+  const openTo = oneOf<OpenTo>(values[PREFERENCE_KEYS.openTo], ["last", "scenes", "active"]);
   const libraryDetail = oneOf<BrowserPreferences["libraryDetail"]>(values[PREFERENCE_KEYS.libraryDetail], ["curated", "full"]);
   const librarySource = oneOf<BrowserPreferences["librarySource"]>(values[PREFERENCE_KEYS.librarySource], ["all", "custom"]);
   const unavailableScenes = oneOf<UnavailableScenes>(values[PREFERENCE_KEYS.unavailableScenes], ["ask", "show", "hide"]);
   const hideApparel = oneOf<BrowserPreferences["hideApparel"]>(values[PREFERENCE_KEYS.hideApparel], ["-1", "0", "1"]);
   const playerInputLock = oneOf<BrowserPreferences["playerInputLock"]>(values[PREFERENCE_KEYS.playerInputLock], ["-1", "0", "1"]);
-  const camera = oneOf<BrowserPreferences["camera"]>(values[PREFERENCE_KEYS.camera], ["", "thirdperson_hold", "scene_orbit", "freefly", "vanity_orbit"]);
+  const camera = oneOf<BrowserPreferences["camera"]>(values[PREFERENCE_KEYS.camera] === "scene" ? "" : values[PREFERENCE_KEYS.camera], ["", "thirdperson_hold", "scene_orbit", "freefly", "vanity_orbit"]);
   const speed = oneOf(values[PREFERENCE_KEYS.speed], ["0.5", "0.75", "1", "1.25", "1.5", "2"]);
   const rememberBrowsing = bool(values[PREFERENCE_KEYS.rememberBrowsing]);
   const actorLabels = bool(values[PREFERENCE_KEYS.actorLabels]);
   const authorDetails = bool(values[PREFERENCE_KEYS.authorDetails]);
 
   if (afterLaunch) preferences.afterLaunch = afterLaunch;
-  // Compatibility with the old boolean setting if a host still returns it.
-  else if (typeof values["browser.autoMinimize"] === "boolean") preferences.afterLaunch = values["browser.autoMinimize"] ? "minimize" : "stay";
-  // "library" was the old separate Animations tab. Both old browse lanes now
-  // open the unified browser; retain decoding so existing profiles migrate.
-  if (openTo) preferences.openTo = openTo === "library" ? "scenes" : openTo;
+  if (openTo) preferences.openTo = openTo;
   if (rememberBrowsing !== undefined) preferences.rememberBrowsing = rememberBrowsing;
   if (actorLabels !== undefined) preferences.actorLabels = actorLabels;
   if (libraryDetail) preferences.libraryDetail = libraryDetail;
@@ -58,11 +54,6 @@ export function decodePreferences(values: Record<string, unknown>): Partial<Brow
   if (speed) preferences.speed = speed;
   if (authorDetails !== undefined) preferences.authorDetails = authorDetails;
   return preferences;
-}
-
-export function preferenceFromChange(key: unknown, value: unknown): Partial<BrowserPreferences> {
-  if (typeof key !== "string") return {};
-  return decodePreferences({ [key]: value });
 }
 
 export function preferredOpenMode(openTo: OpenTo, last: BrowseMode, hasActive: boolean): BrowseMode {

@@ -10,7 +10,7 @@ OSF Animation DLL
       v
 bridge/client.ts ---- dev/mock-bridge.ts
       ^                     ^
-      |              OSF UI CLI harness iframe
+      |              Vite standalone preview
       |
       v
 app/controller.ts (effects and retries)
@@ -39,8 +39,16 @@ same interface, so feature code does not branch on bridge availability.
 
 ## Development
 
-`npm run dev` starts the OSF UI CLI harness at `/__osfui/`. It owns the game-sized reference frame,
-resolution controls, transparency, visibility, bridge injection, and HMR. Inside that harness iframe
-the browser deliberately selects its stateful standalone bridge, because animation launches, scans,
-wheel edits, and active-scene transitions need more behavior than a static command fixture. Committed
-snapshots under `fixtures/live/` remain the source for generated mock data and offline inspection.
+`npm run dev` serves the standalone browser at `http://localhost:8791/` with Vite HMR.
+In development, a page without native bridge capabilities uses the stateful standalone bridge
+for animation launches, scans, wheel edits, and active-scene transitions. Production always
+uses OSF UI. Committed snapshots under `fixtures/live/` provide standalone catalog data.
+
+## Settings
+
+OSF Settings owns the schema, persistence, hotkeys, and diagnostics. The DLL publishes a flat
+map of browser preferences through OSF UI's retained `settings` state. Both native and
+standalone adapters replay it on subscription and publish replacement snapshots after writes.
+The controller applies opening preferences only on the initial replay; subsequent updates
+preserve the current browsing session. Writes use `osf.animation.settings.set`, with native
+validation of the source view, allowed preference keys, and typed values.

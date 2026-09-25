@@ -121,7 +121,7 @@ namespace OSF::Input
 		constexpr std::size_t kReceiverVtblIndex = 10;
 
 		// Default keyboard keymap. For device kKeyboard the idCode is a Windows VK code.
-		// @TODO: a keymap override (would live in the OSF UI settings schema, src/API/UISettings.cpp)
+		// @TODO: a keymap override (would live in the OSF Settings schema, dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json)
 		Verb VerbForKeyboard(std::int32_t a_idCode)
 		{
 			switch (a_idCode) {

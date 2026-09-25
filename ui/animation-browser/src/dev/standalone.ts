@@ -9,7 +9,7 @@ import { isRecord } from "../bridge/contract";
 import { WHEEL_MAX, wheelKey } from "../app/selectors";
 import type { BrowserState } from "../app/state";
 import { normalizeCatalog } from "../model";
-import type { DevCommands, VersionDebugState, WheelDebugState } from "./debug";
+import type { DevCommands, WheelDebugState } from "./debug";
 import { StandaloneBridge } from "./mock-bridge";
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_CATALOG } from "./mock-data";
 
@@ -39,19 +39,11 @@ export function installWheelHook(bridge: AnimationBridge): void {
 }
 
 /** No-op stand-in so production code can hold a DevCommands without a dev graph. */
-export const NO_DEV_COMMANDS: DevCommands = { version: () => undefined, wheel: () => undefined };
+export const NO_DEV_COMMANDS: DevCommands = { wheel: () => undefined };
 
 export function createDebugCommands(runtime: DevRuntime): DevCommands {
   const { dispatch, send, requestCatalog, stateRef } = runtime;
   return {
-    version: (mode: VersionDebugState) => dispatch({
-      type: "plugin/received",
-      plugin: mode === "none" ? { plugin: "OSF Animation", version: "1.0.0" } : {
-        plugin: "OSF Animation",
-        version: "1.0.0",
-        ui: { name: "OSF UI", version: mode === "old" ? "1.0.0" : "1.1.0", tested: "1.1.0", outdated: mode === "old", nexusUrl: "https://www.nexusmods.com/starfield/mods/17711" },
-      },
-    }),
     wheel: (config: WheelDebugState | null) => {
       if (!config) {
         requestCatalog(true);

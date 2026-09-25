@@ -69,6 +69,6 @@ export interface BrowserCommands {
   requestClose(): void;
   beginOrbitCapture(): void;
   endOrbitCapture(): void;
-  /** Pacing fallback for OSF UI hosts older than native relative-pointer capture. */
+  /** Paced orbit input for pick mode or unavailable relative-pointer registration. */
   orbit(dx: number, dy: number, wheel: number): void;
 }

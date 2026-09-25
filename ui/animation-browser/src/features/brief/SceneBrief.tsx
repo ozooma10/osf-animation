@@ -58,7 +58,7 @@ function RoleMap({ state, scene, evaluation, commands }: { state: BrowserState; 
       return <div class={`role-row ${inScene ? "" : "bench"} ${member ? "" : "unfilled"}`} key={index}>
         <span class="role-name">{inScene ? role?.name || `role ${index + 1}` : "bench"}{role?.gender && role.gender !== "any" && <span class="role-g">{role.gender}</span>}</span><span class="role-arrow">→</span>
         {member ? <span class={`castline ${member.kind === "player" ? "player" : ""}`} tabindex={0} draggable={state.cast.length > 1}
-          onDragStart={(event) => { dragFrom.current = index; if (event.dataTransfer) { event.dataTransfer.effectAllowed = "move"; try { event.dataTransfer.setData("text/plain", String(index)); } catch { /* some Ultralight builds disallow setData */ } } }}
+          onDragStart={(event) => { dragFrom.current = index; if (event.dataTransfer) { event.dataTransfer.effectAllowed = "move"; try { event.dataTransfer.setData("text/plain", String(index)); } catch { /* drag data may be unavailable */ } } }}
           onDragOver={(event) => { if (dragFrom.current >= 0) { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = "move"; } }}
           onDrop={(event) => { if (dragFrom.current < 0) return; event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); commands.reorderMember(dragFrom.current, index, event.clientY - bounds.top > bounds.height / 2); dragFrom.current = -1; }}
           onDragEnd={() => { dragFrom.current = -1; }}

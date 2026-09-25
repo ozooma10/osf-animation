@@ -378,11 +378,10 @@ or after an extreme burst has expired that handle from the recent-history window
 
 ## In-game UI, hotkeys, and the wheel tag contract
 
-The scene browser, animation wheel, settings menu, and hotkeys are hosted by **OSF UI** (a separate
-mod) — there is no Papyrus surface for them, and no `Data/OSF/settings.json` (it is no longer read).
-Hotkeys are bound in OSF UI's settings menu on the **OSF Animation** card. Both ship unbound so they
-do not replace Starfield's context-sensitive or localized key assignments; OSF UI's own console
-toggle (F10) already opens the browser.
+The scene browser and animation wheel are rendered by **OSF UI 2.0**. **OSF Settings 1.0**
+owns settings and hotkeys on the **OSF Animation** page. Both hotkeys ship unbound; the browser
+is also available from the OSF Settings Launcher tab. `OSF.OpenBrowser` and `OSF.OpenWheel`
+remain available to Papyrus. The legacy `Data/OSF/settings.json` is no longer read.
 
 Content packs join these surfaces purely by **tags**, no code: a solo, free-space, self-terminating
 scene tagged `player.emote.<name>` appears as an **emote** in the unified Browse catalog and in the

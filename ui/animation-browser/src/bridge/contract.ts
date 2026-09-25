@@ -26,7 +26,6 @@ export type BridgeCommand =
   | "osfui.gamepadMode"
   | "osfui.handleBack"
   | "osfui.relativePointer"
-  | "settings.get"
   | "settings.set";
 
 export interface NativeMessage {

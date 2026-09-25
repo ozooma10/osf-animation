@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2018",
+    "target": "ES2022",
     "useDefineForClassFields": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -11,7 +11,14 @@
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "jsxImportSource": "octane",
-    "types": ["@osfui/cli/view", "vite/client"]
+    "types": [
+      "vite/client"
+    ]
   },
-  "include": ["src", "tests", "osfui.config.ts", "osfui.mock.ts", "vitest.config.ts"]
+  "include": [
+    "src",
+    "tests",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ]
 }

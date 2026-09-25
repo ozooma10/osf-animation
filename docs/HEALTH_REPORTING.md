@@ -1,12 +1,11 @@
 # Health reporting
 
-OSF Animation reports durable, actionable issues into OSF UI's shared **System
-Health** pane through native ABI **1.7** (`Feature::kDiagnostics`). The producer
-implementation is `src/API/Health.{h,cpp}`; the host contract is documented in
-`OSF UI/docs/native-plugin-api.md` §5d.
+OSF Animation reports durable problems to **OSF Settings > Mod Issues**, using the
+diagnostics SDK ABI 1.0. `src/API/Health.{h,cpp}` owns the wording and forwards
+`Issue` records through `OSFSettings_Diagnostics.h`. OSF UI is not required.
 
-Codes are local to the `osf.animation` source. OSF UI exposes them under the
-`osf.animation:<code>` namespace.
+Codes below select Animation's title and next-step text. Stable issue IDs replace
+existing reports; clearing an issue removes it.
 
 ## Codes
 
@@ -32,12 +31,7 @@ Deliberately **not** reported:
   durable — it belongs in the log and in the caller's return value.
 - Anything the engine recovers from within a tick or two (lock-leak recovery,
   orbit re-engage). Already corrected by the time it could be read.
-- Counts, timings, "loaded N packs". That is a log, and System Health is not one.
-- The OSF UI update badge (`kOSFUITested` in `UIBridge.cpp`). If Animation needs
-  a newer host, the right expression is a `targetVersion` in its view manifest —
-  OSF UI's own `compat.needs-newer-osfui` producer then raises it, with the
-  **Update OSF UI** action already wired. Do not hand-roll a second card for it.
-
+- Counts, timings, "loaded N packs". That is a log, and Mod Issues is not one.
 ## Producer rules
 
 - Report only conditions that are durable, actionable, and worth interrupting
@@ -45,10 +39,9 @@ Deliberately **not** reported:
 - Reports made before the bridge exists are buffered and replayed by `Connect()`.
 - `ReportRegistryLoad()` reconciles only the registry issue IDs it owns; it does
   not clear cards raised by other producers.
-- **Never put player-facing prose in a report.** The `code` is machine-readable;
-  OSF UI owns the localizable wording.
+- Animation owns player-facing titles, impact text, and next steps. Context is
+  flattened into the impact text and path-sanitized before it reaches OSF Settings.
 - **Never pass an absolute path in `context`.** It identifies the player's
-  machine and account. The host redacts path-shaped values to their trailing
-  component anyway — pass the bare filename yourself and keep the report honest.
+  machine and account. Pass bare filenames and sanitize free-form details.
 - **Withdraw what you raise.** A card that outlives its condition makes the whole
   pane untrustworthy, and there is no dismiss button by design.

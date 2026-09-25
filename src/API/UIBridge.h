@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-// OSF Animation's consumer of the OSF UI native bridge (src/API/OSFUI_API.h).
+// OSF Animation's consumer of the OSF UI native bridge (src/API/OSFUI.h).
 namespace OSF::API
 {
 	// Request the OSF UI bridge and register the osf.* commands. A no-op (logged) when OSF UI is absent.
@@ -12,9 +12,9 @@ namespace OSF::API
 	// Fired when the background clip-duration scan lands new numbers after the initial push.
 	void PushCatalogUpdate();
 
-	// Open the in-game scene browser (the "osf.animation/browser" view), as F10 would. Backs the OSF.OpenBrowser
-	// native and the openBrowser hotkey. Returns false when OSF UI is absent or too old to
-	// support a native menu open (bridge MINOR < 1). Any thread.
+	// Open the in-game scene browser (the "osf.animation/browser" view). Backs the OSF.OpenBrowser
+	// native and the openBrowser hotkey. Returns false when OSF UI is absent or its API is unsupported,
+	// or the main-thread queue cannot accept the open. Any thread.
 	bool OpenBrowser();
 
 	// Open the osf view in emote-wheel mode, filtered to solo free-space emotes whose tags start with

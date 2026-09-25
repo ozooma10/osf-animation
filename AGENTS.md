@@ -13,15 +13,12 @@ voice/sound, camera hold);
   frame clock/clip specs, additive pose math, sound registry, scene registry, route planner/controller plus owner/admission contracts — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
-- **UI dependency:** `ui/animation-browser` intentionally resolves `@osfui/cli` from
-  `file:../../../OSF UI/packages/cli`. Check out the OSF UI repository beside this repository, with
-  the directory names unchanged, before running `npm ci` or any UI script:
-  ```text
-  parent/
-  ├── OSF Animation/
-  └── OSF UI/
-      └── packages/cli/
-  ```
+- **UI build:** `ui/animation-browser` uses a local Vite/Octane build. Run `npm ci`
+  there before UI scripts. The retired OSF UI authoring CLI is no longer required.
+- **UI / Settings SDKs:** copy current headers from sibling `OSF UI/sdk/OSFUI.h` and
+  `OSF Settings/sdk/OSFSettings{,_Diagnostics}.h` into `src/API/`; web types come from
+  `OSF UI/sdk/osfui.d.ts`. OSF UI renders views; OSF Settings owns values, hotkeys,
+  launchers, and issues. The schema ships under `dist/SFSE/Plugins/OSF/Settings/schemas`.
 - **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see
   `docs/PACKAGING.md`). Output: `packaging\out\OSF Animation v<version>.zip`.
 - **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): recompile after editing a `.psc`, THEN `xmake`
@@ -134,8 +131,8 @@ Each entry: **system** (`path`) — role.
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
   content-neutral *mechanisms* with NO scene knowledge; each prologue-gates its engine calls and
   self-disables on mismatch. Whether a mechanism runs is driven by the scene/API alone — there is no
-  user-settings feature toggle; user settings (hotkeys, `logLevel`, HUD toggles) live in OSF UI's
-  in-game settings menu (`src/API/UISettings.cpp` registers the schema over the bridge; the old
+  user-settings feature toggle; user settings (hotkeys, `logLevel`, HUD toggles) live in OSF Settings's
+  in-game menu (`src/API/UISettings.cpp` subscribes to the shipped schema; the old
   `Data/OSF/settings.json` is no longer read).
 
 ## Logging
@@ -160,8 +157,8 @@ file). Two rules keep it cohesive:
   [Input] [Hotkey] [Equip] [Weapon] [UI] [Save] [Config]`. Don't restate the subsystem in the message text.
   (`[API]` = the native C++ inter-plugin API in `src/API/`; see `docs/API.md`.)
 
-A dev gets the full firehose without recompiling via the in-game OSF UI settings menu — OSF
-Animation › Logging › Log level → Trace (handled in `src/API/UISettings.cpp`, persists across
+A dev gets the full firehose without recompiling via the in-game OSF Settings menu — OSF
+Animation › Advanced - Diagnostics › Log level → Trace (handled in `src/API/UISettings.cpp`, persists across
 launches). The crash handler (`src/Util/CrashHandler.cpp`) deliberately bypasses spdlog — never
 route it through REX.
 

@@ -3,10 +3,11 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
-#include "API/OSFUI_API.h"
+#include "API/OSFSettings_Diagnostics.h"
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 
@@ -17,10 +18,7 @@ namespace OSF::API::Health
 	{
 		using json = nlohmann::json;
 
-		// Our source in the pane. The host validates it and assigns it to every
-		// report we make — it is not something a payload can claim — and it
-		// namespaces our ids and codes, so nothing here can collide with another
-		// mod's report or with one of OSF UI's own.
+		// OSF Settings identifies reports by (modId, issueId).
 		constexpr const char* kModId = "osf.animation";
 
 		// Reports made before Connect() (the game-version check runs at plugin
@@ -41,44 +39,67 @@ namespace OSF::API::Health
 			std::string              code;
 			Severity                 severity{ Severity::kWarning };
 			std::string              subject;
-			std::string              contextJson;  // "" when there is none
+			json                     context;
 		};
 
 		std::mutex         g_lock;
-		OSFUI::API::Client g_client;  // static lifetime: the bridge outlives us
-		bool               g_connected = false;
+		OSFSettings::API::Diagnostics::Client g_client;  // static lifetime: the bridge outlives us
+		bool               g_connectAttempted = false;
 		std::vector<Op>    g_buffered;
 
 		std::mutex            g_registryLock;
 		std::set<std::string> g_registryIssues;
 
-		// Caller must hold g_lock and have checked g_connected.
+		// Caller holds g_lock and has a connected diagnostics client.
 		void ApplyLocked(const Op& a_op)
 		{
-			switch (a_op.kind) {
-			case Op::Kind::kReport:
-				g_client.ReportIssue(kModId, a_op.id.c_str(), a_op.code.c_str(),
-					a_op.severity == Severity::kError ?
-						OSFUI::API::IssueSeverity::kError :
-						OSFUI::API::IssueSeverity::kWarning,
-					a_op.subject.c_str(),
-					a_op.contextJson.empty() ? nullptr : a_op.contextJson.c_str());
-				break;
-			case Op::Kind::kClear:
-				g_client.ClearIssue(kModId, a_op.id.c_str());
-				break;
+			using namespace OSFSettings::API;
+			auto status = Status::Ok;
+			if (a_op.kind == Op::Kind::kClear) {
+				status = g_client.Clear(kModId, a_op.id.c_str());
+			} else {
+				const char* title = "Animation content could not be loaded";
+				const char* next = "Check OSF Animation.log and repair or reinstall the affected content pack.";
+				if (a_op.code == "boot.untested-game-version") {
+					title = "This Starfield version has not been verified";
+					next = "Check for an OSF Animation update supporting your game version.";
+				} else if (a_op.code == "compat.needs-newer-osf-animation") {
+					title = "A mod requires a newer OSF Animation";
+					next = "Update OSF Animation to the version required by this mod.";
+				} else if (a_op.code == "wheel.pins-not-persisted") {
+					title = "Animation wheel changes could not be saved";
+					next = "Check disk space and write permissions, then save the wheel again.";
+				} else if (a_op.code == "fade.disabled") {
+					title = "Scene screen fades are unavailable";
+					next = "Update OSF Animation for this Starfield version.";
+				} else if (a_op.code == "sound.pack-load") {
+					title = "Animation sounds could not be loaded";
+				}
+				std::string impact = Util::SanitizeDiagnosticPaths(a_op.subject);
+				if (a_op.context.is_object()) {
+					for (const auto& [key, value] : a_op.context.items()) {
+						if (!impact.empty()) impact += "\n";
+						impact += key + ": " + Util::SanitizeDiagnosticPaths(value.is_string() ? value.get<std::string>() : value.dump());
+					}
+				}
+				status = g_client.Report({
+					.modId = kModId, .id = a_op.id.c_str(),
+					.severity = a_op.severity == Severity::kError ? Diagnostics::Severity::Error : Diagnostics::Severity::Warning,
+					.title = title, .impact = impact.c_str(), .nextSteps = next
+				});
 			}
+			if (status != Status::Ok) REX::WARN("[Config] Could not update Mod Issue '{}' (status {})", a_op.id, static_cast<unsigned>(status));
 		}
 
 		void Submit(Op&& a_op)
 		{
 			std::lock_guard lock(g_lock);
-			if (g_connected) {
+			if (g_client) {
 				ApplyLocked(a_op);
 				return;
 			}
-			if (g_buffered.size() >= kMaxBuffered) {
-				return;  // pre-bridge flood; the log lines still carry every one
+			if (g_connectAttempted || g_buffered.size() >= kMaxBuffered) {
+				return;  // unavailable provider or pre-connect limit; the log remains available
 			}
 			g_buffered.push_back(std::move(a_op));
 		}
@@ -113,28 +134,25 @@ namespace OSF::API::Health
 		std::vector<Op> replay;
 		{
 			std::lock_guard lock(g_lock);
-			if (g_connected) {
+			if (g_connectAttempted) {
 				return;
 			}
-			// A missing OSF UI, a MAJOR mismatch, or a host older than 1.7 all
-			// land here as "no". None of them is an error: reporting is a
-			// courtesy to the player, never a dependency of playback.
-			if (!g_client.Init() || !g_client.Has(OSFUI::API::Feature::kDiagnostics)) {
+			// Connect once. An absent provider leaves reporting to the log.
+			g_connectAttempted = true;
+			if (!g_client.Init()) {
 				g_buffered.clear();
 				g_buffered.shrink_to_fit();
 				return;
 			}
-			g_connected = true;
 			replay.swap(g_buffered);
-			g_buffered.shrink_to_fit();
 			for (const auto& op : replay) {
 				ApplyLocked(op);
 			}
 		}
 		if (!replay.empty()) {
-			REX::INFO("[UI] System Health connected — {} buffered report(s) flushed", replay.size());
+			REX::INFO("[Feature] Mod Issues connected — {} buffered report(s) flushed", replay.size());
 		} else {
-			REX::INFO("[UI] System Health connected");
+			REX::INFO("[Feature] Mod Issues connected");
 		}
 	}
 
@@ -147,7 +165,7 @@ namespace OSF::API::Health
 			.code = std::string(a_code),
 			.severity = a_severity,
 			.subject = std::string(a_subject),
-			.contextJson = a_context && a_context->is_object() ? a_context->dump() : std::string{},
+			.context = a_context && a_context->is_object() ? *a_context : json{},
 		});
 	}
 

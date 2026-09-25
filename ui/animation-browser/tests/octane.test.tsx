@@ -14,6 +14,7 @@ import { normalizeScene } from "../src/model";
 
 afterEach(() => {
   cleanup();
+  delete window.osfui;
   vi.useRealTimers();
 });
 
@@ -42,14 +43,12 @@ describe("Octane view runtime", () => {
     expect(screen.getByText("waiting for runtime…")).toBeTruthy();
   });
 
-  it("renders an outdated-host warning without advertising a dead external link", () => {
+  it("shows the running Animation version", () => {
     const state = createInitialState();
     state.ready = true;
-    state.plugin = { version: "1.0.0", ui: { version: "1.0.0", tested: "1.1.0", outdated: true, nexusUrl: "https://example.invalid" } };
+    state.plugin = { plugin: "OSF Animation", version: "1.5.0" };
     render(App, { props: { state, commands } });
-
-    expect(screen.getByText("UPDATE OSF UI")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "UPDATE OSF UI" })).toBeNull();
+    expect(screen.getByText("OSF 1.5.0")).toBeTruthy();
   });
 
   it("caps an explicitly opened broad-search group", () => {
@@ -100,6 +99,23 @@ describe("Octane view runtime", () => {
     const { result } = renderHook(() => useBrowserController());
     await act(() => result.current.commands.toggleSettings());
     expect(result.current.state.settingsOpen).toBe(true);
+  });
+
+  it("keeps browsing state when retained preferences update after opening", async () => {
+    let publish: (payload: any) => void = () => {};
+    window.osfui = {
+      postMessage() {}, send: () => true, request: async () => ({}), on: () => () => {},
+      state: { get: () => undefined, on: (_key, listener) => { publish = listener; return () => {}; } },
+    } as NonNullable<Window["osfui"]>;
+    const { result } = renderHook(() => useBrowserController());
+    const snapshot = (authorDetails: boolean) => ({
+      "browser.openTo": "scenes", "browser.rememberBrowsing": false, "browser.authorDetails": authorDetails,
+    });
+    await act(() => publish(snapshot(false)));
+    await act(() => result.current.commands.setSearch("pose"));
+    await act(() => publish(snapshot(true)));
+    expect(result.current.state.preferences.authorDetails).toBe(true);
+    expect(result.current.state.filters.search).toBe("pose");
   });
 
   it("reserves world presses for camera orbit without changing panel selection", () => {

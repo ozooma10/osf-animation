@@ -254,7 +254,11 @@ describe("browser reducer", () => {
 });
 
 describe("browser settings", () => {
-  it("decodes typed settings and migrates the legacy Auto-Minimize bool", () => {
+  it("maps the Settings schema's scene camera value to the default launch override", () => {
+    expect(decodePreferences({ "launch.camera": "scene" }).camera).toBe("");
+  });
+
+  it("decodes typed settings and keeps defaults for absent keys", () => {
     expect(decodePreferences({
       "browser.afterLaunch": "close",
       "browser.rememberBrowsing": false,
@@ -266,7 +270,6 @@ describe("browser settings", () => {
       hideApparel: "0", playerInputLock: "1", camera: "scene_orbit" });
     // Absent keys keep their defaults rather than decoding as false.
     expect(decodePreferences({}).actorLabels).toBeUndefined();
-    expect(decodePreferences({ "browser.autoMinimize": false })).toMatchObject({ afterLaunch: "stay" });
   });
 
   it("falls back from Active when no scene is running", () => {

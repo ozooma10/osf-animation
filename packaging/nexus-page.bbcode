@@ -15,7 +15,7 @@ The engine itself carries no content; the installer offers two optional starter 
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620284-2144773043.png[/img][/center]
 [list]
-[*]In-game [b]animation browser[/b] ([font=Courier New]F10[/font]): search one unified catalog, pick a cast by clicking actors in the world or from a nearby-actor scan, launch on furniture, drag to orbit the camera, and manage running scenes[/*]
+[*]In-game [b]animation browser[/b] (OSF Settings Launcher): search one unified catalog, pick a cast by clicking actors in the world or from a nearby-actor scan, launch on furniture, drag to orbit the camera, and manage running scenes[/*]
 [*][b]Emote wheel[/b] (unbound by default - pick a key in OSF Animation's settings): radial quick emotes for you or the NPC in your crosshair; pin any solo animation from the browser onto it[/*]
 [*][b]Vanilla animation library[/b] (optional install): thousands of Starfield's own clips, humans plus 27 creature species, browsable and playable[/*]
 [*]Synced multi-actor [b]GLTF / GLB / .af[/b] playback on one shared clock[/*]
@@ -37,13 +37,13 @@ The engine itself carries no content; the installer offers two optional starter 
 [/list]
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620464-2115394493.png[/img][/center]
-[b]Requires:[/b] [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url] and [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url] (renders the browser, the wheel, the settings menu, and hotkeys - the engine and Papyrus API run without it). On an older OSF UI the browser warns you with an [color=#f08a24]UPDATE[/color] badge.
+[b]Requires:[/b] [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url] and [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url] (renders the browser and wheel), plus OSF Settings 1.0.0 or newer (settings, hotkeys, launchers, and Mod Issues). The engine and Papyrus API run without these interfaces.
 
 Install with MO2 or Vortex; the installer will offer the animation library and the emote pack - take both. Then in-game:
 [list]
-[*][font=Courier New]F10[/font] opens the animation browser - pick something, hit LAUNCH.[/*]
+[*]Open OSF Animation from the OSF Settings Launcher tab - pick something, hit LAUNCH.[/*]
 [*]The emote wheel ships unbound - bind a key under [b]OSF Animation[/b] in the settings menu, then aim at an NPC first to emote them instead of yourself.[/*]
-[*]Hotkeys and settings live in OSF UI's settings menu, under [b]OSF Animation[/b].[/*]
+[*]Hotkeys and settings live in OSF Settings, under [b]OSF Animation[/b].[/*]
 [/list]
 No OSF UI? The engine still runs headless for content mods; smoke-test from the console (~):
 [code]cgf "OSFTest.SoloScene"   ; play a looping test animation

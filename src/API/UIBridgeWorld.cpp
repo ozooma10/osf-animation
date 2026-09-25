@@ -1,6 +1,6 @@
 #include "API/UIBridgeWorld.h"
 
-#include "API/OSFUI_API.h"
+#include "API/OSFUI.h"
 #include "API/UIKeywordLabel.h"
 #include "Camera/CameraService.h"
 #include "Matchmaking/Matchmaker.h"
@@ -1211,9 +1211,9 @@ namespace OSF::API::UIBridgeWorld
 	void RegisterCommands(OSFUI::API::Client& a_ui)
 	{
 		g_ui = &a_ui;
-		a_ui.RegisterCommand("osf.animation.pickScreen", &OnPickScreen, nullptr);
-		a_ui.RegisterCommand("osf.animation.projectPickables", &OnProjectPickables, nullptr);
-		a_ui.RegisterCommand("osf.animation.projectActors", &OnProjectActors, nullptr);
-		a_ui.RegisterCommand("osf.animation.scanNearby", &OnScanNearby, nullptr);
+		a_ui.RegisterSend("osf.animation.pickScreen", &OnPickScreen, nullptr);
+		a_ui.RegisterSend("osf.animation.projectPickables", &OnProjectPickables, nullptr);
+		a_ui.RegisterSend("osf.animation.projectActors", &OnProjectActors, nullptr);
+		a_ui.RegisterSend("osf.animation.scanNearby", &OnScanNearby, nullptr);
 	}
 }

@@ -39,7 +39,7 @@ namespace
 			// Before the loaders: they are the first real producers, and
 			// connecting here also flushes what plugin load already buffered.
 			// Separate from InstallUIBridge because health reporting has to
-			// survive a host too old for the browser view.
+			// work independently of the browser host.
 			OSF::API::Health::Connect();
 			OSF::Registry::RequirementRegistry::LoadAll();
 			OSF::API::MinimumVersion::EnablePrompts();
@@ -57,9 +57,8 @@ namespace
 			// Register the osf.* animation-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
 			// Runs after the registry is loaded and the scene API is ready, so catalog/launch answer live.
 			OSF::API::InstallUIBridge();
-			// Settings + hotkeys live in OSF UI's MCM (schema registration, change
-			// subscription, hotkey dispatch); degrades loudly to defaults when OSF UI
-			// is absent/too old. After InstallUIBridge: same bridge singleton.
+			// OSF Settings owns the shipped schema, persistence, hotkeys, and issue reports.
+			// Initialize after the registries so initial settings apply to loaded services.
 			OSF::API::InstallUISettings();
 			// Probe clip loop lengths for the catalog's time estimates After InstallUIBridge so the push hook exists.
 			OSF::Serialization::ClipDurations::ScanSceneClipsAsync(&OSF::API::PushCatalogUpdate);
