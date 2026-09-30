@@ -10,7 +10,6 @@
 #include "Input/InputService.h"
 #include "Maintenance/FrameMaintenance.h"
 #include "Overlay/OverlayService.h"
-#include "Props/PropService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/RequirementRegistry.h"
 #include "Registry/SceneRegistry.h"
@@ -66,8 +65,7 @@ namespace
 			REX::INFO("[Feature] Main-Loop Frame Hook INSTALLED");
 			REX::INFO("[Feature] Raw-layout Camera Controls {}",
 				OSF::Camera::CameraService::GetSingleton().RawLayoutSupport() ? "AVAILABLE" : "UNAVAILABLE");
-			REX::INFO("[Feature] Scene Props {}",
-				OSF::Props::PropService::GetSingleton().Available() ? "AVAILABLE" : "UNAVAILABLE");
+			REX::INFO("[Feature] Scene Props AVAILABLE");
 			break;
 		}
 		case SFSE::MessagingInterface::kPostPostDataLoad:

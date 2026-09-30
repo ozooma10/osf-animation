@@ -167,11 +167,6 @@ namespace OSF::Props
 		return instance;
 	}
 
-	bool PropService::Available()
-	{
-		return OSF::RE::EnsureResolved();
-	}
-
 	Instance PropService::CreateAttached(
 		::RE::Actor* a_actor, const Source& a_source,
 		const Attachment& a_attachment, std::string* a_error)
@@ -181,11 +176,6 @@ namespace OSF::Props
 			Fail(a_error, "role resolved no actor");
 			return result;
 		}
-		if (!Available()) {
-			Fail(a_error, OSF::RE::StatusText());
-			return result;
-		}
-
 		auto* source = ResolveSource(a_actor, a_source);
 		if (!source) {
 			Fail(a_error, "prop source resolved no equipped or loaded form");
@@ -227,7 +217,7 @@ namespace OSF::Props
 			return false;
 		}
 
-		auto* current = OSF::RE::GetParent(a_instance.object.get());
+		auto* current = a_instance.object->parent;
 		ApplyTransform(*a_instance.object, a_attachment);
 		if (current == target) {
 			a_instance.actorRoot = std::move(actorRoot);
@@ -237,7 +227,7 @@ namespace OSF::Props
 		const bool attached = current ?
 			OSF::RE::Reparent(a_instance.object.get(), target, a_error) :
 			OSF::RE::AttachChild(target, a_instance.object.get(), a_error);
-		if (!attached || OSF::RE::GetParent(a_instance.object.get()) != target) {
+		if (!attached) {
 			return false;
 		}
 		a_instance.actorRoot = std::move(actorRoot);
@@ -252,7 +242,7 @@ namespace OSF::Props
 			return true;
 		}
 
-		if (auto* parent = OSF::RE::GetParent(a_instance.object.get())) {
+		if (auto* parent = a_instance.object->parent) {
 			if (!OSF::RE::DetachChild(
 					parent, a_instance.object.get(), a_error)) {
 				return false;

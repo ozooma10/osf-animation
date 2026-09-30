@@ -32,8 +32,6 @@ namespace OSF::Props
 	public:
 		static PropService& GetSingleton();
 
-		[[nodiscard]] bool Available();
-
 		// GAME THREAD. Resolve and clone a visual, then attach it to the named
 		// node on a_actor. On success the returned instance owns the prop.
 		[[nodiscard]] Instance CreateAttached(

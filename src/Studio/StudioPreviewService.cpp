@@ -787,7 +787,7 @@ namespace OSF::Studio
 			// not become the new monitor's duplicate-suppression latch.
 			CleanupInbox(g_directory, {});
 			g_session = NewSessionToken();
-			const bool helmetAvailable = Suit::Acquire() && Props::PropService::GetSingleton().Available();
+			const bool helmetAvailable = Suit::Acquire();
 			json session{
 				{ "version", kProtocolVersion }, { "session", g_session }, { "game", "Starfield" },
 				{ "runtime", "OSF Animation" },
