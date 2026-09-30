@@ -5,11 +5,14 @@
 #include "Util/ClipPath.h"
 #include "Util/DiagnosticText.h"
 #include "Util/KeywordLabel.h"
+#include "Util/NativeMainThreadQueue.h"
 #include "Util/RegistryFiles.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <filesystem>
+#include <thread>
 
 using OSF::Test::Check;
 using OSF::Test::Finish;
@@ -95,6 +98,53 @@ int main()
 			"animation keyword prefix and CamelCase are humanized");
 		Check(OSF::Util::AnimationKeywordLabel("AnimHVACUnit") == "HVAC Unit",
 			"animation keyword acronym boundary is preserved");
+	}
+
+	{
+		namespace Queue = OSF::Util::NativeMainThreadQueue;
+		std::vector<int> events;
+		Queue::PostBatch({
+			[&] {
+				events.push_back(1);  // final timed mark
+				// A producer can publish during a callback without waiting on the drain's lock.
+				std::thread producer([&] { Queue::Post([&] { events.push_back(3); }); });
+				producer.join();
+				Queue::Post([&] { events.push_back(4); });
+			},
+			[&] { events.push_back(2); }  // auto-end follows final marks
+		});
+		Check(events.empty(), "frame commands never execute on the posting thread");
+		Queue::Drain();
+		Check(events == std::vector<int>{ 1, 2 }, "drain completes its captured batch before callback-enqueued work");
+		Queue::Drain();
+		Check(events == std::vector<int>{ 1, 2, 3, 4 }, "worker and nested posts wait for the next frame in FIFO order");
+		Queue::Drain();
+		Check(events.size() == 4, "commands execute once");
+	}
+	{
+		namespace Queue = OSF::Util::NativeMainThreadQueue;
+		constexpr int producerCount = 4;
+		constexpr int commandsPerProducer = 64;
+		std::array<int, producerCount> next{};
+		bool ordered = true;
+		bool onOwnerThread = true;
+		const auto owner = std::this_thread::get_id();
+		std::vector<std::thread> producers;
+		for (int producer = 0; producer < producerCount; ++producer) {
+			producers.emplace_back([&, producer] {
+				for (int command = 0; command < commandsPerProducer; ++command) {
+					Queue::Post([&, producer, command] {
+						onOwnerThread &= std::this_thread::get_id() == owner;
+						ordered &= next[producer]++ == command;
+					});
+				}
+			});
+		}
+		for (auto& producer : producers) producer.join();
+		Queue::Drain();
+		Check(onOwnerThread && ordered, "concurrent producers retain their order and execute on the drain owner");
+		Check(std::ranges::all_of(next, [](int count) { return count == commandsPerProducer; }),
+			"concurrent posts are neither lost nor duplicated");
 	}
 
 	return Finish("Core runtime");

@@ -156,7 +156,7 @@ namespace OSF::Animation
 		void OnSaveBegin();
 		void OnSaveEnd();
 
-		// Main-thread maintenance pass. FrameMaintenance coalesces worker notifications onto the BSService drain; AnimationManager::Update owns subdivided graph sampling.
+		// Main-thread maintenance after the frame command batch; AnimationManager::Update owns subdivided graph sampling.
 		void MaintenanceTick();
 
 	private:
@@ -166,9 +166,8 @@ namespace OSF::Animation
 			std::string a_source);
 
 		// Detaches all participants of a_scene (revert movement mode, drop graphs) and removes it from `scenes`. Caller holds stateLock unique.
-		// Game-thread follow-ups are appended to a_deferred; the caller MUST hand them to SFSE
-		// (FlushDeferredTasks) after releasing stateLock — AddTask under stateLock inverts lock
-		// order against SFSE's task drain.
+		// Game-thread follow-ups are appended to a_deferred; the caller publishes the batch
+		// (FlushDeferredTasks) after releasing stateLock.
 		void StopPlaybackLocked(PlaybackSession* a_session, std::vector<std::function<void()>>& a_deferred);
 
 		// Every live anchored NPC participant (player excluded), NiPointer-pinned. Takes stateLock shared.
@@ -177,8 +176,7 @@ namespace OSF::Animation
 
 		// Per-graph upkeep run from Hook_AnimGraphUpdate right after sampling, while the caller holds stateLock (shared) and the graph's own lock.
 		// Each appends its game-thread-only follow-up to a_deferred; the hook flushes the batch to
-		// the SFSE task queue AFTER releasing both locks (AddTask under stateLock inverts lock order
-		// against SFSE's drain).
+		// the frame queue after releasing both locks.
 		void QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // last stage ran out -> StopScene
 		void QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // stage fired timed marks -> mark handler
 		void QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                  // fade-out elapsed -> RemoveFadedGraph

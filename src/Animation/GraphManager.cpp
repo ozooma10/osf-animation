@@ -1,3 +1,4 @@
+#include "Util/NativeMainThreadQueue.h"
 #include "GraphManager.h"
 #include "GraphManagerClipLoad.h"
 
@@ -22,15 +23,11 @@ namespace OSF::Animation
 {
 	namespace
 	{
-		// Hand a batch of game-thread follow-ups to SFSE *after* stateLock is released. SFSE's drain
-		// runs every queued task inside its own queue lock while our task bodies take stateLock, so an
-		// AddTask made while holding stateLock inverts that order and can ABBA-deadlock against the drain.
+		// Publish related follow-ups together after releasing graph state. The frame update takes
+		// a finite batch, so final marks and their stop command must enter that batch in order.
 		void FlushDeferredTasks(std::vector<std::function<void()>>& a_tasks)
 		{
-			for (auto& fn : a_tasks) {
-				SFSE::GetTaskInterface()->AddTask(std::move(fn));
-			}
-			a_tasks.clear();
+			Util::NativeMainThreadQueue::PostBatch(std::move(a_tasks));
 		}
 
 
@@ -629,7 +626,7 @@ namespace OSF::Animation
 			RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(refr) };
 			const PlaybackId playbackId = scene->playbackId;
 			const std::uint64_t worldEpoch = scene->worldEpoch;
-			SFSE::GetTaskInterface()->AddTask([keepAlive, worldPos, heading, isPlayer, playbackId, worldEpoch]() {
+			Util::NativeMainThreadQueue::Post([keepAlive, worldPos, heading, isPlayer, playbackId, worldEpoch]() {
 				auto& gm = GetSingleton();
 				if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
 					return;
@@ -815,7 +812,7 @@ namespace OSF::Animation
 	void GraphManager::StopAll(const char* a_reason)
 	{
 		// Invalidate every queued task from the discarded world before any service/graph state is
-		// cleared. Tasks already in the SFSE queue observe the new epoch and no-op.
+		// cleared. Tasks already in the frame queue observe the new epoch and no-op.
 		_worldEpoch.fetch_add(1, std::memory_order_acq_rel);
 		// A pending save window must not outlive the world it was opened for (a load can begin mid-save-op).
 		_saveWindow.store(false, std::memory_order_relaxed);
@@ -1111,7 +1108,7 @@ namespace OSF::Animation
 			RE::NiPointer<RE::Actor> keepAlive{ a_actor };
 			const RE::NiPoint3 anchor{ a_x, a_y, a_z };
 			const auto worldEpoch = _worldEpoch.load(std::memory_order_acquire);
-			SFSE::GetTaskInterface()->AddTask([keepAlive, anchoredGraph, anchor, heading, anchorRevision, worldEpoch]() {
+			Util::NativeMainThreadQueue::Post([keepAlive, anchoredGraph, anchor, heading, anchorRevision, worldEpoch]() {
 				auto& gm = GetSingleton();
 				if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch) {
 					return;
@@ -1445,18 +1442,18 @@ namespace OSF::Animation
 		if (a_deferred) {
 			a_deferred->emplace_back(std::move(task));  // caller holds stateLock; it flushes after release
 		} else {
-			SFSE::GetTaskInterface()->AddTask(std::move(task));
+			Util::NativeMainThreadQueue::Post(std::move(task));
 		}
 	}
 
 	void GraphManager::MaintenanceTick()
 	{
-		// Main-thread-only. FrameMaintenance reaches this through the verified BSService drain;
+		// Main-thread-only. FrameMaintenance calls this after draining the frame's command batch;
 		// the game-wide AnimationManager report hook never enters global maintenance.
 		if (graphCount.load(std::memory_order_relaxed) == 0) {
 			return;
 		}
-		// Permanent tasks may continue while a game menu/console freezes animation reports. Do not
+		// UI updates continue while a game menu/console freezes animation reports. Do not
 		// interpret that intentional pause as participant death; force a fresh grace window on resume.
 		if (IsGameMenuPaused() || g_consoleOpen.load(std::memory_order_relaxed)) {
 			_stallWatchdog.Pause();
@@ -1682,8 +1679,7 @@ namespace OSF::Animation
 			g->Sample(PlaybackDelta(*a_updateData), a_this);
 
 			// Per-graph follow-ups, run under both locks; game-thread-only work is collected in
-			// `deferred` and handed to SFSE only after both locks release (AddTask under stateLock
-			// inverts lock order against SFSE's drain).
+			// `deferred` and published to the frame queue after both locks release.
 			// Marks BEFORE auto-end: the task queue drains FIFO, so on a play-once segment the final
 			// at:"end" marks must be queued ahead of the stop task or they resolve a dead handle.
 			gm.QueueTimedMarksIfFired(*g, deferred);

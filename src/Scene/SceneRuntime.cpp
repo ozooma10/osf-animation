@@ -20,7 +20,7 @@ namespace OSF::Scene
 	namespace
 	{
 		constexpr std::size_t kMaxRetiredRosters = 256;
-		// Execute one director verb against the active grant. Runs on the game thread (the InputService posts it via the SFSE task queue), so it may safely touch scene/graph state.
+		// Execute one director verb against the active grant. InputService queues it for the game-thread frame update.
 		// Bails if the scene ended between the keypress and now (a load ran Clear); that keeps us off a stale driver Actor*, since a live handle implies live participants.
 		void DispatchInputVerb(Input::Verb a_verb, const Input::Grant& a_grant)
 		{

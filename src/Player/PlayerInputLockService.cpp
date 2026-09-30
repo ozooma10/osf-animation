@@ -1,3 +1,4 @@
+#include "Util/NativeMainThreadQueue.h"
 #include "Player/PlayerInputLockService.h"
 
 namespace OSF::Player
@@ -24,10 +25,10 @@ namespace OSF::Player
 		// WITHOUT decoupling the rig (GraphManager's compose-root rotation pin does that). This remains only
 		// to clear a STALE flag: AI-driven is PERSISTENT (serialized into saves), so a save made by an older
 		// build that set it would reload AI-driven; OnStopAll clears it on every load. No native binding;
-		// queued via SFSE task, any-thread.
+		// queued for the frame update, any-thread.
 		void SetPlayerAIDriven(bool a_driven)
 		{
-			SFSE::GetTaskInterface()->AddTask([a_driven]() {
+			Util::NativeMainThreadQueue::Post([a_driven]() {
 				auto* game = RE::GameVM::GetSingleton();
 				auto* vm = game ? game->GetVM() : nullptr;
 				if (!vm) {
@@ -70,7 +71,7 @@ namespace OSF::Player
 		// layer below is non-persistent.
 		SetPlayerAIDriven(false);
 
-		SFSE::GetTaskInterface()->AddTask([this, epoch]() {
+		Util::NativeMainThreadQueue::Post([this, epoch]() {
 			if (taskEpoch.load(std::memory_order_acquire) != epoch) {
 				return;
 			}
@@ -92,7 +93,7 @@ namespace OSF::Player
 	void PlayerInputLockService::SetPlayerInputLock(bool a_enable)
 	{
 		const auto epoch = taskEpoch.load(std::memory_order_acquire);
-		SFSE::GetTaskInterface()->AddTask([this, a_enable, epoch]() {
+		Util::NativeMainThreadQueue::Post([this, a_enable, epoch]() {
 			if (taskEpoch.load(std::memory_order_acquire) != epoch) {
 				return;
 			}

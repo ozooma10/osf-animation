@@ -2,6 +2,6 @@
 
 namespace OSF::Maintenance
 {
-	// Installs one process-lifetime SFSE producer. Its worker notifications are coalesced onto the verified BSService main-thread drain.
+	// Install once at plugin load. Runs queued commands and maintenance after UI_AdvanceActiveMenus.
 	bool InstallFrameMaintenance();
 }

@@ -1,3 +1,4 @@
+#include "Util/NativeMainThreadQueue.h"
 #include "Studio/StudioPreviewService.h"
 
 #include "Animation/GraphManager.h"
@@ -132,7 +133,7 @@ namespace OSF::Studio
 
 		void Reply(std::string_view a_id, bool a_ok, std::string_view a_message)
 		{
-			// Replies come from both the monitor thread (parse failures) and SFSE game-thread tasks.
+			// Replies come from both the monitor thread (parse failures) and frame commands.
 			// Serialize writers, and publish atomically — write a temp file, then rename over
 			// response.json — so Studio never reads a truncated or interleaved document.
 			const std::scoped_lock lock{ g_replyMutex };
@@ -497,14 +498,14 @@ namespace OSF::Studio
 
 		void QueuePing(std::string id, std::uint64_t generation)
 		{
-			SFSE::GetTaskInterface()->AddTask([id = std::move(id), generation]() {
+			Util::NativeMainThreadQueue::Post([id = std::move(id), generation]() {
 				if (IsCurrentGeneration(generation)) Reply(id, true, "OSF Animation is ready");
 			});
 		}
 
 		void QueueStop(std::string id, std::uint64_t generation, bool a_helmet)
 		{
-			SFSE::GetTaskInterface()->AddTask([id = std::move(id), generation, a_helmet]() {
+			Util::NativeMainThreadQueue::Post([id = std::move(id), generation, a_helmet]() {
 				if (!IsCurrentGeneration(generation)) return;
 				if (a_helmet) StopHelmetPreview();
 				else {
@@ -520,7 +521,7 @@ namespace OSF::Studio
 
 		void QueuePlay(std::string id, std::vector<std::uint8_t> bytes, std::uint64_t generation)
 		{
-			SFSE::GetTaskInterface()->AddTask([id = std::move(id), bytes = std::move(bytes), generation]() mutable {
+			Util::NativeMainThreadQueue::Post([id = std::move(id), bytes = std::move(bytes), generation]() mutable {
 				if (!IsCurrentGeneration(generation)) return;
 				auto* player = RE::PlayerCharacter::GetSingleton();
 				if (!player) return Reply(id, false, "The player is not available in the loaded world");
@@ -551,7 +552,7 @@ namespace OSF::Studio
 
 		void QueueHelmet(std::string id, HelmetRequest request, std::uint64_t generation)
 		{
-			SFSE::GetTaskInterface()->AddTask([id = std::move(id), request = std::move(request), generation]() mutable {
+			Util::NativeMainThreadQueue::Post([id = std::move(id), request = std::move(request), generation]() mutable {
 				if (!IsCurrentGeneration(generation)) return;
 				auto* player = RE::PlayerCharacter::GetSingleton();
 				if (!player) return Reply(id, false, "The player is not available in the loaded world");
@@ -757,7 +758,7 @@ namespace OSF::Studio
 			g_monitor.request_stop();
 			if (g_monitor.joinable()) g_monitor.join();
 
-			// Setting callbacks and permanent tasks run on the game thread. Keep every engine/RE
+			// Settings changes arrive through the frame command queue. Keep every engine/RE
 			// operation here; the monitor only performs file IO and queues work.
 			StopHelmetPreview();
 			StopRawPreview();

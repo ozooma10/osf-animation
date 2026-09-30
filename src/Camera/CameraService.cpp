@@ -1,3 +1,4 @@
+#include "Util/NativeMainThreadQueue.h"
 #include "Camera/CameraService.h"
 
 #include "Input/InputService.h"
@@ -188,7 +189,7 @@ namespace OSF::Camera
 	void CameraService::QueueTask(std::function<void()> a_task)
 	{
 		const auto epoch = taskEpoch.load(std::memory_order_acquire);
-		SFSE::GetTaskInterface()->AddTask([this, epoch, task = std::move(a_task)]() mutable {
+		Util::NativeMainThreadQueue::Post([this, epoch, task = std::move(a_task)]() mutable {
 			if (taskEpoch.load(std::memory_order_acquire) == epoch) {
 				task();
 			}

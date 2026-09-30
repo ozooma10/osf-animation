@@ -59,6 +59,7 @@ Each entry: **system** (`path`) — role.
   owns the two vtable hooks. `PlaySceneStaged` is the one scene entry. `StopAll` drops all state on load (releases the persistent AI-driven flag). 
   Compose-root pin + cull-sphere + BSFadeNode fade suppression live in `Hook_ModelNodeUpdate`
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
+- **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks the two `UI_AdvanceActiveMenus` call sites in `UI::UpdateMenus`, chaining with OSF UI when present. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, graph maintenance, playback previews, and Studio. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Sampling and stamping remain in their animation hooks.
 - **Scene** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —

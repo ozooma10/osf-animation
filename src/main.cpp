@@ -27,15 +27,13 @@ namespace
 {
 	// Last game version whose offsets I checked by hand. Should keep working unless AddressLib ships a breaking update.
 	constexpr REL::Version kVerifiedGameVersion{ 1, 16, 244, 0 };
-	// Persistence uses 59 bytes for three original-function gateways plus 42 bytes
-	// for their branch islands. Keep a small margin for hook implementation changes.
-	constexpr std::size_t kTrampolineBytes = 128;
+	// Persistence gateways/branches use 101 bytes; the two frame hooks add up to 28.
+	constexpr std::size_t kTrampolineBytes = 192;
 
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
 	{
 		switch (a_msg->type) {
 		case SFSE::MessagingInterface::kPostDataLoad: {
-			const bool frameMaintenanceInstalled = OSF::Maintenance::InstallFrameMaintenance();
 			// Before the loaders: they are the first real producers, and
 			// connecting here also flushes what plugin load already buffered.
 			// Separate from InstallUIBridge because health reporting has to
@@ -65,7 +63,7 @@ namespace
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
-			REX::INFO("[Feature] Main-Thread Maintenance Queue {}", frameMaintenanceInstalled ? "INSTALLED" : "UNAVAILABLE");
+			REX::INFO("[Feature] Main-Thread Frame Hook INSTALLED");
 			REX::INFO("[Feature] Raw-layout Camera Controls {}",
 				OSF::Camera::CameraService::GetSingleton().RawLayoutSupport() ? "AVAILABLE" : "UNAVAILABLE");
 			REX::INFO("[Feature] Scene Props {}",
@@ -117,6 +115,9 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 			OSF::API::Health::Severity::kWarning, runtime.string(), &context);
 	}
 
+	if (!OSF::Maintenance::InstallFrameMaintenance()) {
+		return false;
+	}
 	OSF::Animation::GraphManager::GetSingleton().InstallHooks();
 	OSF::Serialization::PersistenceHost::Initialize();
 	SFSE::GetMessagingInterface()->RegisterListener(MessageCallback);

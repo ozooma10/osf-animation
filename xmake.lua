@@ -85,12 +85,12 @@ target("osf-native-scene-event-test")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
--- Pure shared-clock and clip-spec helper tests (no game/CommonLib runtime needed).
+-- Pure shared-clock, frame command queue, and clip-spec tests (no game/CommonLib runtime needed).
 target("osf-frame-clock-test")
     set_kind("binary")
     set_default(false)
     add_tests("default")
-    add_files("src/Util/ClipPath.cpp", "test/FrameClockTest.cpp")
+    add_files("src/Util/ClipPath.cpp", "src/Util/NativeMainThreadQueue.cpp", "test/FrameClockTest.cpp")
     add_includedirs("src")
 
 -- Pure local-pose composition tests (reference-relative translation/rotation, weighting,

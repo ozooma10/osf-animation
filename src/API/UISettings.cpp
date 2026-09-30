@@ -5,6 +5,7 @@
 #include "Equipment/GearRegistry.h"
 #include "Studio/StudioPreviewService.h"
 #include "UI/HudMessage.h"
+#include "Util/NativeMainThreadQueue.h"
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -78,7 +79,7 @@ namespace OSF::API
 			}
 			if ((refreshAll || a_key == "studioLink.enabled") &&
 				g_settings.GetBool(kModId, "studioLink.enabled", &enabled) == Status::Ok) {
-				Studio::SetPreviewServiceEnabled(enabled);
+				Util::NativeMainThreadQueue::Post([enabled]() { Studio::SetPreviewServiceEnabled(enabled); });
 			}
 
 			const bool browserChanged = refreshAll || std::ranges::contains(kBoolPreferences, a_key) ||
@@ -107,7 +108,7 @@ namespace OSF::API
 
 		void OnHotkey(const char*, const char* a_id, void*) noexcept
 		{
-			// OpenBrowser/OpenWheel marshal engine work to the verified main-thread queue.
+			// OpenBrowser/OpenWheel queue engine work for the frame update.
 			try {
 				const std::string_view id = a_id ? a_id : "";
 				if (id == "openBrowser") OpenBrowser();

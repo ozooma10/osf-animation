@@ -1,34 +1,16 @@
 #pragma once
 
-#include <cstdint>
 #include <functional>
-#include <string_view>
+#include <vector>
 
 namespace OSF::Util::NativeMainThreadQueue
 {
-	enum class PostResult
-	{
-		kQueued,
-		kRanInline,
-		kUnavailable,
-	};
+	// Any thread. Always deferred, including posts made by a command during Drain().
+	void Post(std::function<void()> a_task);
 
-	struct QueueState
-	{
-		std::uintptr_t singleton{ 0 };
-		std::uint32_t currentThreadID{ 0 };
-		std::uint32_t drainOwnerThreadID{ 0 };
-		bool queueEnabled{ false };
-		bool insideDrain{ false };
-	};
+	// Publish related commands together, preserving their order within one frame batch.
+	void PostBatch(std::vector<std::function<void()>> a_tasks);
 
-	[[nodiscard]] QueueState SnapshotState();
-	[[nodiscard]] bool IsAvailable();
-
-	[[nodiscard]] PostResult Post(
-		std::function<void()> a_task,
-		std::string_view a_logLabel,
-		std::function<void()> a_onDrop = {});
-
-	[[nodiscard]] const char* ToString(PostResult a_result);
+	// Frame-hook owner only. Take one finite batch and execute it without holding the queue lock.
+	void Drain();
 }

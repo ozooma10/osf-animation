@@ -13,8 +13,8 @@ namespace OSF::API
 	void PushCatalogUpdate();
 
 	// Open the in-game scene browser (the "osf.animation/browser" view). Backs the OSF.OpenBrowser
-	// native and the openBrowser hotkey. Returns false when OSF UI is absent or its API is unsupported,
-	// or the main-thread queue cannot accept the open. Any thread.
+	// native and the openBrowser hotkey. Returns false when OSF UI is absent or its API is unsupported.
+	// Otherwise queues the open for the frame update. Any thread.
 	bool OpenBrowser();
 
 	// Open the osf view in emote-wheel mode, filtered to solo free-space emotes whose tags start with

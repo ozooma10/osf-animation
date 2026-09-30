@@ -1,3 +1,4 @@
+#include "Util/NativeMainThreadQueue.h"
 #include "Serialization/ClipDurations.h"
 
 #include "Registry/SceneRegistry.h"
@@ -611,7 +612,7 @@ namespace OSF::Serialization::ClipDurations
 				g_rescanPending = false;
 			}
 			if (changed > 0 && onChanged) {
-				SFSE::GetTaskInterface()->AddTask([cb = std::move(onChanged)]() { cb(); });
+				Util::NativeMainThreadQueue::Post([cb = std::move(onChanged)]() { cb(); });
 			}
 		}).detach();
 	}

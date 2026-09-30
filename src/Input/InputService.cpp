@@ -1,3 +1,4 @@
+#include "Util/NativeMainThreadQueue.h"
 #include "Input/InputService.h"
 
 #include "SFSE/InputMap.h"
@@ -179,7 +180,7 @@ namespace OSF::Input
 			if (verb == Verb::kEnd && grant.locked) {
 				return;  // scene forbids player-end (AAF isRootLocked analogue)
 			}
-			SFSE::GetTaskInterface()->AddTask([handler, verb, grant]() { handler(verb, grant); });
+			Util::NativeMainThreadQueue::Post([handler, verb, grant]() { handler(verb, grant); });
 		}
 
 		// if menu/console owns input

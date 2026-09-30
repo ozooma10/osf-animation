@@ -1466,7 +1466,7 @@ namespace OSF::API
 		// still-open inventory or book. UIMessageQueue is main-thread-only and this can run on
 		// a Papyrus VM thread, so the whole sequence uses the main-thread queue; RequestMenu itself is
 		// thread-safe and queued, keeping the hide -> open order.
-		const auto queued = Util::NativeMainThreadQueue::Post([]() {
+		Util::NativeMainThreadQueue::Post([]() {
 			// A normal browser open must never land in wheel mode: drop any pending wheel
 			// state and, if the view is already up as the wheel, switch it back to the console.
 			if (g_wheel.active) {
@@ -1493,8 +1493,8 @@ namespace OSF::API
 			}
 			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::DEBUG("[UI] OpenBrowser: RequestMenu('{}', open) -> {}", kViewId, ok);
-		}, "open animation view");
-		return queued != Util::NativeMainThreadQueue::PostResult::kUnavailable;
+		});
+		return true;
 	}
 
 	bool OpenWheel(std::string_view a_tagPrefix)
@@ -1506,7 +1506,7 @@ namespace OSF::API
 		}
 		// Settings hotkeys and Papyrus may run on workers. Queue all ref and menu
 		// access on the verified game main thread.
-		const auto queued = Util::NativeMainThreadQueue::Post([prefix = std::string{ a_tagPrefix }]() {
+		Util::NativeMainThreadQueue::Post([prefix = std::string{ a_tagPrefix }]() {
 			g_wheel = {};
 			g_wheel.active = true;
 			g_wheel.tagPrefix = prefix.empty() ? std::string{ "player.emote." } : prefix;
@@ -1551,8 +1551,8 @@ namespace OSF::API
 			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::DEBUG("[UI] OpenWheel: RequestMenu('{}', open) -> {} (prefix '{}', target: {})",
 				kViewId, ok, g_wheel.tagPrefix, g_wheel.targetToken != 0 ? g_wheel.targetName : "player-only");
-		}, "open animation view");
-		return queued != Util::NativeMainThreadQueue::PostResult::kUnavailable;
+		});
+		return true;
 	}
 
 	void InstallUIBridge()
@@ -1594,7 +1594,7 @@ namespace OSF::API
 		// main-thread-only bridge state (the token map), so hop through the task queue —
 		// which also lets the end path's ReleaseSlot retire the slot before ListScenes reads.
 		Scene::SceneRuntime::GetSingleton().SetSceneObserver([]() {
-			(void)Util::NativeMainThreadQueue::Post([]() { PushActiveScenes(); }, "browser scene refresh");
+			Util::NativeMainThreadQueue::Post([]() { PushActiveScenes(); });
 		});
 
 		if (!g_ui.RegisterView(kViewId)) {
