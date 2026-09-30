@@ -9,6 +9,6 @@ namespace OSF::Serialization::SaveSafety
 	// the natives onto the rebuilt VM, clears a save-persisted player AI-driven flag against the
 	// newly loaded world, and recovers a camera the load left parked in an OSF-imposed alt state
 	// (CameraService::OnPostLoad). Call this at kPostDataLoad.
-	// If the SaveLoadEvent prologue guard fails, only the backstop runs (no save window).
+	// If SaveLoadEvent is unavailable, only the backstop runs (no save window).
 	void RegisterLoadEventSinks();
 }

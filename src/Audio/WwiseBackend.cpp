@@ -1,9 +1,7 @@
 #include "Audio/WwiseBackend.h"
 
 #include "Audio/PcmWem.h"
-#include "Util/Hooking.h"
 
-#include <array>
 #include <cctype>
 #include <charconv>
 #include <condition_variable>
@@ -42,13 +40,6 @@ namespace OSF::Audio::Wwise
 	{
 		// AK::SoundEngine::PostEvent(AkUniqueID, AkGameObjectID, u32 flags, callback, cookie, u32 cExternals, AkExternalSourceInfo*, AkPlayingID)
 		// Wwise 2021.1 ABI, statically linked into the game. called from a worker thread, the returned playing IDs continued the engine's own counter.
-
-		// First 16 bytes of 150391, byte-identical on 1.16.242 and 1.16.244
-		// Mismatch on a future patch = self-disable.
-		constexpr std::array<std::uint8_t, 16> kPostEventPrologue{
-			0x48, 0x89, 0x5C, 0x24, 0x08, 0x48, 0x89, 0x6C, 0x24, 0x10,
-			0x48, 0x89, 0x74, 0x24, 0x18, 0x4C
-		};
 
 		// Shipped event that already carries an "External_Source" placeholder slot and streamed a loose file live.
 		// It is already resident in a loaded bank, so NO LoadBank is needed: we just substitute our own media through its external-source slot.
@@ -381,68 +372,16 @@ namespace OSF::Audio::Wwise
 		return HashEventName(body);
 	}
 
-	bool Available()
-	{
-		static const bool available = []() {
-			if (!Util::Hooking::PrologueMatches(RE::ID::AkSoundEngine::PostEvent, kPostEventPrologue)) {
-				REX::WARN("[Audio] Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime — cue sounds are skipped (no private-device fallback)", RE::ID::AkSoundEngine::PostEvent.id());
-				return false;
-			}
-			REX::DEBUG("[Audio] Wwise audio available: AK PostEvent prologue verified");
-			return true;
-		}();
-		return available;
-	}
-
 	std::uint32_t PostEvent(std::uint32_t a_eventID, std::uint64_t a_gameObject)
 	{
-		if (!Available()) {
-			return 0;
-		}
 		// cExternals 0 = no external source: a plain baked event on the selected game object.
 		const auto gameObject = a_gameObject != 0 ? a_gameObject : RE::BGSAudio::AkSoundEngine::kPlayerGameObject;
 		return RE::BGSAudio::AkSoundEngine::PostEvent(a_eventID, gameObject, 0, nullptr, nullptr, 0, nullptr, 0);
 	}
 
-	namespace
-	{
-		// AK::SoundEngine::ExecuteActionOnPlayingID = rel_id 150360 (0x142cd4130 on 1.16.244), msgType 0x39:
-		//   void(AkActionOnEventType /*ecx*/, AkPlayingID /*edx*/, AkTimeMs /*r8d*/, AkCurveInterpolation /*r9d*/)
-		// PROVEN (OSF RE 2026-06-25, Investigations/Responses/2026-06-25-wwise-stop-playing-voice.md):
-		// unique off2id hit ids:[150360], verified 16-byte prologue, the ENGINE ITSELF calls it, AND
-		// runtime-confirmed by ear (an in-flight tone cut instantly). Specifically the engine calls it —
-		// 0x140f1c4e0 with actionType 0 (Stop), 0x140f1b5c5 / 0x140f1fc29 with actionType 1 (Pause), always
-		// playingID in edx, transMs in r8d, curve 4 (Linear) in r9d. StopPlayingID (deprecated) is a thunk to
-		// this; only ExecuteActionOnPlayingID survives in the build. It reserves an AK queue message
-		// (QueueMgr::Reserve linchpin), so it is thread-safe to call from any thread, exactly like PostEvent.
-		// ExecuteActionOnPlayingID(Stop, playingID, 0ms, Linear) cuts exactly that one voice instantly.
-
-		// First 16 bytes of 150360 on 1.16.244 (mismatch on a future patch -> StopVoice self-disables).
-		constexpr std::array<std::uint8_t, 16> kStopPrologue{
-			0x85, 0xD2, 0x74, 0x6C, 0x48, 0x89, 0x5C, 0x24, 0x08, 0x48, 0x89, 0x6C, 0x24, 0x10, 0x48, 0x89
-		};
-
-	}
-
 	bool StopVoice(std::uint32_t a_playingID)
 	{
-		if (a_playingID == 0 || !Available()) {
-			return false;  // nothing to stop, or the Wwise path is unavailable on this runtime
-		}
-		// Resolve + byte-gate once; self-disable on a moved/patched entry, exactly like Available()'s
-		// PostEvent gate (we never call an unverified AK entry — a wrong target + playingID args could
-		// corrupt AK's command queue).
-		static const bool stopAvailable = []() {
-			if (!Util::Hooking::PrologueMatches(RE::ID::AkSoundEngine::ExecuteActionOnPlayingID, kStopPrologue)) {
-				REX::WARN("[Audio] Wwise StopVoice disabled: AK ExecuteActionOnPlayingID (ID {}) prologue mismatch on this runtime — per-slot voice replace will let the prior clip play out", RE::ID::AkSoundEngine::ExecuteActionOnPlayingID.id());
-				return false;
-			}
-			REX::DEBUG("[Audio] Wwise StopVoice available: AK ExecuteActionOnPlayingID prologue verified");
-			return true;
-		}();
-		if (!stopAvailable) {
-			return false;
-		}
+		if (a_playingID == 0) return false;
 		RE::BGSAudio::AkSoundEngine::StopPlayingID(a_playingID);
 		return true;
 	}
@@ -458,9 +397,6 @@ namespace OSF::Audio::Wwise
 
 	std::uint32_t PostExternalFile(const std::wstring& a_path, std::uint64_t a_gameObject)
 	{
-		if (!Available()) {
-			return 0;
-		}
 		const auto gameObject = a_gameObject != 0 ? a_gameObject : RE::BGSAudio::AkSoundEngine::kPlayerGameObject;
 		return PostExternalOn(kExternalSourceEvent, a_path, gameObject);
 	}

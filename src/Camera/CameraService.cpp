@@ -20,8 +20,6 @@ namespace OSF::Camera
 		constexpr std::uint32_t kNativeFreeCamState = 13;  // RE::CameraState::kFreeWalk (== plain `tfc`)
 		std::atomic<bool> g_rawCameraLayoutsAvailable{ false };
 
-		using ToggleFreeCam_t = void (*)(RE::PlayerCamera*, std::uint32_t, bool);
-
 		// The engine's two native free-cam flags on PlayerCamera
 		//   +0x2dd "gate"    - the AUTHORITATIVE free-cam-active flag the console handler reads to pick enter vs exit.
 		//   +0x2e5 "entered" — set on enter / cleared on exit; (WASD drives the cam, not the player), even after the view is third-person.
@@ -67,11 +65,6 @@ namespace OSF::Camera
 		// NiQuaternion (w,x,y,z) @+0x7c (OSF RE camera.state_machine, in-game proven).
 		constexpr std::ptrdiff_t kFreeFlyPosOffset = 0x70;
 		constexpr std::ptrdiff_t kFreeFlyRotOffset = 0x7c;
-
-		// The engine auto-lerps current(+0x228) -> target(+0x224) each frame (~fMouseWheelZoomSpeed 3.0/s, ~1-2 s), so write the TARGET once and the camera glides; 
-		// ForceThirdPerson resets zoom to 0.0 so seed a pull-back right after it.
-		constexpr std::ptrdiff_t kThirdPersonStateIdOffset = 0x50;      // std::uint32_t — must == kThirdPerson(20)
-		constexpr std::uint32_t  kThirdPersonStateId = 20;              // RE::CameraState::kThirdPerson
 
 		// Normalized zoom axis [0 .. 2] (NOT meters). Keep above the 0.0 floor (<= floor trips ForceFirstPerson); clamp the authored value into range.
 		constexpr float kThirdPersonZoomMin = 0.1f;
@@ -196,30 +189,19 @@ namespace OSF::Camera
 		});
 	}
 
-	void CameraService::CaptureBaseline()
+	void CameraService::CaptureBaseline(RE::PlayerCamera& a_camera)
 	{
-		// Game thread: record the prior POV once so any imposition restores to it.
-		// A second engage (overlapping scene) finds baselineCaptured already set and keeps the original POV.
-		QueueTask([this]() {
-			auto* camera = RE::PlayerCamera::GetSingleton();
-			if (!camera) {
-				return;
+		if (baselineCaptured) return;
+		baselineWasFirstPerson = a_camera.IsInFirstPerson();
+		// Preserve ship/vehicle camera states as well as the on-foot POV.
+		baselineStateIndex = 0xFFFFFFFFu;
+		for (std::uint32_t i = 0; i < RE::CameraState::kTotal; i++) {
+			if (a_camera.QCameraEquals(static_cast<RE::CameraState>(i))) {
+				baselineStateIndex = i;
+				break;
 			}
-			std::scoped_lock l{ lock };
-			if (!baselineCaptured) {
-				baselineWasFirstPerson = camera->IsInFirstPerson();
-				// The full state index too: a pilot's baseline can be a ship exterior state, and
-				// restoring that means handing the exact state back, not forcing an on-foot POV.
-				baselineStateIndex = 0xFFFFFFFFu;
-				for (std::uint32_t i = 0; i < RE::CameraState::kTotal; i++) {
-					if (camera->QCameraEquals(static_cast<RE::CameraState>(i))) {
-						baselineStateIndex = i;
-						break;
-					}
-				}
-				baselineCaptured = true;
-			}
-		});
+		}
+		baselineCaptured = true;
 	}
 
 	void CameraService::RestoreBaseline()
@@ -230,7 +212,7 @@ namespace OSF::Camera
 			{
 				std::scoped_lock l{ lock };
 				// Re-acquired meanwhile, or another imposition still holds the camera, leave it (and keep the baseline for that holder to restore later).
-				if (holdCount > 0 || overrideCount > 0) {
+				if (holdCount > 0 || overrideCount > 0 || !baselineCaptured) {
 					return;
 				}
 				wantFirst = baselineWasFirstPerson;
@@ -289,25 +271,25 @@ namespace OSF::Camera
 					return;  // already held by another owner — ref-count only
 				}
 			}
-			CaptureBaseline();
-			// Arm Tick only after the preceding baseline capture has run.
+			// Capture and engage together; nested posts wait for the next frame.
 			QueueTask([this]() {
+				auto* camera = RE::PlayerCamera::GetSingleton();
+				if (!camera) return;
 				{
 					std::scoped_lock l{ lock };
 					if (holdCount == 0) return;  // released before this task ran
+					CaptureBaseline(*camera);
 					holdArmed.store(true, std::memory_order_relaxed);
 				}
 				if (suppressBounce.load(std::memory_order_relaxed)) {
 					return;  // a state override owns the camera; don't fight it
 				}
-				auto* camera = RE::PlayerCamera::GetSingleton();
-				if (camera && !camera->IsInThirdPerson()) {
+				if (!camera->IsInThirdPerson()) {
 					camera->ForceThirdPerson();
 					REX::DEBUG("[Camera] forced to third person for standalone lock");
 				}
 			});
 		} else {
-			bool released = false;
 			{
 				std::scoped_lock l{ lock };
 				if (holdCount == 0) {
@@ -316,12 +298,9 @@ namespace OSF::Camera
 				if (--holdCount != 0) {
 					return;  // still held by another owner
 				}
-				released = true;
 				holdArmed.store(false, std::memory_order_relaxed);
 			}
-			if (released) {
-				RestoreBaseline();  // no-ops if a state override still holds the camera
-			}
+			RestoreBaseline();  // no-ops if a state override still holds the camera
 		}
 	}
 
@@ -352,9 +331,6 @@ namespace OSF::Camera
 
 	void CameraService::SeedThirdPersonZoom(float a_distance, bool a_snapCurrent)
 	{
-		if (!RawLayoutSupport()) {
-			return;
-		}
 		if (a_distance < 0.0f) {
 			return;  // sentinel (< 0): caller asked NOT to seed (e.g. a node-exit teardown pass).
 		}
@@ -373,21 +349,11 @@ namespace OSF::Camera
 			}
 			// seed the third-person state object target directly rather than gating on the camera being SETTLED in third person
 			// the hold's ForceThirdPerson task ran first (FIFO), and a tween frame must not make us skip the write.
-			void* state = camera->cameraStates[RE::CameraState::kThirdPerson];
-			if (!state) {
+			auto* thirdPerson = static_cast<RE::ThirdPersonState*>(camera->cameraStates[RE::CameraState::kThirdPerson]);
+			if (!thirdPerson) {
 				return;
 			}
-			// Hard safety before any raw write (a mis-offset write here frees a live state / corrupts the camera): confirm the object is really ThirdPersonState — vtable match AND internal stateId == 20.
-			static const REL::Relocation<std::uintptr_t> tpsVtbl{ RE::VTABLE::ThirdPersonState[0] };
-			auto* base = reinterpret_cast<std::byte*>(state);
-			if (*reinterpret_cast<std::uintptr_t*>(base) != tpsVtbl.address()) {
-				return;
-			}
-			if (*reinterpret_cast<std::uint32_t*>(base + kThirdPersonStateIdOffset) != kThirdPersonStateId) {
-				return;
-			}
-			// Normally write the TARGET only and let the engine glide current -> target. But when the caller asks  to SNAP, also write the CURRENT so it never sits at 0 and re-triggers the 3rd->1st collapse. 
-			auto* thirdPerson = static_cast<RE::ThirdPersonState*>(state);
+			// Let the engine glide toward the target, or snap past the first-person threshold.
 			thirdPerson->targetZoomOffset = seed;
 			if (a_snapCurrent) {
 				thirdPerson->currentZoomOffset = seed;
@@ -405,7 +371,12 @@ namespace OSF::Camera
 			}
 			suppressBounce.store(true, std::memory_order_relaxed);  // stop the hold's bounce
 		}
-		CaptureBaseline();
+		QueueTask([this]() {
+			if (auto* camera = RE::PlayerCamera::GetSingleton()) {
+				std::scoped_lock l{ lock };
+				if (overrideCount > 0) CaptureBaseline(*camera);
+			}
+		});
 	}
 
 	void CameraService::SetLiveCameraState(CameraMode a_mode)

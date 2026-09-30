@@ -3,6 +3,7 @@
 #include "Animation/GraphManager.h"
 #include "Props/PropService.h"
 #include "Registry/SceneRegistry.h"
+#include "Scene/InspectionPropCursor.h"
 
 #include <optional>
 #include <unordered_map>
@@ -93,7 +94,7 @@ namespace OSF::Scene
 		// so it can only end when the view stops it.
 		bool SetSpeed(std::int32_t a_handle, float a_speed);
 		// Once-per-frame game-thread pump for RUNNING previews: reconciles their render-only props
-		// against the clock the engine advanced since the last call. Paused previews reconcile on Seek.
+		// at prop marks and loop boundaries. Paused previews reconcile on Seek.
 		void Tick();
 		bool Stop(std::int32_t a_handle);
 		void StopForActor(RE::Actor* a_actor);
@@ -131,6 +132,8 @@ namespace OSF::Scene
 			Animation::PlaybackId playbackId = 0;
 			std::vector<PreviewProp> props;
 			std::vector<PreviewRouteProp> routeProps;
+			InspectionPropCursor propCursor;
+			float propDuration = -1.0f;
 			// Pre-inspection baseline, carried across stage switches: the anchor the first preview
 			// resolved (only meaningful when anchorImplicit) and the cast's pre-inspection transforms.
 			// A replacement preview for the same cast inherits both in Prepare — sampling live state
@@ -145,8 +148,10 @@ namespace OSF::Scene
 
 		RE::Actor* RoleActor(const Preview& a_preview, std::string_view a_role) const;
 		// a_durationSec is the previewed clip's length (0 = not known yet); only `atFrame` actions need it.
-		void ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd, float a_durationSec = 0.0f);
-		void ReconcileRouteProps(Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames = 0.0f);
+		void ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd, float a_durationSec,
+			bool a_force = false);
+		void ReconcileRouteProps(Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames,
+			bool a_force = false);
 		void DestroyProps(Preview& a_preview);
 		bool Retire(std::int32_t a_handle, bool a_stopGraph);
 		std::int32_t MintHandle();

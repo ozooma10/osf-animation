@@ -51,19 +51,15 @@ namespace OSF::Util
 	inline std::string RegistryPathLabel(
 		const std::filesystem::path& a_root, const std::filesystem::path& a_path)
 	{
-		try {
-			const auto relative = a_path.lexically_relative(a_root);
-			if (!relative.empty()) {
-				return relative.generic_string();
-			}
-			const auto filename = a_path.filename().generic_string();
-			return filename.empty() ? std::string{ "registry entry" } : filename;
-		} catch (...) {
-			return "registry entry";
+		const auto relative = a_path.lexically_relative(a_root);
+		if (!relative.empty()) {
+			return relative.generic_string();
 		}
+		const auto filename = a_path.filename().generic_string();
+		return filename.empty() ? std::string{ "registry entry" } : filename;
 	}
 
-	// Bounded, exception-contained discovery for author-controlled registry trees.
+	// Bounded discovery with explicit filesystem errors for author-controlled registry trees.
 	// A fatal traversal/count failure returns no files, avoiding a nondeterministic
 	// partial registry. Individual unreadable/oversized files are reported and skipped.
 	inline RegistryFileDiscovery DiscoverRegistryFiles(
@@ -142,12 +138,6 @@ namespace OSF::Util
 		} catch (const fs::filesystem_error& e) {
 			result.problems.push_back(std::string("registry traversal failed: ") + e.code().message());
 			result.fatal = true;
-		} catch (const std::exception& e) {
-			result.problems.push_back(std::string("registry discovery failed: ") + e.what());
-			result.fatal = true;
-		} catch (...) {
-			result.problems.push_back("registry discovery failed with an unknown exception");
-			result.fatal = true;
 		}
 
 		if (result.fatal) {
@@ -155,35 +145,25 @@ namespace OSF::Util
 			return result;
 		}
 
-		try {
-			struct KeyedPath
-			{
-				std::filesystem::path path;
-				std::string key;
-				std::string tieBreak;
-			};
-			std::vector<KeyedPath> keyed;
-			keyed.reserve(result.files.size());
-			for (auto& file : result.files) {
-				const auto display = RegistryPathLabel(a_root, file);
-				keyed.push_back({ std::move(file), ToLower(display), display });
-			}
-			std::sort(keyed.begin(), keyed.end(), [](const KeyedPath& a_lhs, const KeyedPath& a_rhs) {
-				return a_lhs.key != a_rhs.key ? a_lhs.key < a_rhs.key : a_lhs.tieBreak < a_rhs.tieBreak;
-			});
-			result.files.clear();
-			result.files.reserve(keyed.size());
-			for (auto& file : keyed) {
-				result.files.push_back(std::move(file.path));
-			}
-		} catch (const std::exception& e) {
-			result.problems.push_back(std::string("registry ordering failed: ") + e.what());
-			result.files.clear();
-			result.fatal = true;
-		} catch (...) {
-			result.problems.push_back("registry ordering failed with an unknown exception");
-			result.files.clear();
-			result.fatal = true;
+		struct KeyedPath
+		{
+			std::filesystem::path path;
+			std::string key;
+			std::string tieBreak;
+		};
+		std::vector<KeyedPath> keyed;
+		keyed.reserve(result.files.size());
+		for (auto& file : result.files) {
+			const auto display = RegistryPathLabel(a_root, file);
+			keyed.push_back({ std::move(file), ToLower(display), display });
+		}
+		std::sort(keyed.begin(), keyed.end(), [](const KeyedPath& a_lhs, const KeyedPath& a_rhs) {
+			return a_lhs.key != a_rhs.key ? a_lhs.key < a_rhs.key : a_lhs.tieBreak < a_rhs.tieBreak;
+		});
+		result.files.clear();
+		result.files.reserve(keyed.size());
+		for (auto& file : keyed) {
+			result.files.push_back(std::move(file.path));
 		}
 		return result;
 	}
@@ -233,8 +213,6 @@ namespace OSF::Util
 				a_onJson(source, a_parseJson(input));
 			} catch (const std::exception& e) {
 				a_onProblem(RegistryJsonProblemKind::kFile, &source, e.what());
-			} catch (...) {
-				a_onProblem(RegistryJsonProblemKind::kFile, &source, "unknown exception");
 			}
 		}
 		return visit;

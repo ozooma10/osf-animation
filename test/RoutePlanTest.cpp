@@ -4,6 +4,7 @@
 #include "Overlay/OwnerRegistry.h"
 #include "Overlay/RoutePlan.h"
 #include "Overlay/RoutePlaybackPlan.h"
+#include "Scene/InspectionPropCursor.h"
 #include "Scene/RouteInspectionTimeline.h"
 
 #include <type_traits>
@@ -253,6 +254,19 @@ int main()
 			.lifetime = OSF::Registry::RouteLifetime::kStation });
 		Check(OSF::Scene::InspectionRoutePropsAt(transition, 10.0f, false, 10.0f).size() == 1,
 			"route debugger does not materialize an atFrame prop at the strict decoded clip end");
+		OSF::Scene::InspectionPropCursor cursor;
+		cursor.Reset(OSF::Scene::InspectionRoutePropMarks(transition, 10.0f));
+		Check(cursor.Update(0.0f, false) && !cursor.Update(1.998f + 0.001f, false) &&
+			cursor.Update(1.999f + 0.001f, false), "route preview cursor uses the evaluator's frame tolerance");
+		Check(!cursor.Update(3.0f, false) && cursor.Update(4.0f, false) && cursor.Update(6.0f, false) &&
+			!cursor.Update(10.0f, false), "route preview skips external props and strict clip-end marks");
+		Check(cursor.Update(10.0f, true) && !cursor.Update(10.0f, true) && cursor.Update(0.0f, false),
+			"route preview reconciles transition-end cleanup and loop restart once");
+		transition.props.push_back({ .frame = 8.0f, .id = "CARRIER", .attach = true,
+			.lifetime = OSF::Registry::RouteLifetime::kStation });
+		const auto reattached = OSF::Scene::InspectionRoutePropsAt(transition, 9.0f, false, 10.0f);
+		Check(reattached.size() == 2 && reattached[0]->id == "CARRIER" && reattached[1]->id == "station",
+			"route preview destroy then reattach produces one case-insensitive prop identity");
 	}
 	{
 		auto route = Route();

@@ -1,24 +1,13 @@
 #include "Equipment/EquipmentService.h"
 
-#include "Util/Hooking.h"
-
 #include "RE/T/TESObjectARMO.h"
 
 #include <algorithm>
-#include <array>
 
 namespace OSF::Equipment
 {
 	namespace
 	{
-		// Equip/unequip go through ActorEquipManager::{Equip,Unequip}Object.
-		//  These are the shared first 29 bytes (byte 29 differs, E0/D0 = stack frame size, so it's left out).
-		constexpr std::array<std::uint8_t, 29> kExpectedPrologue{
-			0x48, 0x89, 0x5C, 0x24, 0x18, 0x48, 0x89, 0x4C, 0x24, 0x08,
-			0x55, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41,
-			0x57, 0x48, 0x8D, 0x6C, 0x24, 0xF9, 0x48, 0x81, 0xEC
-		};
-
 		RE::TESNPC* NpcOf(RE::Actor* a_actor)
 		{
 			if (!a_actor) {
@@ -77,29 +66,6 @@ namespace OSF::Equipment
 		return instance;
 	}
 
-	bool EquipmentService::Available()
-	{
-		static const bool available = []() {
-			if (!RE::ActorEquipManager::GetSingleton()) {
-				REX::WARN("[Equip] undress/redress disabled: ActorEquipManager singleton resolved null");
-				return false;
-			}
-			// Make sure the two functions still look like what we expect on this game build.
-			// On a mismatch we disable the feature rather than call into the wrong code.
-			if (!Util::Hooking::PrologueMatches(RE::ID::ActorEquipManager::EquipObject, kExpectedPrologue) ||
-				!Util::Hooking::PrologueMatches(RE::ID::ActorEquipManager::UnequipObject, kExpectedPrologue)) {
-				REX::WARN("[Equip] undress/redress disabled: equip/unequip prologue mismatch on this runtime "
-					"(IDs {}/{} do not match the verified bytes)",
-					RE::ID::ActorEquipManager::EquipObject.id(),
-					RE::ID::ActorEquipManager::UnequipObject.id());
-				return false;
-			}
-			REX::INFO("[Equip] undress/redress available: equip/unequip prologues verified");
-			return true;
-		}();
-		return available;
-	}
-
 	Snapshot EquipmentService::Hide(RE::Actor* a_actor)
 	{
 		return Hide(a_actor, 0xFFFFFFFFu);
@@ -108,7 +74,11 @@ namespace OSF::Equipment
 	Snapshot EquipmentService::Hide(RE::Actor* a_actor, std::uint32_t a_slotMask, std::span<RE::TESBoundObject* const> a_keep)
 	{
 		Snapshot snapshot;
-		if (!a_actor || a_slotMask == 0 || !Available()) {
+		if (!a_actor || a_slotMask == 0) {
+			return snapshot;
+		}
+		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
 			return snapshot;
 		}
 
@@ -167,10 +137,6 @@ namespace OSF::Equipment
 			}
 		}
 
-		auto* mgr = RE::ActorEquipManager::GetSingleton();
-		if (!mgr) {
-			return snapshot;
-		}
 		for (const auto& w : snapshot.hiddenItems) {
 			RE::BGSObjectInstance instance{ w.object, w.instanceData.get() };
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
@@ -183,7 +149,11 @@ namespace OSF::Equipment
 	Snapshot EquipmentService::HideHeld(RE::Actor* a_actor, std::span<RE::TESBoundObject* const> a_keep)
 	{
 		Snapshot snapshot;
-		if (!a_actor || !Available()) {
+		if (!a_actor) {
+			return snapshot;
+		}
+		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		if (!mgr) {
 			return snapshot;
 		}
 
@@ -209,10 +179,6 @@ namespace OSF::Equipment
 			}
 		}
 
-		auto* mgr = RE::ActorEquipManager::GetSingleton();
-		if (!mgr) {
-			return snapshot;
-		}
 		for (const auto& w : snapshot.hiddenItems) {
 			RE::BGSObjectInstance instance{ w.object, w.instanceData.get() };
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
@@ -224,7 +190,7 @@ namespace OSF::Equipment
 
 	void EquipmentService::Restore(RE::Actor* a_actor, const Snapshot& a_snapshot)
 	{
-		if (!a_actor || a_snapshot.Empty() || !Available()) {
+		if (!a_actor || a_snapshot.Empty()) {
 			return;
 		}
 
@@ -262,11 +228,6 @@ namespace OSF::Equipment
 		EquippedItem record;
 		if (!a_actor || !a_object) {
 			REX::DEBUG("[Equip] equip item: null {} — nothing equipped", !a_actor ? "actor" : "object");
-			return record;
-		}
-		if (!Available()) {
-			REX::WARN("[Equip] actor {:X}: cannot equip item {:X} — equip/unequip unavailable on this runtime",
-				a_actor->formID, a_object->GetFormID());
 			return record;
 		}
 		auto* mgr = RE::ActorEquipManager::GetSingleton();
@@ -307,7 +268,7 @@ namespace OSF::Equipment
 
 	void EquipmentService::UnequipItem(RE::Actor* a_actor, const EquippedItem& a_item)
 	{
-		if (!a_actor || !a_item.object || !Available()) {
+		if (!a_actor || !a_item.object) {
 			return;
 		}
 

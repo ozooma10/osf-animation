@@ -1,6 +1,7 @@
 #include "Check.h"
 
 #include "Registry/SceneRegistry.h"
+#include "Scene/InspectionPropCursor.h"
 #include "Scene/InspectionPropTimeline.h"
 
 #include "Animation/Scene.h"  // the frozen-stage clock (`hold`)
@@ -58,6 +59,49 @@ int main()
 	using OSF::Registry::SoundEmitter;
 	using OSF::Registry::TrackPos;
 	using OSF::Animation::PoseMode;
+
+	{
+		std::vector<OSF::Registry::ActionEntry> actions(5);
+		actions[0].kind = ActionKind::kPropAttach;
+		actions[0].pos = TrackPos::kEnter;
+		actions[0].prop = "hat";
+		actions[1] = actions[0];
+		actions[1].pos = TrackPos::kFraction;
+		actions[1].frame = 30.0f;
+		actions[1].kind = ActionKind::kPropDestroy;
+		actions[2] = actions[1];
+		actions[2].frame = 60.0f;
+		actions[2].kind = ActionKind::kPropAttach;
+		actions[3] = actions[0];
+		actions[3].pos = TrackPos::kEnd;
+		actions[3].prop = "end";
+		actions[4].pos = TrackPos::kFraction;
+		actions[4].fraction = 0.1f;  // a non-prop mark must not cause reconciliation
+
+		OSF::Scene::InspectionPropCursor cursor;
+		cursor.Reset(OSF::Scene::InspectionPropMarks(actions, 2.0f));
+		Check(cursor.Update(0.0f, false) && !cursor.Update(0.1f, false) &&
+			!cursor.Update(0.499f, false), "preview starts once and skips frames before the first prop mark");
+		Check(cursor.Update(0.5f, false) && !cursor.Update(0.75f, false) && !cursor.Update(1.0f, false),
+			"preview reconciles at a prop mark but excludes a frame mark at the strict clip end");
+		Check(cursor.Update(1.0f, true) && !cursor.Update(1.0f, true),
+			"preview applies end state once");
+		Check(cursor.Update(0.9f, false) && cursor.Update(0.6f, false),
+			"preview rewinds reconcile even within the same interval");
+		Check(cursor.Update(0.7f, false, true) && !cursor.Update(0.7f, false),
+			"explicit seeks retry reconciliation without enabling per-frame retries");
+		Check(cursor.Update(0.0f, false) && !cursor.Update(0.2f, false),
+			"a loop rebuilds enter state once");
+		Check(OSF::Scene::InspectionPropsAt(actions, 0.0f, false, 2.0f).size() == 1 &&
+			OSF::Scene::InspectionPropsAt(actions, 1.0f, false, 2.0f).empty(),
+			"preview reconstructs enter and timed destroy while excluding frame-at-end attach");
+		const auto ended = OSF::Scene::InspectionPropsAt(actions, 1.0f, true, 2.0f);
+		Check(ended.size() == 1 && ended[0].prop == "end", "end actions follow timed prop marks");
+		cursor.Reset(OSF::Scene::InspectionPropMarks(actions, 4.0f));
+		Check(cursor.Update(0.2f, false) && cursor.Update(0.25f, false) && cursor.Update(0.5f, false) &&
+			OSF::Scene::InspectionPropsAt(actions, 0.5f, false, 4.0f).size() == 1,
+			"duration changes rebuild prop boundaries and make a formerly out-of-range frame eligible");
+	}
 
 	// xmake runs this target with test/fixtures as cwd, so LoadAll sees Data/OSF.
 	Check(OSF::Registry::ParseCameraState("Scene_Orbit") == OSF::Registry::CameraState::kSceneOrbit,

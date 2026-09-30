@@ -6,6 +6,8 @@
 #include <mutex>
 #include <vector>
 
+namespace RE { class PlayerCamera; }
+
 namespace OSF::Camera
 {
 	// Alternate scene camera postures beyond the default third-person hold.
@@ -120,8 +122,8 @@ namespace OSF::Camera
 			kVanityOrbit
 		};
 
-		// Capture the prior POV once, on the game thread, when the first imposition engages.
-		void CaptureBaseline();
+		// Game thread, with lock held. Capture before applying or arming an imposition.
+		void CaptureBaseline(RE::PlayerCamera& a_camera);
 		// Restore the prior POV on the game thread, only if no imposition remains and the live camera differs from the baseline.
 		void RestoreBaseline();
 

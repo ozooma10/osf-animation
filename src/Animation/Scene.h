@@ -340,10 +340,10 @@ namespace OSF::Animation
 		// has been interrupted (the engine stops AnimationManager::Update for unloaded / AI-disabled
 		// actors), so it ends cleanly instead of stranding participants + locks.
 		std::atomic<std::int64_t> lastAdvanceMs{ 0 };
-		// Compose-hook heartbeat and Trace-log throttle. These distinguish a stopped update clock from
+		// Trace-only compose heartbeat and log throttle. These distinguish a stopped update clock from
 		// a clock that advances while the rendered pose stops stamping.
 		std::atomic<std::int64_t> lastStampMs{ 0 };
-		std::atomic<std::int64_t> lastDiagnosticMs{ 0 };
+		std::int64_t lastDiagnosticMs{ 0 };  // main-thread maintenance only
 
 		// Why the terminal stage ended (only meaningful once `ended` is set). 
 		// Set under `lock` in Advance; read by the deferred auto-end task to pick the auto-edge.

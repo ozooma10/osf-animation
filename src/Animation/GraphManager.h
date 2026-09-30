@@ -170,9 +170,8 @@ namespace OSF::Animation
 		// (FlushDeferredTasks) after releasing stateLock.
 		void StopPlaybackLocked(PlaybackSession* a_session, std::vector<std::function<void()>>& a_deferred);
 
-		// Every live anchored NPC participant (player excluded), NiPointer-pinned. Takes stateLock shared.
-		// The save-window strip/re-assert pair (OnSaveBegin/OnSaveEnd) acts on this set.
-		std::vector<RE::NiPointer<RE::Actor>> CollectAnchoredNpcParticipants();
+		// Game thread. Applies the hold to live anchored NPCs under stateLock; returns their count.
+		std::size_t SetAnchoredNpcAnimationDriven(bool a_enabled);
 
 		// Per-graph upkeep run from Hook_AnimGraphUpdate right after sampling, while the caller holds stateLock (shared) and the graph's own lock.
 		// Each appends its game-thread-only follow-up to a_deferred; the hook flushes the batch to
@@ -180,7 +179,6 @@ namespace OSF::Animation
 		void QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // last stage ran out -> StopScene
 		void QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // stage fired timed marks -> mark handler
 		void QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                  // fade-out elapsed -> RemoveFadedGraph
-		void HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr, std::vector<std::function<void()>>& a_deferred);  // keep an anchored scene NPC animation-driven (no AI walk-back)
 
 		// Complete an already-claimed end on the game thread: the runtime auto-end handler takes over (advance/end + ledger replay), else we stop it ourselves. No manager lock may be held.
 		void HandlePlaybackEndOnGameThread(std::shared_ptr<PlaybackSession> a_session);

@@ -229,7 +229,8 @@ namespace OSF::Scene
 			a_error = "Could not allocate a route debugger preview handle";
 			return 0;
 		}
-		ReconcileRouteProps(inserted->second, 0.0f, false);
+		const auto opened = Animation::GraphManager::GetSingleton().GetScenePlayback(a_prepared.actor, playbackId);
+		ReconcileRouteProps(inserted->second, 0.0f, false, opened ? opened->duration * Registry::kFrameRate : 0.0f);
 		return handle;
 	}
 
@@ -270,10 +271,15 @@ namespace OSF::Scene
 	}
 
 	void PlaybackPreviewService::ReconcileRouteProps(
-		Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames)
+		Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames, bool a_force)
 	{
 		const auto* transition = a_preview.route ? a_preview.route->FindTransition(a_preview.transition) : nullptr;
 		if (!transition || a_preview.participants.empty() || !a_preview.participants.front()) return;
+		if (a_preview.propDuration != a_durationFrames) {
+			a_preview.propCursor.Reset(InspectionRoutePropMarks(*transition, a_durationFrames));
+			a_preview.propDuration = a_durationFrames;
+		}
+		if (!a_preview.propCursor.Update(a_frame + 0.001f, a_atEnd, a_force)) return;
 		const auto desired = InspectionRoutePropsAt(*transition, a_frame, a_atEnd, a_durationFrames);
 		auto& service = Props::PropService::GetSingleton();
 
@@ -322,12 +328,17 @@ namespace OSF::Scene
 	}
 
 	void PlaybackPreviewService::ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd,
-		float a_durationSec)
+		float a_durationSec, bool a_force)
 	{
 		const auto* node = a_preview.definition ? a_preview.definition->FindNode(a_preview.node) : nullptr;
 		if (!node) {
 			return;
 		}
+		if (a_preview.propDuration != a_durationSec) {
+			a_preview.propCursor.Reset(InspectionPropMarks(node->actions, a_durationSec));
+			a_preview.propDuration = a_durationSec;
+		}
+		if (!a_preview.propCursor.Update(a_fraction, a_atEnd, a_force)) return;
 		const auto desired = InspectionPropsAt(node->actions, a_fraction, a_atEnd, a_durationSec);
 		auto& service = Props::PropService::GetSingleton();
 
@@ -440,11 +451,11 @@ namespace OSF::Scene
 		const bool atEnd = playback->duration > 0.0f && a_time >= playback->duration;
 		if (preview.route) {
 			ReconcileRouteProps(preview, std::max(0.0f, a_time) * Registry::kFrameRate, atEnd,
-				playback->duration * Registry::kFrameRate);
+				playback->duration * Registry::kFrameRate, true);
 		} else {
 			const float fraction = playback->duration > 0.0f ?
 				std::clamp(a_time / playback->duration, 0.0f, 1.0f) : 0.0f;
-			ReconcileProps(preview, fraction, atEnd, playback->duration);
+			ReconcileProps(preview, fraction, atEnd, playback->duration, true);
 		}
 		return true;
 	}

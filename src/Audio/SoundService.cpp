@@ -170,9 +170,8 @@ namespace OSF::Audio
 			return;
 		}
 
-		if (!Wwise::Available() || !Wwise::IsWwiseExternalSource(a_dataRelPath)) {
-			REX::WARN("[Audio] no engine path for '{}' (Wwise {}; unsupported codec?) — cue skipped",
-				a_dataRelPath, Wwise::Available() ? "available" : "unavailable");
+		if (!Wwise::IsWwiseExternalSource(a_dataRelPath)) {
+			REX::WARN("[Audio] unsupported codec for '{}'; cue skipped", a_dataRelPath);
 			return;
 		}
 

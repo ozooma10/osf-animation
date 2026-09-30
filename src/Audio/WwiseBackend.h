@@ -13,20 +13,15 @@ namespace OSF::Audio::Wwise
 	// Returns the AkUniqueID (hex literal taken verbatim, anything else hashed), or nullopt when a_spec is not an event reference (i.e. it is a file path / "$pool" ref).
 	std::optional<std::uint32_t> ParseEventSpec(std::string_view a_spec);
 
-	bool Available();
-
 	// Fire-and-forget BAKED-event post. gameObject 0 selects the player/listener object.
 	// Returns the AkPlayingID (0 = the engine rejected it, usually an event ID that is not in any loaded bank).
-	// Safe from any thread; no-op when !Available().
+	// Safe from any thread.
 	std::uint32_t PostEvent(std::uint32_t a_eventID, std::uint64_t a_gameObject = 0);
 
 	// Stops a single posted voice by its AkPlayingID (the value PostEvent / PostExternalFile returned),
 	// for per-slot voice replacement. Safe from any thread; harmless on a playingID the engine already retired.
 	//
-	// PROLOGUE-GATED: the AK stop entry point (ExecuteActionOnPlayingID, REL::ID 150360) is RE-proven
-	// on 1.16.244 and confirmed in-game (see WwiseBackend.cpp kAkStopVoiceID); the byte-prologue check
-	// still self-disables it on a future patch, in which case this degrades to a no-op. Returns true
-	// only if it actually issued a stop, so callers/telemetry can tell whether Wwise replace is live.
+	// Returns true when a stop was issued for a nonzero playing ID.
 	bool StopVoice(std::uint32_t a_playingID);
 
 	// --- external-source (.wem) path ---
@@ -39,6 +34,6 @@ namespace OSF::Audio::Wwise
 	// gameObject 0 selects the player/listener.
 	// a_path is opened through the process file API (game-root-relative 'Data\...', so MO2/USVFS loose files resolve) and prepared ONCE into a process-lifetime media cache: 
 	// a .wem is cached as-is; a .wav/.mp3/.ogg/.flac is decoded to PCM and wrapped in a PCM .wem. Posted via pInMemory (codec from the .wem fmt tag, or PCM for a built one).
-	// The caller manages no memory and may free a_path immediately. Returns the AkPlayingID (0 = rejected / load failed / !Available()). Safe from any thread. Gate on IsWwiseExternalSource first.
+	// The caller manages no memory and may free a_path immediately. Returns the AkPlayingID (0 = rejected / load failed). Safe from any thread. Gate on IsWwiseExternalSource first.
 	std::uint32_t PostExternalFile(const std::wstring& a_path, std::uint64_t a_gameObject = 0);
 }

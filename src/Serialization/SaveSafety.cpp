@@ -6,26 +6,11 @@
 #include "Player/PlayerInputLockService.h"
 #include "Scene/SceneEventRelay.h"
 #include "Serialization/PersistenceHost.h"
-#include "Util/Hooking.h"
-
-#include <array>
 
 namespace OSF::Serialization::SaveSafety
 {
 	namespace
 	{
-		bool SaveLoadEventSourcePrologueMatches()
-		{
-			// 1.16.242/.244 magic-static GetEventSource prologue for
-			// BSTGlobalEvent::EventSource<SaveLoadEvent>. If this drifts, avoid
-			// registering a sink through a stale AddressLib binding.
-			constexpr std::array<std::uint8_t, 13> kExpectedPrologue{
-				0x48, 0x83, 0xEC, 0x28, 0x65, 0x48, 0x8B, 0x04, 0x25, 0x58, 0x00, 0x00, 0x00
-			};
-
-			return Util::Hooking::PrologueMatches(RE::ID::SaveLoadEvent::GetEventSource, kExpectedPrologue);
-		}
-
 		bool IsWorldReplacingLoadOp(RE::SaveLoadEvent::OpType a_opType)
 		{
 			using OpType = RE::SaveLoadEvent::OpType;
@@ -145,9 +130,7 @@ namespace OSF::Serialization::SaveSafety
 	void RegisterLoadEventSinks()
 	{
 		PersistenceHost::RegisterEventSinks();
-		if (!SaveLoadEventSourcePrologueMatches()) {
-			REX::WARN("[Save] SaveLoadEvent GetEventSource prologue mismatch; relying on TESLoadGameEvent backstop");
-		} else if (auto* saveLoadSrc = RE::SaveLoadEvent::GetEventSource(); saveLoadSrc) {
+		if (auto* saveLoadSrc = RE::SaveLoadEvent::GetEventSource()) {
 			saveLoadSrc->RegisterSink(SaveLoadSink::GetSingleton());
 			REX::DEBUG("[Save] registered SaveLoadEvent begin sink");
 		} else {

@@ -66,7 +66,6 @@ namespace OSF::Animation
 		// reads this graph-owned value under the same lock, avoiding a scene placement data race.
 		ParticipantPlacement scenePlacement{};
 		uint32_t appliedStage = 0;   // stage this graph's clip matches; Sample swaps on a stage change
-		uint32_t sceneFrames = 0;    // update-call counter for the HoldAnchoredParticipant re-assert cadence
 
 		// Handle cross fade timing. blend-in from previous pose (sampled or engines live rig)
 		// blend-out at BeginFadeOut: keep sampling while weight ramps to 0 (lands on the live pose), then the hook queues RemoveFadedGraph.	

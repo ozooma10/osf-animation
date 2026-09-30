@@ -47,8 +47,6 @@ namespace OSF::Equipment
 	public:
 		static EquipmentService& GetSingleton();
 
-		bool Available();
-
 		// GAME THREAD. Snapshots + unequips the actor's worn apparel (including weapon).
 		// Empty snapshot = nothing hidden (nothing to restore later).
 		Snapshot Hide(RE::Actor* a_actor);

@@ -59,7 +59,7 @@ Each entry: **system** (`path`) — role.
   owns the two vtable hooks. `PlaySceneStaged` is the one scene entry. `StopAll` drops all state on load (releases the persistent AI-driven flag). 
   Compose-root pin + cull-sphere + BSFadeNode fade suppression live in `Hook_ModelNodeUpdate`
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
-- **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, graph maintenance, playback previews, and Studio. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Sampling and stamping remain in their animation hooks.
+- **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, graph maintenance, playback previews, and Studio. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Anchored NPC animation-driven flags are maintained once per game frame here, with save-window suppression. Sampling and stamping remain in their animation hooks. Preview props reconcile at prop marks, seeks, and loop/end boundaries.
 - **Scene** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
 - **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —
@@ -130,8 +130,8 @@ Each entry: **system** (`path`) — role.
 
 ### Layer-C - services 
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
-  content-neutral *mechanisms* with NO scene knowledge; each prologue-gates its engine calls and
-  self-disables on mismatch. Whether a mechanism runs is driven by the scene/API alone — there is no
+  content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
+  directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no
   user-settings feature toggle; user settings (hotkeys, `logLevel`, HUD toggles) live in OSF Settings's
   in-game menu (`src/API/UISettings.cpp` subscribes to the shipped schema; the old
   `Data/OSF/settings.json` is no longer read).

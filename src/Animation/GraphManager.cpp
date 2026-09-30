@@ -18,6 +18,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <spdlog/spdlog.h>
 
 namespace OSF::Animation
 {
@@ -594,7 +595,6 @@ namespace OSF::Animation
 					slot->participantIndex = static_cast<int>(i);
 					slot->scenePlacement = scene->stages[startSegment].placements[i];
 					slot->appliedStage = startSegment;
-					slot->sceneFrames = 0;    // restart the HoldAnchoredParticipant re-assert cadence for this session
 					slot->hasAnchor = false;  // the session drives positioning; drop any solo SetAnchor
 					slot->anchorRevision++;
 					slot->syncGroup.reset();  // the session clock supersedes any Sync group
@@ -611,7 +611,7 @@ namespace OSF::Animation
 		// don't take from the Papyrus thread that calls PlaySynchronized). Per anchored participant: move the actor
 		// FOR REAL to its placement (SetPosition updateCharController=true moves the havok CAPSULE — the position the
 		// body-skin render cull reads), set heading, and set Actor::boolFlags2 kAnimationDriven so the AI keeps the
-		// anim running but stops walking the actor back to its post (re-asserted each frame by HoldAnchoredParticipant,
+		// anim running but stops walking the actor back to its post (re-asserted each frame by MaintenanceTick,
 		// cleared in StopPlaybackLocked). See OSF RE module gameplay.actor_animation_driven.
 		for (size_t i = 0; scene->anchored && i < scene->participants.size(); i++) {
 			const auto& pl = scene->stages[startSegment].placements[i];
@@ -860,22 +860,22 @@ namespace OSF::Animation
 		graphCount.store(0, std::memory_order_relaxed);
 	}
 
-	std::vector<RE::NiPointer<RE::Actor>> GraphManager::CollectAnchoredNpcParticipants()
+	std::size_t GraphManager::SetAnchoredNpcAnimationDriven(bool a_enabled)
 	{
-		std::vector<RE::NiPointer<RE::Actor>> out;
-		auto* player = static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton());
+		std::size_t count = 0;
+		const auto* player = RE::PlayerCharacter::GetSingleton();
 		std::shared_lock l{ stateLock };
-		for (const auto& s : playbackSessions) {
-			if (!s || !s->anchored) {
-				continue;  // only anchored playback sessions engage kAnimationDriven
-			}
-			for (const auto& p : s->participants) {
-				if (p && p->target && p->target.get() != player) {
-					out.emplace_back(static_cast<RE::Actor*>(p->target.get()));
-				}
+		for (const auto& session : playbackSessions) {
+			if (!session->anchored) continue;
+			for (const auto& participant : session->participants) {
+				if (!participant || !participant->target || participant->target.get() == player) continue;
+				auto* actor = static_cast<RE::Actor*>(participant->target.get());
+				if (a_enabled) actor->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
+				else actor->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
+				++count;
 			}
 		}
-		return out;
+		return count;
 	}
 
 	void GraphManager::OnSaveBegin()
@@ -885,13 +885,10 @@ namespace OSF::Animation
 		if (_saveWindow.exchange(true, std::memory_order_relaxed)) {
 			return;  // window already open (overlapping save ops) — the first opener did the strip
 		}
-		const auto participants = CollectAnchoredNpcParticipants();
-		for (const auto& a : participants) {
-			a->boolFlags2.reset(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
-		}
-		if (!participants.empty()) {
+		const auto count = SetAnchoredNpcAnimationDriven(false);
+		if (count != 0) {
 			REX::DEBUG("[Anim] save begin — animation-driven bit stripped from {} anchored participant(s) so the save can't bake it in",
-				participants.size());
+				count);
 		}
 	}
 
@@ -900,14 +897,10 @@ namespace OSF::Animation
 		if (!_saveWindow.exchange(false, std::memory_order_relaxed)) {
 			return;  // no window open (plain load events land here too) — nothing to restore
 		}
-		// Re-assert immediately rather than waiting for the hold cadence (~0.075s): the AI re-asserts
-		// motion every update, so the sooner the bit is back the less the capsule can drift.
-		const auto participants = CollectAnchoredNpcParticipants();
-		for (const auto& a : participants) {
-			a->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
-		}
-		if (!participants.empty()) {
-			REX::DEBUG("[Anim] save end — animation-driven bit re-asserted on {} anchored participant(s)", participants.size());
+		// Resume the hold immediately; subsequent frame maintenance keeps it asserted.
+		const auto count = SetAnchoredNpcAnimationDriven(true);
+		if (count != 0) {
+			REX::DEBUG("[Anim] save end — animation-driven bit re-asserted on {} anchored participant(s)", count);
 		}
 	}
 
@@ -1460,6 +1453,12 @@ namespace OSF::Animation
 			return;
 		}
 
+		// Keep NPC capsules on their anchors after AI updates. All flag writes run on this
+		// thread; save begin/end temporarily release the hold before serialization.
+		if (!_saveWindow.load(std::memory_order_relaxed)) {
+			SetAnchoredNpcAnimationDriven(true);
+		}
+
 		// Threshold (steady-clock ms). Set well above a frame so a playable-FPS hitch can't trip it; the
 		// playback session must look dead for kSceneStallMs of CONTINUOUS engine-running time after any resume grace.
 		constexpr std::int64_t kSceneStallMs = 1500;  // a live session unticked this long (game running) = interrupted
@@ -1481,8 +1480,8 @@ namespace OSF::Animation
 				if (!s || s->ended.load(std::memory_order_relaxed) || s->endQueued.load(std::memory_order_relaxed)) {
 					continue;  // already terminal / queued — leave it to the normal path
 				}
-				std::int64_t lastDiag = s->lastDiagnosticMs.load(std::memory_order_relaxed);
-				if (now - lastDiag >= 1000 && s->lastDiagnosticMs.compare_exchange_strong(lastDiag, now, std::memory_order_relaxed)) {
+				if (spdlog::should_log(spdlog::level::trace) && now - s->lastDiagnosticMs >= 1000) {
+					s->lastDiagnosticMs = now;
 					const auto diag = s->GetDiagnosticSnapshot(now);
 					const std::int64_t stampMs = s->lastStampMs.load(std::memory_order_relaxed);
 					const std::int64_t sampleAge = now - s->lastAdvanceMs.load(std::memory_order_relaxed);
@@ -1593,53 +1592,6 @@ namespace OSF::Animation
 		});
 	}
 
-	// Per-update-call tick for a synchronized-playback participant: keep an anchored NPC ANIMATION-DRIVEN so its AI keeps the anim
-	// running but stops pathing the body off the session anchor. The body-skin render cull reads the havok CAPSULE; a
-	// motion-driven NPC walks its capsule back to its package post (~4 u/s) and the body clips at orbit angles that
-	// no longer line up with the drifting capsule. The working lever is Actor::boolFlags2 kAnimationDriven (bit 19)
-	// set DIRECTLY — MovementControllerNPC::SetAnimationDriven is a no-op on 1.16.244. Re-asserted ~every 18
-	// update-calls on the game thread (the AI package re-asserts motion each update); cleared in StopPlaybackLocked so
-	// the NPC resumes normal movement from where the session left it. Player excluded (movement-locked, doesn't drift).
-	// OSF RE module: gameplay.actor_animation_driven.
-	void GraphManager::HoldAnchoredParticipant(Graph& a_graph, RE::TESObjectREFR* a_refr, std::vector<std::function<void()>>& a_deferred)
-	{
-		if (!a_graph.playbackSession || !a_graph.playbackSession->anchored || a_graph.participantIndex < 0 || !a_refr ||
-			a_refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton())) {
-			return;
-		}
-		// Save window: OnSaveBegin stripped the bit so the save can't serialize it; stand down until
-		// OnSaveEnd re-asserts. Checked again inside the task — a task queued just before the window
-		// opened must not race the bit back in while the save is being written.
-		if (_saveWindow.load(std::memory_order_relaxed)) {
-			return;
-		}
-		if (++a_graph.sceneFrames % 18 != 0) {  // ~every 0.075s of update time
-			return;
-		}
-		RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(a_refr) };
-		const PlaybackId playbackId = a_graph.playbackSession->playbackId;
-		const std::uint64_t worldEpoch = a_graph.playbackSession->worldEpoch;
-		a_deferred.emplace_back([keepAlive, playbackId, worldEpoch]() {
-			auto& gm = GetSingleton();
-			if (gm._worldEpoch.load(std::memory_order_acquire) != worldEpoch ||
-				gm._saveWindow.load(std::memory_order_relaxed)) {
-				return;
-			}
-			{
-				std::shared_lock l{ gm.stateLock };
-				const auto it = gm.graphs.find(keepAlive.get());
-				if (it == gm.graphs.end()) {
-					return;
-				}
-				std::scoped_lock gl{ it->second->stateLock };
-				if (!it->second->playbackSession || it->second->playbackSession->playbackId != playbackId) {
-					return;
-				}
-			}
-			keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
-		});
-	}
-
 	void GraphManager::Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData)
 	{
 		// Evaluate the game's graph first; our rig writes land after the engine's pose refresh + eval and before world composition.
@@ -1685,7 +1637,6 @@ namespace OSF::Animation
 			gm.QueueTimedMarksIfFired(*g, deferred);
 			gm.QueueAutoEndIfFinished(*g, deferred);
 			gm.QueueFadeRemovalIfDone(*g, deferred);
-			gm.HoldAnchoredParticipant(*g, refr, deferred);
 		}
 		l.unlock();
 		FlushDeferredTasks(deferred);
@@ -1723,7 +1674,7 @@ namespace OSF::Animation
 								refr ? refr->formID : 0, static_cast<const void*>(a_this));
 						}
 						g->StampPose(a_this);
-						if (g->playbackSession) {
+						if (g->playbackSession && spdlog::should_log(spdlog::level::trace)) {
 							const auto stampMs = std::chrono::duration_cast<std::chrono::milliseconds>(
 								std::chrono::steady_clock::now().time_since_epoch()).count();
 							g->playbackSession->lastStampMs.store(stampMs, std::memory_order_relaxed);

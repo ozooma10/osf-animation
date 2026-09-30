@@ -9,11 +9,7 @@ namespace OSF::Weapon
 	public:
 		static WeaponService& GetSingleton();
 
-		// False until the Actor::DrawWeaponMagicHands vtable binding resolves on this runtime.
-		// Result cached; the disabled state logs once.
-		bool Available();
-
-		// GAME THREAD. Holsters a_actor's weapon. Returns false if the actor is null or the feature is unavailable (nothing recorded for restore in that case).
+		// GAME THREAD. Holsters a_actor's weapon. Returns false for a null actor.
 		bool Sheathe(RE::Actor* a_actor);
 
 		// GAME THREAD. Un-holsters a_actor's weapon (the restore half).
