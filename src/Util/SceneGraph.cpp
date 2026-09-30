@@ -5,27 +5,23 @@
 #include "Util/StarfieldRuntime.h"
 
 #include "RE/N/NiSmartPointer.h"
+#include "RE/N/NiNode.h"
 #include "RE/T/TESBoundObject.h"
 
 #include <Windows.h>
 
 #include <array>
-#include <atomic>
 #include <cstring>
 #include <format>
 #include <mutex>
 
-// Implementation notes live in SceneGraph.h and the module note
-// engine.scene_graph_attach. Everything here works on RAW offsets — the CLSF
-// NiNode/NiAVObject member and method declarations are not trusted (their
-// vtable indices are provably wrong on 1.16.244 and caused the Suit Protocol
-// crash this wrapper replaces).
+// CommonLib owns the scene-graph ABI and intrusive references. The checks here
+// enforce OSF attachment semantics and the verified runtime contract.
 namespace OSF::RE
 {
     namespace
     {
         // --- verified layout (1.16.244) ---
-        constexpr std::ptrdiff_t kRefCount = 0x08;
         constexpr std::ptrdiff_t kChildIndex = 0x0C;    // u16; 0xFFFF = detached
         constexpr std::ptrdiff_t kParent = 0x38;
         constexpr std::ptrdiff_t kChildrenBase = 0x138; // NiAVObject** m_pBase
@@ -33,7 +29,6 @@ namespace OSF::RE
         constexpr std::ptrdiff_t kChildrenSize = 0x142; // u16 size (used range)
 
         // --- vtable slot byte offsets (NiNode-added virtuals) ---
-        constexpr std::ptrdiff_t kSlotDeleteThis = 0x08;
         constexpr std::ptrdiff_t kSlotGetRtti = 0x10;
         constexpr std::ptrdiff_t kSlotAttachChild = 0x2A0;
         constexpr std::ptrdiff_t kSlotSetAt = 0x2A8;
@@ -41,7 +36,6 @@ namespace OSF::RE
         constexpr std::ptrdiff_t kSlotDetachChild = 0x2B8;
 
         // --- AddrLib IDs (all verified nonzero + unique on 1.16.244) ---
-        constexpr std::uint64_t kIdNiNodeVtbl = 497979;       // 0x4EEFB60
         constexpr std::uint64_t kIdAttachChild = 147173;      // 0x2BD15E0
         constexpr std::uint64_t kIdSetAt = 147174;            // 0x2BD1820
         constexpr std::uint64_t kIdDetachChildOut = 147178;   // 0x2BD1B20
@@ -51,9 +45,6 @@ namespace OSF::RE
         constexpr std::uint16_t kDetachedIndex = 0xFFFF;
         constexpr int kMaxAncestorHops = 128;
 
-        using AttachChildFn = void (*)(void* a_node, void* a_child, bool a_firstAvail);
-        using DetachChildOutFn = void (*)(void* a_node, void* a_child, void** a_out);
-        using DeleteThisFn = void (*)(void* a_obj);
         using GetRttiFn = void* (*)(void* a_obj);
 
         struct Resolved
@@ -82,15 +73,6 @@ namespace OSF::RE
         }
 
         [[nodiscard]] bool ReadU16(const std::uintptr_t a_addr, std::uint16_t& a_out)
-        {
-            if (!Util::IsReadableRange(a_addr, sizeof(a_out))) {
-                return false;
-            }
-            std::memcpy(&a_out, reinterpret_cast<const void*>(a_addr), sizeof(a_out));
-            return true;
-        }
-
-        [[nodiscard]] bool ReadU32(const std::uintptr_t a_addr, std::uint32_t& a_out)
         {
             if (!Util::IsReadableRange(a_addr, sizeof(a_out))) {
                 return false;
@@ -139,7 +121,7 @@ namespace OSF::RE
                 return ::REL::Relocation<std::uintptr_t>{ id }.address();
             };
 
-            r.niNodeVtbl = resolve(kIdNiNodeVtbl);
+            r.niNodeVtbl = ::RE::NiNode::VTABLE[0].address();
             r.attachChild = resolve(kIdAttachChild);
             r.detachChildOut = resolve(kIdDetachChildOut);
             const auto setAt = resolve(kIdSetAt);
@@ -236,22 +218,6 @@ namespace OSF::RE
             return false;
         }
 
-        // Fetch a dispatchable NiNode virtual from the object's OWN vtable
-        // (honors subclass overrides), verifying it lands in the image.
-        [[nodiscard]] std::uintptr_t NodeVirtual(const Resolved& a_r, const void* a_node,
-            const std::ptrdiff_t a_slot)
-        {
-            std::uintptr_t vtbl = 0;
-            if (!ReadVtbl(a_r, a_node, vtbl)) {
-                return 0;
-            }
-            std::uintptr_t fn = 0;
-            if (!Util::SafeReadQword(vtbl + a_slot, fn) || !InImage(a_r, fn)) {
-                return 0;
-            }
-            return fn;
-        }
-
         // Children array snapshot (guarded).
         struct ChildArray
         {
@@ -312,29 +278,6 @@ namespace OSF::RE
             return false;
         }
 
-        void RawIncRef(const void* a_obj) noexcept
-        {
-            ::InterlockedIncrement(
-                reinterpret_cast<volatile LONG*>(Addr(a_obj) + kRefCount));
-        }
-
-        // Engine-exact release: on 1 -> 0 call vtbl[1] DeleteThis.
-        void RawDecRef(const Resolved& a_r, const void* a_obj) noexcept
-        {
-            const auto old = ::InterlockedDecrement(
-                                 reinterpret_cast<volatile LONG*>(Addr(a_obj) + kRefCount)) +
-                             1;
-            if (old == 1) {
-                std::uintptr_t vtbl = 0;
-                std::uintptr_t deleter = 0;
-                if (Util::SafeReadQword(Addr(a_obj), vtbl) &&
-                    Util::SafeReadQword(vtbl + kSlotDeleteThis, deleter) &&
-                    InImage(a_r, deleter)) {
-                    reinterpret_cast<DeleteThisFn>(deleter)(const_cast<void*>(a_obj));
-                }
-            }
-        }
-
         // Shared pre-flight for the mutating ops.
         [[nodiscard]] bool ValidateNodePair(const Resolved& a_r, ::RE::NiNode* a_parent,
             ::RE::NiAVObject* a_child, std::string* a_err)
@@ -382,11 +325,10 @@ namespace OSF::RE
 
     ::RE::NiNode* GetParent(::RE::NiAVObject* a_obj)
     {
-        std::uintptr_t parent = 0;
-        if (!a_obj || !Util::SafeReadQword(Addr(a_obj) + kParent, parent)) {
+        if (!a_obj || !Util::IsReadableRange(Addr(a_obj), sizeof(*a_obj))) {
             return nullptr;
         }
-        return reinterpret_cast<::RE::NiNode*>(parent);
+        return a_obj->parent;
     }
 
     static std::uint16_t GetChildIndex(::RE::NiAVObject* a_obj)
@@ -400,11 +342,8 @@ namespace OSF::RE
 
     static std::uint32_t GetRefCount(::RE::NiAVObject* a_obj)
     {
-        std::uint32_t rc = 0;
-        if (a_obj) {
-            (void)ReadU32(Addr(a_obj) + kRefCount, rc);
-        }
-        return rc;
+        return a_obj && Util::IsReadableRange(Addr(a_obj), sizeof(*a_obj)) ?
+            static_cast<std::uint32_t>(a_obj->refCount) : 0;
     }
 
     bool AttachChild(::RE::NiNode* a_parent, ::RE::NiAVObject* a_child, std::string* a_err)
@@ -435,12 +374,7 @@ namespace OSF::RE
             return false;
         }
 
-        const auto fn = NodeVirtual(r, a_parent, kSlotAttachChild);
-        if (fn == 0) {
-            Fail(a_err, "parent AttachChild slot unreadable/out of image");
-            return false;
-        }
-        reinterpret_cast<AttachChildFn>(fn)(a_parent, a_child, true);
+        a_parent->AttachChild(a_child, true);
 
         // Post-conditions.
         if (GetParent(a_child) != a_parent) {
@@ -483,18 +417,11 @@ namespace OSF::RE
             return false;
         }
 
-        const auto fn = NodeVirtual(r, a_parent, kSlotDetachChildOut);
-        if (fn == 0) {
-            Fail(a_err, "parent DetachChild slot unreadable/out of image");
-            return false;
-        }
-
-        // Strong guard so the child cannot be destroyed mid-operation; the
-        // out-pointer variant transfers the array's reference to us and we
-        // release it after verification.
-        RawIncRef(a_child);
-        void* transferred = nullptr;
-        reinterpret_cast<DetachChildOutFn>(fn)(a_parent, a_child, &transferred);
+        // Keep the child alive during verification; the out pointer owns the
+        // reference transferred from the parent's array.
+        const ::RE::NiPointer<::RE::NiAVObject> keepAlive{ a_child };
+        ::RE::NiPointer<::RE::NiAVObject> transferred;
+        a_parent->DetachChild(a_child, transferred);
 
         bool ok = true;
         if (GetParent(a_child) != nullptr) {
@@ -506,15 +433,11 @@ namespace OSF::RE
         } else if (CountEntries(a_parent, a_child) != 0) {
             Fail(a_err, "post: child still present in parent's array");
             ok = false;
-        } else if (transferred != a_child) {
+        } else if (transferred.get() != a_child) {
             Fail(a_err, "post: DetachChild out-pointer did not return the child");
             ok = false;
         }
 
-        if (transferred) {
-            RawDecRef(r, transferred);  // release the array's transferred ref
-        }
-        RawDecRef(r, a_child);  // release our guard
         return ok;
     }
 
@@ -534,7 +457,7 @@ namespace OSF::RE
             return false;
         }
 
-        RawIncRef(a_child);  // survive the detach window
+        const ::RE::NiPointer<::RE::NiAVObject> keepAlive{ a_child };  // survive the detach window
         bool ok = true;
         const auto oldParent = GetParent(a_child);
         if (oldParent == a_newParent) {
@@ -542,12 +465,11 @@ namespace OSF::RE
             ok = false;
         }
         if (ok && oldParent != nullptr) {
-            ok = DetachChild(reinterpret_cast<::RE::NiNode*>(oldParent), a_child, a_err);
+            ok = DetachChild(oldParent, a_child, a_err);
         }
         if (ok) {
             ok = AttachChild(a_newParent, a_child, a_err);
         }
-        RawDecRef(r, a_child);
         return ok;
     }
 

@@ -1,6 +1,7 @@
 #include "Audio/WwiseBackend.h"
 
 #include "Audio/PcmWem.h"
+#include "Util/Hooking.h"
 
 #include <array>
 #include <cctype>
@@ -39,10 +40,8 @@ namespace OSF::Audio::Wwise
 {
 	namespace
 	{
-		//@TODO: use Commonlib?
 		// AK::SoundEngine::PostEvent(AkUniqueID, AkGameObjectID, u32 flags, callback, cookie, u32 cExternals, AkExternalSourceInfo*, AkPlayingID)
 		// Wwise 2021.1 ABI, statically linked into the game. called from a worker thread, the returned playing IDs continued the engine's own counter.
-		constexpr REL::ID kAkPostEventByID{ 150391 };
 
 		// First 16 bytes of 150391, byte-identical on 1.16.242 and 1.16.244
 		// Mismatch on a future patch = self-disable.
@@ -385,9 +384,8 @@ namespace OSF::Audio::Wwise
 	bool Available()
 	{
 		static const bool available = []() {
-			const auto* code = reinterpret_cast<const std::uint8_t*>(kAkPostEventByID.address());
-			if (!code || std::memcmp(code, kPostEventPrologue.data(), kPostEventPrologue.size()) != 0) {
-				REX::WARN("[Audio] Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime — cue sounds are skipped (no private-device fallback)", kAkPostEventByID.id());
+			if (!Util::Hooking::PrologueMatches(RE::ID::AkSoundEngine::PostEvent, kPostEventPrologue)) {
+				REX::WARN("[Audio] Wwise audio disabled: AK PostEvent (ID {}) prologue mismatch on this runtime — cue sounds are skipped (no private-device fallback)", RE::ID::AkSoundEngine::PostEvent.id());
 				return false;
 			}
 			REX::DEBUG("[Audio] Wwise audio available: AK PostEvent prologue verified");
@@ -418,18 +416,12 @@ namespace OSF::Audio::Wwise
 		// this; only ExecuteActionOnPlayingID survives in the build. It reserves an AK queue message
 		// (QueueMgr::Reserve linchpin), so it is thread-safe to call from any thread, exactly like PostEvent.
 		// ExecuteActionOnPlayingID(Stop, playingID, 0ms, Linear) cuts exactly that one voice instantly.
-		constexpr REL::ID kAkStopVoiceID{ 150360 };
 
 		// First 16 bytes of 150360 on 1.16.244 (mismatch on a future patch -> StopVoice self-disables).
 		constexpr std::array<std::uint8_t, 16> kStopPrologue{
 			0x85, 0xD2, 0x74, 0x6C, 0x48, 0x89, 0x5C, 0x24, 0x08, 0x48, 0x89, 0x6C, 0x24, 0x10, 0x48, 0x89
 		};
 
-		constexpr std::uint32_t kAkActionStop = 0;   // AkActionOnEventType_Stop
-		constexpr std::uint32_t kAkCurveLinear = 4;  // AkCurveInterpolation_Linear (the value the engine passes)
-
-		using ExecuteActionOnPlayingIDFn = void (*)(std::uint32_t /*action*/, std::uint32_t /*playingID*/,
-		                                            std::int32_t /*transitionMs*/, std::uint32_t /*curve*/);
 	}
 
 	bool StopVoice(std::uint32_t a_playingID)
@@ -440,19 +432,18 @@ namespace OSF::Audio::Wwise
 		// Resolve + byte-gate once; self-disable on a moved/patched entry, exactly like Available()'s
 		// PostEvent gate (we never call an unverified AK entry — a wrong target + playingID args could
 		// corrupt AK's command queue).
-		static const ExecuteActionOnPlayingIDFn stop = []() -> ExecuteActionOnPlayingIDFn {
-			const auto* code = reinterpret_cast<const std::uint8_t*>(kAkStopVoiceID.address());
-			if (!code || std::memcmp(code, kStopPrologue.data(), kStopPrologue.size()) != 0) {
-				REX::WARN("[Audio] Wwise StopVoice disabled: AK ExecuteActionOnPlayingID (ID {}) prologue mismatch on this runtime — per-slot voice replace will let the prior clip play out", kAkStopVoiceID.id());
-				return nullptr;
+		static const bool stopAvailable = []() {
+			if (!Util::Hooking::PrologueMatches(RE::ID::AkSoundEngine::ExecuteActionOnPlayingID, kStopPrologue)) {
+				REX::WARN("[Audio] Wwise StopVoice disabled: AK ExecuteActionOnPlayingID (ID {}) prologue mismatch on this runtime — per-slot voice replace will let the prior clip play out", RE::ID::AkSoundEngine::ExecuteActionOnPlayingID.id());
+				return false;
 			}
 			REX::DEBUG("[Audio] Wwise StopVoice available: AK ExecuteActionOnPlayingID prologue verified");
-			return reinterpret_cast<ExecuteActionOnPlayingIDFn>(kAkStopVoiceID.address());
+			return true;
 		}();
-		if (stop == nullptr) {
+		if (!stopAvailable) {
 			return false;
 		}
-		stop(kAkActionStop, a_playingID, 0, kAkCurveLinear);  // Stop, 0ms transition -> instant cut
+		RE::BGSAudio::AkSoundEngine::StopPlayingID(a_playingID);
 		return true;
 	}
 

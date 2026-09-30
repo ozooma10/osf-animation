@@ -2,6 +2,7 @@
 
 #include "Input/InputService.h"
 #include "Player/PlayerInputLockService.h"
+#include "RE/P/ThirdPersonState.h"
 
 #include <algorithm>
 #include <chrono>
@@ -68,8 +69,6 @@ namespace OSF::Camera
 
 		// The engine auto-lerps current(+0x228) -> target(+0x224) each frame (~fMouseWheelZoomSpeed 3.0/s, ~1-2 s), so write the TARGET once and the camera glides; 
 		// ForceThirdPerson resets zoom to 0.0 so seed a pull-back right after it.
-		constexpr std::ptrdiff_t kThirdPersonTargetZoomOffset = 0x224;   // float — the zoom SETPOINT (write this)
-		constexpr std::ptrdiff_t kThirdPersonCurrentZoomOffset = 0x228;  // float — the eased/rendered zoom (writing snaps)
 		constexpr std::ptrdiff_t kThirdPersonStateIdOffset = 0x50;      // std::uint32_t — must == kThirdPerson(20)
 		constexpr std::uint32_t  kThirdPersonStateId = 20;              // RE::CameraState::kThirdPerson
 
@@ -383,9 +382,10 @@ namespace OSF::Camera
 				return;
 			}
 			// Normally write the TARGET only and let the engine glide current -> target. But when the caller asks  to SNAP, also write the CURRENT so it never sits at 0 and re-triggers the 3rd->1st collapse. 
-			*reinterpret_cast<float*>(base + kThirdPersonTargetZoomOffset) = seed;
+			auto* thirdPerson = static_cast<RE::ThirdPersonState*>(state);
+			thirdPerson->targetZoomOffset = seed;
 			if (a_snapCurrent) {
-				*reinterpret_cast<float*>(base + kThirdPersonCurrentZoomOffset) = seed;
+				thirdPerson->currentZoomOffset = seed;
 			}
 			REX::TRACE("[Camera] third-person start zoom seeded to {} (snapCurrent={})", seed, a_snapCurrent);
 		});

@@ -1,6 +1,7 @@
 #include "Input/InputService.h"
 
 #include "SFSE/InputMap.h"
+#include "REL/THook.h"
 
 #include "RE/B/BSInputEventReceiver.h"
 #include "RE/B/BSInputEventUser.h"
@@ -18,8 +19,7 @@ namespace OSF::Input
 		using PerformInputProcessing_t = void(RE::BSInputEventReceiver*, const RE::InputEvent*);
 
 		std::atomic_bool          g_active{ false };     // a grant is live -> verb dispatch armed
-		bool                      g_installed{ false };
-		PerformInputProcessing_t* g_original{ nullptr };
+		std::optional<REL::THookVFT<PerformInputProcessing_t>> g_inputHook;
 
 		std::mutex                              g_grantLock;    // guards g_grant + g_verbHandler
 		Grant                                   g_grant;
@@ -213,10 +213,10 @@ namespace OSF::Input
 						CaptureThumbstick(event);
 					}
 					// Browser on screen: kill THUMBSTICK events BEFORE the forward — the player's
-					// movement dispatch runs inside g_original (post-forward flagging demonstrably
+					// movement dispatch runs inside the original receiver (post-forward flagging demonstrably
 					// did not stop the walking). The orbit snapshot above has already retained them.
 					// Gamepad BUTTONS deliberately pass through unflagged: OSF UI's FocusMenu
-					// (also inside g_original) must see them to apply its engine-side capture gate;
+					// (also inside the original receiver) must see them to apply its engine-side capture gate;
 					// OSF UI's independent gamepad session maps D-pad/A/B for the browser,
 					// and gameplay button verbs are gated by OSF UI's ControlLayer flags (proven
 					// for buttons — only stick movement ignores them). Buttons are swept after
@@ -267,7 +267,7 @@ namespace OSF::Input
 			// Forward the queue: thumbsticks ride along flagged kStop (consumed above), while gamepad
 			// buttons pass through live so the menu walk inside — OSF UI's FocusMenu — can apply its
 			// capture gate. Browser navigation comes from OSF UI's independent gamepad session.
-			g_original(a_this, a_queueHead);
+			(*g_inputHook)(a_this, a_queueHead);
 			// Post-forward sweep: flag the remaining gamepad events (buttons) too, in case anything
 			// downstream of the UI receiver still looks at this queue. Gameplay button verbs are
 			// primarily gated by OSF UI's ControlLayer flags; this is defense in depth.
@@ -318,7 +318,7 @@ namespace OSF::Input
 
 	bool InputService::Install()
 	{
-		if (g_installed) {
+		if (g_inputHook && g_inputHook->GetEnabled()) {
 			return true;
 		}
 		if (!VerifyUiLayout()) {
@@ -327,10 +327,10 @@ namespace OSF::Input
 		}
 
 		// Slot 1 is PerformInputProcessing (0 is the virtual destructor); 
-		REL::Relocation<std::uintptr_t> vtbl{ RE::UI::VTABLE[kReceiverVtblIndex] };
-		const auto                      original = vtbl.write_vfunc(1, &Thunk);
-		g_original = reinterpret_cast<PerformInputProcessing_t*>(original);
-		g_installed = true;
+		g_inputHook.emplace("[Input] UI::PerformInputProcessing", RE::UI::VTABLE[kReceiverVtblIndex], 1, &Thunk);
+		if (!g_inputHook->Enable()) {
+			return false;
+		}
 		REX::DEBUG("[Input] installed vfunc hook on UI::PerformInputProcessing");
 		return true;
 	}

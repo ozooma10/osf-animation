@@ -8,7 +8,7 @@
 #include "Util/Species.h"
 #include "Util/StringUtil.h"
 
-#include "RE/S/StreamBase.h"
+#include "RE/B/BSResourceNiBinaryStream.h"
 
 #include <cstring>
 #include <format>
@@ -36,46 +36,6 @@ namespace OSF::Animation
 			}
 		}
 
-		class ResourceBinaryStream
-		{
-		public:
-			ResourceBinaryStream() = delete;
-
-			explicit ResourceBinaryStream(const char* a_path)
-			{
-				using func_t = void (*)(ResourceBinaryStream*, const char*);
-				static REL::Relocation<func_t> func{ REL::ID(147134) };  // BSResourceNiBinaryStream ctor
-				func(this, a_path);
-			}
-
-			ResourceBinaryStream(const ResourceBinaryStream&) = delete;
-			ResourceBinaryStream& operator=(const ResourceBinaryStream&) = delete;
-
-			virtual ~ResourceBinaryStream()
-			{
-				using func_t = void (*)(ResourceBinaryStream*);
-				static REL::Relocation<func_t> func{ REL::ID(147137) };  // BSResourceNiBinaryStream dtor
-				func(this);
-			}
-
-			[[nodiscard]] bool good() const noexcept { return stream != nullptr; }
-			[[nodiscard]] std::uint32_t size() const noexcept { return stream ? stream->totalSize : 0; }
-
-			std::uint64_t read(void* a_buffer, std::uint64_t a_bytes)
-			{
-				using func_t = std::uint64_t (*)(ResourceBinaryStream*, void*, std::uint64_t);
-				static REL::Relocation<func_t> func{ REL::ID(147139) };  // BSResourceNiBinaryStream::DoRead
-				return func(this, a_buffer, a_bytes);
-			}
-
-			std::uint64_t                absolutePos = 0;  // NiBinaryStream base
-			RE::BSResource::StreamBase* stream = nullptr;
-			void*                        buffer = nullptr;
-			std::uint64_t                streamPos = 0;
-			RE::BSResource::ErrorCode    lastError = RE::BSResource::ErrorCode::kNone;
-		};
-		static_assert(sizeof(ResourceBinaryStream) == 0x30);
-
 		std::optional<std::vector<std::uint8_t>> ReadResourceFile(std::string_view a_relPath)
 		{
 			const auto relPath = Util::NormalizeResourcePath(a_relPath);
@@ -83,14 +43,14 @@ namespace OSF::Animation
 				return std::nullopt;
 			}
 
-			ResourceBinaryStream stream{ relPath.c_str() };
-			if (!stream.good()) {
+			RE::BSResourceNiBinaryStream stream{ relPath.c_str() };
+			if (!stream.Good()) {
 				return std::nullopt;
 			}
 
-			std::vector<std::uint8_t> bytes(stream.size());
+			std::vector<std::uint8_t> bytes(stream.GetSize());
 			if (!bytes.empty()) {
-				const auto read = stream.read(bytes.data(), bytes.size());
+				const auto read = stream.DoRead(bytes.data(), bytes.size());
 				if (read != bytes.size()) {
 					return std::nullopt;
 				}
@@ -146,8 +106,8 @@ namespace OSF::Animation
 		if (relPath.empty()) {
 			return false;
 		}
-		ResourceBinaryStream stream{ relPath.c_str() };
-		return stream.good();
+		RE::BSResourceNiBinaryStream stream{ relPath.c_str() };
+		return stream.Good();
 	}
 
 	namespace GraphManagerClipLoad

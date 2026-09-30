@@ -13,63 +13,12 @@ namespace RE
     class NiPointer;
 }
 
-// Verified 1.16.244 scene-graph attach/detach/reparent wrappers (RE'd
-// 2026-07-30, Investigations request "Suit Protocol helmet proxy crash").
-//
-// Engine contract (all runtime-anchored via nonzero AddrLib IDs; the CLSF
-// NiNode.h method declarations are WRONG — see the module note
-// engine.scene_graph_attach):
-//
-//   NiAVObject vtable = 84 slots (0x000..0x298). Slot 0 = vector-deleting
-//   dtor, slot 1 = DeleteThis (called when refcount 1->0), slot 2 = GetRTTI
-//   (returns NiRTTI*: {+0 char* name, +8 NiRTTI* base}). The CLSF base chain
-//   (NiRefObject..NiAVObject) matches this; the bug was NiNode.h's added
-//   method list: its AddChild/RemoveChild compiled to slots 84/85 = engine
-//   AttachChild(child, firstAvail)/SetAt(index, child) — the Suit Protocol
-//   crash was RemoveChild(child) dispatching to SetAt with the child pointer
-//   truncated into the index and r8 uncontrolled.
-//
-//   NiNode adds slots 84..94:
-//     84 vt+0x2A0  AttachChild(NiAVObject* child, bool firstAvail)    ID 147173
-//     85 vt+0x2A8  SetAt(u32 index, NiAVObject* child)                ID 147174
-//     86 vt+0x2B0  DetachChild(NiAVObject* child, NiAVObject*& out)   ID 147178
-//     87 vt+0x2B8  DetachChild(NiAVObject* child) [no out]            ID 147177
-//     88 vt+0x2C0  DetachChildAlt(NiAVObject* child)                  ID 147179
-//     89 vt+0x2C8  DetachChildAt(u32 index, NiAVObject*& out)         ID 147176
-//     90 vt+0x2D0  DetachChildAt(u32 index) [no out]                  ID 147175
-//   NiNode vtable = REL::ID(497979) = 0x4EEFB60 (95 slots).
-//
-//   Layout (runtime-proven for the fields we touch):
-//     NiObject   +0x08 u32 refcount (atomic; release: lock xadd -1, old==1
-//                       -> call vtbl[1] DeleteThis)
-//     NiAVObject +0x0C u16 childIndex (0xFFFF = detached)
-//                +0x0E u16 firstAvail scan hint (nodes only)
-//                +0x38 NiNode* parent
-//                +0x118 u64 flags
-//     NiNode     +0x130 NiTObjectArray vtbl (REL::ID 497983)
-//                +0x138 NiAVObject** m_pBase
-//                +0x140 u16 maxSize  +0x142 u16 size (used range)
-//                +0x144 u16 freeCount +0x146 u16 growBy
-//
-//   Ownership: AttachChild increfs the child (the parent's array holds one
-//   ref). DetachChild(out&) transfers that ref to the caller; the no-out
-//   variant releases it (may destroy the child). AttachChild internally calls
-//   NiAVObject::SetParent (ID 147223) which auto-detaches from any previous
-//   parent via oldParent->vtbl[+0x2B8].
-//   DetachChild clears child->parent and sets childIndex = 0xFFFF
-//   (via helper ID 147225) before the slot is nulled.
-//
-//   Threading: the ops take no locks (only the refcounts are atomic). They
-//   must run on the game's main thread while the scene-graph update /
-//   render-visibility jobs are not walking the tree — i.e. exactly where the
-//   engine's own equip pipeline mutates node children. A queued
-//   per-frame main-thread service (SFSE task queue / CommandFile pump)
-//   satisfies this.
-//
-// Every wrapper validates the version contract once (REL::ID-resolved vtable
-// slots must match the AddrLib function IDs above) and refuses to operate on
-// a mismatched runtime. All argument graphs are checked with guarded reads
-// before any engine call.
+// OSF attachment policy over CommonLibSF's corrected NiNode virtuals and
+// NiPointer ownership. The runtime contract is verified once before mutation;
+// callers must keep the objects alive and mutate outside scene-graph traversal.
+// Checks reject cycles, duplicate attachment, and unexpected ownership changes.
+// Child-index and Clone3D integrity checks retain the verified 1.16.244 offsets
+// that CommonLib does not yet expose.
 namespace OSF::RE
 {
     // Idempotent; resolves + verifies the vtable contract. Returns false (and
@@ -79,7 +28,7 @@ namespace OSF::RE
     // One-line resolution summary for diagnostics.
     [[nodiscard]] std::string StatusText();
 
-    // Guarded raw-layout parent readback; safe on any thread.
+    // Parent readback with a readable-object check; caller owns lifetime and synchronization.
     [[nodiscard]] ::RE::NiNode* GetParent(::RE::NiAVObject* a_obj);
     // Attach a parentless child to a node. Rejects null/self/cycles, a child
     // that already has a parent (use Reparent), and duplicate entries.

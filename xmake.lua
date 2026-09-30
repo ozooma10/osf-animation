@@ -29,48 +29,22 @@ target("OSF Animation")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
-    -- Copy the compiled DLL and Papyrus scripts into the mod folder.
+    -- CommonLib deploys the DLL/PDB and these payloads through its install rule.
+    add_installfiles("dist/Scripts/*.pex", { prefixdir = "Scripts" })
+    add_installfiles("dist/Scripts/Source/*.psc", { prefixdir = "Scripts/Source" })
+    add_installfiles("dist/OSF/internal.osf.json", { prefixdir = "OSF" })
+    add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json", {
+        prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
+    })
+
+    -- The optional browser addon owns the view. Remove only its former locations
+    -- in this mod; preserve other installed scripts, scenes, and MO2 metadata.
     after_build(function (target)
         local mods = os.getenv("XSE_SF_MODS_PATH")
         if mods then
-            -- SFSE loads plugins from <mod>\SFSE\Plugins\*.dll.
             local plugins = path.join(mods, target:name(), "SFSE", "Plugins")
-            local scripts = path.join(mods, target:name(), "Scripts")
-            local osfDir = path.join(mods, target:name(), "OSF")
-            local source = path.join(scripts, "Source")
-            os.tryrm(osfDir)
-            os.tryrm(scripts)
-            os.mkdir(plugins)
-            os.mkdir(scripts)
-            os.mkdir(source)
-            local pexFiles = os.files("dist/Scripts/*.pex") or {}
-            if #pexFiles > 0 then
-                os.cp("dist/Scripts/*.pex", scripts .. "/")
-            else
-                print("[OSF] no compiled Papyrus scripts found in dist/Scripts — compile Papyrus first; no .pex files were deployed.")
-            end
-            os.cp("dist/Scripts/Source/*.psc", source .. "/")
-            os.mkdir(osfDir)
-            os.cp("dist/OSF/internal.osf.json", osfDir .. "/")
-            -- OSF Settings owns settings and hotkeys; the schema is deployed below.
-
-            -- The browser view is deployed by the optional OSF Animation Browser addon.
-            -- Remove the old co-located view from this mod on upgrade.
             os.tryrm(path.join(plugins, "OSF", "UI", "views", "osf.animation"))
-            -- OSF Settings discovers schemas at startup, independently of the web view.
-            local schemas = path.join(plugins, "OSF", "Settings", "schemas")
-            os.mkdir(schemas)
-            os.cp("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json", schemas .. "/")
-            -- Remove only this mod's retired UI namespace from its own MO2 folder.
             os.tryrm(path.join(plugins, "OSFUI", "views", "osf.animation"))
-            local ok = try { function() os.cp(target:targetfile(), plugins .. "/"); return true end }
-            if ok then
-                if os.isfile(target:symbolfile()) then
-                    os.cp(target:symbolfile(), plugins .. "/")  -- .pdb for crash-log symbolication
-                end
-            else
-                print("[OSF] DLL is busy (game running?) — scripts/scenes deployed, DLL NOT updated. Close the game and rebuild to update the DLL.")
-            end
         end
     end)
 
