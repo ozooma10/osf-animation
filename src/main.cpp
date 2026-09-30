@@ -27,7 +27,7 @@ namespace
 {
 	// Last game version whose offsets I checked by hand. Should keep working unless AddressLib ships a breaking update.
 	constexpr REL::Version kVerifiedGameVersion{ 1, 16, 244, 0 };
-	// Persistence gateways/branches use 101 bytes; the two frame hooks add up to 28.
+	// Persistence gateways/branches use 101 bytes; the main-loop call hook adds up to 14.
 	constexpr std::size_t kTrampolineBytes = 192;
 
 	void MessageCallback(SFSE::MessagingInterface::Message* a_msg)
@@ -63,7 +63,7 @@ namespace
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
-			REX::INFO("[Feature] Main-Thread Frame Hook INSTALLED");
+			REX::INFO("[Feature] Main-Loop Frame Hook INSTALLED");
 			REX::INFO("[Feature] Raw-layout Camera Controls {}",
 				OSF::Camera::CameraService::GetSingleton().RawLayoutSupport() ? "AVAILABLE" : "UNAVAILABLE");
 			REX::INFO("[Feature] Scene Props {}",

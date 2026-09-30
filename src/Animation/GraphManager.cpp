@@ -1453,7 +1453,7 @@ namespace OSF::Animation
 		if (graphCount.load(std::memory_order_relaxed) == 0) {
 			return;
 		}
-		// UI updates continue while a game menu/console freezes animation reports. Do not
+		// Main's normal updates continue while a game menu/console freezes animation reports. Do not
 		// interpret that intentional pause as participant death; force a fresh grace window on resume.
 		if (IsGameMenuPaused() || g_consoleOpen.load(std::memory_order_relaxed)) {
 			_stallWatchdog.Pause();
