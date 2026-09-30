@@ -288,11 +288,15 @@ namespace OSF::Camera
 				if (++holdCount != 1) {
 					return;  // already held by another owner — ref-count only
 				}
-				holdArmed.store(true, std::memory_order_relaxed);  // arm Tick's bounce
 			}
 			CaptureBaseline();
-			// Force third person now — unless a state override is currently imposing an alt camera.
+			// Arm Tick only after the preceding baseline capture has run.
 			QueueTask([this]() {
+				{
+					std::scoped_lock l{ lock };
+					if (holdCount == 0) return;  // released before this task ran
+					holdArmed.store(true, std::memory_order_relaxed);
+				}
 				if (suppressBounce.load(std::memory_order_relaxed)) {
 					return;  // a state override owns the camera; don't fight it
 				}
