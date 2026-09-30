@@ -11,6 +11,7 @@
 #include "UI/Subtitle.h"
 #include "Util/ClipPath.h"
 #include "Util/Math.h"
+#include "REL/THook.h"
 
 #include <algorithm>
 #include <chrono>
@@ -33,18 +34,16 @@ namespace OSF::Animation
 		}
 
 
-		// The two engine hooks. InstallHooks verifies each vtable slot still points where we expect before patching it.
+		using AnimUpdateHook = REL::THookVFT<void(void*, RE::BSAnimationUpdateData*)>;
+		using ModelNodeUpdateHook = REL::THookVFT<uint64_t(RE::BGSModelNode*, void*, void*, void*)>;
+		std::optional<AnimUpdateHook> g_animUpdateHook;
+		std::optional<ModelNodeUpdateHook> g_modelNodeUpdateHook;
+
 		// AnimationManager::Update - slot 4, the clock/sampling point.
-		// TODO: move to commonlib
-		constexpr REL::ID AnimManagerVTableID(467920);
-		constexpr REL::ID AnimManagerUpdateFnID(122232);
 		constexpr size_t UpdateVFuncIdx = 4;
 		
 		// BGSModelNode::Update - slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*, outputTransform).
 		// Stamping before the original runs is the rig-buffer write point (that same call composes + commits).
-		// TODO: move to commonlib
-		constexpr REL::ID ModelNodeVTableID(400534);
-		constexpr REL::ID ModelNodeUpdateFnID(48634);
 		constexpr size_t ModelNodeUpdateVFuncIdx = 2;
 
 		// CAP (not floor) for a pinned actor's cull-sphere radius (meters). The engine fades an actor out as the
@@ -301,34 +300,23 @@ namespace OSF::Animation
 
 	void GraphManager::InstallHooks()
 	{
-		REL::Relocation<uintptr_t> vtbl{ AnimManagerVTableID };
-		REL::Relocation<uintptr_t> expected{ AnimManagerUpdateFnID };
-
-		const uintptr_t slotValue = *reinterpret_cast<uintptr_t*>(vtbl.address() + UpdateVFuncIdx * sizeof(uintptr_t));
-		if (slotValue != expected.address()) {
-			REX::ERROR("[Anim] AnimationManager vtable slot {} = {:X}, expected AnimationManager::Update at {:X} — "
-				"AddressLib IDs stale for this game version, NOT patching (animations disabled)",
-				UpdateVFuncIdx, slotValue, expected.address());
+		if (HooksInstalled()) {
 			return;
 		}
 
-		REL::Relocation<uintptr_t> mnVtbl{ ModelNodeVTableID };
-		REL::Relocation<uintptr_t> mnExpected{ ModelNodeUpdateFnID };
-
-		const uintptr_t mnSlotValue = *reinterpret_cast<uintptr_t*>(mnVtbl.address() + ModelNodeUpdateVFuncIdx * sizeof(uintptr_t));
-		if (mnSlotValue != mnExpected.address()) {
-			REX::ERROR("[Anim] BGSModelNode vtable slot {} = {:X}, expected BGSModelNode::Update at {:X} — "
-				"AddressLib IDs stale for this game version, NOT patching (animations disabled)",
-				ModelNodeUpdateVFuncIdx, mnSlotValue, mnExpected.address());
-			return;
-		}
-
-		_origAnimGraphUpdate = reinterpret_cast<AnimUpdateFn*>(
-			vtbl.write_vfunc(UpdateVFuncIdx, &Hook_AnimGraphUpdate));
-		_origModelNodeUpdate = reinterpret_cast<ModelNodeUpdateFn*>(
-			mnVtbl.write_vfunc(ModelNodeUpdateVFuncIdx, &Hook_ModelNodeUpdate));
+		// Capture the current targets so earlier plugins remain in the hook chain.
+		g_animUpdateHook.emplace("[Anim] AnimationManager::Update", RE::VTABLE::AnimationManager[0], UpdateVFuncIdx, &Hook_AnimGraphUpdate);
+		g_modelNodeUpdateHook.emplace("[Anim] BGSModelNode::Update", RE::VTABLE::BGSModelNode[0], ModelNodeUpdateVFuncIdx, &Hook_ModelNodeUpdate);
+		g_animUpdateHook->Enable();
+		g_modelNodeUpdateHook->Enable();
 		REX::TRACE("[Anim] installed AnimationManager::Update (vfunc {}) + BGSModelNode::Update (vfunc {}) hooks",
 			UpdateVFuncIdx, ModelNodeUpdateVFuncIdx);
+	}
+
+	bool GraphManager::HooksInstalled() const
+	{
+		return g_animUpdateHook && g_animUpdateHook->GetEnabled() &&
+		       g_modelNodeUpdateHook && g_modelNodeUpdateHook->GetEnabled();
 	}
 
 	void GraphManager::RegisterConsolePauseSink()
@@ -348,7 +336,7 @@ namespace OSF::Animation
 			return false;
 		}
 
-		if (!_origAnimGraphUpdate) {
+		if (!HooksInstalled()) {
 			REX::ERROR("[Anim] Play refused: update hook is not installed");
 			return false;
 		}
@@ -376,7 +364,7 @@ namespace OSF::Animation
 			if (a_error) *a_error = "The player is unavailable";
 			return false;
 		}
-		if (!_origAnimGraphUpdate) {
+		if (!HooksInstalled()) {
 			if (a_error) *a_error = "OSF Animation playback hooks are unavailable";
 			return false;
 		}
@@ -492,7 +480,7 @@ namespace OSF::Animation
 		if (a_outPlaybackId) {
 			*a_outPlaybackId = 0;
 		}
-		if (!_origAnimGraphUpdate) {
+		if (!HooksInstalled()) {
 			REX::ERROR("[Anim] synchronized playback refused: update hook is not installed");
 			return false;
 		}
@@ -1658,7 +1646,7 @@ namespace OSF::Animation
 	void GraphManager::Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData)
 	{
 		// Evaluate the game's graph first; our rig writes land after the engine's pose refresh + eval and before world composition.
-		_origAnimGraphUpdate(a_this, a_updateData);
+		(*g_animUpdateHook)(a_this, a_updateData);
 
 		if (!a_updateData) {
 			return;
@@ -1811,6 +1799,6 @@ namespace OSF::Animation
 			}
 		}
 
-		return _origModelNodeUpdate(a_this, a_parentTransform, a_updateData, a_outputTransform);
+		return (*g_modelNodeUpdateHook)(a_this, a_parentTransform, a_updateData, a_outputTransform);
 	}
 }

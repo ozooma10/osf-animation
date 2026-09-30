@@ -40,15 +40,15 @@ namespace OSF::Animation
 		PlaybackSinkId RegisterPlaybackSink(PlaybackSink a_sink);
 		bool UnregisterPlaybackSink(PlaybackSinkId a_id);
 
-		// Installs the AnimationManager::Update vtable hook.
+		// Installs the sampling and pose-stamping vtable hooks.
 		void InstallHooks();
 
 		// Registers a MenuOpenCloseEvent sink that freezes playback while the console is open.
 		// console pauses the world but does NOT set Main::isGameMenuPaused, Call once after the UI singleton exists (kPostPostDataLoad).
 		void RegisterConsolePauseSink();
 
-		// True when both vtable hooks verified and patched (the core playback path is live).
-		bool HooksInstalled() const { return _origAnimGraphUpdate && _origModelNodeUpdate; }
+		// True when both vtable hooks are enabled (the core playback path is live).
+		bool HooksInstalled() const;
 
 		// Synchronously loads a_file (relative to the game's Data folder, or absolute) and starts playing it on a_actor.
 		bool PlayAnimation(RE::Actor* a_actor, std::string_view a_file, std::string_view a_animId);
@@ -199,12 +199,6 @@ namespace OSF::Animation
 		// (and it keeps running for AI-frozen actors, whose AnimationManager updates stop).
 		static uint64_t Hook_ModelNodeUpdate(
 			RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData, void* a_outputTransform);
-
-		using AnimUpdateFn = void(void*, RE::BSAnimationUpdateData*);
-		static inline AnimUpdateFn* _origAnimGraphUpdate = nullptr;
-
-		using ModelNodeUpdateFn = uint64_t(RE::BGSModelNode*, void*, void*, void*);
-		static inline ModelNodeUpdateFn* _origModelNodeUpdate = nullptr;
 
 		std::shared_mutex stateLock;
 		std::unordered_map<RE::TESObjectREFR*, std::shared_ptr<Graph>> graphs;
