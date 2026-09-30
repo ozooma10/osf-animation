@@ -13,7 +13,7 @@ the OSF UI compatibility/type checks, and the production build.
 
 Data flows in one direction:
 
-`OSF UI JSON -> bridge decoder -> browser action -> reducer -> selectors -> Preact components`
+`OSF UI JSON -> bridge decoder -> browser action -> reducer -> selectors -> Octane components`
 
 User events flow back as a browser action or a typed bridge command. Keep these boundaries:
 
@@ -61,6 +61,10 @@ state library unless the existing reducer demonstrably cannot express the behavi
 
 - Components render JSX and receive typed values/callbacks. Do not use `innerHTML`, manually rebuild
   DOM subtrees, or add delegated `data-act` routers.
+- Existing components stay in TSX and compile through Octane's Vite plugin. New TSRX is appropriate
+  only when its template control flow materially improves a list- or branch-heavy component.
+- Octane Strong mode is intentionally deferred; keep explicit hook dependencies and the controller's
+  current latest-state refs until that refactor is taken as a separate behavior change.
 - Put derived filtering/grouping/readiness logic in selectors, not render bodies.
 - Keep feature CSS beside the feature when practical; shared tokens/layout remain under `styles/`.
 - Add reducer/selector tests for new behavior and bridge tests for contract changes.

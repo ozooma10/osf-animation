@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "octane";
 import type { BrowserCommands } from "./commands";
 import { browserReducer } from "./reducer";
 import {
@@ -142,11 +142,11 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     ? createStandaloneBridge(() => stateRef.current)
     : new OsfUiBridge(), [standalone]);
   const handlerRef = useRef<(message: NativeMessage) => void>(() => undefined);
-  const noticeTimer = useRef<number | undefined>();
-  const catalogTimer = useRef<number | undefined>();
-  const libraryTimer = useRef<number | undefined>();
-  const importsTimer = useRef<number | undefined>();
-  const routesTimer = useRef<number | undefined>();
+  const noticeTimer = useRef<number | undefined>(undefined);
+  const catalogTimer = useRef<number | undefined>(undefined);
+  const libraryTimer = useRef<number | undefined>(undefined);
+  const importsTimer = useRef<number | undefined>(undefined);
+  const routesTimer = useRef<number | undefined>(undefined);
   const catalogTries = useRef(0);
   const libraryTries = useRef(0);
   const importsTries = useRef(0);
@@ -212,11 +212,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     const record = isRecord(payload) ? payload : {};
     switch (message.type) {
       case "runtime.ready":
-        // Contract: a bridge being present (runtime.ready arriving) is the only gate — never
-        // require a specific version field. The host sends `protocol` (see bridge.test.ts);
-        // there is no `bridgeVersion` field, so gating on it wedged the view at "Engine Offline".
+        // The adapter emits this after confirming the current helper surface is complete.
+        // Helper presence, rather than a version or readiness promise, is the startup gate.
         dispatch({ type: "runtime/ready" });
-        showNotice("ok", `Bridge online. Protocol ${record.protocol || "?"}.`);
+        showNotice("ok", "Bridge online.");
         send("osfui.gamepadMode", { mode: "buttons" });
         send("osfui.handleBack", { handle: true });
         // The mount effect already requested both; re-request only what hasn't landed —
@@ -689,6 +688,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     pickWheel: (index) => { const current = stateRef.current; const wheel = current.wheel; if (!wheel || wheel.launching) return; const entry = wheel.entries[index]; if (!entry) return; dispatch({ type: "wheel/launching", key: entry.key }); send("osf.animation.launch", { sceneId: entry.scene, castTokens: [wheel.target?.token ?? PLAYER_TOKEN], opts: entry.stage == null ? {} : { stage: entry.stage } }); },
     cancelWheel: () => send("osf.animation.requestClose"),
     requestClose: () => send("osf.animation.requestClose"),
+    beginOrbitCapture: () => send("osfui.relativePointer", { active: true }),
+    endOrbitCapture: () => send("osfui.relativePointer", { active: false }),
     orbit: (dx, dy, wheel) => send("osf.animation.orbit", { dx, dy, wheel }),
     openModPage: (url) => { if (standalone) window.open(url, "_blank", "noopener"); else send("osfui.openModPage"); },
   }), [requestCatalog, requestLibrary, requestImports, requestRoutes, send, showNotice, standalone, startPlayable]);

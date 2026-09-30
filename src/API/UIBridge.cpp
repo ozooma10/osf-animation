@@ -69,6 +69,17 @@ namespace OSF::API
 		// Set by OnBridgeReady; unsolicited pushes (PushCatalogUpdate) are dropped before then.
 		// Only touched on the game main thread (ready callback, command handlers, SFSE tasks).
 		bool g_uiReady = false;
+		// True only when ABI 1.10 registration succeeded. It rides in the version
+		// payload so the page keeps its paced bridge fallback on older OSF UI hosts.
+		bool g_relativePointerRegistered = false;
+		// Low-volume capture diagnostics: one begin, first-update, and terminal
+		// summary per drag. These make the native hand-off observable without
+		// restoring the per-frame bridge log firehose.
+		bool          g_relativePointerTraceActive = false;
+		std::uint32_t g_relativePointerTraceUpdates = 0;
+		float         g_relativePointerTraceDx = 0.0f;
+		float         g_relativePointerTraceDy = 0.0f;
+		float         g_relativePointerTraceWheel = 0.0f;
 
 		// Browser visibility as reported by the view (osf.opened / osf.closed). Gates OnOrbit:
 		// the view batches drag deltas per animation frame, so a flush queued during the last
@@ -427,6 +438,7 @@ namespace OSF::API
 				// field and render as "1.0.0.0" in the view's status line.
 				{ "version", std::format("{}.{}.{}", SFSE::GetPluginVersion().major(), SFSE::GetPluginVersion().minor(), SFSE::GetPluginVersion().patch()) },
 				{ "ui", UIHostInfo() },
+				{ "relativePointer", g_relativePointerRegistered },
 				// The player is a permanent crew member the view never scans, so its M/F badge
 				// has no other channel — ride along with the identity push.
 				{ "playerSex", RefSexTag(RE::PlayerCharacter::GetSingleton()) },
@@ -1313,19 +1325,10 @@ namespace OSF::API
 			REX::DEBUG("[UI] osf.animation.requestClose -> RequestMenu('{}', close) -> {}", kViewId, ok);
 		}
 
-		// World-area drag/wheel from the view (osf.orbit {dx,dy,wheel}) — the overlay consumes all
-		// game input while open, so this is the ONLY mouse path to the orbit camera while browsing.
-		void OnOrbit(const char*, const char* a_payloadJson, const char* a_srcView, void*) noexcept
+		bool EnsureBrowseOrbit(const char* a_srcView)
 		{
-			const json p = ParsePayload(a_payloadJson);
-			if (!p.is_object()) {
-				return;
-			}
 			if (!g_viewVisible) {
-				// A delta flush that raced the close (queued before osf.closed, delivered after).
-				// Engaging here would orbit a camera nobody can ever release — drop it.
-				REX::TRACE("[UI] osf.animation.orbit after close — dropped");
-				return;
+				return false;
 			}
 			// First world drag of this browser session: engage the BROWSE ORBIT so there is always
 			// something to steer — without it the deltas below are dropped unless a scene_orbit scene
@@ -1358,8 +1361,72 @@ namespace OSF::API
 					SendJson(a_srcView, "osf.animation.notice", notice);
 				}
 			}
+			return cam.BrowseOrbitHeld();
+		}
+
+		// Compatibility path for OSF UI ABI < 1.10. The browser paces and combines
+		// web deltas before they reach this handler.
+		void OnOrbit(const char*, const char* a_payloadJson, const char* a_srcView, void*) noexcept
+		{
+			const json p = ParsePayload(a_payloadJson);
+			if (!p.is_object()) {
+				return;
+			}
+			if (!EnsureBrowseOrbit(a_srcView)) {
+				REX::TRACE("[UI] osf.animation.orbit unavailable or after close — dropped");
+				return;
+			}
 			Input::InputService::GetSingleton().InjectOrbitDelta(
 				NumOr(p, "dx", 0.0f), NumOr(p, "dy", 0.0f), NumOr(p, "wheel", 0.0f));
+		}
+
+		// ABI 1.10 path: OSF UI accumulated raw WM_INPUT packets and calls this at
+		// most once per game frame. Only updates steer the camera; begin/end/cancel
+		// are ownership edges and carry no camera semantics.
+		void OnRelativePointer(const char* a_viewId, OSFUI::API::RelativePointerPhase a_phase,
+			float a_dx, float a_dy, float a_wheel, void*) noexcept
+		{
+			if (!a_viewId || std::string_view(a_viewId) != kViewId) {
+				return;
+			}
+
+			if (a_phase == OSFUI::API::RelativePointerPhase::kBegin) {
+				g_relativePointerTraceActive = true;
+				g_relativePointerTraceUpdates = 0;
+				g_relativePointerTraceDx = 0.0f;
+				g_relativePointerTraceDy = 0.0f;
+				g_relativePointerTraceWheel = 0.0f;
+				REX::DEBUG("[UI] native relative-pointer capture began for '{}'", a_viewId);
+				return;
+			}
+
+			if (a_phase == OSFUI::API::RelativePointerPhase::kEnd ||
+				a_phase == OSFUI::API::RelativePointerPhase::kCancel) {
+				REX::DEBUG("[UI] native relative-pointer capture {} after {} update callback(s), total delta ({:.1f}, {:.1f}), wheel {:.1f}",
+					a_phase == OSFUI::API::RelativePointerPhase::kEnd ? "ended" : "cancelled",
+					g_relativePointerTraceUpdates, g_relativePointerTraceDx,
+					g_relativePointerTraceDy, g_relativePointerTraceWheel);
+				g_relativePointerTraceActive = false;
+				return;
+			}
+
+			if (a_phase != OSFUI::API::RelativePointerPhase::kUpdate) {
+				return;
+			}
+			g_relativePointerTraceUpdates++;
+			g_relativePointerTraceDx += a_dx;
+			g_relativePointerTraceDy += a_dy;
+			g_relativePointerTraceWheel += a_wheel;
+			const bool orbitReady = EnsureBrowseOrbit(a_viewId);
+			if (g_relativePointerTraceUpdates == 1) {
+				REX::DEBUG("[UI] native relative-pointer first update dx={:.1f}, dy={:.1f}, wheel={:.1f} (captureBegan={}, browserVisible={}, orbitReady={})",
+					a_dx, a_dy, a_wheel, g_relativePointerTraceActive, g_viewVisible, orbitReady);
+			}
+			if (!orbitReady) {
+				REX::TRACE("[UI] native relative-pointer update unavailable or after close — dropped");
+				return;
+			}
+			Input::InputService::GetSingleton().InjectOrbitDelta(a_dx, a_dy, a_wheel);
 		}
 
 		void OnBridgeReady(void*) noexcept
@@ -1502,6 +1569,7 @@ namespace OSF::API
 		}
 
 		g_ui.SetReadyCallback(&OnBridgeReady, nullptr);
+		g_relativePointerRegistered = g_ui.RegisterRelativePointer(kViewId, &OnRelativePointer, nullptr);
 		g_ui.RegisterCommand("osf.animation.catalog.get", &OnCatalogGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.library.get", &OnLibraryGet, nullptr);
 		g_ui.RegisterCommand("osf.animation.routes.get", &OnRoutesGet, nullptr);
@@ -1544,8 +1612,8 @@ namespace OSF::API
 
 		std::uint32_t mj = 0, mn = 0, pt = 0;
 		g_ui.GetPluginVersion(mj, mn, pt);
-		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.animation.* commands registered",
-			mj, mn, pt, g_ui.GetBridgeProtocolVersion());
+		REX::INFO("[UI] OSF UI bridge connected (OSF UI v{}.{}.{}, protocol {}) — osf.animation.* commands registered; relative-pointer callback {}",
+			mj, mn, pt, g_ui.GetBridgeProtocolVersion(), g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
 		if (std::tie(mj, mn, pt) < std::tie(kOSFUITested[0], kOSFUITested[1], kOSFUITested[2])) {
 			REX::WARN("[UI] installed OSF UI v{}.{}.{} predates the v{}.{}.{} this build was tested against — update it: {}",
 				mj, mn, pt, kOSFUITested[0], kOSFUITested[1], kOSFUITested[2], kOSFUINexusURL);

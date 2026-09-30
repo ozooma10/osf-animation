@@ -1,13 +1,13 @@
 # OSF Animation — animation browser view
 
-The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Preact app in this directory; `build/osfui-animation-browser/SFSE/Plugins/OSFUI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
+The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Octane TSX app in this directory; `build/osfui-animation-browser/SFSE/Plugins/OSFUI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
 **OSF UI** and driven **natively** by OSF Animation's own
 DLL over OSF UI's bridge API (protocol **2.0**). Only JSON text crosses the
 boundary.
 
 ## Development and build
 
-Install once with `npm install` in this directory. Use `npm run dev` for the OSF UI browser harness with hot reload, `npm test` for the typed bridge/model tests, `npm run check` for host compatibility and strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
+Install once with Node.js 22.22.2 or newer by running `npm install` in this directory. Octane is alpha software, so its runtime and Vite integration are exact-version pinned together. Use `npm run dev` for the OSF UI browser harness with hot reload, `npm test` for the typed bridge/model and Octane DOM tests, `npm run check` for host compatibility and strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
 
 This directory is the only editable copy — `build/osfui-animation-browser/` is disposable toolchain output and is wiped on every build. A native `xmake` re-runs the OSF UI CLI whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
 

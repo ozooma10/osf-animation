@@ -9,6 +9,14 @@ export interface AnimationBridge {
   dispose(): void;
 }
 
+function hasCurrentHelper(bridge: Window["osfui"]): boolean {
+  return typeof bridge?.send === "function"
+    && typeof bridge.request === "function"
+    && typeof bridge.on === "function"
+    && typeof bridge.state?.get === "function"
+    && typeof bridge.state.on === "function";
+}
+
 export class OsfUiBridge implements AnimationBridge {
   readonly standalone = false;
   private readonly listeners = new Set<NativeMessageListener>();
@@ -19,6 +27,8 @@ export class OsfUiBridge implements AnimationBridge {
 
   constructor() {
     const bridge = window.osfui;
+    if (!hasCurrentHelper(bridge)) return;
+
     const events = [
       "osf.animation.version", "settings.changed", "osf.animation.catalog.data",
       "osf.animation.library.data", "osf.animation.imports.data",
@@ -41,10 +51,7 @@ export class OsfUiBridge implements AnimationBridge {
     const offSettings = bridge?.state?.on?.("osfui/settings", (value) =>
       this.emit({ type: "settings.data", payload: value }));
     if (offSettings) this.unsubscribers.push(offSettings);
-    bridge?.ready?.then((runtime) => this.emit({
-      type: "runtime.ready",
-      payload: { ...runtime, protocol: runtime.bridgeVersion },
-    })).catch(() => undefined);
+    this.emit({ type: "runtime.ready", payload: {} });
   }
 
   send(command: BridgeCommand, fields: Record<string, unknown> = {}): void {
@@ -84,6 +91,6 @@ export function hasOsfUiBridge(): boolean {
   // shipped view must never decide "this is only a simulation" from topology it
   // does not control.
   if (window.__osfuiHarness) return false;
-  return typeof window.osfui?.send === "function";
+  return hasCurrentHelper(window.osfui);
 }
 

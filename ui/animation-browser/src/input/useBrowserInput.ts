@@ -1,8 +1,12 @@
-import { useEffect } from "preact/hooks";
+import { useEffect } from "octane";
 import type { BrowserCommands } from "../app/commands";
 import type { BrowserState } from "../app/state";
 
 const FOCUSABLE = "button, a[href], select, input, [tabindex]";
+// WebView2 animation frames follow the monitor, not Starfield's frame pump. Cap
+// continuous bridge traffic below the host's 128-message/s safety limit while
+// still accumulating every mouse delta for a smooth native camera update.
+const ORBIT_FLUSH_MS = 16;
 
 function visible(element: Element): element is HTMLElement {
   if (!(element instanceof HTMLElement) || element.hidden || ("disabled" in element && element.disabled)) return false;
@@ -111,21 +115,29 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
   }, [commands, standalone, state.active, state.importsOpen, state.lastHandle, state.pickMode, state.routeDebuggerOpen, state.settingsOpen, state.wheel]);
 
   useEffect(() => {
-    const orbit = { dragging: false, selecting: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, frame: 0 };
+    const orbit = { dragging: false, selecting: false, native: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, timer: 0 };
+    // Pick mode keeps the established five-pixel click/drag discriminator in
+    // the page. Ordinary world drags use OSF UI's raw native path.
+    const nativeRelativePointer = !standalone && !state.pickMode && state.plugin?.relativePointer === true;
     const worldTarget = (target: EventTarget | null) => !state.wheel && !(target instanceof Element && target.closest(".console, .brief, .livebar"));
     const flush = () => {
-      orbit.frame = 0;
+      orbit.timer = 0;
       if (orbit.dx || orbit.dy || orbit.wheel) commands.orbit(orbit.dx, orbit.dy, orbit.wheel);
       orbit.dx = orbit.dy = orbit.wheel = 0;
     };
-    const queue = () => { if (!orbit.frame) orbit.frame = requestAnimationFrame(flush); };
+    const queue = () => { if (!orbit.timer) orbit.timer = window.setTimeout(flush, ORBIT_FLUSH_MS); };
     const down = (event: MouseEvent) => {
       if (event.button !== 0 || !worldTarget(event.target)) return;
+      // This press belongs to the native orbit surface. Cancel the WebView's
+      // competing default drag behavior so crossing the panels cannot select text.
+      event.preventDefault();
       orbit.dragging = true;
       orbit.selecting = !!state.pickMode;
+      orbit.native = nativeRelativePointer;
       orbit.x = event.clientX;
       orbit.y = event.clientY;
       orbit.dx = orbit.dy = 0;
+      if (orbit.native) commands.beginOrbitCapture();
     };
     const move = (event: MouseEvent) => {
       if (!orbit.dragging) return;
@@ -135,14 +147,15 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       orbit.y = event.clientY;
       if (orbit.selecting && Math.hypot(orbit.dx, orbit.dy) <= 5) return;
       orbit.selecting = false;
-      queue();
+      if (!orbit.native) queue();
     };
     const up = (event: MouseEvent) => {
       if (event.button !== 0 || !orbit.dragging) return;
       if (orbit.selecting && state.pickMode) commands.pickAt(event.clientX / innerWidth, event.clientY / innerHeight, innerWidth, innerHeight);
+      if (orbit.native) commands.endOrbitCapture();
       orbit.dragging = orbit.selecting = false;
     };
-    const wheel = (event: WheelEvent) => { if (!worldTarget(event.target)) return; event.preventDefault(); orbit.wheel += Math.sign(event.deltaY); queue(); };
+    const wheel = (event: WheelEvent) => { if (!worldTarget(event.target)) return; event.preventDefault(); if (orbit.native && orbit.dragging) return; orbit.wheel += Math.sign(event.deltaY); queue(); };
     document.addEventListener("mousedown", down);
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", up);
@@ -152,7 +165,8 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
       document.removeEventListener("wheel", wheel);
-      if (orbit.frame) cancelAnimationFrame(orbit.frame);
+      if (orbit.dragging && orbit.native) commands.endOrbitCapture();
+      if (orbit.timer) clearTimeout(orbit.timer);
     };
-  }, [commands, state.pickMode, state.visibilitySerial, state.wheel]);
+  }, [commands, standalone, state.pickMode, state.plugin?.relativePointer, state.visibilitySerial, state.wheel]);
 }

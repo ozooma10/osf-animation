@@ -1,5 +1,5 @@
 import type { BrowserCommands } from "../../app/commands";
-import { useRef } from "preact/hooks";
+import { useRef } from "octane";
 import {
   anchorFull,
   evaluateForState,

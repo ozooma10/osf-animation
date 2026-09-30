@@ -25,6 +25,7 @@ export type BridgeCommand =
   | "osfui.gamepadMode"
   | "osfui.handleBack"
   | "osfui.openModPage"
+  | "osfui.relativePointer"
   | "settings.get"
   | "settings.set";
 

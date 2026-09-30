@@ -1,4 +1,4 @@
-import { useEffect } from "preact/hooks";
+import { useEffect } from "octane";
 
 export function useDevBackdrop(enabled: boolean): void {
   useEffect(() => {

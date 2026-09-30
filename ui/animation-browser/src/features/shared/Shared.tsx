@@ -1,8 +1,8 @@
-import type { ComponentChildren } from "preact";
+import type { OctaneNode } from "octane";
 import { castHasCreature, castSpecies, speciesLabel } from "../../app/selectors";
 import type { BrowserState, CastMember } from "../../app/state";
 
-export function Empty({ children }: { children: ComponentChildren }) {
+export function Empty({ children }: { children: OctaneNode }) {
   return <div class="bay-empty"><span class="mono">{children}</span></div>;
 }
 
@@ -43,7 +43,7 @@ export function memberSex(state: BrowserState, member: CastMember): string {
 }
 
 export function Segmented({ label, value, options, onSelect, wide }: {
-  label: ComponentChildren;
+  label: OctaneNode;
   value: string;
   options: { value: string; label: string; title?: string }[];
   onSelect(value: string): void;

@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef } from "octane";
 import type { BrowserCommands } from "../../app/commands";
 import { wheelGeometry } from "../../app/selectors";
 import type { BrowserState } from "../../app/state";
 
 export function AnimationWheel({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  const focused = useRef<HTMLButtonElement>(null);
+  const focused = useRef<HTMLButtonElement | null>(null);
   const wheel = state.wheel;
   useEffect(() => focused.current?.focus({ preventScroll: true }), [wheel?.focus, wheel?.entries.length]);
   if (!wheel) return null;
@@ -12,7 +12,7 @@ export function AnimationWheel({ state, commands }: { state: BrowserState; comma
   const focus = Math.min(wheel.focus, Math.max(0, entries.length - 1));
   const { rx, ry } = wheelGeometry(entries.length);
   return <>
-    <div class="wheel-ring" style={{ "--wrx": `${rx}px`, "--wry": `${ry}px` }}>
+    <div class="wheel-ring" style={`--wrx:${rx}px;--wry:${ry}px`}>
       {!wheel.received ? <div class="wheel-empty"><span class="mono">Loading animation wheel…</span><button class="chip-btn" onClick={commands.cancelWheel}>CLOSE</button></div>
         : !entries.length ? <div class="wheel-empty"><span class="mono">{state.wheelCustomized ? "Your animation wheel is empty. Reset it from the Animation Browser to restore installed defaults." : `No default animations carry a ${wheel.tagPrefix}* tag.`}</span><button class="chip-btn" onClick={commands.cancelWheel}>CLOSE</button></div>
         : <><div class="wheel-dial"/>{entries.map((entry, index) => {
