@@ -8,11 +8,16 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the seven engine-free C++ suites (persistence broker,
-  native scene-event callbacks,
+- **Tests:** `xmake test` builds and runs the eight engine-free C++ suites (persistence broker,
+  native scene-event callbacks, generated GLTF/GLB/gzip import fixtures,
   frame clock/clip specs, additive pose math, sound registry, scene registry, route planner/controller plus owner/admission contracts — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
+- **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
+  and checks release archives with retained evidence. `-RunGame` adds the sibling harness's private
+  Animation scenario. `-Plan` is read-only. Runtime instrumentation requires `--animation_smoke=y`,
+  defaults off, and must never be deployed to the normal mod or packaged. The bench uses separate
+  `build/smoke-native` output and restores production configuration. See `docs/SMOKE_TESTING.md`.
 - **UI build:** `ui/animation-browser` uses a local Vite/Octane build. Run `npm ci`
   there before UI scripts. The retired OSF UI authoring CLI is no longer required.
 - **UI / Settings SDKs:** copy current headers from sibling `OSF UI/sdk/OSFUI.h` and

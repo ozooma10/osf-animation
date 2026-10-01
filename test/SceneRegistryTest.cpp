@@ -8,6 +8,7 @@
 #include "Util/Math.h"        // kDegToRad (offset.heading expectation)
 
 #include <iostream>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -1157,6 +1158,75 @@ int main()
 		Check(clipOnly && clipOnly->scenes == 0 && clipOnly->clipEntries > 0,
 			"a clipLibrary-only file reports zero scenes and its generated entries");
 		Check(clipOnly && !clipOnly->Rejected(), "a file contributing only clip entries is not rejected");
+	}
+
+	// Validate the actual payload staged by the live smoke bench, after all ordinary fixture
+	// assertions. This catches authoring/parser drift even when game startup is unavailable.
+	{
+		struct RestoreWorkingDirectory
+		{
+			std::filesystem::path previous = std::filesystem::current_path();
+			~RestoreWorkingDirectory()
+			{
+				std::error_code error;
+				std::filesystem::current_path(previous, error);
+				Check(!error, "restore scene registry fixture working directory");
+			}
+		} restore;
+		try {
+			std::filesystem::current_path(restore.previous.parent_path() / "smoke");
+			reg.LoadAll();
+			const auto smokeErrors = reg.LoadErrors();
+			Check(smokeErrors.empty(), "live smoke fixtures load without errors or warnings");
+			for (const auto& error : smokeErrors) {
+				std::cerr << "Live smoke fixture: " << error << '\n';
+			}
+			const auto linear = reg.Find("osf.smoke.linear");
+			if (Check(static_cast<bool>(linear), "live linear smoke scene is registered")) {
+				Check(linear->linearStages.size() == 2 && linear->nodes.size() == 2,
+					"live linear scene exposes two selectable stages");
+				Check(std::ranges::all_of(linear->nodes, [](const auto& node) {
+					return node.stages.size() == 1 && node.stages[0].clips.size() == 1 &&
+						node.stages[0].clips[0].file == "meshes/actors/human/animations/common/cower_idle.af";
+				}), "live linear stages use the authored one-player vanilla AF clip");
+			}
+			const auto graph = reg.Find("osf.smoke.graph");
+			if (Check(static_cast<bool>(graph), "live graph smoke scene is registered")) {
+				Check(graph->entry == "first" && graph->nodes.size() == 3,
+					"live graph has its expected entry and three nodes");
+				const auto* first = graph->FindNode("first");
+				const auto* middle = graph->FindNode("middle");
+				const auto* timed = graph->FindNode("timed");
+				Check(first && first->edges.size() == 1 && first->edges[0].id == "next" &&
+					first->edges[0].to == "middle" && first->edges[0].when == OSF::Registry::EdgeWhen::kAdvance,
+					"live graph named navigation leads from first to middle");
+				Check(middle && middle->edges.size() == 1 && middle->edges[0].isDefault &&
+					middle->edges[0].to == "timed" && middle->edges[0].when == OSF::Registry::EdgeWhen::kAdvance,
+					"live graph default advance leads from middle to timed");
+				Check(timed && timed->timerSec == 0.5f && timed->edges.size() == 1 &&
+					timed->edges[0].to == "$end" && timed->edges[0].when == OSF::Registry::EdgeWhen::kTimer,
+					"live graph timer ends the scene after half a second");
+				Check(timed && timed->cues.size() == 1 && timed->cues[0].id == "smoke.tick" &&
+					timed->cues[0].pos == TrackPos::kFraction && timed->cues[0].frame == 1.0f,
+					"live graph schedules its exactly-once smoke cue at frame one");
+			}
+			for (const auto& scene : { linear, graph }) {
+				Check(scene && scene->roles.size() == 1 && scene->roles[0].name == "player" &&
+					!scene->playerInputLock && !scene->hideApparel && !scene->clearHeldItems &&
+					!scene->fade && !scene->sceneControls.enabled && scene->unlisted,
+					"live smoke scenes preserve the explicit minimal player policy");
+			}
+			const auto route = reg.FindRoute("osf.smoke.zero");
+			if (Check(static_cast<bool>(route), "live zero-animation smoke route is registered")) {
+				const auto* idle = route->FindStation("idle");
+				const auto* isolated = route->FindStation("isolated");
+				Check(route->stations.size() == 2 && route->transitions.empty() &&
+					idle && !idle->layer && isolated && !isolated->layer,
+					"live route has two disconnected stations with no animation layers");
+			}
+		} catch (const std::exception& error) {
+			Check(false, std::string("live smoke fixture validation threw: ") + error.what());
+		}
 	}
 
 	return Finish("Scene registry");

@@ -91,8 +91,22 @@ xmake test
 ```
 
 runs the engine-free C++ suites (persistence broker, native scene-event callbacks, frame clock/clip
-specs, additive pose math, sound registry, scene registry). The browser view has its own suite:
+specs, additive pose math, sound registry, scene registry, overlay route contracts, and generated
+GLTF/GLB/gzip import fixtures). The browser view has its own suite:
 `npm --prefix ui/animation-browser run verify`.
+
+Run the smoke bench to build production binaries, execute the native and browser suites,
+validate both release archives, and retain logs plus JSON/Markdown/JUnit evidence:
+
+```powershell
+pwsh -NoProfile -File tools/test-smoke.ps1
+pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame
+```
+
+`-RunGame` also builds a separate test DLL and runs the sibling OSF Test Harness's
+Animation scenario in a disposable profile. `-Plan` prints the inventory without building or
+launching anything. Reports live in `build/smoke/<run>/report.md`. See
+[docs/SMOKE_TESTING.md](docs/SMOKE_TESTING.md) for prerequisites and coverage boundaries.
 
 ## Test Harness
 

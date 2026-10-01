@@ -1,0 +1,16 @@
+[
+  "api.ready",
+  "api.invalid-handles",
+  "solo.play",
+  "solo.speed",
+  "solo.anchor",
+  "solo.stop",
+  "scene.start",
+  "scene.stage",
+  "scene.navigate",
+  "scene.timer-events",
+  "scene.cleanup",
+  "overlay.owner",
+  "overlay.zero-station",
+  "overlay.cleanup"
+]

@@ -13,6 +13,9 @@
 #include "Util/ClipPath.h"
 #include "Util/Math.h"
 #include "REL/THook.h"
+#ifdef OSF_ANIMATION_SMOKE
+#include "Testing/AnimationSmoke.h"
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -811,6 +814,9 @@ namespace OSF::Animation
 
 	void GraphManager::StopAll(const char* a_reason)
 	{
+#ifdef OSF_ANIMATION_SMOKE
+		Testing::AnimationSmoke::OnWorldReset();
+#endif
 		// Invalidate every queued task from the discarded world before any service/graph state is
 		// cleared. Tasks already in the frame queue observe the new epoch and no-op.
 		_worldEpoch.fetch_add(1, std::memory_order_acq_rel);

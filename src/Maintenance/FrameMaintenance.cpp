@@ -8,6 +8,9 @@
 #include "UI/Subtitle.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "REL/THook.h"
+#ifdef OSF_ANIMATION_SMOKE
+#include "Testing/AnimationSmoke.h"
+#endif
 
 #include <optional>
 
@@ -29,6 +32,9 @@ namespace OSF::Maintenance
 			Animation::GraphManager::GetSingleton().MaintenanceTick();
 			Scene::PlaybackPreviewService::GetSingleton().Tick();
 			Studio::MaintenanceTick();
+#ifdef OSF_ANIMATION_SMOKE
+			Testing::AnimationSmoke::Tick();
+#endif
 		}
 	}
 

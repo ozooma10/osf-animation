@@ -15,6 +15,12 @@ add_requires("miniaudio 0.11.25")
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 
+option("animation_smoke")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Enable the private development-only Animation smoke mailbox")
+option_end()
+
 target("OSF Animation")
     add_rules("commonlibsf.plugin", {
         name = "OSF Animation",
@@ -25,6 +31,11 @@ target("OSF Animation")
 
     add_packages("fastgltf", "ozz-animation", "zlib", "nlohmann_json", "miniaudio")
     add_files("src/**.cpp")
+    if has_config("animation_smoke") then
+        add_defines("OSF_ANIMATION_SMOKE")
+    else
+        remove_files("src/Testing/AnimationSmoke.cpp")
+    end
     add_headerfiles("src/**.h")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
@@ -143,3 +154,13 @@ target("osf-route-plan-test")
               "src/Overlay/RoutePlaybackPlan.cpp", "test/RoutePlanTest.cpp")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
+
+-- Generated GLTF/GLB/gzip clips exercise the production importer and ozz sampler.
+-- No game assets, CommonLib runtime, or command-line fixture paths are needed.
+target("osf-import-smoke-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    add_packages("fastgltf", "ozz-animation", "zlib", "nlohmann_json")
+    add_files("src/Serialization/GLTFImport.cpp", "src/Util/Gzip.cpp", "test/ImportSmokeTest.cpp")
+    add_includedirs("src")
