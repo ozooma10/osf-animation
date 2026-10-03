@@ -79,7 +79,7 @@ namespace OSF::API::UIBridgeWorld
 				return;
 			}
 			const std::string text = a_payload.dump(-1, ' ', false, json::error_handler_t::replace);
-			g_ui->SendToWeb(a_view, a_type, text.c_str());
+			g_ui->EmitEvent(a_view, a_type, text.c_str());
 		}
 
 		json ParsePayload(const char* a_json)

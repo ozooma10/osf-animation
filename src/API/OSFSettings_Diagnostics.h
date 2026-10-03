@@ -39,17 +39,13 @@ namespace OSFSettings::API::Diagnostics
     // Borrowed process-lifetime interface. Unsupported versions return nullptr and zero outVersion.
     inline IDiagnostics* RequestInterface(std::uint32_t version = kBaseVersion, std::uint32_t* outVersion = nullptr) noexcept
     {
-        if (outVersion) *outVersion = 0;
-        const auto module = REX::W32::GetModuleHandleW(kModuleName);
-        if (!module) return nullptr;
-        const auto fn = reinterpret_cast<AcquireFn>(REX::W32::GetProcAddress(module, kRequestExportName));
-        return fn ? static_cast<IDiagnostics*>(fn(version, outVersion)) : nullptr;
+        return static_cast<IDiagnostics*>(RequestExport(kRequestExportName, version, outVersion));
     }
 
     class Client
     {
     public:
-        // Initialize after SFSE kPostPostLoad, before sharing the client across threads.
+        // Initialize at SFSE kPostLoad or later, before sharing the client across threads.
         bool Init(std::uint32_t version = kBaseVersion) noexcept
         {
             std::uint32_t actual{};

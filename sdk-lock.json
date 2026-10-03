@@ -1,0 +1,43 @@
+{
+  "comment": "Vendored OSF UI / OSF Settings SDK files. sha256 is over the file with CRLF normalized to LF (the git blob). Checked by tools/Test-SdkLock.ps1; update this lock in the same change that re-vendors a file.",
+  "sources": {
+    "osf-ui": {
+      "repository": "https://github.com/ozooma10/osf-ui",
+      "sibling": "../OSF UI",
+      "tag": "v2.0.0",
+      "commit": "c3d20db7e6549677f2426f9cf160d34abb8e9589"
+    },
+    "osf-settings": {
+      "repository": "https://github.com/ozooma10/osf-settings-slim",
+      "sibling": "../OSF Settings",
+      "tag": "v1.0.0",
+      "commit": "42a274302e637a03b6f23098a2a2cd54e8c80a77"
+    }
+  },
+  "files": [
+    {
+      "path": "src/API/OSFUI.h",
+      "source": "osf-ui",
+      "sourcePath": "sdk/OSFUI.h",
+      "sha256": "4bbd0be6f12ec7fa0e79aa9238645b0f3bc3fd8e10e5054c8a6712af2f025c10"
+    },
+    {
+      "path": "ui/animation-browser/src/bridge/osfui.d.ts",
+      "source": "osf-ui",
+      "sourcePath": "sdk/osfui.d.ts",
+      "sha256": "64d393354780966ac0696e4db1ddc657a763c53b504434794b29bd48213fbeb8"
+    },
+    {
+      "path": "src/API/OSFSettings.h",
+      "source": "osf-settings",
+      "sourcePath": "sdk/OSFSettings.h",
+      "sha256": "5851c3fb24cefe598c9de6586ddddd3e250ce5e9808ab7bb13bdd56ca20badc3"
+    },
+    {
+      "path": "src/API/OSFSettings_Diagnostics.h",
+      "source": "osf-settings",
+      "sourcePath": "sdk/OSFSettings_Diagnostics.h",
+      "sha256": "50399b0c056bd04565764566bc14cbf83ebdd25bf0fba66fa24b02847d8d0b6a"
+    }
+  ]
+}

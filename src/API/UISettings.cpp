@@ -95,7 +95,7 @@ namespace OSF::API
 				if (g_settings.GetEnum(kModId, key, value) == Status::Ok) values[key] = value;
 			}
 			const auto payload = values.dump();
-			if (!g_views.SetViewState(kModId, "settings", payload.c_str())) {
+			if (!g_views.SetState(kModId, "settings", payload.c_str())) {
 				REX::WARN("[Config] Could not publish browser preferences");
 			}
 		}
@@ -141,7 +141,7 @@ namespace OSF::API
 					request.Reject("setting-write-failed", "OSF Settings could not save this preference");
 					return;
 				}
-				request.Respond("{}");
+				request.Reply("{}");
 			} catch (...) { request.Reject("internal-error", "Could not save the browser preference"); }
 		}
 	}

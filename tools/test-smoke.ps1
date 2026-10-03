@@ -23,7 +23,7 @@ $repo = Split-Path $PSScriptRoot -Parent
 $coverage = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/coverage.json') -Raw | ConvertFrom-Json)
 $runtimeCases = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/runtime-cases.json') -Raw | ConvertFrom-Json)
 $suite = Join-Path $Harness 'Test-AnimationRelease.ps1'
-$names = @('coverage','bench-contracts','production-build','native','browser','distribution',
+$names = @('coverage','bench-contracts','sdk','production-build','native','browser','distribution',
     'runtime-build','runtime','restore-production-config','source-unchanged')
 $unverified = @($coverage | ForEach-Object { "$($_.feature): $($_.gap)" })
 if (-not $RunGame) { $unverified = @('In-game assertions skipped. Use -RunGame with the local OSF Test Harness.') + $unverified }
@@ -113,6 +113,10 @@ try {
             if (-not (Test-Path -LiteralPath $harnessTests)) { throw '[blocked] Animation harness contract tests are missing; pass -Harness.' }
             Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$harnessTests)
         }
+    }
+    Invoke-SmokeStage 'sdk' {
+        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'Test-SdkLock.ps1'))
+        $script:stage.message = 'Vendored OSF UI / OSF Settings SDK files match sdk-lock.json'
     }
     Invoke-SmokeStage 'production-build' {
         $env:XSE_SF_MODS_PATH = $productionMods

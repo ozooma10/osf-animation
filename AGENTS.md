@@ -20,9 +20,13 @@ voice/sound, camera hold);
   `build/smoke-native` output and restores production configuration. See `docs/SMOKE_TESTING.md`.
 - **UI build:** `ui/animation-browser` uses a local Vite/Octane build. Run `npm ci`
   there before UI scripts. The retired OSF UI authoring CLI is no longer required.
-- **UI / Settings SDKs:** copy current headers from sibling `OSF UI/sdk/OSFUI.h` and
-  `OSF Settings/sdk/OSFSettings{,_Diagnostics}.h` into `src/API/`; web types come from
-  `OSF UI/sdk/osfui.d.ts`. OSF UI renders views; OSF Settings owns values, hotkeys,
+- **UI / Settings SDKs:** vendored from *released* tags, never a sibling's working tree:
+  `OSF UI/sdk/OSFUI.h` + `osfui.d.ts` (UI v2.0.0, native API 2.0) and
+  `OSF Settings/sdk/OSFSettings{,_Diagnostics}.h` (Settings v1.0.0). `sdk-lock.json` records each
+  file's source tag, commit, and LF-normalized SHA-256; `tools/Test-SdkLock.ps1` checks it (smoke
+  stage `sdk`). Re-vendor with `git show <tag>:sdk/<file>` and update the lock in the same change.
+  The UI API has no readiness callback: the view fetches its data on document init, and retained
+  settings go out via `SetState` immediately. OSF UI renders views; OSF Settings owns values, hotkeys,
   launchers, and issues. The schema ships under `dist/SFSE/Plugins/OSF/Settings/schemas`.
 - **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see
   `docs/PACKAGING.md`). Output: `packaging\out\OSF Animation v<version>.zip`.

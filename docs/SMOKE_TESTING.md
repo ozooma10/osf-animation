@@ -42,6 +42,7 @@ are restored, and the final XMake configuration is `releasedbg`, `build`, with
 | --- | --- |
 | Coverage | Every registered XMake suite and runtime case is mapped in `test/smoke/coverage.json`. Inventory drift fails. |
 | Bench contracts | Rejects missing suites, stale or changed evidence, mismatched source/DLL hashes, skipped game cases, and truthy string flags. Checks source fingerprints and JUnit statuses. |
+| SDK | `tools/Test-SdkLock.ps1`: vendored OSF UI / OSF Settings SDK files match `sdk-lock.json` hashes; with sibling checkouts present, the locked tags and commits also match. |
 | Production | Normal releasedbg DLL, installed into private staging. |
 | Native | All eight `xmake test` suites. The reported execution count must match the inventory. |
 | Browser | Clean dependency install, Vitest, TypeScript check, and production Vite build. |

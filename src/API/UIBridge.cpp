@@ -61,15 +61,8 @@ namespace OSF::API
 		using UIBridgeWorld::ResolveToken;
 		using UIBridgeWorld::ScanLabel;
 
-		// The version-gated bridge wrapper (OSFUI::API::Client, API 1.0),
-		// initialized once at Install; unconnected => OSF UI absent (UI
-		// disabled) and every call degrades to a no-op. Static lifetime:
-		// registered handlers may fire for the remaining process life.
 		OSFUI::API::Client g_ui;
 
-		// Set by OnBridgeReady; unsolicited pushes (PushCatalogUpdate) are dropped before then.
-		// Only touched on the game main thread (ready callback, command handlers, main-thread queue).
-		bool g_uiReady = false;
 		// True only when relative-pointer registration succeeded. It rides in the version
 		// payload so the page uses paced input when native capture is unavailable.
 		bool g_relativePointerRegistered = false;
@@ -136,7 +129,7 @@ namespace OSF::API
 		// Game main thread only, like g_tokens.
 		std::int32_t g_openPickToken = 0;
 
-		// Our view's manifest id; the SendToWeb target for pushes that aren't a direct reply (e.g. the catalog we push when the bridge becomes ready).
+		// Our view's manifest id; the EmitEvent target for pushes that aren't a direct reply (e.g. a catalog re-push).
 		constexpr const char* kViewId = "osf.animation/browser";  // qualified "<modId>/<viewName>" (OSF UI api-freeze item 1)
 
 
@@ -157,7 +150,7 @@ namespace OSF::API
 				return;
 			}
 			const std::string text = a_payload.dump(-1, ' ', false, json::error_handler_t::replace);
-			g_ui.SendToWeb(a_view, a_type, text.c_str());
+			g_ui.EmitEvent(a_view, a_type, text.c_str());
 		}
 
 		// Parse an inbound payload without throwing (handlers are noexcept). Returns a
@@ -260,7 +253,7 @@ namespace OSF::API
 		// NPC scenes still running from an earlier session). Main thread only.
 		void PushActiveScenes()
 		{
-			if (!g_ui || !g_uiReady || !g_viewVisible) {
+			if (!g_ui || !g_viewVisible) {
 				return;
 			}
 			SendJson(kViewId, "osf.animation.activeScenes", BuildActiveScenes());
@@ -1438,19 +1431,12 @@ namespace OSF::API
 			}
 			Input::InputService::GetSingleton().InjectOrbitDelta(a_dx, a_dy, a_wheel);
 		}
-
-		void OnBridgeReady(void*) noexcept
-		{
-			REX::DEBUG("[UI] OSF UI bridge ready — pushing catalog to view '{}'", kViewId);
-			g_uiReady = true;
-			SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
-		}
 	}
 
 	void PushCatalogUpdate()
 	{
-		if (!g_ui || !g_uiReady) {
-			return;  // OSF UI absent or not ready yet — the ready push will carry current data
+		if (!g_ui.IsReady()) {
+			return;  // OSF UI absent or no live document — the next document fetches current data on init
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
 		SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
@@ -1564,7 +1550,6 @@ namespace OSF::API
 			return;
 		}
 
-		g_ui.SetReadyCallback(&OnBridgeReady, nullptr);
 		g_relativePointerRegistered = g_ui.RegisterRelativePointer(kViewId, &OnRelativePointer, nullptr);
 		g_ui.RegisterSend("osf.animation.catalog.get", &OnCatalogGet, nullptr);
 		g_ui.RegisterSend("osf.animation.library.get", &OnLibraryGet, nullptr);

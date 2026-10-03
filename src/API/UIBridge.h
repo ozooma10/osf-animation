@@ -8,7 +8,7 @@ namespace OSF::API
 	// Request the OSF UI bridge and register the osf.* commands. A no-op (logged) when OSF UI is absent.
 	void InstallUIBridge();
 
-	// Re-push the scene catalog to the view (GAME MAIN THREAD). A no-op until the bridge is ready.
+	// Re-push the scene catalog to the view (GAME MAIN THREAD). A no-op while no OSF UI document is live.
 	// Fired when the background clip-duration scan lands new numbers after the initial push.
 	void PushCatalogUpdate();
 
