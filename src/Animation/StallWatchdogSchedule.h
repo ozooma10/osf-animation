@@ -4,7 +4,7 @@
 
 namespace OSF::Animation
 {
-	// Pure timing policy for GraphManager's main-thread stall scan. Keeping it separate makes the pause/resume grace and scan throttle testable without a game runtime.
+	// Pure timing policy for the main-thread stall scan, testable without the game.
 	class StallWatchdogSchedule
 	{
 	public:

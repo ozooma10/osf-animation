@@ -8,7 +8,7 @@ export interface CastMember {
   kind?: "player";
   distance?: number | null;
   species: string;
-  /** "male" / "female", or "" when the actor has no actorbase sex (most creatures). */
+  /** "" when the actor has no actorbase sex (most creatures). */
   sex: string;
 }
 
@@ -17,7 +17,7 @@ export const PLAYER_CAST: CastMember = {
   name: "Player",
   kind: "player",
   species: "human",
-  // The player's sex rides the version push instead (see PluginVersion.playerSex).
+  // Player sex arrives via PluginVersion.playerSex.
   sex: "",
 };
 
@@ -40,7 +40,6 @@ export interface ActiveCastMember {
   player: boolean;
 }
 
-/** A handle-bearing active item: either a runtime scene or a side-effect-free preview session. */
 export interface ActiveLaunch {
   handle: number;
   sceneId: string;
@@ -56,7 +55,7 @@ export interface ActiveLaunch {
   transitionId: string;
 }
 
-/** Compatibility spelling for callers that consume the frozen `activeScenes` bridge event. */
+/** Name used by the frozen `activeScenes` bridge event. */
 export type ActiveScene = ActiveLaunch;
 
 export type LocationMode = "cast" | "player" | "actor" | "front" | "furniture";
@@ -70,9 +69,7 @@ export interface FurnitureTarget {
 export interface PluginVersion {
   plugin?: string;
   version?: string;
-  /** OSF UI raw relative-pointer path registered by OSF Animation. */
   relativePointer?: boolean;
-  /** The player character's sex tag, so the permanent player chip can badge M/F too. */
   playerSex?: string;
 }
 
@@ -86,7 +83,7 @@ export interface LaunchOptions {
 export type BrowserMode = "scenes" | "library" | "active" | "wheel";
 export type BrowseMode = Exclude<BrowserMode, "wheel">;
 export type BrowseKind = "all" | "animation" | "emote" | "scene";
-/** Input accepted at state boundaries while old browser snapshots still say `action`. */
+/** Older saved snapshots still say `action`. */
 export type BrowseKindInput = BrowseKind | "action";
 
 export function normalizeBrowseKind(value: BrowseKindInput): BrowseKind {
@@ -172,28 +169,24 @@ export interface NoticeState {
 
 export interface ActorIndicator {
   token: number;
-  /** Viewport-normalized coordinates (0..1), projected by the native render camera. */
+  /** Viewport-normalized (0..1). */
   x: number;
   y: number;
   visible: boolean;
 }
 
 export interface PickTarget {
-  /** Native pick token for the target this marker stands on. A click resolves to
-   *  the hot marker and sends this token back, so the marker geometry the user
-   *  sees IS the click acceptance — there is no second native hit-test to drift. */
+  /** Clicks send the hot marker's token back; there is no second native hit-test. */
   token: number;
-  /** Marker anchor (above the rendered head), viewport-normalized (0..1). */
+  /** Marker anchor above the rendered head, viewport-normalized (0..1). */
   x: number;
   y: number;
-  /** Hover/click hit-test ellipse: normalized center plus pixel radii
-   *  (hottestPickTarget scores against it for both the marker and the click). */
+  /** Hit-test ellipse: normalized center plus pixel radii. */
   cx: number;
   cy: number;
   rx: number;
   ry: number;
-  /** View depth of the target from the pick camera. Overlapping ellipses resolve
-   *  front-most-first — the target the user visually sees under the cursor. */
+  /** Overlapping ellipses resolve front-most first. */
   depth: number;
 }
 
@@ -212,7 +205,7 @@ export interface BrowserState {
   routeActorToken: number;
   wheelCustomized: boolean;
   selectedId: string | null;
-  /** Selected library stage. Null selects the whole authored emote/scene. */
+  /** Null selects the whole authored emote/scene. */
   selectedStage: number | null;
   cast: CastMember[];
   furniture: FurnitureTarget | null;
@@ -239,24 +232,22 @@ export interface BrowserState {
   wheel: WheelState | null;
   preferences: BrowserPreferences;
   settingsOpen: boolean;
-  /** The per-file import report panel. Mutually exclusive with `settingsOpen`. */
+  /** Mutually exclusive with `settingsOpen`. */
   importsOpen: boolean;
   imports: ImportFile[];
   importTotals: ImportTotals;
   importsReceived: boolean;
-  /** Expanded import rows, keyed by file path. */
   importsExpanded: ReadonlySet<string>;
-  /** Outcome filter; attention is the author-first default while All remains one click away. */
   importsFilter: ImportFilter;
   importsSearch: string;
-  /** Imports -> View Content temporarily widens source/detail filters without mutating preferences. */
+  /** Imports -> View Content widens source/detail filters without mutating preferences. */
   importView: boolean;
   importReload: ImportReloadState;
   lastBrowseMode: BrowseMode;
   minimized: boolean;
-  /** Explicit group disclosure choices. Missing keys fall back to selection-driven opening. */
+  /** Missing keys fall back to selection-driven opening. */
   libOpen: ReadonlyMap<string, boolean>;
-  /** Search opens at most one bounded result group, independent of remembered library folders. */
+  /** Search opens at most one result group, independent of remembered folders. */
   searchGroupOpen: string | null;
   libFull: boolean;
   libCustomOnly: boolean;

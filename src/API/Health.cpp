@@ -18,13 +18,9 @@ namespace OSF::API::Health
 	{
 		using json = nlohmann::json;
 
-		// OSF Settings identifies reports by (modId, issueId).
 		constexpr const char* kModId = "osf.animation";
 
-		// Reports made before Connect() (the game-version check runs at plugin
-		// load, well before the bridge exists) wait here. Bounded because a
-		// buffer that only ever grows is a leak with good intentions; in
-		// practice the pre-Connect window produces one or two entries.
+		// Pre-Connect reports (the game-version check runs at plugin load) wait here.
 		constexpr std::size_t kMaxBuffered = 32;
 
 		struct Op
@@ -99,17 +95,12 @@ namespace OSF::API::Health
 				return;
 			}
 			if (g_connectAttempted || g_buffered.size() >= kMaxBuffered) {
-				return;  // unavailable provider or pre-connect limit; the log remains available
+				return;  // provider absent or buffer full; log only
 			}
 			g_buffered.push_back(std::move(a_op));
 		}
 
-		// ---- registry load problems -----------------------------------------
-
-		// Registry snapshots own file/severity attribution; Health only removes the
-		// redundant prose severity prefix before forwarding their problem text.
-		// "[error] '<file>': ..." -> "'<file>': ..." — the severity is already
-		// carried by the card, three ways.
+		// "[error] '<file>': ..." -> "'<file>': ..."; the card already carries severity.
 		std::string StripPrefix(const std::string& a_line)
 		{
 			const auto close = a_line.find(']');
@@ -137,7 +128,6 @@ namespace OSF::API::Health
 			if (g_connectAttempted) {
 				return;
 			}
-			// Connect once. An absent provider leaves reporting to the log.
 			g_connectAttempted = true;
 			if (!g_client.Init()) {
 				g_buffered.clear();
@@ -178,8 +168,7 @@ namespace OSF::API::Health
 	{
 		std::lock_guard registryLock(g_registryLock);
 
-		// One card per file, not per problem: one broken pack should produce one
-		// actionable condition regardless of how many entries it rejected.
+		// One card per file, not per problem.
 		std::map<std::string, FileProblems> byId;
 		for (const auto& stats : Registry::ContentRegistry::GetSingleton().FileStats()) {
 			if (stats.problems.empty()) {
@@ -210,14 +199,12 @@ namespace OSF::API::Health
 			}
 		}
 
-		// `context` is capped at 8 entries and 240 chars per value by the host,
-		// so the card shows the first few problems and says how many there were.
-		// Someone who needs all of them has the log and OSFAdvanced.GetSceneLoadErrors.
+		// Host caps context at 8 entries / 240 chars per value: show the first few plus a count.
 		constexpr std::size_t kShownProblems = 4;
 		const auto            buildContext = [](const std::vector<std::string>& a_lines, const std::string& a_file) {
 			json context = json::object();
 			if (!a_file.empty()) {
-				context["file"] = a_file;  // bare filename: an absolute path would name the player's machine
+				context["file"] = a_file;  // bare filename: no user paths
 			}
 			context["problems"] = a_lines.size();
 			for (std::size_t i = 0; i < a_lines.size() && i < kShownProblems; ++i) {

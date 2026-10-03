@@ -1,7 +1,5 @@
 #pragma once
 
-// Sheathes and re-draws an actor's weapon, behind the osf.weapon.sheathe / osf.weapon.restore actions.
-
 namespace OSF::Weapon
 {
 	class WeaponService
@@ -9,10 +7,10 @@ namespace OSF::Weapon
 	public:
 		static WeaponService& GetSingleton();
 
-		// GAME THREAD. Holsters a_actor's weapon. Returns false for a null actor.
+		// Game thread. False for a null actor.
 		bool Sheathe(RE::Actor* a_actor);
 
-		// GAME THREAD. Un-holsters a_actor's weapon (the restore half).
+		// Game thread.
 		void Draw(RE::Actor* a_actor);
 	};
 }

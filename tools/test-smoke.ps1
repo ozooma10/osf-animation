@@ -153,8 +153,7 @@ try {
         Invoke-SmokeStage 'runtime-build' {
             if (-not (Test-Path -LiteralPath $suite)) { throw '[blocked] Animation runtime harness is missing; pass -Harness.' }
             $env:XSE_SF_MODS_PATH = $runtimeMods
-            # Separate objects and DLL keep test instrumentation out of build/windows/...,
-            # which the release packager uses even after a failed game run.
+            # Separate output keeps instrumented builds out of build/windows, which the packager uses.
             Invoke-SmokeCommand 'xmake' @('f','-y','-m','releasedbg','-o','build/smoke-native','--animation_smoke=y')
             Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
             Invoke-SmokeCommand 'xmake' @('install','-y','-o',$runtimeMod,'OSF Animation')

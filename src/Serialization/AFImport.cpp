@@ -1,7 +1,4 @@
-// Starfield `.af` -> ozz-animation import. 
-// Decodes the engine-native clip format and the skeleton.rig it maps onto, into an ozz skeleton + runtime animation usable by the Graph sampler
-//
-// The decode is ported faithfully from CALUMI.Animation (the authoritative reader):
+// Decode ported from CALUMI.Animation:
 //   - rig layout + bind pose:        CALUMI SFBGS_SkeletonRig.cpp / af_decode.py decode_rig
 //   - .af byte layout:               CALUMI SFBGS_Animation.cpp AnimationBlock / af_decode.py decode_af
 //   - quaternion/translation dequant:CALUMI SFBGS_AnimationEntries.cpp GetUniversalRotation/Translation
@@ -9,7 +6,8 @@
 
 #include "AFImport.h"
 
-#include "Util/Gzip.h"  // kMaxClipBytes only (this TU stays CLSF-free)
+// This TU stays CLSF-free; Gzip.h is only for kMaxClipBytes.
+#include "Util/Gzip.h"
 
 #include <algorithm>
 #include <array>
@@ -37,9 +35,9 @@ namespace OSF::Serialization
 {
 	namespace
 	{
-		constexpr double kSqrt1_2 = 0.70710678118654752440;  // 1/sqrt(2)
+		constexpr double kSqrt1_2 = 0.70710678118654752440;
 
-		// --- byte cursor (buffer-relative alignment, matching CALUMI AlignBufferAndRead) ----------
+		// Alignment is buffer-relative, matching CALUMI AlignBufferAndRead.
 		struct Cur
 		{
 			const unsigned char* b = nullptr;
@@ -61,7 +59,7 @@ namespace OSF::Serialization
 				}
 				return true;
 			}
-			// Reads `n` (1 or 2) little-endian bytes into a uint16 after aligning to `a`.
+			// `n` (1 or 2) little-endian bytes.
 			uint16_t readCounter(size_t n, size_t a)
 			{
 				align(a);
@@ -87,7 +85,6 @@ namespace OSF::Serialization
 				i += sizeof(T);
 				return v;
 			}
-			// Returns a pointer to `n` bytes (aligned to `a`) and advances; nullptr on overrun.
 			const unsigned char* readBytes(size_t n, size_t a)
 			{
 				align(a);
@@ -118,7 +115,6 @@ namespace OSF::Serialization
 			return buf;
 		}
 
-		// --- small quaternion/vector math (ozz convention: Quaternion = x,y,z,w; Float3 = x,y,z) ---
 		ozz::math::Quaternion QMul(const ozz::math::Quaternion& a, const ozz::math::Quaternion& b)
 		{
 			return {
@@ -130,7 +126,6 @@ namespace OSF::Serialization
 		}
 		ozz::math::Float3 QRotate(const ozz::math::Quaternion& q, const ozz::math::Float3& v)
 		{
-			// v + 2*cross(q.xyz, cross(q.xyz, v) + q.w*v)
 			const float tx = 2.0f * (q.y * v.z - q.z * v.y);
 			const float ty = 2.0f * (q.z * v.x - q.x * v.z);
 			const float tz = 2.0f * (q.x * v.y - q.y * v.x);
@@ -141,7 +136,6 @@ namespace OSF::Serialization
 			};
 		}
 
-		// --- rig -----------------------------------------------------------------------------------
 		struct RigBone
 		{
 			std::string         name;
@@ -158,7 +152,7 @@ namespace OSF::Serialization
 			float                highPrecision = 0.00025f;
 		};
 
-		// Parse skeleton.rig (80-byte header, 96-byte bone stride). See af_decode.py decode_rig.
+		// skeleton.rig: 80-byte header, 96-byte bone stride.
 		bool ParseRig(const std::vector<unsigned char>& a_buf, RigData& a_out, std::string& a_detail)
 		{
 			Cur c{ a_buf.data(), a_buf.size(), 0, true };
@@ -183,7 +177,7 @@ namespace OSF::Serialization
 			a_out.bones.resize(a_out.boneCount);
 			std::vector<uint64_t> nameOffsets(a_out.boneCount);
 			for (uint16_t idx = 0; idx < a_out.boneCount; idx++) {
-				const float lrw = c.readPod<float>(1);   // local rotation W
+				const float lrw = c.readPod<float>(1);
 				const float lrx = c.readPod<float>(1);
 				const float lry = c.readPod<float>(1);
 				const float lrz = c.readPod<float>(1);
@@ -206,7 +200,7 @@ namespace OSF::Serialization
 				a_detail = "rig truncated reading bones";
 				return false;
 			}
-			// Names: NUL-terminated strings at absolute nameOffset.
+			// Names are NUL-terminated at absolute file offsets.
 			for (uint16_t idx = 0; idx < a_out.boneCount; idx++) {
 				const uint64_t off = nameOffsets[idx];
 				if (off >= a_buf.size()) {
@@ -276,7 +270,7 @@ namespace OSF::Serialization
 				}
 			}
 			if (visitedCount != boneCount) {
-				return nullptr;  // cycle or disconnected parent component
+				return nullptr;  // cycle
 			}
 			if (!raw.Validate()) {
 				return nullptr;
@@ -291,18 +285,17 @@ namespace OSF::Serialization
 			return result;
 		}
 
-		// --- .af block + dequant -------------------------------------------------------------------
 		struct RotPrefix
 		{
 			int8_t  first = 0, second = 0, third = 0;
 			bool    firstFlag = false, secondFlag = false, thirdFlag = false;
-			uint8_t count = 0;    // RLE: prefix repeats (count + 1) times ("programming counter")
-			uint8_t missing = 3;  // which quaternion component was dropped (0=x 1=y 2=z 3=w)
+			uint8_t count = 0;    // RLE: repeats count + 1 times
+			uint8_t missing = 3;  // dropped component: 0=x 1=y 2=z 3=w
 		};
 		struct TransPrefix
 		{
 			int16_t  x = 0, y = 0, z = 0;
-			uint16_t count = 1;   // RLE: prefix repeats `count` times ("classical counter")
+			uint16_t count = 1;   // RLE: repeats count times
 		};
 		struct AfBlock
 		{
@@ -318,7 +311,7 @@ namespace OSF::Serialization
 			return static_cast<int8_t>(v >= 64 ? v - 128 : v);
 		}
 
-		// Smallest-three quaternion reconstruction (CALUMI GetUniversalRotation). Returns ozz x,y,z,w.
+		// Smallest-three quaternion (CALUMI GetUniversalRotation).
 		ozz::math::Quaternion DequantRotation(const RotPrefix& p, const std::array<int8_t, 3>& e)
 		{
 			const double lowP = kSqrt1_2 / 64.0;
@@ -330,13 +323,13 @@ namespace OSF::Serialization
 			const double c2 = lowP * p.second + highP * e[1] * s2;
 			const double c3 = lowP * p.third + highP * e[2] * s3;
 			double rem = 1.0 - c1 * c1 - c2 * c2 - c3 * c3;
-			const double c4 = std::sqrt(rem > 0.0 ? rem : 0.0);  // dropped (largest) component, always +
+			const double c4 = std::sqrt(rem > 0.0 ? rem : 0.0);  // dropped largest component, always positive
 			const float f1 = static_cast<float>(c1), f2 = static_cast<float>(c2), f3 = static_cast<float>(c3), f4 = static_cast<float>(c4);
 			switch (p.missing) {
-			case 0:  return { f4, f1, f2, f3 };  // x missing
-			case 1:  return { f1, f4, f2, f3 };  // y missing
-			case 2:  return { f1, f2, f4, f3 };  // z missing
-			default: return { f1, f2, f3, f4 };  // w missing
+			case 0:  return { f4, f1, f2, f3 };
+			case 1:  return { f1, f4, f2, f3 };
+			case 2:  return { f1, f2, f4, f3 };
+			default: return { f1, f2, f3, f4 };
 			}
 		}
 
@@ -348,7 +341,7 @@ namespace OSF::Serialization
 				p.z * a_lowPrec + e[2] * a_highPrec);
 		}
 
-		// Reads one AnimationBlock (CALUMI SFBGS_Animation.cpp AnimationBlock ctor order).
+		// Field order follows CALUMI's AnimationBlock ctor.
 		bool ReadBlock(Cur& c, size_t a_cSize, size_t a_kSize, AfBlock& a_out)
 		{
 			const uint16_t rotCount = c.readCounter(a_cSize, a_cSize);
@@ -420,15 +413,12 @@ namespace OSF::Serialization
 			return c.ok;
 		}
 
-		// Both unfolds are capped by the consumer's real key count: the RLE counts are raw file
-		// bytes, and without the cap a crafted clip (64Ki prefixes × 64Ki count) amplifies a small
-		// file into a multi-GB allocation. Keys beyond a_maxKeys can never be consumed anyway
-		// (the decode loops run to min(keys, entries, prefixes)).
+		// Capped at the key count: untrusted RLE counts could otherwise amplify a small file into a multi-GB allocation.
 		std::vector<RotPrefix> UnfoldRot(const std::vector<RotPrefix>& a_folded, size_t a_maxKeys)
 		{
 			std::vector<RotPrefix> out;
 			for (const auto& p : a_folded) {
-				for (int i = 0; i <= static_cast<int>(p.count); i++) {  // programming counter: count+1 copies
+				for (int i = 0; i <= static_cast<int>(p.count); i++) {
 					if (out.size() >= a_maxKeys) {
 						return out;
 					}
@@ -441,7 +431,7 @@ namespace OSF::Serialization
 		{
 			std::vector<TransPrefix> out;
 			for (const auto& p : a_folded) {
-				for (uint32_t i = 0; i < p.count; i++) {  // classical counter: count copies
+				for (uint32_t i = 0; i < p.count; i++) {
 					if (out.size() >= a_maxKeys) {
 						return out;
 					}
@@ -451,12 +441,11 @@ namespace OSF::Serialization
 			return out;
 		}
 
-		// --- .af parse (header + preamble skip + atlas walk + blocks) ------------------------------
 		struct AfClip
 		{
 			uint16_t boneCount = 0;
 			uint16_t frameCount = 0;
-			// blocks[rigBoneIndex] for animated bones; absent (monostate-ish) for skipped bones.
+			// Keyed by rig bone index; skipped bones are absent.
 			std::unordered_map<uint16_t, AfBlock> blocks;
 		};
 
@@ -464,7 +453,7 @@ namespace OSF::Serialization
 		{
 			Cur c{ a_buf.data(), a_buf.size(), 0, true };
 			c.i += 8;                          // magic
-			c.i += 16;                         // header rotation (W,X,Y,Z) — identity in vanilla
+			c.i += 16;                         // header rotation (W,X,Y,Z), identity in vanilla
 			c.i += 12;                         // header translation
 			const unsigned char* flags = c.readBytes(4, 1);
 			if (!flags) {
@@ -489,8 +478,7 @@ namespace OSF::Serialization
 				return false;
 			}
 
-			// Preamble: u32 count, then per entry { u16 count; f32 preSet[count*2]; f32 mainSet[frameCount];
-			// i16 footer1[count]; i8 footer2[count] }. Parsed only to advance the cursor.
+			// Preamble (skipped): u32 n, then n x { u16 c; f32[c*2]; f32[frameCount]; i16[c]; i8[c] }.
 			if (preambleLen > 0) {
 				const uint32_t pcount = c.readPod<uint32_t>(4);
 				for (uint32_t e = 0; e < pcount && c.ok; e++) {
@@ -509,7 +497,6 @@ namespace OSF::Serialization
 					}
 				}
 			}
-			// Suffix filler floats, then align to 4 before the atlas.
 			for (uint16_t k = 0; k < fillCount; k++) {
 				c.readPod<float>(4);
 			}
@@ -529,7 +516,7 @@ namespace OSF::Serialization
 				return false;
 			}
 
-			// Walk the RLE atlas: even runs = skipped bones (no block), odd runs = real blocks.
+			// RLE atlas: even runs = skipped bones, odd runs = bones with a block.
 			uint16_t j = 0, k = 0;
 			for (uint16_t pos = 0; pos < a_out.boneCount; pos++) {
 				while (j < atlasN && k >= atlas[j]) {
@@ -539,7 +526,7 @@ namespace OSF::Serialization
 				if (j >= atlasN) {
 					break;
 				}
-				if ((j % 2) == 1) {  // odd run -> a real animation block for bone `pos`
+				if ((j % 2) == 1) {
 					AfBlock blk;
 					if (!ReadBlock(c, cSize, kSize, blk)) {
 						a_detail = "af block truncated";
@@ -552,11 +539,10 @@ namespace OSF::Serialization
 			return c.ok;
 		}
 
-		// --- build ozz animation -------------------------------------------------------------------
 		std::shared_ptr<Animation::OzzAnimation> BuildAnimation(const AfClip& a_clip, const RigData& a_rig,
 			const ozz::animation::Skeleton& a_skeleton)
 		{
-			// rig bone name -> ozz joint index (SkeletonBuilder reorders joints).
+			// SkeletonBuilder reorders joints, so map by name.
 			std::unordered_map<std::string, int> jointByName;
 			auto names = a_skeleton.joint_names();
 			for (int i = 0; i < a_skeleton.num_joints(); i++) {
@@ -579,7 +565,7 @@ namespace OSF::Serialization
 				}
 				auto& track = raw->tracks[it->second];
 
-				// Rotation: dequant rest-relative track, re-base to absolute local (R_abs = R_bind ∘ R_track).
+				// R_abs = R_bind ∘ R_track
 				const auto rotPrefixes = UnfoldRot(blk.rotPrefixesFolded, blk.rotKeys.size());
 				const size_t nRot = std::min({ blk.rotKeys.size(), blk.rotEntries.size(), rotPrefixes.size() });
 				for (size_t i = 0; i < nRot; i++) {
@@ -590,7 +576,7 @@ namespace OSF::Serialization
 					maxTime = std::max(maxTime, t);
 				}
 
-				// Translation: dequant rest-relative track, re-base (T_abs = T_bind + R_bind · T_track).
+				// T_abs = T_bind + R_bind · T_track
 				const auto transPrefixes = UnfoldTrans(blk.transPrefixesFolded, blk.transKeys.size());
 				const size_t nTr = std::min({ blk.transKeys.size(), blk.transEntries.size(), transPrefixes.size() });
 				for (size_t i = 0; i < nTr; i++) {
@@ -608,7 +594,6 @@ namespace OSF::Serialization
 
 			raw->duration = std::max(maxTime, 1.0f / AFImport::kAfFps);
 
-			// Any joint without keyframes (skipped/non-animated bones, twist bones) holds its rest pose.
 			for (int i = 0; i < numJoints; i++) {
 				auto& track = raw->tracks[i];
 				const auto rest = ozz::animation::GetJointLocalRestPose(a_skeleton, i);
@@ -636,7 +621,6 @@ namespace OSF::Serialization
 			return result;
 		}
 
-		// --- caches (leaked, like GLTFImport: avoids ozz static-destruction order crash) -----------
 		std::mutex g_cacheLock;
 
 		struct RigEntry
@@ -644,6 +628,7 @@ namespace OSF::Serialization
 			std::shared_ptr<RigData>                       rig;
 			std::shared_ptr<const Animation::OzzSkeleton>  skeleton;
 		};
+		// Leaked to avoid an ozz static-destruction-order crash.
 		auto& RigCache()
 		{
 			static auto* cache = new std::unordered_map<std::string, RigEntry>();
@@ -710,7 +695,6 @@ namespace OSF::Serialization
 
 		AFLoadResult result;
 
-		// Rig (cached, shared across clips): parse + ozz skeleton. Fetched via the provider only here.
 		std::shared_ptr<RigData> rig;
 		std::shared_ptr<const Animation::OzzSkeleton> skeleton;
 		{

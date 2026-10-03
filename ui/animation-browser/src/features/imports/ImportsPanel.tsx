@@ -4,10 +4,6 @@ import type { BrowserState, ImportFilter } from "../../app/state";
 import { importProblemKey, type ImportFile, type ImportProblem } from "../../model";
 import { Empty } from "../shared/Shared";
 
-// The per-file import report: one row per *.osf.json the engine scanned, whether or not it
-// produced anything. A pack that failed outright has no scene to appear as in the catalog, so
-// this listing is the only surface that can answer "why is my pack missing".
-
 const SEVERITY_TITLE: Record<ImportSeverity, string> = {
   error: "Rejected content — something in this file did not load",
   warn: "Loaded with warnings",
@@ -42,7 +38,6 @@ function Summary({ state }: { state: BrowserState }) {
   </div>;
 }
 
-/** The one-line trait strip — what an author scans down the list looking for. */
 function traits(file: ImportFile): string {
   const parts: string[] = [];
   parts.push(`${file.scenes} scene${file.scenes === 1 ? "" : "s"}`);
@@ -56,7 +51,6 @@ function traits(file: ImportFile): string {
 }
 
 function Detail({ file }: { file: ImportFile }) {
-  // Only the fields that carry information for this file: a grid of zeros teaches nothing.
   const cells: { label: string; value: string }[] = [
     { label: "Schema", value: file.schema ? String(file.schema) : "—" },
     { label: "Size", value: formatBytes(file.bytes) },
@@ -144,7 +138,6 @@ function Row({ state, file, commands }: { state: BrowserState; file: ImportFile;
       <span class="imp-name">
         <span class="imp-file">
           {crossFile ? "Registry-wide problems" : file.file}
-          {/* A chip, not another dot-separated word: pack labels contain "·" themselves. */}
           {file.library && <span class="imp-lane mono">LIBRARY</span>}
         </span>
         <span class="imp-path mono">{crossFile

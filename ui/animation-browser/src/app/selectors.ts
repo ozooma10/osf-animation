@@ -1,14 +1,8 @@
 import { evaluateScene, type ImportFile, type SceneEvaluation, type SceneModel, type SceneStage } from "../model";
 import { PLAYER_TOKEN, type ActiveLaunch, type BrowserState, type CastMember, type FurnitureTarget, type PickTarget } from "./state";
 
-/** The pick target under the pointer. THE one scoring function for world picking:
- *  the marker layer uses it to light the hot marker and the click handler uses it
- *  to resolve the selection, so the two can never disagree. Among the targets whose
- *  acceptance ellipse contains the pointer, the FRONT-MOST wins (what a ray into the
- *  scene would hit first — the target the user visually sees); targets at effectively
- *  the same depth (within 5% — depth's absolute unit is native-defined, so only
- *  relative comparisons are safe) fall back to the better ellipse score.
- *  Pointer is in CSS pixels. */
+/** Shared by the hover marker and click resolution so they never disagree. Front-most wins;
+ *  within 5% depth (unit is native-defined, so only relative) the better ellipse score wins. */
 export function hottestPickTarget(
   targets: readonly PickTarget[], px: number, py: number, width: number, height: number,
 ): PickTarget | null {
@@ -63,10 +57,7 @@ export interface WheelCandidate {
 
 export type PlayableKind = "animation" | "emote" | "scene";
 
-/**
- * Browser-facing launch target. A collection is deliberately absent: packs,
- * folders, and vanilla sets organize these items but are never launchable.
- */
+/** Collections (packs, folders, vanilla sets) are never launchable. */
 export interface PlayableItem {
   key: string;
   kind: PlayableKind;
@@ -97,23 +88,17 @@ export function emoteCatalog(state: BrowserState): SceneModel[] {
   return state.catalog.filter((scene) => isEmote(scene) && unlistedVisible(state, scene));
 }
 
-/** A clip entry the engine harvested from authored stages for the author-only debug surface. */
 export function isDerivedDebugAnimation(scene: SceneModel): boolean {
   return scene.sourceKind === "derivedDebugAnimation";
 }
 
-/** Compatibility spelling retained for view extensions compiled against the earlier selector. */
+/** Alias for view extensions compiled against the earlier selector name. */
 export const isGeneratedSceneClip = isDerivedDebugAnimation;
 
 export function playableKey(sceneId: string, stage: number | null): string {
   return wheelKey(sceneId, stage);
 }
 
-/**
- * Turn engine/export names into labels without changing registry identity.
- * Authored prose is left alone; separators, CamelCase, and numeric suffixes
- * used by vanilla clip names are made readable.
- */
 export function readableAnimationName(value: string, pose = false): string {
   let label = value.trim()
     .replace(/^LooseAnim[_\s-]*/i, "")
@@ -145,10 +130,7 @@ export function playableStageTitle(scene: SceneModel, stage: SceneStage): string
   return stage.name ? readableAnimationName(stage.name, pose) : `Animation ${stage.index + 1}`;
 }
 
-// Single-entry memo: the full playable list is ~6k items over the shipped fixtures and was
-// measured at ~23 ms per rebuild — and it used to rebuild at least twice per render while the
-// 12.5 Hz projectActors poll forced renders. The result only depends on the three inputs below,
-// all of which change by reference/value, so one cached entry suffices.
+// Single-entry memo: ~6k items at ~23 ms per rebuild, under a 12.5 Hz render-forcing poll.
 let playableMemo: {
   catalog: BrowserState["catalog"];
   library: BrowserState["library"];
@@ -218,7 +200,6 @@ function playablePreference(item: PlayableItem): number {
   return 4;
 }
 
-/** Shared ordering for rendering and automatic selection. */
 export function comparePlayableItems(state: BrowserState, a: PlayableItem, b: PlayableItem): number {
   const anchored = (item: PlayableItem) => Number(
     !!state.furniture && item.scene.requiresFurniture && fitsKeyedAnchor(state, item.scene) === true);
@@ -260,7 +241,6 @@ export function isHiddenPlayable(item: PlayableItem): boolean {
     : !item.scene.library && item.scene.unlisted;
 }
 
-/** Distinct hidden scene records that the current Browse filters would reveal. */
 export function hiddenSceneCount(state: BrowserState): number {
   const revealed = state.showHidden ? state : { ...state, showHidden: true };
   return new Set(playableItems(state)
@@ -294,8 +274,7 @@ export function filteredLibrary(state: BrowserState): SceneModel[] {
     : state.library;
 }
 
-/** Effective browser filters. Imports -> View Content widens these temporarily without
- * mutating the user's persisted settings or the settings panel's source of truth. */
+/** Imports -> View Content widens these without mutating persisted settings. */
 export function libraryFull(state: BrowserState): boolean {
   return state.importView || state.libFull;
 }
@@ -327,7 +306,7 @@ export function activeLaunches(state: BrowserState): ActiveLaunch[] {
     : [];
 }
 
-/** Compatibility spelling aligned with the frozen native `activeScenes` event name. */
+/** Alias matching the frozen native `activeScenes` event name. */
 export const activeScenes = activeLaunches;
 
 export function busyTokens(state: BrowserState): ReadonlySet<number> {
@@ -342,11 +321,7 @@ export function hasPlayer(state: BrowserState): boolean {
   return state.cast.some((member) => member.kind === "player");
 }
 
-/**
- * Cast members whose world labels are live right now, paired with their cast
- * index (the A/B/C key). Empty whenever nothing would render them — the same
- * gate decides whether the controller runs the 80ms projection poll at all.
- */
+/** Empty when nothing would render; the controller gates its projection poll on this too. */
 export function labeledCast(state: BrowserState): { member: CastMember; index: number }[] {
   if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized) return [];
   return state.cast
@@ -354,8 +329,6 @@ export function labeledCast(state: BrowserState): { member: CastMember; index: n
     .filter(({ member }) => member.kind !== "player");
 }
 
-/** Selected furniture whose world label is live under the same display policy
- *  as selected-cast labels. */
 export function labeledFurniture(state: BrowserState): FurnitureTarget | null {
   if (!state.preferences.actorLabels || !state.viewVisible || state.wheel || state.minimized) return null;
   return state.furniture;
@@ -413,13 +386,10 @@ export function matchesSearch(state: BrowserState, scene: SceneModel): boolean {
     .includes(state.filters.search);
 }
 
-// The only caller passes mode === "active" (validSelection), so this is just the search +
-// species filter — the old browseVisible carried unreachable "scenes"/"library" branches.
 export function browseVisible(state: BrowserState, scene: SceneModel): boolean {
   return matchesSearch(state, scene) && speciesVisible(state, scene);
 }
 
-/** The unavailable-scenes preference resolved against the reveal toggle (the UnifiedBrowser split). */
 export function showUnavailable(state: BrowserState): boolean {
   return state.preferences.unavailableScenes === "show"
     || state.preferences.unavailableScenes === "ask" && state.browseAll;
@@ -483,11 +453,7 @@ export function packLabel(key: string, scenes: readonly SceneModel[]): string {
     : key.replace(/^vanilla-/i, "").replace(/[-_]+/g, " ").toUpperCase();
 }
 
-/**
- * Keep the immediately useful vanilla pose catalog prominent and the raw
- * quest/dialogue Scene fragments out of the way. Returning zero for every
- * other pairing preserves the item-ranked insertion order between packs.
- */
+/** Returning zero for other pairings preserves the item-ranked order between packs. */
 export function comparePlayableGroupKeys(a: string, b: string): number {
   const rank = (key: string) => {
     if (/^vanilla-photomode$/i.test(key)) return -1;
@@ -517,7 +483,7 @@ export function wheelStageTitle(scene: SceneModel, stage: SceneStage): string {
   return scene.stages.length === 1 ? title : `${title} · Stage ${stage.index + 1}`;
 }
 
-// Same single-entry memo shape as playableItems: the candidate sweep walks every library stage.
+// Single-entry memo: the candidate sweep walks every library stage.
 let wheelMemo: {
   catalog: BrowserState["catalog"];
   library: BrowserState["library"];
@@ -594,9 +560,6 @@ export function stageLabel(scene: SceneModel, index: number): string {
   return stage ? playableStageTitle(scene, stage) : `stage ${index}`;
 }
 
-// ---- import report ----------------------------------------------------------------------------
-
-/** Worst state a file reached: an error outranks a warning, which outranks a silent oddity. */
 export type ImportSeverity = "ok" | "note" | "warn" | "error";
 export type ImportOutcome = "clean" | "empty" | "missing" | "partial" | "rejected";
 

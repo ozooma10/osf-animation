@@ -25,7 +25,7 @@ namespace OSF::Maintenance
 		{
 			(*g_frameHook)();
 			Util::NativeMainThreadQueue::Drain();
-			// AnimationManager::Update owns subdivided playback time; BGSModelNode::Update owns pose stamping. 
+			// Playback time and pose stamping live in the AnimationManager/BGSModelNode::Update hooks.
 			Camera::CameraService::GetSingleton().Tick();
 			UI::FadeService::GetSingleton().Tick();
 			UI::Subtitle::Tick();

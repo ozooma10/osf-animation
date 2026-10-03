@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
-"""Generate the standalone dev view's library snapshot offline.
+"""Generate the dev view's library snapshot (BuildCatalog(a_library=true)) offline.
 
-Replicates UIBridgeCatalog.cpp BuildCatalog(a_library=true) over the generated packs in
-dist/OSF (section:"library"), writing the card array the in-game view would
-receive to ui/animation-browser/fixtures/live/library.json. The library lane is
-fully static — pack-authored clip durations, no pins, no probe cache — so the
-runtime and this script produce the same payload; the runtime PersistSnapshot
-path was removed in favor of this.
+Reads dist/OSF section:"library" packs and writes ui/animation-browser/fixtures/live/library.json.
+Card math mirrors BuildCatalog / ParseOsfStageList / DesugarLinear, including float32
+rounding. Anchor keyword labels come from tools/vanilla-packs/anim-furn-keywords.json.
 
-The card math mirrors the C++ exactly (see BuildCatalog / ParseOsfStageList in
-SceneRegistry.cpp and DesugarLinear in SceneRegistryClips.cpp), including
-float32 rounding, so durations serialize with the same values the DLL would emit.
-Anchor keyword form ids are
-prettified via tools/vanilla-packs/anim-furn-keywords.json (the ESM extractor
-output) — the offline stand-in for GetFormEditorID.
-
-The script is deliberately STRICT: an unknown scene/stage/clip key aborts, so a
-pack-schema change forces this generator to be updated instead of silently
-drifting from what the runtime serializes.
+Strict: an unknown scene/stage/clip key aborts so pack-schema changes can't drift silently.
 
 Usage: python tools/generate-library-snapshot.py
 """
@@ -36,7 +24,7 @@ OUT = os.path.join(REPO, "ui", "animation-browser", "fixtures", "live", "library
 # How many loops an open-ended hold stage is assumed to run (kHoldLoopEstimate).
 HOLD_LOOP_ESTIMATE = 2.0
 
-# Keys the generator understands; anything else aborts (see module docstring).
+# Modeled keys; anything else aborts.
 SCENE_KEYS = {"id", "name", "tags", "stages", "anchor", "clipRoot", "unlisted"}
 STAGE_KEYS = {"name", "tags", "loops", "timer", "clips"}
 CLIP_KEYS = {"file", "sec", "anim", "offset"}
@@ -119,9 +107,7 @@ def apply_clip_root(file, clip_root):
 
 
 def species_from_path(path):
-    """SpeciesFromAnimPath: the segment before an 'animations' folder that itself
-    follows an 'actors' segment (mirrors Util::Species MarkerIndex — a path like
-    SAF/Animations/... names no species and falls back to human downstream)."""
+    """SpeciesFromAnimPath: the segment before 'animations', only after an 'actors' segment."""
     segs = [s for s in path.lower().replace("\\", "/").split("/") if s]
     have_actors = False
     for i, s in enumerate(segs):
@@ -142,7 +128,6 @@ def build_card(scene, file_defaults, kw_by_formid):
     clip_root = (normalize_clip_root(scene["clipRoot"]) if "clipRoot" in scene
                  else file_defaults["clipRoot"])
 
-    # Anchor: scene-level block, else the file-level default.
     anchor = scene.get("anchor", file_defaults["anchor"])
     anchor_names = []
     if anchor:
@@ -159,7 +144,7 @@ def build_card(scene, file_defaults, kw_by_formid):
             formid = int(entry.split("|", 1)[1], 16) if "|" in entry else int(entry, 16)
             anchor_names.append(f"{formid:#010x}")
 
-    # Stages: ParseOsfStageList defaults + DesugarLinear node shapes + StageCard math.
+    # ParseOsfStageList defaults + DesugarLinear node shapes + StageCard math.
     stages = []
     est_sec = -1.0
     est_partial = False
@@ -187,9 +172,6 @@ def build_card(scene, file_defaults, kw_by_formid):
                 loop_sec = f32(clip["sec"])
         if actor_count == 0:
             actor_count = len(files)
-        # Species from the clip paths, derived here while the per-stage file list is in scope
-        # (the emitted stage dict deliberately carries no file text — the old `sig` field was
-        # ~490 KB of dead payload no consumer read).
         if not species:
             for f in files:
                 species = species_from_path(f)

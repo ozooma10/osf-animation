@@ -11,8 +11,7 @@ export interface TimelineTrackMark {
   kind: TimelineTrackKind;
   /** Clip-local position: enter maps to 0, exit/end to 1. */
   at: number;
-  /** Authored `atFrame` position in seconds; lets the rail re-place the mark against the
-   *  live decoded duration (the pack-authored clip length can disagree with it). */
+  /** Authored `atFrame` in seconds, for re-placing against the live decoded duration. */
   atSec?: number;
   trackPosition: TimelineTrackPosition;
   label: string;
@@ -49,7 +48,7 @@ export interface SceneModel {
   worldPlacement: WorldPlacement;
   anchors: string[];
   unlisted: boolean;
-  /** Legacy bridge flag retained while older native builds do not emit `sourceKind`. */
+  /** Fallback for native builds that don't emit `sourceKind`. */
   curated: boolean;
   wheelCustomized: boolean;
   pinned: number;
@@ -69,9 +68,8 @@ export interface SceneModel {
   estSec: number | null;
   estPartial: boolean;
   openEnded: boolean;
-  /** View-only marker for generated reference-library entries. */
   library?: boolean;
-  /** Lower-cased stage-name search index, populated when library data arrives. */
+  /** Lower-cased stage-name search index. */
   stageHay?: string;
 }
 
@@ -130,7 +128,6 @@ export function safeNormalizeScene(raw: unknown): SceneModel | null {
   }
 }
 
-/** A whole catalog payload — the scenes lane, or the library lane with `library` set. */
 export function normalizeCatalog(payload: unknown, library = false): SceneModel[] {
   if (!Array.isArray(payload)) return [];
   return payload.map(safeNormalizeScene).filter((scene): scene is SceneModel => !!scene).map((scene) => library
@@ -167,8 +164,7 @@ export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
     if (!raw || typeof raw !== "object") return [];
     const mark = raw as Raw;
     const kind = String(mark.kind || "") as TimelineTrackKind;
-    // `anchor` is the native bridge's legacy field. Normalized UI state uses the
-    // temporal term `trackPosition` so it cannot be confused with a world anchor.
+    // Native still sends `anchor`; renamed so it isn't confused with a world anchor.
     const trackPosition = String(mark.trackPosition ?? mark.anchor ?? "fraction") as TimelineTrackPosition;
     const at = Number(mark.at);
     const label = String(mark.label || "").trim();
@@ -310,8 +306,7 @@ export function normalizeRouteCatalog(payload: unknown): RouteModel[] {
         from,
         to,
         layer: normalizeRouteLayer(transition.layer),
-        // The route schema's legacy `finish` value means finish the current
-        // transition, not finish the whole route. Normalize that scope here.
+        // Schema `finish` means finish the current transition, not the whole route.
         interruption: transition.interruption === "crossfade-before-commit"
           ? "crossfade-before-commit" : "finish-transition",
         events: normalizeRouteEvents(transition),
@@ -370,12 +365,7 @@ function normalizePolicy(raw: Raw): SceneModel["policy"] {
   };
 }
 
-// ---- import report (osf.animation.imports.data) -----------------------------------------------
-// A FILE-shaped view of the last registry load, deliberately unlike the scene-shaped catalog: a
-// file that produced no scenes has nothing to appear as in the catalog, and "why is my pack
-// missing" is exactly the question only this shape can answer.
-
-/** What one *.osf.json contributed to the registry. */
+// Import report is file-shaped: a file that produced no scenes has no catalog entry to explain it.
 export interface ImportProblem {
   severity: "error" | "warn";
   code: string;
@@ -388,12 +378,12 @@ export interface ImportProblem {
 }
 
 export interface ImportFile {
-  /** Data/OSF-relative, forward-slashed. Empty on the trailing cross-file problem bucket. */
+  /** Empty on the trailing cross-file problem bucket. */
   path: string;
   file: string;
   pack: string;
   library: boolean;
-  /** Declared `schema` — 0 when absent, non-integer, or the file never parsed. */
+  /** 0 when absent, non-integer, or the file never parsed. */
   schema: number;
   bytes: number;
   parseMs: number;
@@ -421,7 +411,6 @@ export interface ImportFile {
   species: string[];
   errors: number;
   warnings: number;
-  /** Contributed nothing and reported at least one error. */
   rejected: boolean;
   /** Bounded by the native side; `problemCount` is the true total. */
   problems: ImportProblem[];
@@ -437,7 +426,7 @@ export interface ImportTotals {
   routes: number;
   declaredRoutes: number;
   rejectedRoutes: number;
-  /** The registry's own authored count, so a drift from the per-file sum stays visible. */
+  /** Registry's own count; may drift from the per-file sum. */
   registered: number;
   clipEntries: number;
   hidden: number;
@@ -543,7 +532,6 @@ export function normalizeImportReport(payload: unknown): ImportReport {
         warnings: count(entry.warnings),
         rejected: Boolean(entry.rejected),
         problems,
-        // Never let a stale/short `problemCount` claim fewer lines than actually arrived.
         problemCount: Math.max(count(entry.problemCount), problems.length),
       };
     }),

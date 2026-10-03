@@ -44,9 +44,7 @@ export const MOCK_CATALOG = [
   ] }, { index: 1, name: "Cowgirl07", tags: ["paired"], clipCount: 2, loopSec: 20, openEnded: true, estSec: 40 }], estSec: 77.3, openEnded: true, priority: 2, weight: 40, pack: "Gergel Ebanex", sourceFile: "Data/OSF/GE/chair.osf.json" },
 ];
 
-// A representative import report: one clean pack, one partially-rejected pack, one file rejected
-// whole, one compat pack whose clips are missing, one clean-but-empty file, plus the cross-file
-// bucket — every state the panel has to render, so standalone exercises all of them.
+// Covers every state the imports panel renders.
 export const MOCK_IMPORTS = {
   files: [
     { path: "Emotes/immersion.osf.json", file: "immersion.osf.json", pack: "OSF Emotes", schema: 1, bytes: 24_118, parseMs: 3.4, declaredScenes: 14, scenes: 14, nodes: 14, stages: 14, roles: 14, clips: 14, distinctClips: 14, cues: 6, actions: 2, clipEntries: 14, species: ["human"] },
@@ -66,8 +64,7 @@ export const MOCK_LIBRARY = [
   { id: "vanilla/furniture/chair", title: "Vanilla · Furniture / Chair", tags: ["vanilla", "furniture"], actorCount: 1, requiresFurniture: true, anchors: ["Chair"], sourceFile: "vanilla-furniture.osf.json", stages: [{ index: 0, name: "Idle", tags: [], clipCount: 1, loopSec: 2.7, openEnded: true, estSec: 5.4 }, { index: 1, name: "EnterFromStand", tags: ["transition"], clipCount: 1, loopSec: 7.3, estSec: 14.7 }] },
   { id: "vanilla/photomode", title: "Vanilla · Photomode", tags: ["vanilla", "photomode"], actorCount: 1, requiresFurniture: false, sourceFile: "vanilla-photomode.osf.json", stages: [{ index: 0, name: "Hero Pose", tags: ["pose"], clipCount: 1, loopSec: 3, openEnded: true, estSec: 6 }, { index: 1, name: "Vehicle_HangTen", tags: [], clipCount: 1, loopSec: 0.3, openEnded: true, estSec: 0.6 }] },
   { id: "vanilla/creature/terrormorph", title: "Vanilla · Terrormorph", species: "terrormorph", tags: ["vanilla", "creature"], actorCount: 1, requiresFurniture: false, sourceFile: "vanilla-creature.osf.json", stages: [{ index: 0, name: "BleedOut_Idle", tags: ["idle"], clipCount: 1, loopSec: 8.3, openEnded: true, estSec: 16.6 }] },
-  // Registered and derived one-clip entries share the osf.scene-clip/ id namespace. Explicit
-  // `sourceKind` is authoritative; other mock records omit it to keep legacy bridge fallback live.
+  // Other mock records omit `sourceKind` to exercise the bridge fallback.
   { id: "osf.scene-clip/a1b2c3d4e5f60001", title: "Hand Extended 01", tags: ["scene.clip"], sourceKind: "curatedAnimation", curated: true, unlisted: true, actorCount: 1, placement: "followActor", pack: "Moods of Andromas", folder: "Standing", sourceFile: "moods-of-andromas.osf.json", stages: [{ index: 0, name: "Hand Extended 01", tags: ["scene.clip"], clipCount: 1, loopSec: 2.4, openEnded: true, estSec: 4.8 }] },
   { id: "osf.scene-clip/a1b2c3d4e5f60002", title: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], sourceKind: "derivedDebugAnimation", unlisted: true, actorCount: 1, placement: "followActor", pack: "Gergel Ebanex", sourceFile: "chair.osf.json", stages: [{ index: 0, name: "GE\\chair\\Missionary06_FP.glb", tags: ["scene.clip"], clipCount: 1, loopSec: 18.7, openEnded: true, estSec: 37.3 }] },
 ];

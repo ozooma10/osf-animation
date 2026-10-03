@@ -49,8 +49,7 @@ namespace OSF::Serialization::PersistenceHost
 			0x48, 0x89, 0x7C, 0x24, 0x20
 		};
 
-		// IDs 98376, 98380, and 98620 resolve the save, load, and delete workers on
-		// both 1.16.242 and 1.16.244. Prologue gates below still reject signature drift.
+		// IDs 98376/98380/98620 = save/load/delete workers (1.16.242 + .244); prologue gates reject drift.
 
 		std::string BoundedName(const char* name)
 		{
@@ -199,16 +198,13 @@ namespace OSF::Serialization::PersistenceHost
 				_broker.RevertAll();
 			}
 
-			// The load worker actually ran: from here on only FinishLoad/Backstop may close the window.
+			// After dispatch only FinishLoad/Backstop may close the window.
 			void MarkLoadDispatched()
 			{
 				std::lock_guard lifecycleLock(_lifecycleMutex);
 				_loadDispatched = true;
 			}
 
-			// A load op ended in a terminal status without ever reaching the load worker (refused /
-			// cancelled before dispatch). Un-latch so the next load gets its full revert window; a
-			// dispatched load is left alone (FinishLoad owns it).
 			void AbortLoad()
 			{
 				std::lock_guard lifecycleLock(_lifecycleMutex);

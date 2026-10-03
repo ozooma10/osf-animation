@@ -23,8 +23,7 @@ namespace OSF::Content
 		Equipment::Gear::LoadAll();
 		API::Health::ReportRegistryLoad();
 
-		// Edited files fail the size/mtime duration-cache check. The async completion pushes the
-		// refreshed catalog once timing probes finish; the immediate import reply remains responsive.
+		// Edited files miss the size/mtime duration cache; the async scan pushes the refreshed catalog.
 		Serialization::ClipDurations::ScanSceneClipsAsync(&API::PushCatalogUpdate);
 		return static_cast<std::int32_t>(registry.Size());
 	}

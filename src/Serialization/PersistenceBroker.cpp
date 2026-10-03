@@ -510,9 +510,7 @@ namespace OSF::Serialization
 			const auto found = byID.find(clientID);
 			if (found == byID.end()) {
 				++stats.unknownClients;
-				// Name the orphan: this block will NOT be carried into the next save (the host cannot
-				// remap FormIDs inside an opaque payload), so the plugin's data is gone if it stays
-				// uninstalled — an aggregate count alone hides which mod lost state.
+				// Orphans aren't carried forward: FormIDs inside an opaque payload can't be remapped.
 				Log(LogLevel::kWarning, "no registered client for saved block " + ClientIDText(clientID) +
 					" — its data will not be carried into the next save (plugin uninstalled or not yet registered)");
 				continue;

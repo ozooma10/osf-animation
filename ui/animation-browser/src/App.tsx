@@ -31,9 +31,7 @@ function RunningSummary({ state, commands }: { state: BrowserState; commands: Br
 }
 
 function Header({ state, commands }: { state: BrowserState; commands: BrowserCommands }) {
-  // The IMPORTS button is the report's only discovery surface, so it carries the verdict: a load
-  // with rejected content is worth noticing without opening anything. The totals stay zero until
-  // the report has been fetched once, so a never-opened panel shows a plain button.
+  // Totals stay zero until the report is fetched once, so a never-opened panel shows a plain button.
   const importIssues = state.importTotals.errors + state.importTotals.warnings;
   return <><div class="slate"><div class="slate-cell slate-brand"><div class="brand-lockup"><div class="brand-emblem"><span/></div><div class="brand-meta"><div class="brand-title">Animation Browser</div><div class="brand-sub"><Status state={state}/></div></div></div><div class="brand-tools"><button class="iconbtn" type="button" title="Refresh catalog" onClick={commands.refresh}>⟳</button><button class={`iconbtn route-debug-btn ${state.routeDebuggerOpen ? "on" : ""}`} type="button" title="Debug overlay routes and transitions" aria-pressed={state.routeDebuggerOpen} onClick={() => commands.toggleRouteDebugger()}><svg width="14" height="13" viewBox="0 0 14 13" aria-hidden="true"><circle cx="2" cy="2" r="1.2"/><circle cx="12" cy="6.5" r="1.2"/><circle cx="2" cy="11" r="1.2"/><path d="M3.3 2h2.2c2.4 0 2.2 4.5 4.8 4.5M3.3 11h2.2c2.4 0 2.2-4.5 4.8-4.5"/></svg><span class="iconbtn-lbl">Routes</span></button><button class={`iconbtn imports-btn ${state.importsOpen ? "on" : ""} ${state.importTotals.errors ? "err" : importIssues ? "warn" : ""}`} type="button" title="Content imports — what loaded from Data/OSF" aria-pressed={state.importsOpen} onClick={() => commands.toggleImports()}><svg class="imports-ico" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M1.6 2.6h10.8M1.6 5.6h10.8M1.6 8.6h10.8M1.6 11.6h6.4"/></svg><span class="iconbtn-lbl">Imports</span>{!!importIssues && <span class="iconbtn-pip"/>}</button><button class={`iconbtn settings-btn ${state.settingsOpen ? "on" : ""}`} type="button" title="Browser settings" aria-pressed={state.settingsOpen} onClick={() => commands.toggleSettings()}><svg class="gear-ico" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.35"/><circle cx="7" cy="7" r="1.5"/><path d="M11.35 7L13.15 7M10.08 10.08L11.35 11.35M7 11.35L7 13.15M3.92 10.08L2.65 11.35M2.65 7L0.85 7M3.92 3.92L2.65 2.65M7 2.65L7 0.85M10.08 3.92L11.35 2.65"/></svg><span class="iconbtn-lbl">Settings</span></button><span class="brand-tool-sep"/><button class="iconbtn" type="button" title="Minimize — watch the scene" onClick={() => commands.setMinimized(true)}><svg class="chev-ico" width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M1 1l4 3.8L9 1"/><path d="M1.2 8h7.6"/></svg></button></div></div><div class="slate-cell slate-take"><RunningSummary state={state} commands={commands}/></div></div><div class="stripe"><span/><span/><span/></div></>;
 }
@@ -43,8 +41,7 @@ function MinimizedBar({ state, commands }: { state: BrowserState; commands: Brow
   const scene = sceneById(state, state.lastSceneId);
   const active = activeLaunches(state).find((candidate) => candidate.handle === state.lastHandle);
   const stages = scene?.stages ?? [];
-  // NEXT works while inspecting too — the controller turns it into a re-inspect of the
-  // following animation, so a minimized preview is still steppable from the live bar.
+  // NEXT while inspecting re-inspects the following animation (controller-side).
   const canAdvance = stages.length > 1;
   const stage = scene && active && canAdvance && active.stage >= 0 && active.stage < stages.length ? { current: active.stage + 1, total: stages.length, name: stageLabel(scene, active.stage), nextName: active.stage + 1 < stages.length ? stageLabel(scene, active.stage + 1) : undefined } : null;
   return <LiveBar running={!!state.lastHandle} handle={state.lastHandle} title={scene ? playableSceneTitle(scene) : state.lastSceneId} stage={stage} canAdvance={canAdvance} onAdvance={() => commands.advance()} onStop={() => commands.stop()} onExpand={() => commands.setMinimized(false)}/>;
@@ -104,8 +101,7 @@ function PickMarkers({ state }: { state: BrowserState }) {
   useEffect(() => {
     if (!state.pickMode) return;
     const move = (event: MouseEvent) => {
-      // Hover highlighting only makes sense over the world area — hovering the
-      // console or brief mirrors the click handler's worldTarget() exclusions.
+      // Mirrors the click handler's worldTarget() exclusions.
       const overUi = event.target instanceof Element && event.target.closest(".console, .brief, .livebar");
       setMouse(overUi ? null : { x: event.clientX, y: event.clientY });
     };
@@ -114,11 +110,8 @@ function PickMarkers({ state }: { state: BrowserState }) {
   }, [state.pickMode]);
 
   if (!state.pickMode || !state.pickTargets.length) return null;
-  // Same scoring the click handler resolves with (hottestPickTarget), so the
-  // hot marker shows exactly on the target a click would select.
   const best = mouse ? hottestPickTarget(state.pickTargets, mouse.x, mouse.y, innerWidth, innerHeight) : null;
-  // Furniture pick shows every candidate so pickable spots are discoverable;
-  // actor pick stays hover-only (a marker per crowd member would be noise).
+  // Actor pick stays hover-only: a marker per crowd member would be noise.
   const shown = state.pickMode === "furniture" ? state.pickTargets : state.pickTargets.filter((target) => target === best);
   if (!shown.length) return null;
   return <div class="pick-hover-layer" aria-hidden="true">
@@ -133,7 +126,6 @@ export function App({ state, commands }: { state: BrowserState; commands: Browse
   const selected = selectedPlayable(state);
   const compactContext = state.mode !== "active" && !!selected && selected.kind !== "scene"
     && selected.scene.actorCount === 1 && !selected.scene.requiresFurniture;
-  // Both full-panel surfaces want the same console geometry (wider, no scene brief).
   const panelMode = state.settingsOpen || state.importsOpen || state.routeDebuggerOpen;
   return <div class={`stage ${state.pickMode ? "picking" : ""} ${panelMode ? "settings-mode" : ""} ${compactContext ? "compact-context" : ""}`}>
     <WorldIndicators state={state}/>

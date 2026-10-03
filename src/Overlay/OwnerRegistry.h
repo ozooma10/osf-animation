@@ -17,8 +17,7 @@ namespace OSF::Overlay
 		[[nodiscard]] explicit operator bool() const noexcept { return callback != nullptr; }
 	};
 
-	// OverlayService serializes every access. Keeping callback lifetime and service state behind one
-	// lock avoids a second mutex/condition-variable ownership protocol.
+	// Not thread-safe: OverlayService serializes every access under its one lock.
 	class OwnerRegistry
 	{
 	public:

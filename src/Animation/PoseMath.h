@@ -1,8 +1,7 @@
 #pragma once
 
-// Pure local-pose transform helpers shared by the runtime stamper and the engine-free
-// additive-pose tests. Matrix memory follows the existing Graph convention:
-// column-major to the math here, byte-identical to Starfield's row-vector NiMatrix3 rows.
+// Engine-free local-pose helpers (runtime stamper + additive tests). Matrices are column-major here,
+// byte-identical to Starfield's row-vector NiMatrix3 rows.
 
 #include <algorithm>
 #include <cmath>
@@ -28,8 +27,7 @@ namespace OSF::Animation::PoseMath
 		return { a_q.w * inv, a_q.x * inv, a_q.y * inv, a_q.z * inv };
 	}
 
-	// Hamilton product. With the column-matrix interpretation used by Ozz,
-	// Multiply(a, b) produces R(a) * R(b): b acts first, then a.
+	// Hamilton product; Multiply(a, b) = R(a) * R(b) (b first) in Ozz's column convention.
 	inline Quat Multiply(const Quat& a_lhs, const Quat& a_rhs)
 	{
 		return Normalize({
@@ -46,8 +44,7 @@ namespace OSF::Animation::PoseMath
 		return { q.w, -q.x, -q.y, -q.z };
 	}
 
-	// a_m = 16 floats; 3x3 at [0..2]/[4..6]/[8..10], M(r,c) = a_m[c*4 + r].
-	// This is the original override-path conversion and intentionally does not alter the basis.
+	// a_m = 16 floats; M(r,c) = a_m[c*4 + r]. Leaves the basis unnormalized (override path).
 	inline Quat MatrixToQuat(const float* a_m)
 	{
 		const float m00 = a_m[0], m10 = a_m[1], m20 = a_m[2];
@@ -83,8 +80,7 @@ namespace OSF::Animation::PoseMath
 		return q;
 	}
 
-	// Normalize the three basis columns first so authored sample scale cannot leak into
-	// additive rotation. Starfield's separate NiTransform scale remains engine-driven.
+	// Normalizes basis columns so authored scale can't leak into additive rotation.
 	inline Quat MatrixToUnitQuat(const float* a_m)
 	{
 		float unit[12]{
@@ -181,8 +177,6 @@ namespace OSF::Animation::PoseMath
 		});
 	}
 
-	// Per-bone decision for the override stamp path (StampPose), extracted so the zero-weight
-	// boundary behavior is testable without an engine link.
 	enum class OverrideStampKind : std::uint8_t
 	{
 		kSkip,      // leave the engine pose alone
@@ -191,13 +185,8 @@ namespace OSF::Animation::PoseMath
 		kBlend      // cross-fade from -> target at the total weight
 	};
 
-	// a_weight = transition blend weight (exactly 0 on the first stamp after a stage/node handoff
-	// resets the blend clock), a_poseWeight = persistent layer strength, a_maskWeight = the bone's
-	// mask weight, a_fromSnapshot = the outgoing stage stamped this joint and its snapshot is valid.
-	// A zero TOTAL weight normally leaves the engine pose in place — EXCEPT at the handoff boundary
-	// with a live snapshot, where skipping would expose the vanilla pose for the compose(s) before
-	// the next animation update advances the clock: clip A -> B must begin at A, not flash through
-	// vanilla. A deliberately zero-strength role or bone (poseWeight/maskWeight zero) still skips.
+	// a_weight is exactly 0 on the first stamp after a stage handoff. Zero total weight skips, except at
+	// that handoff with a valid snapshot (else A->B flashes vanilla); zero pose/mask weight still skips.
 	inline OverrideStampKind ClassifyOverrideStamp(float a_weight, float a_poseWeight,
 		float a_maskWeight, bool a_fromSnapshot)
 	{
@@ -210,7 +199,6 @@ namespace OSF::Animation::PoseMath
 		return w >= 1.0f ? OverrideStampKind::kTarget : OverrideStampKind::kBlend;
 	}
 
-	// Existing override cross-fade behavior, extracted unchanged for focused regression tests.
 	inline void WriteOverrideBlended(float* a_slot, const float* a_from, const float* a_target, float a_weight)
 	{
 		const Quat q = Nlerp(MatrixToQuat(a_from), MatrixToQuat(a_target), a_weight);
@@ -225,11 +213,7 @@ namespace OSF::Animation::PoseMath
 		a_slot[15] = 1.0f;
 	}
 
-	// Compose the sampled local-to-parent delta over an immutable live local-to-parent base:
-	//   delta = inverse(reference) * sampled
-	//   final = live * slerp(identity, delta, weight)
-	// The product order matches Ozz's column-matrix convention. Starfield consumes the same bytes
-	// as row-vector NiMatrix3 rows, where this appears transposed with the equivalent reversed row order.
+	// final = live * slerp(identity, inverse(reference) * sampled, weight), in Ozz column order.
 	inline void WriteAdditive(float* a_slot, const float* a_live, const float* a_reference,
 		const float* a_sampled, float a_weight)
 	{
@@ -241,8 +225,7 @@ namespace OSF::Animation::PoseMath
 		const Quat sampled = MatrixToUnitQuat(a_sampled);
 		const Quat delta = Multiply(InverseUnit(reference), sampled);
 
-		// Exact fast paths are also what make weight zero and an exact rest-pose sample byte-for-byte
-		// no-ops on the live engine transform.
+		// Exact fast path: weight 0 or a rest-pose sample is a byte-for-byte no-op.
 		const float deltaVectorSq = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
 		if (weight <= 0.0f ||
 			(deltaVectorSq <= 1e-12f && std::abs(delta.w) >= 0.999999f &&

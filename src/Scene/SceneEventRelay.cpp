@@ -15,12 +15,8 @@ namespace OSF::Scene
 	{
 		using VM = RE::BSScript::Internal::VirtualMachine;
 
-		// Build the OSFTypes:SceneEvent struct payload. Map member name -> slot index by
-		// ITERATING varNameIndexMap: the compiler REORDERS struct members (declaration order
-		// != slot order — verified in-game), and the map's `find` proved unreliable on this
-		// BSFixedString-keyed table (only hash-coincidence members hit, both with string_view
-		// and BSFixedString keys). Iterating reads the true (name, index) pairs directly.
-		// Case-normalized for safety. Returns false if the struct type isn't loaded.
+		// The compiler reorders struct members, and varNameIndexMap.find is unreliable on this
+		// BSFixedString-keyed table, so iterate it to map name -> slot.
 		bool PackPayload(VM* a_vm, const SceneEvent& a_event, RE::BSScript::Variable& a_out)
 		{
 			RE::BSTSmartPointer<RE::BSScript::Struct> proxy;
@@ -56,8 +52,6 @@ namespace OSF::Scene
 			v = a_event.time;                                   set("time", v);
 			v = RE::BSFixedString(a_event.trackPosition.c_str()); set("anchor", v);  // frozen Papyrus field
 			v = a_event.result;                                 set("result", v);
-			// actorRef: packed as a real Actor object when the event carries one (currently
-			// EVENT_ACTION with a resolved role). Otherwise left None.
 			if (a_event.actor) {
 				RE::BSScript::Variable actorVar;
 				RE::BSScript::detail::PackVariable(actorVar, a_event.actor);
@@ -68,8 +62,7 @@ namespace OSF::Scene
 			return true;
 		}
 
-		// A one-argument call: args[0] = the struct payload. Capturing the Variable (a
-		// copy shares the struct proxy) keeps it alive until the async stack consumes it.
+		// The captured Variable keeps the struct proxy alive until the async stack consumes it.
 		auto MakeArgs(RE::BSScript::Variable a_payload)
 		{
 			return [payload = std::move(a_payload)](RE::BSScrapArray<RE::BSScript::Variable>& a_args) -> bool {
@@ -107,7 +100,7 @@ namespace OSF::Scene
 
 		const std::uint16_t gen = _nextGen++;
 		if (_nextGen == 0) {
-			_nextGen = 1;  // never hand out generation 0 (the empty-slot marker)
+			_nextGen = 1;  // 0 = empty-slot marker
 		}
 
 		Entry& e = _slots[slot];
@@ -158,9 +151,9 @@ namespace OSF::Scene
 
 		std::lock_guard l{ _lock };
 		if (slot >= _slots.size() || _slots[slot].generation != gen) {
-			return false;  // stale/invalid token
+			return false;
 		}
-		_slots[slot] = Entry{};  // generation 0 -> empty; drops the receiver smart pointer
+		_slots[slot] = Entry{};
 		REX::DEBUG("[Scene] unregistered token {:#010x}", a_token);
 		return true;
 	}
@@ -170,12 +163,11 @@ namespace OSF::Scene
 		// Native consumers run synchronously at the authored runtime mark.
 		API::DispatchNativeSceneEvent(a_event);
 
-		// Snapshot matching receivers under the lock; dispatch outside it (the VM call
-		// may re-enter us via a callback that (un)registers).
+		// Dispatch outside the lock; callbacks may (un)register.
 		struct Target
 		{
-			RE::BSTSmartPointer<RE::BSScript::Object> receiver;    // null when scriptName is set
-			RE::BSFixedString                         scriptName;  // set => static (global) dispatch
+			RE::BSTSmartPointer<RE::BSScript::Object> receiver;
+			RE::BSFixedString                         scriptName;
 			RE::BSFixedString                         fn;
 		};
 		std::vector<Target> targets;
@@ -222,12 +214,8 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 
-		// SaveSafety calls this from SaveLoadEvent::kBegin, the documented pre-VM-teardown
-		// window. Release the receiver smart pointers normally while their VM ownership is valid;
-		// deliberately overwriting live smart-pointer objects made their C++ lifetime undefined.
+		// Called at SaveLoadEvent::kBegin, while the VM still owns the receivers.
+		// _nextGen stays monotonic so pre-load tokens never validate against reused slots.
 		_slots.clear();
-
-		// _nextGen is intentionally NOT reset here: keeping it monotonic across a clear means a token
-		// minted before a save-load can never validate against a slot reused after the load.
 	}
 }

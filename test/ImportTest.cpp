@@ -1,5 +1,4 @@
-// Offline harness: runs the plugin's GLTF import pipeline on a file from the
-// command line, without the game. Build with: xmake build osf-import-test
+// Offline GLTF import harness: osf-import-test <file>
 #include "Serialization/GLTFImport.h"
 
 #include "Animation/OzzTypes.h"
@@ -44,9 +43,7 @@ int main(int argc, char** argv)
 	}
 	std::printf("\n");
 
-	// Sample the clip at several times and print a few joints' local
-	// transforms (x-basis + translation of the unpacked matrix) — verifies the
-	// imported animation actually varies over time, exactly as Graph samples it.
+	// Samples the way Graph does; poses that vary over time show the import isn't static.
 	const char* watch[] = { "COM", "C_Hips", "L_Biceps", "C_Head" };
 	std::vector<int> watchIdx;
 	for (const char* w : watch) {
@@ -80,7 +77,6 @@ int main(int argc, char** argv)
 		for (int idx : watchIdx) {
 			float m[16];
 			std::memcpy(m, &outputPose[idx], 64);
-			// x-basis (rotation indicator) + translation
 			std::printf("  %s xb=(%+.2f,%+.2f,%+.2f) t=(%+.2f,%+.2f,%+.2f)",
 				skel->joint_names()[idx], m[0], m[1], m[2], m[12], m[13], m[14]);
 		}

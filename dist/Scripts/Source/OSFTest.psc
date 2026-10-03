@@ -1,63 +1,52 @@
 ScriptName OSFTest
 
-; Console-callable wrappers for the current handle + SceneOptions OSF API.
-; The natives take Actor[] arrays, which the console's `cgf` can't pass — these
-; build [player, npc] for you. Pass the NPC's RefID as hex (click it in the
-; console to read its RefID, or type it). The player is always actors[0].
+; Console wrappers for the OSF API (cgf can't pass Actor[]). NPC/furniture args are hex RefIDs; the player is actors[0].
 ;
-; Raw clip playback (player only; pass an installed Data-relative path):
+; Raw clip (player only, Data-relative path):
 ;   cgf "OSFTest.Solo" "meshes\actors\human\animations\common\cower_idle.af"
 ;   cgf "OSFTest.StopPlay"             stop a solo OSF.Play clip on the player
 ;
-; Shipped internal smoke-test scenes (vanilla AF clips; no animation pack needed):
+; Shipped smoke-test scenes (vanilla AF clips):
 ;   cgf "OSFTest.SoloScene"             player-only scene id "solo"
 ;   cgf "OSFTest.Pair" <npc>            player + npc, scene id "pair"
 ;   cgf "OSFTest.PairId" <npc> "<scene-id>"   player + npc, any installed scene id
 ;
-; Furniture anchor (the actor-origin-at-furniture smoke test):
+; Furniture anchor:
 ;   cgf "OSFTest.Furniture" <npc> <furn>       player + npc on "pair", anchored AT ref <furn>
 ;   cgf "OSFTest.FurnitureId" <npc> <furn> <id>  same, any scene id
 ;   cgf "OSFTest.Furniture2" <npc1> <npc2> <furn>      TWO npcs (no player), on "pair", anchored AT <furn>
 ;   cgf "OSFTest.Furniture2Id" <npc1> <npc2> <furn> <id>  same, any scene id
-;     Click each ref in the console to read its RefID, and pass them as hex.
 ;
-; Anchor-FIRST matchmaking (pick a scene BUILT for the furniture, by its anchor keyword/base):
+; Anchor-first matchmaking:
 ;   cgf "OSFTest.AtAnchor" <npc> <furn>        player + npc; matchmake an anchor-bound scene that fits <furn>
 ;
-; Each Start* prints the scene HANDLE to the HUD. Use it to navigate:
+; Start* prints the scene handle to the HUD:
 ;   cgf "OSFTest.Advance" <handle>      take the default advance edge
 ;   cgf "OSFTest.Nav" <handle> "tease"  take a named branch edge
 ;   cgf "OSFTest.Stage" <stage>         jump a LINEAR scene the player is in
 ;
-; Quick health check (player-only, self-contained — no NPC, runs ~5s then cleans up):
-;   cgf "OSF.Health"               canonical self-test on the main OSF API (see OSF.psc)
+; Self-test (player only, ~5s):
+;   cgf "OSF.Health"
 
 ; Stop / housekeeping:
 ;   cgf "OSFTest.Stop"                  stop the scene the player is in
 ;   cgf "OSFTest.Reload"               rescan Data/OSF/**.osf.json
 
-; NOTE: console `cgf` does NOT apply Papyrus default arguments (those are filled by
-; the compiler at the call site, which cgf bypasses). So console entry points must
-; take no optional params — that's why Pair hardcodes the id and PairId is separate.
+; cgf doesn't apply Papyrus default arguments, so console entry points take no optional params (hence Pair vs PairId).
 
-; Solo: play one clip on the player by PATH. A single clip loops forever (the graph
-; wraps its clock), so this is the simplest "solo scene that just loops" test — no JSON,
-; no scene id, no NPC. asFile is Data-relative, e.g.
-; "meshes\actors\human\animations\common\cower_idle.af".
+; A single clip loops forever.
 Function Solo(string file) global
     bool ok = OSF.Play(Game.GetPlayer(), file)
     Debug.Notification("OSF: Play '" + file + "' on player -> " + ok)
 EndFunction
 
-; Stop a solo OSF.Play clip. (OSFTest.Stop is for SCENES; a raw Play has no handle, so it
-; needs OSF.Stop, not StopSceneForActor.)
+; A raw Play has no scene handle, so it needs OSF.Stop rather than OSFTest.Stop.
 Function StopPlay() global
     bool ok = OSF.Stop(Game.GetPlayer())
     Debug.Notification("OSF: StopPlay -> " + ok)
 EndFunction
 
-; Solo SCENE (player-only, no NPC) — the minimal base-framework playback check. Plays the
-; shipped scene id "solo" on just the player; it holds (loops forever) until OSFTest.Stop.
+; Player-only shipped scene "solo"; holds until OSFTest.Stop.
 Function SoloScene() global
     Actor[] a = new Actor[1]
     a[0] = Game.GetPlayer()
@@ -81,13 +70,8 @@ Function Start(Actor npc, string id) global
     Debug.Notification("OSF: StartScene '" + id + "' -> handle " + h)
 EndFunction
 
-; Furniture: player + npc on scene id "pair" (two vanilla cower_idle clips), anchored at the
-; furniture/bed/marker ref `furn` via SceneOptions.Anchor — so both actors' origins land at the
-; furniture's position+heading instead of co-locating at the player. Heading -1 = use furn's own facing.
-; NOTE: with the current drop-clip-root engine the two actors STACK at the furniture origin (the same
-; cower_idle on both bakes the same root). That's the expected baseline — proving the anchor path. The
-; clip-root/placement work is what spreads them onto the furniture. cower_idle is a standing pose, so
-; expect two cowering actors AT the furniture, not seated in it (a real furniture clip is authored for it).
+; Player + npc on "pair", anchored at furn via SceneOptions.Anchor (heading -1 = furn's own facing).
+; Known: both actors stack at the furniture origin (same cower_idle root), standing rather than seated.
 Function Furniture(Actor npc, ObjectReference furn) global
     FurnitureId(npc, furn, "pair")
 EndFunction
@@ -102,10 +86,7 @@ Function FurnitureId(Actor npc, ObjectReference furn, string id) global
     Debug.Notification("OSF: furniture '" + id + "' @ " + furn + " -> handle " + h)
 EndFunction
 
-; Furniture2: same as Furniture but with TWO npcs and no player participant. Lets you watch from a
-; free camera (the player isn't in the scene, so there's no control lock; both npcs are still
-; stripped + anchored). Stop it with OSFTest.Stop2 (the player-keyed OSFTest.Stop won't reach an
-; NPC-only scene), or click an npc and use OSF.StopSceneForActor on it.
+; Two NPCs, no player (watch from a free camera). Stop with OSFTest.Stop2; OSFTest.Stop is player-keyed.
 Function Furniture2(Actor npc1, Actor npc2, ObjectReference furn) global
     Furniture2Id(npc1, npc2, furn, "pair")
 EndFunction
@@ -120,13 +101,12 @@ Function Furniture2Id(Actor npc1, Actor npc2, ObjectReference furn, string id) g
     Debug.Notification("OSF: furniture2 '" + id + "' @ " + furn + " -> handle " + h)
 EndFunction
 
-; Anchor-FIRST: matchmake an anchor-bound scene whose anchor keyword/base matches <furn>, for player+npc,
-; anchored at <furn>. No tag filter (empty asTags). Verifies StartSceneAtAnchor + the kRequire pool filter.
+; Matchmake an anchor-bound scene that fits furn, for player + npc, with no tag filter.
 Function AtAnchor(Actor npc, ObjectReference furn) global
     Actor[] a = new Actor[2]
     a[0] = Game.GetPlayer()
     a[1] = npc
-    string[] tags = new string[1]   ; "" element -> dropped by the native = no tag filter
+    string[] tags = new string[1]   ; "" element is dropped = no tag filter
     int h = OSF.StartSceneAtAnchor(a, furn, tags)
     Debug.Notification("OSF: AtAnchor @ " + furn + " -> handle " + h)
 EndFunction

@@ -4,8 +4,8 @@
 #include "Scene/InspectionPropCursor.h"
 #include "Scene/InspectionPropTimeline.h"
 
-#include "Animation/Scene.h"  // the frozen-stage clock (`hold`)
-#include "Util/Math.h"        // kDegToRad (offset.heading expectation)
+#include "Animation/Scene.h"
+#include "Util/Math.h"
 
 #include <iostream>
 #include <filesystem>
@@ -17,8 +17,7 @@
 using OSF::Test::Check;
 using OSF::Test::Finish;
 
-// No game runtime / no mounted archives in this harness: the clip-availability probe reads every
-// spec as installed, so the sweep never hides a fixture scene or adds a stray warning.
+// No mounted archives here: report every clip installed so the sweep hides no fixture scene.
 namespace OSF::Animation
 {
 	bool ResourceExists(std::string_view)
@@ -38,7 +37,7 @@ namespace
 	static_assert(std::is_same_v<OSF::Animation::PlaybackPlan, OSF::Animation::ScenePlan>);
 	static_assert(std::is_same_v<OSF::Animation::PlaybackSession, OSF::Animation::Scene>);
 
-	// One substring that must appear in SOME load error.
+	// Passes if any load error contains the substring.
 	void CheckError(const std::vector<std::string>& a_errors, const std::string& a_needle, const char* a_message)
 	{
 		for (const auto& e : a_errors) {
@@ -153,19 +152,12 @@ int main()
 			"external props need no OSF source while owned props resolve the file-local template");
 	}
 
-	// 36 authored scenes load: the prior 22, the three compiled-route contract scenes (including
-	// the legacy-vocabulary compatibility case), the
-	// prop-transform-default scene, the `atFrame` scene, the five props-registry scenes, the bare
-	// props file, the one surviving scene of the props reference-error fixture, and the two valid
-	// `hold` scenes (that fixture's two malformed ones are rejected). The compiled-route error
-	// fixture and the four malformed-registry files load nothing. (Generated clip-debug entries and
-	// clipLibrary registrations don't count here.)
+	// Authored scenes only; generated clip entries and clipLibrary registrations don't count.
 	Check(reg.Size() == 36, "authored scene count");
 
-	// -- explicit clip library: friendly metadata wins over automatic filename discovery ---------
 	std::int32_t curatedCount = 0;
-	std::int32_t curatedFlagged = 0;   // registered entries carrying curatedClip
-	std::int32_t harvestedFlagged = 0;  // entries harvested from a scene's stages (curatedClip false)
+	std::int32_t curatedFlagged = 0;
+	std::int32_t harvestedFlagged = 0;  // harvested from scene stages
 	bool friendlyFound = false;
 	bool fallbackFound = false;
 	bool animatedFound = false;
@@ -198,9 +190,6 @@ int main()
 		if (d.library && d.pack == "Test Clip Duplicate") {
 			++duplicateCount;
 		}
-		// The browser shows registered clips to everyone and keeps harvested ones behind author
-		// details. `sourceKind` is the canonical taxonomy; `curatedClip` remains the legacy bridge
-		// discriminator while older consumers migrate.
 		if (d.library && d.tagSet.contains("scene.clip")) {
 			Check(d.sourceKind == (d.curatedClip ? OSF::Registry::CatalogSourceKind::kCuratedAnimation :
 				OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation),
@@ -215,10 +204,9 @@ int main()
 	Check(clipOnlyFound, "clipLibrary-only file loads without a dummy scene");
 
 	Check(duplicateCount == 1, "duplicate explicit clip registration keeps the first entry");
-	// 5 registrations survive across the fixtures (3 in Test Clip Library, 1 Only, 1 Duplicate).
+	// 3 in Test Clip Library, 1 Only, 1 Duplicate.
 	Check(curatedFlagged == 5, "every clipLibrary registration is flagged curated");
 	Check(harvestedFlagged > 0, "clips harvested from scene stages are NOT flagged curated");
-	// -- bare single-scene file: top-level roles is that scene's roles (unchanged) --------------
 	if (const auto s = reg.Find("test.bare")) {
 		if (Check(s->roles.size() == 1, "bare scene keeps one inline role")) {
 			Check(s->roles[0].name == "solo", "bare scene keeps its inline role name");
@@ -230,7 +218,6 @@ int main()
 		Check(false, "test.bare loads");
 	}
 
-	// -- ARRAY file-level roles: inherited defaults ----------------------------------------------
 	if (const auto s = reg.Find("test.legacy.inherit")) {
 		if (Check(s->roles.size() == 2, "legacy inherit: role count")) {
 			Check(s->roles[0].name == "bottom", "legacy inherit: role 0 name");
@@ -248,7 +235,6 @@ int main()
 		Check(false, "test.legacy.override loads");
 	}
 
-	// -- OBJECT file-level roles: the registry ---------------------------------------------------
 	if (const auto s = reg.Find("test.reg.refs")) {
 		if (Check(s->roles.size() == 2, "refs: role count")) {
 			Check(s->roles[0].name == "m", "refs: explicit name overrides the registry id");
@@ -322,8 +308,6 @@ int main()
 	} else {
 		Check(false, "test.reg.props loads");
 	}
-	// An attach that omits the local transform is identical to authoring the identity transform,
-	// so authors can drop all three keys.
 	if (const auto s = reg.Find("test.reg.props.defaults")) {
 		if (s->nodes.size() == 1 && s->nodes[0].actions.size() == 1) {
 			const auto& attach = s->nodes[0].actions[0];
@@ -338,9 +322,7 @@ int main()
 		Check(false, "test.reg.props.defaults loads");
 	}
 
-	// -- file-level `props` registry: templates desugar at load, inline keys keep the last word ----
-	// The registry is a pure parse-time desugar, so every assertion below reads the SAME
-	// propSource/propAttachment fields an inline attach produces — nothing downstream can tell.
+	// The props registry is a parse-time desugar into the same fields an inline attach produces.
 	const auto firstAttach = [&](const char* a_scene) -> const OSF::Registry::ActionEntry* {
 		const auto s = reg.Find(a_scene);
 		if (!s || s->nodes.size() != 1 || s->nodes[0].actions.empty()) {
@@ -369,7 +351,7 @@ int main()
 	}
 
 	if (const auto* attach = firstAttach("test.props.use")) {
-		// `prop` stays the RUNTIME id; `use` only picks which definition to copy.
+		// `prop` stays the runtime id; `use` only picks the definition to copy.
 		Check(attach->prop == "helmet_l" && attach->propAttachment.targetNode == "L_AnimObject1",
 			"a legacy inline node overrides a canonical template attachmentNode");
 		Check(attach->propSource.kind == OSF::Props::SourceKind::kEquippedArmor &&
@@ -379,8 +361,7 @@ int main()
 		Check(false, "test.props.use loads with its attach");
 	}
 
-	// The deep-merge regression: an inline `source` must REPLACE the template's selector outright.
-	// A key-by-key merge would leave both `form` and `equippedArmor` set and fail to parse.
+	// Inline `source` replaces the template's whole selector; a deep merge sets both `form` and `equippedArmor` set.
 	if (const auto* attach = firstAttach("test.props.source")) {
 		Check(attach->propSource.kind == OSF::Props::SourceKind::kForm &&
 			attach->propSource.form == "Fixture.esm|0x801" &&
@@ -408,7 +389,6 @@ int main()
 		Check(false, "test.props.inline loads with its attach");
 	}
 
-	// A bare single-scene file gets the registry too — unlike `roles`, `props` is not envelope-only.
 	if (const auto* attach = firstAttach("test.props.bare")) {
 		Check(attach->propAttachment.targetNode == "R_AnimObject1" && attach->propAttachment.scale == 0.5f,
 			"a bare single-scene file resolves its own top-level 'props'");
@@ -416,7 +396,6 @@ int main()
 		Check(false, "test.props.bare loads with its attach");
 	}
 
-	// -- `atFrame` positions: authored frames, resolved as clip-local seconds ---------------------
 	if (const auto s = reg.Find("test.reg.frames")) {
 		if (s->nodes.size() == 1) {
 			const auto& node = s->nodes[0];
@@ -429,14 +408,13 @@ int main()
 				"a frame resolves to clip-local seconds at the scene frame rate");
 			Check(OSF::Registry::TrackSeconds(node.cues[2]) < 0.0f,
 				"a fractional entry reports no absolute seconds");
-			// The fraction axis (browser + inspection scrub) needs a duration; 1.6 s = 48 frames.
+			// 1.6 s = 48 frames.
 			Check(OSF::Registry::TrackFraction(node.cues[1], 1.6f) == 0.5f,
 				"a frame maps onto the fraction axis against the clip length");
 			Check(OSF::Registry::TrackFraction(node.cues[1], 0.0f) == 1.0f &&
 				OSF::Registry::TrackFraction(node.cues[0], 0.0f) == 0.0f,
 				"with no clip length only frame 0 has a knowable place on the fraction axis");
-			// Reachability mirrors Scene::Advance's [prev, next) window: a frame at or past the
-			// clip end never fires, so the inspector/catalog must not present it as an end mark.
+			// Mirrors Scene::Advance's [prev, next) window: a frame at or past clip end never fires.
 			Check(OSF::Registry::TrackFires(node.cues[1], 1.6f) &&
 				!OSF::Registry::TrackFires(node.cues[1], 0.8f) &&
 				!OSF::Registry::TrackFires(node.cues[1], 0.5f),
@@ -460,7 +438,6 @@ int main()
 		Check(false, "test.reg.frames loads");
 	}
 
-	// -- compiled route contract: document defaults and stage-local cue/action lanes -------------
 	if (const auto s = reg.Find("test.route.compiled.single")) {
 		Check(s->unlisted && s->worldPlacement == OSF::Animation::WorldPlacementMode::kFollowActor,
 			"compiled scene inherits unlisted and canonical followActor placement defaults");
@@ -550,8 +527,7 @@ int main()
 			(s->sceneControls.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kSpeed)) == 0 &&
 			(s->sceneControls.capabilities & static_cast<std::uint32_t>(OSF::Input::Capability::kAdvance)) != 0,
 			"sceneControls re-enables over the document default and narrows capabilities");
-		// File tags come first in author order, the scene's own append, and "Fixture" collapses into
-		// the inherited "fixture" (matchmaking is case-insensitive).
+		// File tags first, scene tags appended; "Fixture" dedupes case-insensitively.
 		Check(s->tags.size() == 3 && s->tags[0] == "route" && s->tags[1] == "fixture" &&
 			s->tags[2] == "two-stage" && s->tagSet.size() == 3,
 			"scene tags union with the file-level tags, de-duplicated case-insensitively");
@@ -601,7 +577,6 @@ int main()
 	} else {
 		Check(false, "legacy vocabulary scene loads through compatibility aliases");
 	}
-	// -- `hold`: a stage frozen on one frame ------------------------------------------------------
 	if (const auto s = reg.Find("test.hold.frame")) {
 		Check(s->nodes.size() == 2 && s->nodes[0].stages[0].hold < 0.0f && s->nodes[1].stages[0].hold == 1.0f,
 			"'hold': true freezes a stage on its last frame and leaves its neighbours playing");
@@ -627,8 +602,6 @@ int main()
 		CheckError(errors, "clip position in [0, 1]", "an out-of-range hold rejection names the valid range");
 	}
 
-	// The frozen clock itself: entering a hold stage parks the clip and fires the marks at or before
-	// the hold pose exactly once, and only a timer moves on from there.
 	{
 		using OSF::Animation::Scene;
 		using OSF::Animation::TimedMark;
@@ -673,7 +646,6 @@ int main()
 		Check(false, "test.err.ok loads");
 	}
 
-	// -- templates: automatic runtime names ------------------------------------------------------
 	if (const auto s = reg.Find("test.tpl.mmf")) {
 		Check(s->roles.size() == 3, "mmf: role count");
 		Check(s->roles[0].name == "m" && s->roles[1].name == "m2" && s->roles[2].name == "f",
@@ -756,7 +728,6 @@ int main()
 		Check(false, "test.tpl.skip loads");
 	}
 
-	// -- templates: merge-style overrides ---------------------------------------------------------
 	if (const auto s = reg.Find("test.tpl.merge")) {
 		Check(s->roles.size() == 1 && s->roles[0].name == "m", "merge: automatic name from the template");
 		Check(s->roles[0].gender == RoleGender::kFemale, "merge: a scalar override replaces");
@@ -813,7 +784,6 @@ int main()
 		Check(false, "test.tpl.null loads");
 	}
 
-	// -- rejections: only the affected scene, with file + scene + role diagnostics ---------------
 	Check(!reg.Find("test.err.unknown"), "unknown reference rejects its scene");
 	Check(!reg.Find("test.err.case"), "registry ids are case-sensitive");
 	Check(!reg.Find("test.err.dup"), "duplicate explicit runtime role names reject their scene");
@@ -915,7 +885,7 @@ int main()
 		"a lane entry cannot carry both position keys");
 	CheckError(errors, "a sound ladder hit sets both 'at' and 'atFrame'",
 		"a ladder per-hit object cannot carry both position keys either");
-	// Util::JsonView composes these; the wording must stay what the hand-written throws produced.
+	// Util::JsonView composes these; the wording is a contract.
 	CheckError(errors, "scene 'test.err.controls-enabled': 'sceneControls.enabled' must be a boolean",
 		"sceneControls field names are built from the authored key spelling");
 	CheckError(errors, "scene 'test.err.controls-disable': 'sceneControls.disable' must be an array of strings",
@@ -940,8 +910,6 @@ int main()
 		"anchor keywords accept the same string-or-array shape as role filters");
 	CheckError(errors, "scene 'test.err.anchor-entry': anchor.base entries must be strings",
 		"a wrong-typed anchor.base element is reported against the element");
-	// These three used to surface as raw nlohmann exception prose (out_of_range.403 /
-	// type_error.306) with no subject: the contract is stated here, not inherited.
 	CheckError(errors, "scene 'test.err.clip-file-type': clip 'file' must be a string",
 		"an object-form clip states its own 'file' contract");
 	CheckError(errors, "scene 'test.err.clip-offset-type': clip 'offset' must be an { x, y, z, heading } object",
@@ -974,7 +942,6 @@ int main()
 	Check(!OSF::Animation::NormalizePoseWeight(std::numeric_limits<double>::quiet_NaN()).has_value(),
 		"non-finite poseWeight normalization rejects NaN");
 
-	// -- scrub-only scene clock ---------------------------------------------------------------
 	{
 		OSF::Animation::Scene scene;
 		OSF::Animation::Scene::StageData stage;
@@ -998,10 +965,8 @@ int main()
 		Check(!scene.Seek(std::numeric_limits<float>::quiet_NaN()), "scene seek rejects non-finite time");
 	}
 
-	// -- absolute (frame-authored) marks vs. fractional ones ------------------------------------
 	{
-		// The same mark pair on two clips of different lengths: the frame mark (0.5 s = frame 15 at
-		// 30 fps) holds its wall position, the fractional one slides with the clip.
+		// Frame mark (0.5 s = frame 15 @ 30 fps) holds its time; the fractional one scales with clip length.
 		const auto firedTimes = [](float a_duration) {
 			OSF::Animation::Scene scene;
 			OSF::Animation::Scene::StageData stage;
@@ -1039,7 +1004,6 @@ int main()
 			std::abs(at(longClip, "half") - 1.0f) < 0.051f,
 			"a fractional mark still scales with the clip's length");
 
-		// A frame past the clip end has nowhere to land and never fires (documented, not an error).
 		OSF::Animation::Scene late;
 		OSF::Animation::Scene::StageData stage;
 		stage.duration = 1.0f;
@@ -1057,7 +1021,6 @@ int main()
 		Check(lateHits == 0, "a mark past the clip end never fires");
 	}
 
-	// -- per-file import records (the browser's IMPORTS listing) --------------------------------
 	{
 		const auto files = reg.FileStats();
 		Check(files.size() == 22, "one import record per discovered *.osf.json");
@@ -1081,7 +1044,6 @@ int main()
 			if (i && files[i - 1].path > files[i].path) {
 				sorted = false;
 			}
-			// Never an absolute path, and always forward-slashed.
 			if (files[i].path.find(':') != std::string::npos || files[i].path.find('\\') != std::string::npos) {
 				pathsRelative = false;
 			}
@@ -1111,8 +1073,6 @@ int main()
 		Check(bare && bare->errors == 0 && bare->warnings == 0, "a clean file reports no problems");
 		Check(bare && !bare->Rejected(), "a clean file is not flagged rejected");
 
-		// Whole-file reject: the record still exists, which is the whole point — a pack that
-		// contributed nothing has to be visible as such, not simply absent.
 		const auto* malformed = find("fixture_malformed_type.osf.json");
 		Check(malformed && malformed->scenes == 0 && malformed->errors == 1,
 			"a rejected file keeps a record carrying its reject line");
@@ -1123,7 +1083,6 @@ int main()
 			"rejected files carry structured repair guidance");
 		Check(malformed && malformed->Rejected(), "a file that contributed nothing is flagged rejected");
 
-		// Partial file: some scenes in, twenty-five rejected, so it is NOT "rejected".
 		const auto* partial = find("fixture_registry_errors.osf.json");
 		Check(partial && partial->scenes == 1 && partial->errors == 25,
 			"a partially-loaded file reports both its scenes and its rejected ones");
@@ -1152,16 +1111,13 @@ int main()
 		Check(clipLib && clipLib->clipEntries > 0, "generated clip entries are attributed to their file");
 		Check(clipLib && clipLib->pack == "Test Clip Library", "the file-level pack label is recorded");
 
-		// A clipLibrary-ONLY file declares no scenes, so its contribution is visible only through
-		// the generated-entry count — and that alone has to keep it off the rejected list.
 		const auto* clipOnly = find("fixture_clip_only.osf.json");
 		Check(clipOnly && clipOnly->scenes == 0 && clipOnly->clipEntries > 0,
 			"a clipLibrary-only file reports zero scenes and its generated entries");
 		Check(clipOnly && !clipOnly->Rejected(), "a file contributing only clip entries is not rejected");
 	}
 
-	// Validate the actual payload staged by the live smoke bench, after all ordinary fixture
-	// assertions. This catches authoring/parser drift even when game startup is unavailable.
+	// Parse the live smoke-bench payload to catch authoring/parser drift without the game.
 	{
 		struct RestoreWorkingDirectory
 		{

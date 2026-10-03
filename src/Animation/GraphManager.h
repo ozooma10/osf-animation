@@ -1,7 +1,6 @@
 #pragma once
 
-// Graph storage plus the per-frame hooks.
-// The main hook surface is a vtable patch on AnimationManager::Update (vfunc 4)
+// Graph storage plus the per-frame hooks (vtable patch on AnimationManager::Update, vfunc 4).
 // This graph/manager structure is adapted, in reduced form, from NativeAnimationFrameworkSF (GPL-3.0, Copyright (C) Deweh).
 
 #include "Animation/Graph.h"
@@ -12,9 +11,8 @@
 
 namespace OSF::Animation
 {
-	// True when a_relPath (Data-relative) opens through BSResource — loose file OR archive-resident,
-	// with the engine's loose-over-BA2 precedence. Cheap open/close probe, no read. Used by the
-	// registry's clip-availability sweep; only meaningful once archives are mounted (kPostDataLoad+).
+	// Data-relative path opens via BSResource (loose or BA2, engine precedence); no read.
+	// Only meaningful once archives are mounted (kPostDataLoad+).
 	bool ResourceExists(std::string_view a_relPath);
 
 	class GraphManager
@@ -25,9 +23,9 @@ namespace OSF::Animation
 		using PlaybackAutoEndHandler = std::function<bool(PlaybackId, const std::vector<RE::Actor*>&, PlaybackEndReason)>;
 		using PlaybackClearHandler = std::function<void()>;
 		using PlaybackTimedMarkHandler = std::function<void(PlaybackId, const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
-		using SceneAutoEndHandler = PlaybackAutoEndHandler;      // compatibility spelling
-		using SceneClearHandler = PlaybackClearHandler;          // compatibility spelling
-		using SceneTimedMarkHandler = PlaybackTimedMarkHandler;  // compatibility spelling
+		using SceneAutoEndHandler = PlaybackAutoEndHandler;
+		using SceneClearHandler = PlaybackClearHandler;
+		using SceneTimedMarkHandler = PlaybackTimedMarkHandler;
 		struct PlaybackSink
 		{
 			PlaybackAutoEndHandler autoEnd;
@@ -35,38 +33,31 @@ namespace OSF::Animation
 			PlaybackClearHandler clear;
 		};
 
-		// Register a callback owner once, then stamp its id onto each staged playback. Dispatch is
-		// direct to that owner; registration order and PlaybackId guessing are not part of routing.
 		PlaybackSinkId RegisterPlaybackSink(PlaybackSink a_sink);
 		bool UnregisterPlaybackSink(PlaybackSinkId a_id);
 
-		// Installs the sampling and pose-stamping vtable hooks.
 		void InstallHooks();
 
-		// Registers a MenuOpenCloseEvent sink that freezes playback while the console is open.
-		// console pauses the world but does NOT set Main::isGameMenuPaused, Call once after the UI singleton exists (kPostPostDataLoad).
+		// Freezes playback while the console is open (it pauses the world without setting isGameMenuPaused).
+		// Call once after the UI singleton exists (kPostPostDataLoad).
 		void RegisterConsolePauseSink();
 
-		// True when both vtable hooks are enabled (the core playback path is live).
 		bool HooksInstalled() const;
 
-		// Synchronously loads a_file (relative to the game's Data folder, or absolute) and starts playing it on a_actor.
+		// Synchronous load; a_file is Data-relative or absolute.
 		bool PlayAnimation(RE::Actor* a_actor, std::string_view a_file, std::string_view a_animId);
 
-		// Decodes an engine-native human `.af` directly from caller-owned bytes and starts it as a
-		// normal looping solo graph. Used by the transient Studio link; never enters the pack registry.
+		// Decodes a human `.af` from caller-owned bytes as a looping solo graph (Studio link; bypasses the registry).
 		bool PlayAnimationBytes(RE::Actor* a_actor, const std::vector<std::uint8_t>& a_bytes,
 			std::string_view a_clipKey, std::string* a_error = nullptr);
 
-		// Starts a fade-out (the graph keeps sampling while its stamp weight ramps to 0, landing on the engine's live pose, then removes itself).
-		// Refuses for scene participants, use StopScene in that case.
+		// Fades to the live pose, then removes the graph. Refuses scene participants (use StopScene).
 		bool StopAnimation(RE::Actor* a_actor);
 
-		// Erases an actor's graph if its fade-out has fully elapsed (no-op if replayed meanwhile). Called by main-thread deferred follow-ups and the maintenance watchdog sweep.
+		// No-op if replayed meanwhile. Called by deferred follow-ups and the watchdog sweep.
 		void RemoveFadedGraph(RE::TESObjectREFR* a_refr);
 
-		// Starts synchronized Layer-A playback from a PlaybackPlan. Every segment's clips are loaded up
-		// front; segment switches are pointer swaps rather than file IO. Refuses partial playback.
+		// Preloads every segment's clips so segment switches are pointer swaps. Refuses partial playback.
 		bool PlaySynchronized(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment,
 			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
 			PlaybackSinkId a_sinkId = 0, bool a_strictTimedMarks = false);
@@ -79,8 +70,6 @@ namespace OSF::Animation
 				a_expectedPlayback, a_sinkId, a_strictTimedMarks);
 		}
 
-		// Jumps the scene containing a_actor to the given stage (0-based);
-		// false if the actor is not in a scene or the stage is out of range.
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
 
 		struct SynchronizedPlaybackState
@@ -91,7 +80,7 @@ namespace OSF::Animation
 			int32_t stage = -1;
 			PlaybackId playbackId = 0;
 		};
-		using ScenePlayback = SynchronizedPlaybackState;  // compatibility spelling
+		using ScenePlayback = SynchronizedPlaybackState;
 		struct AnimationPlayback
 		{
 			float time = 0.0f;
@@ -99,64 +88,54 @@ namespace OSF::Animation
 			float speed = 0.0f;
 		};
 
-		// Browser/director inspection of the current scene clock. Seek never fires timed marks.
+		// Seek never fires timed marks.
 		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
 		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
-		// Solo-clip transport used by the transient Studio preview. Scene actors are rejected.
+		// Solo-clip transport (Studio preview); scene actors are rejected.
 		bool SetAnimationTime(RE::Actor* a_actor, float a_time);
 		std::optional<AnimationPlayback> GetAnimationPlayback(RE::Actor* a_actor);
 		bool SetAnimationHoldAtEnd(RE::Actor* a_actor, bool a_hold);
 
-		// Stops the scene that a_actor participates in (all its participants).
 		bool StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
-		// Immediate no-fade removal for owner handoff (overlay suspension / zero-animation station).
-		// The expected playback is mandatory so another owner can never be erased accidentally.
+		// No-fade removal for owner handoff; a_expectedPlayback is mandatory so no other owner is erased.
 		bool StopSceneImmediate(RE::Actor* a_actor, PlaybackId a_expectedPlayback);
 
-		// Current scene stage for a_actor, or -1 if not in a scene.
+		// -1 if not in a scene.
 		int32_t GetSceneStage(RE::Actor* a_actor);
 
-		// True while a_actor has a live graph (scene or solo, including fades).
 		bool IsPlaying(RE::Actor* a_actor);
 
-		// Current source file path playing on a_actor (as the caller gave it), or "" if the actor has no live graph.
+		// Source path as the caller gave it; "" if no live graph.
 		std::string GetCurrentAnimation(RE::Actor* a_actor);
 
-		// Per-graph playback speed (1.0 = authored, 0 = freeze; clamped 0..100).
-		// For a scene participant this sets/reads the shared scene clock speed.
+		// 1.0 = authored, 0 = freeze; clamped 0..100. Scene participants share the scene clock speed.
 		bool SetSpeed(RE::Actor* a_actor, float a_speed);
 		float GetSpeed(RE::Actor* a_actor);
 
-		// Pin a SOLO graph to a world point + heading (degrees), with rootMode 0=pin / 1=follow.
-		// Legacy value 2 remains a deprecated follow alias for 1.x callers.
-		// Also moves the capsule there. Refused for scene participants. ClearAnchor releases it.
+		// SOLO graphs only; heading in degrees, rootMode 0=pin / 1=follow (2 = deprecated follow alias).
+		// Also moves the capsule.
 		bool SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode);
 		bool ClearAnchor(RE::Actor* a_actor);
 
-		// Bring N playing solo graphs together. basically promotes them into a single clock-shared scene at actor[0]'s transform.
-		// assumes the clips baked root offsets arange actors arouns same origin point. (if anchoring)
+		// Promotes playing solo graphs into one clock-shared scene at actor[0]'s transform; anchoring
+		// assumes the clips' baked root offsets share an origin.
 		bool Sync(const std::vector<RE::Actor*>& a_actors, bool a_anchor = true);
 
-		// Solo multi-stage sequence (no anchor)
 		bool PlaySequence(RE::Actor* a_actor, const std::vector<std::string>& a_files, const std::vector<std::string>& a_animIds, const std::vector<int32_t>& a_loops, const std::vector<float>& a_blends, bool a_loopWhole);
 
-		// Stops a scene by pointer if it is still live (no-op otherwise). Used by game-thread end completion;
-		// the caller keeps the Scene alive via shared_ptr so the pointer can never be stale.
+		// No-op if no longer live; the caller keeps the session alive via shared_ptr.
 		void StopPlaybackByPtr(PlaybackSession* a_session);
-		void StopSceneByPtr(Scene* a_scene) { StopPlaybackByPtr(a_scene); }  // compatibility spelling
+		void StopSceneByPtr(Scene* a_scene) { StopPlaybackByPtr(a_scene); }
 
-		// drops all inmemory scene + graph state immediately. (no fade or actor mutation)
-		// call when game loads save to nuke our state and reset from the world which is authority.
-		// World teardown intentionally dispatches no scene callbacks into the discarded VM/world.
-		// Does not restore equipment/movement; the loaded world is authoritative.
+		// Drops all in-memory scene/graph state with no fade, actor mutation, or callbacks (save load: the
+		// loaded world is authoritative).
 		void StopAll(const char* a_reason);
 
-		// We want to to a scrub of transient bits we set on actors that might persist in save.
-		// Right now largely remove ai-driven flags on anchored NPCs (kAnimationDriven) and the player (kPlayerAnimationDriven) so they dont get stuck in a save mid-scene.
+		// Strip kAnimationDriven (NPCs) / kPlayerAnimationDriven so a mid-scene save doesn't persist them.
 		void OnSaveBegin();
 		void OnSaveEnd();
 
-		// Main-thread maintenance after the frame command batch; AnimationManager::Update owns subdivided graph sampling.
+		// Main thread, after the frame command batch.
 		void MaintenanceTick();
 
 	private:
@@ -165,34 +144,29 @@ namespace OSF::Animation
 			std::shared_ptr<const OzzAnimation> a_anim,
 			std::string a_source);
 
-		// Detaches all participants of a_scene (revert movement mode, drop graphs) and removes it from `scenes`. Caller holds stateLock unique.
-		// Game-thread follow-ups are appended to a_deferred; the caller publishes the batch
-		// (FlushDeferredTasks) after releasing stateLock.
+		// Caller holds stateLock unique. Game-thread follow-ups go to a_deferred; flush after unlocking.
 		void StopPlaybackLocked(PlaybackSession* a_session, std::vector<std::function<void()>>& a_deferred);
 
-		// Game thread. Applies the hold to live anchored NPCs under stateLock; returns their count.
+		// Game thread; returns the number of anchored NPCs updated.
 		std::size_t SetAnchoredNpcAnimationDriven(bool a_enabled);
 
-		// Per-graph upkeep run from Hook_AnimGraphUpdate right after sampling, while the caller holds stateLock (shared) and the graph's own lock.
-		// Each appends its game-thread-only follow-up to a_deferred; the hook flushes the batch to
-		// the frame queue after releasing both locks.
-		void QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // last stage ran out -> StopScene
-		void QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                   // stage fired timed marks -> mark handler
-		void QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);                  // fade-out elapsed -> RemoveFadedGraph
+		// Called from Hook_AnimGraphUpdate under shared stateLock + the graph lock; follow-ups go to
+		// a_deferred and are flushed after both locks are released.
+		void QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);
+		void QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);
+		void QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);
 
-		// Complete an already-claimed end on the game thread: the runtime auto-end handler takes over (advance/end + ledger replay), else we stop it ourselves. No manager lock may be held.
+		// Game thread, no manager lock held: the runtime auto-end handler takes over, else we stop it.
 		void HandlePlaybackEndOnGameThread(std::shared_ptr<PlaybackSession> a_session);
 
-		// Defer a scene's end to the game thread: the runtime auto-end handler takes over (advance/end + ledger replay), else we stop it ourselves. 
 		void QueuePlaybackEndDeferred(std::shared_ptr<PlaybackSession> a_session, std::vector<std::function<void()>>* a_deferred = nullptr);
 
-		// AnimationManager::Update (vfunc 4). Runs per graph ~7x per render frame on job threads with subdivided dt (timeDelta @ +0x60). 
-		// Used for clock advance + pose sampling ONLY - rig writes here dont work, the engine's snapshot applier (vfunc 7) rewrites rig locals right after every update.
+		// AnimationManager::Update (vfunc 4): ~7x/frame per graph on job threads, subdivided dt (timeDelta @ +0x60).
+		// Clock + sampling only: the snapshot applier (vfunc 7) overwrites rig locals after every update.
 		static void Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData);
 
-		// BGSModelNode::Update (vfunc 2), called once per skeleton per frame from BSFadeNode::Update on scene-update threads. 
-		// Stamping rig locals before the original runs is the right write point: that same call composes and commits them deterministically 
-		// (and it keeps running for AI-frozen actors, whose AnimationManager updates stop).
+		// BGSModelNode::Update (vfunc 2), once per skeleton per frame from BSFadeNode::Update. Stamping before
+		// the original lands in the same compose, and it keeps running for AI-frozen actors.
 		static uint64_t Hook_ModelNodeUpdate(
 			RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData, void* a_outputTransform);
 
@@ -205,19 +179,18 @@ namespace OSF::Animation
 		std::unordered_map<PlaybackSinkId, PlaybackSink> _playbackSinks;
 		std::atomic<PlaybackSinkId> _nextPlaybackSinkId{ 1 };
 
-		// Mirror of graphs.size(), refreshed after every mutation under unique stateLock.
-		// Both hooks run for EVERY skeleton/manager in the game, game-wide, forever - this lets the idle case (no OSF playback) early out without touching stateLock at all.
+		// Mirror of graphs.size() (updated under unique stateLock) so the hooks early-out when idle
+		// without touching stateLock.
 		std::atomic<size_t> graphCount{ 0 };
 
-		// Concrete playback identity and world generation. Deferred tasks carry both: playbackId
-		// prevents actor-reuse ABA bugs, while worldEpoch invalidates every pre-load task at once.
+		// playbackId prevents actor-reuse ABA; worldEpoch invalidates every pre-load task at once.
 		std::atomic<PlaybackId> _nextPlaybackId{ 1 };
 		std::atomic<std::uint64_t> _worldEpoch{ 1 };
 
-		// Main-thread-only pause/resume grace + scan throttle (see MaintenanceTick).
+		// Main thread only.
 		StallWatchdogSchedule _stallWatchdog;
 
-		// True between OnSaveBegin and OnSaveEnd: engine bout to serialize, so every kAnimationDriven set-point (initial placement + the per-frame re-assert) stand down.
+		// Between OnSaveBegin/OnSaveEnd: all kAnimationDriven set-points stand down.
 		std::atomic<bool> _saveWindow{ false };
 	};
 }

@@ -5,9 +5,7 @@
 
 #include <nlohmann/json_fwd.hpp>
 
-// Reports durable, actionable conditions to OSF Settings Mod Issues (diagnostics ABI 1.0).
-// Every entry point is thread-safe. Reports before Connect are buffered; logs remain
-// available when OSF Settings is absent. See docs/HEALTH_REPORTING.md.
+// Reports actionable conditions to OSF Settings Mod Issues. Thread-safe; reports before Connect are buffered.
 namespace OSF::API::Health
 {
 	enum class Severity
@@ -27,10 +25,6 @@ namespace OSF::API::Health
 	// Remove a resolved condition. Safe for IDs that were never reported.
 	void Clear(std::string_view a_id);
 
-	// Report the scene + sound registries' load problems as one card per failed
-	// file, then sweep the files that are now clean. Call after LoadAll() —
-	// including the OSF.ReloadScenes path, which is exactly where the sweep
-	// earns its keep: fixing a pack and reloading removes its card
-	// instead of leaving a stale one behind.
+	// One card per failed file; clears cards of files now clean. Call after every LoadAll(), including reloads.
 	void ReportRegistryLoad();
 }

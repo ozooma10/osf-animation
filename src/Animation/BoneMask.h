@@ -1,14 +1,8 @@
 #pragma once
 
-// Named driven-bone masks for partial-body playback: a role with a mask drives ONLY the mask's
-// rig bones, every other bone stays fully engine-driven. This is the layered "gesture" path the
-// vanilla-style equip/unequip-while-moving look needs (Skyrim's BSBoneSwitchGenerator analog):
-// weight-1 bones take the sampled pose absolutely, fractional bones blend sampled-vs-live per
-// bone — the feathered spine seam that lets locomotion torso sway survive under an upper-body
-// gesture. Bone names are matched case-insensitively against live rig node names; entries a
-// species rig doesn't have simply never match, so a mask degrades toward a no-op off-rig.
-//
-// Engine-free on purpose: the standalone pose tests compile this header without CommonLib.
+// Partial-body masks: weight-1 bones take the sampled pose, fractional bones blend sampled-vs-live
+// (feathered seam); unlisted bones stay engine-driven. Names match rig nodes case-insensitively.
+// Engine-free: the standalone pose tests compile this header.
 
 #include <string>
 #include <string_view>
@@ -19,7 +13,7 @@ namespace OSF::Animation::BoneMask
 {
 	struct Mask
 	{
-		std::string id;  // canonical display id ("upperBody"); lookups are case-insensitive
+		std::string id;  // lookups are case-insensitive
 		// lowercased rig bone name -> weight in (0, 1]
 		std::unordered_map<std::string, float> weights;
 		bool feathered = false;  // any weight < 1 (needs the live-base blend path)
@@ -46,7 +40,6 @@ namespace OSF::Animation::BoneMask
 			}
 		}
 
-		// Wrist-down: fingers, cup, and the in-hand prop helpers.
 		inline void AddHand(Mask& a_mask, std::string_view a_side)
 		{
 			static constexpr std::string_view kHand[] = {
@@ -60,7 +53,6 @@ namespace OSF::Animation::BoneMask
 			}
 		}
 
-		// Clavicle-down: the full arm chain including twists, helper, and hand.
 		inline void AddArm(Mask& a_mask, std::string_view a_side)
 		{
 			static constexpr std::string_view kArm[] = {
@@ -87,9 +79,7 @@ namespace OSF::Animation::BoneMask
 		{
 			std::vector<Mask> masks;
 
-			// Chest-up + both arms at full weight over a feathered spine seam. C_Head is included
-			// (helmet-style gestures); a role that wants engine head-tracking adds preserveBones.
-			// DirectAt/Eye_Target stay engine-driven (look-at helpers).
+			// upperBody omits DirectAt/Eye_Target so engine look-at keeps working.
 			{
 				Mask& m = masks.emplace_back();
 				m.id = "upperBody";
@@ -156,7 +146,7 @@ namespace OSF::Animation::BoneMask
 		return masks;
 	}
 
-	// nullptr for an unknown name. The returned Mask has static storage duration.
+	// nullptr if unknown; the result has static storage.
 	inline const Mask* Find(std::string_view a_name)
 	{
 		const auto lower = detail::Lower(a_name);
@@ -168,7 +158,6 @@ namespace OSF::Animation::BoneMask
 		return nullptr;
 	}
 
-	// "upperBody, arms, leftArm, ..." — for schema diagnostics.
 	inline std::string KnownList()
 	{
 		std::string out;

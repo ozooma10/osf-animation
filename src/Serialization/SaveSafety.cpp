@@ -20,10 +20,7 @@ namespace OSF::Serialization::SaveSafety
 			       a_opType == OpType::kLoadNamedFile;
 		}
 
-		// Ops that reset the Papyrus VM (and so free every live script Object): the world-replacing
-		// loads PLUS quit-to-menu / quit-to-desktop. Native code caching script-Object references must
-		// drop them at kBegin (VM still alive) before they dangle. Quit-to-menu also matters because it
-		// is the gateway to a New Game, which fires no SaveLoadEvent of its own.
+		// Ops that reset the Papyrus VM. Quit-to-menu matters too: New Game fires no SaveLoadEvent of its own.
 		bool IsVMEndingOp(RE::SaveLoadEvent::OpType a_opType)
 		{
 			using OpType = RE::SaveLoadEvent::OpType;
@@ -32,8 +29,6 @@ namespace OSF::Serialization::SaveSafety
 			       a_opType == OpType::kExitSaveToDesktop;
 		}
 
-		// Ops that WRITE a save. kBegin fires ~2 frames before the save executes (autosave) or from the
-		// pause menu (manual/quicksave); the exit ops write an exit save before leaving the world.
 		bool IsSaveOp(RE::SaveLoadEvent::OpType a_opType)
 		{
 			using OpType = RE::SaveLoadEvent::OpType;
@@ -57,35 +52,22 @@ namespace OSF::Serialization::SaveSafety
 				RE::BSTEventSource<RE::SaveLoadEvent>*) override
 			{
 				if (a_event.status == RE::SaveLoadEvent::Status::kBegin) {
-					// Save window: strip the (plausibly persistent — the sibling player AI-driven flag is
-					// PROVEN persistent) kAnimationDriven bit from anchored NPC participants before the save
-					// serializes actor state, so loading a mid-scene save can't reload an NPC permanently
-					// animation-driven. Re-asserted on the terminal status below. Runs BEFORE the relay/
-					// StopAll handling so the exit-save ops write the scrubbed state too.
+					// Strip NPC kAnimationDriven before actor state serializes so a mid-scene save can't bake it in.
+					// Must run first so exit saves write the scrubbed state too.
 					if (IsSaveOp(a_event.opType)) {
 						Animation::GraphManager::GetSingleton().OnSaveBegin();
 					}
-					// Drop the relay's cached Papyrus Object receivers while the VM is still alive. kBegin
-					// fires on the main thread strictly before the VM teardown, so this is the only safe
-					// window: afterwards those BSTSmartPointer<Object> receivers dangle and crash when the
-					// slot is next dropped (UnregisterSceneCallback) or dispatched. Covers loads AND
-					// quit-to-menu/desktop — both reset the VM.
+					// Cached Papyrus receivers dangle after VM teardown; kBegin is the last safe point to drop them.
 					if (IsVMEndingOp(a_event.opType)) {
 						Scene::SceneEventRelay::GetSingleton().Clear();
 					}
-					// StopAll stays scoped to world-replacing loads: it releases the player input lock /
-					// AI-driven flag, which must not be perturbed mid-save on a quit op.
+					// Loads only: StopAll releases the player lock, which must not change mid-save on a quit op.
 					if (IsWorldReplacingLoadOp(a_event.opType)) {
 						PersistenceHost::BeginLoad("SaveLoadEvent begin");
 					}
 				} else {
-					// Any terminal status (kSaveCompleted, or kFailed = failure/cancel of any op) closes the
-					// save window and re-asserts the hold. A cheap no-op when no window is open — load
-					// statuses land here too.
+					// Any terminal status closes the save window; no-op when none is open.
 					Animation::GraphManager::GetSingleton().OnSaveEnd();
-					// A load op that ended without ever dispatching (F9 with no quicksave, refused load)
-					// must un-latch the revert window, or the NEXT real load skips teardown entirely.
-					// AbortLoad is a no-op once the load worker has dispatched.
 					if (IsWorldReplacingLoadOp(a_event.opType)) {
 						PersistenceHost::AbortLoad();
 					}
@@ -111,16 +93,10 @@ namespace OSF::Serialization::SaveSafety
 						"OSF.* stays unbound until the next successful load");
 				}
 				PersistenceHost::OnLoadBackstop();
-				// A normal named load already ran the persistence revert BEFORE the engine applied the
-				// save, so its StopAll could only clear the outgoing world's player AI-driven flag. Clear
-				// it again now, against the newly loaded player: older OSF builds and native free-camera
-				// saves can serialize this flag and otherwise leave one particular save permanently
-				// non-controllable. Do not run another full StopAll here — persistence clients have just
-				// restored their state and a late global teardown would discard any OSF scenes they made.
+				// The save itself may carry the AI-driven flag (free-camera saves), leaving the player stuck.
+				// No full StopAll here: it would discard scenes persistence clients just restored.
 				Player::PlayerInputLockService::GetSingleton().ClearAIDriven();
-				// AFTER StopAll (impositions zeroed): if the load still left the camera in an OSF-imposed
-				// alt state (e.g. scene_orbit's kFreeFly with its driver stopped — stuck at a dead
-				// transform), force it back to third person.
+				// Recovers a camera left in an OSF alt state with its driver stopped.
 				Camera::CameraService::GetSingleton().OnPostLoad();
 				return RE::BSEventNotifyControl::kContinue;
 			}

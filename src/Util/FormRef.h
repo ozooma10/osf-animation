@@ -1,7 +1,5 @@
 #pragma once
 
-// Shared "<Plugin>.esm|0xLOCAL" form-ref resolution. Handles the FormID composition used by the scene registry's role filters 
-
 #include "Util/StringUtil.h"
 
 #include <charconv>
@@ -10,10 +8,8 @@
 
 namespace OSF::Util
 {
-	// Compose a runtime FormID from a "<plugin>|0x<localId>" ref, or nullopt if malformed or the plugin isn't loaded. 
-	// The plugin name is matched case-insensitively by basename; 
-	// the local id's high/load-order bits are IGNORED (the plugin name is authoritative), so a FormID pasted whole from xEdit resolves regardless of its load-order byte. 
-	// Light/medium tiers derive their secondary index from the file's position in smallFiles/mediumFiles.
+	// "<plugin>|0x<localId>" -> runtime FormID. The local id's load-order bits are ignored, so a
+	// FormID pasted whole from xEdit resolves.
 	inline std::optional<RE::TESFormID> ComposeFormID(const std::string& a_ref)
 	{
 		const auto bar = a_ref.find('|');
@@ -26,7 +22,7 @@ namespace OSF::Util
 			return std::nullopt;
 		}
 		if (plugin.find('/') != std::string::npos || plugin.find('\\') != std::string::npos) {
-			return std::nullopt;  // a path in the plugin name is malformed
+			return std::nullopt;
 		}
 		std::uint32_t local = 0;
 		{
@@ -37,7 +33,7 @@ namespace OSF::Util
 			}
 			const auto [ptr, ec] = std::from_chars(b, e, local, 16);
 			if (ec != std::errc{} || ptr != e) {
-				return std::nullopt;  // not a hex local id
+				return std::nullopt;
 			}
 		}
 		auto* dh = RE::TESDataHandler::GetSingleton();
@@ -51,28 +47,24 @@ namespace OSF::Util
 		const auto& c = dh->compiledFileCollection;
 		for (std::uint32_t i = 0; i < c.files.size(); i++) {
 			if (nameMatches(c.files[i])) {
-				return (i << 24) | (local & 0x00FFFFFFu);  // full master
+				return (i << 24) | (local & 0x00FFFFFFu);
 			}
 		}
 		for (std::uint32_t i = 0; i < c.mediumFiles.size(); i++) {
 			if (nameMatches(c.mediumFiles[i])) {
-				return 0xFD000000u | (i << 16) | (local & 0x0000FFFFu);  // medium (.esm medium tier)
+				return 0xFD000000u | (i << 16) | (local & 0x0000FFFFu);
 			}
 		}
 		for (std::uint32_t i = 0; i < c.smallFiles.size(); i++) {
 			if (nameMatches(c.smallFiles[i])) {
-				return 0xFE000000u | (i << 12) | (local & 0x00000FFFu);  // light (.esl/ESL-flagged)
+				return 0xFE000000u | (i << 12) | (local & 0x00000FFFu);
 			}
 		}
-		return std::nullopt;  // plugin not loaded
+		return std::nullopt;
 	}
 
-	// Resolve a form ref to T*, or nullptr (malformed / unloaded plugin / not-found / wrong type).
-	// LookupByID<T> already returns null for not-found OR wrong-type. Callers that need a precise error message should resolve via ComposeFormID + LookupByID themselves.
-	// WARNING: T must be a CONCRETE leaf form type (one with its own FORMTYPE, e.g. BGSKeyword/TESRace).
-	// Do NOT pass an abstract base like RE::TESBoundObject — LookupByID<T>/As<T> test EXACT FormType
-	// equality (GetFormType() == T::FORMTYPE), and an abstract base has no concrete FormType of its own,
-	// so the cast NEVER matches and the call always returns null. For bound objects use ResolveBoundObject.
+	// T must be a concrete form type: LookupByID<T> tests exact FormType, so an abstract base like
+	// TESBoundObject never matches. Use ResolveBoundObject for those.
 	template <class T>
 	T* ResolveFormRef(const std::string& a_ref)
 	{
@@ -80,9 +72,7 @@ namespace OSF::Util
 		return id ? RE::TESForm::LookupByID<T>(*id) : nullptr;
 	}
 
-	// True if a_type is a TESBoundObject-derived form type, i.e. a TESForm* of this type may be
-	// safely static_cast to TESBoundObject* (which lives at offset 0). TESBoundObject is an abstract
-	// base spanning many form types, so there is no single-FormType test for it — this is the set.
+	// Form types safe to static_cast to TESBoundObject* (base at offset 0).
 	inline bool IsBoundObjectType(RE::FormType a_type)
 	{
 		using FT = RE::FormType;
@@ -120,9 +110,6 @@ namespace OSF::Util
 		}
 	}
 
-	// Resolve a "<plugin>|0xLOCAL" ref to a TESBoundObject* (equippable / inventory / placeable item),
-	// or nullptr. Looks up the raw form then verifies it is a bound-object type before the cast — the
-	// only correct way, since LookupByID<TESBoundObject> can never succeed (see ResolveFormRef warning).
 	inline RE::TESBoundObject* ResolveBoundObject(const std::string& a_ref)
 	{
 		const auto id = ComposeFormID(a_ref);

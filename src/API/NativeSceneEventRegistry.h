@@ -9,10 +9,7 @@
 
 namespace OSF::API
 {
-	// Engine-independent storage for the public native callback surface.
-	// Dispatch snapshots registrations under the lock and invokes callbacks
-	// after releasing it. Per-registration leases make Unregister quiescent
-	// without preventing safe self-unregistration.
+	// Callbacks run outside the lock; Unregister waits for in-flight calls on other threads, so self-unregistration is safe.
 	class NativeSceneEventRegistry
 	{
 	public:
@@ -21,8 +18,7 @@ namespace OSF::API
 			std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 		[[nodiscard]] bool Unregister(std::uint64_t a_token);
 
-		// Returns the number of callbacks that threw. Exceptions are isolated so
-		// one faulty consumer cannot prevent later callbacks from running.
+		// Returns the number of callbacks that threw; a throwing consumer doesn't block the rest.
 		[[nodiscard]] std::size_t Dispatch(const OSFSceneEvent& a_event);
 
 	private:

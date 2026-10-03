@@ -1,5 +1,4 @@
-// Self-contained production import/sampling regression suite. All clip bytes are generated
-// here; no Starfield install, downloaded content, or pre-existing test assets are required.
+// Import/sampling regression suite; all clip bytes are generated here, no game assets needed.
 #include "Check.h"
 #include "Serialization/GLTFImport.h"
 
@@ -30,7 +29,7 @@ namespace
 	using Bytes = std::vector<std::byte>;
 	using Json = nlohmann::json;
 
-	// Atomic directory creation isolates concurrent runs and never reuses an existing folder.
+	// Atomic creation isolates concurrent runs.
 	class TempDirectory
 	{
 	public:
@@ -357,8 +356,7 @@ int main()
 		});
 		Run("out-of-bounds channel falls back to bind pose", [&] {
 			auto invalid = fixture;
-			// Two VEC3 keys cannot fit in this view. The importer must skip the channel
-			// before fastgltf reads its second key; other channels can still play.
+			// Too short for two VEC3 keys: skip the channel before fastgltf reads past the view.
 			invalid.doc["bufferViews"][1]["byteLength"] = 12;
 			const auto result = GLTFImport::LoadAnimation("short-accessor", invalid.Glb(), temp.path, "");
 			if (Success(result)) {

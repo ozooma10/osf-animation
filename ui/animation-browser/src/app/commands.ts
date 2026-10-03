@@ -14,7 +14,6 @@ export interface BrowserCommands {
   selectRouteActor(token: number): void;
   inspectRoute(routeId: string, transitionId: string, actorToken: number): void;
   stepRouteFrame(delta: -1 | 1): void;
-  /** Open/close the per-file import report; opening (re)requests it from the engine. */
   toggleImports(open?: boolean): void;
   refreshImports(): void;
   reloadImports(): void;
@@ -32,9 +31,7 @@ export interface BrowserCommands {
   toggleMarkers(): void;
   scan(kind: "actor" | "furniture"): void;
   pick(kind: "actor" | "furniture"): void;
-  /** Resolve an armed world-pick click: x/y are viewport-normalized (0..1); the
-   *  controller scores them against the polled pick-marker geometry and sends the
-   *  hot marker's token — a click with no hot marker is a miss decided locally. */
+  /** A click with no hot pick marker is a miss decided locally. */
   pickAt(x: number, y: number, width: number, height: number): void;
   cancelPick(): void;
   toggleActor(token: number): void;
@@ -52,8 +49,7 @@ export interface BrowserCommands {
   toggleOptions(): void;
   setOption(field: "hideApparel" | "playerInputLock" | "camera" | "speed", value: string): void;
   launch(stage?: number, singleAnimation?: boolean, sceneId?: string, inspect?: boolean): void;
-  /** Re-enter inspection on another stage of the scene already being previewed —
-   *  the running preview for that cast is retired by the launch itself. */
+  /** The running preview for that cast is retired by the launch itself. */
   inspectStage(sceneId: string, stage: number): void;
   stop(handle?: number): void;
   stopAll(): void;
@@ -69,6 +65,6 @@ export interface BrowserCommands {
   requestClose(): void;
   beginOrbitCapture(): void;
   endOrbitCapture(): void;
-  /** Paced orbit input for pick mode or unavailable relative-pointer registration. */
+  /** Fallback when relative-pointer capture is unavailable (pick mode or no registration). */
   orbit(dx: number, dy: number, wheel: number): void;
 }

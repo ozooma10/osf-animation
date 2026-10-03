@@ -22,15 +22,13 @@ function Get-SmokeSourceIdentity([string]$Repository) {
     $Repository = [IO.Path]::GetFullPath($Repository)
     $revision = (Invoke-SmokeGit $Repository @('rev-parse', 'HEAD')).Trim()
     $files = [Collections.Generic.List[object]]::new()
-    # NUL delimiters preserve spaces, Unicode and unusual filenames. Include
-    # untracked sources and deleted tracked paths; ignored build output is excluded.
+    # NUL-delimited; includes untracked and deleted paths, excludes ignored build output.
     $paths = (Invoke-SmokeGit $Repository @('ls-files', '-z', '--cached', '--others', '--exclude-standard', '--deduplicate')).Split([char]0, [StringSplitOptions]::RemoveEmptyEntries)
     [Array]::Sort($paths, [StringComparer]::Ordinal)
     foreach ($relative in $paths) {
         $path = Join-Path $Repository $relative
         if (Test-Path -LiteralPath $path -PathType Container) {
-            # Gitlinks are directories in ls-files. Hash their actual working
-            # trees too, so an edited CommonLib cannot borrow old test evidence.
+            # Gitlink: hash its working tree so an edited CommonLib can't reuse old evidence.
             $child = Get-SmokeSourceIdentity $path
             $files.Add([ordered]@{ path=$relative; sha256=$child.sha256; revision=$child.revision })
         } else {
@@ -60,8 +58,7 @@ function Read-SmokeCaseResult([string]$Path, [DateTimeOffset]$StartedAt, [DateTi
     $result = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
     $expected = switch ($ExitCode) { 0 { 'passed' } 1 { 'failed' } 2 { 'blocked' } default { throw "Unexpected scenario exit code: $ExitCode" } }
     if ($result.scenario -cne 'AnimationSmoke' -or $result.outcome -cne $expected) { throw 'Scenario receipt disagrees with the requested scenario or exit code.' }
-    # ConvertFrom-Json may return DateTime objects; Parse would stringify them
-    # with local formatting, losing the offset and fractional seconds.
+    # Cast, not Parse: ConvertFrom-Json may yield DateTime, and Parse loses offset/fractions.
     $start = [DateTimeOffset]$result.startedAt
     $finish = [DateTimeOffset]$result.finishedAt
     if ($start -lt $StartedAt -or $finish -lt $start -or $finish -gt $FinishedAt) { throw 'Scenario receipt is stale or has invalid timestamps.' }

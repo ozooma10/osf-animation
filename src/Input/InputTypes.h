@@ -1,7 +1,6 @@
 #pragma once
 
-// Shared input vocabulary: capabilities a scene grants, the verbs the input layer routes, and the per-scene Grant. 
-// Kept dependency-free (types only) so both the scene registry (parse) and the scene runtime can use it without depending on the InputService.
+// Types only, so the scene registry can use them without depending on InputService.
 
 namespace RE
 {
@@ -10,21 +9,17 @@ namespace RE
 
 namespace OSF::Input
 {
-	// Capability names a scene's `sceneControls.disable` can revoke (legacy key:
-	// `playerControl.disable`).
-	// Bitmask on the scene definition and active Grant.
+	// Bits revocable via `sceneControls.disable` (legacy key `playerControl.disable`).
 	enum class Capability : std::uint32_t
 	{
-		kAdvance = 1u << 0,     // take the node's default advance edge
-		kNavigate = 1u << 1,    // branch edges
-		kSpeed = 1u << 2,       // faster / slower / reset / pause the shared scene clock
-		// bit 3 reserved (was kReposition — cut, never implemented)
-		kFreecam = 1u << 4,     // free camera (MMB / controller R3 toggle -> native free cam)
-		kEnd = 1u << 5,         // end the scene (subject to sceneControls.locked)
+		kAdvance = 1u << 0,
+		kNavigate = 1u << 1,
+		kSpeed = 1u << 2,
+		// bit 3 reserved
+		kFreecam = 1u << 4,
+		kEnd = 1u << 5,
 	};
 
-	// Every capability bit, the default grant when a scene doesn't opt out. Scene controls are on by
-	// default; a scene narrows this set via `sceneControls.disable` (legacy: `playerControl.disable`).
 	inline constexpr std::uint32_t kAllCapabilities =
 		static_cast<std::uint32_t>(Capability::kAdvance) |
 		static_cast<std::uint32_t>(Capability::kNavigate) |
@@ -32,7 +27,7 @@ namespace OSF::Input
 		static_cast<std::uint32_t>(Capability::kFreecam) |
 		static_cast<std::uint32_t>(Capability::kEnd);
 
-	// Map a capability name (in `allow`/`disable`) to its bit; 0 if unrecognized (caller warns).
+	// 0 if unrecognized (caller warns).
 	inline std::uint32_t CapabilityBit(std::string_view a_name)
 	{
 		if (a_name == "advance") return static_cast<std::uint32_t>(Capability::kAdvance);
@@ -43,23 +38,20 @@ namespace OSF::Input
 		return 0;
 	}
 
-	// Fine-grained director verbs the input layer routes to runtime actions. v1 keyboard set;
-	// the navigate verb is deferred (the kNavigate capability exists for authors). Each verb
-	// requires its capability granted.
+	// Each verb requires its capability.
 	enum class Verb : std::uint32_t
 	{
 		kNone = 0,
-		kAdvance,     // -> SceneRuntime::Advance         (cap kAdvance)
-		kSpeedUp,     // -> faster                        (cap kSpeed)
-		kSpeedDown,   // -> slower                        (cap kSpeed)
-		kSpeedReset,  // -> 1.0                           (cap kSpeed)
-		kPause,       // -> freeze / resume               (cap kSpeed)
-		kFreecam,     // -> toggle native free camera     (cap kFreecam)
-		kEnd,         // -> SceneRuntime::Stop            (cap kEnd, blocked if Grant.locked)
+		kAdvance,
+		kSpeedUp,
+		kSpeedDown,
+		kSpeedReset,
+		kPause,
+		kFreecam,
+		kEnd,         // blocked if Grant.locked
 	};
 
 
-	// The capability a verb requires (0 for kNone).
 	inline std::uint32_t RequiredCapability(Verb a_verb)
 	{
 		switch (a_verb) {
@@ -79,12 +71,11 @@ namespace OSF::Input
 		}
 	}
 
-	// The per-scene controls grant the runtime hands InputService when an eligible scene starts.
-	// `driver` is the participant whose scene the local input drives (the player basically).
+	// `driver` is the participant the local input drives (the player).
 	struct Grant
 	{
 		std::int32_t  handle = 0;
-		std::uint32_t capabilities = 0;        // OR of Capability bits the scene granted
+		std::uint32_t capabilities = 0;
 		RE::Actor*    driver = nullptr;
 		bool          locked = false;  // player may not End
 	};

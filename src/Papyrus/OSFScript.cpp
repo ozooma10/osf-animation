@@ -1,9 +1,9 @@
 #include "OSFScript.h"
 
 #include "API/MinimumVersion.h"
-#include "API/UIBridge.h"  // OpenBrowser
+#include "API/UIBridge.h"
 #include "Animation/GraphManager.h"
-#include "Animation/Scene.h"  // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
+#include "Animation/Scene.h"
 #include "Audio/SoundService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Packs/PackReload.h"
@@ -40,9 +40,7 @@ namespace OSF::Papyrus
 			return out;
 		}
 
-		// Tag-query variant: lowercases each tag (satisfying Matchmaker's "query is
-		// already lowercased" precondition) and drops empty entries from unfilled
-		// Papyrus array slots that would otherwise poison an allOf match.
+		// Lowercased (Matchmaker precondition); drops empty slots that would poison an allOf match.
 		std::vector<std::string> ToTags(const std::vector<RE::BSFixedString>& a_in)
 		{
 			std::vector<std::string> out;
@@ -56,12 +54,11 @@ namespace OSF::Papyrus
 			return out;
 		}
 
-		// --- OSFTypes:SceneOptions (the trailing `SceneOptions akOpts = None` on the Start* natives) ----
-		// A struct parameter arrives as this wrapper; the `= None` default makes it optional.
+		// Optional trailing `OSFTypes:SceneOptions akOpts = None` on the Start* natives.
 		using SceneOptionsArg = std::optional<RE::BSScript::structure_wrapper<"OSFTypes", "SceneOptions">>;
 
-		// Read an OSF:SceneOptions: pull the raw struct proxy and map member name -> slot by ITERATING varNameIndexMap, rather than trusting structure_wrapper::find / varNameIndexMap.find
-		// Field defaults live on Scene::LaunchOpts (kept in sync with OSFTypes.psc SceneOptions).
+		// Map members by iterating varNameIndexMap; don't trust structure_wrapper::find / varNameIndexMap.find.
+		// Defaults live on Scene::LaunchOpts (mirrors OSFTypes.psc).
 		Scene::LaunchOpts ReadSceneOptions(const SceneOptionsArg& a_opts)
 		{
 			Scene::LaunchOpts out;
@@ -123,16 +120,12 @@ namespace OSF::Papyrus
 			return out;
 		}
 
-		// Resolve + ENFORCE a start's anchor requirement
 		std::optional<Scene::SceneRuntime::AnchorOverride> ResolveSceneAnchor(const std::string& a_sceneId, const Scene::LaunchOpts& a_opts)
 		{
 			return Scene::ResolveSceneAnchor(a_sceneId, a_opts.anchor, Scene::OptHeadingRad(a_opts), /*a_emitHud*/ true);
 		}
 
-		// SceneOptions.Stage (> 0) -> the linear-stage entry node for a def start, so the scene ENTERS on
-		// that stage instead of playing its entry first and jumping. Returns nullopt on a hard failure
-		// (stage out of range — the caller fails the start loudly); "" = enter at the scene's own entry
-		// (stage 0, or warn-and-ignore when the scene has no linear stages).
+		// SceneOptions.Stage > 0 -> linear-stage entry node. nullopt = out of range (fail the start); "" = scene entry.
 		std::optional<std::string> ResolveStageEntryNode(const Registry::SceneDef& a_def, std::int32_t a_stage, const char* a_tag)
 		{
 			if (a_stage <= 0) {
@@ -172,23 +165,16 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopAnimation(a_actor);
 		}
 
-		// Group the actors' independently-played solo graphs onto one clock. With abAnchor=true (default) it also
-		// promotes them into a single anchored, co-located scene at actor[0]'s transform, so each clip's baked root
-		// offset arranges the actors about one shared origin+heading (the NAF/SAF "play each solo, then sync" pattern).
-		// abAnchor=false is the legacy clock-only merge (actors stay at their own world positions). Needs >= 2 actors.
 		bool Sync(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, bool a_anchor)
 		{
 			return Animation::GraphManager::GetSingleton().Sync(a_actors, a_anchor);
 		}
 
-		// Jump a linear scene (by handle) to a given stage. False on a non-linear graph, an out-of-range stage, or an invalid handle.
 		bool SetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_stage)
 		{
 			return Scene::SceneRuntime::GetSingleton().SetStage(a_scene, a_stage);
 		}
 
-		// Actor convenience: jump the live GraphManager scene a_actor is in to a stage (0-based).
-		// Reaches any GraphManager scene including a PlaySequence solo sequence (no handle).
 		bool SetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, int32_t a_stage)
 		{
 			if (!a_actor) {
@@ -198,22 +184,16 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().SetSceneStage(a_actor, a_stage);
 		}
 
-		// Rescans Data/OSF/**/*.osf.json (dev convenience: edit a scene, reload, replay without
-		// restarting the game). Returns the number of scenes loaded. Also drops the clip caches so
-		// edited animation files re-import. (Name kept for the existing Papyrus binding.)
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
-			return Content::ReloadAll();  // Papyrus name remains ReloadPacks for compatibility
+			return Content::ReloadAll();  // Papyrus name kept for compatibility
 		}
 
-		// Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
 		int32_t GetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
 			return Scene::SceneRuntime::GetSingleton().GetStage(a_scene);
 		}
 
-		// Actor convenience: current stage of the live GraphManager scene a_actor is in, or -1.
-		// Reaches any GraphManager scene including a PlaySequence solo sequence (no handle).
 		int32_t GetSceneStageForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			return Animation::GraphManager::GetSingleton().GetSceneStage(a_actor);
@@ -224,7 +204,6 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().IsPlaying(a_actor);
 		}
 
-		// Current source file path playing on a_actor (as the caller passed it), or "" if the actor has no live graph.
 		RE::BSFixedString GetCurrentAnimation(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
@@ -233,8 +212,6 @@ namespace OSF::Papyrus
 			return RE::BSFixedString(Animation::GraphManager::GetSingleton().GetCurrentAnimation(a_actor).c_str());
 		}
 
-		// Per-graph playback speed (1.0 = authored; 0 = freeze; clamped 0..100).
-		// For a scene participant this sets the shared scene clock speed.
 		bool SetSpeed(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, float a_speed)
 		{
 			if (!a_actor) {
@@ -252,9 +229,6 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().GetSpeed(a_actor);
 		}
 
-		// Pin akActor's solo graph to a WORLD point + heading (degrees). 
-		// aiRootMode: 0 pin / 1 follow. Legacy 2 is accepted as follow for 1.x callers.
-		// Also moves the capsule there. Refused for scene participants (their placement is scene-driven).
 		bool SetAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
 		{
@@ -265,7 +239,6 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().SetAnchor(a_actor, a_x, a_y, a_z, a_headingDeg, a_rootMode);
 		}
 
-		// Releases akActor's anchor — the graph returns to "follow" (rides the actor's live transform). No-op if no anchor was set.
 		bool ClearAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
@@ -274,14 +247,11 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().ClearAnchor(a_actor);
 		}
 
-		// Stop a live scene by its handle (from a Start* call). False if the handle is invalid/ended. Fires NODE_EXIT + SCENE_END to registered callbacks.
 		bool StopScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
 			return Scene::SceneRuntime::GetSingleton().Stop(a_scene);
 		}
 
-		// Actor convenience: stop the live scene a_actor participates in. Tries the SceneRuntime handle first (fires NODE_EXIT + SCENE_END, invalidates it);
-		// falls back to a raw GraphManager scene with no handle (a PlaySequence solo sequence). False if in neither.
 		bool StopSceneForActor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor)
 		{
 			if (!a_actor) {
@@ -294,16 +264,12 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().StopScene(a_actor);
 		}
 
-		// Framework semver "major.minor.patch" (string so it can't be misread).
 		RE::BSFixedString GetVersion(OSFVM&, uint32_t, std::monostate)
 		{
 			const auto v = SFSE::GetPluginVersion();
 			return RE::BSFixedString(std::format("{}.{}.{}", v.major(), v.minor(), v.patch()));
 		}
 
-		// Report the minimum OSF Animation version this consumer supports. False
-		// means the installed engine is older (and has raised the shared warning)
-		// or the request itself was invalid.
 		bool ReportMinimumVersion(OSFVM&, uint32_t, std::monostate,
 			RE::BSFixedString a_consumer, std::int32_t a_major,
 			std::int32_t a_minor, std::int32_t a_patch)
@@ -317,24 +283,16 @@ namespace OSF::Papyrus
 				static_cast<std::uint32_t>(a_patch)) == API::MinimumVersionResult::kSupported;
 		}
 
-		// True once OSF is loaded and initialized (playback hooks installed).
 		bool IsReady(OSFVM&, uint32_t, std::monostate)
 		{
 			return Animation::GraphManager::GetSingleton().HooksInstalled();
 		}
 
-		// Open the in-game scene browser (the OSF UI "osf" view), exactly as F10 would.
-		// A public convenience for consumers that want to open the browser from Papyrus.
-		// False if OSF UI is absent or too old to open a menu from native code.
 		bool OpenBrowser(OSFVM&, uint32_t, std::monostate)
 		{
 			return API::OpenBrowser();
 		}
 
-		// Start a scene by id, returning an opaque scene HANDLE (0 = failed).
-		// Routes through SceneRuntime so callbacks fire and the handle drives GetSceneId/Node/StopScene/etc.
-		// akOpts.Anchor world-anchors the scene at a ref instead of co-locating at actor[0].
-		// For named-role binding use StartSceneRoles.
 		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			SceneOptionsArg a_opts)
 		{
@@ -345,33 +303,28 @@ namespace OSF::Papyrus
 			const std::string sid = a_id.c_str();
 			const auto def = Registry::ContentRegistry::GetSingleton().Find(sid);
 			if (!def) {
-				// ERROR, not DEBUG: a typo'd scene id is an author mistake and must be visible at the
-				// shipped Info level (every sibling by-id path reports it via StartFromDef's ERROR).
+				// ERROR, not DEBUG: a typo'd scene id must be visible at the shipped log level.
 				REX::ERROR("[Papyrus] StartScene: no scene '{}'", sid);
 				return 0;
 			}
 			const auto opts = ReadSceneOptions(a_opts);
-			// SceneOptions.Stage: enter the scene directly on this linear stage instead of its entry (0 = the scene's own entry).
-			// Lets a browser open a sequence on one animation. Out of range is a caller error → fail loudly; a non-linear graph has no stages → warn and ignore.
 			const auto entryNode = ResolveStageEntryNode(*def, opts.stage, "OSF.StartScene");
 			if (!entryNode) {
 				return 0;
 			}
-			const auto anchor = ResolveSceneAnchor(sid, opts);  // enforces an anchor-bound scene's furniture requirement
+			const auto anchor = ResolveSceneAnchor(sid, opts);  // enforces anchor-bound furniture
 			if (!anchor) {
-				return 0;  // anchor-bound scene with no / incompatible anchor ref (logged in ResolveSceneAnchor)
+				return 0;  // logged in ResolveSceneAnchor
 			}
 			const auto over = Scene::MakeOverrides(opts);
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			if (anchor->set) {
-				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over, *entryNode);  // anchored at the ref
+				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over, *entryNode);
 			}
 			return rt.StartFromDef(sid, a_actors, over, *entryNode);
 		}
 
-		// Start a scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i]
-		// (equal lengths). Returns the handle (0 = no such scene / validation fail). Its own native rather
-		// than a SceneOptions field because Papyrus structs cannot carry the role array.
+		// Separate native: Papyrus structs can't hold the role array.
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
@@ -380,8 +333,7 @@ namespace OSF::Papyrus
 				return 0;
 			}
 			const std::string sid = a_id.c_str();
-			// StartSceneRoles carries no SceneOptions, so it can't supply the anchor an anchor-bound scene
-			// needs. Reject early with a clear pointer to StartScene rather than failing the placement later.
+			// No SceneOptions here, so an anchor-bound scene can't be placed; point the caller at StartScene.
 			if (const auto def = Registry::ContentRegistry::GetSingleton().Find(sid); def && def->RequiresAnchor()) {
 				REX::WARN("[Papyrus] StartSceneRoles: scene '{}' is anchor-bound — use StartScene with SceneOptions.Anchor", sid);
 				UI::HudMessage::Error(std::format("scene '{}' needs a furniture anchor (use StartScene)", sid));
@@ -395,9 +347,6 @@ namespace OSF::Papyrus
 			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
 		}
 
-		// Matchmake by tags + role/gender fit across BOTH registries (composed scene defs + packs), pick by priority tier + weighted-random, and start it with the matchmade binding.
-		// Returns the scene handle (0 = no match / start failed); GetSceneId(handle) recovers the chosen id.
-		// akOpts.Anchor world-anchors the matchmade scene at a ref (furniture/bed/marker) instead of co-locating at actor[0].
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
 		{
 			Matchmaking::TagQuery q;
@@ -407,8 +356,6 @@ namespace OSF::Papyrus
 			return Scene::LaunchMatched(a_actors, q, opts, over, "[Papyrus] OSF.StartSceneByTags");
 		}
 
-		// Boolean-query form of StartSceneByTags: all-of / any-of / none-of tag sets, otherwise identical (filter-aware matchmaking across both registries, priority + weighted pick).
-		// akOpts.Anchor world-anchors the matchmade scene.
 		int32_t StartSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf,
 			std::vector<RE::BSFixedString> a_noneOf, SceneOptionsArg a_opts)
@@ -419,11 +366,6 @@ namespace OSF::Papyrus
 			return Scene::LaunchMatched(a_actors, q, opts, over, "[Papyrus] OSF.StartSceneByTagsQuery");
 		}
 
-		// Anchor-FIRST matchmaking: given a furniture/object ref, start a scene BUILT for it. 
-		// Restricts the pool to anchor-bound scenes whose keyword/base matcher akFurniture satisfies AND whose roles/tags/gender fit the actors,
-		// asTags optionally narrows the pool (empty = any fit).
-		// akOpts is read for overrides + heading; its Anchor field is ignored (akFurniture is the anchor).
-		// Returns the scene handle (0 = no furniture / no actors / no fitting scene / start failed).
 		int32_t StartSceneAtAnchor(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::TESObjectREFR* a_furniture, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
 		{
 			if (a_actors.empty()) {
@@ -438,12 +380,11 @@ namespace OSF::Papyrus
 			Matchmaking::TagQuery q;
 			q.allOf = ToTags(a_tags);
 			auto opts = ReadSceneOptions(a_opts);
-			opts.anchor = a_furniture;  // the anchor-first ref drives BOTH the matchmaking filter and the compose
+			opts.anchor = a_furniture;  // drives both the matchmaking filter and the compose
 			const auto over = Scene::MakeOverrides(opts);
 			return Scene::LaunchMatched(a_actors, q, opts, over, "[Papyrus] OSF.StartSceneAtAnchor", Matchmaking::AnchorMode::kRequire);
 		}
 
-		// --- Scene-event callbacks (OSFTypes:SceneEvent payload) --------------------
 		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
 		{
 			if (!a_receiver.get()) {
@@ -453,9 +394,6 @@ namespace OSF::Papyrus
 			return Scene::SceneEventRelay::GetSingleton().Register(a_receiver, a_fn.c_str(), a_scene, a_eventMask);
 		}
 
-		// Instance-free variant for Papyrus script libraries: dispatch to the GLOBAL function
-		// asScript.asFn(OSFTypes:SceneEvent). Same scene filter / event mask / token semantics as
-		// RegisterSceneCallback; use UnregisterSceneCallback to drop the token.
 		int32_t RegisterSceneCallbackStatic(OSFVM&, uint32_t, std::monostate, RE::BSFixedString a_script, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
 		{
 			if (a_script.empty()) {
@@ -470,44 +408,31 @@ namespace OSF::Papyrus
 			return Scene::SceneEventRelay::GetSingleton().Unregister(a_token);
 		}
 
-		// --- Navigation (def-backed scenes) -----------------------------------------
-		// Handle-based, mirroring SetSceneStage/GetSceneStage: the SceneRuntime resolves the
-		// handle and returns contract sentinels (false / 0 / "") for an invalid or non-def scene.
-
-		// Take the current node's DEFAULT advance edge (or end the scene if it targets "$end").
-		// False if the handle is invalid or the node has no default advance edge.
 		bool AdvanceScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
 			return Scene::SceneRuntime::GetSingleton().Advance(a_scene);
 		}
 
-		// Take the current node's branchable advance edge whose id == asEdgeId.
-		// False if the handle is invalid or the current node has no such edge.
 		bool NavigateScene(OSFVM&, uint32_t, std::monostate, int32_t a_scene, RE::BSFixedString a_edgeId)
 		{
 			return Scene::SceneRuntime::GetSingleton().Navigate(a_scene, a_edgeId.c_str());
 		}
 
-		// Number of branchable (advance) edges on the current node, for building a choice menu. 0 if invalid.
 		int32_t GetSceneEdgeCount(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
 			return Scene::SceneRuntime::GetSingleton().EdgeCount(a_scene);
 		}
 
-		// Id of the a_index-th branchable edge (0 .. count-1) of the current node. "" if out of range/invalid.
 		RE::BSFixedString GetSceneEdgeId(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
 		{
 			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeId(a_scene, a_index).c_str());
 		}
 
-		// Resolved label (labelKey or literal) of the a_index-th branchable edge of the current node. "" if out of range/invalid.
 		RE::BSFixedString GetSceneEdgeLabel(OSFVM&, uint32_t, std::monostate, int32_t a_scene, int32_t a_index)
 		{
 			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().EdgeLabel(a_scene, a_index).c_str());
 		}
 
-		// Participant roster of the live scene named by the handle, in scene-internal
-		// (role-declaration) order. Empty array if the handle is invalid/ended.
 		std::vector<RE::Actor*> GetSceneParticipants(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
 		{
 			return Scene::SceneRuntime::GetSingleton().GetParticipants(a_scene);
@@ -570,9 +495,7 @@ namespace OSF::Papyrus
 			return placements;
 		}
 
-		// Shared bodies for the four ad-hoc plan natives. The *Placed variants pass their placement
-		// arrays (a_placed = true); the plain variants pass empty ones. a_tag keeps the log lines
-		// accurate per native — the validation and timing rules exist exactly once.
+		// Shared by the plain and *Placed ad-hoc natives; a_tag names the caller in logs.
 		int32_t StartFilesImpl(const char* a_tag, const std::vector<RE::Actor*>& a_actors,
 			const std::vector<RE::BSFixedString>& a_files, bool a_placed, const std::vector<float>& a_x,
 			const std::vector<float>& a_y, const std::vector<float>& a_z, const std::vector<float>& a_headingDeg,
@@ -673,8 +596,7 @@ namespace OSF::Papyrus
 			}
 			const auto opts = ReadSceneOptions(a_opts);
 			const std::string sid = a_id.c_str();
-			// SceneOptions.Stage enters directly on the stage node (same semantics as StartScene) instead of
-			// the old post-start SetStage jump, which played the entry node first (visible pop, double load).
+			// SceneOptions.Stage enters directly on the stage node, as in StartScene.
 			std::string entryNode;
 			if (const auto def = Registry::ContentRegistry::GetSingleton().Find(sid)) {
 				auto resolved = ResolveStageEntryNode(*def, opts.stage, "OSF.StartSceneRolesEx");
@@ -683,12 +605,10 @@ namespace OSF::Papyrus
 				}
 				entryNode = std::move(*resolved);
 			}
-			// Same anchor pass as every def-backed sibling (StartScene/StartSceneRoles): enforces an
-			// anchor-bound scene's furniture requirement and applies the scene's authored anchorOffset —
-			// the raw MakeAnchor pass-through skipped both.
+			// Same anchor pass as StartScene: enforces anchor-bound furniture and applies the authored anchorOffset.
 			const auto anchor = ResolveSceneAnchor(sid, opts);
 			if (!anchor) {
-				return 0;  // anchor-bound scene with no / incompatible anchor ref (logged in ResolveSceneAnchor)
+				return 0;  // logged in ResolveSceneAnchor
 			}
 			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(
 				sid, a_actors, ToStrings(a_roles), *anchor, Scene::MakeOverrides(opts), entryNode);
@@ -768,8 +688,7 @@ namespace OSF::Papyrus
 
 	void RegisterFunctions(RE::BSScript::IVirtualMachine* a_vm)
 	{
-		// Force-load the OSFTypes script type so its SceneOptions + SceneEvent structs are registered
-		// BEFORE we bind the struct-typed Start* natives AND before the relay's CreateStruct("OSFTypes#SceneEvent") at dispatch time.
+		// Preload OSFTypes so its structs exist before struct-typed natives bind and before the relay's CreateStruct.
 		{
 			RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> typesType;
 			if (!a_vm->GetScriptObjectType(RE::BSFixedString(TYPES_SCRIPT_NAME.data()), typesType) || !typesType) {
@@ -779,11 +698,8 @@ namespace OSF::Papyrus
 			}
 		}
 
-		// a_taskletCallable=false on every native that mutates engine state: the VM then runs the
-		// call on the game thread (the calling tasklet suspends and still receives the return value).
-		// EquipmentService/WeaponService/Fade/HUD are GAME THREAD only — tasklet-callable start/stop
-		// natives were running equips, weapon draw and HUD notifies on a Papyrus VM worker.
-		// Pure readers (and the relay's own-lock token bookkeeping) stay tasklet-callable.
+		// a_taskletCallable=false on every engine-mutating native so the VM runs it on the game thread
+		// (equipment/weapon/fade/HUD services are game-thread only). Pure readers stay tasklet-callable.
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTags", &StartSceneByTags, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartScene", &StartScene, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, false, false);

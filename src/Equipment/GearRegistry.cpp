@@ -16,33 +16,32 @@ namespace OSF::Equipment::Gear
 		using json = nlohmann::json;
 		using Util::ToLower;
 
-		// Form-ref resolution is deferred to first game-thread use (load order is fixed by then) and
-		// cached as a FormID, never a pointer (Starfield refcounts forms — see the keyword-cache fix).
+		// Resolved lazily on the game thread and cached as a FormID, never a pointer (forms are refcounted).
 		enum class Res : std::uint8_t
 		{
 			kPending,
 			kOk,
-			kBad  // malformed / plugin not loaded / not an ARMO — warned once, then skipped
+			kBad  // warned once, then skipped
 		};
 
 		struct Entry
 		{
 			std::string   ref;     // "<Plugin>|0xLOCAL" as authored
 			std::string   slot;    // lowercase
-			std::string   label;   // optional display name (v1.5 UI; carried through now)
-			std::string   source;  // filename it loaded from, for collision warnings
+			std::string   label;   // optional display name
+			std::string   source;  // for collision warnings
 			Res           res = Res::kPending;
 			RE::TESFormID formId = 0;
 		};
 
 		struct OverrideRow
 		{
-			std::string actor;  // "player" or a form ref of the actor REFERENCE
+			std::string actor;  // "player" or a form ref of the actor reference
 			std::string slot;   // lowercase
-			std::string item;   // form ref of a registered item, or "none" to suppress the slot
+			std::string item;   // registered item ref, or "none" to suppress the slot
 		};
 
-		std::mutex               g_lock;  // guards the two lists (LoadAll vs game-thread selection)
+		std::mutex               g_lock;  // LoadAll vs game-thread selection
 		std::vector<Entry>       g_items;
 		std::vector<OverrideRow> g_overrides;
 		std::atomic<bool>        g_autoEquip{ true };
@@ -64,8 +63,7 @@ namespace OSF::Equipment::Gear
 			return a_out.size() <= kMaxGearStringBytes;
 		}
 
-		// <Documents>\My Games\Starfield\SFSE\OSF\scene-gear.json (same home as wheel-pins.json),
-		// or empty when the SFSE log directory can't be resolved.
+		// Empty when the SFSE log directory can't be resolved.
 		std::filesystem::path UserFilePath()
 		{
 			try {
@@ -76,9 +74,7 @@ namespace OSF::Equipment::Gear
 			return {};
 		}
 
-		// Parse one gear document's "items" array into a_items. a_seen dedups by lowercased ref —
-		// first-loaded wins (user lane loads first, Data files in sorted order), mirroring the scene
-		// registry's collision policy. Malformed entries warn and are skipped individually.
+		// a_seen dedups by lowercased ref; first-loaded wins, as in the scene registry.
 		bool ParseItems(const json& a_doc, const std::string& a_source,
 			std::vector<Entry>& a_items, std::unordered_map<std::string, std::string>& a_seen)
 		{
@@ -126,8 +122,7 @@ namespace OSF::Equipment::Gear
 			return true;
 		}
 
-		// Parse the user file's "overrides" array. Only the user lane carries overrides; an
-		// "overrides" key in a Data-lane file is ignored (those files are read-only registrations).
+		// Only the user lane carries overrides.
 		bool ParseOverrides(const json& a_doc, const std::string& a_source, std::vector<OverrideRow>& a_overrides)
 		{
 			const auto it = a_doc.find("overrides");
@@ -166,8 +161,7 @@ namespace OSF::Equipment::Gear
 			return true;
 		}
 
-		// Apply one already-parsed gear document atomically. Malformed content rolls back every item
-		// and override this document appended, including its first-wins de-dup keys.
+		// Atomic per document: malformed content rolls back its items, overrides and de-dup keys.
 		bool LoadDocument(const json& a_document, const std::filesystem::path& a_file, bool a_userLane,
 			std::vector<Entry>& a_items, std::vector<OverrideRow>& a_overrides,
 			std::unordered_map<std::string, std::string>& a_seen) noexcept
@@ -203,15 +197,12 @@ namespace OSF::Equipment::Gear
 			}
 		}
 
-		// The user lane is a single file outside the discovered Data tree, so it keeps a small direct
-		// loader while Data-lane documents use Util::ForEachRegistryJson below.
+		// The user file sits outside ForEachRegistryJson's tree, so it keeps a direct loader with the same size cap.
 		bool LoadFile(const std::filesystem::path& a_file, bool a_userLane,
 			std::vector<Entry>& a_items, std::vector<OverrideRow>& a_overrides,
 			std::unordered_map<std::string, std::string>& a_seen) noexcept
 		{
 			try {
-				// Data-lane files are bounded by ForEachRegistryJson discovery. The user lane sits
-				// outside that tree, so retain the same limit at its one direct read boundary.
 				std::error_code sizeError;
 				const auto bytes = std::filesystem::file_size(a_file, sizeError);
 				if (!sizeError && bytes > Util::kMaxRegistryFileBytes) {
@@ -234,8 +225,7 @@ namespace OSF::Equipment::Gear
 				return false;
 			}
 		}
-		// Resolve a_entry's form ref (game thread; caller holds g_lock). kBad warns once at first use
-		// — a ref naming an uninstalled plugin is expected (optional gear mods) and never fatal.
+		// Game thread; caller holds g_lock. Unresolvable refs (optional gear mods) warn once, never fatal.
 		void Resolve(Entry& a_entry)
 		{
 			if (a_entry.res != Res::kPending) {
@@ -258,9 +248,7 @@ namespace OSF::Equipment::Gear
 			a_entry.formId = object->GetFormID();
 		}
 
-		// Does a_row's actor key name a_actor? "player" matches the player; anything else is a form
-		// ref of the actor reference. Dynamic (FF) actors can only ever match "player"-less rows by
-		// ref, which cannot be authored — i.e. they have no overrides, by design (RFC §4.2).
+		// Dynamic (FF) actors can't be authored by ref, so they have no overrides (RFC §4.2).
 		bool OverrideMatchesActor(const OverrideRow& a_row, RE::Actor* a_actor)
 		{
 			if (a_row.actor == "player") {
@@ -275,9 +263,8 @@ namespace OSF::Equipment::Gear
 	{
 		std::vector<Entry>                           items;
 		std::vector<OverrideRow>                     overrides;
-		std::unordered_map<std::string, std::string> seen;  // lowercased ref -> source (first wins)
+		std::unordered_map<std::string, std::string> seen;  // lowercased ref -> source
 
-		// User lane first, so a user registration wins a ref collision with a Data-lane file.
 		if (const auto userFile = UserFilePath(); !userFile.empty()) {
 			if (!LoadFile(userFile, /*userLane*/ true, items, overrides, seen)) {
 				REX::ERROR("[Equip] gear file '{}' won't parse — user registrations and overrides ignored", userFile.string());
@@ -350,7 +337,6 @@ namespace OSF::Equipment::Gear
 			return picks;
 		}
 
-		// Resolve pending refs once, then index by FormID for the inventory pass.
 		std::unordered_map<RE::TESFormID, std::size_t> byForm;
 		for (std::size_t i = 0; i < g_items.size(); i++) {
 			Resolve(g_items[i]);
@@ -362,8 +348,7 @@ namespace OSF::Equipment::Gear
 			return picks;
 		}
 
-		// One inventory pass: which registered items does this actor carry, and are they worn?
-		// (Matched by FormID; the object pointer stays valid because the item is in the inventory.)
+		// The object pointer stays valid because the item is in the inventory.
 		struct Candidate
 		{
 			std::size_t         entry;
@@ -375,7 +360,7 @@ namespace OSF::Equipment::Gear
 			const auto guard = a_actor->inventoryList.LockRead();
 			const RE::BGSInventoryList* list = *guard;
 			if (!list) {
-				return picks;  // never-materialized inventory (same guard as Hide) — no candidates
+				return picks;
 			}
 			for (const auto& item : list->data) {
 				if (!item.object) {
@@ -389,12 +374,10 @@ namespace OSF::Equipment::Gear
 		if (candidates.empty()) {
 			return picks;
 		}
-		// Stable ref order within a slot, so rule 3 ("first candidate") is deterministic.
 		std::sort(candidates.begin(), candidates.end(), [](const Candidate& a_lhs, const Candidate& a_rhs) {
 			return ToLower(g_items[a_lhs.entry].ref) < ToLower(g_items[a_rhs.entry].ref);
 		});
 
-		// Walk slots in candidate order; decide each slot once.
 		std::vector<std::string> decided;
 		for (const auto& lead : candidates) {
 			const std::string& slot = g_items[lead.entry].slot;
@@ -408,7 +391,7 @@ namespace OSF::Equipment::Gear
 				continue;
 			}
 
-			// Rule 1: per-actor override (first matching row wins — user-file order).
+			// Rule 1: per-actor override; first matching row wins.
 			const Candidate* chosen = nullptr;
 			bool             suppressed = false;
 			for (const auto& row : g_overrides) {
@@ -436,7 +419,7 @@ namespace OSF::Equipment::Gear
 			if (suppressed) {
 				continue;
 			}
-			// Rule 2: a worn candidate; rule 3: the first candidate (list is ref-sorted).
+			// Rule 2: a worn candidate; rule 3: the first candidate.
 			if (!chosen) {
 				for (const auto& c : candidates) {
 					if (g_items[c.entry].slot == slot && c.worn) {

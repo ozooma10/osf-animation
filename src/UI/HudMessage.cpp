@@ -11,8 +11,7 @@ namespace OSF::UI::HudMessage
 
 	namespace
 	{
-		// Build and fire the ShowHUDMessageEvent. a_isWarning routes the HUD to its warning
-		// styling (used for errors). canThrottle lets the HUD coalesce a burst.
+		// a_isWarning selects the HUD warning styling.
 		void Fire(std::string_view a_text, bool a_isWarning)
 		{
 			auto* source = RE::ShowHUDMessageEvent::GetEventSource();
@@ -20,8 +19,7 @@ namespace OSF::UI::HudMessage
 				REX::DEBUG("[UI] no ShowHUDMessageEvent source yet — dropped '{}'", a_text);
 				return;
 			}
-			// {text, sound = none, canThrottle = true, isWarning} — matches the Papyrus
-			// Debug.Notification native (1.16.244).
+			// {text, sound = none, canThrottle = true, isWarning}, as Papyrus Debug.Notification.
 			const std::string       text{ a_text };
 			RE::ShowHUDMessageEvent  ev{};
 			ev.text = RE::BSFixedString(text.c_str());
@@ -62,8 +60,6 @@ namespace OSF::UI::HudMessage
 
 	void Error(std::string_view a_text)
 	{
-		// Always shown — bypasses the debug gate. A player needs to know when something
-		// they asked for failed, even with diagnostics off.
 		Fire("OSF error: " + std::string{ a_text }, true);
 	}
 }

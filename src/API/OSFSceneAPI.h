@@ -1,27 +1,18 @@
-// ============================================================================
-// OSFSceneAPI.h - OSF Animation native C++ API.
-//
-// Copyable SINGLE header. Drop it into your SFSE plugin; link NOTHING.
-//
-// THREADING NOTES:
-// Mutating calls (StartScene, StartSceneRoles, StartSceneFiles, StopScene, StopSceneForActor, SetStage, Advance, Navigate, Play, Stop, SetSpeed) 
-// MUST run on the GAME (main) thread: they synchronously read/write engine actor state and return immediately.
-// 
-// Read-only queries (GetInterfaceVersion, GetPluginVersion, IsReady, GetSpeed, IsPlaying, GetSceneForActor, GetSceneStage, GetSceneParticipants)
-// are internally locked and callable from ANY thread - but OSF only compares pointer identity; for off-thread polling prefer the int32 handle.
-// ============================================================================
+// OSFSceneAPI.h - OSF Animation native C++ API. Copyable single header; link nothing.
+// Mutating calls (start/stop/stage/navigate, Play/Stop/SetSpeed) must run on the game thread. Queries are
+// locked and callable from any thread; prefer the int32 handle over actor pointers for off-thread polling.
 
 #pragma once
 
-#include "RE/Starfield.h"      // RE::Actor, RE::TESObjectREFR (from YOUR identical CommonLibSF)
-#include "REX/W32/KERNEL32.h"  // REX::W32::GetModuleHandleW / GetProcAddress / HMODULE (no <Windows.h>)
+#include "RE/Starfield.h"
+#include "REX/W32/KERNEL32.h"
 
 #include <cstdint>
 #include <string>
 
 namespace OSF::API
 {
-	// Packed (MAJOR << 16) | MINOR. MAJOR breaks ABI; MINOR bumps on an appended vmethod or an appended OSFStartOptions field.
+	// Packed (MAJOR << 16) | MINOR. MINOR bumps append vmethods or OSFStartOptions fields.
 	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 3u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
 	inline constexpr std::uint32_t kOSFSceneAPIMinor   = kOSFSceneAPIVersion & 0xFFFFu;
@@ -30,9 +21,7 @@ namespace OSF::API
 	inline constexpr const char*    kRequestExportName = "OSF_RequestSceneAPI";
 	inline constexpr const char*    kReportMinimumVersionExportName = "OSF_ReportMinimumVersion";
 
-	// Result from ReportMinimumVersion. The report export is deliberately
-	// independent of the scene-interface minor: a consumer can report its
-	// requirement before requesting whatever scene ABI it needs.
+	// Result of ReportMinimumVersion; the export is independent of the scene-interface minor.
 	enum class MinimumVersionResult : std::uint32_t
 	{
 		kSupported = 0,
@@ -45,10 +34,7 @@ namespace OSF::API
 		const char* a_consumer, std::uint32_t a_major,
 		std::uint32_t a_minor, std::uint32_t a_patch);
 
-	// Call once from kPostDataLoad. New OSF builds centralize and deduplicate the
-	// report. If the installed build predates the report export, the helper reads
-	// its standard SFSE version metadata and emits the same HUD warning from the
-	// consumer, so the version-mismatch path still works against older engines.
+	// Call once from kPostDataLoad. If OSF predates the export, reads its version metadata and warns on the HUD itself.
 	inline MinimumVersionResult ReportMinimumVersion(
 		const char* a_consumer, std::uint32_t a_major,
 		std::uint32_t a_minor = 0, std::uint32_t a_patch = 0) noexcept
@@ -63,9 +49,7 @@ namespace OSF::API
 				fn(a_consumer, a_major, a_minor, a_patch));
 		}
 
-		// Compatibility fallback for OSF builds released before this export. Every
-		// SFSE plugin exposes SFSEPlugin_Version; only its fixed two-field prefix is
-		// needed here. The packed layout is REL::Version's public format.
+		// Fallback for OSF builds without the export: SFSEPlugin_Version's two-field prefix, REL::Version packing.
 		struct PluginVersionPrefix
 		{
 			std::uint32_t dataVersion;
@@ -107,44 +91,39 @@ namespace OSF::API
 		return MinimumVersionResult::kUpgradeRequired;
 	}
 
-	// -------------------------------------------------------------------------
-	// Per-start overrides. Tri-states: 1 = force on, 0 = force off, anything else (incl. -1) = inherit the scene definition / content-file default.
-	// -------------------------------------------------------------------------
+	// Per-start overrides. Tri-states: 1 = on, 0 = off, anything else = inherit the scene/content default.
 	struct OSFStartOptions
 	{
-		std::uint32_t size = sizeof(OSFStartOptions);  // cbSize: stamped by YOUR compiler; OSF reads only this many bytes
+		std::uint32_t size = sizeof(OSFStartOptions);  // stamped by your compiler; OSF reads only this many bytes
 
-		std::int32_t stripMode         = -1;    // frozen ABI field -> StartOverrides::hideApparel
-		std::int32_t lockPlayerMode    = -1;    // frozen ABI field -> StartOverrides::playerInputLock
-		std::int32_t playerControlMode = -1;    // frozen ABI field -> StartOverrides::sceneControls (0 = revoke advance/navigate/end)
-		std::int32_t fadeMode          = -1;    // -> StartOverrides::fade
+		std::int32_t stripMode         = -1;    // hide apparel
+		std::int32_t lockPlayerMode    = -1;    // player input lock
+		std::int32_t playerControlMode = -1;    // scene controls; 0 = revoke advance/navigate/end
+		std::int32_t fadeMode          = -1;    // screen fade
 
-		char  camera[64] = {};                  // "" = inherit; e.g. "thirdperson_hold" -> StartOverrides::camera
-		float loopScale  = 1.0f;                // -> StartOverrides::loopScale (OSF sanitizes <=0/NaN->1, clamps to 20)
+		char  camera[64] = {};                  // "" = inherit, e.g. "thirdperson_hold"
+		float loopScale  = 1.0f;                // <=0/NaN -> 1, clamped to 20
 
 		float        speed      = 1.0f;         
 		float        blendIn    = 0.4f;         
 		std::int32_t startStage = 0;           
 
-		bool  hasAnchor        = false;         // world-anchor at the pos below instead of co-locating at actor[0] (a pre-resolved WORLD anchor; for furniture use anchorRef)
-		float anchorX          = 0.0f;          // -> AnchorOverride::pos.x
-		float anchorY          = 0.0f;          // -> AnchorOverride::pos.y
-		float anchorZ          = 0.0f;          // -> AnchorOverride::pos.z
-		float anchorHeadingRad = 0.0f;          // RADIANS -> AnchorOverride::heading (the hasAnchor world anchor only)
+		bool  hasAnchor        = false;         // world-anchor at anchorX/Y/Z instead of actor[0]; for furniture use anchorRef
+		float anchorX          = 0.0f;
+		float anchorY          = 0.0f;
+		float anchorZ          = 0.0f;
+		float anchorHeadingRad = 0.0f;          // hasAnchor only
 
-		// Furniture/object to anchor at. For an anchor-BOUND scene OSF validates this is the required furniture and composes the scene's authored anchorOffset;
-		// for a free scene it world-anchors there. Uses the ref's own facing. Takes precedence over hasAnchor. nullptr = none.
+		// Furniture/object anchor, using its facing; overrides hasAnchor. Anchor-bound scenes require their furniture
+		// and apply the authored offset; free scenes world-anchor here. nullptr = none.
 		RE::TESObjectREFR* anchorRef = nullptr;
 
-		// APPENDED at MINOR 2 (OSF reads it only when your stamped `size` covers it).
-		// Frozen ABI field -> StartOverrides::worldPlacement: 1 = follow actors — no teleport,
-		// no per-frame root/heading pin (leaves the player's heading, and with it the vanilla
-		// third-person camera, alone). 0 = force the anchored posture; else = inherit the scene's.
+		// Since minor 2. 1 = follow actors (no teleport or root/heading pin; vanilla camera untouched),
+		// 0 = force anchored, else inherit.
 		std::int32_t inPlaceMode = -1;
 	};
 
-	// Scene-event bits. These values are shared with OSF.psc EVENT_* constants
-	// and can be ORed together when registering a native callback.
+	// Scene-event bits, shared with OSF.psc EVENT_*; OR together for a callback mask.
 	namespace SceneEventType
 	{
 		inline constexpr std::int32_t kNodeEnter = 0x01;
@@ -156,9 +135,7 @@ namespace OSF::API
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 
-	// Borrowed, immutable scene-event view delivered to OSFSceneEventCallback.
-	// The struct and every string pointer remain valid ONLY for the duration of
-	// the callback. Copy any data the consumer needs to retain.
+	// Borrowed view: the struct and its strings are valid only during the callback.
 	struct OSFSceneEvent
 	{
 		std::uint32_t size = sizeof(OSFSceneEvent);
@@ -172,77 +149,63 @@ namespace OSF::API
 		const char* role = "";
 		std::int32_t loopIndex = -1;
 		float time = -1.0f;
-		const char* anchor = "";  // frozen ABI name: named track position (enter/exit/end), never a world anchor
+		const char* anchor = "";  // named track position (enter/exit/end), not a world anchor
 		std::int32_t result = 0;
 	};
 
-	// Native callbacks are invoked synchronously on the scene-runtime dispatch
-	// thread (the game thread for authored scene events), before OSF queues the
-	// equivalent Papyrus callback. A callback may unregister itself. It must not
-	// retain borrowed payload pointers or throw across the DLL boundary.
+	// Runs synchronously on the dispatch thread (game thread for authored events), before the Papyrus event
+	// is queued. May unregister itself; must not throw or retain the payload.
 	using OSFSceneEventCallback = void (*)(
 		const OSFSceneEvent* a_event, void* a_context);
 
-	// -------------------------------------------------------------------------
 	// Handles are int32 generational tokens (0 = failure / dead), never raw pointers.
-	// -------------------------------------------------------------------------
 	struct IOSFSceneAPI
 	{
 		virtual std::uint32_t GetInterfaceVersion() = 0;
 
-		// Plugin semver. ANY thread.
+		// Plugin semver. Any thread.
 		virtual void GetPluginVersion(std::uint32_t& a_major, std::uint32_t& a_minor, std::uint32_t& a_patch) = 0;
 
-		// True once OSF's playback hooks are installed + verified. ANY thread
+		// True once playback hooks are installed and verified. Any thread.
 		virtual bool IsReady() = 0;
 
-		// --- scene start --- GAME THREAD. Returns handle; 0 = failure. ---
-		// a_actors in role-declaration order; a null actor / an actor already in a scene fails.
-		// Free scenes co-locate at actor[0] (or at the OSFStartOptions WORLD anchor). 
-		// Anchor-BOUND (furniture) scenes require OSFStartOptions.anchorRef set to the furniture: a missing/incompatible ref fails (0).
+		// Game thread; returns a handle, 0 on failure. a_actors in role order; null or already-busy actors fail.
+		// Anchor-bound (furniture) scenes require OSFStartOptions.anchorRef; others co-locate at actor[0] or the world anchor.
 		virtual std::int32_t StartScene(RE::Actor* const* a_actors, std::uint32_t a_count, const char* a_sceneId, const OSFStartOptions& a_opts) = 0;
 
-		// Bind actors to NAMED roles: a_roles[i] is the role for a_actors[i] (equal counts). --- GAME THREAD.
+		// a_roles[i] names a_actors[i]'s role (equal counts). Game thread.
 		virtual std::int32_t StartSceneRoles(RE::Actor* const* a_actors, std::uint32_t a_count, const char* a_sceneId, const char* const* a_roles, std::uint32_t a_roleCount, const OSFStartOptions& a_opts) = 0;
 
-		// --- ad-hoc files scene (one synthetic holding node) --- GAME THREAD. ---
-		// a_files[i] plays on a_actors[i] (equal counts). "path.glb:animId" spec supported.
+		// One synthetic node; a_files[i] ("path.glb:animId" allowed) plays on a_actors[i]. Game thread.
 		virtual std::int32_t StartSceneFiles(RE::Actor* const* a_actors, const char* const* a_files, std::uint32_t a_count, const OSFStartOptions& a_opts) = 0;
 
-		// --- stop --- GAME THREAD. ---
+		// Game thread.
 		virtual bool StopScene(std::int32_t a_handle) = 0;
 		virtual bool StopSceneForActor(RE::Actor* a_actor) = 0;
 
-		// --- navigation --- GAME THREAD. ---
+		// Game thread.
 		virtual bool SetStage(std::int32_t a_handle, std::int32_t a_stage) = 0;
 		virtual bool Advance(std::int32_t a_handle) = 0;
 		virtual bool Navigate(std::int32_t a_handle, const char* a_edgeId) = 0;
 
-		// --- solo clip --- Play/Stop/SetSpeed GAME THREAD; GetSpeed ANY THREAD. ---
+		// Game thread, except GetSpeed (any thread).
 		virtual bool  Play(RE::Actor* a_actor, const char* a_file, const char* a_animId) = 0;
 		virtual bool  Stop(RE::Actor* a_actor) = 0;
 		virtual bool  SetSpeed(RE::Actor* a_actor, float a_speed) = 0;
 		virtual float GetSpeed(RE::Actor* a_actor) = 0;
 
-		// --- queries --- ANY THREAD (internally locked, read-only). ---
+		// Any thread.
 		virtual bool         IsPlaying(RE::Actor* a_actor) = 0;
 		virtual std::int32_t GetSceneForActor(RE::Actor* a_actor) = 0;
 		virtual std::int32_t GetSceneStage(std::int32_t a_handle) = 0;  // linear scenes; -1 otherwise
 
-		// Writes up to a_cap entries into a_out (caller-owned); returns the TOTAL participant count.
-		// Recently ended handles retain their final roster through a bounded asynchronous-event
-		// window, so an end handler can read who took part. Copy it during the callback; old ended
-		// handles eventually expire. Actors may be mid-teardown, so touch them only on the game thread.
+		// Writes up to a_cap actors into caller-owned a_out; returns the total. Ended handles keep their roster briefly
+		// so end handlers can read it. Touch the actors only on the game thread.
 		virtual std::uint32_t GetSceneParticipants(std::int32_t a_handle,
 			RE::Actor** a_out, std::uint32_t a_cap) = 0;
 
-		// --- native scene events (APPENDED at MINOR 3) ---
-		// Registration is thread-safe and process-lifetime: tokens survive world
-		// replacement until explicitly unregistered. a_sceneFilter == 0 accepts
-		// every scene; a_eventMask == 0 is treated as SceneEventType::kAll.
-		// Returns a 64-bit generational token, or 0 for a null callback. Once
-		// Unregister returns, callbacks running on other threads have finished;
-		// self-unregistration never waits on the current invocation itself.
+		// Since minor 3. Thread-safe; tokens persist until unregistered. a_sceneFilter 0 = all scenes, a_eventMask 0 = kAll.
+		// Returns 0 for a null callback. Unregister waits for callbacks on other threads, never the calling one.
 		virtual std::uint64_t RegisterSceneEventCallback(
 			OSFSceneEventCallback a_callback, void* a_context,
 			std::int32_t a_sceneFilter = 0,
@@ -251,19 +214,19 @@ namespace OSF::API
 		virtual bool UnregisterSceneEventCallback(std::uint64_t a_token) = 0;
 
 	protected:
-		~IOSFSceneAPI() = default;  // OSF owns the singleton; the consumer never deletes it.
+		~IOSFSceneAPI() = default;  // OSF owns the singleton; never delete it.
 	};
 
 	using RequestSceneAPI_t = IOSFSceneAPI* (*)(std::uint32_t a_abiVersion);
 
-	// FETCH ONCE and cache the result - do NOT call this per-frame/per-poll (it does a module + symbol lookup).
+	// Cache the result; each call does a module + symbol lookup.
 	inline IOSFSceneAPI* RequestSceneAPI(std::uint32_t a_abiVersion = kOSFSceneAPIVersion) noexcept
 	{
 		const REX::W32::HMODULE mod = REX::W32::GetModuleHandleW(kOSFModuleName);
 		if (!mod) {
-			return nullptr;  // OSF not installed/loaded.
+			return nullptr;
 		}
 		const auto fn = reinterpret_cast<RequestSceneAPI_t>(REX::W32::GetProcAddress(mod, kRequestExportName));
-		return fn ? fn(a_abiVersion) : nullptr;  // older OSF (no export) or MAJOR mismatch -> nullptr.
+		return fn ? fn(a_abiVersion) : nullptr;  // older OSF or MAJOR mismatch -> nullptr
 	}
 }

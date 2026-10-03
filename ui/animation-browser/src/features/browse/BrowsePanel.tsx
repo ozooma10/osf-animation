@@ -285,9 +285,7 @@ function ActiveBrowser({ state, commands }: { state: BrowserState; commands: Bro
     })}</div></>;
 }
 
-// Chips shown around the inspected stage. A window instead of the whole list: a
-// generated pack scene can carry hundreds of stages, and the current one always sits
-// inside it, so the strip stays readable without scroll bookkeeping.
+// Generated pack scenes can carry hundreds of stages; show a window around the current one.
 const STAGE_WINDOW = 5;
 
 function InspectionStages({ scene, stage, onPick }: {

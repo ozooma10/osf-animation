@@ -33,8 +33,7 @@ namespace OSF::Registry::SceneRegistryClips
 		std::string           clip;
 	};
 
-	// Load problems stay as stable plain-text Papyrus results while this parallel record carries
-	// the structured fields consumed by the browser's Imports panel.
+	// Plain-text lines stay stable for Papyrus; `records` is the structured twin for the browser Imports panel.
 	struct ProblemSink
 	{
 		std::vector<std::string>&          lines;

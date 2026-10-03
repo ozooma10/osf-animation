@@ -25,16 +25,14 @@ namespace OSF::Serialization::WheelPins
 		std::mutex               g_lock;  // guards the pin list + the state file
 		bool                     g_loaded = false;
 		bool                     g_customized = false;
-		std::vector<Entry>       g_entries;  // wheel order: front = first slice
+		std::vector<Entry>       g_entries;
 		constexpr std::size_t    kMaxEntries = 12;
 
-		// <Documents>\My Games\Starfield\SFSE\OSF\wheel-pins.json,
-		// or empty (no persistence — pins still work for this session).
+		// Empty = session-only pins.
 		std::filesystem::path StatePath()
 		{
 			try {
 				if (auto dir = SFSE::log::log_directory()) {
-					// ...\My Games\Starfield\SFSE\Logs -> ...\My Games\Starfield\SFSE\OSF
 					return dir->parent_path() / "OSF" / "wheel-pins.json";
 				}
 			} catch (...) {}
@@ -54,10 +52,9 @@ namespace OSF::Serialization::WheelPins
 			}
 			std::ifstream in(file, std::ios::binary);
 			if (!in) {
-				return;  // nothing pinned yet
+				return;
 			}
-			// The file itself means the user customized the wheel. A malformed file is
-			// ignored, which falls back to the installed defaults.
+			// A malformed file falls back to installed defaults.
 			const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
 			if (!doc.is_array()) {
 				return;
@@ -105,10 +102,7 @@ namespace OSF::Serialization::WheelPins
 			std::filesystem::create_directories(file.parent_path(), ec);
 			const auto tmp = file.parent_path() / (file.filename().string() + ".tmp");
 
-			// This file is the only record of a customized wheel, so a write
-			// that cannot land means the player's customization dies with the
-			// session — durable, and fixable (permissions, a full disk, a
-			// read-only mod folder). The card names the file, never its path.
+			// The health card names the file, never its path.
 			const auto reportFailure = [&file](std::string_view a_stage, const std::string& a_detail) {
 				const json context{
 					{ "file", file.filename().string() },
@@ -127,9 +121,7 @@ namespace OSF::Serialization::WheelPins
 					return;
 				}
 				out << doc.dump(1, '\t');
-				// Verify the write actually landed before the temp replaces the ONLY copy of the
-				// loadout: a full disk leaves the stream in a fail state that the destructor
-				// silently swallows — renaming that truncated temp over the live file loses it.
+				// Check close(): a full disk would otherwise rename a truncated temp over the only copy.
 				out.close();
 				if (!out) {
 					REX::WARN("[UI] write to {} failed — wheel customization won't persist this session", tmp.string());
@@ -139,16 +131,13 @@ namespace OSF::Serialization::WheelPins
 					return;
 				}
 			}
-			// std::filesystem::rename does not replace an existing destination on Windows.
-			// MoveFileEx gives the temp-write its intended atomic replace semantics.
+			// std::filesystem::rename won't replace an existing file on Windows.
 			if (!::MoveFileExW(tmp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
 				const auto err = ::GetLastError();
 				REX::WARN("[UI] cannot replace {} (Win32 error {})", file.string(), err);
 				reportFailure("replace", "Win32 error " + std::to_string(err));
 				return;
 			}
-			// It worked — a later save succeeding is exactly the "it fixed
-			// itself" that the pane's resolved history exists to show.
 			API::Health::Clear("wheel.pins");
 		}
 	}
@@ -204,7 +193,6 @@ namespace OSF::Serialization::WheelPins
 				REX::WARN("[UI] cannot remove {} ({})", file.string(), ec.message());
 			}
 
-			// Best-effort cleanup if a previous atomic save was interrupted.
 			const auto tmp = file.parent_path() / (file.filename().string() + ".tmp");
 			ec.clear();
 			std::filesystem::remove(tmp, ec);

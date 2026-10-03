@@ -27,8 +27,7 @@ namespace OSF::Animation
 {
 	namespace
 	{
-		// Publish related follow-ups together after releasing graph state. The frame update takes
-		// a finite batch, so final marks and their stop command must enter that batch in order.
+		// Final marks and their stop command must land in the same frame batch, in order.
 		void FlushDeferredTasks(std::vector<std::function<void()>>& a_tasks)
 		{
 			Util::NativeMainThreadQueue::PostBatch(std::move(a_tasks));
@@ -40,29 +39,20 @@ namespace OSF::Animation
 		std::optional<AnimUpdateHook> g_animUpdateHook;
 		std::optional<ModelNodeUpdateHook> g_modelNodeUpdateHook;
 
-		// AnimationManager::Update - slot 4, the clock/sampling point.
 		constexpr size_t UpdateVFuncIdx = 4;
 		
-		// BGSModelNode::Update - slot 2, sig (modelNode, &fadeNode->local, NiUpdateData*, outputTransform).
-		// Stamping before the original runs is the rig-buffer write point (that same call composes + commits).
+		// sig (modelNode, &fadeNode->local, NiUpdateData*, outputTransform).
 		constexpr size_t ModelNodeUpdateVFuncIdx = 2;
 
-		// CAP (not floor) for a pinned actor's cull-sphere radius (meters). The engine fades an actor out as the
-		// camera nears it — the SAME near-fade that hides the player in 3rd person when you zoom in — and that
-		// fade distance SCALES WITH THIS RADIUS. Inflating the sphere (the old max(...,2.5)) pushed the fade out
-		// to ~2.5 m, so zooming the orbit in vanished the partner. We now CAP the radius small so the camera can
-		// get close before any fade. Frustum safety comes from the CENTER (kept on the torso, where scene_orbit
-		// always points), not from a big radius. (Proven in-game: 8.0 was strictly worse than 2.5.)
+		// Cap (not floor), meters: the engine's near-camera fade distance scales with this radius, so a large
+		// sphere hides partners when the orbit zooms in. Frustum safety comes from the torso-lifted center.
 		constexpr float kPinCullRadius = 1.0f;
 
-		// Lift the cull-sphere center from the compose-root (= the actor's feet/origin = pinWorld) up to the
-		// torso, where the visible posed mesh actually sits. The engine's own capsule-derived bound is centered
-		// near the torso; clobbering the center down to the feet mis-aims the sphere low, so at certain orbit
-		// angles it leaves the view frustum and the participant pops out. Meters along world +Z.
+		// Lifts the cull-sphere center from the feet to the torso (meters, +Z); a feet-centered sphere leaves
+		// the frustum at some orbit angles and the participant pops out.
 		constexpr float kPinCullCenterUp = 1.0f;
 
-		// BSFadeNode near-camera fade flag (+0x1B4, a float: 1.0 = drawn, 0.0 = faded).
-		// The engine fades an actor out when the third-person camera orbits close; we hold it at 1.0 each frame so pinned participants don't vanish.
+		// BSFadeNode near-camera fade (+0x1B4, float: 1.0 = drawn, 0.0 = faded); held at 1.0 for pinned actors.
 		constexpr std::ptrdiff_t kFadeNodeVisFlagOff = 0x1B4;
 
 		bool IsGameMenuPaused()
@@ -73,7 +63,6 @@ namespace OSF::Animation
 			return false;
 		}
 
-		//flag for if console is open.
 		std::atomic<bool> g_consoleOpen{ false };
 
 		class ConsoleMenuSink : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
@@ -97,20 +86,17 @@ namespace OSF::Animation
 
 		float PlaybackDelta(const RE::BSAnimationUpdateData& a_updateData)
 		{
-			//Freeze playback if menu open (or console which doesnt set flag)
+			// Console pauses the world without setting isGameMenuPaused.
 			if (IsGameMenuPaused() || g_consoleOpen.load(std::memory_order_relaxed)) {
 				return 0.0f;
 			}
 
-			// Animation updates are normally subdivided into small slices. After a menu pause the engine can report accumulated wall time; 
-			// that is a resume/catch-up spike for OSF playback, not animation time.
+			// After a menu pause the engine may report accumulated wall time; drop that catch-up spike.
 			constexpr float kMaxUpdateStep = 0.1f;
 			const float dt = a_updateData.timeDelta;
 			return (std::isfinite(dt) && dt >= 0.0f && dt <= kMaxUpdateStep) ? dt : 0.0f;
 		}
 
-		// Validates a synchronized-playback request's shape (actor count, per-segment file/placement counts, no null actors);
-		// logs the specific failure. The hook-installed precondition is checked separately by the caller.
 		bool ValidatePlaybackPlanArgs(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment)
 		{
 			if (a_actors.empty()) {
@@ -172,8 +158,6 @@ namespace OSF::Animation
 			return true;
 		}
 
-		// Loads every clip of every segment up front and assembles the PlaybackSession. Returns nullptr
-		// if any clip fails to load; the caller refuses partial playback.
 		std::shared_ptr<PlaybackSession> BuildPlaybackFromPlan(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan,
 			int32_t a_startSegment)
 		{
@@ -232,7 +216,7 @@ namespace OSF::Animation
 			scene->loopWhole = a_plan.loopWhole;
 			if (scene->restoreParticipantTransforms) {
 				if (a_plan.baselineTransforms.size() == a_actors.size()) {
-					scene->originalTransforms = a_plan.baselineTransforms;  // caller-carried pre-playback baseline (see PlaybackPlan)
+					scene->originalTransforms = a_plan.baselineTransforms;  // caller-carried pre-playback baseline
 				} else {
 					scene->originalTransforms.reserve(a_actors.size());
 					for (const auto* actor : a_actors) {
@@ -241,12 +225,10 @@ namespace OSF::Animation
 				}
 			}
 			const float requestedSpeed = std::isfinite(a_plan.speed) ? a_plan.speed : 1.0f;
-			scene->speed = std::clamp(requestedSpeed, 0.0f, 100.0f);  // same range as SetSpeed
+			scene->speed = std::clamp(requestedSpeed, 0.0f, 100.0f);
 
 			scene->SetSegment(a_startSegment);
 
-			// Anchor at actor[0]'s current transform by default; participant world positions are anchor + each placement's offset rotated into the anchor heading frame (see PlacementToWorld).
-			// An explicit anchor (including the StartSceneAt compatibility API) overrides actor[0], so the playback session world-anchors to a thing (furniture/marker).
 			if (a_plan.anchorExplicit) {
 				scene->anchorPos = a_plan.anchorPos;
 				scene->anchorHeading = a_plan.anchorHeading;
@@ -255,9 +237,8 @@ namespace OSF::Animation
 				scene->anchorHeading = a_actors[0]->data.angle.z;
 			}
 
-			// Arm the stall watchdog from birth. MaintenanceTick skips lastAdvanceMs == 0, so a session the
-			// engine never ticks even once (participant 3D dropped right after start) would otherwise be
-			// invisible to it and hold the player input lock forever.
+			// Arm the stall watchdog from birth: it skips lastAdvanceMs == 0, so a never-ticked session would
+			// otherwise hold the player input lock forever.
 			scene->lastAdvanceMs.store(
 				std::chrono::duration_cast<std::chrono::milliseconds>(
 					std::chrono::steady_clock::now().time_since_epoch())
@@ -394,8 +375,7 @@ namespace OSF::Animation
 			std::unique_lock l{ stateLock };
 			auto& slot = graphs[a_actor];
 			if (slot) {
-				// Refuse to clobber a synchronized-playback participant (it would keep g->playbackSession set and the next segment tick would overwrite this clip anyway).
-				// Mirror of StopAnimation's guard — use the StopScene compatibility API to end the session first.
+				// Don't clobber a scene participant: its next segment tick would overwrite this clip anyway.
 				std::scoped_lock gl{ slot->stateLock };
 				if (slot->playbackSession) {
 					REX::WARN("[Anim] Play refused: actor {:X} is in a synchronized playback session — use StopScene first", a_actor->formID);
@@ -456,10 +436,10 @@ namespace OSF::Animation
 			sceneSet = (g->playbackSession != nullptr);
 			const std::int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
 				std::chrono::steady_clock::now().time_since_epoch()).count();
-			fadedOut = g->IsFadedOut() || g->IsStranded(now);  // stranded = the fade can never elapse (Sample stopped)
+			fadedOut = g->IsFadedOut() || g->IsStranded(now);  // stranded = Sample stopped, so the fade can never elapse
 			faded = !sceneSet && fadedOut;  // replayed meanwhile? keep it
 			if (!faded) {
-				g->removalQueued = false;  // declined — let the hook (or the sweep) queue again if it re-qualifies
+				g->removalQueued = false;
 			}
 		}
 		if (faded) {
@@ -468,7 +448,6 @@ namespace OSF::Animation
 			REX::DEBUG("[Anim] fade-removal DONE — actor {:X} graph removed (graphs now {})",
 				a_refr ? a_refr->formID : 0, graphs.size());
 		} else {
-			// DIAG: removal task ran but DECLINED to remove — this is the "never returns to vanilla" smoking gun.
 			REX::DEBUG("[Anim] fade-removal KEPT — actor {:X} (session={} fadedOut={})",
 				a_refr ? a_refr->formID : 0, sceneSet, fadedOut);
 		}
@@ -493,8 +472,6 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// Load every clip of every segment up front; a null result means one failed, so refuse a partial session.
-		// Preloading is what makes segment switches on the job threads IO-free.
 		auto scene = BuildPlaybackFromPlan(a_actors, a_plan, a_startSegment);
 		if (!scene) {
 			return false;
@@ -521,8 +498,7 @@ namespace OSF::Animation
 		{
 			std::unique_lock l{ stateLock };
 
-			// Admission is checked for the full cast before any graph mutation. A synchronized-playback owner may
-			// replace only the exact playback it names; a new owner never silently clobbers a playback session.
+			// Admit the full cast before mutating any graph; an owner may replace only the playback it names.
 			std::vector<PlaybackSession*> replacements;
 			for (auto* actor : a_actors) {
 				auto iter = graphs.find(actor);
@@ -557,8 +533,7 @@ namespace OSF::Animation
 					replacements.push_back(currentScene);
 				}
 			}
-			// Replacement reuses these actors' Graph objects. Preserve the currently displayed
-			// pose and its driven-joint set before StopPlaybackLocked invalidates the old binding.
+			// Replacement reuses these Graphs: capture the displayed pose before StopPlaybackLocked drops the binding.
 			for (auto* actor : a_actors) {
 				auto iter = graphs.find(actor);
 				if (iter == graphs.end() || !iter->second) {
@@ -598,9 +573,9 @@ namespace OSF::Animation
 					slot->participantIndex = static_cast<int>(i);
 					slot->scenePlacement = scene->stages[startSegment].placements[i];
 					slot->appliedStage = startSegment;
-					slot->hasAnchor = false;  // the session drives positioning; drop any solo SetAnchor
+					slot->hasAnchor = false;
 					slot->anchorRevision++;
-					slot->syncGroup.reset();  // the session clock supersedes any Sync group
+					slot->syncGroup.reset();
 
 				}
 				scene->participants.push_back(slot);
@@ -608,14 +583,10 @@ namespace OSF::Animation
 			playbackSessions.push_back(scene);
 			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}
-		FlushDeferredTasks(deferred);  // old-session teardown follow-ups, queued now that stateLock is released
+		FlushDeferredTasks(deferred);
 
-		// Initial placement, dispatched to the GAME THREAD per participant (charController teleports + AI/flag writes
-		// don't take from the Papyrus thread that calls PlaySynchronized). Per anchored participant: move the actor
-		// FOR REAL to its placement (SetPosition updateCharController=true moves the havok CAPSULE — the position the
-		// body-skin render cull reads), set heading, and set Actor::boolFlags2 kAnimationDriven so the AI keeps the
-		// anim running but stops walking the actor back to its post (re-asserted each frame by MaintenanceTick,
-		// cleared in StopPlaybackLocked). See OSF RE module gameplay.actor_animation_driven.
+		// Game thread: teleports/AI-flag writes don't take from Papyrus. SetPosition(.., true) moves the havok
+		// capsule (the cull input); NPCs get kAnimationDriven so AI won't walk them back.
 		for (size_t i = 0; scene->anchored && i < scene->participants.size(); i++) {
 			const auto& pl = scene->stages[startSegment].placements[i];
 			auto* refr = scene->participants[i]->target.get();
@@ -624,7 +595,7 @@ namespace OSF::Animation
 			}
 			const RE::NiPoint3 worldPos = PlacementToWorld(scene->anchorPos, scene->anchorHeading, pl);
 			const float heading = scene->anchorHeading + pl.heading;
-			// The PLAYER is never made animation-driven. Can get them stuck in a bad state
+			// Never make the player animation-driven; it can get stuck.
 			const bool isPlayer = refr == static_cast<RE::TESObjectREFR*>(RE::PlayerCharacter::GetSingleton());
 			RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(refr) };
 			const PlaybackId playbackId = scene->playbackId;
@@ -645,10 +616,10 @@ namespace OSF::Animation
 						return;
 					}
 				}
-				keepAlive->SetPosition(worldPos, true);  // move the havok capsule to the anchor (the cull's position input)
-				// Save window: keep the bit clear while a save serializes actor state (the hold cadence sets it once the window closes).
+				keepAlive->SetPosition(worldPos, true);
+				// Keep the bit clear during a save window; the maintenance hold sets it afterwards.
 				if (!isPlayer && !GetSingleton()._saveWindow.load(std::memory_order_relaxed)) {
-					keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);  // anchored NPC: AI runs the anim but won't walk it back
+					keepAlive->boolFlags2.set(RE::Actor::BOOL_FLAGS2::kAnimationDriven);
 				}
 				if (auto* transforms = RE::TransformService::GetSingleton()) {
 					transforms->SetHeadingZ(keepAlive.get(), heading);
@@ -677,8 +648,6 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// shared stateLock keeps the playback session alive (the collection mutates only under unique);
-		// the segment jump itself is guarded by the session's own lock
 		std::shared_lock l{ stateLock };
 		auto iter = graphs.find(a_actor);
 		if (iter == graphs.end()) {
@@ -807,7 +776,7 @@ namespace OSF::Animation
 		std::vector<std::function<void()>> deferred;
 		{
 			std::unique_lock l{ stateLock };
-			StopPlaybackLocked(a_session, deferred);  // no-op if the playback was already stopped
+			StopPlaybackLocked(a_session, deferred);
 		}
 		FlushDeferredTasks(deferred);
 	}
@@ -817,29 +786,22 @@ namespace OSF::Animation
 #ifdef OSF_ANIMATION_SMOKE
 		Testing::AnimationSmoke::OnWorldReset();
 #endif
-		// Invalidate every queued task from the discarded world before any service/graph state is
-		// cleared. Tasks already in the frame queue observe the new epoch and no-op.
+		// Bump the epoch first so already-queued tasks from the discarded world no-op.
 		_worldEpoch.fetch_add(1, std::memory_order_acq_rel);
-		// A pending save window must not outlive the world it was opened for (a load can begin mid-save-op).
+		// A load can begin mid-save-op; don't let the save window outlive its world.
 		_saveWindow.store(false, std::memory_order_relaxed);
 
-		// Release the player input lock + the persistent AI-driven flag (possibly left by older builds or free cam).
-		// The AI-driven flag is serialized into saves, so it MUST be cleared on every load even when this process holds no in-memory lock;
-		// the input-disable layer is non-persistent.
+		// The AI-driven flag is serialized into saves, so clear it on every load even with no live lock.
 		Camera::CameraService::GetSingleton().OnStopAll();
 		Player::PlayerInputLockService::GetSingleton().OnStopAll();
-		// Drop any live director-input grant too (its scene is about to be cleared below).
 		Input::InputService::GetSingleton().OnStopAll();
 
-		// Release any held/pending screen fade before the load (the stay-faded latch crashes the load path).
+		// Release held fades before the load (the stay-faded latch crashes the load path).
 		UI::FadeService::GetSingleton().OnStopAll();
-		// Clear any subtitle still in the box so it can't bleed into the loaded world.
 		UI::Subtitle::OnStopAll();
-		// Cut every live cue sound, a loaded save shouldn't have last-world sounds ringing over it.
 		Audio::SoundService::GetSingleton().StopAll();
 
-		// Drop every playback owner's world-bound handles. Copy first so a clear callback may
-		// unregister itself without re-entering the sink registry lock.
+		// Copy first so a clear callback may unregister itself without re-entering _sinkLock.
 		std::vector<PlaybackClearHandler> clearHandlers;
 		{
 			std::shared_lock sinks{ _sinkLock };
@@ -859,8 +821,7 @@ namespace OSF::Animation
 		REX::INFO("[Anim] StopAll ({}): dropping {} playback session(s) + {} graph(s)",
 			a_reason ? a_reason : "?", playbackSessions.size(), graphs.size());
 
-		// We do NOT fade or revert movement here: on a save load the engine has already reset every actor to the saved state, and our graphs are anchored in the world that was just discarded.
-		// Stale graphs/playback sessions just stop existing; the engine's rig refresh owns the pose.
+		// No fade/revert: the loaded save already reset every actor, and our graphs belong to the discarded world.
 		playbackSessions.clear();
 		graphs.clear();
 		graphCount.store(0, std::memory_order_relaxed);
@@ -886,10 +847,9 @@ namespace OSF::Animation
 
 	void GraphManager::OnSaveBegin()
 	{
-		// Runs on the game thread (SaveLoadEvent kBegin fires there), the same thread every other
-		// boolFlags2 write lands on via the task queue — direct writes are ordered with them.
+		// Game thread (SaveLoadEvent kBegin), so these writes are ordered with the queued boolFlags2 writes.
 		if (_saveWindow.exchange(true, std::memory_order_relaxed)) {
-			return;  // window already open (overlapping save ops) — the first opener did the strip
+			return;  // overlapping save ops; the first opener stripped
 		}
 		const auto count = SetAnchoredNpcAnimationDriven(false);
 		if (count != 0) {
@@ -901,9 +861,8 @@ namespace OSF::Animation
 	void GraphManager::OnSaveEnd()
 	{
 		if (!_saveWindow.exchange(false, std::memory_order_relaxed)) {
-			return;  // no window open (plain load events land here too) — nothing to restore
+			return;  // no window open (plain load events land here too)
 		}
-		// Resume the hold immediately; subsequent frame maintenance keeps it asserted.
 		const auto count = SetAnchoredNpcAnimationDriven(true);
 		if (count != 0) {
 			REX::DEBUG("[Anim] save end — animation-driven bit re-asserted on {} anchored participant(s)", count);
@@ -925,8 +884,7 @@ namespace OSF::Animation
 			std::scoped_lock gl{ iter->second->stateLock };
 			scene = iter->second->playbackSession;
 		}
-		// Report the session's authoritative current segment (set immediately on SetSegment / auto-advance), not the graph's legacy appliedStage field (lags one sample).
-		// stateLock (shared) keeps the playback session alive while we read it.
+		// Session's authoritative segment, not the lagging appliedStage; shared stateLock keeps it alive.
 		return scene ? static_cast<int32_t>(scene->CurrentSegment()) : -1;
 	}
 
@@ -1017,18 +975,17 @@ namespace OSF::Animation
 			REX::WARN("[Anim] SetSpeed: rejected non-finite speed for actor {:X}", a_actor->formID);
 			return false;
 		}
-		const float speed = std::clamp(a_speed, 0.0f, 100.0f);  // 1.0 = authored, 0 = freeze
+		const float speed = std::clamp(a_speed, 0.0f, 100.0f);
 		std::shared_lock l{ stateLock };
 		auto iter = graphs.find(a_actor);
 		if (iter == graphs.end()) {
 			return false;
 		}
 		std::scoped_lock gl{ iter->second->stateLock };
-		// Synchronized-playback participants share the session clock (PlaybackSession::Advance reads speed);
-		// a synced solo graph shares its group clock (which advances by the group speed, not the owner's); an unsynced solo graph advances by Graph::speed.
+		// Participants use the session clock; synced solo graphs advance by the group speed, not the owner's.
 		if (iter->second->playbackSession) {
 			iter->second->playbackSession->speed = speed;
-		} else if (iter->second->syncGroup) {  // null only in the brief window before SetAnimation runs
+		} else if (iter->second->syncGroup) {  // null only before SetAnimation runs
 			iter->second->syncGroup->speed.store(speed, std::memory_order_relaxed);
 		}
 		return true;
@@ -1051,7 +1008,7 @@ namespace OSF::Animation
 		if (iter->second->syncGroup) {
 			return iter->second->syncGroup->speed.load(std::memory_order_relaxed);
 		}
-		return 1.0f;  // graph created but not yet started (pre-SetAnimation), authored speed
+		return 1.0f;  // pre-SetAnimation: authored speed
 	}
 
 	bool GraphManager::SetAnchor(RE::Actor* a_actor, float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
@@ -1072,8 +1029,7 @@ namespace OSF::Animation
 			mode = RootMode::kFollow;
 			break;
 		case 2:
-			// Pre-1.1 callers used 2=follow. Keep the alias through the 1.x ABI instead of
-			// casting it to an enum value that no longer exists.
+			// Pre-1.1 callers used 2=follow; kept through the 1.x ABI.
 			mode = RootMode::kFollow;
 			REX::WARN("[Anim] SetAnchor: rootMode 2 is deprecated; use 1 for follow");
 			break;
@@ -1102,7 +1058,7 @@ namespace OSF::Animation
 			anchorRevision = ++iter->second->anchorRevision;
 			anchoredGraph = iter->second;
 		}
-		//Move capsule to anchor too via actor->SetPosition
+		// Move the capsule too.
 		{
 			RE::NiPointer<RE::Actor> keepAlive{ a_actor };
 			const RE::NiPoint3 anchor{ a_x, a_y, a_z };
@@ -1158,17 +1114,15 @@ namespace OSF::Animation
 			return false;
 		}
 
-		// Auto-anchor (the default): promote the independently played solo graphs into ONE anchored, clock-shared playback session at actor[0]'s current transform.
-		// Placements are left empty (same-spot overlap), so each paired clip's baked root offset arranges the actors about one shared origin+heading
-		// Without this, Play+Sync leaves every actor animating about its own (far-apart) world position, which is the "actors stand apart" symptom.
+		// Auto-anchor: one anchored session at actor[0] with empty placements, so the clips' baked root
+		// offsets arrange the actors about one origin (otherwise they animate far apart).
 		if (a_anchor) {
 			std::vector<RE::Actor*> sceneActors;
 			std::vector<std::string> sceneFiles;
 			float groupSpeed = 1.0f;
 			bool gotSpeed = false;
 			{
-				// Collect the qualifying solo graphs' clips in actor order WITHOUT mutating them, then drop stateLock before PlaySynchronized (which takes it unique).
-				// Skip actors with no graph, no clip, or already in a synchronized playback session.
+				// Collect without mutating, then drop stateLock before PlaySynchronized (takes it unique).
 				std::shared_lock l{ stateLock };
 				for (auto* actor : a_actors) {
 					if (!actor) {
@@ -1188,7 +1142,7 @@ namespace OSF::Animation
 						REX::DEBUG("[Anim] Sync: actor {:X} has no clip to anchor — skipping", actor->formID);
 						continue;
 					}
-					if (!gotSpeed) {  // carry a pre-Sync SetSpeed over to the playback-session clock
+					if (!gotSpeed) {  // carry a pre-Sync SetSpeed over
 						groupSpeed = iter->second->syncGroup->speed;
 						gotSpeed = true;
 					}
@@ -1201,7 +1155,6 @@ namespace OSF::Animation
 						  "(pass abAnchor=false for in-place clock sync)", sceneActors.size());
 				return false;
 			}
-			// One ad-hoc anchored segment; empty placements = same-spot overlap at actor[0].
 			PlaybackPlan plan;
 			plan.SetWorldPlacementMode(WorldPlacementMode::kAnchorAndPin);
 			plan.speed = groupSpeed;
@@ -1217,12 +1170,11 @@ namespace OSF::Animation
 			return true;
 		}
 
-		// Opt-out (abAnchor=false): legacy clock-merge only, frame-lock the solo graphs on one shared clock, leaving each actor at its own world position.
+		// abAnchor=false: clock-merge only; each actor stays at its own world position.
 		std::shared_lock l{ stateLock };
 
-		// First pass: collect the qualifying solo graphs WITHOUT mutating them, so a group that can't reach 2 members leaves nothing half-synced 
-		// (a stray 1-member assignment strands that graph on a private clock and snaps it to frame 0 even though we report failure). 
-		// Holding stateLock shared across both passes blocks playback-session (un)assignment, which takes stateLock unique, so the session check from pass 1 stays valid through pass 2.
+		// Collect first so a group short of 2 isn't half-synced. Shared stateLock across both passes blocks
+		// session (un)assignment, keeping the pass-1 session check valid.
 		std::vector<std::shared_ptr<Graph>> targets;
 		for (auto* actor : a_actors) {
 			if (!actor) {
@@ -1244,13 +1196,11 @@ namespace OSF::Animation
 			REX::WARN("[Anim] Sync: fewer than 2 playable solo graphs to sync ({})", targets.size());
 			return false;
 		}
-		// Second pass: one shared clock for the whole group; each graph reads it under its own lock (the group lock is a leaf). 
-		// Graphs jump to the clock's t=0 on their next sample, so the group snaps into phase together. 
-		// Seed the group speed from the first member so a pre-Sync SetSpeed carries over.
+		// The group lock is a leaf. Graphs jump to t=0 on their next sample; speed seeds from the first member.
 		auto group = std::make_shared<SyncGroup>();
 		{
 			std::scoped_lock gl{ targets.front()->stateLock };
-			if (const auto& sg = targets.front()->syncGroup) {  // null only pre-SetAnimation
+			if (const auto& sg = targets.front()->syncGroup) {
 				group->speed.store(sg->speed.load(std::memory_order_relaxed), std::memory_order_relaxed);
 			}
 		}
@@ -1279,7 +1229,7 @@ namespace OSF::Animation
 			PlaybackPlan::Segment stage;
 			stage.files = { a_files[i] };
 			stage.animIds = { a_animIds[i] };
-			stage.loops = a_loops[i];    // loop-count advance; <= 0 = hold this phase
+			stage.loops = a_loops[i];
 			stage.timer = 0.0f;
 			stage.blendIn = a_blends[i];
 			plan.stages.push_back(std::move(stage));
@@ -1290,7 +1240,6 @@ namespace OSF::Animation
 
 	void GraphManager::StopPlaybackLocked(PlaybackSession* a_session, std::vector<std::function<void()>>& a_deferred)
 	{
-		// Detach every participant of this playback and drop their graphs; the engine's own rig refresh restores the game pose next frame.
 		auto sceneIter = std::find_if(playbackSessions.begin(), playbackSessions.end(),
 			[&](const std::shared_ptr<PlaybackSession>& s) { return s.get() == a_session; });
 		if (sceneIter == playbackSessions.end()) {
@@ -1306,21 +1255,16 @@ namespace OSF::Animation
 			auto& p = participants[participantIndex];
 			std::uint64_t stoppedRevision = 0;
 			{
-				// graph stays in the map and fades to the engine pose; the update hook queues its removal once the ramp elapses
+				// Graph stays mapped and fades; the update hook queues removal once the ramp elapses.
 				std::scoped_lock gl{ p->stateLock };
 				p->DetachAndFadeOut();
 				stoppedRevision = p->playbackRevision;
 			}
-			// DIAG: confirm the per-participant detach ran and the playback session was cleared, so we can tell a "never removed"
-			// graph apart from a "never detached" one.
 			REX::DEBUG("[Anim] session-end detach: actor {:X} — playback session cleared, fade-out begun (blendDur {:.2f}s)",
 				p->target ? p->target->formID : 0, p->blendDuration);
-			// Revert the animation-driven movement switch from PlaySynchronized (anchored playback only). Game-thread only.
-			// The direct bit reset is the PROVEN lever; MovementControllerNPC::SetMotionDriven (REL 135315) is
-			// mis-bound on this build (no-op at best, unknown code at worst — RE module
-			// gameplay.actor_animation_driven) and is deliberately NOT called.
+			// Revert kAnimationDriven via the direct bit reset (game thread). MovementControllerNPC::SetMotionDriven
+			// (REL 135315) is mis-bound on this build; don't call it.
 			if (anchored && p->target) {
-				// Participants are always actors (PlaySynchronized takes Actor*).
 				RE::NiPointer<RE::Actor> keepAlive{ static_cast<RE::Actor*>(p->target.get()) };
 				const auto stoppedGraph = p;
 				const PlaybackId stoppedPlayback = (*sceneIter)->playbackId;
@@ -1340,12 +1284,11 @@ namespace OSF::Animation
 						if (const auto it = gm.graphs.find(keepAlive.get()); it != gm.graphs.end()) {
 							std::scoped_lock gl{ it->second->stateLock };
 							if (it->second->playbackSession && it->second->playbackSession->playbackId != stoppedPlayback) {
-								return;  // a replacement playback session now owns the actor's movement mode
+								return;  // a replacement session owns the movement mode
 							}
 							if (applyTransformRestore &&
 								(it->second != stoppedGraph || it->second->playbackRevision != stoppedRevision)) {
-								// A replacement solo playback owns the actor. It does not need the
-								// old session's movement flag, but must not receive its stale teleport.
+								// A replacement solo playback owns the actor: clear the flag but skip the stale teleport.
 								applyTransformRestore = false;
 							}
 						}
@@ -1370,10 +1313,8 @@ namespace OSF::Animation
 
 	void GraphManager::QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
-		// The last timed/loop-counted segment ran out. Defer the stop to the game thread (the StopScene compatibility API needs
-		// stateLock unique; the hook holds it shared). The endQueued load here is a cheap early-out; the
-		// authoritative once-only gate is the exchange inside QueuePlaybackEndDeferred. Capturing the
-		// shared_ptr keeps the PlaybackSession alive + ABA-safe.
+		// Deferred: StopScene needs stateLock unique (the hook holds it shared). The once-only gate is the
+		// exchange in QueuePlaybackEndDeferred; the shared_ptr keeps the session alive.
 		if (!a_graph.playbackSession || !a_graph.playbackSession->ended.load(std::memory_order_relaxed) ||
 			a_graph.playbackSession->endQueued.load(std::memory_order_relaxed)) {
 			return;
@@ -1398,8 +1339,7 @@ namespace OSF::Animation
 		if (!a_session) {
 			return;
 		}
-		// SetSegment between the claim and now revives the playback session (clears `ended`);
-		// a revived session must not be killed by this stale completion.
+		// A SetSegment since the claim revived the session; don't kill it with this stale completion.
 		if (!a_session->ended.load(std::memory_order_relaxed)) {
 			REX::DEBUG("[Anim] playback-session end: session was revived meanwhile — not stopping");
 			return;
@@ -1408,15 +1348,12 @@ namespace OSF::Animation
 			return;
 		}
 
-		// The registered playback owner gets first refusal to advance its domain lifecycle and own teardown.
-		// An unclaimed playback session stops here. No manager lock is held, so the handler is free to
-		// call PlaySynchronized or the StopScene compatibility API.
+		// The sink gets first refusal; no manager lock is held, so it may call PlaySynchronized/StopScene.
 		bool handled = false;
 		if (const auto sink = GetPlaybackSink(a_session->playbackSinkId); sink && sink->autoEnd) {
 			std::vector<RE::Actor*> actors;
 			for (const auto& p : a_session->participants) {
 				if (p && p->target) {
-					// Synchronized-playback participants are always actors (PlaySynchronized takes Actor*).
 					actors.push_back(static_cast<RE::Actor*>(p->target.get()));
 				}
 			}
@@ -1439,7 +1376,7 @@ namespace OSF::Animation
 			GetSingleton().HandlePlaybackEndOnGameThread(std::move(keepAlive));
 		};
 		if (a_deferred) {
-			a_deferred->emplace_back(std::move(task));  // caller holds stateLock; it flushes after release
+			a_deferred->emplace_back(std::move(task));
 		} else {
 			Util::NativeMainThreadQueue::Post(std::move(task));
 		}
@@ -1447,44 +1384,36 @@ namespace OSF::Animation
 
 	void GraphManager::MaintenanceTick()
 	{
-		// Main-thread-only. FrameMaintenance calls this after draining the frame's command batch;
-		// the game-wide AnimationManager report hook never enters global maintenance.
 		if (graphCount.load(std::memory_order_relaxed) == 0) {
 			return;
 		}
-		// Main's normal updates continue while a game menu/console freezes animation reports. Do not
-		// interpret that intentional pause as participant death; force a fresh grace window on resume.
+		// Menus/console freeze animation reports but not this beat; don't read that as a stall.
 		if (IsGameMenuPaused() || g_consoleOpen.load(std::memory_order_relaxed)) {
 			_stallWatchdog.Pause();
 			return;
 		}
 
-		// Keep NPC capsules on their anchors after AI updates. All flag writes run on this
-		// thread; save begin/end temporarily release the hold before serialization.
+		// Re-assert kAnimationDriven after AI updates; save begin/end release it around serialization.
 		if (!_saveWindow.load(std::memory_order_relaxed)) {
 			SetAnchoredNpcAnimationDriven(true);
 		}
 
-		// Threshold (steady-clock ms). Set well above a frame so a playable-FPS hitch can't trip it; the
-		// playback session must look dead for kSceneStallMs of CONTINUOUS engine-running time after any resume grace.
-		constexpr std::int64_t kSceneStallMs = 1500;  // a live session unticked this long (game running) = interrupted
+		constexpr std::int64_t kSceneStallMs = 1500;  // unticked this long while running = interrupted; well above any hitch
 
 		using namespace std::chrono;
 		const std::int64_t now = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 
-		// Focus-loss/loading can stop even the maintenance beat. The schedule detects that gap,
-		// re-arms a grace window, then allows only a few scans per second.
+		// Focus loss/loading can stop this beat too; the schedule re-arms a grace window after a gap.
 		if (!_stallWatchdog.ShouldScan(now)) {
 			return;
 		}
 
-		// Collect stalled playback sessions under the shared lock; act on them OUTSIDE it.
 		std::vector<std::shared_ptr<PlaybackSession>> stalled;
 		{
 			std::shared_lock l{ stateLock };
 			for (const auto& s : playbackSessions) {
 				if (!s || s->ended.load(std::memory_order_relaxed) || s->endQueued.load(std::memory_order_relaxed)) {
-					continue;  // already terminal / queued — leave it to the normal path
+					continue;
 				}
 				if (spdlog::should_log(spdlog::level::trace) && now - s->lastDiagnosticMs >= 1000) {
 					s->lastDiagnosticMs = now;
@@ -1507,26 +1436,21 @@ namespace OSF::Animation
 				now - s->lastAdvanceMs.load(std::memory_order_relaxed));
 			s->endReason.store(PlaybackEndReason::kInterrupted, std::memory_order_relaxed);
 			s->ended.store(true, std::memory_order_relaxed);
-			// Claim against a concurrent normal auto-end, then complete inline: this beat is already
-			// on the game thread and no manager lock is held.
+			// Claim against a concurrent auto-end, then complete inline (game thread, no manager lock).
 			if (!s->endQueued.exchange(true, std::memory_order_relaxed)) {
 				HandlePlaybackEndOnGameThread(s);
 			}
 		}
 
-		// Stranded-graph sweep: a DETACHED graph whose actor the engine stopped updating can never
-		// finish its fade (blendClock only advances in Sample) and so is never reclaimed by the
-		// normal QueueFadeRemovalIfDone path — the map entry pins the REFR, the model hook keeps
-		// stamping the frozen pose, and graphCount never returns to 0. Judge by wall clock (the
-		// pause/resume grace above already filtered global pauses), collect under the shared lock,
-		// remove them OUTSIDE it on this game-thread beat.
+		// Stranded-graph sweep: a detached graph whose actor stopped updating never finishes its fade, so it
+		// pins the REFR and keeps graphCount > 0. Collect under the shared lock, remove outside it.
 		std::vector<RE::NiPointer<RE::TESObjectREFR>> strandedGraphs;
 		{
 			std::shared_lock l{ stateLock };
 			for (auto& [refr, g] : graphs) {
 				std::scoped_lock gl{ g->stateLock };
 				if (g->playbackSession || g->removalQueued) {
-					continue;  // playback-session graphs are the stall watchdog's job; queued ones are already on their way out
+					continue;  // session graphs belong to the stall watchdog; queued ones are already leaving
 				}
 				if (g->IsStranded(now)) {
 					g->removalQueued = true;
@@ -1551,14 +1475,13 @@ namespace OSF::Animation
 		if (!sink || !sink->timedMarks) {
 			return;
 		}
-		// Drain the marks the playback session fired this frame (token-gated, so only the advancing graph populates them; any participant drains them once).
+		// Token-gated: only the advancing graph fills the buffer; any participant drains it once.
 		std::vector<FiredMark> marks;
 		a_graph.playbackSession->DrainFiredMarks(marks);
 		if (marks.empty()) {
 			return;
 		}
-		// Snapshot the participant actors (NiPointer keeps them alive across the deferred task); 
-		// dispatch on the game thread, the handler enters the VM (and may transition).
+		// Game thread: the handler enters the VM (and may transition). NiPointers keep the actors alive.
 		std::vector<RE::NiPointer<RE::Actor>> keep;
 		for (auto& p : a_graph.playbackSession->participants) {
 			if (p && p->target) {
@@ -1585,8 +1508,7 @@ namespace OSF::Animation
 
 	void GraphManager::QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred)
 	{
-		// Fade-out finished: queue removal on the game thread (the hook holds the state lock shared here). 
-		// A replay before the task runs resets the blend state, and RemoveFadedGraph re-checks under the lock.
+		// Game thread (the hook holds stateLock shared); RemoveFadedGraph re-checks in case of a replay.
 		if (a_graph.playbackSession || !a_graph.IsFadedOut() || a_graph.removalQueued) {
 			return;
 		}
@@ -1600,7 +1522,7 @@ namespace OSF::Animation
 
 	void GraphManager::Hook_AnimGraphUpdate(void* a_this, RE::BSAnimationUpdateData* a_updateData)
 	{
-		// Evaluate the game's graph first; our rig writes land after the engine's pose refresh + eval and before world composition.
+		// Run the engine graph first; our sampling follows its evaluation.
 		(*g_animUpdateHook)(a_this, a_updateData);
 
 		if (!a_updateData) {
@@ -1609,13 +1531,10 @@ namespace OSF::Animation
 		auto& gm = GetSingleton();
 		const auto activeGraphCount = gm.graphCount.load(std::memory_order_relaxed);
 
-		// Idle early-out: this hook fires ~7x per render frame for every AnimationManager in the game; 
-		// with no managed graphs there is nothing else to do.
 		if (activeGraphCount == 0) {
 			return;
 		}
 
-		// Identity match: resolve the managed actor directly from the AnimationManager pointer (no position guessing, no collisions).
 		auto* animMgr = static_cast<RE::AnimationManager*>(a_this);
 		RE::TESObjectREFR* refr = animMgr ? animMgr->GetTargetReference() : nullptr;
 		if (!refr) {
@@ -1627,8 +1546,7 @@ namespace OSF::Animation
 		if (iter == gm.graphs.end()) {
 			return;
 		}
-		// stateLock is held shared through the rest of this function, so the map entry can't be erased from under us 
-		// bind to the slot by reference instead of copying the shared_ptr (drops a refcount RMW per call, and this fires ~7x/frame per managed actor).
+		// Shared stateLock pins the map entry; bind by reference to skip a refcount RMW on this hot path.
 		auto& g = iter->second;
 
 		std::vector<std::function<void()>> deferred;
@@ -1636,10 +1554,7 @@ namespace OSF::Animation
 			std::unique_lock gl{ g->stateLock };
 			g->Sample(PlaybackDelta(*a_updateData), a_this);
 
-			// Per-graph follow-ups, run under both locks; game-thread-only work is collected in
-			// `deferred` and published to the frame queue after both locks release.
-			// Marks BEFORE auto-end: the task queue drains FIFO, so on a play-once segment the final
-			// at:"end" marks must be queued ahead of the stop task or they resolve a dead handle.
+			// Marks before auto-end: the queue is FIFO and final at:"end" marks must precede the stop task.
 			gm.QueueTimedMarksIfFired(*g, deferred);
 			gm.QueueAutoEndIfFinished(*g, deferred);
 			gm.QueueFadeRemovalIfDone(*g, deferred);
@@ -1652,19 +1567,15 @@ namespace OSF::Animation
 		RE::BGSModelNode* a_this, void* a_parentTransform, void* a_updateData, void* a_outputTransform)
 	{
 		{
-			// Stamp the latest sampled pose for the graph driving this skeleton before the engine's compose+commit runs (the verified write point).
-			// Unmanaged skeletons fall through with one map scan; managed graph counts are small (synchronized-playback participants).
+			// Stamp right before the engine's compose+commit; managed graph counts are small, so scan linearly.
 			auto& gm = GetSingleton();
-			// This runs once per skeleton per frame game-wide; with no OSF playback the atomic check keeps it lock-free.
-			// A racing insert is benign (the new graph stamps next frame at the latest).
+			// Runs per skeleton per frame game-wide; lock-free when idle. A racing insert stamps next frame.
 			if (gm.graphCount.load(std::memory_order_relaxed) > 0) {
 				std::shared_lock l{ gm.stateLock };
 				if (!gm.graphs.empty()) {
 					for (auto& [refr, g] : gm.graphs) {
-						// Normal case: one atomic pointer comparison, then verify under the graph lock.
-						// Recovery only pays the actor-root lookup while no stamp target is published,
-						// and ResolveAndBind accepts the candidate only if it is this graph's current
-						// actor node. That lets the first compose after a 3D rebuild stamp immediately.
+						// Atomic compare, then verify under the graph lock. With no published target, ResolveAndBind accepts
+						// only this graph's current node, so the first compose after a 3D rebuild stamps immediately.
 						const auto* publishedTarget = g->StampTarget();
 						if (publishedTarget == a_this || publishedTarget == nullptr) {
 						std::unique_lock gl{ g->stateLock };
@@ -1685,12 +1596,11 @@ namespace OSF::Animation
 								std::chrono::steady_clock::now().time_since_epoch()).count();
 							g->playbackSession->lastStampMs.store(stampMs, std::memory_order_relaxed);
 						}
-						// Pin the compose root TRANSLATION to the placement world position. a_parentTransform = &fadeNode->local (this compose's root input;
-						// NiTransform, translate at +0x30). Overriding the compose input pins the RENDERED skeleton without fighting physics 
-						// (capsules sit ~0.3 m off and win any refr-teleport). Synchronized-playback participant -> its placement (anchored); solo graph -> its SetAnchor anchor when rootMode != kFollow.
+						// Pin the compose root (a_parentTransform = &fadeNode->local, NiTransform). Overriding the compose
+						// input pins the rendered skeleton without fighting physics (capsules sit ~0.3 m off).
 						RE::NiPoint3 pinWorld{};
 						bool doPin = false;
-						// World heading to re-pin per frame (radians). Only known on the synchronized-playback path; solo anchors retain no heading. Gated to the PLAYER below.
+						// Radians; only known for session participants (solo anchors keep no heading).
 						float pinHeading = 0.0f;
 						bool hasPinHeading = false;
 						if (g->playbackSession && g->playbackSession->anchored && g->participantIndex >= 0) {
@@ -1710,37 +1620,28 @@ namespace OSF::Animation
 							root[13] = pinWorld.y;
 							root[14] = pinWorld.z;
 
-							//Set actor position to skeleton position
 							refr->data.location = pinWorld;
 
-							//Pin root rotation for participants. Overrides player rotate to camera heading and npc lookat targets
-							// Rotation = NiMatrix3 at +0x00: three ROWS of 4 floats (4th pad), stride 4 -> root[r*4 + c].
+							// Pin root rotation (overrides player camera heading / NPC look-at). NiMatrix3 rows at +0x00: root[r*4 + c].
 							if (hasPinHeading) {
 								const float c = std::cos(pinHeading);
 								const float s = std::sin(pinHeading);
-								root[0] = c;    root[1] = -s;   root[2] = 0.0f;   // row0
-								root[4] = s;    root[5] = c;    root[6] = 0.0f;   // row1
-								root[8] = 0.0f; root[9] = 0.0f; root[10] = 1.0f;  // row2
+								root[0] = c;    root[1] = -s;   root[2] = 0.0f;
+								root[4] = s;    root[5] = c;    root[6] = 0.0f;
+								root[8] = 0.0f; root[9] = 0.0f; root[10] = 1.0f;
 
-								// Also pin the LOGICAL heading. (root is just rendering)
+								// Logical heading too (root only affects rendering).
 								refr->data.angle.z = pinHeading;
 							}
 
-							// Keep the CULL SPHERE on the pinned render position. The engine derives worldBound from the physics capsule (~0.3 m off), 
-							// so left alone NiCullingProcess pops the actor in/out as the camera orbits.
-							// Recover the node from a_parentTransform (= local @ +0x40) and rewrite worldBound (center +0x100, radius +0x10C). 
-							// Written pre-orig but after the bound pass, so culling sees it this frame.
+							// Keep the cull sphere on the pin; worldBound follows the capsule (~0.3 m off) and pops on orbit.
+							// fadeNode = local - 0x40; worldBound center +0x100, radius +0x10C; written after the bound pass.
 							auto* fadeNode = reinterpret_cast<RE::NiAVObject*>(
 								reinterpret_cast<std::byte*>(a_parentTransform) - offsetof(RE::NiAVObject, local));
 
-							// Center on the visible mesh (torso), not the feet/origin: a feet-centered sphere
-							// sits below the posed body and frustum-culls at certain orbit angles (see kPinCullCenterUp).
-							// CAP the radius small (min, not max) so the near-fade threshold stays close in.
 							fadeNode->worldBound.center = { pinWorld.x, pinWorld.y, pinWorld.z + kPinCullCenterUp };
 							fadeNode->worldBound.radius = std::min(fadeNode->worldBound.radius, kPinCullRadius);
 
-							// Hold the near-camera fade (BSFadeNode+0x1B4) at 1.0 so pinned participants don't fade
-							// out when the camera orbits close (works together with the small bound radius above).
 							*reinterpret_cast<float*>(
 								reinterpret_cast<std::byte*>(fadeNode) + kFadeNodeVisFlagOff) = 1.0f;
 						}

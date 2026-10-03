@@ -67,8 +67,7 @@ describe("browser reducer", () => {
     const reloaded = createInitialState();
     expect(reloaded.ready).toBe(false);
 
-    // Every newly mounted page sends catalog.get, so OSF Animation can prove the
-    // engine connection directly even if helper initialization was interrupted.
+    // catalog.get proves the connection even if helper initialization was interrupted.
     const healed = browserReducer(reloaded, { type: "catalog/received", scenes: [solo] });
 
     expect(healed).toMatchObject({ ready: true, catalogReceived: true });
@@ -133,13 +132,11 @@ describe("browser reducer", () => {
     const polled = browserReducer(armed, { type: "pickTargets/received", slot: "actor", items: [target] });
     expect(polled.pickTargets).toEqual([target]);
 
-    // A stale reply from the other slot must not repaint the marker layer.
     const rearmed = browserReducer(polled, { type: "pick/armed", kind: "furniture" });
     expect(rearmed.pickTargets).toEqual([]);
     expect(browserReducer(rearmed, { type: "pickTargets/received", slot: "actor", items: [target] }).pickTargets).toEqual([]);
     expect(browserReducer(rearmed, { type: "pickTargets/received", slot: "furniture", items: [target] }).pickTargets).toEqual([target]);
 
-    // A late in-flight reply after cancel must not resurrect the marker layer.
     const cancelled = browserReducer(polled, { type: "pick/cancelled" });
     expect(cancelled.pickTargets).toEqual([]);
     expect(browserReducer(cancelled, { type: "pickTargets/received", slot: "actor", items: [target] }).pickTargets).toEqual([]);
@@ -182,7 +179,6 @@ describe("browser reducer", () => {
     });
     expect(restaged).toMatchObject({ lastHandle: -2, minimized: true });
 
-    // A fresh inspection launched from a minimized RUNNING scene still opens the timeline.
     const fromLive = browserReducer({ ...preview, active: [{ ...preview.active[0], inspection: false }] }, {
       type: "launch/succeeded", handle: -3, sceneId: "solo", afterLaunch: "stay", inspect: true,
     });
@@ -268,7 +264,6 @@ describe("browser settings", () => {
       "launch.camera": "scene_orbit",
     })).toMatchObject({ afterLaunch: "close", rememberBrowsing: false, actorLabels: false,
       hideApparel: "0", playerInputLock: "1", camera: "scene_orbit" });
-    // Absent keys keep their defaults rather than decoding as false.
     expect(decodePreferences({}).actorLabels).toBeUndefined();
   });
 
@@ -298,30 +293,20 @@ describe("browser selectors", () => {
     expect(npcFirst.actors.map((member) => member.token)).toEqual([8]);
   });
   it("resolves the hot pick target with the shared marker/click scoring", () => {
-    // 1000x500 viewport. One scoring function serves the hover marker AND the
-    // click resolution, so these expectations pin the world-pick acceptance.
     const near = { token: 1, x: 0.3, y: 0.2, cx: 0.3, cy: 0.4, rx: 60, ry: 100, depth: 5 };
     const far = { token: 2, x: 0.8, y: 0.3, cx: 0.8, cy: 0.5, rx: 60, ry: 100, depth: 20 };
-    // Dead center of `near`'s ellipse.
     expect(hottestPickTarget([near, far], 300, 200, 1000, 500)?.token).toBe(1);
-    // Inside `far`'s ellipse, outside `near`'s.
     expect(hottestPickTarget([near, far], 810, 260, 1000, 500)?.token).toBe(2);
-    // Just inside the horizontal edge of `near` (dx = 59/60 < 1).
     expect(hottestPickTarget([near], 359, 200, 1000, 500)?.token).toBe(1);
-    // Just outside every ellipse → no hot target, which the click treats as a miss.
     expect(hottestPickTarget([near, far], 500, 480, 1000, 500)).toBeNull();
     expect(hottestPickTarget([], 300, 200, 1000, 500)).toBeNull();
   });
 
   it("prefers the front-most target when acceptance ellipses overlap", () => {
-    // Same ellipse, different depths: the user visually sees the closer actor, so
-    // the closer one must win even when the deeper one's center is nearer the cursor.
     const front = { token: 1, x: 0.5, y: 0.2, cx: 0.52, cy: 0.4, rx: 80, ry: 120, depth: 4 };
     const behind = { token: 2, x: 0.5, y: 0.2, cx: 0.5, cy: 0.4, rx: 80, ry: 120, depth: 18 };
     expect(hottestPickTarget([behind, front], 500, 200, 1000, 500)?.token).toBe(1);
     expect(hottestPickTarget([front, behind], 500, 200, 1000, 500)?.token).toBe(1);
-    // At effectively the same depth (inside the 5% relative band) the better
-    // ellipse score wins instead.
     const twin = { ...behind, depth: 4.1 };
     expect(hottestPickTarget([front, twin], 500, 200, 1000, 500)?.token).toBe(2);
   });
@@ -329,7 +314,6 @@ describe("browser selectors", () => {
   it("selects a ready emote from the unified browse surface", () => {
     const state = { ...createInitialState(), catalog: [solo, pair], catalogReceived: true };
     expect(validSelection(state)).toBe("solo");
-    // pair is unplayable for the default cast — the live split (UnifiedBrowser) buckets by gaps
     expect(evaluateForState(state, pair).gaps).toBeGreaterThan(0);
     expect(validSelection({ ...state, browseAll: true })).toBe("solo");
   });
@@ -392,7 +376,6 @@ describe("browser selectors", () => {
 
   it("applies the unavailable-scene visibility preference", () => {
     const state = { ...createInitialState(), catalog: [pair], catalogReceived: true };
-    // default preference is "ask" with the reveal collapsed
     expect(showUnavailable(state)).toBe(false);
     expect(showUnavailable({ ...state, browseAll: true })).toBe(true);
     expect(showUnavailable({ ...state, preferences: { ...state.preferences, unavailableScenes: "show" } })).toBe(true);
@@ -430,7 +413,6 @@ describe("browser selectors", () => {
     expect(isVanillaAnimation(vanilla)).toBe(true);
     expect(isVanillaAnimation(imported)).toBe(false);
     expect(filteredLibrary(state).map((scene) => scene.id)).toEqual([imported.id]);
-    // the custom-only filter removes vanilla from the playable surface entirely
     expect(playableItems(state).some((item) => item.scene.id === vanilla.id)).toBe(false);
     expect(validSelection(state)).toBeNull();
     const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
@@ -439,11 +421,7 @@ describe("browser selectors", () => {
   });
 
   it("shows clipLibrary registrations to everyone, not only to authors", () => {
-    // A pack may ship nothing but a clipLibrary — the registrations ARE its content. They share
-    // the osf.scene-clip/ id namespace with the harvested debug entries. New native builds emit
-    // `sourceKind`; `curated` remains the compatibility signal for older builds.
-    // Both shapes as the engine actually serializes them: one anonymous role, unlisted, in the
-    // library lane, tagged only `scene.clip` when the author supplied no tags of their own.
+    // Shaped as the engine serializes them; `curated` is the signal for builds without `sourceKind`.
     const registered = normalizeScene({
       id: "osf.scene-clip/aaa",
       title: "Hand Extended 01",
@@ -477,7 +455,6 @@ describe("browser selectors", () => {
     expect(isDerivedDebugAnimation(explicitDerived)).toBe(true);
     expect(isDerivedDebugAnimation(explicitCurated)).toBe(false);
 
-    // Stock preferences: author details off, poses-and-loops tier, custom+vanilla, no search.
     const state = {
       ...createInitialState(),
       library: [registered, harvested],
@@ -487,8 +464,6 @@ describe("browser selectors", () => {
     const visible = playableItems(state).filter((item) => playableVisible(state, item));
     expect(visible.map((item) => item.scene.id)).toEqual([registered.id]);
     expect(hiddenSceneCount(state)).toBe(1);
-    // Ready with the default player-only cast, so it lands in the playable list, not the
-    // "needs a different cast" bucket that stays folded away.
     expect(evaluateForState(state, registered).gaps).toBe(0);
 
     const authorState = { ...state, filters: { ...state.filters, debugMode: true } };
@@ -556,10 +531,8 @@ describe("import report panel", () => {
 
   it("ranks a file by its worst outcome", () => {
     expect(importSeverity(file({ scenes: 3 }))).toBe("ok");
-    // Loaded without complaint but contributed nothing — never an error, always worth seeing.
     expect(importSeverity(file({}))).toBe("note");
     expect(importSeverity(file({ scenes: 3, warnings: 1 }))).toBe("warn");
-    // Hidden scenes and missing clips are warnings even when the load itself said nothing.
     expect(importSeverity(file({ scenes: 3, hidden: 2 }))).toBe("warn");
     expect(importSeverity(file({ scenes: 3, missingClips: 4 }))).toBe("warn");
     expect(importSeverity(file({ scenes: 3, warnings: 1, errors: 1 }))).toBe("error");
@@ -631,7 +604,6 @@ describe("import report panel", () => {
   });
 
   it("formats sizes and durations at readable magnitudes", () => {
-    // Under 10 KB keeps a decimal (small files differ meaningfully); above it rounds.
     expect([formatBytes(0), formatBytes(812), formatBytes(4_096), formatBytes(24_118), formatBytes(1_204_886)])
       .toEqual(["0 B", "812 B", "4.0 KB", "24 KB", "1.1 MB"]);
     expect([formatMillis(0), formatMillis(0.42), formatMillis(148.2), formatMillis(1_810)])

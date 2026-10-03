@@ -65,8 +65,7 @@ namespace OSF::Serialization
 
 		static bool DefaultAtomicReplace(const std::filesystem::path& temporary,
 			const std::filesystem::path& destination);
-		// Internal registration object; public only so the implementation's scoped
-		// callback lease can name it without exposing any ABI across DLLs.
+		// Public only so the implementation's callback lease can name it; not ABI.
 		struct Client;
 
 	private:

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Matchmaking/Matchmaker.h"  // TagQuery, AnchorMode, Candidate
-#include "Scene/SceneRuntime.h"      // AnchorOverride, StartOverrides
+#include "Matchmaking/Matchmaker.h"
+#include "Scene/SceneRuntime.h"
 
 #include <cstdint>
 #include <optional>
@@ -9,10 +9,9 @@
 #include <string_view>
 #include <vector>
 
-// The matchmake-and-start funnel shared by every launch path (Papyrus natives, hotkeys, director).
 namespace OSF::Scene
 {
-	// Per-start options shared by every launch path. Keep in sync with OSFTypes.psc SceneOptions.
+	// Keep in sync with OSFTypes.psc SceneOptions.
 	struct LaunchOpts
 	{
 		RE::TESObjectREFR* anchor = nullptr;
@@ -20,33 +19,28 @@ namespace OSF::Scene
 		std::int32_t       stage = 0;
 		float              speed = 1.0f;
 		float              blendIn = 0.4f;
-		std::int32_t       hideApparelMode = -1;     // tri-state override: -1 inherit, 0 off, 1 on
-		std::int32_t       playerInputLockMode = -1; // tri-state override
-		std::int32_t       sceneControlsMode = -1;   // tri-state override of OSF controls (OFF = no advance/end)
-		std::int32_t       fadeMode = -1;           // tri-state override
-		std::int32_t       followActorMode = -1;     // tri-state override: 1 = follow actors, 0 = anchor and pin
-		std::string        camera;                  // camera state override ("" = inherit; "none" = leave the vanilla camera alone; suppresses authored node cameras)
-		float              loopScale = 1.0f;        // multiply loop-driven stage loop counts (1.0 = none)
+		std::int32_t       hideApparelMode = -1;     // tri-state: -1 inherit, 0 off, 1 on
+		std::int32_t       playerInputLockMode = -1;
+		std::int32_t       sceneControlsMode = -1;
+		std::int32_t       fadeMode = -1;
+		std::int32_t       followActorMode = -1;     // 1 = follow actors, 0 = anchor and pin
+		std::string        camera;                  // "" = inherit; "none" = vanilla camera, suppresses node cameras
+		float              loopScale = 1.0f;        // multiplies loop-driven stage loop counts
 	};
 
-	// Optional explicit heading (radians) from options: HeadingDeg < 0 => use the ref's own facing.
+	// nullopt when headingDeg < 0 (use the ref's own facing).
 	std::optional<float> OptHeadingRad(const LaunchOpts& a_opts);
 
-	// A SceneRuntime world-anchor from resolved options (unset when no Anchor).
 	SceneRuntime::AnchorOverride MakeAnchor(const LaunchOpts& a_opts);
 
-	// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool>
-	// (1 = on, 0 = off, anything else incl. -1 = inherit the scene/content-file default).
-	// LoopScale is sanitized: <=0 or NaN -> 1.0 (no scaling); inf / overshoot -> clamped to kLoopScaleMax.
+	// Tri-states: 1 on, 0 off, else inherit. loopScale <= 0 or NaN -> 1.0, clamped to kLoopScaleMax.
 	SceneRuntime::StartOverrides MakeOverrides(const LaunchOpts& a_opts);
 	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_hideApparelMode, std::int32_t a_playerInputLockMode,
 		std::int32_t a_sceneControlsMode, std::int32_t a_fadeMode, std::int32_t a_followActorMode,
 		std::string_view a_camera, float a_loopScale);
 
-	// Validate the actor list, matchmake a_query across the scene registry (priority tier + weighted-random) with anchor filtering (a_mode + a_opts.anchor),
-	// ENFORCE the picked scene's anchor requirement (ResolveSceneAnchor), and start the pick with its matchmade binding at the resolved anchor.
-	// Returns the scene handle (0 = no actors / null actor / no match / anchor rejected / start failed).
-	// a_logTag carries the FULL log prefix including the caller's subsystem tag, e.g. "[Papyrus] OSF.StartSceneByTags" — this funnel prepends nothing.
+	// Matchmake, enforce the pick's anchor requirement, and start it. Returns the handle, 0 = failed.
+	// a_logTag is the full log prefix; nothing is prepended.
 	std::int32_t LaunchMatched(const std::vector<RE::Actor*>& a_actors,
 		const Matchmaking::TagQuery& a_query, const LaunchOpts& a_opts,
 		const SceneRuntime::StartOverrides& a_over, const char* a_logTag,

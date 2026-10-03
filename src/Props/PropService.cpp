@@ -48,9 +48,7 @@ namespace OSF::Props
 				if (keyword) {
 					keywords.push_back(keyword);
 				} else {
-					// The list is any-of: a missing fallback is expected when another
-					// editor ID resolves on this load order. The enclosing prop action
-					// emits the actionable warning if none of the alternatives works.
+					// Any-of list: a missing alternative is expected; the prop action warns if none resolves.
 					REX::DEBUG("[Scene] equipped-armor prop source alternative keyword '{}' was not found", editorID);
 				}
 			}
@@ -89,19 +87,8 @@ namespace OSF::Props
 			}
 		}
 
-		// Authored XYZ degrees, in the authoring tool's sense of them.
-		//
-		// The body builds the textbook right-handed Rz*Ry*Rx for column vectors,
-		// but the engine reads local.rotate in the transposed (frame-orientation)
-		// convention and therefore renders that matrix's INVERSE. Proven in game
-		// 2026-07-30 on the Suit Protocol helmet proxy, which shares this exact
-		// builder: identity matched the authoring tool while Rx/Ry/Rz(+90) each
-		// rendered as their negative, and all three matched after transposing.
-		// For a pure rotation the inverse IS the transpose, so transposing at
-		// this authored-euler boundary makes an authored angle mean the same
-		// thing in Blender, Studio, and the running game. Do not "fix" a
-		// mirrored angle by flipping its sign in a scene file - the correction
-		// belongs here, once.
+		// Authored XYZ degrees. The engine reads local.rotate transposed (renders the inverse of Rz*Ry*Rx),
+		// so the transpose happens here, once; don't flip signs in scene files.
 		::RE::NiMatrix3 RotationFromDegrees(
 			const std::array<float, 3>& a_rotation)
 		{

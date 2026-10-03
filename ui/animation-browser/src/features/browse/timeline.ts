@@ -20,9 +20,7 @@ export function timelineTracks(marks: readonly TimelineTrackMark[]) {
   })).filter((lane) => lane.marks.length > 0);
 }
 
-/** Effective rail fraction: an `atFrame` mark re-places itself against the live decoded
- *  duration when one is known — the catalog's fraction was computed from the pack-authored
- *  clip length, which can disagree with what actually decoded. */
+/** Prefer the live decoded duration: the catalog fraction uses the pack-authored clip length. */
 export function timelineMarkAt(mark: TimelineTrackMark, duration: number): number {
   if (mark.atSec != null && duration > 0) return Math.max(0, Math.min(1, mark.atSec / duration));
   return mark.at;

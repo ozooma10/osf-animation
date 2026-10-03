@@ -7,9 +7,8 @@
 
 namespace OSF::Animation::BlendSource
 {
-	// One-shot handoff for the pose displayed by a graph that is about to be torn down.
-	// Replacement playback reuses the Graph, but teardown invalidates its rig binding before
-	// SetAnimation can identify which joints were actually visible. Capture both pieces together.
+	// Pose handoff from a graph being torn down: teardown invalidates the rig binding, so capture
+	// the pose and its driven joints together.
 	template <class Pose>
 	class Prepared
 	{

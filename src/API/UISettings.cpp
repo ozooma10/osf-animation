@@ -108,7 +108,6 @@ namespace OSF::API
 
 		void OnHotkey(const char*, const char* a_id, void*) noexcept
 		{
-			// OpenBrowser/OpenWheel queue engine work for the frame update.
 			try {
 				const std::string_view id = a_id ? a_id : "";
 				if (id == "openBrowser") OpenBrowser();

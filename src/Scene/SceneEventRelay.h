@@ -1,10 +1,8 @@
 #pragma once
 
-// Delivers scene-runtime events to registered Papyrus callbacks.
-
 namespace OSF::Scene
 {
-	// Event-type bits — mirror the OSF.psc EVENT_* constants.
+	// Mirrors OSF.psc EVENT_* constants.
 	namespace Event
 	{
 		inline constexpr std::int32_t kNodeEnter = 0x01;
@@ -16,63 +14,57 @@ namespace OSF::Scene
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 
-	// One scene event, snapshotted and dispatched to registered Papyrus callbacks as an OSFTypes:SceneEvent struct. 
-	// Member names are frozen with the ABI; PackPayload maps those names to the compiler-reordered struct slots.
+	// Dispatched as OSFTypes:SceneEvent; Papyrus member names are frozen ABI.
 	struct SceneEvent
 	{
-		std::int32_t scene = 0;        // [0] scene handle
-		std::int32_t event = 0;        // [1] EVENT_*
-		std::string  node;             // [2] node id
-		std::string  edge;             // [3] edge id
-		std::string  cue;              // [4] EVENT_CUE id
-		std::string  actionType;       // [5] EVENT_ACTION type
-		RE::Actor*   actor = nullptr;  // [6] participant (may be null)
-		std::string  role;             // [7] role name
-		std::int32_t loopIndex = -1;   // [8] reserved in v0.1
-		float        time = -1.0f;     // [9] clip-local fraction, or -1.0 for a named track position
-		std::string  trackPosition;    // [10] "", "enter", "exit", "end"; serialized as legacy `anchor`
-		std::int32_t result = 0;       // [11] RESULT_*
+		std::int32_t scene = 0;
+		std::int32_t event = 0;        // EVENT_*
+		std::string  node;
+		std::string  edge;
+		std::string  cue;
+		std::string  actionType;
+		RE::Actor*   actor = nullptr;  // may be null
+		std::string  role;
+		std::int32_t loopIndex = -1;   // reserved
+		float        time = -1.0f;     // clip-local fraction, -1 for a named track position
+		std::string  trackPosition;    // "", "enter", "exit", "end"; Papyrus field `anchor`
+		std::int32_t result = 0;       // RESULT_*
 	};
 
-	// Token-based registry of Papyrus scene-event callbacks. Thread-safe;
+	// Thread-safe.
 	class SceneEventRelay
 	{
 	public:
 		static SceneEventRelay& GetSingleton();
 
-		// Register a_receiver.a_fn(OSFTypes:SceneEvent) for events whose bit is set in a_eventMask and (when a_sceneFilter != 0) whose scene == a_sceneFilter. 
-		// Returns a generational token (0 = failed: null receiver or no VM).
+		// a_sceneFilter 0 = any scene. Returns a generational token, 0 = failed.
 		std::int32_t Register(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, std::string_view a_fn, std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
-		// Instance-free variant: For Papyrus script libraries (global functions, no `self`) that can't be passed as a receiver Object.
-		//  Same filter/mask/token semantics as Register. Returns a generational token (0 = failed: empty script/fn).
+		// For global functions on script libraries (no receiver object).
 		std::int32_t RegisterStatic(std::string_view a_script, std::string_view a_fn,
 			std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
-		// Remove the registration for a_token. False if the token is stale/invalid.
 		bool Unregister(std::int32_t a_token);
 
-		// Snapshot a_event into an OSFTypes:SceneEvent and DispatchMethodCall every matching receiver, in registration order. Safe from any thread.
 		void Dispatch(const SceneEvent& a_event);
 
-		//Drop registrations without releasing objects (papyrus vm may have alreadyt freed, so forget the references instead)
 		void Clear();
 
 	private:
 		struct Entry
 		{
 			std::uint16_t                             generation = 0;  // 0 = empty slot
-			RE::BSTSmartPointer<RE::BSScript::Object> receiver;        // instance target (DispatchMethodCall)
-			RE::BSFixedString                         scriptName;      // set => global target (DispatchStaticCall); receiver unused
+			RE::BSTSmartPointer<RE::BSScript::Object> receiver;
+			RE::BSFixedString                         scriptName;      // set => static dispatch; receiver unused
 			RE::BSFixedString                         fn;
 			std::int32_t                              sceneFilter = 0;
 			std::int32_t                              eventMask = 0;
 		};
 
-		// Shared slot allocation + token mint for Register / RegisterStatic. Assumes _lock held.
+		// Caller holds _lock.
 		std::int32_t AddEntry(const RE::BSTSmartPointer<RE::BSScript::Object>& a_receiver, RE::BSFixedString a_scriptName, std::string_view a_fn, std::int32_t a_sceneFilter, std::int32_t a_eventMask);
 
-		// token = (generation << 16) | slot ; token 0 = null (slot 0 gen>=1 -> nonzero).
+		// token = (generation << 16) | slot; generation >= 1 keeps tokens nonzero.
 		static std::int32_t MakeToken(std::uint16_t a_gen, std::uint16_t a_slot)
 		{
 			return (static_cast<std::int32_t>(a_gen) << 16) | a_slot;

@@ -11,27 +11,8 @@
 
 namespace OSF::Util
 {
-	// Typed field access that composes the registry's OWN diagnostic vocabulary.
-	//
-	// The content parsers reject malformed author JSON with a sentence naming the file, the field,
-	// and what was expected — that text is a product feature, not debug output: it reaches
-	// OSF Animation.log, OSFAdvanced.GetSceneLoadErrors(), and the System Health cards. Hand-writing
-	// it meant every field cost a find/is_X/throw/get block, and the same "string or array" and
-	// "reject unknown keys" rules existed several times over.
-	//
-	// Every accessor here composes exactly one shape:
-	//
-	//     <subject><sep><field> must be <expected>
-	//
-	// `field` defaults to "'<key>'" and `expected` to the accessor's own noun, so a site already on
-	// that wording passes nothing. Sites that were never in that shape pass `whole`.
-	//
-	// This is a VALIDATION layer, not a parsing one. Where the JSON *type* is the schema's
-	// discriminator (a clip is a string OR an object; a sound `at` is a scalar, array, or ladder
-	// object), the branch stays hand-written and only its else-arm calls Reject(), so the rejection
-	// still reads like every other one.
-
-	// How one rejection reads. Leave a field empty to take the accessor's default.
+	// Rejections read "<subject><sep><field> must be <expected>"; the text is user-facing (log,
+	// GetSceneLoadErrors, System Health). Type-discriminated branches stay hand-written and call Reject().
 	struct JsonText
 	{
 		std::string_view field;     // "" -> "'<key>'"
@@ -39,16 +20,14 @@ namespace OSF::Util
 		std::string_view whole;     // non-empty -> replaces everything after the separator
 	};
 
-	// The prop parsers build "props template 'helmet' scale must be ..." — subject and text joined
-	// by a SPACE. Everything else uses ": ".
+	// kSpace is for the prop parsers ("props template 'helmet' scale must be ...").
 	enum class JsonJoin : std::uint8_t
 	{
 		kColon,
 		kSpace
 	};
 
-	// A json value plus the diagnostic prefix that names it. Non-owning over the json but OWNS its
-	// subject, because call sites pass temporaries (`JsonView{ j, a_subject + " layer" }`).
+	// Non-owning over the json; owns the subject because call sites pass temporaries.
 	class JsonView
 	{
 	public:
@@ -59,7 +38,6 @@ namespace OSF::Util
 		[[nodiscard]] const nlohmann::json& Json() const noexcept { return _json; }
 		[[nodiscard]] const std::string&    Subject() const noexcept { return _subject; }
 
-		// Presence, unchecked — for the discriminator sites that keep branching by hand.
 		[[nodiscard]] const nlohmann::json* Find(std::string_view a_key) const
 		{
 			if (!_json.is_object()) {
@@ -71,7 +49,6 @@ namespace OSF::Util
 
 		[[nodiscard]] bool Has(std::string_view a_key) const { return Find(a_key) != nullptr; }
 
-		// The view's own value must be an object.
 		void RequireObject(JsonText a_text = {}) const
 		{
 			if (!_json.is_object()) {
@@ -79,9 +56,7 @@ namespace OSF::Util
 			}
 		}
 
-		// --- Optional reads. Assign a_out ONLY when the key is present; a present wrong-typed
-		// value is a rejection. Returns whether a_out was written, for sites that branch on it.
-
+		// Optional reads: a_out is written only when the key is present; wrong type throws.
 		bool Read(std::string_view a_key, std::string& a_out, JsonText a_text = {}) const
 		{
 			const auto* value = Find(a_key);
@@ -121,9 +96,7 @@ namespace OSF::Util
 			return true;
 		}
 
-		// Integer plus an inclusive range, because the schema distinguishes the two failures:
-		// "'weight' must be an integer" and "'weight' must be in [1, 1000000]". The range text is
-		// composed from the bounds, so it cannot drift from the check.
+		// Inclusive range; type and range failures are reported separately.
 		bool ReadInt(std::string_view a_key, std::int32_t& a_out, std::int64_t a_min, std::int64_t a_max,
 			JsonText a_type = {}, JsonText a_range = {}) const
 		{
@@ -143,8 +116,6 @@ namespace OSF::Util
 			return true;
 		}
 
-		// --- Required reads.
-
 		[[nodiscard]] std::string RequiredNonEmpty(std::string_view a_key, JsonText a_text = {}) const
 		{
 			const auto* value = Find(a_key);
@@ -154,15 +125,7 @@ namespace OSF::Util
 			return value->get<std::string>();
 		}
 
-		// --- The shapes this schema repeats.
-
-		// `<key>` is a single string OR an array of strings — filters.keyword, filters.race,
-		// anchor.keyword, anchor.base, source.equippedArmor.keyword. Absent yields an empty vector,
-		// so callers keep the "not authored" case as an empty loop rather than a branch.
-		//
-		// Pass the item text's `field` with the word "entries" already on it
-		// (`{ .field = "filters.keyword entries" }`), which is how one composition rule covers both
-		// the shape rejection and the element rejection.
+		// A string or an array of strings; absent yields empty. a_item.field should carry "entries".
 		[[nodiscard]] std::vector<std::string> StringOrList(std::string_view a_key,
 			JsonText a_shape = {}, JsonText a_item = {}, bool a_nonEmptyItems = false) const
 		{
@@ -183,9 +146,7 @@ namespace OSF::Util
 			return out;
 		}
 
-		// `<key>` must be an ARRAY of strings — stage `tags`, sceneControls `disable`,
-		// `preserveBones`. Deliberately NOT StringOrList: these keys have never accepted a bare
-		// string, and quietly starting to would widen the schema.
+		// Array only; not StringOrList so these keys keep rejecting a bare string.
 		[[nodiscard]] std::vector<std::string> ReadList(std::string_view a_key,
 			JsonText a_shape = {}, JsonText a_item = {}, bool a_nonEmptyItems = false) const
 		{
@@ -203,9 +164,6 @@ namespace OSF::Util
 			return out;
 		}
 
-		// Reject any key outside a_allowed. Used where the authored namespace is a deliberately
-		// strict subset (prop templates, route layers), so a stray key that would silently do
-		// nothing is an error instead.
 		void RejectUnknownKeys(std::span<const char* const> a_allowed,
 			std::string_view a_lead = "has unknown key", std::string_view a_trailer = {}) const
 		{
@@ -229,9 +187,7 @@ namespace OSF::Util
 			}
 		}
 
-		// --- Lenient. The right type wins; anything else leaves a_out alone and NEVER throws.
-		// Deliberately a different name from Read: the file-header harvest (pack/section/folder
-		// labels) must not turn a cosmetic mistake into a whole-file parse failure.
+		// Never throws: cosmetic header labels must not fail the whole file.
 		bool TryRead(std::string_view a_key, std::string& a_out) const
 		{
 			const auto* value = Find(a_key);
@@ -242,8 +198,6 @@ namespace OSF::Util
 			return true;
 		}
 
-		// The rejection every accessor uses, so a hand-written discriminator branch throws the
-		// identical sentence.
 		[[noreturn]] void Reject(std::string_view a_key, JsonText a_text,
 			std::string_view a_default) const
 		{

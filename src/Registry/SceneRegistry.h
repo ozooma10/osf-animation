@@ -1,12 +1,9 @@
 #pragma once
 
-// Loads scenes from Data/OSF/**/*.osf.json. A scene is the one content concept: minimal (a `clip` or
-// `stages[]` timeline, desugared to a node chain) up to a full graph of nodes with loop policy, edges,
-// roles, and the four track lanes (cue/action/sound/camera). A node plays an inline `stages[]` timeline
-// or `use`s another scene by id. Handles parsing, the desugar, validation, and load diagnostics.
+// Loads scenes from Data/OSF/**/*.osf.json; `clip`/`stages[]` shorthand desugars to a node chain.
 
-#include "Animation/Scene.h"   // ParticipantPlacement, PlaybackPlan
-#include "Input/InputTypes.h"  // SceneControls capabilities default to Input::kAllCapabilities
+#include "Animation/Scene.h"
+#include "Input/InputTypes.h"
 #include "Props/PropTypes.h"
 
 #include <algorithm>
@@ -26,7 +23,6 @@
 
 namespace OSF::Registry
 {
-	// Scene schema version (*.osf.json declares this). Bump only on a breaking change.
 	inline constexpr std::int64_t kSchemaVersion = 1;
 
 	enum class RoleGender : std::uint8_t
@@ -35,11 +31,11 @@ namespace OSF::Registry
 		kMale,
 		kFemale
 	};
-	using SlotGender = RoleGender;  // compatibility spelling
+	using SlotGender = RoleGender;
 
-	// Case-insensitive gender-string parse ("male"/"m" -> kMale, "female"/"f" -> kFemale, else kAny).
+	// "male"/"m", "female"/"f" (case-insensitive); else kAny.
 	RoleGender ParseRoleGender(std::string_view a_str);
-	SlotGender ParseSlotGender(std::string_view a_str);  // compatibility forwarding symbol
+	SlotGender ParseSlotGender(std::string_view a_str);
 
 	enum class LoopMode : std::uint8_t
 	{
@@ -61,7 +57,7 @@ namespace OSF::Registry
 	{
 		std::string  id;        // "" for auto-edges; required on branchable (advance) edges
 		std::string  label;     // required on branchable edges
-		std::string  labelKey;  // optional localization key
+		std::string  labelKey;
 		std::string  to;        // target node id, or "$end"
 		EdgeWhen     when = EdgeWhen::kAdvance;
 		std::string  trigger;   // cue id (when == kTrigger)
@@ -69,8 +65,7 @@ namespace OSF::Registry
 		std::int32_t priority = 0;
 	};
 
-	// Shared position model for all four node tracks. Aliases below preserve the lane-specific
-	// names at call sites while keeping parsing/scheduling semantics structurally identical.
+	// Shared position model for all four node tracks.
 	enum class TrackPos : std::uint8_t
 	{
 		kEnter,
@@ -83,10 +78,7 @@ namespace OSF::Registry
 	using SoundPos = TrackPos;
 	using CameraPos = TrackPos;
 
-	// `atFrame` frame rate. An authored frame is a clip-local position at the Creation-Engine 30 fps
-	// convention (AFImport::kAfFps, the rate an `.af` decodes at, and the rate the studio route
-	// compiler bakes its `at` fractions with), so frame N is exactly N / 30 clip-local SECONDS —
-	// independent of how long the clip turns out to be, unlike a fraction.
+	// `atFrame` rate: Creation Engine 30 fps (AFImport::kAfFps); frame N = N / 30 clip-local seconds.
 	inline constexpr float kFrameRate = 30.0f;
 
 	enum class SoundEmitter : std::uint8_t
@@ -95,12 +87,12 @@ namespace OSF::Registry
 		kRole
 	};
 
-	// One `cue` track entry: fires EVENT_CUE (and, later, drives a trigger:<id> edge).
+	// Fires EVENT_CUE.
 	struct CueEntry
 	{
 		CuePos       pos = CuePos::kEnter;
 		float        fraction = 0.0f;   // when pos == kFraction and frame < 0
-		float        frame = -1.0f;     // when pos == kFraction: authored `atFrame` (< 0 = authored as a fraction)
+		float        frame = -1.0f;     // authored `atFrame`; < 0 = authored as a fraction
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  id;
 	};
@@ -116,41 +108,39 @@ namespace OSF::Registry
 		kPropAttach, kPropDestroy
 	};
 
-	// One `action` track entry: a namespaced mechanism. `osf.*` types are built-in (run by the runtime);
-	// any other namespace is a custom action emitted as EVENT_ACTION (notification).
+	// `osf.*` types are built-in; any other namespace is custom, emitted as EVENT_ACTION.
 	struct ActionEntry
 	{
 		ActionPos    pos = ActionPos::kEnter;
 		float        fraction = 0.0f;    // when pos == kFraction and frame < 0
-		float        frame = -1.0f;      // when pos == kFraction: authored `atFrame` (< 0 = authored as a fraction)
+		float        frame = -1.0f;      // authored `atFrame`; < 0 = authored as a fraction
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
-		std::string  type;   // namespaced (osf.* built-in, else custom)
+		std::string  type;
 		ActionKind   kind = ActionKind::kCustom;
-		std::string  role;   // optional role the action targets
+		std::string  role;
 		bool         hold = false;       // osf.fade.out: end faded (opt out of the cleanup fade-in)
 		float        duration = 0.0f;    // osf.fade.*: ramp seconds (0 = mechanism default)
-		std::string  set;    // osf.voice.play: sound spec (Data-relative path or "event:<name>")
-		SoundEmitter emitter = SoundEmitter::kListener;  // osf.voice.play: listener (default) or role actor
-		std::string  item;   // osf.equipment.equip: form ref "<plugin>|0xLOCAL" of the item to equip
+		std::string  set;    // osf.voice.play: Data-relative path or "event:<name>"
+		SoundEmitter emitter = SoundEmitter::kListener;  // osf.voice.play
+		std::string  item;   // osf.equipment.equip: "<plugin>|0xLOCAL"
 		std::string  prop;    // osf.prop.*: scene-local prop id
 		Props::Source     propSource;      // osf.prop.attach: fixed form or equipped-armor selector
 		Props::Attachment propAttachment;  // osf.prop.attach: actor node + local transform
 	};
 
-	// One `sound` track entry: play a sound spec. `spec` is a Data-relative file path (played through miniaudio) or an "event:<name>"/"event:0x<id>" Wwise spec (engine-mixed).
-	// A spec starting with '$' is a SoundRegistry pool query ("$tag,tag,..." — all-of) resolved to ONE clip at fire time (SceneRuntime::PlaySound), so a repeated/per-loop cue re-rolls; otherwise the value is taken literally.
+	// `spec`: Data-relative path, "event:<name>"/"event:0x<id>", or a '$tag,tag' SoundRegistry
+	// pool query re-rolled on every fire.
 	struct SoundEntry
 	{
 		SoundPos     pos = SoundPos::kFraction;
 		float        fraction = 0.0f;
-		float        frame = -1.0f;  // authored `atFrame` (< 0 = authored as a fraction)
+		float        frame = -1.0f;  // authored `atFrame`; < 0 = authored as a fraction
 		bool         everyLoop = false;
-		std::string  spec;    // file path or event: spec
+		std::string  spec;
 		std::string  role;    // optional voice channel, gender source, and subtitle speaker
-		SoundEmitter emitter = SoundEmitter::kListener;  // Wwise listener (default) or positioned role actor
+		SoundEmitter emitter = SoundEmitter::kListener;
 	};
 
-	// One `camera` track entry: a held camera state, auto-restored on cleanup.
 	enum class CameraState : std::uint8_t
 	{
 		kNone,
@@ -162,30 +152,25 @@ namespace OSF::Registry
 	std::optional<CameraState> ParseCameraState(std::string_view a_state);
 	std::string_view CameraStateName(CameraState a_state);
 
-	// "thirdperson_hold" (force/hold third person via the standalone camera lock), "freefly" and
-	// "vanity_orbit" (PlayerCamera state overrides). Also synthesized from a file-level `camera`
-	// default, attached to a scene's entry node.
+	// Held camera state, auto-restored on cleanup. A file-level `camera` default lands on the entry node.
 	struct CameraEntry
 	{
 		CameraPos    pos = CameraPos::kEnter;
 		float        fraction = 0.0f;
-		float        frame = -1.0f;  // authored `atFrame` (< 0 = authored as a fraction)
+		float        frame = -1.0f;  // authored `atFrame`; < 0 = authored as a fraction
 		bool         everyLoop = false;
 		CameraState  state = CameraState::kNone;
-		float        distance = 0.0f;  // thirdperson_hold opening zoom pull-back (0 = engine default); ignored by other states
+		float        distance = 0.0f;  // thirdperson_hold opening pull-back; 0 = engine default
 	};
 
-	// Clip-local seconds for a track entry authored with `atFrame`; -1 when it was authored with a
-	// fraction `at` (which only means something once the clip duration is known).
+	// Clip-local seconds for an `atFrame` entry; -1 for a fraction `at`.
 	template <class Entry>
 	constexpr float TrackSeconds(const Entry& a_entry)
 	{
 		return a_entry.frame >= 0.0f ? a_entry.frame / kFrameRate : -1.0f;
 	}
 
-	// A kFraction entry's position as a clip fraction. An `atFrame` entry needs the clip duration to
-	// place itself on that axis; with no duration to scale against (a_durationSec <= 0) only frame 0
-	// has a knowable place, so later frames report the clip end rather than pretending to be at the start.
+	// With no known duration only frame 0 is placeable; later frames report the clip end.
 	template <class Entry>
 	inline float TrackFraction(const Entry& a_entry, float a_durationSec)
 	{
@@ -199,11 +184,8 @@ namespace OSF::Registry
 		return sec > 0.0f ? 1.0f : 0.0f;
 	}
 
-	// Whether the runtime can ever fire this kFraction entry. Scene::Advance fires numeric marks
-	// through a [prev, next) window whose upper bound never exceeds the clip duration, so an
-	// `atFrame` at or past the clip end never fires — while the clamped TrackFraction above would
-	// still report it at 1.0, letting an inspector scrubbed to the end "fire" a mark the shipped
-	// scene provably skips. `at`-fraction entries and unknown durations are not judged (true).
+	// Scene::Advance fires marks in a [prev, next) window capped at the clip duration, so an `atFrame`
+	// at/past the end never fires even though TrackFraction clamps it to 1.0. Unknowns return true.
 	template <class Entry>
 	inline bool TrackFires(const Entry& a_entry, float a_durationSec)
 	{
@@ -211,32 +193,26 @@ namespace OSF::Registry
 		return sec < 0.0f || a_durationSec <= 0.0f || sec < a_durationSec;
 	}
 
-	// One actor's clip for one stage (one per role in StageDef::clips, role order).
 	struct StageClip
 	{
 		std::string file;
 		std::string animId;
-		float       sec = 0.0f;  // pack-authored clip duration in seconds (0 = unknown, probe at runtime)
+		float       sec = 0.0f;  // pack-authored duration; 0 = unknown, probe at runtime
 		std::optional<Animation::ParticipantPlacement> offset;  // overrides the role's default placement
 		std::optional<std::string> mask;  // overrides the role's bone mask for this stage
 	};
 
-	// One stage of a timeline: timing + one clip per role. timer/loops 0 = no auto-advance (hold);
-	// a stage that specifies NEITHER gets the play-once default (loops=1) at parse time.
+	// timer/loops 0 = hold; a stage authoring neither defaults to loops=1 at parse.
 	struct StageDef
 	{
 		std::string              name;          // browser label for this stage's animation ("" = none)
-		std::vector<std::string> tags;          // per-stage tags (browse/filter); separate from scene tags
-		float                    timer = 0.0f;  // seconds; 0 = no time-based auto-advance
-		std::int32_t             loops = 0;     // clip loops before advancing; 0 = no loop-based auto-advance
-		// JSON `hold`: freeze the stage's clips on ONE frame instead of playing them. The value is a
-		// normalized clip position (`true` = 1.0 = the last frame). < 0 = not frozen (the default).
-		// A frozen stage never loops, so only `timer` or a manual advance leaves it.
+		std::vector<std::string> tags;
+		float                    timer = 0.0f;  // seconds; 0 = none
+		std::int32_t             loops = 0;     // 0 = none
+		// JSON `hold`: freeze at a normalized clip position (`true` = 1.0); < 0 = not frozen. Never loops.
 		float                    hold = -1.0f;
 		std::vector<StageClip>   clips;         // one per role, role order
-		// Optional per-stage track lanes. DesugarLinear forwards each onto the stage's synthetic node,
-		// where the runtime's dispatch reads them — so a linear stage can carry cues, actions, audio,
-		// and camera postures without dropping to the full nodes[] graph form.
+		// DesugarLinear forwards these onto the stage's synthetic node.
 		std::vector<CueEntry>    cues;
 		std::vector<ActionEntry> actions;
 		std::vector<SoundEntry>  sounds;
@@ -246,34 +222,30 @@ namespace OSF::Registry
 	struct SceneNode
 	{
 		std::string              id;
-		// A node carries EXACTLY ONE playable:
-		std::string              use;          //   reference another scene by id, OR
-		std::vector<StageDef>    stages;       //   an inline clip timeline (one-off, no separate file)
+		// Exactly one of `use` (scene id) or `stages` (inline timeline).
+		std::string              use;
+		std::vector<StageDef>    stages;
 		LoopMode                 loopMode = LoopMode::kOnce;  // JSON `loops`: omit=once, 0=hold, N=count
 		std::int32_t             loopCount = 0;              // when loopMode == kCount
 		float                    timerSec = 0.0f;            // JSON `timer` (seconds)
 		std::vector<SceneEdge>   edges;
-		std::vector<CueEntry>    cues;          // `cue` track
-		std::vector<ActionEntry> actions;       // `action` track
-		std::vector<SoundEntry>  sounds;        // `sound` track
-		std::vector<CameraEntry> cameras;       // `camera` track
+		std::vector<CueEntry>    cues;
+		std::vector<ActionEntry> actions;
+		std::vector<SoundEntry>  sounds;
+		std::vector<CameraEntry> cameras;
 	};
 
-	// Item(s) to equip onto a role's bound actor at scene start, keyed by the actor's gender, and
-	// auto-removed on every end path (the kEquipItem ledger). Authored as `equip` on the role: a bare
-	// form-ref string (any gender) or an object { male?, female?, any? }. Stored as "<Plugin>|0xLOCAL"
-	// refs and resolved at FIRE time (game thread): a ref naming an uninstalled plugin warns + is
-	// skipped, it does NOT reject the scene — these usually point at optional body-replacer plugins.
+	// Equipped at scene start, removed on every end path (kEquipItem ledger). "<Plugin>|0xLOCAL" refs
+	// resolved at fire time; an uninstalled plugin warns + skips rather than rejecting the scene.
 	struct RoleEquip
 	{
 		std::string male;
 		std::string female;
-		std::string any;  // fallback when the bound actor's gendered key is absent (and for a bare string)
+		std::string any;  // fallback; also the bare-string form
 
 		[[nodiscard]] bool Empty() const noexcept { return male.empty() && female.empty() && any.empty(); }
 
-		// The ref to equip for an actor whose gender tag is a_gender ("male"/"female"/"" agnostic):
-		// the gendered key if present, else `any`. The returned ref may be "" (caller skips).
+		// May return "" (caller skips).
 		[[nodiscard]] const std::string& ForGender(std::string_view a_gender) const noexcept
 		{
 			if (a_gender == "male" && !male.empty()) {
@@ -288,34 +260,28 @@ namespace OSF::Registry
 
 	struct SceneRole
 	{
-		std::string name;  // "" = an anonymous positional role (unified *.osf.json; clips index-align to role order)
+		std::string name;  // "" = anonymous positional role; clips index-align to role order
 		RoleGender  gender = RoleGender::kAny;
-		// Role filters, VALIDATED at scene load via the form-ref resolver but stored as FormIDs:
-		// Starfield reference-counts forms (TESFormRefCount) and destroys ones nothing loaded holds,
-		// so a raw TESForm* cached across frames can dangle — re-resolve with LookupByID at use
-		// (which reloads an unloaded form on demand).
-		// The role's bound actor must satisfy every PRESENT constraint;
-		// within `keywords`/`races` it is any-of (the actor needs ANY listed keyword, and ANY listed race).
-		// An empty vector = that constraint is absent. `gender` desugars from `gender`/`filters.gender`.
-		std::vector<RE::TESFormID> keywords;  // BGSKeyword ids; empty = no keyword constraint
-		std::vector<RE::TESFormID> races;     // TESRace ids; empty = no race constraint
+		// FormIDs, not TESForm*: forms are refcounted and destroyed when unheld, so re-resolve via LookupByID.
+		// Every non-empty constraint must hold; each list is any-of.
+		std::vector<RE::TESFormID> keywords;  // BGSKeyword ids
+		std::vector<RE::TESFormID> races;     // TESRace ids
 		std::vector<std::string>   preserveBones;  // exact, case-insensitive rig names left engine-driven
 		std::string                mask;  // canonical named driven-bone mask ("upperBody"...); "" = every body bone binds
-		Animation::PoseMode        poseMode = Animation::PoseMode::kOverride;  // absolute replacement (default) or rest-relative layer
-		float                      poseWeight = 1.0f;  // persistent role layer strength, normalized to [0,1]
-		Animation::ParticipantPlacement offset{};  // default placement for this role
-		RoleEquip                    equip;     // optional per-gender item equipped for the scene's duration
+		Animation::PoseMode        poseMode = Animation::PoseMode::kOverride;
+		float                      poseWeight = 1.0f;  // [0,1]
+		Animation::ParticipantPlacement offset{};
+		RoleEquip                    equip;
 	};
 
-	// Per-scene OSF control grant. This is distinct from `lockPlayer`, which suppresses vanilla
-	// movement/combat input. The legacy JSON key remains `playerControl` for compatibility.
+	// OSF input-channel grant (JSON `playerControl`); distinct from `lockPlayer`, which blocks vanilla input.
 	struct SceneControls
 	{
-		bool          enabled = true;                  // false => no input channel at all
-		std::uint32_t capabilities = Input::kAllCapabilities;  // capabilities granted (default: all; `disable` removes)
-		bool          locked = false;                  // player may not end the scene via the input channel (story scenes)
+		bool          enabled = true;                  // false = no input channel
+		std::uint32_t capabilities = Input::kAllCapabilities;  // `disable` removes
+		bool          locked = false;                  // player can't end the scene via the channel
 	};
-	using PlayerControl = SceneControls;  // legacy domain spelling
+	using PlayerControl = SceneControls;
 
 	enum class CatalogSourceKind : std::uint8_t
 	{
@@ -341,29 +307,25 @@ namespace OSF::Registry
 		std::string              id;
 		std::string              name;
 
-		// Skeleton family the scenes clips target (Util::SpeciesFromAnimPath of the first clip): "human" (default / no creature clip), "terrormorph", etc...
+		// Util::SpeciesFromAnimPath of the first clip; "human" when no creature clip.
 		std::string              species;
 		std::int32_t             priority = 0;
-		std::int32_t             weight = 1;  // weighted-random sampling within the top priority tier (StartSceneByTags*)
-		bool                     unlisted = false;  // excluded from the matchmaking pool; only reachable by direct id
-		// Generated one-clip entry built from an EXPLICIT `clipLibrary` registration rather than
-		// harvested from a scene's stages. Both share the `osf.scene-clip/` id namespace, but only
-		// the harvested ones are a debug surface: a registration is authored content a pack shipped
-		// on purpose, so the browser must show it to everyone. Nothing else can tell them apart —
-		// an author may register a clip with no tags, name, or folder at all.
+		std::int32_t             weight = 1;  // weighted-random within the top priority tier
+		bool                     unlisted = false;  // not matchmade; direct id only
+		// From an explicit `clipLibrary` registration (shown to everyone), vs harvested debug entries;
+		// both share the `osf.scene-clip/` namespace and may lack tags/name/folder.
 		bool                     curatedClip = false;
-		bool                     library = false;   // file-level `section:"library"`: reference-library lane (osf.library.data), kept out of the main catalog
+		bool                     library = false;   // file-level `section:"library"`; kept out of the main catalog
 		CatalogSourceKind        sourceKind = CatalogSourceKind::kAuthoredScene;
-		bool                     clipsAvailable = true;  // false: a referenced clip resolves to no installed file (compat pack without its source mod) — hidden from the catalog and matchmaking; a direct-id start still attempts and logs the load failure
-		bool                     playerInputLock = true;  // legacy JSON `lockPlayer`
-		bool                     hideApparel = true;      // legacy JSON `stripActors`; base skin kept
-		bool                     clearHeldItems = true;  // Unequip equipped non-apparel at scene start, auto-restored on end;
-		bool                     fade = false;  // Screen fade-to-black on start when the player participates (self-releasing curtain); OFF by default, opt in with `fade:true`
-		Animation::WorldPlacementMode worldPlacement = Animation::WorldPlacementMode::kAnchorAndPin;  // legacy JSON `inPlace`
-		SceneControls            sceneControls;  // legacy JSON `playerControl`
+		bool                     clipsAvailable = true;  // false: a clip isn't installed; hidden from catalog/matchmaking, direct id still attempts
+		bool                     playerInputLock = true;  // JSON `lockPlayer`
+		bool                     hideApparel = true;      // JSON `stripActors`; base skin kept
+		bool                     clearHeldItems = true;  // non-apparel; restored on end
+		bool                     fade = false;  // fade-to-black on start when the player participates
+		Animation::WorldPlacementMode worldPlacement = Animation::WorldPlacementMode::kAnchorAndPin;  // JSON `inPlace`
+		SceneControls            sceneControls;  // JSON `playerControl`
 		std::vector<std::string> tags;
-		// Lowercased `tags`, built once at parse: matchmaking tag-matches EVERY loaded def per
-		// query, so the per-def lowering/set-build must not happen on that path.
+		// Lowercased `tags`, prebuilt: matchmaking scans every def per query.
 		std::unordered_set<std::string> tagSet;
 		std::vector<SceneRole>   roles;
 		std::string              entry;
@@ -371,27 +333,24 @@ namespace OSF::Registry
 		std::vector<std::string> linearStages;  // optional: stage i -> node id (GetSceneStage/SetSceneStage)
 
 		std::filesystem::path    sourceFile;
-		std::string              pack;  // optional file-level `pack`: the content-pack display name the browser groups this scene under (a pack may span many files); "" = derive from sourceFile
-		std::string              folder;  // optional slash-delimited catalog path within the pack; presentation only
+		std::string              pack;  // browser group name; "" = derive from sourceFile
+		std::string              folder;  // slash-delimited catalog path within the pack
 
-		// When anchorKeywords/anchorBaseForms set, the scene is ANCHOR-BOUND. can only start anchored to ref with base form OR has keyword.
-		// Both stored as FormIDs, validated at load, re-resolved via LookupByID at use — never cache the
-		// TESForm* itself: Starfield refcounts forms and destroys ones nothing loaded references (a vanilla
-		// furniture keyword can die while the player is off-world), so a session-cached pointer dangles.
-		std::vector<RE::TESFormID>      anchorKeywords;   // BGSKeyword ids (any-of); empty = no keyword match
-		std::vector<RE::TESFormID>      anchorBaseForms;  // base-form ids (any-of); empty = no base match
+		// Non-empty = anchor-bound: starts only on a ref matching a base form or keyword (any-of).
+		// FormIDs re-resolved at use; a cached TESForm* can dangle (forms are destroyed when unheld).
+		std::vector<RE::TESFormID>      anchorKeywords;   // BGSKeyword ids
+		std::vector<RE::TESFormID>      anchorBaseForms;
 		Animation::ParticipantPlacement anchorOffset{};
 
 		[[nodiscard]] bool RequiresAnchor() const noexcept { return !anchorKeywords.empty() || !anchorBaseForms.empty(); }
 
 		const SceneNode* FindNode(std::string_view a_id) const;
 
-		// Index of a_nodeId in linearStages (case-insensitive), or -1 (also -1 if the scene declares no linearStages — a non-linear graph has no stage number).
+		// Case-insensitive; -1 if absent or the scene has no linearStages.
 		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
-	// Persistent one-actor overlay route definitions. Routes deliberately carry no scene-policy
-	// fields: they only describe masked local-pose layers and externally-observable transition marks.
+	// One-actor overlay routes: masked pose layers + transition marks only, no scene policy.
 	enum class RouteLifetime : std::uint8_t
 	{
 		kTransition,
@@ -484,9 +443,7 @@ namespace OSF::Registry
 		}
 	};
 
-	// A structured view of one legacy load-error line. `message` remains the exact text published
-	// through OSFAdvanced.GetSceneLoadErrors(); the remaining fields let the browser explain and group it
-	// without reverse-engineering prose. Fields are additive and may be empty when not applicable.
+	// `message` is the exact OSFAdvanced.GetSceneLoadErrors() line; other fields may be empty.
 	struct SceneImportProblem
 	{
 		bool        warning = false;
@@ -498,72 +455,62 @@ namespace OSF::Registry
 		std::string role;
 		std::string clip;
 	};
-	// Preferred content-wide spelling. The legacy name remains the underlying type so existing
-	// source and binary identities do not change while callers migrate.
 	using ContentImportProblem = SceneImportProblem;
 
-	// What ONE *.osf.json contributed to the registry: the author-facing import record behind the
-	// browser's IMPORTS panel. Every discovered file gets one, including a file that was rejected
-	// whole and contributed nothing — "my pack is missing" is answered by the row being present with
-	// zero scenes and its reject line attached, which a scene-only view can never show.
-	// Aggregated from the final published content, so the counts are what actually reached the registry.
+	// Import record per discovered *.osf.json, including files rejected whole (they show as zero-scene
+	// rows). Counts reflect the final published content.
 	struct SceneFileStats
 	{
-		// Never an absolute path: it names the player's machine and account. `path` is relative to
-		// Data/OSF, which is what actually disambiguates two packs both shipping "scenes.osf.json".
+		// Never absolute (would expose the user's machine/account).
 		std::string   file;              // file name only
 		std::string   path;              // slash-delimited, relative to Data/OSF ("" = the cross-file bucket)
-		std::string   pack;              // file-level `pack` label ("" = none authored)
-		bool          library = false;   // file-level section:"library" (reference lane)
-		std::int64_t  schema = 0;        // declared `schema` (0 = absent, unreadable, or the file failed to parse)
-		std::uint64_t bytes = 0;         // size on disk
-		float         parseMs = 0.0f;    // read + parse + validate wall time for this file
+		std::string   pack;              // "" = none authored
+		bool          library = false;
+		std::int64_t  schema = 0;        // 0 = absent, unreadable, or the file failed to parse
+		std::uint64_t bytes = 0;
+		float         parseMs = 0.0f;    // read + parse + validate wall time
 
-		std::uint32_t scenes = 0;        // scenes accepted into the registry
-		std::uint32_t declaredScenes = 0; // scene objects authored in this file (before validation)
-		std::uint32_t hidden = 0;        //   ...of those, hidden by the availability sweep (!clipsAvailable)
-		std::uint32_t rejectedScenes = 0; // declaredScenes - scenes (whole-file rejection included)
-		std::uint32_t routes = 0;         // routes accepted into the registry
-		std::uint32_t declaredRoutes = 0; // route objects authored in this file
-		std::uint32_t rejectedRoutes = 0; // declaredRoutes - routes
-		std::uint32_t unlisted = 0;      //   ...of those, out of the matchmaking pool (direct id only)
-		std::uint32_t anchored = 0;      //   ...of those, anchor-bound (furniture/marker required)
+		std::uint32_t scenes = 0;        // accepted
+		std::uint32_t declaredScenes = 0; // authored, before validation
+		std::uint32_t hidden = 0;        //   ...of scenes, !clipsAvailable
+		std::uint32_t rejectedScenes = 0; // declaredScenes - scenes
+		std::uint32_t routes = 0;
+		std::uint32_t declaredRoutes = 0;
+		std::uint32_t rejectedRoutes = 0;
+		std::uint32_t unlisted = 0;
+		std::uint32_t anchored = 0;
 		std::uint32_t nodes = 0;
 		std::uint32_t stages = 0;
 		std::uint32_t roles = 0;
-		std::uint32_t clips = 0;          // clip slots (stage x role) — what playback will actually load
-		std::uint32_t distinctClips = 0;  // distinct clip specs referenced
-		std::uint32_t missingClips = 0;   //   ...of those, ones that resolve to no installed file
-		std::uint32_t cues = 0;           // track-lane entries, summed over every accepted node
+		std::uint32_t clips = 0;          // clip slots (stage x role)
+		std::uint32_t distinctClips = 0;
+		std::uint32_t missingClips = 0;   //   ...of distinctClips
+		std::uint32_t cues = 0;           // summed over accepted nodes
 		std::uint32_t actions = 0;
 		std::uint32_t sounds = 0;
 		std::uint32_t cameras = 0;
-		std::uint32_t clipEntries = 0;    // generated one-clip library entries sourced from this file
-		std::vector<std::string> species;  // distinct skeleton families, sorted
+		std::uint32_t clipEntries = 0;    // generated one-clip entries sourced from this file
+		std::vector<std::string> species;
 
-		std::vector<std::string> missingClipExamples;  // bounded, deterministic examples for repair UI
+		std::vector<std::string> missingClipExamples;  // bounded, deterministic
 		std::uint32_t errors = 0;
 		std::uint32_t warnings = 0;
-		std::vector<ContentImportProblem> problems;  // full structured set, in legacy load-error order
+		std::vector<ContentImportProblem> problems;  // in load-error order
 
 		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && routes == 0 && clipEntries == 0 && errors > 0; }
 	};
-	// Preferred content-wide spelling; SceneFileStats remains available for compatibility.
 	using ContentFileStats = SceneFileStats;
 
-	// Immutable publication unit. Reload builds one privately and atomically replaces the current
-	// pointer; readers and live scenes retain shared ownership of the exact definitions they use.
+	// Immutable; reload builds a new one and atomically swaps the pointer. Readers hold shared ownership.
 	struct SceneRegistrySnapshot
 	{
 		std::unordered_map<std::string, SceneDef> scenes;
 		std::unordered_map<std::string, RouteDef> routes;
 		std::vector<std::string> loadErrors;
-		size_t authoredSceneCount = 0;  // excludes generated one-clip browser/debug entries
-		// One record per discovered *.osf.json, sorted by `path`. A trailing record with an empty
-		// `path` collects problems no single file owns (there normally are none).
+		size_t authoredSceneCount = 0;  // excludes generated one-clip entries
+		// Sorted by `path`; a trailing empty-`path` record holds cross-file problems.
 		std::vector<ContentFileStats> files;
 	};
-	// Preferred content-wide spelling; SceneRegistrySnapshot remains available for compatibility.
 	using ContentRegistrySnapshot = SceneRegistrySnapshot;
 
 	template <class T>
@@ -603,39 +550,27 @@ namespace OSF::Registry
 	public:
 		static SceneRegistry& GetSingleton();
 
-		// Scans Data/OSF/**/*.osf.json and rebuilds the registry.
-		// Bad scenes are skipped; every skip and warning is both logged and recorded for LoadErrors().
-		// Runs at startup and again on OSF.ReloadPacks().
+		// Bad scenes are skipped, logged, and recorded for LoadErrors(). Also runs on OSF.ReloadPacks().
 		void LoadAll();
 
-		// Scene by id (case-insensitive). The returned ref pins the immutable registry snapshot,
-		// so its definition remains valid across ReloadPacks and can be retained by a live scene.
+		// Case-insensitive. The ref pins the snapshot, so it stays valid across ReloadPacks.
 		SceneRef Find(std::string_view a_id) const;
 
-		// Overlay route by id (case-insensitive), with independent snapshot lifetime pinning.
 		RouteRef FindRoute(std::string_view a_id) const;
 
-		// Resolve a flow node's inline authored `stages`, or a `use` target, to a Layer-A PlaybackPlan.
-		// a_actorCount must equal the resolved role count.
+		// Resolves inline `stages` or a `use` target; a_actorCount must equal the resolved role count.
 		std::optional<Animation::PlaybackPlan> BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
 
-		// Visit every definition in one pinned snapshot. A concurrent reload publishes a new
-		// snapshot without invalidating this iteration.
+		// Iterates one pinned snapshot; safe across a concurrent reload.
 		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
-
-		// Visit every overlay route in one pinned snapshot. Used by author tooling that needs
-		// the route topology without borrowing pointers across a pack reload.
 		void ForEachRoute(const std::function<void(const RouteDef&)>& a_fn) const;
 
 		size_t Size() const;
 
-		// Problems (errors + warnings) from the last LoadAll, for OSFAdvanced.GetSceneLoadErrors().
 		std::vector<std::string> LoadErrors() const;
-
-		// Per-content-file import records from the last LoadAll, sorted by path (see ContentFileStats).
 		std::vector<ContentFileStats> FileStats() const;
 
-		// Data-relative clip references from loaded scenes whose resolved file does not currently exist.
+		// Data-relative clip refs whose resolved file doesn't exist.
 		std::vector<std::string> MissingClipRefs() const;
 
 	private:
@@ -644,5 +579,5 @@ namespace OSF::Registry
 		};
 	};
 
-	using ContentRegistry = SceneRegistry;  // preferred content-wide spelling
+	using ContentRegistry = SceneRegistry;
 }

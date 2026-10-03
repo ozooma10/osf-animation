@@ -2,25 +2,17 @@
 
 #include <string_view>
 
-// OSF Animation's consumer of the OSF UI native bridge (src/API/OSFUI.h).
 namespace OSF::API
 {
-	// Request the OSF UI bridge and register the osf.* commands. A no-op (logged) when OSF UI is absent.
 	void InstallUIBridge();
 
-	// Re-push the scene catalog to the view (GAME MAIN THREAD). A no-op while no OSF UI document is live.
-	// Fired when the background clip-duration scan lands new numbers after the initial push.
+	// Game main thread; no-op while no OSF UI document is live.
 	void PushCatalogUpdate();
 
-	// Open the in-game scene browser (the "osf.animation/browser" view). Backs the OSF.OpenBrowser
-	// native and the openBrowser hotkey. Returns false when OSF UI is absent or its API is unsupported.
-	// Otherwise queues the open for the frame update. Any thread.
+	// Any thread; queues the open for the frame update. False when OSF UI is absent or unsupported.
 	bool OpenBrowser();
 
-	// Open the osf view in emote-wheel mode, filtered to solo free-space emotes whose tags start with
-	// a_tagPrefix ("" -> "player.emote."). Captures the crosshair NPC as the wheel's target
-	// (dead / in-combat / non-human fall back to a player-only wheel) and delivers
-	// osf.mode {mode:"wheel"} race-safely (immediate send + osf.opened replay). Returns false
-	// when OSF UI is absent or too old (logs + HUD-errors itself). Any thread.
+	// Any thread. a_tagPrefix "" -> "player.emote.". Dead/in-combat/non-human crosshair NPCs
+	// fall back to a player-only wheel.
 	bool OpenWheel(std::string_view a_tagPrefix);
 }

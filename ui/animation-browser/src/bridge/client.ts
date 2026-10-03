@@ -21,8 +21,7 @@ function hasCurrentHelper(bridge: Window["osfui"]): bridge is OSFUIBridge {
 export class OsfUiBridge implements AnimationBridge {
   readonly standalone = false;
   private readonly listeners = new Set<NativeMessageListener>();
-  // The shared helper can replay readiness/state while the controller is still
-  // mounting. Hold those adapter messages until its post-paint subscription exists.
+  // The helper can replay readiness/state before the controller's post-paint subscription exists.
   private readonly pending: NativeMessage[] = [];
   private readonly unsubscribers: Array<() => void> = [];
 

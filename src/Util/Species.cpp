@@ -10,7 +10,6 @@ namespace OSF::Util
 {
 	namespace
 	{
-		// Lowercase + forward-slash a path so parsing is case- and separator-insensitive.
 		std::string Normalize(std::string_view a_path)
 		{
 			std::string s(a_path);
@@ -39,8 +38,7 @@ namespace OSF::Util
 			return out;
 		}
 
-		// Index of a_marker in a_segs that has an "actors" segment before it, or -1. The species
-		// (skeleton family) is the segment immediately before that marker.
+		// Index of a_marker after an "actors" segment, or -1.
 		int MarkerIndex(const std::vector<std::string>& a_segs, std::string_view a_marker)
 		{
 			bool haveActors = false;
@@ -80,8 +78,7 @@ namespace OSF::Util
 
 	bool IsKnownSpecies(std::string_view a_species)
 	{
-		// The vanilla skeleton families OSF ships packs for (generate_vanilla_packs.py). "human"
-		// is here so a human actor validates too. Kept in sync with the generated pack roots.
+		// Keep in sync with generate_vanilla_packs.py pack roots.
 		static constexpr std::array kKnown{
 			std::string_view{ "human" }, std::string_view{ "terrormorph" },
 			std::string_view{ "modela" }, std::string_view{ "models" }, std::string_view{ "modelt" },
@@ -108,12 +105,10 @@ namespace OSF::Util
 		}
 		RE::TESRace* race = a_actor->race;
 		if (!race) {
-			return "human";  // no race -> assume the common case
+			return "human";
 		}
 
-		// The species is the actor folder before "characterassets" in the race's skeleton-model
-		// path. The exact TESRace model field is build-sensitive, so scan every model slot and
-		// accept only a path that resolves to a KNOWN species — a wrong field just yields nothing.
+		// TESRace model field is build-sensitive: scan every slot and accept only a known species.
 		const auto speciesOf = [](const char* a_model) -> std::string {
 			if (!a_model || !a_model[0]) {
 				return {};
@@ -137,7 +132,7 @@ namespace OSF::Util
 
 		const char* raceEdid = race->GetFormEditorID();
 		if (species.empty()) {
-			species = "human";  // unclassified -> treat as human (the browser's default lane)
+			species = "human";
 		}
 		REX::DEBUG("[UI] actor {:08X} race {:08X} '{}' -> species '{}'",
 			a_actor->GetFormID(), race->GetFormID(), raceEdid ? raceEdid : "", species);

@@ -24,7 +24,7 @@
 
 namespace
 {
-	// Last game version whose offsets I checked by hand. Should keep working unless AddressLib ships a breaking update.
+	// Last game version whose raw offsets were hand-checked.
 	constexpr REL::Version kVerifiedGameVersion{ 1, 16, 244, 0 };
 	// Persistence gateways/branches use 101 bytes; the main-loop call hook adds up to 14.
 	constexpr std::size_t kTrampolineBytes = 192;
@@ -33,10 +33,7 @@ namespace
 	{
 		switch (a_msg->type) {
 		case SFSE::MessagingInterface::kPostDataLoad: {
-			// Before the loaders: they are the first real producers, and
-			// connecting here also flushes what plugin load already buffered.
-			// Separate from InstallUIBridge because health reporting has to
-			// work independently of the browser host.
+			// Before the loaders, which are the first health producers; also flushes load-time reports.
 			OSF::API::Health::Connect();
 			OSF::Registry::RequirementRegistry::LoadAll();
 			OSF::API::MinimumVersion::EnablePrompts();
@@ -51,13 +48,10 @@ namespace
 			}
 			OSF::API::MarkReady();
 			OSF::API::MarkOverlayReady();
-			// Register the osf.* animation-browser commands on OSF UI's native bridge (no-op if OSF UI absent).
-			// Runs after the registry is loaded and the scene API is ready, so catalog/launch answer live.
 			OSF::API::InstallUIBridge();
-			// OSF Settings owns the shipped schema, persistence, hotkeys, and issue reports.
-			// Initialize after the registries so initial settings apply to loaded services.
+			// After the registries so initial settings apply to loaded services.
 			OSF::API::InstallUISettings();
-			// Probe clip loop lengths for the catalog's time estimates After InstallUIBridge so the push hook exists.
+			// After InstallUIBridge so the push hook exists.
 			OSF::Serialization::ClipDurations::ScanSceneClipsAsync(&OSF::API::PushCatalogUpdate);
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
@@ -80,8 +74,6 @@ namespace
 
 SFSE_PLUGIN_PRELOAD(const SFSE::PreLoadInterface* a_sfse)
 {
-	// Earliest possible — before anything (ours or commonlib's) can assert/crash. Captures
-	// CRT asserts (which trainwreck cannot see) + a stack + minidump into the SFSE Logs folder.
 	OSF::Util::CrashHandler::Install();
 
 	SFSE::Init(a_sfse, { .trampoline = true, .trampolineSize = kTrampolineBytes });
@@ -102,9 +94,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 		REX::WARN("[Boot] Unsupported game version: OSF Animation was last tested against Starfield version {} only, but this is {}. "
 			"Not all features may be available",
 			kVerifiedGameVersion.string(), runtime.string(), kVerifiedGameVersion.string());
-		// True for the whole session and squarely the player's business: they
-		// updated Starfield (or downgraded), and anything that misbehaves from
-		// here has one likely cause. Buffered — the bridge does not exist yet.
+		// Buffered until Health::Connect at kPostDataLoad.
 		const nlohmann::json context{
 			{ "tested", kVerifiedGameVersion.string() },
 			{ "running", runtime.string() },

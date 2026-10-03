@@ -25,9 +25,7 @@ export function SpeciesFilter({ state, onToggle }: { state: BrowserState; onTogg
   );
 }
 
-// M/F readout for an actor. Sexless actors (most creatures) get nothing rather than a
-// placeholder — gender-constrained roles ignore them anyway. `member` resolves the player,
-// whose sex rides the version push instead of a scan result.
+// Sexless actors (most creatures) get nothing; gender-constrained roles ignore them anyway.
 export function SexTag({ sex }: { sex: string }) {
   if (sex !== "male" && sex !== "female") return null;
   const male = sex === "male";

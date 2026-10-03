@@ -16,9 +16,7 @@ namespace OSF::Scene
 			return;
 		}
 
-		// Reattaching a named live prop moves it to the action's resolved role/node. Copying
-		// the NiPointers keeps the object alive while the service runs outside
-		// the scene-table lock; the slot remains its logical owner.
+		// The copied NiPointers keep a live prop alive while it is reattached outside _lock.
 		Props::Instance existing;
 		{
 			std::lock_guard l{ _lock };

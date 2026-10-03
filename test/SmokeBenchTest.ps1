@@ -30,7 +30,7 @@ try {
     $start = [DateTimeOffset]::UtcNow.AddSeconds(-4)
     $finish = [DateTimeOffset]::UtcNow
     $casePath = Join-Path $scratch 'case.json'
-    # Mirror the real sibling harness schema, including canonical native case names.
+    # Mirrors the sibling harness schema.
     $snapshot = @{schemaVersion=1;state='passed';runId='run-123';updatedAtUtcMs=$finish.AddMilliseconds(-500).ToUnixTimeMilliseconds();cases=@(@{name='live';status='passed'})}
     $case = @{
         scenario='AnimationSmoke';outcome='passed';startedAt=$start.AddMilliseconds(300).ToString('o');finishedAt=$finish.AddMilliseconds(-300).ToString('o')
@@ -88,7 +88,7 @@ try {
     Add-Content -LiteralPath $casePath -Value ' '
     Reject { Test-SmokeRuntimeReceipt $receipt @('live') 'SOURCE' 'DLL' $start $finish } 'Changed evidence passed.'
 
-    # A count of two archives is not sufficient: each distinct product must exist.
+    # Two archives isn't enough: each distinct product must exist.
     function New-TestArchive([string]$Path, [string[]]$Names) {
         $archive = [IO.Compression.ZipFile]::Open($Path, [IO.Compression.ZipArchiveMode]::Create)
         try {

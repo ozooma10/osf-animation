@@ -4,7 +4,6 @@
 
 namespace OSF::Player
 {
-	// Compatibility name retained for existing native callers. New code should include
-	// PlayerInputLockService.h and use PlayerInputLockService directly.
+	// Compatibility alias; new code uses PlayerInputLockService.
 	using PlayerControlService = PlayerInputLockService;
 }

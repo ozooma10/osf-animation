@@ -33,7 +33,6 @@ namespace OSF::Registry::SceneRegistryClips
 			SceneNode node;
 			node.id = "#s" + std::to_string(i);
 			node.stages = { stage };
-			// Forward the stage's track lanes onto the node, where runtime dispatch reads them.
 			node.cues = stage.cues;
 			node.actions = stage.actions;
 			node.sounds = stage.sounds;
@@ -71,8 +70,7 @@ namespace OSF::Registry::SceneRegistryClips
 		a_def.entry = "#s0";
 	}
 
-	// True when an authored clip spec resolves to something the runtime could open: a mounted
-	// BSResource (loose or archive-resident) or an absolute file outside Data that exists on disk.
+	// Mounted BSResource (loose or archive) or an existing absolute file outside Data.
 	bool ClipSpecInstalled(const std::string& a_spec)
 	{
 		const auto spec = Util::ResolveClipSpec(std::filesystem::path{ a_spec });

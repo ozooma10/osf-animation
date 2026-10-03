@@ -17,9 +17,7 @@ namespace OSF::Equipment
 			return base ? base->As<RE::TESNPC>() : nullptr;
 		}
 
-		// The engine re-instances items while they sit unequipped (outfit/skin pass), so the live
-		// inventory instanceData is the authoritative one to equip/unequip against. Returns null when
-		// the object isn't in the actor's inventory (then equip uses the base instance).
+		// The engine re-instances unequipped items (outfit/skin pass); the live instanceData is authoritative. Null if absent.
 		RE::TBO_InstanceData* LiveInstance(RE::Actor* a_actor, RE::TESBoundObject* a_object)
 		{
 			const auto guard = a_actor->inventoryList.LockRead();
@@ -33,11 +31,7 @@ namespace OSF::Equipment
 			return nullptr;
 		}
 
-		// Whether a_object is present in the actor's inventory list, and whether it's currently worn —
-		// in one inventory pass. Deliberately does NOT call RE::Actor::IsObjectEquipped: that entry is
-		// an unbound REL::ID(0) in this CommonLibSF (candidate AddrLib 106991, never wired), so calling
-		// it aborts with "Failed to find offset for Address Library ID". item.IsEquipped() is the same
-		// equipped flag Hide() reads, so this rides the already-proven strip/inventory path instead.
+		// Not RE::Actor::IsObjectEquipped: unbound REL::ID(0) in this CommonLibSF (crashes).
 		struct ItemPresence
 		{
 			bool present = false;
@@ -82,8 +76,7 @@ namespace OSF::Equipment
 			return snapshot;
 		}
 
-		// Never strip the actor's base skin: on some NPCs the skin/body ARMO enumerates as an equipped inventory item, and unequipping it leaves the actor invisible. 
-		// Identified by form identity (NPC override skin, else race default, via TESNPC::GetSkin) rather than the biped mask, whose offset uncertain. 
+		// Some NPCs enumerate the skin ARMO as equipped; unequipping it makes them invisible. Matched by form identity.
 		const RE::TESObjectARMO* skin = nullptr;
 		if (auto* npc = NpcOf(a_actor)) {
 			skin = npc->GetSkin();
@@ -91,21 +84,19 @@ namespace OSF::Equipment
 		std::uint32_t skippedSkin = 0;
 
 		{
-			// Collect under the inventory read lock; mutate only after releasing it (UnequipObject takes the inventory lock inline).
+			// Mutate only after releasing the read lock; UnequipObject takes the inventory lock.
 			const auto guard = a_actor->inventoryList.LockRead();
 			const RE::BGSInventoryList* list = *guard;
 			if (!list) {
-				// The list is lazy, null on NPCs whose inventory has never materialized. The player + interacted NPCs have one.
+				// Lazy list, null on NPCs whose inventory never materialized.
 				REX::DEBUG("[Equip] actor {:X}: inventory list not materialized — nothing hidden", a_actor->formID);
 				return snapshot;
 			}
-			// a_slotMask == all => FULL strip (every worn non-skin ARMO + weapons);
 			const bool fullStrip = (a_slotMask == 0xFFFFFFFFu);
 			for (const auto& item : list->data) {
 				if (!item.object || !item.IsEquipped() || item.object->GetFormID() == 0) {
 					continue;
 				}
-				// ARMO covers apparel + spacesuit pieces; WEAP only on a full strip (see above).
 				const bool isArmor = item.object->IsArmor();
 				const bool isWeapon = fullStrip && item.object->IsWeapon();
 				if (!isArmor && !isWeapon) {
@@ -116,16 +107,12 @@ namespace OSF::Equipment
 						skippedSkin++;
 						continue;
 					}
-					// Scene-gear exemption: the item stays worn for the scene, so it must not
-					// enter the snapshot either (restore would double-equip it).
+					// Scene-gear exemption stays out of the snapshot too, or restore would double-equip it.
 					if (std::find(a_keep.begin(), a_keep.end(), item.object) != a_keep.end()) {
 						continue;
 					}
 					if (!fullStrip) {
-						// Biped slot mask: u64 at ARMO+0x208 (live BGSBipedObjectForm sits at ARMO+0x200 on
-						// 1.16.244 — decompiled + runtime-proven, RE module gameplay.actor_equipment). CLSF's
-						// header (base 0x230, u32 FO4-style BIPED_MODEL) is WRONG for this build; do not
-						// "correct" this offset to match it.
+						// Biped slot mask: u64 at ARMO+0x208 on 1.16.244 (runtime-proven). CLSF's header (0x230, u32) is wrong for this build.
 						const auto bipedSlots = *reinterpret_cast<const std::uint64_t*>(
 							reinterpret_cast<std::uintptr_t>(item.object) + 0x208);
 						if ((bipedSlots & a_slotMask) == 0) {
@@ -161,14 +148,13 @@ namespace OSF::Equipment
 			const auto guard = a_actor->inventoryList.LockRead();
 			const RE::BGSInventoryList* list = *guard;
 			if (!list) {
-				return snapshot;  // lazy list never materialized — nothing to take out of their hands
+				return snapshot;
 			}
 			for (const auto& item : list->data) {
 				if (!item.object || !item.IsEquipped() || item.object->GetFormID() == 0) {
 					continue;
 				}
-				// Worn apparel is Hide()'s business, not ours — skip every ARMO (the base skin included,
-				// which is why this pass needs no GetSkin() guard: a skin is always an ARMO).
+				// ARMO is Hide()'s business; this also covers the skin.
 				if (item.object->IsArmor()) {
 					continue;
 				}
@@ -202,8 +188,7 @@ namespace OSF::Equipment
 			if (!w.object) {
 				continue;
 			}
-			// Re-resolve instanceData from the live item: the engine's outfit/skin pass can re-instance items while unequipped, so the snapshot's instanceData may be stale.
-			// Fall back to the snapshot copy.
+			// The outfit/skin pass may have re-instanced the item; fall back to the snapshot copy.
 			RE::TBO_InstanceData* liveInstance = w.instanceData.get();
 			{
 				const auto guard = a_actor->inventoryList.LockRead();
@@ -217,7 +202,7 @@ namespace OSF::Equipment
 				}
 			}
 			RE::BGSObjectInstance instance{ w.object, liveInstance };
-			// locked=false so the actor's own outfit logic owns the items again after the scene; forceEquip=true skips the AI veto, silent.
+			// locked=false so the actor's outfit logic owns the items again; forceEquip=true skips the AI veto.
 			mgr->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
 		}
 		REX::DEBUG("[Equip] actor {:X}: restored {} worn item(s)", a_actor->formID, a_snapshot.hiddenItems.size());
@@ -236,10 +221,7 @@ namespace OSF::Equipment
 		}
 		record.object = a_object;
 
-		// Whether the actor already owns / already wears this exact form decides what we have to undo:
-		// only add a copy if absent (remove it on cleanup), only equip if not already worn (unequip on
-		// cleanup) — so we never disturb a copy/equip-state the actor brought into the scene. Both
-		// answers come from one inventory pass (NOT RE::Actor::IsObjectEquipped — unbound ID, see FindItem).
+		// Undo only what we change: add only if absent, equip only if not worn.
 		const ItemPresence existing = FindItem(a_actor, a_object);
 		const bool hadItem = existing.present;
 		const bool wasEquipped = existing.equipped;
@@ -247,16 +229,15 @@ namespace OSF::Equipment
 			a_actor->formID, a_object->GetFormID(), hadItem, wasEquipped);
 
 		if (!hadItem) {
-			// Transient copy (count 1), tagged kScriptAddItem like the engine's own add-if-missing branch.
+			// kScriptAddItem, like the engine's own add-if-missing branch.
 			a_actor->AddObjectToContainer(a_object, {}, 1, nullptr, RE::ITEM_TRANSFER_REASON::kScriptAddItem);
 			record.addedToInventory = true;
 		}
 
 		if (!wasEquipped) {
-			// Re-resolve the instance AFTER the add (the engine instantiates the freshly-added copy).
+			// After the add: the engine instantiates the fresh copy.
 			RE::BGSObjectInstance instance{ a_object, LiveInstance(a_actor, a_object) };
-			// Same silent flags as Restore: queueEquip=false (immediate), forceEquip=true (skip the AI veto),
-			// playSounds=false, applyNow=true, locked=false (the actor's outfit logic still owns it afterwards).
+			// Silent flags as in Restore.
 			mgr->EquipObject(a_actor, instance, nullptr, false, true, false, true, false);
 			record.equipped = true;
 		}
@@ -278,12 +259,12 @@ namespace OSF::Equipment
 		}
 		if (a_item.equipped) {
 			RE::BGSObjectInstance instance{ a_item.object, LiveInstance(a_actor, a_item.object) };
-			// forceUnequip=true clears any equip lock; queueUnequip=false (immediate), silent, applyNow=true.
+			// forceUnequip=true clears any equip lock.
 			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, true, nullptr);
 		}
 
 		if (a_item.addedToInventory) {
-			// Destroy the transient copy we added (reason kNone = destroy, inventoryIndex -1 = identify by object).
+			// reason kNone = destroy; inventoryIndex -1 = match by object.
 			std::uint32_t outHandle = 0;
 			RE::RemoveItemRequest request;
 			request.object = a_item.object;

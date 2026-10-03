@@ -1,21 +1,12 @@
 #!/usr/bin/env python3
 """Generate OSF scene packs exposing the vanilla Starfield animation library.
 
-Walks `Starfield - Animations.ba2`, filters to third-person human `.af` clips,
-harvests per-clip metadata (duration from the .af header, display name / tag /
-loop-vs-transition / root-motion flags from the .afx XML companion), and emits
-one `*.osf.json` pack per top-level animation folder into `dist/OSF/vanilla/`.
+Walks `Starfield - Animations.ba2` for third-person human `.af` clips (duration from the
+.af header, name/tag/transition/root-motion flags from the .afx companion) and writes one
+`*.osf.json` pack per top-level folder into dist/OSF/vanilla/. Each leaf folder becomes a
+scene whose stages are its clips; every clip carries a pre-measured `sec`.
 
-Each leaf folder becomes one scene whose labeled stages are the clips — the
-stage-as-browsable-animation model — so the whole library shows up in the
-catalog and plays through the normal scene player with zero engine changes.
-Oversized FLAT leaves (common, creature roots, animflavor variants) are
-sub-clustered into child scenes by filename prefix ("vanilla/common/death")
-rather than dumped as one 100+-stage scene.
-Every clip carries a pre-measured `sec` so the runtime never has to probe the
-game archive for durations.
-
-The output is static per game version: re-run after a game patch, diff, commit.
+Static per game version: re-run after a game patch, diff, commit.
 
 Usage (from the repo root):
     python tools/vanilla-packs/generate_vanilla_packs.py
@@ -36,15 +27,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 AF_FPS = 30.0  # Creation-Engine convention; mirrors AFImport::kAfFps
-HUMAN_ANIMATED_BONES = 82  # human skeleton.rig boneCountAnimated (af_animation_skeleton_spec.md)
+HUMAN_ANIMATED_BONES = 82  # human skeleton.rig boneCountAnimated
 CLIP_ROOT = "meshes/actors/human/animations"
 MAX_STAGES_PER_SCENE = 120  # still-oversized groups get split into "<id>--2", "<id>--3", ...
 
-# A handful of source folders are FLAT dumps of 60-250 clips (common, the creature
-# roots, furniture animflavor variants). Their filenames carry the taxonomy the
-# folder tree lacks (death_*, bleedout_*, zerog_* ...), so oversized leaves are
-# sub-clustered by the first "_"-separated filename token into child scenes
-# ("vanilla/common/death") instead of arbitrary alphabetical --N chunks.
+# Oversized flat leaves are sub-clustered by their first filename token (death_*, zerog_*, ...).
 SUBSPLIT_MIN_CLIPS = 60      # only leaves larger than this get sub-clustered
 SUBSPLIT_MIN_GROUP = 4       # smaller prefix groups pool into a "misc" child
 SUBSPLIT_MAX_DOMINANCE = 0.8  # no split when one prefix owns most of the leaf
@@ -53,8 +40,7 @@ SUBSPLIT_MAX_DOMINANCE = 0.8  # no split when one prefix owns most of the leaf
 FURN_DECORATORS = {"animflavor", "female", "male"}
 ANCHOR_MASTER = "Starfield.esm"  # every AnimFurn keyword is a base-game record
 
-# Top-level folders under meshes/actors/human/animations/ shipped by default.
-# gun/melee are weapon-pose layers (mostly meaningless standalone) — opt-in.
+# Shipped by default; gun/melee are weapon-pose layers, opt-in via --include-combat.
 DEFAULT_TOPS = (
     "common",
     "furniture",
@@ -67,10 +53,7 @@ DEFAULT_TOPS = (
 COMBAT_TOPS = ("gun", "melee")
 
 
-# ---------------------------------------------------------------------------
-# BA2 (GNRL) reading — mirrors src/Util/Ba2.cpp
-# ---------------------------------------------------------------------------
-
+# BA2 (GNRL) reader; mirrors src/Util/Ba2.cpp.
 @dataclass
 class Ba2Entry:
     name: str          # archive-relative path, backslashes, original case
@@ -110,8 +93,7 @@ class Ba2Reader:
         self.by_name = {e.name.lower(): e for e in self.entries}
 
     def read(self, entry: Ba2Entry, prefix: int | None = None) -> bytes:
-        """Read an entry, optionally only the first `prefix` decompressed bytes
-        (partial inflate — the .af header pass never decompresses whole clips)."""
+        """Read an entry, or only its first `prefix` decompressed bytes."""
         self.f.seek(entry.data_offset)
         if entry.packed == 0:
             return self.f.read(entry.unpacked if prefix is None else min(prefix, entry.unpacked))
@@ -128,10 +110,6 @@ class Ba2Reader:
                 break
         return out
 
-
-# ---------------------------------------------------------------------------
-# .af header / .afx companion
-# ---------------------------------------------------------------------------
 
 @dataclass
 class AfxMeta:
@@ -150,22 +128,14 @@ def parse_af_header(buf: bytes) -> tuple[int, int] | None:
     return bone_count, frame_count
 
 
-# Real-coverage floor: a clip whose physically-present track count is below this
-# fraction of the rig's animated-bone cap is a LAYER (partial-body clip meant to
-# compose over another pose in the behavior graph). Played standalone, OSF stamps
-# its untracked bones at bind pose -> T-pose limbs, so layers are excluded from the
-# browsable library by default (--include-partial re-adds them, tagged "partial").
-# 0.85 clears the ~9 skippable helper bones (AnimObject*/Camera*: the full-body
-# idle_body tracks 73/82) while catching real layers (leanright: 5/82,
-# relaxed_idlepartialbody_*: ~25/82). ~26% of human clips are layers by this rule.
+# Below this tracked fraction a clip is a partial-body layer, which T-poses standalone.
+# 0.85 still admits full-body clips missing only helper bones (idle_body: 73/82).
 PARTIAL_MIN_FRACTION = 0.85
 
 
 def real_track_count(ba2: "Ba2Reader", e: "Ba2Entry") -> int | None:
-    """Number of AnimationBlocks physically present = Σ(odd index-atlas runs).
-    The header boneCount (0x2A) is only the atlas PREFIX length; even runs are
-    identity/untracked bones (decoded to bind pose). Spec: OSF RE
-    docs/af_animation_skeleton_spec.md §1-2. None if unparsable."""
+    """AnimationBlocks physically present = sum of odd index-atlas runs; the header
+    boneCount is only the atlas prefix. Spec: OSF RE docs/af_animation_skeleton_spec.md."""
     hdr = ba2.read(e, prefix=0x40)
     if len(hdr) < 0x40:
         return None
@@ -179,8 +149,7 @@ def real_track_count(ba2: "Ba2Reader", e: "Ba2Entry") -> int | None:
 
 
 def parse_afx(raw: bytes) -> AfxMeta:
-    """The .afx companions are tiny flat XML; regex keeps this stdlib-simple and
-    tolerant of the occasional stray byte."""
+    """Regex over the tiny flat .afx XML; tolerant of stray bytes."""
     text = raw.decode("utf-8", "replace")
     m = AfxMeta()
     if g := re.search(r"<filename>([^<]+)</filename>", text, re.I):
@@ -193,10 +162,6 @@ def parse_afx(raw: bytes) -> AfxMeta:
         m.anim_driven = True
     return m
 
-
-# ---------------------------------------------------------------------------
-# pack generation
-# ---------------------------------------------------------------------------
 
 @dataclass
 class Clip:
@@ -304,13 +269,9 @@ def clip_token(c: Clip, depth: int) -> str:
 
 
 def subcluster(clips: list[Clip], depth: int = 0) -> list[tuple[str, list[Clip]]]:
-    """Split an oversized flat clip list into filename-prefix groups: [(subpath, clips)],
-    or [("", clips)] when no split is warranted. Depth 0 splits leaves over
-    SUBSPLIT_MIN_CLIPS for browsability; deeper levels only re-split groups that
-    would otherwise overflow MAX_STAGES_PER_SCENE into arbitrary --N chunks
-    (common/death: 139 clips -> death/standing + death/moving + ...). Prefixes
-    smaller than SUBSPLIT_MIN_GROUP pool into "misc"; a leaf dominated by one
-    prefix stays whole (the split would rename it, not organize it)."""
+    """Split an oversized flat clip list into filename-prefix groups [(subpath, clips)],
+    or [("", clips)]. Deeper levels only re-split groups that would overflow
+    MAX_STAGES_PER_SCENE; a leaf dominated by one prefix stays whole."""
     limit = SUBSPLIT_MIN_CLIPS if depth == 0 else MAX_STAGES_PER_SCENE
     if len(clips) <= limit:
         return [("", clips)]
@@ -386,14 +347,12 @@ def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str,
         top = segments[0]
         scene_id = "vanilla/" + "/".join(segments)
         name = "Vanilla · " + " / ".join(humanize(s) for s in segments)
-        # Folder taxonomy lives in the id/name (the library view derives its tree from the
-        # id); tags stay a small filterable set so they don't flood the catalog tag cloud.
+        # The library tree derives from the id; keep tags a small filterable set.
         tags = ["vanilla", top.lower()]
         if "female" in (s.lower() for s in segments[1:]):
             tags.append("female")
 
-        # Furniture scenes anchor to the class keyword so they only offer on matching furniture
-        # (and the guided UI can count/surface them). Unmapped classes stay free-space.
+        # Unmapped furniture classes stay free-space.
         anchor = None
         cls = furniture_class_key(segments)
         if cls is not None:
@@ -409,8 +368,7 @@ def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str,
             "schema": 1,
             "name": f"OSF Vanilla — {humanize(top)} (generated, do not hand-edit)",
             "section": "library",
-            # Reference shelf, not matchmaking fodder: browse/play by direct id only;
-            # the matchmaking pool belongs to custom mod scenes.
+            # Browse/play by id only; the matchmaking pool belongs to custom mod scenes.
             "unlisted": True,
             "clipRoot": CLIP_ROOT,
             "scenes": [],
@@ -419,25 +377,15 @@ def build_packs(scenes: dict[str, list[Clip]], furn_kw: dict) -> tuple[dict[str,
     return packs, anchor_stats
 
 
-# ---------------------------------------------------------------------------
-# creature / alien packs — every non-human actor root under meshes\actors\
-# ---------------------------------------------------------------------------
-# Each non-human actor folder ships its OWN characterassets\skeleton.rig and its
-# own animation set (bone counts run 6 -> 123, unlike human's 82). The engine now
-# derives the rig to decode each .af against from the clip's own path (Util::Species),
-# so these packs need no special engine wiring — they just declare a per-species
-# clipRoot. `meshes\actors\human\animations` is owned by the human path above and
-# excluded here; DLC wrappers like sfbgs004\human / sfbgs004\modela ARE included
-# (they carry their own rig copy and map onto the human / modela skeleton).
+# Creature packs: each non-human actor root has its own skeleton.rig, which the engine
+# resolves from the clip path (Util::Species), so packs only declare a per-species clipRoot.
+# DLC wrappers like sfbgs004\human carry their own rig copy and are included.
 
 HUMAN_SPECIES_ROOT = "meshes\\actors\\human"  # owned by the human collect/build path
 
 
 def creature_species(path_low: str) -> tuple[str, str, int] | None:
     """(species_root, family, anim_index) for a non-human actor .af path, or None.
-    species_root = the folder holding \\animations (backslashes, lowercase); family =
-    the skeleton family = the last segment before \\animations (bipeda, modela, human…).
-    'meshes\\actors\\bipeda\\animations\\x.af' -> ('meshes\\actors\\bipeda', 'bipeda', 3)
     'meshes\\actors\\sfbgs004\\human\\animations\\x.af' -> ('…\\sfbgs004\\human', 'human', 4)."""
     parts = path_low.split("\\")
     if len(parts) < 4 or parts[0] != "meshes" or parts[1] != "actors" or "animations" not in parts:
@@ -446,16 +394,15 @@ def creature_species(path_low: str) -> tuple[str, str, int] | None:
     if ai < 3:
         return None
     species_root = "\\".join(parts[:ai])
-    # base human is the human path's job; its nested folders (human\_1stperson = viewmodel
-    # arms) are not full-body species and never bind to a real actor skeleton.
+    # Base human and its nested folders (_1stperson viewmodel arms) belong to the human path.
     if species_root == HUMAN_SPECIES_ROOT or species_root.startswith(HUMAN_SPECIES_ROOT + "\\"):
         return None
     return species_root, parts[ai - 1], ai
 
 
 def rig_animated_bones(ba2: Ba2Reader, species_root_low: str) -> int | None:
-    """boneCountAnimated (@0x3A) from a species' skeleton.rig header — the accept cap
-    for that species' clips (mirrors AFImport::ParseRig). None if the rig is absent."""
+    """boneCountAnimated (@0x3A) from a species' skeleton.rig: the clip accept cap
+    (mirrors AFImport::ParseRig). None if the rig is absent."""
     e = ba2.by_name.get(species_root_low + "\\characterassets\\skeleton.rig")
     if not e:
         return None
@@ -612,7 +559,6 @@ def main() -> int:
             f.write("\n")
         print(f"{out_file.name}: {n_scenes} scene(s), {n_clips} clip(s)")
 
-    # Per-species creature/alien packs (every non-human actor root).
     if not args.no_creatures:
         species_map, creature_skipped = collect_creature_clips(ba2, include_partial=args.include_partial)
         creature_packs = build_creature_packs(species_map)

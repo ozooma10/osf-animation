@@ -3,9 +3,7 @@ import type { BrowserAction } from "./actions";
 import { normalizeBrowseKind, PLAYER_CAST, type BrowserState, type CastMember } from "./state";
 
 function moveMember(members: CastMember[], from: number, to: number, after = false): CastMember[] {
-  // Dropping a row on itself is a cancel, not a reorder: without this, dropping on the
-  // lower half of the SAME row (after=true) computed destination = from + 1 and swapped
-  // the member with its neighbour — silently rebinding roles (cast order is role order).
+  // Dropping on the same row (even its lower half) is a cancel; cast order is role order.
   if (from === to) return members;
   if (from < 0 || from >= members.length || to < 0 || to >= members.length) return members;
   const result = members.slice();
@@ -17,7 +15,6 @@ function moveMember(members: CastMember[], from: number, to: number, after = fal
   return result;
 }
 
-// Shallow element-wise equality over arrays of flat objects (marker/indicator payloads).
 function sameItems<T extends object>(a: readonly T[], b: readonly T[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
@@ -46,15 +43,11 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
     case "library/requested":
       return { ...state, libraryReceived: false };
     case "plugin/received":
-      // The view requests the catalog on every mount, and this version reply comes
-      // directly from OSF Animation, so it is independently authoritative proof
-      // that the engine is connected.
+      // Either the version or the catalog reply alone proves the engine is connected.
       return { ...state, ready: true, plugin: action.plugin };
     case "catalog/received":
       return {
         ...state,
-        // Keep the catalog reply independently sufficient in case the preceding
-        // version message is ever dropped or reordered by the host.
         ready: true,
         catalogReceived: true,
         catalog: action.scenes,
@@ -117,9 +110,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     }
     case "launch/succeeded": {
-      // An inspection launch opens the timeline rather than minimizing — except when it
-      // IS the minimized preview switching stages (live-bar NEXT), which must not yank
-      // the console back over the world the user is watching.
+      // Inspection opens the timeline, unless it's the minimized preview switching stages.
       const reInspect = !!action.inspect && state.minimized
         && !!state.active?.some((scene) => scene.handle === state.lastHandle && scene.inspection);
       return {
@@ -136,10 +127,8 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         : state;
     case "settings/received": {
       const preferences = { ...state.preferences, ...action.preferences };
-      // Re-seed a START OVERRIDES field only when this payload actually carries its key:
-      // an unrelated preference write (the CUSTOM ONLY / FULL DETAIL chips) must not
-      // discard per-launch overrides the user just set. The authoritative full
-      // settings.data payload carries every key, so it still re-seeds everything.
+      // Re-seed a launch override only when this payload carries its key, so unrelated
+      // preference writes don't discard overrides the user just set.
       const carried = action.preferences;
       return {
         ...state,
@@ -156,7 +145,6 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     }
     case "settings/open":
-      // The two full-panel surfaces cover the same console body, so opening one closes the other.
       return { ...state, settingsOpen: action.open, importsOpen: action.open ? false : state.importsOpen,
         routeDebuggerOpen: action.open ? false : state.routeDebuggerOpen };
     case "imports/open":
@@ -221,8 +209,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ? state.cast.filter((_, memberIndex) => memberIndex !== index)
         : action.member.kind === "player" ? [PLAYER_CAST, ...state.cast] : [...state.cast, action.member];
       const removedLocation = index >= 0 && state.locationMode === "actor" && state.locationToken === action.member.token;
-      // Deliberately leaves stepOpen alone: collapsing CAST on every addition
-      // made armed world-picking feel broken (each click folded the panel).
+      // Leaves stepOpen alone so armed world-picking doesn't fold the panel per click.
       return {
         ...state,
         cast,
@@ -253,13 +240,10 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         ? { ...state, nearbyActors: action.targets }
         : { ...state, nearbyFurniture: action.targets };
     case "indicators/received":
-      // Element-wise bail-out (same idea as cast/moved and pickTargets/received): the
-      // ~12.5 Hz projectActors poll re-rendered the whole tree even when nothing moved.
+      // Bail out on the ~12.5 Hz poll when nothing moved.
       return sameItems(state.actorIndicators, action.items) ? state : { ...state, actorIndicators: action.items };
     case "pickTargets/received":
-      // Replies are tagged with the slot they were polled for, so a late
-      // in-flight actor reply can't paint markers into furniture mode (or
-      // vice versa), and anything after cancel is dropped.
+      // Drops late replies polled for the other slot or after cancel.
       return state.pickMode === action.slot ? { ...state, pickTargets: action.items } : state;
     case "pick/armed":
       return { ...state, pickMode: action.kind, pickTargets: [] };

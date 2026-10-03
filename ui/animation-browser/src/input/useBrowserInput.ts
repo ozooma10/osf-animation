@@ -3,9 +3,7 @@ import type { BrowserCommands } from "../app/commands";
 import type { BrowserState } from "../app/state";
 
 const FOCUSABLE = "button, a[href], select, input, [tabindex]";
-// WebView2 animation frames follow the monitor, not Starfield's frame pump. Cap
-// continuous bridge traffic below the host's 128-message/s safety limit while
-// still accumulating every mouse delta for a smooth native camera update.
+// Keeps orbit traffic under the host's 128 msg/s limit; WebView2 frames follow the monitor, not the game.
 const ORBIT_FLUSH_MS = 16;
 
 function visible(element: Element): element is HTMLElement {
@@ -89,9 +87,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
         focusInDirection(direction);
         return;
       }
-      // Space = advance, but never steal activation from a focused control the user
-      // keyboard/gamepad-navigated to (settings switches, seg buttons, links): with a
-      // scene running, Space on a focused switch used to advance a stage instead of toggling.
+      // Space advances, but never steals activation from a focused control.
       const activatable = active instanceof HTMLElement && active.matches("button, a[href], select, [role=switch]");
       if ((event.key === " " || event.key === "Spacebar") && !isTextInput(active) && !activatable &&
         (state.lastHandle || state.active?.length === 1)) {
@@ -116,8 +112,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
 
   useEffect(() => {
     const orbit = { dragging: false, selecting: false, native: false, x: 0, y: 0, dx: 0, dy: 0, wheel: 0, timer: 0 };
-    // Pick mode keeps the established five-pixel click/drag discriminator in
-    // the page. Ordinary world drags use OSF UI's raw native path.
+    // Pick mode needs the in-page click/drag discriminator; other world drags use OSF UI's native path.
     const nativeRelativePointer = !standalone && !state.pickMode && state.plugin?.relativePointer === true;
     const worldTarget = (target: EventTarget | null) => !state.wheel && !(target instanceof Element && target.closest(".console, .brief, .livebar"));
     const flush = () => {
@@ -128,8 +123,7 @@ export function useBrowserInput(state: BrowserState, commands: BrowserCommands, 
     const queue = () => { if (!orbit.timer) orbit.timer = window.setTimeout(flush, ORBIT_FLUSH_MS); };
     const down = (event: MouseEvent) => {
       if (event.button !== 0 || !worldTarget(event.target)) return;
-      // This press belongs to the native orbit surface. Cancel the WebView's
-      // competing default drag behavior so crossing the panels cannot select text.
+      // Stop the WebView's default drag so crossing the panels can't select text.
       event.preventDefault();
       orbit.dragging = true;
       orbit.selecting = !!state.pickMode;

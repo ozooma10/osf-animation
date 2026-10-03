@@ -1,8 +1,8 @@
 #include "Scene/AnchorResolve.h"
 
-#include "Animation/Scene.h"         // ParticipantPlacement + PlacementToWorld (anchor-offset composition)
-#include "Matchmaking/Matchmaker.h"  // AnchorAccepts (furniture validation)
-#include "Registry/SceneRegistry.h"  // SceneDef::RequiresAnchor / anchorOffset
+#include "Animation/Scene.h"
+#include "Matchmaking/Matchmaker.h"
+#include "Registry/SceneRegistry.h"
 #include "UI/HudMessage.h"
 
 #include <atomic>
@@ -13,8 +13,6 @@ namespace OSF::Scene
 {
 	namespace
 	{
-		// Compose the scene's anchorOffset onto a base ref transform (pos, heading in radians)
-		// rotate x/y into the ref's heading frame (PlacementToWorld) and add the offset heading.
 		SceneRuntime::AnchorOverride ComposeAnchor(RE::NiPoint3 a_basePos, float a_baseHeading,
 			const Animation::ParticipantPlacement& a_offset)
 		{
@@ -28,16 +26,12 @@ namespace OSF::Scene
 			float        heading;  // radians, data.angle.z convention (forward = (-sin h, cos h))
 		};
 
-		// The transform the ref is actually RENDERED at. Furniture attached to a moving parent frame (ship interiors) keeps parent-LOCAL coordinates in data.location while the engine composes the attach chain into the render node
-		// anchoring at data.location dumps the scene at the parent frame's origin ("actor teleports to world origin" on a ship). 
-		// The 3D world transform is where the furniture is drawn, which is also the space the  compose-root pin stamps. Falls back to the logical transform when no 3D is loaded.
+		// Ship-interior furniture keeps parent-local data.location; anchoring there puts the scene at the
+		// ship's origin, so use the rendered world transform when it differs.
 		RefTransform RenderedTransform(RE::TESObjectREFR* a_ref)
 		{
 			RefTransform logical{ a_ref->data.location, a_ref->data.angle.z };
-			// Actor model roots are not reference roots: their composed 3D transform may be skeleton/
-			// parent-relative and can be radically different from the position SetPosition expects.
-			// Scene default anchoring already uses actor data.location, so reference-based player/NPC
-			// locations must use that same coordinate space. The rendered fallback below is furniture-only.
+			// Actor 3D roots can be skeleton-relative; actors stay in data.location space.
 			if (a_ref->IsActor()) {
 				return logical;
 			}
@@ -50,17 +44,16 @@ namespace OSF::Scene
 				}
 			}
 			if (!node) {
-				return logical;  // no 3D (scan/pick targets always have it; belt & braces)
+				return logical;
 			}
 
 			const RE::NiTransform& world = node->world;
-			// Same frame (normal worldspace furniture): keep the logical transform A real gap means an attached parent chain, where only the rendered transform matches what the player sees.
-			constexpr float kSameFrameSq = 4.0f;  // 2 game units (~3 cm): transform jitter, not a frame gap
+			constexpr float kSameFrameSq = 4.0f;  // 2 game units: jitter, not a parent-frame gap
 			if (logical.pos.GetSquaredDistance(world.translate) <= kSameFrameSq) {
 				return logical;
 			}
 
-			// Heading from the composed rotation: where the node's model +Y (Creation forward) points in world, converted with the same convention the rest of OSF uses for data.angle.z (forward(h) = (-sin h, cos h);
+			// Model +Y is forward.
 			const RE::NiPoint3 fwd = world.rotate * RE::NiPoint3{ 0.0f, 1.0f, 0.0f };
 			const RefTransform rendered{ world.translate, std::atan2(-fwd.x, fwd.y) };
 			REX::DEBUG("[Scene] anchor ref {:#010x} is frame-attached — logical ({:.1f},{:.1f},{:.1f} h{:.2f}) -> rendered ({:.1f},{:.1f},{:.1f} h{:.2f})",
@@ -69,15 +62,8 @@ namespace OSF::Scene
 			return rendered;
 		}
 
-		// ---- closest-navmesh-point snap ------------------------------------------------
-		// Engine primitive proven in OSF RE (world.navmesh_query, 1.16.244): one
-		// FindTriangleForLocation call pulls a candidate point onto the nearest walkable
-		// navmesh triangle — laterally (out of walls) AND vertically (onto floors and stair
-		// steps). Recipe mirrored from GameScript::MoveToNearestNavmeshLocFunctor slot 7,
-		// the implementation behind Papyrus MoveToNearestNavmeshLocation. Positions travel
-		// in logical data.location space (ships included), the same space this file already
-		// anchors actors in.
-
+		// Navmesh snap mirrors GameScript::MoveToNearestNavmeshLocFunctor slot 7 (OSF RE world.navmesh_query):
+		// FindTriangleForLocation clamps laterally and vertically. Positions are in data.location space.
 		struct PathingPoint
 		{
 			RE::NiPoint3  pos;
@@ -111,8 +97,7 @@ namespace OSF::Scene
 		};
 		static_assert(sizeof(TraversableFilter) == 0x20);
 
-		// The engine's own release pattern for PathingLocation's refcounted members:
-		// lock xadd [ptr+8], -1; old count 1 -> vtbl slot 0 (deleting dtor, flag 1).
+		// Engine release pattern: refcount at +8; on last ref call vtbl slot 0 (deleting dtor, flag 1).
 		void ReleasePathingRef(void* a_ptr)
 		{
 			if (!a_ptr) {
@@ -125,9 +110,7 @@ namespace OSF::Scene
 			}
 		}
 
-		// Snap (a_ref's pathing position + a_offset) onto the closest walkable navmesh point.
-		// nullopt = the engine can't answer (no manager, transitional pathing state, off-mesh)
-		// and the caller keeps its uncorrected point.
+		// nullopt = no answer (no manager, transitional pathing state, off-mesh).
 		std::optional<RE::NiPoint3> SnapToNavmesh(RE::TESObjectREFR* a_ref, const RE::NiPoint3& a_offset)
 		{
 			using GetRefrPathingPosition_t = void* (*)(RE::TESObjectREFR*, PathingPoint*);
@@ -145,15 +128,12 @@ namespace OSF::Scene
 				return std::nullopt;
 			}
 
-			// Author the input exactly the way the engine does — GetRefrPathingPosition fills
-			// {pos, spaceIdx, ctx} — then offset pos to the candidate.
 			PathingPoint point{};
 			getRefrPathingPosition(a_ref, &point);
 			if (!point.ctx) {
 				return std::nullopt;
 			}
-			// Menu/load transitional states answer a (50,50,0)+bogus-cell fallback; detect it
-			// by drift from the reference's actual position and degrade.
+			// Menu/load transitional states return a (50,50,0) + bogus-cell fallback.
 			if (point.pos.GetSquaredDistance(a_ref->data.location) > 1.0f) {
 				return std::nullopt;
 			}
@@ -189,9 +169,7 @@ namespace OSF::Scene
 				return std::nullopt;
 			}
 
-			// NiMatrix3 stores the camera's local basis by row: row 0 is +X/right and row 1 is
-			// +Y/forward. Project forward onto the ground plane so looking up/down does not
-			// change the requested distance.
+			// Row 1 of the rotation is +Y/forward; flatten to the ground plane.
 			const float x = cameraRoot->world.rotate[1][0];
 			const float y = cameraRoot->world.rotate[1][1];
 			const float lengthSq = x * x + y * y;
@@ -228,10 +206,8 @@ namespace OSF::Scene
 			base.pos.z
 		};
 
-		// Navmesh correction: pull the candidate out of walls and onto the walkable floor.
-		// The lateral correction may legitimately span the whole distance (facing a wall);
-		// a Z jump past the window means a different storey/ledge answered — distrust it and
-		// keep the pure-math point. Snap failure likewise degrades to the pure-math point.
+		// Lateral correction may span the whole distance (facing a wall); a Z jump past the
+		// window means another storey answered, so keep the unsnapped point.
 		const RE::NiPoint3 offset{ pos.x - base.pos.x, pos.y - base.pos.y, 0.0f };
 		bool snapped = false;
 		if (const auto corrected = SnapToNavmesh(a_ref, offset)) {
@@ -258,7 +234,7 @@ namespace OSF::Scene
 	{
 		const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 		if (!def || !def->RequiresAnchor()) {
-			return MakeAnchorAt(a_ref, a_headingRad);  // free scene: anchor optional, pass through
+			return MakeAnchorAt(a_ref, a_headingRad);
 		}
 		if (!a_ref) {
 			REX::WARN("[Scene] scene '{}' is anchor-bound but no anchor ref was supplied — start aborted", a_sceneId);
@@ -275,7 +251,6 @@ namespace OSF::Scene
 			}
 			return std::nullopt;
 		}
-		// Base ref transform: its RENDERED origin + facing (an explicit heading override is honored).
 		const RefTransform base = RenderedTransform(a_ref);
 		const float        baseHeading = a_headingRad ? *a_headingRad : base.heading;
 		return ComposeAnchor(base.pos, baseHeading, def->anchorOffset);

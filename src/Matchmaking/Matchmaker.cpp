@@ -29,7 +29,6 @@ namespace OSF::Matchmaking
 			return npc ? npc->GetSex() : RE::SEX::kNone;
 		}
 
-		// kAny accepts anyone (including a kNone-sex actor); a gendered role needs the matching sex.
 		bool RoleGenderAccepts(Registry::RoleGender a_roleGender, RE::SEX a_sex)
 		{
 			using G = Registry::RoleGender;
@@ -42,15 +41,13 @@ namespace OSF::Matchmaking
 			return true;
 		}
 
-		// The actor "has" a keyword if its actorbase (TESNPC, a BGSKeywordForm) OR its race (also a
-		// BGSKeywordForm) carries it, matching the game's actor keyword condition reasonably.
+		// Actorbase or race keywords count.
 		bool ActorHasKeyword(RE::Actor* a_actor, RE::BGSKeyword* a_keyword)
 		{
 			if (!a_actor || !a_keyword) {
 				return false;
 			}
-			// Qualify the base call: TESNPC declares its own HasKeyword(string_view), which hides the inherited BGSKeywordForm::HasKeyword(BGSKeyword*). 
-			// The base checks the actorbase's own keywords; the race is checked separately so an actor matches if EITHER carries it.
+			// Qualified: TESNPC's HasKeyword(string_view) hides BGSKeywordForm::HasKeyword(BGSKeyword*).
 			if (auto* npc = NpcOf(a_actor); npc && npc->BGSKeywordForm::HasKeyword(a_keyword)) {
 				return true;
 			}
@@ -70,8 +67,7 @@ namespace OSF::Matchmaking
 			return out;
 		}
 
-		// a_query is already lowercased. a_have is the def's PRECOMPUTED lowercase tag set
-		// (SceneDef::tagSet) — no per-def lowering/allocation on this every-def-per-query path.
+		// a_query is lowercased; a_have is the def's precomputed lowercase SceneDef::tagSet (hot path).
 		bool TagsMatch(const std::unordered_set<std::string>& a_have, const TagQuery& a_query)
 		{
 			for (const auto& t : a_query.allOf) {
@@ -101,9 +97,7 @@ namespace OSF::Matchmaking
 
 		std::string DescribeAnchorRef(RE::TESObjectREFR* a_ref);
 
-		// Deterministic complete assignment of a_n actors to a_n roles: perm[role] = actor index.
-		// Iterates permutations in lexicographic order and returns the first one where every role is compatible (so the result is the lexicographically smallest binding by role order).
-		// nullopt if no complete assignment exists. a_n is small (party size), so brute force is fine, this is what the pack matcher already does.
+		// perm[role] = actor index; the lexicographically first compatible permutation. Brute force is fine at party size.
 		template <class Pred>
 		std::optional<std::vector<std::size_t>> MatchComplete(std::size_t a_n, Pred a_compatible)
 		{
@@ -126,16 +120,14 @@ namespace OSF::Matchmaking
 			return std::nullopt;
 		}
 
-		// Build the unified candidate pool: filter-aware with a complete binding (Candidate::order
-		// filled). a_anchor + a_mode add anchor filtering (see AnchorMode). Pick guarantees
-		// a_actors is non-empty.
+		// Pick guarantees a_actors is non-empty.
 		std::vector<Candidate> BuildPool(const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors,
 			RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
 		{
 			const auto count = static_cast<std::int32_t>(a_actors.size());
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
 
-			// One memoized matcher for the whole def sweep: each distinct anchor keyword costs a single engine HasKeyword no matter how many defs share it (the vanilla-library packs share a handful of AnimFurn* keywords across thousands of defs).
+			// Vanilla packs share a handful of AnimFurn* keywords across thousands of defs.
 			AnchorMatchCache anchorCache(a_anchor);
 
 			std::vector<Candidate> pool;
@@ -150,8 +142,7 @@ namespace OSF::Matchmaking
 				if (!TagsMatch(a_def.tagSet, q)) {
 					return;
 				}
-				// Anchor filtering: an anchor-bound scene needs a ref that satisfies it; kRequire (anchor-first) additionally drops free scenes.
-				// No per-def logging here: REX log args are formatted eagerly (engine EditorID calls included) BEFORE the level check, and this loop covers every loaded def.
+				// No per-def logging: REX formats args (engine EditorID calls) before the level check.
 				if (a_def.RequiresAnchor()) {
 					if (!anchorCache.Accepts(a_def)) {
 						return;
@@ -177,7 +168,6 @@ namespace OSF::Matchmaking
 			return pool;
 		}
 
-		// Compact, log-friendly rendering of a tag query, e.g. "all=[a,b] any=[c] none=[d]".
 		std::string DescribeQuery(const TagQuery& a_query)
 		{
 			auto join = [](const std::vector<std::string>& a_in) {
@@ -240,7 +230,7 @@ namespace OSF::Matchmaking
 		if (!a_role.keywords.empty()) {
 			bool ok = false;
 			for (const auto kwId : a_role.keywords) {
-				// Fresh lookup per check: the registry stores FormIDs, not pointers (see SceneRole).
+				// The registry stores FormIDs, not pointers.
 				if (ActorHasKeyword(a_actor, RE::TESForm::LookupByID<RE::BGSKeyword>(kwId))) {
 					ok = true;
 					break;
@@ -385,7 +375,7 @@ namespace OSF::Matchmaking
 		case RE::SEX::kFemale:
 			return "female";
 		default:
-			return {};  // kNone / no actorbase -> gender-agnostic (the {gender} tag drops out)
+			return {};  // gender-agnostic: the {gender} tag drops out
 		}
 	}
 
@@ -405,7 +395,6 @@ namespace OSF::Matchmaking
 				actorCount, DescribeAnchorSearch(a_anchor, a_mode));
 			return std::nullopt;
 		}
-		// Top priority tier.
 		std::int32_t maxPriority = pool.front().priority;
 		for (const auto& c : pool) {
 			maxPriority = std::max(maxPriority, c.priority);
@@ -420,7 +409,7 @@ namespace OSF::Matchmaking
 		}
 		REX::TRACE("[Match] {} candidate(s) in pool, {} in top priority tier {} (total weight {})",
 			pool.size(), tier.size(), maxPriority, total);
-		// Weight-proportional random within the tier (uint64 sum is overflow-safe for the [1,1e6] cap).
+		// uint64 sum is overflow-safe for the [1,1e6] weight cap.
 		static thread_local std::mt19937 rng{ std::random_device{}() };
 		std::uniform_int_distribution<std::uint64_t> dist(1, total);
 		auto roll = dist(rng);
@@ -435,6 +424,6 @@ namespace OSF::Matchmaking
 		}
 		REX::DEBUG("[Match] chose '{}' (priority {}, weight {}) [tail guard]",
 			tier.back()->id, tier.back()->priority, tier.back()->weight);
-		return *tier.back();  // numerical guard; not normally reached
+		return *tier.back();  // numerical guard
 	}
 }

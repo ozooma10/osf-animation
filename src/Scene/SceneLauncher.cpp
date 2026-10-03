@@ -1,10 +1,10 @@
 #include "Scene/SceneLauncher.h"
 
-#include "Matchmaking/Matchmaker.h"  // Pick (matchmaking)
-#include "Scene/AnchorResolve.h"     // MakeAnchorAt + ResolveSceneAnchor
+#include "Matchmaking/Matchmaker.h"
+#include "Scene/AnchorResolve.h"
 #include "Scene/SceneRuntime.h"
 #include "UI/HudMessage.h"
-#include "Util/Math.h"  // kDegToRadF
+#include "Util/Math.h"
 
 #include <format>
 
@@ -12,11 +12,9 @@ namespace OSF::Scene
 {
 	namespace
 	{
-		// Upper bound for LoopScale
 		constexpr float kLoopScaleMax = 20.0f;
 
-		// Start a matchmade candidate using its resolved binding (Matchmaking::Pick already chose the slot->actor order, so we never re-bind here) at an already-resolved anchor.
-		// Binds by declaration order = the reordered actors. anchor unset => co-located at actor[0]; set => world-anchored.
+		// Uses Pick's slot->actor order as-is. Unset anchor = co-located at actor[0].
 		std::int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors,
 			const SceneRuntime::AnchorOverride& a_anchor, const SceneRuntime::StartOverrides& a_over)
 		{
@@ -32,21 +30,16 @@ namespace OSF::Scene
 		}
 	}
 
-	// Optional explicit heading (radians) from options: HeadingDeg < 0 => use the ref's own facing.
 	std::optional<float> OptHeadingRad(const LaunchOpts& a_opts)
 	{
 		return (a_opts.headingDeg < 0.0f) ? std::nullopt : std::optional<float>(a_opts.headingDeg * Util::kDegToRadF);
 	}
 
-	// A SceneRuntime world-anchor from resolved options (unset when no Anchor).
 	SceneRuntime::AnchorOverride MakeAnchor(const LaunchOpts& a_opts)
 	{
 		return MakeAnchorAt(a_opts.anchor, OptHeadingRad(a_opts));
 	}
 
-	// SceneRuntime per-start overrides from resolved options. Tri-state ints map to optional<bool>
-	// (1 = on, 0 = off, anything else incl. -1 = inherit the scene/content-file default).
-	// LoopScale is sanitized: <=0 or NaN -> 1.0 (no scaling); inf / overshoot -> clamped to kLoopScaleMax.
 	SceneRuntime::StartOverrides MakeOverrides(const LaunchOpts& a_opts)
 	{
 		return MakeOverrides(a_opts.hideApparelMode, a_opts.playerInputLockMode, a_opts.sceneControlsMode,
@@ -65,7 +58,7 @@ namespace OSF::Scene
 			if (a_v == 0) {
 				return false;
 			}
-			return std::nullopt;  // -1 and any out-of-range value = inherit
+			return std::nullopt;
 		};
 		over.hideApparel = triState(a_hideApparelMode);
 		over.playerInputLock = triState(a_playerInputLockMode);
@@ -78,7 +71,7 @@ namespace OSF::Scene
 			over.camera = std::string(a_camera);
 		}
 		float ls = a_loopScale;
-		if (!(ls > 0.0f)) {  // false for <=0 AND for NaN -> no-op
+		if (!(ls > 0.0f)) {  // also catches NaN
 			ls = 1.0f;
 		} else if (ls > kLoopScaleMax) {
 			ls = kLoopScaleMax;
@@ -107,7 +100,7 @@ namespace OSF::Scene
 		}
 		const auto anchor = ResolveSceneAnchor(pick->id, a_opts.anchor, OptHeadingRad(a_opts), /*a_emitHud*/ true);
 		if (!anchor) {
-			return 0;  // anchor-bound pick without a compatible anchor (logged in ResolveSceneAnchor)
+			return 0;
 		}
 		const std::int32_t handle = StartCandidate(*pick, a_actors, *anchor, a_over);
 		if (handle) {

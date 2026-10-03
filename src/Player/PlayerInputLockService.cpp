@@ -5,8 +5,8 @@ namespace OSF::Player
 {
 	namespace
 	{
-		// POVSwitch stays ENABLED: in Starfield the mouse wheel rides the POV control (one continuous first<->third zoom axis), so blocking it kills scroll-zoom during the lock.
-		// CameraService::Tick bounces the camera back to third person if the player zooms/keys all the way into first person.
+		// POVSwitch stays enabled: the mouse wheel rides the POV control, so blocking it kills scroll-zoom.
+		// CameraService::Tick bounces a full zoom-in back to third person.
 		constexpr auto kSceneUserEvents =
 			RE::USER_EVENT_FLAG::Movement |
 			RE::USER_EVENT_FLAG::Fighting |
@@ -20,12 +20,7 @@ namespace OSF::Player
 			RE::OTHER_EVENT_FLAG::HandScanner |
 			RE::OTHER_EVENT_FLAG::Favorites;
 
-		// Clears the player's AI-driven flag via the Papyrus VM (Game.SetPlayerAIDriven). The input lock
-		// NO LONGER engages AI-driven -- it blocked camera look (an AI-driven actor is non-controllable)
-		// WITHOUT decoupling the rig (GraphManager's compose-root rotation pin does that). This remains only
-		// to clear a STALE flag: AI-driven is PERSISTENT (serialized into saves), so a save made by an older
-		// build that set it would reload AI-driven; OnStopAll clears it on every load. No native binding;
-		// queued for the frame update, any-thread.
+		// AI-driven persists in saves; only cleared here, never set (it blocks camera look). Via the Papyrus VM, any thread.
 		void SetPlayerAIDriven(bool a_driven)
 		{
 			Util::NativeMainThreadQueue::Post([a_driven]() {
@@ -64,11 +59,7 @@ namespace OSF::Player
 	void PlayerInputLockService::OnStopAll()
 	{
 		const auto epoch = taskEpoch.fetch_add(1, std::memory_order_acq_rel) + 1;
-		// Defensively clear the PERSISTENT AI-driven flag on every load. The input lock no longer sets it,
-		// but a save made by an OLDER build (which did) would reload the player AI-driven with no in-process
-		// memory of it, leaving them non-controllable. OnStopAll runs only on a load (every
-		// GraphManager::StopAll caller is a save-load/revert/manual-load sink). The runtime input-disable
-		// layer below is non-persistent.
+		// OnStopAll runs only on a load; clear a persisted AI-driven flag (the input layer itself is non-persistent).
 		SetPlayerAIDriven(false);
 
 		Util::NativeMainThreadQueue::Post([this, epoch]() {
@@ -86,7 +77,6 @@ namespace OSF::Player
 
 	void PlayerInputLockService::ClearAIDriven()
 	{
-		// Decoupled from the input lock on purpose. Posts the same VM clear used on release/load.
 		SetPlayerAIDriven(false);
 	}
 
@@ -100,7 +90,7 @@ namespace OSF::Player
 			std::scoped_lock l{ lock };
 			if (a_enable) {
 				if (playerInputLockActive) {
-					return;  // already held -- idempotent
+					return;
 				}
 				if (!EnsureLayer()) {
 					REX::WARN("[Player] input lock: failed to allocate input-disable layer");
@@ -108,22 +98,15 @@ namespace OSF::Player
 				}
 				playerInputLockActive = true;
 				ApplyDisabled();
-				// No AI-driven: it blocked camera look (an AI-driven actor is non-controllable) without
-				// actually decoupling the rig -- the GraphManager compose-root rotation pin handles rig-spin.
-				// The input layer disables Movement/Fighting/Sneaking/Activation only; Looking stays free.
+				// Movement/Fighting/Sneaking/Activation only; looking stays free.
 				REX::DEBUG("[Player] input lock engaged (movement only -- camera look stays free)");
 			} else {
 				if (!playerInputLockActive) {
-					return;  // not held -- nothing to release
+					return;
 				}
 				playerInputLockActive = false;
 				RestoreEnabled();
-				// Clear any persistent AI-driven flag at the player-unlock point. The input lock itself never
-				// sets it, BUT the native free cam (MMB -> ToggleFreeCameraMode / `tfc`) does -- to freeze
-				// the player while the camera flies -- and toggling tfc back off doesn't reliably clear it
-				// for a pinned scene participant. Without this, that flag survives SCENE_END (it's only
-				// otherwise cleared on a game load via OnStopAll), leaving the player unlocked at OSF's
-				// level but still AI-driven (= unable to move). Idempotent: a no-op when nothing set it.
+				// tfc sets AI-driven and toggling it off doesn't reliably clear it for a pinned participant (player can't move).
 				SetPlayerAIDriven(false);
 				REX::DEBUG("[Player] input lock released");
 			}

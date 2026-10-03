@@ -132,9 +132,7 @@ namespace OSF::Testing::AnimationSmoke
 
 		bool OwnsSoloPlayback()
 		{
-			// The public solo surface has no generation token. These checks detect
-			// replacement by a different clip or any scene/route owner; replacement
-			// with the identical solo source remains indistinguishable through it.
+			// No solo generation token: replacement by the identical clip is undetectable.
 			return g.soloOwned && g.actor && g.sceneAPI &&
 				g.sceneAPI->GetSceneForActor(g.actor.get()) == 0 &&
 				(!g.overlayAPI || g.overlayAPI->GetRouteForActor(g.actor.get()) == 0) &&
@@ -149,8 +147,7 @@ namespace OSF::Testing::AnimationSmoke
 
 		void Cleanup(bool a_worldReset = false)
 		{
-			// Exact generational handles constrain cleanup to this run. The solo API has
-			// no token, so only release the clip while it is still ours and unclaimed.
+			// Solo has no token, so only release the clip while it is still ours.
 			if (!a_worldReset) {
 				if (g.scene && g.sceneAPI) (void)g.sceneAPI->StopScene(g.scene);
 				if (g.route && g.overlayAPI) (void)g.overlayAPI->EndRoute(g.route, false);
@@ -485,8 +482,7 @@ namespace OSF::Testing::AnimationSmoke
 				if (expiry <= UtcMs() || expiry > UtcMs() + 300000) throw std::runtime_error("Request expired or deadline exceeds five minutes");
 				if (g.seenRequests.contains(id)) throw std::runtime_error("Request ID has already been consumed in this session");
 				if (g.seenRequests.size() >= 1024) throw std::runtime_error("Session request limit reached; restart the test process");
-				// Retain IDs until process exit, including commands rejected below. Never
-				// evict them: an older unexpired start must not become executable again.
+				// Never evict: an older unexpired start must not become executable again.
 				g.seenRequests.insert(id);
 				const auto command = request.at("command").get<std::string>();
 				if (command == "start") Start(request.at("args").at("runId").get<std::string>());

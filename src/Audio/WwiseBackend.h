@@ -1,39 +1,25 @@
 #pragma once
 
-// Engine-native sound playback through the game's own statically linked Wwise engine (RE::BGSAudio::AkSoundEngine, the CommonLibSF fork bindings). 
-// Everything posted here rides the game mix, master/SFX volume sliders, the pause menu, ducking and busses all apply
+// Posts through the game's statically linked Wwise (RE::BGSAudio::AkSoundEngine), so the game mix applies.
 
 namespace OSF::Audio::Wwise
 {
-	// reimplementation of AK::SoundEngine::GetIDFromString: FNV-1 32-bit over the lowercased name (basis 0x811C9DC5, prime 0x1000193), 
-	// matching the engine's own hasher exactly. Lets packs name events directly, with no soundbank metadata lookup.
+	// AK::SoundEngine::GetIDFromString: FNV-1 32-bit over the lowercased name (basis 0x811C9DC5, prime 0x1000193).
 	std::uint32_t HashEventName(std::string_view a_name);
 
-	// Recognizes the "event:" cue-sound spec. 
-	// Returns the AkUniqueID (hex literal taken verbatim, anything else hashed), or nullopt when a_spec is not an event reference (i.e. it is a file path / "$pool" ref).
+	// "event:" spec -> AkUniqueID (hex literal verbatim, else hashed); nullopt for file paths / "$pool" refs.
 	std::optional<std::uint32_t> ParseEventSpec(std::string_view a_spec);
 
-	// Fire-and-forget BAKED-event post. gameObject 0 selects the player/listener object.
-	// Returns the AkPlayingID (0 = the engine rejected it, usually an event ID that is not in any loaded bank).
-	// Safe from any thread.
+	// gameObject 0 = listener. Returns the AkPlayingID (0 = rejected, usually an event not in a loaded bank). Any thread.
 	std::uint32_t PostEvent(std::uint32_t a_eventID, std::uint64_t a_gameObject = 0);
 
-	// Stops a single posted voice by its AkPlayingID (the value PostEvent / PostExternalFile returned),
-	// for per-slot voice replacement. Safe from any thread; harmless on a playingID the engine already retired.
-	//
-	// Returns true when a stop was issued for a nonzero playing ID.
+	// Any thread; harmless on a retired playing ID. True when a stop was issued.
 	bool StopVoice(std::uint32_t a_playingID);
 
-	// --- external-source (.wem) path ---
-
-	// True for formats that ride the engine-mixed Wwise external-source path: a real .wem (posted as bytes) or a .wav/.mp3/.ogg/.flac (decoded to PCM and wrapped in a PCM .wem at runtime). 
-	// A RAW vanilla .wav posted as bytes is silent, which is why non-.wem inputs are decoded first. Returns false for anything miniaudio can't decode;
+	// .wem or a miniaudio-decodable format. A raw .wav posted as bytes is silent, hence the decode.
 	bool IsWwiseExternalSource(std::string_view a_path);
 
-	// Plays a loose audio file as an external source through a shipped event's "External_Source" slot.
-	// gameObject 0 selects the player/listener.
-	// a_path is opened through the process file API (game-root-relative 'Data\...', so MO2/USVFS loose files resolve) and prepared ONCE into a process-lifetime media cache: 
-	// a .wem is cached as-is; a .wav/.mp3/.ogg/.flac is decoded to PCM and wrapped in a PCM .wem. Posted via pInMemory (codec from the .wem fmt tag, or PCM for a built one).
-	// The caller manages no memory and may free a_path immediately. Returns the AkPlayingID (0 = rejected / load failed). Safe from any thread. Gate on IsWwiseExternalSource first.
+	// Game-root-relative 'Data\...' path via the process file API (so MO2/USVFS resolves), prepared once into a process-lifetime cache.
+	// Returns the AkPlayingID (0 = failed). Any thread. Gate on IsWwiseExternalSource first.
 	std::uint32_t PostExternalFile(const std::wstring& a_path, std::uint64_t a_gameObject = 0);
 }

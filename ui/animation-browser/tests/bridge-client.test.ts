@@ -6,7 +6,6 @@ import { StandaloneBridge } from "../src/dev/mock-bridge";
 
 const eventHandlers = new Map<string, (payload: unknown) => void>();
 
-// OsfUiBridge only touches window.osfui; stub the current public helper so these run in node.
 function deliver(type: string, payload: unknown): void {
   eventHandlers.get(type)?.(payload);
 }

@@ -1,28 +1,15 @@
 #!/usr/bin/env python3
-"""Generate the standalone dev view's MAIN-catalog snapshot from real pack sources.
+"""Generate the dev view's main-catalog snapshot (BuildCatalog(a_library=false)).
 
-Companion to generate-library-snapshot.py (which models the library lane from
-dist/OSF `section:"library"` packs). This one builds the SCENES-lane payload —
-BuildCatalog(a_library=false) — from every non-library pack it can find:
+Sources: this repo's dist/OSF, the sibling `OSF Compatibility Packs` repo's */OSF
+outputs, and any extra directories passed as arguments. Library-section packs
+belong to generate-library-snapshot.py.
 
-  - this repo's dist/OSF (emotes, highlights, internal), and
-  - the sibling `OSF Compatibility Packs` repo's generated outputs
-    (gergel-ebanex/OSF, snusnufield/OSF, ...), plus any extra directories
-    passed as arguments.
+Writes fixtures/live/catalog.local.json: git-ignored (compat packs are adult
+content), and preferred by the Vite dev server over the committed catalog.json.
 
-Output is `fixtures/live/catalog.local.json` — GIT-IGNORED, never committed:
-the compat packs are adult content that stays out of this repo, and the file
-is a per-machine dev convenience. The Vite dev server prefers it over the
-committed `catalog.json` dump when it exists, so the standalone browser page
-gets a full real-world catalog (394 GE scenes + Snu Snu + emotes) to exercise
-grouping/layout against. Delete the file to fall back to the committed dump.
-
-Unlike the library generator this one is TOLERANT: a scene or file the offline
-model can't represent (graph nodes, unknown keys) is warned about and skipped —
-the goal is a rich dev catalog, not packaging fidelity. Fields the model can't
-know offline (probe-cache durations for un-`sec`'d clips, wheel pins, resolved
-anchor labels for other mods' base forms) come out null/raw, which the view
-already tolerates.
+Tolerant: scenes the offline model can't represent are warned about and skipped;
+runtime-only fields come out null/raw.
 
 Usage: python tools/generate-catalog-snapshot.py [extra-pack-dir ...]
 """
@@ -37,8 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "ui", "animation-browser", "fixtures", "live", "catalog.local.json")
 
-# The library generator owns the card math (stage timing, float32 rounding,
-# anchor labels); import it despite the dashed filename.
+# Reuse the library generator's card math; its dashed filename needs importlib.
 _spec = importlib.util.spec_from_file_location(
     "libsnap", os.path.join(HERE, "generate-library-snapshot.py"))
 libsnap = importlib.util.module_from_spec(_spec)

@@ -31,8 +31,6 @@ namespace OSF::Registry
 			return static_cast<std::int32_t>(std::clamp<std::int64_t>(a_w, 1, 1000000));
 		}
 
-		// One clip in the ARRAY form: a bare "path" string (weight 1, no text) or a
-		// { spec|file, weight?, text? } object. `text` is the optional subtitle shown when it plays.
 		SoundClip ParseClip(const json& a_clip, const std::string& a_subject)
 		{
 			SoundClip clip;
@@ -45,7 +43,7 @@ namespace OSF::Registry
 					clip.spec = fit->get<std::string>();
 				}
 				clip.weight = ClampWeight(a_clip.value("weight", std::int64_t{ 1 }));
-				clip.text = a_clip.value("text", std::string{});  // optional subtitle line
+				clip.text = a_clip.value("text", std::string{});
 			} else {
 				throw std::runtime_error(a_subject + ": a clip must be a path string or a { spec/file, weight, text } object");
 			}
@@ -86,9 +84,7 @@ namespace OSF::Registry
 				pool.tags.push_back(ToLower(tag));
 			}
 
-			// `clips` is EITHER an array (paths / { spec, weight, text } objects) OR a terse object
-			// mapping each clip path -> its spoken text ({ "Sound/.../x.wav": "the line", ... }), the
-			// shorthand for "give these clips subtitles". Object-form clips are weight 1.
+			// `clips`: array of paths/objects, or a { path: subtitle } object (weight 1 each).
 			const auto cit = a_pool.find("clips");
 			if (cit == a_pool.end()) {
 				throw std::runtime_error(subject + ": needs 'clips' (a non-empty array, or a { path: text } object)");
@@ -106,7 +102,7 @@ namespace OSF::Registry
 					if (clip.spec.empty()) {
 						throw std::runtime_error(subject + ": a 'clips' entry has an empty path key");
 					}
-					// value = the subtitle text; null / "" means "this clip, no subtitle".
+					// null / "" = no subtitle
 					if (it.value().is_string()) {
 						clip.text = it.value().get<std::string>();
 					} else if (!it.value().is_null()) {
@@ -133,7 +129,7 @@ namespace OSF::Registry
 			return pool;
 		}
 
-		// A file is { schema, pools: [...] }. Bad pools are skipped (recorded), not fatal to the file.
+		// Bad pools are skipped (recorded), not fatal to the file.
 		void LoadSoundFile(const json& a_json, const std::filesystem::path& a_file,
 			std::vector<SoundPool>& a_out, std::size_t& a_clipCount,
 			std::vector<std::string>& a_errors)
@@ -260,8 +256,7 @@ namespace OSF::Registry
 			stats.push_back(std::move(crossFile));
 		}
 
-		// Flatten clip spec -> subtitle text across every pool (first-wins on a duplicate path) so a
-		// played clip can render its line by spec, regardless of which pool it came from.
+		// First-wins on a duplicate spec across pools.
 		std::unordered_map<std::string, std::string> textMap;
 		for (const auto& p : loaded) {
 			for (const auto& c : p.clips) {
@@ -286,7 +281,6 @@ namespace OSF::Registry
 	}
 	std::optional<std::string> SoundRegistry::Resolve(std::string_view a_ref) const
 	{
-		// Strip the optional leading '$', split on ',', trim + lowercase each tag.
 		std::string s(a_ref);
 		if (!s.empty() && s.front() == '$') {
 			s.erase(s.begin());
@@ -320,7 +314,7 @@ namespace OSF::Registry
 
 	std::optional<std::string> SoundRegistry::Pick(const std::vector<std::string>& a_allOf) const
 	{
-		// Lowercase the query (idempotent when Resolve already lowered it; robust for direct callers).
+		// Direct callers may pass unlowered tags.
 		std::vector<std::string> query;
 		query.reserve(a_allOf.size());
 		for (const auto& t : a_allOf) {
@@ -329,7 +323,6 @@ namespace OSF::Registry
 
 		std::unique_lock l{ lock };
 
-		// Union every matching pool's clips (all-of: each query tag must be present in the pool's tags).
 		std::vector<const SoundClip*> candidates;
 		std::uint64_t total = 0;
 		for (const auto& p : pools) {
@@ -352,7 +345,7 @@ namespace OSF::Registry
 			return std::nullopt;
 		}
 
-		// Weight-proportional random (mirrors Matchmaker::Pick; uint64 sum is overflow-safe for the cap).
+		// Mirrors Matchmaker::Pick.
 		static thread_local std::mt19937 rng{ std::random_device{}() };
 		const auto rollOnce = [&]() -> const SoundClip* {
 			std::uniform_int_distribution<std::uint64_t> dist(1, total);
@@ -364,11 +357,10 @@ namespace OSF::Registry
 				}
 				roll -= w;
 			}
-			return candidates.back();  // numerical guard; not normally reached
+			return candidates.back();
 		};
 
 		const SoundClip* chosen = rollOnce();
-		// Avoid an immediate repeat of the last clip when there's a real choice.
 		if (chosen->spec == lastPick && candidates.size() > 1) {
 			chosen = rollOnce();
 		}

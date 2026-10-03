@@ -25,9 +25,7 @@ namespace OSF::Scene
 		return marks;
 	}
 
-	// Reconstruct the props OSF itself would own after processing a route transition through the
-	// requested frame. External props are consumer-owned callbacks and are deliberately excluded;
-	// transition-lifetime props are gone once the transition-reached lane runs at clip end.
+	// OSF-owned props live at a_frame; external props are consumer-owned, transition-lifetime ones end at clip end.
 	inline std::vector<const Registry::RouteProp*> InspectionRoutePropsAt(
 		const Registry::RouteTransition& a_transition, float a_frame, bool a_atEnd,
 		float a_durationFrames = 0.0f)

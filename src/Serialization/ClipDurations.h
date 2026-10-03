@@ -1,10 +1,7 @@
 #pragma once
 
-// Persistent clip-length cache feeding the UI catalog's time estimates.
-// a GLB's keyframe times are declared in its JSON chunk (accessor max / last input key), a .af's frame count sits in its 64-byte header
-//
-// Values live in <Documents>\My Games\Starfield\SFSE\OSF\clip-durations.json, keyed on the authored clip spec (normalized) + animation id, invalidated by loose-file size+mtime. 
-// Real decodes overwrite probe values (Record), so the two sources converge on the exact number.
+// Persistent clip-length cache (SFSE\OSF\clip-durations.json) for the catalog's time estimates.
+// Keyed on normalized clip spec + anim id; loose files are invalidated by size+mtime. Decoded values (Record) override probes.
 
 #include <functional>
 #include <optional>
@@ -12,14 +9,12 @@
 
 namespace OSF::Serialization::ClipDurations
 {
-	// Clip loop length in seconds, or nullopt when the clip hasn't been probed or decoded yet (missing file, unprobeable metadata, scan still running). 
-	// a_fileSpec is the authored spec string exactly as it appears in scene JSON
+	// a_fileSpec is the authored spec as written in scene JSON.
 	std::optional<float> Lookup(std::string_view a_fileSpec, std::string_view a_animId);
 
-	// Record the exact duration of a successfully decoded clip. Writes the cache file only for genuinely new information
-	// a probe-confirming value just flips the exact flag in memory, so a scene preloading all its stages never pays one file rewrite per clip.
+	// A value confirming an existing probe isn't written immediately, so preloading a scene doesn't rewrite the file per clip.
 	void Record(std::string_view a_fileSpec, std::string_view a_animId, float a_seconds);
 
-	// Probe every clip referenced by the loaded scene registry on a background thread (engine-free file IO only), refresh stale cache entries, prune entries nothing references any more, and persist. 
+	// Background thread, engine-free IO only. Probes, prunes unreferenced entries, and persists.
 	void ScanSceneClipsAsync(std::function<void()> a_onChanged);
 }

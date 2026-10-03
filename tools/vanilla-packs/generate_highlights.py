@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
 """Generate the curated 'Highlights' pack from the generated vanilla packs.
 
-Reads highlights-manifest.json (the hand-maintained curation manifest) plus the
-`vanilla-*.osf.json` output of generate_vanilla_packs.py, applies each collection's
-include rules (scene-id globs, optional stage-name regex, tag filters, caps), and
-emits one `highlights.osf.json` pack.
+Applies highlights-manifest.json include rules (scene-id globs, stage-name regex, tag
+filters, caps) to the vanilla-*.osf.json packs and emits one highlights.osf.json.
+It has no `section` key, so it lands in the main catalog lane, not the library.
 
-The emitted pack carries NO `section` key, so it lands in the MAIN catalog lane —
-on an empty install the curated shelf IS the catalog, while the full vanilla
-library stays behind `section:"library"` (osf.library.data).
-
-Output scenes are grouped per source scene (anchors are per-scene, so sources with
-different furniture keywords cannot merge); the browser tree derives grouping from
-the id, e.g. `highlights/bar-life/furniture/barstool`. Split chunks (`--2`, `--3`)
-of one source leaf are folded back into a single output scene. Rules over leaves
-the pack generator sub-clustered by filename prefix (vanilla/common/death, ...)
-can set `"fold": true` to also fold those children back into the glob's static
-prefix — one curated card instead of one per sub-cluster.
+One output scene per source scene (anchors are per-scene); `--N` chunks fold back into
+their source leaf, and `"fold": true` folds prefix sub-clusters into the glob's prefix.
 
 Usage (from the repo root, after generate_vanilla_packs.py):
     python tools/vanilla-packs/generate_highlights.py
@@ -37,9 +27,7 @@ CHUNK_RE = re.compile(r"--\d+$")
 
 
 def load_vanilla_scenes(packs_dir: Path) -> tuple[dict[str, dict], str]:
-    """id -> scene from every HUMAN vanilla-*.osf.json; also the shared clipRoot.
-    Creature packs (vanilla-creature-*) carry per-species clipRoots and are not
-    curated by the highlights manifest, so they are skipped."""
+    """id -> scene from the human vanilla-*.osf.json packs, plus their shared clipRoot."""
     scenes: dict[str, dict] = {}
     clip_root = None
     files = [f for f in sorted(packs_dir.glob("vanilla-*.osf.json"))
@@ -86,20 +74,17 @@ def build_collection(coll: dict, scenes: dict[str, dict],
     slug = short_slug(coll["id"])
 
     out: dict[str, dict] = {}
-    seen_files: set[str] = set()  # dedupe by clip path across the whole collection
+    seen_files: set[str] = set()  # dedupe clips across the collection
 
     for rule in coll["include"]:
         name_re = re.compile(rule["namePattern"], re.I) if "namePattern" in rule else None
         cap = rule.get("max")
-        # Rule-level filter overrides (fall back to the collection-level values).
         r_exclude_tags = rule.get("excludeTags", exclude_tags)
         r_require_tags = rule.get("requireTags", require_tags)
         r_exclude_names = rule.get("excludeNames", exclude_names)
         taken = 0
         matched_any = False
         for glob in rule["scenes"]:
-            # "fold": true folds prefix-sub-clustered children (vanilla/common/death/...)
-            # back into the glob's static prefix — one curated card per rule glob.
             fold_base = re.split(r"[*?\[]", glob, 1)[0].rstrip("/") if rule.get("fold") else None
             for src_id in sorted(scenes):
                 if not fnmatch.fnmatchcase(src_id, glob):
@@ -117,7 +102,6 @@ def build_collection(coll: dict, scenes: dict[str, dict],
                     seen_files.add(file_key)
                     taken += 1
 
-                    # Fold --2/--3 chunks back into one output scene per source leaf.
                     base_id = CHUNK_RE.sub("", src_id)
                     src_name = CHUNK_RE.sub("", re.sub(r"\s*\(\d+\)$", "", src.get("name", base_id)))
                     if fold_base and base_id.startswith(fold_base + "/"):
@@ -145,13 +129,11 @@ def build_collection(coll: dict, scenes: dict[str, dict],
         elif taken == 0:
             warnings.append(f"{coll['id']}: rule {rule['scenes']} matched scenes but selected 0 stages")
 
-    # Materialize output scenes.
     result: dict[str, dict] = {}
     for out_id, d in out.items():
         src_disp = d["srcName"]
         src_disp = src_disp[len("Vanilla · "):] if src_disp.startswith("Vanilla · ") else src_disp
-        # Drop the top-folder segment ("Furniture / ", "Scenes / ", ...) — the collection
-        # already gives the context, and the id keeps the full path for the tree view.
+        # Drop the top folder segment; the collection gives the context.
         if " / " in src_disp:
             src_disp = src_disp.split(" / ", 1)[1]
         tags = ["highlights", slug]
@@ -182,12 +164,9 @@ def main() -> int:
     doc = {
         "schema": 1,
         "name": manifest.get("packName", "OSF Highlights") + " (generated, do not hand-edit)",
-        # Browsing shelf, not matchmaking fodder: unlisted keeps every scene out of the
-        # matchmaker pool (custom mod scenes own that); the browser starts them by id.
+        # Browsing shelf only: keep it out of the matchmaker pool.
         "unlisted": True,
-        # These are vanilla game clips (idles/dances/furniture), not undress scenes, so don't
-        # strip the cast on start. This pack has no `section:"library"`, so it wouldn't inherit
-        # the library lane's no-strip default — set it explicitly. Matches the vanilla library.
+        # Outside the library section, so the library's no-strip default isn't inherited.
         "stripActors": False,
         "clipRoot": clip_root,
         "scenes": [],

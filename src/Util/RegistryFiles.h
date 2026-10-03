@@ -59,9 +59,7 @@ namespace OSF::Util
 		return filename.empty() ? std::string{ "registry entry" } : filename;
 	}
 
-	// Bounded discovery with explicit filesystem errors for author-controlled registry trees.
-	// A fatal traversal/count failure returns no files, avoiding a nondeterministic
-	// partial registry. Individual unreadable/oversized files are reported and skipped.
+	// A fatal failure returns no files rather than a partial registry; bad single files are skipped.
 	inline RegistryFileDiscovery DiscoverRegistryFiles(
 		const std::filesystem::path& a_root, std::string_view a_lowerSuffix,
 		std::uintmax_t a_maxFileBytes = kMaxRegistryFileBytes,
@@ -168,10 +166,7 @@ namespace OSF::Util
 		return result;
 	}
 
-	// Shared, bounded registry-load prologue: resolve Data/OSF, discover matching files in stable
-	// order, open and parse comment-tolerant JSON, and contain per-file failures. Registry-specific
-	// validation and reporting stay in the callbacks. a_onProblem receives nullptr for game-directory
-	// and discovery failures, or the owning source for a file read/parse/callback failure.
+	// a_onProblem gets a null source for game-directory/discovery failures.
 	template <class ParseJson, class OnJson, class OnProblem>
 	RegistryJsonVisit ForEachRegistryJson(std::string_view a_lowerSuffix,
 		ParseJson&& a_parseJson, OnJson&& a_onJson, OnProblem&& a_onProblem,

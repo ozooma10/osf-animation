@@ -54,8 +54,7 @@ namespace OSF::Overlay
 		virtual void Stop(bool a_fade) = 0;
 	};
 
-	// Pure route state machine. Engine objects, props, callbacks, and handles live in OverlayService;
-	// tests drive this class through the tiny playback interface.
+	// Pure route state machine; engine objects, props and handles live in OverlayService.
 	class RouteController
 	{
 	public:
@@ -68,8 +67,7 @@ namespace OSF::Overlay
 		bool ClearBlocker(ControllerBlocker a_blocker);
 		bool OnCommit(std::uint32_t a_generation, bool a_acknowledged);
 		bool OnTransitionReached(std::uint32_t a_generation);
-		// Compatibility spelling for existing callers. Route topology calls these transitions;
-		// scene control-flow connections remain edges.
+		// Alias of OnTransitionReached.
 		bool OnEdgeReached(std::uint32_t a_generation);
 		void End(bool a_fade);
 

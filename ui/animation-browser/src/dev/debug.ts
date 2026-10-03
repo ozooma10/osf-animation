@@ -1,4 +1,4 @@
-/** Debug-only command surface. Standalone use only — never wired in-game. */
+/** Standalone only; never wired in-game. */
 
 export interface WheelDebugState {
   count: number;

@@ -73,19 +73,14 @@ namespace OSF::Scene
 		for (auto& stage : plan->stages) {
 			stage.timer = 0.0f;
 			stage.loops = 0;
-			// A preview is a transport over the whole clip: a `hold` stage would pin the clock and
-			// make both the scrubber and PLAY inert. The browser shows what the clip contains; the
-			// authored freeze is a scene-timing policy, not a property of the animation.
+			// A `hold` would pin the clock and make scrubbing/PLAY inert.
 			stage.hold = -1.0f;
 			stage.marks.clear();
 		}
 		plan->loopWhole = false;
 		plan->speed = 0.0f;
-		// A stage switch is a fresh Prepare while the outgoing preview still owns this cast (the
-		// caller retires it between Prepare and Start). Its actors are already placed, so live
-		// anchor/transform samples would describe the OUTGOING stage: inherit the first preview's
-		// pre-inspection baseline instead. Only an identical cast inherits — a different binding
-		// starts a genuinely new preview.
+		// Stage switch: the outgoing preview (retired between Prepare and Start) has already placed
+		// this cast, so inherit its pre-inspection baseline instead of sampling live state.
 		const Preview* superseded = nullptr;
 		for (const auto& [handle, preview] : _previews) {
 			if (preview.participants == ordered) {
@@ -100,7 +95,7 @@ namespace OSF::Scene
 			plan->anchorPos = a_request.worldAnchor.pos;
 			plan->anchorHeading = a_request.worldAnchor.heading;
 		} else if (plan->anchored) {
-			// Preserve actor-relative placement while ensuring Layer A restores transforms on stop.
+			// Explicit anchor so Layer A restores transforms on stop.
 			anchorImplicit = true;
 			plan->anchorExplicit = true;
 			if (superseded && superseded->anchorImplicit) {
@@ -180,8 +175,6 @@ namespace OSF::Scene
 			a_error = "Could not allocate a browser preview handle";
 			return 0;
 		}
-		// The graph is live, so the clip length is already known — `atFrame` actions need it to place
-		// themselves against the scrub position.
 		float openedDuration = 0.0f;
 		if (!inserted->second.participants.empty() && inserted->second.participants.front()) {
 			if (const auto opened = Animation::GraphManager::GetSingleton().GetScenePlayback(
@@ -202,8 +195,7 @@ namespace OSF::Scene
 		}
 		const auto handle = MintHandle();
 		std::vector<RE::Actor*> participants{ a_prepared.actor };
-		// A consumer route may already own the actor. Suspend it through the same blocker contract
-		// production scenes use, then resume from its checkpoint when the preview is retired.
+		// Suspend any route owning the actor; it resumes from its checkpoint on Retire.
 		Overlay::OverlayService::GetSingleton().SuspendForScene(handle, participants);
 
 		Animation::PlaybackId playbackId = 0;
@@ -403,8 +395,7 @@ namespace OSF::Scene
 		}
 		auto& preview = found->second;
 		auto& manager = Animation::GraphManager::GetSingleton();
-		// Playback-id guarded: SetSpeed only knows about actors, and a retired preview's actor can
-		// already be carrying a production scene by the time a stale view command lands.
+		// A stale command must not retime a production scene now on the same actor.
 		if (!manager.GetScenePlayback(preview.participants.front(), preview.playbackId)) {
 			return false;
 		}
@@ -446,7 +437,7 @@ namespace OSF::Scene
 			return false;
 		}
 		if (playback->speed > 0.0f) {
-			manager.SetSpeed(preview.participants.front(), 0.0f);  // scrubbing takes the transport
+			manager.SetSpeed(preview.participants.front(), 0.0f);
 		}
 		const bool atEnd = playback->duration > 0.0f && a_time >= playback->duration;
 		if (preview.route) {

@@ -2,13 +2,6 @@
 
 namespace OSF::Serialization::SaveSafety
 {
-	// Registers the SaveLoadEvent sink, which (a) asks the persistence broker to revert all clients before a load replaces
-	// the world, and (b) opens a save window around every save-writing op (autosave/quicksave/
-	// manual/exit save) that strips the per-NPC kAnimationDriven bit so a mid-scene save can't
-	// bake it in (see GraphManager::OnSaveBegin). Plus a TESLoadGameEvent backstop that re-binds
-	// the natives onto the rebuilt VM, clears a save-persisted player AI-driven flag against the
-	// newly loaded world, and recovers a camera the load left parked in an OSF-imposed alt state
-	// (CameraService::OnPostLoad). Call this at kPostDataLoad.
-	// If SaveLoadEvent is unavailable, only the backstop runs (no save window).
+	// Call at kPostDataLoad. Without SaveLoadEvent only the TESLoadGameEvent backstop runs (no save window).
 	void RegisterLoadEventSinks();
 }

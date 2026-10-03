@@ -13,9 +13,7 @@ namespace OSF::Props
 		kEquippedArmor
 	};
 
-	// A scene prop's visual source. A fixed form uses the normal Plugin|LocalID
-	// syntax. An equipped-armor source selects the first worn ARMO carrying any
-	// of the authored keyword editor IDs.
+	// kForm: Plugin|LocalID. kEquippedArmor: first worn ARMO carrying any of the keyword editor IDs.
 	struct Source
 	{
 		SourceKind               kind = SourceKind::kForm;

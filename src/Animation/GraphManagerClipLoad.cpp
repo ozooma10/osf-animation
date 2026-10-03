@@ -21,8 +21,7 @@ namespace OSF::Animation
 	{
 		void WarnImplicitClipFallback(std::string_view a_spec, std::string_view a_resolved)
 		{
-			// A pack can reuse one clip across many scenes/stages. Keep this migration warning useful
-			// without flooding the shipped Info-level log on every playback.
+			// Warn once per spec: packs reuse a clip across many scenes.
 			static std::mutex warnedLock;
 			static std::unordered_set<std::string> warnedSpecs;
 			bool first = false;
@@ -58,8 +57,7 @@ namespace OSF::Animation
 			return bytes;
 		}
 
-		// Raw bytes of the human skeleton.rig for the .af importer. BSResource preserves the
-		// engine's loose-file-over-archive precedence, so an extracted rig still overrides BA2.
+		// Loose files override BA2 via BSResource, so an extracted rig still wins.
 		std::optional<std::vector<std::uint8_t>> LoadHumanRigBytes()
 		{
 			const char* candidates[] = {
@@ -77,9 +75,7 @@ namespace OSF::Animation
 			return std::nullopt;
 		}
 
-		// A non-human species' skeleton.rig, at a_rigResPath (derived from the clip's own path by
-		// Util::RigResourcePathFromAnimPath). Falls back to the human rig if the species rig can't
-		// be read, so an unexpected path degrades to a (wrong-but-safe) bind instead of no clip.
+		// Falls back to the human rig so an unexpected path binds wrong-but-safe instead of failing.
 		std::optional<std::vector<std::uint8_t>> LoadSpeciesRigBytes(const std::string& a_rigResPath)
 		{
 			if (auto bytes = ReadResourceFile(a_rigResPath); bytes && !bytes->empty()) {
@@ -112,9 +108,7 @@ namespace OSF::Animation
 
 	namespace GraphManagerClipLoad
 	{
-		// Unified clip load for the ozz path: a `.af` goes through AFImport (engine-native clip decoded
-		// against its species rig); anything else (`.glb`/`.gltf`) through GLTFImport. Both yield
-		// an ozz {skeleton, anim} the Graph sampler consumes identically.
+		// `.af` -> AFImport (against its species rig); anything else (`.glb`/`.gltf`) -> GLTFImport.
 		Result Load(const Util::ClipSpec& a_spec, std::string_view a_animId)
 		{
 			Result out;
@@ -123,10 +117,8 @@ namespace OSF::Animation
 				const auto extPath = cand.resource ? std::filesystem::path{ cand.resourcePath } : cand.filePath;
 				const bool isAf = Util::ToLower(extPath.extension().string()) == ".af";
 
-				// Pick the rig this .af decodes against from its OWN path. Creature/alien clips live
-				// under meshes\actors\<species>\animations and ship their own skeleton.rig (keyed by
-				// that rig path so the AFImport cache partitions per species). Human and any loose /
-				// unrecognized clip keeps the shipped human rig + its OSF loose-file overrides.
+				// Creature clips under meshes\actors\<species>\animations decode against their own skeleton.rig
+				// (keyed by rig path so the AFImport cache partitions per species); everything else uses the human rig.
 				std::string                               rigKey = "human-skeleton";
 				Serialization::AFImport::RigBytesProvider rigProvider = &LoadHumanRigBytes;
 				if (isAf) {

@@ -1,7 +1,4 @@
-// Everything the controller needs in order to run without a host, kept out of
-// the production modules that call it. Reached only through `import.meta.env.DEV`
-// guards, so Vite drops this module — and the mock catalog, mock bridge, and
-// debug command surface behind it — from the shipped bundle.
+// Reached only through `import.meta.env.DEV` guards so Vite drops it from the shipped bundle.
 
 import type { BrowserAction } from "../app/actions";
 import type { AnimationBridge } from "../bridge/client";
@@ -13,7 +10,6 @@ import type { DevCommands, WheelDebugState } from "./debug";
 import { StandaloneBridge } from "./mock-bridge";
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_CATALOG } from "./mock-data";
 
-/** The controller internals the standalone surfaces drive. */
 export interface DevRuntime {
   dispatch: (action: BrowserAction) => void;
   send: (command: "osf.animation.wheel.get", fields?: Record<string, unknown>) => void;
@@ -25,12 +21,10 @@ export function createStandaloneBridge(getState: () => BrowserState): AnimationB
   return new StandaloneBridge(getState);
 }
 
-/** The nearby targets a host would supply, so pick/scan have something to show. */
 export function standaloneNearby(): { actors: unknown[]; anchors: unknown[] } {
   return { actors: MOCK_ACTORS, anchors: MOCK_ANCHORS };
 }
 
-/** `window.mockOpenWheel`, plus the `?wheel` boot parameter that drives it. */
 export function installWheelHook(bridge: AnimationBridge): void {
   window.mockOpenWheel = (withTarget = true) => (bridge as StandaloneBridge).openWheel(withTarget);
   const params = new URLSearchParams(location.search);
@@ -38,7 +32,6 @@ export function installWheelHook(bridge: AnimationBridge): void {
   window.setTimeout(() => window.mockOpenWheel?.(params.get("wheel") !== "solo"), 0);
 }
 
-/** No-op stand-in so production code can hold a DevCommands without a dev graph. */
 export const NO_DEV_COMMANDS: DevCommands = { wheel: () => undefined };
 
 export function createDebugCommands(runtime: DevRuntime): DevCommands {

@@ -1,8 +1,7 @@
 #pragma once
 
-// Engine-free helpers for preserving the immutable vanilla pose used underneath
-// additive and feathered-mask playback. A Starfield 3D rebuild may remap rig slots,
-// so the carry-over cache is keyed by the stable ozz skeleton joint index instead.
+// Engine-free cache of the vanilla pose under additive/feathered playback. Keyed by ozz joint
+// index because a 3D rebuild may remap rig slots.
 
 #include <algorithm>
 #include <cstddef>
@@ -75,9 +74,7 @@ namespace OSF::Animation::LiveBasePose
 		std::vector<std::uint8_t> _validByJoint;
 	};
 
-	// An AnimationManager update proves freshness only for the binding generation
-	// that existed after that engine evaluation. A compose-time rebind increments
-	// the generation and must not inherit the old authorization.
+	// An engine update authorizes only the binding generation it evaluated; a rebind invalidates it.
 	class Evaluation
 	{
 	public:

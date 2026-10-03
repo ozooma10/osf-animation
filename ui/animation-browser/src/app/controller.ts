@@ -52,10 +52,7 @@ import {
   standaloneNearby,
 } from "../dev/standalone";
 
-// The `import.meta.env.DEV` guards below are written inline rather than through a
-// local alias on purpose: Vite substitutes the literal `false` into a production
-// build, which folds each branch away and lets the whole src/dev graph leave the
-// bundle. Behind an alias the bundler keeps the references alive.
+// Keep `import.meta.env.DEV` guards inline: behind an alias Vite can't fold src/dev out of the bundle.
 
 function normalizeNearby(payload: unknown): NearbyTarget[] {
   if (!Array.isArray(payload)) return [];
@@ -113,9 +110,7 @@ function normalizePickTargets(payload: unknown): PickTarget[] {
     cy: Number(item.cy),
     rx: Number(item.rx),
     ry: Number(item.ry),
-    // Tolerate a depth-less item (an older native side): 0 = treat as nearest,
-    // which degrades front-most resolution to pure ellipse score — never drop a
-    // target over a missing diagnostic-grade field.
+    // Older native sides omit depth: 0 degrades to pure ellipse scoring.
     depth: Number.isFinite(Number(item.depth)) ? Number(item.depth) : 0,
   })).filter((item) => item.token !== 0 && [item.x, item.y, item.cx, item.cy].every(Number.isFinite)
     && item.rx > 0 && item.ry > 0);
@@ -136,8 +131,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   const [state, dispatch] = useReducer(browserReducer, undefined, createInitialState);
   const stateRef = useRef(state);
   stateRef.current = state;
-  // In game the host bridge is always present; simulating one there would hide a
-  // broken bridge behind plausible fake data, so the fallback is dev-only.
+  // Dev-only: in game a fake bridge would hide a broken real one behind plausible data.
   const standalone = useMemo(() => import.meta.env.DEV && !hasOsfUiBridge(), []);
   const bridge = useMemo<AnimationBridge>(() => import.meta.env.DEV && standalone
     ? createStandaloneBridge(() => stateRef.current)
@@ -197,9 +191,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     else if (!stateRef.current.routesReceived) showNotice("err", "No route catalog from OSF Animation — the engine did not answer.");
   }, [send, standalone, showNotice]);
 
-  // Unlike the catalog and the library, this is only fetched while the IMPORTS panel is open, so
-  // it retries briefly and then gives up quietly rather than warning about a runtime the rest of
-  // the browser is plainly talking to.
+  // Only fetched while the panel is open, so it retries briefly then gives up quietly.
   const requestImports = useCallback((fresh = false) => {
     if (fresh) { importsTries.current = 0; dispatch({ type: "imports/requested" }); }
     if (importsTimer.current) clearTimeout(importsTimer.current);
@@ -214,15 +206,12 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     const record = isRecord(payload) ? payload : {};
     switch (message.type) {
       case "runtime.ready":
-        // The adapter emits this after confirming the current helper surface is complete.
-        // Helper presence, rather than a version or readiness promise, is the startup gate.
+        // Emitted once the helper surface is complete; helper presence is the startup gate.
         dispatch({ type: "runtime/ready" });
         showNotice("ok", "Bridge online.");
         send("osfui.gamepadMode", { mode: "buttons" });
         send("osfui.handleBack", { handle: true });
-        // The mount effect already requested both; re-request only what hasn't landed —
-        // the native side rebuilds and serializes the ~MB library payload per library.get,
-        // so the unconditional duplicate cost a full extra build every view creation.
+        // Re-request only what hasn't landed: each library.get rebuilds a ~MB payload natively.
         if (!stateRef.current.catalogReceived) requestCatalog(true);
         if (!stateRef.current.libraryReceived) requestLibrary(true);
         break;
@@ -230,13 +219,10 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       case "settings.data": {
         const preferences = decodePreferences(record);
         dispatch({ type: "settings/received", preferences });
-        // Retained state also updates after writes. Only the initial replay seeds
-        // the opening tab; editing a preference must preserve the current session.
+        // Only the initial replay seeds the opening tab; later writes keep the current session.
         if (preferencesReceived.current) break;
         preferencesReceived.current = true;
-        // settings.data can race the host's first visibility message. Apply the
-        // opening preference here as well so a newly mounted view does not
-        // briefly settle on the hard-coded Scenes default.
+        // settings.data can race the host's first visibility message, so apply the opening tab here too.
         const current = stateRef.current;
         const merged = { ...current.preferences, ...preferences };
         if (!current.wheel) {
@@ -297,13 +283,8 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         break;
       }
       case "osf.animation.pick": {
-        // A miss keeps the pick armed — re-arming per attempt made the feature
-        // read as broken. Actor picks also stay armed on success (cast building
-        // is a multi-click flow; Esc or CANCEL finishes); a furniture hit
-        // disarms because there is exactly one anchor slot to fill.
-        // A local miss never reaches this handler (pickAt resolves clicks against the
-        // marker geometry) — an invalid reply means the clicked target vanished or became
-        // ineligible between the marker poll and the click.
+        // Misses and actor hits stay armed (multi-click cast building); a furniture hit disarms.
+        // An invalid reply means the target vanished or became ineligible after the marker poll.
         if (!record.valid || !record.token) { showNotice("err", `That ${record.slot === "furniture" ? "furniture" : "actor"} is no longer available — pick again, or use SCAN.`); break; }
         if (record.slot === "furniture") {
           dispatch({ type: "pick/cancelled" });
@@ -437,8 +418,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       if (selectedId !== state.selectedId) dispatch({ type: "selection/changed", sceneId: selectedId });
       return;
     }
-    // Catalog and library replies are independent. Do not let whichever lane
-    // arrives first become an accidental sticky default.
+    // Don't let whichever lane arrives first become a sticky default.
     if (!state.selectedId && (!state.catalogReceived || !state.libraryReceived)) return;
     const visible = playableItems(state)
       .filter((item) => playableVisible(state, item))
@@ -457,8 +437,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   }, [state.wheel, state.minimized]);
 
   useEffect(() => {
-    // Nothing renders the projections when the label layer is dark, so skip the
-    // 80ms round-trip too. Cast and selected furniture share the label policy.
     const tokens = labeledCast(state).map(({ member }) => member.token);
     const furniture = labeledFurniture(state);
     if (furniture) tokens.push(furniture.token);
@@ -473,10 +451,6 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   }, [state.cast, state.furniture, state.viewVisible, state.wheel, state.minimized, state.preferences.actorLabels, send]);
 
   useEffect(() => {
-    // Armed pick: poll the pickable targets' screen geometry so the view can
-    // mark them — hover-only for actors, all-targets for furniture. Same
-    // cadence family as the cast label projections; the native side reuses
-    // the click hit-test geometry, so marker shown === click would land.
     const slot = state.pickMode;
     if (!slot || !state.viewVisible) return;
     const project = () => send("osf.animation.projectPickables", { slot, width: innerWidth, height: innerHeight });
@@ -485,9 +459,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     return () => clearInterval(timer);
   }, [state.pickMode, state.viewVisible, send]);
 
-  // Playback poll. It feeds the ACTIVE list's clocks, and it is also the game-thread beat the
-  // engine uses to step a RUNNING preview's props — so it keeps running for one while the user
-  // browses elsewhere, otherwise a played-back preview would animate with its props frozen.
+  // Playback poll also drives a running preview's props engine-side, so it must keep running.
   const previewRunning = !!state.active?.some((scene) => scene.inspection && scene.speed > 0);
   useEffect(() => {
     if ((state.mode !== "active" && !state.routeDebuggerOpen && !previewRunning) || !state.viewVisible || !state.active?.length) return;
@@ -497,14 +469,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     return () => clearInterval(timer);
   }, [state.mode, state.routeDebuggerOpen, state.viewVisible, state.active?.length, previewRunning, send]);
 
-  // Launching and inspecting are the same start with one flag flipped, so switching the
-  // inspected stage is simply this call again at another stage: the engine retires the
-  // running preview for that cast before it starts the new one. A stage switch must re-send
-  // the PREVIEW'S binding, not the console's — the user may have edited CAST or the anchor
-  // since the preview started, and launching the new stage from that mutable state either
-  // fails ("No cast selected") or re-casts the preview while the old actors stay frozen.
-  // lastInspectBinding remembers the location/furniture the running inspection was
-  // launched with so a stage switch reuses them verbatim.
+  // A stage switch must re-send the preview's own binding, not the (possibly edited) console's.
   const lastInspectBinding = useRef<{ sceneId: string; location: Record<string, unknown>; furnitureToken?: number } | null>(null);
   const startPlayable = useCallback((stageIndex?: number, singleAnimation = false, sceneId?: string, inspect = false, reuseCastTokens?: number[]) => {
     const current = stateRef.current;
@@ -573,8 +538,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     toggleImports: (open) => {
       const next = open ?? !stateRef.current.importsOpen;
       dispatch({ type: "imports/open", open: next });
-      // Re-fetch on every open: the report describes the last load, and ReloadPacks (or a fresh
-      // pack dropped in) can have happened since — a cached one would quietly lie.
+      // Always re-fetch: packs may have reloaded since the last report.
       if (next) requestImports(true);
     },
     refreshImports: () => requestImports(true),
@@ -606,10 +570,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     pickAt: (x, y, width, height) => {
       const slot = stateRef.current.pickMode;
       if (!slot) return;
-      // Resolve the click against the SAME marker geometry the user is looking at
-      // (hottestPickTarget over the polled pick targets). No native re-projection at
-      // click time: the hot marker's token IS the selection, and a miss is decided
-      // right here — so the marker shown and the click result can never disagree.
+      // No native re-projection: the hot marker's token is the selection, so marker and click agree.
       const hot = hottestPickTarget(stateRef.current.pickTargets, x * width, y * height, width, height);
       if (!hot) {
         showNotice("err", `No ${slot === "furniture" ? "furniture" : "actor"} was under that click — aim for its marker, or use SCAN.`);
@@ -644,7 +605,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
     setOption: (field, value) => dispatch({ type: "brief/option", field, value }),
     launch: startPlayable,
     inspectStage: (sceneId, stage) => {
-      // Re-inspect on the preview's own cast — the console cast may have been edited since.
+      // Use the preview's own cast; the console cast may have been edited since.
       const preview = activeLaunches(stateRef.current).find((launch) => launch.inspection && launch.sceneId === sceneId);
       startPlayable(stage, false, sceneId, true, preview?.cast.length ? preview.cast.map((member) => member.token) : undefined);
     },
@@ -656,9 +617,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       const target = Number(handle) || current.lastHandle || (launches.length === 1 ? launches[0].handle : 0);
       if (!target || Date.now() - lastAdvance.current < 350) return;
       lastAdvance.current = Date.now();
-      // A preview has no runtime stage machine (the engine no-ops advance on inspection
-      // handles), so NEXT on one means "inspect the next animation" — a fresh scrub-only
-      // start on the same cast, wrapping at the end because this is a browsing tool.
+      // The engine no-ops advance on inspection handles, so NEXT re-inspects the next animation (wrapping).
       const preview = launches.find((launch) => launch.handle === target && launch.inspection);
       if (preview) {
         const stages = sceneById(current, preview.sceneId)?.stages ?? [];

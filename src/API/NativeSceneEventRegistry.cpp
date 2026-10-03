@@ -111,8 +111,7 @@ namespace OSF::API
 		std::unique_lock lifetimeLock{ entry->lifetimeMutex };
 		entry->active = false;
 		entry->lifetimeCV.wait(lifetimeLock, [&] {
-			// A callback may unregister itself (including through nested dispatch),
-			// but it still waits for every invocation running on another thread.
+			// Self-unregistration (incl. nested dispatch) waits only for other threads.
 			return entry->inFlight <= activeHere;
 		});
 		return true;

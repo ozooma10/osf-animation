@@ -19,25 +19,22 @@ namespace OSF::Input
 		// `this` for PerformInputProcessing is the BSInputEventReceiver subobject (UI + 0x10), not the UI base.
 		using PerformInputProcessing_t = void(RE::BSInputEventReceiver*, const RE::InputEvent*);
 
-		std::atomic_bool          g_active{ false };     // a grant is live -> verb dispatch armed
+		std::atomic_bool          g_active{ false };
 		std::optional<REL::THookVFT<PerformInputProcessing_t>> g_inputHook;
 
 		std::mutex                              g_grantLock;    // guards g_grant + g_verbHandler
 		Grant                                   g_grant;
 		std::function<void(Verb, const Grant&)> g_verbHandler;
 
-		// Mouse-look delta passthrough for the self-driven scene-orbit camera. While capture is on, the
-		// hook accumulates MouseMoveEvent deltas for CameraService to drain (the engine won't route input
-		// to a self-driven free-fly state while the player is a pinned scene participant).
+		// The engine won't route input to a self-driven FreeFly state while the player is a pinned participant.
 		std::atomic_bool   g_captureMouse{ false };
 		std::atomic<float> g_mouseDx{ 0.0f };
 		std::atomic<float> g_mouseDy{ 0.0f };
-		std::atomic<float> g_mouseWheel{ 0.0f };  // net wheel ticks since the last drain (+ = up / zoom in)
-		// UI-cursor mode (scene browser visible): look/wheel deltas only accumulate while the LEFT
-		// button is held (click-drag orbits; free movement steers the cursor, free wheel scrolls the UI).
+		std::atomic<float> g_mouseWheel{ 0.0f };  // notches (+ = up / zoom in)
+		// With a UI cursor up, look/wheel deltas accumulate only while LMB is held.
 		std::atomic_bool   g_uiCursorVisible{ false };
-		std::atomic_bool   g_orbitDragHeld{ false };  // LMB is down (tracked only while capture is on)
-		std::atomic_bool   g_nativeFreeCamGamepad{ false };  // let engine TFC consume pad axes while the browser is visible
+		std::atomic_bool   g_orbitDragHeld{ false };
+		std::atomic_bool   g_nativeFreeCamGamepad{ false };
 		std::atomic<float> g_padLeftX{ 0.0f };
 		std::atomic<float> g_padLeftY{ 0.0f };
 		std::atomic<float> g_padRightX{ 0.0f };
@@ -46,10 +43,9 @@ namespace OSF::Input
 		std::atomic<float> g_padRightTrigger{ 0.0f };
 		std::atomic_bool   g_padLeftShoulder{ false };
 		std::atomic_bool   g_padRightShoulder{ false };
-		// MouseMoveEvent is an IDEvent (0x38) subclass; the two raw axis deltas (int32 x,y) follow it.
+		// MouseMoveEvent: int32 x,y deltas follow the IDEvent base (0x38).
 		constexpr std::ptrdiff_t kMouseMoveDeltaOffset = 0x38;
-		// ThumbstickEvent is not yet modeled by CommonLibSF. Runtime-proven layout: IDEvent idCode
-		// 0x0B/0x0C identifies left/right; normalized float x/y follow IDEvent at +0x38/+0x3C.
+		// ThumbstickEvent (not modeled by CommonLibSF): idCode 0x0B/0x0C = left/right; float x/y at +0x38/+0x3C.
 		constexpr std::ptrdiff_t kThumbstickIdOffset = 0x30;
 		constexpr std::ptrdiff_t kThumbstickXOffset = 0x38;
 		constexpr std::ptrdiff_t kThumbstickYOffset = 0x3C;
@@ -59,16 +55,13 @@ namespace OSF::Input
 		constexpr std::int32_t   kRightTriggerId = 0x0A;
 		constexpr std::int32_t   kLeftShoulderId = 0x0100;
 		constexpr std::int32_t   kRightShoulderId = 0x0200;
-		// The mouse wheel arrives as ButtonEvents on the kMouse device (confirmed in-game): idCode 0x800 =
-		// wheel up, 0x900 = wheel down, and value is the signed Windows WHEEL_DELTA (+120 up, -120 down) with
-		// a 0-value release event after each. We normalize by 120 so the accumulator counts notches.
+		// Wheel = kMouse ButtonEvents: 0x800 up / 0x900 down, value = signed WHEEL_DELTA (±120), then a 0-value release.
 		constexpr std::int32_t kMouseWheelUpId = 0x800;
 		constexpr std::int32_t kMouseWheelDownId = 0x900;
 		constexpr float        kWheelNotch = 120.0f;
-		// Mouse buttons arrive as ButtonEvents on the kMouse device with idCode = button index
-		// (0 = left, 1 = right, 2 = middle, 3/4 = X1/X2), distinct from the 0x800/0x900 wheel codes.
-		constexpr std::int32_t kMouseLeftId = 0;    // LMB -> drag-to-orbit while a UI cursor is up
-		constexpr std::int32_t kMouseMiddleId = 2;  // MMB -> toggle free camera
+		// Mouse button idCode = button index (0 = left, 1 = right, 2 = middle, 3/4 = X1/X2).
+		constexpr std::int32_t kMouseLeftId = 0;
+		constexpr std::int32_t kMouseMiddleId = 2;
 
 		void ResetGamepadState()
 		{
@@ -118,11 +111,10 @@ namespace OSF::Input
 			}
 		}
 
-		// Index of the BSInputEventReceiver vtable in RE::UI::VTABLE (AddressLib id 475439). The IDs_VTABLE array is NOT in base-declaration order;
+		// RE::UI::VTABLE (AddressLib 475439) is not in base-declaration order.
 		constexpr std::size_t kReceiverVtblIndex = 10;
 
-		// Default keyboard keymap. For device kKeyboard the idCode is a Windows VK code.
-		// @TODO: a keymap override (would live in the OSF Settings schema, dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json)
+		// idCode is a Windows VK code. TODO: keymap override via the OSF Settings schema.
 		Verb VerbForKeyboard(std::int32_t a_idCode)
 		{
 			switch (a_idCode) {
@@ -144,24 +136,23 @@ namespace OSF::Input
 			return key == SFSE::InputMap::kGamepadButtonOffset_RIGHT_THUMB ? Verb::kFreecam : Verb::kNone;
 		}
 
-		// On a keyboard PRESS edge, map -> verb, capability-gate against the active grant, then post the verb to the game thread via the registered handler. 
-		// Keeps the input hot path lock-free: the thunk only copies the grant + posts a task; the heavy scene work runs on the game thread.
+		// Press edge only. Hot path stays light: copy the grant and post; scene work runs on the game thread.
 		void MaybeDispatch(const RE::ButtonEvent* a_event)
 		{
 			if (a_event->value == 0.0f || a_event->heldDownSecs != 0.0f) {
-				return;  // press edge only (no release / held-repeat verbs in v1)
+				return;
 			}
 			Verb verb = Verb::kNone;
 			if (a_event->deviceType == RE::InputEvent::DeviceType::kKeyboard) {
 				verb = VerbForKeyboard(a_event->idCode);
 			} else if (a_event->deviceType == RE::InputEvent::DeviceType::kMouse &&
 					   a_event->idCode == kMouseMiddleId) {
-				verb = Verb::kFreecam;  // MMB toggles native free camera while a scene grants it
+				verb = Verb::kFreecam;
 			} else if (a_event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 				verb = VerbForGamepad(a_event->idCode);  // R3 mirrors MMB
 			}
 			if (verb == Verb::kNone) {
-				return;  // unmapped key/button
+				return;
 			}
 
 			Grant                                   grant;
@@ -175,15 +166,14 @@ namespace OSF::Input
 				handler = g_verbHandler;
 			}
 			if ((grant.capabilities & RequiredCapability(verb)) == 0) {
-				return;  // scene didn't grant this capability
+				return;
 			}
 			if (verb == Verb::kEnd && grant.locked) {
-				return;  // scene forbids player-end (AAF isRootLocked analogue)
+				return;  // AAF isRootLocked analogue
 			}
 			Util::NativeMainThreadQueue::Post([handler, verb, grant]() { handler(verb, grant); });
 		}
 
-		// if menu/console owns input
 		bool MenuOwnsInput()
 		{
 			if (auto* main = RE::Main::GetSingleton(); main && main->isGameMenuPaused) {
@@ -202,7 +192,6 @@ namespace OSF::Input
 			const bool uiVisible = g_uiCursorVisible.load(std::memory_order_relaxed);
 			const bool nativeFreeCamGamepad = g_nativeFreeCamGamepad.load(std::memory_order_relaxed);
 			const bool menuOwns = MenuOwnsInput();
-			// don't route any input while a menu/console owns it. The engine still receives the queue below.
 			if ((active || capture || uiVisible) && !menuOwns) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
@@ -213,15 +202,8 @@ namespace OSF::Input
 						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 						CaptureThumbstick(event);
 					}
-					// Browser on screen: kill THUMBSTICK events BEFORE the forward — the player's
-					// movement dispatch runs inside the original receiver (post-forward flagging demonstrably
-					// did not stop the walking). The orbit snapshot above has already retained them.
-					// Gamepad BUTTONS deliberately pass through unflagged: OSF UI's FocusMenu
-					// (also inside the original receiver) must see them to apply its engine-side capture gate;
-					// OSF UI's independent gamepad session maps D-pad/A/B for the browser,
-					// and gameplay button verbs are gated by OSF UI's ControlLayer flags (proven
-					// for buttons — only stick movement ignores them). Buttons are swept after
-					// the forward below as belt-and-suspenders.
+					// Browser up: stop thumbsticks before the forward; the movement dispatch runs inside the original receiver,
+					// so post-forward flagging doesn't stop walking. Buttons pass through for OSF UI's FocusMenu capture gate.
 					if (uiVisible && !nativeFreeCamGamepad && et == RE::InputEvent::EventType::kThumbstick &&
 						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 						const_cast<RE::InputEvent*>(event)->status = RE::InputEvent::Status::kStop;
@@ -237,8 +219,7 @@ namespace OSF::Input
 					if (!capture) {
 						continue;
 					}
-					// UI-cursor mode: with the browser on screen, only a held LMB routes the mouse to the
-					// orbit (click-drag). Otherwise the mouse belongs to the UI cursor / list scroll.
+					// With the browser up, only a held LMB steers the orbit; otherwise the mouse belongs to the UI.
 					const bool steer = !g_uiCursorVisible.load(std::memory_order_relaxed) ||
 					                   g_orbitDragHeld.load(std::memory_order_relaxed);
 					if (et == RE::InputEvent::EventType::kMouseMove) {
@@ -253,25 +234,17 @@ namespace OSF::Input
 						if (btn->deviceType != RE::InputEvent::DeviceType::kMouse) {
 							continue;
 						}
-						// LMB edge tracking (press = value != 0; the release event carries value 0).
 						if (btn->idCode == kMouseLeftId) {
 							g_orbitDragHeld.store(btn->value != 0.0f, std::memory_order_relaxed);
 						}
-						// Mouse wheel: value is already signed by direction (+up / -down), so accumulate it
-						// for either wheel idCode and normalize to notches. (The 0-value release adds nothing.)
 						if (steer && (btn->idCode == kMouseWheelUpId || btn->idCode == kMouseWheelDownId)) {
 							g_mouseWheel.fetch_add(btn->value / kWheelNotch, std::memory_order_relaxed);
 						}
 					}
 				}
 			}
-			// Forward the queue: thumbsticks ride along flagged kStop (consumed above), while gamepad
-			// buttons pass through live so the menu walk inside — OSF UI's FocusMenu — can apply its
-			// capture gate. Browser navigation comes from OSF UI's independent gamepad session.
 			(*g_inputHook)(a_this, a_queueHead);
-			// Post-forward sweep: flag the remaining gamepad events (buttons) too, in case anything
-			// downstream of the UI receiver still looks at this queue. Gameplay button verbs are
-			// primarily gated by OSF UI's ControlLayer flags; this is defense in depth.
+			// Defense in depth for anything downstream; button verbs are primarily gated by OSF UI's ControlLayer flags.
 			if (uiVisible && !menuOwns) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					if (event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
@@ -296,8 +269,7 @@ namespace OSF::Input
 			return false;
 		}
 
-		// Cross-check the compiled UI base offsets against the running binary before anything writes to the UI object: 
-		// the vptr of the live BSInputEventReceiver subobject must be exactly the vtable AddressLib reports for it.
+		// The live receiver vptr must equal AddressLib's vtable before anything writes to the UI object.
 		auto*      receiver = static_cast<RE::BSInputEventReceiver*>(ui);
 		const auto liveVptr = *reinterpret_cast<const std::uintptr_t*>(receiver);
 		const REL::Relocation<std::uintptr_t> vtbl{ RE::UI::VTABLE[kReceiverVtblIndex] };
@@ -327,7 +299,7 @@ namespace OSF::Input
 			return false;
 		}
 
-		// Slot 1 is PerformInputProcessing (0 is the virtual destructor); 
+		// Slot 1 = PerformInputProcessing (0 = destructor).
 		g_inputHook.emplace("[Input] UI::PerformInputProcessing", RE::UI::VTABLE[kReceiverVtblIndex], 1, &Thunk);
 		if (!g_inputHook->Enable()) {
 			return false;
@@ -394,22 +366,20 @@ namespace OSF::Input
 	void InputService::InjectOrbitDelta(float a_dx, float a_dy, float a_wheel)
 	{
 		if (!g_captureMouse.load(std::memory_order_relaxed)) {
-			return;  // no scene-orbit camera driving — a stray UI drag must not bank deltas
+			return;  // a stray UI drag must not bank deltas
 		}
-		// View CSS px -> raw-mouse-unit axis: the view is 1280 logical px wide and a full-width
-		// drag should read as roughly a half orbit (π / (1280 · kOrbitMouseSens 0.004) ≈ 0.6).
+		// 1280 logical px wide; a full-width drag ≈ half an orbit (π / (1280 * 0.004)).
 		constexpr float kUiDragScale = 0.6f;
 		g_mouseDx.fetch_add(a_dx * kUiDragScale, std::memory_order_relaxed);
 		g_mouseDy.fetch_add(a_dy * kUiDragScale, std::memory_order_relaxed);
-		g_mouseWheel.fetch_add(a_wheel, std::memory_order_relaxed);  // already in notches
+		g_mouseWheel.fetch_add(a_wheel, std::memory_order_relaxed);
 	}
 
 	void InputService::SetUiCursorVisible(bool a_on)
 	{
 		g_uiCursorVisible.store(a_on, std::memory_order_relaxed);
 		if (a_on) {
-			// The cursor just appeared: any in-flight drag state is stale (the click that opened the
-			// browser must not start steering the camera).
+			// The click that opened the browser must not start steering.
 			g_orbitDragHeld.store(false, std::memory_order_relaxed);
 		}
 	}

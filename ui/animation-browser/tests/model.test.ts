@@ -201,8 +201,7 @@ describe("import report normalization", () => {
   });
 
   it("never reports fewer problems than actually arrived", () => {
-    // A truncating native side sends 2 lines with a count of 40; a buggy one could send a count
-    // below the lines it shipped, which would make the panel claim negative hidden problems.
+    // A count below the shipped lines would claim negative hidden problems.
     const truncated = normalizeImportReport({ files: [{ problems: ["[warn] a", "[error] b"], problemCount: 40 }] });
     expect(truncated.files[0].problemCount).toBe(40);
     const understated = normalizeImportReport({ files: [{ problems: ["[warn] a", "[error] b"], problemCount: 1 }] });

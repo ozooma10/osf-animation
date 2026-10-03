@@ -10,12 +10,7 @@
 
 #include <algorithm>
 
-// SceneRuntime — undo ledger slice (one class, split across translation units; see SceneRuntime.cpp).
-// Every reversible side-effect a scene engages is recorded per-handle and replayed in reverse on termination, so cleanup never depends on an authored release.
-// The player input lock needs no cross-scene ref-count: only a scene containing the PLAYER records it,
-// and MintSlot refuses a start on an actor already in a live scene, so at most one live scene can
-// hold it (the services are idempotent/self-counted besides). Equipment/weapon keep their per-actor state on the Slot.
-
+// The player input lock needs no ref-count: MintSlot exclusivity means at most one live scene holds the player.
 namespace OSF::Scene
 {
 	void SceneRuntime::RecordMechanism(std::int32_t a_handle, Mechanism a_mech)
@@ -29,15 +24,15 @@ namespace OSF::Scene
 				return;
 			}
 			if (std::find(s->ledger.begin(), s->ledger.end(), a_mech) != s->ledger.end()) {
-				return;  // already recorded — idempotent per scene+mechanism
+				return;
 			}
 			s->ledger.push_back(a_mech);
 			if (a_mech == Mechanism::kPlayerInputLock) {
-				engagePlayerInputLock = true;  // once per scene; at most one scene can hold the player
+				engagePlayerInputLock = true;
 			} else if (a_mech == Mechanism::kCamera) {
-				engageCamera = true;  // the camera hold is ref-counted internally (composes w/ player input lock)
+				engageCamera = true;  // ref-counted by CameraService
 			}
-			// kFade: the visible fade-out was posted by RunAction; recording just notes the debt.
+			// kFade: RunAction already posted the fade-out.
 		}
 		if (engagePlayerInputLock) {
 			Player::PlayerInputLockService::GetSingleton().SetPlayerInputLock(true);
@@ -50,11 +45,11 @@ namespace OSF::Scene
 
 	void SceneRuntime::UndoMechanism(std::int32_t a_handle, Mechanism a_mech)
 	{
-		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;  // moved out for kEquipment
-		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> heldEquip;  // moved out for kHeldEquipment
-		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;  // moved out for kEquipItem
-		std::vector<RE::Actor*> weapon;                                 // moved out for kWeapon
-		std::vector<ActiveProp> props;                                   // moved out for kProps
+		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> equip;
+		std::vector<std::pair<RE::Actor*, Equipment::Snapshot>> heldEquip;
+		std::vector<std::pair<RE::Actor*, Equipment::EquippedItem>> equipItems;
+		std::vector<RE::Actor*> weapon;
+		std::vector<ActiveProp> props;
 		{
 			std::lock_guard l{ _lock };
 			Slot* s = Resolve(a_handle);
@@ -63,27 +58,24 @@ namespace OSF::Scene
 			}
 			const auto it = std::find(s->ledger.begin(), s->ledger.end(), a_mech);
 			if (it == s->ledger.end()) {
-				return;  // not held — idempotent (already reversed, or never engaged)
+				return;
 			}
 			s->ledger.erase(it);
 			if (a_mech == Mechanism::kEquipment) {
-				equip.swap(s->hiddenEquip);  // take this scene's hidden apparel out for restore
+				equip.swap(s->hiddenEquip);
 			} else if (a_mech == Mechanism::kHeldEquipment) {
-				heldEquip.swap(s->hiddenHeldEquip);  // cleanup-only: never touched by authored apparel restore
+				heldEquip.swap(s->hiddenHeldEquip);
 			} else if (a_mech == Mechanism::kEquipItem) {
-				equipItems.swap(s->equippedItems);  // take this scene's equipped items out for removal
+				equipItems.swap(s->equippedItems);
 			} else if (a_mech == Mechanism::kWeapon) {
-				weapon.swap(s->sheathedWeapon);  // take this scene's sheathed actors out for re-draw
+				weapon.swap(s->sheathedWeapon);
 			} else if (a_mech == Mechanism::kProps) {
-				props.swap(s->props);  // take every scene-owned render prop out for destruction
+				props.swap(s->props);
 			}
 		}
-		// Apply the reversal OUTSIDE the lock (services enter the VM / post UI messages / touch
-		// the inventory lock).
+		// Reverse outside _lock: services enter the VM, post UI messages, or take the inventory lock.
 		switch (a_mech) {
 		case Mechanism::kPlayerInputLock:
-			// Always release: at most one scene can hold the player (MintSlot exclusivity), and the
-			// services absorb a redundant release (bool-idempotent / internally counted).
 			REX::TRACE("[Scene] scene {:#010x} player input lock released — vanilla input restored", a_handle);
 			Player::PlayerInputLockService::GetSingleton().SetPlayerInputLock(false);
 			Camera::CameraService::GetSingleton().SetStandaloneLock(false);
@@ -127,10 +119,8 @@ namespace OSF::Scene
 		case Mechanism::kInputChannel:
 			REX::TRACE("[Scene] scene {:#010x} input channel undo — releasing the director grant", a_handle);
 			Input::InputService::GetSingleton().Release(a_handle);
-			// The player free cam (MMB) is only reachable while a scene grants the input channel, so the
-			// grant release is the right scope to drop it: a player-driven free cam must not outlive its
-			// scene. No-op unless the player currently holds one. (Runs before the control-lock undo, so
-			// the camera hands back to the still-armed third-person hold; see ForcePlayerFreeCamOff.)
+			// Free cam must not outlive the grant that enabled it. Runs before the input-lock undo so
+			// the camera hands back to the still-armed third-person hold.
 			Camera::CameraService::GetSingleton().ForcePlayerFreeCamOff();
 			break;
 		case Mechanism::kProps:
@@ -150,9 +140,6 @@ namespace OSF::Scene
 
 	void SceneRuntime::ReplayLedger(std::int32_t a_handle)
 	{
-		// Reverse order, once, idempotently — the cleanup guarantee. Snapshot the ledger reversed
-		// (UndoMechanism erases each entry as it reverses it; a later call finds it empty and
-		// no-ops). The single Fire(SCENE_END) point calls this on every termination.
 		std::vector<Mechanism> reversed;
 		{
 			std::lock_guard l{ _lock };
@@ -207,7 +194,7 @@ namespace OSF::Scene
 		}
 		s->hiddenEquip.emplace_back(a_actor, std::move(a_snapshot));
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipment) == s->ledger.end()) {
-			s->ledger.push_back(Mechanism::kEquipment);  // one ledger entry; the snapshots accumulate
+			s->ledger.push_back(Mechanism::kEquipment);
 		}
 	}
 
@@ -220,7 +207,7 @@ namespace OSF::Scene
 		}
 		s->hiddenHeldEquip.emplace_back(a_actor, std::move(a_snapshot));
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kHeldEquipment) == s->ledger.end()) {
-			s->ledger.push_back(Mechanism::kHeldEquipment);  // one ledger entry; the snapshots accumulate
+			s->ledger.push_back(Mechanism::kHeldEquipment);
 		}
 	}
 
@@ -233,7 +220,7 @@ namespace OSF::Scene
 		}
 		s->equippedItems.emplace_back(a_actor, std::move(a_item));
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipItem) == s->ledger.end()) {
-			s->ledger.push_back(Mechanism::kEquipItem);  // one ledger entry; the items accumulate
+			s->ledger.push_back(Mechanism::kEquipItem);
 		}
 	}
 
@@ -245,11 +232,11 @@ namespace OSF::Scene
 			return;
 		}
 		if (std::find(s->sheathedWeapon.begin(), s->sheathedWeapon.end(), a_actor) != s->sheathedWeapon.end()) {
-			return;  // already recorded for this scene
+			return;
 		}
 		s->sheathedWeapon.push_back(a_actor);
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kWeapon) == s->ledger.end()) {
-			s->ledger.push_back(Mechanism::kWeapon);  // one ledger entry; the actors accumulate
+			s->ledger.push_back(Mechanism::kWeapon);
 		}
 	}
 
@@ -257,7 +244,7 @@ namespace OSF::Scene
 	{
 		auto& cam = Camera::CameraService::GetSingleton();
 		if (a_mode == Camera::CameraMode::kSceneOrbit && !cam.SceneOrbitAvailable()) {
-			return false;  // keep the engine-owned ship camera; do not acquire/suppress the normal hold
+			return false;  // keep the engine-owned ship camera
 		}
 		bool firstForScene = false;
 		std::vector<std::uint32_t> cast;
@@ -268,8 +255,7 @@ namespace OSF::Scene
 				return false;
 			}
 			if (a_mode == Camera::CameraMode::kSceneOrbit) {
-				// Frame seed: the orbit centers/fits on the whole cast, not just the player. Form IDs, so
-				// the service resolves live (post-placement) positions on the game thread at enter time.
+				// Form IDs, so the service frames the cast at live post-placement positions.
 				for (const auto* actor : s->participants) {
 					if (actor) {
 						cast.push_back(actor->formID);
@@ -277,18 +263,17 @@ namespace OSF::Scene
 				}
 			}
 			if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kCameraState) == s->ledger.end()) {
-				s->ledger.push_back(Mechanism::kCameraState);  // one entry; the override is released once on undo
+				s->ledger.push_back(Mechanism::kCameraState);
 				firstForScene = true;
 			}
 		}
-		// Drive the service OUTSIDE _lock (it takes its own lock + posts game-thread tasks).
 		if (a_mode == Camera::CameraMode::kSceneOrbit) {
 			cam.SetOrbitFrameSubjects(std::move(cast));
 		}
 		if (firstForScene) {
-			cam.AcquireStateOverride();  // capture baseline + suppress the bounce on the first holder
+			cam.AcquireStateOverride();
 		}
-		cam.SetLiveCameraState(a_mode);  // retarget the live camera every call (supports per-node switches)
+		cam.SetLiveCameraState(a_mode);  // every call, for per-node switches
 		return true;
 	}
 
@@ -307,7 +292,6 @@ namespace OSF::Scene
 			}
 			grant = s->grant;
 		}
-		// Engage OUTSIDE _lock (the service takes its own lock + posts tasks).
 		Input::InputService::GetSingleton().Engage(grant);
 	}
 }

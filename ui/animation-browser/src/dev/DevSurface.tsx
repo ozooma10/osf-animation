@@ -3,12 +3,7 @@ import type { DevCommands } from "./debug";
 import { DevTools } from "./DevTools";
 import { useDevBackdrop } from "./useDevBackdrop";
 
-/**
- * Every dev-only surface, behind one dynamically imported component. main.tsx
- * loads it under an `import.meta.env.DEV` guard, which lets Vite drop this whole
- * graph — DevTools and the backdrop — from the shipped bundle.
- * Hooks live here rather than in main.tsx so none of them run in game.
- */
+/** Loaded behind an `import.meta.env.DEV` guard so Vite drops this graph from the shipped bundle. */
 export function DevSurface({ commands }: { commands: DevCommands }) {
   useDevBackdrop(true);
   return <DevTools commands={commands}/>;

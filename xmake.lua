@@ -48,8 +48,7 @@ target("OSF Animation")
         prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
     })
 
-    -- The optional browser addon owns the view. Remove only its former locations
-    -- in this mod; preserve other installed scripts, scenes, and MO2 metadata.
+    -- The browser addon owns the view; remove only its old locations in this mod.
     after_build(function (target)
         local mods = os.getenv("XSE_SF_MODS_PATH")
         if mods then
@@ -59,7 +58,6 @@ target("OSF Animation")
         end
     end)
 
--- Standalone GLTF import tester (xmake build osf-import-test).
 target("osf-import-test")
     set_kind("binary")
     set_default(false)
@@ -67,9 +65,7 @@ target("osf-import-test")
     add_files("src/Serialization/GLTFImport.cpp", "src/Util/Gzip.cpp", "test/ImportTest.cpp")
     add_includedirs("src")
 
--- Standalone .af import tester (xmake build osf-af-import-test).
--- Decodes a Starfield .af + skeleton.rig into ozz and samples a few poses, no game needed:
---   xmake run osf-af-import-test <clip.af> <skeleton.rig>
+-- xmake run osf-af-import-test <clip.af> <skeleton.rig>
 target("osf-af-import-test")
     set_kind("binary")
     set_default(false)
@@ -77,7 +73,6 @@ target("osf-af-import-test")
     add_files("src/Serialization/AFImport.cpp", "src/Util/Ba2.cpp", "test/AFImportTest.cpp")
     add_includedirs("src")
 
--- Standalone shared-persistence broker tests (no game/CommonLib runtime needed).
 target("osf-persistence-test")
     set_kind("binary")
     set_default(false)
@@ -85,7 +80,6 @@ target("osf-persistence-test")
     add_files("src/Serialization/PersistenceBroker.cpp", "test/PersistenceTest.cpp")
     add_includedirs("src")
 
--- Native scene-event callback registry tests (no game runtime needed).
 target("osf-native-scene-event-test")
     set_kind("binary")
     set_default(false)
@@ -96,7 +90,6 @@ target("osf-native-scene-event-test")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
--- Pure shared-clock, frame command queue, and clip-spec tests (no game/CommonLib runtime needed).
 target("osf-frame-clock-test")
     set_kind("binary")
     set_default(false)
@@ -104,9 +97,6 @@ target("osf-frame-clock-test")
     add_files("src/Util/ClipPath.cpp", "src/Util/NativeMainThreadQueue.cpp", "test/FrameClockTest.cpp")
     add_includedirs("src")
 
--- Pure local-pose composition tests (reference-relative translation/rotation, weighting,
--- multiplication order, stage references, preservation, override compatibility, no accumulation)
--- plus the named bone-mask tables (BoneMask.h).
 target("osf-additive-pose-test")
     set_kind("binary")
     set_default(false)
@@ -114,8 +104,6 @@ target("osf-additive-pose-test")
     add_files("test/AdditivePoseTest.cpp")
     add_includedirs("src")
 
--- Sound-pool parsing/subtitle fixtures and PCM-to-WEM serialization tests. Uses the CommonLib
--- logging surface but no game runtime.
 target("osf-sound-registry-test")
     set_kind("binary")
     set_default(false)
@@ -127,10 +115,6 @@ target("osf-sound-registry-test")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")
 
--- Scene-registry parsing fixture tests (file-default roles, the roles registry: template
--- expansion, { id, ...overrides } merge, automatic runtime-name numbering, inference,
--- per-scene/per-file rejection). No game runtime: the fixtures resolve no form refs and the
--- clip-availability probe is stubbed "installed" in the test main.
 target("osf-scene-registry-test")
     set_kind("binary")
     set_default(false)
@@ -143,7 +127,6 @@ target("osf-scene-registry-test")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")
 
--- Pure overlay route/controller/compiler, playback-admission, owner-callback, and native-header tests.
 target("osf-route-plan-test")
     set_kind("binary")
     set_default(false)
@@ -155,8 +138,6 @@ target("osf-route-plan-test")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
 
--- Generated GLTF/GLB/gzip clips exercise the production importer and ozz sampler.
--- No game assets, CommonLib runtime, or command-line fixture paths are needed.
 target("osf-import-smoke-test")
     set_kind("binary")
     set_default(false)

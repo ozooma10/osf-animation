@@ -54,8 +54,7 @@ namespace OSF::RE
             return Fail(a_err, "child does not belong to this parent");
         }
 
-        // The out pointer receives the parent's reference and keeps the child alive
-        // until this function returns, even if the parent was its only owner.
+        // Holds the parent's reference so the child survives until return.
         ::RE::NiPointer<::RE::NiAVObject> transferred;
         a_parent->DetachChild(a_child, transferred);
         return !a_child->parent || Fail(a_err, "DetachChild did not detach the child");
@@ -73,7 +72,7 @@ namespace OSF::RE
             return Fail(a_err, "reparent would create a cycle");
         }
 
-        // AttachChild detaches an existing parent. Retain the child across that move.
+        // AttachChild detaches from the old parent first, which may drop the last reference.
         const ::RE::NiPointer<::RE::NiAVObject> keepAlive{ a_child };
         a_newParent->AttachChild(a_child, true);
         return a_child->parent == a_newParent || Fail(a_err, "AttachChild did not reparent the child");
@@ -87,7 +86,6 @@ namespace OSF::RE
             return Fail(a_err, "null form");
         }
 
-        // A null requester selects the world model; an actor selects the armor rig.
         a_form->Clone3D(nullptr, a_out);
         if (!a_out) {
             return Fail(a_err, "Clone3D produced no visual (model not loadable for this form?)");

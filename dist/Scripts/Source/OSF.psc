@@ -2,47 +2,37 @@ ScriptName OSF Native Hidden
 
 ; OSF Animation - native animation and scene framework for Starfield.
 
-; Scene functions return an int handle (0 = failed to start, e.g. invalid id or actor binding; >0 = a live scene instance). 
-; The handle is used for scene-specific operations (navigation, callbacks, stop) and queries (stage/edges/participants).
-; A scene ends when its graph(s) finish or are stopped; the handle becomes invalid and queries return sentinels (e.g. "").
+; Start* functions return a scene handle (0 = failed) used by navigation, callbacks, stop and queries.
+; Once the scene ends the handle is invalid and queries return sentinels.
 
 
-; Matchmake by tags + role/gender fit across scene defs and packs in registry, chosen by priority tier + weighted-random, and start it.
-; Returns the scene handle (0 = no match).
+; Matchmakes by tags + role/gender fit (priority tier, then weighted random) and starts it. Returns the handle (0 = no match).
 int Function StartSceneByTags(Actor[] akActors, string[] asTags, OSFTypes:SceneOptions akOpts = None) Global Native
 
-; Start a specific scene by id. akOpts.Stage = start stage (packs; ignored by def graphs);
+; Starts scene asSceneId. akOpts.Stage enters on that linear stage (out of range fails; non-linear scenes ignore it).
 int Function StartScene(Actor[] akActors, string asSceneId, OSFTypes:SceneOptions akOpts = None) Global Native
 
-; Boolean-query form of StartSceneByTags: asAllOf (every tag must match) + asAnyOf (at least one; empty = ignored) + asNoneOf (none may match).
+; Boolean-query StartSceneByTags: asAllOf (all must match), asAnyOf (at least one; empty = ignored), asNoneOf (none may match).
 int Function StartSceneByTagsQuery(Actor[] akActors, string[] asAllOf, string[] asAnyOf, string[] asNoneOf, OSFTypes:SceneOptions akOpts = None) Global Native
 
-; Anchor-FIRST matchmaking: start a scene BUILT for akFurniture, matched by the scene's anchor keyword/base.
-; Only anchor-bound scenes that fit the furniture are surfaced (free/standing scenes are NOT, use StartSceneByTags for those);
-; asTags optionally narrows the pool (empty = any fit). akOpts is read for overrides/heading; its Anchor field is ignored (akFurniture is the anchor).
-; Returns the scene handle (0 = no furniture / no actors / no fitting scene / start failed).
+; Starts an anchor-bound scene built for akFurniture (matched by anchor keyword/base); free scenes are never picked.
+; asTags narrows the pool (empty = any). akOpts.Anchor is ignored. Returns the handle (0 = nothing fits / start failed).
 int Function StartSceneAtAnchor(Actor[] akActors, ObjectReference akFurniture, string[] asTags, OSFTypes:SceneOptions akOpts = None) Global Native
 
-; Start a def-backed scene binding actors to NAMED roles: asRoles[i] is the role for akActors[i] (equal lengths; every declared role must be filled exactly once).
-; Returns the handle (0 = no such scene / validation failure: unknown or duplicate role, null/duplicate actor, role count).
+; asRoles[i] is akActors[i]'s role; every declared role must be filled exactly once. Anchor-bound scenes need StartScene.
+; Returns the handle (0 = unknown scene or invalid binding: unknown/duplicate role, null/duplicate actor, count mismatch).
 int Function StartSceneRoles(Actor[] akActors, string asSceneId, string[] asRoles) Global Native
 
 
-; --- Scene-event callbacks (OSFTypes:SceneEvent payload) ----------------------
-; Register akReceiver.asFn(OSFTypes:SceneEvent) for events whose bit is set in aiEventMask (when aiScene != 0) whose scene handle == aiScene.
-; Returns a generational token (0 = failed).
+; Calls akReceiver.asFn(OSFTypes:SceneEvent) for events in aiEventMask, filtered to scene aiScene when != 0.
+; Returns a token (0 = failed).
 ; Function OnSceneEvent(OSFTypes:SceneEvent akEvent)   ; on akReceiver's script
 int Function RegisterSceneCallback(ScriptObject akReceiver, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
-; Instance-free variant for Papyrus script LIBRARIES (global functions, with no `self` to pass as a receiver):
-; dispatches to the GLOBAL function asScript.asFn(OSFTypes:SceneEvent). Same scene-filter / event-mask /
-; token semantics as RegisterSceneCallback; release with UnregisterSceneCallback.
+; Global-function variant for script libraries: calls asScript.asFn(OSFTypes:SceneEvent). Same semantics otherwise.
 ; Function OnSceneEvent(OSFTypes:SceneEvent akEvent) global   ; on script asScript
 int Function RegisterSceneCallbackStatic(string asScript, string asFn, int aiScene = 0, int aiEventMask = 65535) Global Native
 bool Function UnregisterSceneCallback(int aiToken) Global Native
 
-
-; --- Navigation  -------------------------------------------
-; Operate on the int handle a Start* call returned.
 
 ; Take the current node's DEFAULT advance edge (or end the scene if it targets "$end").
 ; False if aiScene is invalid or the current node has no default advance edge.
@@ -62,31 +52,24 @@ string Function GetSceneEdgeId(int aiScene, int aiIndex) Global Native
 string Function GetSceneEdgeLabel(int aiScene, int aiIndex) Global Native
 
 
-; --- Participants -------------------------------------------------------------
-
-; The scene's participants (by handle), in scene-internal (role-declaration) order.
-; Valid for a live scene AND for a just-ended one: the roster survives into the (async)
-; SCENE_END callback, so an end handler can call GetSceneParticipants(akEvent.sceneHandle)
-; to learn who took part. Empty array only if the handle is invalid or already reclaimed.
+; Participants in role-declaration order. The roster survives into the async SCENE_END callback so end handlers
+; can read it; empty only once the handle is invalid or reclaimed.
 Actor[] Function GetSceneParticipants(int aiScene) Global Native
 
-
-; --- Primitives ---------------------------------------------------------------
 
 ; True while akActor is in an animation or scene
 bool Function IsPlaying(Actor akActor) Global Native
 
-; Plays an animation on akActor. asFile is path to animation, relative to Data folder (e.g. "OSF\MyAnim.glb");
+; Plays asFile (path relative to Data, e.g. "OSF\MyAnim.glb") on akActor; asAnim optionally selects an animation in the file.
 bool Function Play(Actor akActor, string asFile, string asAnim = "") Global Native
 
 ; Stops playback on the given actor and returns control to the game.
 bool Function Stop(Actor akActor) Global Native
 
-; Groups actors that were each played solo (Play) onto one shared clock. With abAnchor=true (default) it also promotes them into a single anchored, co-located scene at akActors[0]'s transform
+; Puts actors each started with Play onto one shared clock. abAnchor=True also co-locates them as one anchored scene
+; at akActors[0]'s transform; False only shares the clock. Needs >= 2 actors.
 bool Function Sync(Actor[] akActors, bool abAnchor = true) Global Native
 
-
-; ---- Advanced API ------
 
 ; Per-graph playback speed: 1.0 = authored, 0 = freeze (clamped 0..100).
 ; For a participant, sets the shared scene clock. False if no live graph.
@@ -113,8 +96,7 @@ bool Function SetSceneStage(int aiScene, int aiStage) Global Native
 ; Current stage of a LINEAR scene (by handle), or -1 (non-linear graph / invalid handle).
 int Function GetSceneStage(int aiScene) Global Native
 
-; Actor conveniences: read/jump the live scene akActor is in by ACTOR 
-; (reaches any scene driving the actor, including a PlaySequence solo sequence that has no handle). -1 / false if in none.
+; By actor rather than handle, so these also reach a PlaySequence solo sequence. -1 / False if in none.
 int Function GetSceneStageForActor(Actor akActor) Global Native
 bool Function SetSceneStageForActor(Actor akActor, int aiStage) Global Native
 
@@ -127,26 +109,21 @@ bool Function StopSceneForActor(Actor akActor) Global Native
 ; Rescans Data/OSF/**/*.osf.json and replaces the scene registry. Returns the count now registered.
 int Function ReloadPacks() Global Native
 
-; --- Readiness handshake ------------------------------------------------------
-
 ; True once OSF is loaded + initialized (hooks installed).
 bool Function IsReady() Global Native
 
-; Framework version
+; "major.minor.patch"
 string Function GetVersion() Global Native
 
-; Reports the oldest OSF Animation version this consumer supports. Call once at startup.
-; Returns True when the installed version meets the requirement. When False because OSF is
-; older, OSF shows one deduplicated Upgrade warning and records the requirement in System Health.
+; Reports the oldest OSF Animation this consumer supports; call once at startup. False if OSF is older
+; (shows one deduplicated upgrade warning and a System Health entry) or the request is invalid.
 bool Function ReportMinimumVersion(string asConsumer, int aiMajor, int aiMinor = 0, int aiPatch = 0) Global Native
 
 ; Open the in-game scene browser (the OSF UI overlay)
 bool Function OpenBrowser() Global Native
 
-; --- Diagnostic ---------------------------------------------------------------
-
-; One-shot self-test of the whole playback pipeline. Confirms OSF is initialized, then plays the built-in player-only "solo" scene 
-;   cgf "OSF.Health"
+; Self-test: checks IsReady, then plays the built-in "solo" scene on the player for 5s.
+; Console: cgf "OSF.Health"
 bool Function Health() Global
     if !IsReady()
         Debug.Notification("OSF Health: FAIL - framework not ready (hooks not installed)")
@@ -204,8 +181,7 @@ int Function EVENT_ALL() Global
     return 65535
 EndFunction
 
-; SceneOptions tri-state helpers (StripMode / LockPlayerMode / FadeMode). Pass these instead of
-; bare 0/1 so call sites read clearly and nobody mistakes 0 ("force off") for "leave default".
+; SceneOptions tri-state values (StripMode / LockPlayerMode / FadeMode); 0 forces off, it doesn't inherit.
 int Function INHERIT() Global
     return -1
 EndFunction

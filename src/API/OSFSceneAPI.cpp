@@ -3,10 +3,10 @@
 #include "API/NativeSceneEventRegistry.h"
 #include "API/SceneAPIControl.h"
 #include "Animation/GraphManager.h"
-#include "Animation/Scene.h"  // Animation::PlaybackPlan (ad-hoc files start)
-#include "Registry/SceneRegistry.h"  // SceneDef::RequiresAnchor (anchor-bound guard)
-#include "Scene/AnchorResolve.h"     // shared furniture-anchor resolution
-#include "Scene/SceneLauncher.h"     // canonical per-start option normalization
+#include "Animation/Scene.h"
+#include "Registry/SceneRegistry.h"
+#include "Scene/AnchorResolve.h"
+#include "Scene/SceneLauncher.h"
 #include "Scene/SceneRuntime.h"
 #include "Scene/SceneEventRelay.h"
 #include "Util/ClipPath.h"
@@ -36,10 +36,9 @@ namespace OSF::API
 
 		Scene::SceneRuntime::StartOverrides MakeOverrides(const OSFStartOptions& a_opts)
 		{
-			// camera is a fixed buffer; read it bounded so a non-NUL-terminated POD can't overrun.
+			// camera may lack a NUL terminator.
 			const std::size_t len = ::strnlen(a_opts.camera, sizeof(a_opts.camera));
-			// APPENDED fields (MINOR >= 2): read only when the consumer's stamped size covers them —
-			// an older consumer's smaller POD ends before this field.
+			// inPlaceMode (minor 2) only when the consumer's stamped size covers it.
 			std::int32_t inPlaceMode = -1;
 			if (a_opts.size >= offsetof(OSFStartOptions, inPlaceMode) + sizeof(a_opts.inPlaceMode)) {
 				inPlaceMode = a_opts.inPlaceMode;
@@ -58,12 +57,11 @@ namespace OSF::API
 			} else if (a_opts.hasAnchor) {
 				anchor.set = true;
 				anchor.pos = RE::NiPoint3{ a_opts.anchorX, a_opts.anchorY, a_opts.anchorZ };
-				anchor.heading = a_opts.anchorHeadingRad;  // RADIANS (the POD documents this)
+				anchor.heading = a_opts.anchorHeadingRad;
 			}
 			return anchor;
 		}
 
-		// Copy the raw actor array into a vector; false (and a_out cleared) if empty or any actor is null
 		bool CollectActors(RE::Actor* const* a_actors, std::uint32_t a_count, std::vector<RE::Actor*>& a_out)
 		{
 			a_out.clear();
@@ -81,7 +79,6 @@ namespace OSF::API
 			return true;
 		}
 
-		// An anchorbound scene with no anchorref cant be placed.
 		bool AnchorBoundRefused(std::string_view a_sceneId, const char* a_tag)
 		{
 			const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
@@ -92,8 +89,7 @@ namespace OSF::API
 			return false;
 		}
 
-		// Per-start speed for a DEF scene (startStage is resolved to an entry node BEFORE the start now —
-		// see ResolveStartStageNode — so the scene enters on the stage instead of jumping after entry).
+		// startStage is resolved pre-start by ResolveStartStageNode.
 		void ApplyDefPostStart(std::int32_t a_handle, const std::vector<RE::Actor*>& a_actors, const OSFStartOptions& a_opts)
 		{
 			if (!a_handle) {
@@ -104,9 +100,7 @@ namespace OSF::API
 			}
 		}
 
-		// OSFStartOptions.startStage (> 0) -> the def's linear-stage entry node. LENIENT on purpose (C ABI):
-		// an invalid stage warns and enters at the scene's own entry — the same effective behavior as the
-		// old post-start jump, where SetStage on a bad stage silently no-opped. "" = the scene's own entry.
+		// startStage > 0 -> linear-stage entry node; invalid stages warn and fall back to the scene entry ("").
 		std::string ResolveStartStageNode(std::string_view a_sceneId, std::int32_t a_stage, const char* a_tag)
 		{
 			if (a_stage <= 0) {
@@ -114,7 +108,7 @@ namespace OSF::API
 			}
 			const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 			if (!def) {
-				return {};  // unknown scene — the start itself will fail with the right log
+				return {};  // the start itself fails and logs
 			}
 			if (def->linearStages.empty() || a_stage >= static_cast<std::int32_t>(def->linearStages.size())) {
 				REX::WARN("[API] {} '{}': startStage {} invalid ({} linear stages) — entering at the scene entry",
@@ -124,8 +118,7 @@ namespace OSF::API
 			return def->linearStages[a_stage];
 		}
 
-		// --- POD layout guard: locks the ABI of OSFStartOptions at OSF build time. A field add/reorder/resize that would silently break a shipped consumer copy fails HERE.
-		// Appended fields are allowed only at the end (bump kOSFSceneAPIVersion MINOR + the size).
+		// OSFStartOptions ABI guard: append fields only at the end and bump the MINOR.
 		static_assert(std::is_standard_layout_v<OSFStartOptions>, "OSFStartOptions must be standard-layout (POD ABI)");
 		static_assert(sizeof(OSFStartOptions) == 136, "OSFStartOptions layout changed — update the size + version, ship a new header");
 		static_assert(offsetof(OSFStartOptions, size) == 0, "OSFStartOptions.size must be first (cbSize prefix)");
@@ -148,7 +141,6 @@ namespace OSF::API
 		static_assert(offsetof(OSFSceneEvent, result) == 80, "OSFSceneEvent.result offset drift");
 	}
 
-	// The concrete API singleton. Thin shims only
 	class SceneAPIImpl final : public IOSFSceneAPI
 	{
 	public:
@@ -185,14 +177,12 @@ namespace OSF::API
 			auto&      rt = Scene::SceneRuntime::GetSingleton();
 			std::int32_t handle = 0;
 			if (RE::TESObjectREFR* ref = a_opts.anchorRef) {
-				// Furniture / explicit-ref anchoring: validate (anchor-bound) + compose the def's offset, using the ref's own facing. Shared with the Papyrus path.
 				const auto resolved = Scene::ResolveSceneAnchor(a_sceneId, ref, std::nullopt, /*a_emitHud*/ false);
 				if (!resolved) {
-					return 0;  // anchor-bound scene, missing/incompatible furniture (logged in ResolveSceneAnchor)
+					return 0;  // logged in ResolveSceneAnchor
 				}
 				handle = rt.StartFromDefAt(a_sceneId, actors, resolved->pos, resolved->heading, over, entryNode);
 			} else {
-				// No furniture ref: an anchor-bound scene can't be placed; otherwise free start with the optional raw WORLD anchor (hasAnchor) or co-located at actor[0].
 				if (AnchorBoundRefused(a_sceneId, "StartScene")) {
 					return 0;
 				}
@@ -213,14 +203,13 @@ namespace OSF::API
 				return 0;
 			}
 			if (!a_roles || a_roleCount != a_count) {
-				return 0;  // StartFromDefRoles requires one role per actor
+				return 0;
 			}
-			// Resolve the anchor: a furniture ref (validated + composed) wins; else the raw world anchor, after refusing an anchor-bound scene that has no ref.
 			Scene::SceneRuntime::AnchorOverride anchor{};
 			if (RE::TESObjectREFR* ref = a_opts.anchorRef) {
 				const auto resolved = Scene::ResolveSceneAnchor(a_sceneId, ref, std::nullopt, /*a_emitHud*/ false);
 				if (!resolved) {
-					return 0;  // anchor-bound scene, missing/incompatible furniture (logged)
+					return 0;  // logged in ResolveSceneAnchor
 				}
 				anchor = *resolved;
 			} else {
@@ -261,8 +250,7 @@ namespace OSF::API
 			plan.stages.push_back(std::move(stage));
 			plan.speed = a_opts.speed;
 			plan.blendIn = a_opts.blendIn;
-			// Single-stage files scene: start at stage 0 (matches OSFAdvanced.StartSceneFiles);
-			// OSFStartOptions.startStage is N/A for a one-stage hold.
+			// startStage doesn't apply to a one-stage hold.
 			return Scene::SceneRuntime::GetSingleton().StartFromPlan(
 				actors, std::move(plan), 0, MakeAnchor(a_opts), MakeOverrides(a_opts));
 		}
@@ -436,13 +424,12 @@ namespace OSF::API
 	}
 }
 
-// The exported factory. Stable, undecorated name "OSF_RequestSceneAPI" (extern "C").
-// Returns nullptr on a MAJOR ABI mismatch or before OSF has marked the API ready.
+// Returns nullptr on ABI mismatch or before the API is marked ready.
 extern "C" __declspec(dllexport) OSF::API::IOSFSceneAPI* OSF_RequestSceneAPI(std::uint32_t a_abiVersion)
 {
 	if ((a_abiVersion >> 16) != OSF::API::kOSFSceneAPIMajor ||
 		(a_abiVersion & 0xFFFFu) > OSF::API::kOSFSceneAPIMinor) {
-		return nullptr;  // incompatible vtable ABI - degrade rather than corrupt
+		return nullptr;
 	}
 	return OSF::API::SceneAPIImpl::GetSingleton().IfReady();
 }

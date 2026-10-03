@@ -58,8 +58,6 @@ int main()
 	using namespace OSF::Animation::PoseMath;
 	constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
 
-	// Expected-playback replacement must retain both the sampled pose and the old graph's
-	// driven-joint set after scene teardown clears the live binding.
 	{
 		struct Binding
 		{
@@ -93,8 +91,6 @@ int main()
 			"a rejected replacement source is discarded");
 	}
 
-	// Reference-pose sample: even with a non-identity reference, the zero delta is a byte-exact
-	// no-op on the complete live NiTransform (including padding and engine scale).
 	{
 		Matrix live = Transform(AxisAngle(1.0f, 0.0f, 0.0f, 0.63f), 3.0f, -2.0f, 7.0f, 1.75f);
 		live[3] = 11.0f;
@@ -107,7 +103,6 @@ int main()
 			"reference sample leaves the live pose byte-for-byte unchanged");
 	}
 
-	// Reference-relative translation at the contract's three boundary weights. Scale remains live.
 	{
 		const Matrix live = Transform({}, 10.0f, 20.0f, 30.0f, 2.25f);
 		const Matrix reference = Transform({}, 4.0f, 5.0f, 6.0f);
@@ -124,7 +119,6 @@ int main()
 		}
 	}
 
-	// True shortest-path SLERP of the reference-relative rotation.
 	{
 		const Matrix live = Transform();
 		const Matrix reference = Transform();
@@ -137,8 +131,7 @@ int main()
 		}
 	}
 
-	// Multiplication order proof: final = live(X90) * delta(Z90). Acting on +X, Z rotates it
-	// to +Y and the live X rotation then maps it to +Z.
+	// final = live(X90) * delta(Z90): +X -> +Y under Z, then -> +Z under X.
 	{
 		const Matrix live = Transform(AxisAngle(1.0f, 0.0f, 0.0f, kHalfPi));
 		const Matrix reference = Transform();
@@ -149,7 +142,6 @@ int main()
 			"rotation composition order is live * reference-relative delta");
 	}
 
-	// preserveBones is a binding exclusion: stamping the driven slot cannot touch the omitted slot.
 	{
 		std::array<Matrix, 2> slots{ Transform({}, 1.0f), Transform({}, 99.0f, 98.0f, 97.0f, 3.0f) };
 		const Matrix preservedBefore = slots[1];
@@ -160,7 +152,6 @@ int main()
 			"a preserved/unbound bone stays byte-for-byte untouched");
 	}
 
-	// The extracted override cross-fade retains the old normalized-lerp result and translation.
 	{
 		const Matrix from = Transform({}, 2.0f, 4.0f, 6.0f);
 		const Matrix target = Transform(AxisAngle(0.0f, 0.0f, 1.0f, kHalfPi), 10.0f, 12.0f, 14.0f);
@@ -177,10 +168,7 @@ int main()
 			"override keeps its existing linear translation and unit scale");
 	}
 
-	// The override stamp's per-bone decision, especially the zero-weight stage-handoff boundary:
-	// a handoff resets the blend clock to exactly zero, and skipping there would expose the
-	// vanilla pose for the compose(s) before the next animation update (the "pose dropout at
-	// clip transitions" fix). A deliberately zero-strength role or bone must still skip.
+	// A stage handoff resets the blend clock to zero; skipping there flashes the vanilla pose.
 	{
 		using OSF::Animation::PoseMath::ClassifyOverrideStamp;
 		using OSF::Animation::PoseMath::OverrideStampKind;
@@ -202,7 +190,6 @@ int main()
 			"persistent partial strength blends at steady state");
 	}
 
-	// Transition weight and persistent role strength multiply; this covers both blend-in and fade-out.
 	{
 		Check(Near(EffectiveWeight(0.5f, 0.25f), 0.125f),
 			"blend transition and poseWeight multiply");
@@ -217,8 +204,7 @@ int main()
 			"blend-in/out weights scale the persistent additive layer");
 	}
 
-	// A stage/skeleton change must replace both sample and reference. Two very different reference
-	// poses with the same authored delta therefore produce the same layer over the live pose.
+	// Different references with the same authored delta must yield the same layer.
 	{
 		const Matrix live = Transform({}, 20.0f);
 		const Matrix referenceA = Transform(AxisAngle(0.0f, 0.0f, 1.0f, 0.2f), 10.0f);
@@ -236,7 +222,6 @@ int main()
 		}
 	}
 
-	// Repeated model compose calls reuse the immutable post-engine base, never the prior OSF output.
 	{
 		const Matrix immutableLive = Transform({}, 3.0f);
 		const Matrix reference = Transform();
@@ -249,8 +234,7 @@ int main()
 			"repeated stamping does not accumulate an already-written delta");
 	}
 
-	// A 3D rebuild can reorder every live rig slot. Preserve the proven vanilla base by stable
-	// skeleton joint identity so the feathered spine never blends against a new rig's rest pose.
+	// A 3D rebuild can reorder rig slots; the carried base must follow joint identity.
 	{
 		struct Binding
 		{
@@ -279,8 +263,7 @@ int main()
 			"rig rebind refuses an incomplete carried base");
 	}
 
-	// A post-engine evaluation belongs to one binding generation. Rebinding during compose must
-	// invalidate that authorization even when the engine revision counter has not advanced yet.
+	// A compose-time rebind must invalidate even before the engine revision counter advances.
 	{
 		OSF::Animation::LiveBasePose::Evaluation evaluated;
 		evaluated.Mark(12, 4);
@@ -292,7 +275,6 @@ int main()
 			"new binding becomes capture-ready after its own post-engine evaluation");
 	}
 
-	// Named driven-bone masks: the tables the registry validates against and the graph binds with.
 	{
 		namespace BoneMask = OSF::Animation::BoneMask;
 		const auto* upper = BoneMask::Find("upperBody");

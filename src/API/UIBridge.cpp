@@ -3,21 +3,21 @@
 #include "API/UIBridgeCatalog.h"
 #include "API/UIBridgeWorld.h"
 
-#include "API/OSFSceneAPI.h"  // OSFStartOptions + IOSFSceneAPI + kOSFSceneAPIVersion (in-process launch)
-#include "API/OSFUI.h"    // the OSF UI bridge surface (JSON text only)
-#include "Animation/GraphManager.h"  // browser playback clock inspection + seek
-#include "Camera/CameraService.h"  // browse orbit: osf.orbit engages drag-to-look when no scene camera is live
-#include "Input/InputService.h"  // osf.opened/closed -> UI-cursor mode for the orbit camera's drag-steer
-#include "Matchmaking/Matchmaker.h"  // AnchorAccepts (osf.anchorMatch single-ref check)
+#include "API/OSFSceneAPI.h"
+#include "API/OSFUI.h"
+#include "Animation/GraphManager.h"
+#include "Camera/CameraService.h"
+#include "Input/InputService.h"
+#include "Matchmaking/Matchmaker.h"
 #include "Registry/SceneRegistry.h"
 #include "Packs/PackReload.h"
-#include "Scene/AnchorResolve.h"  // rendered-world reference anchors + in-front-of-player placement
-#include "Scene/PlaybackPreviewService.h"  // scrub-only playback and preview prop ownership
-#include "Scene/SceneRuntime.h"  // ListScenes + SetSceneObserver (the browser's ACTIVE-list push)
-#include "Serialization/WheelPins.h"  // ordered animation-wheel customization
-#include "UI/HudMessage.h"    // OpenWheel's graceful-degrade popup (OSF UI absent/too old)
-#include "Util/Species.h"     // catalog species tag + picked-actor species (creature filtering)
-#include "Util/StringUtil.h"  // Util::ToLower
+#include "Scene/AnchorResolve.h"
+#include "Scene/PlaybackPreviewService.h"
+#include "Scene/SceneRuntime.h"
+#include "Serialization/WheelPins.h"
+#include "UI/HudMessage.h"
+#include "Util/Species.h"
+#include "Util/StringUtil.h"
 
 #include <nlohmann/json.hpp>
 
@@ -40,7 +40,6 @@
 #include <unordered_map>
 #include <vector>
 
-// The in-process handle to OSF Animation's own exported scene API.
 extern "C" OSF::API::IOSFSceneAPI* OSF_RequestSceneAPI(std::uint32_t a_abiVersion);
 
 namespace OSF::API
@@ -63,77 +62,44 @@ namespace OSF::API
 
 		OSFUI::API::Client g_ui;
 
-		// True only when relative-pointer registration succeeded. It rides in the version
-		// payload so the page uses paced input when native capture is unavailable.
+		// Sent in the version payload; the view falls back to paced input when false.
 		bool g_relativePointerRegistered = false;
-		// Low-volume capture diagnostics: one begin, first-update, and terminal
-		// summary per drag. These make the native hand-off observable without
-		// restoring the per-frame bridge log firehose.
 		bool          g_relativePointerTraceActive = false;
 		std::uint32_t g_relativePointerTraceUpdates = 0;
 		float         g_relativePointerTraceDx = 0.0f;
 		float         g_relativePointerTraceDy = 0.0f;
 		float         g_relativePointerTraceWheel = 0.0f;
 
-		// Browser visibility as reported by the view (osf.opened / osf.closed). Gates OnOrbit:
-		// the view batches drag deltas per animation frame, so a flush queued during the last
-		// drag can arrive AFTER osf.closed — without the gate that late message would lazily
-		// RE-engage the browse orbit on a closed browser, and nothing would ever release it
-		// (the classic "camera stuck orbiting after closing the browser"). Game main thread only.
+		// Game main thread only. Gates OnOrbit: a drag flush arriving after osf.closed would
+		// otherwise re-engage the orbit on a closed browser and never release it.
 		bool g_viewVisible = false;
 
-		// The in-space "orbit unavailable" notice fired this browser session (OnOrbit runs per
-		// drag-delta batch while the orbit stays disengaged — the view must not be spammed).
-		// Reset on osf.closed. Game main thread only, like g_viewVisible.
 		bool g_orbitSpaceNoticed = false;
 
-		// OSF Animation's own scene API, fetched lazily on first launch/stop.
 		IOSFSceneAPI* g_scene = nullptr;
 
-		// Last scene handle we launched, so an osf.stop with no handle can target it.
 		std::int32_t g_lastHandle = 0;
-		// Browser pause is reversible without flattening a custom launch speed to 1x.
 		std::unordered_map<std::int32_t, float> g_resumeSpeeds;
 
-		// PLAYER-cast runtime scenes launched from the browser console are aborted when
-		// the browser closes: once the UI is gone there is no stop surface left.
-		// Ordinary NPC-only scenes are deliberately NOT tracked — they outlive the
-		// browser (vignettes / machinima; the player can just walk away), and the ACTIVE
-		// list on reopen is their stop surface. Every player-affecting mechanism (control
-		// lock, camera, fade) is already engine-gated on the player being a participant, so
-		// an NPC-only scene can never strand a lock. Wheel launches are NOT tracked either —
-		// the wheel closes itself right after a successful pick, and the emote must survive
-		// that close. Stale entries are harmless (handles are generational; StopScene on an
-		// ended scene returns false) and the list is cleared on every close, so it never
-		// outgrows one browser session. The inspection service always destroys browser
-		// previews on close. Main thread only.
+		// Player-cast browser launches, stopped on close (no stop surface remains). NPC-only and
+		// wheel launches deliberately outlive the browser. Main thread only.
 		std::vector<std::int32_t> g_closeStops;
 
-		// Pending animation-wheel open (OpenWheel): the osf.mode push must survive the open race,
-		// so it is re-sent from the osf.opened handler while this is active. Cleared on
-		// osf.closed and by OpenBrowser (a normal open must never land in wheel mode).
-		// Game main thread only, like g_tokens.
+		// Replayed from osf.opened to survive the open race. Cleared on osf.closed and by OpenBrowser.
 		struct PendingWheel
 		{
 			bool         active = false;
 			std::string  tagPrefix;
-			std::int32_t targetToken = 0;  // 0 = player-only (no valid crosshair target at open)
+			std::int32_t targetToken = 0;  // 0 = player-only
 			std::string  targetName;
 		};
 		PendingWheel g_wheel;
 
-		// Crosshair target captured at browser-open time. The engine clears the reticle slot
-		// (PlayerCharacter+0xF90) to null while ANY menu is up (OSF RE gameplay.crosshair_pick),
-		// so a PICK clicked inside the open browser can never read it live — it resolves this
-		// capture instead. 0 = nothing was under the reticle at open. Cleared on osf.closed.
-		// Game main thread only, like g_tokens.
+		// Captured at open: the engine nulls PlayerCharacter+0xF90 (crosshairRef) while any menu
+		// is up, so PICK resolves this instead. 0 = nothing under the reticle.
 		std::int32_t g_openPickToken = 0;
 
-		// Our view's manifest id; the EmitEvent target for pushes that aren't a direct reply (e.g. a catalog re-push).
-		constexpr const char* kViewId = "osf.animation/browser";  // qualified "<modId>/<viewName>" (OSF UI api-freeze item 1)
-
-
-		// ---- helpers ---------------------------------------------------------
+		constexpr const char* kViewId = "osf.animation/browser";
 
 		IOSFSceneAPI* SceneAPI()
 		{
@@ -143,7 +109,7 @@ namespace OSF::API
 			return g_scene;
 		}
 
-		// Serialize a payload to the source view. Uses the replace error handler so as non-UTF-8 game name can never throw out of a noexcept handler.
+		// `replace` error handler: a non-UTF-8 game name must not throw out of a noexcept handler.
 		void SendJson(const char* a_view, const char* a_type, const json& a_payload)
 		{
 			if (!g_ui) {
@@ -153,8 +119,7 @@ namespace OSF::API
 			g_ui.EmitEvent(a_view, a_type, text.c_str());
 		}
 
-		// Parse an inbound payload without throwing (handlers are noexcept). Returns a
-		// discarded value on malformed or oversized input; callers treat it as empty.
+		// Non-throwing; returns a discarded value on malformed or oversized input.
 		json ParsePayload(const char* a_json)
 		{
 			constexpr std::size_t kMaxPayloadBytes = 1u << 20;
@@ -173,18 +138,13 @@ namespace OSF::API
 			return json::parse(a_json, a_json + length, nullptr, /*allow_exceptions*/ false, /*ignore_comments*/ true);
 		}
 
-		// Every live scene for the view's ACTIVE list: handle, sceneId, stage, whether the
-		// player is in the cast, and the cast itself (token + name; the player is token -1,
-		// NPCs get pick tokens so the view can badge busy crew members and re-target stops).
-		// Main thread only (AllocToken touches g_tokens).
+		// Main thread only (AllocToken). Player is token -1.
 		json BuildActiveScenes()
 		{
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			auto& gm = Animation::GraphManager::GetSingleton();
 			auto inspections = Scene::PlaybackPreviewService::GetSingleton().List();
 			auto* player = RE::PlayerCharacter::GetSingleton();
-			// One serializer for both loops below — preview rows and runtime rows must agree on the
-			// shape of cast[].
 			const auto buildCast = [player](const std::vector<RE::Actor*>& a_participants, bool& a_hasPlayer) {
 				json cast = json::array();
 				a_hasPlayer = false;
@@ -217,7 +177,7 @@ namespace OSF::API
 				if (!s.participants.empty()) {
 					if (const auto playback = gm.GetScenePlayback(s.participants.front())) {
 						if (s.id.empty()) {
-							item["stage"] = playback->stage;  // ad-hoc plans have no registry node/stage mapping
+							item["stage"] = playback->stage;  // ad-hoc plans have no registry stage mapping
 						}
 						item["time"] = playback->time;
 						item["duration"] = playback->duration;
@@ -236,7 +196,7 @@ namespace OSF::API
 					{ "inspection", true },
 					{ "player", hasPlayer },
 					{ "cast", std::move(cast) },
-					{ "speed", preview.playback.speed },  // 0 = paused (the state a preview starts in)
+					{ "speed", preview.playback.speed },  // 0 = paused
 				};
 				item["time"] = preview.playback.time;
 				item["duration"] = preview.playback.duration;
@@ -248,9 +208,7 @@ namespace OSF::API
 			return json{ { "scenes", std::move(scenes) } };
 		}
 
-		// Push the live-scene list to the view. Dropped while the browser is hidden — the
-		// osf.opened handler re-sends, so a reopen always shows the current list (including
-		// NPC scenes still running from an earlier session). Main thread only.
+		// Dropped while hidden; osf.opened re-sends. Main thread only.
 		void PushActiveScenes()
 		{
 			if (!g_ui || !g_viewVisible) {
@@ -259,8 +217,7 @@ namespace OSF::API
 			SendJson(kViewId, "osf.animation.activeScenes", BuildActiveScenes());
 		}
 
-		// Deliver the wheel-mode switch to the view. target:null = the wheel plays on the player.
-		// Idempotent on the view side, so the OpenWheel send and the osf.opened replay can both land.
+		// target:null = player. Idempotent in the view, so the osf.opened replay may double-deliver.
 		void SendWheelMode()
 		{
 			json payload = { { "mode", "wheel" }, { "tagPrefix", g_wheel.tagPrefix } };
@@ -291,7 +248,7 @@ namespace OSF::API
 			return std::nullopt;
 		}
 
-		// opts tri-state: true/1 -> 1 (on), false/0 -> 0 (off), anything else -> -1 (inherit).
+		// true/1 -> 1, false/0 -> 0, else -1 (inherit).
 		std::int32_t OptTri(const json& a_opts, const char* a_key)
 		{
 			if (!a_opts.is_object()) {
@@ -310,8 +267,6 @@ namespace OSF::API
 			return -1;
 		}
 
-		// Type- and range-checked reads for inbound payloads. Every command handler here is
-		// noexcept, so malformed peer data must degrade to a default instead of escaping.
 		float NumOr(const json& a_obj, const char* a_key, float a_def)
 		{
 			if (!a_obj.is_object()) {
@@ -356,7 +311,6 @@ namespace OSF::API
 			return it != a_obj.end() && it->is_string() ? it->get<std::string>() : std::string{};
 		}
 
-		// A human-readable reason a launch returned handle 0, best-effort.
 		std::string LaunchError(const std::string& a_sceneId, std::size_t a_castCount, bool a_haveFurniture)
 		{
 			auto&       reg = Registry::ContentRegistry::GetSingleton();
@@ -370,7 +324,6 @@ namespace OSF::API
 			if (a_castCount == 0) {
 				return "No cast selected";
 			}
-			// Surface any load-time diagnostics that name this scene.
 			const std::string idLower = Util::ToLower(a_sceneId);
 			std::string       joined;
 			for (const auto& e : reg.LoadErrors()) {
@@ -387,28 +340,21 @@ namespace OSF::API
 			return "Scene failed to start — a cast member may already be in a scene, or a required clip is missing";
 		}
 
-		// ---- command handlers (GAME MAIN THREAD) -----------------------------
-
-
+		// Command handlers run on the game main thread.
 		void OnCatalogGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
-			// The view's status line should name THIS plugin — runtime.ready carries the
-			// mod/view identity, not a plugin release version. Reply on catalog requests.
 			SendJson(a_srcView, "osf.animation.version", json{
 				{ "plugin", SFSE::GetPluginName() },
-				// major.minor.patch only — Version::string() would append the unused build
-				// field and render as "1.0.0.0" in the view's status line.
+				// Version::string() would append the unused build field.
 				{ "version", std::format("{}.{}.{}", SFSE::GetPluginVersion().major(), SFSE::GetPluginVersion().minor(), SFSE::GetPluginVersion().patch()) },
 				{ "relativePointer", g_relativePointerRegistered },
-				// The player is a permanent crew member the view never scans, so its M/F badge
-				// has no other channel — ride along with the identity push.
+				// The view never scans the player; this is its only sex-badge channel.
 				{ "playerSex", RefSexTag(RE::PlayerCharacter::GetSingleton()) },
 			});
 			SendJson(a_srcView, "osf.animation.catalog.data", BuildCatalog(false));
 		}
 
-		// The library lane is static after load (generated packs, pack-authored durations), so the
-		// view fetches it once on demand and caches — it is never re-pushed by catalog updates.
+		// Static after load: the view caches it; catalog updates never re-push it.
 		void OnLibraryGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.library.data", BuildCatalog(true));
@@ -419,9 +365,6 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.routes.data", BuildRoutes());
 		}
 
-		// The per-file import report. Static between ReloadPacks calls like the library, but small
-		// and asked for rarely (only while the IMPORTS panel is open), so it is rebuilt per request
-		// rather than cached — a cache would just be one more thing to invalidate on reload.
 		void OnImportsGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.imports.data", BuildFileReport());
@@ -590,7 +533,6 @@ namespace OSF::API
 			}
 
 			options.startStage = 0;
-			// Resolve a linear browser stage to its node before the scene starts.
 			if (const auto it = opts.find("stage"); it != opts.end()) {
 				const auto stage = Int32Value(*it);
 				if (!stage || *stage < 0) {
@@ -603,7 +545,6 @@ namespace OSF::API
 			}
 			options.anchorRef = a_plan.furniture;
 
-			// The browser's location selector is a bridge-only extension to OSFStartOptions.
 			a_plan.locationMode = a_plan.furniture ? "furniture" : "cast";
 			if (a_payload.is_object()) {
 				if (const auto it = a_payload.find("location"); it != a_payload.end() && it->is_object()) {
@@ -639,7 +580,7 @@ namespace OSF::API
 				}
 				a_plan.furniture = options.anchorRef;
 			} else if (a_plan.locationMode == "front") {
-				// Starfield world transforms are meters; ten feet is 3.048 m.
+				// World units are meters; 3.048 m = 10 ft.
 				const auto anchor = Scene::MakeAnchorInFrontOfView(RE::PlayerCharacter::GetSingleton(), 3.048f);
 				if (!anchor.set) {
 					return "The player is not available for front-of-player placement";
@@ -672,8 +613,7 @@ namespace OSF::API
 			if (!g_wheel.active) {
 				return;
 			}
-			// Wheel entries are stage-pinned in-world flourishes: no placement pin,
-			// player input lock, apparel hiding, fade, or authored scene camera.
+			// Wheel emotes are in-world flourishes: no placement pin, input lock, stripping, fade, or scene camera.
 			auto& options = a_plan.options;
 			options.inPlaceMode = 1;
 			options.lockPlayerMode = 0;
@@ -809,8 +749,7 @@ namespace OSF::API
 		bool RecordLaunchSuccess(const BrowserLaunchPlan& a_plan, std::int32_t a_handle)
 		{
 			g_lastHandle = a_handle;
-			// A stage-scoped browser row and every wheel entry mean "play this
-			// animation", not "continue through the parent collection".
+			// Stage rows and wheel entries play one animation, not the parent collection.
 			if (!a_plan.inspect && (g_wheel.active || a_plan.singleAnimation)) {
 				Scene::SceneRuntime::GetSingleton().SetSingleStage(a_handle);
 			}
@@ -932,9 +871,7 @@ namespace OSF::API
 				return fail(error);
 			}
 
-			// Match ordinary browser inspection admission: the explicit preview replaces another
-			// browser preview or runtime scene on this actor. Overlay routes are suspended and later
-			// reconciled by PlaybackPreviewService rather than being destroyed.
+			// Replaces any preview or runtime scene on the actor; overlay routes are suspended, not destroyed.
 			previewService.StopForActor(actor);
 			if (auto* api = SceneAPI()) {
 				const auto busy = api->GetSceneForActor(actor);
@@ -1002,11 +939,8 @@ namespace OSF::API
 			REX::DEBUG("[UI] osf.animation.stop handle={} -> {}", handle, ok);
 		}
 
-		// Advance a running scene one stage (its default advance edge; past the last stage this
-		// ends the scene, same as the engine Space binding). The view is the ONLY advance channel
-		// for browser launches: while the OSF UI overlay captures input its WndProc swallow starves
-		// the engine of keyboard, so InputService never sees Space — and an NPC-only cast never
-		// engages a director grant at all. Handle 0 targets the last browser launch, like stop.
+		// The only advance channel for browser launches: the overlay swallows keyboard input, and
+		// NPC-only casts have no director grant. Handle 0 = last launch.
 		void OnAdvance(const char*, const char* a_payload, const char*, void*) noexcept
 		{
 			const auto parsed = CommandHandle(a_payload);
@@ -1020,8 +954,7 @@ namespace OSF::API
 					ok = api->Advance(handle);
 				}
 			}
-			// A paused runtime scene stays paused across a synchronous NEXT transition.
-			// Auto transitions cannot race this path because their clock is already stopped.
+			// Keep a paused scene paused across NEXT.
 			if (ok && g_resumeSpeeds.contains(handle)) {
 				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
 				if (!actors.empty() && actors.front()) {
@@ -1052,9 +985,7 @@ namespace OSF::API
 						REX::WARN("[UI] preview seek failed for stale handle={}", handle);
 					}
 				}
-				// Preview transport. A preview carries no timers, loop targets, or authored marks, so
-				// running one simply loops its clip with the render-only props reconciled per poll —
-				// it still fires no cues, no sounds, and no scene actions.
+				// A running preview loops its clip; it never fires cues, sounds, or actions.
 				if (const auto paused = j.find("paused"); paused != j.end() && paused->is_boolean()) {
 					if (!previewService.SetSpeed(handle, paused->get<bool>() ? 0.0f : 1.0f)) {
 						REX::WARN("[UI] preview transport failed for stale handle={}", handle);
@@ -1094,8 +1025,7 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.wheel.data", BuildWheelData(prefix));
 		}
 
-		// Persist a complete, ordered animation-wheel loadout. The view materializes
-		// the installed defaults on the first edit. `reset:true` returns to derivation.
+		// Payload is the complete ordered loadout; `reset:true` returns to derived defaults.
 		void OnWheelSet(const char*, const char* a_payload, const char*, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
@@ -1151,8 +1081,6 @@ namespace OSF::API
 			}
 		}
 
-		// Which anchor-bound scenes accept a keyed furniture ref. The view filters its browse
-		// list with this: free-space scenes always play; anchor-bound ones only via a match.
 		void OnAnchorMatch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json   j = ParsePayload(a_payload);
@@ -1169,7 +1097,7 @@ namespace OSF::API
 
 			RE::TESObjectREFR* ref = ResolveToken(token);
 			if (ref) {
-				Matchmaking::AnchorMatchCache cache(ref);  // one HasKeyword per unique keyword across the def sweep
+				Matchmaking::AnchorMatchCache cache(ref);
 				Registry::ContentRegistry::GetSingleton().ForEachDef([&reply, &cache](const Registry::SceneDef& d) {
 					if (d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) {
 						reply["sceneIds"].push_back(d.id);
@@ -1180,10 +1108,7 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.anchorMatch", reply);
 		}
 
-		// One authoritative role-filter sweep for the browser's ordered cast. The registry keeps
-		// keyword/race filters as resolved FormIDs, so duplicating this check in JavaScript would
-		// make READY disagree with the actual start gate. Echo the ordered tokens so a late reply
-		// cannot be applied after the user has changed or reordered the cast.
+		// Native so READY matches the real start gate. Tokens are echoed so the view drops stale replies.
 		void OnCastMatch(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json j = ParsePayload(a_payload);
@@ -1229,25 +1154,16 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.castMatch", reply);
 		}
 
-		// The view reports every visibility change (ui.visibility -> osf.opened / osf.closed): the
-		// input hook learns whether a UI cursor is on screen (visible = the scene-orbit camera
-		// steers by LMB-drag; hidden = free-look).
+		// UI cursor visible: the scene-orbit camera steers by LMB-drag instead of free-look.
 		void OnOpened(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			g_viewVisible = true;
 			Input::InputService::GetSingleton().SetUiCursorVisible(true);
-			// A wheel open is pending: replay the mode switch (idempotent view-side).
-			// OSF UI queues the immediate OpenWheel push before the view becomes visible.
 			if (g_wheel.active) {
 				SendWheelMode();
 			}
-			// Current live-scene list (NPC scenes may still be running from an earlier
-			// session) — the reopened browser is their stop surface.
 			PushActiveScenes();
-			// What the reticle was on when the browser opened, so the view can seed the crew /
-			// anchor with it instead of defaulting to the player. Same capture PICK resolves
-			// (the engine has nulled the live slot by now); a furniture ref is only offered as
-			// an anchor if some scene actually accepts it, so aiming at a crate seeds nothing.
+			// Seed the view with the open-time crosshair target; furniture only if some scene accepts it.
 			bool actorTargeted = false;
 			if (g_openPickToken != 0) {
 				if (RE::TESObjectREFR* ref = ResolveToken(g_openPickToken)) {
@@ -1275,10 +1191,7 @@ namespace OSF::API
 					}
 				}
 			}
-			// No actor under the reticle at open -> the view defaults the cast to the PLAYER,
-			// and a first-person player can't see the body the browser is about to animate.
-			// One-shot kick to third person (nothing restored on close — the player zooms back
-			// in themself). The wheel is a quick pick overlay, not a browsing session — skip it.
+			// Cast defaults to the player, who is invisible in first person. One-shot; not restored.
 			if (!g_wheel.active && !actorTargeted) {
 				Camera::CameraService::GetSingleton().KickToThirdPerson();
 			}
@@ -1288,14 +1201,13 @@ namespace OSF::API
 		{
 			g_viewVisible = false;
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
-			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();  // drag-to-look never outlives the browser
-			g_wheel = {};  // any hide ends wheel mode; the next open starts clean
-			g_openPickToken = 0;  // the open-time crosshair capture never outlives its session
-			UIBridgeWorld::ClearSessionTokens();  // picked refs are scoped to one browser session
-			g_orbitSpaceNoticed = false;  // re-arm the in-space orbit notice for the next session
+			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();
+			g_wheel = {};
+			g_openPickToken = 0;
+			UIBridgeWorld::ClearSessionTokens();
+			g_orbitSpaceNoticed = false;
 			Scene::PlaybackPreviewService::GetSingleton().StopAll();
-			// A scrub pauses playback. NPC-only scenes survive the browser, so restore their
-			// pre-scrub speeds before their only director surface disappears.
+			// NPC-only scenes outlive the browser; unpause them before their only control surface goes.
 			for (const auto& [handle, speed] : g_resumeSpeeds) {
 				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
 				if (!actors.empty() && actors.front()) {
@@ -1303,9 +1215,6 @@ namespace OSF::API
 				}
 			}
 			g_resumeSpeeds.clear();
-			// Abort console-launched PLAYER scenes (see g_closeStops): the browser was the only
-			// stop button, so one outliving it would leave the player stuck. NPC-only scenes
-			// are not in the list — they keep running until stopped from a reopened browser.
 			if (!g_closeStops.empty()) {
 				if (auto* api = SceneAPI()) {
 					for (const std::int32_t h : g_closeStops) {
@@ -1319,9 +1228,7 @@ namespace OSF::API
 			}
 		}
 
-		// The view cannot hide itself (visibility is host-driven); this is its close button.
-		// Generic — the wheel sends it on cancel and after a successful pick. Handlers already
-		// run on the game main thread and RequestMenu is thread-safe/queued, so no task hop.
+		// Visibility is host-driven, so the view cannot hide itself.
 		void OnRequestClose(const char*, const char*, const char*, void*) noexcept
 		{
 			const bool ok = g_ui.RequestMenu(kViewId, false);
@@ -1333,11 +1240,7 @@ namespace OSF::API
 			if (!g_viewVisible) {
 				return false;
 			}
-			// First world drag of this browser session: engage the BROWSE ORBIT so there is always
-			// something to steer — without it the deltas below are dropped unless a scene_orbit scene
-			// happens to be running (and the vanilla camera is frozen by the overlay regardless).
-			// Focal point: the player's live scene cast if they are mid-scene (e.g. an emote with
-			// camera "none"), else the player. Handlers run on the game main thread.
+			// Lazily engage on the first drag; focus the player's live scene cast, else the player.
 			auto& cam = Camera::CameraService::GetSingleton();
 			if (!cam.BrowseOrbitHeld()) {
 				std::vector<std::uint32_t> cast;
@@ -1355,8 +1258,7 @@ namespace OSF::API
 					}
 				}
 				if (!cam.EnsureBrowseOrbit(std::move(cast)) && !g_orbitSpaceNoticed) {
-					// Aboard a ship in space the orbit can't engage (see EnsureBrowseOrbit) — the
-					// drag silently does nothing, so tell the view why, once per session.
+					// The orbit cannot engage aboard a ship in space.
 					g_orbitSpaceNoticed = true;
 					json notice;
 					notice["kind"] = "info";
@@ -1367,8 +1269,7 @@ namespace OSF::API
 			return cam.BrowseOrbitHeld();
 		}
 
-		// Fallback when relative-pointer registration is unavailable. The browser paces and combines
-		// web deltas before they reach this handler.
+		// Fallback when relative-pointer registration is unavailable.
 		void OnOrbit(const char*, const char* a_payloadJson, const char* a_srcView, void*) noexcept
 		{
 			const json p = ParsePayload(a_payloadJson);
@@ -1383,9 +1284,7 @@ namespace OSF::API
 				NumOr(p, "dx", 0.0f), NumOr(p, "dy", 0.0f), NumOr(p, "wheel", 0.0f));
 		}
 
-		// OSF UI accumulates raw WM_INPUT packets and calls this at
-		// most once per game frame. Only updates steer the camera; begin/end/cancel
-		// are ownership edges and carry no camera semantics.
+		// At most once per game frame. Only kUpdate steers; begin/end/cancel are ownership edges.
 		void OnRelativePointer(const char* a_viewId, OSFUI::API::RelativePointerPhase a_phase,
 			float a_dx, float a_dy, float a_wheel, void*) noexcept
 		{
@@ -1436,7 +1335,7 @@ namespace OSF::API
 	void PushCatalogUpdate()
 	{
 		if (!g_ui.IsReady()) {
-			return;  // OSF UI absent or no live document — the next document fetches current data on init
+			return;  // the next document fetches current data on init
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
 		SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
@@ -1448,19 +1347,13 @@ namespace OSF::API
 			REX::WARN("[UI] OpenBrowser: OSF UI not present — nothing to open");
 			return false;
 		}
-		// Close any open game menus FIRST, so the browser opens over the world, not over a
-		// still-open inventory or book. UIMessageQueue is main-thread-only and this can run on
-		// a Papyrus VM thread, so the whole sequence uses the main-thread queue; RequestMenu itself is
-		// thread-safe and queued, keeping the hide -> open order.
+		// UIMessageQueue is main-thread-only and callers may be on a Papyrus VM thread.
 		Util::NativeMainThreadQueue::Post([]() {
-			// A normal browser open must never land in wheel mode: drop any pending wheel
-			// state and, if the view is already up as the wheel, switch it back to the console.
 			if (g_wheel.active) {
 				g_wheel = {};
 				SendJson(kViewId, "osf.animation.mode", json{ { "mode", "browser" } });
 			}
-			// Capture the reticle target NOW, before any menu (ours included) is up — once the
-			// browser opens the engine nulls the slot, and PICK resolves this capture instead.
+			// Must precede the open: the engine nulls crosshairRef while any menu is up.
 			g_openPickToken = 0;
 			if (RE::TESObjectREFR* ref = CrosshairRef()) {
 				g_openPickToken = AllocToken(ref);
@@ -1469,7 +1362,6 @@ namespace OSF::API
 			auto* ui = RE::UI::GetSingleton();
 			auto* queue = RE::UIMessageQueue::GetSingleton();
 			if (ui && queue) {
-				// Cover the menus the browser might be opened over (inventory, data, a book).
 				for (const char* menu : { "BookMenu", "InventoryMenu", "DataMenu" }) {
 					if (ui->IsMenuOpen(menu)) {
 						queue->AddMessage(menu, RE::UI_MESSAGE_TYPE::kHide);
@@ -1490,27 +1382,23 @@ namespace OSF::API
 			UI::HudMessage::Error("OSF UI not present or too old");
 			return false;
 		}
-		// Settings hotkeys and Papyrus may run on workers. Queue all ref and menu
-		// access on the verified game main thread.
+		// Settings hotkeys and Papyrus may run on workers.
 		Util::NativeMainThreadQueue::Post([prefix = std::string{ a_tagPrefix }]() {
 			g_wheel = {};
 			g_wheel.active = true;
 			g_wheel.tagPrefix = prefix.empty() ? std::string{ "player.emote." } : prefix;
 
-			// Capture the crosshair target, gated harder than a browser pick: the wheel plays
-			// on the target IMMEDIATELY on pick, so dead / fighting / non-human actors fall
-			// back to a player-only wheel (a downgrade, not an error).
+			// The wheel plays on the target immediately on pick, so gate harder than a browser pick.
 			if (RE::TESObjectREFR* ref = CrosshairRef(); ref && ref->IsActor()) {
 				auto*       actor = static_cast<RE::Actor*>(ref);
 				const char* reject = nullptr;
 				if (actor->IsDead()) {
 					reject = "dead";
 				} else if (actor->combatController != nullptr) {
-					// Combat via the member read, not the IsInCombat() virtual — that vtable
-					// slot proved unreliable (see UISettings' combat guard).
+					// The IsInCombat() vtable slot is unreliable; read the member instead.
 					reject = "in combat";
 				} else if (Util::ActorSpecies(actor) != "human") {
-					reject = "non-human";  // no creature emote packs — human clips would T-pose them
+					reject = "non-human";  // human clips would T-pose them
 				}
 				if (reject) {
 					REX::DEBUG("[UI] OpenWheel: crosshair target '{}' rejected ({}) — player-only wheel", ScanLabel(ref), reject);
@@ -1520,7 +1408,6 @@ namespace OSF::API
 				}
 			}
 
-			// Same open sequence as OpenBrowser: hide the menus the hotkey could fire over.
 			auto* ui = RE::UI::GetSingleton();
 			auto* queue = RE::UIMessageQueue::GetSingleton();
 			if (ui && queue) {
@@ -1531,8 +1418,7 @@ namespace OSF::API
 					}
 				}
 			}
-			// Immediate mode push covers a view that is already open (browser -> wheel switch);
-			// the osf.opened replay covers a fresh view creation racing this send.
+			// Covers an already-open view; the osf.opened replay covers a fresh one.
 			SendWheelMode();
 			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::DEBUG("[UI] OpenWheel: RequestMenu('{}', open) -> {} (prefix '{}', target: {})",
@@ -1573,11 +1459,7 @@ namespace OSF::API
 		g_ui.RegisterSend("osf.animation.orbit", &OnOrbit, nullptr);
 		g_ui.RegisterSend("osf.animation.requestClose", &OnRequestClose, nullptr);
 
-		// Any scene lifecycle change (start, stage advance, any termination — including
-		// natural timer/loop ends and Papyrus stops) refreshes the browser's ACTIVE list.
-		// May fire off the game thread (a Papyrus StopScene), and the push touches
-		// main-thread-only bridge state (the token map), so hop through the task queue —
-		// which also lets the end path's ReleaseSlot retire the slot before ListScenes reads.
+		// May fire off-thread (Papyrus StopScene); the hop also lets ReleaseSlot retire the slot first.
 		Scene::SceneRuntime::GetSingleton().SetSceneObserver([]() {
 			Util::NativeMainThreadQueue::Post([]() { PushActiveScenes(); });
 		});

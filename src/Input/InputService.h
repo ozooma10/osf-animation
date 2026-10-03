@@ -18,56 +18,42 @@ namespace OSF::Input
 		bool  rightShoulder{ false };
 	};
 
-	// input hook: a vfunc swap on RE::UI's BSInputEventReceiver::PerformInputProcessing; the point where the game's UI receives the per-frame raw InputEvent queue. 
+	// Vfunc swap on RE::UI's BSInputEventReceiver::PerformInputProcessing, which receives the per-frame raw InputEvent queue.
 	class InputService
 	{
 	public:
 		static InputService& GetSingleton();
 
-		// Proves the compiled UI layout matches the running binary. Must pass before install. Logs + dumps on failure.
+		// Must pass before Install.
 		bool VerifyUiLayout();
 
-		// Swaps the vfunc. Call once the UI singleton exists (kPostPostDataLoad). Idempotent.
+		// Once the UI singleton exists (kPostPostDataLoad). Idempotent.
 		bool Install();
 
-		// The runtime registers HOW a verb executes (it drives the active scene + clock). Called on the game thread.
+		// Game thread.
 		void SetVerbHandler(std::function<void(Verb, const Grant&)> a_handler);
 
-		// Engage/release the director channel for one scene. Engage stores the grant + arms dispatch;
-		// Release clears it if a_handle is the active grant. Driven by the undo ledger (Mechanism::kInputChannel), so the channel tracks the scene lock's lifecycle exactly.
+		// Driven by the undo ledger (Mechanism::kInputChannel). Release is a no-op unless a_handle is the active grant.
 		void Engage(const Grant& a_grant);
 		void Release(std::int32_t a_handle);
 
-		// Raw mouse-look delta passthrough for the self-driven scene-orbit camera. While capture is on the
-		// input hook accumulates MouseMoveEvent deltas; DrainMouseDelta returns + resets the accumulator.
-		// The mouse WHEEL (carried as mouse ButtonEvents) is accumulated too for orbit zoom; DrainWheelDelta
-		// returns + resets the net wheel ticks (+ = wheel up / zoom in).
+		// Scene-orbit passthrough; Drain* return and reset the accumulators. Wheel + = up / zoom in.
 		void SetMouseCapture(bool a_on);
 		void DrainMouseDelta(float& a_dx, float& a_dy);
 		void DrainWheelDelta(float& a_wheel);
 		[[nodiscard]] GamepadState ReadGamepadState() const;
 
-		// A UI cursor is on screen (the scene browser reported visible via osf.animation.opened/osf.animation.closed).
-		// While set, orbit capture only accumulates look/wheel deltas during an LMB DRAG, so plain
-		// mouse movement drives the cursor and plain wheel scrolls the UI; while clear (no cursor),
-		// the orbit free-looks as before. Sticky across scenes — it tracks the browser, not a scene.
-		// NOTE: while the OSF UI overlay is open its WndProc swallow starves the input hook of
-		// keyboard/mouse — the browser steers via InjectOrbitDelta instead. Gamepad events still reach
-		// this engine queue; the hook snapshots camera state before consuming them so the player cannot
-		// walk/jump under the browser.
+		// While the browser cursor is up, orbit deltas accumulate only during an LMB drag.
+		// The OSF UI overlay starves this hook of keyboard/mouse (the browser uses InjectOrbitDelta); gamepad still arrives here.
 		void SetUiCursorVisible(bool a_on);
 
-		// Native free cam (`tfc`) owns the gamepad while active. The browser normally consumes
-		// gamepad events after snapshotting them for the self-driven orbit, but TFC uses the engine
-		// input path; allow those events through until free cam exits.
+		// TFC reads the engine input path, so gamepad events pass through while it's active.
 		void SetNativeFreeCamGamepad(bool a_on);
 
-		// Bridge-fed orbit steering (osf.orbit from the scene browser): world-area LMB-drag deltas
-		// in view CSS px (+wheel notches, + = zoom in). Scaled to the raw-mouse axis and added to
-		// the same accumulators the hook feeds; dropped when no orbit capture is active.
+		// osf.orbit drag deltas in view CSS px (wheel + = zoom in); dropped when capture is off.
 		void InjectOrbitDelta(float a_dx, float a_dy, float a_wheel);
 
-		// Load teardown: drop the grant + disarm. Mirrors Player/CameraService::OnStopAll.
+		// Load teardown.
 		void OnStopAll();
 	};
 }

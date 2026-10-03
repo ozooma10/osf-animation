@@ -28,7 +28,7 @@ namespace OSF::Scene
 		union
 		{
 			PreviewWorldAnchor worldAnchor{};
-			PreviewWorldAnchor anchor;  // compatibility field; aliases the same storage
+			PreviewWorldAnchor anchor;  // alias of worldAnchor
 		};
 	};
 	using InspectionRequest = PreviewRequest;
@@ -40,7 +40,7 @@ namespace OSF::Scene
 		std::int32_t stage = -1;
 		std::vector<RE::Actor*> participants;
 		Animation::PlaybackPlan plan;
-		bool anchorImplicit = false;  // plan anchor was sampled from (or inherited for) actor[0], not caller-supplied
+		bool anchorImplicit = false;  // anchor sampled from actor[0], not caller-supplied
 	};
 	using PreparedInspection = PreparedPreview;
 
@@ -74,8 +74,8 @@ namespace OSF::Scene
 	};
 	using InspectionSnapshot = PreviewSnapshot;
 
-	// Owns scrub-only Layer-A playback sessions and the render-only prop state reconstructed for them.
-	// Game-thread only; production SceneRuntime actions and ledgers are never rewound.
+	// Scrub-only Layer-A playback with render-only props. Game-thread only; never touches
+	// production SceneRuntime actions or ledgers.
 	class PlaybackPreviewService
 	{
 	public:
@@ -86,15 +86,11 @@ namespace OSF::Scene
 			const RoutePreviewRequest& a_request, std::string& a_error) const;
 		std::int32_t Start(PreparedPreview a_prepared, std::string& a_error);
 		std::int32_t StartRoute(PreparedRoutePreview a_prepared, std::string& a_error);
-		// Scrubbing is frame-accurate transport, so a seek always pauses: dragging the timeline (or
-		// stepping a frame) while the preview runs would otherwise fight the clock.
+		// Always pauses; a running clock would fight the scrubber.
 		bool Seek(std::int32_t a_handle, float a_time);
-		// Preview transport: 0 = paused (the state a preview starts in), 1 = play at authored speed.
-		// A running preview loops its clip — a browser preview has no timers, loop targets, or marks,
-		// so it can only end when the view stops it.
+		// 0 = paused (initial state), 1 = authored speed. A running preview loops until stopped.
 		bool SetSpeed(std::int32_t a_handle, float a_speed);
-		// Once-per-frame game-thread pump for RUNNING previews: reconciles their render-only props
-		// at prop marks and loop boundaries. Paused previews reconcile on Seek.
+		// Reconciles props of running previews; paused previews reconcile on Seek.
 		void Tick();
 		bool Stop(std::int32_t a_handle);
 		void StopForActor(RE::Actor* a_actor);
@@ -134,11 +130,8 @@ namespace OSF::Scene
 			std::vector<PreviewRouteProp> routeProps;
 			InspectionPropCursor propCursor;
 			float propDuration = -1.0f;
-			// Pre-inspection baseline, carried across stage switches: the anchor the first preview
-			// resolved (only meaningful when anchorImplicit) and the cast's pre-inspection transforms.
-			// A replacement preview for the same cast inherits both in Prepare — sampling live state
-			// there would re-anchor on the already-placed actors (walking the cast by role 0's offset
-			// per switch) and restore them to the outgoing stage's placement on final stop.
+			// Pre-inspection anchor and transforms, inherited across stage switches; resampling the
+			// already-placed cast would drift it by role 0's offset each switch.
 			bool anchorImplicit = false;
 			RE::NiPoint3 anchorPos{};
 			float anchorHeading = 0.0f;
@@ -147,7 +140,7 @@ namespace OSF::Scene
 		};
 
 		RE::Actor* RoleActor(const Preview& a_preview, std::string_view a_role) const;
-		// a_durationSec is the previewed clip's length (0 = not known yet); only `atFrame` actions need it.
+		// a_durationSec: clip length, 0 = unknown.
 		void ReconcileProps(Preview& a_preview, float a_fraction, bool a_atEnd, float a_durationSec,
 			bool a_force = false);
 		void ReconcileRouteProps(Preview& a_preview, float a_frame, bool a_atEnd, float a_durationFrames,
@@ -160,5 +153,5 @@ namespace OSF::Scene
 		std::int32_t _nextHandle = -1;
 	};
 
-	using SceneInspectionService = PlaybackPreviewService;  // compatibility spelling
+	using SceneInspectionService = PlaybackPreviewService;
 }

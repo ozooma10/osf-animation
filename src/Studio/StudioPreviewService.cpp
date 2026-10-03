@@ -32,9 +32,7 @@ namespace OSF::Studio
 
 		constexpr std::uint32_t kProtocolVersion = 2;
 		constexpr std::uintmax_t kMaxRequestBytes = 256 * 1024;
-		// Studio Link's documented per-clip ceiling. Util::kMaxClipBytes (256 MiB) is the decoder's
-		// hard bound; a preview clip is read on the monitor thread and decoded on the game thread,
-		// so it gets the much tighter contract the request replies already promise.
+		// Studio Link's documented per-clip ceiling, much tighter than the decoder's Util::kMaxClipBytes.
 		constexpr std::uintmax_t kMaxStudioClipBytes = 32ull * 1024 * 1024;
 		constexpr std::uint32_t kLeaseMs = 30000;
 		constexpr float kFramesPerSecond = 30.0F;
@@ -76,7 +74,7 @@ namespace OSF::Studio
 
 		std::mutex g_lifecycleMutex;
 		std::mutex g_replyMutex;
-		bool g_initialized = false;  // lifecycle mutex
+		bool g_initialized = false;  // guarded by g_lifecycleMutex
 		bool g_started = false;
 		std::atomic_bool g_running{ false };
 		std::atomic<std::uint64_t> g_generation{ 0 };
@@ -85,8 +83,7 @@ namespace OSF::Studio
 		bool g_rawPreviewActive = false;  // game thread only
 		std::string g_rawPreviewSource;   // game thread only
 		HelmetPlayback g_helmet;          // game thread only
-		// Declared last so its destructor requests stop and joins while every object the monitor
-		// can touch is still alive during process shutdown.
+		// Declared last: its destructor joins while everything the monitor touches is still alive.
 		std::jthread g_monitor;
 
 		double NowSeconds()
@@ -133,9 +130,7 @@ namespace OSF::Studio
 
 		void Reply(std::string_view a_id, bool a_ok, std::string_view a_message)
 		{
-			// Replies come from both the monitor thread (parse failures) and frame commands.
-			// Serialize writers, and publish atomically — write a temp file, then rename over
-			// response.json — so Studio never reads a truncated or interleaved document.
+			// Monitor thread and frame commands both reply; publish via temp file + rename so Studio never reads a torn document.
 			const std::scoped_lock lock{ g_replyMutex };
 			const auto target = g_directory / "response.json";
 			const auto tmp = g_directory / "response.json.tmp";
@@ -332,8 +327,7 @@ namespace OSF::Studio
 				return std::nullopt;
 			}
 
-			// Read only the one or two clips this request will actually play. The setup still
-			// validates all transition metadata, but no longer allocates up to four 32 MiB buffers.
+			// Read only the clips this request plays; transition metadata is still validated.
 			for (const auto& id : required) {
 				auto& transition = result.transitions.at(id);
 				auto bytes = ReadClip(transition.file, a_error);
@@ -390,9 +384,7 @@ namespace OSF::Studio
 			const auto& segment = g_helmet.sequence[g_helmet.segment];
 			if (!ApplyState(segment.from, a_player, a_error)) return false;
 			auto& manager = Animation::GraphManager::GetSingleton();
-			// Commit the source key only once the play succeeded: StopHelmetPreview only stops the
-			// graph when the CURRENT animation matches g_helmet.source, so committing before a failed
-			// play would leave the previous (still-playing) segment unstoppable.
+			// Commit the source only after a successful play: StopHelmetPreview matches on g_helmet.source.
 			const std::string source = "studio-helmet:" + segment.id;
 			if (!manager.PlayAnimationBytes(a_player, segment.bytes, source, &a_error)) {
 				return false;
@@ -462,9 +454,7 @@ namespace OSF::Studio
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			if (!player) return FailHelmetPreview("player became unavailable");
 			auto& manager = Animation::GraphManager::GetSingleton();
-			// The replacement/playback guards apply to state holds too (HoldState commits
-			// g_helmet.source and leaves the pose clip playing at speed 0) — only the
-			// event/segment-advance logic below is sequence-only.
+			// Guards apply to state holds too (pose clip at speed 0); only event/segment advance is sequence-only.
 			if (manager.GetCurrentAnimation(player) != g_helmet.source) {
 				return FailHelmetPreview("another OSF animation replaced it");
 			}
@@ -530,10 +520,8 @@ namespace OSF::Studio
 					g_rawPreviewActive = false;
 					g_rawPreviewSource.clear();
 				}
-				// A just-stopped Studio graph keeps IsPlaying true through its fade-out ramp (and
-				// indefinitely while the game is paused) — only a graph this service did NOT start
-				// counts as foreign ownership. A live helmet preview is ours too: retire it (suit
-				// lease, prop) before the raw clip takes the player.
+				// A fading Studio graph stays IsPlaying (indefinitely while paused); only graphs we didn't start are foreign.
+				// A live helmet preview is ours too: retire it before the raw clip takes the player.
 				if (!g_rawPreviewActive && manager.IsPlaying(player) &&
 					!manager.GetCurrentAnimation(player).starts_with("studio-")) {
 					return Reply(id, false, "The player is already playing a non-Studio OSF animation");
@@ -564,7 +552,7 @@ namespace OSF::Studio
 				if (g_helmet.active && manager.GetCurrentAnimation(player) != g_helmet.source) {
 					StopHelmetPreview();
 				}
-				// Same own-fade carve-out as QueuePlay: a fading "studio-*" graph is ours, not foreign.
+				// A fading "studio-*" graph is ours, not foreign.
 				if ((!g_helmet.active && manager.IsPlaying(player) &&
 						!manager.GetCurrentAnimation(player).starts_with("studio-")) ||
 					g_rawPreviewActive) {
@@ -613,18 +601,14 @@ namespace OSF::Studio
 		void ProcessRequest(const json& a_request)
 		{
 			if (!g_running.load(std::memory_order_acquire)) return;
-			// The caller already type-checked "id"; everything else is untrusted. A wrong-typed
-			// field throws out of value()/at() — reply with the parse failure instead of letting
-			// it escape to the monitor's catch-all, which would drop the request without a reply.
+			// Wrong-typed fields throw; reply with the parse failure rather than letting the catch-all drop the request.
 			const std::string id = a_request.value("id", std::string{});
 			if (id.empty() || id.size() > 128) return;
 			try {
 				if (!a_request.is_object() || a_request.value("version", 0u) != kProtocolVersion ||
 					a_request.value("session", std::string{}) != g_session) return;
 				const std::string command = a_request.value("command", std::string{});
-				// Read-only commands must not invalidate already-queued work: a keep-alive ping
-				// arriving before the game thread drains a queued play would silently cancel it
-				// (the play task would no-op with no reply, and Studio would time out).
+				// Read-only commands must not supersede queued work, or a ping would silently cancel a queued play.
 				const bool supersedes = command == "stop" || command == "helmet.stop" ||
 				                        command == "play" || command == "helmet.preview";
 				const auto generation = supersedes ?
@@ -672,13 +656,12 @@ namespace OSF::Studio
 		{
 			if (a_directory.empty()) return;
 			try {
-				// session.json is the readiness sentinel, so retire it first. Preserve files if a
-				// different process/session replaced them while this instance was shutting down.
+				// session.json is the readiness sentinel, so retire it first. Keep files another session replaced.
 				for (const auto* name : { "session.json", "request.json", "response.json", "response.json.tmp" }) {
 					const auto file = a_directory / name;
 					std::error_code ec;
 					if (a_session.empty()) {
-						// Startup owns these protocol filenames and must also clear a dangling symlink.
+						// Also clears a dangling symlink.
 						std::filesystem::remove(file, ec);
 					} else if (std::filesystem::is_regular_file(file, ec) && !ec && HasSession(file, a_session)) {
 						std::filesystem::remove(file, ec);
@@ -689,8 +672,7 @@ namespace OSF::Studio
 
 		void Monitor(std::stop_token a_stop, std::filesystem::path a_directory, std::string a_session)
 		{
-			// std::jthread also requests stop from its destructor. Close admission in that
-			// process-shutdown path, where there is no game-thread settings callback to do it.
+			// jthread's destructor requests stop at process shutdown, where no settings callback closes admission.
 			std::stop_callback closeAdmission{ a_stop, [] {
 				g_running.store(false, std::memory_order_release);
 			} };
@@ -706,17 +688,14 @@ namespace OSF::Studio
 					const auto size = std::filesystem::file_size(requestFile, ec);
 					std::error_code writeEc;
 					const auto write = std::filesystem::last_write_time(requestFile, writeEc);
-					// Re-parse only when the file actually changed: a handled (or malformed)
-					// request would otherwise cost an open+parse every 100 ms for the session.
+					// Re-parse only on change; otherwise a handled request costs an open+parse every 100 ms.
 					if (!ec && size > 0 && size <= kMaxRequestBytes &&
 						(writeEc || write != lastWrite || size != lastSize)) {
 						lastWrite = writeEc ? std::filesystem::file_time_type{} : write;
 						lastSize = size;
 						std::ifstream in(requestFile, std::ios::binary);
 						const json request = json::parse(in, nullptr, false);
-						// Type-guarded id read: value() throws on a present-but-non-string "id", and an
-						// escape here would skip the lastId latch below — re-reading the same file into
-						// the same throw at 10 Hz forever, with no reply ever written.
+						// Type-guarded: a throw here would skip the lastId latch and retry the same file at 10 Hz forever.
 						const auto idIt = request.is_object() ? request.find("id") : request.end();
 						const std::string id = idIt != request.end() && idIt->is_string() ? idIt->get<std::string>() : std::string{};
 						if (!id.empty() && id != lastId) { lastId = id; ProcessRequest(request); }
@@ -750,16 +729,13 @@ namespace OSF::Studio
 		void StopPreviewServiceLocked()
 		{
 			if (!g_started) return;
-			// Close admission before invalidating the queue. A request already being parsed may
-			// still enqueue, but it cannot pass both the running and generation checks, including
-			// after a later restart (which advances the generation again).
+			// Close admission first; an in-flight parse can't pass both the running and generation checks.
 			g_running.store(false, std::memory_order_release);
 			g_generation.fetch_add(1, std::memory_order_acq_rel);
 			g_monitor.request_stop();
 			if (g_monitor.joinable()) g_monitor.join();
 
-			// Settings changes arrive through the frame command queue. Keep every engine/RE
-			// operation here; the monitor only performs file IO and queues work.
+			// Engine/RE work stays here; the monitor only does file IO and queues work.
 			StopHelmetPreview();
 			StopRawPreview();
 			g_started = false;
@@ -783,8 +759,7 @@ namespace OSF::Studio
 				g_directory.clear();
 				return;
 			}
-			// A stopped or crashed prior session must not look live, and an old request id must
-			// not become the new monitor's duplicate-suppression latch.
+			// A stale session must not look live, and an old request id must not seed the new duplicate latch.
 			CleanupInbox(g_directory, {});
 			g_session = NewSessionToken();
 			const bool helmetAvailable = Suit::Acquire();
@@ -836,8 +811,7 @@ namespace OSF::Studio
 			std::lock_guard lifecycleLock{ g_lifecycleMutex };
 			if (!g_initialized) {
 				g_initialized = true;
-				// Default-off startup also clears the readiness marker left by an interrupted
-				// previous game session, even when OSF UI is absent.
+				// Clears a readiness marker left by an interrupted session, even when OSF UI is absent.
 				CleanupInbox(LinkDirectory(), {});
 			}
 			if (a_enabled) StartPreviewServiceLocked();

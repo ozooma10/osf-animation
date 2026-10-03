@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """Extract the AnimFurn* keyword table from Starfield.esm -> anim-furn-keywords.json.
 
-Furniture animation classes in Starfield are declared by keywords named `AnimFurn<Class>`
-(e.g. `AnimFurnChair`, `AnimFurnSitTable_Write`), carried in each FURN record's keyword
-array. The vanilla animation folders (meshes/actors/human/animations/furniture/<class>/)
-line up 1:1 with these class names, so an anchor keyword resolved from this table pins a
-generated vanilla furniture scene to every furniture instance of that class in the game
-(RE::TESObjectREFR::HasKeyword, the same check OSF's AnchorAccepts runs).
+Vanilla furniture/<class>/ animation folders match FURN `AnimFurn<Class>` keywords 1:1,
+so these keywords anchor generated furniture scenes to every instance of that class.
 
-Output (committed, regenerate only on a game update):
+Output (committed; regenerate on a game update):
   { "<normalized class>": { "name": "AnimFurn<Class>", "formid": "0xNNNNNN" }, ... }
-normalized = lowercased AnimFurn-prefix-stripped name, underscores/spaces/dashes removed.
+normalized = lowercased, AnimFurn prefix stripped, underscores/spaces/dashes removed.
 
-Bethesda plugin format notes: 24-byte record header, 6-byte subrecord header, per-record
-zlib compression (flag 0x00040000), XXXX subrecord = uint32 real-size override for the
-next subrecord, top-level GRUPs (type 0) labelled with the record signature.
+Plugin format: 24-byte record header, 6-byte subrecord header, zlib flag 0x00040000,
+XXXX = uint32 size override for the next subrecord.
 
 Usage:
     python extract_furn_anchors.py [--esm <path>] [--out anim-furn-keywords.json]

@@ -63,10 +63,7 @@ namespace OSF::Registry
 			std::size_t clipLibraryEntries = 0;
 		};
 
-		// --- Form-ref resolution ("Plugin.esm|0xLOCAL") ------------------------------------------
-		// Resolve a form ref to T* (BGSKeyword / TESRace). Throws (rejecting the scene) with a precise
-		// role+field message on any failure. The RE-sensitive FormID composition lives in
-		// Util::ComposeFormID. LookupByID<T> returns null for not-found OR wrong-type.
+		// "Plugin.esm|0xLOCAL" -> T*; throws (rejecting the scene). LookupByID<T> is null for not-found OR wrong type.
 		template <class T>
 		T* ResolveFormRef(const std::string& a_ref, const std::string& a_sceneId, const std::string& a_role,
 			const char* a_field, const char* a_expected)
@@ -84,42 +81,33 @@ namespace OSF::Registry
 			return form;
 		}
 
-		// File-local reusable role TEMPLATES: the OBJECT form of a multi-scene file's top-level
-		// `roles`. Exact, case-sensitive id -> a validated template. Scene-level `roles` arrays may
-		// mix inline role objects with references to these by id; a reference expands to an ordinary
-		// SceneRole at load. Never leaves the file — no aliases or cross-file references.
+		// Object form of a file's top-level `roles`: exact, case-sensitive id -> template. File-local only.
 		struct RoleTemplate
 		{
-			json      raw;     // the definition's original JSON (`name` defaulted to the id) — the merge base for object overrides
-			SceneRole parsed;  // the validated parse of `raw` — copied directly by plain-string references
+			json      raw;     // `name` defaulted to the id; merge base for object overrides
+			SceneRole parsed;  // copied directly by plain-string references
 		};
 		using RoleRegistry = std::map<std::string, RoleTemplate>;
 
-		// File-local reusable prop TEMPLATES: a file's top-level `props`. Exact, case-sensitive id ->
-		// the definition's RAW json, deliberately left unparsed: a template may be PARTIAL (source
-		// only, node only), so only the merged action is a complete, validatable attachment. An
-		// `osf.prop.attach` looks its template up by `use` when present, else by its own `prop` id.
-		// Never leaves the file — no aliases or cross-file references.
+		// A file's top-level `props`, kept as raw JSON: templates may be partial, so only the merged
+		// action is validatable. File-local only.
 		using PropRegistry = std::map<std::string, json>;
 
-		// How a scene-level role got its runtime name (drives AssignRoleNames).
 		enum class RoleNameKind : std::uint8_t
 		{
-			kAutomatic,  // plain string ref, or { "id": ... } with no `name`: the template's effective name, numbered on collision
-			kExplicit,   // { "id": ..., "name": "x" } or a named inline role: kept exactly; duplicates reject the scene
-			kAnonymous   // explicit/inline "name": "" or an unnamed inline role: never numbered
+			kAutomatic,  // template name, numbered on collision
+			kExplicit,   // kept exactly; duplicates reject the scene
+			kAnonymous   // never numbered
 		};
 
-		// One scene-level `roles` entry after reference expansion, before runtime-name assignment.
 		struct PendingRole
 		{
 			SceneRole     role;
 			RoleNameKind  nameKind = RoleNameKind::kAnonymous;
-			std::string   autoBase;  // kAutomatic: the template's effective name ("" = stays anonymous)
+			std::string   autoBase;  // kAutomatic: template name; "" = stays anonymous
 		};
 
-		// Parse an { x, y, z, heading } placement. Authors write heading in DEGREES; the
-		// runtime uses radians.
+		// Authored heading is degrees; runtime uses radians.
 		Animation::ParticipantPlacement ParseOffsetField(const json& a_json)
 		{
 			Animation::ParticipantPlacement p{};
@@ -139,7 +127,7 @@ namespace OSF::Registry
 			if (root == "naf") {
 				return root;
 			}
-			// Any other value is a Data-relative path prefix joined ahead of each relative clip file (the generated vanilla packs use "meshes/actors/human/animations").
+			// Otherwise a Data-relative prefix for relative clip files.
 			std::replace(root.begin(), root.end(), '\\', '/');
 			while (!root.empty() && root.back() == '/') {
 				root.pop_back();
@@ -223,8 +211,7 @@ namespace OSF::Registry
 					}
 					clip.mask = mask->id;
 				}
-				// Pre-measured duration (the generated vanilla packs carry these) — spares the
-				// duration scan a per-clip walk of the game archive.
+				// Pre-measured duration spares the duration scan an archive walk.
 				if (auto sit = a_clip.find("sec"); sit != a_clip.end()) {
 					if (!sit->is_number() || sit->get<float>() <= 0.0f) {
 						throw std::runtime_error(a_subject + ": clip 'sec' must be a positive number");
@@ -353,7 +340,7 @@ namespace OSF::Registry
 			e.labelKey = a_edge.value("labelKey", std::string{});
 			e.isDefault = a_edge.value("default", false);
 			e.priority = a_edge.value("priority", 0);
-			// branchable (advance) edges feed GetSceneEdge* menus -> need id + label.
+			// Advance edges feed GetSceneEdge* menus.
 			if (e.when == EdgeWhen::kAdvance && (e.id.empty() || e.label.empty())) {
 				throw std::runtime_error("node '" + a_nodeId + "': a branchable (advance) edge requires 'id' and 'label'");
 			}
@@ -407,14 +394,8 @@ namespace OSF::Registry
 				" has unknown 'emitter' value '" + value + "' (expected 'listener' or 'role')");
 		}
 
-		// Parse the timing fields shared by every track lane (cue/action/sound/camera): the
-		// `repeat` flag and the position — either `at` (enter/exit/end anchor or a numeric
-		// clip-fraction in [0,1)) or `atFrame` (a zero-based clip frame at kFrameRate). The two are
-		// mutually exclusive. Writes pos/fraction/frame/everyLoop onto a_out, whose `pos` enum
-		// supplies the kEnter/kExit/kEnd/kFraction values (all four lane enums share those names);
-		// an `atFrame` entry is a kFraction entry that carries `frame` instead of `fraction`.
-		// a_subject is the entry descriptor for diagnostics, e.g. "action 'osf.fade.out'". When
-		// a_atRequired, a missing position is rejected (cues); otherwise it defaults to the enter anchor.
+		// `at` (anchor or fraction in [0,1)) XOR `atFrame`; an `atFrame` entry is kFraction carrying `frame`.
+		// Without a_atRequired a missing position defaults to enter.
 		template <class Entry>
 		void ParseTrackTiming(const json& a_entry, Entry& a_out, const std::string& a_nodeId,
 			const std::string& a_subject, bool a_atRequired)
@@ -434,9 +415,7 @@ namespace OSF::Registry
 			}
 			a_out.everyLoop = (repeat == "loop");
 			if (frameIt != a_entry.end()) {
-				// A frame is an ABSOLUTE clip-local position (frame / kFrameRate seconds), so unlike a
-				// fraction it needs no clip duration here — and a frame past the clip end simply never
-				// fires (nothing to validate it against at load time).
+				// Absolute position; a frame past the clip end can't be checked here and just never fires.
 				if (!frameIt->is_number()) {
 					throw std::runtime_error("node '" + a_nodeId + "': " + a_subject + " 'atFrame' must be a whole frame number");
 				}
@@ -474,9 +453,6 @@ namespace OSF::Registry
 			}
 		}
 
-		// The prop parsers below take a_subject — the full diagnostic prefix of whatever owns the
-		// keys, e.g. "node 'x': action 'osf.prop.attach'" for an action or "props template 'helmet'"
-		// for a file-level definition — so one set of validators serves both.
 		std::array<float, 3> ParsePropVector(
 			const json& a_owner, const char* a_field, const std::string& a_subject)
 		{
@@ -541,8 +517,7 @@ namespace OSF::Registry
 			return result;
 		}
 
-		// Split out of ParsePropAttachment so a file-level `props` template can validate its own
-		// `scale` without carrying the attachment node that only a complete attachment needs.
+		// Separate so a partial `props` template can validate `scale` without an attachment node.
 		float ParsePropScale(const json& a_owner, const std::string& a_subject)
 		{
 			const float scale = a_owner.value("scale", 1.0f);
@@ -572,21 +547,14 @@ namespace OSF::Registry
 			return result;
 		}
 
-		// The prop keys a `props` template may supply, and that an action may override. Deliberately a
-		// STRICT SUBSET of an action's keys: timing (`at`/`atFrame`/`repeat`), dispatch (`type`) and
-		// identity (`prop`, `role`) are never inheritable, so a template can neither move an action in
-		// time nor retarget it.
+		// Strict subset of action keys: timing, `type`, `prop` and `role` are never inheritable.
 		constexpr std::array<const char*, 6> kPropTemplateKeys{
 			"source", "attachmentNode", "node", "position", "rotation", "scale"
 		};
 		constexpr std::array<const char*, 4> kPropMergeKeys{ "source", "position", "rotation", "scale" };
 
-		// Validate ONE file-level `props` definition. A template is deliberately allowed to be
-		// PARTIAL — source-only, node-only — so only the keys it actually carries are checked here;
-		// completeness is enforced on the MERGED action, the only place it can be known.
-		//
-		// Unknown keys ARE rejected: because the template namespace is that strict subset, a stray
-		// "at" or "role" would otherwise sit in the file doing exactly nothing.
+		// Templates may be partial; completeness is checked on the merged action. Unknown keys are
+		// rejected since a stray "at"/"role" would silently do nothing.
 		void ValidatePropTemplate(const json& a_templ, const std::string& a_subject)
 		{
 			Util::JsonView{ a_templ, a_subject, Util::JsonJoin::kSpace }.RejectUnknownKeys(
@@ -602,12 +570,11 @@ namespace OSF::Registry
 			if (node != a_templ.end() && (!node->is_string() || node->get_ref<const std::string&>().empty())) {
 				throw std::runtime_error(a_subject + " attachment node must be a non-empty string");
 			}
-			(void)ParsePropVector(a_templ, "position", a_subject);  // absent = no-op
+			(void)ParsePropVector(a_templ, "position", a_subject);
 			(void)ParsePropVector(a_templ, "rotation", a_subject);
 			(void)ParsePropScale(a_templ, a_subject);
 		}
 
-		// Every id a `props` registry defines, for a "you probably meant one of these" diagnostic.
 		std::string DescribePropRegistry(const PropRegistry& a_props)
 		{
 			if (a_props.empty()) {
@@ -629,58 +596,42 @@ namespace OSF::Registry
 			return listed;
 		}
 
-		// Resolve an `osf.prop.attach` entry against the file's `props` registry. The template is
-		// named by `use` when present, else by the action's own `prop` id — so the common case
-		// ({ "prop": "helmet" }) needs no reference syntax at all.
-		//
-		// Returns a REFERENCE to whichever object the attach keys should be read from: the action
-		// itself when no template applies, so a file without `props` copies nothing and behaves
-		// exactly as it always has. Otherwise the merge lands in a_merged_out and that is returned.
-		//
-		// Merging is SHALLOW and key-level — a key the action authors wins outright, otherwise the
-		// template supplies it. Notably `source` is inherited or overridden WHOLE, never deep-merged:
-		// it is exactly-one-of `form`/`equippedArmor`, so a deep merge of a `form` override onto an
-		// `equippedArmor` template would yield an object carrying BOTH and trip ParsePropSource with
-		// an error blaming a `source` the author never wrote.
-		//
-		// Nothing is validated here. A partial template that merges to an incomplete attachment still
-		// lands on the ordinary ParsePropSource/ParsePropAttachment errors, naming the same node.
+		// Template = `use`, else the action's `prop` id. Returns a_action when no template applies, else
+		// a_merged_out. Shallow key-level merge (action wins); `source` is never deep-merged since it is
+		// exactly-one-of `form`/`equippedArmor`. No validation here.
 		const json& ResolvePropAttach(const json& a_action, const PropRegistry& a_props,
 			const std::string& a_prop, const std::string& a_subject, json& a_merged_out)
 		{
 			const auto useIt = a_action.find("use");
 			const bool hasUse = useIt != a_action.end();
-			// Deliberately NOT as lenient as a node's `use` (which treats a non-string as absent):
-			// a silently-dropped template reference is the failure mode this feature exists to kill.
+			// Stricter than a node's `use`: a silently dropped template reference must not happen.
 			if (hasUse && (!useIt->is_string() || useIt->get_ref<const std::string&>().empty())) {
 				throw std::runtime_error(a_subject +
 					" 'use' must be a non-empty string naming a top-level 'props' definition");
 			}
 			const std::string& templateId = hasUse ? useIt->get_ref<const std::string&>() : a_prop;
 
-			const auto templ = a_props.find(templateId);  // exact, case-sensitive — as the roles registry
+			const auto templ = a_props.find(templateId);  // case-sensitive
 			if (templ == a_props.end()) {
 				if (hasUse) {
 					throw std::runtime_error(a_subject + " prop template '" + templateId +
 						"' is not defined in this file's top-level 'props' registry (" +
 						DescribePropRegistry(a_props) + ")");
 				}
-				// A bare `prop` matching no template is an ordinary fully-inline attach, judged by
-				// the caller's existing "requires 'source'".
+				// Bare `prop` with no template: fully inline attach.
 				return a_action;
 			}
 
 			a_merged_out = a_action;
 			for (const char* const key : kPropMergeKeys) {
 				if (a_merged_out.contains(key)) {
-					continue;  // authored inline: the action wins
+					continue;
 				}
 				if (const auto it = templ->second.find(key); it != templ->second.end()) {
 					a_merged_out[key] = *it;
 				}
 			}
-			// `attachmentNode` and legacy `node` are one concept, so an inline value under either
-			// spelling overrides a template value under either spelling.
+			// `attachmentNode`/`node` are one key: an inline value under either spelling wins.
 			if (!a_merged_out.contains("attachmentNode") && !a_merged_out.contains("node")) {
 				if (const auto canonical = templ->second.find("attachmentNode"); canonical != templ->second.end()) {
 					a_merged_out["attachmentNode"] = *canonical;
@@ -703,11 +654,11 @@ namespace OSF::Registry
 					throw std::runtime_error("node '" + a_node_out.id + "': an action track entry is missing 'type'");
 				}
 				ae.role = a.value("role", std::string{});
-				ae.hold = a.value("hold", false);          // osf.fade.out: stay faded on cleanup
-				ae.duration = a.value("duration", 0.0f);   // osf.fade.*: ramp secs (0 = default)
-				ae.set = a.value("set", std::string{});    // osf.voice.play: sound spec
-				ae.item = a.value("item", std::string{});  // osf.equipment.equip: item form ref
-				ae.prop = a.value("prop", std::string{});  // osf.prop.*: scene-local prop id
+				ae.hold = a.value("hold", false);
+				ae.duration = a.value("duration", 0.0f);
+				ae.set = a.value("set", std::string{});
+				ae.item = a.value("item", std::string{});
+				ae.prop = a.value("prop", std::string{});
 				const auto typeLower = ToLower(ae.type);
 				if (typeLower.rfind("osf.", 0) == 0) {
 					const auto kind = ParseBuiltinAction(typeLower);
@@ -715,10 +666,7 @@ namespace OSF::Registry
 						throw std::runtime_error("node '" + a_node_out.id + "': unknown built-in action '" + ae.type + "'");
 					}
 					ae.kind = *kind;
-					// Per-action required fields: voice needs its sound set, equip its item. `role` is
-					// OPTIONAL on every action — an omitted/empty role targets the scene's first
-					// participant (ResolveRoleActor), matching the sound lane's default. A NAMED role
-					// must still exist (ValidateGraph rejects undeclared references).
+					// `role` is optional (empty = first participant); named roles are checked in ValidateGraph.
 					if (ae.kind == ActionKind::kVoicePlay) {
 						ae.emitter = ParseSoundEmitter(a, SoundEmitter::kListener, a_node_out.id,
 							"action '" + ae.type + "'");
@@ -735,25 +683,18 @@ namespace OSF::Registry
 							ae.type + "' requires a non-empty 'prop'");
 					}
 					if (ae.kind == ActionKind::kPropAttach) {
-						// Fill anything the action left out from the file's `props` template of the same
-						// id (or the one `use` names), then validate the MERGED entry exactly as before —
-						// so every pre-existing diagnostic still fires, word for word.
 						const std::string subject = "node '" + a_node_out.id + "': action 'osf.prop.attach'";
-						json merged;  // populated only when a template actually applies
+						json merged;
 						const json& attach = ResolvePropAttach(a, a_props, ae.prop, subject, merged);
 						const auto source = attach.find("source");
 						if (source == attach.end()) {
-							// Three distinct author mistakes, three messages. A matched template that
-							// still yields no `source` (identified by ResolvePropAttach returning the
-							// merge, not the action) is a partial template — do NOT claim "no matching
-							// entry" while DescribePropRegistry lists that very id as defined.
+							// Merged result = a template matched but is partial; don't report "no matching entry".
 							if (&attach != &a) {
 								const std::string templateId = a.contains("use") ? a["use"].get<std::string>() : ae.prop;
 								throw std::runtime_error(subject + " prop template '" + templateId +
 									"' supplies no 'source' and the action authors none");
 							}
-							// With no registry in play this is the plain old "you forgot source". With one,
-							// the likeliest cause is a typo'd `prop` id, so name that possibility.
+							// With a registry, the likeliest cause is a typo'd `prop` id.
 							if (a_props.empty()) {
 								throw std::runtime_error(subject + " requires 'source'");
 							}
@@ -764,48 +705,34 @@ namespace OSF::Registry
 						ae.propSource = ParsePropSource(*source, subject);
 						ae.propAttachment = ParsePropAttachment(attach, subject);
 					} else if (a.contains("use")) {
-						// `use` is only a prop-template reference. Silently ignoring it elsewhere would
-						// hide a mistyped `type` — the very failure this feature exists to remove.
+						// Rejected elsewhere so a mistyped `type` doesn't silently drop it.
 						throw std::runtime_error("node '" + a_node_out.id + "': action '" + ae.type +
 							"': 'use' is only meaningful on 'osf.prop.attach'");
 					}
 				} else if (a.value("required", false)) {
-					// Custom actions are best-effort notifications; `required` is reserved.
+					// `required` is reserved; custom actions are best-effort.
 					throw std::runtime_error("node '" + a_node_out.id + "': custom action '" + ae.type + "' cannot be 'required'");
 				}
-				// `at` mirrors the cue time model: enter/exit/end named anchors, or a numeric
-				// clip-local fraction in [0,1). repeat:"loop" only applies to numeric positions.
 				ParseTrackTiming(a, ae, a_node_out.id, "action '" + ae.type + "'", /*a_atRequired*/ false);
 				a_node_out.actions.push_back(std::move(ae));
 			}
 		}
 
-		// Expand the `sound` ladder sugar: an object { role?, spec, repeat?, at } whose shared
-		// fields apply to every hit, appending each hit's tag(s) to the base `spec`. `{gender}` in the base
-		// stays for fire-time substitution (SceneRuntime::PlaySound). The lane's `at` holds many positions
-		// (vs. a flat entry's single scalar `at`), in one of two shapes:
-		//
-		//   GROUPED (terse for repeated tiers) — keyed by the tag(s) to append, value = the positions:
-		//     "at": { "low": [0.1, 0.3], "loud": [0.8] }
-		//
-		//   ARRAY (ordered, heterogeneous, per-hit overrides) — each entry is:
-		//     0.5                  -> at 0.5, the base spec, lane defaults
-		//     [0.5, "loud"]        -> at 0.5, spec = base + ",loud"   (extra elements append more tags)
-		//     { at, tags?, spec?, role?, repeat? }  -> per-hit overrides (spec replaces the base)
+		// Sound ladder { role?, spec, repeat?, at }: each hit appends its tag(s) to the base spec.
+		//   grouped: "at": { "low": [0.1, 0.3], "loud": [0.8] }
+		//   array:   0.5 | [0.5, "loud", ...] | { at, tags?, spec?, role?, repeat? } (spec replaces base)
 		void ExpandSoundLadder(const json& a_lane, SceneNode& a_node_out)
 		{
 			const std::string baseSpec = a_lane.value("spec", a_lane.value("sound", a_lane.value("pool", std::string{})));
 			const std::string laneRole = a_lane.value("role", std::string{});
-			const std::string laneRepeat = ToLower(a_lane.value("repeat", "none"));  // ladders opt in with "loop"
+			const std::string laneRepeat = ToLower(a_lane.value("repeat", "none"));
 			const SoundEmitter laneEmitter = ParseSoundEmitter(a_lane, SoundEmitter::kListener,
 				a_node_out.id, "sound ladder");
 
-			// A ladder can carry its positions under `atFrame` instead of `at` (both shapes), in which
-			// case every bare position is a clip frame; a per-hit object still picks its own key.
+			// With `atFrame`, every bare position is a clip frame; per-hit objects pick their own key.
 			const bool laneFrames = a_lane.contains("atFrame");
 			const char* const laneKey = laneFrames ? "atFrame" : "at";
 
-			// Emit one entry; timing (at/atFrame/repeat) reuses the shared track-timing parse + validation.
 			const auto emit = [&](const std::string& a_spec, const json& a_at, const std::string& a_repeat,
 				const std::string& a_role, SoundEmitter a_emitter, const char* a_key) {
 				if (a_spec.empty()) {
@@ -841,7 +768,7 @@ namespace OSF::Registry
 					}
 					std::string spec = baseSpec;
 					if (!it.key().empty()) {
-						spec += "," + it.key();  // the group key is the tag(s) appended to the base
+						spec += "," + it.key();
 					}
 					for (const auto& at : it.value()) {
 						emit(spec, at, laneRepeat, laneRole, laneEmitter, laneKey);
@@ -854,7 +781,7 @@ namespace OSF::Registry
 			}
 			for (const auto& m : positions) {
 				if (m.is_number() || m.is_string()) {
-					emit(baseSpec, m, laneRepeat, laneRole, laneEmitter, laneKey);  // bare position -> base spec
+					emit(baseSpec, m, laneRepeat, laneRole, laneEmitter, laneKey);
 				} else if (m.is_array()) {
 					if (m.empty()) {
 						throw std::runtime_error("node '" + a_node_out.id + "': an empty sound ladder position");
@@ -873,10 +800,8 @@ namespace OSF::Registry
 						if (!it->is_string()) {
 							throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'spec' must be a string");
 						}
-						spec = it->get<std::string>();  // per-hit spec replaces the base
+						spec = it->get<std::string>();
 					}
-					// `tags` accepts a string or an array of strings (the schema doc's own example
-					// uses the array form — rejecting it threw the whole file away).
 					if (auto it = m.find("tags"); it != m.end()) {
 						if (it->is_string()) {
 							spec += "," + it->get<std::string>();
@@ -891,11 +816,7 @@ namespace OSF::Registry
 							throw std::runtime_error("node '" + a_node_out.id + "': sound ladder 'tags' must be a string or an array of strings");
 						}
 					}
-					// A per-hit object picks its own timing key; falling back to the lane's keeps a bare
-					// `{ tags: [...] }` hit on the lane's units (and still errors as a missing position).
-					// `at` and `atFrame` are mutually exclusive everywhere else (ParseTrackTiming), but the
-					// emit lambda rebuilds a single-key timing object so that guard never sees the pair —
-					// reject it here or the losing key is silently discarded.
+					// emit() rebuilds a single-key timing object, so ParseTrackTiming can't catch both keys here.
 					if (m.contains("at") && m.contains("atFrame")) {
 						throw std::runtime_error("node '" + a_node_out.id +
 							"': a sound ladder hit sets both 'at' and 'atFrame' (pick one)");
@@ -912,7 +833,6 @@ namespace OSF::Registry
 
 		void ParseSoundTrack(const json& a_entries, SceneNode& a_node_out)
 		{
-			// Ladder sugar: a single object { spec, at:[...] } expands to many entries (see above).
 			if (a_entries.is_object()) {
 				ExpandSoundLadder(a_entries, a_node_out);
 				return;
@@ -921,9 +841,7 @@ namespace OSF::Registry
 				throw std::runtime_error("node '" + a_node_out.id + "': 'sound' track must be an array of entries or a { spec, at } ladder object");
 			}
 			for (const auto& s : a_entries) {
-				// An element whose `at` is an array (or tag-keyed object) is a ladder — many tagged hits on
-				// one lane (e.g. a per-role vocal ladder). A scalar `at` (a fraction or "enter"/"exit"/"end")
-				// is a single flat cue. This lets `sound` mix flat cues and role ladders in one list.
+				// An array/object `at` makes the element a ladder; a scalar `at` is a flat entry.
 				if (s.is_object()) {
 					auto it = s.find("at");
 					if (it == s.end()) {
@@ -935,9 +853,7 @@ namespace OSF::Registry
 					}
 				}
 				SoundEntry se;
-				// `spec` is the canonical key (unified *.osf.json); `sound`/`pool` are accepted
-				// aliases. A '$'-prefixed value is a SoundRegistry pool query resolved at fire time
-				// (SceneRuntime::PlaySound); a plain value is a literal file/event spec.
+				// `sound`/`pool` are aliases of `spec`.
 				se.spec = s.value("spec", s.value("sound", s.value("pool", std::string{})));
 				if (se.spec.empty()) {
 					throw std::runtime_error("node '" + a_node_out.id + "': a sound track entry is missing 'spec'/'sound'/'pool'");
@@ -949,10 +865,6 @@ namespace OSF::Registry
 				a_node_out.sounds.push_back(std::move(se));
 			}
 		}
-
-		// The camera postures the runtime understands — shared by node `camera` tracks and the
-		// file-level `camera` default. (Tethered orbit / photo mode / cinematic between-actor shots
-		// aren't wired yet.)
 
 		void ParseCameraTrack(const json& a_entries, SceneNode& a_node_out)
 		{
@@ -972,7 +884,7 @@ namespace OSF::Registry
 				}
 				ce.state = *state;
 				ParseTrackTiming(c, ce, a_node_out.id, "camera '" + stateName + "'", /*a_atRequired*/ false);
-				ce.distance = c.value("distance", 0.0f);  // thirdperson_hold opening zoom; 0 = engine default
+				ce.distance = c.value("distance", 0.0f);
 				if (ce.distance != 0.0f && ce.state != CameraState::kThirdPersonHold) {
 					REX::DEBUG("[Registry] node '{}': camera 'distance' is only honored for 'thirdperson_hold' — state '{}' ignores it",
 						a_node_out.id, stateName);
@@ -981,12 +893,11 @@ namespace OSF::Registry
 			}
 		}
 
-		// Parse one role: name, gender (the `gender` shorthand and `filters.gender` are the same
-		// constraint — reject if both present and differ), and the resolved keyword/race filters.
+		// `gender` and `filters.gender` are one constraint; both present and differing rejects.
 		SceneRole ParseRole(const json& a_role, const std::string& a_sceneId)
 		{
 			SceneRole r;
-			r.name = a_role.value("name", std::string{});  // "" = anonymous positional role
+			r.name = a_role.value("name", std::string{});
 
 			std::optional<RoleGender> shorthand;
 			if (auto git = a_role.find("gender"); git != a_role.end()) {
@@ -1005,8 +916,6 @@ namespace OSF::Registry
 				if (std::string gender; filters.Read("gender", gender, { .field = "filters.gender" })) {
 					fromFilter = ParseRoleGender(gender);
 				}
-				// keyword / race: a single string or an array of strings; resolved to forms now
-				// (any-of within each list). Unresolvable / wrong-type => the scene is rejected.
 				for (const auto& ref : filters.StringOrList("keyword",
 					{ .field = "filters.keyword" }, { .field = "filters.keyword entries" })) {
 					r.keywords.push_back(ResolveFormRef<RE::BGSKeyword>(ref, a_sceneId, r.name,
@@ -1023,7 +932,6 @@ namespace OSF::Registry
 				throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name + "': 'gender' and filters.gender disagree");
 			}
 			r.gender = shorthand ? *shorthand : (fromFilter ? *fromFilter : RoleGender::kAny);
-			// Role-local pose composition. Omission preserves the historical absolute/override path.
 			if (auto pit = a_role.find("poseMode"); pit != a_role.end()) {
 				if (!pit->is_string()) {
 					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
@@ -1052,9 +960,7 @@ namespace OSF::Registry
 				}
 				r.poseWeight = *normalized;
 			}
-			// Optional named driven-bone mask: the role stamps ONLY the mask's bones (per-bone
-			// weighted), leaving the rest of the rig engine-driven — the partial-body gesture path
-			// (an equip/wave plays over the engine's own locomotion instead of replacing it).
+			// Only the mask's bones are stamped; the rest stay engine-driven.
 			if (auto mit = a_role.find("mask"); mit != a_role.end()) {
 				if (!mit->is_string()) {
 					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
@@ -1066,10 +972,8 @@ namespace OSF::Registry
 						"': unknown 'mask' value '" + mit->get<std::string>() +
 						"' (expected one of: " + Animation::BoneMask::KnownList() + ")");
 				}
-				r.mask = named->id;  // canonical casing regardless of authored casing
+				r.mask = named->id;  // canonical casing
 			}
-			// Optional exact-name bone mask. Preserved bones stay under the engine's live pose for
-			// this role while every other matched animation joint continues to stamp normally.
 			if (auto bit = a_role.find("preserveBones"); bit != a_role.end()) {
 				if (!bit->is_array()) {
 					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
@@ -1087,7 +991,6 @@ namespace OSF::Registry
 					}
 				}
 			}
-			// Optional default placement for this role (unified *.osf.json roles).
 			if (auto oit = a_role.find("offset"); oit != a_role.end()) {
 				if (!oit->is_object()) {
 					throw std::runtime_error("scene '" + a_sceneId + "': role '" + r.name +
@@ -1095,20 +998,14 @@ namespace OSF::Registry
 				}
 				r.offset = ParseOffsetField(*oit);
 			}
-			// Optional per-gender item to equip for the scene (resolved at fire time). A bare string
-			// applies to any gender; an object keys it by male/female (with an optional `any` fallback).
-			// equip is fully SOFT: it never blocks scene selection. The form is resolved on the game
-			// thread at scene start, so an uninstalled plugin is a skipped equip (warned), not a load
-			// error. A malformed ref shape ("Plugin|0xLocal" expected) is likewise dropped with a
-			// warning rather than rejecting the scene — so a typo'd or missing body mod still leaves
-			// the scene playable, just without the equip.
+			// Soft: a malformed ref is dropped with a warning, never rejecting the scene.
 			if (auto qit = a_role.find("equip"); qit != a_role.end()) {
 				auto checkRef = [&](const std::string& a_ref, const char* a_key) -> std::string {
 					if (!a_ref.empty() && a_ref.find('|') == std::string::npos) {
 						REX::WARN("[Registry] scene '{}': role '{}': equip.{} '{}' is not a "
 							"\"Plugin.esm|0xLocalID\" form ref — equip dropped (scene still loads)",
 							a_sceneId, r.name, a_key, a_ref);
-						return std::string{};  // drop the bad ref; runtime treats empty as "no equip"
+						return std::string{};
 					}
 					return a_ref;
 				};
@@ -1126,15 +1023,8 @@ namespace OSF::Registry
 			return r;
 		}
 
-		// Expand one scene-level `roles` entry against the file-local registry:
-		//   "m"                        -> a copy of the referenced template (automatic name)
-		//   { "id": "m", ... }         -> the template, with the remaining keys merged over it (see below)
-		//   { ... }  (no `id`)         -> an ordinary inline role (unchanged behavior)
-		// `id` must be a non-empty string naming a registry definition; it is removed before the merged
-		// JSON goes through the normal role parse. Overrides merge JSON-merge-patch style (RFC 7386):
-		// scalars (including poseMode/poseWeight/mask) replace, `filters`/`offset`/`equip` merge by key, arrays (preserveBones) replace
-		// wholesale, and null removes an inherited optional field. Unknown or malformed references
-		// throw — rejecting only this scene.
+		// "m" -> template copy; { "id": "m", ... } -> template merge-patched (RFC 7386) by the other keys;
+		// no `id` -> inline role. Bad references reject only this scene.
 		PendingRole ExpandRoleEntry(const json& a_entry, const std::string& a_sceneId, const RoleRegistry& a_registry)
 		{
 			if (a_entry.is_string()) {
@@ -1171,10 +1061,8 @@ namespace OSF::Registry
 			json overrides = a_entry;
 			overrides.erase("id");
 			merged.merge_patch(overrides);
-			// `gender` and `filters.gender` are aliases for the SAME constraint. When the override
-			// supplies exactly one of the two paths, drop the inherited value on the other path so
-			// the merged role can't trip ParseRole's disagreement check. (Both paths overridden:
-			// left in place for ParseRole to validate, exactly like an inline role.)
+			// `gender`/`filters.gender` are one constraint: an override on one path drops the inherited
+			// other, so ParseRole's disagreement check doesn't trip.
 			const bool topGender = overrides.contains("gender");
 			bool nestedGender = false;
 			if (const auto fit = overrides.find("filters"); fit != overrides.end() && fit->is_object()) {
@@ -1190,7 +1078,6 @@ namespace OSF::Registry
 			PendingRole out;
 			out.role = ParseRole(merged, a_sceneId);
 			if (const auto nit = overrides.find("name"); nit != overrides.end()) {
-				// An explicit name ("" = an anonymous role): kept exactly, never numbered.
 				out.nameKind = (nit->is_string() && !nit->get_ref<const std::string&>().empty()) ?
 					RoleNameKind::kExplicit : RoleNameKind::kAnonymous;
 			} else {
@@ -1200,11 +1087,7 @@ namespace OSF::Registry
 			return out;
 		}
 
-		// Assign runtime role names for one scene, deterministically. EXPLICIT names (an override's
-		// `name`, a named inline role) are reserved first — duplicates reject the scene — then
-		// AUTOMATIC slots take their template's effective name, suffixed 2, 3, ... past any reserved
-		// or already-used name (["m","m","f"] -> m, m2, f; ["m", {"id":"m","name":"m"}] -> m2, m).
-		// Anonymous slots are never numbered.
+		// Explicit names reserved first; automatic ones numbered past collisions (["m","m","f"] -> m, m2, f).
 		void AssignRoleNames(SceneDef& a_def, std::vector<PendingRole>& a_pending)
 		{
 			std::unordered_set<std::string> used;
@@ -1227,11 +1110,7 @@ namespace OSF::Registry
 			}
 		}
 
-		// Apply one scene-controls value onto a grant that already holds the inherited default (the
-		// built-in all-capabilities grant at file level, the file-level grant at scene level). Boolean
-		// form toggles `enabled`; object form narrows what it inherited (`disable` removes bits from the
-		// set already in a_out, so a scene's disable list composes with the file default). a_ctx labels errors
-		// ("scene 'x'" / "'pack.json'").
+		// a_out holds the inherited grant; `disable` removes from it, so scene and file lists compose.
 		void ApplySceneControls(const json& a_value, SceneControls& a_out, const std::string& a_ctx,
 			std::string_view a_key = "playerControl")
 		{
@@ -1242,7 +1121,6 @@ namespace OSF::Registry
 			if (!a_value.is_object()) {
 				throw std::runtime_error(a_ctx + ": '" + std::string(a_key) + "' must be a boolean or an object");
 			}
-			// The authored key is either spelling, so the field names are built rather than literal.
 			const std::string prefix = "'" + std::string(a_key) + ".";
 			const std::string enabledField = prefix + "enabled'";
 			const std::string disableField = prefix + "disable'";
@@ -1257,7 +1135,7 @@ namespace OSF::Registry
 				if (bit == 0) {
 					REX::WARN("[Registry] {}: unknown {} capability '{}' — ignored (typo, or a newer OSF Animation?)", a_ctx, a_key, name);
 				}
-				a_out.capabilities &= ~bit;  // remove from the inherited set
+				a_out.capabilities &= ~bit;
 			}
 			controls.Read("locked", a_out.locked, { .field = lockedField });
 		}
@@ -1316,10 +1194,7 @@ namespace OSF::Registry
 				"' (expected 'anchorAndPin' or 'followActor')");
 		}
 
-		// Every file-level key a scene inherits when it omits its own. One struct so hoisting another
-		// field to the file level stays a one-line change here plus one line in LoadOsfFile. (`roles`,
-		// `anchor`, `camera` and `clipRoot` are threaded separately — each carries its own
-		// registry/optional/string shape.)
+		// File-level keys a scene inherits when it omits its own (`roles`, `anchor`, `camera`, `clipRoot` are threaded separately).
 		struct ContentFileDefaults
 		{
 			bool                     playerInputLock = true;
@@ -1331,19 +1206,15 @@ namespace OSF::Registry
 			SceneControls            sceneControls{};
 			std::int32_t             priority = 0;
 			std::int32_t             weight = 1;
-			std::vector<std::string> tags;  // UNION-ed with a scene's own tags, not replaced by them
+			std::vector<std::string> tags;  // unioned with a scene's own tags
 		};
 
-		// Top-level metadata (name/priority/weight/unlisted/playerInputLock/hideApparel/
-		// clearHeldItems/fade/sceneControls). Id, tags, roles, and the playable are parsed by the caller.
-		// a_defaults seeds every inherited field with the file-level value.
 		void ParseSceneMeta(const json& a_json, SceneDef& def, const ContentFileDefaults& a_defaults)
 		{
 			const std::string sceneContext = "scene '" + def.id + "'";
 			const Util::JsonView scene{ a_json, sceneContext };
 
-			// `name` and `priority` deliberately stay on value(): priority TRUNCATES an authored
-			// float today (3.7 -> 3) where ReadInt would reject it.
+			// priority stays on value(): it truncates floats (3.7 -> 3) where ReadInt would reject.
 			def.name = a_json.value("name", def.id);
 			def.priority = a_json.value("priority", a_defaults.priority);
 			def.weight = a_defaults.weight;
@@ -1359,8 +1230,6 @@ namespace OSF::Registry
 			def.fade = a_defaults.fade;
 			scene.Read("fade", def.fade);
 			def.worldPlacement = ReadWorldPlacement(a_json, a_defaults.worldPlacement, sceneContext);
-			// Scene controls are enabled by default. The canonical `sceneControls` key and legacy
-			// `playerControl` key share one parser, but specifying both is rejected.
 			def.sceneControls = a_defaults.sceneControls;
 			if (const json* controls = FindVocabularyKey(a_json, "sceneControls", "playerControl", sceneContext)) {
 				ApplySceneControls(*controls, def.sceneControls, sceneContext,
@@ -1368,11 +1237,7 @@ namespace OSF::Registry
 			}
 		}
 
-		// ============================================================================
-		// Scene parser — the one "scene" concept.
-		// ============================================================================
-
-		// Reject authored ids that collide with the synthetic desugar namespace.
+		// '#' is reserved for synthetic desugar nodes.
 		void RejectReservedId(const std::string& a_id, const char* a_what)
 		{
 			if (a_id.find('#') != std::string::npos) {
@@ -1381,14 +1246,9 @@ namespace OSF::Registry
 			}
 		}
 
-		// Forward decl: the cue-lane parser is defined below (with the other node-lane parsers), but
-		// ParseOsfStageList needs it so a linear stage can carry a `cue` lane like a node does.
 		void ParseOsfCueLane(const json& a_entries, SceneNode& a_node);
 
-		// Parse a stage list (timer/loops/clips, with the play-once default and the bare-array
-		// shorthand) — the unified equivalent of the pack stages[] parse. a_ioActorCount is the
-		// participant count: when a_fixed it is authoritative (every stage must match it); else the
-		// first stage's clip count sets it.
+		// a_ioActorCount is authoritative when a_fixed; otherwise the first stage's clip count sets it.
 		std::vector<StageDef> ParseOsfStageList(const json& a_stages, const std::string& a_subject,
 			size_t& a_ioActorCount, bool a_fixed, std::string_view a_clipRoot, const PropRegistry& a_props,
 			bool a_allowStageLanes = true)
@@ -1408,9 +1268,7 @@ namespace OSF::Registry
 					info.timer = jStage.value("timer", 0.0f);
 					info.loops = jStage.value("loops", 0);
 					timingGiven = jStage.contains("timer") || jStage.contains("loops");
-					// `hold`: freeze on one frame instead of playing the clip. A frozen clip never
-					// wraps, so a loop count could never expire — reject the pair rather than let it
-					// read as "hold for N loops". A timer (or a manual advance) still leaves the stage.
+					// A frozen clip never wraps, so hold + loops could never expire.
 					if (auto it = jStage.find("hold"); it != jStage.end()) {
 						if (it->is_boolean()) {
 							info.hold = it->get<bool>() ? 1.0f : -1.0f;
@@ -1428,8 +1286,7 @@ namespace OSF::Registry
 								"clip never loops; use 'timer' or a manual advance to leave the stage");
 						}
 					}
-					// Optional stage identity (label + tags) for the browsable-animation catalog.
-					if (auto it = jStage.find("name"); it != jStage.end()) {
+						if (auto it = jStage.find("name"); it != jStage.end()) {
 						if (!it->is_string()) {
 							throw std::runtime_error(a_subject + ": stage 'name' must be a string");
 						}
@@ -1446,12 +1303,7 @@ namespace OSF::Registry
 							info.tags.push_back(t.get<std::string>());
 						}
 					}
-					// Optional per-stage track lanes (cue/action/sound/camera): the lane parsers target a
-					// SceneNode, so parse into a scratch node and move them onto the stage. DesugarLinear
-					// forwards them to the stage's synthetic node, letting a linear stage carry cues,
-					// actions, audio, and camera postures without authoring the full nodes[] graph form.
-					// Inside a graph node's stages[] the runtime never reads per-stage lanes — reject
-					// them there instead of silently discarding what the author wrote.
+					// The runtime never reads per-stage lanes inside a graph node, so reject rather than drop them.
 					if (!a_allowStageLanes &&
 						(jStage.contains("cue") || jStage.contains("action") ||
 							jStage.contains("sound") || jStage.contains("camera"))) {
@@ -1460,7 +1312,7 @@ namespace OSF::Registry
 					}
 					{
 						SceneNode scratch;
-						scratch.id = a_subject;  // diagnostics only
+						scratch.id = a_subject;
 						if (auto it = jStage.find("cue"); it != jStage.end()) {
 							ParseOsfCueLane(*it, scratch);
 						}
@@ -1487,10 +1339,8 @@ namespace OSF::Registry
 					throw std::runtime_error(a_subject + ": a stage must be a clips array (shorthand) or a { timer, loops, clips } object");
 				}
 				if (!timingGiven && info.hold < 0.0f) {
-					info.loops = 1;  // untimed -> play once, then advance / end
+					info.loops = 1;
 				}
-				// An untimed frozen stage holds its frame until something advances it (loops stay 0),
-				// which is exactly the hold policy DesugarLinear reads.
 				for (const auto& jClip : *clipsNode) {
 					info.clips.push_back(ParseStageClip(jClip, a_clipRoot, a_subject));
 				}
@@ -1510,7 +1360,6 @@ namespace OSF::Registry
 			return out;
 		}
 
-		// Cue lane. Cues need an explicit `at`.
 		void ParseOsfCueLane(const json& a_entries, SceneNode& a_node)
 		{
 			if (!a_entries.is_array()) {
@@ -1527,8 +1376,7 @@ namespace OSF::Registry
 			}
 		}
 
-		// A unified graph node: `use` XOR inline `stages`, optional loop policy, edges, and the four
-		// node-level track lanes (cue/action/sound/camera, flat — not nested under a `tracks` block).
+		// `use` XOR inline `stages`; track lanes are flat node keys.
 		SceneNode ParseOsfNode(const json& a_node, std::vector<std::string>& a_warnings, const std::string& a_sceneId, std::string_view a_clipRoot, const PropRegistry& a_props)
 		{
 			SceneNode n;
@@ -1555,10 +1403,7 @@ namespace OSF::Registry
 					a_props, /*a_allowStageLanes*/ false);
 			}
 
-			// Node loop policy — one `loops` int, identical to a linear stage:
-			//   omitted -> once (play through, then take a `when:"end"` edge)
-			//   0       -> hold (loop until advanced; the explicit terminal hold)
-			//   N >= 1  -> loop N times, then take a `when:"loops"` edge
+			// `loops`: omitted = once, 0 = hold, N = loop N times.
 			if (const auto it = a_node.find("loops"); it != a_node.end()) {
 				if (!it->is_number_integer()) {
 					throw std::runtime_error("node '" + n.id + "': 'loops' must be an integer (omit = once, 0 = hold, N = loop N)");
@@ -1574,7 +1419,7 @@ namespace OSF::Registry
 					n.loopCount = loops;
 				}
 			} else {
-				n.loopMode = LoopMode::kOnce;  // default: play through once
+				n.loopMode = LoopMode::kOnce;
 			}
 			n.timerSec = a_node.value("timer", 0.0f);
 
@@ -1612,7 +1457,6 @@ namespace OSF::Registry
 				a_warnings.push_back("scene '" + a_sceneId + "' node '" + n.id + "': 'timer' set but no 'timer' edge");
 			}
 
-			// Node-level track lanes (flat keys, not a `tracks` block).
 			if (auto it = a_node.find("cue"); it != a_node.end()) {
 				ParseOsfCueLane(*it, n);
 			}
@@ -1626,7 +1470,6 @@ namespace OSF::Registry
 				ParseCameraTrack(*it, n);
 			}
 
-			// A trigger:<cueId> edge must reference a cue emitted on this same node.
 			for (const auto& e : n.edges) {
 				if (e.when != EdgeWhen::kTrigger) {
 					continue;
@@ -1648,11 +1491,8 @@ namespace OSF::Registry
 		}
 
 
-		// Cross-node validation of a graph scene: edge targets, entry-is-a-node, and action/sound role
-		// references. Anonymous roles are intentionally unreferenceable.
-		// Role-name references in the action/sound lanes, checked for BOTH scene forms — linear
-		// scenes desugar to nodes too, and a typo'd lane role otherwise loads clean and misfires
-		// silently at runtime (DEBUG-only logs in a shipped build).
+		// Checked for both scene forms: a typo'd lane role would otherwise misfire silently at runtime.
+		// Anonymous roles are unreferenceable.
 		void ValidateRoleRefs(const SceneDef& def)
 		{
 			std::unordered_set<std::string> roleNames;
@@ -1689,8 +1529,7 @@ namespace OSF::Registry
 						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' edge targets missing node '" + e.to + "'");
 					}
 				}
-				// Inline stage clip counts must match the declared cast: a mismatch otherwise
-				// surfaces only mid-scene (a live scene aborts, or the node can never start).
+				// Otherwise the mismatch only surfaces mid-scene.
 				for (const auto& st : nd.stages) {
 					if (!st.clips.empty() && st.clips.size() != def.roles.size()) {
 						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' stage has " +
@@ -1701,25 +1540,21 @@ namespace OSF::Registry
 			}
 		}
 
-		// The parsed `anchor` block (a scene's own, or a file-level default). given=false when the key is absent.
-		// keyword/base are validated against loaded forms (any-of within each) but kept as FormIDs; offset corrects the ref transform.
 		struct AnchorReq
 		{
 			std::vector<RE::TESFormID>      keywords;
 			std::vector<RE::TESFormID>      baseForms;
 			Animation::ParticipantPlacement offset{};
-			bool                            given = false;
+			bool                            given = false;  // key present
 		};
 
-		// Parse an `anchor` block: { keyword?: <ref|[refs]>, base?: <ref|[refs]>, offset?: { x, y, z, heading } }.
-		// keyword/base parse exactly like a role's filters.keyword/filters.race; resolved now (any-of within each), and an unresolvable ref REJECTS the scene. 
-		// At least one of keyword/base is required (else nothing could satisfy the requirement). a_subject labels diagnostics (a scene id, or a file label).
+		// { keyword?, base?, offset? }; an unresolvable ref rejects the scene.
 		AnchorReq ParseAnchorBlock(const json& a_json, const std::string& a_subject)
 		{
 			AnchorReq req;
 			const auto it = a_json.find("anchor");
 			if (it == a_json.end()) {
-				return req;  // given = false
+				return req;
 			}
 			if (!it->is_object()) {
 				throw std::runtime_error(a_subject + ": 'anchor' must be an object { keyword?, base?, offset? }");
@@ -1727,7 +1562,6 @@ namespace OSF::Registry
 			const json& anchor = *it;
 			req.given = true;
 
-			// keyword/base: a single string or an array of strings; resolved to forms now.
 			const Util::JsonView view{ anchor, a_subject };
 			for (const auto& ref : view.StringOrList("keyword",
 				{ .field = "anchor.keyword" }, { .field = "anchor.keyword entries" })) {
@@ -1762,12 +1596,7 @@ namespace OSF::Registry
 			return req;
 		}
 
-		// Parse one unified scene. a_defaults holds the file-level policy/catalog defaults;
-		// a_fileRoles are the ARRAY form of the file-level `roles` (inherited by a scene that omits its own);
-		// a_roleRegistry is the OBJECT form (id -> reusable template a scene's `roles` references by id string
-		// or { "id", ...overrides } object); a_propRegistry is the file-level `props` (id -> reusable
-		// prop template an `osf.prop.attach` inherits from); a_anchorDefault is the file-level `anchor`
-		// (likewise inherited).
+		// a_fileRoles: array form of file-level `roles` (inherited); a_roleRegistry: object form (templates).
 		SceneDef ParseOsfScene(const json& a_json, std::vector<std::string>& a_warnings,
 			const ContentFileDefaults& a_defaults, std::optional<CameraState> a_cameraDefault,
 			const std::vector<SceneRole>& a_fileRoles, const RoleRegistry& a_roleRegistry,
@@ -1784,10 +1613,7 @@ namespace OSF::Registry
 				NormalizeClipRoot(a_json.value("clipRoot", std::string{}), "scene '" + def.id + "'") :
 				std::string(a_packClipRoot);
 			ParseSceneMeta(a_json, def, a_defaults);
-			// File-level `tags` are UNION-ed with the scene's own (pack tags first, in author order) —
-			// unlike `roles`, a scene declaring tags narrows nothing, it adds. Matchmaking is a set
-			// membership test, so a pack-wide tag every scene must carry belongs at the file level.
-			// De-duplicated case-insensitively via tagSet, which matchmaking queries anyway.
+			// File-level tags first, unioned case-insensitively via tagSet.
 			const auto addTag = [&def](const std::string& a_tag) {
 				if (def.tagSet.insert(ToLower(a_tag)).second) {
 					def.tags.push_back(a_tag);
@@ -1801,12 +1627,8 @@ namespace OSF::Registry
 					addTag(t.get<std::string>());
 				}
 			}
-		// roles[]: unified participant list; `name` optional (anonymous positional role). Entries are
-		// inline role objects, or references to the file-level roles REGISTRY — a plain id string, or
-		// an object { "id", ...overrides } that merge-patches the template (both expanded to ordinary
-		// roles here; the three forms mix freely). A scene's own `roles` overrides the file-level
-		// `roles`; a scene that omits the key inherits them. A registry is NOT a default cast —
-		// omitting `roles` under a registry falls through to clip-count inference.
+		// A scene's `roles` replaces the file-level array. A registry is not a default cast: omitting
+		// `roles` falls through to clip-count inference.
 		bool rolesGiven = false;
 		std::vector<PendingRole> pendingRoles;
 		if (const auto it = a_json.find("roles"); it != a_json.end()) {
@@ -1819,21 +1641,15 @@ namespace OSF::Registry
 				pendingRoles.push_back(ExpandRoleEntry(jRole, def.id, a_roleRegistry));
 			}
 		} else if (!a_fileRoles.empty()) {
-			// Inherit the file-level roles (names, filters, offsets, equip): named roles are explicit,
-			// so duplicates still reject the scene exactly like inline roles.
 			rolesGiven = true;
 			pendingRoles.reserve(a_fileRoles.size());
 			for (const auto& r : a_fileRoles) {
 				pendingRoles.push_back(PendingRole{ r, r.name.empty() ? RoleNameKind::kAnonymous : RoleNameKind::kExplicit, {} });
 			}
 		}
-		// Runtime role names bind actors (StartSceneRoles) and target track entries, so they must be
-		// unambiguous within a scene: explicit names are reserved (duplicates reject the scene),
-		// automatic (template-derived) names are numbered past any collision, and anonymous slots
-		// stay anonymous (intentionally unreferenceable).
 		AssignRoleNames(def, pendingRoles);
 
-			// Anchor requirement: the scene's own `anchor` block overrides the file-level default entirely (mirrors roles).
+			// A scene's `anchor` replaces the file-level default entirely.
 			{
 				AnchorReq anchorReq = ParseAnchorBlock(a_json, "scene '" + def.id + "'");
 				if (!anchorReq.given && a_anchorDefault.given) {
@@ -1843,8 +1659,7 @@ namespace OSF::Registry
 				def.anchorBaseForms = anchorReq.baseForms;
 				def.anchorOffset = anchorReq.offset;
 			}
-			// An anchor-bound scene positions the cast at the anchor — incompatible with follow-actor placement.
-			if (def.worldPlacement == Animation::WorldPlacementMode::kFollowActor && def.RequiresAnchor()) {
+				if (def.worldPlacement == Animation::WorldPlacementMode::kFollowActor && def.RequiresAnchor()) {
 				throw std::runtime_error("scene '" + def.id + "': placement 'followActor' (legacy 'inPlace:true') cannot be combined with an 'anchor' requirement");
 			}
 
@@ -1887,14 +1702,10 @@ namespace OSF::Registry
 						def.linearStages.push_back(std::move(nid));
 					}
 				}
-				// A hold node (loops:0) with no advance/timer/trigger edge holds until the consumer calls
-				// StopScene — that is the explicit, intentional terminal-hold pattern, so it is not flagged.
+				// A hold node with no exit edge is the intentional terminal hold (ends via StopScene); not flagged.
 				ValidateGraph(def, nodeIds);
-				// Role inference, graph form: mirror the linear rule — a scene with no `roles` gets one
-				// anonymous role per clip in the entry node's first inline stage. Without this a
-				// roles-less graph scene loads with ZERO roles and can never matchmake (the pool
-				// filters on roles.size() == actor count). A `use` entry resolves post-load, so it
-				// can't seed a count — those scenes must declare roles explicitly.
+				// Infer one anonymous role per entry-stage clip, else the scene could never matchmake.
+				// A `use` entry resolves post-load, so it can't seed a count.
 				if (!rolesGiven) {
 					const std::string entryLower = ToLower(def.entry);
 					const auto entryIt = std::find_if(def.nodes.begin(), def.nodes.end(),
@@ -1905,8 +1716,7 @@ namespace OSF::Registry
 					def.roles.assign(entryIt->stages.front().clips.size(), SceneRole{});
 				}
 			} else {
-				// Linear scene: top-level clip/stages -> a synthetic node chain (desugar).
-				size_t actorCount = rolesGiven ? def.roles.size() : 0;
+					size_t actorCount = rolesGiven ? def.roles.size() : 0;
 				std::vector<StageDef> stages;
 				if (hasClip) {
 					const auto& clip = a_json.at("clip");
@@ -1915,7 +1725,7 @@ namespace OSF::Registry
 							std::to_string(actorCount) + " role(s) declared (use 'stages' for multi-actor)");
 					}
 					StageDef st;
-					st.loops = 1;  // play once, then end
+					st.loops = 1;
 					st.clips.push_back(ParseStageClip(clip, clipRoot, "scene '" + def.id + "'"));
 					actorCount = 1;
 					stages.push_back(std::move(st));
@@ -1923,16 +1733,14 @@ namespace OSF::Registry
 					stages = ParseOsfStageList(a_json.at("stages"), "scene '" + def.id + "'", actorCount, rolesGiven, clipRoot, a_propRegistry);
 				}
 				if (!rolesGiven) {
-					def.roles.assign(actorCount, SceneRole{});  // synthesize anonymous slots
+					def.roles.assign(actorCount, SceneRole{});
 				}
 				DesugarLinear(def, stages);
-				ValidateRoleRefs(def);  // linear lanes reference roles too (graph scenes get this via ValidateGraph)
+				ValidateRoleRefs(def);
 			}
 
-			// File-level default camera (`camera`: "<state>"): attach that posture to the
-			// entry node's enter so a scene picks it up without authoring a per-node camera track. The
-			// state override is held by the ledger until scene-stop, so engaging it on the entry node
-			// holds it across every stage. An explicit node-level camera track on the entry node wins.
+			// File-level `camera` goes on the entry node (the ledger holds it until scene-stop); an
+			// explicit entry-node camera track wins.
 			if (a_cameraDefault) {
 				const std::string entryLower = ToLower(def.entry);
 				for (auto& nd : def.nodes) {
@@ -1946,9 +1754,7 @@ namespace OSF::Registry
 					}
 				}
 			}
-			// Species (skeleton family) = the first clip's actor folder. Derived, not authored, so
-			// every scene — vanilla creature pack or a hand-written mod scene — is classified the same
-			// way playback picks the rig. Empty / loose / NAF clips leave it "human" (the default lane).
+			// Derived from the first clip path, matching how playback picks the rig.
 			for (const auto& nd : def.nodes) {
 				for (const auto& st : nd.stages) {
 					for (const auto& clip : st.clips) {
@@ -2663,8 +2469,7 @@ namespace OSF::Registry
 		}
 
 
-		// Post-load: resolve every node `use` against the loaded set. A use only splices the target's
-		// single inline-stage node (RFC §9), so the target must exist and be a single-node inline scene.
+		// `use` splices the target's single inline-stage node, so the target must be exactly that.
 		void ValidateUseRefs(const std::unordered_map<std::string, SceneDef>& a_scenes, ProblemSink& a_problems)
 		{
 			for (const auto& [key, def] : a_scenes) {
@@ -2693,9 +2498,7 @@ namespace OSF::Registry
 			}
 		}
 
-		// Build an Animation::PlaybackPlan from a resolved (roles, stages) pair: a per-clip offset overrides
-		// the role's default placement; every stage's clip count must equal a_actorCount. Shared by the
-		// inline-stages and `use`-target node paths.
+		// A per-clip offset overrides the role's placement; every stage's clip count must equal a_actorCount.
 		std::optional<Animation::PlaybackPlan> BuildPlanFromStages(const std::string& a_id,
 			const std::vector<SceneRole>& a_roles, const std::vector<StageDef>& a_stages, size_t a_actorCount)
 		{
@@ -2752,7 +2555,7 @@ namespace OSF::Registry
 		if (s == "female" || s == "f") {
 			return RoleGender::kFemale;
 		}
-		return RoleGender::kAny;  // "any"/"" and anything else
+		return RoleGender::kAny;
 	}
 
 	SlotGender ParseSlotGender(std::string_view a_str)
@@ -2832,7 +2635,7 @@ namespace OSF::Registry
 		ProblemSink problems{ errors, pendingProblems };
 		std::vector<ClipLibraryRegistration> clipLibrary;
 		std::vector<ContentFileStats> fileStats;
-		std::unordered_map<std::string, std::size_t> fileIndex;  // full source path -> index into fileStats
+		std::unordered_map<std::string, std::size_t> fileIndex;  // full source path -> fileStats index
 		ClipInstalledCache clipCache;
 		SceneLoadBudget loadBudget;
 
@@ -2906,10 +2709,8 @@ namespace OSF::Registry
 					std::chrono::steady_clock::now() - a_source->begun).count();
 			});
 
-		// Resolve every node `use` now that the whole set is loaded (catches dangling refs at load).
 		ValidateUseRefs(loaded, problems);
 
-		// Hide scenes whose clips aren't installed (compat pack without its source mod).
 		SweepClipAvailability(loaded, problems, clipCache);
 		const auto sceneCount = loaded.size();
 		AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
@@ -2933,7 +2734,7 @@ namespace OSF::Registry
 
 		const auto problemCount = errors.size();
 
-		// Hand each structured record to its file. Anything unowned lands in one trailing bucket.
+		// Unowned problems land in one trailing bucket.
 		ContentFileStats crossFile;
 		for (std::size_t i = 0; i < errors.size() && i < pendingProblems.size(); ++i) {
 			const auto& pending = pendingProblems[i];
@@ -2948,9 +2749,9 @@ namespace OSF::Registry
 		std::sort(fileStats.begin(), fileStats.end(), [](const ContentFileStats& a_lhs, const ContentFileStats& a_rhs) {
 			return a_lhs.path < a_rhs.path;
 		});
-		const auto fileCount = fileStats.size();  // files SCANNED — before the bucket, which is not one
+		const auto fileCount = fileStats.size();  // before the bucket, which is not a file
 		if (!crossFile.problems.empty()) {
-			fileStats.push_back(std::move(crossFile));  // empty path — kept last on purpose
+			fileStats.push_back(std::move(crossFile));  // empty path; must stay last
 		}
 
 		auto next = std::make_shared<ContentRegistrySnapshot>();
@@ -2993,8 +2794,7 @@ namespace OSF::Registry
 			return std::nullopt;
 		}
 		if (!a_node.use.empty()) {
-			// A `use` node splices the target scene's single inline-stage node (validated at load,
-			// re-checked here). The target's own roles supply the default placements.
+			// Re-checked here; the target's own roles supply the default placements.
 			const auto it = a_def.owner->scenes.find(ToLower(a_node.use));
 			if (it == a_def.owner->scenes.end()) {
 				REX::WARN("[Registry] node '{}' use '{}' references unknown scene", a_node.id, a_node.use);
@@ -3011,11 +2811,8 @@ namespace OSF::Registry
 			}
 			return plan;
 		}
-		// Inline node: this scene's roles supply the default placements.
 		auto plan = BuildPlanFromStages(a_def->id, a_def->roles, a_node.stages, a_actorCount);
 		if (plan) {
-			// Follow-actor scene: no teleport/pin — the rig follows each actor's live transform, so the
-			// player's heading/position (and with them the vanilla third-person camera) stay untouched.
 			plan->SetWorldPlacementMode(a_def->worldPlacement);
 		}
 		return plan;
@@ -3054,8 +2851,7 @@ namespace OSF::Registry
 
 	std::vector<std::string> SceneRegistry::MissingClipRefs() const
 	{
-		// Same probe as the load-time availability sweep (BSResource-aware, so archive-resident
-		// vanilla .af clips are NOT false positives), re-run live for the diagnostic.
+		// Same BSResource-aware probe as the load-time sweep, so archive-resident clips aren't false positives.
 		std::unordered_map<std::string, bool> cache;
 		const auto installed = [&cache](const std::string& a_file) {
 			auto [it, fresh] = cache.try_emplace(a_file, false);

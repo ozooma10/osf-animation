@@ -18,10 +18,7 @@
 
 namespace OSF::Registry
 {
-	// Seven of the eight wire keys ARE the member names. Deliberately defined in this TU and not
-	// in SceneRegistry.h: a repo-wide serializer would let a caller emit the untruncated `problems`
-	// vector, which is exactly what kMaxProblemsPerFile exists to prevent. `warning` is renamed to
-	// `severity` by the one caller (BuildFileReport).
+	// TU-local so no caller can emit the untruncated `problems` vector (see kMaxProblemsPerFile).
 	NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(SceneImportProblem,
 		code, message, hint, scene, node, role, clip)
 }
@@ -44,7 +41,7 @@ namespace OSF::API::UIBridgeCatalog
 			}
 		}
 
-		// How many loops an open-ended hold stage is assumed to run for the scene time estimate
+		// Loops an open-ended hold stage is assumed to run, for time estimates.
 		constexpr float kHoldLoopEstimate = 2.0f;
 		bool IsEmote(const Registry::SceneDef& a_def)
 		{
@@ -75,10 +72,6 @@ namespace OSF::API::UIBridgeCatalog
 			return a_sec >= 0.0f ? json(a_sec) : json(nullptr);
 		}
 
-		// The catalog's wire shape. BuildCatalog gathers into these from the pinned registry
-		// snapshot and sorts them; each to_json below is the ONLY place its wire keys are spelled.
-		// The legacy bridge aliases (stripActors/lockPlayer/inPlace/anchor) are duplicates of a
-		// canonical field and sit here together rather than buried in a 38-line initializer.
 		struct RoleCard
 		{
 			std::string name;
@@ -94,7 +87,7 @@ namespace OSF::API::UIBridgeCatalog
 			std::string detail;
 			std::string role;
 			float       at = 0.0f;
-			float       atSec = -1.0f;  // authored `atFrame` position in seconds (< 0 = `at`-fraction mark)
+			float       atSec = -1.0f;  // authored `atFrame` in seconds; < 0 = `at`-fraction mark
 			bool        repeat = false;
 		};
 
@@ -111,24 +104,23 @@ namespace OSF::API::UIBridgeCatalog
 				{ "repeat", a_mark.repeat },
 			};
 			if (a_mark.atSec >= 0.0f) {
-				a_out["atSec"] = a_mark.atSec;  // authored `atFrame` position in seconds
+				a_out["atSec"] = a_mark.atSec;
 			}
 		}
 
 		struct StageCard
 		{
 			std::int32_t             index = 0;
-			std::string              name;   // stage label ("" = unlabeled)
+			std::string              name;
 			std::vector<std::string> tags;
 			std::vector<TrackMark>   tracks;
 			std::int32_t             clipCount = 0;
-			std::int32_t             pinned = 0;  // 1-based animation-wheel order
-			// Timing. loopSec = the clip's loop length (the honest per-animation number);
-			// estSec folds in the stage's loops/timer; either < 0 = unknown (clip not probed yet).
+			std::int32_t             pinned = 0;  // 1-based wheel order
+			// < 0 = unknown (clip not probed yet).
 			float                    loopSec = -1.0f;
-			float                    timerSec = 0.0f;   // auto-advance timer (0 = none)
-			std::int32_t             loops = -1;        // -1 = play once, 0 = hold, N = loop count
-			bool                     openEnded = false; // hold with no timer: runs until advanced
+			float                    timerSec = 0.0f;   // 0 = none
+			std::int32_t             loops = -1;        // -1 = once, 0 = hold, N = count
+			bool                     openEnded = false;
 			float                    estSec = -1.0f;
 		};
 
@@ -153,12 +145,12 @@ namespace OSF::API::UIBridgeCatalog
 		{
 			std::string              id;
 			std::string              title;
-			std::string              pack;        // file-level `pack` label — the browser's group-by-pack key ("" = none authored)
-			std::string              folder;      // optional slash-delimited catalog path within the pack
-			std::string              sourceFile;  // scene file name only (no directories) — the browser's grouping fallback
-			std::string              sourcePath;  // Data/OSF-relative path for exact Imports -> catalog navigation
-			std::string              sourceKind;  // explicit catalog taxonomy; legacy booleans remain below
-			std::string              species;  // skeleton family ("human" default) for the browser's per-actor filter
+			std::string              pack;
+			std::string              folder;      // slash-delimited path within the pack
+			std::string              sourceFile;  // file name only; never leak the install path
+			std::string              sourcePath;  // Data/OSF-relative
+			std::string              sourceKind;
+			std::string              species;
 			std::vector<std::string> tags;
 			std::uint32_t            actorCount = 0;
 			std::vector<RoleCard>    roles;
@@ -169,18 +161,16 @@ namespace OSF::API::UIBridgeCatalog
 			bool                     fade = false;
 			bool                     requiresFurniture = false;
 			std::string              worldPlacement = "anchorAndPin";
-			std::vector<std::string> anchorNames;  // human labels for WHAT the scene anchors to ("Barstool", ...)
+			std::vector<std::string> anchorNames;
 			bool                     unlisted = false;
-			// Generated one-clip entry that a pack REGISTERED via `clipLibrary`, as opposed to
-			// one harvested from a scene's stages. Both carry the `osf.scene-clip/` id, so the
-			// browser cannot tell authored content from its own debug surface without this.
+			// Registered via `clipLibrary`; harvested stage clips share the `osf.scene-clip/` id prefix.
 			bool                     curated = false;
 			bool                     wheelCustomized = false;  // whole-wheel state, mirrored onto every card
-			std::int32_t             pinned = 0;  // 1-based explicit wheel order (0 = absent/default-derived)
-			std::vector<StageCard>   stages;  // linear stages, in order (empty for a non-linear graph)
-			float                    estSec = -1.0f;      // sum of known stage estimates (< 0 = none known)
-			bool                     estPartial = false;  // at least one linear stage had no estimate
-			bool                     openEnded = false;   // some stage holds until advanced
+			std::int32_t             pinned = 0;  // 1-based wheel order; 0 = absent/default-derived
+			std::vector<StageCard>   stages;  // empty for a non-linear graph
+			float                    estSec = -1.0f;      // < 0 = none known
+			bool                     estPartial = false;
+			bool                     openEnded = false;
 		};
 
 		void to_json(json& a_out, const Card& a_card)
@@ -221,8 +211,7 @@ namespace OSF::API::UIBridgeCatalog
 
 	}
 
-	// Declared roles are authoritative. Anonymous positional scenes instead inherit their cast
-	// width from the first playable stage, matching the catalog card and launch-plan behavior.
+	// Declared roles win; anonymous positional scenes take the first playable stage's clip count.
 	std::size_t ActorCountOf(const Registry::SceneDef& a_def)
 	{
 		if (!a_def.roles.empty()) {
@@ -406,8 +395,7 @@ namespace OSF::API::UIBridgeCatalog
 		return { { "customized", customized }, { "entries", std::move(entries) } };
 	}
 
-	// Serialize the live scene registry to the osf.catalog.data array (a_library=false) or the osf.library.data array (a_library=true — the reference-library lane, e.g. the generated vanilla packs).
-	// Copies fields from the pinned registry snapshot, then builds JSON afterwards.
+	// osf.catalog.data (a_library=false) or osf.library.data (a_library=true).
 	json BuildCatalog(bool a_library)
 	{
 		const bool wheelCustomized = Serialization::WheelPins::Customized();
@@ -426,18 +414,16 @@ namespace OSF::API::UIBridgeCatalog
 		Registry::ContentRegistry::GetSingleton().ForEachDef(
 			[&cards, &wheelOrder, &sourceRoot, sourceRootEc, a_library, wheelCustomized](const Registry::SceneDef& d) {
 			if (d.library != a_library) {
-				return;  // each lane serializes only its own scenes
+				return;
 			}
 			if (!d.clipsAvailable) {
-				return;  // clips not installed (compat pack without its source mod) — unplayable, keep it off the shelf
+				return;
 			}
 			Card c;
 			c.id = d.id;
 			c.title = d.name.empty() ? d.id : d.name;
 			c.pack = d.pack;
 			c.folder = d.folder;
-			// Filename only: the view groups by it when no `pack` is authored, and a full
-			// path would leak the user's install location into the overlay.
 			const auto srcName = d.sourceFile.filename().u8string();
 			c.sourceFile.assign(srcName.begin(), srcName.end());
 			c.species = d.species.empty() ? std::string{ "human" } : d.species;
@@ -464,9 +450,7 @@ namespace OSF::API::UIBridgeCatalog
 			c.requiresFurniture = d.RequiresAnchor();
 			c.worldPlacement = d.worldPlacement == Animation::WorldPlacementMode::kFollowActor ?
 				"followActor" : "anchorAndPin";
-			// Name the anchor, not just the fact of one: keyword edids prettify well
-			// ("AnimFurnBarstool" -> "Barstool"); base-form anchors rarely retain an edid,
-			// so those fall back to the form id — still identifiable, never blank.
+			// Base forms rarely retain an edid at runtime; fall back to the form id.
 			for (const auto kwId : d.anchorKeywords) {
 				if (std::string lbl = KeywordLabel(RE::TESForm::LookupByID<RE::BGSKeyword>(kwId)); !lbl.empty()) {
 					c.anchorNames.push_back(std::move(lbl));
@@ -481,12 +465,12 @@ namespace OSF::API::UIBridgeCatalog
 			c.curated = d.curatedClip;
 			c.wheelCustomized = wheelCustomized;
 			c.pinned = wheelOrder(d.id, -1);
-			// Enumerate the scene's linear stages as browsable animations (each desugared node holds exactly one StageDef).
+			// Each desugared linear node holds exactly one StageDef.
 			c.stages.reserve(d.linearStages.size());
 			for (std::size_t i = 0; i < d.linearStages.size(); ++i) {
 				const auto* node = d.FindNode(d.linearStages[i]);
 				if (!node || node->stages.empty()) {
-					c.estPartial = true;  // a `use` node contributes unknown time
+					c.estPartial = true;  // `use` node: unknown time
 					continue;
 				}
 				const auto& st = node->stages.front();
@@ -497,9 +481,7 @@ namespace OSF::API::UIBridgeCatalog
 				sc.clipCount = static_cast<std::int32_t>(st.clips.size());
 				sc.pinned = wheelOrder(d.id, sc.index);
 
-				// Stage timing, from the node the desugar produce: loop length comes from clips[0].
-				// A pack-authored duration wins over the probe cache (generated vanilla packs).
-				// Resolved before the track lanes: an `atFrame` mark needs it to report a fraction.
+				// Pack-authored duration wins over the probe cache; resolved first for `atFrame` fractions.
 				if (!st.clips.empty()) {
 					const auto& first = st.clips.front();
 					if (first.sec > 0.0f) {
@@ -509,13 +491,8 @@ namespace OSF::API::UIBridgeCatalog
 					}
 				}
 
-				// The browser's track axis is fractional, so an `atFrame` entry is placed against the
-				// stage's own clip length; a stage whose length hasn't been probed yet parks them at
-				// the end of the axis rather than claiming they sit at the clip start. The authored
-				// position is shipped in seconds too (`atSec`) so the view can re-place the mark
-				// against the LIVE decoded duration during inspection — the authored `sec` and the
-				// decoded length can disagree. A frame at or past the clip end is anchored
-				// "unreachable": the runtime provably never fires it (see Registry::TrackFires).
+				// Unprobed clip length parks `atFrame` marks at the axis end. `atSec` lets the view
+				// re-place them against the live decoded duration. Frames past the end never fire.
 				const float clipSec = sc.loopSec;
 				const auto addTrack = [&sc, clipSec](std::string kind, const auto& entry, std::string label,
 					std::string detail = {}, std::string role = {}) {
@@ -561,8 +538,7 @@ namespace OSF::API::UIBridgeCatalog
 					addTrack("camera", camera, std::string(Registry::CameraStateName(camera.state)), std::move(detail));
 				}
 
-				// A frozen stage never plays its clip, so the clip length is not time this stage
-				// spends: its cost is its timer, or nothing at all when it holds until advanced.
+				// A frozen stage never plays its clip: cost is its timer, or zero when open-ended.
 				if (st.hold >= 0.0f) {
 					sc.timerSec = node->timerSec;
 					sc.loops = 0;
@@ -582,8 +558,8 @@ namespace OSF::API::UIBridgeCatalog
 				switch (node->loopMode) {
 				case Registry::LoopMode::kOnce:
 					sc.loops = -1;
-					sc.estSec = sc.loopSec;  // one pass ends the stage
-					if (sc.timerSec > 0.0f) {  // hand-authored node: a timer edge can cut the pass short
+					sc.estSec = sc.loopSec;
+					if (sc.timerSec > 0.0f) {  // a timer edge can cut the pass short
 						sc.estSec = sc.estSec >= 0.0f ? std::min(sc.estSec, sc.timerSec) : sc.timerSec;
 					}
 					break;
@@ -592,18 +568,18 @@ namespace OSF::API::UIBridgeCatalog
 					if (sc.loopSec >= 0.0f) {
 						sc.estSec = static_cast<float>(node->loopCount) * sc.loopSec;
 						if (sc.timerSec > 0.0f) {
-							sc.estSec = std::min(sc.estSec, sc.timerSec);  // whichever fires first
+							sc.estSec = std::min(sc.estSec, sc.timerSec);
 						}
 					} else if (sc.timerSec > 0.0f) {
-						sc.estSec = sc.timerSec;  // upper bound: the timer caps the stage
+						sc.estSec = sc.timerSec;  // upper bound
 					}
 					break;
 				case Registry::LoopMode::kHold:
 					sc.loops = 0;
 					if (sc.timerSec > 0.0f) {
-						sc.estSec = sc.timerSec;  // timed hold: exact
+						sc.estSec = sc.timerSec;
 					} else {
-						sc.openEnded = true;  // runs until advanced — assume a couple of loops
+						sc.openEnded = true;
 						if (sc.loopSec >= 0.0f) {
 							sc.estSec = kHoldLoopEstimate * sc.loopSec;
 						}
@@ -627,20 +603,15 @@ namespace OSF::API::UIBridgeCatalog
 			return la != lb ? la < lb : a.id < b.id;
 		});
 
-		json arr = cards;  // the wire shape lives on the card structs (to_json, above)
+		json arr = cards;
 		REX::DEBUG("[UI] {} built -> {} entr{}", a_library ? "library" : "catalog", cards.size(), cards.size() == 1 ? "y" : "ies");
 		return arr;
 	}
 
-	// At most this many problem lines travel per file. The full set stays in the log and in
-	// OSFAdvanced.GetSceneLoadErrors(); a pack with 300 bad scenes must not turn one reply into a
-	// megabyte of text the panel cannot render anyway. The counts are always exact.
+	// Caps reply size; the full set stays in the log and OSFAdvanced.GetSceneLoadErrors(). Counts stay exact.
 	constexpr std::size_t kMaxProblemsPerFile = 12;
 
-	// Serialize the registry's per-file import records to osf.animation.imports.data. This is a
-	// FILE-shaped view of the load, deliberately unlike the catalog's card-shaped one: a file
-	// that produced no cards still needs to appear, and "my pack didn't load" is precisely
-	// the question the catalog cannot answer.
+	// osf.animation.imports.data: per file, so files that produced no cards still appear.
 	json BuildFileReport()
 	{
 		const auto stats = Registry::ContentRegistry::GetSingleton().FileStats();
@@ -666,8 +637,7 @@ namespace OSF::API::UIBridgeCatalog
 			totalMissing += s.missingClips;
 			totalBytes += s.bytes;
 			totalMs += s.parseMs;
-			// The trailing cross-file bucket has no path and is not a file — it must not count
-			// toward "N files scanned" or it reads as a phantom pack.
+			// The trailing cross-file bucket has no path and is not a file.
 			if (!s.path.empty()) {
 				++realFiles;
 				rejectedFiles += s.Rejected() ? 1u : 0u;
@@ -675,7 +645,6 @@ namespace OSF::API::UIBridgeCatalog
 
 			json problems = json::array();
 			for (std::size_t i = 0; i < s.problems.size() && i < kMaxProblemsPerFile; ++i) {
-				// `warning` is the only field the wire renames rather than copies.
 				json problem = s.problems[i];
 				problem["severity"] = s.problems[i].warning ? "warn" : "error";
 				problems.push_back(std::move(problem));
@@ -714,7 +683,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "warnings", s.warnings },
 				{ "rejected", s.Rejected() },
 				{ "problems", std::move(problems) },
-				// So the panel can say "12 of 40 shown" instead of silently truncating.
 				{ "problemCount", static_cast<std::uint32_t>(s.problems.size()) },
 			});
 		}
@@ -731,8 +699,6 @@ namespace OSF::API::UIBridgeCatalog
 				{ "declaredRoutes", totalDeclaredRoutes },
 				{ "rejectedRoutes", totalRejectedRoutes },
 				{ "routes", totalRoutes },
-				// The registry's own authored count, so a mismatch with the per-file sum is
-				// visible rather than silently averaged away.
 				{ "registered", static_cast<std::uint64_t>(Registry::ContentRegistry::GetSingleton().Size()) },
 				{ "clipEntries", totalClipEntries },
 				{ "hidden", totalHidden },

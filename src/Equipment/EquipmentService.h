@@ -1,24 +1,13 @@
 #pragma once
 
-// Manages an actor's worn equipment for a scene. Two independent features:
-//   - Hide()/Restore(): snapshot + hide the actor's worn apparel, then re-equip it (osf.equipment.hide / .restore).
-//   - EquipItem()/UnequipItem(): equip an ARBITRARY item for the scene's duration, then take it back off
-//     (osf.equipment.equip / .unequip). If the actor didn't already own the item we add a transient copy and
-//     destroy it on cleanup, so an authored prop/outfit leaves no trace in the inventory after the scene.
-// The engine's equip/unequip is synchronous and game-thread-only, so callers must be on the game thread.
-
-// The equip/unequip calls go through ActorEquipManager::{Equip,Unequip}Object; add/remove go through
-// TESObjectREFR::{AddObjectToContainer,RemoveItem} (vtable calls, always bound).
-// A couple of things we leave to in-game behaviour rather than guess at:
-//   - the base skin/body ARMO is left on, matched by form identity (TESNPC::GetSkin) rather than the biped mask, so we can never accidentally make an actor invisible;
-//   - an NPC whose inventory list has never been built simply isn't stripped, the player and any NPC you've interacted with always have one.
+// Scene-scoped worn-equipment changes. Equip/unequip is synchronous and game-thread-only.
+// EquipItem adds a transient copy when the actor doesn't own the item and removes it on cleanup.
+// The skin ARMO (TESNPC::GetSkin) is matched by form identity and never stripped, so an actor can't go invisible.
+// An NPC whose inventory list was never built isn't stripped.
 
 namespace OSF::Equipment
 {
-	// Worn inventory entry captured when apparel is hidden. The form pointer stays valid only because the item
-	// remains in the actor's inventory for the snapshot's whole lifetime (Starfield refcounts forms —
-	// an unowned TESForm* can be destroyed); instanceData is refcounted so the snapshot keeps any
-	// mod/instance state alive across the scene.
+	// `object` stays valid only while the item remains in the actor's inventory (forms are refcounted).
 	struct WornItem
 	{
 		RE::TESBoundObject*                       object = nullptr;
@@ -32,14 +21,12 @@ namespace OSF::Equipment
 		[[nodiscard]] bool Empty() const noexcept { return hiddenItems.empty(); }
 	};
 
-	// One arbitrary item EquipItem() put on an actor, with exactly what it has to undo on cleanup:
-	// unequip only if WE equipped it (don't strip a copy the actor already wore), and destroy the
-	// added copy only if WE added it (don't take away the actor's own).
+	// Undo record: unequip only if we equipped it, remove only the copy we added.
 	struct EquippedItem
 	{
-		RE::TESBoundObject* object = nullptr;        // null => EquipItem failed / unavailable (nothing to undo)
-		bool                addedToInventory = false;  // we added a transient copy — remove it on cleanup
-		bool                equipped = false;          // we equipped it (wasn't already worn) — unequip on cleanup
+		RE::TESBoundObject* object = nullptr;        // null = nothing to undo
+		bool                addedToInventory = false;
+		bool                equipped = false;
 	};
 
 	class EquipmentService
@@ -47,32 +34,23 @@ namespace OSF::Equipment
 	public:
 		static EquipmentService& GetSingleton();
 
-		// GAME THREAD. Snapshots + unequips the actor's worn apparel (including weapon).
-		// Empty snapshot = nothing hidden (nothing to restore later).
+		// Game thread. Hides worn apparel including the weapon; empty snapshot = nothing to restore.
 		Snapshot Hide(RE::Actor* a_actor);
 
-		// GAME THREAD. Like Hide(), but only hides equipped ARMO whose biped slot bits overlap a_slotMask.
-		// a_slotMask == 0 hides nothing; 0xFFFFFFFF hides all eligible worn items (including weapon).
-		// a_keep: worn forms left on AND out of the snapshot (scene-gear hide exemption — the item
-		// stays worn through the scene, so restore must not touch it).
+		// Game thread. Only ARMO overlapping a_slotMask (0 = none, 0xFFFFFFFF = all, plus weapon).
+		// a_keep stays worn and out of the snapshot (scene-gear exemption).
 		Snapshot Hide(RE::Actor* a_actor, std::uint32_t a_slotMask, std::span<RE::TESBoundObject* const> a_keep = {});
 
-		// GAME THREAD. Strips everything the actor is HOLDING rather than wearing: every equipped
-		// non-ARMO inventory item (weapon, slate/datapad, tool, consumable). Nothing worn is touched,
-		// so this is safe to run on a clothed scene — a held prop survives an animation otherwise and
-		// stays welded to the hand through it. Restore() takes the snapshot back.
-		// a_keep: forms left equipped AND out of the snapshot (scene-gear exemption, as in Hide()).
+		// Game thread. Strips held (non-ARMO) items, which otherwise stay welded to the hand. a_keep as in Hide().
 		Snapshot HideHeld(RE::Actor* a_actor, std::span<RE::TESBoundObject* const> a_keep = {});
 
-		// GAME THREAD. Re-equips the apparel recorded in a_snapshot
+		// Game thread.
 		void Restore(RE::Actor* a_actor, const Snapshot& a_snapshot);
 
-		// GAME THREAD. Equips a_object on a_actor for the scene's duration. Adds a transient copy if the actor doesn't already own one. 
-		// Returns the record describing what was done (object null = failed / unavailable); 
-		// pass it to UnequipItem to reverse exactly that (and nothing the actor already had).
+		// Game thread. Pass the result to UnequipItem to reverse exactly what was done.
 		EquippedItem EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object);
 
-		// GAME THREAD. Reverses EquipItem: unequips the item if we equipped it, then destroys the added copy if we added it. No-op for a default/failed record.
+		// Game thread. No-op for a default/failed record.
 		void UnequipItem(RE::Actor* a_actor, const EquippedItem& a_item);
 	};
 }

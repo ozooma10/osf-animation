@@ -13,11 +13,8 @@ namespace OSF::Overlay
 {
 	namespace
 	{
-		// CommonLibSF leaves RE::TESObjectLoadedEvent::GetEventSource bound to
-		// REL::ID(0), and its nearby candidate 107177 is not a parameterless event
-		// accessor. The engine source is a global BSTEventSource (the same direct
-		// binding used by SFSE's GameEvents table). Validate its live vptr before use
-		// so a stale Address Library entry disables only 3D tracking.
+		// CLSF binds TESObjectLoadedEvent::GetEventSource to REL::ID(0); use the global BSTEventSource (as SFSE GameEvents)
+		// and validate its vptr so a stale AddressLib entry disables only 3D tracking.
 		constexpr REL::ID kObjectLoadedEventSourceGlobalID{ 838433 };
 		constexpr REL::ID kObjectLoadedEventSourceVtableID{ 413689 };
 

@@ -46,11 +46,8 @@ namespace OSF::Serialization
 	{
 		using OSF::Util::ToLower;
 
-		// NAF/SAF clips bake the actor's authoring-space placement into the export-root nodes
-		// ("HumanExportRoot"/"Root"). OSF positions the actor via the scene anchor + compose-root pin,
-		// so applying the clip root too would double-position and shove the body off the anchor. Drop
-		// the root TRANSLATION (rotation is kept) — this is what SAF does (its log: skippedRoot=2);
-		// COM and the bones below it carry the actual pose/offset.
+		// NAF/SAF bake authoring placement into export-root translation; the scene anchor owns placement,
+		// so it's dropped (rotation kept), as SAF does. Otherwise the body is double-positioned off the anchor.
 		bool IsExportRootNode(std::string_view a_lowerName)
 		{
 			return a_lowerName == "humanexportroot" || a_lowerName == "root";
@@ -72,12 +69,8 @@ namespace OSF::Serialization
 			return { 0.0f, 0.0f, 0.0f };
 		}
 
-		// Some poser exports omit the engine's COM bone and hang C_Hips + C_Spine directly under an
-		// unbound ArmatureEXP helper. Those tracks are consequently authored in armature/root space
-		// (including the roughly one-metre standing body height), but OSF binds them into live rig slots
-		// that already have their proper parents. Reapplying the rest height lifts the legs at C_Hips
-		// and independently stretches the upper body at C_Spine. Normalize only large absolute-space
-		// roots; an ordinary local C_Spine offset is small and must remain untouched.
+		// Poser exports without COM author C_Hips/C_Spine in root space (~1 m body height); applied to live
+		// rig slots that lifts the legs and stretches the spine. Only large offsets qualify.
 		bool IsComlessBodyRoot(const fastgltf::Node& a_node, bool a_hasCom)
 		{
 			if (a_hasCom) {
@@ -88,7 +81,7 @@ namespace OSF::Serialization
 				return false;
 			}
 			const auto tr = NodeTranslation(a_node);
-			return tr.x * tr.x + tr.y * tr.y + tr.z * tr.z > 0.25f;  // > 0.5 m means authoring/root space
+			return tr.x * tr.x + tr.y * tr.y + tr.z * tr.z > 0.25f;  // > 0.5 m
 		}
 
 		ozz::math::Transform GetNodeLocalTransform(const fastgltf::Node& a_node, bool a_hasCom)
@@ -100,7 +93,7 @@ namespace OSF::Serialization
 				result.scale = { trs.scale[0], trs.scale[1], trs.scale[2] };
 				const auto lowerName = ToLower(a_node.name.c_str());
 				if (IsExportRootNode(lowerName) || IsComlessBodyRoot(a_node, a_hasCom)) {
-					result.translation = { 0.0f, 0.0f, 0.0f };  // anchor owns root placement
+					result.translation = { 0.0f, 0.0f, 0.0f };
 				} else {
 					result.translation = { trs.translation[0], trs.translation[1], trs.translation[2] };
 				}
@@ -110,7 +103,6 @@ namespace OSF::Serialization
 
 		using Util::MaybeGunzip;
 
-		// Reads the whole file; if it is gzip-compressed, decompresses it transparently.
 		std::optional<std::vector<std::byte>> ReadFileMaybeGzip(const std::filesystem::path& a_file)
 		{
 			std::error_code ec;
@@ -132,8 +124,7 @@ namespace OSF::Serialization
 			return MaybeGunzip(std::move(buffer));
 		}
 
-		// Strips `min`/`max` from all accessors in a glTF JSON document. NAF's exporter writes min/max arrays whose length doesn't match the accessor type (spec violation), which strict parsers reject. 
-		// We never use min/max, so dropping them is safe.
+		// NAF's exporter writes min/max arrays of the wrong length, which fastgltf rejects. They're unused, so strip them.
 		bool SanitizeGltfJson(std::string_view a_json, std::string& a_out)
 		{
 			auto doc = nlohmann::json::parse(a_json, nullptr, false);
@@ -152,9 +143,7 @@ namespace OSF::Serialization
 			return true;
 		}
 
-		// Rewrites a GLB/glTF byte buffer with sanitized JSON. GLB layout:
-		// 12-byte header, then chunks of [u32 length][u32 type][data]; the first
-		// chunk is JSON, everything after it is copied verbatim.
+		// GLB: 12-byte header, then chunks of [u32 length][u32 type][data]; the first chunk is JSON.
 		bool SanitizeGltfBytes(std::vector<std::byte>& a_bytes)
 		{
 			constexpr uint32_t kGlbMagic = 0x46546C67;  // "glTF"
@@ -167,7 +156,6 @@ namespace OSF::Serialization
 			};
 
 			if (a_bytes.size() >= 2 && static_cast<char>(a_bytes[0]) == '{') {
-				// plain .gltf JSON
 				std::string sanitized;
 				if (!SanitizeGltfJson({ reinterpret_cast<const char*>(a_bytes.data()), a_bytes.size() }, sanitized)) {
 					return false;
@@ -190,7 +178,7 @@ namespace OSF::Serialization
 			if (!SanitizeGltfJson({ reinterpret_cast<const char*>(a_bytes.data() + 20), jsonLen }, sanitized)) {
 				return false;
 			}
-			sanitized.resize((sanitized.size() + 3) & ~size_t{ 3 }, ' ');  // 4-byte pad with spaces
+			sanitized.resize((sanitized.size() + 3) & ~size_t{ 3 }, ' ');  // JSON chunk must be 4-byte aligned, space-padded
 
 			std::vector<std::byte> out;
 			out.reserve(a_bytes.size());
@@ -199,12 +187,12 @@ namespace OSF::Serialization
 				out.insert(out.end(), p, p + a_size);
 			};
 
-			append(a_bytes.data(), 12);                       // header (total length fixed below)
+			append(a_bytes.data(), 12);                       // header; total length patched below
 			const uint32_t newJsonLen = static_cast<uint32_t>(sanitized.size());
 			append(&newJsonLen, 4);
-			append(a_bytes.data() + 16, 4);                   // "JSON" chunk type
+			append(a_bytes.data() + 16, 4);
 			append(sanitized.data(), sanitized.size());
-			append(a_bytes.data() + 20 + jsonLen, a_bytes.size() - 20 - jsonLen);  // remaining chunks
+			append(a_bytes.data() + 20 + jsonLen, a_bytes.size() - 20 - jsonLen);
 
 			const uint32_t totalLen = static_cast<uint32_t>(out.size());
 			std::memcpy(out.data() + 8, &totalLen, 4);
@@ -213,9 +201,6 @@ namespace OSF::Serialization
 			return true;
 		}
 
-		// Sets a_error + a_detail and returns nullopt on failure. The read/sanitize stages report
-		// kFileReadFailed; the fastgltf stages report kParseFailed. (Previously the caller recovered
-		// the category by sniffing a_detail's prefix — control flow keyed on log prose.)
 		std::optional<fastgltf::Asset> LoadAssetFromBytes(std::vector<std::byte> a_bytes,
 			const std::filesystem::path& a_parentPath, GLTFError& a_error, std::string& a_detail)
 		{
@@ -271,9 +256,7 @@ namespace OSF::Serialization
 			}
 			return LoadAssetFromBytes(std::move(*bytes), a_file.parent_path(), a_error, a_detail);
 		}
-		// Builds an ozz skeleton from the asset's full node hierarchy. Root nodes
-		// are nodes that are not referenced as a child of any other node, so the
-		// Scenes category is not required.
+		// Roots = nodes no other node references, so the Scenes category isn't needed.
 		std::shared_ptr<Animation::OzzSkeleton> BuildSkeleton(const fastgltf::Asset& a_asset)
 		{
 			const auto& nodes = a_asset.nodes;
@@ -296,8 +279,7 @@ namespace OSF::Serialization
 				return nullptr;
 			}
 
-			// Iterative depth-first construction: malformed deep-but-acyclic input cannot consume
-			// the process stack. visited also rejects cycles/disconnected cyclic components.
+			// Iterative so deep malformed input can't overflow the stack.
 			struct PendingJoint
 			{
 				std::size_t nodeIdx;
@@ -353,17 +335,14 @@ namespace OSF::Serialization
 			return result;
 		}
 
-		// A hostile/corrupt accessor can declare a count larger than its backing bufferView —
-		// fastgltf::validate does NOT catch this, and getAccessorElement then reads out of bounds
-		// (reproduced as a hard segfault through the offline harness). Verify the last element ends
-		// inside the view and the view inside its buffer before touching any element.
+		// fastgltf doesn't check accessor count against its bufferView; getAccessorElement would read out of bounds.
 		bool AccessorInBounds(const fastgltf::Asset& a_asset, const fastgltf::Accessor& a_accessor)
 		{
 			if (a_accessor.sparse.has_value()) {
-				return false;  // sparse storage has its own index/value views; not used by clip exports — reject rather than audit
+				return false;  // unused by clip exports; not bounds-audited
 			}
 			if (!a_accessor.bufferViewIndex.has_value()) {
-				return true;  // element reads yield zeros
+				return true;  // reads yield zeros
 			}
 			if (*a_accessor.bufferViewIndex >= a_asset.bufferViews.size()) {
 				return false;
@@ -377,8 +356,7 @@ namespace OSF::Serialization
 			if (elemSize == 0 || stride < elemSize) {
 				return false;
 			}
-			// All quantities come straight from the file. Bound against the view by subtraction
-			// so no file-declared sum is formed before it is proven representable.
+			// Bound by subtraction so no file-declared sum can overflow.
 			if (a_accessor.byteOffset > view.byteLength) {
 				return false;
 			}
@@ -401,14 +379,12 @@ namespace OSF::Serialization
 		{
 			const bool hasCom = HasNodeNamed(a_asset, "com");
 
-			// Map of lowercased node names -> skeleton joint indexes.
 			std::map<std::string, size_t> jointMap;
 			auto jointNames = a_skeleton.joint_names();
 			for (size_t i = 0; i < jointNames.size(); i++) {
 				jointMap[ToLower(jointNames[i])] = i;
 			}
 
-			// Map of GLTF node indexes -> skeleton joint indexes.
 			std::vector<size_t> nodeToJoint;
 			nodeToJoint.reserve(a_asset.nodes.size());
 			for (const auto& n : a_asset.nodes) {
@@ -437,7 +413,6 @@ namespace OSF::Serialization
 				if (jointIdx == SIZE_MAX)
 					continue;
 
-				// Export-root translation is dropped (placement is anchor-owned); rotation still applies.
 				const auto& channelNode = a_asset.nodes[c.nodeIndex.value()];
 				const auto lowerName = ToLower(channelNode.name.c_str());
 				const bool isExportRoot = IsExportRootNode(lowerName);
@@ -457,7 +432,7 @@ namespace OSF::Serialization
 				if (timeAccessor.count != dataAccessor.count)
 					continue;
 				if (!AccessorInBounds(a_asset, timeAccessor) || !AccessorInBounds(a_asset, dataAccessor)) {
-					continue;  // accessor exceeds its buffer view (corrupt/hostile file) — skip the channel; no REX here (CLSF-free TU)
+					continue;  // no logging: this TU is CLSF-free
 				}
 
 				auto& track = raw->tracks[jointIdx];
@@ -489,7 +464,6 @@ namespace OSF::Serialization
 				}
 			}
 
-			// Any joint without keyframes holds its skeleton rest pose.
 			for (int i = 0; i < numJoints; i++) {
 				auto& track = raw->tracks[i];
 				const auto rest = ozz::animation::GetJointLocalRestPose(a_skeleton, i);
@@ -530,10 +504,7 @@ namespace OSF::Serialization
 		if (a_animId.empty()) {
 			anim = &a_asset.animations[0];
 		} else if (std::all_of(a_animId.begin(), a_animId.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); })) {
-			// from_chars (not stoull): an over-long all-digit id (> ULLONG_MAX)
-			// makes stoull THROW std::out_of_range, which would propagate out of
-			// the Papyrus native and crash the game. from_chars reports overflow
-			// as result_out_of_range, leaving anim null -> kInvalidAnimationIdentifier.
+			// Not stoull: it throws on overflow, which would crash through the Papyrus native.
 			size_t idx = 0;
 			const auto* first = a_animId.data();
 			const auto* last = first + a_animId.size();
@@ -577,11 +548,8 @@ namespace OSF::Serialization
 
 	namespace
 	{
-		// Clip cache (successes only). Note: no logging in this file — it also
-		// builds into the standalone import-test tool, which doesn't link the
-		// game libraries. Deliberately leaked: destroying the map at process exit
-		// would free ozz objects after ozz's own statics are gone, which crashed
-		// the import tool after main with STATUS_STACK_BUFFER_OVERRUN.
+		// No logging in this file: it also builds into the standalone import-test tool.
+		// Cache is leaked: freeing ozz objects after ozz's statics die crashed at exit.
 		std::mutex g_clipCacheLock;
 		auto& ClipCache()
 		{
@@ -620,8 +588,7 @@ namespace OSF::Serialization
 
 		auto result = LoadAnimationUncached(a_file, a_animId);
 		if (result.error == GLTFError::kSuccess) {
-			// Two threads importing the same file concurrently both pay the
-			// import and one insert wins — benign (identical immutable data).
+			// Concurrent duplicate imports are benign; one insert wins.
 			std::scoped_lock l{ g_clipCacheLock };
 			ClipCache().emplace(key, result);
 		}

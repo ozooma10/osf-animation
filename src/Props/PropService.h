@@ -15,9 +15,7 @@ namespace RE
 
 namespace OSF::Props
 {
-	// One render-only scene prop owned by a live OSF scene. The exact cloned
-	// object and actor root stay strongly referenced until Destroy; normal
-	// scene-end cleanup detaches only that owned pointer.
+	// Render-only scene prop. The clone and actor root stay strongly referenced until Destroy.
 	struct Instance
 	{
 		::RE::NiPointer<::RE::NiAVObject> object;
@@ -32,21 +30,18 @@ namespace OSF::Props
 	public:
 		static PropService& GetSingleton();
 
-		// GAME THREAD. Resolve and clone a visual, then attach it to the named
-		// node on a_actor. On success the returned instance owns the prop.
+		// Game thread. On success the returned instance owns the prop.
 		[[nodiscard]] Instance CreateAttached(
 			::RE::Actor* a_actor, const Source& a_source,
 			const Attachment& a_attachment, std::string* a_error = nullptr);
 
-		// GAME THREAD. Move an existing scene prop to another actor-relative
-		// attachment. Reattaching may hand the same visual to a different role.
+		// Game thread. May hand the same visual to a different role.
 		[[nodiscard]] bool Attach(
 			Instance& a_instance, ::RE::Actor* a_actor,
 			const Attachment& a_attachment,
 			std::string* a_error = nullptr);
 
-		// GAME THREAD. Detach and release exactly this scene-owned visual.
-		// Idempotent for an empty instance.
+		// Game thread. Idempotent for an empty instance.
 		[[nodiscard]] bool Destroy(
 			Instance& a_instance, std::string* a_error = nullptr);
 	};

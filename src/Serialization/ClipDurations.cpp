@@ -2,7 +2,7 @@
 #include "Serialization/ClipDurations.h"
 
 #include "Registry/SceneRegistry.h"
-#include "Serialization/AFImport.h"  // kAfFps
+#include "Serialization/AFImport.h"
 #include "Util/Ba2.h"
 #include "Util/ClipPath.h"
 #include "Util/Gzip.h"
@@ -27,9 +27,9 @@ namespace OSF::Serialization::ClipDurations
 		struct Entry
 		{
 			float         sec = 0.0f;
-			std::uint64_t size = 0;   // probed source size (loose file or BA2 payload); 0 = from a decode, identity unknown
-			std::int64_t  mtime = 0;  // loose-file write time (file_clock ticks); 0 = not a loose file
-			bool          exact = false;  // true = from a real ozz decode (Record), not a metadata probe
+			std::uint64_t size = 0;   // 0 = from a decode, source identity unknown
+			std::int64_t  mtime = 0;  // file_clock ticks; 0 = not a loose file
+			bool          exact = false;  // from a real decode (Record), not a probe
 		};
 
 		struct ProcessState
@@ -42,9 +42,7 @@ namespace OSF::Serialization::ClipDurations
 			bool rescanPending = false;
 		};
 
-		// The scanner is detached because SFSE plugins are not unloaded during play. Keep every
-		// object it can touch process-lifetime too, so CRT teardown cannot destroy cache state
-		// underneath a finishing scan.
+		// Leaked: the detached scanner may still be running during CRT teardown.
 		ProcessState& g_state = *new ProcessState();
 		auto& g_lock = g_state.lock;
 		auto& g_map = g_state.map;
@@ -53,10 +51,7 @@ namespace OSF::Serialization::ClipDurations
 		bool& g_scanRunning = g_state.scanRunning;
 		bool& g_rescanPending = g_state.rescanPending;
 
-		// A probe within this of an exact decode value confirms it — keep the decode's number.
 		constexpr float kExactConfirmTolerance = 0.05f;
-
-		// Values outside (0, 1h] are treated as garbage (corrupt header / bogus accessor max) rather than persisted and shown.
 		constexpr float kMaxPlausibleSec = 3600.0f;
 
 		bool PlausibleSec(float a_sec)
@@ -64,28 +59,25 @@ namespace OSF::Serialization::ClipDurations
 			return std::isfinite(a_sec) && a_sec > 0.0f && a_sec <= kMaxPlausibleSec;
 		}
 
-		// Cache key: the authored spec collapsed to its display form, the SAME identity playback uses (so "naf:X", "Data/NAF/X" and "NAF\X" all land on one entry)
-		// lowercased, + the anim id. String-only (no filesystem), so it is safe inside the noexcept UI handlers.
+		// Same identity playback uses ("naf:X", "Data/NAF/X", "NAF\X" collapse). No filesystem access: called from noexcept UI handlers.
 		std::string KeyFor(std::string_view a_fileSpec, std::string_view a_animId)
 		{
 			return Util::ToLower(Util::ClipSpecDisplay(std::filesystem::path{ std::string{ a_fileSpec } })) +
 			       '|' + std::string{ a_animId };
 		}
 
-		// <Documents>\My Games\Starfield\SFSE\OSF\clip-durations.json, or empty (no persistence).
+		// Empty = no persistence.
 		std::filesystem::path CacheFilePath()
 		{
 			try {
 				if (auto dir = SFSE::log::log_directory()) {
-					// ...\My Games\Starfield\SFSE\Logs -> ...\My Games\Starfield\SFSE\OSF
 					return dir->parent_path() / "OSF" / "clip-durations.json";
 				}
 			} catch (...) {}
 			return {};
 		}
 
-		// ---- persistence (caller holds g_lock) -------------------------------
-
+		// *Locked: caller holds g_lock.
 		void LoadLocked()
 		{
 			if (g_loaded) {
@@ -99,9 +91,8 @@ namespace OSF::Serialization::ClipDurations
 			}
 			std::ifstream in(file, std::ios::binary);
 			if (!in) {
-				return;  // first run
+				return;
 			}
-			// Tolerate a corrupt/hand-edited file: bad entries are skipped, never thrown 
 			try {
 				const json doc = json::parse(in, nullptr, /*allow_exceptions*/ false);
 				const auto clips = doc.is_object() ? doc.find("clips") : doc.end();
@@ -155,7 +146,7 @@ namespace OSF::Serialization::ClipDurations
 					REX::WARN("[Registry] cannot write clip-duration cache {} — values won't persist this session", tmp.string());
 					return;
 				}
-				// replace error handler: keys are Windows file paths in the ACP narrow encoding, which need not be valid UTF-8
+				// Keys are ACP-encoded paths, not necessarily valid UTF-8.
 				out << doc.dump(1, '\t', false, json::error_handler_t::replace);
 			}
 			std::filesystem::rename(tmp, file, ec);
@@ -166,10 +157,7 @@ namespace OSF::Serialization::ClipDurations
 			g_dirty = false;
 		}
 
-		// ---- probes (background thread, engine-free) -------------------------
-
-		// .af: the 64-byte header carries the clip's frame count (u16 @44 — after 8B magic, 16B rotation, 12B translation, 4B flags, 2B version, 2B boneCount; see AFImport::ParseAf).
-		// Keyframe indices run 0..frameCount-1 at kAfFps, so the last frame IS the duration.
+		// .af header: u16 frameCount @44 (see AFImport::ParseAf); duration = (frameCount - 1) / kAfFps.
 		std::optional<float> ProbeAfBytes(const std::vector<std::byte>& a_bytes)
 		{
 			if (a_bytes.size() < 64) {
@@ -181,8 +169,7 @@ namespace OSF::Serialization::ClipDurations
 			return lastFrame / AFImport::kAfFps;
 		}
 
-		// Mirrors GLTFImport::BuildLoadResult's animation selection: "" -> first, all-digits ->
-		// index, anything else -> exact name match. nullptr = no such animation.
+		// Must mirror GLTFImport::BuildLoadResult's selection: "" = first, digits = index, else name.
 		const json* SelectAnimation(const json& a_animations, std::string_view a_animId)
 		{
 			if (!a_animations.is_array() || a_animations.empty()) {
@@ -209,12 +196,8 @@ namespace OSF::Serialization::ClipDurations
 			return nullptr;
 		}
 
-		// GLB/glTF: a sampler's input accessor holds the keyframe times, strictly increasing per
-		// spec — so the animation's duration is the LAST input element, readable straight out of
-		// the binary chunk without decoding anything. Falls back to the accessor's declared `max`
-		// when the value isn't reachable (external .bin buffer). NOTE: NAF-exported files carry
-		// spec-violating min/max arrays (see SanitizeGltfJson), which is why the buffer read is
-		// the primary source and `max` only the fallback.
+		// Duration = last element of each sampler's input accessor (times are strictly increasing).
+		// Accessor `max` is only a fallback: NAF exports carry bogus min/max (see SanitizeGltfJson).
 		std::optional<float> ProbeGltfBytes(std::vector<std::byte> a_bytes, std::string_view a_animId)
 		{
 			auto bytes = Util::MaybeGunzip(std::move(a_bytes));
@@ -222,7 +205,6 @@ namespace OSF::Serialization::ClipDurations
 				return std::nullopt;
 			}
 
-			// Split into the JSON document and (for GLB) the BIN chunk.
 			std::string_view jsonText;
 			const std::byte* bin = nullptr;
 			std::size_t binSize = 0;
@@ -274,7 +256,6 @@ namespace OSF::Serialization::ClipDurations
 			const auto accessors = doc.find("accessors");
 			const auto bufferViews = doc.find("bufferViews");
 
-			// Last time value of one input accessor, from the BIN chunk. nullopt = unreachable.
 			const auto lastInputKey = [&](const json& a_acc) -> std::optional<float> {
 				if (!bin || bufferViews == doc.end() || !bufferViews->is_array()) {
 					return std::nullopt;
@@ -295,8 +276,7 @@ namespace OSF::Serialization::ClipDurations
 				const std::size_t stride = bv.value("byteStride", std::size_t{ 4 });
 				const std::size_t bvOff = bv.value("byteOffset", std::size_t{ 0 });
 				const std::size_t accOff = a_acc.value("byteOffset", std::size_t{ 0 });
-				// Overflow-proof bound: every term is file-declared, so check stepwise — a wrapped
-				// `off` sum would defeat the final compare and read out of the BIN chunk.
+				// Bounds checked stepwise: all terms are file-declared and a wrapped sum would read out of bounds.
 				if (stride < 4 || bvOff > binSize || accOff > binSize - bvOff) {
 					return std::nullopt;
 				}
@@ -323,7 +303,7 @@ namespace OSF::Serialization::ClipDurations
 				}
 				const json& acc = (*accessors)[inIdx];
 				std::optional<float> t = lastInputKey(acc);
-				if (!t) {  // fallback: the declared max (suspect on NAF exports, see above)
+				if (!t) {
 					if (const auto mx = acc.find("max"); mx != acc.end() && mx->is_array() &&
 						!mx->empty() && (*mx)[0].is_number()) {
 						t = (*mx)[0].get<float>();
@@ -343,8 +323,6 @@ namespace OSF::Serialization::ClipDurations
 		{
 			std::error_code ec;
 			const auto sz = std::filesystem::file_size(a_file, ec);
-			// Match the playback importers: the duration scan must not allocate a file that
-			// playback itself would reject, especially while probing every installed clip.
 			if (ec || sz > Util::kMaxClipBytes) {
 				return std::nullopt;
 			}
@@ -358,15 +336,14 @@ namespace OSF::Serialization::ClipDurations
 
 		enum class ProbeOutcome : std::uint8_t
 		{
-			kFresh,        // cache entry matched the file identity — nothing to do
-			kChanged,      // new or updated duration stored
-			kInvalidated,  // source changed but yielded no duration — stale entry dropped
-			kMissing,      // no readable source found
-			kUnprobed      // bytes found but no duration extractable (and nothing cached to drop)
+			kFresh,
+			kChanged,
+			kInvalidated,  // source changed but yielded no duration; stale entry dropped
+			kMissing,
+			kUnprobed
 		};
 
-		// Probe one clip ref against the cache. Runs on the scan thread; touches no engine state
-		// (std IO + our own BA2 reader only — MO2's VFS virtualizes both, same as the game's view).
+		// Scan thread: std IO + own BA2 reader only, no engine state.
 		ProbeOutcome ProbeOne(const std::string& a_fileSpec, const std::string& a_animId, const std::string& a_key)
 		{
 			const auto spec = Util::ResolveClipSpec(std::filesystem::path{ a_fileSpec });
@@ -378,10 +355,8 @@ namespace OSF::Serialization::ClipDurations
 				return it != g_map.end() && it->second.size == a_size && it->second.mtime == a_mtime;
 			};
 
-			// Locate the source: first loose file across the candidates (mirrors the engine's
-			// loose-over-archive precedence), then — for .af only — the game BA2s. GLBs packed
-			// into mod BA2s stay unknown here and get backfilled by Record on first playback
-			// (Ba2::ReadGameFile re-scans every archive per call — too slow for a bulk pass).
+			// Loose files first, then game BA2s for .af only. GLBs in mod BA2s are backfilled by Record
+			// (ReadGameFile rescans every archive per call, too slow for a bulk pass).
 			std::vector<std::byte> bytes;
 			std::uint64_t size = 0;
 			std::int64_t mtime = 0;
@@ -431,7 +406,6 @@ namespace OSF::Serialization::ClipDurations
 
 			const auto sec = isAf ? ProbeAfBytes(bytes) : ProbeGltfBytes(std::move(bytes), a_animId);
 			if (!sec || !PlausibleSec(*sec)) {
-				// The source changed AND we can't read a duration out of it — drop any stale value.
 				std::scoped_lock l{ g_lock };
 				if (g_map.erase(a_key) > 0) {
 					g_dirty = true;
@@ -450,13 +424,11 @@ namespace OSF::Serialization::ClipDurations
 			}
 			e.size = size;
 			e.mtime = mtime;
-			g_dirty = true;  // identity refresh persists even when the value held
+			g_dirty = true;
 			return valueChanged ? ProbeOutcome::kChanged : ProbeOutcome::kFresh;
 		}
 
-		// One full pass: gather refs from one immutable registry snapshot, then probe, prune, save.
-		// Do not hold g_lock while gathering: callbacks should remain independent of cache locking.
-		// Returns the number of catalog-visible changes.
+		// Don't hold g_lock while gathering from the registry. Returns catalog-visible change count.
 		std::size_t ScanPass()
 		{
 			const auto t0 = std::chrono::steady_clock::now();
@@ -464,13 +436,12 @@ namespace OSF::Serialization::ClipDurations
 			std::vector<std::pair<std::string, std::string>> refs;
 			Registry::ContentRegistry::GetSingleton().ForEachDef([&refs](const Registry::SceneDef& d) {
 				if (!d.clipsAvailable) {
-					return;  // clips not installed — probing would just fail-log per file
+					return;
 				}
 				for (const auto& n : d.nodes) {
 					for (const auto& st : n.stages) {
 						for (const auto& c : st.clips) {
-							// A pack-authored `sec` needs no probe — keeps the thousands of generated
-							// vanilla-pack refs from re-walking the game archive every scan.
+							// Pack-authored `sec` skips the probe (vanilla packs would rewalk the game BA2 every scan).
 							if (!c.file.empty() && c.sec <= 0.0f) {
 								refs.emplace_back(c.file, c.animId);
 							}
@@ -491,8 +462,7 @@ namespace OSF::Serialization::ClipDurations
 				if (!seen.insert(key).second) {
 					continue;
 				}
-				// Per-file guard: one malformed clip must cost ONE estimate, not abort the whole
-				// pass (the thread-level catch would otherwise discard every remaining probe).
+				// Per-file guard so one malformed clip doesn't abort the pass.
 				ProbeOutcome outcome = ProbeOutcome::kUnprobed;
 				try {
 					outcome = ProbeOne(file, animId, key);
@@ -513,9 +483,7 @@ namespace OSF::Serialization::ClipDurations
 			std::size_t pruned = 0;
 			{
 				std::scoped_lock l{ g_lock };
-				// Prune probe entries no clip reference uses any more (uninstalled/renamed packs)
-				// so the cache tracks the install instead of growing forever. Exact entries stay:
-				// they may belong to ad-hoc plays (OSF.Play with a bare path) outside any scene.
+				// Exact entries survive pruning: they may come from ad-hoc OSF.Play paths outside any scene.
 				for (auto it = g_map.begin(); it != g_map.end();) {
 					if (!it->second.exact && !seen.contains(it->first)) {
 						it = g_map.erase(it);
@@ -561,14 +529,13 @@ namespace OSF::Serialization::ClipDurations
 			auto& e = it->second;
 			const bool close = std::abs(e.sec - a_seconds) <= kExactConfirmTolerance;
 			if (e.exact && close) {
-				return;  // already have this number
+				return;
 			}
 			e.sec = a_seconds;
 			e.exact = true;
 			g_dirty = true;
 			if (close) {
-				return;  // probe confirmed, value unchanged — persist lazily (next scan save),
-				         // not one whole-file rewrite per clip while a scene preloads its stages
+				return;  // persisted lazily by the next scan save
 			}
 		} else {
 			auto& e = g_map[key];
@@ -576,7 +543,7 @@ namespace OSF::Serialization::ClipDurations
 			e.exact = true;
 			g_dirty = true;
 		}
-		SaveLocked();  // genuinely new information — worth the write
+		SaveLocked();
 	}
 
 	void ScanSceneClipsAsync(std::function<void()> a_onChanged)
@@ -584,8 +551,7 @@ namespace OSF::Serialization::ClipDurations
 		{
 			std::scoped_lock l{ g_lock };
 			if (g_scanRunning) {
-				// Fold into the running scan: its worker re-gathers from the (possibly reloaded)
-				// registry and runs another pass before finishing, using its own callback.
+				// The running worker does another pass with its own callback.
 				g_rescanPending = true;
 				REX::DEBUG("[Registry] clip-duration scan already running — queued a follow-up pass");
 				return;
@@ -596,7 +562,6 @@ namespace OSF::Serialization::ClipDurations
 		std::thread([onChanged = std::move(a_onChanged)]() {
 			std::size_t changed = 0;
 			for (;;) {
-				// A detached thread must not leak exceptions (std::terminate). Failures here only cost estimates, never the game.
 				try {
 					changed += ScanPass();
 				} catch (const std::exception& e) {

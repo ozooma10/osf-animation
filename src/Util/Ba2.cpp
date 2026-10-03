@@ -13,7 +13,6 @@ namespace OSF::Util::Ba2
 {
 	namespace
 	{
-		// Lowercase + backslashes -> forward slashes, for archive-name matching.
 		std::string Normalize(std::string_view a_path)
 		{
 			std::string s = ToLower(a_path);
@@ -32,7 +31,6 @@ namespace OSF::Util::Ba2
 			return static_cast<bool>(a_f.read(reinterpret_cast<char*>(&a_out), sizeof(T)));
 		}
 
-		// Looks for a_want inside one GNRL archive; returns its decompressed bytes if present.
 		std::optional<std::vector<std::uint8_t>> ReadFromArchive(const std::filesystem::path& a_archive, const std::string& a_want)
 		{
 			std::ifstream f(a_archive, std::ios::binary);
@@ -51,7 +49,7 @@ namespace OSF::Util::Ba2
 			f.seekg(8);
 			f.read(type, 4);
 			if (!f || std::memcmp(type, "GNRL", 4) != 0) {
-				return std::nullopt;  // texture (DX10) or other archive — not handled
+				return std::nullopt;  // DX10 texture archives not handled
 			}
 
 			std::uint32_t fileCount = 0;
@@ -60,7 +58,7 @@ namespace OSF::Util::Ba2
 				return std::nullopt;
 			}
 
-			// Name table: per file, u16 length + raw name bytes. Walk it to find a_want's index.
+			// Name table: per file, u16 length + raw name bytes.
 			f.seekg(static_cast<std::streamoff>(nameTableOffset));
 			std::vector<char> nameBlob((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
 			std::size_t found = static_cast<std::size_t>(-1);
@@ -87,7 +85,7 @@ namespace OSF::Util::Ba2
 				return std::nullopt;
 			}
 
-			// Record (36 bytes) for `found`. Starfield v2 records start at 0x20.
+			// 36-byte records; Starfield v2 records start at 0x20.
 			const std::uint64_t recOff = (version >= 2 ? 0x20 : 0x18) + static_cast<std::uint64_t>(found) * 36;
 			std::uint64_t dataOffset = 0;
 			std::uint32_t packed = 0;
@@ -101,8 +99,8 @@ namespace OSF::Util::Ba2
 
 			const std::uint32_t storedSize = packed != 0 ? packed : unpacked;
 
-			// Reject absurd records rather than allocating gigabytes from a corrupt or foreign archive 
-			constexpr std::uint32_t kMaxReasonable = 64u * 1024 * 1024;  // 64 MiB ceiling
+			// Guards against allocating gigabytes from a corrupt archive.
+			constexpr std::uint32_t kMaxReasonable = 64u * 1024 * 1024;
 			if (unpacked > kMaxReasonable || packed > kMaxReasonable) {
 				return std::nullopt;
 			}
@@ -118,7 +116,7 @@ namespace OSF::Util::Ba2
 				return std::nullopt;
 			}
 			if (packed == 0) {
-				return stored;  // stored uncompressed
+				return stored;
 			}
 
 			std::vector<std::uint8_t> out(unpacked);
@@ -139,12 +137,10 @@ namespace OSF::Util::Ba2
 			return std::nullopt;
 		}
 
-		// Fast path: a caller that knows which base archive holds the asset skips the directory walk straight to it.
 		if (!a_preferredArchive.empty()) {
 			if (auto bytes = ReadFromArchive(dataDir / a_preferredArchive, want)) {
 				return bytes;
 			}
-			// Not there — fall through to a full scan (covers archive renames/splits in game updates).
 		}
 
 		for (const auto& entry : std::filesystem::directory_iterator(dataDir, ec)) {
@@ -155,7 +151,7 @@ namespace OSF::Util::Ba2
 				continue;
 			}
 			if (auto bytes = ReadFromArchive(entry.path(), want)) {
-				return bytes;  // exact path is unique to one archive (the base human rig is in Starfield - Animations.ba2)
+				return bytes;
 			}
 		}
 		return std::nullopt;

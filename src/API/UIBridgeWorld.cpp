@@ -27,14 +27,13 @@ namespace OSF::API::UIBridgeWorld
 
 	namespace
 	{
-		// The client has process lifetime in UIBridge.cpp. It is set before any
-		// world command is registered and only read by main-thread handlers.
+		// Process-lifetime client owned by UIBridge.cpp; set before registration.
 		OSFUI::API::Client* g_ui = nullptr;
 
 		struct Picked
 		{
-			RE::TESObjectREFR* ref;     // pointer resolved at pick time
-			RE::TESFormID      formID;  // must still resolve to that same pointer at use
+			RE::TESObjectREFR* ref;
+			RE::TESFormID      formID;  // must still resolve to `ref` at use
 			bool               isActor;
 		};
 
@@ -158,7 +157,6 @@ namespace OSF::API::UIBridgeWorld
 
 	std::int32_t AllocToken(RE::TESObjectREFR* a_ref)
 	{
-		// Re-scans reuse the form's browser-session token and refresh its pointer.
 		const RE::TESFormID fid = a_ref->GetFormID();
 		if (const auto it = g_formToken.find(fid); it != g_formToken.end()) {
 			g_tokens[it->second] = Picked{ a_ref, fid, a_ref->IsActor() };
@@ -182,15 +180,13 @@ namespace OSF::API::UIBridgeWorld
 		const Picked& p = it->second;
 		RE::TESForm* form = RE::TESForm::LookupByID(p.formID);
 		if (!form || form != static_cast<RE::TESForm*>(p.ref) || form->IsDeleted()) {
-			// The form unloaded, was reused, or was deleted after the pick.
-			return nullptr;
+			return nullptr;  // unloaded, reused, or deleted since the pick
 		}
 		return p.ref;
 	}
 
 	std::string ScanLabel(RE::TESObjectREFR* a_ref, RE::BGSKeyword* a_matchedKw)
 	{
-		// Invisible markers fall back through anchor keyword, EditorID, and form ID.
 		if (const char* nm = a_ref->GetDisplayFullName(); nm && nm[0]) {
 			return nm;
 		}
@@ -218,8 +214,7 @@ namespace OSF::API::UIBridgeWorld
 
 	RE::TESObjectREFR* CrosshairRef()
 	{
-		// The engine clears this slot while a menu is up, so callers capture it
-		// immediately before opening the browser.
+		// The engine nulls this slot while any menu is up; capture before opening.
 		auto*              player = RE::PlayerCharacter::GetSingleton();
 		RE::TESObjectREFR* ref = player ? player->crosshairRef : nullptr;
 		return (ref && (ref->Is(RE::FormType::kREFR) || ref->Is(RE::FormType::kACHR))) ? ref : nullptr;
@@ -235,8 +230,7 @@ namespace OSF::API::UIBridgeWorld
 	{
 		struct SafeViewProjection
 		{
-			// Keep the camera graph alive while a command projects all requested points.
-			RE::NiPointer<RE::NiNode> root;
+			RE::NiPointer<RE::NiNode> root;  // keeps the camera graph alive
 			RE::NiCamera*             camera{ nullptr };
 			RE::NiPoint3              position;
 			RE::NiPoint3              forward;
@@ -254,9 +248,7 @@ namespace OSF::API::UIBridgeWorld
 					return false;
 				}
 
-				// NiCamera owns the exact per-frame projection used for culling, including the
-				// current FOV, aspect ratio and viewport. A hand-built fixed-FOV projection drifts
-				// as soon as the game or scene camera changes its lens.
+				// Engine projection tracks live FOV/aspect; a fixed-FOV projection drifts.
 				a_screen = camera->WorldToScreenNormalized(a_world);
 				a_screen.z = depth;
 				return std::isfinite(a_screen.x) && std::isfinite(a_screen.y) &&
@@ -301,11 +293,8 @@ namespace OSF::API::UIBridgeWorld
 
 		RE::NiCamera* ActiveWorldCamera()
 		{
-			// RUNTIME-PROVEN on 1.16.244: Address Library ID 936470 is the global
-			// StorageTable::Camera host-memory pointer. Its inline NiCamera at +0x80 is
-			// camera B, the main WORLD render camera. PlayerCamera::cameraRoot reaches
-			// only camera A (the gameplay/viewmodel camera), which is wrong in third
-			// person and scene orbit.
+			// ID 936470 = StorageTable::Camera host pointer; inline NiCamera at +0x80 is the world
+			// render camera. PlayerCamera::cameraRoot only reaches the gameplay/viewmodel camera.
 			static const REL::Relocation<std::uintptr_t> storageGlobal{ REL::ID(936470) };
 			static const REL::Relocation<std::uintptr_t> cameraVtable{ RE::NiCamera::VTABLE[0] };
 
@@ -317,16 +306,12 @@ namespace OSF::API::UIBridgeWorld
 				}
 			}
 
-			// Defensive fallback for a future runtime whose renderer storage layout moves:
-			// a camera nested under the mapped PlayerCamera root is still preferable to
-			// dropping every indicator, although it may represent the viewmodel lens.
+			// Fallback if the storage layout moves; may be the viewmodel lens.
 			auto* playerCamera = RE::PlayerCamera::GetSingleton();
 			const auto root = playerCamera ? playerCamera->cameraRoot : nullptr;
 			return root ? FindCameraInNode(root.get()) : nullptr;
 		}
 
-		// Rate limiter for camera-anomaly logs: picking polls at ~10 Hz, so an unhealthy
-		// camera would otherwise repeat the same line for as long as it stays unhealthy.
 		bool ShouldLogCameraAnomaly()
 		{
 			static std::chrono::steady_clock::time_point s_last{};
@@ -338,23 +323,9 @@ namespace OSF::API::UIBridgeWorld
 			return true;
 		}
 
-		// PlayerCamera::cameraRoot is a mapped, runtime-proven field already used by the
-		// camera service. It supplies a lifetime pin and a fallback; ActiveWorldCamera()
-		// resolves the separate main-world renderer camera used for exact projection.
-		//
-		// Two health checks guard the result, because the reported failure mode of world
-		// picking was not "misses by a bit" but "markers and clicks land nowhere near the
-		// visible world, until further notice":
-		//   1. While OSF's scene orbit drives the camera (the browser is open — exactly when
-		//      picking runs), the orbit pose is the one view pose OSF computes itself, so it
-		//      can't go stale. A resolved camera sitting far from that pose is NOT the camera
-		//      the world is rendered through — prefer whichever known camera is at the pose.
-		//   2. worldToCam (what Project uses) is a CPU-side matrix rebuilt asynchronously from
-		//      the camera's world transform (see NiCamera.h); a probe point straight down the
-		//      camera's own forward must project to the viewport center. When matrix and
-		//      transform disagree beyond one frame of skew, fail the whole query: no markers
-		//      for that beat (plus a log saying why) beats markers that lie — and since a
-		//      click resolves against the marker the user saw, a click never projects at all.
+		// Health checks: (1) while the scene orbit drives the camera, prefer the camera at OSF's own
+		// orbit pose; (2) worldToCam is rebuilt asynchronously, so fail the query when it disagrees
+		// with the world transform rather than place markers that lie.
 		std::optional<SafeViewProjection> CurrentViewProjection(float a_width, float a_height)
 		{
 			auto* playerCamera = RE::PlayerCamera::GetSingleton();
@@ -376,14 +347,12 @@ namespace OSF::API::UIBridgeWorld
 					const float dz = a_camera->world.translate.z - orbitPos[2];
 					return dx * dx + dy * dy + dz * dz;
 				};
-				constexpr float kPoseToleranceSq = 1.5f * 1.5f;  // generous: covers the orbit glide's frame lag
+				constexpr float kPoseToleranceSq = 1.5f * 1.5f;  // covers the orbit glide's frame lag
 				RE::NiCamera*   alt = FindCameraInNode(root.get());
 				const float     mainErr = out.camera ? poseErrorSq(out.camera) : std::numeric_limits<float>::max();
 				const float     altErr = (alt && alt != out.camera) ? poseErrorSq(alt) : std::numeric_limits<float>::max();
 				if (mainErr > kPoseToleranceSq) {
-					// Swap only on clear RELATIVE dominance — the absolute tolerance is
-					// authored in assumed units, but "4x closer to the pose OSF wrote"
-					// holds in any unit.
+					// Relative test: the absolute tolerance assumes units, 4x closer holds in any.
 					if (altErr * 4.0f < mainErr) {
 						if (ShouldLogCameraAnomaly()) {
 							REX::WARN("[UI] world-pick camera: storage camera sits {:.1f} from the live orbit pose — projecting through the cameraRoot camera instead ({:.1f})",
@@ -416,12 +385,8 @@ namespace OSF::API::UIBridgeWorld
 				return std::nullopt;
 			}
 
-			// Health check 2 (see above): the camera's own forward axis must project to the
-			// viewport center. 0.12 normalized is loose enough to pass one frame of update
-			// skew during a violent orbit flick, and tight enough to catch a frozen matrix.
-			// A second probe offset to the right must land measurably off the first — a
-			// degenerate matrix collapses WorldToScreen to its (0,0) sentinel, which
-			// normalizes to exactly (0.5, 0.5) and would sail through the center check.
+			// Forward must project near center (0.12 tolerates one frame of skew). The right-offset
+			// probe catches a degenerate matrix, whose (0,0) sentinel normalizes to exactly center.
 			RE::NiPoint3 probe{ -1.0f, -1.0f, -1.0f };
 			RE::NiPoint3 probeRight{ -1.0f, -1.0f, -1.0f };
 			if (!out.Project(out.position + out.forward * 10.0f, probe) ||
@@ -478,19 +443,15 @@ namespace OSF::API::UIBridgeWorld
 				return false;
 			}
 
-			// The label belongs to the rendered head, not the actor's worldBound. worldBound is
-			// a culling sphere and may be expanded or re-centered by weapons, animation and OSF's
-			// compose-root cull pin, so center+radius is not a stable anatomical point.
+			// worldBound is a cull sphere skewed by weapons, animation, and OSF's cull pin; use the head bone.
 			static const RE::BSFixedString headName{ "C_Head" };
 			if (RE::NiAVObject* head = root->GetObjectByName(headName)) {
-				// Render-node transforms are in meters (unlike TESObjectREFR logical
-				// positions). Twelve centimetres clears the top of the rendered head.
+				// Render-node transforms are meters (unlike REFR positions); 0.12 clears the head.
 				a_point = head->world.translate + RE::NiPoint3{ 0.0f, 0.0f, 0.12f };
 				return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
 			}
 
-			// Creature rigs do not consistently expose C_Head. Keep their fallback close to the
-			// rendered body by clamping the culling radius to plausible dimensions in METERS.
+			// Creature rigs may lack C_Head; clamp the cull radius (meters).
 			const RE::NiPoint3 center = root->worldBound.center;
 			const float radius = std::clamp(root->worldBound.radius, 0.45f, 1.35f);
 			a_point = center + RE::NiPoint3{ 0.0f, 0.0f, radius };
@@ -509,8 +470,7 @@ namespace OSF::API::UIBridgeWorld
 			if (!RenderedBound(a_ref, false, center, radius)) {
 				return false;
 			}
-			// Float the label above the rendered object. Clamp the culling radius so
-			// oversized workbenches and tiny/invisible idle markers stay readable.
+			// Clamped so huge workbenches and invisible idle markers stay readable.
 			a_point = center + RE::NiPoint3{ 0.0f, 0.0f, std::clamp(radius, 0.25f, 1.4f) };
 			return std::isfinite(a_point.x) && std::isfinite(a_point.y) && std::isfinite(a_point.z);
 		}
@@ -559,11 +519,8 @@ namespace OSF::API::UIBridgeWorld
 			SendJson(a_srcView, "osf.animation.actorIndicators", json{ { "items", std::move(items) } });
 		}
 
-		// ---- nearby-actor enumeration ----------------------------------------
-		// ProcessLists::highActorHandles (CommonLibSF, +0x60): near-player, fully-3D actors that SPAN the loaded cell grid (interior + exterior neighbours).
-		// Of the four process lists we ONLY touch high — lowActorHandles holds 600-1200 partially-loaded actors whose vfuncs __fastfail uncatchably.
-		// EnumerateLoadedActors below fills the high tier's gaps from the cell grid instead.
-
+		// ProcessLists::highActorHandles (+0x60) only: low-list actors are partially loaded and their
+		// vfuncs __fastfail uncatchably.
 		std::uintptr_t VtableAddr(REL::ID a_id) { return REL::Relocation<std::uintptr_t>{ a_id }.address(); }
 		void EnumerateHighActors(std::vector<RE::Actor*>& a_out)
 		{
@@ -578,7 +535,7 @@ namespace OSF::API::UIBridgeWorld
 				return;
 			}
 
-			// The list can hold mixed TESObjectREFR*/Actor*, so confirm each resolved object is a real Actor by its primary vtable before use.
+			// Mixed REFR/Actor entries: require the Actor primary vtable (ID 451614).
 			const std::uintptr_t actorVtbl = VtableAddr(REL::ID(451614));
 			a_out.reserve(a_out.size() + size);
 			for (std::uint32_t i = 0; i < size; ++i) {
@@ -595,16 +552,8 @@ namespace OSF::API::UIBridgeWorld
 			}
 		}
 
-		// The high list alone is NOT "every actor standing next to you": the AI
-		// demotes loaded-and-rendered actors out of the high tier (city crowds,
-		// ambient schedules), and those never appear in highActorHandles — the
-		// in-game symptom was Scan Nearby / picking skipping random visible NPCs.
-		// Union the high list with the loaded cell grid via
-		// TES::ForEachReferenceInRange — the same walker the furniture scan uses
-		// (in-game proven on .244) — filtered to exact-vtable Actors WITH rendered
-		// 3D. The data3D gate keeps the low-bucket crash rule intact: downstream
-		// code vfuncs these (GetDisplayFullName), which is only safe on fully
-		// loaded actors, and a rendered scene graph is the raw-field proof of that.
+		// The AI demotes rendered actors (crowds) out of the high list, so union with the cell walk.
+		// The data3D gate keeps downstream vfunc calls safe (fully loaded actors only).
 		void EnumerateLoadedActors(const RE::NiPoint3& a_origin, float a_radius, std::vector<RE::Actor*>& a_out)
 		{
 			EnumerateHighActors(a_out);
@@ -640,34 +589,15 @@ namespace OSF::API::UIBridgeWorld
 			});
 		}
 
-		// Minimum ON-SCREEN size of a pickable target, in 1080p-equivalent pixels
-		// (PickScreenBound::sizePx). Picking is a sight interaction: a target that
-		// renders smaller than this is too far to be deliberately aimed at, which
-		// bounds the pick range WITHOUT assuming any world unit — this file's first
-		// depth gate was authored in "meters" and turned out to filter everything
-		// (in-game: nothing pickable), because nothing in this pipeline actually
-		// knows the engine's unit scale; every working part of it is ratios of
-		// projections. A standing human's span falls under 24 px around 90-100 m
-		// out — but SEATED/CROUCHED bodies measure much shorter, and the original
-		// 40 px gate dropped sitting actors at ordinary exterior distances
-		// (in-game: exterior picking missed visible actors, '6 small' in the
-		// stats). Accidental far picks stay unlikely at 24 px because the
-		// acceptance floors shrink to a third at that size — distant targets
-		// demand precise aim. SCAN remains the tool for anything beyond sight,
-		// and there is still no mapped physics ray for true occlusion.
+		// Minimum on-screen size (1080p px) bounds pick range without assuming world units.
+		// 24 px keeps seated/crouched actors pickable at ordinary exterior distances.
 		constexpr float kMinActorSizePx = 24.0f;
 		constexpr float kMinFurnitureSizePx = 10.0f;
 
-		// Enumeration + click-revalidation range for actor picking, in game units
-		// (~70/m). Must reach at least as far as the 24 px size gate admits (a
-		// standing human passes it out to ~100 m): the old 4096-unit (~58 m)
-		// revalidation could reject a click on a marker the picker itself offered.
+		// Game units (~70/m). Must reach at least as far as the size gate admits (~100 m).
 		constexpr float kPickRangeUnits = 8192.0f;
 
-		// The on-screen size at which the acceptance-ellipse floors apply in full;
-		// below it they shrink proportionally (to a third at the pick minimum), so
-		// small/far targets demand precise aim instead of being selectable
-		// "through" nearer geometry via oversized invisible hit regions.
+		// Size at which hit-ellipse floors apply in full; smaller targets get shrunken floors.
 		constexpr float kFullFloorActorSizePx = 130.0f;
 		constexpr float kFullFloorFurnitureSizePx = 45.0f;
 
@@ -676,29 +606,17 @@ namespace OSF::API::UIBridgeWorld
 			return a_fullSizePx > 0.0f ? std::clamp(a_sizePx / a_fullSizePx, 0.3f, 1.0f) : 1.0f;
 		}
 
-		// The screen-space acceptance ellipse of a pickable target: projected bound
-		// center plus clamped pixel radii. The view renders these as hover markers
-		// AND resolves the click against them (hottestPickTarget), so what the user
-		// sees lit is by construction what a click selects.
+		// The view renders these as hover markers and resolves clicks against them.
 		struct PickScreenBound
 		{
-			RE::NiPoint3 screen;  // normalized center; z = view depth (whatever unit the render camera uses — RELATIVE comparisons only)
+			RE::NiPoint3 screen;  // normalized; z = view depth, relative comparisons only
 			float        radiusX{ 0.0f };
 			float        radiusY{ 0.0f };
-			float        sizePx{ 0.0f };  // unfloored on-screen extent, normalized to a 1080p-tall viewport
+			float        sizePx{ 0.0f };  // unfloored extent at 1080p
 		};
 
-		// Actor hit regions come from the rendered skeleton, not worldBound: the
-		// cull sphere is expanded and re-centered by weapons, animation, and OSF's
-		// own compose-root cull pin, which made some actors unclickable — their
-		// acceptance ellipse sat nowhere near the visible body. Both landmarks
-		// must be RENDERED BONES (C_Head, C_Hips): bones are exactly where the
-		// visible body is, while the data3D root's translate proved to drift away
-		// from the body (runtime-observed: actors OSF had animated missed every
-		// click with scores of 8-260 while furniture picks kept landing). Feet
-		// are estimated by mirroring the head across the hips along the body
-		// axis, spanning standing AND prone poses; the ellipse is axis-aligned,
-		// so each radius covers whichever span component runs its way.
+		// Uses C_Head/C_Hips bones: worldBound and the data3D root drift from the visible body on
+		// OSF-animated actors. Feet = head mirrored across the hips.
 		bool ActorScreenCapsule(const SafeViewProjection& a_projection, RE::Actor* a_actor,
 			float a_width, float a_height, PickScreenBound& a_out)
 		{
@@ -722,8 +640,6 @@ namespace OSF::API::UIBridgeWorld
 				headWorld = head->world.translate + RE::NiPoint3{ 0.0f, 0.0f, 0.12f };
 				baseWorld = hips->world.translate + (hips->world.translate - head->world.translate);
 			} else if (RenderedActorLabelPoint(a_actor, headWorld)) {
-				// Creature rigs without the humanoid bones: label point (clamped
-				// worldBound top) against the root translate, as before.
 				baseWorld = root->world.translate;
 			} else {
 				return false;
@@ -742,10 +658,7 @@ namespace OSF::API::UIBridgeWorld
 				std::min(headScreen.z, baseScreen.z),
 			};
 
-			// On-screen size for the pick gate + floor scaling. The axial span alone
-			// vanishes when the camera looks straight down the body (orbit overhead),
-			// so measure width too: a shoulder-scale lateral offset, sized as a
-			// fraction of the body axis itself so no world unit is assumed.
+			// Axial span vanishes when viewed down the body; also measure a shoulder-scale width.
 			const RE::NiPoint3 axis{ headWorld.x - baseWorld.x, headWorld.y - baseWorld.y, headWorld.z - baseWorld.z };
 			const float        bodyLen = std::sqrt(axis.Dot(axis));
 			const RE::NiPoint3 mid{ (headWorld.x + baseWorld.x) * 0.5f, (headWorld.y + baseWorld.y) * 0.5f, (headWorld.z + baseWorld.z) * 0.5f };
@@ -755,7 +668,7 @@ namespace OSF::API::UIBridgeWorld
 				widthPx = 2.0f * std::hypot((sideScreen.x - a_out.screen.x) * a_width,
 				                            (sideScreen.y - a_out.screen.y) * a_height);
 			}
-			const float heightScale = a_height / 1080.0f;  // px thresholds are authored at 1080p
+			const float heightScale = a_height / 1080.0f;
 			a_out.sizePx = std::max(span, widthPx) / heightScale;
 
 			const float minScale = PickFloorScale(a_out.sizePx, kFullFloorActorSizePx);
@@ -776,8 +689,7 @@ namespace OSF::API::UIBridgeWorld
 				return false;
 			}
 			const float projectedRadius = a_projection.ProjectedRadius(center, radius, a_width, a_height);
-			// The bound radius spans roughly half the object, so double it for actors to
-			// stay comparable with the capsule path's full-body span measure.
+			// Doubled for actors to match the capsule path's full-body span.
 			a_out.sizePx = projectedRadius * (a_actor ? 2.0f : 1.0f) / (a_height / 1080.0f);
 			const float minScale = PickFloorScale(a_out.sizePx, a_actor ? kFullFloorActorSizePx : kFullFloorFurnitureSizePx);
 			a_out.radiusX = std::clamp(projectedRadius * 1.15f, (a_actor ? 38.0f : 30.0f) * minScale, 220.0f);
@@ -808,11 +720,7 @@ namespace OSF::API::UIBridgeWorld
 			SendJson(a_view, "osf.animation.pick", reply);
 		}
 
-		// The view resolves a click against the SAME marker geometry it renders (the hot
-		// marker from projectPickables) and sends that target's token, so the target the
-		// user saw lit is by construction the one picked — no second projection pass at
-		// click time that could disagree with the markers (stale camera, frame skew).
-		// This side only re-validates that the token still names a live, eligible target.
+		// The view sends the token of the marker it hit; this only re-validates it.
 		void OnPickScreen(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json         j = ParsePayload(a_payload);
@@ -840,12 +748,7 @@ namespace OSF::API::UIBridgeWorld
 			SendScreenPick(a_srcView, slot, ref);
 		}
 
-		// While a pick is armed the view polls this (~10 Hz) and marks pickable
-		// targets — hover-only for actors, every candidate for furniture. Each item
-		// carries the target's token, the marker anchor, and the acceptance ellipse
-		// (ComputePickScreenBound). This is the ONLY projection pass in the pick
-		// flow: the view renders these markers, resolves the click against them,
-		// and sends back the hot marker's token (OnPickScreen just validates it).
+		// Polled ~10 Hz while a pick is armed; the only projection pass in the pick flow.
 		void OnProjectPickables(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const json        j = ParsePayload(a_payload);
@@ -857,32 +760,24 @@ namespace OSF::API::UIBridgeWorld
 
 			const bool actorSlot = slot == "actor";
 
-			// Gather every candidate WITH its screen bound, then gate and rank on that
-			// bound: on-screen and rendering at least kMin*SizePx (sight-ranged, unit-free).
-			// Eligibility is decided HERE (a marker IS pickability); OnPickScreen re-checks
-			// only to catch a target that died or left range between marker poll and click.
+			// Eligibility is decided here; OnPickScreen only re-checks for changes since the poll.
 			struct Candidate
 			{
 				RE::TESObjectREFR* ref;
 				PickScreenBound    bound;
 			};
 			std::vector<Candidate> candidates;
-			// Per-stage drop counters, so the periodic stats line pinpoints WHICH gate
-			// eats targets when "some actors won't mark" (in-game report: exteriors).
-			std::size_t enumerated = 0;    // reached us from the engine at all
-			std::size_t ineligible = 0;    // player / dead
-			std::size_t no3D = 0;          // no rendered scene-graph node at all
-			std::size_t behindCam = 0;     // healthy drop: not in front of the pick camera
-			std::size_t projectFail = 0;   // has 3D, in front, but projection failed — the suspicious bucket
-			std::size_t droppedSmall = 0;  // renders too small to aim at
+			std::size_t enumerated = 0;
+			std::size_t ineligible = 0;
+			std::size_t no3D = 0;
+			std::size_t behindCam = 0;     // healthy drop
+			std::size_t projectFail = 0;   // in front with 3D yet failed: suspicious
+			std::size_t droppedSmall = 0;
 			std::size_t offScreen = 0;
-			float       smallMaxPx = 0.0f;  // largest size the small-gate rejected (tuning signal)
+			float       smallMaxPx = 0.0f;  // tuning signal for kMin*SizePx
 			const auto consider = [&](RE::TESObjectREFR* a_ref) {
 				PickScreenBound bound;
 				if (!ComputePickScreenBound(*projection, a_ref, actorSlot, width, height, bound)) {
-					// Classify the failure for the stats line only: an exterior grid
-					// legitimately holds many loaded actors behind the camera, and
-					// those must not be mistaken for broken projections.
 					RE::NiPointer<RE::NiAVObject> root;
 					{
 						const auto loaded = a_ref->loadedData.LockRead();
@@ -900,13 +795,13 @@ namespace OSF::API::UIBridgeWorld
 					return;
 				}
 				if (bound.sizePx < (actorSlot ? kMinActorSizePx : kMinFurnitureSizePx)) {
-					++droppedSmall;  // beyond deliberate-aim range — SCAN covers those
+					++droppedSmall;
 					smallMaxPx = std::max(smallMaxPx, bound.sizePx);
 					return;
 				}
 				if (bound.screen.x < -0.1f || bound.screen.x > 1.1f ||
 					bound.screen.y < -0.1f || bound.screen.y > 1.1f) {
-					++offScreen;  // comfortably off-screen — never hoverable
+					++offScreen;
 					return;
 				}
 				candidates.push_back({ a_ref, bound });
@@ -940,16 +835,6 @@ namespace OSF::API::UIBridgeWorld
 					});
 				}
 			}
-			// Periodic snapshot of what each gate saw, at DEBUG (Settings > OSF
-			// Animation > Advanced > Log level). Reading one line resolves where
-			// unmarkable targets are lost:
-			//   enumerated low while more actors are visible -> they escaped BOTH the
-			//     HIGH-process list and the rendered-actor cell walk (beyond
-			//     kPickRangeUnits, or no data3D — OSF must not touch the low list);
-			//   small high -> the on-screen size gate ("small<Npx" is the largest
-			//     body it rejected — the tuning signal for kMin*SizePx);
-			//   behind -> healthy (loaded actors behind the pick camera);
-			//   project-fail high -> VISIBLE actors failing projection = a real bug.
 			{
 				static std::chrono::steady_clock::time_point s_lastStats{};
 				const auto now = std::chrono::steady_clock::now();
@@ -967,11 +852,7 @@ namespace OSF::API::UIBridgeWorld
 				}
 			}
 
-			// The caps keep crowded scenes bounded. Rank by VIEW DEPTH — the ordering
-			// the user sees — so the cap always drops the deepest markers. (The old
-			// player-distance sort starved visible actors of markers whenever the
-			// orbit camera roamed away from the player. Depth is used RELATIVELY only;
-			// its absolute unit is unconfirmed.)
+			// Rank by view depth, not player distance: the orbit camera can roam away from the player.
 			std::sort(candidates.begin(), candidates.end(), [](const Candidate& a_lhs, const Candidate& a_rhs) {
 				return a_lhs.bound.screen.z < a_rhs.bound.screen.z;
 			});
@@ -981,9 +862,6 @@ namespace OSF::API::UIBridgeWorld
 				if (items.size() >= cap) {
 					break;
 				}
-				// Marker anchor: actors use the rendered head the name labels sit on;
-				// furniture floats the marker just above its rendered bound. The bound
-				// center is the fallback either way.
 				RE::NiPoint3 anchorScreen = candidate.bound.screen;
 				RE::NiPoint3 anchorWorld;
 				RE::NiPoint3 center;
@@ -1012,17 +890,14 @@ namespace OSF::API::UIBridgeWorld
 			SendJson(a_srcView, "osf.animation.pickTargets", json{ { "slot", slot }, { "items", std::move(items) } });
 		}
 
-		// Nearby-furniture enumeration goes through RE::TES::ForEachReferenceInRange (CommonLibSF),
-		// which spans the loaded interior cell or exterior grid — see OnScanNearby's furniture branch.
-
-		// Distance math uses TESObjectREFR::GetPosition() (cached data.location), the same source the rest of OSF Animation uses for actor/anchor placement.
+		// GetPosition() here is the cached data.location, not the engine call.
 		void OnScanNearby(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
 		{
 			const auto  scanStart = std::chrono::steady_clock::now();
 			const json  j = ParsePayload(a_payload);
 			std::string kind = "actor";
 			std::string sceneId;
-			float       radius = 4096.0f;  // ~58m; a room / nearby area
+			float       radius = 4096.0f;  // ~58 m
 			if (j.is_object()) {
 				if (const auto it = j.find("kind"); it != j.end() && it->is_string()) {
 					kind = it->get<std::string>();
@@ -1054,12 +929,12 @@ namespace OSF::API::UIBridgeWorld
 			{
 				RE::TESObjectREFR* ref;
 				float              distSq;
-				std::int32_t       sceneCount = -1;      // furniture only: total anchor-bound scenes that accept it (-1 = n/a)
-				std::int32_t       customCount = -1;     // furniture only: of those, how many are custom (non-library) scenes
-				RE::BGSKeyword*    matchedKw = nullptr;  // furniture only: the anchor keyword that matched (labels unnamed markers)
+				std::int32_t       sceneCount = -1;      // furniture only; -1 = n/a
+				std::int32_t       customCount = -1;     // furniture only: non-library subset
+				RE::BGSKeyword*    matchedKw = nullptr;  // furniture only: labels unnamed markers
 			};
 			std::vector<Hit> hits;
-			// Collect candidate pointers + distance only; serialize (GetDisplayFullName / token minting) afterwards so the heavy work stays out of any engine lock.
+			// Serialize after collection to keep heavy work out of engine locks.
 			if (wantActor) {
 				std::vector<RE::Actor*> actors;
 				EnumerateLoadedActors(origin, (radius > 0.0f) ? radius : 4096.0f, actors);
@@ -1073,9 +948,8 @@ namespace OSF::API::UIBridgeWorld
 					}
 				}
 			} else if (auto* tes = RE::TES::GetSingleton()) {
-				// Inverted anchor index, built fresh each scan: keyword -> accepting def indices and base form -> accepting def indices.
-				// Matching a ref then costs one HasKeyword per UNIQUE keyword instead of per (def x keyword).
-				std::vector<bool>                                               defCustom;  // def index -> custom (non-library) scene
+				// Inverted index: one HasKeyword per unique keyword instead of per (def x keyword).
+				std::vector<bool>                                               defCustom;  // def index -> non-library
 				std::unordered_map<RE::BGSKeyword*, std::vector<std::uint32_t>> kwDefs;
 				std::unordered_map<RE::TESFormID, std::vector<std::uint32_t>>   baseDefs;
 				const auto                                                      addDef = [&](const Registry::SceneDef& d) {
@@ -1084,8 +958,6 @@ namespace OSF::API::UIBridgeWorld
 					}
 					const auto idx = static_cast<std::uint32_t>(defCustom.size());
 					defCustom.push_back(!d.library);
-					// Resolve each keyword id fresh for this scan; the pointer only lives as a map key
-					// for the duration of the sweep (HasKeyword needs the form, not the id).
 					for (const auto kwId : d.anchorKeywords) {
 						if (auto* kw = RE::TESForm::LookupByID<RE::BGSKeyword>(kwId)) {
 							kwDefs[kw].push_back(idx);
@@ -1109,31 +981,25 @@ namespace OSF::API::UIBridgeWorld
 				originA.x = origin.x;
 				originA.y = origin.y;
 				originA.z = origin.z;
-				// Anchor keywords live on BASE records (the ESM extractor reads them from FURN/ACTI
-				// forms), so keyword probing is memoized PER UNIQUE BASE: a POI places the same chair
-				// or marker base dozens of times, and the unique-keyword set is ~150 strong with the
-				// vanilla packs — probing it per REF (refs x keywords engine calls) was still a hitch.
+				// Anchor keywords live on base records, so memoize per base: per-ref probing hitched.
 				struct BaseMatch
 				{
 					std::int32_t    accepts = 0;
 					std::int32_t    customAccepts = 0;
-					RE::BGSKeyword* kw = nullptr;  // a matching keyword (labels unnamed markers)
+					RE::BGSKeyword* kw = nullptr;
 				};
 				std::unordered_map<RE::TESFormID, BaseMatch> baseCache;
-				std::vector<std::uint32_t>                   matched;  // scratch: accepting def indices
-				// ForEachReferenceInRange spans the loaded interior cell or exterior grid and only
-				// visits refs already within radius; we just filter to furniture our scenes anchor to.
+				std::vector<std::uint32_t>                   matched;
 				tes->ForEachReferenceInRange(originA, radius, [&](const RE::NiPointer<RE::TESObjectREFR>& a_ref) {
 					RE::TESObjectREFR* ref = a_ref.get();
 					if (ref && !ref->IsPlayerRef() && !ref->IsDeleted()) {
 						const auto base = ref->GetBaseObject();
 						if (!base) {
-							return RE::BSContainer::ForEachResult::kContinue;  // anchors match by base form / base-record keywords
+							return RE::BSContainer::ForEachResult::kContinue;
 						}
 						auto cit = baseCache.find(base->GetFormID());
 						if (cit == baseCache.end()) {
-							// First ref of this base: count every accepting def (not just the first) —
-							// the view shows "unlocks N scenes" next to each nearby anchor.
+							// Count every accepting def; the view shows "unlocks N scenes".
 							matched.clear();
 							BaseMatch m;
 							if (const auto it = baseDefs.find(base->GetFormID()); it != baseDefs.end()) {
@@ -1142,18 +1008,17 @@ namespace OSF::API::UIBridgeWorld
 							for (const auto& [kw, idxs] : kwDefs) {
 								if (ref->HasKeyword(kw)) {
 									if (!m.kw) {
-										m.kw = kw;  // any matching keyword will do
+										m.kw = kw;
 									}
 									matched.insert(matched.end(), idxs.begin(), idxs.end());
 								}
 							}
-							// A def can match via its base form AND several keywords — count it once.
 							std::sort(matched.begin(), matched.end());
 							matched.erase(std::unique(matched.begin(), matched.end()), matched.end());
 							m.accepts = static_cast<std::int32_t>(matched.size());
 							for (const auto i : matched) {
 								if (defCustom[i]) {
-									m.customAccepts++;  // custom (authored) scene, vs a generated vanilla-library pack
+									m.customAccepts++;
 								}
 							}
 							cit = baseCache.emplace(base->GetFormID(), m).first;
@@ -1169,14 +1034,11 @@ namespace OSF::API::UIBridgeWorld
 
 			std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.distSq < b.distSq; });
 
-			// Cap named refs and unnamed AI markers SEPARATELY: markers are dense (every sandbox
-			// cell has dozens) and a single shared cap would crowd real furniture off the list.
+			// Separate caps: dense unnamed AI markers would crowd real furniture off a shared list.
 			constexpr std::size_t kMaxPerGroup = 40;
 			std::size_t           namedCount = 0, markerCount = 0;
 			for (const auto& h : hits) {
 				const char* nm = h.ref->GetDisplayFullName();
-				// Furniture with no display name = invisible AI/idle marker (or unnamed outpost
-				// piece) — still a legitimate anchor, but the view lists it under its own group.
 				const bool marker = !wantActor && !(nm && nm[0]);
 				auto&      count = marker ? markerCount : namedCount;
 				if (count >= kMaxPerGroup) {
@@ -1196,7 +1058,7 @@ namespace OSF::API::UIBridgeWorld
 				};
 				if (h.sceneCount >= 0) {
 					item["sceneCount"] = h.sceneCount;
-					item["customCount"] = h.customCount;  // subset that is custom (authored), not vanilla library
+					item["customCount"] = h.customCount;
 				}
 				reply["items"].push_back(std::move(item));
 			}

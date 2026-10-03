@@ -1,22 +1,18 @@
 #pragma once
 
-#include "Scene/SceneRuntime.h"  // SceneRuntime::AnchorOverride
+#include "Scene/SceneRuntime.h"
 
 #include <optional>
 #include <string_view>
 
-//world anchor resolution for scenes. Determines where scenes anchor and if furniture is allowed.
 namespace OSF::Scene
 {
-	// World anchor at a ref with no scene validation. Basically passes through ref transform
+	// No scene validation; passes the ref transform through.
 	SceneRuntime::AnchorOverride MakeAnchorAt(RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad);
 
-	// World anchor a_distance meters from a reference in the current camera's horizontal look
-	// direction. Falls back to the reference heading when the render camera is unavailable.
+	// a_distance meters along the camera's horizontal look direction (ref heading if no camera).
 	SceneRuntime::AnchorOverride MakeAnchorInFrontOfView(RE::TESObjectREFR* a_ref, float a_distance);
 
-	// Resolve and enforce a_sceneId scenes anchor requirement at a_ref.
-	// For anchor bound scenes, ref must be accepted anchor, returns nullopt to abort start if ref is missing or doesnt fit anchor requirements
-	// a_emitHud is if warning/error should be emitted to user
+	// nullopt = anchor-bound scene with a missing or unaccepted ref; abort the start.
 	std::optional<SceneRuntime::AnchorOverride> ResolveSceneAnchor(std::string_view a_sceneId, RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad, bool a_emitHud);
 }

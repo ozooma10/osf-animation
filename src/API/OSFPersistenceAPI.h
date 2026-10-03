@@ -1,28 +1,8 @@
-// ============================================================================
 // OSFPersistenceAPI.h - copyable C ABI for OSF Animation per-save persistence.
-//
-// Drop this header into a native SFSE plugin and link nothing from OSF Animation.
-// Acquire OSF_RequestPersistenceAPI with GetModuleHandleW/GetProcAddress, then
-// register at SFSE kPostDataLoad. The host copies clientName and the descriptor.
-// Callback tables and the returned service table are host-owned; never delete them.
-//
-// Compact example (error handling abbreviated):
-//   auto mod = GetModuleHandleW(L"OSF Animation.dll");
-//   auto request = reinterpret_cast<OSF_RequestPersistenceAPI_t>(
-//       GetProcAddress(mod, "OSF_RequestPersistenceAPI"));
-//   const OSFPersistenceAPI* api = request(OSF_PERSISTENCE_API_VERSION);
-//   OSFPersistenceClientV1 client{};
-//   client.size = sizeof(client);
-//   client.clientID = OSF_PERSISTENCE_FOURCC('D','E','M','O');
-//   client.clientName = "My Plugin";
-//   client.context = &state;
-//   client.save = SaveState; client.load = LoadState; client.revert = RevertState;
-//   api->RegisterClient(api, &client);
-//
-// Callbacks are serialized, but can run off the game thread. They must not mutate
-// engine state directly; marshal resolved results to SFSE's game-task queue.
-// No callback may throw across this ABI (the host still catches defensively).
-// ============================================================================
+// Acquire OSF_RequestPersistenceAPI via GetProcAddress and register at kPostDataLoad. The host copies
+// clientName and the descriptor; returned tables are host-owned, never delete them.
+// Callbacks are serialized but may run off the game thread: marshal engine mutations to the SFSE task queue.
+// Never throw across this ABI.
 
 #pragma once
 

@@ -1,6 +1,4 @@
-// Offline harness: runs the .af -> ozz import pipeline on a clip + rig from the command line,
-// without the game. Build with: xmake build osf-af-import-test
-//   osf-af-import-test <clip.af> <skeleton.rig>
+// Offline .af -> ozz import harness: osf-af-import-test <clip.af> <skeleton.rig>
 #include "Serialization/AFImport.h"
 
 #include "Animation/OzzTypes.h"
@@ -88,8 +86,7 @@ int main(int argc, char** argv)
 	}
 	std::printf("\n");
 
-	// Sample the clip at several times and print a few joints' local transforms (x-basis +
-	// translation of the unpacked matrix) — verifies the decoded animation varies over time.
+	// Poses that vary over time show the decode isn't static.
 	const char* watch[] = { "COM", "C_Hips", "L_Biceps", "C_Head" };
 	std::vector<int> watchIdx;
 	for (const char* w : watch) {

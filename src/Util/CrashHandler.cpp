@@ -1,16 +1,15 @@
 #include "Util/CrashHandler.h"
 
-// DbgHelp requires <Windows.h> first. The pch already pulls Windows in via
-// RE/Starfield.h; we include it explicitly so this TU is self-describing.
+// DbgHelp requires <Windows.h> first.
 #include <Windows.h>
 #include <DbgHelp.h>
 #pragma comment(lib, "Dbghelp.lib")
 
-#include <crtdbg.h>  // _CrtSetReportHook2 etc. (debug CRT / _DEBUG only — guarded below)
-#include <csignal>   // std::signal, SIGABRT
+#include <crtdbg.h>
+#include <csignal>
 #include <cstdarg>
 #include <cstdio>
-#include <cstdlib>  // _set_abort_behavior, _set_error_mode, _set_invalid_parameter_handler
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 
@@ -25,23 +24,22 @@ namespace OSF::Util::CrashHandler
 	namespace
 	{
 		std::atomic<bool>            g_installed{ false };
-		LPTOP_LEVEL_EXCEPTION_FILTER g_prevFilter{ nullptr };  // trainwreck's filter — we chain to it
+		LPTOP_LEVEL_EXCEPTION_FILTER g_prevFilter{ nullptr };
 
-		// DbgHelp Sym* and MiniDumpWriteDump are documented single-threaded — serialize them.
+		// DbgHelp Sym* and MiniDumpWriteDump are single-threaded.
 		std::mutex        g_dbgHelpMutex;
 		std::atomic<bool> g_symInitialized{ false };
-		// Re-entrancy guard: a fault while reporting a fault must not recurse forever.
 		std::atomic<bool> g_inHandler{ false };
 
-		// Cached at Install() time so the dying-process path does no discovery / heavy alloc.
+		// Cached at Install() so the crash path does no discovery.
 		std::filesystem::path g_logDir;
-		std::wstring          g_modulePath;  // full path of our own DLL (PDB search + dump fallback dir)
+		std::wstring          g_modulePath;
 
 		std::filesystem::path ResolveLogDir() noexcept
 		{
 			try {
 				if (auto dir = SFSE::log::log_directory()) {
-					return *dir;  // ...\Documents\My Games\Starfield\SFSE\Logs
+					return *dir;
 				}
 			} catch (...) {}
 			try {
@@ -72,10 +70,7 @@ namespace OSF::Util::CrashHandler
 			return buf;
 		}
 
-		// Allocation-light logging for the crash context. We write to a DEDICATED crash log
-		// (a fresh FILE* each call) rather than routing through spdlog: in an abort context the
-		// heap or the CRT lock may be compromised and spdlog allocates/formats. We also mirror
-		// to the debugger via OutputDebugStringA. Do NOT "improve" this to use REX/spdlog.
+		// Deliberately not spdlog: the heap or CRT lock may be compromised in an abort context.
 		void RawLog(const char* a_line) noexcept
 		{
 			OutputDebugStringA(a_line);
@@ -117,8 +112,7 @@ namespace OSF::Util::CrashHandler
 			}
 		}
 
-		// Symbolize one return address; falls back to "Module+0xRVA" (still resolvable offline
-		// against the shipped PDB) when no symbol/line is available.
+		// Falls back to "Module+0xRVA" (resolvable offline against the PDB).
 		void SymbolizeFrame(void* a_addr, char* a_out, size_t a_outSize) noexcept
 		{
 			const auto proc = GetCurrentProcess();
@@ -181,7 +175,7 @@ namespace OSF::Util::CrashHandler
 			RawLog("-------------------------");
 		}
 
-		// a_ep is null on the assert/abort path (no EXCEPTION_POINTERS); non-null on the SEH path.
+		// a_ep is null on the assert/abort path.
 		void WriteMiniDump(EXCEPTION_POINTERS* a_ep) noexcept
 		{
 			std::filesystem::path dmpPath;
@@ -222,30 +216,28 @@ namespace OSF::Util::CrashHandler
 		}
 
 #ifdef _DEBUG
-		// Debug-CRT (/MDd) only: assert() routes through _CrtDbgReport, which this hook intercepts
-		// BEFORE the modal dialog. Under the release CRT (/MD) this is never reached — assert() goes
-		// straight to _wassert -> abort(), which the SIGABRT handler below catches instead.
+		// Debug CRT only; release assert() goes _wassert -> abort() and hits AbortHandler.
 		int __cdecl ReportHook(int a_reportType, char* a_message, int* a_returnValue) noexcept
 		{
 			if (a_reportType != _CRT_ASSERT && a_reportType != _CRT_ERROR) {
-				return FALSE;  // let _CRT_WARN flow normally
+				return FALSE;
 			}
 			if (!g_inHandler.exchange(true)) {
 				RawLog("==================== CRT ASSERT ====================");
-				RawLogf("%s", a_message ? a_message : "(no message)");  // _wassert text: expr / file / line
+				RawLogf("%s", a_message ? a_message : "(no message)");
 				LogBacktrace();
 				WriteMiniDump(nullptr);
 				RawLog("===================================================");
 				g_inHandler.store(false);
 			}
 			if (a_returnValue) {
-				*a_returnValue = 0;  // do not break into the debugger
+				*a_returnValue = 0;  // don't break into the debugger
 			}
-			return TRUE;  // handled: suppress the Abort/Retry/Ignore dialog (CRT still abort()s)
+			return TRUE;  // suppress the dialog; CRT still aborts
 		}
 #endif
 
-		// Release-CRT edge: a CRT function detected a bad argument. expr/func/file may be empty in release.
+		// expr/func/file may be empty in release.
 		void __cdecl InvalidParameterHandler(const wchar_t* a_expr, const wchar_t* a_func,
 			const wchar_t* a_file, unsigned int a_line, uintptr_t) noexcept
 		{
@@ -261,11 +253,9 @@ namespace OSF::Util::CrashHandler
 				RawLog("======================================================");
 				g_inHandler.store(false);
 			}
-			// fall through: the CRT proceeds to abort() -> AbortHandler also fires (re-entrancy-guarded)
 		}
 
-		// The path that catches the BSFixedString.h:53 assert in this (/MD, asserts-on) build:
-		// release-CRT assert() -> _wassert -> abort() -> raise(SIGABRT).
+		// Release-CRT assert() -> _wassert -> abort() -> raise(SIGABRT).
 		void __cdecl AbortHandler(int) noexcept
 		{
 			if (!g_inHandler.exchange(true)) {
@@ -273,7 +263,6 @@ namespace OSF::Util::CrashHandler
 				LogBacktrace();
 				WriteMiniDump(nullptr);
 				RawLog("=======================================================================");
-				// leave g_inHandler set — the process is about to terminate
 			}
 		}
 
@@ -287,7 +276,7 @@ namespace OSF::Util::CrashHandler
 				RawLog("=====================================================================");
 				g_inHandler.store(false);
 			}
-			// Chain to trainwreck (or default) so its crash log still gets produced.
+			// Chain so trainwreck's crash log still gets produced.
 			return g_prevFilter ? g_prevFilter(a_ep) : EXCEPTION_CONTINUE_SEARCH;
 		}
 	}
@@ -295,10 +284,9 @@ namespace OSF::Util::CrashHandler
 	void Install() noexcept
 	{
 		if (g_installed.exchange(true)) {
-			return;  // idempotent
+			return;
 		}
 
-		// Cache our own module path (PDB search + dump fallback dir) and the log directory.
 		if (HMODULE self = nullptr;
 			GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
 				reinterpret_cast<LPCWSTR>(&Install), &self) &&
@@ -311,7 +299,6 @@ namespace OSF::Util::CrashHandler
 		g_logDir = ResolveLogDir();
 
 #ifdef _DEBUG
-		// Debug-CRT path: intercept asserts before the dialog and also keep a stderr sink.
 		_CrtSetReportHook2(_CRT_RPTHOOK_INSTALL, ReportHook);
 		_CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
 		_CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
@@ -319,8 +306,7 @@ namespace OSF::Util::CrashHandler
 		_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 #endif
 
-		// Release-CRT (and generally): keep abort() from blocking on a modal box / WER, and
-		// catch the invalid-parameter and SIGABRT paths so we still get a stack + dump.
+		// Keep abort() from blocking on a modal box / WER.
 		_set_error_mode(_OUT_TO_STDERR);
 		_set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 		_set_invalid_parameter_handler(InvalidParameterHandler);

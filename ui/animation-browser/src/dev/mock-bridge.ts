@@ -6,16 +6,10 @@ import { PLAYER_TOKEN, type ActiveLaunch, type BrowserPreferences, type BrowserS
 import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY, MOCK_ROUTES } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
-  // In standalone development these source modules are served through Vite's /@fs/
-  // route, so resolving from import.meta.url preserves the existing fixture
-  // workflow without adding a second server plugin. Deliberately uncached: the
-  // refresh button exists so a regenerated snapshot is picked up without a
-  // reload.
+  // Uncached so refresh picks up a regenerated snapshot without a reload.
   for (const suffix of [".local.json", ".json"]) {
     try {
-      // Relative to src/dev/ — two levels up is the project root, which is where
-      // fixtures/live/ lives. (Three silently resolved to ui/, so every snapshot
-      // 404'd and standalone fell back to the built-in mock catalog.)
+      // Served via Vite's /@fs/; two levels up from src/dev/ is the project root.
       const url = new URL("../../fixtures/live/" + name + suffix, import.meta.url);
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) continue;
@@ -28,7 +22,7 @@ async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | nu
   return null;
 }
 
-/** Standalone implementation of the same JSON-level behavior the native DLL exposes. */
+/** Mirrors the native DLL's JSON-level behavior. */
 export class StandaloneBridge implements AnimationBridge {
   readonly standalone = true;
   private readonly listeners = new Set<NativeMessageListener>();
@@ -38,7 +32,6 @@ export class StandaloneBridge implements AnimationBridge {
   private nextHandle = 42;
   private customized = false;
   private pins: Array<{ scene: string; stage?: number }> = [];
-  /** Last catalog payload served, so a wheel edit re-pins it instead of re-fetching. */
   private catalogRaw: unknown[] | null = null;
   private importReport: any = JSON.parse(JSON.stringify(MOCK_IMPORTS));
   private importReloaded = false;
@@ -133,8 +126,7 @@ export class StandaloneBridge implements AnimationBridge {
         })).map((scene) => scene.id);
       this.later({ type: "osf.animation.castMatch", payload: { tokens, sceneIds: [...new Set(sceneIds)] } }, 40);
     } else if (command === "osf.animation.pickScreen") {
-      // The view sends the hot marker's token (resolved against pickTargets geometry);
-      // this side only validates it, mirroring the native contract.
+      // The view resolves the hot marker; this side only validates the token, like native.
       const pool = fields.slot === "furniture" ? MOCK_ANCHORS : MOCK_ACTORS;
       const item = pool.find((candidate) => candidate.token === Number(fields.token));
       this.later({ type: "osf.animation.pick", payload: { slot: fields.slot, valid: !!item, ...(item ?? { token: 0 }) } }, 60);
@@ -188,7 +180,7 @@ export class StandaloneBridge implements AnimationBridge {
       if (active) {
         if (active.inspection && typeof fields.time === "number") {
           active.time = Math.max(0, Math.min(active.duration, fields.time));
-          active.speed = 0;  // scrubbing takes the transport, like the engine's preview seek
+          active.speed = 0;  // scrubbing pauses, like the engine's preview seek
         }
         if (fields.paused === true) {
           if (!active.inspection && active.speed > 0) this.resumeSpeeds.set(active.handle, active.speed);
@@ -205,8 +197,7 @@ export class StandaloneBridge implements AnimationBridge {
       this.pins = fields.reset ? [] : Array.isArray(fields.entries)
         ? fields.entries.filter(isRecord).slice(0, WHEEL_MAX).map((entry) => ({ scene: String(entry.scene || ""), ...(Number.isInteger(entry.stage) ? { stage: entry.stage } : {}) }))
         : [];
-      // Pins are a presentation layer over the catalog already served — re-reading
-      // the snapshot (up to ~600KB) on every pin or reorder buys nothing.
+      // Re-emit the served catalog rather than re-reading the (~600KB) snapshot.
       this.emitCatalog(this.catalogRaw ?? MOCK_CATALOG);
     } else if (command === "osf.animation.closed") {
       for (const active of this.active) {

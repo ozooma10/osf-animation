@@ -18,7 +18,6 @@ namespace OSF::Animation
 
 	namespace GraphManagerClipLoad
 	{
-		// Internal loading boundary; GraphManager.h remains the public playback surface.
 		struct Result
 		{
 			std::shared_ptr<const OzzSkeleton>  skeleton;

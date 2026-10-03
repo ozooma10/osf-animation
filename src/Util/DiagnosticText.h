@@ -6,8 +6,7 @@
 
 namespace OSF::Util
 {
-	// Health context can be copied into a consented diagnostic report. Replace quoted
-	// absolute paths with their final component while leaving ordinary author text intact.
+	// Quoted absolute paths -> filename only; health context can end up in shared reports.
 	inline std::string SanitizeDiagnosticPaths(std::string_view a_text)
 	{
 		std::string result{ a_text };
@@ -36,7 +35,7 @@ namespace OSF::Util
 					continue;
 				}
 			} catch (...) {
-				// A malformed token is safer left unchanged than allowed to disrupt reporting.
+				// Leave malformed tokens unchanged.
 			}
 			cursor = end + 1;
 		}

@@ -17,8 +17,7 @@ namespace OSF::Audio
 		constexpr std::size_t kMaxTrackedSlottedVoices = 4096;
 		constexpr std::size_t kMaxSlotOrderRecords = 8192;
 
-		// Process-lifetime worker pool. SFSE plugins are not unloaded during play, and deliberately
-		// leaking the pool avoids static-destruction races with decoder/Wwise code at process exit.
+		// Leaked on purpose: avoids static-destruction races with decoder/Wwise code at process exit.
 		class AudioWorker
 		{
 		public:
@@ -77,7 +76,7 @@ namespace OSF::Audio
 
 	SoundService& SoundService::GetSingleton()
 	{
-		// Jobs capture the service from detached process-lifetime workers.
+		// Leaked: detached workers capture it.
 		static auto* instance = new SoundService();
 		return *instance;
 	}
@@ -156,7 +155,6 @@ namespace OSF::Audio
 	{
 		const PlayTicket ticket = BeginPlay();
 
-		// Baked events need no file work; post immediately through the engine command queue.
 		if (const auto eventID = Wwise::ParseEventSpec(a_dataRelPath)) {
 			const auto playingID = Wwise::PostEvent(*eventID, a_gameObject);
 			if (playingID == 0) {

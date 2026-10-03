@@ -27,7 +27,7 @@ namespace
 	static_assert(OSF::API::OverlayEventType::kPropAttach != OSF::API::OverlayEventType::kMarker);
 	static_assert(OSF::API::OverlayEventType::kPropDestroy != OSF::API::OverlayEventType::kMarker);
 
-	// Compiled but deliberately not run: this is the same surface a tiny SFSE consumer sees.
+	// Compile-only: the surface a minimal SFSE consumer sees.
 	[[maybe_unused]] OSF::API::OSFOverlayBeginResult ConsumeOverlayHeader(
 		OSF::API::IOSFOverlayAPI& a_api, std::uint64_t a_owner, RE::Actor* a_actor)
 	{
