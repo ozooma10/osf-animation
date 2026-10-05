@@ -1,6 +1,6 @@
 #include "API/UIBridgeWorld.h"
 
-#include "API/OSFUI.h"
+#include "API/BrowserSession.h"
 #include "API/UIKeywordLabel.h"
 #include "Camera/CameraService.h"
 #include "Matchmaking/Matchmaker.h"
@@ -27,7 +27,7 @@ namespace OSF::API::UIBridgeWorld
 
 	namespace
 	{
-		// Process-lifetime client owned by UIBridge.cpp; set before registration.
+		// Process-lifetime client owned by the browser session.
 		OSFUI::API::Client* g_ui = nullptr;
 
 		struct Picked
@@ -1070,12 +1070,12 @@ namespace OSF::API::UIBridgeWorld
 
 	}
 
-	void RegisterCommands(OSFUI::API::Client& a_ui)
+	void RegisterCommands()
 	{
-		g_ui = &a_ui;
-		a_ui.RegisterSend("osf.animation.pickScreen", &OnPickScreen, nullptr);
-		a_ui.RegisterSend("osf.animation.projectPickables", &OnProjectPickables, nullptr);
-		a_ui.RegisterSend("osf.animation.projectActors", &OnProjectActors, nullptr);
-		a_ui.RegisterSend("osf.animation.scanNearby", &OnScanNearby, nullptr);
+		g_ui = &BrowserSession::Views();
+		BrowserSession::RegisterSend("osf.animation.pickScreen", &OnPickScreen);
+		BrowserSession::RegisterSend("osf.animation.projectPickables", &OnProjectPickables);
+		BrowserSession::RegisterSend("osf.animation.projectActors", &OnProjectActors);
+		BrowserSession::RegisterSend("osf.animation.scanNearby", &OnScanNearby);
 	}
 }

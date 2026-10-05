@@ -378,7 +378,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
           dispatch({ type: "browser/opened", mode, resetBrowsing: !current.preferences.rememberBrowsing });
           if (!current.libraryReceived) requestLibrary(true);
         }
-        send(record.visible ? "osf.animation.opened" : "osf.animation.closed");
+        if (record.visible) send("osf.animation.opened");
         break;
       case "ui.error": showNotice("err", `Bridge rejected a message: ${record.message || record.code || "unknown error"}`); break;
       case "bridge.requestFailed":

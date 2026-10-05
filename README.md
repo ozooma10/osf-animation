@@ -104,7 +104,9 @@ pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame
 ```
 
 `-RunGame` also builds a separate test DLL and runs the sibling OSF Test Harness's
-Animation scenario in a disposable profile. `-Plan` prints the inventory without building or
+Animation scenario against the published Settings v1.0.0 and UI v2.0.0 archives in a
+disposable profile. Native browser open/close/reopen is included; rendering and controller
+acceptance remain separate. `-Plan` prints the inventory without building or
 launching anything. Reports live in `build/smoke/<run>/report.md`. See
 [docs/SMOKE_TESTING.md](docs/SMOKE_TESTING.md) for prerequisites and coverage boundaries.
 

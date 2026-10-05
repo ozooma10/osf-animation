@@ -3,6 +3,10 @@
 #ifdef OSF_ANIMATION_SMOKE
 #include "API/OSFOverlayAPI.h"
 #include "API/OSFSceneAPI.h"
+#include "API/OSFSettings.h"
+#include "API/OSFSettings_Diagnostics.h"
+#include "API/BrowserSession.h"
+#include "API/UIBridge.h"
 #include "Animation/GraphManager.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneRuntime.h"
@@ -30,7 +34,7 @@ namespace OSF::Testing::AnimationSmoke
 		using Clock = std::chrono::steady_clock;
 		constexpr const char* kClip = "meshes/actors/human/animations/common/cower_idle.af";
 		constexpr std::array kCases{
-			"api.ready", "api.invalid-handles", "solo.play", "solo.speed", "solo.anchor", "solo.stop",
+			"integration.settings", "integration.ui", "integration.browser-lifecycle", "api.ready", "api.invalid-handles", "solo.play", "solo.speed", "solo.anchor", "solo.stop",
 			"scene.start", "scene.stage", "scene.navigate", "scene.timer-events", "scene.cleanup",
 			"overlay.owner", "overlay.zero-station", "overlay.cleanup"
 		};
@@ -47,6 +51,7 @@ namespace OSF::Testing::AnimationSmoke
 			bool enabled = false;
 			bool running = false;
 			bool soloOwned = false;
+			bool browserOwned = false;
 			std::filesystem::path directory;
 			std::string session;
 			std::string lastRequest;
@@ -147,6 +152,10 @@ namespace OSF::Testing::AnimationSmoke
 
 		void Cleanup(bool a_worldReset = false)
 		{
+			if (g.browserOwned) {
+				API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId, false);
+				g.browserOwned = false;
+			}
 			// Solo has no token, so only release the clip while it is still ours.
 			if (!a_worldReset) {
 				if (g.scene && g.sceneAPI) (void)g.sceneAPI->StopScene(g.scene);
@@ -260,11 +269,25 @@ namespace OSF::Testing::AnimationSmoke
 				Finish("blocked", "Close pause menus and stop existing OSF scenes, player playback, and overlays");
 				return;
 			}
+			if (API::BrowserVisibleForSmoke()) { Finish("blocked", "Close the Animation Browser before starting the run"); return; }
 			auto& registry = Registry::ContentRegistry::GetSingleton();
 			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph") || !registry.FindRoute("osf.smoke.zero")) {
 				Finish("blocked", "Live smoke fixture is not installed or failed registry validation");
 				return;
 			}
+			OSFSettings::API::Client settings;
+			OSFSettings::API::Diagnostics::Client diagnostics;
+			std::string level;
+			if (!Check("integration.settings", settings.Init() && settings.IsReady() &&
+				settings.GetEnum("osf.animation", "logLevel", level) == OSFSettings::API::Status::Ok &&
+				diagnostics.Init() && diagnostics.Report({ .modId = "osf.animation", .id = "smoke.integration",
+					.title = "EXPECTED TEST: Animation diagnostics", .impact = "Transient API acceptance probe" }) == OSFSettings::API::Status::Ok &&
+				diagnostics.Clear("osf.animation", "smoke.integration") == OSFSettings::API::Status::Ok,
+				"Released Settings values and diagnostics report/clear accepted")) return;
+			OSFUI::API::Client views;
+			if (!Check("integration.ui", views.Init() && views.Version() == OSFUI::API::kVersion &&
+				!OSFUI::API::RequestInterface(0x10000) && API::BrowserSession::Available(),
+				"Released UI API 2.0 and browser registrations available; visual/input acceptance remains separate")) return;
 			std::uint32_t major = 0, minor = 0, patch = 0;
 			g.sceneAPI->GetPluginVersion(major, minor, patch);
 			g.snapshot["pluginVersion"] = std::format("{}.{}.{}", major, minor, patch);
@@ -434,9 +457,36 @@ namespace OSF::Testing::AnimationSmoke
 				if (!Check("overlay.cleanup", clean, "Route and owner release exactly once and leave no player graph or route")) return;
 				g.route = 0;
 				g.owner = 0;
-				Finish("passed", "All baseline runtime smoke cases passed; see notCovered for remaining acceptance work");
+				g.browserOwned = API::OpenBrowser();
+				if (!g.browserOwned) { Check("integration.browser-lifecycle", false, "Browser launch was rejected"); return; }
+				Phase(10);
 				break;
 			}
+			case 10:
+			case 12:
+				if (!API::BrowserVisibleForSmoke()) {
+					if (PhaseSeconds() > 12) Check("integration.browser-lifecycle", false, "Native browser shown callback did not execute");
+					break;
+				}
+				// Close through the host, with no JavaScript close notification.
+				API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId, false);
+				Phase(g.phase + 1);
+				break;
+			case 11:
+			case 13:
+				if (API::BrowserVisibleForSmoke()) {
+					if (PhaseSeconds() > 6) Check("integration.browser-lifecycle", false, "Native browser hidden callback did not execute");
+					break;
+				}
+				if (g.phase == 11) {
+					if (!API::OpenBrowser()) { Check("integration.browser-lifecycle", false, "Browser reopen was rejected"); return; }
+					Phase(12);
+				} else {
+					g.browserOwned = false;
+					if (!Check("integration.browser-lifecycle", true, "Released UI host drove native shown/hidden cleanup across open, host close, reopen, and close")) return;
+					Finish("passed", "All baseline runtime smoke cases passed; see notCovered for remaining acceptance work");
+				}
+				break;
 			}
 		}
 

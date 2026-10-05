@@ -138,6 +138,11 @@ Each entry: **system** (`path`) — role.
   `"Plugin.esm|0xID"` form-refs resolved at load (RE-sensitive — needs in-game verification).
 
 ### Layer-C - services 
+- **BrowserSession** (`src/API/BrowserSession.*`, `BrowserSessionQueue.h`) — internal optional
+  OSF UI consumer. Native shown/hidden callbacks own browser lifetime; copied commands and
+  pointer input drain on the frame queue with a generation check. Hide/world replacement
+  invalidate pending work. `UIBridge` owns game behavior; document initialization replays data.
+  Missing addon is normal; installed but unusable integration reports through Mod Issues.
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no

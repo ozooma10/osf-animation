@@ -18,6 +18,7 @@ existing reports; clearing an issue removes it.
 | Cross-file problems with no single owner (a dangling `use`) | `catalog.cross-file` | error / warning | No file to name, so they share one card rather than being dropped. |
 | Wheel pins cannot be written (`WheelPins`) | `wheel.pins-not-persisted` | warning | Customization is lost on exit and stays lost until the permissions/disk problem is fixed. Cleared when a later save succeeds. |
 | Screen fades disabled (`FadeService` prologue mismatch) | `fade.disabled` | warning | A feature is off for the session, and the reason (a game patch moved the poster) is not guessable. |
+| Browser assets installed but host/API/assets/registration fail | `browser.integration` | error | The browser cannot open. The reason identifies the missing/unsupported host or invalid installation and gives the corrective action. Engine playback remains independent. |
 
 One card per **file**, not per problem: twelve rejected scenes in one bad pack
 are one thing to fix, and twelve cards would bury every other condition in the
@@ -32,6 +33,7 @@ Deliberately **not** reported:
 - Anything the engine recovers from within a tick or two (lock-leak recovery,
   orbit re-engage). Already corrected by the time it could be read.
 - Counts, timings, "loaded N packs". That is a log, and Mod Issues is not one.
+- The optional browser addon is absent. This is a supported core-only installation.
 ## Producer rules
 
 - Report only conditions that are durable, actionable, and worth interrupting

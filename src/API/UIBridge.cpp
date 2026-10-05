@@ -1,4 +1,5 @@
 #include "API/UIBridge.h"
+#include "API/BrowserSession.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/UIBridgeWorld.h"
@@ -60,7 +61,7 @@ namespace OSF::API
 		using UIBridgeWorld::ResolveToken;
 		using UIBridgeWorld::ScanLabel;
 
-		OSFUI::API::Client g_ui;
+		auto& g_ui = BrowserSession::Views();
 
 		// Sent in the version payload; the view falls back to paced input when false.
 		bool g_relativePointerRegistered = false;
@@ -70,8 +71,7 @@ namespace OSF::API
 		float         g_relativePointerTraceDy = 0.0f;
 		float         g_relativePointerTraceWheel = 0.0f;
 
-		// Game main thread only. Gates OnOrbit: a drag flush arriving after osf.closed would
-		// otherwise re-engage the orbit on a closed browser and never release it.
+		// Game main thread only; native presentation owns this flag.
 		bool g_viewVisible = false;
 
 		bool g_orbitSpaceNoticed = false;
@@ -85,7 +85,7 @@ namespace OSF::API
 		// wheel launches deliberately outlive the browser. Main thread only.
 		std::vector<std::int32_t> g_closeStops;
 
-		// Replayed from osf.opened to survive the open race. Cleared on osf.closed and by OpenBrowser.
+		// Replayed on document initialization; cleared by native hide and OpenBrowser.
 		struct PendingWheel
 		{
 			bool         active = false;
@@ -1155,20 +1155,17 @@ namespace OSF::API
 		}
 
 		// UI cursor visible: the scene-orbit camera steers by LMB-drag instead of free-look.
-		void OnOpened(const char*, const char*, const char* a_srcView, void*) noexcept
+		void ReplayBrowser(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
-			g_viewVisible = true;
-			Input::InputService::GetSingleton().SetUiCursorVisible(true);
+			if (!g_viewVisible) return;
 			if (g_wheel.active) {
 				SendWheelMode();
 			}
 			PushActiveScenes();
 			// Seed the view with the open-time crosshair target; furniture only if some scene accepts it.
-			bool actorTargeted = false;
 			if (g_openPickToken != 0) {
 				if (RE::TESObjectREFR* ref = ResolveToken(g_openPickToken)) {
 					const bool isActor = ref->IsActor();
-					actorTargeted = isActor;
 					bool       usable = isActor;
 					if (!isActor) {
 						Matchmaking::AnchorMatchCache cache(ref);
@@ -1191,15 +1188,23 @@ namespace OSF::API
 					}
 				}
 			}
-			// Cast defaults to the player, who is invisible in first person. One-shot; not restored.
-			if (!g_wheel.active && !actorTargeted) {
+		}
+
+		void OnShown()
+		{
+			g_viewVisible = true;
+			Input::InputService::GetSingleton().SetUiCursorVisible(true);
+			ReplayBrowser(nullptr, nullptr, kViewId, nullptr);
+			const auto* target = ResolveToken(g_openPickToken);
+			if (!g_wheel.active && (!target || !target->IsActor())) {
 				Camera::CameraService::GetSingleton().KickToThirdPerson();
 			}
 		}
 
-		void OnClosed(const char*, const char*, const char*, void*) noexcept
+		void OnHidden()
 		{
 			g_viewVisible = false;
+			g_relativePointerTraceActive = false;
 			Input::InputService::GetSingleton().SetUiCursorVisible(false);
 			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();
 			g_wheel = {};
@@ -1334,21 +1339,25 @@ namespace OSF::API
 
 	void PushCatalogUpdate()
 	{
-		if (!g_ui.IsReady()) {
+		if (!BrowserSession::Available() || !g_viewVisible) {
 			return;  // the next document fetches current data on init
 		}
 		REX::DEBUG("[UI] clip durations updated — re-pushing catalog to view '{}'", kViewId);
 		SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
 	}
 
+#ifdef OSF_ANIMATION_SMOKE
+	bool BrowserVisibleForSmoke() { return g_viewVisible; }
+#endif
+
 	bool OpenBrowser()
 	{
-		if (!g_ui) {
-			REX::WARN("[UI] OpenBrowser: OSF UI not present — nothing to open");
+		if (!BrowserSession::Available()) {
+			REX::WARN("[UI] OpenBrowser: {}", BrowserSession::UnavailableReason());
 			return false;
 		}
 		// UIMessageQueue is main-thread-only and callers may be on a Papyrus VM thread.
-		Util::NativeMainThreadQueue::Post([]() {
+		BrowserSession::Post([]() {
 			if (g_wheel.active) {
 				g_wheel = {};
 				SendJson(kViewId, "osf.animation.mode", json{ { "mode", "browser" } });
@@ -1371,19 +1380,19 @@ namespace OSF::API
 			}
 			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::DEBUG("[UI] OpenBrowser: RequestMenu('{}', open) -> {}", kViewId, ok);
-		});
+		}, false);
 		return true;
 	}
 
 	bool OpenWheel(std::string_view a_tagPrefix)
 	{
-		if (!g_ui) {
-			REX::WARN("[UI] OpenWheel: OSF UI not present — nothing to open");
-			UI::HudMessage::Error("OSF UI not present or too old");
+		if (!BrowserSession::Available()) {
+			REX::WARN("[UI] OpenWheel: {}", BrowserSession::UnavailableReason());
+			UI::HudMessage::Error(BrowserSession::UnavailableReason());
 			return false;
 		}
 		// Settings hotkeys and Papyrus may run on workers.
-		Util::NativeMainThreadQueue::Post([prefix = std::string{ a_tagPrefix }]() {
+		BrowserSession::Post([prefix = std::string{ a_tagPrefix }]() {
 			g_wheel = {};
 			g_wheel.active = true;
 			g_wheel.tagPrefix = prefix.empty() ? std::string{ "player.emote." } : prefix;
@@ -1423,7 +1432,7 @@ namespace OSF::API
 			const bool ok = g_ui.RequestMenu(kViewId, true);
 			REX::DEBUG("[UI] OpenWheel: RequestMenu('{}', open) -> {} (prefix '{}', target: {})",
 				kViewId, ok, g_wheel.tagPrefix, g_wheel.targetToken != 0 ? g_wheel.targetName : "player-only");
-		});
+		}, false);
 		return true;
 	}
 
@@ -1431,42 +1440,42 @@ namespace OSF::API
 	{
 		using namespace OSFUI::API;
 
-		if (!g_ui.Init()) {
-			REX::INFO("[UI] OSF UI not present — in-game scene-browser view disabled (this is fine)");
+		if (!BrowserSession::Connect(OnShown, OnHidden)) {
 			return;
 		}
 
-		g_relativePointerRegistered = g_ui.RegisterRelativePointer(kViewId, &OnRelativePointer, nullptr);
-		g_ui.RegisterSend("osf.animation.catalog.get", &OnCatalogGet, nullptr);
-		g_ui.RegisterSend("osf.animation.library.get", &OnLibraryGet, nullptr);
-		g_ui.RegisterSend("osf.animation.routes.get", &OnRoutesGet, nullptr);
-		g_ui.RegisterSend("osf.animation.imports.get", &OnImportsGet, nullptr);
-		g_ui.RegisterSend("osf.animation.imports.reload", &OnImportsReload, nullptr);
-		g_ui.RegisterSend("osf.animation.imports.copy", &OnImportsCopy, nullptr);
-		UIBridgeWorld::RegisterCommands(g_ui);
-		g_ui.RegisterSend("osf.animation.anchorMatch", &OnAnchorMatch, nullptr);
-		g_ui.RegisterSend("osf.animation.castMatch", &OnCastMatch, nullptr);
-		g_ui.RegisterSend("osf.animation.launch", &OnLaunch, nullptr);
-		g_ui.RegisterSend("osf.animation.route.inspect", &OnRouteInspect, nullptr);
-		g_ui.RegisterSend("osf.animation.stop", &OnStop, nullptr);
-		g_ui.RegisterSend("osf.animation.advance", &OnAdvance, nullptr);
-		g_ui.RegisterSend("osf.animation.playback.get", &OnPlaybackGet, nullptr);
-		g_ui.RegisterSend("osf.animation.playback.set", &OnPlaybackSet, nullptr);
-		g_ui.RegisterSend("osf.animation.wheel.get", &OnWheelGet, nullptr);
-		g_ui.RegisterSend("osf.animation.wheel.set", &OnWheelSet, nullptr);
-		g_ui.RegisterSend("osf.animation.opened", &OnOpened, nullptr);
-		g_ui.RegisterSend("osf.animation.closed", &OnClosed, nullptr);
-		g_ui.RegisterSend("osf.animation.orbit", &OnOrbit, nullptr);
-		g_ui.RegisterSend("osf.animation.requestClose", &OnRequestClose, nullptr);
+		g_relativePointerRegistered = BrowserSession::RegisterPointer(&OnRelativePointer);
+		BrowserSession::RegisterSend("osf.animation.catalog.get", &OnCatalogGet, false);
+		BrowserSession::RegisterSend("osf.animation.library.get", &OnLibraryGet, false);
+		BrowserSession::RegisterSend("osf.animation.routes.get", &OnRoutesGet, false);
+		BrowserSession::RegisterSend("osf.animation.imports.get", &OnImportsGet, false);
+		BrowserSession::RegisterSend("osf.animation.imports.reload", &OnImportsReload);
+		BrowserSession::RegisterSend("osf.animation.imports.copy", &OnImportsCopy);
+		UIBridgeWorld::RegisterCommands();
+		BrowserSession::RegisterSend("osf.animation.anchorMatch", &OnAnchorMatch);
+		BrowserSession::RegisterSend("osf.animation.castMatch", &OnCastMatch);
+		BrowserSession::RegisterSend("osf.animation.launch", &OnLaunch);
+		BrowserSession::RegisterSend("osf.animation.route.inspect", &OnRouteInspect);
+		BrowserSession::RegisterSend("osf.animation.stop", &OnStop);
+		BrowserSession::RegisterSend("osf.animation.advance", &OnAdvance);
+		BrowserSession::RegisterSend("osf.animation.playback.get", &OnPlaybackGet);
+		BrowserSession::RegisterSend("osf.animation.playback.set", &OnPlaybackSet);
+		BrowserSession::RegisterSend("osf.animation.wheel.get", &OnWheelGet, false);
+		BrowserSession::RegisterSend("osf.animation.wheel.set", &OnWheelSet);
+		BrowserSession::RegisterSend("osf.animation.opened", &ReplayBrowser);
+		// Older documents may still report close; native lifecycle owns teardown.
+		BrowserSession::RegisterSend("osf.animation.closed", [](const char*, const char*, const char*, void*) noexcept {});
+		BrowserSession::RegisterSend("osf.animation.orbit", &OnOrbit);
+		BrowserSession::RegisterSend("osf.animation.requestClose", &OnRequestClose);
 
 		// May fire off-thread (Papyrus StopScene); the hop also lets ReleaseSlot retire the slot first.
 		Scene::SceneRuntime::GetSingleton().SetSceneObserver([]() {
 			Util::NativeMainThreadQueue::Post([]() { PushActiveScenes(); });
 		});
 
-		if (!g_ui.RegisterView(kViewId)) {
-			REX::ERROR("[UI] Could not register the animation browser view");
-		}
+		Animation::GraphManager::GetSingleton().RegisterPlaybackSink({ .clear = [] { BrowserSession::Reset(); } });
+		BrowserSession::FinishRegistration();
+		if (!BrowserSession::Available()) return;
 		REX::INFO("[Feature] OSF UI connected (API {}.{}); relative pointer {}",
 			g_ui.Version() >> 16, g_ui.Version() & 0xFFFF, g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
 	}

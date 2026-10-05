@@ -15,4 +15,9 @@ namespace OSF::API
 	// Any thread. a_tagPrefix "" -> "player.emote.". Dead/in-combat/non-human crosshair NPCs
 	// fall back to a player-only wheel.
 	bool OpenWheel(std::string_view a_tagPrefix);
+
+#ifdef OSF_ANIMATION_SMOKE
+	// Frame-thread observation after the native lifecycle task has executed.
+	bool BrowserVisibleForSmoke();
+#endif
 }

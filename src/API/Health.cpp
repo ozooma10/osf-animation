@@ -56,7 +56,10 @@ namespace OSF::API::Health
 			} else {
 				const char* title = "Animation content could not be loaded";
 				const char* next = "Check OSF Animation.log and repair or reinstall the affected content pack.";
-				if (a_op.code == "boot.untested-game-version") {
+				if (a_op.code == "browser.integration") {
+					title = "Animation Browser is unavailable";
+					next = "Install matching released Animation Browser, OSF UI and OSF Settings files, then restart Starfield.";
+				} else if (a_op.code == "boot.untested-game-version") {
 					title = "This Starfield version has not been verified";
 					next = "Check for an OSF Animation update supporting your game version.";
 				} else if (a_op.code == "compat.needs-newer-osf-animation") {

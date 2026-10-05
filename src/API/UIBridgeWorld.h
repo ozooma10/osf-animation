@@ -9,11 +9,6 @@ namespace RE
 	class TESObjectREFR;
 }
 
-namespace OSFUI::API
-{
-	class Client;
-}
-
 namespace OSF::API::UIBridgeWorld
 {
 	// Game main thread only; token -1 is reserved for the player.
@@ -24,5 +19,5 @@ namespace OSF::API::UIBridgeWorld
 	RE::TESObjectREFR* CrosshairRef();
 	void ClearSessionTokens();
 
-	void RegisterCommands(OSFUI::API::Client& a_ui);
+	void RegisterCommands();
 }

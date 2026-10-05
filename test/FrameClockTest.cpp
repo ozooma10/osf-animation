@@ -1,6 +1,7 @@
 #include "Check.h"
 
 #include "Animation/FrameClock.h"
+#include "API/BrowserSessionQueue.h"
 #include "Animation/StallWatchdogSchedule.h"
 #include "Util/ClipPath.h"
 #include "Util/DiagnosticText.h"
@@ -19,6 +20,30 @@ using OSF::Test::Finish;
 
 int main()
 {
+	{
+		OSF::API::BrowserSessionQueue session;
+		std::vector<int> events;
+		session.Post([&] { events.push_back(99); }); // hidden mutations are refused
+		session.Post([&] { events.push_back(1); }, false); // document bootstrap
+		session.Visibility(true, [&] { events.push_back(2); });
+		OSF::Util::NativeMainThreadQueue::Drain();
+		Check(events == std::vector<int>{ 1, 2 }, "document init may precede native show");
+		session.Post([&] { events.push_back(99); });
+		session.Visibility(false, [&] { events.push_back(3); });
+		session.Visibility(false, [&] { events.push_back(99); });
+		session.Visibility(true, [&] { events.push_back(4); });
+		session.Post([&] { events.push_back(5); });
+		OSF::Util::NativeMainThreadQueue::Drain();
+		Check(events == std::vector<int>{ 1, 2, 3, 4, 5 }, "close drops stale commands and cleans once before reopen");
+		session.Post([&] { events.push_back(99); }, false);
+		session.Reset([&] { events.push_back(6); });
+		OSF::Util::NativeMainThreadQueue::Drain();
+		Check(events.back() == 6 && events.size() == 6, "world replacement invalidates pending work including opens");
+		session.Visibility(true, [&] { events.push_back(99); });
+		session.Visibility(false, [&] { events.push_back(7); });
+		OSF::Util::NativeMainThreadQueue::Drain();
+		Check(events.back() == 7 && events.size() == 7, "canceled show never engages camera but hide still cleans up");
+	}
 	OSF::Animation::FrameClock clock;
 	int ownerToken = 0;
 	int survivorToken = 0;

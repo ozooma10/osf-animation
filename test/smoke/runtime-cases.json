@@ -1,4 +1,7 @@
 [
+  "integration.settings",
+  "integration.ui",
+  "integration.browser-lifecycle",
   "api.ready",
   "api.invalid-handles",
   "solo.play",
