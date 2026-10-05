@@ -19,15 +19,19 @@ tests and in-game acceptance. It is an on-demand bench, not a scheduled job.
 - Node/npm compatible with `ui/animation-browser/package.json`. The bench runs `npm ci`
   before the browser scripts.
 - Compiled `dist/Scripts/OSF{,Types,Advanced}.pex` for packaging. Compile them with the
-  canonical command in `AGENTS.md` after Papyrus edits. The packager warns about
-  older PEX files; the bench repeats that limitation in its report. Native runtime
-  assertions do **not** validate the Papyrus VM bindings.
+  canonical command in `AGENTS.md` after Papyrus edits. Packaging rejects older PEX
+  files and mismatched compiled native signatures. Native runtime assertions do
+  **not** validate the Papyrus VM bindings or struct layout.
 - For `-RunGame`: the sibling **OSF Test Harness** with `Test-AnimationRelease.ps1`,
   prebuilt input/native helpers, installed Starfield/SFSE/dependencies, and its
   configured disposable seed save. Use `-Harness <directory>` if it is elsewhere.
   The harness owns the local game session and checks process identity, its native
   handshake, desktop/foreground state, and private save/profile ownership. An
   unrelated running game or missing fixture blocks the run.
+- Runtime integration uses the published **OSF Settings v1.0.0** and **OSF UI v2.0.0**
+  ZIPs from GitHub. Downloads are cached by their published SHA-256, verified, and
+  installed in private test mods. Missing releases/checksums or network access block
+  this gate; sibling development DLLs cannot substitute for these released hosts.
 
 No ordinary development mod is overwritten by the bench. The production build
 installs under this run's evidence directory. The runtime DLL is built in
@@ -41,7 +45,7 @@ are restored, and the final XMake configuration is `releasedbg`, `build`, with
 | Stage | Evidence |
 | --- | --- |
 | Coverage | Every registered XMake suite and runtime case is mapped in `test/smoke/coverage.json`. Inventory drift fails. |
-| Bench contracts | Rejects missing suites, stale or changed evidence, mismatched source/DLL hashes, skipped game cases, and truthy string flags. Checks source fingerprints and JUnit statuses. |
+| Bench contracts | Rejects missing suites, stale or changed evidence, mismatched source/DLL hashes, skipped game cases, and truthy string flags. Exercises release receipts, instrumented DLL rejection, staged/ZIP tampering, forbidden entries and Papyrus mismatch rejection. |
 | SDK | `tools/Test-SdkLock.ps1`: vendored OSF UI / OSF Settings SDK files match `sdk-lock.json` hashes; with sibling checkouts present, the locked tags and commits also match. |
 | Production | Normal releasedbg DLL, installed into private staging. |
 | Native | All eight `xmake test` suites. The reported execution count must match the inventory. |
@@ -63,6 +67,14 @@ cleanup, and zero-animation overlay owner/station cleanup. It refuses to start
 over existing player playback, waits for fade-out completion, and retains case
 results instead of inferring success from a command acknowledgment.
 
+Integration cases read Animation's Settings value, report and clear a transient
+`EXPECTED TEST` issue, verify the released UI API and browser registrations, and
+open/host-close/reopen/close the browser through native lifecycle callbacks. This
+proves the logical presentation callbacks reached Animation's frame queue; it does
+not prove document rendering or physical input. Engine-free queue tests cover
+hidden commands, duplicate notifications, stale work after close/reopen, and world
+replacement invalidation.
+
 ## Results and automation
 
 Each invocation creates a new `build/smoke/<UTC timestamp>-<id>` directory containing:
@@ -70,7 +82,7 @@ Each invocation creates a new `build/smoke/<UTC timestamp>-<id>` directory conta
 - `report.md`, `result.json`, and `junit.xml`;
 - per-stage logs, source identity including dirty/untracked files and submodule
   contents, and production/runtime DLL hashes;
-- both archives and their SHA-256 hashes;
+- both archives, their SHA-256 hashes, and manifests tied to production build receipts;
 - with `-RunGame`, a runtime suite receipt pointing to the harness's captures,
   session, requests/responses and final native snapshot.
 
@@ -107,3 +119,24 @@ included in the default release build.
 An interrupted or failed run keeps its evidence. Use the harness's normal owned
 session stop command if a process remains; never close an unrelated game to make
 a smoke run pass.
+
+## Browser acceptance after updating the hosts
+
+Use matching engine/browser builds with the released Settings/UI hosts and record
+each result independently:
+
+- Core-only installation: playback works, browser launch reports the missing addon,
+  and Mod Issues contains no warning merely because the optional browser is absent.
+- Browser installed with missing/unsupported UI or invalid assets: engine playback
+  remains available; Mod Issues gives the corrective reason and reinstall/update action.
+- Open through Settings' Launcher and bound keyboard/controller hotkeys; use Back
+  inside the view before closing it. Confirm game input and cursor return on close.
+- Start a player scene, NPC-only scene and preview in separate runs. Confirm player
+  scenes/previews stop on close, NPC-only scenes survive and resume their prior speed,
+  orbit releases, and reopening gives fresh tokens and state.
+- Reload the document, close while it is loading, reopen quickly, and load another
+  save while open. Confirm stale play/selection/orbit commands do not affect the new
+  presentation or world. Retest failed/cancelled loads and focus loss separately.
+
+Keep visual/controller and save-load observations alongside the automated report;
+passing the smoke suite alone does not close these acceptance gates.

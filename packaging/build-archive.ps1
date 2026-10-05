@@ -1,48 +1,25 @@
-#requires -Version 5.1
-<#
-.SYNOPSIS
-  Build OSF Animation and assemble the FOMOD release archive:
-  build -> stage -> verify -> packaging/out/OSF Animation v<version>[-tag].zip + SHA-256.
-
-.DESCRIPTION
-  Building also deploys the engine to MO2 via the xmake install rule.
-
-.PARAMETER Version
-  Release version. Defaults to set_version(...) parsed from xmake.lua.
-.PARAMETER Tag
-  Optional suffix (e.g. 'beta' -> v1.1.0-beta). Also stamped into fomod/info.xml.
-.PARAMETER DllFlavor
-  xmake build mode. Default releasedbg (ship the flavor you tested in-game).
-.PARAMETER SkipBuild
-  Package the current build/ + dist/ without rebuilding.
-.PARAMETER CompilePapyrus
-  Recompile dist/Scripts/Source with the CK compiler first; otherwise a stale .pex only warns.
-.PARAMETER IncludePdb
-  Ship the .pdb next to the DLL (crash-log symbolication). Excluded by default.
-
-.EXAMPLE
-  packaging\build-archive.ps1
-  # builds releasedbg, stages, verifies -> packaging\out\OSF Animation v1.0.0.zip
-.EXAMPLE
-  packaging\build-archive.ps1 -SkipBuild -Version 1.1.0 -Tag beta
-#>
+#requires -Version 7.2
+# Build and package privately; -SkipBuild requires a current production receipt.
 [CmdletBinding()]
 param(
-    [string] $Version,
-    [string] $Tag = '',
-    [ValidateSet('releasedbg', 'release')] [string] $DllFlavor = 'releasedbg',
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+$')] [string] $Version,
+    [ValidatePattern('^[A-Za-z0-9.-]*$')] [string] $Tag = '',
+    [ValidateSet('releasedbg')] [string] $DllFlavor = 'releasedbg',
     [switch] $SkipBuild,
     [switch] $CompilePapyrus,
     [switch] $IncludePdb,
-    [string] $OutDir = "$PSScriptRoot\out"
+    [string] $OutDir = "$PSScriptRoot\out",
+    [string] $ResultPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'ReleaseValidation.ps1')
+$OutDir = [IO.Path]::GetFullPath($OutDir)
 
 function Step($m) { Write-Host "==> $m" -ForegroundColor Cyan }
 function Warn($m) { Write-Host "!!  $m" -ForegroundColor Yellow }
-function Die($m)  { Write-Host "XX  $m" -ForegroundColor Red; exit 1 }
+function Die($m)  { throw $m }
 
 if (-not $Version) {
     $m = Select-String -Path (Join-Path $repo 'xmake.lua') -Pattern 'set_version\("([^"]+)"\)' | Select-Object -First 1
@@ -53,26 +30,9 @@ $verLabel = $Version
 if ($Tag) { $verLabel += "-$Tag" }
 Step "Packaging OSF Animation v$verLabel  (flavor=$DllFlavor)"
 
-if (-not $SkipBuild) {
-    if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) { Die 'xmake not found on PATH.' }
-    Push-Location $repo
-    try {
-        Step "xmake f -c -m $DllFlavor -P . -o build"
-        xmake f -c -m $DllFlavor -P . -o build -y
-        if ($LASTEXITCODE -ne 0) { Die 'xmake config failed.' }
-        Step 'xmake -P .   (also deploys the engine to MO2)'
-        xmake -P . -y
-        if ($LASTEXITCODE -ne 0) { Die 'Build failed.' }
-    } finally { Pop-Location }
-} else {
-    Warn 'SkipBuild: packaging whatever is already in build/ + dist/.'
-}
-
-$dll = Join-Path $repo "build\windows\x64\$DllFlavor\OSF Animation.dll"
+$dll = Join-Path $repo "build/windows/x64/releasedbg/OSF Animation.dll"
 $pdb = [IO.Path]::ChangeExtension($dll, 'pdb')
 $dist = Join-Path $repo 'dist'
-if (-not (Test-Path $dll)) { Die "DLL not found: $dll  (run xmake first; -DllFlavor $DllFlavor)" }
-
 # OSFTest is dev-only and never ships.
 $apiScripts = @('OSF', 'OSFTypes', 'OSFAdvanced')
 if ($CompilePapyrus) {
@@ -85,18 +45,14 @@ if ($CompilePapyrus) {
         -o="$repo\dist\Scripts" -f='C:\Modding\Starfield\PapyrusSource\Starfield_Papyrus_Flags.flg' -all
     if ($LASTEXITCODE -ne 0) { Die 'Papyrus compile failed.' }
 }
-foreach ($s in $apiScripts) {
-    $pex = Join-Path $dist "Scripts\$s.pex"
-    $psc = Join-Path $dist "Scripts\Source\$s.psc"
-    if (-not (Test-Path $pex)) { Die "Missing $pex — compile Papyrus first (or pass -CompilePapyrus)." }
-    if (-not (Test-Path $psc)) { Die "Missing $psc — consumers need the source to compile against." }
-    # A stale .pex ships natives that fail to bind, invisible until in-game.
-    if ((Get-Item $psc).LastWriteTime -gt (Get-Item $pex).LastWriteTime) {
-        Warn "$s.psc is newer than $s.pex — recompile (or re-run with -CompilePapyrus) before shipping."
-    }
+Test-ReleasePapyrus $repo
+if (-not $SkipBuild) {
+    & (Join-Path $repo 'tools/BuildProduction.ps1')
 }
-
-$stage = Join-Path $env:TEMP "osfanim-pkg-$(Get-Random)"
+$receipt = Test-ReleaseBuildReceipt $repo 'engine'
+$actualVersion = [regex]::Match((Get-Content (Join-Path $repo 'xmake.lua') -Raw), 'set_version\("([^"\r\n]+)"\)').Groups[1].Value
+if ($Version -cne $actualVersion) { throw 'Archive version must match the built plugin version.' }
+$stage = Join-Path $repo ('build/packages/engine-' + [guid]::NewGuid().ToString('N'))
 $core = "$stage\Core"
 @("$core\SFSE\Plugins", "$core\Scripts\Source") |
     ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
@@ -162,22 +118,12 @@ $fomodSources = @($mc.SelectNodes('//folder/@source') | ForEach-Object { $_.Valu
 $badSources = $fomodSources | Where-Object { -not (Test-Path (Join-Path $stage $_)) }
 if ($badSources) { Die ("ModuleConfig.xml references missing folder(s): " + ($badSources -join ', ')) }
 
+$allowed = @($required | ForEach-Object { $_.Replace('\','/') }) + @('Core/SFSE/Plugins/OSF Animation/THIRD_PARTY.md')
+if ($IncludePdb) { $allowed += 'Core/SFSE/Plugins/OSF Animation.pdb' }
+foreach ($file in Get-ReleaseFileHashes $stage) {
+    if ($file.path -cnotin $allowed) { throw "Unexpected engine payload: $($file.path)" }
+}
+$null = Test-ReleaseBuildReceipt $repo 'engine'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $zip = Join-Path $OutDir "OSF Animation v$verLabel.zip"
-if (Test-Path $zip) { Remove-Item $zip -Force }
-Step "Compressing -> $zip"
-Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal
-$fileCount = (Get-ChildItem $stage -Recurse -File).Count
-Remove-Item $stage -Recurse -Force
-
-$sizeMB = [math]::Round((Get-Item $zip).Length / 1MB, 2)
-$sha = (Get-FileHash $zip -Algorithm SHA256).Hash
-Write-Host ''
-Write-Host 'OK  Release archive ready' -ForegroundColor Green
-Write-Host "    $zip"
-$pdbNote = if ($IncludePdb) { 'PDB included' } else { 'no PDB (-IncludePdb to ship crash-log symbols)' }
-Write-Host "    $sizeMB MB, $fileCount files ($DllFlavor, $pdbNote)"
-Write-Host "    SHA256 $sha"
-Write-Host ''
-Write-Host '    Engine FOMOD archive: install with MO2 / Vortex. The browser and wheel ship'
-Write-Host '    separately as OSF Animation Browser. Requires SFSE + OSF Settings.'
+Write-ReleaseArchive $stage $zip $receipt $ResultPath $repo

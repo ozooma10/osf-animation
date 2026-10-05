@@ -20,6 +20,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'SmokeBench.ps1')
+. (Join-Path $repo 'packaging/ReleaseValidation.ps1')
 $coverage = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/coverage.json') -Raw | ConvertFrom-Json)
 $runtimeCases = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/runtime-cases.json') -Raw | ConvertFrom-Json)
 $suite = Join-Path $Harness 'Test-AnimationRelease.ps1'
@@ -108,6 +109,7 @@ try {
     }
     Invoke-SmokeStage 'bench-contracts' {
         Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'test/SmokeBenchTest.ps1'))
+        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'test/ReleaseValidationTest.ps1'))
         if ($RunGame) {
             $harnessTests = Join-Path $Harness 'tests/AnimationSmoke.Tests.ps1'
             if (-not (Test-Path -LiteralPath $harnessTests)) { throw '[blocked] Animation harness contract tests are missing; pass -Harness.' }
@@ -125,6 +127,7 @@ try {
         Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
         Invoke-SmokeCommand 'xmake' @('install','-y','-o',$productionMod,'OSF Animation')
         $report.productionDllSha256 = (Get-FileHash -LiteralPath (Join-Path $productionMod 'SFSE/Plugins/OSF Animation.dll')).Hash
+        Write-ReleaseBuildReceipt $repo 'engine' $identity
         $script:stage.message = 'releasedbg production DLL built and installed to private staging'
     }
     Invoke-SmokeStage 'native' {
@@ -142,11 +145,6 @@ try {
         Test-SmokeArchives $archives $report.productionDllSha256
         Get-ChildItem -LiteralPath $archives -Filter '*.zip' -File | Get-FileHash |
             Select-Object Path,Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory 'archive-hashes.json')
-        foreach ($name in @('OSF','OSFTypes','OSFAdvanced')) {
-            if ((Get-Item "dist/Scripts/Source/$name.psc").LastWriteTimeUtc -gt (Get-Item "dist/Scripts/$name.pex").LastWriteTimeUtc) {
-                $report.unverified += "$name.psc is newer than its compiled PEX. Recompile Papyrus before claiming VM/API acceptance."
-            }
-        }
         $script:stage.message = 'Engine and browser ZIP contents verified; production DLL hash matches'
     } @('production-build','browser')
     if ($RunGame) {

@@ -17,5 +17,5 @@
   {"feature":"Animation browser, library, wheel and bridge", "native":["osf-frame-clock-test"], "runtime":["integration.ui","integration.browser-lifecycle"], "gap":"Browser verify runs Vitest, TypeScript and Vite. Real WebView2 rendering/input, wheel persistence and launchers need game/UI acceptance."},
   {"feature":"Settings, hotkeys and durable health issues", "native":[], "runtime":["integration.settings"], "gap":"Distribution validates the schema payload; Live launcher/hotkey input and visual issue presentation need game acceptance; values and report/clear APIs have a runtime probe."},
   {"feature":"Studio Link and transient preview", "native":[], "runtime":[], "gap":"Studio pairing, mailbox expiry, unsaved AF preview and ownership cleanup need a Studio integration scenario."},
-  {"feature":"Production deployment and release payloads", "native":[], "runtime":[], "gap":"Both archives are built and checked; clean install, upgrade, Papyrus freshness and restart acceptance are not established by packaging."}
+  {"feature":"Production deployment and release payloads", "native":[], "runtime":[], "gap":"Both archives are built and checked; clean install, upgrade, Papyrus VM binding and restart acceptance are not established by packaging."}
 ]

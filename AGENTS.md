@@ -30,6 +30,9 @@ voice/sound, camera hold);
   launchers, and issues. The schema ships under `dist/SFSE/Plugins/OSF/Settings/schemas`.
 - **Release archive:** `packaging\build-archive.ps1` (build → stage FOMOD → verify → zip; see
   `docs/PACKAGING.md`). Output: `packaging\out\OSF Animation v<version>.zip`.
+  Packaging uses private staging, never MO2. `-SkipBuild` requires a current build receipt;
+  PSC/PEX freshness and compiled native signatures must match. `-ResultPath` identifies
+  the verified ZIP manifest. Ordinary `xmake` remains the build-and-deploy workflow.
 - **Papyrus (`dist/Scripts/Source/*.psc` → `*.pex`): recompile after editing a `.psc`, THEN `xmake`
   to deploy the fresh `.pex`.** A stale `.pex` (source edited but not recompiled) makes any new/changed
   native fail to bind at link time — e.g. `error: Native static function X could find no matching

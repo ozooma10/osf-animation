@@ -1,9 +1,11 @@
-#requires -Version 5.1
+#requires -Version 7.2
 [CmdletBinding()]
 param([switch] $NoDeploy)
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+. (Join-Path $repo 'packaging/ReleaseValidation.ps1')
+$before = Get-SmokeSourceIdentity $repo
 $ui = Join-Path $repo 'ui\animation-browser'
 $view = Join-Path $repo 'build\osfui-animation-browser\SFSE\Plugins\OSF\UI\views\osf.animation'
 
@@ -25,6 +27,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $view 'browser\manifest.json'))) {
     throw "Browser build is missing its manifest: $view"
 }
 
+Write-ReleaseBuildReceipt $repo 'browser' $before
 if ($NoDeploy -or -not $env:XSE_SF_MODS_PATH) { return }
 
 $mods = [IO.Path]::GetFullPath($env:XSE_SF_MODS_PATH).TrimEnd('\', '/')
