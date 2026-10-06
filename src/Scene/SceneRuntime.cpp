@@ -4,7 +4,7 @@
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
 #include "Input/InputService.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 
 #include <algorithm>
 #include <chrono>

@@ -90,9 +90,9 @@ Each entry: **system** (`path`) — role.
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 
 ### Layer B - scene runtime
-- **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
+- **ContentRegistry** (`src/Registry/ContentRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
-  Each load also publishes a **per-file import record** in the snapshot (`SceneFileStats` / `FileStats()`):
+  Each load also publishes a **per-file import record** in the snapshot (`ContentFileStats` / `FileStats()`):
   one per discovered file *including files that contributed nothing*, carrying counts, size, parse time
   and the load problems attributed to it (`ProblemSink` pairs every problem line with its owning file, so
   attribution never depends on parsing the message text). `LoadErrors()` is unchanged. The browser's
@@ -132,7 +132,7 @@ Each entry: **system** (`path`) — role.
   the authored runtime mark, followed by the existing token registry + async C++->Papyrus dispatch
   of the `OSFEvent:SceneEvent` struct. Native registrations live in
   `src/API/NativeSceneEventRegistry.*` and survive world replacement.
-- **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `SceneRegistry` defs;
+- **Matchmaking** (`src/Matchmaking/Matchmaker.*`) — unified candidate pool over `ContentRegistry` defs;
   deterministic role-binding; `roles[].filters` gender/keyword/race with
   `"Plugin.esm|0xID"` form-refs resolved at load (RE-sensitive — needs in-game verification).
 
@@ -149,7 +149,7 @@ Each entry: **system** (`path`) — role.
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no
   user-settings feature toggle; user settings (hotkeys, `logLevel`, HUD toggles) live in OSF Settings's
-  in-game menu (`src/API/UISettings.cpp` subscribes to the shipped schema; the old
+  in-game menu (`src/API/EngineSettings.cpp` subscribes to the shipped schema; the old
   `Data/OSF/settings.json` is no longer read).
 
 ## Logging
@@ -175,7 +175,7 @@ file). Two rules keep it cohesive:
   (`[API]` = the native C++ inter-plugin API in `src/API/`; see `docs/API.md`.)
 
 A dev gets the full firehose without recompiling via the in-game OSF Settings menu — OSF
-Animation › Advanced - Diagnostics › Log level → Trace (handled in `src/API/UISettings.cpp`, persists across
+Animation › Advanced - Diagnostics › Log level → Trace (handled in `src/API/EngineSettings.cpp`, persists across
 launches). The crash handler (`src/Util/CrashHandler.cpp`) deliberately bypasses spdlog — never
 route it through REX.
 

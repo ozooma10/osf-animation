@@ -3,7 +3,7 @@
 #include "Animation/GraphManager.h"
 #include "Equipment/EquipmentService.h"
 #include "Matchmaking/Matchmaker.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
 #include "UI/HudMessage.h"

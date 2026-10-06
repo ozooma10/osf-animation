@@ -45,7 +45,7 @@ describing the behavior.
 
 | Canonical term | Meaning | Compatibility spelling |
 |---|---|---|
-| **content registry** | The loaded snapshot of scenes, curated animation entries, and per-file import results. | Preferred internal aliases `ContentRegistry`/`ContentRegistrySnapshot`; `SceneRegistry`/`SceneRegistrySnapshot`, `SceneFileStats`, and `GetSceneLoadErrors` remain compatibility names. |
+| **content registry** | The loaded snapshot of scenes, curated animation entries, and per-file import results. | Internal types use `ContentRegistry`, `ContentRegistrySnapshot`, `ContentFileStats`, and `ContentImportProblem`. `GetSceneLoadErrors` remains the public Papyrus spelling. |
 | **content file** | One discovered `*.osf.json` document and the defaults or reusable definitions scoped to that file. | Do not call a file-level default *pack-wide*. |
 | **content pack** | An author/product grouping that may span multiple content files; `pack` is its presentation label. | It is not a parser or inheritance boundary. `ReloadPacks` is a legacy binding name for reloading all content. |
 | **playable catalog** | The umbrella collection of browsable scenes, emotes, and animations that can be launched. | Avoid using *library* for every catalog partition. |

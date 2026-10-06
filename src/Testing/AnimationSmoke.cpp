@@ -18,7 +18,7 @@
 #include "Testing/BrowserProbe.h"
 
 #include "Animation/GraphManager.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Scene/SceneRuntime.h"
 
 #include <Windows.h>

@@ -1,4 +1,4 @@
-#include "Registry/SceneRegistryClips.h"
+#include "Registry/ContentRegistryClips.h"
 
 #include "Animation/GraphManager.h"
 #include "Util/ClipPath.h"
@@ -9,7 +9,7 @@
 #include <format>
 #include <unordered_set>
 
-namespace OSF::Registry::SceneRegistryClips
+namespace OSF::Registry::ContentRegistryClips
 {
 	using Util::ToLower;
 

@@ -8,7 +8,7 @@
 #include <nlohmann/json.hpp>
 
 #include "API/OSFSettings_Diagnostics.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Registry/SoundRegistry.h"
 
 #include "Util/DiagnosticText.h"

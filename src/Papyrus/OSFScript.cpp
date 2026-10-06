@@ -7,7 +7,7 @@
 #include "Audio/SoundService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Packs/PackReload.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneLauncher.h"

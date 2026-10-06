@@ -124,7 +124,6 @@ target("osf-frame-clock-test")
     set_default(false)
     add_tests("default")
     add_files("src/Util/ClipPath.cpp", "src/Util/NativeMainThreadQueue.cpp", "test/FrameClockTest.cpp")
-    add_includedirs("extensions/browser/src")
     add_includedirs("src")
 
 target("osf-additive-pose-test")
@@ -151,8 +150,8 @@ target("osf-scene-registry-test")
     add_tests("default")
     add_deps("commonlibsf")
     add_packages("nlohmann_json", "ozz-animation")
-    add_files("src/Animation/Scene.cpp", "src/Registry/SceneRegistry.cpp", "src/Registry/SceneRegistryClips.cpp",
-              "src/Util/ClipPath.cpp", "src/Util/Species.cpp", "test/SceneRegistryTest.cpp")
+    add_files("src/Animation/Scene.cpp", "src/Registry/ContentRegistry.cpp", "src/Registry/ContentRegistryClips.cpp",
+              "src/Util/ClipPath.cpp", "src/Util/Species.cpp", "test/ContentRegistryTest.cpp")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")

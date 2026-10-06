@@ -1,6 +1,6 @@
 #include "Matchmaking/Matchmaker.h"
 
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Util/StringUtil.h"
 
 #include <algorithm>

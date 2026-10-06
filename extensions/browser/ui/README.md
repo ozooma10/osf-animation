@@ -104,7 +104,7 @@ extensions/browser/ui/src/ ── Vite ──► build/osfui-animation-browser/.
   attached ship/interior frames. Furniture-authored scenes still require and
   validate compatible furniture—the free-space choices never bypass that gate.
 - Catalog = OSF Animation's **live content registry** (the native compatibility name is
-  `SceneRegistry`; this is not a disk scan). The browser
+  `ContentRegistry`; this is not a disk scan). The browser
   projects it into one player-facing catalog of **playables**: a library stage is an
   Animation, a `player.emote.*` definition is an Emote, and an ordinary authored
   definition is a Scene. Pack/folder/set names are collections only and never launch.

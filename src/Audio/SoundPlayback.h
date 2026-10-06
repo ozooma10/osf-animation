@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 
 #include <cstdint>
 #include <string_view>

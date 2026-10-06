@@ -1,5 +1,5 @@
-#include "Registry/SceneRegistry.h"
-#include "Registry/SceneRegistryClips.h"
+#include "Registry/ContentRegistry.h"
+#include "Registry/ContentRegistryClips.h"
 
 #include "Input/InputTypes.h"
 #include "Util/FormRef.h"
@@ -28,15 +28,15 @@ namespace OSF::Registry
 	namespace
 	{
 		using json = nlohmann::json;
-		using SceneRegistryClips::ClipInstalledCache;
-		using SceneRegistryClips::ClipLibraryRegistration;
-		using SceneRegistryClips::PendingImportProblem;
-		using SceneRegistryClips::ProblemSink;
-		using SceneRegistryClips::AccumulateFileStats;
-		using SceneRegistryClips::AddSceneClipEntries;
-		using SceneRegistryClips::ClipSpecInstalled;
-		using SceneRegistryClips::DesugarLinear;
-		using SceneRegistryClips::SweepClipAvailability;
+		using ContentRegistryClips::ClipInstalledCache;
+		using ContentRegistryClips::ClipLibraryRegistration;
+		using ContentRegistryClips::PendingImportProblem;
+		using ContentRegistryClips::ProblemSink;
+		using ContentRegistryClips::AccumulateFileStats;
+		using ContentRegistryClips::AddSceneClipEntries;
+		using ContentRegistryClips::ClipSpecInstalled;
+		using ContentRegistryClips::DesugarLinear;
+		using ContentRegistryClips::SweepClipAvailability;
 
 		constexpr std::size_t kMaxScenesPerFile = 4096;
 		constexpr std::size_t kMaxRolesPerFile = 512;
@@ -2303,13 +2303,13 @@ namespace OSF::Registry
 		return -1;
 	}
 
-	SceneRegistry& SceneRegistry::GetSingleton()
+	ContentRegistry& ContentRegistry::GetSingleton()
 	{
-		static SceneRegistry singleton;
+		static ContentRegistry singleton;
 		return singleton;
 	}
 
-	void SceneRegistry::LoadAll()
+	void ContentRegistry::LoadAll()
 	{
 		std::unordered_map<std::string, SceneDef> loaded;
 		std::vector<std::string> errors;
@@ -2436,7 +2436,7 @@ namespace OSF::Registry
 			sceneCount, fileCount, clipEntryCount, clipEntryCount == 1 ? "y" : "ies", problemCount);
 	}
 
-	SceneRef SceneRegistry::Find(std::string_view a_id) const
+	SceneRef ContentRegistry::Find(std::string_view a_id) const
 	{
 		SceneRef out;
 		out.owner = snapshot.load(std::memory_order_acquire);
@@ -2447,7 +2447,7 @@ namespace OSF::Registry
 		return out;
 	}
 
-	std::optional<Animation::PlaybackPlan> SceneRegistry::BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const
+	std::optional<Animation::PlaybackPlan> ContentRegistry::BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const
 	{
 		if (!a_def) {
 			return std::nullopt;
@@ -2477,7 +2477,7 @@ namespace OSF::Registry
 		return plan;
 	}
 
-	void SceneRegistry::ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const
+	void ContentRegistry::ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const
 	{
 		const auto current = snapshot.load(std::memory_order_acquire);
 		for (const auto& [key, def] : current->scenes) {
@@ -2485,22 +2485,22 @@ namespace OSF::Registry
 		}
 	}
 
-	size_t SceneRegistry::Size() const
+	size_t ContentRegistry::Size() const
 	{
 		return snapshot.load(std::memory_order_acquire)->authoredSceneCount;
 	}
 
-	std::vector<std::string> SceneRegistry::LoadErrors() const
+	std::vector<std::string> ContentRegistry::LoadErrors() const
 	{
 		return snapshot.load(std::memory_order_acquire)->loadErrors;
 	}
 
-	std::vector<ContentFileStats> SceneRegistry::FileStats() const
+	std::vector<ContentFileStats> ContentRegistry::FileStats() const
 	{
 		return snapshot.load(std::memory_order_acquire)->files;
 	}
 
-	std::vector<std::string> SceneRegistry::MissingClipRefs() const
+	std::vector<std::string> ContentRegistry::MissingClipRefs() const
 	{
 		// Same BSResource-aware probe as the load-time sweep, so archive-resident clips aren't false positives.
 		std::unordered_map<std::string, bool> cache;

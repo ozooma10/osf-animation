@@ -1,4 +1,4 @@
-#include "API/UISettings.h"
+#include "API/EngineSettings.h"
 #include "API/OSFSettings.h"
 #include "Equipment/GearRegistry.h"
 #include "UI/HudMessage.h"
@@ -70,7 +70,7 @@ namespace OSF::API
 
 	}
 
-	void InstallUISettings()
+	void InstallEngineSettings()
 	{
 		if (!g_settings.Init()) {
 			REX::WARN("[Config] OSF Settings unavailable; engine settings use defaults");

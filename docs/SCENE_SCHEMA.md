@@ -11,7 +11,7 @@ Both are plain JSON (`//` line comments are allowed):
 
 | File | Loaded by | Purpose |
 |------|-----------|---------|
-| `*.osf.json` | **Content registry** (implementation name `SceneRegistry`) | **Scenes** and optional curated `clipLibrary` entries for individually browsable raw clips. |
+| `*.osf.json` | **Content registry** (`ContentRegistry`) | **Scenes** and optional curated `clipLibrary` entries for individually browsable raw clips. |
 | `*.sounds.json` | **SoundRegistry** | **Sound pools** — tagged, weighted clip sets a scene `sound`/`osf.voice.play` spec can draw from by tag (`$…`), optionally carrying subtitle text. See *Sound pools*. |
 
 All `*.osf.json` files are scanned recursively under `Data/OSF`. Bad files/entries are skipped and

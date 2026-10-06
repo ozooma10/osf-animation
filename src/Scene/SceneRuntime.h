@@ -4,7 +4,7 @@
 #include "Equipment/GearRegistry.h"
 #include "Input/InputTypes.h"
 #include "Props/PropService.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 
 #include <cstdint>
 #include <deque>

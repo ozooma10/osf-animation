@@ -1,6 +1,6 @@
 #include "Check.h"
 
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 
 #include "Animation/Scene.h"
 #include "Animation/PlaybackAdmission.h"
@@ -10,7 +10,6 @@
 #include <filesystem>
 #include <limits>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 using OSF::Test::Check;
@@ -27,11 +26,6 @@ namespace OSF::Animation
 
 namespace
 {
-	static_assert(std::is_same_v<OSF::Registry::ContentImportProblem, OSF::Registry::SceneImportProblem>);
-	static_assert(std::is_same_v<OSF::Registry::ContentFileStats, OSF::Registry::SceneFileStats>);
-	static_assert(std::is_same_v<OSF::Registry::ContentRegistrySnapshot, OSF::Registry::SceneRegistrySnapshot>);
-	static_assert(std::is_same_v<OSF::Registry::ContentRegistry, OSF::Registry::SceneRegistry>);
-
 	void CheckPlaybackAdmission()
 	{
 		using namespace OSF::Animation;
@@ -70,7 +64,7 @@ namespace
 int main()
 {
 	CheckPlaybackAdmission();
-	using OSF::Registry::SceneRegistry;
+	using OSF::Registry::ContentRegistry;
 	using OSF::Registry::ActionKind;
 	using OSF::Registry::LoopMode;
 	using OSF::Registry::RoleGender;
@@ -93,7 +87,7 @@ int main()
 		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kReferenceAnimation) == "referenceAnimation",
 		"catalog source taxonomy uses the bridge's four canonical spellings");
 
-	auto& reg = SceneRegistry::GetSingleton();
+	auto& reg = ContentRegistry::GetSingleton();
 	reg.LoadAll();
 	if (const auto authored = reg.Find("test.bare")) {
 		Check(authored->sourceKind == OSF::Registry::CatalogSourceKind::kAuthoredScene,

@@ -2,7 +2,7 @@
 
 #include "Animation/Scene.h"
 #include "Matchmaking/Matchmaker.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "UI/HudMessage.h"
 
 #include <atomic>

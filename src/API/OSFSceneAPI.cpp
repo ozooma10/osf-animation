@@ -4,7 +4,7 @@
 #include "API/SceneAPIControl.h"
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneLauncher.h"
 #include "Scene/SceneRuntime.h"

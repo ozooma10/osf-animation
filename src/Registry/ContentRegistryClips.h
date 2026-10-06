@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace OSF::Registry::SceneRegistryClips
+namespace OSF::Registry::ContentRegistryClips
 {
 	struct ClipLibraryRegistration
 	{

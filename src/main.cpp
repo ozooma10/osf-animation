@@ -1,7 +1,7 @@
 #include "API/Health.h"
 #include "API/MinimumVersion.h"
 #include "API/SceneAPIControl.h"
-#include "API/UISettings.h"
+#include "API/EngineSettings.h"
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
 #include "Equipment/GearRegistry.h"
@@ -9,7 +9,7 @@
 #include "Maintenance/FrameMaintenance.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/RequirementRegistry.h"
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/PersistenceHost.h"
@@ -43,7 +43,7 @@ namespace
 			}
 			OSF::API::MarkReady();
 			// After the registries so initial settings apply to loaded services.
-			OSF::API::InstallUISettings();
+			OSF::API::InstallEngineSettings();
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");

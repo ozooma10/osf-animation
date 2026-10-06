@@ -1,7 +1,7 @@
 #include "Util/NativeMainThreadQueue.h"
 #include "Serialization/ClipDurations.h"
 
-#include "Registry/SceneRegistry.h"
+#include "Registry/ContentRegistry.h"
 #include "Serialization/AFImport.h"
 #include "Util/Ba2.h"
 #include "Util/ClipPath.h"
