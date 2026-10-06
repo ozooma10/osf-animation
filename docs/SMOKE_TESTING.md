@@ -59,7 +59,7 @@ are restored, and the final XMake configuration is `releasedbg`, `build`, with
 | Bench contracts | Rejects missing suites, stale or changed evidence, mismatched source/DLL hashes, skipped game cases, and truthy string flags. Exercises release receipts, instrumented DLL rejection, staged/ZIP tampering, forbidden entries and Papyrus mismatch rejection. |
 | SDK | `tools/Test-SdkLock.ps1`: vendored OSF UI / OSF Settings SDK files match `sdk-lock.json` hashes; with sibling checkouts present, the locked tags and commits also match. |
 | Production | Normal releasedbg DLL, installed into private staging. |
-| Native | All eight `xmake test` suites, including browser/engine boundary coverage. The reported execution count must match the inventory. |
+| Native | All nine `xmake test` suites, including shared scene-launch behavior and browser/engine boundary coverage. The reported execution count must match the inventory. |
 | Fixtures | Compiles the private Papyrus script; generates the live GLTF/GLB/gzip clips and WAV; decodes and samples the three clips through the production importer. |
 | Browser | Independent production addon DLL build, clean dependency install, Vitest, TypeScript check, and production Vite build. |
 | Distribution | Engine and browser FOMOD ZIPs; required entries, exact production DLL hash, separation of payloads, and no test fixtures, source maps, or player values. |

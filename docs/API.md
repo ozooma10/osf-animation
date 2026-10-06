@@ -249,6 +249,18 @@ JSON keys:
 binding stays in separate functions. `StartSceneRoles` is the compact compatibility form without
 options; `StartSceneRolesEx` accepts the same binding plus `SceneOptions`.
 
+Registered-scene launch compatibility differs between the two APIs:
+
+| Start path | Out-of-range linear stage | Speed |
+|---|---|---|
+| Papyrus by ID or `StartSceneRolesEx` | Refuses the start | Keeps the authored speed |
+| Native `StartScene` / `StartSceneRoles` | Falls back to the scene entry | Applies a non-default `OSFStartOptions.speed` after a successful start |
+| Papyrus matchmaking (`StartSceneByTags`, query, or anchor) | Always uses the authored entry | Keeps the authored speed |
+
+For registered starts, stage `0` uses the authored entry; scenes without `linearStages` ignore the
+stage option. Furniture-bound scenes require an accepted reference anchor even when the native
+caller supplies explicit world coordinates.
+
 **Per-start tri-state overrides (`StripMode` / `LockPlayerMode` / `PlayerControlMode` / `FadeMode` /
 `InPlaceMode`).** Write these compatibility fields with
 the `OSF.INHERIT()` (= -1, leave the scene/file default), `OSF.OFF()` (= 0, force off), and `OSF.ON()`

@@ -39,10 +39,33 @@ namespace OSF::Scene
 		std::int32_t a_sceneControlsMode, std::int32_t a_fadeMode, std::int32_t a_followActorMode,
 		std::string_view a_camera, float a_loopScale);
 
+	enum class InvalidStagePolicy { kReject, kUseEntry };
+
+	struct DefLaunchOptions
+	{
+		SceneRuntime::StartOverrides overrides;
+		RE::TESObjectREFR* anchorRef = nullptr;
+		std::optional<float> headingRad;
+		SceneRuntime::AnchorOverride worldAnchor;  // used only without a ref; cannot satisfy furniture requirements
+		std::int32_t stage = 0;
+		InvalidStagePolicy invalidStage = InvalidStagePolicy::kReject;
+		std::optional<float> speed;  // applied after a successful start; absent preserves authored speed
+		bool emitHud = true;
+	};
+
+	// Papyrus registered-scene options: speed/blend belong only to ad-hoc plans.
+	DefLaunchOptions MakeDefLaunchOptions(const LaunchOpts& a_opts);
+
+	// Shared registered-scene entry for adapters and matchmaking. Game-thread call.
+	// Null role names means positional cast; a supplied vector uses runtime role binding, even when empty.
+	// a_logTag includes its bracketed subsystem tag and caller name.
+	std::int32_t LaunchDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
+		const DefLaunchOptions& a_opts, const char* a_logTag, const std::vector<std::string>* a_roles = nullptr);
+
 	// Matchmake, enforce the pick's anchor requirement, and start it. Returns the handle, 0 = failed.
 	// a_logTag is the full log prefix; nothing is prepended.
 	std::int32_t LaunchMatched(const std::vector<RE::Actor*>& a_actors,
 		const Matchmaking::TagQuery& a_query, const LaunchOpts& a_opts,
-		const SceneRuntime::StartOverrides& a_over, const char* a_logTag,
+		const char* a_logTag,
 		Matchmaking::AnchorMode a_mode = Matchmaking::AnchorMode::kAllow);
 }

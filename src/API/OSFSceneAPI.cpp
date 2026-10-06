@@ -4,8 +4,6 @@
 #include "API/SceneAPIControl.h"
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"
-#include "Registry/ContentRegistry.h"
-#include "Scene/AnchorResolve.h"
 #include "Scene/SceneLauncher.h"
 #include "Scene/SceneRuntime.h"
 #include "Scene/SceneEventRelay.h"
@@ -79,43 +77,20 @@ namespace OSF::API
 			return true;
 		}
 
-		bool AnchorBoundRefused(std::string_view a_sceneId, const char* a_tag)
+		Scene::DefLaunchOptions MakeDefLaunchOptions(const OSFStartOptions& a_opts)
 		{
-			const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
-			if (def && def->RequiresAnchor()) {
-				REX::WARN("[API] {} '{}' is anchor-bound (furniture) - set OSFStartOptions.anchorRef to the furniture ref. Start refused", a_tag, a_sceneId);
-				return true;
+			Scene::DefLaunchOptions launch;
+			launch.overrides = MakeOverrides(a_opts);
+			launch.anchorRef = a_opts.anchorRef;
+			if (!a_opts.anchorRef) {
+				launch.worldAnchor = MakeAnchor(a_opts);
 			}
-			return false;
-		}
-
-		// startStage is resolved pre-start by ResolveStartStageNode.
-		void ApplyDefPostStart(std::int32_t a_handle, const std::vector<RE::Actor*>& a_actors, const OSFStartOptions& a_opts)
-		{
-			if (!a_handle) {
-				return;
-			}
-			if (a_opts.speed != 1.0f && !a_actors.empty()) {
-				Animation::GraphManager::GetSingleton().SetSpeed(a_actors.front(), a_opts.speed);
-			}
-		}
-
-		// startStage > 0 -> linear-stage entry node; invalid stages warn and fall back to the scene entry ("").
-		std::string ResolveStartStageNode(std::string_view a_sceneId, std::int32_t a_stage, const char* a_tag)
-		{
-			if (a_stage <= 0) {
-				return {};
-			}
-			const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
-			if (!def) {
-				return {};  // the start itself fails and logs
-			}
-			if (def->linearStages.empty() || a_stage >= static_cast<std::int32_t>(def->linearStages.size())) {
-				REX::WARN("[API] {} '{}': startStage {} invalid ({} linear stages) — entering at the scene entry",
-					a_tag, def->id, a_stage, def->linearStages.size());
-				return {};
-			}
-			return def->linearStages[a_stage];
+			launch.stage = a_opts.startStage;
+			// Preserve native ABI behavior; Papyrus rejects out-of-range linear stages.
+			launch.invalidStage = Scene::InvalidStagePolicy::kUseEntry;
+			launch.speed = a_opts.speed;
+			launch.emitHud = false;
+			return launch;
 		}
 
 		// OSFStartOptions ABI guard: append fields only at the end and bump the MINOR.
@@ -172,62 +147,23 @@ namespace OSF::API
 			if (!a_sceneId || !ValidStartOptions(a_opts) || !CollectActors(a_actors, a_count, actors)) {
 				return 0;
 			}
-			const auto over = MakeOverrides(a_opts);
-			const std::string entryNode = ResolveStartStageNode(a_sceneId, a_opts.startStage, "StartScene");
-			auto&      rt = Scene::SceneRuntime::GetSingleton();
-			std::int32_t handle = 0;
-			if (RE::TESObjectREFR* ref = a_opts.anchorRef) {
-				const auto resolved = Scene::ResolveSceneAnchor(a_sceneId, ref, std::nullopt, /*a_emitHud*/ false);
-				if (!resolved) {
-					return 0;  // logged in ResolveSceneAnchor
-				}
-				handle = rt.StartFromDefAt(a_sceneId, actors, resolved->pos, resolved->heading, over, entryNode);
-			} else {
-				if (AnchorBoundRefused(a_sceneId, "StartScene")) {
-					return 0;
-				}
-				const auto anchor = MakeAnchor(a_opts);
-				handle = anchor.set
-					? rt.StartFromDefAt(a_sceneId, actors, anchor.pos, anchor.heading, over, entryNode)
-					: rt.StartFromDef(a_sceneId, actors, over, entryNode);
-			}
-			ApplyDefPostStart(handle, actors, a_opts);
-			return handle;
+			return Scene::LaunchDef(a_sceneId, actors, MakeDefLaunchOptions(a_opts), "[API] StartScene");
 		}
 
 		std::int32_t StartSceneRoles(RE::Actor* const* a_actors, std::uint32_t a_count, const char* a_sceneId,
 			const char* const* a_roles, std::uint32_t a_roleCount, const OSFStartOptions& a_opts) override
 		{
 			std::vector<RE::Actor*> actors;
-			if (!a_sceneId || !ValidStartOptions(a_opts) || !CollectActors(a_actors, a_count, actors)) {
+			if (!a_sceneId || !ValidStartOptions(a_opts) || !CollectActors(a_actors, a_count, actors) ||
+				!a_roles || a_roleCount != a_count) {
 				return 0;
-			}
-			if (!a_roles || a_roleCount != a_count) {
-				return 0;
-			}
-			Scene::SceneRuntime::AnchorOverride anchor{};
-			if (RE::TESObjectREFR* ref = a_opts.anchorRef) {
-				const auto resolved = Scene::ResolveSceneAnchor(a_sceneId, ref, std::nullopt, /*a_emitHud*/ false);
-				if (!resolved) {
-					return 0;  // logged in ResolveSceneAnchor
-				}
-				anchor = *resolved;
-			} else {
-				if (AnchorBoundRefused(a_sceneId, "StartSceneRoles")) {
-					return 0;
-				}
-				anchor = MakeAnchor(a_opts);
 			}
 			std::vector<std::string> roles;
 			roles.reserve(a_roleCount);
 			for (std::uint32_t i = 0; i < a_roleCount; i++) {
 				roles.emplace_back(a_roles[i] ? a_roles[i] : "");
 			}
-			const std::string entryNode = ResolveStartStageNode(a_sceneId, a_opts.startStage, "StartSceneRoles");
-			const std::int32_t handle = Scene::SceneRuntime::GetSingleton().StartFromDefRoles(
-				a_sceneId, actors, roles, anchor, MakeOverrides(a_opts), entryNode);
-			ApplyDefPostStart(handle, actors, a_opts);
-			return handle;
+			return Scene::LaunchDef(a_sceneId, actors, MakeDefLaunchOptions(a_opts), "[API] StartSceneRoles", &roles);
 		}
 
 		std::int32_t StartSceneFiles(RE::Actor* const* a_actors, const char* const* a_files, std::uint32_t a_count,

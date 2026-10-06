@@ -8,7 +8,6 @@
 #include "Matchmaking/Matchmaker.h"
 #include "Packs/PackReload.h"
 #include "Registry/ContentRegistry.h"
-#include "Scene/AnchorResolve.h"
 #include "Scene/SceneEventRelay.h"
 #include "Scene/SceneLauncher.h"
 #include "Scene/SceneRuntime.h"
@@ -118,29 +117,6 @@ namespace OSF::Papyrus
 				out.loopScale = RE::BSScript::get<float>(*v);
 			}
 			return out;
-		}
-
-		std::optional<Scene::SceneRuntime::AnchorOverride> ResolveSceneAnchor(const std::string& a_sceneId, const Scene::LaunchOpts& a_opts)
-		{
-			return Scene::ResolveSceneAnchor(a_sceneId, a_opts.anchor, Scene::OptHeadingRad(a_opts), /*a_emitHud*/ true);
-		}
-
-		// SceneOptions.Stage > 0 -> linear-stage entry node. nullopt = out of range (fail the start); "" = scene entry.
-		std::optional<std::string> ResolveStageEntryNode(const Registry::SceneDef& a_def, std::int32_t a_stage, const char* a_tag)
-		{
-			if (a_stage <= 0) {
-				return std::string{};
-			}
-			if (a_def.linearStages.empty()) {
-				REX::WARN("[Papyrus] {}: scene '{}' has no linear stages — SceneOptions.Stage {} ignored", a_tag, a_def.id, a_stage);
-				return std::string{};
-			}
-			if (a_stage >= static_cast<std::int32_t>(a_def.linearStages.size())) {
-				REX::WARN("[Papyrus] {}: stage {} out of range for scene '{}' ({} stages)", a_tag, a_stage, a_def.id, a_def.linearStages.size());
-				UI::HudMessage::Error(std::format("scene '{}' has no stage {}", a_def.id, a_stage));
-				return std::nullopt;
-			}
-			return a_def.linearStages[a_stage];
 		}
 
 		bool Play(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor, RE::BSFixedString a_file, RE::BSFixedString a_animId)
@@ -296,55 +272,16 @@ namespace OSF::Papyrus
 		int32_t StartScene(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::BSFixedString a_id,
 			SceneOptionsArg a_opts)
 		{
-			if (a_actors.empty()) {
-				REX::DEBUG("[Papyrus] StartScene: no actors given");
-				return 0;
-			}
-			const std::string sid = a_id.c_str();
-			const auto def = Registry::ContentRegistry::GetSingleton().Find(sid);
-			if (!def) {
-				// ERROR, not DEBUG: a typo'd scene id must be visible at the shipped log level.
-				REX::ERROR("[Papyrus] StartScene: no scene '{}'", sid);
-				return 0;
-			}
-			const auto opts = ReadSceneOptions(a_opts);
-			const auto entryNode = ResolveStageEntryNode(*def, opts.stage, "OSF.StartScene");
-			if (!entryNode) {
-				return 0;
-			}
-			const auto anchor = ResolveSceneAnchor(sid, opts);  // enforces anchor-bound furniture
-			if (!anchor) {
-				return 0;  // logged in ResolveSceneAnchor
-			}
-			const auto over = Scene::MakeOverrides(opts);
-			auto& rt = Scene::SceneRuntime::GetSingleton();
-			if (anchor->set) {
-				return rt.StartFromDefAt(sid, a_actors, anchor->pos, anchor->heading, over, *entryNode);
-			}
-			return rt.StartFromDef(sid, a_actors, over, *entryNode);
+			return Scene::LaunchDef(a_id.c_str(), a_actors, Scene::MakeDefLaunchOptions(ReadSceneOptions(a_opts)),
+				"[Papyrus] OSF.StartScene");
 		}
 
 		// Separate native: Papyrus structs can't hold the role array.
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
-			if (a_actors.empty()) {
-				REX::DEBUG("[Papyrus] StartSceneRoles: no actors given");
-				return 0;
-			}
-			const std::string sid = a_id.c_str();
-			// No SceneOptions here, so an anchor-bound scene can't be placed; point the caller at StartScene.
-			if (const auto def = Registry::ContentRegistry::GetSingleton().Find(sid); def && def->RequiresAnchor()) {
-				REX::WARN("[Papyrus] StartSceneRoles: scene '{}' is anchor-bound — use StartScene with SceneOptions.Anchor", sid);
-				UI::HudMessage::Error(std::format("scene '{}' needs a furniture anchor (use StartScene)", sid));
-				return 0;
-			}
-			std::vector<std::string> roles;
-			roles.reserve(a_roles.size());
-			for (const auto& r : a_roles) {
-				roles.emplace_back(r.c_str());
-			}
-			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(sid, a_actors, roles);
+			const auto roles = ToStrings(a_roles);
+			return Scene::LaunchDef(a_id.c_str(), a_actors, {}, "[Papyrus] OSF.StartSceneRoles", &roles);
 		}
 
 		int32_t StartSceneByTags(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
@@ -352,8 +289,7 @@ namespace OSF::Papyrus
 			Matchmaking::TagQuery q;
 			q.allOf = ToTags(a_tags);
 			const auto opts = ReadSceneOptions(a_opts);
-			const auto over = Scene::MakeOverrides(opts);
-			return Scene::LaunchMatched(a_actors, q, opts, over, "[Papyrus] OSF.StartSceneByTags");
+			return Scene::LaunchMatched(a_actors, q, opts, "[Papyrus] OSF.StartSceneByTags");
 		}
 
 		int32_t StartSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
@@ -362,8 +298,7 @@ namespace OSF::Papyrus
 		{
 			Matchmaking::TagQuery q{ ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) };
 			const auto opts = ReadSceneOptions(a_opts);
-			const auto over = Scene::MakeOverrides(opts);
-			return Scene::LaunchMatched(a_actors, q, opts, over, "[Papyrus] OSF.StartSceneByTagsQuery");
+			return Scene::LaunchMatched(a_actors, q, opts, "[Papyrus] OSF.StartSceneByTagsQuery");
 		}
 
 		int32_t StartSceneAtAnchor(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::TESObjectREFR* a_furniture, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
@@ -381,8 +316,7 @@ namespace OSF::Papyrus
 			q.allOf = ToTags(a_tags);
 			auto opts = ReadSceneOptions(a_opts);
 			opts.anchor = a_furniture;  // drives both the matchmaking filter and the compose
-			const auto over = Scene::MakeOverrides(opts);
-			return Scene::LaunchMatched(a_actors, q, opts, over, "[Papyrus] OSF.StartSceneAtAnchor", Matchmaking::AnchorMode::kRequire);
+			return Scene::LaunchMatched(a_actors, q, opts, "[Papyrus] OSF.StartSceneAtAnchor", Matchmaking::AnchorMode::kRequire);
 		}
 
 		int32_t RegisterSceneCallback(OSFVM&, uint32_t, std::monostate, RE::BSTSmartPointer<RE::BSScript::Object> a_receiver, RE::BSFixedString a_fn, int32_t a_scene, int32_t a_eventMask)
@@ -590,28 +524,9 @@ namespace OSF::Papyrus
 		int32_t StartSceneRolesEx(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles, SceneOptionsArg a_opts)
 		{
-			if (a_actors.empty()) {
-				REX::DEBUG("[Papyrus] StartSceneRolesEx: no actors given");
-				return 0;
-			}
-			const auto opts = ReadSceneOptions(a_opts);
-			const std::string sid = a_id.c_str();
-			// SceneOptions.Stage enters directly on the stage node, as in StartScene.
-			std::string entryNode;
-			if (const auto def = Registry::ContentRegistry::GetSingleton().Find(sid)) {
-				auto resolved = ResolveStageEntryNode(*def, opts.stage, "OSF.StartSceneRolesEx");
-				if (!resolved) {
-					return 0;
-				}
-				entryNode = std::move(*resolved);
-			}
-			// Same anchor pass as StartScene: enforces anchor-bound furniture and applies the authored anchorOffset.
-			const auto anchor = ResolveSceneAnchor(sid, opts);
-			if (!anchor) {
-				return 0;  // logged in ResolveSceneAnchor
-			}
-			return Scene::SceneRuntime::GetSingleton().StartFromDefRoles(
-				sid, a_actors, ToStrings(a_roles), *anchor, Scene::MakeOverrides(opts), entryNode);
+			const auto roles = ToStrings(a_roles);
+			return Scene::LaunchDef(a_id.c_str(), a_actors, Scene::MakeDefLaunchOptions(ReadSceneOptions(a_opts)),
+				"[Papyrus] OSF.StartSceneRolesEx", &roles);
 		}
 
 		bool PlaySequence(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,

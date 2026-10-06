@@ -80,16 +80,17 @@
     "gap": "Offline fixtures stub clip availability and avoid engine form resolution. Missing-mod/race/keyword resolution needs game acceptance."
   },
   {
-    "feature": "Scene stages and navigation",
+    "feature": "Scene launch, stages and navigation",
     "native": [
-      "osf-scene-registry-test"
+      "osf-scene-registry-test",
+      "osf-scene-launcher-test"
     ],
     "runtime": [
       "scene.stage",
       "scene.navigate",
       "scene.files-roles"
     ],
-    "gap": "Baseline graph navigation does not cover every authored graph, interruption or per-role policy."
+    "gap": "Shared launch tests use recording runtime, anchor and matchmaking endpoints. Real furniture resolution, role binding, playback, callbacks and interruptions still need game acceptance."
   },
   {
     "feature": "Timed marks, events and scene completion",

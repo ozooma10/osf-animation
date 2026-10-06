@@ -8,9 +8,9 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the eight engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the nine engine-free C++ suites (persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
-  frame clock/clip specs, additive pose math, sound registry, scene registry — the registry pair run from
+  frame clock/clip specs, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix extensions/browser/ui run verify` (typecheck + build + vitest).
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
@@ -90,6 +90,12 @@ Each entry: **system** (`path`) — role.
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 
 ### Layer B - scene runtime
+- **SceneLauncher** (`src/Scene/SceneLauncher.*`) — shared registered-scene launch path for Papyrus,
+  native API, and matchmaking: cast validation, stage selection, anchor resolution, runtime dispatch,
+  and optional post-start speed. Adapters retain compatibility choices: Papyrus rejects out-of-range
+  linear stages and keeps authored speed; native starts fall back to entry and may override speed.
+  Matchmade starts use the picked cast order and authored entry/speed. Runtime retains role binding,
+  role filters, admission, playback, and lifecycle ownership. Ad-hoc plans still use `StartFromPlan`.
 - **ContentRegistry** (`src/Registry/ContentRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
   Each load also publishes a **per-file import record** in the snapshot (`ContentFileStats` / `FileStats()`):

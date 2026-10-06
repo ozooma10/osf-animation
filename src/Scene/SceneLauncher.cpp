@@ -1,5 +1,6 @@
 #include "Scene/SceneLauncher.h"
 
+#include "Animation/GraphManager.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneRuntime.h"
@@ -14,19 +15,43 @@ namespace OSF::Scene
 	{
 		constexpr float kLoopScaleMax = 20.0f;
 
-		// Uses Pick's slot->actor order as-is. Unset anchor = co-located at actor[0].
-		std::int32_t StartCandidate(const Matchmaking::Candidate& a_pick, const std::vector<RE::Actor*>& a_actors,
-			const SceneRuntime::AnchorOverride& a_anchor, const SceneRuntime::StartOverrides& a_over)
+		bool ValidActors(const std::vector<RE::Actor*>& a_actors, const char* a_logTag)
 		{
-			std::vector<RE::Actor*> ordered(a_pick.order.size());
-			for (size_t slot = 0; slot < a_pick.order.size(); slot++) {
-				ordered[slot] = a_actors[a_pick.order[slot]];
+			if (a_actors.empty()) {
+				REX::DEBUG("{}: no actors given", a_logTag);
+				return false;
 			}
-			auto& rt = SceneRuntime::GetSingleton();
-			if (a_anchor.set) {
-				return rt.StartFromDefAt(a_pick.id, ordered, a_anchor.pos, a_anchor.heading, a_over);
+			for (auto* actor : a_actors) {
+				if (!actor) {
+					REX::DEBUG("{}: null actor in list", a_logTag);
+					return false;
+				}
 			}
-			return rt.StartFromDef(a_pick.id, ordered, a_over);
+			return true;
+		}
+
+		std::optional<std::string> ResolveStageEntry(const Registry::SceneDef& a_def,
+			const DefLaunchOptions& a_opts, const char* a_logTag)
+		{
+			if (a_opts.stage <= 0) {
+				return std::string{};
+			}
+			if (a_def.linearStages.empty()) {
+				REX::WARN("{}: scene '{}' has no linear stages — stage {} ignored", a_logTag, a_def.id, a_opts.stage);
+				return std::string{};
+			}
+			if (a_opts.stage >= static_cast<std::int32_t>(a_def.linearStages.size())) {
+				REX::WARN("{}: stage {} out of range for scene '{}' ({} stages)",
+					a_logTag, a_opts.stage, a_def.id, a_def.linearStages.size());
+				if (a_opts.invalidStage == InvalidStagePolicy::kUseEntry) {
+					return std::string{};
+				}
+				if (a_opts.emitHud) {
+					UI::HudMessage::Error(std::format("scene '{}' has no stage {}", a_def.id, a_opts.stage));
+				}
+				return std::nullopt;
+			}
+			return a_def.linearStages[a_opts.stage];
 		}
 	}
 
@@ -80,17 +105,59 @@ namespace OSF::Scene
 		return over;
 	}
 
-	std::int32_t LaunchMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query, const LaunchOpts& a_opts, const SceneRuntime::StartOverrides& a_over, const char* a_logTag, Matchmaking::AnchorMode a_mode)
+	DefLaunchOptions MakeDefLaunchOptions(const LaunchOpts& a_opts)
 	{
-		if (a_actors.empty()) {
-			REX::DEBUG("{}: no actors given", a_logTag);
+		DefLaunchOptions launch;
+		launch.overrides = MakeOverrides(a_opts);
+		launch.anchorRef = a_opts.anchor;
+		launch.headingRad = OptHeadingRad(a_opts);
+		launch.stage = a_opts.stage;
+		return launch;
+	}
+
+	std::int32_t LaunchDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_actors,
+		const DefLaunchOptions& a_opts, const char* a_logTag, const std::vector<std::string>* a_roles)
+	{
+		if (!ValidActors(a_actors, a_logTag)) {
 			return 0;
 		}
-		for (auto* actor : a_actors) {
-			if (!actor) {
-				REX::DEBUG("{}: null actor in list", a_logTag);
+		const auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
+		if (!def) {
+			REX::ERROR("{}: no scene '{}'", a_logTag, a_sceneId);
+			return 0;
+		}
+		const auto entryNode = ResolveStageEntry(*def, a_opts, a_logTag);
+		if (!entryNode) {
+			return 0;
+		}
+		auto anchor = a_opts.worldAnchor;
+		if (a_opts.anchorRef || def->RequiresAnchor()) {
+			const auto resolved = ResolveSceneAnchor(a_sceneId, a_opts.anchorRef, a_opts.headingRad, a_opts.emitHud);
+			if (!resolved) {
 				return 0;
 			}
+			anchor = *resolved;
+		}
+		auto& rt = SceneRuntime::GetSingleton();
+		std::int32_t handle;
+		if (a_roles) {
+			handle = rt.StartFromDefRoles(a_sceneId, a_actors, *a_roles, anchor, a_opts.overrides, *entryNode);
+		} else if (anchor.set) {
+			handle = rt.StartFromDefAt(a_sceneId, a_actors, anchor.pos, anchor.heading, a_opts.overrides, *entryNode);
+		} else {
+			handle = rt.StartFromDef(a_sceneId, a_actors, a_opts.overrides, *entryNode);
+		}
+		if (handle && a_opts.speed && *a_opts.speed != 1.0f) {
+			Animation::GraphManager::GetSingleton().SetSpeed(a_actors.front(), *a_opts.speed);
+		}
+		return handle;
+	}
+
+	std::int32_t LaunchMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
+		const LaunchOpts& a_opts, const char* a_logTag, Matchmaking::AnchorMode a_mode)
+	{
+		if (!ValidActors(a_actors, a_logTag)) {
+			return 0;
 		}
 		auto pick = Matchmaking::Pick(a_actors, a_query, a_opts.anchor, a_mode);
 		if (!pick) {
@@ -98,13 +165,15 @@ namespace OSF::Scene
 			UI::HudMessage::Error("no matching animation for the given tags/actors");
 			return 0;
 		}
-		const auto anchor = ResolveSceneAnchor(pick->id, a_opts.anchor, OptHeadingRad(a_opts), /*a_emitHud*/ true);
-		if (!anchor) {
-			return 0;
+		std::vector<RE::Actor*> ordered(pick->order.size());
+		for (size_t slot = 0; slot < pick->order.size(); slot++) {
+			ordered[slot] = a_actors[pick->order[slot]];
 		}
-		const std::int32_t handle = StartCandidate(*pick, a_actors, *anchor, a_over);
+		auto launch = MakeDefLaunchOptions(a_opts);
+		launch.stage = 0;  // Matchmade starts have always entered at the authored entry.
+		const std::int32_t handle = LaunchDef(pick->id, ordered, launch, a_logTag);
 		if (handle) {
-			REX::DEBUG("{}: matched '{}' handle {:#010x}{}", a_logTag, pick->id, handle, anchor->set ? " (anchored)" : "");
+			REX::DEBUG("{}: matched '{}' handle {:#010x}{}", a_logTag, pick->id, handle, a_opts.anchor ? " (anchored)" : "");
 		} else {
 			REX::WARN("{}: could not start matched scene '{}'", a_logTag, pick->id);
 			UI::HudMessage::Error(std::format("could not start scene '{}'", pick->id));
