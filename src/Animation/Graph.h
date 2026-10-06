@@ -71,7 +71,6 @@ namespace OSF::Animation
 		std::int64_t fadeOutBeganMs = 0;              // guarded by stateLock
 		std::uint64_t playbackRevision = 0;           // invalidates deferred cleanup from an older clip
 
-
 		// Call before replacement teardown clears the binding.
 		void PrepareBlendSource();
 		// a_file is diagnostics only.
@@ -81,7 +80,6 @@ namespace OSF::Animation
 		void SetPreserveBones(const std::vector<std::string>& a_bones);
 		// "" = none. With a mask only its bones are stamped (per-bone weighted); a change forces a rebind.
 		void SetBoneMask(const std::string& a_maskName);
-		void SetContactPose(const ContactPose& a_contactPose);
 
 		void BeginFadeOut();
 		bool IsFadedOut() const;
@@ -133,13 +131,9 @@ namespace OSF::Animation
 			uint16_t rigIndex;
 			uint16_t jointIndex;
 			float weight;
-			float contactWeight;  // contact-only contribution
 		};
 		std::vector<BoundBone> binding;
 		std::vector<std::uint16_t> rigIndexByJoint;
-		ContactPose contactPose;
-		std::unordered_set<std::string> contactPoseBones;
-		bool loggedContactPoseFull = false;
 		// Additive stamps over an immutable engine base, snapshotted once per enginePoseRevision so
 		// repeated composes never layer OSF over itself.
 		std::vector<float> liveBasePose;  // binding order, 16 floats per entry

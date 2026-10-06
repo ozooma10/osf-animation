@@ -14,8 +14,6 @@ export type BridgeCommand =
   | "osf.animation.pickScreen"
   | "osf.animation.playback.get"
   | "osf.animation.playback.set"
-  | "osf.animation.routes.get"
-  | "osf.animation.route.inspect"
   | "osf.animation.projectActors"
   | "osf.animation.projectPickables"
   | "osf.animation.requestClose"

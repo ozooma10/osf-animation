@@ -3,7 +3,6 @@
 #include "Animation/GraphManager.h"
 #include "Equipment/EquipmentService.h"
 #include "Matchmaking/Matchmaker.h"
-#include "Overlay/OverlayService.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
@@ -674,7 +673,6 @@ namespace OSF::Scene
 		if (!handle) {
 			return 0;
 		}
-		Overlay::OverlayService::GetSingleton().SuspendForScene(handle, a_participants);
 		// Store before the first play; plans are rebuilt per node, so these re-apply rather than compound.
 		{
 			std::lock_guard l{ _lock };
@@ -841,7 +839,6 @@ namespace OSF::Scene
 		if (!handle) {
 			return 0;
 		}
-		Overlay::OverlayService::GetSingleton().SuspendForScene(handle, a_participants);
 		Animation::PlaybackId playbackId = 0;
 		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(a_participants, a_plan, a_startStage,
 			&playbackId, 0, _playbackSinkId)) {

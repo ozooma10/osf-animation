@@ -12,7 +12,7 @@ import type {
   PluginVersion,
   WheelEntry,
 } from "./state";
-import type { ImportFile, ImportTotals, RouteModel, SceneModel } from "../model";
+import type { ImportFile, ImportTotals, SceneModel } from "../model";
 
 export type BrowserAction =
   | { type: "runtime/ready" }
@@ -21,16 +21,8 @@ export type BrowserAction =
   | { type: "plugin/received"; plugin: PluginVersion }
   | { type: "catalog/received"; scenes: SceneModel[] }
   | { type: "library/received"; scenes: SceneModel[] }
-  | { type: "routes/requested" }
-  | { type: "routes/received"; routes: RouteModel[] }
-  | { type: "routes/open"; open: boolean }
-  | { type: "routes/search"; search: string }
-  | { type: "routes/selected"; routeId: string | null; transitionId?: string | null }
-  | { type: "routes/transition"; transitionId: string }
-  | { type: "routes/actor"; token: number }
-  | { type: "routes/previewSucceeded"; handle: number; routeId: string }
   | { type: "active/received"; scenes: ActiveLaunch[] }
-  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch; inspect?: boolean }
+  | { type: "launch/succeeded"; handle: number; sceneId: string; afterLaunch: AfterLaunch }
   | { type: "launch/failed"; error: string }
   | { type: "settings/received"; preferences: Partial<BrowserPreferences> }
   | { type: "settings/open"; open: boolean }

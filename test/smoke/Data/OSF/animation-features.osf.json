@@ -31,28 +31,5 @@
       "tags": ["osf-smoke-only"],
       "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }]
     }
-  ],
-  "routes": [{
-    "id": "osf.smoke.animated",
-    "stations": [
-      { "id": "idle" },
-      { "id": "held", "layer": { "clip": "OSF/Smoke/head.glb", "mask": "upperBody", "holdAt": 1.0 } }
-    ],
-    "transitions": [
-      {
-        "id": "out", "from": "idle", "to": "held",
-        "layer": { "clip": "OSF/Smoke/head.glb", "mask": "upperBody" },
-        "commit": { "atFrame": 10, "marker": "smoke.commit" },
-        "markers": [{ "atFrame": 5, "id": "smoke.marker" }],
-        "props": [
-          { "attachAtFrame": 3, "prop": "smoke.external", "lifetime": "external" },
-          { "destroyAtFrame": 20, "prop": "smoke.external", "lifetime": "external" }
-        ]
-      },
-      {
-        "id": "back", "from": "held", "to": "idle",
-        "layer": { "clip": "OSF/Smoke/head.glb", "mask": "upperBody" }
-      }
-    ]
-  }]
+  ]
 }

@@ -5,13 +5,13 @@ Papyrus spellings remain valid even where their names predate that vocabulary.
 
 OSF loads all content from `Data/OSF/**` at startup and again on `OSF.ReloadPacks()` (the legacy
 Papyrus name for **reload content**). An `*.osf.json` content file may declare authored **scenes**,
-overlay **routes**, curated **animation entries**, or any combination; a secondary `*.sounds.json`
+curated **animation entries**, or both; a secondary `*.sounds.json`
 file declares reusable **sound pools**.
 Both are plain JSON (`//` line comments are allowed):
 
 | File | Loaded by | Purpose |
 |------|-----------|---------|
-| `*.osf.json` | **Content registry** (implementation name `SceneRegistry`) | **Scenes**, **routes**, and optional curated `clipLibrary` entries for individually browsable raw clips. |
+| `*.osf.json` | **Content registry** (implementation name `SceneRegistry`) | **Scenes** and optional curated `clipLibrary` entries for individually browsable raw clips. |
 | `*.sounds.json` | **SoundRegistry** | **Sound pools** — tagged, weighted clip sets a scene `sound`/`osf.voice.play` spec can draw from by tag (`$…`), optionally carrying subtitle text. See *Sound pools*. |
 
 All `*.osf.json` files are scanned recursively under `Data/OSF`. Bad files/entries are skipped and
@@ -22,7 +22,7 @@ reference to that clip: its resource path plus an optional GLB animation id. A `
 gives the asset a friendly catalog name and tags. A **scene** composes one or more clips for roles,
 timing, policy, and optional navigation. A *running* scene is a handle + world anchor + participants +
 undo ledger; `StartScene` starts one from a scene definition. The lower-level synchronized animation
-object used by scenes, routes, and previews is a **playback session**, not another domain scene.
+object used by scenes is a **playback session**, not another domain scene.
 
 A scene is **minimal by default** (just clips) and **expands into graph features** (branches, tracks,
 roles, policy) only when needed. The two shapes share timing and track-lane rules, but their topology
@@ -48,8 +48,7 @@ form and add `edges` only when you need branching.
 ## File layout
 
 A content file may be a **single bare scene object**, an envelope with a `scenes[]` array, a
-route/animation-only document, or an envelope combining `scenes`, `routes`, and `clipLibrary`. Route
-authoring is documented separately in [ROUTE_SCHEMA.md](ROUTE_SCHEMA.md):
+clip-library-only document, or an envelope combining `scenes` and `clipLibrary`:
 
 ```jsonc
 // single-scene file
@@ -267,9 +266,7 @@ segments are an implementation detail and are not addressed by these indexes.
   load). `timer` still works and is the only automatic way out; otherwise the stage holds until a
   manual advance (Space / `AdvanceScene`) or a scene edge fires. Marks at or before the hold position fire
   once when the stage activates, so an `action`/`cue` at `at: 0` still runs; later marks never fire.
-  Track lanes, `name`, and `tags` behave as on any other linear stage. The browser's preview session
-  exposes the frozen stage's full clip as a transport; inspection mode does not replay the scene's
-  authored timing or side effects.
+  Track lanes, `name`, and `tags` behave as on any other linear stage.
 - **Linear-stage shorthand:** a stage may be written as a bare array of animation clip specs instead of a
   `{ timer, loops, clips }` object — e.g. `["a.glb", "b.glb"]` is exactly `{ "clips": ["a.glb", "b.glb"] }`
   (no timing, so it uses the play-once default). The array entries are clips, so each may still be a
@@ -665,7 +662,7 @@ forwarded onto its desugared flow node), so a linear scene gets the full lane vo
 ```
 
 `atFrame` must be a **whole number ≥ 0**. Frames are counted at **30 fps** — the rate an `.af`
-decodes at, and the rate the studio route compiler already bakes its `at` fractions with — so
+decodes at — so
 `atFrame: N` is exactly `N / 30` **clip-local seconds**.
 
 That makes the two positions behave differently when the clip length changes:

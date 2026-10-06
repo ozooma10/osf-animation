@@ -3,23 +3,6 @@ export interface SceneRole {
   gender: string;
 }
 
-export type TimelineTrackKind = "cue" | "action" | "sound" | "camera";
-/** "unreachable" = an `atFrame` at/past the clip end — the runtime never fires it. */
-export type TimelineTrackPosition = "enter" | "exit" | "end" | "fraction" | "unreachable";
-
-export interface TimelineTrackMark {
-  kind: TimelineTrackKind;
-  /** Clip-local position: enter maps to 0, exit/end to 1. */
-  at: number;
-  /** Authored `atFrame` in seconds, for re-placing against the live decoded duration. */
-  atSec?: number;
-  trackPosition: TimelineTrackPosition;
-  label: string;
-  detail: string;
-  role: string;
-  repeat: boolean;
-}
-
 export interface SceneStage {
   index: number;
   name: string;
@@ -31,7 +14,6 @@ export interface SceneStage {
   loops: number | null;
   openEnded: boolean;
   estSec: number | null;
-  tracks: TimelineTrackMark[];
 }
 
 export type CatalogSourceKind = "authoredScene" | "curatedAnimation" | "derivedDebugAnimation" | "referenceAnimation";
@@ -150,170 +132,8 @@ export function normalizeStages(stages: unknown): SceneStage[] {
       loops: numberOrNull(stage.loops),
       openEnded: Boolean(stage.openEnded),
       estSec: numberOrNull(stage.estSec),
-      tracks: normalizeTimelineTracks(stage.tracks),
     };
   });
-}
-
-const TRACK_KINDS = new Set<TimelineTrackKind>(["cue", "action", "sound", "camera"]);
-const TRACK_POSITIONS = new Set<TimelineTrackPosition>(["enter", "exit", "end", "fraction", "unreachable"]);
-
-export function normalizeTimelineTracks(value: unknown): TimelineTrackMark[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((raw): TimelineTrackMark[] => {
-    if (!raw || typeof raw !== "object") return [];
-    const mark = raw as Raw;
-    const kind = String(mark.kind || "") as TimelineTrackKind;
-    // Native still sends `anchor`; renamed so it isn't confused with a world anchor.
-    const trackPosition = String(mark.trackPosition ?? mark.anchor ?? "fraction") as TimelineTrackPosition;
-    const at = Number(mark.at);
-    const label = String(mark.label || "").trim();
-    if (!TRACK_KINDS.has(kind) || !TRACK_POSITIONS.has(trackPosition) || !Number.isFinite(at) || !label) return [];
-    const atSec = Number(mark.atSec);
-    return [{
-      kind,
-      at: Math.max(0, Math.min(1, at)),
-      ...(Number.isFinite(atSec) && atSec >= 0 ? { atSec } : {}),
-      trackPosition,
-      label,
-      detail: String(mark.detail || "").trim(),
-      role: String(mark.role || "").trim(),
-      repeat: Boolean(mark.repeat),
-    }];
-  });
-}
-
-export interface RouteLayerModel {
-  clip: string;
-  animId: string;
-  durationHint: number | null;
-  mask: string;
-  mode: string;
-  weight: number;
-  holdAt: number | null;
-}
-
-export interface RouteStationModel {
-  id: string;
-  layer: RouteLayerModel | null;
-}
-
-export type RouteEventKind = "commit" | "marker" | "prop" | "sound";
-
-export interface RouteEventModel {
-  kind: RouteEventKind;
-  frame: number;
-  label: string;
-  detail: string;
-  lifetime: string;
-  external: boolean;
-}
-
-export interface RouteTransitionModel {
-  id: string;
-  from: string;
-  to: string;
-  layer: RouteLayerModel;
-  interruption: "finish-transition" | "crossfade-before-commit";
-  events: RouteEventModel[];
-}
-
-export interface RouteModel {
-  id: string;
-  sourceFile: string;
-  stations: RouteStationModel[];
-  transitions: RouteTransitionModel[];
-}
-
-function normalizeRouteLayer(value: unknown): RouteLayerModel {
-  const raw: Raw = value && typeof value === "object" ? value as Raw : {};
-  const durationHint = Number(raw.durationHint);
-  const holdAt = Number(raw.holdAt);
-  return {
-    clip: String(raw.clip || ""),
-    animId: String(raw.animId || ""),
-    durationHint: Number.isFinite(durationHint) && durationHint > 0 ? durationHint : null,
-    mask: String(raw.mask || ""),
-    mode: String(raw.mode || "override"),
-    weight: Number.isFinite(Number(raw.weight)) ? Number(raw.weight) : 1,
-    holdAt: Number.isFinite(holdAt) && holdAt >= 0 ? holdAt : null,
-  };
-}
-
-function routeFrame(value: unknown): number {
-  const frame = Number(value);
-  return Number.isFinite(frame) ? Math.max(0, frame) : 0;
-}
-
-function normalizeRouteEvents(raw: Raw): RouteEventModel[] {
-  const events: RouteEventModel[] = [];
-  if (raw.commit && typeof raw.commit === "object") {
-    const commit = raw.commit as Raw;
-    events.push({ kind: "commit", frame: routeFrame(commit.frame), label: String(commit.id || "commit"),
-      detail: "Consumer handoff checkpoint · callback suppressed in preview", lifetime: "", external: true });
-  }
-  if (Array.isArray(raw.markers)) raw.markers.forEach((value) => {
-    if (!value || typeof value !== "object") return;
-    const marker = value as Raw;
-    events.push({ kind: "marker", frame: routeFrame(marker.frame), label: String(marker.id || "marker"),
-      detail: "Consumer marker callback suppressed in preview", lifetime: "", external: true });
-  });
-  if (Array.isArray(raw.props)) raw.props.forEach((value) => {
-    if (!value || typeof value !== "object") return;
-    const prop = value as Raw;
-    const lifetime = String(prop.lifetime || "transition");
-    const attach = Boolean(prop.attach);
-    const external = lifetime === "external";
-    const attachmentNode = prop.attachmentNode ?? prop.node;
-    events.push({ kind: "prop", frame: routeFrame(prop.frame),
-      label: `${attach ? "ATTACH" : "DESTROY"} ${String(prop.id || "prop")}`,
-      detail: [lifetime && `${lifetime} lifetime`, attachmentNode && `attachment node ${String(attachmentNode)}`,
-        external && "consumer callback suppressed"].filter(Boolean).join(" · "),
-      lifetime, external });
-  });
-  if (Array.isArray(raw.sounds)) raw.sounds.forEach((value) => {
-    if (!value || typeof value !== "object") return;
-    const sound = value as Raw;
-    events.push({ kind: "sound", frame: routeFrame(sound.frame), label: String(sound.spec || "sound"),
-      detail: "Audio suppressed in preview", lifetime: "", external: true });
-  });
-  return events.sort((a, b) => a.frame - b.frame);
-}
-
-export function normalizeRouteCatalog(payload: unknown): RouteModel[] {
-  if (!Array.isArray(payload)) return [];
-  return payload.flatMap((value): RouteModel[] => {
-    if (!value || typeof value !== "object") return [];
-    const raw = value as Raw;
-    const id = String(raw.id || "").trim();
-    if (!id) return [];
-    const stations = Array.isArray(raw.stations) ? raw.stations.flatMap((value): RouteStationModel[] => {
-      if (!value || typeof value !== "object") return [];
-      const station = value as Raw;
-      const stationId = String(station.id || "").trim();
-      return stationId ? [{ id: stationId, layer: station.layer && typeof station.layer === "object"
-        ? normalizeRouteLayer(station.layer) : null }] : [];
-    }) : [];
-    const transitions = Array.isArray(raw.transitions) ? raw.transitions.flatMap((value): RouteTransitionModel[] => {
-      if (!value || typeof value !== "object") return [];
-      const transition = value as Raw;
-      const transitionId = String(transition.id || "").trim();
-      const from = String(transition.from || "").trim();
-      const to = String(transition.to || "").trim();
-      if (!transitionId || !from || !to) return [];
-      return [{
-        id: transitionId,
-        from,
-        to,
-        layer: normalizeRouteLayer(transition.layer),
-        // Schema `finish` means finish the current transition, not the whole route.
-        interruption: transition.interruption === "crossfade-before-commit"
-          ? "crossfade-before-commit" : "finish-transition",
-        events: normalizeRouteEvents(transition),
-      }];
-    }) : [];
-    return [{ id, sourceFile: String(raw.sourceFile || "").replace(/\\/g, "/"), stations, transitions }];
-  }).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function normalizeFolder(value: unknown): string {
@@ -391,9 +211,6 @@ export interface ImportFile {
   declaredScenes: number;
   hidden: number;
   rejectedScenes: number;
-  routes: number;
-  declaredRoutes: number;
-  rejectedRoutes: number;
   unlisted: number;
   anchored: number;
   nodes: number;
@@ -423,9 +240,6 @@ export interface ImportTotals {
   scenes: number;
   declaredScenes: number;
   rejectedScenes: number;
-  routes: number;
-  declaredRoutes: number;
-  rejectedRoutes: number;
   /** Registry's own count; may drift from the per-file sum. */
   registered: number;
   clipEntries: number;
@@ -448,9 +262,6 @@ export const EMPTY_IMPORT_TOTALS: ImportTotals = {
   scenes: 0,
   declaredScenes: 0,
   rejectedScenes: 0,
-  routes: 0,
-  declaredRoutes: 0,
-  rejectedRoutes: 0,
   registered: 0,
   clipEntries: 0,
   hidden: 0,
@@ -510,9 +321,6 @@ export function normalizeImportReport(payload: unknown): ImportReport {
         declaredScenes: count(entry.declaredScenes),
         hidden: count(entry.hidden),
         rejectedScenes: count(entry.rejectedScenes),
-        routes: count(entry.routes),
-        declaredRoutes: count(entry.declaredRoutes),
-        rejectedRoutes: count(entry.rejectedRoutes),
         unlisted: count(entry.unlisted),
         anchored: count(entry.anchored),
         nodes: count(entry.nodes),
@@ -541,9 +349,6 @@ export function normalizeImportReport(payload: unknown): ImportReport {
       declaredScenes: count(totals.declaredScenes),
       rejectedScenes: count(totals.rejectedScenes),
       scenes: count(totals.scenes),
-      routes: count(totals.routes),
-      declaredRoutes: count(totals.declaredRoutes),
-      rejectedRoutes: count(totals.rejectedRoutes),
       registered: count(totals.registered),
       clipEntries: count(totals.clipEntries),
       hidden: count(totals.hidden),
@@ -590,7 +395,6 @@ function problemRefs(files: readonly ImportFile[]): Map<string, ImportProblemRef
 function importFileFingerprint(file: ImportFile): string {
   return [
     file.declaredScenes, file.scenes, file.rejectedScenes, file.hidden, file.missingClips,
-    file.declaredRoutes, file.routes, file.rejectedRoutes,
     file.clipEntries, file.errors, file.warnings, file.problemCount,
   ].join(":");
 }

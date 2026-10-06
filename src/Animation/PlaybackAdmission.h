@@ -59,12 +59,4 @@ namespace OSF::Animation
 		return { true, true, PlaybackAdmissionReason::kAccepted };
 	}
 
-	inline const TimedMark* FirstInvalidStrictTimedMark(const std::vector<TimedMark>& a_marks,
-		float a_duration) noexcept
-	{
-		for (const auto& mark : a_marks) {
-			if (!mark.atEnd && MarkTime(mark, a_duration) >= a_duration) return &mark;
-		}
-		return nullptr;
-	}
 }

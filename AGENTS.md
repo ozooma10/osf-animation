@@ -8,14 +8,14 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the eight engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the seven engine-free C++ suites (persistence broker,
   native scene-event callbacks, generated GLTF/GLB/gzip import fixtures,
-  frame clock/clip specs, additive pose math, sound registry, scene registry, route planner/controller plus owner/admission contracts — the registry pair run from
+  frame clock/clip specs, additive pose math, sound registry, scene registry — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
   and checks release archives with retained evidence. `-RunGame` adds the sibling harness's private
-  Animation scenario (59 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
+  Animation scenario (47 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
   hosts; the default uses the pinned releases. `-Plan` is read-only. Runtime instrumentation requires `--animation_smoke=y`,
   defaults off, and must never be deployed to the normal mod or packaged. The bench uses separate
   `build/smoke-native` output and restores production configuration. See `docs/SMOKE_TESTING.md`.
@@ -72,7 +72,7 @@ Each entry: **system** (`path`) — role.
   owns the two vtable hooks. `PlaySynchronized` is the shared playback entry. `StopAll` drops all state on load (releases the persistent AI-driven flag).
   Compose-root pin + cull-sphere + BSFadeNode fade suppression live in `Hook_ModelNodeUpdate`
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
-- **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, graph maintenance, and playback previews. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Anchored NPC animation-driven flags are maintained once per game frame here, with save-window suppression. Sampling and stamping remain in their animation hooks. Preview props reconcile at prop marks, seeks, and loop/end boundaries.
+- **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, and graph maintenance. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Anchored NPC animation-driven flags are maintained once per game frame here, with save-window suppression. Sampling and stamping remain in their animation hooks.
 - **PlaybackSession** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
 - **Player/Camera locks** (`src/Player/PlayerInputLockService.*`, `src/Camera/CameraService.*`) —
@@ -90,11 +90,6 @@ Each entry: **system** (`path`) — role.
   SoundService + applies `Settings`, registers the runtime with GraphManager, emits a feature report.
 
 ### Layer B - scene runtime
-- **OverlayService** (`src/Overlay/*`, `src/API/OSFOverlayAPI.*`) — Phase-1 persistent one-actor
-  overlay routes with owner-scoped callbacks, generational handles, authored-order BFS,
-  checkpoint-safe commit acknowledgement, zero-animation stations, 3D/scene suspension, and
-  strict post-decode route marks. Reuses unanchored staged `Graph` playback; one route occupies an
-  actor even while its station has no graph. Scenes always win and reconcile the overlay on end.
 - **SceneRegistry** (`src/Registry/SceneRegistry.*`) - loads the unified `*.osf.json` scene defs (nodes +
   edges + roles + loop/timer + cue/action/sound/camera tracks) + validation (`GetSceneLoadErrors`).
   Each load also publishes a **per-file import record** in the snapshot (`SceneFileStats` / `FileStats()`):

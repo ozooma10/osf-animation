@@ -347,99 +347,6 @@ namespace OSF::Registry
 		std::int32_t LinearStageOf(std::string_view a_nodeId) const;
 	};
 
-	// One-actor overlay routes: masked pose layers + transition marks only, no scene policy.
-	enum class RouteLifetime : std::uint8_t
-	{
-		kTransition,
-		kStation,
-		kController,
-		kExternal
-	};
-
-	enum class RouteInterruption : std::uint8_t
-	{
-		kFinish,
-		kCrossfadeBeforeCommit
-	};
-
-	struct RouteLayer
-	{
-		StageClip             clip;
-		std::string           mask;       // mandatory named BoneMask
-		Animation::PoseMode   mode = Animation::PoseMode::kOverride;
-		float                 weight = 1.0f;
-		float                 holdAt = -1.0f;  // station only; normalized pose position
-	};
-
-	struct RouteMarker
-	{
-		float       frame = 0.0f;
-		std::string id;
-	};
-
-	struct RouteProp
-	{
-		float             frame = 0.0f;
-		std::string       id;
-		bool              attach = true;
-		RouteLifetime     lifetime = RouteLifetime::kTransition;
-		Props::Source     source;
-		Props::Attachment attachment;
-	};
-
-	struct RouteSound
-	{
-		float       frame = 0.0f;
-		std::string spec;
-	};
-
-	struct RouteStation
-	{
-		std::string               id;
-		std::optional<RouteLayer> layer;  // absent = zero-animation station
-	};
-
-	struct RouteTransition
-	{
-		std::string                 id;
-		std::string                 from;
-		std::string                 to;
-		RouteLayer                  layer;
-		std::optional<RouteMarker>  commit;
-		std::vector<RouteMarker>    markers;
-		std::vector<RouteProp>      props;
-		std::vector<RouteSound>     sounds;
-		RouteInterruption           interruption = RouteInterruption::kFinish;
-		std::optional<Animation::ContactPose> contactPose;
-	};
-
-	struct RouteDef
-	{
-		std::string                  id;
-		std::vector<RouteStation>    stations;
-		std::vector<RouteTransition> transitions;
-		std::filesystem::path        sourceFile;
-
-		const RouteStation* FindStation(std::string_view a_id) const
-		{
-			const auto equal = [](std::string_view a_lhs, std::string_view a_rhs) {
-				return a_lhs.size() == a_rhs.size() && std::equal(a_lhs.begin(), a_lhs.end(), a_rhs.begin(),
-					[](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); });
-			};
-			const auto it = std::find_if(stations.begin(), stations.end(), [&](const RouteStation& a_station) { return equal(a_station.id, a_id); });
-			return it == stations.end() ? nullptr : &*it;
-		}
-		const RouteTransition* FindTransition(std::string_view a_id) const
-		{
-			const auto equal = [](std::string_view a_lhs, std::string_view a_rhs) {
-				return a_lhs.size() == a_rhs.size() && std::equal(a_lhs.begin(), a_lhs.end(), a_rhs.begin(),
-					[](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); });
-			};
-			const auto it = std::find_if(transitions.begin(), transitions.end(), [&](const RouteTransition& a_transition) { return equal(a_transition.id, a_id); });
-			return it == transitions.end() ? nullptr : &*it;
-		}
-	};
-
 	// `message` is the exact OSFAdvanced.GetSceneLoadErrors() line; other fields may be empty.
 	struct SceneImportProblem
 	{
@@ -471,9 +378,6 @@ namespace OSF::Registry
 		std::uint32_t declaredScenes = 0; // authored, before validation
 		std::uint32_t hidden = 0;        //   ...of scenes, !clipsAvailable
 		std::uint32_t rejectedScenes = 0; // declaredScenes - scenes
-		std::uint32_t routes = 0;
-		std::uint32_t declaredRoutes = 0;
-		std::uint32_t rejectedRoutes = 0;
 		std::uint32_t unlisted = 0;
 		std::uint32_t anchored = 0;
 		std::uint32_t nodes = 0;
@@ -494,7 +398,7 @@ namespace OSF::Registry
 		std::uint32_t warnings = 0;
 		std::vector<ContentImportProblem> problems;  // in load-error order
 
-		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && routes == 0 && clipEntries == 0 && errors > 0; }
+		[[nodiscard]] bool Rejected() const noexcept { return scenes == 0 && clipEntries == 0 && errors > 0; }
 	};
 	using ContentFileStats = SceneFileStats;
 
@@ -502,7 +406,6 @@ namespace OSF::Registry
 	struct SceneRegistrySnapshot
 	{
 		std::unordered_map<std::string, SceneDef> scenes;
-		std::unordered_map<std::string, RouteDef> routes;
 		std::vector<std::string> loadErrors;
 		size_t authoredSceneCount = 0;  // excludes generated one-clip entries
 		// Sorted by `path`; a trailing empty-`path` record holds cross-file problems.
@@ -539,7 +442,6 @@ namespace OSF::Registry
 		const T* value = nullptr;
 	};
 
-	using RouteRef = RegistryRef<RouteDef>;
 	using SceneRef = RegistryRef<SceneDef>;
 
 	class SceneRegistry
@@ -553,14 +455,11 @@ namespace OSF::Registry
 		// Case-insensitive. The ref pins the snapshot, so it stays valid across ReloadPacks.
 		SceneRef Find(std::string_view a_id) const;
 
-		RouteRef FindRoute(std::string_view a_id) const;
-
 		// Resolves inline `stages` or a `use` target; a_actorCount must equal the resolved role count.
 		std::optional<Animation::PlaybackPlan> BuildNodePlan(const SceneRef& a_def, const SceneNode& a_node, size_t a_actorCount) const;
 
 		// Iterates one pinned snapshot; safe across a concurrent reload.
 		void ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const;
-		void ForEachRoute(const std::function<void(const RouteDef&)>& a_fn) const;
 
 		size_t Size() const;
 

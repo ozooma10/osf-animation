@@ -36,7 +36,7 @@ import {
 import { PLAYER_CAST, createInitialState } from "../src/app/state";
 import { decodePreferences, preferredOpenMode } from "../src/app/settings";
 import { normalizeActive } from "../src/app/controller";
-import { normalizeImportReport, normalizeRouteCatalog, normalizeScene, type ImportFile } from "../src/model";
+import { normalizeImportReport, normalizeScene, type ImportFile } from "../src/model";
 
 const solo = normalizeScene({
   id: "solo",
@@ -54,12 +54,10 @@ describe("browser reducer", () => {
   });
 
   it("normalizes authoritative playback clock fields for the active timeline", () => {
-    expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, inspection: true, cast: [] }])[0])
-      .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0, inspection: true });
+    expect(normalizeActive([{ handle: 7, sceneId: "solo", stage: 2, time: 1.25, duration: 3.5, speed: 0, cast: [] }])[0])
+      .toMatchObject({ handle: 7, stage: 2, time: 1.25, duration: 3.5, speed: 0 });
     expect(normalizeActive([{ handle: 8, sceneId: "legacy", cast: [] }])[0])
-      .toMatchObject({ time: 0, duration: 0, speed: 0, inspection: false });
-    expect(normalizeActive([{ handle: -1, sceneId: "preview", inspection: true, cast: [] }])[0])
-      .toMatchObject({ handle: -1, sceneId: "preview", inspection: true });
+      .toMatchObject({ time: 0, duration: 0, speed: 0 });
   });
 
   it("self-heals engine readiness from a catalog reply after a web-view reload", () => {
@@ -70,15 +68,6 @@ describe("browser reducer", () => {
     const healed = browserReducer(reloaded, { type: "catalog/received", scenes: [solo] });
 
     expect(healed).toMatchObject({ ready: true, catalogReceived: true });
-  });
-
-  it("keeps route and transition selection valid across route catalog reloads", () => {
-    const routes = normalizeRouteCatalog([{ id: "route.a", stations: [{ id: "a" }, { id: "b" }],
-      transitions: [{ id: "ab", from: "a", to: "b", layer: { clip: "ab.af", mask: "upperBody" } }] }]);
-    const loaded = browserReducer(createInitialState(), { type: "routes/received", routes });
-    expect(loaded).toMatchObject({ routesReceived: true, selectedRouteId: "route.a", selectedTransitionId: "ab" });
-    const empty = browserReducer(loaded, { type: "routes/received", routes: [] });
-    expect(empty).toMatchObject({ selectedRouteId: null, selectedTransitionId: null });
   });
 
   it("keeps cast ordering immutable", () => {
@@ -158,32 +147,6 @@ describe("browser reducer", () => {
     expect(closed).toMatchObject({ lastHandle: 13, minimized: false });
   });
 
-  it("opens an inspected scene in Active without minimizing", () => {
-    const inspected = browserReducer({ ...createInitialState(), mode: "scenes" }, {
-      type: "launch/succeeded", handle: 14, sceneId: "solo", afterLaunch: "minimize", inspect: true,
-    });
-    expect(inspected).toMatchObject({ lastHandle: 14, lastSceneId: "solo", mode: "active", minimized: false });
-  });
-
-  it("keeps a minimized preview minimized when it switches stages", () => {
-    const preview = {
-      ...createInitialState(),
-      minimized: true,
-      lastHandle: -1,
-      lastSceneId: "solo",
-      active: [{ handle: -1, sceneId: "solo", stage: 0, player: true, cast: [], time: 0, duration: 2, speed: 0, inspection: true, inspectionKind: "scene" as const, routeId: "", transitionId: "" }],
-    };
-    const restaged = browserReducer(preview, {
-      type: "launch/succeeded", handle: -2, sceneId: "solo", afterLaunch: "stay", inspect: true,
-    });
-    expect(restaged).toMatchObject({ lastHandle: -2, minimized: true });
-
-    const fromLive = browserReducer({ ...preview, active: [{ ...preview.active[0], inspection: false }] }, {
-      type: "launch/succeeded", handle: -3, sceneId: "solo", afterLaunch: "stay", inspect: true,
-    });
-    expect(fromLive).toMatchObject({ lastHandle: -3, minimized: false });
-  });
-
   it("applies synchronized browser and launch preferences", () => {
     const state = browserReducer(createInitialState(), {
       type: "settings/received",
@@ -193,7 +156,6 @@ describe("browser reducer", () => {
     expect(state).toMatchObject({ libFull: true, libCustomOnly: true, opts: { hideApparel: "0" }, filters: { debugMode: true } });
     expect(state.showHidden).toBe(false);
   });
-
 
   it("distinguishes an explicit wheel from reset defaults", () => {
     const customized = browserReducer(createInitialState(), { type: "wheel/customized", catalog: [solo], library: [] });
@@ -563,12 +525,10 @@ describe("import report panel", () => {
     const missing = file({ path: "Pack/assets.osf.json", file: "assets.osf.json", scenes: 2, hidden: 2, missingClips: 3 });
     const empty = file({ path: "Pack/empty.osf.json", file: "empty.osf.json" });
     const clean = file({ path: "Other/clean.osf.json", file: "clean.osf.json", scenes: 2 });
-	const routePartial = file({ path: "Suit/routes.osf.json", file: "routes.osf.json", declaredRoutes: 3, routes: 2, rejectedRoutes: 1, errors: 1 });
 
     expect([partial, rejected, missing, empty, clean].map(importOutcome))
       .toEqual(["partial", "rejected", "missing", "empty", "clean"]);
     expect(importResult(partial)).toBe("1 of 2 scenes loaded; 1 rejected.");
-	expect(importResult(routePartial)).toBe("2 of 3 routes loaded; 1 rejected.");
     expect(importOutcomeCounts([partial, rejected, missing, empty, clean]))
       .toMatchObject({ all: 5, attention: 4, clean: 1, partial: 1, rejected: 1, missing: 1, empty: 1 });
     const grouped = importGroups({ ...createInitialState(), imports: [partial, rejected, missing, empty, clean], importsFilter: "all" });

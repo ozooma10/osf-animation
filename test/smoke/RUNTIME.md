@@ -9,7 +9,7 @@ The bench stages `Data/OSF/animation-smoke.osf.json` from this directory and wri
 and a fresh `launchToken`. Start Starfield with that staged mod, load a test save,
 close pause menus and the console, and leave the player idle. The runner never
 starts automatically. It refuses a missing player/3D, active scenes, player solo
-playback, or an existing player overlay.
+playback.
 
 The enabled frame pump writes `session.json` containing `pid`, decimal-string
 `processStartFileTime`, `sessionId`, and the exact `launchToken`. The controller
@@ -34,24 +34,21 @@ Every case must occur exactly once with `passed` status for a runtime pass. Miss
 prerequisites produce `blocked`; pending dependent cases become blocked after a
 failure. A test API or graph returning success alone is insufficient: playback
 clock advancement, freeze, bounded fade completion, exact callback counts, and
-released actor/route state are asserted. The run has a 45-second deadline.
+released actor state are asserted. The full 47-case run has a 240-second deadline.
 
-This baseline uses the game's `cower_idle.af` without redistributing game assets.
-It covers ABI/readiness and invalid handles, AF solo playback, speed freeze,
-same-position anchor/release, stop/fade-out, registered scene start/stage/graph
-navigation/timer/cues/native events, ended-roster retention, and zero-animation
-overlay owner/admission/requests/cleanup. Scene fixture policies disable apparel,
-held-item, camera, input and fade mechanisms and follow the current actor position.
-Cleanup uses retained scene/route handles and releases its own callback/owner;
-world replacement abandons actor mutations and blocks the run.
-Every solo mutation first verifies its source clip and absence of scene/route
+The baseline uses the game's `cower_idle.af` without redistributing game assets.
+It covers ABI/readiness, invalid handles, solo playback, speed freeze, anchor/release,
+stop/fade-out, scene navigation/timers/cues/native events, and ended-roster retention.
+Extended fixtures exercise generated GLTF/GLB/gzip clips, additive masks, Papyrus,
+matchmaking, import records, props, equipment/input/camera/fade mechanisms, sound,
+browser lifecycle, and persistence. `runtime-cases.json` lists the individual checks.
+Cleanup uses retained scene handles and releases its own registrations and mechanisms.
+Every solo mutation first verifies its source clip and absence of scene
 ownership; displacement blocks the run without changing the replacement. The
 public solo API has no generation token, so replacing the smoke solo clip with
 the identical source cannot be distinguished. Keep the test player idle.
 
-This is a baseline smoke pass, not proof of all engine behavior. Visual pose and
-culling quality, multi-actor synchronization, GLTF playback in game, props and
-equipment/weapon restoration, camera/input locks, fade, audible Wwise output,
-Papyrus delivery/rebinding, save/load lifecycle, animated overlay handoffs and 3D
-suspension and browser input remain separate acceptance scenarios. These
-gaps are emitted in every snapshot so automation cannot silently claim them.
+Visual pose/culling quality and creature rigs, physical controller and full hotkey
+coverage, audible mixing, visible fade/subtitle quality, weapon restoration, save
+deletion and failed loads, actor 3D replacement, and full browser authoring workflows
+remain separate acceptance scenarios. These gaps are emitted in every snapshot.

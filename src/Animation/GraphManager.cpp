@@ -45,7 +45,6 @@ namespace OSF::Animation
 			Util::NativeMainThreadQueue::PostBatch(std::move(a_tasks));
 		}
 
-
 		using AnimUpdateHook = REL::THookVFT<void(void*, RE::BSAnimationUpdateData*)>;
 		using ModelNodeUpdateHook = REL::THookVFT<uint64_t(RE::BGSModelNode*, void*, void*, void*)>;
 		std::optional<AnimUpdateHook> g_animUpdateHook;
@@ -195,8 +194,6 @@ namespace OSF::Animation
 				stage.poseWeights = planStage.poseWeights.empty() ?
 				                        (a_plan.poseWeights.empty() ? std::vector<float>(a_actors.size(), 1.0f) : a_plan.poseWeights) :
 				                        planStage.poseWeights;
-				stage.contactPose = planStage.contactPose.empty() ?
-				                       std::vector<ContactPose>(a_actors.size()) : planStage.contactPose;
 				stage.marks = planStage.marks;
 				for (std::size_t clipIdx = 0; clipIdx < planStage.files.size(); clipIdx++) {
 					const AnimationClipSpec clipSpec{
@@ -433,8 +430,7 @@ namespace OSF::Animation
 	}
 
 	bool GraphManager::PlaySynchronized(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment,
-		PlaybackId* a_outPlaybackId, PlaybackId a_expectedPlayback, PlaybackSinkId a_sinkId,
-		bool a_strictTimedMarks)
+		PlaybackId* a_outPlaybackId, PlaybackId a_expectedPlayback, PlaybackSinkId a_sinkId)
 	{
 		if (a_outPlaybackId) {
 			*a_outPlaybackId = 0;
@@ -454,16 +450,6 @@ namespace OSF::Animation
 		auto scene = BuildPlaybackFromPlan(a_actors, a_plan, a_startSegment);
 		if (!scene) {
 			return false;
-		}
-		if (a_strictTimedMarks) {
-			for (std::size_t stageIndex = 0; stageIndex < scene->stages.size(); ++stageIndex) {
-				const auto& stage = scene->stages[stageIndex];
-				if (const auto* mark = FirstInvalidStrictTimedMark(stage.marks, stage.duration)) {
-					REX::ERROR("[Anim] synchronized playback refused: strict timed mark '{}' at {:.3f}s is at/past segment {} duration {:.3f}s",
-						mark->token, MarkTime(*mark, stage.duration), stageIndex, stage.duration);
-					return false;
-				}
-			}
 		}
 		scene->playbackId = _nextPlaybackId.fetch_add(1, std::memory_order_relaxed);
 		if (scene->playbackId == 0) {
@@ -545,7 +531,6 @@ namespace OSF::Animation
 					slot->SetPosePolicy(poseMode, poseWeight, roleName);
 					slot->SetPreserveBones(a_plan.preserveBones.empty() ? kNoPreservedBones : a_plan.preserveBones[i]);
 					slot->SetBoneMask(scene->stages[startSegment].masks[i]);
-					slot->SetContactPose(scene->stages[startSegment].contactPose[i]);
 					slot->SetAnimation(startSlot.skeleton, startSlot.anim, startSlot.file);
 					slot->blendDuration = scene->stages[startSegment].blendIn;
 					slot->playbackSession = scene.get();
@@ -654,25 +639,6 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool GraphManager::SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback)
-	{
-		if (!a_actor || !std::isfinite(a_time)) {
-			return false;
-		}
-		std::shared_lock l{ stateLock };
-		auto iter = graphs.find(a_actor);
-		if (iter == graphs.end()) {
-			return false;
-		}
-		PlaybackSession* scene = nullptr;
-		{
-			std::scoped_lock gl{ iter->second->stateLock };
-			scene = iter->second->playbackSession;
-		}
-		return scene && ((a_expectedPlayback && scene->playbackId == a_expectedPlayback) ||
-			(!a_expectedPlayback && scene->playbackSinkId == 0)) && scene->Seek(a_time);
-	}
-
 	std::optional<GraphManager::SynchronizedPlaybackState> GraphManager::GetScenePlayback(
 		RE::Actor* a_actor, PlaybackId a_expectedPlayback)
 	{
@@ -714,37 +680,6 @@ namespace OSF::Animation
 				return false;
 			}
 			StopPlaybackLocked(iter->second->playbackSession, deferred);
-		}
-		FlushDeferredTasks(deferred);
-		return true;
-	}
-
-	bool GraphManager::StopSceneImmediate(RE::Actor* a_actor, PlaybackId a_expectedPlayback)
-	{
-		if (!a_actor || a_expectedPlayback == 0) return false;
-		std::vector<std::function<void()>> deferred;
-		{
-			std::unique_lock l{ stateLock };
-			auto iter = graphs.find(a_actor);
-			if (iter == graphs.end() || !iter->second->playbackSession ||
-				iter->second->playbackSession->playbackId != a_expectedPlayback) {
-				return false;
-			}
-			PlaybackSession* scene = iter->second->playbackSession;
-			std::vector<RE::TESObjectREFR*> participants;
-			for (const auto& graph : scene->participants) {
-				if (graph && graph->target) participants.push_back(graph->target.get());
-			}
-			StopPlaybackLocked(scene, deferred);
-			for (auto* participant : participants) {
-				const auto found = graphs.find(participant);
-				if (found != graphs.end()) {
-					auto graph = found->second;
-					std::scoped_lock gl{ graph->stateLock };
-					if (!graph->playbackSession) graphs.erase(found);
-				}
-			}
-			graphCount.store(graphs.size(), std::memory_order_relaxed);
 		}
 		FlushDeferredTasks(deferred);
 		return true;

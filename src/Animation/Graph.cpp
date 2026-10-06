@@ -170,17 +170,6 @@ namespace OSF::Animation
 		InvalidateBinding();
 	}
 
-	void Graph::SetContactPose(const ContactPose& a_contactPose)
-	{
-		contactPose = a_contactPose;
-		contactPoseBones.clear();
-		for (const auto& bone : contactPose.bones) {
-			if (!bone.empty()) contactPoseBones.emplace(ToLower(bone));
-		}
-		loggedContactPoseFull = false;
-		InvalidateBinding(true);
-	}
-
 	bool Graph::ResolveAndBind(const RE::BGSModelNode* a_expectedModelNode)
 	{
 		// cachedModelNode is the stamp hook's match key; once the chain stops resolving the address may be reused.
@@ -299,22 +288,16 @@ namespace OSF::Animation
 					continue;  // node maps to a rig slot outside the live buffer; never stamp it
 				}
 				float boneWeight = 1.0f;
-				float contactWeight = 0.0f;
 				if (boneMask) {
 					const auto mit = boneMask->weights.find(lowerName);
 					if (mit == boneMask->weights.end()) {
-						if (contactPose.enabled && contactPoseBones.contains(lowerName)) {
-							boneWeight = 0.0f;
-							contactWeight = 1.0f;
-						} else {
-							skippedMasked++;
-							continue;
-						}
+						skippedMasked++;
+						continue;
 					} else {
 						boneWeight = mit->second;
 					}
 				}
-				binding.push_back({ entry.rigIndex, iter->second, boneWeight, contactWeight });
+				binding.push_back({ entry.rigIndex, iter->second, boneWeight });
 			}
 		}
 		if (++bindingRevision == 0) {
@@ -416,7 +399,6 @@ namespace OSF::Animation
 				SetAnimation(slot.skeleton, slot.anim, slot.file);
 				SetPosePolicy(stage.poseModes[participantIndex], stage.poseWeights[participantIndex], roleName);
 				SetBoneMask(stage.masks[participantIndex]);
-				SetContactPose(stage.contactPose[participantIndex]);
 				blendDuration = stage.blendIn;
 				scenePlacement = stage.placements[participantIndex];
 				appliedStage = tick.stage;
@@ -512,13 +494,6 @@ namespace OSF::Animation
 				return;
 			}
 		}
-		const float contactWeight = contactPose.WeightAt(localTime);
-		if (contactPose.enabled && !loggedContactPoseFull && contactWeight >= 0.99f) {
-			loggedContactPoseFull = true;
-			REX::DEBUG("[Anim] contact pose full — actor {:08X}, {} bone(s), contact {:.3f}s",
-				target ? target->formID : 0, contactPoseBones.size(), contactPose.atSeconds);
-		}
-
 		const float duration = anim->data->duration();
 		if (duration <= 0.0f) {
 			return;
@@ -624,7 +599,7 @@ namespace OSF::Animation
 				PoseMath::WriteAdditive(slot, liveBasePose.data() + i * 16,
 					reinterpret_cast<const float*>(&referencePose[bound.jointIndex]),
 					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
-					effectiveWeight * std::max(bound.weight, bound.contactWeight * contactWeight));
+					effectiveWeight * bound.weight);
 				if (!probeRecorded) {
 					recordProbe(slot, bound.rigIndex);
 				}
@@ -632,7 +607,7 @@ namespace OSF::Animation
 		} else {
 			// Override: weight = transition * pose weight * mask weight. Fractional bones blend against the live
 			// base (steady state) or the cross-fade snapshot (blend-in).
-			const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f || contactPose.enabled;
+			const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f;
 			if (persistentPartial && !captureLiveBase()) {
 				return;
 			}
@@ -646,7 +621,7 @@ namespace OSF::Animation
 				// Only joints the outgoing stage stamped have a valid snapshot; newly masked-in joints blend from live.
 				const bool fromSnapshot = hasSnapshot && bound.jointIndex < blendFromDriven.size() &&
 				                          blendFromDriven[bound.jointIndex] != 0;
-				const float maskWeight = std::max(bound.weight, bound.contactWeight * contactWeight);
+				const float maskWeight = bound.weight;
 				const float w = weight * poseWeight * maskWeight;
 				switch (PoseMath::ClassifyOverrideStamp(weight, poseWeight, maskWeight, fromSnapshot)) {
 				case PoseMath::OverrideStampKind::kSkip:

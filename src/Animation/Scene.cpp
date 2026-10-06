@@ -150,41 +150,6 @@ namespace OSF::Animation
 		return true;
 	}
 
-	bool PlaybackSession::Seek(float a_time)
-	{
-		if (!std::isfinite(a_time)) {
-			return false;
-		}
-		std::scoped_lock l{ lock };
-		if (stages.empty()) {
-			return false;
-		}
-
-		// Sampling wraps a live clip at duration, so clamp a 100% scrub to the last representable pose.
-		const float lastPose = duration > 0.0f ? std::nextafter(duration, 0.0f) : 0.0f;
-		clock.time = std::clamp(a_time, 0.0f, lastPose);
-		// A frozen segment's clock is a pose, not elapsed time; don't move its timer (the only exit).
-		if (stages[currentSegment].hold < 0.0f) {
-			stageElapsed = clock.time;
-		}
-		stageLoops = 0;
-		ended.store(false, std::memory_order_relaxed);
-		endQueued.store(false, std::memory_order_relaxed);
-		firedMarks.clear();
-
-		const auto& marks = stages[currentSegment].marks;
-		markFired.assign(marks.size(), false);
-		if (duration > 0.0f) {
-			for (size_t i = 0; i < marks.size(); i++) {
-				const auto& mark = marks[i];
-				if (!mark.everyLoop && !mark.atEnd && MarkTime(mark, duration) < clock.time) {
-					markFired[i] = true;
-				}
-			}
-		}
-		return true;
-	}
-
 	PlaybackSession::PlaybackSnapshot PlaybackSession::GetPlaybackSnapshot()
 	{
 		std::scoped_lock l{ lock };

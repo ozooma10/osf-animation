@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffImportReports, evaluateScene, normalizeCatalog, normalizeImportReport, normalizeRouteCatalog, normalizeScene, safeNormalizeScene } from "../src/model";
+import { diffImportReports, evaluateScene, normalizeCatalog, normalizeImportReport, normalizeScene, safeNormalizeScene } from "../src/model";
 
 describe("scene normalization", () => {
   it("normalizes registry defaults and duration values", () => {
@@ -9,10 +9,7 @@ describe("scene normalization", () => {
       folder: "Furniture / Seated",
       roles: [{ name: "lead", filters: { gender: "female" } }],
       inPlace: true,
-      stages: [{ name: "idle", loopSec: "2.5", loops: 0, tracks: [
-        { kind: "cue", at: 0.25, trackPosition: "fraction", label: "helmet.off", repeat: true },
-        { kind: "invalid", at: 2, label: "drop me" },
-      ] }],
+      stages: [{ name: "idle", loopSec: "2.5", loops: 0 }],
     });
     expect(scene).toMatchObject({
       id: "test.scene",
@@ -28,7 +25,6 @@ describe("scene normalization", () => {
       index: 0,
       loopSec: 2.5,
       loops: 0,
-      tracks: [{ kind: "cue", at: 0.25, trackPosition: "fraction", label: "helmet.off", repeat: true }],
     });
     expect(scene).not.toHaveProperty("genders");
     expect(scene).not.toHaveProperty("shape");
@@ -40,15 +36,6 @@ describe("scene normalization", () => {
   it("does not let an invalid record blank a catalog", () => {
     expect(safeNormalizeScene(null)).toBeNull();
     expect(safeNormalizeScene({ id: "ok" })?.id).toBe("ok");
-  });
-
-  it("normalizes the legacy temporal anchor field without retaining spatially ambiguous language", () => {
-    const scene = normalizeScene({ id: "legacy.tracks", stages: [{ tracks: [
-      { kind: "cue", at: 0, anchor: "enter", label: "legacy" },
-      { kind: "cue", at: 1, anchor: "enter", trackPosition: "end", label: "canonical" },
-    ] }] });
-    expect(scene.stages[0].tracks.map((mark) => mark.trackPosition)).toEqual(["enter", "end"]);
-    expect(scene.stages[0].tracks[0]).not.toHaveProperty("anchor");
   });
 
   it("uses explicit catalog source kinds while preserving legacy bridge inference", () => {
@@ -84,36 +71,6 @@ describe("scene normalization", () => {
       worldPlacement: "anchorAndPin",
       policy: { hideApparel: "off", playerInputLock: "off" },
     });
-  });
-});
-
-describe("route debugger normalization", () => {
-  it("builds ordered transition event lanes from the native route catalog", () => {
-    const routes = normalizeRouteCatalog([{
-      id: "helmet.route",
-      sourceFile: "Suit\\routes.osf.json",
-      stations: [{ id: "head" }, { id: "held", layer: { clip: "held.af", mask: "upperBody", holdAt: 1 } }],
-      transitions: [{
-        id: "head-to-held", from: "head", to: "held",
-        layer: { clip: "head_to_held.af", durationHint: 3.3, mask: "upperBody", mode: "override", weight: 1 },
-        commit: { frame: 24, id: "helmet.commit" },
-        markers: [{ frame: 20, id: "helmet.moving" }],
-        props: [{ frame: 18, id: "helmet", attach: true, lifetime: "station",
-          attachmentNode: "R_Canonical", node: "R_Legacy" }],
-        sounds: [{ frame: 23, spec: "$helmet,move" }],
-      }],
-    }]);
-
-    expect(routes[0]).toMatchObject({ id: "helmet.route", sourceFile: "Suit/routes.osf.json" });
-    expect(routes[0].stations[1].layer).toMatchObject({ clip: "held.af", holdAt: 1 });
-    expect(routes[0].transitions[0].interruption).toBe("finish-transition");
-    expect(routes[0].transitions[0].events.map((event) => [event.kind, event.frame])).toEqual([
-      ["prop", 18], ["marker", 20], ["sound", 23], ["commit", 24],
-    ]);
-    expect(routes[0].transitions[0].events[0]).toMatchObject({ label: "ATTACH helmet", lifetime: "station", external: false });
-    expect(routes[0].transitions[0].events[0].detail).toContain("attachment node R_Canonical");
-    expect(routes[0].transitions[0].events[0].detail).not.toContain("R_Legacy");
-    expect(routes[0].transitions[0].events[3]).toMatchObject({ external: true });
   });
 });
 
@@ -175,7 +132,7 @@ describe("import report normalization", () => {
   it("fills every field from a sparse native payload", () => {
     const report = normalizeImportReport({
       files: [{ path: "GE/chair.osf.json", file: "chair.osf.json", scenes: 3 }],
-	  totals: { files: 1, scenes: 3, routes: 2, declaredRoutes: 3, rejectedRoutes: 1 },
+	  totals: { files: 1, scenes: 3 },
     });
     expect(report.files[0]).toMatchObject({
       path: "GE/chair.osf.json",
@@ -189,7 +146,7 @@ describe("import report normalization", () => {
       problemCount: 0,
       rejected: false,
     });
-	expect(report.totals).toMatchObject({ files: 1, scenes: 3, routes: 2, declaredRoutes: 3, rejectedRoutes: 1, errors: 0, parseMs: 0 });
+	expect(report.totals).toMatchObject({ files: 1, scenes: 3, errors: 0, parseMs: 0 });
   });
 
   it("survives a malformed payload instead of throwing at the panel", () => {

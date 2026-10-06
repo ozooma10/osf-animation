@@ -57,7 +57,7 @@ namespace OSF::Animation
 		// Preloads every segment's clips so segment switches are pointer swaps. Refuses partial playback.
 		bool PlaySynchronized(const std::vector<RE::Actor*>& a_actors, const PlaybackPlan& a_plan, int32_t a_startSegment,
 			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
-			PlaybackSinkId a_sinkId = 0, bool a_strictTimedMarks = false);
+			PlaybackSinkId a_sinkId = 0);
 
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
 
@@ -70,8 +70,6 @@ namespace OSF::Animation
 			PlaybackId playbackId = 0;
 		};
 
-		// Seek never fires timed marks.
-		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
 		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
 #ifdef OSF_ANIMATION_SMOKE
 		struct AnimationPlayback
@@ -85,8 +83,6 @@ namespace OSF::Animation
 #endif
 
 		bool StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
-		// No-fade removal for owner handoff; a_expectedPlayback is mandatory so no other owner is erased.
-		bool StopSceneImmediate(RE::Actor* a_actor, PlaybackId a_expectedPlayback);
 
 		// -1 if not in a scene.
 		int32_t GetSceneStage(RE::Actor* a_actor);

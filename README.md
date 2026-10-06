@@ -24,10 +24,6 @@ Key Features:
 - **Pack authors:** [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
   ship animation scenes with JSON plus GLB/AF clips, no Papyrus or scripting required; full schema in [docs/SCENE_SCHEMA.md](docs/SCENE_SCHEMA.md).
 
-- **Architecture:** [actor animation composition and state routing](docs/RFC-actor-animation-runtime.md)
-  proposes how equipment routes, persistent constraints, locomotion profiles, and cinematic scenes
-  can share one per-actor pose runtime.
-
 - **Developers:** [profiling workflow](docs/PROFILING.md) covers WPR/WPA CPU sampling.
 
 ## Requirements
@@ -82,7 +78,7 @@ xmake test
 ```
 
 runs the engine-free C++ suites (persistence broker, native scene-event callbacks, frame clock/clip
-specs, additive pose math, sound registry, scene registry, overlay route contracts, and generated
+specs, additive pose math, sound registry, scene registry, and generated
 GLTF/GLB/gzip import fixtures). The browser view has its own suite:
 `npm --prefix ui/animation-browser run verify`.
 

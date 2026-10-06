@@ -13,7 +13,6 @@
 #include "Registry/SceneRegistry.h"
 #include "Packs/PackReload.h"
 #include "Scene/AnchorResolve.h"
-#include "Scene/PlaybackPreviewService.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/WheelPins.h"
 #include "UI/HudMessage.h"
@@ -52,7 +51,6 @@ namespace OSF::API
 		using UIBridgeCatalog::BuildCatalog;
 		using UIBridgeCatalog::ActorCountOf;
 		using UIBridgeCatalog::BuildFileReport;
-		using UIBridgeCatalog::BuildRoutes;
 		using UIBridgeCatalog::BuildWheelData;
 		using UIBridgeCatalog::IsWheelEntryEligible;
 		using UIBridgeWorld::AllocToken;
@@ -143,7 +141,6 @@ namespace OSF::API
 		{
 			auto& rt = Scene::SceneRuntime::GetSingleton();
 			auto& gm = Animation::GraphManager::GetSingleton();
-			auto inspections = Scene::PlaybackPreviewService::GetSingleton().List();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			const auto buildCast = [player](const std::vector<RE::Actor*>& a_participants, bool& a_hasPlayer) {
 				json cast = json::array();
@@ -170,7 +167,6 @@ namespace OSF::API
 					{ "handle", s.handle },
 					{ "sceneId", s.id.empty() ? std::string{ "runtime.files" } : s.id },
 					{ "stage", rt.GetStage(s.handle) },
-					{ "inspection", false },
 					{ "player", hasPlayer },
 					{ "cast", std::move(cast) },
 				};
@@ -184,25 +180,6 @@ namespace OSF::API
 						item["speed"] = playback->speed;
 					}
 				}
-				scenes.push_back(std::move(item));
-			}
-			for (const auto& preview : inspections) {
-				bool hasPlayer = false;
-				json cast = buildCast(preview.participants, hasPlayer);
-				json item{
-					{ "handle", preview.handle },
-					{ "sceneId", preview.sceneId },
-					{ "stage", preview.stage },
-					{ "inspection", true },
-					{ "player", hasPlayer },
-					{ "cast", std::move(cast) },
-					{ "speed", preview.playback.speed },  // 0 = paused
-				};
-				item["time"] = preview.playback.time;
-				item["duration"] = preview.playback.duration;
-				item["inspectionKind"] = preview.inspectionKind;
-				if (!preview.routeId.empty()) item["routeId"] = preview.routeId;
-				if (!preview.transitionId.empty()) item["transitionId"] = preview.transitionId;
 				scenes.push_back(std::move(item));
 			}
 			return json{ { "scenes", std::move(scenes) } };
@@ -360,11 +337,6 @@ namespace OSF::API
 			SendJson(a_srcView, "osf.animation.library.data", BuildCatalog(true));
 		}
 
-		void OnRoutesGet(const char*, const char*, const char* a_srcView, void*) noexcept
-		{
-			SendJson(a_srcView, "osf.animation.routes.data", BuildRoutes());
-		}
-
 		void OnImportsGet(const char*, const char*, const char* a_srcView, void*) noexcept
 		{
 			SendJson(a_srcView, "osf.animation.imports.data", BuildFileReport());
@@ -463,11 +435,9 @@ namespace OSF::API
 			std::vector<RE::Actor*>                  actors;
 			RE::TESObjectREFR*                       furniture = nullptr;
 			OSFStartOptions                          options{};
-			bool                                     inspect = false;
 			std::string                              locationMode;
 			std::int32_t                             locationToken = 0;
 			std::vector<std::string>                 roleNames;
-			std::optional<Scene::PreparedPreview> preparedPreview;
 		};
 
 		std::optional<std::string> ResolveLaunchCast(const json& a_payload, BrowserLaunchPlan& a_plan)
@@ -527,10 +497,6 @@ namespace OSF::API
 			options.playerControlMode = vocabularyTri("sceneControls", "playerControl");
 			options.fadeMode = OptTri(opts, "fade");
 			options.speed = NumOr(opts, "speed", 1.0f);
-			a_plan.inspect = !g_wheel.active && BoolOr(a_payload, "inspect", false);
-			if (a_plan.inspect) {
-				options.speed = 0.0f;
-			}
 
 			options.startStage = 0;
 			if (const auto it = opts.find("stage"); it != opts.end()) {
@@ -635,57 +601,10 @@ namespace OSF::API
 			return std::nullopt;
 		}
 
-		std::optional<std::string> PrepareLaunchPreview(
-			BrowserLaunchPlan& a_plan, Scene::PlaybackPreviewService& a_service)
-		{
-			if (!a_plan.inspect) {
-				return std::nullopt;
-			}
-			auto definition = Registry::ContentRegistry::GetSingleton().Find(a_plan.sceneId);
-			if (!definition) {
-				return "The selected scene definition is no longer loaded";
-			}
-
-			Scene::PreviewWorldAnchor anchor{};
-			if (a_plan.options.anchorRef) {
-				const auto resolved = Scene::ResolveSceneAnchor(
-					a_plan.sceneId, a_plan.options.anchorRef, std::nullopt, /*a_emitHud*/ false);
-				if (!resolved) {
-					return "The selected scene cannot use that anchor";
-				}
-				anchor = Scene::PreviewWorldAnchor{ resolved->set, resolved->pos, resolved->heading };
-			} else if (definition->RequiresAnchor()) {
-				return "This scene requires compatible furniture";
-			} else if (a_plan.options.hasAnchor) {
-				anchor = Scene::PreviewWorldAnchor{
-					true,
-					RE::NiPoint3{
-						a_plan.options.anchorX,
-						a_plan.options.anchorY,
-						a_plan.options.anchorZ,
-					},
-					a_plan.options.anchorHeadingRad,
-				};
-			}
-
-			std::string prepareError;
-			a_plan.preparedPreview = a_service.Prepare(
-				Scene::PreviewRequest{
-					definition,
-					a_plan.actors,
-					a_plan.roleNames,
-					a_plan.options.startStage,
-					anchor,
-				},
-				prepareError);
-			return a_plan.preparedPreview ? std::nullopt : std::optional<std::string>{ std::move(prepareError) };
-		}
-
 		void SupersedeLaunchActors(const BrowserLaunchPlan& a_plan,
-			Scene::PlaybackPreviewService& a_previewService, IOSFSceneAPI& a_api)
+			IOSFSceneAPI& a_api)
 		{
 			for (RE::Actor* actor : a_plan.actors) {
-				a_previewService.StopForActor(actor);
 				const std::int32_t busy = a_api.GetSceneForActor(actor);
 				if (busy == 0) {
 					continue;
@@ -701,56 +620,24 @@ namespace OSF::API
 			}
 		}
 
-		struct BrowserLaunchResult
+		std::int32_t StartBrowserLaunch(const BrowserLaunchPlan& a_plan, IOSFSceneAPI& a_api)
 		{
-			std::int32_t               handle = 0;
-			std::optional<std::string> error;
-		};
-
-		BrowserLaunchResult StartBrowserLaunch(BrowserLaunchPlan& a_plan,
-			Scene::PlaybackPreviewService& a_previewService, IOSFSceneAPI& a_api)
-		{
-			if (a_plan.inspect) {
-				std::string startError;
-				const auto handle =
-					a_previewService.Start(std::move(*a_plan.preparedPreview), startError);
-				if (handle == 0) {
-					return { handle, std::move(startError) };
-				}
-				return { handle, std::nullopt };
-			}
 			if (!a_plan.roleNames.empty()) {
 				std::vector<const char*> rolePtrs;
 				rolePtrs.reserve(a_plan.roleNames.size());
-				for (const auto& role : a_plan.roleNames) {
-					rolePtrs.push_back(role.c_str());
-				}
-				return {
-					a_api.StartSceneRoles(
-						a_plan.actors.data(),
-						static_cast<std::uint32_t>(a_plan.actors.size()),
-						a_plan.sceneId.c_str(),
-						rolePtrs.data(),
-						static_cast<std::uint32_t>(rolePtrs.size()),
-						a_plan.options),
-					std::nullopt,
-				};
+				for (const auto& role : a_plan.roleNames) rolePtrs.push_back(role.c_str());
+				return a_api.StartSceneRoles(a_plan.actors.data(), static_cast<std::uint32_t>(a_plan.actors.size()),
+					a_plan.sceneId.c_str(), rolePtrs.data(), static_cast<std::uint32_t>(rolePtrs.size()), a_plan.options);
 			}
-			return {
-				a_api.StartScene(
-					a_plan.actors.data(),
-					static_cast<std::uint32_t>(a_plan.actors.size()),
-					a_plan.sceneId.c_str(),
-					a_plan.options),
-				std::nullopt,
-			};
+			return a_api.StartScene(a_plan.actors.data(), static_cast<std::uint32_t>(a_plan.actors.size()),
+				a_plan.sceneId.c_str(), a_plan.options);
 		}
 
 		bool RecordLaunchSuccess(const BrowserLaunchPlan& a_plan, std::int32_t a_handle)
 		{
 			g_lastHandle = a_handle;
 			// Stage rows and wheel entries play one animation, not the parent collection.
-			if (!a_plan.inspect && (g_wheel.active || a_plan.singleAnimation)) {
+			if (g_wheel.active || a_plan.singleAnimation) {
 				Scene::SceneRuntime::GetSingleton().SetSingleStage(a_handle);
 			}
 
@@ -758,7 +645,7 @@ namespace OSF::API
 			const bool castHasPlayer = player &&
 				std::find(a_plan.actors.begin(), a_plan.actors.end(), static_cast<RE::Actor*>(player)) !=
 					a_plan.actors.end();
-			if (!a_plan.inspect && !g_wheel.active && castHasPlayer) {
+			if (!g_wheel.active && castHasPlayer) {
 				g_closeStops.push_back(a_handle);
 			}
 			return castHasPlayer;
@@ -802,97 +689,25 @@ namespace OSF::API
 				return fail(*error);
 			}
 
-			auto& previewService = Scene::PlaybackPreviewService::GetSingleton();
-			if (const auto error = PrepareLaunchPreview(plan, previewService)) {
-				return fail(*error);
-			}
 			auto* api = SceneAPI();
 			if (!api) {
 				return fail("OSF Animation engine is not ready yet");
 			}
 
-			SupersedeLaunchActors(plan, previewService, *api);
-			BrowserLaunchResult started = StartBrowserLaunch(plan, previewService, *api);
-			if (started.handle == 0) {
-				return fail(started.error
-				                ? *started.error
-				                : LaunchError(plan.sceneId, plan.actors.size(), plan.furniture != nullptr));
+			SupersedeLaunchActors(plan, *api);
+			const auto handle = StartBrowserLaunch(plan, *api);
+			if (handle == 0) {
+				return fail(LaunchError(plan.sceneId, plan.actors.size(), plan.furniture != nullptr));
 			}
 
-			const bool castHasPlayer = RecordLaunchSuccess(plan, started.handle);
+			const bool castHasPlayer = RecordLaunchSuccess(plan, handle);
 			reply["ok"] = true;
-			reply["handle"] = started.handle;
-			reply["inspect"] = plan.inspect;
+			reply["handle"] = handle;
 			REX::DEBUG("[UI] osf.animation.launch '{}' -> handle {} ({} cast{}{})",
-				plan.sceneId, started.handle, plan.actors.size(),
+				plan.sceneId, handle, plan.actors.size(),
 				plan.furniture ? ", anchored" : "",
 				castHasPlayer ? "" : ", NPC-only — outlives the browser");
 			SendJson(a_srcView, "osf.animation.launchResult", reply);
-			PushActiveScenes();
-		}
-
-		void OnRouteInspect(const char*, const char* a_payload, const char* a_srcView, void*) noexcept
-		{
-			const json j = ParsePayload(a_payload);
-			const std::string routeId = j.is_object() && j.contains("routeId") && j["routeId"].is_string()
-				? j["routeId"].get<std::string>() : std::string{};
-			const std::string transitionId = j.is_object() && j.contains("transitionId") && j["transitionId"].is_string()
-				? j["transitionId"].get<std::string>() : std::string{};
-			json reply{
-				{ "routeId", routeId },
-				{ "transitionId", transitionId },
-			};
-			const auto fail = [&](std::string_view a_reason) {
-				reply["ok"] = false;
-				reply["handle"] = 0;
-				reply["error"] = a_reason;
-				REX::WARN("[UI] route preview '{}:{}' refused: {}", routeId, transitionId, a_reason);
-				SendJson(a_srcView, "osf.animation.routeInspectResult", reply);
-			};
-
-			if (routeId.empty() || transitionId.empty()) {
-				return fail("Choose a route transition to inspect");
-			}
-			const auto token = j.is_object() && j.contains("actorToken") ? Int32Value(j["actorToken"]) : std::nullopt;
-			if (!token) {
-				return fail("Choose one route preview actor");
-			}
-			auto* ref = ResolveToken(*token);
-			if (!ref || !ref->IsActor()) {
-				return fail("The selected route preview actor is no longer available — re-pick it");
-			}
-			auto* actor = static_cast<RE::Actor*>(ref);
-			auto route = Registry::ContentRegistry::GetSingleton().FindRoute(routeId);
-			auto& previewService = Scene::PlaybackPreviewService::GetSingleton();
-			std::string error;
-			auto prepared = previewService.PrepareRoute(
-				Scene::RoutePreviewRequest{ route, transitionId, actor }, error);
-			if (!prepared) {
-				return fail(error);
-			}
-
-			// Replaces any preview or runtime scene on the actor; overlay routes are suspended, not destroyed.
-			previewService.StopForActor(actor);
-			if (auto* api = SceneAPI()) {
-				const auto busy = api->GetSceneForActor(actor);
-				if (busy != 0) {
-					(void)api->StopScene(busy);
-					std::erase(g_closeStops, busy);
-					g_resumeSpeeds.erase(busy);
-					if (g_lastHandle == busy) g_lastHandle = 0;
-				}
-			}
-
-			const auto handle = previewService.StartRoute(std::move(*prepared), error);
-			if (handle == 0) {
-				return fail(error.empty() ? "The route transition preview could not start" : error);
-			}
-			g_lastHandle = handle;
-			reply["ok"] = true;
-			reply["handle"] = handle;
-			REX::DEBUG("[UI] route preview '{}:{}' -> handle {} actor={:08X}",
-				routeId, transitionId, handle, actor->formID);
-			SendJson(a_srcView, "osf.animation.routeInspectResult", reply);
 			PushActiveScenes();
 		}
 
@@ -923,12 +738,8 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = *parsed;
-			bool ok = Scene::PlaybackPreviewService::GetSingleton().Stop(handle);
-			if (!ok) {
-				if (auto* api = SceneAPI(); api && handle != 0) {
-					ok = api->StopScene(handle);
-				}
-			}
+			auto* api = SceneAPI();
+			const bool ok = api && handle != 0 && api->StopScene(handle);
 			if (ok) {
 				std::erase(g_closeStops, handle);
 				g_resumeSpeeds.erase(handle);
@@ -948,12 +759,8 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = *parsed;
-			bool ok = false;
-			if (!Scene::PlaybackPreviewService::GetSingleton().Contains(handle)) {
-				if (auto* api = SceneAPI(); api && handle != 0) {
-					ok = api->Advance(handle);
-				}
-			}
+			auto* api = SceneAPI();
+			const bool ok = api && handle != 0 && api->Advance(handle);
 			// Keep a paused scene paused across NEXT.
 			if (ok && g_resumeSpeeds.contains(handle)) {
 				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
@@ -976,24 +783,6 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = IntOr(j, "handle", 0);
-			auto& previewService = Scene::PlaybackPreviewService::GetSingleton();
-			if (previewService.Contains(handle)) {
-				if (const auto time = j.find("time"); time != j.end() && time->is_number()) {
-					const double value = time->get<double>();
-					if (std::isfinite(value) && value >= 0.0 && value <= std::numeric_limits<float>::max() &&
-						!previewService.Seek(handle, static_cast<float>(value))) {
-						REX::WARN("[UI] preview seek failed for stale handle={}", handle);
-					}
-				}
-				// A running preview loops its clip; it never fires cues, sounds, or actions.
-				if (const auto paused = j.find("paused"); paused != j.end() && paused->is_boolean()) {
-					if (!previewService.SetSpeed(handle, paused->get<bool>() ? 0.0f : 1.0f)) {
-						REX::WARN("[UI] preview transport failed for stale handle={}", handle);
-					}
-				}
-				SendJson(a_srcView, "osf.animation.activeScenes", BuildActiveScenes());
-				return;
-			}
 			auto participants = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
 			if (handle == 0 || participants.empty() || !participants.front()) {
 				return;
@@ -1211,7 +1000,6 @@ namespace OSF::API
 			g_openPickToken = 0;
 			UIBridgeWorld::ClearSessionTokens();
 			g_orbitSpaceNoticed = false;
-			Scene::PlaybackPreviewService::GetSingleton().StopAll();
 			// NPC-only scenes outlive the browser; unpause them before their only control surface goes.
 			for (const auto& [handle, speed] : g_resumeSpeeds) {
 				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
@@ -1447,7 +1235,6 @@ namespace OSF::API
 		g_relativePointerRegistered = BrowserSession::RegisterPointer(&OnRelativePointer);
 		BrowserSession::RegisterSend("osf.animation.catalog.get", &OnCatalogGet, false);
 		BrowserSession::RegisterSend("osf.animation.library.get", &OnLibraryGet, false);
-		BrowserSession::RegisterSend("osf.animation.routes.get", &OnRoutesGet, false);
 		BrowserSession::RegisterSend("osf.animation.imports.get", &OnImportsGet, false);
 		BrowserSession::RegisterSend("osf.animation.imports.reload", &OnImportsReload);
 		BrowserSession::RegisterSend("osf.animation.imports.copy", &OnImportsCopy);
@@ -1455,7 +1242,6 @@ namespace OSF::API
 		BrowserSession::RegisterSend("osf.animation.anchorMatch", &OnAnchorMatch);
 		BrowserSession::RegisterSend("osf.animation.castMatch", &OnCastMatch);
 		BrowserSession::RegisterSend("osf.animation.launch", &OnLaunch);
-		BrowserSession::RegisterSend("osf.animation.route.inspect", &OnRouteInspect);
 		BrowserSession::RegisterSend("osf.animation.stop", &OnStop);
 		BrowserSession::RegisterSend("osf.animation.advance", &OnAdvance);
 		BrowserSession::RegisterSend("osf.animation.playback.get", &OnPlaybackGet);

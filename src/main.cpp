@@ -1,6 +1,5 @@
 #include "API/Health.h"
 #include "API/MinimumVersion.h"
-#include "API/OverlayAPIControl.h"
 #include "API/SceneAPIControl.h"
 #include "API/UIBridge.h"
 #include "API/UISettings.h"
@@ -9,7 +8,6 @@
 #include "Equipment/GearRegistry.h"
 #include "Input/InputService.h"
 #include "Maintenance/FrameMaintenance.h"
-#include "Overlay/OverlayService.h"
 #include "Papyrus/OSFScript.h"
 #include "Registry/RequirementRegistry.h"
 #include "Registry/SceneRegistry.h"
@@ -42,12 +40,10 @@ namespace
 			OSF::API::Health::ReportRegistryLoad();
 			OSF::Equipment::Gear::LoadAll();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
-			OSF::Overlay::OverlayService::GetSingleton().Register();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
 			OSF::API::MarkReady();
-			OSF::API::MarkOverlayReady();
 			OSF::API::InstallUIBridge();
 			// After the registries so initial settings apply to loaded services.
 			OSF::API::InstallUISettings();

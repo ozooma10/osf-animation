@@ -14,15 +14,14 @@ track positions still serialize as `at`/`atFrame`, not `trackPosition`.
 | Canonical term | Meaning | Terms to qualify or avoid |
 |---|---|---|
 | **scene** | An authored scene definition or its live domain runtime: roles, flow, policy, tracks, participants, and undo ledger. | Do not use for every low-level animation playback object. |
-| **playback session** | The Layer-A synchronized animation playback used by a scene, route transition, station, or preview. | C++ uses `PlaybackSession`, `PlaybackPlan`, and `PlaySynchronized`. |
+| **playback session** | The Layer-A synchronized animation playback used by a scene. | C++ uses `PlaybackSession`, `PlaybackPlan`, and `PlaySynchronized`. |
 | **flow node** | A node in a scene's authored control-flow graph (`nodes[]`). | Use bare *node* only when the flow context is unambiguous. An actor attachment node or engine render node is a different concept. |
 | **attachment node** | A named actor skeleton/render-tree target for a prop attachment. | Preferred prop field `attachmentNode`; legacy alias `node`. Neither identifies a flow node. |
 | **actor playback graph** | The per-actor animation sampler/stamper used by the playback layer. | Current C++ type `Animation::Graph`; do not shorten this to *scene graph*. |
 | **render node / render tree** | An engine `NiNode`/`BGSModelNode` and its hierarchy. | Current utility name `SceneGraph` refers to this engine render tree, not scene flow. |
 | **linear stage** | One author-facing entry in a linear scene's `stages[]`, or one entry exposed by `linearStages`. | A linear-stage index is not a playback-segment index. |
 | **playback segment** | One low-level unit of clips, timing, placement, and blend inside a playback session. | Preferred C++ names are `PlaybackPlan::Segment`/`SegmentData`; `Stage`/`StageData` remain compatibility aliases. |
-| **scene edge** | A directed connection between scene flow nodes (`edges[]`). | Do not call a route transition an edge. |
-| **route transition** | A directed connection between route stations (`transitions[]`). | Algorithmic prose should say *transition count*, not *edge count*. |
+| **scene edge** | A directed connection between scene flow nodes (`edges[]`). | Edges determine scene navigation. |
 
 ## Policy and authoring
 
@@ -46,7 +45,7 @@ describing the behavior.
 
 | Canonical term | Meaning | Compatibility spelling |
 |---|---|---|
-| **content registry** | The loaded snapshot of scenes, routes, curated animation entries, and per-file import results. | Preferred internal aliases `ContentRegistry`/`ContentRegistrySnapshot`; `SceneRegistry`/`SceneRegistrySnapshot`, `SceneFileStats`, and `GetSceneLoadErrors` remain compatibility names. |
+| **content registry** | The loaded snapshot of scenes, curated animation entries, and per-file import results. | Preferred internal aliases `ContentRegistry`/`ContentRegistrySnapshot`; `SceneRegistry`/`SceneRegistrySnapshot`, `SceneFileStats`, and `GetSceneLoadErrors` remain compatibility names. |
 | **content file** | One discovered `*.osf.json` document and the defaults or reusable definitions scoped to that file. | Do not call a file-level default *pack-wide*. |
 | **content pack** | An author/product grouping that may span multiple content files; `pack` is its presentation label. | It is not a parser or inheritance boundary. `ReloadPacks` is a legacy binding name for reloading all content. |
 | **playable catalog** | The umbrella collection of browsable scenes, emotes, and animations that can be launched. | Avoid using *library* for every catalog partition. |
@@ -54,10 +53,7 @@ describing the behavior.
 | **curated animation** | An explicitly registered, individually browsable animation clip. | Established JSON key `clipLibrary`; it is distinct from an automatically derived inspection entry. |
 | **reference catalog** | Non-matchmaking reference content selected by file-level `section: "library"`. | `library` is the established schema value, not the umbrella term for all playable content. |
 | **emote** | A playable solo gesture/category, such as content tagged `player.emote.*`. | Reserve *action* for entries on the authored `action` track; older UI copy may label emotes `Action`. |
-| **preview session** | Temporary playback created for author inspection. | C++ uses `PlaybackPreviewService` and its preview request/snapshot types. |
-| **active launch** | A UI projection with a handle that may represent either a live scene or a preview session. | Preferred browser type/function `ActiveLaunch`/`activeLaunches`; native event `activeScenes` remains a compatibility wire name. Do not infer that every entry is a Layer-A playback session. |
-| **inspection mode** | The side-effect-suppressed policy applied to a preview session. | It suppresses callbacks, audio, external mutations, and other history-dependent effects as documented by each tool. |
-| **debugger** | The UI tool that controls and visualizes preview sessions. | Do not use *debugger* as the runtime object's type. |
+| **active launch** | A UI projection with a handle that represents a live scene. | Preferred browser type/function `ActiveLaunch`/`activeLaunches`; native event `activeScenes` remains a compatibility wire name. Do not infer that every entry is a Layer-A playback session. |
 
 ## Casting and lifecycle
 
@@ -70,7 +66,7 @@ describing the behavior.
 | **roster** | The ordered collection of a scene's participants. | — |
 | **complete** | Reach the authored natural end. | Use instead of an unqualified *finish*. |
 | **cancel** | End because a caller or user requested a stop. | Public `Stop*` API names remain valid. |
-| **interrupt** | End because external runtime state prevented continuation, such as world replacement or playback failure. | Route `interrupt: "finish"` is different: that legacy value means complete the current route transition before honoring the new request. |
+| **interrupt** | End because external runtime state prevented continuation, such as world replacement or playback failure. | — |
 | **terminate** | Umbrella term for complete, cancel, or interrupt. | Use only when the cause is intentionally unspecified. |
 | **teardown** | Release runtime resources and reverse ledgered mechanisms after termination. | Teardown is cleanup, not a termination cause. |
 

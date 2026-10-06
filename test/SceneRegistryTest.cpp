@@ -1,10 +1,9 @@
 #include "Check.h"
 
 #include "Registry/SceneRegistry.h"
-#include "Scene/InspectionPropCursor.h"
-#include "Scene/InspectionPropTimeline.h"
 
 #include "Animation/Scene.h"
+#include "Animation/PlaybackAdmission.h"
 #include "Util/Math.h"
 
 #include <iostream>
@@ -33,6 +32,28 @@ namespace
 	static_assert(std::is_same_v<OSF::Registry::ContentRegistrySnapshot, OSF::Registry::SceneRegistrySnapshot>);
 	static_assert(std::is_same_v<OSF::Registry::ContentRegistry, OSF::Registry::SceneRegistry>);
 
+	void CheckPlaybackAdmission()
+	{
+		using namespace OSF::Animation;
+		Check(EvaluatePlaybackAdmission({}, 0, 10).accepted,
+			"an empty actor admits a new staged owner");
+		Check(EvaluatePlaybackAdmission({}, 99, 10).reason == PlaybackAdmissionReason::kExpectedMissing,
+			"replacement requires the named playback to exist");
+		Check(EvaluatePlaybackAdmission({ PlaybackOccupant::kStandalone, 0, 0 }, 0, 10).reason ==
+			PlaybackAdmissionReason::kStandaloneOccupied,
+			"a service-owned staged request cannot clobber standalone playback");
+		Check(EvaluatePlaybackAdmission({ PlaybackOccupant::kStandalone, 0, 0 }, 0, 0).accepted,
+			"the legacy sink may retain its explicit standalone replacement behavior");
+		const PlaybackClaim staged{ PlaybackOccupant::kStaged, 42, 7 };
+		Check(EvaluatePlaybackAdmission(staged, 0, 7).reason == PlaybackAdmissionReason::kPlaybackMismatch,
+			"a staged playback is never replaced without its exact id");
+		Check(EvaluatePlaybackAdmission(staged, 42, 8).reason == PlaybackAdmissionReason::kOwnerMismatch,
+			"a playback id cannot be used by a different registered sink");
+		const auto owned = EvaluatePlaybackAdmission(staged, 42, 7);
+		Check(owned.accepted && owned.replace, "the exact playback and sink can replace their own graph");
+
+	}
+
 	// Passes if any load error contains the substring.
 	void CheckError(const std::vector<std::string>& a_errors, const std::string& a_needle, const char* a_message)
 	{
@@ -48,6 +69,7 @@ namespace
 
 int main()
 {
+	CheckPlaybackAdmission();
 	using OSF::Registry::SceneRegistry;
 	using OSF::Registry::ActionKind;
 	using OSF::Registry::LoopMode;
@@ -55,49 +77,6 @@ int main()
 	using OSF::Registry::SoundEmitter;
 	using OSF::Registry::TrackPos;
 	using OSF::Animation::PoseMode;
-
-	{
-		std::vector<OSF::Registry::ActionEntry> actions(5);
-		actions[0].kind = ActionKind::kPropAttach;
-		actions[0].pos = TrackPos::kEnter;
-		actions[0].prop = "hat";
-		actions[1] = actions[0];
-		actions[1].pos = TrackPos::kFraction;
-		actions[1].frame = 30.0f;
-		actions[1].kind = ActionKind::kPropDestroy;
-		actions[2] = actions[1];
-		actions[2].frame = 60.0f;
-		actions[2].kind = ActionKind::kPropAttach;
-		actions[3] = actions[0];
-		actions[3].pos = TrackPos::kEnd;
-		actions[3].prop = "end";
-		actions[4].pos = TrackPos::kFraction;
-		actions[4].fraction = 0.1f;  // a non-prop mark must not cause reconciliation
-
-		OSF::Scene::InspectionPropCursor cursor;
-		cursor.Reset(OSF::Scene::InspectionPropMarks(actions, 2.0f));
-		Check(cursor.Update(0.0f, false) && !cursor.Update(0.1f, false) &&
-			!cursor.Update(0.499f, false), "preview starts once and skips frames before the first prop mark");
-		Check(cursor.Update(0.5f, false) && !cursor.Update(0.75f, false) && !cursor.Update(1.0f, false),
-			"preview reconciles at a prop mark but excludes a frame mark at the strict clip end");
-		Check(cursor.Update(1.0f, true) && !cursor.Update(1.0f, true),
-			"preview applies end state once");
-		Check(cursor.Update(0.9f, false) && cursor.Update(0.6f, false),
-			"preview rewinds reconcile even within the same interval");
-		Check(cursor.Update(0.7f, false, true) && !cursor.Update(0.7f, false),
-			"explicit seeks retry reconciliation without enabling per-frame retries");
-		Check(cursor.Update(0.0f, false) && !cursor.Update(0.2f, false),
-			"a loop rebuilds enter state once");
-		Check(OSF::Scene::InspectionPropsAt(actions, 0.0f, false, 2.0f).size() == 1 &&
-			OSF::Scene::InspectionPropsAt(actions, 1.0f, false, 2.0f).empty(),
-			"preview reconstructs enter and timed destroy while excluding frame-at-end attach");
-		const auto ended = OSF::Scene::InspectionPropsAt(actions, 1.0f, true, 2.0f);
-		Check(ended.size() == 1 && ended[0].prop == "end", "end actions follow timed prop marks");
-		cursor.Reset(OSF::Scene::InspectionPropMarks(actions, 4.0f));
-		Check(cursor.Update(0.2f, false) && cursor.Update(0.25f, false) && cursor.Update(0.5f, false) &&
-			OSF::Scene::InspectionPropsAt(actions, 0.5f, false, 4.0f).size() == 1,
-			"duration changes rebuild prop boundaries and make a formerly out-of-range frame eligible");
-	}
 
 	// xmake runs this target with test/fixtures as cwd, so LoadAll sees Data/OSF.
 	Check(OSF::Registry::ParseCameraState("Scene_Orbit") == OSF::Registry::CameraState::kSceneOrbit,
@@ -128,25 +107,6 @@ int main()
 	} else {
 		Check(false, "reference source-kind fixture loads");
 	}
-	{
-		const auto route = reg.FindRoute("FIXTURE.OVERLAY.HELMET");
-		Check(route && route->stations.size() == 3 && route->transitions.size() == 3,
-			"overlay routes load into the case-insensitive snapshot map");
-		Check(route && !route->FindStation("head")->layer && route->FindStation("held")->layer.has_value(),
-			"zero-animation and animated stations retain their distinct shapes");
-		const auto* transition = route ? route->FindTransition("head-to-held") : nullptr;
-		Check(transition && transition->layer.mask == "arms" && transition->commit &&
-			transition->commit->id == "fixture.helmet.hide_head" && transition->commit->frame == 24.0f && transition->props.size() == 2,
-			"transition layer, commit, and prop contracts are retained");
-		Check(transition && transition->contactPose && transition->contactPose->bones.size() == 3 &&
-			transition->contactPose->bones[2] == "C_Head" &&
-			std::abs(transition->contactPose->releaseSeconds - 0.4f) < 0.0001f,
-			"transition contact-pose envelope is validated and retained");
-		Check(transition && transition->props[0].lifetime == OSF::Registry::RouteLifetime::kExternal &&
-			transition->props[1].lifetime == OSF::Registry::RouteLifetime::kStation && transition->props[1].attachment.targetNode == "C_Head",
-			"external props need no OSF source while owned props resolve the file-local template");
-	}
-
 	// Authored scenes only; generated clip entries and clipLibrary registrations don't count.
 	Check(reg.Size() == 36, "authored scene count");
 
@@ -491,21 +451,6 @@ int main()
 				Check(destroy.kind == ActionKind::kPropDestroy && destroy.pos == TrackPos::kFraction &&
 					destroy.fraction == 0.75f && destroy.prop == "helmet",
 					"compiled prop destroy identity and timing parse");
-				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.249f, false).empty(),
-					"inspection prop state is absent before attach");
-				const auto attached = OSF::Scene::InspectionPropsAt(node.actions, 0.25f, false);
-				Check(attached.size() == 1 && attached[0].prop == "helmet" &&
-					attached[0].propAttachment.targetNode == "R_AnimObject1",
-					"inspection prop state includes attach at its exact mark");
-				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.749f, false).size() == 1,
-					"inspection prop state persists between marks");
-				Check(OSF::Scene::InspectionPropsAt(node.actions, 0.75f, false).empty(),
-					"inspection prop state removes the prop at its destroy mark");
-				auto reverseAuthored = node.actions;
-				std::reverse(reverseAuthored.begin(), reverseAuthored.end());
-				Check(OSF::Scene::InspectionPropsAt(reverseAuthored, 0.5f, false).size() == 1 &&
-					OSF::Scene::InspectionPropsAt(reverseAuthored, 0.75f, false).empty(),
-					"inspection prop state follows mark time rather than authored array order");
 			}
 			const auto plan = reg.BuildNodePlan(s, node, 1);
 			Check(plan && !plan->anchored && plan->masks.size() == 1 && plan->masks[0] == "upperBody",
@@ -826,18 +771,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 64, "exactly the sixty-four expected diagnostics");
-	CheckError(errors, "policy/arbitration key 'stripActors'", "route policy keys are rejected");
-	CheckError(errors, "layer: 'mask'", "route animation masks are mandatory");
-	CheckError(errors, "duplicate station id", "duplicate route station ids are rejected");
-	CheckError(errors, "from/to must name declared stations", "route endpoints are validated");
-	CheckError(errors, "commit: 'marker'", "route commit syntax is validated");
-	CheckError(errors, "unknown lifetime", "route lifetimes are validated");
-	CheckError(errors, "markers are instantaneous", "route markers reject misleading lifetime promises");
-	CheckError(errors, "sounds are one-shot", "route sounds reject unsupported cancellation lifetimes");
-	CheckError(errors, "policy/arbitration key 'claims'", "phase-two claims are rejected in schema v1");
-	CheckError(errors, "'reach' was removed", "removed live-reach syntax receives an explicit migration error");
-	CheckError(errors, "duplicate route id", "duplicate route ids are rejected first-wins");
+	Check(errors.size() == 50, "exactly the fifty expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");
@@ -885,12 +819,7 @@ int main()
 		"sceneControls field names are built from the authored key spelling");
 	CheckError(errors, "scene 'test.err.controls-disable': 'sceneControls.disable' must be an array of strings",
 		"an array-only key does not quietly accept a bare string");
-	CheckError(errors, "transition 'ab': 'layer' must be an object",
-		"a non-object route layer names the key");
-	CheckError(errors, "transition 'ab': layer has unknown key 'blend'",
-		"the route layer namespace is closed");
-	CheckError(errors, "transition 'ab': contactPose has unknown key 'grip'",
-		"the contactPose namespace is closed");
+
 	CheckError(errors, "scene 'test.err.weight-type': 'weight' must be an integer",
 		"a non-integer weight is reported as a type error");
 	CheckError(errors, "scene 'test.err.weight-range': 'weight' must be in [1, 1000000]",
@@ -943,21 +872,24 @@ int main()
 		stage.duration = 2.0f;
 		stage.marks.push_back({ .fraction = 0.25f, .lane = 1, .token = "quarter" });
 		scene.stages.push_back(std::move(stage));
-		Check(scene.SetSegment(0), "scene seek fixture selects its stage");
+		Check(scene.SetSegment(0), "scene transport fixture selects its stage");
 		int owner = 0;
 		(void)scene.Advance(&owner, 0.75f);
 		std::vector<OSF::Animation::FiredMark> fired;
 		scene.DrainFiredMarks(fired);
-		Check(fired.size() == 1 && fired[0].token == "quarter", "scene fires a crossed mark before seeking");
-		Check(scene.Seek(1.25f), "scene seek accepts a finite in-range time");
+		Check(fired.size() == 1 && fired[0].token == "quarter", "scene fires a crossed mark before pausing");
+		scene.speed.store(0.0f);
+		(void)scene.Advance(&owner, 0.5f);
+		const auto paused = scene.GetPlaybackSnapshot();
+		Check(std::abs(paused.time - 0.75f) < 0.001f && paused.speed == 0.0f,
+			"pause preserves the shared clock position");
 		scene.DrainFiredMarks(fired);
-		Check(fired.empty(), "scene seek itself does not fire marks");
+		Check(fired.empty(), "paused playback does not fire marks");
+		scene.speed.store(1.0f);
 		(void)scene.Advance(&owner, 0.1f);
 		scene.DrainFiredMarks(fired);
-		Check(fired.empty(), "resuming after a seek does not replay consumed marks");
-		Check(scene.Seek(2.0f) && scene.GetPlaybackSnapshot().time < 2.0f,
-			"scene seek clamps clip end to the final representable pose");
-		Check(!scene.Seek(std::numeric_limits<float>::quiet_NaN()), "scene seek rejects non-finite time");
+		Check(fired.empty() && std::abs(scene.GetPlaybackSnapshot().time - 0.85f) < 0.001f,
+			"resumed playback advances without replaying consumed marks");
 	}
 
 	{
@@ -1018,7 +950,7 @@ int main()
 
 	{
 		const auto files = reg.FileStats();
-		Check(files.size() == 22, "one import record per discovered *.osf.json");
+		Check(files.size() == 20, "one import record per discovered *.osf.json");
 
 		const auto find = [&files](std::string_view a_name) -> const OSF::Registry::ContentFileStats* {
 			for (const auto& f : files) {
@@ -1047,14 +979,6 @@ int main()
 		Check(owned == errors.size(), "every load problem is attributed to exactly one file");
 		Check(sorted, "import records are sorted by path");
 		Check(pathsRelative, "import record paths are Data/OSF-relative and forward-slashed");
-		const auto* overlayRoute = find("fixture_route.osf.json");
-		Check(overlayRoute && overlayRoute->declaredRoutes == 1 && overlayRoute->routes == 1 &&
-			overlayRoute->rejectedRoutes == 0, "clean route files report accepted/declared/rejected route counts");
-		const auto* overlayErrors = find("fixture_route_errors.osf.json");
-		Check(overlayErrors && overlayErrors->declaredRoutes == 15 && overlayErrors->routes == 1 &&
-			overlayErrors->rejectedRoutes == 14 && !overlayErrors->Rejected(),
-			"route-local failures preserve valid sibling routes and report exact rejection counts");
-
 		const auto* bare = find("fixture_bare.osf.json");
 		Check(bare && bare->scenes == 1, "the bare single-scene fixture reports one scene");
 		Check(bare && bare->schema == OSF::Registry::kSchemaVersion, "the declared schema is recorded");
@@ -1167,14 +1091,6 @@ int main()
 					!scene->fade && !scene->sceneControls.enabled && scene->unlisted,
 					"live smoke scenes preserve the explicit minimal player policy");
 			}
-			const auto route = reg.FindRoute("osf.smoke.zero");
-			if (Check(static_cast<bool>(route), "live zero-animation smoke route is registered")) {
-				const auto* idle = route->FindStation("idle");
-				const auto* isolated = route->FindStation("isolated");
-				Check(route->stations.size() == 2 && route->transitions.empty() &&
-					idle && !idle->layer && isolated && !isolated->layer,
-					"live route has two disconnected stations with no animation layers");
-			}
 			const auto additive = reg.Find("osf.smoke.additive");
 			Check(additive && additive->roles.size() == 1 && additive->roles[0].mask == "upperBody" &&
 				additive->roles[0].poseMode == OSF::Animation::PoseMode::kAdditive && additive->roles[0].poseWeight == 0.25f,
@@ -1182,15 +1098,6 @@ int main()
 			const auto mechanisms = reg.Find("osf.smoke.mechanisms");
 			Check(mechanisms && mechanisms->nodes.size() == 1 && mechanisms->nodes[0].actions.size() == 2,
 				"live mechanism fixture retains both authored enter actions");
-			const auto animated = reg.FindRoute("osf.smoke.animated");
-			if (Check(animated && animated->transitions.size() == 2, "live animated route has outgoing and return transitions")) {
-				const auto& out = animated->transitions[0];
-				const auto* held = animated->FindStation("held");
-				Check(held && held->layer && held->layer->holdAt == 1.0f &&
-					out.layer.clip.file == "OSF/Smoke/head.glb" && out.commit && out.commit->frame == 10.0f &&
-					out.markers.size() == 1 && out.props.size() == 2,
-					"live route retains its generated clip, held pose, commit, marker and prop marks");
-			}
 		} catch (const std::exception& error) {
 			Check(false, std::string("live smoke fixture validation threw: ") + error.what());
 		}

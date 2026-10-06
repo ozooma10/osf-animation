@@ -5,7 +5,7 @@ import { useState } from "octane";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import type { BrowserCommands } from "../src/app/commands";
-import { useBrowserController } from "../src/app/controller";
+import { normalizeActive, useBrowserController } from "../src/app/controller";
 import { createInitialState } from "../src/app/state";
 import { BrowsePanel, sameUnifiedBrowserInputs } from "../src/features/browse/BrowsePanel";
 import { Segmented } from "../src/features/shared/Shared";
@@ -49,6 +49,41 @@ describe("Octane view runtime", () => {
     state.plugin = { plugin: "OSF Animation", version: "1.5.0" };
     render(App, { props: { state, commands } });
     expect(screen.getByText("OSF 1.5.0")).toBeTruthy();
+  });
+
+  it("shows runtime progress and keeps pause and stop bound to the active scene", () => {
+    const setPlayback = vi.fn();
+    const stop = vi.fn();
+    const playbackCommands = new Proxy({ setPlayback, stop }, {
+      get: (target, property) => property === "setPlayback" ? target.setPlayback
+        : property === "stop" ? target.stop : () => undefined,
+    }) as unknown as BrowserCommands;
+    const state = createInitialState();
+    state.mode = "active";
+    state.active = normalizeActive([{ handle: 42, sceneId: "solo", time: 1.25, duration: 5, speed: 1 }]);
+    render(BrowsePanel, { props: { state, commands: playbackCommands } });
+
+    const progress = screen.getByRole("progressbar", { name: "Scene playback progress" }) as HTMLProgressElement;
+    expect(progress.value).toBe(1.25);
+    expect(progress.max).toBe(5);
+    expect(screen.queryByRole("slider")).toBeNull();
+    fireEvent.click(screen.getByTitle("Pause"));
+    fireEvent.click(screen.getByRole("button", { name: "■ STOP" }));
+    expect(setPlayback).toHaveBeenCalledWith(42, true);
+    expect(stop).toHaveBeenCalledWith(42);
+  });
+
+  it("sends runtime pause and resume through the native playback contract", async () => {
+    const send = vi.fn(() => true);
+    window.osfui = {
+      postMessage() {}, send, request: async () => ({}), on: () => () => {},
+      state: { get: () => undefined, on: () => () => {} },
+    } as NonNullable<Window["osfui"]>;
+    const { result } = renderHook(() => useBrowserController());
+    await act(() => result.current.commands.setPlayback(42, true));
+    await act(() => result.current.commands.setPlayback(42, false));
+    expect(send).toHaveBeenCalledWith("osf.animation.playback.set", { handle: 42, paused: true });
+    expect(send).toHaveBeenCalledWith("osf.animation.playback.set", { handle: 42, paused: false });
   });
 
   it("caps an explicitly opened broad-search group", () => {

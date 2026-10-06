@@ -46,17 +46,7 @@ ui/animation-browser/src/ ── Vite ──► build/osfui-animation-browser/..
   `anchorMatch`→`anchorMatch` (reply), `launch`→`launchResult`, `stop`.
   A launch may carry additive `singleAnimation:true`; after entering the requested
   `opts.stage`, any scene edge out ends playback instead of continuing through the
-  parent registry definition. `inspect:true` bypasses `SceneRuntime` entirely and
-  starts a browser-owned, scrub-only Layer-A playback session. It has no lifecycle callbacks,
-  cues, sounds, cameras, equipment policy, or external consumers; the browser owns
-  temporary render props and reconstructs them from the selected node's
-  enter/numeric/end `osf.prop.*` actions at each seek. A preview starts paused;
-  `playback.set {handle, paused:false}` runs it at authored speed (looping its clip,
-  props reconciled on the playback poll) and `paused:true` freezes it again — still
-  side-effect-free, since a preview carries no timers, loop targets, or marks. Any
-  seek takes the transport back, so scrubbing or frame-stepping pauses it. An
-  authored `hold` stage is previewed as its full clip: a preview is a transport over
-  the animation, not a replay of the scene's timing.
+  parent registry definition.
   `wheel.get`→`wheel.data`,
   `wheel.set {entries:[{scene,stage?},...]}` (persist the complete ordered animation-wheel loadout)
   or `wheel.set {reset:true}` (return to installed defaults); the reply is an
@@ -64,25 +54,18 @@ ui/animation-browser/src/ ── Vite ──► build/osfui-animation-browser/..
   `orbit {dx,dy,wheel}` (world-drag steers the native orbit camera; no reply),
   `opened`/`closed` (visibility reports off the `ui.visibility` relay), and
   `requestClose` (view asks the host to hide it — used by the animation wheel).
-  Native→web `activeScenes {scenes:[{handle, sceneId, stage, inspection, player,
+  Native→web `activeScenes {scenes:[{handle, sceneId, stage, player,
   cast:[{token,name,player}]}]}` is the frozen bridge event carrying the authoritative active-launch
-  list: runtime scene instances and preview sessions. It is pushed on `opened`, after a launch, and
+  list of runtime scene instances. It is pushed on `opened`, after a launch, and
   on every relevant lifecycle change (stage advance or any termination, including natural ends).
   The view surfaces it as an **ACTIVE tab** in the browse mode switch (visible only while something
   is active, labeled with the count) holding one card per launch — title, handle, YOU, current stage,
   full cast, per-launch stop (`stop {handle}`), STOP ALL — plus a compact header chip (a single launch
   shows directly with its stop;
   several collapse to a count) that opens the tab, and LIVE badges on busy
-  cast. Ordinary runtime timelines are forward-only (pause/resume); a browser
-  scene-preview handle adds frame stepping and seeking to the same play/pause. A preview also has
-  no runtime stage machine (`advance` no-ops on its handle), so its card carries a
-  **stage strip** — ◀ / windowed per-stage chips / ▶, with NEXT ▸ and Space wrapping
-  through them. Each re-issues `launch {inspect:true, opts.stage}` for the same cast,
-  which retires the running preview and re-enters inspection on that animation at
-  frame 0; the brief's per-animation ◇ starts one the same way. **Close semantics:**
-  every browser preview and every runtime scene whose cast includes the *player* is
-  aborted when the browser closes; ordinary NPC-only scenes keep running
-  (vignettes/machinima) and resurface in this list on the next open.
+  cast. Playback supports pause/resume and stage advance. **Close semantics:**
+  scenes whose cast includes the player stop when the browser closes; NPC-only
+  scenes keep running and resurface on the next open.
   Native→web `mode {mode:"wheel", tagPrefix, target:{token,name}|null}`
   switches the view into **animation-wheel mode** (see below); any other `mode`
   restores the console. Flash-free wheel opens rely on OSF UI **queuing

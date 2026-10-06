@@ -44,12 +44,5 @@
         }
       ]
     }
-  ],
-  "routes": [
-    {
-      "id": "osf.smoke.zero",
-      "stations": [{ "id": "idle" }, { "id": "isolated" }],
-      "transitions": []
-    }
   ]
 }

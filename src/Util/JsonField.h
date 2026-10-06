@@ -34,10 +34,6 @@ namespace OSF::Util
 		JsonView(const nlohmann::json& a_json, std::string a_subject, JsonJoin a_join = JsonJoin::kColon) :
 			_json(a_json), _subject(std::move(a_subject)), _join(a_join)
 		{}
-
-		[[nodiscard]] const nlohmann::json& Json() const noexcept { return _json; }
-		[[nodiscard]] const std::string&    Subject() const noexcept { return _subject; }
-
 		[[nodiscard]] const nlohmann::json* Find(std::string_view a_key) const
 		{
 			if (!_json.is_object()) {
@@ -46,16 +42,6 @@ namespace OSF::Util
 			const auto it = _json.find(a_key);
 			return it == _json.end() ? nullptr : &*it;
 		}
-
-		[[nodiscard]] bool Has(std::string_view a_key) const { return Find(a_key) != nullptr; }
-
-		void RequireObject(JsonText a_text = {}) const
-		{
-			if (!_json.is_object()) {
-				throw std::runtime_error(Compose({}, a_text, "an object"));
-			}
-		}
-
 		// Optional reads: a_out is written only when the key is present; wrong type throws.
 		bool Read(std::string_view a_key, std::string& a_out, JsonText a_text = {}) const
 		{
@@ -114,15 +100,6 @@ namespace OSF::Util
 			}
 			a_out = static_cast<std::int32_t>(raw);
 			return true;
-		}
-
-		[[nodiscard]] std::string RequiredNonEmpty(std::string_view a_key, JsonText a_text = {}) const
-		{
-			const auto* value = Find(a_key);
-			if (!value || !value->is_string() || value->get_ref<const std::string&>().empty()) {
-				throw std::runtime_error(Compose(a_key, a_text, "a non-empty string"));
-			}
-			return value->get<std::string>();
 		}
 
 		// A string or an array of strings; absent yields empty. a_item.field should carry "entries".

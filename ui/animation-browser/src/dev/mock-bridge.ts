@@ -3,7 +3,7 @@ import { isRecord, type BridgeCommand, type NativeMessage } from "../bridge/cont
 import { WHEEL_MAX, sceneById, wheelPool } from "../app/selectors";
 import { PREFERENCE_KEYS } from "../app/settings";
 import { PLAYER_TOKEN, type ActiveLaunch, type BrowserPreferences, type BrowserState } from "../app/state";
-import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY, MOCK_ROUTES } from "./mock-data";
+import { MOCK_ACTORS, MOCK_ANCHORS, MOCK_ANCHOR_MATCH, MOCK_CATALOG, MOCK_IMPORTS, MOCK_LIBRARY } from "./mock-data";
 
 async function fetchFixture(name: "catalog" | "library"): Promise<unknown[] | null> {
   // Uncached so refresh picks up a regenerated snapshot without a reload.
@@ -87,8 +87,6 @@ export class StandaloneBridge implements AnimationBridge {
       void fetchFixture("catalog").then((fixture) => this.emitCatalog(fixture ?? MOCK_CATALOG));
     } else if (command === "osf.animation.library.get") {
       void fetchFixture("library").then((fixture) => this.emit({ type: "osf.animation.library.data", payload: this.applyPins(fixture ?? MOCK_LIBRARY, true) }));
-    } else if (command === "osf.animation.routes.get") {
-      this.later({ type: "osf.animation.routes.data", payload: MOCK_ROUTES }, 70);
     } else if (command === "osf.animation.imports.get") {
       this.later({ type: "osf.animation.imports.data", payload: this.importReport }, 90);
     } else if (command === "osf.animation.imports.reload") {
@@ -156,8 +154,6 @@ export class StandaloneBridge implements AnimationBridge {
       this.later({ type: "osf.animation.wheel.data", payload: { customized: this.getState().wheelCustomized, entries } });
     } else if (command === "osf.animation.launch") {
       this.launch(fields);
-    } else if (command === "osf.animation.route.inspect") {
-      this.inspectRoute(fields);
     } else if (command === "settings.set" && typeof fields.key === "string" && Object.prototype.hasOwnProperty.call(this.preferenceValues, fields.key)) {
       this.preferenceValues = {
         ...this.preferenceValues,
@@ -178,16 +174,11 @@ export class StandaloneBridge implements AnimationBridge {
     } else if (command === "osf.animation.playback.set") {
       const active = this.active.find((scene) => scene.handle === Number(fields.handle));
       if (active) {
-        if (active.inspection && typeof fields.time === "number") {
-          active.time = Math.max(0, Math.min(active.duration, fields.time));
-          active.speed = 0;  // scrubbing pauses, like the engine's preview seek
-        }
         if (fields.paused === true) {
-          if (!active.inspection && active.speed > 0) this.resumeSpeeds.set(active.handle, active.speed);
+          if (active.speed > 0) this.resumeSpeeds.set(active.handle, active.speed);
           active.speed = 0;
         } else if (fields.paused === false) {
-          // A preview always resumes at authored speed; a runtime scene returns to the speed it was paused at.
-          active.speed = active.inspection ? 1 : this.resumeSpeeds.get(active.handle) ?? 1;
+          active.speed = this.resumeSpeeds.get(active.handle) ?? 1;
           this.resumeSpeeds.delete(active.handle);
         }
       }
@@ -205,7 +196,7 @@ export class StandaloneBridge implements AnimationBridge {
         if (resume != null) active.speed = resume;
       }
       this.resumeSpeeds.clear();
-      this.active = this.active.filter((scene) => !scene.player && !scene.inspection);
+      this.active = this.active.filter((scene) => !scene.player);
     } else if (command === "osf.animation.opened") {
       this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 50);
       const target = new URLSearchParams(location.search).get("target");
@@ -230,8 +221,6 @@ export class StandaloneBridge implements AnimationBridge {
     const handle = this.nextHandle++;
     const options = isRecord(fields.opts) ? fields.opts : {};
     const speed = Number(options.speed) || 1;
-    const inspect = !!fields.inspect;
-    if (inspect) this.resumeSpeeds.set(handle, 1);
     this.active.push({
       handle,
       sceneId,
@@ -240,44 +229,10 @@ export class StandaloneBridge implements AnimationBridge {
       cast: tokens.map((token) => ({ token, name: token === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === token)?.name ?? "actor", player: token === PLAYER_TOKEN })),
       time: 0,
       duration: sceneById(this.getState(), sceneId)?.stages[Number(options.stage) || 0]?.loopSec ?? 5,
-      speed: inspect ? 0 : speed,
-      inspection: inspect,
-      inspectionKind: "scene",
-      routeId: "",
-      transitionId: "",
+      speed,
     });
-      this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId, inspect } }, 80);
+      this.later({ type: "osf.animation.launchResult", payload: { ok: true, handle, sceneId } }, 80);
     this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 130);
-  }
-
-  private inspectRoute(fields: Record<string, unknown>): void {
-    const routeId = String(fields.routeId || "");
-    const transitionId = String(fields.transitionId || "");
-    const actorToken = Number(fields.actorToken);
-    const route = MOCK_ROUTES.find((item) => item.id === routeId);
-    const transition = route?.transitions.find((item) => item.id === transitionId);
-    if (!route || !transition || !actorToken) {
-      this.later({ type: "osf.animation.routeInspectResult", payload: { ok: false, routeId, transitionId, error: "Choose a valid route, transition, and actor." } }, 80);
-      return;
-    }
-    this.active = this.active.filter((scene) => !scene.cast.some((member) => member.token === actorToken));
-    const handle = this.nextHandle++;
-    this.active.push({
-      handle,
-      sceneId: routeId,
-      stage: -1,
-      player: actorToken === PLAYER_TOKEN,
-      cast: [{ token: actorToken, name: actorToken === PLAYER_TOKEN ? "Player" : MOCK_ACTORS.find((actor) => actor.token === actorToken)?.name ?? "actor", player: actorToken === PLAYER_TOKEN }],
-      time: 0,
-      duration: transition.layer.durationHint ?? 3,
-      speed: 0,
-      inspection: true,
-      inspectionKind: "route",
-      routeId,
-      transitionId,
-    });
-    this.later({ type: "osf.animation.routeInspectResult", payload: { ok: true, handle, routeId, transitionId } }, 80);
-    this.later({ type: "osf.animation.activeScenes", payload: { scenes: this.active } }, 120);
   }
 
   private advance(handle: number): void {

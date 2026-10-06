@@ -8,12 +8,10 @@
 #include "Matchmaking/Matchmaker.h"
 #include "Props/PropService.h"
 #include "Registry/SoundRegistry.h"
-#include "Scene/PlaybackPreviewService.h"
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
 #include "UI/Subtitle.h"
 #include "RE/B/BSScriptUtil.h"
-#include "API/OSFOverlayAPI.h"
 #include "API/OSFSceneAPI.h"
 #include "API/OSFSettings.h"
 #include "API/OSFSettings_Diagnostics.h"
@@ -65,12 +63,9 @@ namespace OSF::Testing::AnimationSmoke
 			std::unordered_set<std::string> seenRequests;
 			Json snapshot{ { "schemaVersion", 1 }, { "runId", "" }, { "state", "idle" }, { "cases", Json::array() } };
 			API::IOSFSceneAPI* sceneAPI = nullptr;
-			API::IOSFOverlayAPI* overlayAPI = nullptr;
 			RE::NiPointer<RE::Actor> actor;
 			std::int32_t scene = 0;
-			std::int32_t route = 0;
 			std::uint64_t callback = 0;
-			std::uint64_t owner = 0;
 			std::mutex eventsMutex;
 			std::vector<Event> events;
 			int phase = 0;
@@ -151,15 +146,13 @@ namespace OSF::Testing::AnimationSmoke
 			// No solo generation token: replacement by the identical clip is undetectable.
 			return g.soloOwned && g.actor && g.sceneAPI &&
 				g.sceneAPI->GetSceneForActor(g.actor.get()) == 0 &&
-				(!g.overlayAPI || g.overlayAPI->GetRouteForActor(g.actor.get()) == 0) &&
 				(Animation::GraphManager::GetSingleton().GetCurrentAnimation(g.actor.get()) == kClip ||
 				 Animation::GraphManager::GetSingleton().GetCurrentAnimation(g.actor.get()).starts_with("OSF/Smoke/"));
 		}
 
 		bool ActorUnclaimed(RE::Actor* a_actor)
 		{
-			return !g.sceneAPI->IsPlaying(a_actor) && g.sceneAPI->GetSceneForActor(a_actor) == 0 &&
-				g.overlayAPI->GetRouteForActor(a_actor) == 0;
+			return !g.sceneAPI->IsPlaying(a_actor) && g.sceneAPI->GetSceneForActor(a_actor) == 0;
 		}
 
 		void Cleanup(bool a_worldReset = false)
@@ -171,7 +164,6 @@ namespace OSF::Testing::AnimationSmoke
 			// Solo has no token, so only release the clip while it is still ours.
 			if (!a_worldReset) {
 				if (g.scene && g.sceneAPI) (void)g.sceneAPI->StopScene(g.scene);
-				if (g.route && g.overlayAPI) (void)g.overlayAPI->EndRoute(g.route, false);
 				if (OwnsSoloPlayback()) {
 					(void)Animation::GraphManager::GetSingleton().ClearAnchor(g.actor.get());
 					(void)g.sceneAPI->SetSpeed(g.actor.get(), 1.0f);
@@ -180,9 +172,8 @@ namespace OSF::Testing::AnimationSmoke
 			}
 			CleanupFeatures(a_worldReset);
 			if (g.callback && g.sceneAPI) (void)g.sceneAPI->UnregisterSceneEventCallback(g.callback);
-			if (g.owner && g.overlayAPI) (void)g.overlayAPI->ReleaseOwner(g.owner);
-			g.callback = g.owner = 0;
-			g.scene = g.route = 0;
+			g.callback = 0;
+			g.scene = 0;
 			g.soloOwned = false;
 			g.actor.reset();
 		}
@@ -230,8 +221,6 @@ namespace OSF::Testing::AnimationSmoke
 			});
 		}
 
-		bool OverlayEvent(const API::OSFOverlayEvent*, void*) { return true; }
-
 		API::OSFStartOptions Options()
 		{
 			API::OSFStartOptions options;
@@ -271,8 +260,7 @@ namespace OSF::Testing::AnimationSmoke
 			g_worldReset.store(false);
 			g.deadline = Clock::now() + std::chrono::seconds(240);
 			g.sceneAPI = API::RequestSceneAPI();
-			g.overlayAPI = API::RequestOverlayAPI();
-			if (!g.sceneAPI || !g.overlayAPI || !g.sceneAPI->IsReady() || !g.overlayAPI->IsReady()) {
+			if (!g.sceneAPI || !g.sceneAPI->IsReady()) {
 				Finish("blocked", "Native APIs are not ready");
 				return;
 			}
@@ -283,14 +271,14 @@ namespace OSF::Testing::AnimationSmoke
 				if (!*loaded || !(*loaded)->data3D) { Finish("blocked", "Player 3D is not loaded"); return; }
 			}
 			if ((RE::Main::GetSingleton() && RE::Main::GetSingleton()->isGameMenuPaused) ||
-				g.sceneAPI->IsPlaying(g.actor.get()) || g.overlayAPI->GetRouteForActor(g.actor.get()) ||
+				g.sceneAPI->IsPlaying(g.actor.get()) ||
 				!Scene::SceneRuntime::GetSingleton().ListScenes().empty()) {
-				Finish("blocked", "Close pause menus and stop existing OSF scenes, player playback, and overlays");
+				Finish("blocked", "Close pause menus and stop existing OSF scenes and player playback");
 				return;
 			}
 			if (API::BrowserVisibleForSmoke()) { Finish("blocked", "Close the Animation Browser before starting the run"); return; }
 			auto& registry = Registry::ContentRegistry::GetSingleton();
-			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph") || !registry.FindRoute("osf.smoke.zero")) {
+			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph")) {
 				Finish("blocked", "Live smoke fixture is not installed or failed registry validation");
 				return;
 			}
@@ -314,13 +302,12 @@ namespace OSF::Testing::AnimationSmoke
 			g.sceneAPI->GetPluginVersion(major, minor, patch);
 			g.snapshot["pluginVersion"] = std::format("{}.{}.{}", major, minor, patch);
 			if (!Check("api.ready", major != 0 && g.sceneAPI->GetInterfaceVersion() == API::kOSFSceneAPIVersion &&
-				g.overlayAPI->GetInterfaceVersion() == API::kOSFOverlayAPIVersion &&
-				!API::RequestSceneAPI(0xFFFF0000) && !API::RequestOverlayAPI(0xFFFF0000),
+				!API::RequestSceneAPI(0xFFFF0000),
 				"Ready API versions, plugin metadata, and incompatible ABI rejection")) return;
 			if (!Check("api.invalid-handles", !g.sceneAPI->StopScene(0) && !g.sceneAPI->Advance(0) &&
 				!g.sceneAPI->Navigate(0, "missing") && !g.sceneAPI->SetStage(0, 0) &&
 				g.sceneAPI->GetSceneStage(0) == -1 && g.sceneAPI->GetSceneParticipants(0, nullptr, 0) == 0 &&
-				!g.sceneAPI->UnregisterSceneEventCallback(0) && !g.overlayAPI->EndRoute(0),
+				!g.sceneAPI->UnregisterSceneEventCallback(0),
 				"Invalid handles return documented failure sentinels")) return;
 			{ std::scoped_lock lock(g.eventsMutex); g.events.clear(); }
 			g.callback = g.sceneAPI->RegisterSceneEventCallback(SceneEvent, nullptr);
@@ -451,41 +438,10 @@ namespace OSF::Testing::AnimationSmoke
 					"Ended scene rejects mutation, retains its roster, frees actor, and callback unregisters once")) return;
 				g.callback = 0;
 				g.scene = 0;
-				g.owner = g.overlayAPI->AcquireOwner("OSF.Animation.Smoke", OverlayEvent, nullptr);
-				if (!Check("overlay.owner", g.owner &&
-					g.overlayAPI->AcquireOwner("osf.animation.smoke", OverlayEvent, nullptr) == 0 &&
-					g.overlayAPI->BeginRoute(0, actor, "osf.smoke.zero", "idle").reason == API::OverlayReason::kOwnerInvalid,
-					"Overlay owner acquisition, case-insensitive uniqueness, and invalid-owner rejection")) return;
-				Phase(8);
-				break;
-			case 8: {
-				const auto begun = g.overlayAPI->BeginRoute(g.owner, actor, "osf.smoke.zero", "idle");
-				g.route = begun.routeHandle;
-				API::OSFOverlayRouteState state;
-				const bool valid = begun.disposition == API::OverlayRequestDisposition::kAccepted && g.route &&
-					g.overlayAPI->GetRouteForActor(actor) == g.route && g.overlayAPI->QueryRoute(g.route, state) &&
-					state.phase == API::OverlayPhase::kAtStation && std::string_view(state.reachedStation) == "idle" &&
-					!g.sceneAPI->IsPlaying(actor) &&
-					g.overlayAPI->RequestStation(g.route, "idle", 1).disposition == API::OverlayRequestDisposition::kAccepted &&
-					g.overlayAPI->RequestStation(g.route, "isolated", 2).reason == API::OverlayReason::kNoPath &&
-					g.overlayAPI->RequestStation(g.route, "missing", 3).reason == API::OverlayReason::kUnknownStation;
-				if (!Check("overlay.zero-station", valid, "Zero-animation station occupies actor without graph; idempotent/no-path/unknown requests are structured")) return;
-				Phase(9);
-				break;
-			}
-			case 9: {
-				API::OSFOverlayRouteState state;
-				const bool clean = g.overlayAPI->EndRoute(g.route, false) && g.overlayAPI->GetRouteForActor(actor) == 0 &&
-					!g.overlayAPI->QueryRoute(g.route, state) && !g.overlayAPI->EndRoute(g.route, false) &&
-					g.overlayAPI->ReleaseOwner(g.owner) && !g.overlayAPI->ReleaseOwner(g.owner) && !g.sceneAPI->IsPlaying(actor);
-				if (!Check("overlay.cleanup", clean, "Route and owner release exactly once and leave no player graph or route")) return;
-				g.route = 0;
-				g.owner = 0;
 				g.browserOwned = API::OpenBrowser();
 				if (!g.browserOwned) { Check("integration.browser-lifecycle", false, "Browser launch was rejected"); return; }
 				Phase(10);
 				break;
-			}
 			case 10:
 			case 12:
 				if (!API::BrowserVisibleForSmoke()) {
@@ -600,7 +556,7 @@ namespace OSF::Testing::AnimationSmoke
 			if (g_worldReset.exchange(false) && g.running) {
 				if (g.phase == 172) {
 					++feature.resets;
-					g.actor.reset(); g.scene = g.route = 0; g.soloOwned = false;
+					g.actor.reset(); g.scene = 0; g.soloOwned = false;
 				} else Finish("blocked", "Unexpected world replacement interrupted the run", true);
 			}
 			PollMailbox();

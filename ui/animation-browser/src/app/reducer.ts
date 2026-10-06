@@ -63,42 +63,6 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         castMatch: null,
         wheelCustomized: state.wheelCustomized || action.scenes.some((scene) => scene.wheelCustomized),
       };
-    case "routes/requested":
-      return { ...state, routesReceived: false };
-    case "routes/received": {
-      const selected = action.routes.find((route) => route.id === state.selectedRouteId) ?? action.routes[0] ?? null;
-      const transition = selected?.transitions.find((item) => item.id === state.selectedTransitionId)
-        ?? selected?.transitions[0] ?? null;
-      return {
-        ...state,
-        ready: true,
-        routesReceived: true,
-        routes: action.routes,
-        selectedRouteId: selected?.id ?? null,
-        selectedTransitionId: transition?.id ?? null,
-      };
-    }
-    case "routes/open":
-      return {
-        ...state,
-        routeDebuggerOpen: action.open,
-        settingsOpen: action.open ? false : state.settingsOpen,
-        importsOpen: action.open ? false : state.importsOpen,
-      };
-    case "routes/search":
-      return { ...state, routeSearch: action.search };
-    case "routes/selected": {
-      const route = state.routes.find((item) => item.id === action.routeId);
-      const transition = route?.transitions.find((item) => item.id === action.transitionId)
-        ?? route?.transitions[0] ?? null;
-      return { ...state, selectedRouteId: route?.id ?? null, selectedTransitionId: transition?.id ?? null };
-    }
-    case "routes/transition":
-      return { ...state, selectedTransitionId: action.transitionId };
-    case "routes/actor":
-      return { ...state, routeActorToken: action.token };
-    case "routes/previewSucceeded":
-      return { ...state, lastHandle: action.handle, lastSceneId: action.routeId, minimized: false };
     case "active/received": {
       const lastStillActive = !state.lastHandle || action.scenes.some((scene) => scene.handle === state.lastHandle);
       return {
@@ -110,15 +74,12 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     }
     case "launch/succeeded": {
-      // Inspection opens the timeline, unless it's the minimized preview switching stages.
-      const reInspect = !!action.inspect && state.minimized
-        && !!state.active?.some((scene) => scene.handle === state.lastHandle && scene.inspection);
       return {
         ...state,
         lastHandle: action.handle,
         lastSceneId: action.sceneId,
-        minimized: action.inspect ? reInspect : !state.wheel && action.afterLaunch === "minimize",
-        mode: action.inspect ? "active" : state.mode,
+        minimized: !state.wheel && action.afterLaunch === "minimize",
+        mode: state.mode,
       };
     }
     case "launch/failed":
@@ -145,11 +106,9 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     }
     case "settings/open":
-      return { ...state, settingsOpen: action.open, importsOpen: action.open ? false : state.importsOpen,
-        routeDebuggerOpen: action.open ? false : state.routeDebuggerOpen };
+      return { ...state, settingsOpen: action.open, importsOpen: action.open ? false : state.importsOpen };
     case "imports/open":
-      return { ...state, importsOpen: action.open, settingsOpen: action.open ? false : state.settingsOpen,
-        routeDebuggerOpen: action.open ? false : state.routeDebuggerOpen };
+      return { ...state, importsOpen: action.open, settingsOpen: action.open ? false : state.settingsOpen };
     case "imports/requested":
       return { ...state, importsReceived: false };
     case "imports/received":
@@ -195,7 +154,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
       };
     case "imports/viewContent":
       return {
-        ...state, importsOpen: false, routeDebuggerOpen: false, mode: "scenes", browseKind: "all", browseAll: true,
+        ...state, importsOpen: false, mode: "scenes", browseKind: "all", browseAll: true,
         showHidden: true, allSpecies: true, importView: true, searchGroupOpen: null,
         filters: { ...state.filters, search: action.path.toLowerCase() },
       };
@@ -289,7 +248,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         lastBrowseMode: action.mode === "wheel" ? state.lastBrowseMode : action.mode,
         settingsOpen: false,
         importsOpen: false,
-        routeDebuggerOpen: false,
+
       };
     case "browser/opened":
       return {
@@ -298,7 +257,7 @@ export function browserReducer(state: BrowserState, action: BrowserAction): Brow
         lastBrowseMode: action.mode,
         settingsOpen: false,
         importsOpen: false,
-        routeDebuggerOpen: false,
+
         ...(action.resetBrowsing ? {
           filters: { ...state.filters, search: "" },
           browseAll: false,

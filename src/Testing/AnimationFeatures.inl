@@ -7,13 +7,10 @@ struct FeatureState
 	bool papyrusReady{};
 	std::int32_t papyrusToken{};
 	std::vector<Event> papyrusEvents;
-	struct RouteEvent { API::OverlayEventType type; std::uint64_t token; std::string marker; std::string prop; };
-	std::vector<RouteEvent> routeEvents;
 	std::vector<RE::TESFormID> worn;
 	std::uint32_t inputFlags{};
 	void* cameraState{};
 	int importIndex{};
-	std::int32_t preview{};
 	Props::Instance prop;
 	bool orbitOwned{};
 	bool fadeOwned{};
@@ -109,19 +106,6 @@ bool ProbePapyrus()
 		args.clear(); args.resize(1); RE::BSScript::PackVariable(args[0], RE::BSFixedString(run)); return true;
 	}, RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor>(), 0);
 }
-bool FeatureOverlayEvent(const API::OSFOverlayEvent* event, void*)
-{
-	if (!event) return true;
-	std::lock_guard lock(feature.mutex);
-	if (feature.routeEvents.size() < 256)
-		feature.routeEvents.push_back({event->type,event->requestToken,event->marker ? event->marker : "",event->prop ? event->prop : ""});
-	return true;
-}
-std::size_t RouteCount(API::OverlayEventType type)
-{
-	std::lock_guard lock(feature.mutex);
-	return std::ranges::count_if(feature.routeEvents, [=](const auto& e) { return e.type == type; });
-}
 std::vector<RE::TESFormID> Worn(RE::Actor* actor)
 {
 	std::vector<RE::TESFormID> result;
@@ -181,8 +165,6 @@ void CleanupFeatures(bool worldReset)
 	bool retirePeer{};
 	{ std::lock_guard lock(feature.mutex); retirePeer = feature.peer && !feature.peerRetired; }
 	if (!worldReset && retirePeer) PeerCommand(true);
-	if (!worldReset && feature.preview) Scene::PlaybackPreviewService::GetSingleton().Stop(feature.preview);
-	feature.preview = 0;
 	if (!feature.prop.Empty()) (void)Props::PropService::GetSingleton().Destroy(feature.prop);
 	if (feature.orbitOwned) Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();
 	if (feature.fadeOwned) UI::FadeService::GetSingleton().FadeFromBlack(0.1f);
@@ -203,10 +185,9 @@ void FailFeature(const char* description)
 	// API/browser failures and load failures still stop: their prerequisites are shared.
 	const int phase = g.phase;
 	const int next = phase >= 100 && phase <= 102 ? 110 :
-		phase >= 110 && phase <= 112 ? 120 : phase >= 120 && phase <= 121 ? 122 :
-		phase >= 122 && phase <= 124 ? 130 : phase >= 130 && phase <= 132 ? 135 :
-		phase >= 135 && phase <= 137 ? 140 : phase >= 140 && phase <= 143 ? 150 :
-		phase >= 150 && phase <= 154 ? 160 : phase >= 160 && phase <= 161 ? 180 :
+		phase >= 110 && phase <= 112 ? 120 : phase >= 120 && phase <= 121 ? 130 : phase >= 130 && phase <= 132 ? 135 :
+		phase >= 135 && phase <= 137 ? 140 : phase >= 140 && phase <= 143 ? 160 :
+		phase >= 160 && phase <= 161 ? 180 :
 		phase >= 180 && phase <= 184 ? 170 : 0;
 	if (!next) { Finish("failed", description); return; }
 	Cleanup();
@@ -232,7 +213,6 @@ void AdvanceFeatures()
 	auto* actor = g.actor.get();
 	auto& manager = Animation::GraphManager::GetSingleton();
 	auto& registry = Registry::ContentRegistry::GetSingleton();
-	auto& preview = Scene::PlaybackPreviewService::GetSingleton();
 	switch (g.phase) {
 	case 100:
 		if (!Check("papyrus.binding", ProbePapyrus(), "Smoke script and native report functions dispatch through the real VM")) return;
@@ -287,36 +267,16 @@ void AdvanceFeatures()
 	case 121:
 		if (!WaitFeature("pose.additive-mask",PoseStamped(actor,true),5,"Masked additive graph did not stamp finite transforms")) break;
 		if (!Check("pose.additive-mask",true,"Production additive sampler/stamper ran on a masked live rig")) return;
-		g.sceneAPI->StopScene(g.scene); Phase(122); break;
-	case 122: {
-		if (!WaitFeature("preview.scene",!manager.IsPlaying(actor),6,"Additive scene did not clean up")) break;
-		g.scene = 0;
-		std::string error;
-		Scene::PreviewRequest request; request.definition = registry.Find("osf.smoke.linear"); request.actors = {actor};
-		auto prepared = preview.Prepare(request,error);
-		feature.preview = prepared ? preview.Start(std::move(*prepared),error) : 0;
-		if (!Check("preview.scene",feature.preview != 0 && preview.Contains(feature.preview),"Scene inspection creates its own playback handle")) return;
-		Phase(123); break;
-	}
-	case 123: {
-		if (!WaitFeature("preview.transport",PoseStamped(actor),5,"Inspection preview failed to stamp")) break;
-		const bool seek = preview.Seek(feature.preview,0.25f);
-		const auto items = preview.List();
-		const auto found = std::ranges::find_if(items,[&](const auto& item) { return item.handle == feature.preview; });
-		if (!Check("preview.transport",seek && found != items.end() && std::abs(found->playback.time-0.25f) < 0.01f && found->playback.speed == 0 && preview.SetSpeed(feature.preview,1),"Preview seek reads back the requested time, pauses, then accepts resume")) return;
-		preview.Stop(feature.preview); feature.preview=0; Phase(124); break;
-	}
-	case 124:
-		if (!WaitFeature("preview.cleanup",!manager.IsPlaying(actor) && preview.List().empty(),6,"Inspection retained actor playback after stop")) break;
-		if (!Check("preview.cleanup",true,"Inspection stop retires its handle and graph")) return;
-		Phase(130); break;
+		g.sceneAPI->StopScene(g.scene); Phase(130); break;
 	case 130: {
+		if (!WaitFeature("pose.additive-mask", !manager.IsPlaying(actor), 6, "Additive scene did not clean up")) break;
+		g.scene = 0;
 		Matchmaking::TagQuery query; query.allOf={"osf-smoke-only"};
 		const auto match=Matchmaking::Pick({actor},query);
 		query.noneOf={"osf-smoke-only"};
 		if (!Check("matchmaking.tags",match && match->id == "osf.smoke.match" && match->order == std::vector<std::size_t>{0} && !Matchmaking::Pick({actor},query),"Live actor matchmaking honors positive/negative tags and complete role binding")) return;
 		const auto files=registry.FileStats();
-		if (!Check("registry.import-records",std::ranges::any_of(files,[](const auto& f) { return f.file == "animation-features.osf.json" && f.scenes == 3 && f.routes == 1 && f.errors == 0; }),"Every extended fixture was accepted and attributed to its import record")) return;
+		if (!Check("registry.import-records",std::ranges::any_of(files,[](const auto& f) { return f.file == "animation-features.osf.json" && f.scenes == 3 && f.errors == 0; }),"Every extended fixture was accepted and attributed to its import record")) return;
 		feature.worn=Worn(actor); feature.inputFlags=InputFlags();
 		if (feature.worn.empty() || !(feature.inputFlags & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement))) { Finish("blocked","Equipment/input fixture requires a clothed player with movement initially enabled"); return; }
 		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.mechanisms",options);
@@ -385,58 +345,15 @@ void AdvanceFeatures()
 		if (!WaitFeature("sound.replace-stop",current != 0 && current != feature.voice,8,"A second sound did not replace the actor voice slot")) break;
 		Audio::SoundService::GetSingleton().StopAll(); feature.soundOwned=false;
 		if (!Check("sound.replace-stop",Audio::SoundService::GetSingleton().VoiceForSmoke(kSmokeVoice) == 0,"Second voice replaced the first; teardown cleared the live slot")) return;
-		Phase(150); break;
-	}
-	case 150:
-		{ std::lock_guard lock(feature.mutex); feature.routeEvents.clear(); }
-		g.owner=g.overlayAPI->AcquireOwner("OSF.Animation.Features",FeatureOverlayEvent,nullptr);
-		g.route=g.overlayAPI->BeginRoute(g.owner,actor,"osf.smoke.animated","idle").routeHandle;
-		if (!Check("overlay.animated",g.route && g.overlayAPI->RequestStation(g.route,"held",101).disposition == API::OverlayRequestDisposition::kAccepted,"Animated route accepted a directed station request")) return;
-		Phase(151); break;
-	case 151: {
-		API::OSFOverlayRouteState state;
-		const bool held=g.overlayAPI->QueryRoute(g.route,state) && state.phase == API::OverlayPhase::kAtStation && std::string_view(state.reachedStation) == "held" && PoseStamped(actor);
-		if (!WaitFeature("overlay.animated",held,8,"Route transition did not reach and stamp its animated held station")) break;
-		if (!Check("overlay.animated",true,"Directed transition completed into a masked, stamped hold station")) return;
-		if (!Check("overlay.commit-marks",RouteCount(API::OverlayEventType::kCommit) == 1 && RouteCount(API::OverlayEventType::kMarker) == 1 && std::string_view(state.checkpointStation) == "held","Commit was acknowledged once, marker fired once, and the checkpoint advanced")) return;
-		if (!Check("overlay.external-props",RouteCount(API::OverlayEventType::kPropAttach) == 1 && RouteCount(API::OverlayEventType::kPropDestroy) == 1,"Authored external prop marks emitted one typed attach and destroy callback")) return;
-		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.linear",options);
-		if (!g.scene) { Check("overlay.scene-suspension",false,"Scene did not preempt the route"); return; }
-		Phase(152); break;
-	}
-	case 152: {
-		API::OSFOverlayRouteState state;
-		if (!Check("overlay.scene-suspension",g.overlayAPI->QueryRoute(g.route,state) && state.blocker == API::OverlayBlocker::kScene && RouteCount(API::OverlayEventType::kSuspended) == 1,"Scene admission suspended the existing route and preserved its handle")) return;
-		g.sceneAPI->StopScene(g.scene); Phase(153); break;
-	}
-	case 153: {
-		API::OSFOverlayRouteState state;
-		const bool queried = g.overlayAPI->QueryRoute(g.route,state);
-		const bool stamped = PoseStamped(actor);
-		g.snapshot["observations"]["overlay.scene-resume"] = {{"queried",queried},{"phase",static_cast<int>(state.phase)},
-			{"blocker",static_cast<int>(state.blocker)},{"stamped",stamped},{"failedEvents",RouteCount(API::OverlayEventType::kFailed)}};
-		if (!WaitFeature("overlay.scene-resume",queried && state.blocker == API::OverlayBlocker::kNone && state.phase == API::OverlayPhase::kAtStation && stamped,8,"Overlay failed to reconcile after scene cancellation")) break;
-		if (!Check("overlay.scene-resume",std::string_view(state.reachedStation) == "held" && RouteCount(API::OverlayEventType::kCommit) == 1,"Overlay resumed at its acknowledged checkpoint without repeating the commit")) return;
-		g.scene=0;
-		const auto first=g.overlayAPI->RequestStation(g.route,"idle",102);
-		const auto second=g.overlayAPI->RequestStation(g.route,"held",103);
-		if (!Check("overlay.countermand",first.disposition != API::OverlayRequestDisposition::kRejected && second.disposition != API::OverlayRequestDisposition::kRejected,"Opposite station request was accepted during an active transition")) return;
-		Phase(154); break;
-	}
-	case 154: {
-		API::OSFOverlayRouteState state;
-		if (!WaitFeature("overlay.countermand",g.overlayAPI->QueryRoute(g.route,state) && state.phase == API::OverlayPhase::kAtStation && std::string_view(state.reachedStation) == "held" && state.requestToken == 103,10,"Countermand did not settle at the latest requested station")) break;
-		if (!Check("overlay.countermand",true,"Route settled on the latest request token after countermand")) return;
-		g.overlayAPI->EndRoute(g.route,false); g.route=0; g.overlayAPI->ReleaseOwner(g.owner); g.owner=0;
 		Phase(160); break;
 	}
 	case 160: {
-		if (!WaitFeature("scene.files-roles",!manager.IsPlaying(actor),6,"Overlay retained graph after end")) break;
+		if (!WaitFeature("scene.files-roles",!manager.IsPlaying(actor),6,"Previous playback retained its graph after stop")) break;
 		auto options=Options(); const char* file=kClip;
 		g.scene=g.sceneAPI->StartSceneFiles(&actor,&file,1,options);
-		if (!Check("scene.files-roles",g.scene && g.sceneAPI->SetSpeed(actor,0) && manager.SetSceneTime(actor,0.2f),"Ad-hoc files scene supports shared-clock pause and seek")) return;
+		if (!Check("scene.files-roles",g.scene && g.sceneAPI->SetSpeed(actor,0),"Ad-hoc files scene supports shared-clock pause")) return;
 		const auto playback=manager.GetScenePlayback(actor);
-		if (!Check("scene.transport",playback && std::abs(playback->time-0.2f) < 0.01f && playback->speed == 0,"Shared scene clock reads back the paused seek position")) return;
+		if (!Check("scene.transport",playback && playback->duration > 0 && std::isfinite(playback->time) && playback->speed == 0 && g.sceneAPI->SetSpeed(actor,1),"Shared scene clock reports pause and accepts resume")) return;
 		g.sceneAPI->StopSceneForActor(actor); Phase(161); break;
 	}
 	case 161: {
@@ -507,7 +424,7 @@ void AdvanceFeatures()
 		if (!WaitFeature("persistence.load-remap",feature.loads.load() > 0 && feature.resets.load() > 0 && RE::PlayerCharacter::GetSingleton(),45,"Real quickload did not restore the sidecar or replace the world")) break;
 		g.actor.reset(RE::PlayerCharacter::GetSingleton()); actor=g.actor.get(); g.scene=0;
 		if (!Check("persistence.load-remap",feature.loadedValue == 0x51A7E123 && feature.resolvedPlayer == actor->GetFormID() && feature.reverts > 0,"Load restored the saved record after revert and resolved the player FormID")) return;
-		if (!Check("persistence.world-reset",!manager.IsPlaying(actor) && Scene::SceneRuntime::GetSingleton().ListScenes().empty() && g.overlayAPI->GetRouteForActor(actor) == 0,"Actual world replacement cleared active playback and runtime ownership")) return;
+		if (!Check("persistence.world-reset",!manager.IsPlaying(actor) && Scene::SceneRuntime::GetSingleton().ListScenes().empty(),"Actual world replacement cleared active playback and runtime ownership")) return;
 		ExternalAction("");
 		if (!Check("papyrus.rebind",ProbePapyrus(),"Smoke script dispatch accepted after VM rebuild")) return;
 		Phase(173); break;

@@ -207,7 +207,7 @@ string[] missingClips = OSFAdvanced.GetMissingClipRefs()
 ```
 
 `GetSceneLoadErrors` is an established compatibility name. Its result is the content registry's
-unified load-problem list and can include route and curated-animation problems as well as scene
+unified load-problem list and can include curated-animation problems as well as scene
 problems.
 
 Dynamic animation clip specs accept the same compatibility shortcuts as scene JSON:
@@ -396,7 +396,7 @@ UI term is unrelated to a scene's authored `action` track. The well-known tag co
 int count = OSF.ReloadPacks()  ; rescan Data/OSF/**/*.osf.json and *.sounds.json
 ```
 
-`ReloadPacks()` **reloads content**: it rebuilds the content registry (scenes, routes, curated animation
+`ReloadPacks()` **reloads content**: it rebuilds the content registry (scenes, curated animation
 entries, and per-file import results), reloads sound pools, clears clip import caches, and returns the
 loaded **scene** count for compatibility. `ReloadPacks` is the established Papyrus binding name; a
 content pack is only an author/product grouping and is not the reload boundary.
@@ -414,30 +414,3 @@ are never removed or re-signatured within a major version (minor versions only *
 `OSFTypes:SceneEvent` struct member set is part of the ABI — new fields append at the end, so old
 callbacks keep working. The native C++ API follows the same additive rule: minor versions append
 vmethods or POD fields, while a major version is required for an incompatible layout change.
-
-## Native C++ overlay API
-
-`src/API/OSFOverlayAPI.h` is the copyable native ABI for Phase-1 actor overlays. Request ABI 1.0
-through `OSF_RequestOverlayAPI`, acquire one owner record for the consumer plugin id, then call
-`BeginRoute` and `RequestStation`. `BeginRoute` returns `OSFOverlayBeginResult`: a nonzero
-`routeHandle`, an `accepted`/`pending`/`rejected` disposition, and an exact reason. Rejections
-distinguish `ownerInvalid`, `routeUnknown`, `unknownStation`, `busy`, `actorUnavailable`, and
-`playbackFailed`. A scene- or 3D-blocked route returns a live handle with `pending` and the
-corresponding blocker reason. Route handles are capabilities retained by their consumer; OSF does
-not expose another owner's actor-to-handle lookup.
-
-The owner callback acknowledges `kCommit` handoffs and receives informational `kMarker`,
-`kPropAttach`, `kPropDestroy`, `kReached`, `kFailed`, `kSuspended`, `kResumed`, and `kEnded` events.
-Marker ids use `event.marker`; typed external-prop events use `event.prop`, so consumers never infer
-an operation from a marker name. Markers are instantaneous and sounds are one-shot; only props have
-route lifetimes. `ReleaseOwner` is a quiescent callback barrier; route handles are generational and
-world-local, while owner registration survives world replacement. See
-[`ROUTE_SCHEMA.md`](ROUTE_SCHEMA.md) for authoring, interruption, lifetime, and one-live-route-per-actor
-rules. The schema value `interrupt: "finish"` is a legacy spelling meaning complete the current route
-transition before honoring the new station request; it does not end the route.
-
-API calls are game-thread calls and are rejected while an owner callback is running; schedule route
-mutations after the callback returns. Event strings are borrowed for the callback only, and query
-strings remain valid only until the next overlay mutation. When a scene claims the actor, Phase 1
-stops the overlay immediately before scene admission: the current one-stamper architecture cannot
-crossfade two independently owned playback sessions.

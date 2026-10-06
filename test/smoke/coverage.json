@@ -104,24 +104,6 @@
     "gap": "Cue/end delivery crosses both native and Papyrus callbacks. Every authored action/camera/sound lane combination and interruption remains separate."
   },
   {
-    "feature": "Overlay routes and owner contracts",
-    "native": [
-      "osf-route-plan-test"
-    ],
-    "runtime": [
-      "overlay.owner",
-      "overlay.zero-station",
-      "overlay.cleanup",
-      "overlay.animated",
-      "overlay.commit-marks",
-      "overlay.external-props",
-      "overlay.scene-suspension",
-      "overlay.scene-resume",
-      "overlay.countermand"
-    ],
-    "gap": "Animated holds, commits, markers, external prop callbacks, countermand and scene suspension/resume are exercised. 3D unload/reload, rejected commit recovery and the remaining OVERLAY_ACCEPTANCE.md matrix remain open."
-  },
-  {
     "feature": "Persistence and save safety",
     "native": [
       "osf-persistence-test"
@@ -161,8 +143,7 @@
   {
     "feature": "Equipment, weapons and props",
     "native": [
-      "osf-scene-registry-test",
-      "osf-route-plan-test"
+      "osf-scene-registry-test"
     ],
     "runtime": [
       "mechanisms.engage",
@@ -205,16 +186,6 @@
       "integration.settings"
     ],
     "gap": "Distribution validates the schema payload; Live launcher/hotkey input and visual issue presentation need game acceptance; values and report/clear APIs have a runtime probe."
-  },
-  {
-    "feature": "Scene inspection preview",
-    "native": [],
-    "runtime": [
-      "preview.scene",
-      "preview.transport",
-      "preview.cleanup"
-    ],
-    "gap": "Inspection preview transport and cleanup are exercised. Visual pose, prop fit and timeline presentation remain separate acceptance checks."
   },
   {
     "feature": "Production deployment and release payloads",

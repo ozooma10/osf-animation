@@ -2,7 +2,7 @@
 
 Two kinds of mods build on OSF:
 
-1. **Content mods** — ship scenes, routes, and/or curated animation entries as JSON (`*.osf.json`) plus GLB/AF assets. **No Papyrus, no scripting, no ESP required.** Drop JSON under `Data/OSF/**` and it is discovered.
+1. **Content mods** — ship scenes and/or curated animation entries as JSON (`*.osf.json`) plus GLB/AF assets. **No Papyrus, no scripting, no ESP required.** Drop JSON under `Data/OSF/**` and it is discovered.
 2. **Trigger / consumer mods** — Papyrus that decides *when* to start an OSF scene in response to gameplay. They call the [`OSF.*` API](API.md).
 
 The split is deliberate: OSF is content-neutral, so animation **data** lives in JSON and gameplay
