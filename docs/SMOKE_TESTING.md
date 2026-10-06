@@ -72,7 +72,7 @@ GLTF/GLB/gzip decoding and ozz sampling without copyrighted game assets or a
 developer's local clip library. Existing standalone `osf-import-test` and
 `osf-af-import-test` remain useful for specific content.
 
-The game suite currently has **62 assertions** across the 19 areas in the coverage
+The game suite currently has **59 assertions** across the 19 areas in the coverage
 manifest. It uses installed vanilla assets plus generated test content:
 
 - Native API validation; compiled Papyrus calls, scene callbacks and post-load rebind.
@@ -85,8 +85,7 @@ manifest. It uses installed vanilla assets plus generated test content:
 - Actual input masks and worn inventory changing/restoring; native orbit camera
   state restoring; live prop attachment/reattachment/destruction; bounded fade and
   subtitle deadlines; sound-pool lookup and Wwise voice replacement/stop.
-- Inspection preview transport and cleanup; the real Studio Link session, monitor,
-  request/response path and unsaved AF preview in a private directory.
+- Inspection preview transport and cleanup.
 - Real quicksave/quickload, fresh `.sfs`/`.osf` evidence, persistence callbacks,
   saved-value restoration, FormID resolution and active scene teardown on load.
 - Settings value/issue APIs; real browser document and catalog/library/import/wheel
@@ -128,13 +127,13 @@ case passed, not that every engine feature has been proven.
 ## Coverage boundaries
 
 The coverage manifest lists every major subsystem and its remaining gaps. Passing
-all 62 cases is **not** proof of every feature, asset or failure path. Manual or
+all 59 cases is **not** proof of every feature, asset or failure path. Manual or
 additional fixture acceptance remains for visual sync/pose/culling/prop fit,
 creature rigs, audible mixing/spatialization, visible fade/subtitle quality,
 physical controllers and the full launcher/hotkey matrix, weapon draw/sheath,
 engine race/keyword filters, actor 3D unload/reload, every termination cause,
-delete/failed-load/restart paths, complete wheel persistence/browser editing, and
-desktop Studio Suit/helmet integration. The route-specific matrix remains in
+delete/failed-load/restart paths, and complete wheel persistence/browser editing.
+The route-specific matrix remains in
 [OVERLAY_ACCEPTANCE.md](OVERLAY_ACCEPTANCE.md).
 
 To extend the bench, add assertions in `src/Testing/AnimationSmoke.cpp` or

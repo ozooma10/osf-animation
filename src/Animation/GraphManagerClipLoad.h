@@ -1,10 +1,8 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace OSF::Util
 {
@@ -28,6 +26,5 @@ namespace OSF::Animation
 		};
 
 		Result Load(const Util::ClipSpec& a_spec, std::string_view a_animId);
-		Result LoadAfBytes(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_bytes);
 	}
 }

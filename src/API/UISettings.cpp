@@ -3,9 +3,7 @@
 #include "API/OSFUI.h"
 #include "API/UIBridge.h"
 #include "Equipment/GearRegistry.h"
-#include "Studio/StudioPreviewService.h"
 #include "UI/HudMessage.h"
-#include "Util/NativeMainThreadQueue.h"
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -77,10 +75,6 @@ namespace OSF::API
 				g_settings.GetBool(kModId, "gear.autoEquip", &enabled) == Status::Ok) {
 				Equipment::Gear::SetAutoEquip(enabled);
 			}
-			if ((refreshAll || a_key == "studioLink.enabled") &&
-				g_settings.GetBool(kModId, "studioLink.enabled", &enabled) == Status::Ok) {
-				Util::NativeMainThreadQueue::Post([enabled]() { Studio::SetPreviewServiceEnabled(enabled); });
-			}
 
 			const bool browserChanged = refreshAll || std::ranges::contains(kBoolPreferences, a_key) ||
 				std::ranges::contains(kEnumPreferences, a_key);
@@ -147,7 +141,6 @@ namespace OSF::API
 
 	void InstallUISettings()
 	{
-		Studio::SetPreviewServiceEnabled(false);
 		g_views.Init();
 		if (!g_settings.Init()) {
 			REX::WARN("[Config] OSF Settings unavailable; settings and hotkeys use defaults");

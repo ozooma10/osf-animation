@@ -174,15 +174,6 @@
         "label": "Log level",
         "hint": "OSF Animation.log verbosity."
       }
-    ],
-    "Advanced - Authoring": [
-      {
-        "key": "studioLink.enabled",
-        "type": "bool",
-        "default": false,
-        "label": "Enable Studio Link",
-        "hint": "Accept live preview requests from OSF Studio while this game is running."
-      }
     ]
   },
   "hotkeys": {

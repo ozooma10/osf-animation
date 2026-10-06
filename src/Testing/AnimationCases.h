@@ -63,8 +63,5 @@ namespace OSF::Testing::AnimationSmoke
 		"multi-actor.sync",
 		"multi-actor.speed",
 		"multi-actor.cleanup",
-		"studio.protocol",
-		"studio.raw-preview",
-		"studio.cleanup",
 	};
 }

@@ -207,17 +207,14 @@
     "gap": "Distribution validates the schema payload; Live launcher/hotkey input and visual issue presentation need game acceptance; values and report/clear APIs have a runtime probe."
   },
   {
-    "feature": "Studio Link and transient preview",
+    "feature": "Scene inspection preview",
     "native": [],
     "runtime": [
       "preview.scene",
       "preview.transport",
-      "preview.cleanup",
-      "studio.protocol",
-      "studio.raw-preview",
-      "studio.cleanup"
+      "preview.cleanup"
     ],
-    "gap": "Real private Studio protocol session, raw AF mailbox playback and cleanup are exercised, along with inspection preview transport. Desktop Studio pairing and Suit/helmet authoring remain separate."
+    "gap": "Inspection preview transport and cleanup are exercised. Visual pose, prop fit and timeline presentation remain separate acceptance checks."
   },
   {
     "feature": "Production deployment and release payloads",

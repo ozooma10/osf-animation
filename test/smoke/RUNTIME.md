@@ -53,5 +53,5 @@ This is a baseline smoke pass, not proof of all engine behavior. Visual pose and
 culling quality, multi-actor synchronization, GLTF playback in game, props and
 equipment/weapon restoration, camera/input locks, fade, audible Wwise output,
 Papyrus delivery/rebinding, save/load lifecycle, animated overlay handoffs and 3D
-suspension, browser input and Studio remain separate acceptance scenarios. These
+suspension and browser input remain separate acceptance scenarios. These
 gaps are emitted in every snapshot so automation cannot silently claim them.

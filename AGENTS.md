@@ -15,7 +15,7 @@ voice/sound, camera hold);
   own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
   and checks release archives with retained evidence. `-RunGame` adds the sibling harness's private
-  Animation scenario (62 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
+  Animation scenario (59 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
   hosts; the default uses the pinned releases. `-Plan` is read-only. Runtime instrumentation requires `--animation_smoke=y`,
   defaults off, and must never be deployed to the normal mod or packaged. The bench uses separate
   `build/smoke-native` output and restores production configuration. See `docs/SMOKE_TESTING.md`.
@@ -72,7 +72,7 @@ Each entry: **system** (`path`) — role.
   owns the two vtable hooks. `PlaySynchronized` is the shared playback entry. `StopAll` drops all state on load (releases the persistent AI-driven flag).
   Compose-root pin + cull-sphere + BSFadeNode fade suppression live in `Hook_ModelNodeUpdate`
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
-- **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, graph maintenance, playback previews, and Studio. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Anchored NPC animation-driven flags are maintained once per game frame here, with save-window suppression. Sampling and stamping remain in their animation hooks. Preview props reconcile at prop marks, seeks, and loop/end boundaries.
+- **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, graph maintenance, and playback previews. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Anchored NPC animation-driven flags are maintained once per game frame here, with save-window suppression. Sampling and stamping remain in their animation hooks. Preview props reconcile at prop marks, seeks, and loop/end boundaries.
 - **PlaybackSession** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
 - **Player/Camera locks** (`src/Player/PlayerInputLockService.*`, `src/Camera/CameraService.*`) —

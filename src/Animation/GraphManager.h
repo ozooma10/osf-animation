@@ -48,10 +48,6 @@ namespace OSF::Animation
 		// Synchronous load; a_file is Data-relative or absolute.
 		bool PlayAnimation(RE::Actor* a_actor, std::string_view a_file, std::string_view a_animId);
 
-		// Decodes a human `.af` from caller-owned bytes as a looping solo graph (Studio link; bypasses the registry).
-		bool PlayAnimationBytes(RE::Actor* a_actor, const std::vector<std::uint8_t>& a_bytes,
-			std::string_view a_clipKey, std::string* a_error = nullptr);
-
 		// Fades to the live pose, then removes the graph. Refuses scene participants (use StopScene).
 		bool StopAnimation(RE::Actor* a_actor);
 
@@ -73,20 +69,20 @@ namespace OSF::Animation
 			int32_t stage = -1;
 			PlaybackId playbackId = 0;
 		};
+
+		// Seek never fires timed marks.
+		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
+		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
+#ifdef OSF_ANIMATION_SMOKE
 		struct AnimationPlayback
 		{
 			float time = 0.0f;
 			float duration = 0.0f;
 			float speed = 0.0f;
 		};
-
-		// Seek never fires timed marks.
-		bool SetSceneTime(RE::Actor* a_actor, float a_time, PlaybackId a_expectedPlayback = 0);
-		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
-		// Solo-clip transport (Studio preview); scene actors are rejected.
-		bool SetAnimationTime(RE::Actor* a_actor, float a_time);
+		// Observe solo playback for the smoke suite; scene actors are excluded.
 		std::optional<AnimationPlayback> GetAnimationPlayback(RE::Actor* a_actor);
-		bool SetAnimationHoldAtEnd(RE::Actor* a_actor, bool a_hold);
+#endif
 
 		bool StopScene(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
 		// No-fade removal for owner handoff; a_expectedPlayback is mandatory so no other owner is erased.

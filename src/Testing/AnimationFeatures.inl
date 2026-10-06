@@ -24,8 +24,6 @@ struct FeatureState
 	std::atomic<unsigned> saves{}, loads{}, reverts{}, resets{};
 	std::atomic<std::uint32_t> value{0x51A7E123}, loadedValue{}, resolvedPlayer{};
 	std::uint32_t voice{};
-	bool studioOwned{};
-	std::string studioSession;
 	std::string peerRun;
 	RE::NiPointer<RE::Actor> peer;
 	bool peerRetired{};
@@ -180,8 +178,6 @@ std::uint8_t OSF_PERSISTENCE_CALL LoadProbe(void*, OSFRecordReaderV1* reader)
 void OSF_PERSISTENCE_CALL RevertProbe(void*) { ++feature.reverts; }
 void CleanupFeatures(bool worldReset)
 {
-	if (feature.studioOwned) Studio::SetPreviewServiceEnabled(false);
-	feature.studioOwned=false;
 	bool retirePeer{};
 	{ std::lock_guard lock(feature.mutex); retirePeer = feature.peer && !feature.peerRetired; }
 	if (!worldReset && retirePeer) PeerCommand(true);
@@ -211,7 +207,7 @@ void FailFeature(const char* description)
 		phase >= 122 && phase <= 124 ? 130 : phase >= 130 && phase <= 132 ? 135 :
 		phase >= 135 && phase <= 137 ? 140 : phase >= 140 && phase <= 143 ? 150 :
 		phase >= 150 && phase <= 154 ? 160 : phase >= 160 && phase <= 161 ? 180 :
-		phase >= 180 && phase <= 184 ? 165 : phase >= 165 && phase <= 167 ? 170 : 0;
+		phase >= 180 && phase <= 184 ? 170 : 0;
 	if (!next) { Finish("failed", description); return; }
 	Cleanup();
 	g.actor.reset(RE::PlayerCharacter::GetSingleton());
@@ -486,37 +482,6 @@ void AdvanceFeatures()
 		if (!WaitFeature("multi-actor.cleanup",retired,10,"Disposable actor deletion did not complete through Papyrus")) break;
 		if (!Check("multi-actor.cleanup",true,"Papyrus returned after disabling and deleting the disposable actor")) return;
 		{ std::lock_guard lock(feature.mutex); feature.peer.reset(); }
-		Phase(165); break;
-	}
-	case 165: {
-		Studio::SetDirectoryForSmoke(g.directory / "studio"); feature.studioOwned=true;
-		Studio::SetPreviewServiceEnabled(true);
-		const auto path=g.directory / "studio" / "session.json";
-		if (!std::filesystem::exists(path)) { Check("studio.protocol",false,"Private Studio Link did not publish a session"); return; }
-		const auto session=ReadJson(path); feature.studioSession=session.value("session",std::string{});
-		if (!Check("studio.protocol",session.value("version",0) == 2 && !feature.studioSession.empty(),"Real Studio Link monitor published protocol 2 in a private directory")) return;
-		RE::BSResourceNiBinaryStream resource{kClip};
-		if (!resource.Good() || resource.GetSize() > 32*1024*1024) { Finish("blocked","Installed AF unavailable for private Studio raw preview fixture"); return; }
-		std::vector<char> bytes(resource.GetSize());
-		if (resource.DoRead(bytes.data(),bytes.size()) != bytes.size()) { Finish("blocked","Could not read the installed AF fixture"); return; }
-		{ std::ofstream file(g.directory / "studio" / "smoke.af",std::ios::binary); file.write(bytes.data(),bytes.size()); }
-		WriteJson(g.directory / "studio" / "request.json",{{"version",2},{"session",feature.studioSession},{"id","smoke-play"},{"command","play"},{"clip","smoke.af"}});
-		Phase(166); break;
-	}
-	case 166: {
-		const auto path=g.directory / "studio" / "response.json";
-		const auto response=std::filesystem::exists(path) ? ReadJson(path) : Json::object();
-		if (!WaitFeature("studio.raw-preview",response.value("id",std::string{}) == "smoke-play" && response.value("ok",false) && PoseStamped(actor),10,"Studio request did not decode/stamp the unsaved AF through its real monitor and frame queue")) break;
-		if (!Check("studio.raw-preview",manager.SetSpeed(actor,0) && manager.SetAnimationTime(actor,0.25f),"Studio's byte-backed AF preview stamps and supports transport")) return;
-		WriteJson(g.directory / "studio" / "request.json",{{"version",2},{"session",feature.studioSession},{"id","smoke-stop"},{"command","stop"}});
-		Phase(167); break;
-	}
-	case 167: {
-		const auto path=g.directory / "studio" / "response.json";
-		const auto response=std::filesystem::exists(path) ? ReadJson(path) : Json::object();
-		if (!WaitFeature("studio.cleanup",response.value("id",std::string{}) == "smoke-stop" && response.value("ok",false) && !manager.IsPlaying(actor),10,"Studio stop did not release its preview graph")) break;
-		Studio::SetPreviewServiceEnabled(false); feature.studioOwned=false;
-		if (!Check("studio.cleanup",!std::filesystem::exists(g.directory / "studio" / "session.json"),"Studio stop retired playback and disabling removed its session marker")) return;
 		Phase(170); break;
 	}
 	case 170: {

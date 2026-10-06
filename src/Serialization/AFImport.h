@@ -53,9 +53,6 @@ namespace OSF::Serialization
 		static AFLoadResult LoadAnimation(std::string_view a_clipKey, const std::vector<std::uint8_t>& a_afBytes,
 			std::string_view a_rigKey, const RigBytesProvider& a_rigProvider);
 
-		// Keeps transient previews from accumulating in the clip cache; the shared rig is retained.
-		static void EvictAnimation(std::string_view a_clipKey, std::string_view a_rigKey);
-
 		static void ClearCache();
 	};
 }

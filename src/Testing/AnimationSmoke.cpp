@@ -12,8 +12,6 @@
 #include "Scene/SceneEventRelay.h"
 #include "UI/FadeService.h"
 #include "UI/Subtitle.h"
-#include "Studio/StudioPreviewService.h"
-#include "RE/B/BSResourceNiBinaryStream.h"
 #include "RE/B/BSScriptUtil.h"
 #include "API/OSFOverlayAPI.h"
 #include "API/OSFSceneAPI.h"
@@ -266,7 +264,7 @@ namespace OSF::Testing::AnimationSmoke
 					"visual pose quality, culling and creature rigs", "physical controller and full launcher/hotkey matrix",
 					"audible mix/spatialization and visible fade/subtitle correctness", "weapon draw/sheath restoration",
 					"save deletion, failed/cancelled load and restart", "actor 3D unload/reload and all termination causes",
-					"Studio desktop pairing and Suit Protocol helmet lease", "all browser editing, wheel assignment and content workflows" } } };
+					"all browser editing, wheel assignment and content workflows" } } };
 			for (const auto* name : kCases)
 				g.snapshot["cases"].push_back({ { "id", name }, { "name", name }, { "status", "pending" }, { "message", "" }, { "detail", "" } });
 			g.running = true;

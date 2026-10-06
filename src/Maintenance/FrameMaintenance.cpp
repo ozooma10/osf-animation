@@ -3,7 +3,6 @@
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
 #include "Scene/PlaybackPreviewService.h"
-#include "Studio/StudioPreviewService.h"
 #include "UI/FadeService.h"
 #include "UI/Subtitle.h"
 #include "Util/NativeMainThreadQueue.h"
@@ -31,7 +30,6 @@ namespace OSF::Maintenance
 			UI::Subtitle::Tick();
 			Animation::GraphManager::GetSingleton().MaintenanceTick();
 			Scene::PlaybackPreviewService::GetSingleton().Tick();
-			Studio::MaintenanceTick();
 #ifdef OSF_ANIMATION_SMOKE
 			Testing::AnimationSmoke::Tick();
 #endif
