@@ -110,7 +110,6 @@ namespace OSF::Scene
 		std::vector<ActiveScene> ListScenes();
 
 		// Fires on node enter and scene end, on whichever thread drove it; the observer does its own thread hop.
-		void SetSceneObserver(std::function<void()> a_fn);
 
 		// Ledger-tracked, so every end path restores. a_slotMask = ARMO biped slot bits.
 		bool HideEquipment(std::int32_t a_handle, RE::Actor* a_actor, std::uint32_t a_slotMask);
@@ -355,7 +354,6 @@ namespace OSF::Scene
 		std::vector<Slot> _slots;
 		std::deque<std::int32_t> _retiredHandles;
 		std::uint16_t     _nextGen = 1;
-		std::function<void()> _sceneObserver;
 		Animation::PlaybackSinkId _playbackSinkId = 0;
 	};
 }

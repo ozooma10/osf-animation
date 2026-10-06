@@ -1,22 +1,12 @@
+#include "API/EngineClient.h"
 #include "API/UIBridge.h"
 #include "API/BrowserSession.h"
-#include "Util/NativeMainThreadQueue.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/UIBridgeWorld.h"
 
-#include "API/OSFSceneAPI.h"
-#include "API/OSFUI.h"
-#include "Animation/GraphManager.h"
-#include "Camera/CameraService.h"
-#include "Input/InputService.h"
-#include "Matchmaking/Matchmaker.h"
-#include "Registry/SceneRegistry.h"
-#include "Packs/PackReload.h"
-#include "Scene/AnchorResolve.h"
-#include "Scene/SceneRuntime.h"
+#include "OSFSceneAPI.h"
+#include "OSFUI.h"
 #include "Serialization/WheelPins.h"
-#include "UI/HudMessage.h"
-#include "Util/Species.h"
 #include "Util/StringUtil.h"
 
 #include <nlohmann/json.hpp>
@@ -40,7 +30,6 @@
 #include <unordered_map>
 #include <vector>
 
-extern "C" OSF::API::IOSFSceneAPI* OSF_RequestSceneAPI(std::uint32_t a_abiVersion);
 
 namespace OSF::API
 {
@@ -69,10 +58,11 @@ namespace OSF::API
 		float         g_relativePointerTraceDy = 0.0f;
 		float         g_relativePointerTraceWheel = 0.0f;
 
-		// Game main thread only; native presentation owns this flag.
-		bool g_viewVisible = false;
+		// Frame-queue writes; the optional visibility export may be queried from other threads.
+		std::atomic<bool> g_viewVisible = false;
 
 		bool g_orbitSpaceNoticed = false;
+		bool g_orbitHeld = false;
 
 		IOSFSceneAPI* g_scene = nullptr;
 
@@ -102,7 +92,7 @@ namespace OSF::API
 		IOSFSceneAPI* SceneAPI()
 		{
 			if (!g_scene) {
-				g_scene = OSF_RequestSceneAPI(kOSFSceneAPIVersion);
+				g_scene = RequestSceneAPI();
 			}
 			return g_scene;
 		}
@@ -139,47 +129,22 @@ namespace OSF::API
 		// Main thread only (AllocToken). Player is token -1.
 		json BuildActiveScenes()
 		{
-			auto& rt = Scene::SceneRuntime::GetSingleton();
-			auto& gm = Animation::GraphManager::GetSingleton();
-			auto* player = RE::PlayerCharacter::GetSingleton();
-			const auto buildCast = [player](const std::vector<RE::Actor*>& a_participants, bool& a_hasPlayer) {
-				json cast = json::array();
-				a_hasPlayer = false;
-				for (RE::Actor* a : a_participants) {
-					if (!a) {
-						continue;
-					}
-					const bool isPlayer = player && a == static_cast<RE::Actor*>(player);
-					a_hasPlayer = a_hasPlayer || isPlayer;
-					cast.push_back(json{
-						{ "token", isPlayer ? -1 : AllocToken(a) },
-						{ "name", isPlayer ? std::string{ "Player" } : ScanLabel(a) },
-						{ "player", isPlayer },
-					});
-				}
-				return cast;
-			};
 			json scenes = json::array();
-			for (const auto& s : rt.ListScenes()) {
+			for (auto item : EngineClient::ActiveScenes()) {
+				json cast = json::array();
 				bool hasPlayer = false;
-				json cast = buildCast(s.participants, hasPlayer);
-				json item{
-					{ "handle", s.handle },
-					{ "sceneId", s.id.empty() ? std::string{ "runtime.files" } : s.id },
-					{ "stage", rt.GetStage(s.handle) },
-					{ "player", hasPlayer },
-					{ "cast", std::move(cast) },
-				};
-				if (!s.participants.empty()) {
-					if (const auto playback = gm.GetScenePlayback(s.participants.front())) {
-						if (s.id.empty()) {
-							item["stage"] = playback->stage;  // ad-hoc plans have no registry stage mapping
-						}
-						item["time"] = playback->time;
-						item["duration"] = playback->duration;
-						item["speed"] = playback->speed;
-					}
+				for (const auto& id : item["participants"]) {
+					auto* actor = RE::TESForm::LookupByID<RE::Actor>(id.get<std::uint32_t>());
+					if (!actor) continue;
+					const bool player = actor->IsPlayerRef();
+					hasPlayer = hasPlayer || player;
+					cast.push_back({ { "token", player ? -1 : AllocToken(actor) },
+						{ "name", player ? std::string{"Player"} : ScanLabel(actor) }, { "player", player } });
 				}
+				const auto id = item["id"].get<std::string>();
+				item["sceneId"] = id.empty() ? "runtime.files" : id;
+				item.erase("id"); item.erase("participants");
+				item["player"] = hasPlayer; item["cast"] = std::move(cast);
 				scenes.push_back(std::move(item));
 			}
 			return json{ { "scenes", std::move(scenes) } };
@@ -290,7 +255,7 @@ namespace OSF::API
 
 		std::string LaunchError(const std::string& a_sceneId, std::size_t a_castCount, bool a_haveFurniture)
 		{
-			auto&       reg = Registry::ContentRegistry::GetSingleton();
+			auto&       reg = EngineClient::CatalogData::GetSingleton();
 			const auto def = reg.Find(a_sceneId);
 			if (!def) {
 				return "Unknown scene '" + a_sceneId + "'";
@@ -397,7 +362,8 @@ namespace OSF::API
 			const auto begun = std::chrono::steady_clock::now();
 			json reply;
 			try {
-				reply["scenes"] = Content::ReloadAll();
+				reply["scenes"] = EngineClient::Get().ReloadContent();
+				EngineClient::CatalogData::GetSingleton().Invalidate();
 				reply["report"] = BuildFileReport();
 				reply["ok"] = true;
 			} catch (const std::exception& e) {
@@ -547,16 +513,9 @@ namespace OSF::API
 				a_plan.furniture = options.anchorRef;
 			} else if (a_plan.locationMode == "front") {
 				// World units are meters; 3.048 m = 10 ft.
-				const auto anchor = Scene::MakeAnchorInFrontOfView(RE::PlayerCharacter::GetSingleton(), 3.048f);
-				if (!anchor.set) {
+				if (!EngineClient::Get().AnchorInFrontOfView(RE::PlayerCharacter::GetSingleton(), 3.048f, &options)) {
 					return "The player is not available for front-of-player placement";
 				}
-				options.anchorRef = nullptr;
-				options.hasAnchor = true;
-				options.anchorX = anchor.pos.x;
-				options.anchorY = anchor.pos.y;
-				options.anchorZ = anchor.pos.z;
-				options.anchorHeadingRad = anchor.heading;
 			} else if (a_plan.locationMode != "cast") {
 				return "Unknown scene location mode '" + a_plan.locationMode + "'";
 			}
@@ -571,7 +530,7 @@ namespace OSF::API
 			}
 			REX::DEBUG("[UI] launch request '{}' cast=[{}] location={} token={} activeBefore={}",
 				a_plan.sceneId, castDiag, a_plan.locationMode, a_plan.locationToken,
-				Scene::SceneRuntime::GetSingleton().ListScenes().size());
+				EngineClient::ActiveScenes().size());
 		}
 
 		void ApplyWheelLaunchPosture(BrowserLaunchPlan& a_plan)
@@ -638,7 +597,7 @@ namespace OSF::API
 			g_lastHandle = a_handle;
 			// Stage rows and wheel entries play one animation, not the parent collection.
 			if (g_wheel.active || a_plan.singleAnimation) {
-				Scene::SceneRuntime::GetSingleton().SetSingleStage(a_handle);
+				EngineClient::Get().SetSingleStage(a_handle);
 			}
 
 			auto* player = RE::PlayerCharacter::GetSingleton();
@@ -763,10 +722,7 @@ namespace OSF::API
 			const bool ok = api && handle != 0 && api->Advance(handle);
 			// Keep a paused scene paused across NEXT.
 			if (ok && g_resumeSpeeds.contains(handle)) {
-				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
-				if (!actors.empty() && actors.front()) {
-					Animation::GraphManager::GetSingleton().SetSpeed(actors.front(), 0.0f);
-				}
+				EngineClient::Get().SetSceneSpeed(handle, 0.0f);
 			}
 			REX::DEBUG("[UI] osf.animation.advance handle={} -> {}", handle, ok);
 		}
@@ -783,22 +739,19 @@ namespace OSF::API
 				return;
 			}
 			const auto handle = IntOr(j, "handle", 0);
-			auto participants = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
-			if (handle == 0 || participants.empty() || !participants.front()) {
-				return;
-			}
-
-			auto& gm = Animation::GraphManager::GetSingleton();
+			if (handle == 0) return;
+			auto& gm = EngineClient::Get();
+			if (gm.GetSceneSpeed(handle) < 0.0f) return;
 			if (const auto paused = j.find("paused"); paused != j.end() && paused->is_boolean()) {
 				if (paused->get<bool>()) {
-					const float speed = gm.GetSpeed(participants.front());
+					const float speed = gm.GetSceneSpeed(handle);
 					if (speed > 0.0f) {
 						g_resumeSpeeds[handle] = speed;
 					}
-					gm.SetSpeed(participants.front(), 0.0f);
+					gm.SetSceneSpeed(handle, 0.0f);
 				} else {
 					const auto found = g_resumeSpeeds.find(handle);
-					gm.SetSpeed(participants.front(), found != g_resumeSpeeds.end() ? found->second : 1.0f);
+					gm.SetSceneSpeed(handle, found != g_resumeSpeeds.end() ? found->second : 1.0f);
 					g_resumeSpeeds.erase(handle);
 				}
 			}
@@ -856,7 +809,7 @@ namespace OSF::API
 					entry.stage = *stage;
 				}
 
-				const auto def = Registry::ContentRegistry::GetSingleton().Find(entry.scene);
+				const auto def = EngineClient::CatalogData::GetSingleton().Find(entry.scene);
 				const bool eligible = def && IsWheelEntryEligible(*def, entry.stage);
 				if (!eligible) {
 					REX::WARN("[UI] osf.animation.wheel.set refused ineligible animation '{}' stage {}", entry.scene, entry.stage);
@@ -886,12 +839,7 @@ namespace OSF::API
 
 			RE::TESObjectREFR* ref = ResolveToken(token);
 			if (ref) {
-				Matchmaking::AnchorMatchCache cache(ref);
-				Registry::ContentRegistry::GetSingleton().ForEachDef([&reply, &cache](const Registry::SceneDef& d) {
-					if (d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) {
-						reply["sceneIds"].push_back(d.id);
-					}
-				});
+				reply["sceneIds"] = EngineClient::MatchAnchor(ref);
 			}
 			REX::DEBUG("[UI] osf.animation.anchorMatch token={} -> {} scene(s)", token, reply["sceneIds"].size());
 			SendJson(a_srcView, "osf.animation.anchorMatch", reply);
@@ -926,18 +874,7 @@ namespace OSF::API
 			}
 
 			if (valid && !actors.empty()) {
-				Registry::ContentRegistry::GetSingleton().ForEachDef([&reply, &actors](const Registry::SceneDef& d) {
-					if (!d.clipsAvailable || ActorCountOf(d) != actors.size()) {
-						return;
-					}
-					const bool accepts = d.roles.empty() || std::ranges::equal(d.roles, actors,
-						[](const Registry::SceneRole& role, RE::Actor* actor) {
-							return Matchmaking::RoleAccepts(role, actor);
-						});
-					if (accepts) {
-						reply["sceneIds"].push_back(d.id);
-					}
-				});
+				reply["sceneIds"] = EngineClient::MatchCast(actors);
 			}
 			REX::DEBUG("[UI] osf.animation.castMatch {} actor(s) -> {} scene(s)", actors.size(), reply["sceneIds"].size());
 			SendJson(a_srcView, "osf.animation.castMatch", reply);
@@ -957,12 +894,7 @@ namespace OSF::API
 					const bool isActor = ref->IsActor();
 					bool       usable = isActor;
 					if (!isActor) {
-						Matchmaking::AnchorMatchCache cache(ref);
-						Registry::ContentRegistry::GetSingleton().ForEachDef([&usable, &cache](const Registry::SceneDef& d) {
-							if (!usable && d.clipsAvailable && d.RequiresAnchor() && cache.Accepts(d)) {
-								usable = true;
-							}
-						});
+						usable = !EngineClient::MatchAnchor(ref).empty();
 					}
 					if (usable) {
 						json p;
@@ -970,7 +902,7 @@ namespace OSF::API
 						p["token"] = g_openPickToken;
 						p["name"] = ScanLabel(ref);
 						p["formId"] = ref->GetFormID();
-						p["species"] = isActor ? Util::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
+						p["species"] = isActor ? EngineClient::ActorSpecies(static_cast<RE::Actor*>(ref)) : std::string{};
 						p["sex"] = RefSexTag(ref);
 						REX::DEBUG("[UI] OnOpened: seeding view with crosshair target '{}' as {}", ScanLabel(ref), p["slot"].get<std::string>());
 						SendJson(a_srcView, "osf.animation.openTarget", p);
@@ -982,11 +914,11 @@ namespace OSF::API
 		void OnShown()
 		{
 			g_viewVisible = true;
-			Input::InputService::GetSingleton().SetUiCursorVisible(true);
+			EngineClient::Get().SetInteractionCursor(true);
 			ReplayBrowser(nullptr, nullptr, kViewId, nullptr);
 			const auto* target = ResolveToken(g_openPickToken);
 			if (!g_wheel.active && (!target || !target->IsActor())) {
-				Camera::CameraService::GetSingleton().KickToThirdPerson();
+				EngineClient::Get().KickToThirdPerson();
 			}
 		}
 
@@ -994,18 +926,16 @@ namespace OSF::API
 		{
 			g_viewVisible = false;
 			g_relativePointerTraceActive = false;
-			Input::InputService::GetSingleton().SetUiCursorVisible(false);
-			Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();
+			EngineClient::Get().SetInteractionCursor(false);
+			if (g_orbitHeld) EngineClient::Get().ReleaseOrbit();
+			g_orbitHeld = false;
 			g_wheel = {};
 			g_openPickToken = 0;
 			UIBridgeWorld::ClearSessionTokens();
 			g_orbitSpaceNoticed = false;
 			// NPC-only scenes outlive the browser; unpause them before their only control surface goes.
 			for (const auto& [handle, speed] : g_resumeSpeeds) {
-				auto actors = Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
-				if (!actors.empty() && actors.front()) {
-					Animation::GraphManager::GetSingleton().SetSpeed(actors.front(), speed);
-				}
+				EngineClient::Get().SetSceneSpeed(handle, speed);
 			}
 			g_resumeSpeeds.clear();
 			if (!g_closeStops.empty()) {
@@ -1034,8 +964,7 @@ namespace OSF::API
 				return false;
 			}
 			// Lazily engage on the first drag; focus the player's live scene cast, else the player.
-			auto& cam = Camera::CameraService::GetSingleton();
-			if (!cam.BrowseOrbitHeld()) {
+			if (!g_orbitHeld) {
 				std::vector<std::uint32_t> cast;
 				auto* api = SceneAPI();
 				auto* player = RE::PlayerCharacter::GetSingleton();
@@ -1050,7 +979,8 @@ namespace OSF::API
 						}
 					}
 				}
-				if (!cam.EnsureBrowseOrbit(std::move(cast)) && !g_orbitSpaceNoticed) {
+				g_orbitHeld = EngineClient::Get().AcquireOrbit(cast.data(), static_cast<std::uint32_t>(cast.size()));
+				if (!g_orbitHeld && !g_orbitSpaceNoticed) {
 					// The orbit cannot engage aboard a ship in space.
 					g_orbitSpaceNoticed = true;
 					json notice;
@@ -1059,7 +989,7 @@ namespace OSF::API
 					SendJson(a_srcView, "osf.animation.notice", notice);
 				}
 			}
-			return cam.BrowseOrbitHeld();
+			return g_orbitHeld;
 		}
 
 		// Fallback when relative-pointer registration is unavailable.
@@ -1073,7 +1003,7 @@ namespace OSF::API
 				REX::TRACE("[UI] osf.animation.orbit unavailable or after close — dropped");
 				return;
 			}
-			Input::InputService::GetSingleton().InjectOrbitDelta(
+			EngineClient::Get().InjectOrbitDelta(
 				NumOr(p, "dx", 0.0f), NumOr(p, "dy", 0.0f), NumOr(p, "wheel", 0.0f));
 		}
 
@@ -1115,13 +1045,13 @@ namespace OSF::API
 			const bool orbitReady = EnsureBrowseOrbit(a_viewId);
 			if (g_relativePointerTraceUpdates == 1) {
 				REX::DEBUG("[UI] native relative-pointer first update dx={:.1f}, dy={:.1f}, wheel={:.1f} (captureBegan={}, browserVisible={}, orbitReady={})",
-					a_dx, a_dy, a_wheel, g_relativePointerTraceActive, g_viewVisible, orbitReady);
+					a_dx, a_dy, a_wheel, g_relativePointerTraceActive, g_viewVisible.load(), orbitReady);
 			}
 			if (!orbitReady) {
 				REX::TRACE("[UI] native relative-pointer update unavailable or after close — dropped");
 				return;
 			}
-			Input::InputService::GetSingleton().InjectOrbitDelta(a_dx, a_dy, a_wheel);
+			EngineClient::Get().InjectOrbitDelta(a_dx, a_dy, a_wheel);
 		}
 	}
 
@@ -1134,14 +1064,12 @@ namespace OSF::API
 		SendJson(kViewId, "osf.animation.catalog.data", BuildCatalog(false));
 	}
 
-#ifdef OSF_ANIMATION_SMOKE
-	bool BrowserVisibleForSmoke() { return g_viewVisible; }
-#endif
+	bool BrowserVisible() { return g_viewVisible.load(); }
 
 	bool OpenBrowser()
 	{
 		if (!BrowserSession::Available()) {
-			REX::WARN("[UI] OpenBrowser: {}", BrowserSession::UnavailableReason());
+			REX::DEBUG("[UI] OpenBrowser: {}", BrowserSession::UnavailableReason());
 			return false;
 		}
 		// UIMessageQueue is main-thread-only and callers may be on a Papyrus VM thread.
@@ -1175,8 +1103,7 @@ namespace OSF::API
 	bool OpenWheel(std::string_view a_tagPrefix)
 	{
 		if (!BrowserSession::Available()) {
-			REX::WARN("[UI] OpenWheel: {}", BrowserSession::UnavailableReason());
-			UI::HudMessage::Error(BrowserSession::UnavailableReason());
+			REX::DEBUG("[UI] OpenWheel: {}", BrowserSession::UnavailableReason());
 			return false;
 		}
 		// Settings hotkeys and Papyrus may run on workers.
@@ -1194,7 +1121,7 @@ namespace OSF::API
 				} else if (actor->combatController != nullptr) {
 					// The IsInCombat() vtable slot is unreliable; read the member instead.
 					reject = "in combat";
-				} else if (Util::ActorSpecies(actor) != "human") {
+				} else if (EngineClient::ActorSpecies(actor) != "human") {
 					reject = "non-human";  // human clips would T-pose them
 				}
 				if (reject) {
@@ -1254,14 +1181,30 @@ namespace OSF::API
 		BrowserSession::RegisterSend("osf.animation.orbit", &OnOrbit);
 		BrowserSession::RegisterSend("osf.animation.requestClose", &OnRequestClose);
 
-		// May fire off-thread (Papyrus StopScene); the hop also lets ReleaseSlot retire the slot first.
-		Scene::SceneRuntime::GetSingleton().SetSceneObserver([]() {
-			Util::NativeMainThreadQueue::Post([]() { PushActiveScenes(); });
-		});
-
-		Animation::GraphManager::GetSingleton().RegisterPlaybackSink({ .clear = [] { BrowserSession::Reset(); } });
-		BrowserSession::FinishRegistration();
+		const auto subscription = EngineClient::Get().Subscribe([](EngineEvent event, void*) noexcept {
+			try {
+				if (event == EngineEvent::WorldReset) {
+					BrowserSession::Reset([] {
+						// The engine revoked mechanisms and scene handles; never restore the old world.
+						g_orbitHeld = false;
+						g_closeStops.clear(); g_resumeSpeeds.clear(); g_lastHandle = 0;
+						OnHidden();
+						g_ui.RequestMenu(kViewId, false);
+					});
+				} else if (event == EngineEvent::CatalogChanged || event == EngineEvent::ContentReloaded) {
+					EngineClient::CatalogData::GetSingleton().Invalidate();
+					if (event == EngineEvent::ContentReloaded) {
+						EngineClient::Post([] { EngineClient::Get().ScanDurations(); });
+					}
+					BrowserSession::Post([] { PushCatalogUpdate(); }, false);
+				} else {
+					BrowserSession::Post([] { PushActiveScenes(); });
+				}
+			} catch (...) { REX::ERROR("[UI] Could not queue engine notification"); }
+		}, nullptr);
+		BrowserSession::FinishRegistration(subscription != 0);
 		if (!BrowserSession::Available()) return;
+		EngineClient::Post([] { EngineClient::Get().ScanDurations(); });
 		REX::INFO("[Feature] OSF UI connected (API {}.{}); relative pointer {}",
 			g_ui.Version() >> 16, g_ui.Version() & 0xFFFF, g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
 	}

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "API/OSFUI.h"
+#include "OSFUI.h"
 #include <functional>
 
 namespace OSF::API::BrowserSession
@@ -10,9 +10,9 @@ namespace OSF::API::BrowserSession
 	bool Connect(void (*a_shown)(), void (*a_hidden)());
 	bool Available();
 	const char* UnavailableReason();
-	void FinishRegistration();
+	void FinishRegistration(bool a_engineSubscribed);
 	bool RegisterSend(const char* a_name, OSFUI::API::SendFn a_handler, bool a_requiresVisible = true);
 	bool RegisterPointer(OSFUI::API::RelativePointerFn a_handler);
 	void Post(std::function<void()> a_task, bool a_requiresVisible = true);
-	void Reset();
+	void Reset(std::function<void()> cleanup);
 }

@@ -107,7 +107,7 @@ try {
     }
     $engineEntries = @('Core/SFSE/Plugins/OSF Animation.dll','Core/Scripts/OSF.pex','Core/Scripts/OSFTypes.pex',
         'Core/Scripts/OSFAdvanced.pex','Core/OSF/internal.osf.json','Core/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json','fomod/ModuleConfig.xml')
-    $browserEntries = @('Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/index.html',
+    $browserEntries = @('Browser/SFSE/Plugins/OSF Animation Browser.dll','Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/index.html',
         'Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/manifest.json','Immersion/OSF/immersion/emotes.osf.json','fomod/ModuleConfig.xml')
     $archiveHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes('fixture')))
     $validArchives = Join-Path $scratch 'valid-archives'

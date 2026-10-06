@@ -1,8 +1,7 @@
+#include "API/EngineClient.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/UIKeywordLabel.h"
 
-#include "Registry/ContentRegistry.h"
-#include "Serialization/ClipDurations.h"
 #include "Serialization/WheelPins.h"
 #include "Util/StringUtil.h"
 
@@ -16,54 +15,35 @@
 #include <string_view>
 #include <vector>
 
-namespace OSF::Registry
-{
-	// TU-local so no caller can emit the untruncated `problems` vector (see kMaxProblemsPerFile).
-	NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_ONLY_SERIALIZE(SceneImportProblem,
-		code, message, hint, scene, node, role, clip)
-}
-
 namespace OSF::API::UIBridgeCatalog
 {
 	using json = nlohmann::json;
 
 	namespace
 	{
-		const char* GenderTag(Registry::RoleGender a_gender)
-		{
-			switch (a_gender) {
-			case Registry::RoleGender::kMale:
-				return "male";
-			case Registry::RoleGender::kFemale:
-				return "female";
-			default:
-				return "any";
-			}
-		}
-
 		// Loops an open-ended hold stage is assumed to run, for time estimates.
 		constexpr float kHoldLoopEstimate = 2.0f;
-		bool IsEmote(const Registry::SceneDef& a_def)
+		bool IsEmote(const Catalog::Scene& a_def)
 		{
-			return std::ranges::any_of(a_def.tagSet,
-				[](const std::string& a_tag) { return a_tag.starts_with("player.emote."); });
+			return std::ranges::any_of(a_def.tags,
+				[](const std::string& a_tag) { return Util::ToLower(a_tag).starts_with("player.emote."); });
 		}
 
-		bool IsWheelScene(const Registry::SceneDef& a_def)
+		bool IsWheelScene(const Catalog::Scene& a_def)
 		{
 			return !a_def.library && !a_def.unlisted && a_def.roles.size() == 1 &&
 			       !a_def.RequiresAnchor() && IsEmote(a_def);
 		}
 
-		const Registry::SceneNode* WheelStage(const Registry::SceneDef& a_def, std::int32_t a_stage)
+		const Catalog::Stage* WheelStage(const Catalog::Scene& a_def, std::int32_t a_stage)
 		{
 			if (!a_def.library || a_def.roles.size() != 1 || a_def.RequiresAnchor() ||
 			    (!a_def.species.empty() && a_def.species != "human") ||
-			    a_stage < 0 || static_cast<std::size_t>(a_stage) >= a_def.linearStages.size()) {
+			    a_stage < 0 || static_cast<std::size_t>(a_stage) >= a_def.stages.size()) {
 				return nullptr;
 			}
-			const auto* node = a_def.FindNode(a_def.linearStages[static_cast<std::size_t>(a_stage)]);
-			return node && !node->stages.empty() && !node->stages.front().clips.empty() ? node : nullptr;
+			const auto* stage = &a_def.stages[static_cast<std::size_t>(a_stage)];
+			return stage->resolved && stage->clipCount > 0 ? stage : nullptr;
 		}
 
 		// Unknown durations serialize as null, never a sentinel the view could mistake for seconds.
@@ -181,22 +161,12 @@ namespace OSF::API::UIBridgeCatalog
 	}
 
 	// Declared roles win; anonymous positional scenes take the first playable stage's clip count.
-	std::size_t ActorCountOf(const Registry::SceneDef& a_def)
+	std::size_t ActorCountOf(const Catalog::Scene& a_def)
 	{
-		if (!a_def.roles.empty()) {
-			return a_def.roles.size();
-		}
-		const Registry::SceneNode* node = a_def.FindNode(a_def.entry);
-		if (!node && !a_def.nodes.empty()) {
-			node = &a_def.nodes.front();
-		}
-		if (node && !node->stages.empty()) {
-			return node->stages.front().clips.size();
-		}
-		return 0;
+		return a_def.actorCount;
 	}
 
-	bool IsWheelEntryEligible(const Registry::SceneDef& a_def, std::int32_t a_stage)
+	bool IsWheelEntryEligible(const Catalog::Scene& a_def, std::int32_t a_stage)
 	{
 		return a_stage < 0 ? IsWheelScene(a_def) : WheelStage(a_def, a_stage) != nullptr;
 	}
@@ -213,7 +183,7 @@ namespace OSF::API::UIBridgeCatalog
 		};
 
 		std::vector<Item> items;
-		auto add = [&items](const Registry::SceneDef& a_def, const Entry& a_entry) {
+		auto add = [&items](const Catalog::Scene& a_def, const Entry& a_entry) {
 			if (a_entry.stage < 0) {
 				if (!IsWheelScene(a_def)) {
 					return;
@@ -225,17 +195,17 @@ namespace OSF::API::UIBridgeCatalog
 			if (!node) {
 				return;
 			}
-			const auto& stage = node->stages.front();
+			const auto& stage = *node;
 			std::string title = stage.name;
 			if (title.empty()) {
-				title = a_def.linearStages.size() == 1
+				title = a_def.stages.size() == 1
 				          ? (a_def.name.empty() ? a_def.id : a_def.name)
 				          : std::format("{} · Stage {}", a_def.name.empty() ? a_def.id : a_def.name, a_entry.stage + 1);
 			}
 			items.push_back({ a_entry, std::move(title), a_def.priority, a_def.weight });
 		};
 
-		auto& registry = Registry::ContentRegistry::GetSingleton();
+		auto& registry = EngineClient::CatalogData::GetSingleton();
 		const bool customized = Serialization::WheelPins::Customized();
 		if (customized) {
 			for (const auto& entry : Serialization::WheelPins::Entries()) {
@@ -245,9 +215,9 @@ namespace OSF::API::UIBridgeCatalog
 			}
 		} else {
 			const std::string prefix = Util::ToLower(a_tagPrefix.empty() ? std::string_view{ "player.emote." } : a_tagPrefix);
-			registry.ForEachDef([&](const Registry::SceneDef& a_def) {
-				if (a_def.clipsAvailable && IsWheelScene(a_def) && std::ranges::any_of(a_def.tagSet,
-					[&](const std::string& a_tag) { return a_tag.starts_with(prefix); })) {
+			registry.ForEachDef([&](const Catalog::Scene& a_def) {
+				if (a_def.clipsAvailable && IsWheelScene(a_def) && std::ranges::any_of(a_def.tags,
+					[&](const std::string& a_tag) { return Util::ToLower(a_tag).starts_with(prefix); })) {
 					add(a_def, Entry{ a_def.id, -1 });
 				}
 			});
@@ -288,10 +258,8 @@ namespace OSF::API::UIBridgeCatalog
 			return 0;
 		};
 		std::vector<Card> cards;
-		std::error_code sourceRootEc;
-		const auto sourceRoot = std::filesystem::current_path(sourceRootEc) / "Data" / "OSF";
-		Registry::ContentRegistry::GetSingleton().ForEachDef(
-			[&cards, &wheelOrder, &sourceRoot, sourceRootEc, a_library, wheelCustomized](const Registry::SceneDef& d) {
+		EngineClient::CatalogData::GetSingleton().ForEachDef(
+			[&cards, &wheelOrder, a_library, wheelCustomized](const Catalog::Scene& d) {
 			if (d.library != a_library) {
 				return;
 			}
@@ -303,23 +271,15 @@ namespace OSF::API::UIBridgeCatalog
 			c.title = d.name.empty() ? d.id : d.name;
 			c.pack = d.pack;
 			c.folder = d.folder;
-			const auto srcName = d.sourceFile.filename().u8string();
-			c.sourceFile.assign(srcName.begin(), srcName.end());
+			c.sourceFile = d.sourceFile;
 			c.species = d.species.empty() ? std::string{ "human" } : d.species;
-			c.sourcePath = c.sourceFile;
-			c.sourceKind = Registry::CatalogSourceKindName(d.sourceKind);
-			if (!sourceRootEc) {
-				const auto relative = d.sourceFile.lexically_relative(sourceRoot);
-				const auto text = relative.generic_string();
-				if (!text.empty() && text != ".." && !text.starts_with("../")) {
-					c.sourcePath = text;
-				}
-			}
+			c.sourcePath = d.sourcePath;
+			c.sourceKind = d.sourceKind;
 			c.tags = d.tags;
 			c.actorCount = static_cast<std::uint32_t>(ActorCountOf(d));
 			c.roles.reserve(d.roles.size());
 			for (const auto& r : d.roles) {
-				c.roles.push_back({ r.name, GenderTag(r.gender) });
+				c.roles.push_back({ r.name, r.gender });
 			}
 			c.priority = d.priority;
 			c.weight = d.weight;
@@ -327,8 +287,7 @@ namespace OSF::API::UIBridgeCatalog
 			c.playerInputLock = d.playerInputLock;
 			c.fade = d.fade;
 			c.requiresFurniture = d.RequiresAnchor();
-			c.worldPlacement = d.worldPlacement == Animation::WorldPlacementMode::kFollowActor ?
-				"followActor" : "anchorAndPin";
+			c.worldPlacement = d.placement;
 			// Base forms rarely retain an edid at runtime; fall back to the form id.
 			for (const auto kwId : d.anchorKeywords) {
 				if (std::string lbl = KeywordLabel(RE::TESForm::LookupByID<RE::BGSKeyword>(kwId)); !lbl.empty()) {
@@ -345,30 +304,22 @@ namespace OSF::API::UIBridgeCatalog
 			c.wheelCustomized = wheelCustomized;
 			c.pinned = wheelOrder(d.id, -1);
 			// Each desugared linear node holds exactly one StageDef.
-			c.stages.reserve(d.linearStages.size());
-			for (std::size_t i = 0; i < d.linearStages.size(); ++i) {
-				const auto* node = d.FindNode(d.linearStages[i]);
-				if (!node || node->stages.empty()) {
+			c.stages.reserve(d.stages.size());
+			for (std::size_t i = 0; i < d.stages.size(); ++i) {
+				const auto* node = &d.stages[i];
+				if (!node->resolved) {
 					c.estPartial = true;  // `use` node: unknown time
 					continue;
 				}
-				const auto& st = node->stages.front();
+				const auto& st = *node;
 				StageCard sc;
 				sc.index = static_cast<std::int32_t>(i);
 				sc.name = st.name;
 				sc.tags = st.tags;
-				sc.clipCount = static_cast<std::int32_t>(st.clips.size());
+				sc.clipCount = st.clipCount;
 				sc.pinned = wheelOrder(d.id, sc.index);
 
-				// Pack-authored duration wins over the probe cache; resolved first for `atFrame` fractions.
-				if (!st.clips.empty()) {
-					const auto& first = st.clips.front();
-					if (first.sec > 0.0f) {
-						sc.loopSec = first.sec;
-					} else if (const auto sec = Serialization::ClipDurations::Lookup(first.file, first.animId)) {
-						sc.loopSec = *sec;
-					}
-				}
+				sc.loopSec = st.loopSec;
 
 				// A frozen stage never plays its clip: cost is its timer, or zero when open-ended.
 				if (st.hold >= 0.0f) {
@@ -387,15 +338,13 @@ namespace OSF::API::UIBridgeCatalog
 				}
 
 				sc.timerSec = node->timerSec;
-				switch (node->loopMode) {
-				case Registry::LoopMode::kOnce:
+				if (node->loopMode == "once") {
 					sc.loops = -1;
 					sc.estSec = sc.loopSec;
 					if (sc.timerSec > 0.0f) {  // a timer edge can cut the pass short
 						sc.estSec = sc.estSec >= 0.0f ? std::min(sc.estSec, sc.timerSec) : sc.timerSec;
 					}
-					break;
-				case Registry::LoopMode::kCount:
+				} else if (node->loopMode == "count") {
 					sc.loops = node->loopCount;
 					if (sc.loopSec >= 0.0f) {
 						sc.estSec = static_cast<float>(node->loopCount) * sc.loopSec;
@@ -405,8 +354,7 @@ namespace OSF::API::UIBridgeCatalog
 					} else if (sc.timerSec > 0.0f) {
 						sc.estSec = sc.timerSec;  // upper bound
 					}
-					break;
-				case Registry::LoopMode::kHold:
+				} else {
 					sc.loops = 0;
 					if (sc.timerSec > 0.0f) {
 						sc.estSec = sc.timerSec;
@@ -416,7 +364,6 @@ namespace OSF::API::UIBridgeCatalog
 							sc.estSec = kHoldLoopEstimate * sc.loopSec;
 						}
 					}
-					break;
 				}
 
 				if (sc.estSec >= 0.0f) {
@@ -446,7 +393,7 @@ namespace OSF::API::UIBridgeCatalog
 	// osf.animation.imports.data: per file, so files that produced no cards still appear.
 	json BuildFileReport()
 	{
-		const auto stats = Registry::ContentRegistry::GetSingleton().FileStats();
+		const auto stats = EngineClient::CatalogData::GetSingleton().FileStats();
 
 		json files = json::array();
 		std::uint64_t totalDeclared = 0, totalScenes = 0, totalRejectedScenes = 0;
@@ -521,7 +468,7 @@ namespace OSF::API::UIBridgeCatalog
 				{ "declaredScenes", totalDeclared },
 				{ "rejectedScenes", totalRejectedScenes },
 				{ "scenes", totalScenes },
-				{ "registered", static_cast<std::uint64_t>(Registry::ContentRegistry::GetSingleton().Size()) },
+				{ "registered", static_cast<std::uint64_t>(EngineClient::CatalogData::GetSingleton().Size()) },
 				{ "clipEntries", totalClipEntries },
 				{ "hidden", totalHidden },
 				{ "missingClips", totalMissing },
@@ -534,8 +481,8 @@ namespace OSF::API::UIBridgeCatalog
 	}
 	std::optional<std::string> BuildImportTextReport(std::string_view a_path)
 	{
-		const auto stats = Registry::ContentRegistry::GetSingleton().FileStats();
-		const auto found = std::find_if(stats.begin(), stats.end(), [&](const Registry::ContentFileStats& a_stats) {
+		const auto stats = EngineClient::CatalogData::GetSingleton().FileStats();
+		const auto found = std::find_if(stats.begin(), stats.end(), [&](const Catalog::File& a_stats) {
 			return a_stats.path == a_path;
 		});
 		if (found == stats.end()) {

@@ -16,8 +16,6 @@ namespace OSF::API
 	// fall back to a player-only wheel.
 	bool OpenWheel(std::string_view a_tagPrefix);
 
-#ifdef OSF_ANIMATION_SMOKE
-	// Frame-thread observation after the native lifecycle task has executed.
-	bool BrowserVisibleForSmoke();
-#endif
+	// Presentation flag is published only after the frame-queued lifecycle task executes.
+	bool BrowserVisible();
 }

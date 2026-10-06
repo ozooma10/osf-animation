@@ -24,6 +24,7 @@ if (-not $SkipBuild) {
 }
 
 $receipt = Test-ReleaseBuildReceipt $repo 'browser'
+& (Join-Path $repo 'tools/Test-BrowserBoundary.ps1')
 $actualVersion = [regex]::Match((Get-Content (Join-Path $repo 'xmake.lua') -Raw), 'set_version\("([^"\r\n]+)"\)').Groups[1].Value
 if ($Version -cne $actualVersion) { throw 'Browser archive version must match the engine source version.' }
 $view = Join-Path $repo 'build\osfui-animation-browser\SFSE\Plugins\OSF\UI\views\osf.animation'
@@ -36,6 +37,7 @@ $stage = Join-Path $repo ('build/packages/browser-' + [guid]::NewGuid().ToString
 $viewTarget = Join-Path $stage 'Browser\SFSE\Plugins\OSF\UI\views'
 New-Item -ItemType Directory -Force -Path $viewTarget | Out-Null
 Copy-Item -LiteralPath $view -Destination $viewTarget -Recurse
+Copy-Item -LiteralPath (Join-Path $repo 'build/windows/x64/releasedbg/OSF Animation Browser.dll') -Destination (Join-Path $stage 'Browser/SFSE/Plugins')
 
 $docs = Join-Path $stage 'Browser\SFSE\Plugins\OSF Animation Browser'
 New-Item -ItemType Directory -Force -Path $docs | Out-Null
@@ -60,7 +62,7 @@ New-Item -ItemType Directory -Force -Path $immersion | Out-Null
 Copy-Item -LiteralPath $emotes -Destination $immersion
 
 $fomod = Join-Path $stage 'fomod'
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'browser-fomod') -Destination $fomod -Recurse
+Copy-Item -LiteralPath (Join-Path $repo 'extensions/browser/packaging/fomod') -Destination $fomod -Recurse
 $images = Join-Path $fomod 'images'
 New-Item -ItemType Directory -Force -Path $images | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'fomod\images\header.jpg') -Destination $images
@@ -81,6 +83,9 @@ if (-not (Get-ChildItem (Join-Path $viewTarget 'osf.animation') -Recurse -Filter
     throw 'The browser has no generated JavaScript.'
 }
 if (Get-ChildItem $stage -Recurse -Filter '*.map' -File) { throw 'A source map leaked into the addon.' }
+$dlls = @(Get-ChildItem $stage -Recurse -Filter '*.dll' -File)
+if ($dlls.Count -ne 1 -or $dlls[0].Name -cne 'OSF Animation Browser.dll') { throw 'Browser package must contain only its own native DLL.' }
+if (Get-ChildItem $stage -Recurse -Filter '*.pex' -File) { throw 'Engine Papyrus payload leaked into the browser addon.' }
 
 $null = Test-ReleaseBuildReceipt $repo 'browser'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null

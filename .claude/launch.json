@@ -4,7 +4,7 @@
     {
       "name": "animation-browser",
       "runtimeExecutable": "npm.cmd",
-      "runtimeArgs": ["--prefix", "ui/animation-browser", "run", "dev", "--", "--open", "false"],
+      "runtimeArgs": ["--prefix", "extensions/browser/ui", "run", "dev", "--", "--open", "false"],
       "port": 8791
     },
     {

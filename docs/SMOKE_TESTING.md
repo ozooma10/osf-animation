@@ -18,7 +18,7 @@ tests and in-game acceptance. It is an on-demand bench, not a scheduled job.
 ## Prerequisites
 
 - XMake, the C++23/MSVC toolchain and the repository dependencies/submodules.
-- Node/npm compatible with `ui/animation-browser/package.json`. The bench runs `npm ci`
+- Node/npm compatible with `extensions/browser/ui/package.json`. The bench runs `npm ci`
   before the browser scripts.
 - Compiled `dist/Scripts/OSF{,Types,Advanced}.pex` for packaging. Compile them with the
   canonical command in `AGENTS.md` after Papyrus edits. Packaging rejects older PEX
@@ -59,9 +59,9 @@ are restored, and the final XMake configuration is `releasedbg`, `build`, with
 | Bench contracts | Rejects missing suites, stale or changed evidence, mismatched source/DLL hashes, skipped game cases, and truthy string flags. Exercises release receipts, instrumented DLL rejection, staged/ZIP tampering, forbidden entries and Papyrus mismatch rejection. |
 | SDK | `tools/Test-SdkLock.ps1`: vendored OSF UI / OSF Settings SDK files match `sdk-lock.json` hashes; with sibling checkouts present, the locked tags and commits also match. |
 | Production | Normal releasedbg DLL, installed into private staging. |
-| Native | All seven `xmake test` suites. The reported execution count must match the inventory. |
+| Native | All eight `xmake test` suites, including browser/engine boundary coverage. The reported execution count must match the inventory. |
 | Fixtures | Compiles the private Papyrus script; generates the live GLTF/GLB/gzip clips and WAV; decodes and samples the three clips through the production importer. |
-| Browser | Clean dependency install, Vitest, TypeScript check, and production Vite build. |
+| Browser | Independent production addon DLL build, clean dependency install, Vitest, TypeScript check, and production Vite build. |
 | Distribution | Engine and browser FOMOD ZIPs; required entries, exact production DLL hash, separation of payloads, and no test fixtures, source maps, or player values. |
 | Runtime build | Optional, separate instrumented DLL and live fixture content. |
 | Runtime | Optional, owned disposable game session, per-case assertions and retained native snapshots/screenshots. |
@@ -148,10 +148,11 @@ a smoke run pass.
 Use matching engine/browser builds with the released Settings/UI hosts and record
 each result independently:
 
-- Core-only installation: playback works, browser launch reports the missing addon,
+- Core-only installation with Browser and OSF UI absent: gameplay consumers and playback work, `OSF.OpenBrowser()` returns false,
   and Mod Issues contains no warning merely because the optional browser is absent.
-- Browser installed with missing/unsupported UI or invalid assets: engine playback
-  remains available; Mod Issues gives the corrective reason and reinstall/update action.
+- Browser installed with missing UI: engine playback remains available and the addon is inactive without an issue.
+- Browser installed with unsupported UI or invalid assets: engine playback remains available;
+  addon-owned Mod Issues gives the corrective reason and reinstall/update action.
 - Open through Settings' Launcher and bound keyboard/controller hotkeys; use Back
   inside the view before closing it. Confirm game input and cursor return on close.
 - Start a player scene and an NPC-only scene in separate runs. Confirm player

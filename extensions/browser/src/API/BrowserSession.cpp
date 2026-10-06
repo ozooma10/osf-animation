@@ -1,6 +1,7 @@
 #include "API/BrowserSession.h"
+#include "API/EngineClient.h"
 #include "API/BrowserSessionQueue.h"
-#include "API/Health.h"
+#include "API/BrowserHealth.h"
 
 #include <atomic>
 #include <filesystem>
@@ -13,7 +14,7 @@ namespace OSF::API::BrowserSession
 	namespace
 	{
 		OSFUI::API::Client g_views;
-		BrowserSessionQueue g_queue;
+		BrowserSessionQueue g_queue([](std::function<void()> task) { EngineClient::Post(std::move(task)); });
 		std::atomic<bool> g_available{};
 		const char* g_reason = "OSF Animation Browser is not installed.";
 		void (*g_shown)(){};
@@ -71,15 +72,14 @@ namespace OSF::API::BrowserSession
 		g_hidden = a_hidden;
 		const std::filesystem::path folder = "Data/SFSE/Plugins/OSF/UI/views/osf.animation/browser";
 		std::error_code ec;
-		if (!std::filesystem::exists(folder, ec) && !ec) {
-			REX::DEBUG("[UI] Optional Animation Browser is not installed");
+		if (!REX::W32::GetModuleHandleW(OSFUI::API::kModuleName)) {
+			g_reason = "OSF UI is not installed; Animation Browser is inactive.";
 			Health::Clear("browser.integration");
+			REX::DEBUG("[UI] {}", g_reason);
 			return false;
 		}
 		if (!g_views.Init()) {
-			Fail(REX::W32::GetModuleHandleW(OSFUI::API::kModuleName) ?
-				"Installed OSF UI does not provide API 2.0. Install the released OSF UI 2.0.0 or newer and restart Starfield." :
-				"OSF Animation Browser requires OSF UI. Install OSF UI 2.0.0 or newer and restart Starfield.");
+			Fail("Installed OSF UI does not provide API 2.0. Install the released OSF UI 2.0.0 or newer and restart Starfield.");
 			return false;
 		}
 		if (!std::filesystem::is_regular_file(folder / "index.html", ec) || ec ||
@@ -109,9 +109,9 @@ namespace OSF::API::BrowserSession
 		return g_views.RegisterRelativePointer(kViewId, OnPointer, nullptr);
 	}
 
-	void FinishRegistration()
+	void FinishRegistration(bool a_engineSubscribed)
 	{
-		if (g_registrationFailed) {
+		if (g_registrationFailed || !a_engineSubscribed) {
 			Fail("Animation Browser command registration failed. Remove duplicate Animation installations and restart Starfield.");
 			return;
 		}
@@ -120,5 +120,5 @@ namespace OSF::API::BrowserSession
 	}
 
 	void Post(std::function<void()> a_task, bool a_requiresVisible) { g_queue.Post(std::move(a_task), a_requiresVisible); }
-	void Reset() { if (g_hidden) g_queue.Reset(g_hidden); }
+	void Reset(std::function<void()> cleanup) { g_queue.Reset(std::move(cleanup)); }
 }

@@ -22,7 +22,7 @@
       "sha256": "4bbd0be6f12ec7fa0e79aa9238645b0f3bc3fd8e10e5054c8a6712af2f025c10"
     },
     {
-      "path": "ui/animation-browser/src/bridge/osfui.d.ts",
+      "path": "extensions/browser/ui/src/bridge/osfui.d.ts",
       "source": "osf-ui",
       "sourcePath": "sdk/osfui.d.ts",
       "sha256": "64d393354780966ac0696e4db1ddc657a763c53b504434794b29bd48213fbeb8"

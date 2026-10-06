@@ -1,3 +1,4 @@
+#include "API/EngineServices.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "GraphManager.h"
 #include "GraphManagerClipLoad.h"
@@ -702,6 +703,7 @@ namespace OSF::Animation
 #endif
 		// Bump the epoch first so already-queued tasks from the discarded world no-op.
 		_worldEpoch.fetch_add(1, std::memory_order_acq_rel);
+		API::EngineServices::WorldReset();
 		// A load can begin mid-save-op; don't let the save window outlive its world.
 		_saveWindow.store(false, std::memory_order_relaxed);
 

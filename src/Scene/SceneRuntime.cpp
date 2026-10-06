@@ -1,3 +1,4 @@
+#include "API/EngineServices.h"
 #include "Scene/SceneRuntime.h"
 
 #include "Animation/GraphManager.h"
@@ -375,22 +376,9 @@ namespace OSF::Scene
 		return out;
 	}
 
-	void SceneRuntime::SetSceneObserver(std::function<void()> a_fn)
-	{
-		std::lock_guard l{ _lock };
-		_sceneObserver = std::move(a_fn);
-	}
-
 	void SceneRuntime::NotifySceneObserver()
 	{
-		std::function<void()> fn;
-		{
-			std::lock_guard l{ _lock };
-			fn = _sceneObserver;
-		}
-		if (fn) {
-			fn();
-		}
+		API::EngineServices::ScenesChanged();
 	}
 
 	void SceneRuntime::Clear()

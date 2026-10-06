@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fomod>
+  <Name>OSF Animation Browser</Name>
+  <Author>ozooma10</Author>
+  <Version MachineVersion="1.5.0">1.5.0</Version>
+  <Description>Optional in-game animation browser and emote wheel for OSF Animation. Includes its own native DLL. Requires OSF Animation with engine services API 1.0 and OSF UI 2.0.0+ for the UI. OSF Settings 1.0.0+ supplies preferences, hotkeys and the launcher.</Description>
+  <Groups>
+    <element>Animation</element>
+  </Groups>
+</fomod>

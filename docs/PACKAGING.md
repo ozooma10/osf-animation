@@ -1,6 +1,8 @@
 # Packaging OSF Animation
 
 The engine and the optional browser/wheel now have separate release archives. Both are built from this repository and share the version in `xmake.lua`.
+Browser sources and installer definitions live in `extensions/browser/`; the root `tools/` and
+`packaging/` scripts remain the build, deployment, and release entry points.
 
 ```powershell
 packaging\build-archive.ps1
@@ -9,7 +11,7 @@ packaging\build-browser-addon.ps1
 
 `build-archive.ps1` configures production `releasedbg` with `animation_smoke=n`, builds the native DLL, stages the Papyrus API and internal scene, verifies the payload, and writes `packaging/out/OSF Animation v<version>.zip`. Build/install output stays in private staging under `build/packages`; packaging does not deploy to MO2. `-SkipBuild`, `-CompilePapyrus`, `-IncludePdb`, `-Version`, `-Tag`, and `-ResultPath` are available. The version must match `xmake.lua`.
 
-`build-browser-addon.ps1` runs `tools/BuildBrowserAddon.ps1 -NoDeploy`, which installs npm dependencies and runs the browser tests/typecheck/build. It stages the web view and the optional vanilla library and emote content as a FOMOD, then writes `packaging/out/OSF Animation Browser v<version>.zip`. `-SkipBuild`, `-Version`, `-Tag`, and `-ResultPath` are available. To deploy development builds, use ordinary `xmake` for the engine and `tools/BuildBrowserAddon.ps1` for the browser.
+`build-browser-addon.ps1` runs `tools/BuildBrowserAddon.ps1 -NoDeploy`, which builds the separate production `OSF Animation Browser.dll`, installs npm dependencies, and runs the browser tests/typecheck/build. It stages the addon DLL and web view and the optional vanilla library and emote content as a FOMOD, then writes `packaging/out/OSF Animation Browser v<version>.zip`. `-SkipBuild`, `-Version`, `-Tag`, and `-ResultPath` are available. To deploy development builds, use ordinary `xmake` for the engine and `tools/BuildBrowserAddon.ps1` for the browser.
 
 Both packagers require PowerShell 7.2+. Builds record source fingerprints (including dirty files and submodules), released SDK provenance, configuration, and output hashes in `build/engine-receipt.json` or `build/browser-receipt.json`. `-SkipBuild` rejects missing receipts, changed source, changed artifacts, and instrumented DLLs. Ordinary `xmake` and `npm run build` do not issue release receipts; use `tools/BuildProduction.ps1`, `tools/BuildBrowserAddon.ps1 -NoDeploy`, or the smoke bench.
 
@@ -17,8 +19,10 @@ The engine packager rejects a PSC newer than its PEX and compares all compiled n
 
 Each ZIP has a `.sha256` and `.manifest.json` companion. The manifest records the exact entry hashes and build receipt; the ZIP is reopened and every entry checked before publication to the final path. `-ResultPath <file>` writes the absolute manifest path for automation. Staging directories are retained for inspection. No archive is uploaded by these scripts.
 
-The engine archive installs `OSF Animation.dll`, `OSF`/`OSFTypes`/`OSFAdvanced` `.pex` and `.psc` files, `OSF/internal.osf.json`, the Settings schema, and license documents. It contains no browser view or vanilla/emote pack. The addon installs the browser view and can optionally install the library and emote pack; it depends on OSF Animation, OSF UI, and OSF Settings.
+The browser receipt binds the DLL and all generated view files together; neither can change after verification. `Test-BrowserBoundary.ps1` rejects private engine includes/linkage. No engine DLL or Papyrus files belong in the addon ZIP.
 
-The existing browser bridge, browser preferences, and hotkey registration still live in the engine DLL. This packaging split removes the web build and web assets from the native build and core installation. Extracting those native parts requires a versioned catalog interface so the addon can use the engine without including its private registries. Until then, ship the engine and addon from matching versions and keep the released `OSF.OpenBrowser()` Papyrus entry compatible.
+The engine archive installs `OSF Animation.dll`, `OSF`/`OSFTypes`/`OSFAdvanced` `.pex` and `.psc` files, `OSF/internal.osf.json`, the Settings schema, and license documents. It contains no browser view or vanilla/emote pack. The addon installs `OSF Animation Browser.dll`, the browser view and can optionally install the library and emote pack; it depends on OSF Animation, OSF UI, and OSF Settings.
+
+The native bridge, world picking, browser sessions, wheel persistence, preferences, and hotkey registration live in the addon DLL. It consumes scene API 1.3 and engine services API 1.0, with no private engine sources or import library. `OSF.OpenBrowser()` is an optional forwarder. The shared `osf.animation` schema stays in the core package to preserve settings and hotkey storage without migration; only Browser consumes its browser entries. See [BROWSER_ADDON.md](BROWSER_ADDON.md) for the boundary and lifetimes.
 
 Neither archive includes player settings, source maps, the developer-only `OSFTest` Papyrus script, nor the browser's source and `node_modules`.

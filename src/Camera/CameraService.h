@@ -57,11 +57,10 @@ namespace OSF::Camera
 		// Last pose DriveSceneOrbit wrote; false when not driving or the drive lock is busy (callers skip, don't stall).
 		bool SceneOrbitPose(float (&a_pos)[3], float (&a_fwd)[3]);
 
-		// Browser drag-to-look: OSF UI freezes game input, so with no scene camera the player can't move the camera.
-		// Takes one state-override hold; idempotent per browser session. False when the orbit is unavailable.
-		bool EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects);
-		void ReleaseBrowseOrbit();
-		[[nodiscard]] bool BrowseOrbitHeld() const { return browseOrbitHeld.load(std::memory_order_relaxed); }
+		// External inspection orbit shares camera composition with scene overrides.
+		// Each successful acquisition needs one release; world replacement revokes every hold.
+		bool AcquireInspectionOrbit(std::vector<std::uint32_t> a_frameSubjects);
+		void ReleaseInspectionOrbit();
 
 		void Tick();
 
@@ -106,7 +105,7 @@ namespace OSF::Camera
 		std::atomic<bool> nativeFreeCamActive{ false };
 		std::atomic<bool> playerFreeCamHeld{ false };
 		std::atomic<PlayerFreeCamReturn> playerFreeCamReturn{ PlayerFreeCamReturn::kNone };
-		std::atomic<bool> browseOrbitHeld{ false };
+		std::atomic<std::uint32_t> inspectionOrbitHolds{ 0 };
 
 		std::atomic<bool> orbitDriving{ false };
 		std::mutex        driveLock;              // serializes DriveSceneOrbit across job threads

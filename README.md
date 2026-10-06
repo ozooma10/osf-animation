@@ -4,7 +4,7 @@ OSF Animation is a native animation and scene-runtime framework for Starfield.
 
 Key Features:
 - Synced multi-actor AF/GLTF/GLB playback
-- Optional OSF Animation Browser addon with the scene browser, animation library (4,600+ base-game clips incl. creatures), and emote wheel
+- Optional OSF Animation Browser addon with its own native DLL, the scene browser, animation library (4,600+ base-game clips incl. creatures), and emote wheel
 - Engine-native Wwise loose-file audio playback (rides the game mix; no private-device fallback)
 - Actor anchoring/pinning in the world
 - A shared scene registry loaded from `Data/OSF/**/*.osf.json`
@@ -32,10 +32,12 @@ Key Features:
 - **Address Library for SFSE Plugins**
 - **OSF Settings 1.0.0+** — owns engine settings, diagnostics, and hotkeys.
 - **OSF UI 2.0.0+ and OSF Animation Browser** — optional, together provide the in-game browser and wheel. Open **OSF Animation** in Settings' Launcher tab or bind an Animation hotkey.
-  Playback and the native/Papyrus APIs remain available without the browser.
+  Playback and the native/Papyrus APIs remain available with both Browser and OSF UI absent.
+  See [native addon ownership and public services](docs/BROWSER_ADDON.md).
 
 Upgrading from the combined OSF UI settings service starts with the new Settings defaults;
-old values and keybindings are not migrated. Both Animation hotkeys start unbound.
+old values and keybindings are not migrated. Both Animation hotkeys start unbound. The native Browser extraction preserves existing Settings values,
+hotkeys, wheel pins, scene IDs, and the view ID; it requires no additional migration.
 
 ### Build (to compile from source)
 
@@ -49,11 +51,16 @@ xmake f -m releasedbg
 xmake
 ```
 
-When `XSE_SF_MODS_PATH` is set, xmake installs the plugin and distribution files
+`xmake` builds both native DLL targets. `xmake build "OSF Animation"` builds only the engine.
+The engine source lives in `src/`; the browser extension owns `src/`, `ui/`,
+`packaging/fomod/`, and its native target under `extensions/browser/`.
+The root build explicitly includes `extensions/browser/xmake.lua`.
+When `XSE_SF_MODS_PATH` is set, xmake installs each plugin and its distribution files
 under:
 
 ```text
 %XSE_SF_MODS_PATH%\OSF Animation\
+%XSE_SF_MODS_PATH%\OSF Animation Browser\
 ```
 
 The optional browser has its own build and MO2 folder:
@@ -62,7 +69,7 @@ The optional browser has its own build and MO2 folder:
 pwsh -NoProfile -File tools/BuildBrowserAddon.ps1
 ```
 
-That command verifies the web view and deploys it to `%XSE_SF_MODS_PATH%\OSF Animation Browser\` when the environment variable is set. Release archives are built separately with `packaging/build-archive.ps1` and `packaging/build-browser-addon.ps1`.
+That command builds the addon DLL, verifies the web view, and deploys both to `%XSE_SF_MODS_PATH%\OSF Animation Browser\` when the environment variable is set. Release archives are built separately with `packaging/build-archive.ps1` and `packaging/build-browser-addon.ps1`.
 
 The Papyrus API is exposed as `OSF.*`.
 
@@ -79,8 +86,8 @@ xmake test
 
 runs the engine-free C++ suites (persistence broker, native scene-event callbacks, frame clock/clip
 specs, additive pose math, sound registry, scene registry, and generated
-GLTF/GLB/gzip import fixtures). The browser view has its own suite:
-`npm --prefix ui/animation-browser run verify`.
+GLTF/GLB/gzip import fixtures, plus the browser/engine API boundary). The browser view has its own suite:
+`npm --prefix extensions/browser/ui run verify`.
 
 Run the smoke bench to build production binaries, execute the native and browser suites,
 validate both release archives, and retain logs plus JSON/Markdown/JUnit evidence:

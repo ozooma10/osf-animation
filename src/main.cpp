@@ -1,7 +1,6 @@
 #include "API/Health.h"
 #include "API/MinimumVersion.h"
 #include "API/SceneAPIControl.h"
-#include "API/UIBridge.h"
 #include "API/UISettings.h"
 #include "Animation/GraphManager.h"
 #include "Camera/CameraService.h"
@@ -13,7 +12,6 @@
 #include "Registry/SceneRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Scene/SceneRuntime.h"
-#include "Serialization/ClipDurations.h"
 #include "Serialization/PersistenceHost.h"
 #include "Serialization/SaveSafety.h"
 #include "Util/CrashHandler.h"
@@ -44,11 +42,8 @@ namespace
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");
 			}
 			OSF::API::MarkReady();
-			OSF::API::InstallUIBridge();
 			// After the registries so initial settings apply to loaded services.
 			OSF::API::InstallUISettings();
-			// After InstallUIBridge so the push hook exists.
-			OSF::Serialization::ClipDurations::ScanSceneClipsAsync(&OSF::API::PushCatalogUpdate);
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");

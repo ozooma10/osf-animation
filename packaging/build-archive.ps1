@@ -50,6 +50,7 @@ if (-not $SkipBuild) {
     & (Join-Path $repo 'tools/BuildProduction.ps1')
 }
 $receipt = Test-ReleaseBuildReceipt $repo 'engine'
+& (Join-Path $repo 'tools/Test-BrowserBoundary.ps1')
 $actualVersion = [regex]::Match((Get-Content (Join-Path $repo 'xmake.lua') -Raw), 'set_version\("([^"\r\n]+)"\)').Groups[1].Value
 if ($Version -cne $actualVersion) { throw 'Archive version must match the built plugin version.' }
 $stage = Join-Path $repo ('build/packages/engine-' + [guid]::NewGuid().ToString('N'))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the dev view's library snapshot (BuildCatalog(a_library=true)) offline.
 
-Reads dist/OSF section:"library" packs and writes ui/animation-browser/fixtures/live/library.json.
+Reads dist/OSF section:"library" packs and writes extensions/browser/ui/fixtures/live/library.json.
 Card math mirrors BuildCatalog / ParseOsfStageList / DesugarLinear, including float32
 rounding. Anchor keyword labels come from tools/vanilla-packs/anim-furn-keywords.json.
 
@@ -19,7 +19,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACK_DIR = os.path.join(REPO, "dist", "OSF")
 KEYWORD_MAP = os.path.join(REPO, "tools", "vanilla-packs", "anim-furn-keywords.json")
-OUT = os.path.join(REPO, "ui", "animation-browser", "fixtures", "live", "library.json")
+OUT = os.path.join(REPO, "extensions", "browser", "ui", "fixtures", "live", "library.json")
 
 # How many loops an open-ended hold stage is assumed to run (kHoldLoopEstimate).
 HOLD_LOOP_ESTIMATE = 2.0

@@ -226,19 +226,19 @@ function Test-SmokeArchives([string]$Directory, [string]$ExpectedDllHash) {
             $required = if ($engine) { @('Core/SFSE/Plugins/OSF Animation.dll','Core/Scripts/OSF.pex',
                 'Core/Scripts/OSFTypes.pex','Core/Scripts/OSFAdvanced.pex','Core/OSF/internal.osf.json',
                 'Core/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json','fomod/ModuleConfig.xml') }
-                else { @('Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/index.html',
+                else { @('Browser/SFSE/Plugins/OSF Animation Browser.dll','Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/index.html',
                     'Browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/manifest.json',
                     'Immersion/OSF/immersion/emotes.osf.json','fomod/ModuleConfig.xml') }
             foreach ($name in $required) { if ($name -cnotin $names) { throw "[failed] Archive is missing $name." } }
             if ($engine) {
-                if (@($names | Where-Object { $_ -like '*UI/views/*' }).Count) { throw '[failed] Browser leaked into engine archive.' }
+                if (@($names | Where-Object { $_ -like '*UI/views/*' -or $_ -like '*OSF Animation Browser.dll' }).Count) { throw '[failed] Browser leaked into engine archive.' }
                 $entry = @($zip.Entries | Where-Object { $_.FullName.Replace('\','/') -ceq 'Core/SFSE/Plugins/OSF Animation.dll' })[0]
                 $stream = $entry.Open()
                 try { $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($stream)) }
                 finally { $stream.Dispose() }
                 if ($hash -cne $ExpectedDllHash) { throw '[failed] Engine archive contains a different DLL from the production build.' }
-            } elseif (@($names | Where-Object { $_ -like '*.dll' -or $_ -like '*.pex' }).Count) {
-                throw '[failed] Native payload leaked into browser addon.'
+            } elseif (@($names | Where-Object { ($_ -like '*.dll' -and $_ -cne 'Browser/SFSE/Plugins/OSF Animation Browser.dll') -or $_ -like '*.pex' }).Count) {
+                throw '[failed] Engine or foreign native payload leaked into browser addon.'
             }
         } finally { $zip.Dispose() }
     }

@@ -1,26 +1,29 @@
 # OSF Animation — animation browser view
 
-The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Octane TSX app in this directory; `build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/` is generated production output — never committed, rebuilt by every `xmake` and every packaging run. It is rendered by
-**OSF UI** and driven **natively** by OSF Animation's own
-DLL over OSF UI's bridge API (protocol **2.0**). Only JSON text crosses the
-boundary.
+The in-game animation and scene browser/launcher. Its editable source is a TypeScript/Octane TSX app
+in this directory. The repository's `build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/`
+is generated production output. **OSF UI** renders it; **OSF Animation Browser.dll** drives it over
+OSF UI's bridge API (protocol **2.0**). Only JSON text crosses the boundary.
 
 ## Development and build
 
-Install once with Node.js 22.22.2 or newer by running `npm install` in this directory. Octane is alpha software, so its runtime and Vite integration are exact-version pinned together. Use `npm run dev` for the standalone browser with hot reload, `npm test` for the typed bridge/model and Octane DOM tests, `npm run check` for strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
+Install dependencies with Node.js 22.22.2 or newer by running `npm ci` in this directory. Octane is alpha software, so its runtime and Vite integration are exact-version pinned together. Use `npm run dev` for the standalone browser with hot reload, `npm test` for the typed bridge/model and Octane DOM tests, `npm run check` for strict TypeScript checks, and `npm run build` to validate and regenerate the production view.
 
-This directory is the only editable copy — `build/osfui-animation-browser/` is disposable toolchain output and is wiped on every build. A native `xmake` re-runs the Vite whenever sources here are newer, so a plain `xmake` never deploys a stale view. **Node.js/npm is therefore required to build this project**; there is no committed bundle to fall back on.
+`npm run verify` runs all three checks. From the repository root, `tools/BuildBrowserAddon.ps1`
+builds the native addon, runs `npm ci` and verification, and deploys the DLL and generated view.
+Ordinary `xmake` builds the native targets. Node/npm is required for the web build; generated
+output is disposable and is never committed.
 
 ## How it's wired
 
 ```
-ui/animation-browser/src/ ── Vite ──► build/osfui-animation-browser/.../views/osf.animation/browser/ ──► OSF UI MessageBridge ──► OSF Animation DLL
-   window.osfui.send/request       (2.0 helper)               src/API/UIBridge.cpp
+extensions/browser/ui/src/ ── Vite ──► build/osfui-animation-browser/.../views/osf.animation/browser/ ──► OSF UI MessageBridge ──► OSF Animation Browser DLL
+   window.osfui.send/request       (2.0 helper)               extensions/browser/src/API/UIBridge.cpp
    window.osfui.on/state       ◄── events/state ────────────── osf.animation.* handlers
 ```
 
-- **Native side:** `src/API/UIBridge.{h,cpp}` (vendored bridge header
-  `src/API/OSFUI.h`). Registered in `src/main.cpp` at `kPostDataLoad`
+- **Native side:** `extensions/browser/src/API/UIBridge.{h,cpp}` (vendored bridge header
+  `src/API/OSFUI.h`). Registered in `extensions/browser/src/main.cpp` at `kPostPostDataLoad`
   (`OSF::API::InstallUIBridge()`), a no-op when OSF UI is absent.
 - **Identity:** mod id `osf.animation`, view name `browser`, qualified view id
   `osf.animation/browser` — the id used by `RegisterView` / `RequestMenu`.
@@ -136,13 +139,13 @@ ui/animation-browser/src/ ── Vite ──► build/osfui-animation-browser/..
 OSF UI resolves its view dir relative to its own DLL
 (`<DLL dir>\OSF\UI\views\`), which under MO2 is the **virtual**
 `Data\SFSE\Plugins\OSF\UI\views\` — merged across all enabled mods. So this view
-ships from OSF Animation's own mod folder; **no copy lives in the OSF UI repo or
+ships from OSF Animation Browser's own mod folder; **no copy lives in the OSF UI repo or
 mod**:
 
-- `xmake` (`after_build`) deploys the generated production build to
-  `MO2\mods\OSF Animation\SFSE\Plugins\OSF\UI\views\osf.animation\browser\`
+- `tools/BuildBrowserAddon.ps1` deploys the generated production build to
+  `MO2\mods\OSF Animation Browser\SFSE\Plugins\OSF\UI\views\osf.animation\browser\`
   (the two-level `views/<modId>/<viewName>/` layout OSF UI discovers).
-- The DLL registers `osf.animation/browser` through the OSF UI native API 1.0.
+- The addon DLL registers `osf.animation/browser` through the OSF UI native API 2.0.
 - OSF UI provides `/shared/osfui.js`; Animation ships only its own view assets.
 
 ## Settings / hotkeys
@@ -189,7 +192,7 @@ clears wheel mode, so a later browser open always shows the normal console.
 ## Standalone dev
 
 The page detects a missing bridge and runs standalone, so you can iterate
-layout/logic in a normal browser. Run `npm run dev` from `ui/animation-browser`
+layout/logic in a normal browser. Run `npm run dev` from `extensions/browser/ui`
 and open `http://localhost:8791/`. Vite serves the page with HMR, and the view's
 stateful animation simulator supplies standalone data. Production always uses
 the OSF UI bridge.
@@ -215,7 +218,7 @@ page then browses the real Gergel Ebanex / Snu Snu install (great for testing
 grouping and layout at scale). Delete the file to fall back to the committed
 dump. Durations the in-game probe would supply come out `null`.
 Pick/scan/launch stay stubbed (they need live refs). With no snapshot (or when
-opened via `file://`), it falls back to the built-in mock catalog. These fixtures do NOT ship in-game: they live outside the generated output copied by `xmake`.
+opened via `file://`), it falls back to the built-in mock catalog. These fixtures do NOT ship in-game: they live outside the generated output copied by the addon deployment script.
 
 To exercise the **animation wheel** standalone: press `W` (mock crosshair target) or
 `Shift+W` (player-only), or call `window.mockOpenWheel(withTarget)` from the
@@ -231,7 +234,7 @@ desktop browser renders that as flat white/black, which lies about contrast. In
 standalone mode a **dev backdrop** stands a fake world behind the overlay —
 procedural scenes cycled with `B` (dark ship **interior** → bright **day**, the
 readability worst case → **night** exterior → flat **none**), sticky per tab.
-Drop a real screenshot at `ui/animation-browser/fixtures/live/backdrop.jpg` (git-ignored, never packaged) and
+Drop a real screenshot at `extensions/browser/ui/fixtures/live/backdrop.jpg` (git-ignored, never packaged) and
 it joins the cycle as **shot** and becomes the default.
 
 While the wheel is up, a **WHEEL DEBUG strip** (top-left, standalone only —

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Util/NativeMainThreadQueue.h"
 
 #include <cstdint>
 #include <functional>
@@ -14,6 +13,7 @@ namespace OSF::API
 	class BrowserSessionQueue
 	{
 	public:
+		explicit BrowserSessionQueue(std::function<void(std::function<void()>)> post) : m_post(std::move(post)) {}
 		void Visibility(bool a_visible, std::function<void()> a_task)
 		{
 			std::lock_guard lock(m_mutex);
@@ -21,7 +21,7 @@ namespace OSF::API
 			m_visible = a_visible;
 			if (!a_visible) ++m_generation;
 			const auto generation = m_generation;
-			Util::NativeMainThreadQueue::Post([this, a_visible, generation, task = std::move(a_task)] {
+			m_post([this, a_visible, generation, task = std::move(a_task)] {
 				// A hidden edge must clean up even if a new show is already queued.
 				if (!a_visible || Current(generation, true)) task();
 			});
@@ -32,7 +32,7 @@ namespace OSF::API
 			std::lock_guard lock(m_mutex);
 			m_visible = false;
 			++m_generation;
-			Util::NativeMainThreadQueue::Post(std::move(a_cleanup));
+			m_post(std::move(a_cleanup));
 		}
 
 		void Post(std::function<void()> a_task, bool a_requiresVisible = true)
@@ -40,7 +40,7 @@ namespace OSF::API
 			std::lock_guard lock(m_mutex);
 			if (a_requiresVisible && !m_visible) return;
 			const auto generation = m_generation;
-			Util::NativeMainThreadQueue::Post([this, generation, a_requiresVisible, task = std::move(a_task)] {
+			m_post([this, generation, a_requiresVisible, task = std::move(a_task)] {
 				if (Current(generation, a_requiresVisible)) task();
 			});
 		}
@@ -51,6 +51,7 @@ namespace OSF::API
 			std::lock_guard lock(m_mutex);
 			return m_generation == a_generation && (!a_requiresVisible || m_visible);
 		}
+		std::function<void(std::function<void()>)> m_post;
 		std::mutex m_mutex;
 		std::uint64_t m_generation{ 1 };
 		bool m_visible{};

@@ -300,7 +300,7 @@ namespace OSF::Camera
 			camera->ForceThirdPerson();
 			// ForceThirdPerson resets zoom to 0, which re-trips ForceFirstPerson; snap the pull-back.
 			SeedThirdPersonZoom(0.0f, /*snapCurrent*/ true);
-			REX::DEBUG("[Camera] kicked out of first person (browser opened on the player)");
+			REX::DEBUG("[Camera] kicked out of first person (external request)");
 		});
 	}
 
@@ -732,26 +732,26 @@ namespace OSF::Camera
 	void CameraService::ReleaseStateOverride()
 	{
 		bool released = false;
-		bool browseHandback = false;
+		bool inspectionHandback = false;
 		{
 			std::scoped_lock l{ lock };
 			if (overrideCount == 0) {
 				return;
 			}
 			if (--overrideCount != 0) {
-				// Only the browse hold remains after a scene released a non-orbit camera: hand back to the browse orbit.
-				browseHandback = overrideCount == 1 &&
-				                 browseOrbitHeld.load(std::memory_order_relaxed) &&
-				                 !orbitDriving.load(std::memory_order_relaxed) &&
-				                 !nativeFreeCamActive.load(std::memory_order_relaxed);
+				// Only the inspection hold remains after a scene released a non-orbit camera: hand back to the inspection orbit.
+				inspectionHandback = overrideCount == 1 &&
+				                     inspectionOrbitHolds.load(std::memory_order_relaxed) &&
+				                     !orbitDriving.load(std::memory_order_relaxed) &&
+				                     !nativeFreeCamActive.load(std::memory_order_relaxed);
 			} else {
 				released = true;
 				suppressBounce.store(false, std::memory_order_relaxed);
 			}
 		}
-		if (browseHandback) {
+		if (inspectionHandback) {
 			SetLiveCameraState(CameraMode::kSceneOrbit);  // no seed -> centers on the player
-			REX::DEBUG("[Camera] scene camera released while browsing — handed back to the browse orbit");
+			REX::DEBUG("[Camera] scene camera released while inspecting — handed back to the inspection orbit");
 			return;
 		}
 		if (!released) {
@@ -860,34 +860,35 @@ namespace OSF::Camera
 		return true;
 	}
 
-	bool CameraService::EnsureBrowseOrbit(std::vector<std::uint32_t> a_frameSubjects)
+	bool CameraService::AcquireInspectionOrbit(std::vector<std::uint32_t> a_frameSubjects)
 	{
-		// Re-check before the held flag so landing mid-browse re-enables it.
+		// Re-check before the held flag so landing during inspection re-enables it.
 		if (!SceneOrbitAvailable()) {
 			return false;
 		}
 
-		if (browseOrbitHeld.exchange(true, std::memory_order_relaxed)) {
+		if (inspectionOrbitHolds.fetch_add(1, std::memory_order_relaxed) != 0) {
 			return true;
 		}
 		AcquireStateOverride();
 		// A live scene camera keeps its framing; retargeting would yank it from the user.
 		if (orbitDriving.load(std::memory_order_relaxed) || nativeFreeCamActive.load(std::memory_order_relaxed)) {
-			REX::DEBUG("[Camera] browse orbit hold taken (a scene camera is live — not retargeting)");
+			REX::DEBUG("[Camera] inspection orbit hold taken (a scene camera is live — not retargeting)");
 			return true;
 		}
 		SetOrbitFrameSubjects(std::move(a_frameSubjects));
 		SetLiveCameraState(CameraMode::kSceneOrbit);
-		REX::DEBUG("[Camera] browse orbit engaged (scene browser drag)");
+		REX::DEBUG("[Camera] inspection orbit engaged (external consumer)");
 		return true;
 	}
 
-	void CameraService::ReleaseBrowseOrbit()
+	void CameraService::ReleaseInspectionOrbit()
 	{
-		// Clear the flag first so ReleaseStateOverride's browse handback can't self-trigger.
-		if (browseOrbitHeld.exchange(false, std::memory_order_relaxed)) {
+		// Drop the final hold first so ReleaseStateOverride's handback cannot self-trigger.
+		if (inspectionOrbitHolds.load(std::memory_order_relaxed) != 0 &&
+			inspectionOrbitHolds.fetch_sub(1, std::memory_order_relaxed) == 1) {
 			ReleaseStateOverride();
-			REX::DEBUG("[Camera] browse orbit released (scene browser closed)");
+			REX::DEBUG("[Camera] inspection orbit released (external consumer)");
 		}
 	}
 
@@ -907,7 +908,7 @@ namespace OSF::Camera
 		}
 		playerFreeCamHeld.store(false, std::memory_order_relaxed);
 		playerFreeCamReturn.store(PlayerFreeCamReturn::kNone, std::memory_order_relaxed);
-		browseOrbitHeld.store(false, std::memory_order_relaxed);
+		inspectionOrbitHolds.store(0, std::memory_order_relaxed);
 		std::scoped_lock l{ lock };
 		holdCount = 0;
 		overrideCount = 0;

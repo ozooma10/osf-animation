@@ -1,5 +1,16 @@
 includes("lib/commonlibsf")
 
+-- CommonLib's automatic install defaults to every target. With two independent DLLs,
+-- deploy only the target that just finished (the other may not have linked yet).
+rule("commonlib.plugin")
+    after_build(function (target)
+        if target:installdir() then
+            import("core.project.task")
+            task.run("install", {target = target:name()})
+        end
+    end)
+rule_end()
+
 set_project("OSF Animation")
 set_version("1.5.0")
 set_license("GPL-3.0")
@@ -14,6 +25,7 @@ add_requires("miniaudio 0.11.25")
 
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
+add_includedirs("shared")
 
 option("animation_smoke")
     set_default(false)
@@ -41,8 +53,10 @@ target("OSF Animation")
     set_pcxxheader("src/pch.h")
 
     -- CommonLib deploys the DLL/PDB and these payloads through its install rule.
-    add_installfiles("dist/Scripts/*.pex", { prefixdir = "Scripts" })
-    add_installfiles("dist/Scripts/Source/*.psc", { prefixdir = "Scripts/Source" })
+    for _, script in ipairs({"OSF", "OSFTypes", "OSFAdvanced"}) do
+        add_installfiles("dist/Scripts/" .. script .. ".pex", { prefixdir = "Scripts" })
+        add_installfiles("dist/Scripts/Source/" .. script .. ".psc", { prefixdir = "Scripts/Source" })
+    end
     add_installfiles("dist/OSF/internal.osf.json", { prefixdir = "OSF" })
     add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json", {
         prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
@@ -58,12 +72,27 @@ target("OSF Animation")
         end
     end)
 
+target_end()
+
+includes("extensions/browser")
+
 target("osf-import-test")
     set_kind("binary")
     set_default(false)
     add_packages("fastgltf", "ozz-animation", "zlib", "nlohmann_json")
     add_files("src/Serialization/GLTFImport.cpp", "src/Util/Gzip.cpp", "test/ImportTest.cpp")
     add_includedirs("src")
+
+target("osf-browser-boundary-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    add_deps("commonlibsf")
+    add_packages("nlohmann_json")
+    add_files("test/BrowserBoundaryTest.cpp", "src/Util/NativeMainThreadQueue.cpp",
+              "extensions/browser/src/API/EngineClient.cpp", "extensions/browser/src/API/UIBridgeCatalog.cpp")
+    add_includedirs("extensions/browser/src", "src", "src/API")
+    set_pcxxheader("extensions/browser/src/pch.h")
 
 -- xmake run osf-af-import-test <clip.af> <skeleton.rig>
 target("osf-af-import-test")
@@ -95,6 +124,7 @@ target("osf-frame-clock-test")
     set_default(false)
     add_tests("default")
     add_files("src/Util/ClipPath.cpp", "src/Util/NativeMainThreadQueue.cpp", "test/FrameClockTest.cpp")
+    add_includedirs("extensions/browser/src")
     add_includedirs("src")
 
 target("osf-additive-pose-test")

@@ -6,6 +6,8 @@ $repo = Split-Path $PSScriptRoot -Parent
 . (Join-Path $repo 'packaging/ReleaseValidation.ps1')
 & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Test-SdkLock.ps1')
 if ($LASTEXITCODE) { throw 'SDK lock failed.' }
+& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'Test-BrowserBoundary.ps1')
+if ($LASTEXITCODE) { throw 'Browser boundary failed.' }
 $before = Get-SmokeSourceIdentity $repo
 $mods = $env:XSE_SF_MODS_PATH
 $game = $env:XSE_SF_GAME_PATH

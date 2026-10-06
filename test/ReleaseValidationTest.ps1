@@ -66,6 +66,35 @@ try {
     [IO.File]::AppendAllText($archive, 'tampered')
     Reject { Test-ReleaseArchive ($archive + '.manifest.json') } 'Archive checksum mismatch'
 
+    # A browser receipt binds both the native addon and the generated view.
+    $browserDll = Join-Path $output 'OSF Animation Browser.dll'
+    $viewRoot = 'osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser'
+    $view = Join-Path $scratch "build/$viewRoot"
+    $browserStage = Join-Path $scratch 'browser-stage'
+    [IO.Directory]::CreateDirectory($view) | Out-Null
+    [IO.File]::WriteAllText($browserDll, 'MZ browser fixture')
+    Set-Content "$view/index.html" '<html>browser</html>'
+    Write-ReleaseBuildReceipt $scratch 'browser' $before
+    $browserReceipt = Test-ReleaseBuildReceipt $scratch 'browser'
+    Check ($browserReceipt.files.Count -eq 2) 'Browser receipt must bind the DLL and view.'
+    [IO.File]::AppendAllText($browserDll, ' changed')
+    Reject { Test-ReleaseBuildReceipt $scratch 'browser' } 'Build output changed'
+    [IO.File]::WriteAllText($browserDll, 'MZ browser fixture')
+    Add-Content "$view/index.html" 'changed'
+    Reject { Test-ReleaseBuildReceipt $scratch 'browser' } 'Build output changed'
+    Set-Content "$view/index.html" '<html>browser</html>'
+    $browserPlugins = Join-Path $browserStage 'Browser/SFSE/Plugins'
+    $browserViews = Join-Path $browserPlugins 'OSF/UI/views/osf.animation'
+    [IO.Directory]::CreateDirectory($browserViews) | Out-Null
+    Copy-Item $view $browserViews -Recurse
+    $browserArchive = Join-Path $scratch 'browser.zip'
+    Reject { Write-ReleaseArchive $browserStage $browserArchive $browserReceipt '' $scratch } 'Staged build artifact mismatch'
+    Copy-Item $browserDll $browserPlugins
+    Write-ReleaseArchive $browserStage $browserArchive $browserReceipt '' $scratch
+    Test-ReleaseArchive ($browserArchive + '.manifest.json'); $checks++
+    [IO.File]::AppendAllText("$browserPlugins/OSF Animation Browser.dll", ' changed')
+    Reject { Write-ReleaseArchive $browserStage $browserArchive $browserReceipt '' $scratch } 'Staged build artifact mismatch'
+
     Copy-Item "$repository/tools/verify-papyrus.py" "$scratch/tools"
     Copy-Item "$repository/src/Papyrus/OSFScript.cpp" "$scratch/src/Papyrus"
     foreach ($name in @('OSF','OSFTypes','OSFAdvanced')) {

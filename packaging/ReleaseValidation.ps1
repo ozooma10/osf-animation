@@ -15,18 +15,31 @@ function Assert-ProductionDll([string]$Path) {
     }
 }
 
+function Get-ReleaseArtifacts([string]$Repository, [string]$Kind) {
+    if ($Kind -eq 'engine') {
+        $root = 'build/windows/x64/releasedbg'
+        Assert-ProductionDll (Join-Path $Repository "$root/OSF Animation.dll")
+        $files = @(Get-ReleaseFileHashes (Join-Path $Repository $root) | Where-Object path -in @('OSF Animation.dll','OSF Animation.pdb'))
+    } elseif ($Kind -eq 'browser') {
+        $root = 'build'
+        $dll = 'windows/x64/releasedbg/OSF Animation Browser.dll'
+        Assert-ProductionDll (Join-Path $Repository "$root/$dll")
+        $view = 'osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation'
+        $files = @(@{path=$dll; sha256=(Get-FileHash -LiteralPath (Join-Path $Repository "$root/$dll")).Hash}) +
+            @(Get-ReleaseFileHashes (Join-Path $Repository "$root/$view") | ForEach-Object { @{path="$view/$($_.path)"; sha256=$_.sha256} })
+    } else { throw "Unknown release kind: $Kind" }
+    return @{root=$root; files=$files}
+}
+
 function Write-ReleaseBuildReceipt([string]$Repository, [string]$Kind, $Before) {
     $after = Get-SmokeSourceIdentity $Repository
     if ($Before.sha256 -cne $after.sha256) { throw 'Source changed during the build; no receipt written.' }
-    $root = if ($Kind -eq 'engine') { 'build/windows/x64/releasedbg' } else { 'build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation' }
-    $files = @(Get-ReleaseFileHashes (Join-Path $Repository $root))
-    if ($Kind -eq 'engine') {
-        Assert-ProductionDll (Join-Path $Repository "$root/OSF Animation.dll")
-        $files = @($files | Where-Object path -in @('OSF Animation.dll','OSF Animation.pdb'))
-    }
+    $artifacts = Get-ReleaseArtifacts $Repository $Kind
+    $root = $artifacts.root
+    $files = $artifacts.files
     if (-not $files.Count) { throw 'Build produced no files.' }
     $receipt = @{ schemaVersion=1; kind=$Kind; source=$after; sdk=(Get-Content (Join-Path $Repository 'sdk-lock.json') -Raw | ConvertFrom-Json)
-        configuration=$(if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n' } else { 'vite/production' })
+        configuration=$(if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n' } else { 'windows/x64/releasedbg; animation_smoke=n; vite/production' })
         root=$root; files=$files; createdAt=[DateTimeOffset]::UtcNow.ToString('o') }
     $receipt | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $Repository "build/$Kind-receipt.json") -Encoding utf8NoBOM
 }
@@ -35,15 +48,11 @@ function Test-ReleaseBuildReceipt([string]$Repository, [string]$Kind) {
     $path = Join-Path $Repository "build/$Kind-receipt.json"
     if (-not (Test-Path -LiteralPath $path)) { throw "No $Kind build receipt. Build through the packager or smoke bench before using -SkipBuild." }
     $receipt = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-    $expectedRoot = if ($Kind -eq 'engine') { 'build/windows/x64/releasedbg' } else { 'build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation' }
-    $expectedConfiguration = if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n' } else { 'vite/production' }
+    $expectedRoot = if ($Kind -eq 'engine') { 'build/windows/x64/releasedbg' } else { 'build' }
+    $expectedConfiguration = if ($Kind -eq 'engine') { 'windows/x64/releasedbg; animation_smoke=n' } else { 'windows/x64/releasedbg; animation_smoke=n; vite/production' }
     if ($receipt.schemaVersion -ne 1 -or $receipt.kind -cne $Kind -or $receipt.root -cne $expectedRoot -or $receipt.configuration -cne $expectedConfiguration -or
         $receipt.source.sha256 -cne (Get-SmokeSourceIdentity $Repository).sha256) { throw 'Build receipt does not match current source/configuration.' }
-    $files = @(Get-ReleaseFileHashes (Join-Path $Repository $expectedRoot))
-    if ($Kind -eq 'engine') {
-        Assert-ProductionDll (Join-Path $Repository "$expectedRoot/OSF Animation.dll")
-        $files = @($files | Where-Object path -in @('OSF Animation.dll','OSF Animation.pdb'))
-    }
+    $files = (Get-ReleaseArtifacts $Repository $Kind).files
     $actual = @($files | ForEach-Object { "$($_.path)=$($_.sha256)" })
     $expected = @($receipt.files | ForEach-Object { "$($_.path)=$($_.sha256)" })
     if (-not $expected.Count -or @(Compare-Object $expected $actual -CaseSensitive).Count) { throw 'Build output changed after its receipt was recorded.' }
@@ -67,7 +76,8 @@ function Write-ReleaseArchive([string]$Stage, [string]$Archive, $BuildReceipt, [
     }
     foreach ($file in $BuildReceipt.files) {
         $relative = if ($BuildReceipt.kind -eq 'engine') { "Core/SFSE/Plugins/$($file.path)" }
-            else { "Browser/SFSE/Plugins/OSF/UI/views/osf.animation/$($file.path)" }
+            elseif ($file.path -ceq 'windows/x64/releasedbg/OSF Animation Browser.dll') { 'Browser/SFSE/Plugins/OSF Animation Browser.dll' }
+            else { 'Browser/' + $file.path.Substring('osfui-animation-browser/'.Length) }
         if ($BuildReceipt.kind -eq 'engine' -and $file.path -eq 'OSF Animation.pdb' -and -not (Test-Path (Join-Path $Stage $relative))) { continue }
         $staged = @($files | Where-Object path -CEQ $relative)
         if ($staged.Count -ne 1 -or $staged[0].sha256 -cne $file.sha256) { throw "Staged build artifact mismatch: $relative" }

@@ -1,7 +1,7 @@
 #include "OSFScript.h"
 
 #include "API/MinimumVersion.h"
-#include "API/UIBridge.h"
+#include "API/BrowserForwarder.h"
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"
 #include "Audio/SoundService.h"

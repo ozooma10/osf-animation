@@ -56,18 +56,12 @@ namespace OSF::API::Health
 			} else {
 				const char* title = "Animation content could not be loaded";
 				const char* next = "Check OSF Animation.log and repair or reinstall the affected content pack.";
-				if (a_op.code == "browser.integration") {
-					title = "Animation Browser is unavailable";
-					next = "Install matching released Animation Browser, OSF UI and OSF Settings files, then restart Starfield.";
-				} else if (a_op.code == "boot.untested-game-version") {
+				if (a_op.code == "boot.untested-game-version") {
 					title = "This Starfield version has not been verified";
 					next = "Check for an OSF Animation update supporting your game version.";
 				} else if (a_op.code == "compat.needs-newer-osf-animation") {
 					title = "A mod requires a newer OSF Animation";
 					next = "Update OSF Animation to the version required by this mod.";
-				} else if (a_op.code == "wheel.pins-not-persisted") {
-					title = "Animation wheel changes could not be saved";
-					next = "Check disk space and write permissions, then save the wheel again.";
 				} else if (a_op.code == "fade.disabled") {
 					title = "Scene screen fades are unavailable";
 					next = "Update OSF Animation for this Starfield version.";

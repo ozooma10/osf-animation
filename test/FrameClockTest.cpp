@@ -21,7 +21,7 @@ using OSF::Test::Finish;
 int main()
 {
 	{
-		OSF::API::BrowserSessionQueue session;
+		OSF::API::BrowserSessionQueue session([](std::function<void()> task) { OSF::Util::NativeMainThreadQueue::Post(std::move(task)); });
 		std::vector<int> events;
 		session.Post([&] { events.push_back(99); }); // hidden mutations are refused
 		session.Post([&] { events.push_back(1); }, false); // document bootstrap

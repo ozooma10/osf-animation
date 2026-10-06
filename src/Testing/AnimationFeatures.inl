@@ -35,7 +35,7 @@ constexpr std::uint32_t kSmokeClient = OSF_PERSISTENCE_FOURCC('O','A','T','S');
 void BrowserObserved(const char*,const char* payload,const char* view,void*) noexcept
 {
 	try {
-		if (!view || std::string_view(view) != API::BrowserSession::kViewId) return;
+		if (!view || std::string_view(view) != BrowserProbe::kViewId) return;
 		auto value=Json::parse(payload ? payload : "",nullptr,false);
 		if (!value.is_object()) return;
 		std::lock_guard lock(feature.mutex); feature.browserReport=std::move(value);
@@ -46,7 +46,7 @@ Json BrowserReport()
 	if (Clock::now() >= feature.browserProbeAt) {
 		feature.browserProbeAt=Clock::now()+std::chrono::milliseconds(500);
 		const auto payload=Json{{"runId",g.snapshot["runId"]}}.dump();
-		API::BrowserSession::Views().EmitEvent(API::BrowserSession::kViewId,"osf.animation.smoke.probe",payload.c_str());
+		BrowserProbe::Views().EmitEvent(BrowserProbe::kViewId,"osf.animation.smoke.probe",payload.c_str());
 	}
 	std::lock_guard lock(feature.mutex);
 	if (feature.browserReport.value("runId",std::string{}) != g.snapshot["runId"].get<std::string>()) return Json::object();
@@ -166,7 +166,7 @@ void CleanupFeatures(bool worldReset)
 	{ std::lock_guard lock(feature.mutex); retirePeer = feature.peer && !feature.peerRetired; }
 	if (!worldReset && retirePeer) PeerCommand(true);
 	if (!feature.prop.Empty()) (void)Props::PropService::GetSingleton().Destroy(feature.prop);
-	if (feature.orbitOwned) Camera::CameraService::GetSingleton().ReleaseBrowseOrbit();
+	if (feature.orbitOwned) Camera::CameraService::GetSingleton().ReleaseInspectionOrbit();
 	if (feature.fadeOwned) UI::FadeService::GetSingleton().FadeFromBlack(0.1f);
 	if (feature.soundOwned) Audio::SoundService::GetSingleton().StopAll();
 	if (feature.subtitleOwned) UI::Subtitle::OnStopAll();
@@ -293,7 +293,7 @@ void AdvanceFeatures()
 		g.scene=0; Phase(135); break;
 	case 135: {
 		auto* camera=RE::PlayerCamera::GetSingleton(); feature.cameraState=camera ? camera->currentState : nullptr;
-		feature.orbitOwned=Camera::CameraService::GetSingleton().EnsureBrowseOrbit({actor->GetFormID()});
+		feature.orbitOwned=Camera::CameraService::GetSingleton().AcquireInspectionOrbit({actor->GetFormID()});
 		if (!Check("camera.orbit",feature.orbitOwned,"Browser orbit acquired on the current game build")) return;
 		Phase(136); break;
 	}
@@ -305,7 +305,7 @@ void AdvanceFeatures()
 			std::ranges::all_of(position,[](float v){return std::isfinite(v);});
 		if (!WaitFeature("camera.orbit",active,5,"Orbit did not enter the native camera state and produce a finite pose")) break;
 		if (!Check("camera.orbit",true,"Native camera entered FreeFly and the orbit driver produced a finite pose")) return;
-		Camera::CameraService::GetSingleton().ReleaseBrowseOrbit(); feature.orbitOwned=false; Phase(137); break;
+		Camera::CameraService::GetSingleton().ReleaseInspectionOrbit(); feature.orbitOwned=false; Phase(137); break;
 	}
 	case 137: {
 		auto* camera=RE::PlayerCamera::GetSingleton();

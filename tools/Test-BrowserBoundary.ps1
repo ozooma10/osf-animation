@@ -1,0 +1,36 @@
+#requires -Version 7.2
+[CmdletBinding()]
+param()
+$ErrorActionPreference = 'Stop'
+$repo = Split-Path $PSScriptRoot -Parent
+$public = @('OSFSceneAPI.h','OSFEngineAPI.h','OSFCatalog.h','OSFUI.h','OSFSettings.h','OSFSettings_Diagnostics.h')
+$source = Join-Path $repo 'extensions/browser/src'
+foreach ($file in Get-ChildItem -LiteralPath $source -Recurse -File | Where-Object Extension -in '.cpp','.h') {
+    foreach ($match in [regex]::Matches([IO.File]::ReadAllText($file.FullName), '(?m)^\s*#\s*include\s*"([^"]+)"')) {
+        $include = $match.Groups[1].Value
+        if ($include -match '(^|[\\/])\.\.([\\/]|$)') { throw "Private relative include: $include" }
+        if (Test-Path -LiteralPath (Join-Path $source $include)) { continue }
+        if (Test-Path -LiteralPath (Join-Path $repo "shared/$include")) { continue }
+        if ($include -in $public -or $include -like 'RE/*' -or $include -like 'REX/*' -or $include -like 'SFSE/*' -or $include -like 'REL/*') { continue }
+        throw "Browser includes a private engine file: $($file.Name): $include"
+    }
+}
+$build = [IO.File]::ReadAllText((Join-Path $repo 'xmake.lua'))
+if ($build -notmatch 'includes\("extensions/browser"\)' -or $build -match 'target\("OSF Animation Browser"\)') {
+    throw 'The root build must include the Browser extension target from its own directory.'
+}
+$extensionBuild = [IO.File]::ReadAllText((Join-Path $repo 'extensions/browser/xmake.lua'))
+$target = [regex]::Match($extensionBuild, '(?s)target\("OSF Animation Browser"\)(.*?)(?=\ntarget\(|\z)').Groups[1].Value
+if ($target -notmatch 'add_files\("src/\*\*\.cpp"\)' -or
+    $target -match 'add_(files|deps|links)\([^\r\n]*("\.\./|"OSF Animation")' -or
+    $target -match 'add_includedirs\([^\r\n]*"\.\./\.\./src"') { throw 'Browser target includes or links engine implementation.' }
+$core = [regex]::Match($build, '(?s)target\("OSF Animation"\)(.*?)(?=\ntarget\(|\z)').Groups[1].Value
+if ($core -match 'add_files\([^\r\n]*extensions/') { throw 'Browser implementation leaked into engine target.' }
+$private = @(Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Recurse -File |
+    Where-Object { $_.Extension -in '.cpp','.h' -and $_.FullName -notlike '*\Testing\*' -and $_.Name -notin @('OSFUI.h','BrowserForwarder.h') })
+foreach ($file in $private) {
+    if ([IO.File]::ReadAllText($file.FullName) -match '#include "(API/(BrowserSession|UIBridge)|Serialization/WheelPins|API/OSFUI)') {
+        throw "Engine depends on browser integration: $($file.FullName)"
+    }
+}
+Write-Host 'Browser boundary: public headers only, independent target, no engine-to-browser implementation dependency.'

@@ -2,7 +2,8 @@
   {
     "feature": "Native ABI readiness, validation and callbacks",
     "native": [
-      "osf-native-scene-event-test"
+      "osf-native-scene-event-test",
+      "osf-browser-boundary-test"
     ],
     "runtime": [
       "api.ready",

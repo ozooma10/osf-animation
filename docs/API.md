@@ -376,13 +376,23 @@ or after an extreme burst has expired that handle from the recent-history window
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode
 `akEvent.result`.
 
+## Optional engine services
+
+The released scene ABI 1.3 is unchanged. The separate `OSF_RequestEngineAPI` export provides API 1.0
+for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
+playback controls, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
+`src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
+consumers need neither OSF Animation Browser nor OSF UI.
+
 ## In-game UI, hotkeys, and the wheel tag contract
 
 The optional **OSF Animation Browser** addon provides the scene browser, animation wheel,
 vanilla library, and emote pack; **OSF UI 2.0** renders the view. **OSF Settings 1.0**
 owns settings and hotkeys on the **OSF Animation** page. Both hotkeys ship unbound; the browser
-is also available from the OSF Settings Launcher tab. `OSF.OpenBrowser` and `OSF.OpenWheel`
-remain available to Papyrus. The legacy `Data/OSF/settings.json` is no longer read.
+is also available from the OSF Settings Launcher tab. `OSF.OpenBrowser()` remains available to
+Papyrus through an optional addon forwarder and returns false when Browser or OSF UI is unavailable.
+The wheel is opened by the addon hotkey or native `OSFBrowser_OpenWheel`; there is no `OSF.OpenWheel`
+Papyrus native in the current source. The legacy `Data/OSF/settings.json` is no longer read.
 
 Content packs join these surfaces purely by **tags**, no code: a solo, free-space, self-terminating
 scene tagged `player.emote.<name>` appears as an **emote** in the unified Browse catalog and in the

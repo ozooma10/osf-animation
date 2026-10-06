@@ -22,7 +22,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-OUT = os.path.join(REPO, "ui", "animation-browser", "fixtures", "live", "catalog.local.json")
+OUT = os.path.join(REPO, "extensions", "browser", "ui", "fixtures", "live", "catalog.local.json")
 
 # Reuse the library generator's card math; its dashed filename needs importlib.
 _spec = importlib.util.spec_from_file_location(

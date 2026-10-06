@@ -122,6 +122,7 @@ try {
     }
     Invoke-SmokeStage 'sdk' {
         Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'Test-SdkLock.ps1'))
+        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'Test-BrowserBoundary.ps1'))
         $script:stage.message = 'Vendored OSF UI / OSF Settings SDK files match sdk-lock.json'
     }
     Invoke-SmokeStage 'production-build' {
@@ -167,6 +168,8 @@ try {
             Invoke-SmokeCommand 'xmake' @('f','-y','-m','releasedbg','-o','build/smoke-native','--animation_smoke=y')
             Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
             Invoke-SmokeCommand 'xmake' @('install','-y','-o',$runtimeMod,'OSF Animation')
+            # The harness accepts one private staged mod root. Include the independently built addon DLL.
+            Copy-Item -LiteralPath (Join-Path $repo 'build/smoke-native/windows/x64/releasedbg/OSF Animation Browser.dll') -Destination (Join-Path $runtimeMod 'SFSE/Plugins') -Force
             Copy-Item -LiteralPath (Join-Path $repo 'test/smoke/data/OSF') -Destination $runtimeMod -Recurse -Force
             Copy-Item -Path (Join-Path $fixtureMod '*') -Destination $runtimeMod -Recurse -Force
             $report.runtimeDllSha256 = (Get-FileHash -LiteralPath (Join-Path $runtimeMod 'SFSE/Plugins/OSF Animation.dll')).Hash

@@ -1,7 +1,7 @@
 # Animation browser agent guide
 
 This directory is the editable source for OSF Animation's in-game browser. Vite generates
-the disposable view under `../../build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/`;
+the disposable view under `../../../build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser/`;
 never edit generated output.
 
 ## Required checks

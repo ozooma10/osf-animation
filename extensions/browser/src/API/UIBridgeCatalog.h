@@ -8,15 +8,15 @@
 #include <string>
 #include <string_view>
 
-namespace OSF::Registry
+namespace OSF::Catalog
 {
-	struct SceneDef;
+	struct Scene;
 }
 
 namespace OSF::API::UIBridgeCatalog
 {
-	std::size_t ActorCountOf(const Registry::SceneDef& a_def);
-	bool IsWheelEntryEligible(const Registry::SceneDef& a_def, std::int32_t a_stage);
+	std::size_t ActorCountOf(const Catalog::Scene& a_def);
+	bool IsWheelEntryEligible(const Catalog::Scene& a_def, std::int32_t a_stage);
 	nlohmann::json BuildWheelData(std::string_view a_tagPrefix);
 	nlohmann::json BuildCatalog(bool a_library);
 	nlohmann::json BuildFileReport();

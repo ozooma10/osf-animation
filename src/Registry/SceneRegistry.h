@@ -449,6 +449,9 @@ namespace OSF::Registry
 	public:
 		static SceneRegistry& GetSingleton();
 
+		// Pins one publication for multi-part public metadata reads during concurrent reloads.
+		std::shared_ptr<const ContentRegistrySnapshot> ReadSnapshot() const { return snapshot.load(); }
+
 		// Bad scenes are skipped, logged, and recorded for LoadErrors(). Also runs on OSF.ReloadPacks().
 		void LoadAll();
 

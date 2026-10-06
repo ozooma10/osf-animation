@@ -1,6 +1,6 @@
 #include "Serialization/WheelPins.h"
 
-#include "API/Health.h"
+#include "API/BrowserHealth.h"
 
 #include <algorithm>
 #include <filesystem>

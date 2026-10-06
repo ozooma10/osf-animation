@@ -1,11 +1,8 @@
+#include "API/EngineClient.h"
 #include "API/UIBridgeWorld.h"
 
 #include "API/BrowserSession.h"
 #include "API/UIKeywordLabel.h"
-#include "Camera/CameraService.h"
-#include "Matchmaking/Matchmaker.h"
-#include "Registry/SceneRegistry.h"
-#include "Util/Species.h"
 
 #include <nlohmann/json.hpp>
 
@@ -49,7 +46,7 @@ namespace OSF::API::UIBridgeWorld
 
 			RE::BGSKeyword*                         match = nullptr;
 			std::unordered_map<RE::TESFormID, bool> tested;
-			Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
+			EngineClient::CatalogData::GetSingleton().ForEachDef([&](const Catalog::Scene& a_def) {
 				if (match || !a_def.clipsAvailable) {
 					return;
 				}
@@ -208,7 +205,7 @@ namespace OSF::API::UIBridgeWorld
 	std::string RefSexTag(RE::TESObjectREFR* a_ref)
 	{
 		return a_ref && a_ref->IsActor()
-		         ? Matchmaking::ActorGenderTag(static_cast<RE::Actor*>(a_ref))
+		         ? EngineClient::ActorGender(static_cast<RE::Actor*>(a_ref))
 		         : std::string{};
 	}
 
@@ -340,7 +337,7 @@ namespace OSF::API::UIBridgeWorld
 
 			float orbitPos[3];
 			float orbitFwd[3];
-			if (Camera::CameraService::GetSingleton().SceneOrbitPose(orbitPos, orbitFwd)) {
+			if (EngineClient::Get().ReadOrbitPose(orbitPos, orbitFwd)) {
 				const auto poseErrorSq = [&](RE::NiCamera* a_camera) {
 					const float dx = a_camera->world.translate.x - orbitPos[0];
 					const float dy = a_camera->world.translate.y - orbitPos[1];
@@ -711,7 +708,7 @@ namespace OSF::API::UIBridgeWorld
 				reply["token"] = token;
 				reply["name"] = ScanLabel(a_ref);
 				reply["formId"] = a_ref->GetFormID();
-				reply["species"] = a_ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(a_ref)) : std::string{};
+				reply["species"] = a_ref->IsActor() ? EngineClient::ActorSpecies(static_cast<RE::Actor*>(a_ref)) : std::string{};
 				reply["sex"] = RefSexTag(a_ref);
 				if (auto* player = RE::PlayerCharacter::GetSingleton()) {
 					reply["distance"] = std::sqrt(player->GetPosition().GetSquaredDistance(a_ref->GetPosition())) / 70.0f;
@@ -952,7 +949,7 @@ namespace OSF::API::UIBridgeWorld
 				std::vector<bool>                                               defCustom;  // def index -> non-library
 				std::unordered_map<RE::BGSKeyword*, std::vector<std::uint32_t>> kwDefs;
 				std::unordered_map<RE::TESFormID, std::vector<std::uint32_t>>   baseDefs;
-				const auto                                                      addDef = [&](const Registry::SceneDef& d) {
+				const auto                                                      addDef = [&](const Catalog::Scene& d) {
 					if (!d.RequiresAnchor() || !d.clipsAvailable) {
 						return;
 					}
@@ -967,7 +964,7 @@ namespace OSF::API::UIBridgeWorld
 						baseDefs[b].push_back(idx);
 					}
 				};
-				auto& reg = Registry::ContentRegistry::GetSingleton();
+				auto& reg = EngineClient::CatalogData::GetSingleton();
 				if (!sceneId.empty()) {
 					if (const auto def = reg.Find(sceneId)) {
 						addDef(*def);
@@ -1053,7 +1050,7 @@ namespace OSF::API::UIBridgeWorld
 					{ "distance", std::sqrt(h.distSq) / 70.0f },  // game units -> ~meters
 					{ "isActor", h.ref->IsActor() },
 					{ "marker", marker },
-					{ "species", h.ref->IsActor() ? Util::ActorSpecies(static_cast<RE::Actor*>(h.ref)) : std::string{} },
+					{ "species", h.ref->IsActor() ? EngineClient::ActorSpecies(static_cast<RE::Actor*>(h.ref)) : std::string{} },
 					{ "sex", RefSexTag(h.ref) },
 				};
 				if (h.sceneCount >= 0) {

@@ -10,7 +10,7 @@ export default defineConfig({
   base: "./",
   plugins: [octane()],
   build: {
-    outDir: local("../../build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser"),
+    outDir: local("../../../build/osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation/browser"),
     emptyOutDir: true,
     target: "es2022",
   },

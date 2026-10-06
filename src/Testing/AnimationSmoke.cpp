@@ -15,8 +15,8 @@
 #include "API/OSFSceneAPI.h"
 #include "API/OSFSettings.h"
 #include "API/OSFSettings_Diagnostics.h"
-#include "API/BrowserSession.h"
-#include "API/UIBridge.h"
+#include "Testing/BrowserProbe.h"
+
 #include "Animation/GraphManager.h"
 #include "Registry/SceneRegistry.h"
 #include "Scene/SceneRuntime.h"
@@ -158,7 +158,7 @@ namespace OSF::Testing::AnimationSmoke
 		void Cleanup(bool a_worldReset = false)
 		{
 			if (g.browserOwned) {
-				API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId, false);
+				BrowserProbe::Views().RequestMenu(BrowserProbe::kViewId, false);
 				g.browserOwned = false;
 			}
 			// Solo has no token, so only release the clip while it is still ours.
@@ -276,7 +276,7 @@ namespace OSF::Testing::AnimationSmoke
 				Finish("blocked", "Close pause menus and stop existing OSF scenes and player playback");
 				return;
 			}
-			if (API::BrowserVisibleForSmoke()) { Finish("blocked", "Close the Animation Browser before starting the run"); return; }
+			if (BrowserProbe::Visible()) { Finish("blocked", "Close the Animation Browser before starting the run"); return; }
 			auto& registry = Registry::ContentRegistry::GetSingleton();
 			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph")) {
 				Finish("blocked", "Live smoke fixture is not installed or failed registry validation");
@@ -293,7 +293,7 @@ namespace OSF::Testing::AnimationSmoke
 				"Released Settings values and diagnostics report/clear accepted")) return;
 			OSFUI::API::Client views;
 			if (!Check("integration.ui", views.Init() && views.Version() == OSFUI::API::kVersion &&
-				!OSFUI::API::RequestInterface(0x10000) && API::BrowserSession::Available(),
+				!OSFUI::API::RequestInterface(0x10000) && BrowserProbe::Available(),
 				"Released UI API 2.0 and browser registrations available; visual/input acceptance remains separate")) return;
 			if (!feature.browserRegistered) feature.browserRegistered=views.RegisterSend("osf.animation.smoke.observed",BrowserObserved,nullptr);
 			if (!feature.browserRegistered) { Finish("blocked","Browser observation endpoint could not register"); return; }
@@ -444,7 +444,7 @@ namespace OSF::Testing::AnimationSmoke
 				break;
 			case 10:
 			case 12:
-				if (!API::BrowserVisibleForSmoke()) {
+				if (!BrowserProbe::Visible()) {
 					if (PhaseSeconds() > 12) Check("integration.browser-lifecycle", false, "Native browser shown callback did not execute");
 					break;
 				}
@@ -456,12 +456,12 @@ namespace OSF::Testing::AnimationSmoke
 					g.snapshot["browserTarget"]=page.at("target"); ExternalAction("browser-imports"); Phase(14); break;
 				}
 				// Close through the host, with no JavaScript close notification.
-				API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId, false);
+				BrowserProbe::Views().RequestMenu(BrowserProbe::kViewId, false);
 				Phase(g.phase + 1);
 				break;
 			case 11:
 			case 13:
-				if (API::BrowserVisibleForSmoke()) {
+				if (BrowserProbe::Visible()) {
 					if (PhaseSeconds() > 6) Check("integration.browser-lifecycle", false, "Native browser hidden callback did not execute");
 					break;
 				}
@@ -471,7 +471,7 @@ namespace OSF::Testing::AnimationSmoke
 				} else {
 					g.browserOwned = false;
 					if (!Check("integration.browser-lifecycle", true, "Released UI host drove native shown/hidden cleanup across open, host close, reopen, and close")) return;
-					g.browserOwned=API::OpenWheel("");
+					g.browserOwned=BrowserProbe::OpenWheel("");
 					if (!g.browserOwned) { Check("integration.wheel",false,"Wheel launch was rejected"); return; }
 					Phase(15);
 				}
@@ -480,16 +480,16 @@ namespace OSF::Testing::AnimationSmoke
 				const auto page=BrowserReport();
 				if (!WaitFeature("integration.browser-input",page.value("clickedTrusted",false) && page.value("importsOpen",false),15,"Real pointer input did not open the Imports panel")) break;
 				if (!Check("integration.browser-input",true,"Owned Windows pointer input reached the real page and opened Imports")) return;
-				ExternalAction(""); API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId,false); Phase(11); break;
+				ExternalAction(""); BrowserProbe::Views().RequestMenu(BrowserProbe::kViewId,false); Phase(11); break;
 			}
 			case 15: {
 				const auto page=BrowserReport();
-				if (!WaitFeature("integration.wheel",API::BrowserVisibleForSmoke() && page.value("wheelVisible",false) && page.value("wheel",false),15,"Wheel document did not become visible with native wheel data")) break;
+				if (!WaitFeature("integration.wheel",BrowserProbe::Visible() && page.value("wheelVisible",false) && page.value("wheel",false),15,"Wheel document did not become visible with native wheel data")) break;
 				if (!Check("integration.wheel",true,"OpenWheel displayed the real wheel document with its native data")) return;
-				API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId,false); Phase(16); break;
+				BrowserProbe::Views().RequestMenu(BrowserProbe::kViewId,false); Phase(16); break;
 			}
 			case 16:
-				if (!WaitFeature("integration.wheel",!API::BrowserVisibleForSmoke(),6,"Wheel failed to close")) break;
+				if (!WaitFeature("integration.wheel",!BrowserProbe::Visible(),6,"Wheel failed to close")) break;
 				g.browserOwned=false; Phase(100); break;
 			}
 		}

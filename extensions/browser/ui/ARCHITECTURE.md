@@ -5,7 +5,10 @@ catalog and scene runtime; this application owns selection, pre-flight configura
 and input translation.
 
 ```text
-OSF Animation DLL
+OSF Animation DLL (public engine services)
+      |
+      v
+OSF Animation Browser DLL
       | JSON text
       v
 bridge/client.ts ---- dev/mock-bridge.ts

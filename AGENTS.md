@@ -6,20 +6,20 @@ voice/sound, camera hold);
 
 ## Build
 
-- **Native (C++/DLL):** build + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
+- **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the seven engine-free C++ suites (persistence broker,
-  native scene-event callbacks, generated GLTF/GLB/gzip import fixtures,
+- **Tests:** `xmake test` builds and runs the eight engine-free C++ suites (persistence broker,
+  native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
   frame clock/clip specs, additive pose math, sound registry, scene registry — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
-  own suite: `npm --prefix ui/animation-browser run verify` (typecheck + build + vitest).
+  own suite: `npm --prefix extensions/browser/ui run verify` (typecheck + build + vitest).
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
   and checks release archives with retained evidence. `-RunGame` adds the sibling harness's private
   Animation scenario (47 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
   hosts; the default uses the pinned releases. `-Plan` is read-only. Runtime instrumentation requires `--animation_smoke=y`,
   defaults off, and must never be deployed to the normal mod or packaged. The bench uses separate
   `build/smoke-native` output and restores production configuration. See `docs/SMOKE_TESTING.md`.
-- **UI build:** `ui/animation-browser` uses a local Vite/Octane build. Run `npm ci`
+- **UI build:** `extensions/browser/ui` uses a local Vite/Octane build. Run `npm ci`
   there before UI scripts. The retired OSF UI authoring CLI is no longer required.
 - **UI / Settings SDKs:** vendored from *released* tags, never a sibling's working tree:
   `OSF UI/sdk/OSFUI.h` + `osfui.d.ts` (UI v2.0.0, native API 2.0) and
@@ -137,11 +137,14 @@ Each entry: **system** (`path`) — role.
   `"Plugin.esm|0xID"` form-refs resolved at load (RE-sensitive — needs in-game verification).
 
 ### Layer-C - services 
-- **BrowserSession** (`src/API/BrowserSession.*`, `BrowserSessionQueue.h`) — internal optional
+- **Browser addon** (`extensions/browser/src/API/BrowserSession.*`, `BrowserSessionQueue.h`) — separate optional
+  `OSF Animation Browser.dll`, built without private engine implementation. It consumes scene ABI 1.3
+  and engine services ABI 1.0 (`src/API/OSFEngineAPI.h`). Owns browser/wheel presentation, picking, pins,
+  preferences and hotkeys; see `docs/BROWSER_ADDON.md`. It is an
   OSF UI consumer. Native shown/hidden callbacks own browser lifetime; copied commands and
   pointer input drain on the frame queue with a generation check. Hide/world replacement
   invalidate pending work. `UIBridge` owns game behavior; document initialization replays data.
-  Missing addon is normal; installed but unusable integration reports through Mod Issues.
+  Missing addon or OSF UI is normal; an incompatible installed UI or invalid assets reports through Mod Issues.
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no
