@@ -33,7 +33,9 @@ tests and in-game acceptance. It is an on-demand bench, not a scheduled job.
   unrelated running game or missing fixture blocks the run. The disposable seed
   needs a loaded human player, movement enabled, no active scene/overlay, and at
   least one worn vanilla armor item. A temporary second actor is created and
-  deleted. The suite also quicksaves and quickloads inside the private save folder.
+  deleted. The suite also quicksaves and quickloads inside the private save folder
+  using the default F5/F9 bindings. Keep Starfield foreground and leave input idle
+  until the run completes; losing foreground can block input/capture acceptance.
 - Runtime integration defaults to the published **OSF Settings v1.0.0** and **OSF UI v2.0.0**
   ZIPs from GitHub. Downloads are cached by their published SHA-256, verified, and
   installed in private test mods. Missing releases/checksums or network access block

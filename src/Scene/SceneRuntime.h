@@ -315,11 +315,6 @@ namespace OSF::Scene
 		// Preserves base skin; worn gear picks are exempt.
 		void HideDefaultApparel(std::int32_t a_handle, bool a_hideApparel, const std::vector<RE::Actor*>& a_participants,
 			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks);
-		void StripDefaultActors(std::int32_t a_handle, bool a_stripActors, const std::vector<RE::Actor*>& a_participants,
-			const std::vector<std::vector<Equipment::Gear::Pick>>& a_gearPicks)
-		{
-			HideDefaultApparel(a_handle, a_stripActors, a_participants, a_gearPicks);
-		}
 
 		// Gear registry ∩ inventory, minus slots claimed by authored role `equip`. Index-parallel to
 		// a_participants. Game thread.
@@ -333,10 +328,6 @@ namespace OSF::Scene
 		void EquipRoleItems(std::int32_t a_handle, std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
 
 		void EngageDefaultSceneControls(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants);
-		void EngageDefaultPlayerControl(std::int32_t a_handle, std::string_view a_defId, std::optional<bool> a_controlOverride, const std::vector<RE::Actor*>& a_participants)
-		{
-			EngageDefaultSceneControls(a_handle, a_defId, a_controlOverride, a_participants);
-		}
 
 		// Self-releasing fade, not ledger-recorded. Async (UI queue), so it can't hide the frame-0 snap.
 		void FadeSceneStart(std::int32_t a_handle, bool a_fade, const std::vector<RE::Actor*>& a_participants);
