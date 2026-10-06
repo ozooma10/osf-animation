@@ -2558,11 +2558,6 @@ namespace OSF::Registry
 		return RoleGender::kAny;
 	}
 
-	SlotGender ParseSlotGender(std::string_view a_str)
-	{
-		return ParseRoleGender(a_str);
-	}
-
 	std::optional<CameraState> ParseCameraState(std::string_view a_state)
 	{
 		const auto state = ToLower(a_state);

@@ -92,9 +92,6 @@ export function isDerivedDebugAnimation(scene: SceneModel): boolean {
   return scene.sourceKind === "derivedDebugAnimation";
 }
 
-/** Alias for view extensions compiled against the earlier selector name. */
-export const isGeneratedSceneClip = isDerivedDebugAnimation;
-
 export function playableKey(sceneId: string, stage: number | null): string {
   return wheelKey(sceneId, stage);
 }

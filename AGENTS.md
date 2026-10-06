@@ -69,16 +69,16 @@ Each entry: **system** (`path`) — role.
   (advances time/stage, keeps rig binding warm) + `StampPose()` (samples ozz pose ONCE/frame, writes
   engine flat rig buffers, NiTransform ROW layout — do NOT transpose).
 - **GraphManager** (`src/Animation/GraphManager.*`) — graph map keyed on `TESObjectREFR*`; 
-  owns the two vtable hooks. `PlaySceneStaged` is the one scene entry. `StopAll` drops all state on load (releases the persistent AI-driven flag). 
+  owns the two vtable hooks. `PlaySynchronized` is the shared playback entry. `StopAll` drops all state on load (releases the persistent AI-driven flag).
   Compose-root pin + cull-sphere + BSFadeNode fade suppression live in `Hook_ModelNodeUpdate`
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
 - **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, graph maintenance, playback previews, and Studio. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Anchored NPC animation-driven flags are maintained once per game frame here, with save-window suppression. Sampling and stamping remain in their animation hooks. Preview props reconcile at prop marks, seeks, and loop/end boundaries.
-- **Scene** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
+- **PlaybackSession** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.
-- **Player/Camera locks** (`src/Player/PlayerControlService.*`, `src/Camera/CameraService.*`) —
+- **Player/Camera locks** (`src/Player/PlayerInputLockService.*`, `src/Camera/CameraService.*`) —
   standalone locks (input-disable + AI-driven + third-person hold).
   Engaged **by default at scene start when the player is a participant** (the runtime calls
-  `EngageDefaultPlayerLock`; a scene opts out with `lockPlayer:false`), and also by the explicit
+  `EngageDefaultPlayerInputLock`; a scene opts out with `lockPlayer:false`), and also by the explicit
   `osf.control.lock` action. Ref-counted per scene, ledger-tracked so it auto-releases on any end.
 - **Papyrus** (`src/Papyrus/OSFScript.*`) — natives bound via GameVM at kPostDataLoad, re-bound every
   load (VM is rebuilt).
@@ -128,7 +128,7 @@ Each entry: **system** (`path`) — role.
 - **SceneRuntime** (`src/Scene/SceneRuntime.*`) - generational handle table, lifecycle (`Fire`), navigation, timed-mark decode (`OnTimedMarks`, lane-ordered action→camera→sound→cue)
   `osf.*` action dispatch (`RunAction`), and the **per-handle undo ledger** (reverses every reversible
   mechanism in reverse order, once, idempotently, on ANY termination). Talks to Layer A only via its public surface, to Layer C via services.
-  **Scene-start defaults** (`EngageDefaultPlayerLock` / `StripDefaultActors`, called once per start in each
+  **Scene-start defaults** (`EngageDefaultPlayerInputLock` / `HideDefaultApparel`, called once per start in each
   `Start*` funnel): lock the player's input when they participate (opt out `lockPlayer:false`) and strip
   every participant's apparel (opt out `stripActors:false`); both ledger-tracked so they auto-reverse on end.
   The caller resolves each opt-out — from the `SceneDef` for a def scene, the `PackPolicy` for a pack — and

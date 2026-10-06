@@ -187,17 +187,6 @@ namespace OSF::Util
 			}
 		}
 
-		// Never throws: cosmetic header labels must not fail the whole file.
-		bool TryRead(std::string_view a_key, std::string& a_out) const
-		{
-			const auto* value = Find(a_key);
-			if (!value || !value->is_string()) {
-				return false;
-			}
-			a_out = value->get<std::string>();
-			return true;
-		}
-
 		[[noreturn]] void Reject(std::string_view a_key, JsonText a_text,
 			std::string_view a_default) const
 		{

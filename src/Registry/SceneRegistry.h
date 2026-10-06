@@ -31,11 +31,9 @@ namespace OSF::Registry
 		kMale,
 		kFemale
 	};
-	using SlotGender = RoleGender;
 
 	// "male"/"m", "female"/"f" (case-insensitive); else kAny.
 	RoleGender ParseRoleGender(std::string_view a_str);
-	SlotGender ParseSlotGender(std::string_view a_str);
 
 	enum class LoopMode : std::uint8_t
 	{
@@ -184,7 +182,7 @@ namespace OSF::Registry
 		return sec > 0.0f ? 1.0f : 0.0f;
 	}
 
-	// Scene::Advance fires marks in a [prev, next) window capped at the clip duration, so an `atFrame`
+	// PlaybackSession::Advance fires marks in a [prev, next) window capped at the clip duration, so an `atFrame`
 	// at/past the end never fires even though TrackFraction clamps it to 1.0. Unknowns return true.
 	template <class Entry>
 	inline bool TrackFires(const Entry& a_entry, float a_durationSec)
@@ -281,7 +279,6 @@ namespace OSF::Registry
 		std::uint32_t capabilities = Input::kAllCapabilities;  // `disable` removes
 		bool          locked = false;                  // player can't end the scene via the channel
 	};
-	using PlayerControl = SceneControls;
 
 	enum class CatalogSourceKind : std::uint8_t
 	{

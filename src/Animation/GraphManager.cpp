@@ -277,13 +277,6 @@ namespace OSF::Animation
 		return id;
 	}
 
-	bool GraphManager::UnregisterPlaybackSink(PlaybackSinkId a_id)
-	{
-		if (a_id == 0) return false;
-		std::unique_lock l{ _sinkLock };
-		return _playbackSinks.erase(a_id) != 0;
-	}
-
 	std::optional<GraphManager::PlaybackSink> GraphManager::GetPlaybackSink(PlaybackSinkId a_id) const
 	{
 		if (a_id == 0) return std::nullopt;

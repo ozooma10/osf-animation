@@ -155,11 +155,6 @@ namespace OSF::Overlay
 		return true;
 	}
 
-	bool RouteController::OnEdgeReached(std::uint32_t a_generation)
-	{
-		return OnTransitionReached(a_generation);
-	}
-
 	void RouteController::End(bool a_fade)
 	{
 		_playback.Stop(a_fade);

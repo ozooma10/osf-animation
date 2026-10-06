@@ -23,9 +23,6 @@ namespace OSF::Animation
 		using PlaybackAutoEndHandler = std::function<bool(PlaybackId, const std::vector<RE::Actor*>&, PlaybackEndReason)>;
 		using PlaybackClearHandler = std::function<void()>;
 		using PlaybackTimedMarkHandler = std::function<void(PlaybackId, const std::vector<RE::Actor*>&, const std::vector<FiredMark>&)>;
-		using SceneAutoEndHandler = PlaybackAutoEndHandler;
-		using SceneClearHandler = PlaybackClearHandler;
-		using SceneTimedMarkHandler = PlaybackTimedMarkHandler;
 		struct PlaybackSink
 		{
 			PlaybackAutoEndHandler autoEnd;
@@ -34,7 +31,6 @@ namespace OSF::Animation
 		};
 
 		PlaybackSinkId RegisterPlaybackSink(PlaybackSink a_sink);
-		bool UnregisterPlaybackSink(PlaybackSinkId a_id);
 
 		void InstallHooks();
 
@@ -67,14 +63,6 @@ namespace OSF::Animation
 			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
 			PlaybackSinkId a_sinkId = 0, bool a_strictTimedMarks = false);
 
-		bool PlaySceneStaged(const std::vector<RE::Actor*>& a_actors, const ScenePlan& a_plan, int32_t a_startStage,
-			PlaybackId* a_outPlaybackId = nullptr, PlaybackId a_expectedPlayback = 0,
-			PlaybackSinkId a_sinkId = 0, bool a_strictTimedMarks = false)
-		{
-			return PlaySynchronized(a_actors, a_plan, a_startStage, a_outPlaybackId,
-				a_expectedPlayback, a_sinkId, a_strictTimedMarks);
-		}
-
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
 
 		struct SynchronizedPlaybackState
@@ -85,7 +73,6 @@ namespace OSF::Animation
 			int32_t stage = -1;
 			PlaybackId playbackId = 0;
 		};
-		using ScenePlayback = SynchronizedPlaybackState;
 		struct AnimationPlayback
 		{
 			float time = 0.0f;
@@ -130,7 +117,6 @@ namespace OSF::Animation
 
 		// No-op if no longer live; the caller keeps the session alive via shared_ptr.
 		void StopPlaybackByPtr(PlaybackSession* a_session);
-		void StopSceneByPtr(Scene* a_scene) { StopPlaybackByPtr(a_scene); }
 
 		// Drops all in-memory scene/graph state with no fade, actor mutation, or callbacks (save load: the
 		// loaded world is authoritative).

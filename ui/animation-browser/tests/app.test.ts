@@ -27,7 +27,6 @@ import {
   validSelection,
   importSeverity,
   isDerivedDebugAnimation,
-  isGeneratedSceneClip,
   visibleImports,
   formatBytes,
   formatMillis,
@@ -443,8 +442,8 @@ describe("browser selectors", () => {
       roles: [{ name: "", gender: "any" }],
       stages: [{ index: 0, name: "NAF\\RZSPU02.glb", tags: ["scene.clip"], clipCount: 1, openEnded: true }],
     });
-    expect(isGeneratedSceneClip(registered)).toBe(false);
-    expect(isGeneratedSceneClip(harvested)).toBe(true);
+    expect(isDerivedDebugAnimation(registered)).toBe(false);
+    expect(isDerivedDebugAnimation(harvested)).toBe(true);
 
     const explicitDerived = normalizeScene({
       id: "plain-derived", sourceKind: "derivedDebugAnimation", curated: true,

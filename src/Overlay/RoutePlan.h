@@ -67,8 +67,6 @@ namespace OSF::Overlay
 		bool ClearBlocker(ControllerBlocker a_blocker);
 		bool OnCommit(std::uint32_t a_generation, bool a_acknowledged);
 		bool OnTransitionReached(std::uint32_t a_generation);
-		// Alias of OnTransitionReached.
-		bool OnEdgeReached(std::uint32_t a_generation);
 		void End(bool a_fade);
 
 		[[nodiscard]] ControllerPhase Phase() const noexcept { return _phase; }

@@ -93,7 +93,6 @@ namespace OSF::Animation
 		kTimer = kTimerComplete,
 		kLoops = kLoopComplete
 	};
-	using SceneEndReason = PlaybackEndReason;
 
 	// Opaque lane+token fired at a time on a stage's clip timeline; the runtime assigns meaning.
 	struct TimedMark
@@ -193,7 +192,6 @@ namespace OSF::Animation
 		// the original baseline, since its actors already stand where the outgoing scene put them.
 		std::vector<std::pair<RE::NiPoint3, float>> baselineTransforms;
 	};
-	using ScenePlan = PlaybackPlan;
 
 	// Optional per-role policy vectors are all-or-none so actor/role indexing can't drift.
 	inline bool HasValidRolePolicyShape(const PlaybackPlan& a_plan, std::size_t a_actorCount)
@@ -325,7 +323,6 @@ namespace OSF::Animation
 
 		// Also sets the initial stage. Resets the stage clock; false if out of range.
 		bool SetSegment(int32_t a_segment);
-		bool SetStage(int32_t a_stage) { return SetSegment(a_stage); }
 
 		// Doesn't fire marks; marks before the new time count as consumed so side effects never replay.
 		bool Seek(float a_time);
@@ -334,7 +331,6 @@ namespace OSF::Animation
 
 		// Updated immediately, unlike per-graph `appliedStage`. Caller must NOT hold `lock`.
 		uint32_t CurrentSegment();
-		uint32_t CurrentStage() { return CurrentSegment(); }
 
 		DiagnosticSnapshot GetDiagnosticSnapshot(std::int64_t a_nowMs);
 
@@ -355,6 +351,4 @@ namespace OSF::Animation
 		std::vector<FiredMark> firedMarks;
 		std::vector<bool>      markFired;
 	};
-
-	using Scene = PlaybackSession;
 }

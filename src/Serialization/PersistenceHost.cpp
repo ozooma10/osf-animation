@@ -322,8 +322,6 @@ namespace OSF::Serialization::PersistenceHost
 				}
 			}
 
-			PersistenceBroker& Broker() { return _broker; }
-
 		private:
 			Host() : _broker(BrokerLog) {}
 

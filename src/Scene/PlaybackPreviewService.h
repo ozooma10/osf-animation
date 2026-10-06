@@ -17,8 +17,6 @@ namespace OSF::Scene
 		float heading = 0.0f;
 	};
 
-	using InspectionAnchor = PreviewWorldAnchor;
-
 	struct PreviewRequest
 	{
 		Registry::SceneRef definition;
@@ -31,7 +29,6 @@ namespace OSF::Scene
 			PreviewWorldAnchor anchor;  // alias of worldAnchor
 		};
 	};
-	using InspectionRequest = PreviewRequest;
 
 	struct PreparedPreview
 	{
@@ -42,7 +39,6 @@ namespace OSF::Scene
 		Animation::PlaybackPlan plan;
 		bool anchorImplicit = false;  // anchor sampled from actor[0], not caller-supplied
 	};
-	using PreparedInspection = PreparedPreview;
 
 	struct RoutePreviewRequest
 	{
@@ -50,7 +46,6 @@ namespace OSF::Scene
 		std::string transition;
 		RE::Actor* actor = nullptr;
 	};
-	using RouteInspectionRequest = RoutePreviewRequest;
 
 	struct PreparedRoutePreview
 	{
@@ -59,7 +54,6 @@ namespace OSF::Scene
 		RE::Actor* actor = nullptr;
 		Animation::PlaybackPlan plan;
 	};
-	using PreparedRouteInspection = PreparedRoutePreview;
 
 	struct PreviewSnapshot
 	{
@@ -72,7 +66,6 @@ namespace OSF::Scene
 		std::string routeId;
 		std::string transitionId;
 	};
-	using InspectionSnapshot = PreviewSnapshot;
 
 	// Scrub-only Layer-A playback with render-only props. Game-thread only; never touches
 	// production SceneRuntime actions or ledgers.
@@ -152,6 +145,4 @@ namespace OSF::Scene
 		std::unordered_map<std::int32_t, Preview> _previews;
 		std::int32_t _nextHandle = -1;
 	};
-
-	using SceneInspectionService = PlaybackPreviewService;
 }

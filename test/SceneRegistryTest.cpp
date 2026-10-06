@@ -32,10 +32,6 @@ namespace
 	static_assert(std::is_same_v<OSF::Registry::ContentFileStats, OSF::Registry::SceneFileStats>);
 	static_assert(std::is_same_v<OSF::Registry::ContentRegistrySnapshot, OSF::Registry::SceneRegistrySnapshot>);
 	static_assert(std::is_same_v<OSF::Registry::ContentRegistry, OSF::Registry::SceneRegistry>);
-	static_assert(std::is_same_v<OSF::Registry::SceneControls, OSF::Registry::PlayerControl>);
-	static_assert(std::is_same_v<OSF::Registry::RoleGender, OSF::Registry::SlotGender>);
-	static_assert(std::is_same_v<OSF::Animation::PlaybackPlan, OSF::Animation::ScenePlan>);
-	static_assert(std::is_same_v<OSF::Animation::PlaybackSession, OSF::Animation::Scene>);
 
 	// Passes if any load error contains the substring.
 	void CheckError(const std::vector<std::string>& a_errors, const std::string& a_needle, const char* a_message)
@@ -110,9 +106,8 @@ int main()
 		"camera state serializes to its canonical name");
 	Check(!OSF::Registry::ParseCameraState("cinematic"),
 		"unknown camera state is rejected");
-	Check(OSF::Registry::ParseRoleGender("F") == RoleGender::kFemale &&
-		OSF::Registry::ParseSlotGender("F") == RoleGender::kFemale,
-		"canonical and legacy gender parsers share one result");
+	Check(OSF::Registry::ParseRoleGender("F") == RoleGender::kFemale,
+		"gender parser accepts a case-insensitive shorthand");
 	Check(OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kAuthoredScene) == "authoredScene" &&
 		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kCuratedAnimation) == "curatedAnimation" &&
 		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation) == "derivedDebugAnimation" &&
@@ -414,7 +409,7 @@ int main()
 			Check(OSF::Registry::TrackFraction(node.cues[1], 0.0f) == 1.0f &&
 				OSF::Registry::TrackFraction(node.cues[0], 0.0f) == 0.0f,
 				"with no clip length only frame 0 has a knowable place on the fraction axis");
-			// Mirrors Scene::Advance's [prev, next) window: a frame at or past clip end never fires.
+			// Mirrors PlaybackSession::Advance's [prev, next) window: a frame at or past clip end never fires.
 			Check(OSF::Registry::TrackFires(node.cues[1], 1.6f) &&
 				!OSF::Registry::TrackFires(node.cues[1], 0.8f) &&
 				!OSF::Registry::TrackFires(node.cues[1], 0.5f),
@@ -603,7 +598,7 @@ int main()
 	}
 
 	{
-		using OSF::Animation::Scene;
+		using OSF::Animation::PlaybackSession;
 		using OSF::Animation::TimedMark;
 		const auto mark = [](float a_fraction, const char* a_token) {
 			TimedMark m;
@@ -611,17 +606,17 @@ int main()
 			m.token = a_token;
 			return m;
 		};
-		Scene scene;
-		Scene::StageData frozen;
+		PlaybackSession scene;
+		PlaybackSession::SegmentData frozen;
 		frozen.hold = 1.0f;
 		frozen.duration = 4.0f;
 		frozen.timer = 1.0f;
 		frozen.marks.push_back(mark(0.0f, "enter"));
 		frozen.marks.push_back(mark(0.5f, "midway"));
-		Scene::StageData after;
+		PlaybackSession::SegmentData after;
 		after.duration = 4.0f;
 		scene.stages = { frozen, after };
-		Check(scene.SetStage(0), "a frozen stage can be entered");
+		Check(scene.SetSegment(0), "a frozen stage can be entered");
 
 		const int token = 0;
 		auto tick = scene.Advance(&token, 0.5f);
@@ -943,12 +938,12 @@ int main()
 		"non-finite poseWeight normalization rejects NaN");
 
 	{
-		OSF::Animation::Scene scene;
-		OSF::Animation::Scene::StageData stage;
+		OSF::Animation::PlaybackSession scene;
+		OSF::Animation::PlaybackSession::SegmentData stage;
 		stage.duration = 2.0f;
 		stage.marks.push_back({ .fraction = 0.25f, .lane = 1, .token = "quarter" });
 		scene.stages.push_back(std::move(stage));
-		Check(scene.SetStage(0), "scene seek fixture selects its stage");
+		Check(scene.SetSegment(0), "scene seek fixture selects its stage");
 		int owner = 0;
 		(void)scene.Advance(&owner, 0.75f);
 		std::vector<OSF::Animation::FiredMark> fired;
@@ -968,13 +963,13 @@ int main()
 	{
 		// Frame mark (0.5 s = frame 15 @ 30 fps) holds its time; the fractional one scales with clip length.
 		const auto firedTimes = [](float a_duration) {
-			OSF::Animation::Scene scene;
-			OSF::Animation::Scene::StageData stage;
+			OSF::Animation::PlaybackSession scene;
+			OSF::Animation::PlaybackSession::SegmentData stage;
 			stage.duration = a_duration;
 			stage.marks.push_back({ .seconds = 0.5f, .lane = 0, .token = "frame" });
 			stage.marks.push_back({ .fraction = 0.5f, .lane = 1, .token = "half" });
 			scene.stages.push_back(std::move(stage));
-			(void)scene.SetStage(0);
+			(void)scene.SetSegment(0);
 			int owner = 0;
 			std::vector<std::pair<std::string, float>> hits;
 			std::vector<OSF::Animation::FiredMark> fired;
@@ -1004,12 +999,12 @@ int main()
 			std::abs(at(longClip, "half") - 1.0f) < 0.051f,
 			"a fractional mark still scales with the clip's length");
 
-		OSF::Animation::Scene late;
-		OSF::Animation::Scene::StageData stage;
+		OSF::Animation::PlaybackSession late;
+		OSF::Animation::PlaybackSession::SegmentData stage;
 		stage.duration = 1.0f;
 		stage.marks.push_back({ .seconds = 4.0f, .everyLoop = true, .lane = 0, .token = "past-end" });
 		late.stages.push_back(std::move(stage));
-		(void)late.SetStage(0);
+		(void)late.SetSegment(0);
 		int owner = 0;
 		std::size_t lateHits = 0;
 		std::vector<OSF::Animation::FiredMark> fired;
