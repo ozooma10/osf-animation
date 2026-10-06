@@ -168,6 +168,14 @@
     "gap": "Engine form filters, actor selection, priority/weight and furniture validation need representative actors and assets in game."
   },
   {
+    "feature": "Demand-driven clip-duration cache",
+    "native": [
+      "osf-clip-duration-test"
+    ],
+    "runtime": [],
+    "gap": "Offline production-code tests cover memory-only playback, cache compatibility and concurrent load/probe/save. Catalog refresh timing and installed content still need game acceptance."
+  },
+  {
     "feature": "Animation browser, library, wheel and bridge",
     "native": [
       "osf-frame-clock-test"

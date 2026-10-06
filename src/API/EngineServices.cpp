@@ -11,6 +11,7 @@
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneRuntime.h"
 #include "Serialization/ClipDurations.h"
+#include "Serialization/ClipDurationCatalog.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "Util/Species.h"
 
@@ -140,7 +141,7 @@ namespace OSF::API::EngineServices
 				return Send(scenes,callback,context);
 			} catch (...) { return false; }
 		}
-		void ScanDurations() { Serialization::ClipDurations::ScanSceneClipsAsync(&CatalogChanged); }
+		void ScanDurations() { Serialization::ClipDurationCatalog::ScanSceneClipsAsync(&CatalogChanged); }
 		const OSFEngineAPI g_api{
 			sizeof(OSFEngineAPI), kOSFEngineAPIVersion,
 			[](FrameCallback callback, void* context) -> bool {

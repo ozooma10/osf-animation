@@ -75,6 +75,15 @@ and world reset, so queued opens, commands, and pointer deltas cannot act on an 
 Catalog invalidation is atomic and survives hidden presentations. Reload triggers a duration scan only
 when the addon subscribed; scan completion refreshes metadata without starting another scan.
 
+Clip duration recording and lookup are memory-only. `ScanDurations` explicitly requests background
+cache loading, file probing, pruning, and persistence; playback alone never accesses the duration-cache
+file or starts a worker. Loading cached values also triggers a catalog refresh, even when all probes
+are already fresh. Disk IO and JSON serialization run outside the duration-store lock, and cached data
+cannot overwrite a value decoded during loading or probing. The existing `OSF/clip-durations.json`
+location and version-1 format are preserved. A scan saves one memory snapshot; durations recorded after
+that snapshot are persisted by the next requested scan (normally a content reload). They remain available
+to catalog reads in memory in the meantime.
+
 Successful inspection-orbit acquisitions are reference counted and must be released once. WorldReset
 revokes all acquisitions; discard the local held flag instead of releasing an old hold into the new world.
 The interaction-cursor channel is an exclusive UI mechanism: the addon sets it on native show and clears

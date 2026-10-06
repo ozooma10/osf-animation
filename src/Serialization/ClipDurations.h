@@ -1,20 +1,17 @@
 #pragma once
 
-// Persistent clip-length cache (SFSE\OSF\clip-durations.json) for the catalog's time estimates.
-// Keyed on normalized clip spec + anim id; loose files are invalidated by size+mtime. Decoded values (Record) override probes.
+// Process-local clip durations, keyed on normalized clip spec + anim id.
+// Catalog enrichment and persistence live in ClipDurationCatalog.
 
-#include <functional>
 #include <optional>
 #include <string_view>
 
 namespace OSF::Serialization::ClipDurations
 {
+	// Memory only; unknown values remain empty until playback records them or a catalog scan finishes.
 	// a_fileSpec is the authored spec as written in scene JSON.
 	std::optional<float> Lookup(std::string_view a_fileSpec, std::string_view a_animId);
 
-	// A value confirming an existing probe isn't written immediately, so preloading a scene doesn't rewrite the file per clip.
+	// Memory only: never reads/writes the persistent cache or schedules background work.
 	void Record(std::string_view a_fileSpec, std::string_view a_animId, float a_seconds);
-
-	// Background thread, engine-free IO only. Probes, prunes unreferenced entries, and persists.
-	void ScanSceneClipsAsync(std::function<void()> a_onChanged);
 }

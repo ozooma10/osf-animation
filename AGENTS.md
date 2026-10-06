@@ -8,9 +8,9 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the nine engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the ten engine-free C++ suites (persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
-  frame clock/clip specs, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
+  frame clock/clip specs, clip-duration cache, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
   `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
   own suite: `npm --prefix extensions/browser/ui run verify` (typecheck + build + vitest).
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
@@ -65,6 +65,11 @@ Each entry: **system** (`path`) — role.
 - **Ba2** (`src/Util/Ba2.*`) — minimal Starfield BA2 "GNRL" reader (header + records + name table,
   zlib); pulls one file (the human `skeleton.rig`) out of the base archives so OSF ships no vanilla
   asset. Ported from glb2af `ba2extract.py`; texture (DX10) archives skipped.
+- **Clip durations** (`src/Serialization/ClipDurations.*`, `ClipDurationCatalog.*`) — playback records
+  decoded durations in memory only. Explicit catalog scans load/probe/prune and persist snapshots on
+  a background worker; no cache IO or background work occurs from recording or lookup. Records made
+  after a save snapshot remain pending until the next requested scan. The cache path/format and engine
+  services ABI are unchanged.
 - **Graph** (`src/Animation/Graph.*`) — per-actor sampler/stamper across two hooks: `Sample()`
   (advances time/stage, keeps rig binding warm) + `StampPose()` (samples ozz pose ONCE/frame, writes
   engine flat rig buffers, NiTransform ROW layout — do NOT transpose).

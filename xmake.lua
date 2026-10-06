@@ -136,6 +136,17 @@ target("osf-frame-clock-test")
     add_files("src/Util/ClipPath.cpp", "src/Util/NativeMainThreadQueue.cpp", "test/FrameClockTest.cpp")
     add_includedirs("src")
 
+target("osf-clip-duration-test")
+    set_kind("binary")
+    set_default(false)
+    add_tests("default")
+    add_deps("commonlibsf")
+    add_packages("nlohmann_json", "ozz-animation", "zlib")
+    add_files("src/Serialization/ClipDurations.cpp", "src/Serialization/ClipDurationCatalog.cpp",
+              "src/Util/ClipPath.cpp", "src/Util/Gzip.cpp", "test/ClipDurationTest.cpp")
+    add_includedirs("src")
+    set_pcxxheader("src/pch.h")
+
 target("osf-additive-pose-test")
     set_kind("binary")
     set_default(false)
