@@ -137,8 +137,21 @@ function Save-SmokeReport($Report, [string]$Directory) {
         $lines += "| $($stage.name) | $($stage.status) | $($stage.seconds) | $link$($stage.message.Replace('|','/').Replace("`n",' ')) |"
     }
     if ($Report.Contains('runtime') -and $Report.runtime) { $lines += @('', "Game suite receipt: [$($Report.runtime)](<$($Report.runtime)>)") }
-    $lines += @('', '## Coverage', '', '| Feature | Native suites | Game cases |', '| --- | --- | --- |')
-    foreach ($feature in $Report.coverage) { $lines += "| $($feature.feature) | $($feature.native -join ', ') | $($feature.runtime -join ', ') |" }
+    $cases = @(if ($Report.Contains('runtimeCases')) { $Report.runtimeCases })
+    if ($Report.Contains('hosts')) { $lines += @('', "Host selection: **$($Report.hosts)** (exact DLL hashes are retained in the game receipt).") }
+    if ($cases.Count) {
+        $lines += @('', '## In-game assertions', '', '| Case | Result | Observation |', '| --- | --- | --- |')
+        foreach ($case in $cases) { $lines += "| $($case.name) | $($case.status) | $($case.message.Replace('|','/').Replace("`n",' ')) |" }
+    }
+    $lines += @('', '## Coverage', '', '| Feature | Native suites | Game cases | Automatic game result |', '| --- | --- | --- | --- |')
+    foreach ($feature in $Report.coverage) {
+        $mapped=@($cases | Where-Object name -in $feature.runtime)
+        $status=if (-not $feature.runtime.Count) { 'no live assertion' }
+            elseif (@($mapped | Where-Object status -eq 'failed').Count) { 'failed' }
+            elseif ($mapped.Count -ne $feature.runtime.Count -or @($mapped | Where-Object status -ne 'passed').Count) { 'incomplete' }
+            else { 'passed (boundaries below)' }
+        $lines += "| $($feature.feature) | $($feature.native -join ', ') | $($feature.runtime -join ', ') | $status |"
+    }
     $lines += @('', '## Not established by this run', '')
     foreach ($gate in $Report.unverified) { $lines += "- $gate" }
     [IO.File]::WriteAllLines((Join-Path $Directory 'report.md'), $lines)
@@ -146,14 +159,15 @@ function Save-SmokeReport($Report, [string]$Directory) {
     $xml = [Xml.XmlWriter]::Create((Join-Path $Directory 'junit.xml'), $settings)
     try {
         $xml.WriteStartElement('testsuite'); $xml.WriteAttributeString('name', 'OSF Animation smoke bench')
-        $xml.WriteAttributeString('tests', [string]$Report.stages.Count)
-        $xml.WriteAttributeString('failures', [string]@($Report.stages | Where-Object status -eq 'failed').Count)
-        $xml.WriteAttributeString('errors', [string]@($Report.stages | Where-Object status -eq 'blocked').Count)
-        $xml.WriteAttributeString('skipped', [string]@($Report.stages | Where-Object status -in @('not-run','running')).Count)
-        foreach ($stage in $Report.stages) {
+        $entries=@($Report.stages) + @($cases | ForEach-Object { @{name=('game.'+$_.name);status=$_.status;message=$_.message;seconds=0;log=$null} })
+        $xml.WriteAttributeString('tests', [string]$entries.Count)
+        $xml.WriteAttributeString('failures', [string]@($entries | Where-Object status -eq 'failed').Count)
+        $xml.WriteAttributeString('errors', [string]@($entries | Where-Object status -eq 'blocked').Count)
+        $xml.WriteAttributeString('skipped', [string]@($entries | Where-Object status -notin @('passed','failed','blocked')).Count)
+        foreach ($stage in $entries) {
             $xml.WriteStartElement('testcase'); $xml.WriteAttributeString('name', $stage.name)
             $xml.WriteAttributeString('time', ([double]$stage.seconds).ToString([Globalization.CultureInfo]::InvariantCulture))
-            $element = switch ($stage.status) { failed { 'failure' } blocked { 'error' } not-run { 'skipped' } running { 'skipped' } default { '' } }
+            $element = switch ($stage.status) { failed { 'failure' } blocked { 'error' } passed { '' } default { 'skipped' } }
             if ($element) { $xml.WriteElementString($element, $stage.message) }
             if ($stage.log) { $xml.WriteElementString('system-out', $stage.log) }
             $xml.WriteEndElement()
@@ -166,6 +180,14 @@ function Get-SmokeNativeTargets([string]$Repository) {
     $source = Get-Content -LiteralPath (Join-Path $Repository 'xmake.lua') -Raw
     foreach ($match in [regex]::Matches($source, '(?ms)^target\("([^"]+)"\)(.*?)(?=^target\(|\z)')) {
         if ($match.Groups[2].Value -match '\badd_tests\(') { $match.Groups[1].Value }
+    }
+}
+
+function Test-SmokeCaseInventory([string]$Repository, [string[]]$RuntimeCases) {
+    $header=Get-Content -LiteralPath (Join-Path $Repository 'src/Testing/AnimationCases.h') -Raw
+    $compiled=@([regex]::Matches($header,'"([a-z][a-z0-9.-]+)"') | ForEach-Object { $_.Groups[1].Value })
+    if ($compiled.Count -ne $RuntimeCases.Count -or @(Compare-Object $compiled $RuntimeCases -CaseSensitive).Count) {
+        throw '[failed] Compiled runtime case inventory differs from runtime-cases.json.'
     }
 }
 

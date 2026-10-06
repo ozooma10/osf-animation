@@ -44,6 +44,11 @@ namespace OSF::Animation
 
 		bool HooksInstalled() const;
 
+#ifdef OSF_ANIMATION_SMOKE
+		struct SmokePose { std::size_t boundBones{}; bool stamped{}; bool finite{}; PoseMode mode{}; };
+		std::optional<SmokePose> ObservePoseForSmoke(RE::Actor* a_actor);
+#endif
+
 		// Synchronous load; a_file is Data-relative or absolute.
 		bool PlayAnimation(RE::Actor* a_actor, std::string_view a_file, std::string_view a_animId);
 

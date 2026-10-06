@@ -126,6 +126,10 @@ namespace OSF::UI::Subtitle
 		PostHide();
 	}
 
+#ifdef OSF_ANIMATION_SMOKE
+	bool HoldingForSmoke() { return g_hideAtMs.load() != 0; }
+#endif
+
 	void OnStopAll()
 	{
 		// A line must not bleed into the loaded world; Notify only enqueues, so it's safe pre-load.

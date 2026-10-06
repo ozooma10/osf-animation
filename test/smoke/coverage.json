@@ -1,21 +1,228 @@
 [
-  {"feature":"Native ABI readiness, validation and callbacks", "native":["osf-native-scene-event-test"], "runtime":["api.ready","api.invalid-handles"], "gap":"ABI checks do not establish Papyrus VM binding or downstream consumer compatibility."},
-  {"feature":"GLTF, GLB and gzip import", "native":["osf-import-smoke-test"], "runtime":[], "gap":"Generated assets exercise parsing and sampled transforms; third-party rigs and visual retargeting need asset-specific review."},
-  {"feature":"AF and BA2 import; solo playback", "native":[], "runtime":["solo.play","solo.stop"], "gap":"The runtime uses one installed vanilla human AF. Creature rigs and the wider AF corpus need separate acceptance."},
-  {"feature":"Shared clock, frame queue and playback speed", "native":["osf-frame-clock-test"], "runtime":["solo.speed"], "gap":"Multi-actor visual sync and pause/minimize cadence need in-game multi-actor observations."},
-  {"feature":"Anchoring and placement", "native":[], "runtime":["solo.anchor"], "gap":"Setter acceptance does not prove furniture transforms, collision, culling or visible root pinning."},
-  {"feature":"Pose composition, masks and additive math", "native":["osf-additive-pose-test"], "runtime":[], "gap":"Visible seams, transitions, live rig rebinding and actor 3D unload/reload need game acceptance."},
-  {"feature":"Scene registry, templates, tracks and import diagnostics", "native":["osf-scene-registry-test"], "runtime":["scene.start"], "gap":"Offline fixtures stub clip availability and avoid engine form resolution. Missing-mod/race/keyword resolution needs game acceptance."},
-  {"feature":"Scene stages and navigation", "native":["osf-scene-registry-test"], "runtime":["scene.stage","scene.navigate"], "gap":"Baseline graph navigation does not cover every authored graph, interruption or per-role policy."},
-  {"feature":"Timed marks, events and scene completion", "native":["osf-native-scene-event-test","osf-frame-clock-test"], "runtime":["scene.timer-events","scene.cleanup"], "gap":"Papyrus callbacks and all action/camera/sound lane interactions remain separate runtime acceptance."},
-  {"feature":"Overlay routes and owner contracts", "native":["osf-route-plan-test"], "runtime":["overlay.owner","overlay.zero-station","overlay.cleanup"], "gap":"Animated stations/transitions, props, commits, countermand, scene suspension and world replacement require the matrix in OVERLAY_ACCEPTANCE.md."},
-  {"feature":"Persistence and save safety", "native":["osf-persistence-test"], "runtime":[], "gap":"Broker tests cover the container and callbacks; real save/load/delete hooks, VM rebuild and world-replacement teardown remain unverified."},
-  {"feature":"Sound pools, subtitle parsing and WEM encoding", "native":["osf-sound-registry-test"], "runtime":[], "gap":"Audible Wwise playback, mixing, spatialization, interruption and live subtitles need game acceptance."},
-  {"feature":"Player input and camera locks; fade; undo ledger", "native":[], "runtime":[], "gap":"Baseline scenes disable these mechanisms. Default and explicit engagement/restoration for every termination cause need dedicated game cases."},
-  {"feature":"Equipment, weapons and props", "native":["osf-scene-registry-test","osf-route-plan-test"], "runtime":[], "gap":"Parsing is covered; visible attachment, apparel restoration, weapon state and prop ownership are not proven."},
-  {"feature":"Matchmaking, role binding and world anchors", "native":["osf-scene-registry-test"], "runtime":[], "gap":"Engine form filters, actor selection, priority/weight and furniture validation need representative actors and assets in game."},
-  {"feature":"Animation browser, library, wheel and bridge", "native":["osf-frame-clock-test"], "runtime":["integration.ui","integration.browser-lifecycle"], "gap":"Browser verify runs Vitest, TypeScript and Vite. Real WebView2 rendering/input, wheel persistence and launchers need game/UI acceptance."},
-  {"feature":"Settings, hotkeys and durable health issues", "native":[], "runtime":["integration.settings"], "gap":"Distribution validates the schema payload; Live launcher/hotkey input and visual issue presentation need game acceptance; values and report/clear APIs have a runtime probe."},
-  {"feature":"Studio Link and transient preview", "native":[], "runtime":[], "gap":"Studio pairing, mailbox expiry, unsaved AF preview and ownership cleanup need a Studio integration scenario."},
-  {"feature":"Production deployment and release payloads", "native":[], "runtime":[], "gap":"Both archives are built and checked; clean install, upgrade, Papyrus VM binding and restart acceptance are not established by packaging."}
+  {
+    "feature": "Native ABI readiness, validation and callbacks",
+    "native": [
+      "osf-native-scene-event-test"
+    ],
+    "runtime": [
+      "api.ready",
+      "api.invalid-handles",
+      "papyrus.binding",
+      "papyrus.callbacks",
+      "papyrus.rebind"
+    ],
+    "gap": "Live cases cross the compiled Papyrus VM and native ABI; compatibility with every downstream consumer remains separate."
+  },
+  {
+    "feature": "GLTF, GLB and gzip import",
+    "native": [
+      "osf-import-smoke-test"
+    ],
+    "runtime": [
+      "import.gltf",
+      "import.glb",
+      "import.gzip"
+    ],
+    "gap": "Generated assets exercise parsing and sampled transforms; third-party rigs and visual retargeting need asset-specific review."
+  },
+  {
+    "feature": "AF and BA2 import; solo playback",
+    "native": [],
+    "runtime": [
+      "solo.play",
+      "solo.stop"
+    ],
+    "gap": "The runtime uses one installed vanilla human AF. Creature rigs and the wider AF corpus need separate acceptance."
+  },
+  {
+    "feature": "Shared clock, frame queue and playback speed",
+    "native": [
+      "osf-frame-clock-test"
+    ],
+    "runtime": [
+      "solo.speed",
+      "scene.transport",
+      "multi-actor.spawn",
+      "multi-actor.sync",
+      "multi-actor.speed",
+      "multi-actor.cleanup"
+    ],
+    "gap": "Multi-actor visual sync and pause/minimize cadence need in-game multi-actor observations."
+  },
+  {
+    "feature": "Anchoring and placement",
+    "native": [],
+    "runtime": [
+      "solo.anchor"
+    ],
+    "gap": "Setter acceptance does not prove furniture transforms, collision, culling or visible root pinning."
+  },
+  {
+    "feature": "Pose composition, masks and additive math",
+    "native": [
+      "osf-additive-pose-test"
+    ],
+    "runtime": [
+      "pose.additive-mask"
+    ],
+    "gap": "Visible seams, transitions, live rig rebinding and actor 3D unload/reload need game acceptance."
+  },
+  {
+    "feature": "Scene registry, templates, tracks and import diagnostics",
+    "native": [
+      "osf-scene-registry-test"
+    ],
+    "runtime": [
+      "scene.start",
+      "registry.import-records"
+    ],
+    "gap": "Offline fixtures stub clip availability and avoid engine form resolution. Missing-mod/race/keyword resolution needs game acceptance."
+  },
+  {
+    "feature": "Scene stages and navigation",
+    "native": [
+      "osf-scene-registry-test"
+    ],
+    "runtime": [
+      "scene.stage",
+      "scene.navigate",
+      "scene.files-roles"
+    ],
+    "gap": "Baseline graph navigation does not cover every authored graph, interruption or per-role policy."
+  },
+  {
+    "feature": "Timed marks, events and scene completion",
+    "native": [
+      "osf-native-scene-event-test",
+      "osf-frame-clock-test"
+    ],
+    "runtime": [
+      "scene.timer-events",
+      "scene.cleanup",
+      "papyrus.callbacks"
+    ],
+    "gap": "Cue/end delivery crosses both native and Papyrus callbacks. Every authored action/camera/sound lane combination and interruption remains separate."
+  },
+  {
+    "feature": "Overlay routes and owner contracts",
+    "native": [
+      "osf-route-plan-test"
+    ],
+    "runtime": [
+      "overlay.owner",
+      "overlay.zero-station",
+      "overlay.cleanup",
+      "overlay.animated",
+      "overlay.commit-marks",
+      "overlay.external-props",
+      "overlay.scene-suspension",
+      "overlay.scene-resume",
+      "overlay.countermand"
+    ],
+    "gap": "Animated holds, commits, markers, external prop callbacks, countermand and scene suspension/resume are exercised. 3D unload/reload, rejected commit recovery and the remaining OVERLAY_ACCEPTANCE.md matrix remain open."
+  },
+  {
+    "feature": "Persistence and save safety",
+    "native": [
+      "osf-persistence-test"
+    ],
+    "runtime": [
+      "persistence.save",
+      "persistence.load-remap",
+      "persistence.world-reset"
+    ],
+    "gap": "Real quicksave/quickload writes and restores a probe, resolves a FormID and clears active playback. Delete hooks, failed/cancelled loads and process restart remain separate."
+  },
+  {
+    "feature": "Sound pools, subtitle parsing and WEM encoding",
+    "native": [
+      "osf-sound-registry-test"
+    ],
+    "runtime": [
+      "sound.pool",
+      "sound.wwise",
+      "sound.replace-stop",
+      "subtitle.deadline"
+    ],
+    "gap": "Audible Wwise playback, mixing, spatialization, interruption and live subtitles need game acceptance."
+  },
+  {
+    "feature": "Player input and camera locks; fade; undo ledger",
+    "native": [],
+    "runtime": [
+      "mechanisms.engage",
+      "mechanisms.restore",
+      "camera.orbit",
+      "camera.restore",
+      "fade.bounded"
+    ],
+    "gap": "Live inventory/input masks and camera state must restore after stop; fade scheduling must expire. Visible fades, every default policy and every termination cause remain separate."
+  },
+  {
+    "feature": "Equipment, weapons and props",
+    "native": [
+      "osf-scene-registry-test",
+      "osf-route-plan-test"
+    ],
+    "runtime": [
+      "mechanisms.engage",
+      "mechanisms.restore",
+      "props.attach",
+      "props.reattach",
+      "props.destroy"
+    ],
+    "gap": "Live apparel form IDs restore and props attach/reattach/destroy in the actor hierarchy. Visible fit, weapon draw/sheath and every equipment conflict remain separate."
+  },
+  {
+    "feature": "Matchmaking, role binding and world anchors",
+    "native": [
+      "osf-scene-registry-test"
+    ],
+    "runtime": [
+      "matchmaking.tags",
+      "scene.files-roles"
+    ],
+    "gap": "Engine form filters, actor selection, priority/weight and furniture validation need representative actors and assets in game."
+  },
+  {
+    "feature": "Animation browser, library, wheel and bridge",
+    "native": [
+      "osf-frame-clock-test"
+    ],
+    "runtime": [
+      "integration.ui",
+      "integration.browser-lifecycle",
+      "integration.browser-document",
+      "integration.browser-input",
+      "integration.wheel"
+    ],
+    "gap": "Live document/data and a trusted Windows click opening Imports are observed; wheel visibility and close/reopen are exercised. Pixel quality, complete editing/wheel persistence, launcher/hotkeys and controller use remain separate."
+  },
+  {
+    "feature": "Settings, hotkeys and durable health issues",
+    "native": [],
+    "runtime": [
+      "integration.settings"
+    ],
+    "gap": "Distribution validates the schema payload; Live launcher/hotkey input and visual issue presentation need game acceptance; values and report/clear APIs have a runtime probe."
+  },
+  {
+    "feature": "Studio Link and transient preview",
+    "native": [],
+    "runtime": [
+      "preview.scene",
+      "preview.transport",
+      "preview.cleanup",
+      "studio.protocol",
+      "studio.raw-preview",
+      "studio.cleanup"
+    ],
+    "gap": "Real private Studio protocol session, raw AF mailbox playback and cleanup are exercised, along with inspection preview transport. Desktop Studio pairing and Suit/helmet authoring remain separate."
+  },
+  {
+    "feature": "Production deployment and release payloads",
+    "native": [],
+    "runtime": [],
+    "gap": "Both archives are checked and Papyrus bindings have a live probe. Clean install, upgrade and restart acceptance remain separate."
+  }
 ]

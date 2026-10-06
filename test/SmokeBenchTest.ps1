@@ -26,6 +26,13 @@ try {
     Reject { Test-SmokeCoverage $coverage @('one','two','new') @('live') } 'Inventory drift passed.'
     Reject { Test-SmokeCoverage $coverage @('one','two') @('live','live') } 'Duplicate game cases passed.'
     Reject { Test-SmokeCoverage $coverage @('one','two') @('different') } 'An unknown game case passed.'
+    $inventoryRepo=Join-Path $scratch 'inventory'
+    [IO.Directory]::CreateDirectory((Join-Path $inventoryRepo 'src/Testing')) | Out-Null
+    Set-Content -LiteralPath (Join-Path $inventoryRepo 'src/Testing/AnimationCases.h') -Value 'constexpr auto cases = { "live" };'
+    Test-SmokeCaseInventory $inventoryRepo @('live')
+    $checks++
+    Reject { Test-SmokeCaseInventory $inventoryRepo @('different') } 'Native/JSON case-name drift passed.'
+    Reject { Test-SmokeCaseInventory $inventoryRepo @('live','new') } 'A runtime case with no native assertion passed.'
 
     $start = [DateTimeOffset]::UtcNow.AddSeconds(-4)
     $finish = [DateTimeOffset]::UtcNow
@@ -140,6 +147,12 @@ try {
     Save-SmokeReport $report $scratch
     [xml]$junit = Get-Content -LiteralPath (Join-Path $scratch 'junit.xml') -Raw
     Check ($junit.testsuite.failures -eq '1' -and $junit.testsuite.errors -eq '1' -and $junit.testsuite.skipped -eq '1') 'JUnit concealed failed/blocked/skipped stages.'
+    $report.runtimeCases=@(@{name='live';status='blocked';message='No live observation'})
+    Save-SmokeReport $report $scratch
+    [xml]$junit=Get-Content -LiteralPath (Join-Path $scratch 'junit.xml') -Raw
+    Check ($junit.testsuite.tests -eq '5' -and $junit.testsuite.errors -eq '2') 'JUnit concealed a blocked game assertion.'
+    $markdown=Get-Content -LiteralPath (Join-Path $scratch 'report.md') -Raw
+    Check ($markdown.Contains('| live | blocked |') -and $markdown.Contains('| incomplete |')) 'Feature report treated an incomplete game case as passed.'
     Write-Host "Smoke bench contracts: $checks checks passed."
 } finally {
     $resolved = [IO.Path]::GetFullPath($scratch)

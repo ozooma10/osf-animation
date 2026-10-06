@@ -24,6 +24,10 @@ namespace OSF::UI
 
 		void Tick();
 
+#ifdef OSF_ANIMATION_SMOKE
+		bool HoldingForSmoke() const { return releaseAtMs.load() != 0; }
+#endif
+
 	private:
 		void PostFade(bool a_fadingOut, float a_fadeSecs, bool a_stayFaded);
 		void ScheduleRelease(float a_fadeSecs, float a_holdSecs);

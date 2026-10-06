@@ -25,6 +25,18 @@
 
 namespace OSF::Animation
 {
+#ifdef OSF_ANIMATION_SMOKE
+	std::optional<GraphManager::SmokePose> GraphManager::ObservePoseForSmoke(RE::Actor* a_actor)
+	{
+		std::shared_lock mapLock(stateLock);
+		const auto found = graphs.find(a_actor);
+		if (found == graphs.end()) return std::nullopt;
+		auto& graph = *found->second;
+		std::lock_guard graphLock(graph.stateLock);
+		return SmokePose{ graph.binding.size(), graph.stampProbeValid,
+			graph.stampProbeValid && std::ranges::all_of(graph.stampProbe, [](float v) { return std::isfinite(v); }), graph.poseMode };
+	}
+#endif
 	namespace
 	{
 		// Final marks and their stop command must land in the same frame batch, in order.

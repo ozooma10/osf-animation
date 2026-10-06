@@ -79,6 +79,9 @@ namespace OSF::Studio
 		std::atomic_bool g_running{ false };
 		std::atomic<std::uint64_t> g_generation{ 0 };
 		std::filesystem::path g_directory;
+#ifdef OSF_ANIMATION_SMOKE
+		std::filesystem::path g_smokeDirectory;
+#endif
 		std::string g_session;
 		bool g_rawPreviewActive = false;  // game thread only
 		std::string g_rawPreviewSource;   // game thread only
@@ -94,6 +97,9 @@ namespace OSF::Studio
 
 		std::filesystem::path LinkDirectory()
 		{
+#ifdef OSF_ANIMATION_SMOKE
+			if (!g_smokeDirectory.empty()) return g_smokeDirectory;
+#endif
 			try {
 				if (auto directory = SFSE::log::log_directory()) {
 					return directory->parent_path() / "OSF" / "Studio Link";
@@ -804,6 +810,15 @@ namespace OSF::Studio
 			TickHelmetPreview();
 		}
 	}
+
+#ifdef OSF_ANIMATION_SMOKE
+	void SetDirectoryForSmoke(const std::filesystem::path& a_directory)
+	{
+		std::lock_guard lifecycleLock{g_lifecycleMutex};
+		StopPreviewServiceLocked();
+		g_smokeDirectory = a_directory;
+	}
+#endif
 
 	void SetPreviewServiceEnabled(bool a_enabled) noexcept
 	{

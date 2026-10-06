@@ -1,6 +1,20 @@
 #include "Testing/AnimationSmoke.h"
 
 #ifdef OSF_ANIMATION_SMOKE
+#include "Testing/AnimationCases.h"
+#include "API/OSFPersistenceAPI.h"
+#include "Audio/SoundService.h"
+#include "Camera/CameraService.h"
+#include "Matchmaking/Matchmaker.h"
+#include "Props/PropService.h"
+#include "Registry/SoundRegistry.h"
+#include "Scene/PlaybackPreviewService.h"
+#include "Scene/SceneEventRelay.h"
+#include "UI/FadeService.h"
+#include "UI/Subtitle.h"
+#include "Studio/StudioPreviewService.h"
+#include "RE/B/BSResourceNiBinaryStream.h"
+#include "RE/B/BSScriptUtil.h"
 #include "API/OSFOverlayAPI.h"
 #include "API/OSFSceneAPI.h"
 #include "API/OSFSettings.h"
@@ -33,11 +47,6 @@ namespace OSF::Testing::AnimationSmoke
 		using Json = nlohmann::json;
 		using Clock = std::chrono::steady_clock;
 		constexpr const char* kClip = "meshes/actors/human/animations/common/cower_idle.af";
-		constexpr std::array kCases{
-			"integration.settings", "integration.ui", "integration.browser-lifecycle", "api.ready", "api.invalid-handles", "solo.play", "solo.speed", "solo.anchor", "solo.stop",
-			"scene.start", "scene.stage", "scene.navigate", "scene.timer-events", "scene.cleanup",
-			"overlay.owner", "overlay.zero-station", "overlay.cleanup"
-		};
 		struct Event
 		{
 			std::int32_t handle;
@@ -75,6 +84,8 @@ namespace OSF::Testing::AnimationSmoke
 		};
 		State g;
 		std::atomic<bool> g_worldReset{ false };
+		void CleanupFeatures(bool a_worldReset);
+		void FailFeature(const char* a_description);
 
 		std::int64_t UtcMs()
 		{
@@ -124,6 +135,8 @@ namespace OSF::Testing::AnimationSmoke
 
 		void Result(const char* a_name, const char* a_status, std::string a_message)
 		{
+			if (std::ranges::none_of(kCases,[=](const char* name) { return std::string_view(name) == a_name; }))
+				throw std::runtime_error("Assertion name is missing from the compiled inventory");
 			for (auto& item : g.snapshot["cases"]) {
 				if (item["name"] == a_name) {
 					item["status"] = a_status;
@@ -141,7 +154,8 @@ namespace OSF::Testing::AnimationSmoke
 			return g.soloOwned && g.actor && g.sceneAPI &&
 				g.sceneAPI->GetSceneForActor(g.actor.get()) == 0 &&
 				(!g.overlayAPI || g.overlayAPI->GetRouteForActor(g.actor.get()) == 0) &&
-				Animation::GraphManager::GetSingleton().GetCurrentAnimation(g.actor.get()) == kClip;
+				(Animation::GraphManager::GetSingleton().GetCurrentAnimation(g.actor.get()) == kClip ||
+				 Animation::GraphManager::GetSingleton().GetCurrentAnimation(g.actor.get()).starts_with("OSF/Smoke/"));
 		}
 
 		bool ActorUnclaimed(RE::Actor* a_actor)
@@ -166,6 +180,7 @@ namespace OSF::Testing::AnimationSmoke
 					(void)g.sceneAPI->Stop(g.actor.get());
 				}
 			}
+			CleanupFeatures(a_worldReset);
 			if (g.callback && g.sceneAPI) (void)g.sceneAPI->UnregisterSceneEventCallback(g.callback);
 			if (g.owner && g.overlayAPI) (void)g.overlayAPI->ReleaseOwner(g.owner);
 			g.callback = g.owner = 0;
@@ -176,6 +191,9 @@ namespace OSF::Testing::AnimationSmoke
 
 		void Finish(const char* a_state, const char* a_reason, bool a_worldReset = false)
 		{
+			if (std::string_view(a_state) == "passed" && std::ranges::any_of(g.snapshot["cases"],[](const auto& item) { return item["status"] != "passed"; })) {
+				a_state="failed"; a_reason="Runtime reached completion with missing or unsuccessful assertions";
+			}
 			Cleanup(a_worldReset);
 			g.running = false;
 			g.snapshot["state"] = a_state;
@@ -193,7 +211,7 @@ namespace OSF::Testing::AnimationSmoke
 		bool Check(const char* a_name, bool a_passed, const char* a_description)
 		{
 			Result(a_name, a_passed ? "passed" : "failed", a_description);
-			if (!a_passed) Finish("failed", a_description);
+			if (!a_passed) FailFeature(a_description);
 			return a_passed;
 		}
 
@@ -229,6 +247,7 @@ namespace OSF::Testing::AnimationSmoke
 		{
 			g.phase = a_phase;
 			g.phaseAt = Clock::now();
+			g.snapshot["phase"]=a_phase;
 		}
 
 		float PhaseSeconds()
@@ -236,21 +255,23 @@ namespace OSF::Testing::AnimationSmoke
 			return std::chrono::duration<float>(Clock::now() - g.phaseAt).count();
 		}
 
+#include "Testing/AnimationFeatures.inl"
+
 		void Start(const std::string& a_runId)
 		{
 			if (g.running) throw std::runtime_error("A smoke run is already active");
 			if (!SafeId(a_runId)) throw std::runtime_error("Invalid runId");
 			g.snapshot = { { "schemaVersion", 1 }, { "runId", a_runId }, { "state", "running" },
 				{ "cases", Json::array() }, { "notCovered", {
-					"visual pose quality and culling", "multi-actor synchronization", "GLTF live playback",
-					"equipment/props/weapon restoration", "camera and input locks", "fade and audible Wwise output",
-					"Papyrus callback delivery and VM rebind", "save/load persistence lifecycle",
-					"animated overlay transitions and 3D suspension", "browser in-game input", "Studio live link" } } };
+					"visual pose quality, culling and creature rigs", "physical controller and full launcher/hotkey matrix",
+					"audible mix/spatialization and visible fade/subtitle correctness", "weapon draw/sheath restoration",
+					"save deletion, failed/cancelled load and restart", "actor 3D unload/reload and all termination causes",
+					"Studio desktop pairing and Suit Protocol helmet lease", "all browser editing, wheel assignment and content workflows" } } };
 			for (const auto* name : kCases)
 				g.snapshot["cases"].push_back({ { "id", name }, { "name", name }, { "status", "pending" }, { "message", "" }, { "detail", "" } });
 			g.running = true;
 			g_worldReset.store(false);
-			g.deadline = Clock::now() + std::chrono::seconds(45);
+			g.deadline = Clock::now() + std::chrono::seconds(240);
 			g.sceneAPI = API::RequestSceneAPI();
 			g.overlayAPI = API::RequestOverlayAPI();
 			if (!g.sceneAPI || !g.overlayAPI || !g.sceneAPI->IsReady() || !g.overlayAPI->IsReady()) {
@@ -288,6 +309,9 @@ namespace OSF::Testing::AnimationSmoke
 			if (!Check("integration.ui", views.Init() && views.Version() == OSFUI::API::kVersion &&
 				!OSFUI::API::RequestInterface(0x10000) && API::BrowserSession::Available(),
 				"Released UI API 2.0 and browser registrations available; visual/input acceptance remains separate")) return;
+			if (!feature.browserRegistered) feature.browserRegistered=views.RegisterSend("osf.animation.smoke.observed",BrowserObserved,nullptr);
+			if (!feature.browserRegistered) { Finish("blocked","Browser observation endpoint could not register"); return; }
+			{ std::lock_guard lock(feature.mutex); feature.browserReport=Json::object(); }
 			std::uint32_t major = 0, minor = 0, patch = 0;
 			g.sceneAPI->GetPluginVersion(major, minor, patch);
 			g.snapshot["pluginVersion"] = std::format("{}.{}.{}", major, minor, patch);
@@ -308,6 +332,9 @@ namespace OSF::Testing::AnimationSmoke
 
 		void AdvanceRun()
 		{
+			if (Clock::now() > g.deadline) { Finish("failed", "240 second runtime deadline elapsed"); return; }
+			if (g.phase == 90) { RecoverFeature(); return; }
+			if (g.phase >= 100) { AdvanceFeatures(); return; }
 			auto* actor = g.actor.get();
 			auto& manager = Animation::GraphManager::GetSingleton();
 			auto& runtime = Scene::SceneRuntime::GetSingleton();
@@ -319,7 +346,6 @@ namespace OSF::Testing::AnimationSmoke
 				g.soloOwned = false;
 				Finish("blocked", "Another playback owner displaced the smoke solo clip"); return;
 			}
-			if (Clock::now() > g.deadline) { Finish("failed", "45 second runtime deadline elapsed"); return; }
 			switch (g.phase) {
 			case 0:
 				if (!ActorUnclaimed(actor)) { Finish("blocked", "Player became occupied before solo start"); return; }
@@ -468,6 +494,13 @@ namespace OSF::Testing::AnimationSmoke
 					if (PhaseSeconds() > 12) Check("integration.browser-lifecycle", false, "Native browser shown callback did not execute");
 					break;
 				}
+				if (g.phase == 10) {
+					const auto page=BrowserReport();
+					const bool loaded=page.value("documentReady",false) && page.value("catalog",false) && page.value("library",false) && page.value("imports",false) && page.value("wheel",false);
+					if (!WaitFeature("integration.browser-document",loaded,15,"Real document did not render its browser shell and receive all four data feeds")) break;
+					if (!Check("integration.browser-document",true,"Actual browser document laid out its shell and received catalog, library, imports and wheel data")) return;
+					g.snapshot["browserTarget"]=page.at("target"); ExternalAction("browser-imports"); Phase(14); break;
+				}
 				// Close through the host, with no JavaScript close notification.
 				API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId, false);
 				Phase(g.phase + 1);
@@ -484,9 +517,26 @@ namespace OSF::Testing::AnimationSmoke
 				} else {
 					g.browserOwned = false;
 					if (!Check("integration.browser-lifecycle", true, "Released UI host drove native shown/hidden cleanup across open, host close, reopen, and close")) return;
-					Finish("passed", "All baseline runtime smoke cases passed; see notCovered for remaining acceptance work");
+					g.browserOwned=API::OpenWheel("");
+					if (!g.browserOwned) { Check("integration.wheel",false,"Wheel launch was rejected"); return; }
+					Phase(15);
 				}
 				break;
+			case 14: {
+				const auto page=BrowserReport();
+				if (!WaitFeature("integration.browser-input",page.value("clickedTrusted",false) && page.value("importsOpen",false),15,"Real pointer input did not open the Imports panel")) break;
+				if (!Check("integration.browser-input",true,"Owned Windows pointer input reached the real page and opened Imports")) return;
+				ExternalAction(""); API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId,false); Phase(11); break;
+			}
+			case 15: {
+				const auto page=BrowserReport();
+				if (!WaitFeature("integration.wheel",API::BrowserVisibleForSmoke() && page.value("wheelVisible",false) && page.value("wheel",false),15,"Wheel document did not become visible with native wheel data")) break;
+				if (!Check("integration.wheel",true,"OpenWheel displayed the real wheel document with its native data")) return;
+				API::BrowserSession::Views().RequestMenu(API::BrowserSession::kViewId,false); Phase(16); break;
+			}
+			case 16:
+				if (!WaitFeature("integration.wheel",!API::BrowserVisibleForSmoke(),6,"Wheel failed to close")) break;
+				g.browserOwned=false; Phase(100); break;
 			}
 		}
 
@@ -549,8 +599,12 @@ namespace OSF::Testing::AnimationSmoke
 		try {
 			if (!g.initialized) Initialize();
 			if (!g.enabled) return;
-			if (g_worldReset.exchange(false) && g.running)
-				Finish("blocked", "World replacement interrupted the run; start again after loading", true);
+			if (g_worldReset.exchange(false) && g.running) {
+				if (g.phase == 172) {
+					++feature.resets;
+					g.actor.reset(); g.scene = g.route = 0; g.soloOwned = false;
+				} else Finish("blocked", "Unexpected world replacement interrupted the run", true);
+			}
 			PollMailbox();
 			if (g.running) AdvanceRun();
 		} catch (const std::exception& e) {

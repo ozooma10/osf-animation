@@ -6,6 +6,8 @@ Run from the repository with PowerShell 7.2 or newer:
 pwsh -NoProfile -File tools/test-smoke.ps1 -Plan
 pwsh -NoProfile -File tools/test-smoke.ps1
 pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame
+# Test the UI / Settings DLLs currently deployed in MO2:
+pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame -Hosts Deployed
 ```
 
 The same commands are available as **Smoke: Offline** and **Smoke: Offline + Game** in
@@ -20,18 +22,25 @@ tests and in-game acceptance. It is an on-demand bench, not a scheduled job.
   before the browser scripts.
 - Compiled `dist/Scripts/OSF{,Types,Advanced}.pex` for packaging. Compile them with the
   canonical command in `AGENTS.md` after Papyrus edits. Packaging rejects older PEX
-  files and mismatched compiled native signatures. Native runtime assertions do
-  **not** validate the Papyrus VM bindings or struct layout.
+  files and mismatched compiled native signatures. The CK compiler is also required
+  for the private `OSFAnimationSmoke.pex` fixture; the live suite calls shipped OSF
+  natives and receives `OSFTypes:SceneEvent` structs through that compiled script.
 - For `-RunGame`: the sibling **OSF Test Harness** with `Test-AnimationRelease.ps1`,
   prebuilt input/native helpers, installed Starfield/SFSE/dependencies, and its
   configured disposable seed save. Use `-Harness <directory>` if it is elsewhere.
   The harness owns the local game session and checks process identity, its native
   handshake, desktop/foreground state, and private save/profile ownership. An
-  unrelated running game or missing fixture blocks the run.
-- Runtime integration uses the published **OSF Settings v1.0.0** and **OSF UI v2.0.0**
+  unrelated running game or missing fixture blocks the run. The disposable seed
+  needs a loaded human player, movement enabled, no active scene/overlay, and at
+  least one worn vanilla armor item. A temporary second actor is created and
+  deleted. The suite also quicksaves and quickloads inside the private save folder.
+- Runtime integration defaults to the published **OSF Settings v1.0.0** and **OSF UI v2.0.0**
   ZIPs from GitHub. Downloads are cached by their published SHA-256, verified, and
   installed in private test mods. Missing releases/checksums or network access block
-  this gate; sibling development DLLs cannot substitute for these released hosts.
+  this gate. `-Hosts Deployed` instead copies the configured MO2 `OSF Settings` and
+  `OSF UI` mods into the private test mods and records their DLL hashes. This tests
+  your latest deployed host changes without changing the vendored released SDKs.
+  It does not build the sibling projects or silently substitute their source trees.
 
 No ordinary development mod is overwritten by the bench. The production build
 installs under this run's evidence directory. The runtime DLL is built in
@@ -49,6 +58,7 @@ are restored, and the final XMake configuration is `releasedbg`, `build`, with
 | SDK | `tools/Test-SdkLock.ps1`: vendored OSF UI / OSF Settings SDK files match `sdk-lock.json` hashes; with sibling checkouts present, the locked tags and commits also match. |
 | Production | Normal releasedbg DLL, installed into private staging. |
 | Native | All eight `xmake test` suites. The reported execution count must match the inventory. |
+| Fixtures | Compiles the private Papyrus script; generates the live GLTF/GLB/gzip clips and WAV; decodes and samples the three clips through the production importer. |
 | Browser | Clean dependency install, Vitest, TypeScript check, and production Vite build. |
 | Distribution | Engine and browser FOMOD ZIPs; required entries, exact production DLL hash, separation of payloads, and no test fixtures, source maps, or player values. |
 | Runtime build | Optional, separate instrumented DLL and live fixture content. |
@@ -60,26 +70,40 @@ GLTF/GLB/gzip decoding and ozz sampling without copyrighted game assets or a
 developer's local clip library. Existing standalone `osf-import-test` and
 `osf-af-import-test` remain useful for specific content.
 
-The game suite uses the installed vanilla human `cower_idle.af`; its JSON fixtures
-contain asset references only. It tests API readiness/invalid handles, solo play,
-speed, anchor calls, asynchronous stop, scene stages/navigation/timer events and
-cleanup, and zero-animation overlay owner/station cleanup. It refuses to start
-over existing player playback, waits for fade-out completion, and retains case
-results instead of inferring success from a command acknowledgment.
+The game suite currently has **62 assertions** across the 19 areas in the coverage
+manifest. It uses installed vanilla assets plus generated test content:
 
-Integration cases read Animation's Settings value, report and clear a transient
-`EXPECTED TEST` issue, verify the released UI API and browser registrations, and
-open/host-close/reopen/close the browser through native lifecycle callbacks. This
-proves the logical presentation callbacks reached Animation's frame queue; it does
-not prove document rendering or physical input. Engine-free queue tests cover
-hidden commands, duplicate notifications, stale work after close/reopen, and world
-replacement invalidation.
+- Native API validation; compiled Papyrus calls, scene callbacks and post-load rebind.
+- AF, GLTF, GLB and gzip playback; live rig binding/stamping; masked additive pose;
+  solo speed/anchor/stop and shared clock/speed across two live actors.
+- Scene stages, navigation, timers, events, explicit roles, files scenes, seek/pause
+  and cancellation; tagged matchmaking and per-file registry diagnostics.
+- Zero-animation and animated overlay stations, commit acknowledgement, marker and
+  external-prop callbacks, countermand, scene suspension and checkpoint resume.
+- Actual input masks and worn inventory changing/restoring; native orbit camera
+  state restoring; live prop attachment/reattachment/destruction; bounded fade and
+  subtitle deadlines; sound-pool lookup and Wwise voice replacement/stop.
+- Inspection preview transport and cleanup; the real Studio Link session, monitor,
+  request/response path and unsaved AF preview in a private directory.
+- Real quicksave/quickload, fresh `.sfs`/`.osf` evidence, persistence callbacks,
+  saved-value restoration, FormID resolution and active scene teardown on load.
+- Settings value/issue APIs; real browser document and catalog/library/import/wheel
+  feeds; a trusted Windows click opening Imports; browser close/reopen and wheel display.
+
+The browser observer is injected only into the private staged document. It reports
+DOM state and trusted input; it does not synthesize page clicks or replace the host
+bridge. Native lifecycle/engine observations and retained captures remain separate
+from pixel quality or audio acceptance. Missing prerequisites block the run;
+failed observations fail it. Independent feature groups continue after owned cleanup;
+shared-prerequisite failures and unsafe cleanup stop the run. Unexecuted cases are
+reported as blocked. A command acknowledgement alone cannot complete the suite.
 
 ## Results and automation
 
 Each invocation creates a new `build/smoke/<UTC timestamp>-<id>` directory containing:
 
-- `report.md`, `result.json`, and `junit.xml`;
+- `report.md`, `result.json`, and `junit.xml`, including every live assertion and
+  per-feature completion; offline live cases are explicitly not run;
 - per-stage logs, source identity including dirty/untracked files and submodule
   contents, and production/runtime DLL hashes;
 - both archives, their SHA-256 hashes, and manifests tied to production build receipts;
@@ -101,17 +125,20 @@ case passed, not that every engine feature has been proven.
 
 ## Coverage boundaries
 
-The coverage manifest lists every major subsystem and its remaining gaps. It is
-part of the report, rather than an informal claim of full coverage. In particular,
-this first runtime suite does not establish multi-actor visual sync, creature rigs,
-physical controller input, camera/fade/apparel restoration, audible Wwise output,
-prop visibility, Papyrus callbacks, engine form matchmaking, save/load/delete
-hooks, real browser/WebView2 behavior, or Studio Link. The route-specific matrix
-remains in [OVERLAY_ACCEPTANCE.md](OVERLAY_ACCEPTANCE.md).
+The coverage manifest lists every major subsystem and its remaining gaps. Passing
+all 62 cases is **not** proof of every feature, asset or failure path. Manual or
+additional fixture acceptance remains for visual sync/pose/culling/prop fit,
+creature rigs, audible mixing/spatialization, visible fade/subtitle quality,
+physical controllers and the full launcher/hotkey matrix, weapon draw/sheath,
+engine race/keyword filters, actor 3D unload/reload, every termination cause,
+delete/failed-load/restart paths, complete wheel persistence/browser editing, and
+desktop Studio Suit/helmet integration. The route-specific matrix remains in
+[OVERLAY_ACCEPTANCE.md](OVERLAY_ACCEPTANCE.md).
 
-To extend the bench, add assertions in `src/Testing/AnimationSmoke.cpp`, add any
-content under `test/smoke/data`, then update `test/smoke/runtime-cases.json` and the
-coverage mapping together. Instrumentation is compiled only with
+To extend the bench, add assertions in `src/Testing/AnimationSmoke.cpp` or
+`AnimationFeatures.inl`, add content under `test/smoke`, then update the compiled
+`AnimationCases.h` inventory, `runtime-cases.json` and coverage mapping together.
+The bench rejects inventory drift. Instrumentation is compiled only with
 `--animation_smoke=y`. The owning mod handles a small session/deadline-checked
 mailbox on the normal frame-maintenance thread; no testing command or fixture is
 included in the default release build.

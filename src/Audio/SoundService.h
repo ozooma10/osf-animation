@@ -26,6 +26,15 @@ namespace OSF::Audio
 		// For world replacement (load); normal scene teardown lets short tails finish.
 		void StopAll();
 
+#ifdef OSF_ANIMATION_SMOKE
+		std::uint32_t VoiceForSmoke(std::uint64_t a_slot)
+		{
+			std::lock_guard guard(lock);
+			const auto it = slots.find(a_slot);
+			return it == slots.end() ? 0 : it->second.playingID;
+		}
+#endif
+
 	private:
 		struct PlayTicket
 		{

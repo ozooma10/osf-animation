@@ -1180,6 +1180,22 @@ int main()
 					idle && !idle->layer && isolated && !isolated->layer,
 					"live route has two disconnected stations with no animation layers");
 			}
+			const auto additive = reg.Find("osf.smoke.additive");
+			Check(additive && additive->roles.size() == 1 && additive->roles[0].mask == "upperBody" &&
+				additive->roles[0].poseMode == OSF::Animation::PoseMode::kAdditive && additive->roles[0].poseWeight == 0.25f,
+				"live additive fixture preserves its actual mask, mode and weight");
+			const auto mechanisms = reg.Find("osf.smoke.mechanisms");
+			Check(mechanisms && mechanisms->nodes.size() == 1 && mechanisms->nodes[0].actions.size() == 2,
+				"live mechanism fixture retains both authored enter actions");
+			const auto animated = reg.FindRoute("osf.smoke.animated");
+			if (Check(animated && animated->transitions.size() == 2, "live animated route has outgoing and return transitions")) {
+				const auto& out = animated->transitions[0];
+				const auto* held = animated->FindStation("held");
+				Check(held && held->layer && held->layer->holdAt == 1.0f &&
+					out.layer.clip.file == "OSF/Smoke/head.glb" && out.commit && out.commit->frame == 10.0f &&
+					out.markers.size() == 1 && out.props.size() == 2,
+					"live route retains its generated clip, held pose, commit, marker and prop marks");
+			}
 		} catch (const std::exception& error) {
 			Check(false, std::string("live smoke fixture validation threw: ") + error.what());
 		}

@@ -20,4 +20,7 @@ namespace OSF::UI::Subtitle
 
 	// Synchronous from GraphManager::StopAll.
 	void OnStopAll();
+#ifdef OSF_ANIMATION_SMOKE
+	bool HoldingForSmoke();
+#endif
 }

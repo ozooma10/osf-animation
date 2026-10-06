@@ -11,6 +11,7 @@ See docs/SMOKE_TESTING.md for coverage and the remaining acceptance boundaries.
 [CmdletBinding()]
 param(
     [switch]$RunGame,
+    [ValidateSet('Released','Deployed')][string]$Hosts = 'Released',
     [switch]$Plan,
     [string]$Harness = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'OSF Test Harness'),
     [string]$OutputDirectory = '',
@@ -24,12 +25,12 @@ $repo = Split-Path $PSScriptRoot -Parent
 $coverage = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/coverage.json') -Raw | ConvertFrom-Json)
 $runtimeCases = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/runtime-cases.json') -Raw | ConvertFrom-Json)
 $suite = Join-Path $Harness 'Test-AnimationRelease.ps1'
-$names = @('coverage','bench-contracts','sdk','production-build','native','browser','distribution',
+$names = @('coverage','bench-contracts','sdk','production-build','native','fixtures','browser','distribution',
     'runtime-build','runtime','restore-production-config','source-unchanged')
 $unverified = @($coverage | ForEach-Object { "$($_.feature): $($_.gap)" })
 if (-not $RunGame) { $unverified = @('In-game assertions skipped. Use -RunGame with the local OSF Test Harness.') + $unverified }
 if ($Plan) {
-    [ordered]@{ stages=$names; runGame=[bool]$RunGame; runtimeCases=$runtimeCases; coverage=$coverage;
+    [ordered]@{ stages=$names; runGame=[bool]$RunGame; hosts=$Hosts; runtimeCases=$runtimeCases; coverage=$coverage;
         unverified=$unverified; runtimeRunner=$suite } | ConvertTo-Json -Depth 12
     exit 0
 }
@@ -47,7 +48,8 @@ if (-not $relativeOutput.StartsWith('..') -and -not [IO.Path]::IsPathRooted($rel
 $report = [ordered]@{
     startedUtc=[DateTime]::UtcNow.ToString('o'); finishedUtc=$null; outcome='running'
     scope=$(if ($RunGame) { 'offline+runtime' } else { 'offline' }); completeAutomatedSuite=$false; automatedPassed=$false
-    source=$null; runtime=$null; productionDllSha256=$null; runtimeDllSha256=$null
+    source=$null; runtime=$null; productionDllSha256=$null; runtimeDllSha256=$null; hosts=$Hosts
+    runtimeCases=@($runtimeCases | ForEach-Object { @{name=$_;status='not-run';message='No live result from this invocation.'} })
     coverage=$coverage; unverified=$unverified
     stages=@($names | ForEach-Object { [ordered]@{ name=$_; status='not-run'; seconds=0; message=''; log=$null } })
 }
@@ -60,6 +62,7 @@ $productionMods = Join-Path $directory 'production'
 $productionMod = Join-Path $productionMods 'OSF Animation'
 $runtimeMods = Join-Path $directory 'runtime-staging'
 $runtimeMod = Join-Path $runtimeMods 'OSF Animation'
+$fixtureMod = Join-Path $repo ('build/smoke-fixtures/' + [guid]::NewGuid().ToString('N'))
 
 function Get-Stage([string]$Name) { @($report.stages | Where-Object name -eq $Name)[0] }
 function Test-StagesPassed([string[]]$Dependencies) {
@@ -105,6 +108,7 @@ try {
     Invoke-SmokeStage 'coverage' {
         $targets = @(Get-SmokeNativeTargets $repo)
         Test-SmokeCoverage $coverage $targets $runtimeCases
+        Test-SmokeCaseInventory $repo $runtimeCases
         $script:stage.message = "$($targets.Count) native suites; $($runtimeCases.Count) game assertions; $($coverage.Count) feature areas"
     }
     Invoke-SmokeStage 'bench-contracts' {
@@ -134,6 +138,14 @@ try {
         Invoke-SmokeCommand 'xmake' @('test',"-j$Jobs",'-v')
         Test-SmokeNativeSummary (Get-Content -LiteralPath $script:stage.log -Raw) @(Get-SmokeNativeTargets $repo).Count
     } @('coverage','production-build')
+    Invoke-SmokeStage 'fixtures' {
+        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildSmokeFixtures.ps1'),'-OutputRoot',$fixtureMod)
+        Invoke-SmokeCommand 'xmake' @('build','-y',"-j$Jobs",'osf-import-test')
+        foreach ($asset in @('head.gltf','head.glb','head-gzip.glb')) {
+            Invoke-SmokeCommand 'xmake' @('run','osf-import-test',(Join-Path $fixtureMod "OSF/Smoke/$asset"),'smoke')
+        }
+        $script:stage.message='Live GLTF/GLB/gzip fixtures decoded and sampled; private Papyrus compiled'
+    } @('production-build')
     Invoke-SmokeStage 'browser' {
         Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildBrowserAddon.ps1'),'-NoDeploy')
         $script:stage.message = 'npm ci, browser tests, typecheck, and production build'
@@ -156,13 +168,21 @@ try {
             Invoke-SmokeCommand 'xmake' @('-y',"-j$Jobs")
             Invoke-SmokeCommand 'xmake' @('install','-y','-o',$runtimeMod,'OSF Animation')
             Copy-Item -LiteralPath (Join-Path $repo 'test/smoke/data/OSF') -Destination $runtimeMod -Recurse -Force
+            Copy-Item -Path (Join-Path $fixtureMod '*') -Destination $runtimeMod -Recurse -Force
             $report.runtimeDllSha256 = (Get-FileHash -LiteralPath (Join-Path $runtimeMod 'SFSE/Plugins/OSF Animation.dll')).Hash
-        } @('coverage','bench-contracts','production-build','native','browser','distribution')
+        } @('coverage','bench-contracts','production-build','native','fixtures','browser','distribution')
         Invoke-SmokeStage 'runtime' {
             $report.runtime = Join-Path $directory 'runtime-result.json'
             $started = [DateTimeOffset]::UtcNow
-            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$suite,'-AnimationProject',$repo,
-                '-StagedModRoot',$runtimeMod,'-SourceHash',$identity.sha256,'-ResultPath',$report.runtime) -Runtime
+            try {
+                Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',$suite,'-AnimationProject',$repo,
+                    '-StagedModRoot',$runtimeMod,'-SourceHash',$identity.sha256,'-ResultPath',$report.runtime,'-Hosts',$Hosts) -Runtime
+            } finally {
+                if (Test-Path -LiteralPath $report.runtime) {
+                    $observed=Get-Content -LiteralPath $report.runtime -Raw | ConvertFrom-Json
+                    if ($observed.runtimeCases.Count) { $report.runtimeCases=$observed.runtimeCases }
+                }
+            }
             $receipt = Get-Content -LiteralPath $report.runtime -Raw | ConvertFrom-Json
             Test-SmokeRuntimeReceipt $receipt $runtimeCases $identity.sha256 $report.runtimeDllSha256 $started ([DateTimeOffset]::UtcNow)
             $script:stage.message = "$($runtimeCases.Count) fresh in-game assertions passed"
