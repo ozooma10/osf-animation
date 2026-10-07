@@ -11,8 +11,9 @@ voice/sound, camera hold);
 - **Tests:** `xmake test` builds and runs the ten engine-free C++ suites (persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
   frame clock/clip specs, clip-duration cache, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
-  `test/fixtures`). Run it after native changes; exit code is the failure count. The view has its
-  own suite: `npm --prefix extensions/browser/ui run verify` (typecheck + build + vitest).
+  `test/fixtures`; the scene registry suite also exercises the production catalog builder). Run it after
+  native changes; exit code is the failure count. The view has its own suite:
+  `npm --prefix extensions/browser/ui run verify` (typecheck + build + vitest).
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
   and checks release archives with retained evidence. `-RunGame` adds the sibling harness's private
   Animation scenario (47 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings

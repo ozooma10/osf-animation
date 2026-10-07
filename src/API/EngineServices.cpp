@@ -1,5 +1,5 @@
 #include "API/OSFEngineAPI.h"
-#include "API/OSFCatalog.h"
+#include "API/CatalogBuilder.h"
 #include "API/EngineServices.h"
 #include "API/EngineServiceState.h"
 #include "Animation/GraphManager.h"
@@ -10,7 +10,6 @@
 #include "Registry/ContentRegistry.h"
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneRuntime.h"
-#include "Serialization/ClipDurations.h"
 #include "Serialization/ClipDurationCatalog.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "Util/Species.h"
@@ -21,13 +20,6 @@ namespace OSF::API::EngineServices
 	{
 		EngineServiceState g_state;
 		using json = nlohmann::json;
-		std::uint32_t ActorCount(const Registry::SceneDef& d)
-		{
-			if (!d.roles.empty()) return static_cast<std::uint32_t>(d.roles.size());
-			const auto* node = d.FindNode(d.entry);
-			if (!node && !d.nodes.empty()) node = &d.nodes.front();
-			return node && !node->stages.empty() ? static_cast<std::uint32_t>(node->stages.front().clips.size()) : 0;
-		}
 		bool Send(const json& value, TextCallback callback, void* context)
 		{
 			if (!callback) return false;
@@ -38,61 +30,12 @@ namespace OSF::API::EngineServices
 		bool ReadCatalog(TextCallback callback, void* context)
 		{
 			try {
-				Catalog::Snapshot out;
 				const auto registry = Registry::ContentRegistry::GetSingleton().ReadSnapshot();
 				std::error_code ec;
-				const auto root = std::filesystem::current_path(ec) / "Data" / "OSF";
-				for (const auto& [id, d] : registry->scenes) {
-					Catalog::Scene s;
-					s.id=d.id; s.name=d.name; s.species=d.species; s.pack=d.pack; s.folder=d.folder;
-					const auto name = d.sourceFile.filename().u8string();
-					s.sourceFile.assign(name.begin(), name.end());
-					s.sourcePath=s.sourceFile;
-					if (!ec) {
-						const auto relative=d.sourceFile.lexically_relative(root).generic_string();
-						if (!relative.empty() && relative != ".." && !relative.starts_with("../")) s.sourcePath=relative;
-					}
-					s.sourceKind=Registry::CatalogSourceKindName(d.sourceKind);
-					s.placement=d.worldPlacement == Animation::WorldPlacementMode::kFollowActor ? "followActor" : "anchorAndPin";
-					s.priority=d.priority; s.weight=d.weight; s.actorCount=ActorCount(d);
-					s.unlisted=d.unlisted; s.curatedClip=d.curatedClip; s.library=d.library; s.clipsAvailable=d.clipsAvailable;
-					s.playerInputLock=d.playerInputLock; s.hideApparel=d.hideApparel; s.fade=d.fade; s.tags=d.tags;
-					s.anchorKeywords=d.anchorKeywords; s.anchorBaseForms=d.anchorBaseForms;
-					for (const auto& r : d.roles) s.roles.push_back({r.name, r.gender == Registry::RoleGender::kMale ? "male" : r.gender == Registry::RoleGender::kFemale ? "female" : "any"});
-					for (std::size_t i=0; i<d.linearStages.size(); ++i) {
-						Catalog::Stage stage;
-						stage.index=static_cast<std::int32_t>(i);
-						const auto* node=d.FindNode(d.linearStages[i]);
-						if (node && !node->stages.empty()) {
-							const auto& st=node->stages.front();
-							stage.resolved=true; stage.name=st.name; stage.tags=st.tags; stage.hold=st.hold;
-							stage.clipCount=static_cast<std::int32_t>(st.clips.size());
-							stage.timerSec=node->timerSec; stage.loopCount=node->loopCount;
-							stage.loopMode=node->loopMode == Registry::LoopMode::kHold ? "hold" : node->loopMode == Registry::LoopMode::kCount ? "count" : "once";
-							if (!st.clips.empty()) {
-								const auto& first=st.clips.front();
-								stage.loopSec=first.sec > 0 ? first.sec : Serialization::ClipDurations::Lookup(first.file, first.animId).value_or(-1.0f);
-							}
-						}
-						s.stages.push_back(std::move(stage));
-					}
-					out.scenes.push_back(std::move(s));
-				}
-				for (const auto& f : registry->files) {
-					Catalog::File copy;
-					copy.file=f.file; copy.path=f.path; copy.pack=f.pack; copy.library=f.library;
-					copy.schema=f.schema; copy.bytes=f.bytes; copy.parseMs=f.parseMs;
-					copy.scenes=f.scenes; copy.declaredScenes=f.declaredScenes; copy.hidden=f.hidden; copy.rejectedScenes=f.rejectedScenes;
-					copy.unlisted=f.unlisted; copy.anchored=f.anchored; copy.nodes=f.nodes; copy.stages=f.stages; copy.roles=f.roles;
-					copy.clips=f.clips; copy.distinctClips=f.distinctClips; copy.missingClips=f.missingClips;
-					copy.cues=f.cues; copy.actions=f.actions; copy.sounds=f.sounds; copy.cameras=f.cameras;
-					copy.clipEntries=f.clipEntries; copy.errors=f.errors; copy.warnings=f.warnings;
-					copy.species=f.species; copy.missingClipExamples=f.missingClipExamples;
-					for (const auto& p : f.problems) copy.problems.push_back({p.warning,p.code,p.message,p.hint,p.scene,p.node,p.role,p.clip});
-					out.files.push_back(std::move(copy));
-				}
-				out.errors=registry->loadErrors;
-				return Send(out, callback, context);
+				auto root = std::filesystem::current_path(ec);
+				if (ec) root.clear();
+				else root /= "Data/OSF";
+				return Send(CatalogBuilder::Build(*registry, root), callback, context);
 			} catch (...) { REX::ERROR("[API] Could not read catalog metadata"); return false; }
 		}
 		bool MatchCast(RE::Actor* const* actors, std::uint32_t count, TextCallback callback, void* context)
@@ -102,7 +45,7 @@ namespace OSF::API::EngineServices
 			try {
 				json ids=json::array();
 				Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& d) {
-					if (!d.clipsAvailable || ActorCount(d) != count) return;
+					if (!d.clipsAvailable || CatalogBuilder::ActorCount(d) != count) return;
 					for (std::size_t i=0; i<d.roles.size(); ++i) if (!Matchmaking::RoleAccepts(d.roles[i], actors[i])) return;
 					ids.push_back(d.id);
 				});

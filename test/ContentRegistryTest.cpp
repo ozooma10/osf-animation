@@ -15,6 +15,8 @@
 using OSF::Test::Check;
 using OSF::Test::Finish;
 
+void CheckCatalogBuilder();
+
 // No mounted archives here: report every clip installed so the sweep hides no fixture scene.
 namespace OSF::Animation
 {
@@ -63,6 +65,7 @@ namespace
 
 int main()
 {
+	CheckCatalogBuilder();
 	CheckPlaybackAdmission();
 	using OSF::Registry::ContentRegistry;
 	using OSF::Registry::ActionKind;

@@ -52,6 +52,13 @@ The new table provides:
   handle-based speed/pause controls. Existing scene starts/stops/advance still use scene API 1.3.
 - Actor identity, front-of-view anchor resolution, and the shared inspection camera/input mechanisms.
 
+`src/API/CatalogBuilder.*` owns the registry-to-catalog conversion. The API handler pins one registry
+snapshot, supplies the content root, and serializes the returned value. The builder reads only that
+snapshot and in-memory durations; it does no file IO or presentation filtering. The scene registry
+suite tests the production conversion, including stage resolution, duration precedence, path fallbacks,
+rejected-file diagnostics, and ownership of the returned data. Browser boundary tests cover consumption
+and presentation separately.
+
 The engine owns the table for process lifetime. JSON pointers are borrowed **only during the inline
 callback**; the caller copies/parses them into its own allocation. No STL allocation crosses the DLL
 boundary. Actor pointers and form IDs must be resolved/used in the current world on the game thread.

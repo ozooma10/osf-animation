@@ -178,7 +178,8 @@
   {
     "feature": "Animation browser, library, wheel and bridge",
     "native": [
-      "osf-frame-clock-test"
+      "osf-browser-boundary-test",
+      "osf-scene-registry-test"
     ],
     "runtime": [
       "integration.ui",
