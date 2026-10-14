@@ -1,5 +1,6 @@
 #include "Util/NativeMainThreadQueue.h"
 #include "Input/InputService.h"
+#include "API/OSFEngineAPI.h"
 
 #include "SFSE/InputMap.h"
 #include "REL/THook.h"
@@ -31,9 +32,8 @@ namespace OSF::Input
 		std::atomic<float> g_mouseDx{ 0.0f };
 		std::atomic<float> g_mouseDy{ 0.0f };
 		std::atomic<float> g_mouseWheel{ 0.0f };  // notches (+ = up / zoom in)
-		// With a UI cursor up, look/wheel deltas accumulate only while LMB is held.
-		std::atomic_bool   g_uiCursorVisible{ false };
-		std::atomic_bool   g_orbitDragHeld{ false };
+		// Consumer-selected routing; the engine has no presentation or pointer-gesture policy.
+		std::atomic<std::uint32_t> g_inputRouting{0};
 		std::atomic_bool   g_nativeFreeCamGamepad{ false };
 		std::atomic<float> g_padLeftX{ 0.0f };
 		std::atomic<float> g_padLeftY{ 0.0f };
@@ -60,7 +60,6 @@ namespace OSF::Input
 		constexpr std::int32_t kMouseWheelDownId = 0x900;
 		constexpr float        kWheelNotch = 120.0f;
 		// Mouse button idCode = button index (0 = left, 1 = right, 2 = middle, 3/4 = X1/X2).
-		constexpr std::int32_t kMouseLeftId = 0;
 		constexpr std::int32_t kMouseMiddleId = 2;
 
 		void ResetGamepadState()
@@ -189,10 +188,10 @@ namespace OSF::Input
 		{
 			const bool active = g_active.load(std::memory_order_relaxed);
 			const bool capture = g_captureMouse.load(std::memory_order_relaxed);
-			const bool uiVisible = g_uiCursorVisible.load(std::memory_order_relaxed);
+			const auto routing = g_inputRouting.load(std::memory_order_relaxed);
 			const bool nativeFreeCamGamepad = g_nativeFreeCamGamepad.load(std::memory_order_relaxed);
 			const bool menuOwns = MenuOwnsInput();
-			if ((active || capture || uiVisible) && !menuOwns) {
+			if ((active || capture || routing) && !menuOwns) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					const auto et = event->eventType;
 					if (capture && et == RE::InputEvent::EventType::kDeviceConnect) {
@@ -202,9 +201,9 @@ namespace OSF::Input
 						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 						CaptureThumbstick(event);
 					}
-					// Browser up: stop thumbsticks before the forward; the movement dispatch runs inside the original receiver,
-					// so post-forward flagging doesn't stop walking. Buttons pass through for OSF UI's FocusMenu capture gate.
-					if (uiVisible && !nativeFreeCamGamepad && et == RE::InputEvent::EventType::kThumbstick &&
+					// Requested thumbstick consumption must precede the receiver, where movement dispatch occurs.
+					if ((routing & API::ConsumeThumbsticks) &&
+						!(nativeFreeCamGamepad && (routing & API::AllowNativeFreeCamera)) && et == RE::InputEvent::EventType::kThumbstick &&
 						event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 						const_cast<RE::InputEvent*>(event)->status = RE::InputEvent::Status::kStop;
 						continue;
@@ -219,9 +218,7 @@ namespace OSF::Input
 					if (!capture) {
 						continue;
 					}
-					// With the browser up, only a held LMB steers the orbit; otherwise the mouse belongs to the UI.
-					const bool steer = !g_uiCursorVisible.load(std::memory_order_relaxed) ||
-					                   g_orbitDragHeld.load(std::memory_order_relaxed);
+					const bool steer = !(routing & API::SuppressRawMouse);
 					if (et == RE::InputEvent::EventType::kMouseMove) {
 						if (steer) {
 							const auto* d = reinterpret_cast<const std::int32_t*>(
@@ -234,9 +231,6 @@ namespace OSF::Input
 						if (btn->deviceType != RE::InputEvent::DeviceType::kMouse) {
 							continue;
 						}
-						if (btn->idCode == kMouseLeftId) {
-							g_orbitDragHeld.store(btn->value != 0.0f, std::memory_order_relaxed);
-						}
 						if (steer && (btn->idCode == kMouseWheelUpId || btn->idCode == kMouseWheelDownId)) {
 							g_mouseWheel.fetch_add(btn->value / kWheelNotch, std::memory_order_relaxed);
 						}
@@ -244,8 +238,8 @@ namespace OSF::Input
 				}
 			}
 			(*g_inputHook)(a_this, a_queueHead);
-			// Defense in depth for anything downstream; button verbs are primarily gated by OSF UI's ControlLayer flags.
-			if (uiVisible && !menuOwns) {
+			// Consumers may also request that downstream receivers do not reuse these events.
+			if ((routing & API::ConsumeGamepadAfterDispatch) && !menuOwns) {
 				for (const auto* event = a_queueHead; event; event = event->next) {
 					if (event->deviceType == RE::InputEvent::DeviceType::kGamepad) {
 						const_cast<RE::InputEvent*>(event)->status = RE::InputEvent::Status::kStop;
@@ -348,13 +342,13 @@ namespace OSF::Input
 		}
 		g_active.store(false, std::memory_order_relaxed);
 		g_nativeFreeCamGamepad.store(false, std::memory_order_relaxed);
+		SetInputRouting(0);
 		SetMouseCapture(false);
 	}
 
 	void InputService::SetMouseCapture(bool a_on)
 	{
 		g_captureMouse.store(a_on, std::memory_order_relaxed);
-		g_orbitDragHeld.store(false, std::memory_order_relaxed);  // never carry a held drag across engage/release
 		if (!a_on) {
 			g_mouseDx.store(0.0f, std::memory_order_relaxed);
 			g_mouseDy.store(0.0f, std::memory_order_relaxed);
@@ -366,23 +360,19 @@ namespace OSF::Input
 	void InputService::InjectOrbitDelta(float a_dx, float a_dy, float a_wheel)
 	{
 		if (!g_captureMouse.load(std::memory_order_relaxed)) {
-			return;  // a stray UI drag must not bank deltas
+			return;  // inactive input must not bank deltas
 		}
-		// 1280 logical px wide; a full-width drag ≈ half an orbit (π / (1280 * 0.004)).
-		constexpr float kUiDragScale = 0.6f;
-		g_mouseDx.fetch_add(a_dx * kUiDragScale, std::memory_order_relaxed);
-		g_mouseDy.fetch_add(a_dy * kUiDragScale, std::memory_order_relaxed);
+		g_mouseDx.fetch_add(a_dx, std::memory_order_relaxed);
+		g_mouseDy.fetch_add(a_dy, std::memory_order_relaxed);
 		g_mouseWheel.fetch_add(a_wheel, std::memory_order_relaxed);
 	}
 
-	void InputService::SetUiCursorVisible(bool a_on)
-	{
-		g_uiCursorVisible.store(a_on, std::memory_order_relaxed);
-		if (a_on) {
-			// The click that opened the browser must not start steering.
-			g_orbitDragHeld.store(false, std::memory_order_relaxed);
-		}
-	}
+	void InputService::SetInputRouting(std::uint32_t flags)
+    {
+        constexpr auto supported = API::SuppressRawMouse | API::ConsumeThumbsticks |
+            API::ConsumeGamepadAfterDispatch | API::AllowNativeFreeCamera;
+        g_inputRouting.store(flags & supported, std::memory_order_relaxed);
+    }
 
 	void InputService::SetNativeFreeCamGamepad(bool a_on)
 	{

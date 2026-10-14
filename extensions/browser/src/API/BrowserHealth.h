@@ -8,12 +8,12 @@ namespace OSF::API::Health
 	enum class Severity { kWarning, kError };
 	inline OSFSettings::API::Diagnostics::Client client;
 	inline void Connect() { client.Init(); }
-	inline void Clear(std::string_view id) { if (client) client.Clear("osf.animation",std::string(id).c_str()); }
+	inline void Clear(std::string_view id) { if (client) client.Clear("osf.animation.browser",std::string(id).c_str()); }
 	inline void Report(std::string_view id, std::string_view code, Severity severity, std::string_view subject, const nlohmann::json* context = nullptr)
 	{
 		if (!client) return;
 		const auto impact = std::string(subject) + (context ? "\n" + context->dump() : "");
-		client.Report({.modId="osf.animation",.id=std::string(id).c_str(),
+		client.Report({.modId="osf.animation.browser",.id=std::string(id).c_str(),
 			.severity=severity == Severity::kError ? OSFSettings::API::Diagnostics::Severity::Error : OSFSettings::API::Diagnostics::Severity::Warning,
 			.title=code == "wheel.pins-not-persisted" ? "Animation wheel changes could not be saved" : "Animation Browser is unavailable",
 			.impact=impact.c_str(),

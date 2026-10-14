@@ -11,7 +11,7 @@ namespace
 		if (message->type != SFSE::MessagingInterface::kPostPostDataLoad) return;
 		OSF::API::Health::Connect();
 		if (!OSF::API::EngineClient::Connect()) {
-			REX::WARN("[Boot] OSF Animation engine services 1.0 unavailable; Browser is inactive");
+			REX::WARN("[Boot] OSF Animation engine services 2.0 unavailable; Browser is inactive");
 			return;
 		}
 		OSF::API::InstallUIBridge();

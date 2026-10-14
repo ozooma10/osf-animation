@@ -74,9 +74,15 @@ try {
     [IO.Directory]::CreateDirectory($view) | Out-Null
     [IO.File]::WriteAllText($browserDll, 'MZ browser fixture')
     Set-Content "$view/index.html" '<html>browser</html>'
+    $schema = Join-Path $scratch 'build/osfui-animation-browser/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json'
+    [IO.Directory]::CreateDirectory((Split-Path $schema)) | Out-Null
+    Set-Content $schema '{"groups":{}}'
     Write-ReleaseBuildReceipt $scratch 'browser' $before
     $browserReceipt = Test-ReleaseBuildReceipt $scratch 'browser'
-    Check ($browserReceipt.files.Count -eq 2) 'Browser receipt must bind the DLL and view.'
+    Check ($browserReceipt.files.Count -eq 3) 'Browser receipt must bind the DLL, view, and owned settings schema.'
+    Add-Content $schema 'changed'
+    Reject { Test-ReleaseBuildReceipt $scratch 'browser' } 'Build output changed'
+    Set-Content $schema '{"groups":{}}'
     [IO.File]::AppendAllText($browserDll, ' changed')
     Reject { Test-ReleaseBuildReceipt $scratch 'browser' } 'Build output changed'
     [IO.File]::WriteAllText($browserDll, 'MZ browser fixture')
@@ -87,6 +93,9 @@ try {
     $browserViews = Join-Path $browserPlugins 'OSF/UI/views/osf.animation'
     [IO.Directory]::CreateDirectory($browserViews) | Out-Null
     Copy-Item $view $browserViews -Recurse
+    $browserSchemas = Join-Path $browserPlugins 'OSF/Settings/schemas'
+    [IO.Directory]::CreateDirectory($browserSchemas) | Out-Null
+    Copy-Item $schema $browserSchemas
     $browserArchive = Join-Path $scratch 'browser.zip'
     Reject { Write-ReleaseArchive $browserStage $browserArchive $browserReceipt '' $scratch } 'Staged build artifact mismatch'
     Copy-Item $browserDll $browserPlugins

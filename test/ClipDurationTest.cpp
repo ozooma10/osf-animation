@@ -1,7 +1,8 @@
 #include "Check.h"
 #include "Serialization/ClipDurations.h"
-#include "Serialization/ClipDurationCatalog.h"
-#include "Registry/ContentRegistry.h"
+#include "Serialization/ClipDurationCache.h"
+#include "Serialization/ClipDurationProbe.h"
+#include "API/EngineClient.h"
 #include "Util/Ba2.h"
 #include "Util/NativeMainThreadQueue.h"
 
@@ -16,7 +17,7 @@
 using OSF::Test::Check;
 using namespace std::chrono_literals;
 namespace Durations = OSF::Serialization::ClipDurations;
-namespace Catalog = OSF::Serialization::ClipDurationCatalog;
+namespace Cache = OSF::Browser::ClipDurationCache;
 using json = nlohmann::json;
 
 namespace
@@ -42,11 +43,12 @@ namespace
 			return changed.wait_for(lock, 5s, [&] { return entered; });
 		}
 		void Release() { std::lock_guard lock(mutex); released = true; changed.notify_all(); }
-	} diskGate, probeGate;
+	} diskGate, probeGate, snapshotGate;
+	std::atomic_bool delaySnapshot{};
 
 	std::filesystem::path root;
 	std::atomic<int> diskCalls{}, archiveCalls{};
-	std::vector<OSF::Registry::SceneDef> definitions;
+	std::vector<OSF::Catalog::Clip> clips;
 	std::mutex queueMutex;
 	std::condition_variable queued;
 	std::vector<std::function<void()>> commands;
@@ -82,24 +84,21 @@ namespace
 			{ "accessors", json::array({ { { "max", json::array({ a_seconds }) } } }) }
 		}.dump();
 	}
-	void SetClips(std::initializer_list<std::string> a_files)
-	{
-		OSF::Registry::StageDef stage;
-		for (const auto& file : a_files) stage.clips.push_back({ .file = file });
-		// Authored durations must not trigger probing, even when the file is absent.
-		stage.clips.push_back({ .file = "authored.af", .sec = 4.0f });
-		OSF::Registry::SceneNode node;
-		node.stages.push_back(std::move(stage));
-		OSF::Registry::SceneDef scene;
-		scene.nodes.push_back(std::move(node));
-		definitions = { std::move(scene) };
-	}
+	void SetClips(std::initializer_list<std::string> files)
+    {
+        clips.clear();
+        for (const auto& file : files) clips.push_back({Durations::KeyFor(file, ""), file, ""});
+    }
+    void Scan() { Cache::Scan(clips, &OnChanged); }
+    std::optional<float> Cached(const char* file) { return Cache::Lookup(Durations::KeyFor(file, "")); }
+
 	void RecordWhileBlocked(Gate& a_gate, const char* a_file, float a_seconds)
 	{
 		Check(a_gate.Wait(), "worker reached the IO boundary");
 		auto record = std::async(std::launch::async, [=] {
 			Durations::Record(a_file, "", a_seconds);
-			return Durations::Lookup(a_file, "") == a_seconds;
+			Cache::RefreshDecoded();
+            return Durations::Lookup(a_file, "") == a_seconds;
 		});
 		Check(record.wait_for(2s) == std::future_status::ready, "playback recording and lookup do not wait for IO");
 		a_gate.Release();
@@ -118,13 +117,27 @@ namespace SFSE::log
 		return root / "logs";
 	}
 }
-namespace OSF::Registry
+namespace OSF::API::EngineClient
 {
-	ContentRegistry& ContentRegistry::GetSingleton() { static ContentRegistry registry; return registry; }
-	void ContentRegistry::ForEachDef(const std::function<void(const SceneDef&)>& a_fn) const
-	{
-		for (const auto& def : definitions) a_fn(def);
-	}
+    const OSFEngineAPI& Get()
+    {
+        static const auto api = [] {
+            OSFEngineAPI value{};
+            value.ReadClipDurations = [](TextCallback callback, void* context) {
+                const auto text = json(Durations::Snapshot()).dump();
+                if (delaySnapshot.exchange(false)) snapshotGate.Block();
+                callback(text.c_str(), context); return true;
+            };
+            value.ProbeClipDuration = [](const char* file, const char* anim, const ClipProbeResult* previous, ClipProbeResult* result) {
+                *result = Serialization::ClipDurationProbe::Probe(file, anim, previous); return true;
+            };
+            return value;
+        }();
+        return api;
+    }
+    void ReadJson(const char* text, void* context) noexcept { *static_cast<json*>(context) = json::parse(text); }
+    bool Post(std::function<void()> task) { Util::NativeMainThreadQueue::Post(std::move(task)); return true; }
+    CatalogData& CatalogData::GetSingleton() { static CatalogData value; return value; }
 }
 namespace OSF::Util::Ba2
 {
@@ -177,16 +190,17 @@ int main()
 
 	SetClips({ "naf:cached.gltf" });
 	diskGate.Arm();
-	Catalog::ScanSceneClipsAsync(&OnChanged);
+	Scan();
 	RecordWhileBlocked(diskGate, "naf:decoded.glb", 5.0f);
 	WaitScan();
 	Check(notifications == 1 && callbackThread == std::this_thread::get_id(), "disk-only enrichment notifies through the frame queue");
 	Check(Durations::Lookup("naf:decoded.glb", "") == 5.0f, "disk merge preserves values decoded before and during loading");
-	Check(Durations::Lookup("naf:cached.gltf", "") == 3.0f && Durations::Lookup("naf:archive.glb", "") == 8.0f,
+	Check(Cached("naf:cached.gltf") == 3.0f && Cached("naf:archive.glb") == 8.0f,
 		"version-1 cache restores fresh probes and exact archive durations");
 	Check(ReadCache()["version"] == 1 && ReadCache()["clips"]["naf\\decoded.glb|"]["sec"] == 5.0f,
 		"requested scan persists decoded values using the existing format");
-	Check(archiveCalls == 0, "authored durations avoid archive probes");
+	Check(archiveCalls == 0, "only exported unmeasured clips are probed");
+    Check(!Durations::Lookup("naf:cached.gltf", "") && !Durations::Lookup("naf:archive.glb", ""), "browser cache never writes probe or disk values into the engine store");
 
 	const auto callsBeforeRecord = diskCalls.load();
 	Durations::Record("naf:after.glb", "", 6.0f);
@@ -195,10 +209,10 @@ int main()
 	WriteGltf("cached.gltf", 7.0f);
 	std::filesystem::last_write_time(clip, std::filesystem::last_write_time(clip) + 2s);
 	diskGate.Arm();
-	Catalog::ScanSceneClipsAsync(&OnChanged);
+	Scan();
 	RecordWhileBlocked(diskGate, "naf:after-snapshot.glb", 10.0f);
 	WaitScan();
-	Check(Durations::Lookup("naf:cached.gltf", "") == 7.0f, "changed loose files refresh their probed durations");
+	Check(Cached("naf:cached.gltf") == 7.0f, "changed loose files refresh their probed durations");
 	Check(ReadCache()["clips"]["naf\\after.glb|"]["sec"] == 6.0f &&
 		!ReadCache()["clips"].contains("naf\\after-snapshot.glb|"), "save writes its captured snapshot");
 
@@ -206,11 +220,11 @@ int main()
 	const std::uint16_t frames = 61; // Probe yields 2 seconds, deliberately different from the decode.
 	std::memcpy(archiveBytes.data() + 44, &frames, sizeof(frames));
 	probeGate.Arm();
-	Catalog::ScanSceneClipsAsync(&OnChanged);
+	Scan();
 	RecordWhileBlocked(probeGate, "probe.af", 11.0f);
 	WaitScan();
 	Check(notifications == 3, "scan publishes concurrent decoded changes even when probes add nothing");
-	Check(Durations::Lookup("probe.af", "") == 11.0f, "an older probe cannot overwrite a concurrent decoded value");
+	Check(Durations::Lookup("probe.af", "") == 11.0f && Cached("probe.af") == 11.0f, "an older probe cannot overwrite a concurrent decoded value");
 	Check(ReadCache()["clips"]["naf\\after-snapshot.glb|"]["sec"] == 10.0f,
 		"record made during a previous save remains pending and persists on the next scan");
 
@@ -219,12 +233,21 @@ int main()
 	Durations::Record("broken.af", "", 2.0f);
 	archiveBytes.resize(63); // Too short for an AF header, but distinct from unknown source size (0).
 	probeGate.Arm();
-	Catalog::ScanSceneClipsAsync(&OnChanged);
+	Scan();
 	RecordWhileBlocked(probeGate, "broken.af", 13.0f);
 	WaitScan();
-	Check(Durations::Lookup("broken.af", "") == 13.0f, "failed stale probe cannot erase a concurrent decode");
-	Check(!Durations::Lookup("naf:cached.gltf", "") && Durations::Lookup("naf:decoded.glb", "") == 5.0f,
+	Check(Durations::Lookup("broken.af", "") == 13.0f && Cached("broken.af") == 13.0f, "failed stale probe cannot erase a concurrent decode");
+	Check(!Cached("naf:cached.gltf") && Cached("naf:decoded.glb") == 5.0f,
 		"pruning removes unreferenced probes but retains decoded durations");
+
+	Durations::Record("overlap.af", "", 1.0f);
+	snapshotGate.Arm(); delaySnapshot = true;
+	auto oldSnapshot = std::async(std::launch::async, [] { Cache::RefreshDecoded(); });
+	Check(snapshotGate.Wait(), "older decoded snapshot is suspended before merging");
+	Durations::Record("overlap.af", "", 2.0f);
+	Cache::RefreshDecoded();
+	snapshotGate.Release(); oldSnapshot.get();
+	Check(Cached("overlap.af") == 2.0f, "an out-of-order worker snapshot cannot replace a newer main-thread decode");
 
 	std::filesystem::current_path(originalDirectory);
 	std::filesystem::remove_all(root); // Only the unique temporary fixture directory created above.

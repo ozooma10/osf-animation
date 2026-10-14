@@ -58,7 +58,7 @@ target("OSF Animation")
         add_installfiles("dist/Scripts/Source/" .. script .. ".psc", { prefixdir = "Scripts/Source" })
     end
     add_installfiles("dist/OSF/internal.osf.json", { prefixdir = "OSF" })
-    add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json", {
+    add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json", {
         prefixdir = "SFSE/Plugins/OSF/Settings/schemas"
     })
 
@@ -67,6 +67,8 @@ target("OSF Animation")
         local mods = os.getenv("XSE_SF_MODS_PATH")
         if mods then
             local plugins = path.join(mods, target:name(), "SFSE", "Plugins")
+            -- Both components now ship explicit engine/browser schema names.
+            os.tryrm(path.join(plugins, "OSF", "Settings", "schemas", "osf.animation.json"))
             os.tryrm(path.join(plugins, "OSF", "UI", "views", "osf.animation"))
             os.tryrm(path.join(plugins, "OSFUI", "views", "osf.animation"))
         end
@@ -90,7 +92,8 @@ target("osf-browser-boundary-test")
     add_deps("commonlibsf")
     add_packages("nlohmann_json")
     add_files("test/BrowserBoundaryTest.cpp", "src/Util/NativeMainThreadQueue.cpp",
-              "extensions/browser/src/API/EngineClient.cpp", "extensions/browser/src/API/UIBridgeCatalog.cpp")
+              "extensions/browser/src/API/EngineClient.cpp", "extensions/browser/src/API/UIBridgeCatalog.cpp",
+              "extensions/browser/src/Serialization/ClipDurationCache.cpp")
     add_includedirs("extensions/browser/src", "src", "src/API")
     set_pcxxheader("extensions/browser/src/pch.h")
 
@@ -142,9 +145,10 @@ target("osf-clip-duration-test")
     add_tests("default")
     add_deps("commonlibsf")
     add_packages("nlohmann_json", "ozz-animation", "zlib")
-    add_files("src/Serialization/ClipDurations.cpp", "src/Serialization/ClipDurationCatalog.cpp",
+    add_files("src/Serialization/ClipDurations.cpp", "src/Serialization/ClipDurationProbe.cpp",
+              "extensions/browser/src/Serialization/ClipDurationCache.cpp",
               "src/Util/ClipPath.cpp", "src/Util/Gzip.cpp", "test/ClipDurationTest.cpp")
-    add_includedirs("src")
+    add_includedirs("extensions/browser/src", "src", "src/API")
     set_pcxxheader("src/pch.h")
 
 target("osf-additive-pose-test")

@@ -80,7 +80,7 @@ foreach ($doc in 'LICENSE', 'EXCEPTIONS', 'THIRD_PARTY.md') {
 # OSF Settings loads this schema at startup; never package player values.
 $schemasDst = "$core\SFSE\Plugins\OSF\Settings\schemas"
 New-Item -ItemType Directory -Force -Path $schemasDst | Out-Null
-Copy-Item "$dist\SFSE\Plugins\OSF\Settings\schemas\osf.animation.json" $schemasDst
+Copy-Item "$dist\SFSE\Plugins\OSF\Settings\schemas\osf.animation.engine.json" $schemasDst
 New-Item -ItemType Directory -Force -Path "$core\OSF" | Out-Null
 
 # System scenes: "solo" backs OSF.Health, "pair" is the smoke test. Always shipped.
@@ -97,7 +97,7 @@ $required = @(
     'Core\SFSE\Plugins\OSF Animation.dll',
     'Core\Scripts\OSF.pex', 'Core\Scripts\OSFTypes.pex', 'Core\Scripts\OSFAdvanced.pex',
     'Core\Scripts\Source\OSF.psc', 'Core\Scripts\Source\OSFTypes.psc', 'Core\Scripts\Source\OSFAdvanced.psc',
-    'Core\SFSE\Plugins\OSF\Settings\schemas\osf.animation.json',
+    'Core\SFSE\Plugins\OSF\Settings\schemas\osf.animation.engine.json',
     'Core\SFSE\Plugins\OSF Animation\LICENSE',      # GPL-3.0 text (required to distribute)
     'Core\SFSE\Plugins\OSF Animation\EXCEPTIONS',   # GPL 7 modding/linking exception
     'Core\OSF\internal.osf.json',

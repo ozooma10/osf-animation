@@ -1,6 +1,7 @@
 #include "API/CatalogBuilder.h"
 #include "Registry/ContentRegistry.h"
 #include "Serialization/ClipDurations.h"
+#include <unordered_set>
 
 namespace OSF::API::CatalogBuilder
 {
@@ -27,6 +28,7 @@ namespace OSF::API::CatalogBuilder
 				const auto& first = source.clips.front();
 				stage.loopSec = first.sec > 0 ? first.sec :
 					Serialization::ClipDurations::Lookup(first.file, first.animId).value_or(-1.0f);
+				if (first.sec <= 0 && !first.file.empty()) stage.durationKey = Serialization::ClipDurations::KeyFor(first.file, first.animId);
 			}
 			return stage;
 		}
@@ -121,7 +123,16 @@ namespace OSF::API::CatalogBuilder
 	{
 		Catalog::Snapshot out;
 		out.scenes.reserve(a_registry.scenes.size());
-		for (const auto& [id, def] : a_registry.scenes) out.scenes.push_back(BuildScene(def, a_contentRoot));
+		std::unordered_set<std::string> seen;
+		for (const auto& [id, def] : a_registry.scenes) {
+			out.scenes.push_back(BuildScene(def, a_contentRoot));
+			if (!def.clipsAvailable) continue;
+			for (const auto& node : def.nodes) for (const auto& stage : node.stages) for (const auto& clip : stage.clips) {
+				if (clip.file.empty() || clip.sec > 0) continue;
+				auto key = Serialization::ClipDurations::KeyFor(clip.file, clip.animId);
+				if (seen.insert(key).second) out.clips.push_back({std::move(key), clip.file, clip.animId});
+			}
+		}
 		out.files.reserve(a_registry.files.size());
 		for (const auto& file : a_registry.files) out.files.push_back(BuildFile(file));
 		out.errors = a_registry.loadErrors;

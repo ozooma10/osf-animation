@@ -4,10 +4,14 @@
 #include "API/BrowserSessionQueue.h"
 #include "API/EngineServiceState.h"
 #include "API/BrowserForwarder.h"
+#include "API/BrowserInput.h"
+#include "API/EngineSettingsMigration.h"
+#include "API/BrowserSettingsMigration.h"
 #include "Serialization/WheelPins.h"
 #include <atomic>
 #include <future>
 #include <thread>
+#include <fstream>
 
 // Wheel presentation tests use isolated storage, never the player's wheel-pins.json.
 namespace OSF::Serialization::WheelPins
@@ -70,9 +74,73 @@ int main()
 	api.version=kOSFEngineAPIVersion; api.size=8;
 	Check(!EngineClient::Connect(&api), "truncated table refused before use");
 	api.size=sizeof(api); api.ReadCatalog=ReadCatalog;
+	api.ReadClipDurations=[](TextCallback callback,void* context) { callback("{}",context); return true; };
 	Check(EngineClient::Connect(&api), "complete public services table accepted");
+	{
+		static std::uint32_t routing{};
+		static float dx{}, dy{}, wheel{};
+		api.SetInputRouting=[](std::uint32_t flags) { routing=flags; };
+		api.InjectOrbitDelta=[](float x,float y,float w) { dx=x; dy=y; wheel=w; };
+		BrowserInput::SetVisible(api,true);
+		Check(routing == (SuppressRawMouse | ConsumeThumbsticks | ConsumeGamepadAfterDispatch | AllowNativeFreeCamera),
+			"browser requests its input routing explicitly");
+		BrowserInput::Orbit(api,10,-20,2);
+		Check(dx == 6 && dy == -12 && wheel == 2, "addon converts logical pointer pixels, preserving wheel units");
+		BrowserInput::SetVisible(api,false);
+		Check(routing == 0, "browser hide releases its input policy");
+	}
+	{
+		using json=nlohmann::json;
+		const auto root=std::filesystem::temp_directory_path() / ("osf-settings-migration-" +
+			std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+		std::filesystem::create_directories(root);
+		const json legacy={{"formatVersion",1},{"values",{{"logLevel","trace"},{"gear.autoEquip",false},
+			{"debugNotifications",true},{"browser.afterLaunch","close"}}}};
+		std::ofstream(root / "osf.animation.json") << legacy;
+		json saved={{"logLevel","warn"}};
+		const auto persist=[&] { std::ofstream(root / "osf.animation.engine.json") << json{{"formatVersion",1},{"values",saved}}; };
+		persist();
+		int writes=0;
+		const auto write=[&](const std::string& key,const json& value) { saved[key]=value; ++writes; persist(); return true; };
+		Check(!EngineSettingsMigration::Run(root,[](const auto&,const auto&) { return false; }), "failed Settings save leaves migration retryable");
+		Check(EngineSettingsMigration::Run(root,write) && writes == 2 && saved["logLevel"] == "warn" &&
+			saved["gear.autoEquip"] == false && saved["debugNotifications"] == true && !saved.contains("browser.afterLaunch"),
+			"migration copies only engine values and preserves explicit destination settings");
+		saved.erase("gear.autoEquip"); persist(); // A later reset must remain reset.
+		Check(EngineSettingsMigration::Run(root,write) && writes == 2 && !saved.contains("gear.autoEquip"), "completed migration never reimports reset values");
+		std::ifstream source(root / "osf.animation.json");
+		Check(json::parse(source) == legacy, "migration leaves browser values and legacy storage untouched");
+		source.close();
+		std::filesystem::remove_all(root); // Unique temporary fixture created above.
+	}
 
 	EngineServiceState engine;
+	{
+		using json=nlohmann::json;
+		const auto root=std::filesystem::temp_directory_path() / ("osf-browser-settings-migration-" +
+			std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+		std::filesystem::create_directories(root);
+		const json legacy={{"formatVersion",1},{"values",{{"logLevel","trace"},{"gear.autoEquip",false},
+			{"browser.afterLaunch","close"},{"browser.authorDetails",true},{"launch.speed","1.5"},
+			{"browser.openTo","invalid"},{"browser.actorLabels","false"},{"unknown.preference",true}}}};
+		std::ofstream(root / "osf.animation.json") << legacy;
+		json saved={{"browser.afterLaunch","stay"}};
+		const auto persist=[&] { std::ofstream(root / "osf.animation.browser.json") << json{{"formatVersion",1},{"values",saved}}; };
+		persist();
+		int writes=0;
+		const auto write=[&](const std::string& key,const json& value) { saved[key]=value; ++writes; persist(); return true; };
+		Check(!BrowserSettingsMigration::Run(root,[](const auto&,const auto&) { return false; }), "failed browser preference save remains retryable");
+		Check(BrowserSettingsMigration::Run(root,write) && writes == 2 && saved == json{
+			{"browser.afterLaunch","stay"},{"browser.authorDetails",true},{"launch.speed","1.5"}},
+			"browser migration imports valid preferences only, preserving explicit destination values");
+		saved.erase("browser.authorDetails"); persist();
+		Check(BrowserSettingsMigration::Run(root,write) && writes == 2 && !saved.contains("browser.authorDetails"),
+			"completed browser migration never reimports reset values");
+		std::ifstream source(root / "osf.animation.json");
+		Check(json::parse(source) == legacy, "browser migration leaves the legacy file intact for engine migration");
+		source.close();
+		std::filesystem::remove_all(root); // Unique temporary fixture created above.
+	}
 	struct Result { int executed{}, disposed{}; } result;
 	const auto callback=[](void* p,bool execute) {
 		auto& r=*static_cast<Result*>(p); ++r.disposed; if (execute) ++r.executed;

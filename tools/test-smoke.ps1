@@ -170,6 +170,7 @@ try {
             Invoke-SmokeCommand 'xmake' @('install','-y','-o',$runtimeMod,'OSF Animation')
             # The harness accepts one private staged mod root. Include the independently built addon DLL.
             Copy-Item -LiteralPath (Join-Path $repo 'build/smoke-native/windows/x64/releasedbg/OSF Animation Browser.dll') -Destination (Join-Path $runtimeMod 'SFSE/Plugins') -Force
+            Copy-Item -LiteralPath (Join-Path $repo 'extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json') -Destination (Join-Path $runtimeMod 'SFSE/Plugins/OSF/Settings/schemas') -Force
             Copy-Item -LiteralPath (Join-Path $repo 'test/smoke/data/OSF') -Destination $runtimeMod -Recurse -Force
             Copy-Item -Path (Join-Path $fixtureMod '*') -Destination $runtimeMod -Recurse -Force
             $report.runtimeDllSha256 = (Get-FileHash -LiteralPath (Join-Path $runtimeMod 'SFSE/Plugins/OSF Animation.dll')).Hash

@@ -1,5 +1,6 @@
 #include "API/BrowserSession.h"
 #include "API/UISettings.h"
+#include "API/BrowserSettingsMigration.h"
 #include "OSFSettings.h"
 #include "OSFUI.h"
 #include "API/UIBridge.h"
@@ -16,12 +17,16 @@ namespace OSF::API
 	{
 		using json = nlohmann::json;
 		using OSFSettings::API::Status;
-		constexpr const char* kModId = "osf.animation";
+		constexpr const char* kModId = "osf.animation.browser";
+		constexpr const char* kStateNamespace = "osf.animation";
+		constexpr const char* kEngineModId = "osf.animation.engine";
 		constexpr const char* kViewId = "osf.animation/browser";
 		OSFSettings::API::Client g_settings;
 		OSFUI::API::Client g_views;
 		OSFSettings::API::Subscription g_subscription{};
+		OSFSettings::API::Subscription g_engineSubscription{};
 		std::mutex g_refreshMutex;
+		bool g_migrated{};
 
 		// Only browser preferences cross the web boundary; native settings and other mods stay private.
 		constexpr const char* kBoolPreferences[] = {
@@ -60,10 +65,23 @@ namespace OSF::API
 		{
 			// Initial reads and SFSE worker callbacks may overlap. Read after subscribing.
 			std::lock_guard lock(g_refreshMutex);
+#ifndef OSF_ANIMATION_SMOKE
+			// Private harness hosts may redirect Settings storage; never import player files there.
+			if (!g_migrated && g_settings.IsReady()) {
+				if (const auto logs = SFSE::log::log_directory()) {
+					g_migrated = BrowserSettingsMigration::Run(logs->parent_path().parent_path() / "OSF/Settings",
+						[](const std::string& key, const json& value) {
+							return (value.is_boolean() ? g_settings.SetBool(kModId, key.c_str(), value.get<bool>()) :
+								g_settings.SetEnum(kModId, key.c_str(), value.get_ref<const std::string&>().c_str())) == Status::Ok;
+						});
+					if (!g_migrated) REX::WARN("[Config] Browser settings migration incomplete; will retry without replacing saved browser values");
+				}
+			}
+#endif
 			const bool refreshAll = a_key.empty();
 			if (refreshAll || a_key == "logLevel") {
 				std::string level;
-				if (g_settings.GetEnum(kModId, "logLevel", level) == Status::Ok) SetLogLevel(level);
+				if (g_settings.GetEnum(kEngineModId, "logLevel", level) == Status::Ok) SetLogLevel(level);
 			}
 
 			const bool browserChanged = refreshAll || std::ranges::contains(kBoolPreferences, a_key) ||
@@ -79,7 +97,7 @@ namespace OSF::API
 				if (g_settings.GetEnum(kModId, key, value) == Status::Ok) values[key] = value;
 			}
 			const auto payload = values.dump();
-			if (!g_views.SetState(kModId, "settings", payload.c_str())) {
+			if (!g_views.SetState(kStateNamespace, "settings", payload.c_str())) {
 				REX::WARN("[Config] Could not publish browser preferences");
 			}
 		}
@@ -142,10 +160,13 @@ namespace OSF::API
 		}
 		const auto status = g_settings.Subscribe(kModId, &OnSetting, nullptr, &g_subscription);
 		if (status != Status::Ok) {
-			REX::ERROR("[Config] OSF Settings subscription failed (status {}); check osf.animation.json", static_cast<unsigned>(status));
+			REX::ERROR("[Config] OSF Settings subscription failed (status {}); check osf.animation.browser.json", static_cast<unsigned>(status));
 			return;
 		}
 		OnSetting(nullptr, nullptr, nullptr);
+		if (g_settings.Subscribe(kEngineModId, &OnSetting, nullptr, &g_engineSubscription) != Status::Ok) {
+			REX::WARN("[Config] Could not subscribe to engine log-level changes");
+		}
 		for (const char* id : { "openBrowser", "openWheel" }) {
 			if (g_settings.RegisterHotkey(kModId, id, &OnHotkey, nullptr) != Status::Ok) {
 				REX::ERROR("[Hotkey] Could not register '{}' with OSF Settings", id);

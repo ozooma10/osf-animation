@@ -1,4 +1,5 @@
 #include "API/EngineClient.h"
+#include "Serialization/ClipDurationCache.h"
 #include <algorithm>
 #include <cctype>
 #include <memory>
@@ -38,14 +39,21 @@ namespace OSF::API::EngineClient
 	std::string ActorGender(RE::Actor* actor) {
 		nlohmann::json result=nlohmann::json::object(); Get().ReadActorIdentity(actor,ReadJson,&result); return result.is_object() ? result.value("gender",std::string{}) : std::string{};
 	}
-	CatalogData& CatalogData::GetSingleton() { static CatalogData value; return value; }
+	CatalogData& CatalogData::GetSingleton() { static auto* value = new CatalogData(); return *value; }
 	void CatalogData::Refresh()
 	{
 		const auto revision=m_revision.load(std::memory_order_acquire);
 		if (revision == m_loadedRevision) return;
 		nlohmann::json result;
-		if (!Get().ReadCatalog(ReadJson,&result) || !result.is_object() || result.value("schema",0) != 1) return;
-		m_snapshot=result.get<Catalog::Snapshot>(); m_loadedRevision=revision;
+		if (!Get().ReadCatalog(ReadJson,&result) || !result.is_object() || result.value("schema",0) != 2) return;
+		m_snapshot=result.get<Catalog::Snapshot>();
+		Browser::ClipDurationCache::RefreshDecoded();
+		for (auto& scene : m_snapshot.scenes) for (auto& stage : scene.stages) {
+			if (!stage.durationKey.empty()) {
+				if (const auto seconds = Browser::ClipDurationCache::Lookup(stage.durationKey)) stage.loopSec = *seconds;
+			}
+		}
+		m_loadedRevision=revision;
 	}
 	const Catalog::Scene* CatalogData::Find(std::string_view id)
 	{
@@ -58,4 +66,5 @@ namespace OSF::API::EngineClient
 	const std::vector<Catalog::File>& CatalogData::FileStats() { Refresh(); return m_snapshot.files; }
 	const std::vector<std::string>& CatalogData::LoadErrors() { Refresh(); return m_snapshot.errors; }
 	std::size_t CatalogData::Size() { Refresh(); return m_snapshot.scenes.size(); }
+	std::vector<Catalog::Clip> CatalogData::Clips() { Refresh(); return m_snapshot.clips; }
 }

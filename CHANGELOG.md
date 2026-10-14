@@ -10,8 +10,15 @@ All notable changes to OSF Animation are documented here.
   inspection previews. Ordinary scenes, masked/additive playback, props, and held stages remain supported.
 
 ### Changed
+- Browser now owns duration scanning/cache persistence, pointer sensitivity/input policy, and its
+  Settings schema. Core exposes clip metadata, decoded durations, single-clip probing, and generic
+  input routing through engine services ABI 2.0; scene ABI 1.3 and web messages are unchanged.
+- Settings schemas use explicit names: `osf.animation.engine.json` and `osf.animation.browser.json`.
+  Each imports its own existing OSF Settings values once without replacing explicit destination
+  values. Browser hotkeys need rebinding after the ID change; wheel pins and view IDs are unchanged.
+  Upgrade by replacing the old engine/browser mods and installing matching files.
 - Updated to the OSF UI 2.0 and OSF Settings 1.0 native APIs. OSF Settings now owns
-  Animation's settings, hotkeys, Mod Issues, and browser launcher. Legacy values and bindings
+  Animation's settings, hotkeys, Mod Issues, and browser launcher. Legacy combined OSF UI values and bindings
   are not migrated; both hotkeys start unbound.
 - Replaced the retired UI authoring CLI with a local Vite/Octane build and moved packaged
   views to `SFSE/Plugins/OSF/UI/views/osf.animation`. Browser preferences use Animation-owned

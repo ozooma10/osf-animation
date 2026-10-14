@@ -43,14 +43,13 @@ namespace OSF::Input
 		void DrainWheelDelta(float& a_wheel);
 		[[nodiscard]] GamepadState ReadGamepadState() const;
 
-		// While the browser cursor is up, orbit deltas accumulate only during an LMB drag.
-		// The OSF UI overlay starves this hook of keyboard/mouse (the browser uses InjectOrbitDelta); gamepad still arrives here.
-		void SetUiCursorVisible(bool a_on);
+		// Exclusive external channel, using API::InputRouting flags; zero restores normal routing.
+        void SetInputRouting(std::uint32_t flags);
 
 		// TFC reads the engine input path, so gamepad events pass through while it's active.
 		void SetNativeFreeCamGamepad(bool a_on);
 
-		// osf.orbit drag deltas in view CSS px (wheel + = zoom in); dropped when capture is off.
+		// Mouse-equivalent deltas (wheel + = zoom in); dropped when capture is off.
 		void InjectOrbitDelta(float a_dx, float a_dy, float a_wheel);
 
 		// Load teardown.

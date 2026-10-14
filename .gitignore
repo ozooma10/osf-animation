@@ -27,3 +27,4 @@ extensions/browser/ui/fixtures/live/backdrop.*
 extensions/browser/ui/fixtures/live/*.local.json
 # frontend dependencies
 extensions/browser/ui/node_modules/
+ui/animation-browser/node_modules

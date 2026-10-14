@@ -1,4 +1,6 @@
 #include "API/EngineClient.h"
+#include "API/BrowserInput.h"
+#include "Serialization/ClipDurationCache.h"
 #include "API/UIBridge.h"
 #include "API/BrowserSession.h"
 #include "API/UIBridgeCatalog.h"
@@ -914,7 +916,7 @@ namespace OSF::API
 		void OnShown()
 		{
 			g_viewVisible = true;
-			EngineClient::Get().SetInteractionCursor(true);
+			BrowserInput::SetVisible(EngineClient::Get(), true);
 			ReplayBrowser(nullptr, nullptr, kViewId, nullptr);
 			const auto* target = ResolveToken(g_openPickToken);
 			if (!g_wheel.active && (!target || !target->IsActor())) {
@@ -926,7 +928,7 @@ namespace OSF::API
 		{
 			g_viewVisible = false;
 			g_relativePointerTraceActive = false;
-			EngineClient::Get().SetInteractionCursor(false);
+			BrowserInput::SetVisible(EngineClient::Get(), false);
 			if (g_orbitHeld) EngineClient::Get().ReleaseOrbit();
 			g_orbitHeld = false;
 			g_wheel = {};
@@ -1003,7 +1005,7 @@ namespace OSF::API
 				REX::TRACE("[UI] osf.animation.orbit unavailable or after close — dropped");
 				return;
 			}
-			EngineClient::Get().InjectOrbitDelta(
+			BrowserInput::Orbit(EngineClient::Get(),
 				NumOr(p, "dx", 0.0f), NumOr(p, "dy", 0.0f), NumOr(p, "wheel", 0.0f));
 		}
 
@@ -1051,7 +1053,7 @@ namespace OSF::API
 				REX::TRACE("[UI] native relative-pointer update unavailable or after close — dropped");
 				return;
 			}
-			EngineClient::Get().InjectOrbitDelta(a_dx, a_dy, a_wheel);
+			BrowserInput::Orbit(EngineClient::Get(), a_dx, a_dy, a_wheel);
 		}
 	}
 
@@ -1194,7 +1196,7 @@ namespace OSF::API
 				} else if (event == EngineEvent::CatalogChanged || event == EngineEvent::ContentReloaded) {
 					EngineClient::CatalogData::GetSingleton().Invalidate();
 					if (event == EngineEvent::ContentReloaded) {
-						EngineClient::Post([] { EngineClient::Get().ScanDurations(); });
+						EngineClient::Post([] { Browser::ClipDurationCache::Scan(EngineClient::CatalogData::GetSingleton().Clips(), &PushCatalogUpdate); });
 					}
 					BrowserSession::Post([] { PushCatalogUpdate(); }, false);
 				} else {
@@ -1204,7 +1206,7 @@ namespace OSF::API
 		}, nullptr);
 		BrowserSession::FinishRegistration(subscription != 0);
 		if (!BrowserSession::Available()) return;
-		EngineClient::Post([] { EngineClient::Get().ScanDurations(); });
+		EngineClient::Post([] { Browser::ClipDurationCache::Scan(EngineClient::CatalogData::GetSingleton().Clips(), &PushCatalogUpdate); });
 		REX::INFO("[Feature] OSF UI connected (API {}.{}); relative pointer {}",
 			g_ui.Version() >> 16, g_ui.Version() & 0xFFFF, g_relativePointerRegistered ? "REGISTERED" : "UNAVAILABLE");
 	}

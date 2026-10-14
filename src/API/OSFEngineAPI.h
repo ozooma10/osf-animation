@@ -5,7 +5,23 @@
 
 namespace OSF::API
 {
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00010000;
+	// Services 2.0 replaces the unreleased browser-oriented 1.0 table. Scene ABI 1.3 is unchanged.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00020000;
+
+	enum class ClipProbeStatus : std::uint32_t { Missing, Unchanged, Available, Unprobeable };
+	struct ClipProbeResult
+	{
+		std::uint32_t size{sizeof(ClipProbeResult)};
+		ClipProbeStatus status{ClipProbeStatus::Missing};
+		float seconds{-1};
+		std::uint64_t bytes{};
+		std::int64_t modified{};
+	};
+	// Exclusive external input channel. Zero restores normal scene input routing.
+	enum InputRouting : std::uint32_t {
+		SuppressRawMouse = 1, ConsumeThumbsticks = 2, ConsumeGamepadAfterDispatch = 4,
+		AllowNativeFreeCamera = 8
+	};
 	enum class EngineEvent : std::uint32_t { WorldReset = 1, CatalogChanged = 2, ScenesChanged = 4, ContentReloaded = 8 };
 	using EngineCallback = void (*)(EngineEvent, void*);
 	using TextCallback = void (*)(const char*, void*);
@@ -27,12 +43,15 @@ namespace OSF::API
 		// Unsubscribe waits for callbacks on other threads; self-unsubscribe is allowed.
 		std::uint64_t (*Subscribe)(EngineCallback, void*);
 		bool (*Unsubscribe)(std::uint64_t);
-		// All remaining functions require the game thread (normally via Post).
-		// Game thread. JSON schema 1, defined by OSFCatalog.h.
+		// Unless marked any-thread, the remaining functions require the game thread (normally via Post).
+		// Game thread. JSON schema 2, defined by OSFCatalog.h.
 		// Catalog includes diagnostics/load errors. Callback runs once, inline, on success.
 		bool (*ReadCatalog)(TextCallback, void*);
-		// Starts the optional duration scan. No scan occurs merely because the engine is installed.
-		void (*ScanDurations)();
+		// Any thread. Memory-only decoded duration snapshot (OSFCatalog.h); caller copies inline.
+		bool (*ReadClipDurations)(TextCallback, void*);
+		// Any thread; synchronous, potentially slow IO. Call from a consumer-owned worker.
+		// Optional previous source identity avoids decoding an unchanged file. No cache writes or workers.
+		bool (*ProbeClipDuration)(const char*, const char*, const ClipProbeResult*, ClipProbeResult*);
 		std::int32_t (*ReloadContent)();
 		// Game thread. JSON array of accepting scene IDs; cast is positional role order.
 		bool (*MatchCast)(RE::Actor* const*, std::uint32_t, TextCallback, void*);
@@ -51,7 +70,8 @@ namespace OSF::API
 		void (*ReleaseOrbit)();
 		bool (*ReadOrbitPose)(float* position3, float* forward3);
 		void (*KickToThirdPerson)();
-		void (*SetInteractionCursor)(bool);
+		void (*SetInputRouting)(std::uint32_t);
+		// Raw mouse-equivalent units and wheel notches. Consumers convert their own pointer units.
 		void (*InjectOrbitDelta)(float, float, float);
 	};
 	inline const OSFEngineAPI* RequestEngineAPI(std::uint32_t version = kOSFEngineAPIVersion) noexcept

@@ -1,46 +1,45 @@
 #include "Serialization/ClipDurations.h"
-#include "Serialization/ClipDurationState.h"
 #include "Util/ClipPath.h"
 #include "Util/StringUtil.h"
 
 namespace OSF::Serialization::ClipDurations
 {
-	namespace Detail
+	namespace
 	{
+		struct State
+		{
+			std::mutex                lock;
+			Catalog::DecodedDurations entries;
+			std::uint64_t             revision{};
+		};
 		State& GetState()
 		{
-			// Process lifetime: the optional catalog worker may still be running during CRT teardown.
 			static auto* state = new State();
 			return *state;
 		}
-
-		std::string KeyFor(std::string_view a_fileSpec, std::string_view a_animId)
-		{
-			return Util::ToLower(Util::ClipSpecDisplay(std::filesystem::path{ std::string{ a_fileSpec } })) +
-			       '|' + std::string{ a_animId };
-		}
 	}
-
-	std::optional<float> Lookup(std::string_view a_fileSpec, std::string_view a_animId)
+	std::string          KeyFor(std::string_view file, std::string_view animId) { return Util::ToLower(Util::ClipSpecDisplay(std::filesystem::path{ std::string{ file } })) + '|' + std::string{ animId }; }
+	std::optional<float> Lookup(std::string_view file, std::string_view animId)
 	{
-		const auto key = Detail::KeyFor(a_fileSpec, a_animId);
-		auto& state = Detail::GetState();
+		const auto       key = KeyFor(file, animId);
+		auto&            state = GetState();
 		std::scoped_lock lock{ state.lock };
-		const auto it = state.entries.find(key);
+		const auto       it = state.entries.find(key);
 		return it == state.entries.end() ? std::nullopt : std::optional{ it->second.sec };
 	}
-
-	void Record(std::string_view a_fileSpec, std::string_view a_animId, float a_seconds)
+	void Record(std::string_view file, std::string_view animId, float seconds)
 	{
-		if (!Detail::PlausibleSec(a_seconds)) return;
-		const auto key = Detail::KeyFor(a_fileSpec, a_animId);
-		auto& state = Detail::GetState();
+		if (!std::isfinite(seconds) || seconds <= 0 || seconds > 3600)
+			return;
+		const auto       key = KeyFor(file, animId);
+		auto&            state = GetState();
 		std::scoped_lock lock{ state.lock };
-		auto& entry = state.entries[key];
-		entry.decodedRevision = ++state.decodedRevision;
-		if (entry.exact && std::abs(entry.sec - a_seconds) <= Detail::kExactConfirmTolerance) return;
-		entry.sec = a_seconds;
-		entry.exact = true;
-		++state.revision;
+		state.entries[key] = { seconds, ++state.revision };
+	}
+	Catalog::DecodedDurations Snapshot()
+	{
+		auto&            state = GetState();
+		std::scoped_lock lock{ state.lock };
+		return state.entries;
 	}
 }

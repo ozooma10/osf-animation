@@ -32,5 +32,17 @@ foreach ($file in $private) {
     if ([IO.File]::ReadAllText($file.FullName) -match '#include "(API/(BrowserSession|UIBridge)|Serialization/WheelPins|API/OSFUI)') {
         throw "Engine depends on browser integration: $($file.FullName)"
     }
+    if ([IO.File]::ReadAllText($file.FullName) -match 'clip-durations\.json|kUiDragScale|SetUiCursorVisible|ClipDurationCatalog') {
+        throw "Browser cache/input policy leaked into engine: $($file.FullName)"
+    }
+}
+$coreSchema = Get-Content (Join-Path $repo 'dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.engine.json') -Raw | ConvertFrom-Json
+$browserSchema = Get-Content (Join-Path $repo 'extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json') -Raw | ConvertFrom-Json
+$coreKeys = @($coreSchema.groups.PSObject.Properties.Value | ForEach-Object { $_.key })
+$browserKeys = @($browserSchema.groups.PSObject.Properties.Value | ForEach-Object { $_.key })
+if ($coreSchema.hotkeys -or @($coreKeys | Where-Object { $_ -like 'browser.*' -or $_ -like 'launch.*' }).Count -or
+    @($browserKeys | Where-Object { $_ -in $coreKeys }).Count -or
+    -not $browserSchema.hotkeys.openBrowser -or -not $browserSchema.hotkeys.openWheel) {
+    throw 'Engine and browser schemas must have separate settings ownership and retain browser hotkey IDs.'
 }
 Write-Host 'Browser boundary: public headers only, independent target, no engine-to-browser implementation dependency.'

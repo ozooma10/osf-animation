@@ -1,13 +1,24 @@
-// Schema-1 catalog value types. These are serialized to UTF-8 JSON, never passed across a DLL ABI.
+// Schema-2 catalog value types. These are serialized to UTF-8 JSON, never passed across a DLL ABI.
 // Parsing produces caller-owned copies; sourcePath is relative to Data/OSF. Unknown fields may be ignored.
 #pragma once
 #include <nlohmann/json.hpp>
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace OSF::Catalog
 {
+	struct Clip {
+		std::string key, file, animId;
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Clip, key, file, animId)
+	};
+	struct DecodedDuration {
+		float sec{};
+		std::uint64_t revision{};
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(DecodedDuration, sec, revision)
+	};
+	using DecodedDurations = std::map<std::string, DecodedDuration>;
 	struct Role {
 		std::string name, gender;
 		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Role, name, gender)
@@ -18,7 +29,8 @@ namespace OSF::Catalog
 		std::vector<std::string> tags;
 		float loopSec{-1}, timerSec{}, hold{-1};
 		bool resolved{};
-		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Stage, index, clipCount, loopCount, name, loopMode, tags, loopSec, timerSec, hold, resolved)
+		std::string durationKey;
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Stage, index, clipCount, loopCount, name, loopMode, tags, loopSec, timerSec, hold, resolved, durationKey)
 	};
 	struct Scene {
 		std::string id, name, species, pack, folder, sourceFile, sourcePath, sourceKind, placement;
@@ -57,10 +69,12 @@ namespace OSF::Catalog
 			species, missingClipExamples, problems)
 	};
 	struct Snapshot {
-		std::uint32_t schema{1};
+		std::uint32_t schema{2};
 		std::vector<Scene> scenes;
 		std::vector<File> files;
 		std::vector<std::string> errors;
-		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Snapshot, schema, scenes, files, errors)
+		// Unique unmeasured clip references across all nodes, including nonlinear scenes.
+		std::vector<Clip> clips;
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Snapshot, schema, scenes, files, errors, clips)
 	};
 }

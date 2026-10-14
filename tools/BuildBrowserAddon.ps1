@@ -47,6 +47,12 @@ try {
 if (-not (Test-Path -LiteralPath (Join-Path $view 'browser\manifest.json'))) {
     throw "Browser build is missing its manifest: $view"
 }
+$schema = Join-Path $repo 'build/osfui-animation-browser/SFSE/Plugins/OSF/Settings/schemas'
+New-Item -ItemType Directory -Force -Path $schema | Out-Null
+if (Test-Path -LiteralPath (Join-Path $schema 'osf.animation.json')) {
+    Remove-Item -LiteralPath (Join-Path $schema 'osf.animation.json') -Force
+}
+Copy-Item -LiteralPath (Join-Path $repo 'extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json') -Destination $schema -Force
 
 Write-ReleaseBuildReceipt $repo 'browser' $before
 if ($NoDeploy -or -not $env:XSE_SF_MODS_PATH) { return }
@@ -72,6 +78,12 @@ foreach ($folder in 'vanilla','immersion') {
     Copy-Item -LiteralPath (Join-Path $repo "dist/OSF/$folder") -Destination $content -Recurse -Force
 }
 $plugins = Join-Path $addon 'SFSE/Plugins'
+$schemaTarget = Join-Path $plugins 'OSF/Settings/schemas'
+New-Item -ItemType Directory -Force -Path $schemaTarget | Out-Null
+if (Test-Path -LiteralPath (Join-Path $schemaTarget 'osf.animation.json')) {
+    Remove-Item -LiteralPath (Join-Path $schemaTarget 'osf.animation.json') -Force
+}
+Copy-Item -LiteralPath (Join-Path $schema 'osf.animation.browser.json') -Destination $schemaTarget -Force
 foreach ($name in 'OSF Animation Browser.dll','OSF Animation Browser.pdb') {
     Copy-Item -LiteralPath (Join-Path $repo "build/windows/x64/releasedbg/$name") -Destination $plugins -Force
 }

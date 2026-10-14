@@ -38,6 +38,9 @@ $viewTarget = Join-Path $stage 'Browser\SFSE\Plugins\OSF\UI\views'
 New-Item -ItemType Directory -Force -Path $viewTarget | Out-Null
 Copy-Item -LiteralPath $view -Destination $viewTarget -Recurse
 Copy-Item -LiteralPath (Join-Path $repo 'build/windows/x64/releasedbg/OSF Animation Browser.dll') -Destination (Join-Path $stage 'Browser/SFSE/Plugins')
+$schemas = Join-Path $stage 'Browser/SFSE/Plugins/OSF/Settings/schemas'
+New-Item -ItemType Directory -Force -Path $schemas | Out-Null
+Copy-Item -LiteralPath (Join-Path $repo 'build/osfui-animation-browser/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json') -Destination $schemas
 
 $docs = Join-Path $stage 'Browser\SFSE\Plugins\OSF Animation Browser'
 New-Item -ItemType Directory -Force -Path $docs | Out-Null

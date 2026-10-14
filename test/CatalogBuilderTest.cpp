@@ -71,7 +71,7 @@ namespace
 		Registry::ContentRegistrySnapshot registry;
 		registry.scenes.emplace("demo.scene", MakeScene());
 		const auto result = Builder::Build(registry, kRoot);
-		if (!Check(result.schema == 1 && result.scenes.size() == 1, "builder preserves schema and all registered scenes")) return;
+		if (!Check(result.schema == 2 && result.scenes.size() == 1, "builder preserves schema and all registered scenes")) return;
 		const auto& scene = result.scenes.front();
 		auto metadata = json(scene);
 		metadata.erase("stages");
@@ -84,8 +84,8 @@ namespace
 			"roles":[{"name":"lead","gender":"female"},{"name":"partner","gender":"male"},{"name":"extra","gender":"any"}],
 			"anchorKeywords":[291,1110], "anchorBaseForms":[1929]
 		})");
-		Check(metadata == expected, "schema-1 scene fields preserve authored identities, flags, roles and anchors without presentation filtering");
-		const auto expectedStages = json::parse(R"([
+		Check(metadata == expected, "schema-2 scene fields preserve authored identities, flags, roles and anchors without presentation filtering");
+		auto expectedStages = json::parse(R"([
 			{"index":0,"clipCount":2,"loopCount":4,"name":"Authored duration","loopMode":"count","tags":["loop-tag"],"loopSec":2,"timerSec":13,"hold":0.25,"resolved":true},
 			{"index":1,"clipCount":1,"loopCount":0,"name":"Cached duration","loopMode":"hold","tags":[],"loopSec":4.25,"timerSec":0,"hold":-1,"resolved":true},
 			{"index":2,"clipCount":0,"loopCount":0,"name":"","loopMode":"once","tags":[],"loopSec":-1,"timerSec":5,"hold":-1,"resolved":true},
@@ -93,12 +93,23 @@ namespace
 			{"index":4,"clipCount":0,"loopCount":0,"name":"","loopMode":"","tags":[],"loopSec":-1,"timerSec":0,"hold":-1,"resolved":false},
 			{"index":5,"clipCount":0,"loopCount":0,"name":"","loopMode":"","tags":[],"loopSec":-1,"timerSec":0,"hold":-1,"resolved":false}
 		])");
+        for (auto& stage : expectedStages) stage["durationKey"] = "";
+        expectedStages[1]["durationKey"] = Serialization::ClipDurations::KeyFor("naf:builder-cached.glb", "named");
+        expectedStages[3]["durationKey"] = Serialization::ClipDurations::KeyFor("builder-unknown.glb", "");
 		Check(json(scene.stages) == expectedStages,
 			"linear stages preserve order, case-insensitive resolution, node timing, first-clip duration precedence and unresolved slots");
 		const auto owned = json(result);
 		registry.scenes.clear();
 		Serialization::ClipDurations::Record("naf:builder-cached.glb", "named", 8.0f);
 		Check(json(result) == owned, "returned catalog owns its nested scene data and duration values");
+		Check(result.clips.empty(), "unavailable scenes do not request background probes");
+		auto def=MakeScene();
+		def.clipsAvailable=true;
+		def.linearStages.clear();
+		registry.scenes.emplace("nonlinear",def);
+		registry.scenes.emplace("duplicate",def);
+		const auto nonlinear=Builder::Build(registry,kRoot);
+		Check(nonlinear.clips.size() == 2, "probe references include nonlinear nodes, deduplicate clips, and skip authored durations");
 	}
 
 	void CheckActorCountsAndPaths()
@@ -174,7 +185,7 @@ namespace
 		registry.loadErrors = { "first error", "second error" };
 		const auto result = Builder::Build(registry, kRoot);
 		if (!Check(result.files.size() == 3 && result.scenes.empty(), "files survive even when no scenes were accepted")) return;
-		Check(json(result.files.front()) == expected, "schema-1 file statistics and structured problem fields are preserved");
+		Check(json(result.files.front()) == expected, "schema-2 file statistics and structured problem fields are preserved");
 		Check(result.files[1].Rejected() && result.files[1].problems.size() == 13 &&
 			result.files[1].problems.back().message == "Problem 12", "engine export never applies the browser's diagnostic truncation");
 		Check(result.files[2].path.empty() && result.files[2].errors == 1, "cross-file diagnostics keep their empty path and ordering");
@@ -183,14 +194,14 @@ namespace
 		registry = {};
 		Check(json(result) == owned, "file diagnostics and error text are owned by the returned catalog");
 		const auto roundTrip = json::parse(owned.dump()).get<Catalog::Snapshot>();
-		Check(json(roundTrip) == owned, "the exported snapshot round-trips through the released schema-1 value types");
+		Check(json(roundTrip) == owned, "the exported snapshot round-trips through the released schema-2 value types");
 	}
 }
 
 void CheckCatalogBuilder()
 {
-	Check(json(Builder::Build({}, {})) == json::parse(R"({"schema":1,"scenes":[],"files":[],"errors":[]})"),
-		"empty registries still produce the complete schema-1 envelope");
+	Check(json(Builder::Build({}, {})) == json::parse(R"({"schema":2,"scenes":[],"files":[],"errors":[],"clips":[]})"),
+		"empty registries still produce the complete schema-2 envelope");
 	CheckScenesAndStages();
 	CheckActorCountsAndPaths();
 	CheckFileDiagnostics();

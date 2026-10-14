@@ -31,13 +31,18 @@ Key Features:
 - **SFSE** matching your game version.
 - **Address Library for SFSE Plugins**
 - **OSF Settings 1.0.0+** — owns engine settings, diagnostics, and hotkeys.
-- **OSF UI 2.0.0+ and OSF Animation Browser** — optional, together provide the in-game browser and wheel. Open **OSF Animation** in Settings' Launcher tab or bind an Animation hotkey.
+- **OSF UI 2.0.0+ and OSF Animation Browser** — optional, together provide the in-game browser and wheel. Open **OSF Animation Browser** in Settings' Launcher tab or bind an Animation hotkey.
   Playback and the native/Papyrus APIs remain available with both Browser and OSF UI absent.
   See [native addon ownership and public services](docs/BROWSER_ADDON.md).
 
 Upgrading from the combined OSF UI settings service starts with the new Settings defaults;
-old values and keybindings are not migrated. Both Animation hotkeys start unbound. The native Browser extraction preserves existing Settings values,
-hotkeys, wheel pins, scene IDs, and the view ID; it requires no additional migration.
+old values and keybindings are not migrated. Both Animation hotkeys start unbound.
+Settings schemas are named `osf.animation.engine.json` and `osf.animation.browser.json`.
+Existing OSF Settings values under `osf.animation` are imported once into the corresponding new IDs;
+explicit destination values win. Rebind the two browser hotkeys after the ID change. Wheel pins,
+scene IDs, and view ID are unchanged. Replace the old engine/browser mods when upgrading to remove
+the obsolete combined schema, and install matching
+engine/browser builds (engine services ABI 2.0).
 
 ### Build (to compile from source)
 

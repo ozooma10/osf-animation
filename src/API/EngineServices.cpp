@@ -10,7 +10,8 @@
 #include "Registry/ContentRegistry.h"
 #include "Scene/AnchorResolve.h"
 #include "Scene/SceneRuntime.h"
-#include "Serialization/ClipDurationCatalog.h"
+#include "Serialization/ClipDurationProbe.h"
+#include "Serialization/ClipDurations.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "Util/Species.h"
 
@@ -84,7 +85,18 @@ namespace OSF::API::EngineServices
 				return Send(scenes,callback,context);
 			} catch (...) { return false; }
 		}
-		void ScanDurations() { Serialization::ClipDurationCatalog::ScanSceneClipsAsync(&CatalogChanged); }
+		bool ReadClipDurations(TextCallback callback, void* context)
+		{
+			try { return Send(Serialization::ClipDurations::Snapshot(), callback, context); }
+			catch (...) { return false; }
+		}
+		bool ProbeClipDuration(const char* file, const char* animId, const ClipProbeResult* previous, ClipProbeResult* result)
+		{
+			if (!file || !*file || !result || result->size < sizeof(ClipProbeResult) ||
+				(previous && previous->size < sizeof(ClipProbeResult))) return false;
+			try { *result = Serialization::ClipDurationProbe::Probe(file, animId ? animId : "", previous); return true; }
+			catch (...) { return false; }
+		}
 		const OSFEngineAPI g_api{
 			sizeof(OSFEngineAPI), kOSFEngineAPIVersion,
 			[](FrameCallback callback, void* context) -> bool {
@@ -95,7 +107,7 @@ namespace OSF::API::EngineServices
 				try { return g_state.Subscribe([=](std::uint32_t event) { callback(static_cast<EngineEvent>(event),context); }); } catch (...) { return 0; }
 			},
 			[](std::uint64_t token) { return g_state.Unsubscribe(token); },
-			&ReadCatalog, &ScanDurations, &Content::ReloadAll, &MatchCast, &MatchAnchor, &ReadActiveScenes,
+			&ReadCatalog, &ReadClipDurations, &ProbeClipDuration, &Content::ReloadAll, &MatchCast, &MatchAnchor, &ReadActiveScenes,
 			[](std::int32_t handle) { auto& rt = Scene::SceneRuntime::GetSingleton(); if (rt.GetParticipants(handle).empty()) return false; rt.SetSingleStage(handle); return true; },
 			[](std::int32_t handle, float speed) {
 				if (!std::isfinite(speed) || speed < 0) return false;
@@ -129,7 +141,7 @@ namespace OSF::API::EngineServices
 				std::copy_n(p,3,position); std::copy_n(f,3,forward); return true;
 			},
 			[] { Camera::CameraService::GetSingleton().KickToThirdPerson(); },
-			[](bool visible) { Input::InputService::GetSingleton().SetUiCursorVisible(visible); },
+			[](std::uint32_t flags) { Input::InputService::GetSingleton().SetInputRouting(flags); },
 			[](float dx,float dy,float wheel) { if (std::isfinite(dx) && std::isfinite(dy) && std::isfinite(wheel)) Input::InputService::GetSingleton().InjectOrbitDelta(dx,dy,wheel); }
 		};
 	}

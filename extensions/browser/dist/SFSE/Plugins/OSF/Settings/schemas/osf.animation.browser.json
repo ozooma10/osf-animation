@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "title": "OSF Animation",
-  "description": "Scene framework — browser, animation wheel, and scene hotkeys.",
+  "title": "OSF Animation Browser",
+  "description": "Optional animation browser, wheel, and launch preferences.",
   "groups": {
     "Browser - Behavior": [
       {
@@ -141,38 +141,6 @@
         },
         "label": "Playback speed",
         "hint": "Default clock multiplier for browser launches."
-      }
-    ],
-    "Scenes - Scene gear": [
-      {
-        "key": "gear.autoEquip",
-        "type": "bool",
-        "default": true,
-        "label": "Auto-equip scene gear",
-        "hint": "Equip registered gear (belts, props, etc...) carried by scene participants for the scene's duration. Register items via *.osfgear.json files."
-      }
-    ],
-    "Advanced - Diagnostics": [
-      {
-        "key": "debugNotifications",
-        "type": "bool",
-        "default": false,
-        "label": "Stage-transition popups",
-        "hint": "Debug HUD popup on each scene stage transition."
-      },
-      {
-        "key": "logLevel",
-        "type": "enum",
-        "default": "info",
-        "options": {
-          "trace": "Trace",
-          "debug": "Debug",
-          "info": "Info",
-          "warn": "Warnings",
-          "error": "Errors"
-        },
-        "label": "Log level",
-        "hint": "OSF Animation.log verbosity."
       }
     ]
   },

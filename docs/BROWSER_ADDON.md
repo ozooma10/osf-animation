@@ -37,14 +37,15 @@ inside their respective MO2 mods. Generated browser output stays under `build/os
 ## APIs and lifetimes
 
 The released `OSFSceneAPI.h` ABI **1.3** is unchanged. Existing consumers continue requesting it and
-need neither Browser nor OSF UI. `OSF_RequestEngineAPI(0x00010000)` supplies the optional services in
+need neither Browser nor OSF UI. `OSF_RequestEngineAPI(0x00020000)` supplies the optional services in
 `src/API/OSFEngineAPI.h`. Copy it alongside `OSFSceneAPI.h`; callers using the typed JSON helpers may
-also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required.
+also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required. Services ABI **2.0** replaces the unreleased 1.0 table;
+install matching engine/addon builds. Older service requests are rejected, while scene ABI 1.3 stays intact.
 
 The new table provides:
 
 - A verified-frame `Post` callback, world-reset/catalog/reload/scene-change notifications, and unsubscribe.
-- Catalog metadata and full structured import diagnostics as schema-1 UTF-8 JSON. `OSFCatalog.h`
+- Catalog metadata and full structured import diagnostics as schema-2 UTF-8 JSON. `OSFCatalog.h`
   defines the value fields; roles expose names/genders, stages expose counts/timing, and anchors expose
   form IDs. This is metadata, not a second mutable registry. Presentation sorting, wheel filtering,
   labels, truncation, and estimates stay in the addon.
@@ -56,7 +57,8 @@ The new table provides:
 snapshot, supplies the content root, and serializes the returned value. The builder reads only that
 snapshot and in-memory durations; it does no file IO or presentation filtering. The scene registry
 suite tests the production conversion, including stage resolution, duration precedence, path fallbacks,
-rejected-file diagnostics, and ownership of the returned data. Browser boundary tests cover consumption
+rejected-file diagnostics, canonical clip keys, unmeasured clip references from every node (including
+nonlinear scenes), and ownership of the returned data. Browser boundary tests cover consumption
 and presentation separately.
 
 The engine owns the table for process lifetime. JSON pointers are borrowed **only during the inline
@@ -82,19 +84,25 @@ and world reset, so queued opens, commands, and pointer deltas cannot act on an 
 Catalog invalidation is atomic and survives hidden presentations. Reload triggers a duration scan only
 when the addon subscribed; scan completion refreshes metadata without starting another scan.
 
-Clip duration recording and lookup are memory-only. `ScanDurations` explicitly requests background
-cache loading, file probing, pruning, and persistence; playback alone never accesses the duration-cache
-file or starts a worker. Loading cached values also triggers a catalog refresh, even when all probes
-are already fresh. Disk IO and JSON serialization run outside the duration-store lock, and cached data
-cannot overwrite a value decoded during loading or probing. The existing `OSF/clip-durations.json`
-location and version-1 format are preserved. A scan saves one memory snapshot; durations recorded after
-that snapshot are persisted by the next requested scan (normally a content reload). They remain available
-to catalog reads in memory in the meantime.
+Clip duration recording and lookup are memory-only. `ReadClipDurations` returns a copied snapshot
+of decoded values and process-local revisions on any thread. `ProbeClipDuration` synchronously probes
+one clip on the caller's worker, optionally reusing a source size/mtime hint. Neither operation schedules
+work or touches the browsing cache. The core never imports cached estimates into playback data.
+
+The addon copies canonical clip references from the catalog and owns one coalescing worker in
+`Serialization/ClipDurationCache.*`. It loads/probes/prunes/saves the existing version-1
+`OSF/clip-durations.json`, merges new decoded revisions around IO, and enriches its own catalog copy.
+Authored durations still win. A newer playback decode wins over an overlapping disk load or probe.
+Records observed after a save snapshot remain pending until the next scan. Completion invalidates
+browser metadata and posts presentation refresh through the engine frame queue; canceled world posts
+cannot operate on an old world. Missing Browser means no duration-cache IO or background scanning.
 
 Successful inspection-orbit acquisitions are reference counted and must be released once. WorldReset
 revokes all acquisitions; discard the local held flag instead of releasing an old hold into the new world.
-The interaction-cursor channel is an exclusive UI mechanism: the addon sets it on native show and clears
-it on hide/load. Core scenes retain their own camera/input ownership and restoration.
+The exclusive `SetInputRouting` channel accepts generic raw-mouse suppression and gamepad-consumption
+flags, including native-free-camera passthrough. Browser chooses these flags on native show and clears
+them on hide/load. The addon converts UI logical pixels into mouse-equivalent orbit deltas; the engine
+has no browser cursor state, LMB gesture policy, or CSS-pixel scale. Core scenes retain their own camera/input ownership and restoration.
 
 ## Optional installation and compatibility
 
@@ -105,13 +113,30 @@ OSF UI is an inactive, supported configuration. An installed incompatible UI or 
 produce addon-owned diagnostics. The engine never registers views/hotkeys or scans browser durations
 merely because it is installed. The addon binds at PostPostDataLoad regardless of DLL enumeration order.
 
-Storage compatibility is intentional: the shared Settings schema remains `osf.animation.json` in the
-engine package, and both DLLs subscribe to `osf.animation`. Core applies only diagnostics and gear;
-Browser applies `browser.*`/`launch.*` and registers `openBrowser`/`openWheel`. Keeping the schema and
-IDs avoids losing values or hotkey bindings when the addon is removed/reinstalled. There is no migration
-or second schema overriding the same ID. Browser log verbosity follows the existing `logLevel` value.
+Browser owns `extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json`,
+using Settings ID `osf.animation.browser` for preferences, launch defaults, hotkeys, and launcher ownership.
+Its `openBrowser`/`openWheel` hotkeys must be rebound once: released Settings 1.0 derives native
+ControlMap event names from the schema filename and has no binding-migration API. Core-only installation
+contains no browser settings or hotkey declarations.
+
+Core owns `osf.animation.engine.json`: `logLevel`, `debugNotifications`, and `gear.autoEquip`. On first
+normal startup it reads those three values from Settings 1.0's legacy `osf.animation.json` user-values
+file and saves them through the released Settings API, leaving the source untouched. Explicit values
+already stored for the new engine ID win. A separate `osf.animation.engine.migrated` receipt prevents
+later resets from reimporting old values; failed saves remain retryable. Private instrumented builds
+skip player-file migration. Browser subscribes to the engine's log level separately.
+
+Browser performs the same one-time import for its valid browser/launch preferences through
+`BrowserSettingsMigration`, saving to `osf.animation.browser.json` and recording
+`osf.animation.browser.migrated`. Existing destination values win; engine keys and invalid values
+are ignored. The legacy user-values file is left intact for both imports.
+
+Replace the old engine/browser installations when upgrading: neither component ships the legacy
+`osf.animation.json` schema. Ordinary XMake deployment removes that obsolete schema from both mods.
+Removing/reinstalling Browser leaves its saved values intact.
 Wheel pins remain in the existing SFSE-log-parent `OSF/wheel-pins.json`, with the same scene/stage IDs
-and absent-file versus empty-array semantics. Browser view ID and all web bridge endpoints are unchanged.
+and absent-file versus empty-array semantics. Web bridge endpoints, the `osf.animation` retained-state
+namespace, and view ID remain unchanged.
 
 ## Verification and live acceptance
 

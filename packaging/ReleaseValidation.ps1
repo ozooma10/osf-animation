@@ -24,7 +24,7 @@ function Get-ReleaseArtifacts([string]$Repository, [string]$Kind) {
         $root = 'build'
         $dll = 'windows/x64/releasedbg/OSF Animation Browser.dll'
         Assert-ProductionDll (Join-Path $Repository "$root/$dll")
-        $view = 'osfui-animation-browser/SFSE/Plugins/OSF/UI/views/osf.animation'
+        $view = 'osfui-animation-browser'
         $files = @(@{path=$dll; sha256=(Get-FileHash -LiteralPath (Join-Path $Repository "$root/$dll")).Hash}) +
             @(Get-ReleaseFileHashes (Join-Path $Repository "$root/$view") | ForEach-Object { @{path="$view/$($_.path)"; sha256=$_.sha256} })
     } else { throw "Unknown release kind: $Kind" }

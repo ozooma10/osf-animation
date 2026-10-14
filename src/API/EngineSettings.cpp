@@ -1,4 +1,5 @@
 #include "API/EngineSettings.h"
+#include "API/EngineSettingsMigration.h"
 #include "API/OSFSettings.h"
 #include "Equipment/GearRegistry.h"
 #include "UI/HudMessage.h"
@@ -12,10 +13,11 @@ namespace OSF::API
 	namespace
 	{
 		using OSFSettings::API::Status;
-		constexpr const char* kModId = "osf.animation";
+		constexpr const char* kModId = "osf.animation.engine";
 		OSFSettings::API::Client g_settings;
 		OSFSettings::API::Subscription g_subscription{};
 		std::mutex g_refreshMutex;
+		bool g_migrated{};
 
 		void SetLogLevel(std::string_view a_level)
 		{
@@ -46,6 +48,19 @@ namespace OSF::API
 			// Initial reads and SFSE worker callbacks may overlap. Read after subscribing.
 			std::lock_guard lock(g_refreshMutex);
 			const bool refreshAll = a_key.empty();
+#ifndef OSF_ANIMATION_SMOKE
+			// Private harness hosts may redirect Settings storage; never migrate player files in that build.
+			if (!g_migrated && g_settings.IsReady()) {
+				if (const auto logs = SFSE::log::log_directory()) {
+					g_migrated = EngineSettingsMigration::Run(logs->parent_path().parent_path() / "OSF/Settings",
+						[](const std::string& key, const nlohmann::json& value) {
+							return (value.is_boolean() ? g_settings.SetBool(kModId, key.c_str(), value.get<bool>()) :
+								g_settings.SetEnum(kModId, key.c_str(), value.get_ref<const std::string&>().c_str())) == Status::Ok;
+						});
+					if (!g_migrated) REX::WARN("[Config] Engine settings migration incomplete; will retry without replacing saved engine values");
+				}
+			}
+#endif
 			if (refreshAll || a_key == "logLevel") {
 				std::string level;
 				if (g_settings.GetEnum(kModId, "logLevel", level) == Status::Ok) SetLogLevel(level);
@@ -78,7 +93,7 @@ namespace OSF::API
 		}
 		const auto status = g_settings.Subscribe(kModId, &OnSetting, nullptr, &g_subscription);
 		if (status != Status::Ok) {
-			REX::ERROR("[Config] OSF Settings subscription failed (status {}); check osf.animation.json", static_cast<unsigned>(status));
+			REX::ERROR("[Config] OSF Settings subscription failed (status {}); check osf.animation.engine.json", static_cast<unsigned>(status));
 			return;
 		}
 		OnSetting(nullptr, nullptr, nullptr);

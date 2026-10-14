@@ -28,6 +28,7 @@ namespace OSF::API::EngineClient
 		const std::vector<Catalog::File>& FileStats();
 		const std::vector<std::string>& LoadErrors();
 		std::size_t Size();
+		std::vector<Catalog::Clip> Clips();
 	private:
 		void Refresh();
 		std::atomic<std::uint64_t> m_revision{1};

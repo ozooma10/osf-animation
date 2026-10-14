@@ -66,11 +66,11 @@ Each entry: **system** (`path`) — role.
 - **Ba2** (`src/Util/Ba2.*`) — minimal Starfield BA2 "GNRL" reader (header + records + name table,
   zlib); pulls one file (the human `skeleton.rig`) out of the base archives so OSF ships no vanilla
   asset. Ported from glb2af `ba2extract.py`; texture (DX10) archives skipped.
-- **Clip durations** (`src/Serialization/ClipDurations.*`, `ClipDurationCatalog.*`) — playback records
-  decoded durations in memory only. Explicit catalog scans load/probe/prune and persist snapshots on
-  a background worker; no cache IO or background work occurs from recording or lookup. Records made
-  after a save snapshot remain pending until the next requested scan. The cache path/format and engine
-  services ABI are unchanged.
+- **Clip durations** (`src/Serialization/ClipDurations.*`, `ClipDurationProbe.*`) — playback records
+  decoded durations in memory only. The public services API exposes a memory snapshot and synchronous
+  single-clip probing without registry traversal, workers, or cache IO. The optional Browser addon owns
+  `extensions/browser/src/Serialization/ClipDurationCache.*`: scan scheduling/coalescing, pruning,
+  and version-1 `OSF/clip-durations.json` persistence. It never writes cached values into the engine.
 - **Graph** (`src/Animation/Graph.*`) — per-actor sampler/stamper across two hooks: `Sample()`
   (advances time/stage, keeps rig binding warm) + `StampPose()` (samples ozz pose ONCE/frame, writes
   engine flat rig buffers, NiTransform ROW layout — do NOT transpose).
@@ -151,7 +151,7 @@ Each entry: **system** (`path`) — role.
 ### Layer-C - services 
 - **Browser addon** (`extensions/browser/src/API/BrowserSession.*`, `BrowserSessionQueue.h`) — separate optional
   `OSF Animation Browser.dll`, built without private engine implementation. It consumes scene ABI 1.3
-  and engine services ABI 1.0 (`src/API/OSFEngineAPI.h`). Owns browser/wheel presentation, picking, pins,
+  and engine services ABI 2.0 (`src/API/OSFEngineAPI.h`). Owns browser/wheel presentation, picking, pins,
   preferences and hotkeys; see `docs/BROWSER_ADDON.md`. It is an
   OSF UI consumer. Native shown/hidden callbacks own browser lifetime; copied commands and
   pointer input drain on the frame queue with a generation check. Hide/world replacement
@@ -161,7 +161,9 @@ Each entry: **system** (`path`) — role.
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no
   user-settings feature toggle; user settings (hotkeys, `logLevel`, HUD toggles) live in OSF Settings's
-  in-game menu (`src/API/EngineSettings.cpp` subscribes to the shipped schema; the old
+  in-game menu (`src/API/EngineSettings.cpp` subscribes to `osf.animation.engine`; Browser owns the
+  `osf.animation.browser` schema and hotkeys. Each imports its own legacy `osf.animation` values once;
+  the browser hotkeys need rebinding after the ID change. The old
   `Data/OSF/settings.json` is no longer read).
 
 ## Logging

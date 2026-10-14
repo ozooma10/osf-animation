@@ -286,7 +286,7 @@ namespace OSF::Testing::AnimationSmoke
 			OSFSettings::API::Diagnostics::Client diagnostics;
 			std::string level;
 			if (!Check("integration.settings", settings.Init() && settings.IsReady() &&
-				settings.GetEnum("osf.animation", "logLevel", level) == OSFSettings::API::Status::Ok &&
+				settings.GetEnum("osf.animation.engine", "logLevel", level) == OSFSettings::API::Status::Ok &&
 				diagnostics.Init() && diagnostics.Report({ .modId = "osf.animation", .id = "smoke.integration",
 					.title = "EXPECTED TEST: Animation diagnostics", .impact = "Transient API acceptance probe" }) == OSFSettings::API::Status::Ok &&
 				diagnostics.Clear("osf.animation", "smoke.integration") == OSFSettings::API::Status::Ok,

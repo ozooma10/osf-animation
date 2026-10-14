@@ -8,7 +8,7 @@
   "pausesGame": false,
   "transparent": true,
   "launcher": {
-    "modId": "osf.animation",
-    "modTitle": "OSF Animation"
+    "modId": "osf.animation.browser",
+    "modTitle": "OSF Animation Browser"
   }
 }
