@@ -16,7 +16,7 @@
   },
   "files": [
     {
-      "path": "src/API/OSFUI.h",
+      "path": "extensions/browser/sdk/OSFUI.h",
       "source": "osf-ui",
       "sourcePath": "sdk/OSFUI.h",
       "sha256": "4bbd0be6f12ec7fa0e79aa9238645b0f3bc3fd8e10e5054c8a6712af2f025c10"

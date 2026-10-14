@@ -156,12 +156,15 @@ it. A clip-only file needs no dummy scene or `id`:
 - Use folders for hierarchy and `tags` only for optional cross-cutting facets that may span folders.
   The pack already identifies the source mod, and `scene.clip` already identifies a raw clip.
 - A curated animation appears even when no scene references it, and it appears for every player —
-  unlike the entries OSF derives automatically from a scene's stages, which stay behind the
+  unlike the entries the optional Browser addon derives from a scene's stages, which stay behind the
   browser's **Show author details** switch because they are a raw-clip inspection surface. The two share
   an id namespace. The catalog identifies an explicit registration with
   `sourceKind:"curatedAnimation"` and an automatic entry with
   `sourceKind:"derivedDebugAnimation"`; legacy consumers also receive `curated:true` or `false`.
-  A pack that ships nothing but a `clipLibrary` is normal, complete content.
+  A pack that ships nothing but a `clipLibrary` is normal, complete content and works without Browser.
+  Automatic inspection entries exist only with Browser installed; their generation and playback
+  defaults belong to the addon. Core exposes generic clip-scene registration so these entries can
+  still be started by ID through the ordinary native/Papyrus APIs after addon initialization.
 - When a scene in the same catalog group (the declared content pack, or the source content file when
   no `pack` is declared) references the same file + animation id, OSF creates one
   curated animation and the explicit registration's `name`/`folder`/`tags` win over derived metadata.

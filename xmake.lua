@@ -45,6 +45,7 @@ target("OSF Animation")
     add_files("src/**.cpp")
     if has_config("animation_smoke") then
         add_defines("OSF_ANIMATION_SMOKE")
+        add_includedirs("extensions/browser/sdk")
     else
         remove_files("src/Testing/AnimationSmoke.cpp")
     end
@@ -93,6 +94,7 @@ target("osf-browser-boundary-test")
     add_packages("nlohmann_json")
     add_files("test/BrowserBoundaryTest.cpp", "src/Util/NativeMainThreadQueue.cpp",
               "extensions/browser/src/API/EngineClient.cpp", "extensions/browser/src/API/UIBridgeCatalog.cpp",
+              "extensions/browser/src/API/BrowserClipLibrary.cpp", "test/BrowserClipLibraryTest.cpp",
               "extensions/browser/src/Serialization/ClipDurationCache.cpp")
     add_includedirs("extensions/browser/src", "src", "src/API")
     set_pcxxheader("extensions/browser/src/pch.h")
@@ -175,9 +177,9 @@ target("osf-scene-registry-test")
     add_tests("default")
     add_deps("commonlibsf")
     add_packages("nlohmann_json", "ozz-animation")
-    add_files("src/Animation/Scene.cpp", "src/Registry/ContentRegistry.cpp", "src/Registry/ContentRegistryClips.cpp",
+    add_files("src/Animation/Scene.cpp", "src/Registry/ContentRegistry.cpp", "src/Registry/ContentRegistryClips.cpp", "src/Registry/ContentProviders.cpp",
               "src/Util/ClipPath.cpp", "src/Util/Species.cpp", "src/API/CatalogBuilder.cpp",
-              "src/Serialization/ClipDurations.cpp", "test/ContentRegistryTest.cpp", "test/CatalogBuilderTest.cpp")
+              "src/Serialization/ClipDurations.cpp", "test/ContentRegistryTest.cpp", "test/CatalogBuilderTest.cpp", "test/ContentProvidersTest.cpp")
     add_includedirs("src")
     set_pcxxheader("src/pch.h")
     set_rundir("test/fixtures")

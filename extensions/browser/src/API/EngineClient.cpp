@@ -1,4 +1,5 @@
 #include "API/EngineClient.h"
+#include "API/BrowserClipLibrary.h"
 #include "Serialization/ClipDurationCache.h"
 #include <algorithm>
 #include <cctype>
@@ -45,8 +46,9 @@ namespace OSF::API::EngineClient
 		const auto revision=m_revision.load(std::memory_order_acquire);
 		if (revision == m_loadedRevision) return;
 		nlohmann::json result;
-		if (!Get().ReadCatalog(ReadJson,&result) || !result.is_object() || result.value("schema",0) != 2) return;
+		if (!Get().ReadCatalog(ReadJson,&result) || !result.is_object() || result.value("schema",0) != 3) return;
 		m_snapshot=result.get<Catalog::Snapshot>();
+		BrowserClipLibrary::Decorate(m_snapshot);
 		Browser::ClipDurationCache::RefreshDecoded();
 		for (auto& scene : m_snapshot.scenes) for (auto& stage : scene.stages) {
 			if (!stage.durationKey.empty()) {

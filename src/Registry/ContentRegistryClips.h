@@ -50,7 +50,7 @@ namespace OSF::Registry::ContentRegistryClips
 	bool ClipSpecInstalled(const std::string& a_spec);
 	void SweepClipAvailability(std::unordered_map<std::string, SceneDef>& a_scenes,
 		ProblemSink& a_problems, ClipInstalledCache& a_cache);
-	std::size_t AddSceneClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
+	std::size_t AddRegisteredClipEntries(std::unordered_map<std::string, SceneDef>& a_scenes,
 		const std::vector<ClipLibraryRegistration>& a_registrations, ProblemSink& a_problems,
 		std::map<std::string, std::uint32_t>& a_addedByFile);
 	void AccumulateFileStats(const std::unordered_map<std::string, SceneDef>& a_scenes,

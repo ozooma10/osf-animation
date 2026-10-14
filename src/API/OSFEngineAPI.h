@@ -5,8 +5,8 @@
 
 namespace OSF::API
 {
-	// Services 2.0 replaces the unreleased browser-oriented 1.0 table. Scene ABI 1.3 is unchanged.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00020000;
+	// Services 3.0 adds content providers and general placement operations. Scene ABI 1.3 is unchanged.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030000;
 
 	enum class ClipProbeStatus : std::uint32_t { Missing, Unchanged, Available, Unprobeable };
 	struct ClipProbeResult
@@ -25,6 +25,9 @@ namespace OSF::API
 	enum class EngineEvent : std::uint32_t { WorldReset = 1, CatalogChanged = 2, ScenesChanged = 4, ContentReloaded = 8 };
 	using EngineCallback = void (*)(EngineEvent, void*);
 	using TextCallback = void (*)(const char*, void*);
+	// Receives the immutable base catalog (schema 3), excluding all provider scenes.
+	// Emit exactly one JSON array of OSFClipScene.h records, synchronously. No registry/API reentry.
+	using ClipSceneProvider = void (*)(const char*, TextCallback emit, void* emitContext, void* context);
 	// Invoked exactly once for an accepted post at a later verified frame drain. execute=false means
 	// world replacement canceled the command: release context only, without touching game objects.
 	using FrameCallback = void (*)(void* context, bool execute);
@@ -44,7 +47,7 @@ namespace OSF::API
 		std::uint64_t (*Subscribe)(EngineCallback, void*);
 		bool (*Unsubscribe)(std::uint64_t);
 		// Unless marked any-thread, the remaining functions require the game thread (normally via Post).
-		// Game thread. JSON schema 2, defined by OSFCatalog.h.
+		// Game thread. JSON schema 3, defined by OSFCatalog.h.
 		// Catalog includes diagnostics/load errors. Callback runs once, inline, on success.
 		bool (*ReadCatalog)(TextCallback, void*);
 		// Any thread. Memory-only decoded duration snapshot (OSFCatalog.h); caller copies inline.
@@ -63,7 +66,9 @@ namespace OSF::API
 		float (*GetSceneSpeed)(std::int32_t); // -1 for an invalid/ended handle
 		// Game thread, borrowed UTF-8 species/gender copied through callback.
 		bool (*ReadActorIdentity)(RE::Actor*, TextCallback, void*);
-		bool (*AnchorInFrontOfView)(RE::Actor*, float, OSFStartOptions*);
+		// Game thread. World transform and optional navmesh position, each three floats in meters.
+		bool (*ReadWorldAnchor)(RE::TESObjectREFR*, float* position3, float* heading);
+		bool (*SnapWorldPosition)(RE::TESObjectREFR*, const float* position3, float* snapped3);
 		// Shared camera/input mechanisms. The consumer owns each successful orbit acquisition and
 		// must release it once; WorldReset revokes all holds. No browser lifetime is kept in the engine.
 		bool (*AcquireOrbit)(const std::uint32_t*, std::uint32_t);
@@ -73,6 +78,11 @@ namespace OSF::API
 		void (*SetInputRouting)(std::uint32_t);
 		// Raw mouse-equivalent units and wheel notches. Consumers convert their own pointer units.
 		void (*InjectOrbitDelta)(float, float, float);
+		// Game thread. A unique owner is rebuilt immediately and on each content reload. Providers
+		// also run on the reload caller's thread; remain loaded until unregistered. Existing scene refs
+		// pin their publication across replacement/removal. A malformed batch is rejected as a whole.
+		bool (*RegisterClipSceneProvider)(const char* owner, ClipSceneProvider, void*);
+		bool (*UnregisterClipSceneProvider)(const char* owner);
 	};
 	inline const OSFEngineAPI* RequestEngineAPI(std::uint32_t version = kOSFEngineAPIVersion) noexcept
 	{

@@ -1,4 +1,5 @@
 #include "API/EngineClient.h"
+#include "API/BrowserClipLibrary.h"
 #include "API/BrowserHealth.h"
 #include "API/UIBridge.h"
 #include "API/UISettings.h"
@@ -11,9 +12,10 @@ namespace
 		if (message->type != SFSE::MessagingInterface::kPostPostDataLoad) return;
 		OSF::API::Health::Connect();
 		if (!OSF::API::EngineClient::Connect()) {
-			REX::WARN("[Boot] OSF Animation engine services 2.0 unavailable; Browser is inactive");
+			REX::WARN("[Boot] OSF Animation engine services 3.0 unavailable; Browser is inactive");
 			return;
 		}
+		if (!OSF::API::BrowserClipLibrary::Install()) REX::ERROR("[Registry] Browser clip provider could not register");
 		OSF::API::InstallUIBridge();
 		OSF::API::InstallUISettings();
 	}

@@ -1,4 +1,5 @@
 #include "API/EngineClient.h"
+#include "API/BrowserPlacement.h"
 #include "API/BrowserInput.h"
 #include "Serialization/ClipDurationCache.h"
 #include "API/UIBridge.h"
@@ -515,7 +516,7 @@ namespace OSF::API
 				a_plan.furniture = options.anchorRef;
 			} else if (a_plan.locationMode == "front") {
 				// World units are meters; 3.048 m = 10 ft.
-				if (!EngineClient::Get().AnchorInFrontOfView(RE::PlayerCharacter::GetSingleton(), 3.048f, &options)) {
+				if (!BrowserPlacement::InFrontOfView(RE::PlayerCharacter::GetSingleton(), 3.048f, options)) {
 					return "The player is not available for front-of-player placement";
 				}
 			} else if (a_plan.locationMode != "cast") {

@@ -1,4 +1,6 @@
 #include "Check.h"
+#include "Util/KeywordLabel.h"
+void RunBrowserClipLibraryTests();
 #include "API/EngineClient.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/BrowserSessionQueue.h"
@@ -39,6 +41,13 @@ int main()
 {
 	using OSF::Test::Check;
 	using namespace OSF::API;
+	RunBrowserClipLibraryTests();
+	{
+		Check(OSF::Util::AnimationKeywordLabel("AnimFurnChairScrappy") == "Chair Scrappy",
+			"animation keyword prefix and CamelCase are humanized");
+		Check(OSF::Util::AnimationKeywordLabel("AnimHVACUnit") == "HVAC Unit",
+			"animation keyword acronym boundary is preserved");
+	}
 	namespace Queue=OSF::Util::NativeMainThreadQueue;
 	{
 		OSF::API::BrowserSessionQueue session([](std::function<void()> task) { OSF::Util::NativeMainThreadQueue::Post(std::move(task)); });

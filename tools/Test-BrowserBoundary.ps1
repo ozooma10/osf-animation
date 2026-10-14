@@ -3,7 +3,7 @@
 param()
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$public = @('OSFSceneAPI.h','OSFEngineAPI.h','OSFCatalog.h','OSFUI.h','OSFSettings.h','OSFSettings_Diagnostics.h')
+$public = @('OSFSceneAPI.h','OSFEngineAPI.h','OSFCatalog.h','OSFClipScene.h','OSFUI.h','OSFSettings.h','OSFSettings_Diagnostics.h')
 $source = Join-Path $repo 'extensions/browser/src'
 foreach ($file in Get-ChildItem -LiteralPath $source -Recurse -File | Where-Object Extension -in '.cpp','.h') {
     foreach ($match in [regex]::Matches([IO.File]::ReadAllText($file.FullName), '(?m)^\s*#\s*include\s*"([^"]+)"')) {
@@ -29,10 +29,10 @@ if ($core -match 'add_files\([^\r\n]*extensions/') { throw 'Browser implementati
 $private = @(Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Recurse -File |
     Where-Object { $_.Extension -in '.cpp','.h' -and $_.FullName -notlike '*\Testing\*' -and $_.Name -notin @('OSFUI.h','BrowserForwarder.h') })
 foreach ($file in $private) {
-    if ([IO.File]::ReadAllText($file.FullName) -match '#include "(API/(BrowserSession|UIBridge)|Serialization/WheelPins|API/OSFUI)') {
+    if ([IO.File]::ReadAllText($file.FullName) -match '#include "(API/(BrowserSession|UIBridge)|Serialization/WheelPins|(?:API/)?OSFUI|Util/KeywordLabel)') {
         throw "Engine depends on browser integration: $($file.FullName)"
     }
-    if ([IO.File]::ReadAllText($file.FullName) -match 'clip-durations\.json|kUiDragScale|SetUiCursorVisible|ClipDurationCatalog') {
+    if ([IO.File]::ReadAllText($file.FullName) -match 'clip-durations\.json|kUiDragScale|SetUiCursorVisible|ClipDurationCatalog|player\.emote\.|derivedDebugAnimation|MakeAnchorInFrontOfView') {
         throw "Browser cache/input policy leaked into engine: $($file.FullName)"
     }
 }

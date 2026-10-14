@@ -2,7 +2,7 @@
 
 The repository builds two independently linked SFSE plugins. `src/` builds **OSF Animation.dll**;
 `extensions/browser/src/` builds **OSF Animation Browser.dll**. The addon includes the released companion SDKs
-and Animation's public API headers, with two pure string helpers under `shared/`. It never compiles
+and Animation's public API headers, with general string helpers under `shared/`. It never compiles
 or links private engine implementations. `tools/Test-BrowserBoundary.ps1` checks that boundary.
 
 The engine owns animation graphs, clocks, scene runtime, registries and validation, matchmaking,
@@ -20,6 +20,8 @@ web source, tests, and installer definitions it needs:
 src/                              Core engine
 extensions/browser/
   src/                            Native browser and wheel
+  sdk/                            Pinned OSF UI native SDK
+  tools/                          Browser fixture snapshot generators
   ui/                             Web app, fixtures, and browser tests
   packaging/fomod/                Browser installer definitions
   xmake.lua                       Browser DLL target
@@ -37,21 +39,24 @@ inside their respective MO2 mods. Generated browser output stays under `build/os
 ## APIs and lifetimes
 
 The released `OSFSceneAPI.h` ABI **1.3** is unchanged. Existing consumers continue requesting it and
-need neither Browser nor OSF UI. `OSF_RequestEngineAPI(0x00020000)` supplies the optional services in
+need neither Browser nor OSF UI. `OSF_RequestEngineAPI(0x00030000)` supplies the optional services in
 `src/API/OSFEngineAPI.h`. Copy it alongside `OSFSceneAPI.h`; callers using the typed JSON helpers may
-also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required. Services ABI **2.0** replaces the unreleased 1.0 table;
+also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required. Services ABI **3.0** replaces the unreleased 1.0/2.0 tables;
 install matching engine/addon builds. Older service requests are rejected, while scene ABI 1.3 stays intact.
 
 The new table provides:
 
 - A verified-frame `Post` callback, world-reset/catalog/reload/scene-change notifications, and unsubscribe.
-- Catalog metadata and full structured import diagnostics as schema-2 UTF-8 JSON. `OSFCatalog.h`
+- Catalog metadata and full structured import diagnostics as schema-3 UTF-8 JSON. `OSFCatalog.h`
   defines the value fields; roles expose names/genders, stages expose counts/timing, and anchors expose
   form IDs. This is metadata, not a second mutable registry. Presentation sorting, wheel filtering,
   labels, truncation, and estimates stay in the addon.
 - Positional cast matching and anchor matching, active-scene state, single-stage playback and
   handle-based speed/pause controls. Existing scene starts/stops/advance still use scene API 1.3.
-- Actor identity, front-of-view anchor resolution, and the shared inspection camera/input mechanisms.
+- Actor identity, world-anchor/navmesh queries, and the shared inspection camera/input mechanisms.
+  Browser owns the front-of-view direction, distance, and snap-acceptance policy.
+- Native clip-scene providers: copy `OSFClipScene.h` for the JSON record definition. Providers select
+  existing inline clips and supply scene identities and playback defaults through the public API.
 
 `src/API/CatalogBuilder.*` owns the registry-to-catalog conversion. The API handler pins one registry
 snapshot, supplies the content root, and serializes the returned value. The builder reads only that
@@ -60,6 +65,24 @@ suite tests the production conversion, including stage resolution, duration prec
 rejected-file diagnostics, canonical clip keys, unmeasured clip references from every node (including
 nonlinear scenes), and ownership of the returned data. Browser boundary tests cover consumption
 and presentation separately.
+
+Browser's `BrowserClipLibrary` provider generates the automatic inspection entries formerly harvested
+by core. It retains the `osf.scene-clip/*` hash, source ordering, duplicate precedence, and collision
+suffixes, so ordinary existing wheel pins and direct-ID starts continue working while the addon is
+installed. Explicit authored `clipLibrary` registrations remain engine content. Core-only installations
+do not generate inspection entries, inspect emote tags, or choose inspection launch defaults.
+
+Providers receive schema-3 metadata for the immutable base catalog, including every inline clip's
+source scene and node/stage/clip indexes, availability, display path, and duration. They emit one JSON
+array of `ClipScene` records synchronously and must not reenter the registry or engine API. Registration
+accepts a unique owner and retains the callback until unregistration; callbacks also run on reload's
+thread. Each provider batch validates before publication: invalid references, unavailable clips,
+duplicate IDs, and collisions with authored content or earlier providers reject the whole batch.
+Registration success means the provider is installed; invalid output is logged and retried at the next
+reload. Reload rebuilds all providers from base content, and unregister removes future lookups. Existing
+runtime handles retain their pinned definitions. These scenes report `providedScene` plus their provider
+owner; Browser maps its own entries to `derivedDebugAnimation` and adds its inspection counts to the
+Imports presentation. Providers do not change the authored scene count or base import diagnostics.
 
 The engine owns the table for process lifetime. JSON pointers are borrowed **only during the inline
 callback**; the caller copies/parses them into its own allocation. No STL allocation crosses the DLL

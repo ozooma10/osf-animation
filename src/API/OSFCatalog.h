@@ -1,4 +1,4 @@
-// Schema-2 catalog value types. These are serialized to UTF-8 JSON, never passed across a DLL ABI.
+// Schema-3 catalog value types. These are serialized to UTF-8 JSON, never passed across a DLL ABI.
 // Parsing produces caller-owned copies; sourcePath is relative to Data/OSF. Unknown fields may be ignored.
 #pragma once
 #include <nlohmann/json.hpp>
@@ -9,6 +9,13 @@
 
 namespace OSF::Catalog
 {
+	struct SourceClip {
+		std::string source, file, animId, display, species;
+		std::uint32_t node{}, stage{}, clip{};
+		float seconds{};
+		bool available{};
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(SourceClip, source, file, animId, display, species, node, stage, clip, seconds, available)
+	};
 	struct Clip {
 		std::string key, file, animId;
 		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Clip, key, file, animId)
@@ -33,6 +40,7 @@ namespace OSF::Catalog
 		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Stage, index, clipCount, loopCount, name, loopMode, tags, loopSec, timerSec, hold, resolved, durationKey)
 	};
 	struct Scene {
+		std::string provider;
 		std::string id, name, species, pack, folder, sourceFile, sourcePath, sourceKind, placement;
 		std::int32_t priority{}, weight{1};
 		std::uint32_t actorCount{};
@@ -44,7 +52,7 @@ namespace OSF::Catalog
 		bool RequiresAnchor() const { return !anchorKeywords.empty() || !anchorBaseForms.empty(); }
 		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Scene, id, name, species, pack, folder, sourceFile, sourcePath, sourceKind,
 			placement, priority, weight, actorCount, unlisted, curatedClip, library, clipsAvailable,
-			playerInputLock, hideApparel, fade, tags, roles, stages, anchorKeywords, anchorBaseForms)
+			playerInputLock, hideApparel, fade, tags, roles, stages, anchorKeywords, anchorBaseForms, provider)
 	};
 	struct Problem {
 		bool warning{};
@@ -69,12 +77,13 @@ namespace OSF::Catalog
 			species, missingClipExamples, problems)
 	};
 	struct Snapshot {
-		std::uint32_t schema{2};
+		std::uint32_t schema{3};
 		std::vector<Scene> scenes;
 		std::vector<File> files;
 		std::vector<std::string> errors;
 		// Unique unmeasured clip references across all nodes, including nonlinear scenes.
 		std::vector<Clip> clips;
-		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Snapshot, schema, scenes, files, errors, clips)
+		std::vector<SourceClip> sourceClips;
+		NLOHMANN_DEFINE_TYPE_INTRUSIVE(Snapshot, schema, scenes, files, errors, clips, sourceClips)
 	};
 }

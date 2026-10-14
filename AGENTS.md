@@ -151,12 +151,18 @@ Each entry: **system** (`path`) — role.
 ### Layer-C - services 
 - **Browser addon** (`extensions/browser/src/API/BrowserSession.*`, `BrowserSessionQueue.h`) — separate optional
   `OSF Animation Browser.dll`, built without private engine implementation. It consumes scene ABI 1.3
-  and engine services ABI 2.0 (`src/API/OSFEngineAPI.h`). Owns browser/wheel presentation, picking, pins,
+  and engine services ABI 3.0 (`src/API/OSFEngineAPI.h`). Owns browser/wheel presentation, picking, pins,
   preferences and hotkeys; see `docs/BROWSER_ADDON.md`. It is an
   OSF UI consumer. Native shown/hidden callbacks own browser lifetime; copied commands and
   pointer input drain on the frame queue with a generation check. Hide/world replacement
   invalidate pending work. `UIBridge` owns game behavior; document initialization replays data.
   Missing addon or OSF UI is normal; an incompatible installed UI or invalid assets reports through Mod Issues.
+- **Derived clip library** (`extensions/browser/src/API/BrowserClipLibrary.*`) — Browser chooses
+  inspection entries, stable IDs, emote exclusions and launch defaults. Core retains authored
+  `clipLibrary` registrations and a generic provider mechanism (`src/Registry/ContentProviders.cpp`,
+  public `OSFClipScene.h`). Providers rebuild on registration/reload against base content, publish
+  atomically, and never replace authored IDs. Old runtime refs remain pinned. Browser also owns
+  front-of-view placement policy (`BrowserPlacement.*`); core exposes world/navmesh queries.
 - (`src/UI/FadeService.*`, `src/Equipment/EquipmentService.*`, `src/Audio/{SoundService,WwiseBackend}.*`, Player/Camera locks) -
   content-neutral *mechanisms* with NO scene knowledge. Typed engine operations use CommonLibSF
   directly; private ABI/layout access (fade posting and free-camera offsets) retains its compatibility gates. Whether a mechanism runs is driven by the scene/API alone — there is no

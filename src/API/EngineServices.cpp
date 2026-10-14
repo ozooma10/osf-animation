@@ -97,6 +97,28 @@ namespace OSF::API::EngineServices
 			try { *result = Serialization::ClipDurationProbe::Probe(file, animId ? animId : "", previous); return true; }
 			catch (...) { return false; }
 		}
+		bool RegisterClipSceneProvider(const char* owner, ClipSceneProvider provider, void* context)
+		{
+			if (!owner || !provider) return false;
+			try {
+				const bool registered = Registry::ContentRegistry::GetSingleton().RegisterClipProvider(owner,
+					[provider, context](const Registry::ContentRegistrySnapshot& source) {
+						struct Output { std::uint32_t calls{}; std::optional<std::vector<ClipScene>> scenes; } output;
+						const auto text = json(CatalogBuilder::Build(source, {})).dump(-1, ' ', false, json::error_handler_t::replace);
+						provider(text.c_str(), [](const char* text, void* value) noexcept {
+							auto& out = *static_cast<Output*>(value);
+							++out.calls;
+							try {
+								if (text && std::strlen(text) <= 16 * 1024 * 1024) out.scenes = json::parse(text).get<std::vector<ClipScene>>();
+							} catch (...) { out.scenes.reset(); }
+						}, &output, context);
+						if (output.calls != 1 || !output.scenes) throw std::runtime_error("invalid provider response");
+						return std::move(*output.scenes);
+					});
+				if (registered) CatalogChanged();
+				return registered;
+			} catch (...) { return false; }
+		}
 		const OSFEngineAPI g_api{
 			sizeof(OSFEngineAPI), kOSFEngineAPIVersion,
 			[](FrameCallback callback, void* context) -> bool {
@@ -121,13 +143,18 @@ namespace OSF::API::EngineServices
 			[](RE::Actor* actor, TextCallback callback, void* context) {
 				try { return actor && Send(json{{"species",Util::ActorSpecies(actor)},{"gender",Matchmaking::ActorGenderTag(actor)}},callback,context); } catch (...) { return false; }
 			},
-			[](RE::Actor* actor, float distance, OSFStartOptions* options) {
-				if (!options || options->size < sizeof(OSFStartOptions) || !std::isfinite(distance)) return false;
-				const auto anchor=Scene::MakeAnchorInFrontOfView(actor,distance);
+			[](RE::TESObjectREFR* ref, float* position, float* heading) {
+				if (!position || !heading) return false;
+				const auto anchor=Scene::MakeAnchorAt(ref, std::nullopt);
 				if (!anchor.set) return false;
-				options->anchorRef=nullptr; options->hasAnchor=true;
-				options->anchorX=anchor.pos.x; options->anchorY=anchor.pos.y; options->anchorZ=anchor.pos.z; options->anchorHeadingRad=anchor.heading;
+				position[0]=anchor.pos.x; position[1]=anchor.pos.y; position[2]=anchor.pos.z; *heading=anchor.heading;
 				return true;
+			},
+			[](RE::TESObjectREFR* ref, const float* position, float* snapped) {
+				if (!ref || !position || !snapped || !std::isfinite(position[0]) || !std::isfinite(position[1]) || !std::isfinite(position[2])) return false;
+				const auto result = Scene::SnapWorldPosition(ref, {position[0], position[1], position[2]});
+				if (!result) return false;
+				snapped[0]=result->x; snapped[1]=result->y; snapped[2]=result->z; return true;
 			},
 			[](const std::uint32_t* ids, std::uint32_t count) {
 				if (count > 32 || (count && !ids)) return false;
@@ -142,7 +169,14 @@ namespace OSF::API::EngineServices
 			},
 			[] { Camera::CameraService::GetSingleton().KickToThirdPerson(); },
 			[](std::uint32_t flags) { Input::InputService::GetSingleton().SetInputRouting(flags); },
-			[](float dx,float dy,float wheel) { if (std::isfinite(dx) && std::isfinite(dy) && std::isfinite(wheel)) Input::InputService::GetSingleton().InjectOrbitDelta(dx,dy,wheel); }
+			[](float dx,float dy,float wheel) { if (std::isfinite(dx) && std::isfinite(dy) && std::isfinite(wheel)) Input::InputService::GetSingleton().InjectOrbitDelta(dx,dy,wheel); },
+			&RegisterClipSceneProvider,
+			[](const char* owner) {
+				try {
+					if (!owner || !Registry::ContentRegistry::GetSingleton().UnregisterClipProvider(owner)) return false;
+					CatalogChanged(); return true;
+				} catch (...) { return false; }
+			}
 		};
 	}
 	void WorldReset() { g_state.ResetWorld(); }

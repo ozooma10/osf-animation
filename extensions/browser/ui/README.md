@@ -23,7 +23,7 @@ extensions/browser/ui/src/ ── Vite ──► build/osfui-animation-browser/.
 ```
 
 - **Native side:** `extensions/browser/src/API/UIBridge.{h,cpp}` (vendored bridge header
-  `src/API/OSFUI.h`). Registered in `extensions/browser/src/main.cpp` at `kPostPostDataLoad`
+  `extensions/browser/sdk/OSFUI.h`). Registered in `extensions/browser/src/main.cpp` at `kPostPostDataLoad`
   (`OSF::API::InstallUIBridge()`), a no-op when OSF UI is absent.
 - **Identity:** mod id `osf.animation`, view name `browser`, qualified view id
   `osf.animation/browser` — the id used by `RegisterView` / `RequestMenu`.
@@ -205,13 +205,13 @@ relative to its own module URL (through Vite's `/@fs/` route), preferring a
 git-ignored `*.local.json` override. It loads them instead of the
 mock catalog — status reads `standalone · live snapshot`. `library.json` (the
 vanilla-packs lane) is generated offline by
-`python tools/generate-library-snapshot.py`, which replicates the DLL's
+`python extensions/browser/tools/generate-library-snapshot.py`, which replicates the DLL's
 `BuildCatalog(library)` over `dist/OSF` — re-run it after regenerating packs.
 `catalog.json` is a one-time in-game dump (the runtime mirror code has since
 been removed; est times for hand-authored packs come from the in-game probe, so
 refreshing it would need a temporary re-add of that dump or hand-editing).
 For a **full real-world catalog** instead, run
-`python tools/generate-catalog-snapshot.py`: it models the scenes lane from
+`python extensions/browser/tools/generate-catalog-snapshot.py`: it models the scenes lane from
 this repo's `dist/OSF` **plus the sibling `OSF Compatibility Packs` repo's
 generated outputs** (extra directories as arguments), writing the git-ignored
 `fixtures/live/catalog.local.json` — standalone loading prefers any

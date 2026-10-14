@@ -11,7 +11,7 @@ content), and preferred by the Vite dev server over the committed catalog.json.
 Tolerant: scenes the offline model can't represent are warned about and skipped;
 runtime-only fields come out null/raw.
 
-Usage: python tools/generate-catalog-snapshot.py [extra-pack-dir ...]
+Usage: python extensions/browser/tools/generate-catalog-snapshot.py [extra-pack-dir ...]
 """
 
 import glob
@@ -21,7 +21,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(HERE)
+REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 OUT = os.path.join(REPO, "extensions", "browser", "ui", "fixtures", "live", "catalog.local.json")
 
 # Reuse the library generator's card math; its dashed filename needs importlib.

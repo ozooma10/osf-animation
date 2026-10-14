@@ -1,6 +1,6 @@
 #pragma once
 // Private harness uses the same optional DLL boundary as consumers; no addon implementation is linked.
-#include "API/OSFUI.h"
+#include "OSFUI.h"
 #include "API/BrowserForwarder.h"
 
 namespace OSF::Testing::BrowserProbe

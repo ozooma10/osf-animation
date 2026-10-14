@@ -5,6 +5,7 @@
 #include "Animation/Scene.h"
 #include "Input/InputTypes.h"
 #include "Props/PropTypes.h"
+#include "API/OSFClipScene.h"
 
 #include <algorithm>
 #include <atomic>
@@ -13,6 +14,8 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -284,7 +287,7 @@ namespace OSF::Registry
 	{
 		kAuthoredScene,
 		kCuratedAnimation,
-		kDerivedDebugAnimation,
+		kProvidedScene,
 		kReferenceAnimation
 	};
 
@@ -293,7 +296,7 @@ namespace OSF::Registry
 		switch (a_kind) {
 		case CatalogSourceKind::kAuthoredScene: return "authoredScene";
 		case CatalogSourceKind::kCuratedAnimation: return "curatedAnimation";
-		case CatalogSourceKind::kDerivedDebugAnimation: return "derivedDebugAnimation";
+		case CatalogSourceKind::kProvidedScene: return "providedScene";
 		case CatalogSourceKind::kReferenceAnimation: return "referenceAnimation";
 		}
 		return "authoredScene";
@@ -301,6 +304,7 @@ namespace OSF::Registry
 
 	struct SceneDef
 	{
+		std::string              provider;  // optional native content-provider owner
 		std::string              id;
 		std::string              name;
 
@@ -309,8 +313,7 @@ namespace OSF::Registry
 		std::int32_t             priority = 0;
 		std::int32_t             weight = 1;  // weighted-random within the top priority tier
 		bool                     unlisted = false;  // not matchmade; direct id only
-		// From an explicit `clipLibrary` registration (shown to everyone), vs harvested debug entries;
-		// both share the `osf.scene-clip/` namespace and may lack tags/name/folder.
+		// From an explicit `clipLibrary` registration.
 		bool                     curatedClip = false;
 		bool                     library = false;   // file-level `section:"library"`; kept out of the main catalog
 		CatalogSourceKind        sourceKind = CatalogSourceKind::kAuthoredScene;
@@ -403,6 +406,7 @@ namespace OSF::Registry
 	// Immutable; reload builds a new one and atomically swaps the pointer. Readers hold shared ownership.
 	struct ContentRegistrySnapshot
 	{
+		std::unordered_map<std::string, bool> clipAvailability;
 		std::unordered_map<std::string, SceneDef> scenes;
 		std::vector<std::string> loadErrors;
 		size_t authoredSceneCount = 0;  // excludes generated one-clip entries
@@ -451,6 +455,10 @@ namespace OSF::Registry
 
 		// Bad scenes are skipped, logged, and recorded for LoadErrors(). Also runs on OSF.ReloadPacks().
 		void LoadAll();
+		using ClipProvider = std::function<std::vector<API::ClipScene>(const ContentRegistrySnapshot&)>;
+		// Providers run synchronously under the publication lock; they must not reenter the registry.
+		bool RegisterClipProvider(std::string a_owner, ClipProvider a_provider);
+		bool UnregisterClipProvider(std::string_view a_owner);
 
 		// Case-insensitive. The ref pins the snapshot, so it stays valid across ReloadPacks.
 		SceneRef Find(std::string_view a_id) const;
@@ -470,6 +478,10 @@ namespace OSF::Registry
 		std::vector<std::string> MissingClipRefs() const;
 
 	private:
+		void PublishProviders();  // providerMutex held; readers keep the old publication until complete
+		std::mutex providerMutex;
+		std::map<std::string, ClipProvider> providers;
+		std::shared_ptr<const ContentRegistrySnapshot> baseSnapshot{std::make_shared<const ContentRegistrySnapshot>()};
 		std::atomic<std::shared_ptr<const ContentRegistrySnapshot>> snapshot{
 			std::make_shared<const ContentRegistrySnapshot>()
 		};

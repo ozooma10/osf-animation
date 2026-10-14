@@ -42,7 +42,7 @@ Existing OSF Settings values under `osf.animation` are imported once into the co
 explicit destination values win. Rebind the two browser hotkeys after the ID change. Wheel pins,
 scene IDs, and view ID are unchanged. Replace the old engine/browser mods when upgrading to remove
 the obsolete combined schema, and install matching
-engine/browser builds (engine services ABI 2.0).
+engine/browser builds (engine services ABI 3.0).
 
 ### Build (to compile from source)
 

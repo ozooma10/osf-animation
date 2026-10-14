@@ -70,13 +70,18 @@ namespace
 		Serialization::ClipDurations::Record("naf:builder-cached.glb", "named", 4.25f);
 		Registry::ContentRegistrySnapshot registry;
 		registry.scenes.emplace("demo.scene", MakeScene());
+		registry.clipAvailability["Data/NAF/builder-cached.glb"] = true;
 		const auto result = Builder::Build(registry, kRoot);
-		if (!Check(result.schema == 2 && result.scenes.size() == 1, "builder preserves schema and all registered scenes")) return;
+		Check(result.sourceClips.size() == 4 && result.sourceClips[2].source == "Demo.Scene" &&
+			result.sourceClips[2].node == 1 && result.sourceClips[2].stage == 0 && result.sourceClips[2].clip == 0 &&
+			result.sourceClips[2].animId == "named" && result.sourceClips[2].available && !result.sourceClips[0].available,
+			"source metadata preserves exact inline clip addresses and per-clip availability even in a partially unavailable scene");
+		if (!Check(result.schema == 3 && result.scenes.size() == 1, "builder preserves schema and all registered scenes")) return;
 		const auto& scene = result.scenes.front();
 		auto metadata = json(scene);
 		metadata.erase("stages");
 		const auto expected = json::parse(R"({
-			"id":"Demo.Scene", "name":"Scene title", "species":"human", "pack":"Demo pack", "folder":"Poses/Seated",
+			"provider":"", "id":"Demo.Scene", "name":"Scene title", "species":"human", "pack":"Demo pack", "folder":"Poses/Seated",
 			"sourceFile":"scenes.osf.json", "sourcePath":"Demo/scenes.osf.json", "sourceKind":"curatedAnimation",
 			"placement":"followActor", "priority":-2, "weight":7, "actorCount":3,
 			"unlisted":true, "curatedClip":true, "library":true, "clipsAvailable":false,
@@ -84,7 +89,7 @@ namespace
 			"roles":[{"name":"lead","gender":"female"},{"name":"partner","gender":"male"},{"name":"extra","gender":"any"}],
 			"anchorKeywords":[291,1110], "anchorBaseForms":[1929]
 		})");
-		Check(metadata == expected, "schema-2 scene fields preserve authored identities, flags, roles and anchors without presentation filtering");
+		Check(metadata == expected, "schema-3 scene fields preserve authored identities, flags, roles and anchors without presentation filtering");
 		auto expectedStages = json::parse(R"([
 			{"index":0,"clipCount":2,"loopCount":4,"name":"Authored duration","loopMode":"count","tags":["loop-tag"],"loopSec":2,"timerSec":13,"hold":0.25,"resolved":true},
 			{"index":1,"clipCount":1,"loopCount":0,"name":"Cached duration","loopMode":"hold","tags":[],"loopSec":4.25,"timerSec":0,"hold":-1,"resolved":true},
@@ -147,7 +152,7 @@ namespace
 		for (const auto& [kind, expected] : std::vector<std::pair<Registry::CatalogSourceKind, std::string>>{
 			{ Registry::CatalogSourceKind::kAuthoredScene, "authoredScene" },
 			{ Registry::CatalogSourceKind::kCuratedAnimation, "curatedAnimation" },
-			{ Registry::CatalogSourceKind::kDerivedDebugAnimation, "derivedDebugAnimation" },
+			{ Registry::CatalogSourceKind::kProvidedScene, "providedScene" },
 			{ Registry::CatalogSourceKind::kReferenceAnimation, "referenceAnimation" } }) {
 			scene.sourceKind = kind;
 			Check(Builder::Build(registry, {}).scenes.front().sourceKind == expected, "source taxonomy survives catalog conversion");
@@ -185,7 +190,7 @@ namespace
 		registry.loadErrors = { "first error", "second error" };
 		const auto result = Builder::Build(registry, kRoot);
 		if (!Check(result.files.size() == 3 && result.scenes.empty(), "files survive even when no scenes were accepted")) return;
-		Check(json(result.files.front()) == expected, "schema-2 file statistics and structured problem fields are preserved");
+		Check(json(result.files.front()) == expected, "schema-3 file statistics and structured problem fields are preserved");
 		Check(result.files[1].Rejected() && result.files[1].problems.size() == 13 &&
 			result.files[1].problems.back().message == "Problem 12", "engine export never applies the browser's diagnostic truncation");
 		Check(result.files[2].path.empty() && result.files[2].errors == 1, "cross-file diagnostics keep their empty path and ordering");
@@ -194,14 +199,14 @@ namespace
 		registry = {};
 		Check(json(result) == owned, "file diagnostics and error text are owned by the returned catalog");
 		const auto roundTrip = json::parse(owned.dump()).get<Catalog::Snapshot>();
-		Check(json(roundTrip) == owned, "the exported snapshot round-trips through the released schema-2 value types");
+		Check(json(roundTrip) == owned, "the exported snapshot round-trips through the released schema-3 value types");
 	}
 }
 
 void CheckCatalogBuilder()
 {
-	Check(json(Builder::Build({}, {})) == json::parse(R"({"schema":2,"scenes":[],"files":[],"errors":[],"clips":[]})"),
-		"empty registries still produce the complete schema-2 envelope");
+	Check(json(Builder::Build({}, {})) == json::parse(R"({"schema":3,"scenes":[],"files":[],"errors":[],"clips":[],"sourceClips":[]})"),
+		"empty registries still produce the complete schema-3 envelope");
 	CheckScenesAndStages();
 	CheckActorCountsAndPaths();
 	CheckFileDiagnostics();

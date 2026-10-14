@@ -16,6 +16,7 @@ using OSF::Test::Check;
 using OSF::Test::Finish;
 
 void CheckCatalogBuilder();
+void CheckContentProviders();
 
 // No mounted archives here: report every clip installed so the sweep hides no fixture scene.
 namespace OSF::Animation
@@ -86,7 +87,7 @@ int main()
 		"gender parser accepts a case-insensitive shorthand");
 	Check(OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kAuthoredScene) == "authoredScene" &&
 		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kCuratedAnimation) == "curatedAnimation" &&
-		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation) == "derivedDebugAnimation" &&
+		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kProvidedScene) == "providedScene" &&
 		OSF::Registry::CatalogSourceKindName(OSF::Registry::CatalogSourceKind::kReferenceAnimation) == "referenceAnimation",
 		"catalog source taxonomy uses the bridge's four canonical spellings");
 
@@ -144,7 +145,7 @@ int main()
 		}
 		if (d.library && d.tagSet.contains("scene.clip")) {
 			Check(d.sourceKind == (d.curatedClip ? OSF::Registry::CatalogSourceKind::kCuratedAnimation :
-				OSF::Registry::CatalogSourceKind::kDerivedDebugAnimation),
+				OSF::Registry::CatalogSourceKind::kProvidedScene),
 				"generated animation entries carry the source kind matching their origin");
 			(d.curatedClip ? curatedFlagged : harvestedFlagged) += 1;
 		}
@@ -158,7 +159,7 @@ int main()
 	Check(duplicateCount == 1, "duplicate explicit clip registration keeps the first entry");
 	// 3 in Test Clip Library, 1 Only, 1 Duplicate.
 	Check(curatedFlagged == 5, "every clipLibrary registration is flagged curated");
-	Check(harvestedFlagged > 0, "clips harvested from scene stages are NOT flagged curated");
+	Check(harvestedFlagged == 0, "core never harvests inspection clips without a provider");
 	if (const auto s = reg.Find("test.bare")) {
 		if (Check(s->roles.size() == 1, "bare scene keeps one inline role")) {
 			Check(s->roles[0].name == "solo", "bare scene keeps its inline role name");
@@ -1100,5 +1101,6 @@ int main()
 		}
 	}
 
+	CheckContentProviders();
 	return Finish("Scene registry");
 }

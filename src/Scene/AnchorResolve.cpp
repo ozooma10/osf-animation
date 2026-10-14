@@ -161,23 +161,6 @@ namespace OSF::Scene
 			return result;
 		}
 
-		std::optional<float> CurrentViewHeading()
-		{
-			auto* playerCamera = RE::PlayerCamera::GetSingleton();
-			const auto cameraRoot = playerCamera ? playerCamera->cameraRoot : nullptr;
-			if (!cameraRoot) {
-				return std::nullopt;
-			}
-
-			// Row 1 of the rotation is +Y/forward; flatten to the ground plane.
-			const float x = cameraRoot->world.rotate[1][0];
-			const float y = cameraRoot->world.rotate[1][1];
-			const float lengthSq = x * x + y * y;
-			if (!std::isfinite(lengthSq) || lengthSq < 0.0001f) {
-				return std::nullopt;
-			}
-			return std::atan2(-x, y);
-		}
 	}
 
 	SceneRuntime::AnchorOverride MakeAnchorAt(RE::TESObjectREFR* a_ref, std::optional<float> a_headingRad)
@@ -192,41 +175,10 @@ namespace OSF::Scene
 		return anchor;
 	}
 
-	SceneRuntime::AnchorOverride MakeAnchorInFrontOfView(RE::TESObjectREFR* a_ref, float a_distance)
+	std::optional<RE::NiPoint3> SnapWorldPosition(RE::TESObjectREFR* ref, const RE::NiPoint3& position)
 	{
-		if (!a_ref || !std::isfinite(a_distance)) {
-			return {};
-		}
-		const RefTransform base = RenderedTransform(a_ref);
-		const std::optional<float> viewHeading = CurrentViewHeading();
-		const float heading = viewHeading.value_or(base.heading);
-		RE::NiPoint3 pos{
-			base.pos.x - std::sin(heading) * a_distance,
-			base.pos.y + std::cos(heading) * a_distance,
-			base.pos.z
-		};
-
-		// Lateral correction may span the whole distance (facing a wall); a Z jump past the
-		// window means another storey answered, so keep the unsnapped point.
-		const RE::NiPoint3 offset{ pos.x - base.pos.x, pos.y - base.pos.y, 0.0f };
-		bool snapped = false;
-		if (const auto corrected = SnapToNavmesh(a_ref, offset)) {
-			constexpr float kZWindow = 2.0f;  // meters
-			const float     dx = corrected->x - pos.x;
-			const float     dy = corrected->y - pos.y;
-			const float     lateralMax = a_distance + 1.0f;
-			if (std::abs(corrected->z - pos.z) <= kZWindow && dx * dx + dy * dy <= lateralMax * lateralMax) {
-				pos = *corrected;
-				snapped = true;
-			}
-		}
-
-		REX::DEBUG("[Scene] front-of-view anchor ref {:#010x}: origin ({:.1f},{:.1f},{:.1f}) actorHeading {:.2f}, "
-			"viewHeading {:.2f}{} distance {:.1f} -> ({:.1f},{:.1f},{:.1f}){}",
-			a_ref->GetFormID(), base.pos.x, base.pos.y, base.pos.z, base.heading, heading,
-			viewHeading ? "" : " (actor fallback)", a_distance, pos.x, pos.y, pos.z,
-			snapped ? " (navmesh-snapped)" : " (no snap)");
-		return SceneRuntime::AnchorOverride{ true, pos, heading };
+		if (!ref) return std::nullopt;
+		return SnapToNavmesh(ref, position - ref->data.location);
 	}
 
 	std::optional<SceneRuntime::AnchorOverride> ResolveSceneAnchor(

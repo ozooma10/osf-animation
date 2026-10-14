@@ -10,7 +10,7 @@ target("OSF Animation Browser")
         add_defines("OSF_ANIMATION_SMOKE")
     end
     add_headerfiles("src/**.h")
-    add_includedirs("src", "../../src/API")
+    add_includedirs("src", "sdk", "../../src/API")
     set_pcxxheader("src/pch.h")
     add_installfiles("dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json", {
         prefixdir = "SFSE/Plugins/OSF/Settings/schemas"

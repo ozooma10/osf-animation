@@ -10,9 +10,13 @@ All notable changes to OSF Animation are documented here.
   inspection previews. Ordinary scenes, masked/additive playback, props, and held stages remain supported.
 
 ### Changed
+- Browser now generates derived inspection clips and chooses their launch defaults, preserving their
+  existing IDs. Core retains explicit `clipLibrary` content and offers generic clip-scene providers
+  for optional consumers. Browser also owns front-of-view placement policy, its UI SDK header,
+  keyword labels, and fixture snapshot generators.
 - Browser now owns duration scanning/cache persistence, pointer sensitivity/input policy, and its
   Settings schema. Core exposes clip metadata, decoded durations, single-clip probing, and generic
-  input routing through engine services ABI 2.0; scene ABI 1.3 and web messages are unchanged.
+  input routing through engine services ABI 3.0; scene ABI 1.3 and web messages are unchanged.
 - Settings schemas use explicit names: `osf.animation.engine.json` and `osf.animation.browser.json`.
   Each imports its own existing OSF Settings values once without replacing explicit destination
   values. Browser hotkeys need rebinding after the ID change; wheel pins and view IDs are unchanged.

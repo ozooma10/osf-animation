@@ -7,7 +7,7 @@ rounding. Anchor keyword labels come from tools/vanilla-packs/anim-furn-keywords
 
 Strict: an unknown scene/stage/clip key aborts so pack-schema changes can't drift silently.
 
-Usage: python tools/generate-library-snapshot.py
+Usage: python extensions/browser/tools/generate-library-snapshot.py
 """
 
 import glob
@@ -16,7 +16,7 @@ import os
 import struct
 import sys
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 PACK_DIR = os.path.join(REPO, "dist", "OSF")
 KEYWORD_MAP = os.path.join(REPO, "tools", "vanilla-packs", "anim-furn-keywords.json")
 OUT = os.path.join(REPO, "extensions", "browser", "ui", "fixtures", "live", "library.json")
@@ -67,7 +67,7 @@ def check_keys(obj, allowed, what):
     extra = set(obj) - allowed
     if extra:
         sys.exit(f"error: {what} has key(s) this generator does not model: {sorted(extra)} — "
-                 "update tools/generate-library-snapshot.py to match BuildCatalog")
+                 "update extensions/browser/tools/generate-library-snapshot.py to match BuildCatalog")
 
 
 def keyword_label(edid):

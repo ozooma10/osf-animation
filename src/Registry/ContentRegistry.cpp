@@ -33,7 +33,7 @@ namespace OSF::Registry
 		using ContentRegistryClips::PendingImportProblem;
 		using ContentRegistryClips::ProblemSink;
 		using ContentRegistryClips::AccumulateFileStats;
-		using ContentRegistryClips::AddSceneClipEntries;
+		using ContentRegistryClips::AddRegisteredClipEntries;
 		using ContentRegistryClips::ClipSpecInstalled;
 		using ContentRegistryClips::DesugarLinear;
 		using ContentRegistryClips::SweepClipAvailability;
@@ -2394,7 +2394,7 @@ namespace OSF::Registry
 		const auto sceneCount = loaded.size();
 		AccumulateFileStats(loaded, clipCache, fileStats, fileIndex);
 		std::map<std::string, std::uint32_t> clipEntriesByFile;
-		const auto clipEntryCount = AddSceneClipEntries(loaded, clipLibrary, problems, clipEntriesByFile);
+		const auto clipEntryCount = AddRegisteredClipEntries(loaded, clipLibrary, problems, clipEntriesByFile);
 		for (const auto& [path, count] : clipEntriesByFile) {
 			if (const auto it = fileIndex.find(path); it != fileIndex.end()) {
 				fileStats[it->second].clipEntries = count;
@@ -2431,7 +2431,18 @@ namespace OSF::Registry
 		next->loadErrors = std::move(errors);
 		next->authoredSceneCount = sceneCount;
 		next->files = std::move(fileStats);
-		snapshot.store(std::move(next), std::memory_order_release);
+		// Retain per-clip availability as source metadata, including installed clips in a
+		// partially unavailable scene. Catalog reads and provider callbacks perform no IO.
+		for (const auto& [id, def] : next->scenes)
+			for (const auto& node : def.nodes) for (const auto& stage : node.stages) for (const auto& clip : stage.clips) {
+				if (!clipCache.contains(clip.file)) clipCache.emplace(clip.file, ClipSpecInstalled(clip.file));
+			}
+		next->clipAvailability = std::move(clipCache);
+		{
+			std::lock_guard lock(providerMutex);
+			baseSnapshot = std::move(next);
+			PublishProviders();
+		}
 		REX::INFO("[Registry] {} scene(s) loaded from {} file(s), {} scene clip entr{}, {} problem(s)",
 			sceneCount, fileCount, clipEntryCount, clipEntryCount == 1 ? "y" : "ies", problemCount);
 	}

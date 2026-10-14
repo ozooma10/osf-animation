@@ -1,6 +1,8 @@
 #include "API/CatalogBuilder.h"
 #include "Registry/ContentRegistry.h"
 #include "Serialization/ClipDurations.h"
+#include "Util/ClipPath.h"
+#include "Util/Species.h"
 #include <unordered_set>
 
 namespace OSF::API::CatalogBuilder
@@ -37,6 +39,7 @@ namespace OSF::API::CatalogBuilder
 		{
 			Catalog::Scene scene;
 			scene.id = a_def.id;
+			scene.provider = a_def.provider;
 			scene.name = a_def.name;
 			scene.species = a_def.species;
 			scene.pack = a_def.pack;
@@ -126,6 +129,15 @@ namespace OSF::API::CatalogBuilder
 		std::unordered_set<std::string> seen;
 		for (const auto& [id, def] : a_registry.scenes) {
 			out.scenes.push_back(BuildScene(def, a_contentRoot));
+			for (std::uint32_t n = 0; n < def.nodes.size(); ++n)
+				for (std::uint32_t s = 0; s < def.nodes[n].stages.size(); ++s)
+					for (std::uint32_t c = 0; c < def.nodes[n].stages[s].clips.size(); ++c) {
+						const auto& clip = def.nodes[n].stages[s].clips[c];
+						const auto available = a_registry.clipAvailability.find(clip.file);
+						out.sourceClips.push_back({def.id, clip.file, clip.animId,
+							Util::ClipSpecDisplay(std::filesystem::path{clip.file}), Util::SpeciesFromAnimPath(clip.file),
+							n, s, c, clip.sec, available != a_registry.clipAvailability.end() && available->second});
+					}
 			if (!def.clipsAvailable) continue;
 			for (const auto& node : def.nodes) for (const auto& stage : node.stages) for (const auto& clip : stage.clips) {
 				if (clip.file.empty() || clip.sec > 0) continue;

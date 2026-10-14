@@ -4,7 +4,6 @@
 #include "Animation/StallWatchdogSchedule.h"
 #include "Util/ClipPath.h"
 #include "Util/DiagnosticText.h"
-#include "Util/KeywordLabel.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "Util/RegistryFiles.h"
 
@@ -93,12 +92,7 @@ int main()
 		Check(safe.find("C:\\Users") == std::string::npos, "health context removes absolute paths");
 		Check(safe.find("'bad.osf.json'") != std::string::npos, "health context keeps the filename");
 	}
-	{
-		Check(OSF::Util::AnimationKeywordLabel("AnimFurnChairScrappy") == "Chair Scrappy",
-			"animation keyword prefix and CamelCase are humanized");
-		Check(OSF::Util::AnimationKeywordLabel("AnimHVACUnit") == "HVAC Unit",
-			"animation keyword acronym boundary is preserved");
-	}
+
 
 	{
 		namespace Queue = OSF::Util::NativeMainThreadQueue;
