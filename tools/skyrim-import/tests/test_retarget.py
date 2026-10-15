@@ -18,6 +18,7 @@ except ImportError as exc:
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from retarget import HumanoidRetargeter, matrix, model_matrices
 from target_rig import Bone, Rig
+from scale_profile import POSITIVE_AFFINE
 
 
 def rotation(axis, degrees):
@@ -213,6 +214,93 @@ class RetargetTests(unittest.TestCase):
                 animation.tracks[0].scales = [scale]
                 with self.assertRaises(ValueError):
                     self.converted(retargeter, animation)
+
+    def test_affine_reference_pose_with_non_unit_reference_scales_preserves_target_bind(self):
+        source, rig = source_fixture(), target_fixture()
+        source.reference_pose[source.bones.index("NPC Spine2 [Spn2]")].scale = (1.2, .9, 1.1)
+        retargeter = HumanoidRetargeter(source, rig, scale_profile=POSITIVE_AFFINE)
+        for actual, bone in zip(self.converted(retargeter, animation_fixture(source)), rig.bones):
+            self.assertMatrixClose(matrix(actual["translation"], actual["rotation"], actual["scale"]),
+                                   matrix(bone.translation, bone.rotation_xyzw))
+
+    def test_affine_parent_child_compensation_and_extra_target_joints(self):
+        source, rig = source_fixture(), target_fixture()
+        retargeter = HumanoidRetargeter(source, rig, scale_profile=POSITIVE_AFFINE)
+        anim = animation_fixture(source)
+        anim.tracks[source.bones.index("NPC Spine2 [Spn2]")].scales = [(1.2,) * 3]
+        anim.tracks[source.bones.index("NPC Neck [Neck]")].scales = [(1 / 1.2,) * 3]
+        out = self.converted(retargeter, anim)
+        models = model_matrices([matrix(p["translation"], p["rotation"], p["scale"]) for p in out],
+                                [b.parent for b in rig.bones])
+        by_name = {b.name: i for i, b in enumerate(rig.bones)}
+        for name, expected in (("C_Spine2", 1.2), ("C_Chest", 1.2), ("C_Neck", 1.), ("C_Neck1", 1.)):
+            for column in models[by_name[name]].to_3x3().col:
+                self.assertAlmostEqual(column.length, expected, places=5)
+        self.assertAlmostEqual(out[by_name["C_Chest"]]["scale"][0], 1., places=5)
+        for pose, bone in zip(out, rig.bones):
+            if bone.name != "COM":
+                for value, expected in zip(pose["translation"], bone.translation):
+                    self.assertAlmostEqual(value, expected, places=6)
+        # The bind offset from Spine2 to Chest is .05; inherited stretch makes it .06.
+        distance = (models[by_name["C_Chest"]].translation - models[by_name["C_Spine2"]].translation).length
+        self.assertAlmostEqual(distance, .06, places=5)
+
+    def test_affine_unmapped_source_root_scale_affects_mapped_pose_and_com(self):
+        source, rig = source_fixture(), target_fixture()
+        retargeter = HumanoidRetargeter(source, rig, scale_profile=POSITIVE_AFFINE)
+        anim = animation_fixture(source)
+        anim.tracks[0].scales = [(1.5,) * 3]
+        out = self.converted(retargeter, anim)
+        self.assertEqual(out[0]["translation"], [0., 0., 0.])
+        for v in out[0]["scale"]:
+            self.assertAlmostEqual(v, 1., places=6)
+        # Source pelvis rest height=98. Scaled height=147, converted motion=.49m.
+        self.assertAlmostEqual(out[1]["translation"][2], 1.49, places=5)
+        for v in out[1]["scale"]:
+            self.assertAlmostEqual(v, 1.5, places=5)
+
+    def test_affine_aligned_nonuniform_scale_is_exported_not_normalized(self):
+        source = source_fixture()
+        original = target_fixture()
+        rig = Rig(tuple(Bone(b.name, b.parent, IDENTITY, b.translation) for b in original.bones), len(original.bones))
+        retargeter = HumanoidRetargeter(source, rig, scale_profile=POSITIVE_AFFINE)
+        anim = animation_fixture(source)
+        anim.tracks[source.bones.index("NPC L Hand [LHnd]")].scales = [(1.2, .9, 1.1)]
+        before = copy.deepcopy(anim)
+        output = self.converted(retargeter, anim)
+        wrist = output[[b.name for b in rig.bones].index("L_Wrist")]
+        for actual, expected in zip(wrist["scale"], (1.2, .9, 1.1)):
+            self.assertAlmostEqual(actual, expected, places=5)
+        self.assertEqual(anim, before)
+
+    def test_affine_large_shear_and_nonpositive_or_extreme_scales_are_rejected(self):
+        source = source_fixture()
+        retargeter = HumanoidRetargeter(source, target_fixture(), scale_profile=POSITIVE_AFFINE)
+        for scales in ((0, 1, 1), (-1, 1, 1), (1e-8, 1, 1), (101, 1, 1)):
+            anim = animation_fixture(source)
+            anim.tracks[1].scales = [scales]
+            with self.subTest(scales=scales), self.assertRaisesRegex(ValueError, "bounded positive scales"):
+                self.converted(retargeter, anim)
+        anim = animation_fixture(source)
+        anim.tracks[source.bones.index("NPC L Hand [LHnd]")].scales = [(2, 1, 1)]
+        with self.assertRaisesRegex(ValueError, "Unrepresentable local shear"):
+            self.converted(retargeter, anim)
+
+    def test_affine_preflight_checks_every_frame_and_rejects_late_shear(self):
+        from preflight import inspect_animation
+        source = source_fixture()
+        retargeter = HumanoidRetargeter(source, target_fixture(), scale_profile=POSITIVE_AFFINE)
+        anim = animation_fixture(source)
+        index = source.bones.index("NPC L Hand [LHnd]")
+        anim.tracks[index].scales = [(1, 1, 1), (1.1, 1.1, 1.1)]
+        report = inspect_animation(anim, retargeter)
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["affine_scale_check"]["checked_frames"], 2)
+        self.assertGreater(report["affine_scale_check"]["non_unit_target_samples"], 0)
+        anim.tracks[index].scales[-1] = (2, 1, 1)
+        report = inspect_animation(anim, retargeter)
+        self.assertIn("Unrepresentable local shear", report["errors"][0])
+        self.assertEqual(report["affine_scale_check"]["checked_frames"], 1)
 
 
 if __name__ == "__main__":

@@ -10,9 +10,62 @@ except ImportError as exc:
 
 from target_rig import Bone, Rig
 from worker import save_preview
+from glb_writer import write_glb
+from preview_audit import audit_preview
 
 
 class PreviewTests(unittest.TestCase):
+    def test_saved_preview_retains_animated_scale_and_inherited_segment_length(self):
+        identity = (0, 0, 0, 1)
+        rig = Rig((Bone("Root", -1, identity, (0, 0, 0)),
+                   Bone("COM", 0, identity, (0, 0, 1)),
+                   Bone("Hand", 1, identity, (0, .5, 0))), 3)
+        bones = [{"name": b.name, "parent": b.parent, "translation": b.translation,
+                  "rotation": b.rotation_xyzw} for b in rig.bones]
+        frames = [[{"translation": b.translation, "rotation": identity,
+                    "scale": (scale, scale, scale) if b.name == "COM" else (1, 1, 1)}
+                   for b in rig.bones] for scale in (1., 1.2, .8)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_glb(root / "clip.glb", bones, [0, .5, 1], frames, "scaled")
+            save_preview(root / "preview.blend", rig, [{"name": "actor"}], [frames], [0, .5, 1], [{}])
+            report = audit_preview(root / "preview.blend", {"roles": [{"name": "actor"}],
+                                  "stages": [{"clips": ["clip.glb"]}]}, root, 0)
+            self.assertEqual(report["status"], "passed")
+            bpy.context.scene.frame_set(16)
+            actor = bpy.data.objects["actor"]
+            self.assertAlmostEqual(actor.pose.bones["Hand"].matrix.translation.y, .6, places=5)
+
+    def test_saved_preview_matches_serialized_pair_and_rejects_changed_placement(self):
+        import math
+        from mathutils import Quaternion
+        identity = (0, 0, 0, 1)
+        rig = Rig((Bone("Root", -1, identity, (0, 0, 0)),
+                   Bone("COM", 0, identity, (0, 0, 1)),
+                   Bone("Hand", 1, identity, (0, .5, 0))), 3)
+        bones = [{"name": b.name, "parent": b.parent, "translation": b.translation,
+                  "rotation": b.rotation_xyzw} for b in rig.bones]
+        samples = []
+        for angle in (170, 190, 210):
+            q = Quaternion((0, 0, 1), math.radians(angle))
+            samples.append([{"translation": b.translation,
+                             "rotation": (q.x, q.y, q.z, q.w) if b.name == "COM" else identity}
+                            for b in rig.bones])
+        roles = [{"name": "actor1"}, {"name": "actor2"}]
+        placements = [{"x": 1, "heading": 90}, {"y": -1, "heading": -90}]
+        scene = {"roles": roles, "stages": [{"clips": [
+            {"file": "clip.glb", "offset": placement} for placement in placements]}]}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_glb(root / "clip.glb", bones, [0, .5, 1], samples, "example")
+            save_preview(root / "preview.blend", rig, roles, [samples, samples], [0, .5, 1], placements)
+            audit = audit_preview(root / "preview.blend", scene, root, 0)
+            self.assertEqual(audit["status"], "passed")
+            self.assertEqual([a["bone_matrix_checks"] for a in audit["actors"]], [15, 15])
+            scene["stages"][0]["clips"][1]["offset"]["y"] = -2
+            with self.assertRaisesRegex(ValueError, "Preview mismatch: actor2"):
+                audit_preview(root / "preview.blend", scene, root, 0)
+
     def test_saved_preview_has_linear_keys_and_matches_keyed_pose(self):
         identity = (0, 0, 0, 1)
         rig = Rig((Bone("Root", -1, identity, (0, 0, 0)),
