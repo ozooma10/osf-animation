@@ -3,7 +3,7 @@
   <Name>OSF Animation Browser</Name>
   <Author>ozooma10</Author>
   <Version MachineVersion="1.5.0">1.5.0</Version>
-  <Description>Optional in-game animation browser and emote wheel for OSF Animation. Includes its own native DLL. Requires OSF Animation with engine services API 3.0 and OSF UI 2.0.0+ for the UI. OSF Settings 1.0.0+ supplies preferences, hotkeys and the launcher.</Description>
+  <Description>Optional in-game animation browser and emote wheel. Requires matching OSF Animation 1.5.0, OSF UI 2.0.0+, and OSF Settings 1.0.0+. Includes its own native DLL and optional vanilla/creature library and emote content. Install alongside the engine, replace any old Browser installation, and rebind both browser hotkeys after upgrading from the combined settings provider.</Description>
   <Groups>
     <element>Animation</element>
   </Groups>

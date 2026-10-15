@@ -2,61 +2,111 @@
 
 All notable changes to OSF Animation are documented here.
 
-## [Unreleased]
+## [1.5.0] - Unreleased
 
-### Removed
-- Studio Link's live preview inbox, authoring setting, and Suit Protocol preview bridge.
-- Unreleased actor overlay routes, their native API and browser debugger, and browser scene
-  inspection previews. Ordinary scenes, masked/additive playback, props, and held stages remain supported.
+Prepared for release; not yet published. See [Upgrading to 1.5.0](docs/UPGRADING.md)
+for installation, saved preferences, and hotkey changes.
 
-### Changed
-- Browser now generates derived inspection clips and chooses their launch defaults, preserving their
-  existing IDs. Core retains explicit `clipLibrary` content and offers generic clip-scene providers
-  for optional consumers. Browser also owns front-of-view placement policy, its UI SDK header,
-  keyword labels, and fixture snapshot generators.
-- Browser now owns duration scanning/cache persistence, pointer sensitivity/input policy, and its
-  Settings schema. Core exposes clip metadata, decoded durations, single-clip probing, and generic
-  input routing through engine services ABI 3.0; scene ABI 1.3 and web messages are unchanged.
-- Settings schemas use explicit names: `osf.animation.engine.json` and `osf.animation.browser.json`.
-  Each imports its own existing OSF Settings values once without replacing explicit destination
-  values. Browser hotkeys need rebinding after the ID change; wheel pins and view IDs are unchanged.
-  Upgrade by replacing the old engine/browser mods and installing matching files.
-- Updated to the OSF UI 2.0 and OSF Settings 1.0 native APIs. OSF Settings now owns
-  Animation's settings, hotkeys, Mod Issues, and browser launcher. Legacy combined OSF UI values and bindings
-  are not migrated; both hotkeys start unbound.
-- Replaced the retired UI authoring CLI with a local Vite/Octane build and moved packaged
-  views to `SFSE/Plugins/OSF/UI/views/osf.animation`. Browser preferences use Animation-owned
-  retained state and a scoped write endpoint; preview and game follow the same contract.
+### Upgrade requirements
 
-## [1.5.0] - 2026-07-31
-
-### Fixed
-- **A model-update hook no longer loses Starfield's output-transform argument.** The bad forward could make the engine write through an invalid destination during ordinary actor model updates, even before an OSF scene started.
-- **Alternative equipped-armor prop keywords no longer create false warnings.** A prop source may name several keyword editor IDs as any-of fallbacks; an unavailable alternative is now author-debug detail, while a warning is reserved for the action actually failing to resolve a source.
-- **Masked and additive playback no longer flashes back to the full vanilla pose during a live actor-3D rebuild.** When equipment or cosmetic visibility replaces the current model node between animation evaluation and composition, the compose hook now verifies the new node against the managed actor, rebuilds the bone binding, and stamps that same pass instead of waiting several frames for a later animation update.
-- **Sound authoring now describes what the engine actually does.** OSF's current Wwise external-source route posts at the listener and cannot apply per-cue volume, so the inert position/volume plumbing and misleading schema claims were removed. `role` still selects the voice channel, `{gender}` substitution, and subtitle speaker; legacy `volume` keys remain harmless unknown data.
-- **Background scans and health diagnostics now have safe ownership boundaries.** Detached duration/audio jobs retain process-lifetime state through shutdown, registry traversal reports root-relative labels, health context strips quoted absolute paths defensively, and Data-relative clip resolution now follows Windows case-insensitivity without rejecting legitimate names that begin with two dots.
-- **Scene track dispatch now stays typed after import.** Authored action and camera identifiers are parsed once into enums instead of being repeatedly lowercased and compared during playback, while the browser's duplicated animation-keyword label formatter is now one tested helper.
-- **One-shot scenes no longer snap back to the clip's first frame at the end.** A final stage finishing by loop count (including the untimed play-once default) reset the scene clock to zero while the deferred stop crossed to the game thread, so the cast flashed the clip's *start* pose — for an equip-style gesture, near-vanilla arms — for anywhere from one frame to a quarter second of task-queue jitter, and the fade-out then blended from that wrong pose (wrapping onward as it ran). The scene now holds the clip's **final** frame through the stop window, and the fade-out samples that held end pose instead of wrapping. This was the "sporadic one-or-two-frame snap" visible at the end of masked upper-body transitions.
-- **Two more rare one-frame pose snaps during masked/partial-body playback.** An in-place skeleton mutation (helmet-visibility patches or prop geometry changing the node table *without* replacing the model node) could leave one compose stamping a stale binding into remapped rig slots; the stamp now detects the changed node-table identity and re-binds on that same compose. Separately, the feathered-seam/additive live base could be recaptured from OSF's own previous write when a compose repeated without a fresh engine evaluation, popping the spine as it re-blended over itself; the capture now verifies the buffer actually changed since our last stamped write (a probe of the last written slot) before adopting it. Both formerly-silent paths — plus mid-play same-node re-binds and failed compose recoveries — now emit rate-limited trace diagnostics.
-- **The feathered spine seam keeps its live base through a compose-time rig rebuild.** Helmet visibility and other equipment changes can rebind the actor before Starfield has evaluated the replacement rig; OSF now carries the last proven engine pose across that window by skeleton-joint identity and refuses to capture the replacement buffer until its own post-engine update, preventing a few-frame blend against the rig's rest pose.
-- **Clips a pack registers through `clipLibrary` now appear in the browser for everyone.** They were being treated as the engine's own raw-clip debug entries and hidden unless **Show author details** was on, so a pack shipping a curated clip library and no scenes — Moods of Andromas, for one — loaded perfectly (no errors, clips found) and still showed nothing. Registered clips and the entries OSF derives automatically from a scene's stages share an id namespace; the catalog now marks a registration explicitly, and only the derived entries stay author-only. Scene ids are unchanged, so animation-wheel pins survive.
-
-### Changed
-- **The Animation Browser now stays open after launching a scene.** *After launching a scene* defaults to **Stay open** instead of collapsing to the live-controls bar, so browsing straight into a second scene no longer costs a re-expand. **Live controls** and **Close browser** remain available in Settings → Browser → Behavior, and an existing saved choice is untouched.
+- OSF Animation and the optional **OSF Animation Browser** now ship as separate
+  archives. Install both at version **1.5.0** to use the browser or emote wheel.
+  The Browser installer owns the optional vanilla/creature library and emote pack.
+- **OSF Settings 1.0.0+** owns settings, hotkeys, launchers, and Mod Issues.
+  **OSF UI 2.0.0+** is required for the optional Browser. Gameplay consumers can
+  use the engine and native/Papyrus APIs without Browser or OSF UI.
+- Replace the previous Animation installation instead of merging old files into
+  the new packages. Preserve custom content and saved user data. The obsolete
+  combined `osf.animation.json` **schema** must no longer be active.
+- Settings are split into `osf.animation.engine` and `osf.animation.browser`.
+  Valid preferences previously stored by OSF Settings under `osf.animation` import
+  once, without replacing explicit destination values. Values from the older
+  combined OSF UI settings service are not migrated. **Rebind both browser hotkeys.**
+  Wheel pins, scene IDs, and the browser view ID are unchanged.
 
 ### Added
-- **OSF UI 2.0.0 is now the minimum host.** The browser view targets the OSF UI 2.x runtime; older
-  hosts show an update prompt on the browser's status line.
-- **A stage can freeze on one frame instead of playing.** `"hold": true` parks a stage on its clips' last frame (`"hold": 0.4` on any normalized clip position), giving a scene a genuine static hold state — "carrying it", "waiting" — between two animations. Freezing the previous stage's own final frame costs nothing at the seam, where borrowing an unrelated idle re-poses the body to whatever that clip was authored against (with a `mask`, the masked part visibly pops to a different orientation). The clock does not advance, so a frozen clip never loops: `hold` is rejected alongside `loops`, `timer` is the only automatic way out, and otherwise the stage holds until a manual advance or an edge. Marks at or before the hold position fire once on entry, so an `action` at `at: 0` still runs. See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).
-- **Track lanes can be positioned by clip frame.** Any `cue` / `action` / `sound` / `camera` entry may use `"atFrame": 24` instead of `"at": 0.2424` — a zero-based clip frame at the 30 fps convention `.af` clips decode at. A frame is an absolute clip-local time rather than a proportion, so it stays on the moment you picked in your animation tool even if the clip is later re-exported at a different length, and it removes the divide-by-clip-length step from authoring by hand. Sound ladders accept `atFrame` for their position list too, and a per-hit override can still opt back into a fraction. `at` and `atFrame` are mutually exclusive, a non-integer or negative frame is rejected at load, and a frame past the end of its clip never fires. See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).
-- **Props can be declared once per file and referenced by id.** A file may carry a top-level `props` registry mapping an id to a prop definition (`source`, `node`, and optionally `position`/`rotation`/`scale`); an `osf.prop.attach` then inherits it, using its own `prop` id as the lookup key — so a repeated attach collapses to `{ "at": 0.058, "type": "osf.prop.attach", "role": "player", "prop": "helmet" }`. Any key authored on the action still wins, `use` names a different template when two prop ids share one definition, and a template may be partial (carry only `source` and let each action pick its own `node`). An authored `source` replaces the inherited selector whole rather than merging into it, so overriding an `equippedArmor` template with a `form` works. Templates hold only those five keys — timing and dispatch are never inheritable — and a malformed one rejects its file while a dangling `use` rejects only its scene. Files without `props` are entirely unaffected. See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).
-- **Mods can report the minimum OSF Animation version they require.** The copyable native header and Papyrus API now expose a shared reporter that compares semantic versions, deduplicates requests by consumer, surfaces an actionable HUD/System Health warning when OSF is too old, and retains a native fallback for OSF builds predating the reporter. See [`docs/API.md`](docs/API.md).
-- **Synchronous native C++ scene-event callbacks.** Scene API ABI 1.3 lets SFSE plugins register a process-lifetime callback for scene begin/end, node, cue, and action events. Delivery occurs at the authored runtime mark before the equivalent Papyrus event is queued; registration is thread-safe, unregistration is quiescent, and one consumer's exception cannot prevent later callbacks. See [`docs/API.md`](docs/API.md).
-- **Scenes can preserve equipped held items.** The new file/scene policy `clearHeldItems` defaults to `true`, retaining OSF's automatic cleanup of weapons, slates, tools, and other equipped non-apparel, while `false` lets partial-body equipment gestures leave those items untouched.
-- **Scene-scoped render props.** Scene action tracks can now use `osf.prop.attach` to clone either a fixed form or a role actor's equipped armor, attach it to an actor node with a local transform, and address it by a scene-local id; `osf.prop.destroy` removes it at an authored handoff. Remaining props are ledger-owned and destroyed before scene-end dispatch on every termination path, with explicit load-teardown cleanup. See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).
-- **Named bone masks for partial-body playback.** A scene role may set `"mask": "upperBody"` (or `arms`, `leftArm`, `rightArm`, `lowerBody`, `hands`) to drive **only** that bone set while Starfield's own locomotion keeps the rest of the body — the behavior-graph "equip/gesture while moving" look, instead of arms that keep running under an additive layer. Masked bones at full weight take the authored pose absolutely; `upperBody` feathers a spine seam (`C_Spine` 0.25 → `C_Chest` 1.0) so run/walk torso sway survives underneath, blending against an immutable post-engine base so repeated composes cannot creep toward a full override. Masks compose with `preserveBones` (still a hard exclusion) and with `"poseMode": "additive"` (the mask scales each bone's delta); unknown names are rejected at load with the known list. `poseWeight` is now honored in override mode too, as the documented persistent layer strength. See [`docs/SCENE_SCHEMA.md`](docs/SCENE_SCHEMA.md).
-- **An Import Workshop in the Animation Browser.** **IMPORTS** now treats pack repair as a first-class edit → reload → compare workflow. Every discovered `*.osf.json` is grouped by pack/folder and classified as clean, empty, missing assets, partial, or rejected, with exact authored/accepted/rejected scene counts and a plain-language result. Structured diagnostics carry stable codes, scene/node/role/clip context, repair hints, and missing-clip examples; technical counters stay behind disclosure. Authors can reload every scene/sound/gear registry and clip cache in place, see new and resolved diagnostics plus changed files, jump to content that did load, or copy the authoritative untruncated report to the Windows clipboard. Outcome tabs and full-text search keep large installations tractable. `OSFAdvanced.GetSceneLoadErrors`, the log, and System Health remain additive surfaces.
+
+- **Partial-body animation masks:** roles can drive the upper body, arms, hands,
+  or lower body while the remaining bones stay engine-driven. Masks support
+  feathered spine seams, additive poses, `poseWeight`, and `preserveBones`.
+- **Scene-scoped render props:** attach a fixed form or equipped armor to an actor
+  node and destroy it at an authored handoff. Scene teardown owns remaining props.
+  A file-level `props` registry lets actions reuse definitions with local overrides.
+- **Held stages and frame-positioned tracks:** `hold` freezes a stage on its final
+  frame or a normalized position. `atFrame` places cues, actions, sounds, and camera
+  entries by zero-based clip frame. See the [scene schema](docs/SCENE_SCHEMA.md).
+- **Held-item policy:** `clearHeldItems: false` lets equipment gestures preserve
+  weapons, slates, and tools; the existing automatic cleanup remains the default.
+- **Native scene callbacks and version reporting:** scene API 1.3 delivers
+  synchronous begin/end, node, cue, and action callbacks before Papyrus dispatch.
+  Native and Papyrus consumers can report their minimum required Animation version.
+- **Import diagnostics in Browser:** inspect every discovered scene file, including
+  empty or rejected files; search structured problems and repair hints, reload
+  content, compare results, jump to accepted content, and copy the complete report.
+- **Repeatable release validation:** `tools/test-release.ps1` builds production
+  packages and runs 12 native suites, 162 browser tests, five installer combinations,
+  and 58 checks in a disposable game session. Reports retain per-case results,
+  source/binary hashes, logs, and captures. `-Offline` explicitly omits the game;
+  [visual, audio, controller, and additional recovery coverage](docs/SMOKE_TESTING.md#coverage-boundaries)
+  remains separate from automated success.
+
+### Changed
+
+- Browser is an independently linked addon under `extensions/browser`. It owns
+  browsing, the wheel, picking, preferences, hotkeys, duration scanning/cache
+  persistence, derived inspection clips, and front-of-view placement policy.
+  Core retains playback, scene execution, authored content, and reusable services.
+- Engine services ABI **3.0** replaces the unreleased 1.0/2.0 tables; install
+  matching engine/Browser builds. Scene ABI **1.3** remains unchanged. Generic
+  clip-scene providers preserve generated IDs and existing wheel assignments.
+- Native OSF UI shown/hidden callbacks own browser lifetime. Queued input and
+  commands are invalidated when the view closes or the world is replaced; document
+  initialization requests fresh data and retained preferences.
+- Browser uses a local Vite/Octane build for OSF UI 2.x. The retired authoring CLI
+  is no longer required, and production views install under
+  `SFSE/Plugins/OSF/UI/views/osf.animation`.
+- Browser defaults to **Stay open** after launching a scene. Existing saved choices
+  remain unchanged; **Live controls** and **Close browser** are still available.
+- Frame maintenance drains a finite FIFO command batch on the normal game update,
+  then ticks camera, fade, subtitles, and graph maintenance. Related playback
+  marks/end commands stay ordered; animation sampling remains in its own hooks.
+- Papyrus, native API, and matchmaking share registered-scene launch validation
+  while preserving their documented stage and speed behavior.
+- Audio uses Starfield's listener-centered Wwise route. `role` selects the voice
+  channel, gender substitution, and subtitle speaker; per-cue spatial placement
+  and volume are not supported. Legacy `volume` fields have no effect.
+
+### Fixed
+
+- **Large browser libraries load completely:** bounded message transfers deliver
+  catalogs larger than the host's per-message limit, including the shipped library.
+- **Deferred wheel requests cannot reopen stale UI** after close/cancellation.
+- **The model-update hook forwards Starfield's output-transform argument,** avoiding
+  invalid writes during ordinary actor model updates, even without an active scene.
+- **Masked/additive playback keeps its pose across rig rebuilds:** replacement
+  model nodes and in-place skeleton mutations rebind before stamping. Spine seams
+  retain the last verified engine base until the replacement rig is evaluated,
+  and repeated composition does not recapture OSF's own stamped pose.
+- **One-shot scenes hold their final pose while stopping** instead of resetting to
+  the first frame. Playback replacement also preserves the outgoing pose.
+- **Authored `clipLibrary` entries are visible without author-detail mode.** Only
+  automatically derived inspection entries stay behind that option.
+- Background duration/audio work retains safe process-lifetime state. Registry
+  diagnostics use relative paths, redact quoted absolute paths, and handle
+  case-insensitive Data-relative clip paths.
+- Alternative equipped-armor prop keyword misses no longer produce warnings when
+  another authored alternative resolves successfully. Prop attachment rotation
+  follows the authored convention.
+- Imported scene actions and camera modes remain typed through dispatch instead
+  of repeatedly parsing strings during playback.
+
+### Removed
+
+- Studio Link's live preview inbox, authoring setting, and Suit Protocol bridge.
+- Unreleased actor overlay routes, their native API/debugger, and browser scene
+  inspection previews. Ordinary scenes, masked/additive playback, props, and held
+  stages remain supported.
+- Embedded Tracy profiling support; the documented external WPR/WPA workflow remains.
 
 ## [1.4.0] - 2026-07-30
 

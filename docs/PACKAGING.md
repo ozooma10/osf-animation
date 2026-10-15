@@ -4,6 +4,11 @@ The engine and the optional browser/wheel now have separate release archives. Bo
 Browser sources and installer definitions live in `extensions/browser/`; the root `tools/` and
 `packaging/` scripts remain the build, deployment, and release entry points.
 
+The 1.5.0 release consists of **OSF Animation v1.5.0.zip** and the optional
+**OSF Animation Browser v1.5.0.zip**, each with its checksum and manifest.
+Player-facing replacement and settings instructions are in [UPGRADING.md](UPGRADING.md).
+The [changelog](../CHANGELOG.md) remains marked unreleased until publication.
+
 ```powershell
 packaging\build-archive.ps1
 packaging\build-browser-addon.ps1

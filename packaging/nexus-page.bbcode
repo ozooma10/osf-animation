@@ -9,9 +9,9 @@
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620284-856347009.png[/img][/center]
 OSF is a native animation and scene engine for Starfield, inspired by [b]OStim [/b]and[b] NAF[/b]. It plays animation on actors, keeps multiple characters in sync, anchors them in the world, controls the camera, and runs whole scenes in a data-driven, json based authoring flow.
 
-You can use it directly in-game: an [b]animation browser[/b] to look through everything installed and play it on yourself or nearby NPCs, and an [b]emote wheel[/b] for one-key quick emotes. Or drive it from other mods: you describe a whole scene in a json data file and OSF runs it at runtime, instead of scripting timings and animation events in papyrus yourself.
+With the optional [b]OSF Animation Browser[/b] addon, use an [b]animation browser[/b] to look through everything installed and play it on yourself or nearby NPCs, and an [b]emote wheel[/b] for one-key quick emotes. Or drive the engine from other mods: describe a scene in a JSON data file and OSF runs it at runtime, instead of scripting timings and animation events in Papyrus yourself.
 
-The engine itself carries no content; the installer offers two optional starter packs - the game's own animation library, and an emote pack for the wheel.
+The engine supplies playback and scene execution. The separate [b]Browser installer[/b] offers two optional starter packs: the game's animation library and an emote pack for the wheel. Engine-only users do not need Browser or OSF UI.
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620284-2144773043.png[/img][/center]
 [list]
@@ -27,27 +27,40 @@ The engine itself carries no content; the installer offers two optional starter 
 
 [center][size=4][b][color=#f08a24]NEW IN 1.5.0[/color][/b][/size][/center]
 [list]
+[*][b]Separate engine and Browser packages.[/b] Install OSF Animation 1.5.0 for gameplay consumers; add the matching OSF Animation Browser 1.5.0 for browsing, world picking, the library, and the wheel. Settings, hotkeys, the launcher, and Mod Issues now live in OSF Settings.[/*]
 [*][b]Partial-body animation masks.[/b] Scene roles can drive the upper body, arms, hands, or lower body while Starfield keeps locomotion running on the rest of the actor, with feathered seams and additive-mode support.[/*]
 [*][b]Scene-scoped render props.[/b] Authors can clone an equipped item or fixed form, attach it to an actor node, move it between roles or nodes, and destroy it at an authored handoff. OSF cleans up anything left when the scene ends or a save loads.[/*]
+[*][b]Held stages, frame-positioned tracks, and reusable prop definitions.[/b] Freeze a stage on a chosen pose, place cues/actions/sounds/camera changes by clip frame, and define shared props once per file.[/*]
 [*][b]An Import Workshop in the Animation Browser.[/b] Pack authors can triage clean, empty, missing-asset, partial, and rejected files; follow contextual repair hints; reload packs in place; compare new and resolved diagnostics; jump to content that loaded; and copy a complete report. Curated [font=Courier New]clipLibrary[/font] registrations now appear for players without author-detail mode.[/*]
 [*][b]Better integration for other mods.[/b] SFSE plugins can receive synchronous native scene begin/end, node, cue, and action callbacks, and native or Papyrus consumers can report the minimum OSF Animation version they require.[/*]
 [*][b]Scene policy control.[/b] Partial-body and equipment gestures can preserve equipped weapons, slates, and tools instead of OSF automatically clearing every held item.[/*]
 [*][b]Cleaner sound authoring.[/b] Sound roles now describe their real job - voice-channel selection, gender substitution, and subtitle speaker - while audio rides Starfield's listener-centered Wwise mix. PCM/WEM generation and worker/cache limits have additional regression coverage.[/*]
 [*][b]Animation stability fixes.[/b] Masked and additive playback now rebinds immediately through actor-3D rebuilds and in-place skeleton mutations; one-shot scenes hold their final frame while stopping instead of flashing back to the first pose.[/*]
+[*][b]Browser reliability.[/b] Large catalogs now transfer completely, stale deferred wheel requests are cancelled, and browser lifetime follows the native UI callbacks.[/*]
+[*][b]Automated release suite.[/b] Repeatable native, browser, package/install, and disposable in-game checks retain per-case evidence. Visual, audio, physical-controller, and real upgrade acceptance remain separate.[/*]
 [/list]
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620464-2115394493.png[/img][/center]
-[b]Requires:[/b] [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url] and [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url] (renders the browser and wheel), plus OSF Settings 1.0.0 or newer (settings, hotkeys, launchers, and Mod Issues). The engine and Papyrus API run without these interfaces.
+[b]Engine requirements:[/b] SFSE matching your Starfield version, [url=https://www.nexusmods.com/starfield/mods/3256]Address Library for SFSE[/url], and OSF Settings 1.0.0 or newer.
+[b]Optional Browser requirements:[/b] matching OSF Animation 1.5.0, [url=https://www.nexusmods.com/starfield/mods/17711]OSF UI 2.0.0 or newer[/url], and OSF Settings 1.0.0 or newer. OSF UI renders the browser/wheel; OSF Settings owns preferences, hotkeys, the launcher, and Mod Issues.
 
-Install with MO2 or Vortex; the installer will offer the animation library and the emote pack - take both. Then in-game:
+Install [b]OSF Animation v1.5.0.zip[/b] with MO2 or Vortex. To browse or use the wheel, also install [b]OSF Animation Browser v1.5.0.zip[/b] and choose the library/emote content you want in its installer. Then in-game:
 [list]
-[*]Open OSF Animation from the OSF Settings Launcher tab - pick something, hit LAUNCH.[/*]
-[*]The emote wheel ships unbound - bind a key under [b]OSF Animation[/b] in the settings menu, then aim at an NPC first to emote them instead of yourself.[/*]
-[*]Hotkeys and settings live in OSF Settings, under [b]OSF Animation[/b].[/*]
+[*]Open [b]OSF Animation Browser[/b] from the OSF Settings Launcher tab, pick something, and hit LAUNCH.[/*]
+[*]Bind the browser and wheel keys under [b]OSF Animation Browser[/b]. Both start unbound. Aim at an NPC before opening the wheel to emote them instead of yourself.[/*]
+[*]Engine preferences appear under [b]OSF Animation[/b]; browsing preferences and hotkeys appear under [b]OSF Animation Browser[/b].[/*]
 [/list]
-No OSF UI? The engine still runs headless for content mods; smoke-test from the console (~):
-[code]cgf "OSFTest.SoloScene"   ; play a looping test animation
-cgf "OSFTest.Stop"        ; stop it[/code]
+No Browser or OSF UI? Gameplay mods can still use the engine's native and Papyrus APIs.
+
+[b]Upgrading from 1.4.0 or a development build:[/b]
+[list]
+[*]End active scenes, close Starfield, and preserve your saves with their .osf sidecars, custom content, wheel pins, and saved settings.[/*]
+[*]Replace the old Animation installation rather than merging. Install the matching engine and Browser packages separately. Move custom files out of an old mod folder before replacing it; keep separate content mods enabled.[/*]
+[*]Remove the obsolete Animation schema by replacing its owning mod files: [font=Courier New]Data/SFSE/Plugins/OSF/Settings/schemas/osf.animation.json[/font]. Keep saved settings values with that name; the new providers can import them.[/*]
+[*]Preferences from the OSF Settings provider [font=Courier New]osf.animation[/font] import once into the separate engine/browser providers without overwriting explicit new values. Older combined OSF UI settings are not migrated.[/*]
+[*][b]Rebind both browser hotkeys.[/b] Wheel pins and scene IDs remain unchanged; keep their referenced content installed. Open the Launcher and check Mod Issues after upgrading.[/*]
+[/list]
+See the complete [url=https://github.com/ozooma10/osf-animation/blob/dev/docs/UPGRADING.md]1.5.0 upgrade guide[/url] and [url=https://github.com/ozooma10/osf-animation/blob/dev/CHANGELOG.md]changelog[/url] on GitHub.
 
 [center][img]https://staticdelivery.nexusmods.com/mods/4187/images/17457/17457-1782620464-1671481126.png[/img][/center]
 [list]

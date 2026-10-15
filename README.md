@@ -39,14 +39,21 @@ Key Features:
   Playback and the native/Papyrus APIs remain available with both Browser and OSF UI absent.
   See [native addon ownership and public services](docs/BROWSER_ADDON.md).
 
-Upgrading from the combined OSF UI settings service starts with the new Settings defaults;
-old values and keybindings are not migrated. Both Animation hotkeys start unbound.
-Settings schemas are named `osf.animation.engine.json` and `osf.animation.browser.json`.
-Existing OSF Settings values under `osf.animation` are imported once into the corresponding new IDs;
-explicit destination values win. Rebind the two browser hotkeys after the ID change. Wheel pins,
-scene IDs, and view ID are unchanged. Replace the old engine/browser mods when upgrading to remove
-the obsolete combined schema, and install matching
-engine/browser builds (engine services ABI 3.0).
+## Installing or upgrading to 1.5.0
+
+Install **OSF Animation v1.5.0.zip** for the engine. For the browser and wheel, also
+install **OSF Animation Browser v1.5.0.zip** and OSF UI 2.0.0+. The Browser installer
+offers the optional vanilla/creature library and emote content. OSF Settings 1.0.0+
+provides settings and the launcher.
+
+Replace the old Animation mod files instead of merging; preserve custom content
+and saved user data. Install matching engine/Browser versions and **rebind the two
+browser hotkeys**. Preferences from OSF Settings import once; values from the older
+combined OSF UI service do not. Wheel pins and scene IDs remain unchanged.
+
+Follow the [1.5.0 upgrade guide](docs/UPGRADING.md) for the replacement steps,
+settings migration details, and first-launch checks. See the [changelog](CHANGELOG.md)
+for the complete release notes.
 
 ### Build (to compile from source)
 
