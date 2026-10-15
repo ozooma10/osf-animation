@@ -41,7 +41,17 @@ namespace OSF::Animation
 		bool HooksInstalled() const;
 
 #ifdef OSF_ANIMATION_SMOKE
-		struct SmokePose { std::size_t boundBones{}; bool stamped{}; bool finite{}; PoseMode mode{}; };
+		struct SmokePose
+		{
+			std::size_t boundBones{};
+			bool stamped{};
+			bool finite{};
+			PoseMode mode{};
+			float poseWeight{};
+			std::string maskId;
+			// Values copied from the actual live stamp binding, not reconstructed from the mask.
+			std::vector<std::pair<std::string, float>> boneWeights;
+		};
 		std::optional<SmokePose> ObservePoseForSmoke(RE::Actor* a_actor);
 #endif
 

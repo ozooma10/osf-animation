@@ -8,6 +8,7 @@ struct FeatureState
 	std::int32_t papyrusToken{};
 	std::vector<Event> papyrusEvents;
 	std::vector<RE::TESFormID> worn;
+	std::vector<RE::TESFormID> retainedWorn;
 	std::uint32_t inputFlags{};
 	void* cameraState{};
 	int importIndex{};
@@ -28,6 +29,8 @@ struct FeatureState
 	Json browserReport=Json::object();
 	Clock::time_point browserProbeAt{};
 	int resumePhase{};
+	int policyIndex{};
+	std::int32_t beforeLoadScene{};
 } feature;
 constexpr std::uint64_t kSmokeVoice = 0x4F5346534D4F4B45ull;
 constexpr std::uint32_t kSmokeClient = OSF_PERSISTENCE_FOURCC('O','A','T','S');
@@ -46,9 +49,10 @@ Json BrowserReport()
 	if (Clock::now() >= feature.browserProbeAt) {
 		feature.browserProbeAt=Clock::now()+std::chrono::milliseconds(500);
 		const auto payload=Json{{"runId",g.snapshot["runId"]}}.dump();
-		BrowserProbe::Views().EmitEvent(BrowserProbe::kViewId,"osf.animation.smoke.probe",payload.c_str());
+		g.snapshot["browserProbeAccepted"] = BrowserProbe::Views().EmitEvent(BrowserProbe::kViewId,"osf.animation.smoke.probe",payload.c_str());
 	}
 	std::lock_guard lock(feature.mutex);
+	g.snapshot["browserObservation"] = feature.browserReport;
 	if (feature.browserReport.value("runId",std::string{}) != g.snapshot["runId"].get<std::string>()) return Json::object();
 	return feature.browserReport;
 }
@@ -116,6 +120,22 @@ std::vector<RE::TESFormID> Worn(RE::Actor* actor)
 	std::ranges::sort(result);
 	return result;
 }
+std::vector<RE::TESFormID> WornAfterFullHide(RE::Actor* actor)
+{
+	std::vector<RE::TESFormID> result;
+	const auto base=actor->GetBaseObject();
+	const auto* npc=base ? base->As<RE::TESNPC>() : nullptr;
+	const auto* skin=npc ? npc->GetSkin() : nullptr;
+	actor->ForEachEquippedItem([&](const RE::BGSInventoryItem& item) {
+		// Full hide removes armor and weapons, while skin and unrelated held
+		// object types are intentionally retained by EquipmentService::Hide.
+		if (item.object && (item.object == skin || (!item.object->IsArmor() && !item.object->IsWeapon())))
+			result.push_back(item.object->GetFormID());
+		return RE::BSContainer::ForEachResult::kContinue;
+	});
+	std::ranges::sort(result);
+	return result;
+}
 std::uint32_t InputFlags()
 {
 	auto* input = RE::BSInputEnableManager::GetSingleton();
@@ -126,8 +146,25 @@ std::uint32_t InputFlags()
 bool PoseStamped(RE::Actor* actor, bool additive = false)
 {
 	const auto observed = Animation::GraphManager::GetSingleton().ObservePoseForSmoke(actor);
-	return observed && observed->boundBones > 0 && observed->stamped && observed->finite &&
-		(!additive || observed->mode == Animation::PoseMode::kAdditive);
+	if (!observed || observed->boundBones == 0 || !observed->stamped || !observed->finite) return false;
+	if (!additive) return true;
+	const auto* expectedMask = Animation::BoneMask::Find("upperBody");
+	if (!expectedMask || observed->mode != Animation::PoseMode::kAdditive ||
+		!std::isfinite(observed->poseWeight) || std::abs(observed->poseWeight - 0.25f) > 0.0001f || observed->maskId != expectedMask->id ||
+		observed->boneWeights.size() != observed->boundBones) return false;
+	std::unordered_set<std::string> bound;
+	for (const auto& [name, weight] : observed->boneWeights) {
+		std::string lower = name;
+		for (auto& ch : lower) if (ch >= 'A' && ch <= 'Z') ch = static_cast<char>(ch - 'A' + 'a');
+		const auto expected = expectedMask->weights.find(lower);
+		if (expected == expectedMask->weights.end() || !std::isfinite(weight) ||
+			std::abs(weight - expected->second) > 0.0001f) return false;
+		bound.insert(std::move(lower));
+	}
+	// Prove the live binding has the feathered seam and a fully weighted upper-body
+	// bone, while the all-members check above rejects accidentally bound hips/legs.
+	return bound.contains("c_spine") && bound.contains("c_spine1") &&
+		bound.contains("c_spine2") && bound.contains("c_head");
 }
 bool WaitFeature(const char* name, bool ready, float seconds, const char* failure)
 {
@@ -182,13 +219,13 @@ void CleanupFeatures(bool worldReset)
 void FailFeature(const char* description)
 {
 	// A failed feature must not hide independent later features. Foundational
-	// API/browser failures and load failures still stop: their prerequisites are shared.
+	// API and load failures still stop: their prerequisites are shared.
 	const int phase = g.phase;
-	const int next = phase >= 100 && phase <= 102 ? 110 :
+	const int next = phase >= 10 && phase <= 16 ? 100 : phase >= 100 && phase <= 102 ? 110 :
 		phase >= 110 && phase <= 112 ? 120 : phase >= 120 && phase <= 121 ? 130 : phase >= 130 && phase <= 132 ? 135 :
 		phase >= 135 && phase <= 137 ? 140 : phase >= 140 && phase <= 143 ? 160 :
 		phase >= 160 && phase <= 161 ? 180 :
-		phase >= 180 && phase <= 184 ? 170 : 0;
+		phase >= 180 && phase <= 184 ? 190 : phase >= 190 && phase <= 192 ? 170 : 0;
 	if (!next) { Finish("failed", description); return; }
 	Cleanup();
 	g.actor.reset(RE::PlayerCharacter::GetSingleton());
@@ -202,7 +239,7 @@ void RecoverFeature()
 	if (!g.actor || g.actor.get() != RE::PlayerCharacter::GetSingleton()) {
 		Finish("blocked", "Player changed while cleaning up a failed feature", true); return;
 	}
-	if (!ActorUnclaimed(g.actor.get())) {
+	if (!ActorUnclaimed(g.actor.get()) || BrowserProbe::Visible()) {
 		if (PhaseSeconds() > 10) Finish("failed", "Failed feature did not release its playback; remaining cases cannot safely run");
 		return;
 	}
@@ -277,14 +314,14 @@ void AdvanceFeatures()
 		if (!Check("matchmaking.tags",match && match->id == "osf.smoke.match" && match->order == std::vector<std::size_t>{0} && !Matchmaking::Pick({actor},query),"Live actor matchmaking honors positive/negative tags and complete role binding")) return;
 		const auto files=registry.FileStats();
 		if (!Check("registry.import-records",std::ranges::any_of(files,[](const auto& f) { return f.file == "animation-features.osf.json" && f.scenes == 3 && f.errors == 0; }),"Every extended fixture was accepted and attributed to its import record")) return;
-		feature.worn=Worn(actor); feature.inputFlags=InputFlags();
-		if (feature.worn.empty() || !(feature.inputFlags & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement))) { Finish("blocked","Equipment/input fixture requires a clothed player with movement initially enabled"); return; }
+		feature.worn=Worn(actor); feature.retainedWorn=WornAfterFullHide(actor); feature.inputFlags=InputFlags();
+		if (feature.worn == feature.retainedWorn || !(feature.inputFlags & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement))) { Finish("blocked","Equipment/input fixture requires a clothed player with movement initially enabled"); return; }
 		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.mechanisms",options);
 		if (!g.scene) { Check("mechanisms.engage",false,"Mechanism scene did not start"); return; }
 		Phase(131); break;
 	}
 	case 131:
-		if (!WaitFeature("mechanisms.engage",!(InputFlags() & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement)) && Worn(actor).size() < feature.worn.size(),5,"Authored lock/strip actions did not disable movement and remove worn items")) break;
+		if (!WaitFeature("mechanisms.engage",!(InputFlags() & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement)) && Worn(actor) == feature.retainedWorn,5,"Authored lock/strip actions did not disable movement and remove all eligible worn items")) break;
 		if (!Check("mechanisms.engage",true,"Authored actions changed the engine input mask and actual equipped inventory")) return;
 		g.sceneAPI->StopScene(g.scene); Phase(132); break;
 	case 132:
@@ -312,13 +349,15 @@ void AdvanceFeatures()
 		if (!WaitFeature("camera.restore",camera && camera->currentState == feature.cameraState,5,"Orbit release failed to restore the previous native camera state")) break;
 		if (!Check("camera.restore",true,"Camera state returned to its captured baseline")) return;
 		Props::Source source;
-		for (auto id : feature.worn) if ((id >> 24) == 0 && RE::TESForm::LookupByID<RE::TESObjectARMO>(id)) { source.form=std::format("Starfield.esm|0x{:X}",id); break; }
+		for (auto id : Worn(actor)) if ((id >> 24) == 0 && RE::TESForm::LookupByID<RE::TESObjectARMO>(id)) { source.form=std::format("Starfield.esm|0x{:X}",id); break; }
 		if (source.form.empty()) { Finish("blocked","Prop fixture requires one worn vanilla armor form in the disposable seed"); return; }
 		std::string error; Props::Attachment attachment; attachment.targetNode="C_Head"; attachment.scale=0.15f;
 		feature.prop=Props::PropService::GetSingleton().CreateAttached(actor,source,attachment,&error);
 		if (!Check("props.attach",!feature.prop.Empty() && feature.prop.object->parent != nullptr,"Prop service cloned a vanilla model and attached it to the live actor hierarchy")) return;
+		const auto* previousParent=feature.prop.object->parent;
 		attachment.targetNode="R_Wrist";
-		if (!Check("props.reattach",Props::PropService::GetSingleton().Attach(feature.prop,actor,attachment,&error) && feature.prop.object->parent != nullptr,"Existing prop moved to a different live attachment node")) return;
+		if (!Check("props.reattach",Props::PropService::GetSingleton().Attach(feature.prop,actor,attachment,&error) && feature.prop.object->parent != nullptr &&
+			feature.prop.object->parent != previousParent && feature.prop.object->parent->name == "R_Wrist","Existing prop moved from its previous parent to the requested live wrist node")) return;
 		if (!Check("props.destroy",Props::PropService::GetSingleton().Destroy(feature.prop,&error) && feature.prop.Empty() && Props::PropService::GetSingleton().Destroy(feature.prop,&error),"Prop detach/destruction clears ownership and is idempotent")) return;
 		Phase(140); break;
 	}
@@ -386,6 +425,13 @@ void AdvanceFeatures()
 		if (!WaitFeature("multi-actor.sync",PoseStamped(actor) && PoseStamped(peer),8,"Both participants did not stamp into their own live rigs")) break;
 		const auto first=manager.GetScenePlayback(actor),second=manager.GetScenePlayback(peer);
 		if (!Check("multi-actor.sync",first && second && first->playbackId == second->playbackId && std::abs(first->time-second->time) < 0.001f && g.sceneAPI->GetSceneParticipants(g.scene,nullptr,0) == 2,"Two stamped actor rigs share one playback ID and clock")) return;
+		std::array<RE::Actor*,3> roster{nullptr, actor, actor};
+		const bool bounded = g.sceneAPI->GetSceneParticipants(g.scene,roster.data(),1) == 2 &&
+			roster[0] == actor && roster[1] == actor && roster[2] == actor;
+		roster = {nullptr, nullptr, actor};
+		if (!Check("scene.roster-bounds",bounded && g.sceneAPI->GetSceneParticipants(g.scene,roster.data(),2) == 2 &&
+			roster[0] == actor && roster[1] == peer && roster[2] == actor,
+			"Roster queries return the full count, preserve cast order and never write past caller capacity")) return;
 		if (!Check("multi-actor.speed",g.sceneAPI->SetSpeed(peer,0) && g.sceneAPI->GetSpeed(actor) == 0 && g.sceneAPI->SetSpeed(actor,1.5f) && std::abs(g.sceneAPI->GetSpeed(peer)-1.5f) < 0.001f,"Speed changes through either participant affect the same shared clock")) return;
 		g.sceneAPI->StopScene(g.scene); Phase(183); break;
 	}
@@ -399,8 +445,47 @@ void AdvanceFeatures()
 		if (!WaitFeature("multi-actor.cleanup",retired,10,"Disposable actor deletion did not complete through Papyrus")) break;
 		if (!Check("multi-actor.cleanup",true,"Papyrus returned after disabling and deleting the disposable actor")) return;
 		{ std::lock_guard lock(feature.mutex); feature.peer.reset(); }
-		Phase(170); break;
+		feature.policyIndex=0; Phase(190); break;
 	}
+	case 190: {
+		if (!WaitFeature("policy.defaults",!manager.IsPlaying(actor),6,"Previous scene retained playback before default policy checks")) break;
+		g.scene=0;
+		feature.worn=Worn(actor); feature.retainedWorn=WornAfterFullHide(actor); feature.inputFlags=InputFlags();
+		if (feature.worn == feature.retainedWorn || !(feature.inputFlags & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement))) {
+			Finish("blocked","Default policy checks require worn apparel and initially enabled movement"); return;
+		}
+		auto options=Options(); options.stripMode=options.lockPlayerMode=-1;
+		// The first two inherit content policy; the latter two explicitly reverse it.
+		const bool optOut = feature.policyIndex == 1 || feature.policyIndex == 3;
+		if (feature.policyIndex >= 2) options.stripMode=options.lockPlayerMode=optOut ? 1 : 0;
+		g.scene=g.sceneAPI->StartScene(&actor,1,optOut ? "osf.smoke.optout" : "osf.smoke.defaults",options);
+		constexpr const char* names[]{"policy.defaults","policy.opt-outs","policy.override-off","policy.override-on"};
+		if (!g.scene) { Check(names[feature.policyIndex],false,"Policy fixture could not start"); return; }
+		Phase(191); break;
+	}
+	case 191: {
+		constexpr const char* names[]{"policy.defaults","policy.opt-outs","policy.override-off","policy.override-on"};
+		const bool expectEngaged = feature.policyIndex == 0 || feature.policyIndex == 3;
+		const bool matched = expectEngaged ?
+			!(InputFlags() & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement)) && Worn(actor) == feature.retainedWorn :
+			InputFlags() == feature.inputFlags && Worn(actor) == feature.worn;
+		if (!WaitFeature(names[feature.policyIndex],matched && PoseStamped(actor) && PhaseSeconds() >= 0.3f,6,
+			"Live input mask/equipped inventory did not match the inherited or overridden start policy")) break;
+		if (!Check(names[feature.policyIndex],true,
+			"Started scene stamped the live rig with the expected real input mask and worn inventory")) return;
+		if (!g.sceneAPI->StopScene(g.scene)) { Check("policy.restore",false,"Policy scene could not stop"); return; }
+		Phase(192); break;
+	}
+	case 192:
+		if (!WaitFeature("policy.restore",!manager.IsPlaying(actor) && InputFlags() == feature.inputFlags && Worn(actor) == feature.worn,8,
+			"Stopping a policy scene failed to restore the exact input mask and worn inventory")) break;
+		g.scene=0;
+		if (++feature.policyIndex < 4) Phase(190);
+		else {
+			if (!Check("policy.restore",true,"All four inherited/override starts restored their original input mask and worn form IDs")) return;
+			Phase(170);
+		}
+		break;
 	case 170: {
 		if (!WaitFeature("persistence.save",!manager.IsPlaying(actor),6,"Scene graph remained before persistence test")) break;
 		g.scene=0;
@@ -416,8 +501,11 @@ void AdvanceFeatures()
 		if (!WaitFeature("persistence.save",feature.saves.load() > 0,30,"Real quicksave did not invoke the registered record writer")) break;
 		if (!Check("persistence.save",true,"Real quicksave called the client writer and serialized the probe record")) return;
 		feature.value=0xBAD; // The load must restore the saved value, not the current live one.
+		if (!g.callback) g.callback=g.sceneAPI->RegisterSceneEventCallback(SceneEvent,nullptr);
+		if (!g.callback) { Check("api.callbacks-after-load",false,"Native callback registration failed before quickload"); return; }
 		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.linear",options);
 		if (!g.scene) { Check("persistence.world-reset",false,"Could not arm live playback before quickload"); return; }
+		feature.beforeLoadScene=g.scene;
 		ExternalAction("quickload"); Phase(172); break;
 	}
 	case 172:
@@ -425,6 +513,11 @@ void AdvanceFeatures()
 		g.actor.reset(RE::PlayerCharacter::GetSingleton()); actor=g.actor.get(); g.scene=0;
 		if (!Check("persistence.load-remap",feature.loadedValue == 0x51A7E123 && feature.resolvedPlayer == actor->GetFormID() && feature.reverts > 0,"Load restored the saved record after revert and resolved the player FormID")) return;
 		if (!Check("persistence.world-reset",!manager.IsPlaying(actor) && Scene::SceneRuntime::GetSingleton().ListScenes().empty(),"Actual world replacement cleared active playback and runtime ownership")) return;
+		if (!Check("api.stale-handles-after-load",feature.beforeLoadScene != 0 &&
+			!g.sceneAPI->StopScene(feature.beforeLoadScene) && !g.sceneAPI->Advance(feature.beforeLoadScene) &&
+			g.sceneAPI->GetSceneParticipants(feature.beforeLoadScene,nullptr,0) == 0 &&
+			g.sceneAPI->GetSceneStage(feature.beforeLoadScene) == -1,
+			"World replacement invalidated the previously live scene handle and its retained roster")) return;
 		ExternalAction("");
 		if (!Check("papyrus.rebind",ProbePapyrus(),"Smoke script dispatch accepted after VM rebuild")) return;
 		Phase(173); break;
@@ -433,8 +526,20 @@ void AdvanceFeatures()
 		{ std::lock_guard lock(feature.mutex); ready=feature.papyrusReady && feature.papyrusRun == g.snapshot["runId"].get<std::string>(); }
 		if (!WaitFeature("papyrus.rebind",ready,10,"OSF natives did not return from the rebuilt VM")) break;
 		if (!Check("papyrus.rebind",true,"OSF readiness native executed through Papyrus after a real quickload")) return;
-		Finish("passed","All implemented runtime assertions passed; coverage report retains visual, hardware and external integration requirements");
+		{ std::scoped_lock lock(g.eventsMutex); g.events.clear(); }
+		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.graph",options);
+		if (!g.scene || g.scene == feature.beforeLoadScene || !g.sceneAPI->Navigate(g.scene,"next") || !g.sceneAPI->Advance(g.scene)) {
+			Check("api.callbacks-after-load",false,"Could not start a distinct fresh graph after quickload"); return;
+		}
+		Phase(174);
 		break;
 	}
+	case 174:
+		if (!WaitFeature("api.callbacks-after-load",!manager.IsPlaying(actor) && g.sceneAPI->GetSceneForActor(actor) == 0,8,
+			"Post-load graph did not complete its timer and release playback")) break;
+		if (!Check("api.callbacks-after-load",GraphEventOrder(g.scene),
+			"Native callback token registered before quickload received every ordered event from a fresh scene after world/VM replacement")) return;
+		Finish("passed","All implemented runtime assertions passed; coverage report retains visual, hardware and external integration requirements");
+		break;
 	}
 }

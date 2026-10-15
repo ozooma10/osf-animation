@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "name": "OSF Animation start-policy acceptance fixtures",
+  "unlisted": true,
+  "camera": "none",
+  "placement": "followActor",
+  "clearHeldItems": false,
+  "fade": false,
+  "sceneControls": false,
+  "roles": [{ "name": "player" }],
+  "scenes": [
+    {
+      "id": "osf.smoke.defaults",
+      "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }]
+    },
+    {
+      "id": "osf.smoke.optout",
+      "playerInputLock": false,
+      "hideApparel": false,
+      "stages": [{ "loops": 0, "clips": ["meshes/actors/human/animations/common/cower_idle.af"] }]
+    }
+  ]
+}

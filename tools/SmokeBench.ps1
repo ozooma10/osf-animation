@@ -53,6 +53,53 @@ function Test-SmokeNativeSummary([string]$Log, [int]$ExpectedCount) {
     }
 }
 
+function Read-SmokeNativeCases([string]$Log) {
+    $plain = [regex]::Replace($Log, '\x1B\[[0-?]*[ -/]*[@-~]', '')
+    foreach ($match in [regex]::Matches($plain, '(?m)^\[\s*\d+%\]:\s+(osf-[a-z0-9-]+/[^\s]+)\s+[. ]*(passed|failed)\s+([0-9.]+)s\s*$')) {
+        @{name=$match.Groups[1].Value; status=$match.Groups[2].Value; message='XMake executed suite';
+            seconds=[double]::Parse($match.Groups[3].Value, [Globalization.CultureInfo]::InvariantCulture); log=$null}
+    }
+}
+
+function Test-SmokeNativeCases([string]$Log, [string[]]$Targets) {
+    Test-SmokeNativeSummary $Log $Targets.Count
+    $cases = @(Read-SmokeNativeCases $Log)
+    $expected = @($Targets | ForEach-Object { "$_/default" })
+    if ($cases.Count -ne $expected.Count -or @(Compare-Object $expected @($cases.name) -CaseSensitive).Count -or
+        @($cases | Where-Object status -ne 'passed').Count) {
+        throw '[blocked] XMake suite identities do not match the registered tests.'
+    }
+}
+
+function Read-SmokeBrowserCases($Receipt, [string]$Root) {
+    foreach ($file in $Receipt.testResults) {
+        $relative = [IO.Path]::GetRelativePath($Root, $file.name).Replace('\','/')
+        foreach ($case in $file.assertionResults) {
+            @{name=($relative + ': ' + $case.fullName); status=$case.status;
+                message=($case.failureMessages -join "`n"); seconds=([double]$case.duration / 1000); log=$null}
+        }
+    }
+}
+
+function Test-SmokeBrowserReceipt($Receipt, [string]$Root, [string[]]$ExpectedFiles, [DateTimeOffset]$StartedAt) {
+    if ($Receipt.success -isnot [bool] -or -not $Receipt.success -or $Receipt.numTotalTests -le 0 -or
+        $Receipt.numPassedTests -ne $Receipt.numTotalTests -or $Receipt.numFailedTests -ne 0 -or
+        $Receipt.numPendingTests -ne 0 -or $Receipt.numTodoTests -ne 0 -or
+        [long]$Receipt.startTime -lt $StartedAt.ToUnixTimeMilliseconds() -or
+        [long]$Receipt.startTime -gt [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) {
+        throw '[blocked] Browser receipt is stale, incomplete, or contains skipped/failed tests.'
+    }
+    $files = @($Receipt.testResults | ForEach-Object { [IO.Path]::GetRelativePath($Root, $_.name).Replace('\','/') })
+    if ($files.Count -ne $ExpectedFiles.Count -or @(Compare-Object $files $ExpectedFiles -CaseSensitive).Count -or
+        @($Receipt.testResults | Where-Object { $_.status -ne 'passed' -or -not $_.assertionResults.Count }).Count) {
+        throw '[blocked] Browser test file inventory does not match the executed receipt.'
+    }
+    $cases = @(Read-SmokeBrowserCases $Receipt $Root)
+    if ($cases.Count -ne $Receipt.numTotalTests -or @($cases | Where-Object status -ne 'passed').Count) {
+        throw '[blocked] Browser assertions contradict the aggregate receipt.'
+    }
+}
+
 function Read-SmokeCaseResult([string]$Path, [DateTimeOffset]$StartedAt, [DateTimeOffset]$FinishedAt, [int]$ExitCode) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Missing scenario receipt: $Path" }
     $result = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
@@ -127,6 +174,21 @@ function Test-SmokeRuntimeReceipt($Receipt, [string[]]$ExpectedCases, [string]$S
     }
 }
 
+function Set-SmokeUnverifiedCases($Report, $Stage) {
+    if ($Stage.status -ne 'blocked') { return }
+    $kind = switch ($Stage.name) { native { 'nativeCases' } browser { 'browserCases' } runtime { 'runtimeCases' } }
+    if (-not $kind -or -not $Report.Contains($kind)) { return }
+    # Cases are imported before validation so genuine failures remain visible. A blocked
+    # stage never establishes its raw passing observations; retain those in the source
+    # receipt/log, but mark the report unverified. Failed stages keep observed partial passes.
+    foreach ($case in $Report[$kind]) {
+        if ($case.status -eq 'passed') {
+            $case.status = 'blocked'
+            $case.message = "Unverified: $($Stage.name) source receipt was not validated. $($Stage.message) Original observation: $($case.message)"
+        }
+    }
+}
+
 function Save-SmokeReport($Report, [string]$Directory) {
     [IO.File]::WriteAllText((Join-Path $Directory 'result.json'), ($Report | ConvertTo-Json -Depth 30))
     $lines = @('# OSF Animation smoke bench', '', "Outcome: **$($Report.outcome)**", '',
@@ -135,6 +197,15 @@ function Save-SmokeReport($Report, [string]$Directory) {
     foreach ($stage in $Report.stages) {
         $link = if ($stage.log) { "[$($stage.name)](<$($stage.log)>) " } else { '' }
         $lines += "| $($stage.name) | $($stage.status) | $($stage.seconds) | $link$($stage.message.Replace('|','/').Replace("`n",' ')) |"
+    }
+    $offline = @(foreach ($kind in @('nativeCases','browserCases')) {
+        if ($Report.Contains($kind)) { foreach ($case in $Report[$kind]) {
+            @{name=($kind.Replace('Cases','') + '.' + $case.name);status=$case.status;message=$case.message;seconds=$case.seconds;log=$case.log}
+        } }
+    })
+    if ($offline.Count) {
+        $lines += @('', '## Offline assertions', '', '| Test | Result | Seconds |', '| --- | --- | ---: |')
+        foreach ($case in $offline) { $lines += "| $($case.name.Replace('|','/')) | $($case.status) | $($case.seconds) |" }
     }
     if ($Report.Contains('runtime') -and $Report.runtime) { $lines += @('', "Game suite receipt: [$($Report.runtime)](<$($Report.runtime)>)") }
     $cases = @(if ($Report.Contains('runtimeCases')) { $Report.runtimeCases })
@@ -159,7 +230,7 @@ function Save-SmokeReport($Report, [string]$Directory) {
     $xml = [Xml.XmlWriter]::Create((Join-Path $Directory 'junit.xml'), $settings)
     try {
         $xml.WriteStartElement('testsuite'); $xml.WriteAttributeString('name', 'OSF Animation smoke bench')
-        $entries=@($Report.stages) + @($cases | ForEach-Object { @{name=('game.'+$_.name);status=$_.status;message=$_.message;seconds=0;log=$null} })
+        $entries=@($Report.stages) + $offline + @($cases | ForEach-Object { @{name=('game.'+$_.name);status=$_.status;message=$_.message;seconds=0;log=$null} })
         $xml.WriteAttributeString('tests', [string]$entries.Count)
         $xml.WriteAttributeString('failures', [string]@($entries | Where-Object status -eq 'failed').Count)
         $xml.WriteAttributeString('errors', [string]@($entries | Where-Object status -eq 'blocked').Count)
@@ -188,6 +259,45 @@ function Test-SmokeCaseInventory([string]$Repository, [string[]]$RuntimeCases) {
     $compiled=@([regex]::Matches($header,'"([a-z][a-z0-9.-]+)"') | ForEach-Object { $_.Groups[1].Value })
     if ($compiled.Count -ne $RuntimeCases.Count -or @(Compare-Object $compiled $RuntimeCases -CaseSensitive).Count) {
         throw '[failed] Compiled runtime case inventory differs from runtime-cases.json.'
+    }
+}
+
+function Test-SmokeHarnessPlan($Plan, [string[]]$Cases, [string]$Hosts) {
+    $planData = $Plan | ConvertTo-Json -Depth 12 | ConvertFrom-Json -AsHashtable
+    if (-not $planData.ContainsKey('protocolVersion') -or $planData.protocolVersion -ne 2 -or
+        -not $planData.ContainsKey('hosts') -or $Hosts -cnotin $planData.hosts -or
+        -not $planData.ContainsKey('externalActions') -or
+        @(@('quicksave','quickload','browser-imports') | Where-Object { $_ -cnotin $planData.externalActions }).Count) {
+        throw '[blocked] Animation harness is outdated: protocol 2 with host staging and save/load/browser input support is required.'
+    }
+    if ($planData.cases.Count -ne $Cases.Count -or @(Compare-Object $planData.cases $Cases -CaseSensitive).Count) {
+        throw '[blocked] Runtime harness and Animation case inventories differ.'
+    }
+}
+
+function Stage-SmokeBrowser([string]$Repository, [string]$RuntimeMod) {
+    $viewRelative = 'SFSE/Plugins/OSF/UI/views/osf.animation'
+    $builtView = Join-Path $Repository ('build/osfui-animation-browser/' + $viewRelative)
+    $stagedView = Join-Path $RuntimeMod $viewRelative
+    if (Test-Path -LiteralPath $stagedView) { throw '[blocked] Browser smoke staging requires a fresh view destination.' }
+    foreach ($required in @('browser/index.html','browser/manifest.json')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $builtView $required))) { throw "[blocked] Built browser is missing $required." }
+    }
+    $observer = Join-Path $Repository 'test/smoke/browser-observer.js'
+    if (-not (Test-Path -LiteralPath $observer)) { throw '[blocked] Browser smoke observer is missing.' }
+    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($stagedView)) | Out-Null
+    Copy-Item -LiteralPath $builtView -Destination $stagedView -Recurse
+    $index = Join-Path $stagedView 'browser/index.html'
+    $html = [IO.File]::ReadAllText($index)
+    if ([regex]::Matches($html,'</body>').Count -ne 1 -or $html.Contains('smoke-observer.js')) {
+        throw '[blocked] Unexpected browser document; cannot install private observer.'
+    }
+    Copy-Item -LiteralPath $observer -Destination (Join-Path $stagedView 'browser/smoke-observer.js')
+    [IO.File]::WriteAllText($index, $html.Replace('</body>', '<script src="./smoke-observer.js"></script></body>'))
+    $content = Join-Path $RuntimeMod 'OSF'
+    [IO.Directory]::CreateDirectory($content) | Out-Null
+    foreach ($folder in @('vanilla','immersion')) {
+        Copy-Item -LiteralPath (Join-Path $Repository "dist/OSF/$folder") -Destination $content -Recurse
     }
 }
 
@@ -245,5 +355,96 @@ function Test-SmokeArchives([string]$Directory, [string]$ExpectedDllHash) {
                 throw '[failed] Engine or foreign native payload leaked into browser addon.'
             }
         } finally { $zip.Dispose() }
+    }
+}
+
+# Exercise the installer folder choices and repeated payload overlays in a fresh
+# sandbox. This checks file layout/preservation, not MO2 or in-game migration.
+function Test-SmokeInstall([string]$ArchiveDirectory, [string]$Destination) {
+    if (Test-Path -LiteralPath $Destination) { throw '[blocked] Install test requires a fresh destination.' }
+    $archives = @(Get-ChildItem -LiteralPath $ArchiveDirectory -Filter '*.zip' -File)
+    $engine = @($archives | Where-Object Name -cmatch '^OSF Animation v.+\.zip$')
+    $browser = @($archives | Where-Object Name -cmatch '^OSF Animation Browser v.+\.zip$')
+    if ($engine.Count -ne 1 -or $browser.Count -ne 1) { throw '[failed] Install test needs both product archives.' }
+    $variants = @(
+        @{name='engine-only';roots=@()}, @{name='browser-minimal';roots=@('Browser')},
+        @{name='browser-library';roots=@('Browser','Library')}, @{name='browser-emotes';roots=@('Browser','Immersion')},
+        @{name='browser-all';roots=@('Browser','Library','Immersion')})
+    foreach ($variant in $variants) {
+        $root = [IO.Path]::GetFullPath((Join-Path $Destination $variant.name))
+        $prefix = $root.TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar
+        $sentinels = @('OSF/user/custom.osf.json','OSF/clip-durations.json',
+            'SFSE/Plugins/OSF/Settings/values/osf.animation.browser.json','SFSE/Plugins/OSF/Settings/schemas/another-mod.json')
+        foreach ($relative in $sentinels) {
+            $path = Join-Path $root $relative
+            [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
+            [IO.File]::WriteAllText($path, 'preserve:' + $relative)
+        }
+        $expected = @{}
+        foreach ($pass in 1..2) {
+            $written = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            foreach ($product in @(@{file=$engine[0];roots=@('Core')},@{file=$browser[0];roots=$variant.roots})) {
+                if (-not $product.roots.Count) { continue }
+                $zip = [IO.Compression.ZipFile]::OpenRead($product.file.FullName)
+                try {
+                    $configEntry = $zip.GetEntry('fomod/ModuleConfig.xml')
+                    if (-not $configEntry) { throw '[failed] Missing FOMOD installer.' }
+                    $reader = [IO.StreamReader]::new($configEntry.Open())
+                    try { [xml]$config = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                    if ($config.SelectNodes('//file').Count) { throw '[failed] Installer file rules changed; update the install matrix.' }
+                    $required = @($config.SelectNodes('/config/requiredInstallFiles/folder') | ForEach-Object { $_.source })
+                    $requiredRoot = if ($product.roots -contains 'Core') { 'Core' } else { 'Browser' }
+                    if ($required.Count -ne 1 -or $required[0] -cne $requiredRoot) { throw '[failed] Installer required folders changed.' }
+                    $groups = @($config.SelectNodes('/config/installSteps/installStep/optionalFileGroups/group'))
+                    $optionalRoots = @(foreach ($group in $groups) {
+                        if ($group.type -cne 'SelectExactlyOne') { throw '[failed] Installer selection policy changed.' }
+                        $choices = @($group.SelectNodes('plugins/plugin'))
+                        $withFiles = @($choices | Where-Object { $_.SelectNodes('files/folder').Count -eq 1 })
+                        $withoutFiles = @($choices | Where-Object { $_.SelectNodes('files/*').Count -eq 0 })
+                        if ($choices.Count -ne 2 -or $withFiles.Count -ne 1 -or $withoutFiles.Count -ne 1) { throw '[failed] Installer requires one include and one skip choice per content group.' }
+                        $withFiles[0].SelectSingleNode('files/folder').source
+                    })
+                    if (($requiredRoot -eq 'Core' -and $groups.Count) -or ($requiredRoot -eq 'Browser' -and
+                        ($groups.Count -ne 2 -or @(Compare-Object @('Library','Immersion') $optionalRoots -CaseSensitive).Count))) {
+                        throw '[failed] Installer optional content choices changed.'
+                    }
+                    $sources = @($config.SelectNodes('//folder') | ForEach-Object {
+                        if ($_.destination) { throw '[failed] Installer destination changed; update the install tests.' }
+                        $_.source
+                    })
+                    $allowed = @(if ($product.roots -contains 'Core') { 'Core' } else { 'Browser'; 'Library'; 'Immersion' })
+                    if ($sources.Count -ne $allowed.Count -or @(Compare-Object $sources $allowed -CaseSensitive).Count) {
+                        throw '[failed] Installer choices changed; update the install matrix.'
+                    }
+                    foreach ($folder in $product.roots) {
+                        $entries = @($zip.Entries | Where-Object { $_.FullName.StartsWith($folder + '/', [StringComparison]::Ordinal) -and $_.Name })
+                        if (-not $entries.Count) { throw "[failed] Empty installer folder: $folder" }
+                        foreach ($entry in $entries) {
+                            $relative = $entry.FullName.Substring($folder.Length + 1)
+                            if ([IO.Path]::IsPathRooted($relative) -or $relative -match '(^|[/\\])\.\.([/\\]|$)|:') { throw '[failed] Unsafe archive path.' }
+                            $path = [IO.Path]::GetFullPath((Join-Path $root $relative))
+                            if (-not $path.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) { throw '[failed] Archive path escapes install sandbox.' }
+                            if (-not $written.Add($path)) { throw '[failed] Installer payloads collide at a destination path.' }
+                            if ($relative -in $sentinels) { throw '[failed] Archive overwrites player/other-mod data.' }
+                            [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
+                            $inputStream = $entry.Open(); $outputStream = [IO.File]::Create($path)
+                            try { $inputStream.CopyTo($outputStream) } finally { $inputStream.Dispose(); $outputStream.Dispose() }
+                            $inputStream = $entry.Open()
+                            try { $expected[$relative]=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($inputStream)) }
+                            finally { $inputStream.Dispose() }
+                        }
+                    }
+                } finally { $zip.Dispose() }
+            }
+            foreach ($relative in $expected.Keys) {
+                if ((Get-FileHash -LiteralPath (Join-Path $root $relative)).Hash -cne $expected[$relative]) { throw '[failed] Installed payload hash mismatch.' }
+            }
+            foreach ($relative in $sentinels) {
+                if ([IO.File]::ReadAllText((Join-Path $root $relative)) -cne ('preserve:' + $relative)) { throw '[failed] Reinstall changed retained data.' }
+            }
+        }
+        $installed = @(Get-ChildItem -LiteralPath $root -File -Recurse)
+        if ($installed.Count -ne $expected.Count + $sentinels.Count) { throw '[failed] Unexpected installed files.' }
+        @{name=$variant.name;status='passed';payloadFiles=$expected.Count;overlays=2;preserved=$sentinels;directory=$root}
     }
 }

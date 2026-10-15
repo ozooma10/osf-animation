@@ -71,6 +71,10 @@ namespace OSF::Testing::AnimationSmoke
 			int phase = 0;
 			float pausedTime = 0;
 			RE::NiPoint3 anchorPosition{};
+			RE::NiPoint3 anchorOriginalPosition{};
+			float anchorOriginalHeading{};
+			bool anchorRestorePending = false;
+			unsigned anchorStableTicks = 0;
 			Clock::time_point phaseAt{};
 			Clock::time_point deadline{};
 			Clock::time_point nextPoll{};
@@ -116,8 +120,14 @@ namespace OSF::Testing::AnimationSmoke
 				stream.flush();
 				if (!stream) throw std::runtime_error("Cannot write smoke mailbox JSON");
 			}
-			if (!MoveFileExW(temporary.c_str(), a_path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-				throw std::runtime_error("Cannot publish smoke mailbox JSON");
+			// ReplaceFile allows an existing delete-sharing reader to finish the
+			// old document. MoveFileEx(REPLACE_EXISTING) can still deny access on
+			// Windows while that reader holds the destination open.
+			const bool exists = std::filesystem::exists(a_path);
+			const bool published = exists ? ReplaceFileW(a_path.c_str(), temporary.c_str(), nullptr, 0, nullptr, nullptr) :
+				MoveFileExW(temporary.c_str(), a_path.c_str(), MOVEFILE_WRITE_THROUGH);
+			if (!published)
+				throw std::runtime_error(std::format("Cannot publish smoke mailbox JSON {} (Windows error {})", a_path.string(), GetLastError()));
 		}
 
 		void Publish()
@@ -164,8 +174,20 @@ namespace OSF::Testing::AnimationSmoke
 			// Solo has no token, so only release the clip while it is still ours.
 			if (!a_worldReset) {
 				if (g.scene && g.sceneAPI) (void)g.sceneAPI->StopScene(g.scene);
-				if (OwnsSoloPlayback()) {
+				const bool ownsSolo = OwnsSoloPlayback();
+				if (ownsSolo) {
 					(void)Animation::GraphManager::GetSingleton().ClearAnchor(g.actor.get());
+				}
+				if (g.anchorRestorePending && g.actor && g.actor.get() == RE::PlayerCharacter::GetSingleton() &&
+					(ownsSolo || ActorUnclaimed(g.actor.get()))) {
+					// Clear first to invalidate any deferred test teleport. Cleanup runs on
+					// the frame queue; restore even if our graph vanished, but never move
+					// an actor claimed by a replacement playback or a replaced world.
+					g.actor->SetPosition(g.anchorOriginalPosition, true);
+					if (auto* transforms = RE::TransformService::GetSingleton())
+						transforms->SetHeadingZ(g.actor.get(), g.anchorOriginalHeading);
+				}
+				if (ownsSolo) {
 					(void)g.sceneAPI->SetSpeed(g.actor.get(), 1.0f);
 					(void)g.sceneAPI->Stop(g.actor.get());
 				}
@@ -175,11 +197,16 @@ namespace OSF::Testing::AnimationSmoke
 			g.callback = 0;
 			g.scene = 0;
 			g.soloOwned = false;
+			g.anchorRestorePending = false;
 			g.actor.reset();
 		}
 
 		void Finish(const char* a_state, const char* a_reason, bool a_worldReset = false)
 		{
+			// A later missing prerequisite must not conceal an observed failure.
+			if (std::string_view(a_state) == "blocked" && std::ranges::any_of(g.snapshot["cases"], [](const auto& item) { return item["status"] == "failed"; })) {
+				a_state = "failed";
+			}
 			if (std::string_view(a_state) == "passed" && std::ranges::any_of(g.snapshot["cases"],[](const auto& item) { return item["status"] != "passed"; })) {
 				a_state="failed"; a_reason="Runtime reached completion with missing or unsuccessful assertions";
 			}
@@ -221,6 +248,27 @@ namespace OSF::Testing::AnimationSmoke
 			});
 		}
 
+		bool GraphEventOrder(std::int32_t a_handle)
+		{
+			using namespace API::SceneEventType;
+			const std::array<Event, 9> expected{{
+				{a_handle, kSceneBegin, "first", ""}, {a_handle, kNodeEnter, "first", ""},
+				{a_handle, kNodeExit, "first", ""}, {a_handle, kNodeEnter, "middle", ""},
+				{a_handle, kNodeExit, "middle", ""}, {a_handle, kNodeEnter, "timed", ""},
+				{a_handle, kCue, "timed", "smoke.tick"}, {a_handle, kNodeExit, "timed", ""},
+				{a_handle, kSceneEnd, "timed", ""}
+			}};
+			std::scoped_lock lock(g.eventsMutex);
+			std::size_t index = 0;
+			for (const auto& event : g.events) {
+				if (event.handle != a_handle) continue;
+				if (index == expected.size() || event.type != expected[index].type ||
+					event.node != expected[index].node || event.cue != expected[index].cue) return false;
+				++index;
+			}
+			return index == expected.size();
+		}
+
 		API::OSFStartOptions Options()
 		{
 			API::OSFStartOptions options;
@@ -257,6 +305,8 @@ namespace OSF::Testing::AnimationSmoke
 			for (const auto* name : kCases)
 				g.snapshot["cases"].push_back({ { "id", name }, { "name", name }, { "status", "pending" }, { "message", "" }, { "detail", "" } });
 			g.running = true;
+			feature.policyIndex = 0;
+			feature.importIndex = 0;
 			g_worldReset.store(false);
 			g.deadline = Clock::now() + std::chrono::seconds(240);
 			g.sceneAPI = API::RequestSceneAPI();
@@ -278,7 +328,8 @@ namespace OSF::Testing::AnimationSmoke
 			}
 			if (BrowserProbe::Visible()) { Finish("blocked", "Close the Animation Browser before starting the run"); return; }
 			auto& registry = Registry::ContentRegistry::GetSingleton();
-			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph")) {
+			if (!registry.Find("osf.smoke.linear") || !registry.Find("osf.smoke.graph") ||
+				!registry.Find("osf.smoke.defaults") || !registry.Find("osf.smoke.optout")) {
 				Finish("blocked", "Live smoke fixture is not installed or failed registry validation");
 				return;
 			}
@@ -309,6 +360,25 @@ namespace OSF::Testing::AnimationSmoke
 				g.sceneAPI->GetSceneStage(0) == -1 && g.sceneAPI->GetSceneParticipants(0, nullptr, 0) == 0 &&
 				!g.sceneAPI->UnregisterSceneEventCallback(0),
 				"Invalid handles return documented failure sentinels")) return;
+			const auto options = Options();
+			auto undersized = options; undersized.size = sizeof(undersized.size);
+			auto* actor = g.actor.get();
+			RE::Actor* missingActor = nullptr;
+			const char* role = "player";
+			const char* clip = kClip;
+			if (!Check("api.invalid-starts",
+				g.sceneAPI->StartScene(nullptr, 1, "osf.smoke.linear", options) == 0 &&
+				g.sceneAPI->StartScene(&actor, 0, "osf.smoke.linear", options) == 0 &&
+				g.sceneAPI->StartScene(&missingActor, 1, "osf.smoke.linear", options) == 0 &&
+				g.sceneAPI->StartScene(&actor, 1, nullptr, options) == 0 &&
+				g.sceneAPI->StartScene(&actor, 1, "osf.smoke.linear", undersized) == 0 &&
+				g.sceneAPI->StartSceneRoles(&actor, 1, "osf.smoke.linear", &role, 0, options) == 0 &&
+				g.sceneAPI->StartSceneFiles(&actor, nullptr, 1, options) == 0 &&
+				g.sceneAPI->StartSceneFiles(nullptr, &clip, 1, options) == 0 &&
+				!g.sceneAPI->Play(nullptr, kClip, "") && !g.sceneAPI->SetSpeed(nullptr, 1) &&
+				!g.sceneAPI->StopSceneForActor(nullptr) && !g.sceneAPI->RegisterSceneEventCallback(nullptr, nullptr) &&
+				ActorUnclaimed(actor) && Scene::SceneRuntime::GetSingleton().ListScenes().empty(),
+				"Null actors/files/IDs/callbacks, empty casts, mismatched roles and undersized options fail without acquiring playback")) return;
 			{ std::scoped_lock lock(g.eventsMutex); g.events.clear(); }
 			g.callback = g.sceneAPI->RegisterSceneEventCallback(SceneEvent, nullptr);
 			if (!g.callback) { Finish("failed", "Native callback registration failed"); return; }
@@ -327,7 +397,7 @@ namespace OSF::Testing::AnimationSmoke
 			if (!actor || actor != RE::PlayerCharacter::GetSingleton()) {
 				Finish("blocked", "Player changed during smoke run", true); return;
 			}
-			if ((g.phase == 1 || g.phase == 2 || g.phase == 20) && !OwnsSoloPlayback()) {
+			if ((g.phase == 1 || g.phase == 2 || g.phase == 20 || g.phase == 21) && !OwnsSoloPlayback()) {
 				g.soloOwned = false;
 				Finish("blocked", "Another playback owner displaced the smoke solo clip"); return;
 			}
@@ -356,21 +426,51 @@ namespace OSF::Testing::AnimationSmoke
 				const bool paused = playback && std::abs(playback->time - g.pausedTime) < 0.002f && g.sceneAPI->GetSpeed(actor) == 0;
 				const bool resumed = g.sceneAPI->SetSpeed(actor, 1.25f) && std::abs(g.sceneAPI->GetSpeed(actor) - 1.25f) < 0.001f;
 				if (!Check("solo.speed", paused && resumed, "Speed zero freezes the clock; speed 1.25 round-trips")) return;
-				g.anchorPosition = actor->data.location;
+				g.anchorOriginalPosition = actor->data.location;
+				g.anchorOriginalHeading = actor->data.angle.z;
+				g.anchorPosition = g.anchorOriginalPosition;
+				g.anchorPosition.x += 0.25f;
+				g.anchorStableTicks = 0;
+				if (std::abs(g.anchorPosition.x - g.anchorOriginalPosition.x) < 0.1f) {
+					Check("solo.anchor", false, "World coordinate precision cannot represent the anchor test displacement"); return;
+				}
 				if (!manager.SetAnchor(actor, g.anchorPosition.x, g.anchorPosition.y, g.anchorPosition.z,
-					actor->data.angle.z * 57.2957795f, 0)) {
+					g.anchorOriginalHeading * 57.2957795f, 0)) {
 					Check("solo.anchor", false, "Solo anchor request failed"); return;
 				}
+				g.anchorRestorePending = true;
 				Phase(20);
 				break;
 			}
 			case 20: {
-				if (PhaseSeconds() < 0.1f) break;
 				const auto pos = actor->data.location;
 				const bool retained = std::abs(pos.x - g.anchorPosition.x) < 0.01f &&
 					std::abs(pos.y - g.anchorPosition.y) < 0.01f && std::abs(pos.z - g.anchorPosition.z) < 0.01f;
+				g.anchorStableTicks = retained ? g.anchorStableTicks + 1 : 0;
+				if (g.anchorStableTicks < 3 || PhaseSeconds() < 0.15f) {
+					if (PhaseSeconds() > 5) Check("solo.anchor", false, "Displaced anchor did not reach and retain the requested engine position");
+					break;
+				}
+				if (!manager.SetAnchor(actor, g.anchorOriginalPosition.x, g.anchorOriginalPosition.y, g.anchorOriginalPosition.z,
+					g.anchorOriginalHeading * 57.2957795f, 0)) {
+					Check("solo.anchor", false, "Original anchor restoration request failed"); return;
+				}
+				g.anchorStableTicks = 0;
+				Phase(21);
+				break;
+			}
+			case 21: {
+				const auto pos = actor->data.location;
+				const bool restored = std::abs(pos.x - g.anchorOriginalPosition.x) < 0.01f &&
+					std::abs(pos.y - g.anchorOriginalPosition.y) < 0.01f && std::abs(pos.z - g.anchorOriginalPosition.z) < 0.01f;
+				g.anchorStableTicks = restored ? g.anchorStableTicks + 1 : 0;
+				if (g.anchorStableTicks < 3 || PhaseSeconds() < 0.15f) {
+					if (PhaseSeconds() > 5) Check("solo.anchor", false, "Original engine position did not return before releasing the anchor");
+					break;
+				}
 				const bool released = manager.ClearAnchor(actor);
-				if (!Check("solo.anchor", retained && released, "Solo anchor retains the current position across frames and releases")) return;
+				if (!Check("solo.anchor", released, "Solo anchor moved to a displaced position, held across frames, restored its original position and released")) return;
+				g.anchorRestorePending = false;
 				(void)g.sceneAPI->SetSpeed(actor, 1);
 				if (!g.sceneAPI->Stop(actor)) { Check("solo.stop", false, "Solo stop was rejected"); return; }
 				Phase(3);
@@ -393,6 +493,9 @@ namespace OSF::Testing::AnimationSmoke
 					g.sceneAPI->GetSceneParticipants(g.scene, nullptr, 0) == 1 && g.sceneAPI->GetSceneStage(g.scene) == 0 &&
 					Count(g.scene, API::SceneEventType::kSceneBegin) == 1,
 					"Registered scene starts with one participant, stage zero, and one begin callback")) return;
+				if (!Check("scene.admission", g.sceneAPI->StartScene(&actor, 1, "osf.smoke.linear", options) == 0 &&
+					g.sceneAPI->GetSceneForActor(actor) == g.scene && Count(g.scene, API::SceneEventType::kSceneEnd) == 0,
+					"An occupied actor rejects another registered scene without ending or replacing its owner")) return;
 				Phase(4);
 				break;
 			case 4:
@@ -425,6 +528,8 @@ namespace OSF::Testing::AnimationSmoke
 					Count(g.scene, API::SceneEventType::kNodeEnter) == 3 &&
 					Count(g.scene, API::SceneEventType::kNodeExit) == 3 && Count(g.scene, API::SceneEventType::kSceneEnd) == 1,
 					"Timer ends graph with exactly-once cue and expected begin, node, and end callbacks")) return;
+				if (!Check("scene.event-order", GraphEventOrder(g.scene),
+					"Native begin, enter/exit, timed cue and end callbacks preserve the exact authored node order")) return;
 				Phase(7);
 				break;
 			case 7:
@@ -438,9 +543,9 @@ namespace OSF::Testing::AnimationSmoke
 					"Ended scene rejects mutation, retains its roster, frees actor, and callback unregisters once")) return;
 				g.callback = 0;
 				g.scene = 0;
+				Phase(10);
 				g.browserOwned = API::OpenBrowser();
 				if (!g.browserOwned) { Check("integration.browser-lifecycle", false, "Browser launch was rejected"); return; }
-				Phase(10);
 				break;
 			case 10:
 			case 12:
@@ -450,9 +555,10 @@ namespace OSF::Testing::AnimationSmoke
 				}
 				if (g.phase == 10) {
 					const auto page=BrowserReport();
-					const bool loaded=page.value("documentReady",false) && page.value("catalog",false) && page.value("library",false) && page.value("imports",false) && page.value("wheel",false);
+					const bool loaded=page.value("documentReady",false) && page.value("catalog",false) && page.value("library",false) &&
+						page.value("libraryRendered",false) && page.value("imports",false) && page.value("wheel",false);
 					if (!WaitFeature("integration.browser-document",loaded,15,"Real document did not render its browser shell and receive all four data feeds")) break;
-					if (!Check("integration.browser-document",true,"Actual browser document laid out its shell and received catalog, library, imports and wheel data")) return;
+					if (!Check("integration.browser-document",true,"Actual browser received all four feeds and rendered the decoded animation library count")) return;
 					g.snapshot["browserTarget"]=page.at("target"); ExternalAction("browser-imports"); Phase(14); break;
 				}
 				// Close through the host, with no JavaScript close notification.

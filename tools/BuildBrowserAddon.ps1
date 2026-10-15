@@ -1,6 +1,6 @@
 #requires -Version 7.2
 [CmdletBinding()]
-param([switch] $NoDeploy)
+param([switch] $NoDeploy, [string] $TestReport = '')
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -38,8 +38,18 @@ Push-Location $ui
 try {
     & npm.cmd ci
     if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
-    & npm.cmd run verify
-    if ($LASTEXITCODE -ne 0) { throw 'Browser verification failed.' }
+    if ($TestReport) {
+        if (Test-Path -LiteralPath $TestReport) { throw 'Browser test report already exists; use a fresh evidence path.' }
+        & npm.cmd test -- --reporter=default --reporter=json "--outputFile=$TestReport"
+        if ($LASTEXITCODE -ne 0) { throw 'Browser tests failed.' }
+        & npm.cmd run check
+        if ($LASTEXITCODE -ne 0) { throw 'Browser typecheck failed.' }
+        & npm.cmd run build
+        if ($LASTEXITCODE -ne 0) { throw 'Browser build failed.' }
+    } else {
+        & npm.cmd run verify
+        if ($LASTEXITCODE -ne 0) { throw 'Browser verification failed.' }
+    }
 } finally {
     Pop-Location
 }

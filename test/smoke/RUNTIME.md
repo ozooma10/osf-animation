@@ -1,8 +1,12 @@
 # Live runtime smoke contract
 
-Configure the development DLL with `xmake f -m releasedbg --animation_smoke=y`, then
-build with `xmake`. The default build excludes the runner translation unit and all
-frame/teardown calls. Smoke configuration and fixtures are never release payloads.
+Use `pwsh -NoProfile -File tools/test-smoke.ps1 -RunGame` to build and stage the
+development DLL in the bench's private output and mod directories. The bench
+configures `--animation_smoke=y` only for that isolated build and restores the
+production configuration afterward. Never run a normal deploying build with
+instrumentation enabled. The default build excludes the runner translation unit
+and all frame/teardown calls. Smoke configuration and fixtures are never release
+payloads.
 
 The bench stages `Data/OSF/animation-smoke.osf.json` from this directory and writes
 `Data/SFSE/Plugins/OSFAnimationTestHarness.json` with an absolute private `stateDir`
@@ -26,22 +30,52 @@ At 1,024 consumed request IDs, new commands are rejected until process restart;
 old IDs are never evicted. The controller uses fresh request IDs and one
 outstanding command.
 
+Controller protocol 2 polls atomic snapshots while the game replaces its world.
+The publisher uses `ReplaceFileW` for existing documents; readers permit delete
+sharing and close their handles before parsing. A transient Windows sharing or
+lock violation is a pending snapshot poll, while malformed JSON remains an error.
+Harness regressions exercise publication with a held reader and concurrent polls.
+It handles `browser-imports`, `quicksave`, and `quickload` at most once each per run,
+only for the owned process/session while the controller observes an unexpired
+action deadline. The controller checks expiry again after its foreground probe;
+the existing input helper checks ownership and focus but does not recheck the
+mailbox deadline at `SendInput`, so OS scheduling delay after dispatch remains
+outside that freshness check. Browser input uses
+the real document's normalized target coordinates and owned-window mouse input;
+save/load use F5/F9 and therefore require the default quicksave/quickload bindings
+in the disposable profile. Native observations independently prove their effects.
+The controller allows 270 seconds for the runner's 240-second deadline plus IPC.
+`-Hosts Released` stages the pinned UI v2.0.0 and Settings v1.0.0 ZIPs after exact
+SHA-256 checks. `-Hosts Deployed` snapshots the effective hosts from the source
+profile. Both disable original host providers in the private profile and retain
+the selected DLL hashes. Shared overwrite host DLLs block the run.
+
 `snapshot.json` updates after every result. It has `schemaVersion: 1`, `runId`,
 `state` (`idle`, `running`, `passed`, `failed`, or `blocked`), `cases`, and
 `notCovered`. Each case has `name`, `status`, and `message`; `id` and `detail` are
 equivalent aliases. The authoritative required names are in `runtime-cases.json`.
+Browser diagnostics retain `browserProbeAccepted` and `browserObservation`, so a
+missing feed is distinguishable from an unrendered shell or rejected bridge probe.
 Every case must occur exactly once with `passed` status for a runtime pass. Missing
 prerequisites produce `blocked`; pending dependent cases become blocked after a
 failure. A test API or graph returning success alone is insufficient: playback
 clock advancement, freeze, bounded fade completion, exact callback counts, and
-released actor state are asserted. The full 47-case run has a 240-second deadline.
+released actor state are asserted. The full 58-case run has a 240-second deadline.
 
 The baseline uses the game's `cower_idle.af` without redistributing game assets.
 It covers ABI/readiness, invalid handles, solo playback, speed freeze, anchor/release,
 stop/fade-out, scene navigation/timers/cues/native events, and ended-roster retention.
 Extended fixtures exercise generated GLTF/GLB/gzip clips, additive masks, Papyrus,
 matchmaking, import records, props, equipment/input/camera/fade mechanisms, sound,
-browser lifecycle, and persistence. `runtime-cases.json` lists the individual checks.
+browser lifecycle, and persistence. Contract checks additionally cover malformed
+native starts without side effects, busy-actor rejection, exact callback order,
+bounded caller-owned roster buffers, inherited lock/apparel defaults, explicit
+content opt-outs, both directions of per-start override, and exact restoration
+after each policy combination. The policy fixtures are in
+`animation-contracts.osf.json`. Post-load checks reject the old generational handle
+and require a native callback registered before quickload to receive the full
+ordered lifecycle of a newly started scene afterward.
+`runtime-cases.json` lists the individual checks.
 Cleanup uses retained scene handles and releases its own registrations and mechanisms.
 Every solo mutation first verifies its source clip and absence of scene
 ownership; displacement blocks the run without changing the replacement. The

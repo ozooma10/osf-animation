@@ -1,6 +1,20 @@
-# Automated smoke bench
+# Automated release testing
 
 Run from the repository with PowerShell 7.2 or newer:
+
+```powershell
+pwsh -NoProfile -File tools/test-release.ps1 -Plan
+pwsh -NoProfile -File tools/test-release.ps1
+# Explicitly omit in-game checks (not a complete release run):
+pwsh -NoProfile -File tools/test-release.ps1 -Offline
+# Use currently deployed host DLLs instead of the pinned releases:
+pwsh -NoProfile -File tools/test-release.ps1 -Hosts Deployed
+```
+
+The release command includes the game by default and shares the smoke bench's
+implementation, evidence validation, lock and exit codes. VS Code exposes it as
+**Release: Full automated suite** and **Release: Offline checks**.
+The existing smoke commands remain available:
 
 ```powershell
 pwsh -NoProfile -File tools/test-smoke.ps1 -Plan
@@ -59,10 +73,12 @@ are restored, and the final XMake configuration is `releasedbg`, `build`, with
 | Bench contracts | Rejects missing suites, stale or changed evidence, mismatched source/DLL hashes, skipped game cases, and truthy string flags. Exercises release receipts, instrumented DLL rejection, staged/ZIP tampering, forbidden entries and Papyrus mismatch rejection. |
 | SDK | `tools/Test-SdkLock.ps1`: vendored OSF UI / OSF Settings SDK files match `sdk-lock.json` hashes; with sibling checkouts present, the locked tags and commits also match. |
 | Production | Normal releasedbg DLL, installed into private staging. |
-| Native | All ten `xmake test` suites, including production catalog conversion, clip-duration cache separation, shared scene-launch behavior and browser/engine boundary coverage. The reported execution count must match the inventory. |
+| Native | All twelve `xmake test` suites, including synthetic AF/rig/BA2 import, playback stage/mark semantics, production catalog conversion, clip-duration cache separation, shared scene-launch behavior and browser/engine boundary coverage. Executed suite identities and counts must match the inventory. |
 | Fixtures | Compiles the private Papyrus script; generates the live GLTF/GLB/gzip clips and WAV; decodes and samples the three clips through the production importer. |
-| Browser | Independent production addon DLL build, clean dependency install, Vitest, TypeScript check, and production Vite build. |
+| Browser | Independent production addon DLL build, clean dependency install, all Vitest assertions, TypeScript check, and production Vite build. A fresh JSON receipt must include every test file, with no skipped/todo tests; individual assertions appear in the aggregate report and JUnit. |
 | Distribution | Engine and browser FOMOD ZIPs; required entries, exact production DLL hash, separation of payloads, and no test fixtures, source maps, or player values. |
+| Install matrix | Fresh sandbox installs of engine only, minimal browser, browser + library, browser + emotes, and everything. Each installs twice, verifies exact payload hashes and preserves synthetic user content/cache/settings and another mod's schema. This tests file overlays, not MO2 or gameplay migration. |
+| Runtime preflight | Harness protocol version, host modes, save/load/browser input controller and exact case inventory agree before building the instrumented DLL. An outdated harness blocks with a corrective message. |
 | Runtime build | Optional, separate instrumented DLL and live fixture content. |
 | Runtime | Optional, owned disposable game session, per-case assertions and retained native snapshots/screenshots. |
 | Final checks | Production configuration restored; source fingerprint unchanged. |
@@ -72,21 +88,27 @@ GLTF/GLB/gzip decoding and ozz sampling without copyrighted game assets or a
 developer's local clip library. Existing standalone `osf-import-test` and
 `osf-af-import-test` remain useful for specific content.
 
-The game suite currently has **47 assertions** across the 17 areas in the coverage
+The game suite currently has **58 assertions** across the 18 areas in the coverage
 manifest. It uses installed vanilla assets plus generated test content:
 
 - Native API validation; compiled Papyrus calls, scene callbacks and post-load rebind.
-- AF, GLTF, GLB and gzip playback; live rig binding/stamping; masked additive pose;
-  solo speed/anchor/stop and shared clock/speed across two live actors.
+- AF, GLTF, GLB and gzip playback; live rig binding/stamping, resolved additive mask
+  bones/weights; solo speed, observed anchor displacement/restoration and stop;
+  shared clock/speed across two live actors.
 - Scene stages, navigation, timers, events, explicit roles, files scenes, pause/resume
-  and cancellation; tagged matchmaking and per-file registry diagnostics.
+  and cancellation; invalid starts, actor admission, bounded roster queries, exact
+  event ordering; tagged matchmaking and per-file registry diagnostics.
 - Actual input masks and worn inventory changing/restoring; native orbit camera
   state restoring; live prop attachment/reattachment/destruction; bounded fade and
   subtitle deadlines; sound-pool lookup and Wwise voice replacement/stop.
 - Real quicksave/quickload, fresh `.sfs`/`.osf` evidence, persistence callbacks,
   saved-value restoration, FormID resolution and active scene teardown on load.
+- Scene-start default lock/strip policy, opt-outs, explicit native API overrides,
+  exact restoration after each variant, stale handles and retained callbacks after load.
 - Settings value/issue APIs; real browser document and catalog/library/import/wheel
-  feeds; a trusted Windows click opening Imports; browser close/reopen and wheel display.
+  feeds, including the shipped library larger than the host's per-message limit;
+  decoded library counts rendered by the application; a trusted Windows click
+  opening Imports; browser close/reopen and wheel display.
 
 The browser observer is injected only into the private staged document. It reports
 DOM state and trusted input; it does not synthesize page clicks or replace the host
@@ -100,11 +122,13 @@ reported as blocked. A command acknowledgement alone cannot complete the suite.
 
 Each invocation creates a new `build/smoke/<UTC timestamp>-<id>` directory containing:
 
-- `report.md`, `result.json`, and `junit.xml`, including every live assertion and
+- `report.md`, `result.json`, and `junit.xml`, including each executed native suite,
+  browser assertion, every live assertion and
   per-feature completion; offline live cases are explicitly not run;
 - per-stage logs, source identity including dirty/untracked files and submodule
   contents, and production/runtime DLL hashes;
-- both archives, their SHA-256 hashes, and manifests tied to production build receipts;
+- both archives, their SHA-256 hashes, manifests tied to production build receipts,
+  browser JSON results and the five disposable installer layouts;
 - with `-RunGame`, a runtime suite receipt pointing to the harness's captures,
   session, requests/responses and final native snapshot.
 
@@ -124,7 +148,7 @@ case passed, not that every engine feature has been proven.
 ## Coverage boundaries
 
 The coverage manifest lists every major subsystem and its remaining gaps. Passing
-all 47 cases is **not** proof of every feature, asset or failure path. Manual or
+all 58 cases is **not** proof of every feature, asset or failure path. Manual or
 additional fixture acceptance remains for visual sync/pose/culling/prop fit,
 creature rigs, audible mixing/spatialization, visible fade/subtitle quality,
 physical controllers and the full launcher/hotkey matrix, weapon draw/sheath,

@@ -25,8 +25,8 @@ $repo = Split-Path $PSScriptRoot -Parent
 $coverage = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/coverage.json') -Raw | ConvertFrom-Json)
 $runtimeCases = @(Get-Content -LiteralPath (Join-Path $repo 'test/smoke/runtime-cases.json') -Raw | ConvertFrom-Json)
 $suite = Join-Path $Harness 'Test-AnimationRelease.ps1'
-$names = @('coverage','bench-contracts','sdk','production-build','native','fixtures','browser','distribution',
-    'runtime-build','runtime','restore-production-config','source-unchanged')
+$names = @('coverage','bench-contracts','sdk','production-build','native','fixtures','browser','distribution','install-matrix',
+    'runtime-preflight','runtime-build','runtime','restore-production-config','source-unchanged')
 $unverified = @($coverage | ForEach-Object { "$($_.feature): $($_.gap)" })
 if (-not $RunGame) { $unverified = @('In-game assertions skipped. Use -RunGame with the local OSF Test Harness.') + $unverified }
 if ($Plan) {
@@ -50,6 +50,7 @@ $report = [ordered]@{
     scope=$(if ($RunGame) { 'offline+runtime' } else { 'offline' }); completeAutomatedSuite=$false; automatedPassed=$false
     source=$null; runtime=$null; productionDllSha256=$null; runtimeDllSha256=$null; hosts=$Hosts
     runtimeCases=@($runtimeCases | ForEach-Object { @{name=$_;status='not-run';message='No live result from this invocation.'} })
+    nativeCases=@(); browserCases=@(); browserTestReport=$null
     coverage=$coverage; unverified=$unverified
     stages=@($names | ForEach-Object { [ordered]@{ name=$_; status='not-run'; seconds=0; message=''; log=$null } })
 }
@@ -86,6 +87,7 @@ function Invoke-SmokeStage([string]$Name, [scriptblock]$Body, [string[]]$Depende
         Write-Warning "$Name`: $($_.Exception.Message)"
     } finally {
         $script:stage.seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 3)
+        Set-SmokeUnverifiedCases $report $script:stage
         Save-SmokeReport $report $directory
     }
 }
@@ -136,8 +138,14 @@ try {
         $script:stage.message = 'releasedbg production DLL built and installed to private staging'
     }
     Invoke-SmokeStage 'native' {
-        Invoke-SmokeCommand 'xmake' @('test',"-j$Jobs",'-v')
-        Test-SmokeNativeSummary (Get-Content -LiteralPath $script:stage.log -Raw) @(Get-SmokeNativeTargets $repo).Count
+        try { Invoke-SmokeCommand 'xmake' @('test',"-j$Jobs",'-v') }
+        finally {
+            if ($script:stage.log -and (Test-Path -LiteralPath $script:stage.log)) {
+                $report.nativeCases = @(Read-SmokeNativeCases (Get-Content -LiteralPath $script:stage.log -Raw))
+            }
+        }
+        Test-SmokeNativeCases (Get-Content -LiteralPath $script:stage.log -Raw) @(Get-SmokeNativeTargets $repo)
+        $script:stage.message = "$($report.nativeCases.Count) executed native suites; identities and results verified"
     } @('coverage','production-build')
     Invoke-SmokeStage 'fixtures' {
         Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildSmokeFixtures.ps1'),'-OutputRoot',$fixtureMod)
@@ -148,8 +156,21 @@ try {
         $script:stage.message='Live GLTF/GLB/gzip fixtures decoded and sampled; private Papyrus compiled'
     } @('production-build')
     Invoke-SmokeStage 'browser' {
-        Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildBrowserAddon.ps1'),'-NoDeploy')
-        $script:stage.message = 'npm ci, browser tests, typecheck, and production build'
+        $report.browserTestReport = Join-Path $directory 'browser-tests.json'
+        $browserStarted = [DateTimeOffset]::UtcNow
+        $ui = Join-Path $repo 'extensions/browser/ui'
+        try {
+            Invoke-SmokeCommand 'pwsh' @('-NoProfile','-File',(Join-Path $PSScriptRoot 'BuildBrowserAddon.ps1'),'-NoDeploy','-TestReport',$report.browserTestReport)
+        } finally {
+            if (Test-Path -LiteralPath $report.browserTestReport) {
+                $browserReceipt = Get-Content -LiteralPath $report.browserTestReport -Raw | ConvertFrom-Json
+                $report.browserCases = @(Read-SmokeBrowserCases $browserReceipt $ui)
+            }
+        }
+        $files = @(Get-ChildItem -LiteralPath (Join-Path $ui 'tests') -Recurse -File |
+            Where-Object Name -Match '\.test\.tsx?$' | ForEach-Object { [IO.Path]::GetRelativePath($ui,$_.FullName).Replace('\','/') })
+        Test-SmokeBrowserReceipt $browserReceipt $ui $files $browserStarted
+        $script:stage.message = "$($report.browserCases.Count) browser assertions, clean install, typecheck, and production build"
     }
     Invoke-SmokeStage 'distribution' {
         $archives = Join-Path $directory 'archives'
@@ -160,7 +181,21 @@ try {
             Select-Object Path,Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory 'archive-hashes.json')
         $script:stage.message = 'Engine and browser ZIP contents verified; production DLL hash matches'
     } @('production-build','browser')
+    Invoke-SmokeStage 'install-matrix' {
+        $results = @(Test-SmokeInstall (Join-Path $directory 'archives') (Join-Path $directory 'disposable-installs'))
+        $results | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $directory 'install-matrix.json')
+        $script:stage.message = 'Five FOMOD combinations installed twice; payload hashes and retained user/other-mod files verified'
+    } @('distribution')
     if ($RunGame) {
+        Invoke-SmokeStage 'runtime-preflight' {
+            if (-not (Test-Path -LiteralPath $suite)) { throw '[blocked] Animation runtime harness is missing; pass -Harness.' }
+            $planText = & pwsh -NoProfile -File $suite -Plan -AnimationProject $repo
+            if ($LASTEXITCODE) { throw '[blocked] Could not read the runtime harness plan.' }
+            $runtimePlan = $planText | ConvertFrom-Json
+            Test-SmokeHarnessPlan $runtimePlan $runtimeCases $Hosts
+            $runtimePlan | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $directory 'runtime-plan.json')
+            $script:stage.message = 'Harness protocol, host selection, external actions and case inventory agree'
+        }
         Invoke-SmokeStage 'runtime-build' {
             if (-not (Test-Path -LiteralPath $suite)) { throw '[blocked] Animation runtime harness is missing; pass -Harness.' }
             $env:XSE_SF_MODS_PATH = $runtimeMods
@@ -171,10 +206,11 @@ try {
             # The harness accepts one private staged mod root. Include the independently built addon DLL.
             Copy-Item -LiteralPath (Join-Path $repo 'build/smoke-native/windows/x64/releasedbg/OSF Animation Browser.dll') -Destination (Join-Path $runtimeMod 'SFSE/Plugins') -Force
             Copy-Item -LiteralPath (Join-Path $repo 'extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json') -Destination (Join-Path $runtimeMod 'SFSE/Plugins/OSF/Settings/schemas') -Force
+            Stage-SmokeBrowser $repo $runtimeMod
             Copy-Item -LiteralPath (Join-Path $repo 'test/smoke/data/OSF') -Destination $runtimeMod -Recurse -Force
             Copy-Item -Path (Join-Path $fixtureMod '*') -Destination $runtimeMod -Recurse -Force
             $report.runtimeDllSha256 = (Get-FileHash -LiteralPath (Join-Path $runtimeMod 'SFSE/Plugins/OSF Animation.dll')).Hash
-        } @('coverage','bench-contracts','production-build','native','fixtures','browser','distribution')
+        } @('coverage','bench-contracts','sdk','production-build','native','fixtures','browser','distribution','install-matrix','runtime-preflight')
         Invoke-SmokeStage 'runtime' {
             $report.runtime = Join-Path $directory 'runtime-result.json'
             $started = [DateTimeOffset]::UtcNow
@@ -192,6 +228,7 @@ try {
             $script:stage.message = "$($runtimeCases.Count) fresh in-game assertions passed"
         } @('runtime-build')
     } else {
+        (Get-Stage 'runtime-preflight').message = 'Use -RunGame to check the runtime harness protocol.'
         (Get-Stage 'runtime-build').message = 'Use -RunGame to build the isolated test DLL.'
         (Get-Stage 'runtime').message = 'Use -RunGame for owned disposable game scenarios.'
     }
@@ -217,7 +254,7 @@ try {
     }
     $env:XSE_SF_MODS_PATH = $oldMods
     $env:XSE_SF_GAME_PATH = $oldGame
-    $required = if ($RunGame) { $names } else { @($names | Where-Object { $_ -notin @('runtime-build','runtime') }) }
+    $required = if ($RunGame) { $names } else { @($names | Where-Object { $_ -notin @('runtime-preflight','runtime-build','runtime') }) }
     $exitCode = if (@($report.stages | Where-Object status -eq 'failed').Count) { 1 }
         elseif (@($report.stages | Where-Object { $_.name -in $required -and $_.status -ne 'passed' }).Count) { 2 } else { 0 }
     $report.automatedPassed = $exitCode -eq 0

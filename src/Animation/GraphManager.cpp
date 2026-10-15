@@ -34,8 +34,19 @@ namespace OSF::Animation
 		if (found == graphs.end()) return std::nullopt;
 		auto& graph = *found->second;
 		std::lock_guard graphLock(graph.stateLock);
-		return SmokePose{ graph.binding.size(), graph.stampProbeValid,
-			graph.stampProbeValid && std::ranges::all_of(graph.stampProbe, [](float v) { return std::isfinite(v); }), graph.poseMode };
+		SmokePose result{ graph.binding.size(), graph.stampProbeValid,
+			graph.stampProbeValid && std::ranges::all_of(graph.stampProbe, [](float v) { return std::isfinite(v); }),
+			graph.poseMode, graph.poseWeight, graph.boneMask ? graph.boneMask->id : "" };
+		if (graph.skeleton && graph.skeleton->data) {
+			const auto names = graph.skeleton->data->joint_names();
+			result.boneWeights.reserve(graph.binding.size());
+			for (const auto& bound : graph.binding) {
+				if (bound.jointIndex < names.size() && bound.rigIndex < graph.cachedRigBoneCount) {
+					result.boneWeights.emplace_back(names[bound.jointIndex], bound.weight);
+				}
+			}
+		}
+		return result;
 	}
 #endif
 	namespace

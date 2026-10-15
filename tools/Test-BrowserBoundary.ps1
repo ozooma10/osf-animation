@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param()
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 $repo = Split-Path $PSScriptRoot -Parent
 $public = @('OSFSceneAPI.h','OSFEngineAPI.h','OSFCatalog.h','OSFClipScene.h','OSFUI.h','OSFSettings.h','OSFSettings_Diagnostics.h')
 $source = Join-Path $repo 'extensions/browser/src'
@@ -40,9 +41,12 @@ $coreSchema = Get-Content (Join-Path $repo 'dist/SFSE/Plugins/OSF/Settings/schem
 $browserSchema = Get-Content (Join-Path $repo 'extensions/browser/dist/SFSE/Plugins/OSF/Settings/schemas/osf.animation.browser.json') -Raw | ConvertFrom-Json
 $coreKeys = @($coreSchema.groups.PSObject.Properties.Value | ForEach-Object { $_.key })
 $browserKeys = @($browserSchema.groups.PSObject.Properties.Value | ForEach-Object { $_.key })
-if ($coreSchema.hotkeys -or @($coreKeys | Where-Object { $_ -like 'browser.*' -or $_ -like 'launch.*' }).Count -or
+$coreHotkeys = $coreSchema.PSObject.Properties['hotkeys']
+$browserHotkeys = $browserSchema.PSObject.Properties['hotkeys']
+if (($coreHotkeys -and $coreHotkeys.Value) -or @($coreKeys | Where-Object { $_ -like 'browser.*' -or $_ -like 'launch.*' }).Count -or
     @($browserKeys | Where-Object { $_ -in $coreKeys }).Count -or
-    -not $browserSchema.hotkeys.openBrowser -or -not $browserSchema.hotkeys.openWheel) {
+    -not $browserHotkeys -or -not $browserHotkeys.Value.PSObject.Properties['openBrowser'] -or
+    -not $browserHotkeys.Value.PSObject.Properties['openWheel']) {
     throw 'Engine and browser schemas must have separate settings ownership and retain browser hotkey IDs.'
 }
 Write-Host 'Browser boundary: public headers only, independent target, no engine-to-browser implementation dependency.'
