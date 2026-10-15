@@ -25,6 +25,8 @@ Key Features:
   ship animation scenes with JSON plus GLB/AF clips, no Papyrus or scripting required; full schema in [docs/SCENE_SCHEMA.md](docs/SCENE_SCHEMA.md).
 
 - **Developers:** [profiling workflow](docs/PROFILING.md) covers WPR/WPA CPU sampling.
+- **Experimental import tools:** [Skyrim human animation importer](tools/skyrim-import/README.md)
+  converts local HKX fixtures through background Blender; see its validation limits.
 - **Before releasing:** run `pwsh -NoProfile -File tools/test-release.ps1` for native,
   browser, installer and disposable in-game checks. Use `-Offline` to omit the game
   or `-Plan` to inspect the suite. [Testing guide](docs/SMOKE_TESTING.md) explains
