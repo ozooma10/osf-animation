@@ -137,6 +137,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
   const catalogTimer = useRef<number | undefined>(undefined);
   const libraryTimer = useRef<number | undefined>(undefined);
   const importsTimer = useRef<number | undefined>(undefined);
+  const wheelTimer = useRef<number | undefined>(undefined);
   const catalogTries = useRef(0);
   const libraryTries = useRef(0);
   const importsTries = useRef(0);
@@ -325,15 +326,25 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
         break;
       case "osf.animation.notice": if (record.text) showNotice(record.kind === "err" || record.kind === "ok" ? record.kind : "info", String(record.text)); break;
       case "osf.animation.mode": {
+        if (wheelTimer.current) clearTimeout(wheelTimer.current);
+        wheelTimer.current = undefined;
         if (record.mode !== "wheel") { dispatch({ type: "wheel/exited" }); break; }
         const target = isRecord(record.target) && typeof record.target.token === "number" ? { token: record.target.token, name: String(record.target.name || "Target") } : null;
         const tagPrefix = String(record.tagPrefix || "player.emote.").toLowerCase();
         dispatch({ type: "wheel/entered", tagPrefix, target });
-        window.setTimeout(() => { if (!stateRef.current.wheel?.requested) { dispatch({ type: "wheel/requested" }); send("osf.animation.wheel.get", { tagPrefix }); } }, 0);
+        wheelTimer.current = window.setTimeout(() => {
+          wheelTimer.current = undefined;
+          const current = stateRef.current;
+          if (!current.viewVisible || !current.wheel || current.wheel.requested) return;
+          dispatch({ type: "wheel/requested" });
+          send("osf.animation.wheel.get", { tagPrefix });
+        }, 0);
         break;
       }
       case "ui.visibility":
         if (!record.visible) {
+          if (wheelTimer.current) clearTimeout(wheelTimer.current);
+          wheelTimer.current = undefined;
           dispatch({ type: "visibility/hidden" });
         } else {
           dispatch({ type: "visibility/shown" });
@@ -368,7 +379,7 @@ export function useBrowserController(): { state: BrowserState; commands: Browser
       requestCatalog(true);
       requestLibrary(true);
     }
-    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (importsTimer.current) clearTimeout(importsTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); };
+    return () => { unsubscribe(); bridge.dispose(); if (catalogTimer.current) clearTimeout(catalogTimer.current); if (libraryTimer.current) clearTimeout(libraryTimer.current); if (importsTimer.current) clearTimeout(importsTimer.current); if (wheelTimer.current) clearTimeout(wheelTimer.current); if (noticeTimer.current) clearTimeout(noticeTimer.current); };
   }, []);
 
   useEffect(() => {

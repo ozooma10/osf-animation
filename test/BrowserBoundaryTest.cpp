@@ -4,6 +4,7 @@ void RunBrowserClipLibraryTests();
 #include "API/EngineClient.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/BrowserSessionQueue.h"
+#include "API/BrowserJsonTransport.h"
 #include "API/EngineServiceState.h"
 #include "API/BrowserForwarder.h"
 #include "API/BrowserInput.h"
@@ -42,6 +43,89 @@ int main()
 	using OSF::Test::Check;
 	using namespace OSF::API;
 	RunBrowserClipLibraryTests();
+	{
+		using Transport = BrowserJsonTransport;
+		using json = nlohmann::json;
+		struct Event { std::string type, text; };
+		std::vector<Event> emitted;
+		std::vector<std::function<void()>> posted;
+		int errors = 0;
+		bool acceptEmit = true, acceptPost = true;
+		Transport transport(
+			[&](const auto& view, const auto& type, const auto& text) {
+				Check(view == "osf.animation/browser", "JSON transfer preserves destination view");
+				if (!acceptEmit) return false;
+				emitted.push_back({ type, text }); return true;
+			},
+			[&](std::function<void()> task) { if (!acceptPost) return false; posted.push_back(std::move(task)); return true; },
+			[&](const auto&, const auto&, const auto*) { ++errors; });
+		const auto frame = [&] {
+			auto batch = std::move(posted); posted.clear();
+			const auto before = emitted.size();
+			for (auto& task : batch) task();
+			Check(emitted.size() - before <= Transport::kChunksPerFrame, "JSON transfer stays within the per-frame host queue budget");
+		};
+		const auto drain = [&] { for (int i = 0; !posted.empty() && i < 1024; ++i) frame(); Check(posted.empty(), "JSON transfer drain terminates"); };
+		const auto send = [&](std::string type, std::string text) { return transport.Send("osf.animation/browser", std::move(type), std::move(text)); };
+		Check(send("catalog", "{\"scenes\":[]}") && emitted.size() == 1 && emitted.back().text == "{\"scenes\":[]}" && posted.empty(),
+			"small JSON documents retain the released event payload shape");
+		emitted.clear();
+		// A multi-megabyte document containing quotes, backslashes, control escapes, and
+		// 4-byte characters crosses both the released 1 MiB limit and UTF-8 boundaries.
+		std::string name;
+		for (int i = 0; i < 160000; ++i) name += "\"\\\n\xF0\x9F\x8E\xAC";
+		const auto large = json{ { "scenes", { { { "title", name } } } } }.dump();
+		Check(large.size() > 1024u * 1024u && send("library", large) && emitted.empty(), "large library is queued instead of exceeding OSF UI's 1 MiB limit");
+		frame();
+		const auto firstId = json::parse(emitted.front().text)["id"];
+		Check(send("library", large) && posted.size() == 1, "identical bootstrap retries preserve an active transfer");
+		drain();
+		std::string decoded;
+		for (std::size_t i = 0; i < emitted.size(); ++i) {
+			const auto envelope = json::parse(emitted[i].text);
+			Check(emitted[i].type == "library" && emitted[i].text.size() < 1024u * 1024u,
+				"every large-library chunk retains its event and fits the released host limit");
+			Check(envelope["osfAnimationTransfer"] == 1 && envelope["id"] == firstId && envelope["index"] == i &&
+				envelope["count"] == emitted.size() && envelope["bytes"] == large.size(), "JSON transfer metadata identifies one ordered document");
+			const auto part = envelope["data"].get<std::string>();
+			Check(!part.empty() && part.size() <= Transport::kChunkBytes, "UTF-8 chunk obeys the raw byte bound");
+			decoded += part;
+		}
+		Check(decoded == large && json::parse(decoded)["scenes"][0]["title"] == name, "large JSON and multibyte names round-trip exactly");
+		emitted.clear();
+		Check(send("catalog", large) && send("library", large), "independent large event streams may overlap");
+		frame();
+		Check(emitted.size() == 4 && emitted[0].type == "catalog" && emitted[1].type == "library" &&
+			emitted[2].type == "catalog" && emitted[3].type == "library", "overlapping JSON streams share one fair frame budget");
+		transport.Clear(); emitted.clear();
+		Check(send("library", large), "new document can start immediately after hide/reset");
+		frame();
+		Check(emitted.size() == 4, "stale scheduled callbacks cannot advance a replacement session");
+		Check(send("library", "{\"scenes\":[]}"), "small snapshot can supersede an active large document");
+		const auto replacedSize = emitted.size(); drain();
+		Check(emitted.size() == replacedSize && emitted.back().text == "{\"scenes\":[]}", "replacement cancels remaining old chunks");
+		emitted.clear();
+		Check(send("library", large), "large replacement fixture starts"); frame();
+		const auto replacedId = json::parse(emitted.front().text)["id"];
+		Check(send("library", large + " "), "changed snapshot supersedes an active transfer");
+		emitted.clear(); drain();
+		Check(!emitted.empty() && json::parse(emitted.front().text)["index"] == 0 &&
+			json::parse(emitted.front().text)["id"] != replacedId, "replacement JSON receives a new transfer identity");
+		emitted.clear();
+		acceptEmit = false;
+		Check(send("library", large), "emit failure fixture queues"); drain();
+		Check(errors == 1 && emitted.empty(), "host rejection aborts a transfer and reports an error");
+		acceptEmit = true; acceptPost = false;
+		Check(!send("library", large) && errors == 2, "frame queue rejection fails explicitly and clears retained data");
+		acceptPost = true;
+		Check(send("library", large), "transport recovers after a refused frame queue"); transport.Clear(); drain();
+		Check(!send("library", std::string(Transport::kMaxBytes + 1, ' ')) && posted.empty(), "oversized logical documents are refused before scheduling");
+		for (std::size_t i = 0; i < Transport::kMaxTransfers; ++i) Check(send("stream" + std::to_string(i), large), "bounded concurrent stream accepted");
+		Check(!send("excess", large), "concurrent transfer count is bounded"); transport.Clear(); drain();
+		const std::string maximum(Transport::kMaxBytes, ' ');
+		Check(send("first", maximum) && send("second", maximum) && !send("third", large), "total queued transfer memory is bounded");
+		transport.Clear(); drain();
+	}
 	{
 		Check(OSF::Util::AnimationKeywordLabel("AnimFurnChairScrappy") == "Chair Scrappy",
 			"animation keyword prefix and CamelCase are humanized");

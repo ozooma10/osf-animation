@@ -66,6 +66,15 @@ rejected-file diagnostics, canonical clip keys, unmeasured clip references from 
 nonlinear scenes), and ownership of the returned data. Browser boundary tests cover consumption
 and presentation separately.
 
+The browser's private web transport keeps each OSF UI event below the released
+host's 1 MiB limit. JSON larger than 512 KiB is split into UTF-8-safe 64 KiB pieces,
+paced at four pieces per frame, and decoded before the controller receives the
+original event. Transfers are bounded to 32 MiB per document and 64 MiB in flight;
+incomplete, stale, conflicting or malformed transfers never replace application
+state. Hiding the view cancels pending transfers. Install the browser DLL and web
+assets from the same archive. Native boundary and browser tests exercise this
+protocol; the live suite also transfers and renders the shipped animation library.
+
 Browser's `BrowserClipLibrary` provider generates the automatic inspection entries formerly harvested
 by core. It retains the `osf.scene-clip/*` hash, source ordering, duplicate precedence, and collision
 suffixes, so ordinary existing wheel pins and direct-ID starts continue working while the addon is

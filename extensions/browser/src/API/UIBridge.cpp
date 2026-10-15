@@ -4,6 +4,7 @@
 #include "Serialization/ClipDurationCache.h"
 #include "API/UIBridge.h"
 #include "API/BrowserSession.h"
+#include "API/BrowserJsonTransport.h"
 #include "API/UIBridgeCatalog.h"
 #include "API/UIBridgeWorld.h"
 
@@ -52,6 +53,14 @@ namespace OSF::API
 		using UIBridgeWorld::ScanLabel;
 
 		auto& g_ui = BrowserSession::Views();
+		BrowserJsonTransport g_jsonTransport(
+			[](const std::string& view, const std::string& type, const std::string& text) {
+				return g_ui && g_ui.EmitEvent(view.c_str(), type.c_str(), text.c_str());
+			},
+			[](std::function<void()> task) { return EngineClient::Post(std::move(task)); },
+			[](const std::string& view, const std::string& type, const char* reason) {
+				REX::ERROR("[UI] failed '{}' delivery to '{}': {}", type, view, reason);
+			});
 
 		// Sent in the version payload; the view falls back to paced input when false.
 		bool g_relativePointerRegistered = false;
@@ -107,7 +116,9 @@ namespace OSF::API
 				return;
 			}
 			const std::string text = a_payload.dump(-1, ' ', false, json::error_handler_t::replace);
-			g_ui.EmitEvent(a_view, a_type, text.c_str());
+			if (!g_jsonTransport.Send(a_view, a_type, text)) {
+				REX::ERROR("[UI] refused '{}' delivery to '{}' ({} bytes)", a_type, a_view, text.size());
+			}
 		}
 
 		// Non-throwing; returns a discarded value on malformed or oversized input.
@@ -928,6 +939,7 @@ namespace OSF::API
 		void OnHidden()
 		{
 			g_viewVisible = false;
+			g_jsonTransport.Clear();
 			g_relativePointerTraceActive = false;
 			BrowserInput::SetVisible(EngineClient::Get(), false);
 			if (g_orbitHeld) EngineClient::Get().ReleaseOrbit();

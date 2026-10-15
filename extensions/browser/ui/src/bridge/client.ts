@@ -1,5 +1,6 @@
 import { type BridgeCommand, type NativeMessage } from "./contract";
 import type { JsonObject, OSFUIBridge } from "./osfui";
+import { JsonTransferDecoder } from "./transfer";
 
 export type NativeMessageListener = (message: NativeMessage) => void;
 
@@ -24,6 +25,7 @@ export class OsfUiBridge implements AnimationBridge {
   // The helper can replay readiness/state before the controller's post-paint subscription exists.
   private readonly pending: NativeMessage[] = [];
   private readonly unsubscribers: Array<() => void> = [];
+  private readonly transfers = new JsonTransferDecoder();
 
   constructor() {
     const bridge = window.osfui;
@@ -41,10 +43,15 @@ export class OsfUiBridge implements AnimationBridge {
       "osfui.debug.error",
     ];
     for (const name of events) {
-      this.unsubscribers.push(bridge.on(name, (payload) => this.emit({
-        type: name === "osfui.debug.error" ? "ui.error" : name,
-        payload,
-      })));
+      this.unsubscribers.push(bridge.on(name, (payload) => {
+        const decoded = this.transfers.consume(name, payload);
+        if (decoded.kind === "message") {
+          if (name === "ui.visibility" && (decoded.payload as { visible?: boolean } | null)?.visible === false) this.transfers.reset();
+          this.emit({ type: name === "osfui.debug.error" ? "ui.error" : name, payload: decoded.payload });
+        } else if (decoded.kind === "error") {
+          this.emit({ type: "ui.error", payload: { message: decoded.message } });
+        }
+      }));
     }
     this.unsubscribers.push(bridge.state.on("settings", (value) =>
       this.emit({ type: "settings.data", payload: value })));
@@ -85,6 +92,7 @@ export class OsfUiBridge implements AnimationBridge {
   }
 
   dispose(): void {
+    this.transfers.reset();
     this.pending.length = 0;
     this.listeners.clear();
     for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();

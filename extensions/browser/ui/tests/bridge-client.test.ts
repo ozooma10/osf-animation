@@ -92,6 +92,61 @@ describe("OsfUiBridge subscription race", () => {
       payload: { command: "settings.set", message: "write refused" },
     });
   });
+
+  it("delivers a complete multi-megabyte library through the original event before subscription", () => {
+    const bridge = new OsfUiBridge();
+    const payload = { scenes: Array.from({ length: 800 }, (_, i) => ({
+      id: `library-${i}`, title: "Café🎬".repeat(100),
+      stages: Array.from({ length: 8 }, (_, stage) => ({ index: stage, name: "animation".repeat(20) })),
+    })) };
+    const text = JSON.stringify(payload), encoder = new TextEncoder();
+    const bytes = encoder.encode(text).length;
+    expect(bytes).toBeGreaterThan(1024 * 1024);
+    const chunks: string[] = [];
+    // The native serializer splits on UTF-8 boundaries. Use small complete-code-point
+    // slices here so the test also catches using UTF-16 length as the wire byte count.
+    for (let start = 0; start < text.length;) {
+      let end = Math.min(start + 16_000, text.length);
+      if (end < text.length && text.charCodeAt(end) >= 0xDC00 && text.charCodeAt(end) <= 0xDFFF) end--;
+      chunks.push(text.slice(start, end)); start = end;
+    }
+    for (let index = chunks.length - 1; index >= 0; index--) {
+      deliver("osf.animation.library.data", { osfAnimationTransfer: 1, id: "1", index, count: chunks.length, bytes, data: chunks[index] });
+    }
+    const received: NativeMessage[] = [];
+    bridge.subscribe((message) => received.push(message));
+    expect(received).toEqual([
+      { type: "runtime.ready", payload: {} },
+      { type: "osf.animation.library.data", payload },
+    ]);
+    bridge.dispose();
+  });
+
+  it("reports malformed transfers as bridge errors without emitting a partial catalog", () => {
+    const bridge = new OsfUiBridge(), received: NativeMessage[] = [];
+    bridge.subscribe((message) => received.push(message));
+    deliver("osf.animation.catalog.data", { osfAnimationTransfer: 1, id: "1", index: 0, count: 2, bytes: 99, data: "{" });
+    deliver("osf.animation.catalog.data", { osfAnimationTransfer: 1, id: "1", index: 1, count: 3, bytes: 99, data: "}" });
+    expect(received.map((message) => message.type)).toEqual(["runtime.ready", "ui.error"]);
+    expect(received[1].payload).toMatchObject({ message: expect.stringContaining("metadata changed") });
+    bridge.dispose();
+  });
+
+  it("cancels partial data when hidden and removes transfer listeners on dispose", () => {
+    const bridge = new OsfUiBridge(), received: NativeMessage[] = [];
+    bridge.subscribe((message) => received.push(message));
+    const first = { osfAnimationTransfer: 1, id: "1", index: 0, count: 2, bytes: 13, data: '{"scenes":' };
+    const last = { ...first, index: 1, data: "[]}" };
+    deliver("osf.animation.library.data", first);
+    deliver("ui.visibility", { visible: false });
+    deliver("osf.animation.library.data", last);
+    expect(received.map((message) => message.type)).toEqual(["runtime.ready", "ui.visibility"]);
+    deliver("osf.animation.library.data", { ...first, id: "2" });
+    deliver("osf.animation.library.data", { ...last, id: "2" });
+    expect(received.at(-1)).toEqual({ type: "osf.animation.library.data", payload: { scenes: [] } });
+    bridge.dispose();
+    expect(eventHandlers.size).toBe(0);
+  });
 });
 
 describe("bridge environment detection", () => {
