@@ -535,9 +535,9 @@ namespace OSF::Camera
 
 	void CameraService::NativeFreeCamExit()
 	{
-		// ToggleFreeCameraMode's exit doesn't know OSF's third-person hold; resolve the handback now, apply it after the flag clear.
-		const bool handBackToHold = holdArmed.load(std::memory_order_relaxed);
-		QueueTask([this, handBackToHold]() {
+		// Scene cleanup can release the hold before this task drains. Resolve the handback
+		// then, or a stale hold queues a zoom seed after the first-person baseline was restored.
+		QueueTask([this]() {
 			if (!nativeFreeCamActive.exchange(false, std::memory_order_relaxed)) {
 				return;
 			}
@@ -548,7 +548,7 @@ namespace OSF::Camera
 
 			auto* camera = RE::PlayerCamera::GetSingleton();
 			if (!suppressBounce.load(std::memory_order_relaxed) && camera) {
-				if (handBackToHold) {
+				if (holdArmed.load(std::memory_order_relaxed)) {
 					if (!camera->IsInThirdPerson()) {
 						camera->ForceThirdPerson();
 						REX::DEBUG("[Camera] handed back to third-person hold after native free cam exit");
