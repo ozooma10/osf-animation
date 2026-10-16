@@ -66,8 +66,14 @@ namespace OSF::Serialization::PersistenceHost
 				if (auto logs = SFSE::log::log_directory()) {
 					std::filesystem::path root = logs->parent_path().parent_path();
 					if (auto* ini = RE::INISettingCollection::GetSingleton()) {
-						if (auto* setting = ini->GetSetting("sLocalSavePath:General");
-							setting && setting->GetType() == RE::Setting::Type::kString) {
+						// The engine promotes overridden string settings from static 's' to
+						// dynamic 'S'. GetSetting compares keys case-sensitively; missing the
+						// dynamic name sent private-profile sidecars into shared Saves.
+						auto* setting = ini->GetSetting("sLocalSavePath:General");
+						if (!setting) {
+							setting = ini->GetSetting("SLocalSavePath:General");
+						}
+						if (setting && setting->GetType() == RE::Setting::Type::kString) {
 							const auto local = setting->GetString();
 							if (!local.empty()) {
 								return root / std::filesystem::path(std::string(local));
