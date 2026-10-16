@@ -33,6 +33,12 @@ Scene keyboard controls use key settings under OSF Animation > Scenes - Keyboard
 They are dispatched only while the active scene grants their capability. Rebinding replaces
 the default key, and unbinding disables it. The input hook continues to pass keys to the game.
 
+Alignment overrides are deltas keyed by exact scene id, node id, and role name in
+`Documents/My Games/Starfield/SFSE/OSF/alignment-overrides.json` (formatVersion 1).
+The JSON heading is degrees; missing components mean zero. Zero rows are removed, with no
+wildcard fallback. Reload replaces persisted rows while live scenes retain their working copies.
+Malformed documents leave the previous table intact and report one Mod Issue; scenes still play.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the

@@ -36,6 +36,8 @@ for installation, saved preferences, and hotkey changes.
   Browser's exact-version 3.0 request path.
 - Scene keyboard controls are configurable through OSF Settings, including alignment keys;
   the `align` scene-control capability can be revoked independently.
+- Alignment storage uses scene/node/role deltas in `SFSE/OSF/alignment-overrides.json`, with
+  atomic replacement, zero-row pruning, bounded parsing, and Mod Issues for failed reads/writes.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support

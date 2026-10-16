@@ -2,6 +2,7 @@
 #include "Check.h"
 #include "Animation/Scene.h"
 #include "Scene/SceneFoundation.h"
+#include "Scene/AlignmentState.h"
 
 #include <array>
 #include <cmath>
@@ -51,6 +52,29 @@ namespace
 
 int main()
 {
+	Run("alignment persistence and working-copy ownership", [] {
+		using namespace OSF::Scene::Alignment;
+		auto table = Parse(nlohmann::json::parse(R"({"formatVersion":1,"scenes":{"demo":{"#s2":{"partner":{"y":5,"heading":90},"lead":{}}}}})"));
+		Check(table.has_value(), "valid delta table parses");
+		if (!table) return;
+		Check(!table->at("demo").at("#s2").contains("lead"), "zero rows are pruned");
+		Near(Find(*table, "demo", "#s2", "partner").heading, 90 * OSF::Util::kDegToRadF, "file degrees convert to runtime radians");
+		Near(Find(*table, "demo", "#s1", "partner").y, 0, "no cross-node fallback");
+		WorkingCopy work;
+		work.Enter("#s2", { Find(*table, "demo", "#s2", "partner") })[0].y += 1;
+		work.Enter("#s1", { {} });
+		Near(work.Enter("#s2", { {} })[0].y, 6, "revisit retains unsaved delta instead of reseeding");
+		Put(*table, "demo", "#s2", "partner", work.nodes.at("#s2")[0]);
+		const auto roundtrip = Parse(Serialize(*table));
+		Check(roundtrip.has_value(), "saved table parses");
+		Near(Find(*roundtrip, "demo", "#s2", "partner").y, 6, "save replaces delta instead of adding twice");
+		work.nodes.at("#s2")[0] = {};
+		Near(Find(*table, "demo", "#s2", "partner").y, 6, "reset changes only the working copy until save");
+		Put(*table, "demo", "#s2", "partner", {});
+		Check(table->empty(), "saving reset prunes empty node and scene");
+		Check(!Parse(nlohmann::json::parse(R"({"formatVersion":1,"scenes":{"demo":{"n":{"r":{"x":"bad"}}}}})")), "one invalid row rejects the whole document");
+		Check(!Parse(nlohmann::json{ { "formatVersion", 2 }, { "scenes", nlohmann::json::object() } }), "unknown version refused");
+	});
 	Run("scene speed survives rebuilds and pause is per scene", [] {
 		OSF::Scene::SceneSpeed a, b;
 		a.Set(0.5f);

@@ -67,6 +67,9 @@ namespace OSF::API::Health
 					next = "Update OSF Animation for this Starfield version.";
 				} else if (a_op.code == "sound.pack-load") {
 					title = "Animation sounds could not be loaded";
+				} else if (a_op.code == "alignment.storage") {
+					title = "Scene alignment overrides could not be loaded or saved";
+					next = "Check alignment-overrides.json in the SFSE OSF user folder and its write permissions. Scenes can still play.";
 				}
 				std::string impact = Util::SanitizeDiagnosticPaths(a_op.subject);
 				if (a_op.context.is_object()) {

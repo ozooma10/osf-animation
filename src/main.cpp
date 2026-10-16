@@ -1,3 +1,4 @@
+#include "Scene/AlignmentStore.h"
 #include "API/Health.h"
 #include "API/MinimumVersion.h"
 #include "API/SceneAPIControl.h"
@@ -37,6 +38,7 @@ namespace
 			OSF::Registry::SoundRegistry::GetSingleton().LoadAll();
 			OSF::API::Health::ReportRegistryLoad();
 			OSF::Equipment::Gear::LoadAll();
+			OSF::Scene::Alignment::Load();
 			OSF::Scene::SceneRuntime::GetSingleton().RegisterWithGraphManager();
 			if (!OSF::Papyrus::RegisterFunctions()) {
 				REX::ERROR("[Boot] GameVM not available at kPostDataLoad, papyrus natives not registered");

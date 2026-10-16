@@ -3,6 +3,7 @@
 #include "API/Health.h"
 #include "API/EngineServices.h"
 #include "Equipment/GearRegistry.h"
+#include "Scene/AlignmentStore.h"
 #include "Registry/ContentRegistry.h"
 #include "Registry/SoundRegistry.h"
 #include "Serialization/AFImport.h"
@@ -20,6 +21,7 @@ namespace OSF::Content
 		registry.LoadAll();
 		Registry::SoundRegistry::GetSingleton().LoadAll();
 		Equipment::Gear::LoadAll();
+		Scene::Alignment::Load();
 		API::Health::ReportRegistryLoad();
 
 		API::EngineServices::ContentReloaded();
