@@ -34,6 +34,8 @@ for installation, saved preferences, and hotkey changes.
   (native scene ABI 1.4), preserving the original event prefix and Papyrus fields.
 - Engine services 3.1 negotiates compatible minor versions and preserves the released
   Browser's exact-version 3.0 request path.
+- Scene keyboard controls are configurable through OSF Settings, including alignment keys;
+  the `align` scene-control capability can be revoked independently.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support

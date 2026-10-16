@@ -1,5 +1,6 @@
 #include "Util/NativeMainThreadQueue.h"
 #include "Input/InputService.h"
+#include "Input/SceneKeymap.h"
 #include "API/OSFEngineAPI.h"
 
 #include "SFSE/InputMap.h"
@@ -113,20 +114,10 @@ namespace OSF::Input
 		// RE::UI::VTABLE (AddressLib 475439) is not in base-declaration order.
 		constexpr std::size_t kReceiverVtblIndex = 10;
 
-		// idCode is a Windows VK code. TODO: keymap override via the OSF Settings schema.
+		// idCode and OSF Settings keys both use native Windows VK codes.
 		Verb VerbForKeyboard(std::int32_t a_idCode)
 		{
-			switch (a_idCode) {
-			case 0x20: return Verb::kAdvance;     // Space
-			case 0xBB:                            // OEM '=' / '+'
-			case 0x6B: return Verb::kSpeedUp;     // Numpad +
-			case 0xBD:                            // OEM '-'
-			case 0x6D: return Verb::kSpeedDown;   // Numpad -
-			case 0x30: return Verb::kSpeedReset;  // '0'
-			case 0x50: return Verb::kPause;       // 'P'
-			case 0x23: return Verb::kEnd;         // End
-			default: return Verb::kNone;
-			}
+			return g_sceneKeymap.Lookup(static_cast<std::uint32_t>(a_idCode));
 		}
 
 		Verb VerbForGamepad(std::int32_t a_idCode)

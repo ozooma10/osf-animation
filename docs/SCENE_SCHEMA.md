@@ -954,7 +954,7 @@ lock described by `playerInputLock`. Scene controls are **enabled by default**: 
 `sceneControls` block the player gets every OSF capability while participating. A scene opts out
 wholesale (`"sceneControls": false`) or narrows it:
 `{ "disable": ["speed", "end"], "locked": true }`. Capabilities
-are advance / navigate / speed / freecam / end; `locked: true` means the player may not end
+are advance / navigate / speed / align / freecam / end; `locked: true` means the player may not end
 the scene via the scene-control channel (story scenes).
 
 The object form also accepts **`"enabled": <bool>`**, an explicit on/off toggle with the same effect

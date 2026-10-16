@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <string_view>
+
 // Types only, so the scene registry can use them without depending on InputService.
 
 namespace RE
@@ -15,7 +18,7 @@ namespace OSF::Input
 		kAdvance = 1u << 0,
 		kNavigate = 1u << 1,
 		kSpeed = 1u << 2,
-		// bit 3 reserved
+		kAlign = 1u << 3,
 		kFreecam = 1u << 4,
 		kEnd = 1u << 5,
 	};
@@ -24,6 +27,7 @@ namespace OSF::Input
 		static_cast<std::uint32_t>(Capability::kAdvance) |
 		static_cast<std::uint32_t>(Capability::kNavigate) |
 		static_cast<std::uint32_t>(Capability::kSpeed) |
+		static_cast<std::uint32_t>(Capability::kAlign) |
 		static_cast<std::uint32_t>(Capability::kFreecam) |
 		static_cast<std::uint32_t>(Capability::kEnd);
 
@@ -33,6 +37,7 @@ namespace OSF::Input
 		if (a_name == "advance") return static_cast<std::uint32_t>(Capability::kAdvance);
 		if (a_name == "navigate") return static_cast<std::uint32_t>(Capability::kNavigate);
 		if (a_name == "speed") return static_cast<std::uint32_t>(Capability::kSpeed);
+		if (a_name == "align") return static_cast<std::uint32_t>(Capability::kAlign);
 		if (a_name == "freecam") return static_cast<std::uint32_t>(Capability::kFreecam);
 		if (a_name == "end") return static_cast<std::uint32_t>(Capability::kEnd);
 		return 0;
@@ -49,6 +54,9 @@ namespace OSF::Input
 		kPause,
 		kFreecam,
 		kEnd,         // blocked if Grant.locked
+		kAlignSelect, kAlignXPlus, kAlignXMinus, kAlignYPlus, kAlignYMinus,
+		kAlignZPlus, kAlignZMinus, kAlignHeadingPlus, kAlignHeadingMinus,
+		kAlignStep, kAlignReset, kAlignSave,
 	};
 
 
@@ -66,6 +74,11 @@ namespace OSF::Input
 			return static_cast<std::uint32_t>(Capability::kFreecam);
 		case Verb::kEnd:
 			return static_cast<std::uint32_t>(Capability::kEnd);
+		case Verb::kAlignSelect: case Verb::kAlignXPlus: case Verb::kAlignXMinus:
+		case Verb::kAlignYPlus: case Verb::kAlignYMinus: case Verb::kAlignZPlus:
+		case Verb::kAlignZMinus: case Verb::kAlignHeadingPlus: case Verb::kAlignHeadingMinus:
+		case Verb::kAlignStep: case Verb::kAlignReset: case Verb::kAlignSave:
+			return static_cast<std::uint32_t>(Capability::kAlign);
 		default:
 			return 0;
 		}

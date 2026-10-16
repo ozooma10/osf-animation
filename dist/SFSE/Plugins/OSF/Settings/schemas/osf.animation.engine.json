@@ -34,6 +34,168 @@
         "label": "Log level",
         "hint": "OSF Animation.log verbosity."
       }
+    ],
+    "Scenes - Keyboard controls": [
+      {
+        "key": "keys.advance",
+        "type": "key",
+        "default": 32,
+        "label": "Advance",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.speedUp",
+        "type": "key",
+        "default": 107,
+        "label": "Speed up",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.speedUpAlt",
+        "type": "key",
+        "default": 187,
+        "label": "Speed up (alternate)",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.speedDown",
+        "type": "key",
+        "default": 109,
+        "label": "Speed down",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.speedDownAlt",
+        "type": "key",
+        "default": 189,
+        "label": "Speed down (alternate)",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.speedReset",
+        "type": "key",
+        "default": 48,
+        "label": "Reset speed",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.pause",
+        "type": "key",
+        "default": 80,
+        "label": "Pause / resume",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.end",
+        "type": "key",
+        "default": 35,
+        "label": "End scene",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignSelect",
+        "type": "key",
+        "default": 101,
+        "label": "Select alignment participant",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignXPlus",
+        "type": "key",
+        "default": 102,
+        "label": "Alignment X +",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignXMinus",
+        "type": "key",
+        "default": 100,
+        "label": "Alignment X -",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignYPlus",
+        "type": "key",
+        "default": 104,
+        "label": "Alignment Y +",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignYMinus",
+        "type": "key",
+        "default": 98,
+        "label": "Alignment Y -",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignZPlus",
+        "type": "key",
+        "default": 99,
+        "label": "Alignment Z +",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignZMinus",
+        "type": "key",
+        "default": 97,
+        "label": "Alignment Z -",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignHeadingPlus",
+        "type": "key",
+        "default": 105,
+        "label": "Alignment heading +",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignHeadingMinus",
+        "type": "key",
+        "default": 103,
+        "label": "Alignment heading -",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignStep",
+        "type": "key",
+        "default": 111,
+        "label": "Toggle alignment step",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignReset",
+        "type": "key",
+        "default": 110,
+        "label": "Reset alignment",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      },
+      {
+        "key": "keys.alignSave",
+        "type": "key",
+        "default": 106,
+        "label": "Save alignment",
+        "allowUnbound": true,
+        "hint": "Active only while the scene grants this control."
+      }
     ]
   }
 }

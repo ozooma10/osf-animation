@@ -6,6 +6,7 @@
 #include "Util/DiagnosticText.h"
 #include "Util/NativeMainThreadQueue.h"
 #include "Util/RegistryFiles.h"
+#include "Input/SceneKeymap.h"
 
 #include <algorithm>
 #include <array>
@@ -18,6 +19,18 @@ using OSF::Test::Finish;
 
 int main()
 {
+	{
+		using namespace OSF::Input;
+		SceneKeymap keys;
+		Check(keys.Lookup(0x20) == Verb::kAdvance && keys.Lookup(0x6B) == Verb::kSpeedUp,
+			"scene controls retain existing defaults");
+		Check(keys.Lookup(0x65) == Verb::kAlignSelect && RequiredCapability(keys.Lookup(0x69)) == CapabilityBit("align"),
+			"alignment keys require the revocable align capability");
+		keys.Set(0, 0x41);
+		Check(keys.Lookup(0x20) == Verb::kNone && keys.Lookup(0x41) == Verb::kAdvance, "rebind replaces original key");
+		keys.Set(0, 0xFF);
+		Check(keys.Lookup(0x41) == Verb::kNone && keys.Lookup(0xFF) == Verb::kNone, "unbound is inert");
+	}
 	OSF::Animation::FrameClock clock;
 	int ownerToken = 0;
 	int survivorToken = 0;

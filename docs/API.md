@@ -29,6 +29,10 @@ their header. The released 3.0 Browser checks exact equality, so requests for 3.
 stable 3.0 version/prefix view of the current implementation. Requests for 3.1 or later receive
 the full current table. Never read appended functions without checking the table size.
 
+Scene keyboard controls use key settings under OSF Animation > Scenes - Keyboard controls.
+They are dispatched only while the active scene grants their capability. Rebinding replaces
+the default key, and unbinding disables it. The input hook continues to pass keys to the game.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the
