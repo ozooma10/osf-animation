@@ -94,7 +94,10 @@ namespace OSF::Scene
 		calls.roles = a_roles;
 		return Started("roles", a_id, a_actors, a_anchor, a_over, a_entry);
 	}
-	SceneRuntime::AnchorOverride MakeAnchorAt(RE::TESObjectREFR*, std::optional<float>) { return {}; }
+	SceneRuntime::AnchorOverride MakeAnchorAt(RE::TESObjectREFR* ref, std::optional<float> heading)
+	{
+		return ref ? SceneRuntime::AnchorOverride{ true, { 1, 2, 3 }, heading.value_or(0.75f) } : SceneRuntime::AnchorOverride{};
+	}
 	std::optional<SceneRuntime::AnchorOverride> ResolveSceneAnchor(std::string_view, RE::TESObjectREFR* a_ref,
 		std::optional<float> a_heading, bool a_hud)
 	{
@@ -178,6 +181,8 @@ int main()
 	Check(LaunchDef("demo", cast, opts, tag) == 42 && calls.anchorRef == furniture && calls.heading == 1.25f &&
 		!calls.anchorHud && calls.anchor.pos.x == 11 && calls.anchor.heading == 1.25f,
 		"reference resolution wins over world coordinates and forwards heading and HUD policy");
+	Check(calls.overrides.anchorRef == furniture && calls.overrides.anchorBase.pos.x == 1 &&
+		calls.overrides.anchorBase.heading == 1.25f, "runtime retains the un-offset reference base for handoff");
 	Reset(true, true);
 	calls.rejectAnchor = true;
 	opts.speed = 2.0f;

@@ -5,6 +5,7 @@
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"
 #include "Scene/SceneLauncher.h"
+#include "Scene/AnchorResolve.h"
 #include "Scene/SceneRuntime.h"
 #include "Scene/SceneEventRelay.h"
 #include "Util/ClipPath.h"
@@ -41,17 +42,18 @@ namespace OSF::API
 			if (a_opts.size >= offsetof(OSFStartOptions, inPlaceMode) + sizeof(a_opts.inPlaceMode)) {
 				inPlaceMode = a_opts.inPlaceMode;
 			}
-			return Scene::MakeOverrides(a_opts.stripMode, a_opts.lockPlayerMode, a_opts.playerControlMode,
+			auto over = Scene::MakeOverrides(a_opts.stripMode, a_opts.lockPlayerMode, a_opts.playerControlMode,
 				a_opts.fadeMode, inPlaceMode, std::string_view(a_opts.camera, len), a_opts.loopScale);
+			over.anchorRef = a_opts.anchorRef;
+			over.anchorBase = Scene::MakeAnchorAt(a_opts.anchorRef, std::nullopt);
+			return over;
 		}
 
 		Scene::SceneRuntime::AnchorOverride MakeAnchor(const OSFStartOptions& a_opts)
 		{
 			Scene::SceneRuntime::AnchorOverride anchor{};
 			if (a_opts.anchorRef) {
-				anchor.set = true;
-				anchor.pos = a_opts.anchorRef->data.location;
-				anchor.heading = a_opts.anchorRef->data.angle.z;
+				anchor = Scene::MakeAnchorAt(a_opts.anchorRef, std::nullopt);
 			} else if (a_opts.hasAnchor) {
 				anchor.set = true;
 				anchor.pos = RE::NiPoint3{ a_opts.anchorX, a_opts.anchorY, a_opts.anchorZ };

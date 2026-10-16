@@ -38,6 +38,8 @@ namespace OSF::Scene
 			std::optional<Animation::WorldPlacementMode> worldPlacement;
 			float               loopScale = 1.0f;  // multiplies loop-driven (loops>0) stages only, floored
 			std::optional<float> speed;
+			RE::TESObjectREFR* anchorRef = nullptr;  // borrowed until Start pins it
+			WorldAnchor anchorBase;  // rendered ref transform before the definition offset
 		};
 
 		void RegisterWithGraphManager();
@@ -189,6 +191,8 @@ namespace OSF::Scene
 			Registry::SceneRef      definition;
 			AnchorOverride          anchor;  // unset = anchor at participant[0]
 			AnchorOverride          frozenAnchor;
+			RE::NiPointer<RE::TESObjectREFR> anchorRef;
+			WorldAnchor             anchorBase;
 			ActorBaseline           baseline;
 			Alignment::WorkingCopy  align;
 			std::size_t             alignSelected = 0;

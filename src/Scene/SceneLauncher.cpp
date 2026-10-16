@@ -67,8 +67,11 @@ namespace OSF::Scene
 
 	SceneRuntime::StartOverrides MakeOverrides(const LaunchOpts& a_opts)
 	{
-		return MakeOverrides(a_opts.hideApparelMode, a_opts.playerInputLockMode, a_opts.sceneControlsMode,
+		auto over = MakeOverrides(a_opts.hideApparelMode, a_opts.playerInputLockMode, a_opts.sceneControlsMode,
 			a_opts.fadeMode, a_opts.followActorMode, a_opts.camera, a_opts.loopScale);
+		over.anchorRef = a_opts.anchor;
+		over.anchorBase = MakeAnchor(a_opts);
+		return over;
 	}
 
 	SceneRuntime::StartOverrides MakeOverrides(std::int32_t a_hideApparelMode, std::int32_t a_playerInputLockMode,
@@ -141,6 +144,8 @@ namespace OSF::Scene
 		}
 		auto& rt = SceneRuntime::GetSingleton();
 		auto overrides = a_opts.overrides;
+		overrides.anchorRef = a_opts.anchorRef;
+		overrides.anchorBase = MakeAnchorAt(a_opts.anchorRef, a_opts.headingRad);
 		if (a_opts.speed) overrides.speed = a_opts.speed;
 		std::int32_t handle;
 		if (a_roles) {

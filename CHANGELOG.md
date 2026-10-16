@@ -41,6 +41,8 @@ for installation, saved preferences, and hotkey changes.
 - Live alignment nudges, reset/save, participant selection and step controls apply one delta over
   authored placements across segments and node revisits. Papyrus and engine services 3.2 expose
   the same operations; the HUD marks unsaved changes.
+- Scene slots retain an explicit anchor reference and its original rendered base transform for
+  compatibility checks and offset recomposition during handoff.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support

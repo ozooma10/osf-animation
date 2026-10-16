@@ -696,6 +696,8 @@ namespace OSF::Scene
 			std::lock_guard l{ _lock };
 			if (Slot* s = Resolve(handle)) {
 				s->definition = definition;
+				s->anchorRef.reset(a_over.anchorRef);
+				s->anchorBase = a_over.anchorBase;
 				if (a_anchor.set) {
 					s->anchor = a_anchor;
 				}
@@ -863,6 +865,8 @@ namespace OSF::Scene
 			std::lock_guard l{ _lock };
 			auto* s = Resolve(handle);
 			s->anchor = a_anchor;
+			s->anchorRef.reset(a_over.anchorRef);
+			s->anchorBase = a_over.anchorBase;
 			s->speed.Set(a_over.speed.value_or(a_plan.speed));
 			s->speed.Apply(a_plan);
 			s->worldPlacement = a_over.worldPlacement.value_or(a_plan.anchored ?
@@ -882,6 +886,10 @@ namespace OSF::Scene
 			}
 		}
 		const bool playerInputLock = a_over.playerInputLock.value_or(true);
+		if (const auto playback = Animation::GraphManager::GetSingleton().GetScenePlayback(a_participants.front())) {
+			std::lock_guard l{ _lock };
+			if (auto* s = Resolve(handle)) s->frozenAnchor = { true, playback->anchorPos, playback->anchorHeading };
+		}
 		const bool hideApparel = a_over.hideApparel.value_or(true);
 		const bool fade = a_over.fade.value_or(false);
 		CompleteStart(handle, "", "main", a_participants, playerInputLock, hideApparel, true, fade, a_over);
