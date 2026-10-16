@@ -18,6 +18,8 @@ namespace OSF::Camera
 	enum class CameraMode : std::uint8_t;
 }
 
+namespace OSF::Matchmaking { struct TagQuery; }
+
 namespace OSF::Scene
 {
 	class SceneRuntime
@@ -63,6 +65,16 @@ namespace OSF::Scene
 		bool SaveAlignment(std::int32_t a_scene);
 		void AlignmentInput(std::int32_t a_scene, Input::Verb a_verb);
 		bool AcceptInput(const Input::Grant& a_grant, Input::Verb a_verb);
+
+		struct ReplaceOptions
+		{
+			RE::TESObjectREFR* anchor = nullptr;
+			std::optional<float> headingRad;
+			std::int32_t stage = 0;
+		};
+		bool Replace(std::int32_t a_scene, std::string_view a_id, const std::vector<std::string>& a_roles,
+			const ReplaceOptions& a_options);
+		bool ReplaceByTags(std::int32_t a_scene, const Matchmaking::TagQuery& a_query);
 
 		// Enters at the def's `entry`, or a_entryNode when non-empty. 0 = unknown scene or node.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
@@ -257,7 +269,8 @@ namespace OSF::Scene
 		bool SnapshotSlot(std::int32_t a_handle, SlotView& a_out);
 
 		// The functions below that dispatch or enter the VM must be called outside _lock.
-		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition);
+		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition,
+			std::string_view a_edge = {});
 
 		static void DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
 			std::string_view a_trackPosition, float a_time);
@@ -303,6 +316,8 @@ namespace OSF::Scene
 		// Cleanup-only, so authored apparel restore can't re-equip held props.
 		void RecordHiddenHeldEquip(std::int32_t a_handle, RE::Actor* a_actor, Equipment::Snapshot a_snapshot);
 		void RecordEquippedItem(std::int32_t a_handle, RE::Actor* a_actor, Equipment::EquippedItem a_item);
+		std::vector<RE::TESBoundObject*> OwnedEquipment(std::int32_t a_handle, RE::Actor* a_actor);
+		bool OwnsEquipment(std::int32_t a_handle, RE::Actor* a_actor, RE::TESBoundObject* a_item);
 
 		void RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor);
 
@@ -322,7 +337,7 @@ namespace OSF::Scene
 			const std::vector<RE::Actor*>& a_participants);
 
 		// Player participates and the scene specifies no camera: scene orbit.
-		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode, bool a_playerInputLock, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
+		void EngageDefaultCamera(std::int32_t a_handle, std::string_view a_entryNode, bool a_playerInputLock, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants);
 
 		// Empties every participant's hands (slate, tool, weapon). Worn gear picks are exempt.
 		void ClearHeldItems(std::int32_t a_handle, bool a_clearHeldItems,
@@ -335,7 +350,7 @@ namespace OSF::Scene
 
 		// Gear registry ∩ inventory, minus slots claimed by authored role `equip`. Index-parallel to
 		// a_participants. Game thread.
-		std::vector<std::vector<Equipment::Gear::Pick>> BuildGearPicks(std::string_view a_defId, const std::vector<RE::Actor*>& a_participants);
+		std::vector<std::vector<Equipment::Gear::Pick>> BuildGearPicks(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants);
 
 		// Already-worn picks were strip-exempted instead; nothing to equip or undo.
 		void EquipGearItems(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants,

@@ -42,7 +42,8 @@ namespace OSF::Scene
 	{
 		std::lock_guard l{ _lock };
 		auto* s = Resolve(a_scene);
-		if (!s || !s->definition || s->transitioning) return false;
+		if (!s || !s->definition || s->transitioning ||
+			s->worldPlacement.value_or(s->definition->worldPlacement) == Animation::WorldPlacementMode::kFollowActor) return false;
 		const auto names = RoleNames(*s->definition);
 		return Alignment::Save(s->id, s->node, names, s->align.Enter(s->node, Alignment::Read(s->id, s->node, names)));
 	}

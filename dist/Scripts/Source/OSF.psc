@@ -90,6 +90,14 @@ float[] Function GetSceneAlignment(int aiScene, string asRole) Global Native
 bool Function SaveSceneAlignment(int aiScene) Global Native
 bool Function ResetSceneAlignment(int aiScene, string asRole) Global Native
 
+; Same cast and handle, new definition. Only Anchor, HeadingDeg, Stage are read from options.
+; Speed, loop scale, placement and camera override carry over. Other SceneOptions are ignored.
+bool Function ReplaceScene(int aiScene, string asSceneId, OSFTypes:SceneOptions akOpts = None) Global Native
+; asRoleNames[i] is the target role for participant i in the current GetSceneParticipants order.
+bool Function ReplaceSceneRoles(int aiScene, string asSceneId, string[] asRoleNames) Global Native
+bool Function ReplaceSceneByTagsQuery(int aiScene, string[] allOf, string[] anyOf, string[] noneOf) Global Native
+string Function GetSceneId(int aiScene) Global Native
+
 ; Pins akActor's solo graph to a WORLD point + heading (DEGREES) and moves the capsule there.
 ; aiRootMode: 0 = pin (lock rendered root at the point), 1 = follow (ride the actor).
 ; Refused for scene participants (placement is scene-driven); false if no live graph.
@@ -188,6 +196,9 @@ int Function EVENT_SCENE_END() Global
 EndFunction
 int Function EVENT_SCENE_BEGIN() Global
     return 32
+EndFunction
+int Function EVENT_SCENE_HANDOFF() Global
+    return 64
 EndFunction
 int Function EVENT_ALL() Global
     return 65535

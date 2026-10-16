@@ -320,7 +320,7 @@ namespace OSF::Scene
 		RecordMechanism(a_handle, Mechanism::kPlayerInputLock);
 	}
 
-	void SceneRuntime::EngageDefaultCamera(std::int32_t a_handle, std::string_view a_defId, std::string_view a_entryNode,
+	void SceneRuntime::EngageDefaultCamera(std::int32_t a_handle, std::string_view a_entryNode,
 		bool a_playerInputLock, std::string_view a_cameraOverride, const std::vector<RE::Actor*>& a_participants)
 	{
 		auto* player = RE::PlayerCharacter::GetSingleton();
@@ -346,7 +346,8 @@ namespace OSF::Scene
 			return;
 		}
 		// An authored entry-node enter camera wins; DispatchLifecycleCamera engages it.
-		if (const auto def = Registry::ContentRegistry::GetSingleton().Find(a_defId)) {
+		SlotView view;
+		if (SnapshotSlot(a_handle, view); const auto def = view.definition) {
 			if (const auto* node = def->FindNode(a_entryNode)) {
 				for (const auto& cam : node->cameras) {
 					if (cam.pos == Registry::CameraPos::kEnter) {
@@ -374,7 +375,7 @@ namespace OSF::Scene
 			if (!actor) {
 				continue;
 			}
-			std::vector<RE::TESBoundObject*> keep;
+			auto keep = OwnedEquipment(a_handle, actor);
 			if (i < a_gearPicks.size()) {
 				for (const auto& pick : a_gearPicks[i]) {
 					if (pick.worn && pick.object) {
@@ -404,7 +405,7 @@ namespace OSF::Scene
 			if (!actor) {
 				continue;
 			}
-			std::vector<RE::TESBoundObject*> keep;
+			auto keep = OwnedEquipment(a_handle, actor);
 			if (i < a_gearPicks.size()) {
 				for (const auto& pick : a_gearPicks[i]) {
 					if (pick.worn && pick.object) {
@@ -420,13 +421,15 @@ namespace OSF::Scene
 		REX::DEBUG("[Scene] scene {:#010x} default apparel hide applied to {} participant(s)", a_handle, a_participants.size());
 	}
 
-	std::vector<std::vector<Equipment::Gear::Pick>> SceneRuntime::BuildGearPicks(std::string_view a_defId, const std::vector<RE::Actor*>& a_participants)
+	std::vector<std::vector<Equipment::Gear::Pick>> SceneRuntime::BuildGearPicks(std::int32_t a_handle, const std::vector<RE::Actor*>& a_participants)
 	{
 		std::vector<std::vector<Equipment::Gear::Pick>> picks(a_participants.size());
 		if (!Equipment::Gear::AutoEquip()) {
 			return picks;
 		}
-		const auto def = a_defId.empty() ? Registry::SceneRef{} : Registry::ContentRegistry::GetSingleton().Find(a_defId);
+		SlotView view;
+		SnapshotSlot(a_handle, view);
+		const auto def = view.definition;
 		for (std::size_t i = 0; i < a_participants.size(); i++) {
 			RE::Actor* actor = a_participants[i];
 			if (!actor) {
@@ -468,6 +471,7 @@ namespace OSF::Scene
 						a_handle, actor->formID, pick.ref, pick.slot);
 					continue;
 				}
+				if (OwnsEquipment(a_handle, actor, pick.object)) continue;
 				auto record = svc.EquipItem(actor, pick.object);
 				if (record.object) {
 					REX::DEBUG("[Scene] scene {:#010x} actor {:08X} gear '{}' (slot '{}') equipped (added={})",
@@ -486,7 +490,9 @@ namespace OSF::Scene
 		if (a_defId.empty()) {
 			return;
 		}
-		const auto def = Registry::ContentRegistry::GetSingleton().Find(a_defId);
+		SlotView view;
+		SnapshotSlot(a_handle, view);
+		const auto def = view.definition;
 		if (!def) {
 			return;
 		}
@@ -530,6 +536,7 @@ namespace OSF::Scene
 				}
 				continue;
 			}
+			if (OwnsEquipment(a_handle, actor, object)) continue;
 			auto record = svc.EquipItem(actor, object);
 			if (record.object) {
 				REX::DEBUG("[Scene] scene {:#010x} role '{}' equipped '{}' (added={}, equipped={})",
@@ -564,8 +571,8 @@ namespace OSF::Scene
 	{
 		const std::string_view cameraOverride = a_over.camera ? std::string_view(*a_over.camera) : std::string_view{};
 		EngageDefaultPlayerInputLock(a_handle, a_playerInputLock, a_participants);
-		EngageDefaultCamera(a_handle, a_defId, a_entryNode, a_playerInputLock, cameraOverride, a_participants);
-		const auto gearPicks = BuildGearPicks(a_defId, a_participants);
+		EngageDefaultCamera(a_handle, a_entryNode, a_playerInputLock, cameraOverride, a_participants);
+		const auto gearPicks = BuildGearPicks(a_handle, a_participants);
 		ClearHeldItems(a_handle, a_clearHeldItems, a_participants, gearPicks);
 		HideDefaultApparel(a_handle, a_hideApparel, a_participants, gearPicks);
 		EquipGearItems(a_handle, a_participants, gearPicks);
@@ -581,7 +588,8 @@ namespace OSF::Scene
 	{
 		Registry::SceneControls controls;  // default: enabled, all capabilities, unlocked
 		if (!a_defId.empty()) {
-			if (const auto def = Registry::ContentRegistry::GetSingleton().Find(a_defId)) {
+			SlotView view;
+			if (SnapshotSlot(a_handle, view); const auto def = view.definition) {
 				controls = def->sceneControls;
 			}
 		}
@@ -872,6 +880,8 @@ namespace OSF::Scene
 			s->anchorBase = a_over.anchorBase;
 			s->speed.Set(a_over.speed.value_or(a_plan.speed));
 			s->speed.Apply(a_plan);
+			s->loopScale = a_over.loopScale;
+			s->cameraOverridden = a_over.camera.has_value();
 			s->worldPlacement = a_over.worldPlacement.value_or(a_plan.anchored ?
 				Animation::WorldPlacementMode::kAnchorAndPin : Animation::WorldPlacementMode::kFollowActor);
 			ApplyScenePlacement(a_plan, a_anchor, {}, s->baseline, a_participants);

@@ -2,6 +2,7 @@
 
 #include "Camera/CameraService.h"
 #include "Equipment/EquipmentService.h"
+#include "Equipment/SceneEquipmentState.h"
 #include "Input/InputService.h"
 #include "Player/PlayerInputLockService.h"
 #include "Props/PropService.h"
@@ -89,21 +90,21 @@ namespace OSF::Scene
 			break;
 		case Mechanism::kEquipment:
 			REX::TRACE("[Scene] scene {:#010x} equipment undo — restoring {} actor(s)", a_handle, equip.size());
-			for (auto& [actor, snap] : equip) {
+			Equipment::UndoNewestFirst(equip, [](auto* actor, const auto& snap) {
 				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
-			}
+			});
 			break;
 		case Mechanism::kHeldEquipment:
 			REX::TRACE("[Scene] scene {:#010x} held-equipment undo — restoring {} actor(s)", a_handle, heldEquip.size());
-			for (auto& [actor, snap] : heldEquip) {
+			Equipment::UndoNewestFirst(heldEquip, [](auto* actor, const auto& snap) {
 				Equipment::EquipmentService::GetSingleton().Restore(actor, snap);
-			}
+			});
 			break;
 		case Mechanism::kEquipItem:
 			REX::TRACE("[Scene] scene {:#010x} equip-item undo — removing {} item(s)", a_handle, equipItems.size());
-			for (auto& [actor, item] : equipItems) {
+			Equipment::UndoNewestFirst(equipItems, [](auto* actor, const auto& item) {
 				Equipment::EquipmentService::GetSingleton().UnequipItem(actor, item);
-			}
+			});
 			break;
 		case Mechanism::kCamera:
 			REX::TRACE("[Scene] scene {:#010x} camera undo — releasing the camera hold", a_handle);
@@ -195,7 +196,7 @@ namespace OSF::Scene
 		if (!s) {
 			return;
 		}
-		s->hiddenEquip.emplace_back(a_actor, std::move(a_snapshot));
+		Equipment::AppendHidden(s->hiddenEquip, a_actor, std::move(a_snapshot), s->hiddenHeldEquip);
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipment) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kEquipment);
 		}
@@ -208,7 +209,7 @@ namespace OSF::Scene
 		if (!s) {
 			return;
 		}
-		s->hiddenHeldEquip.emplace_back(a_actor, std::move(a_snapshot));
+		Equipment::AppendHidden(s->hiddenHeldEquip, a_actor, std::move(a_snapshot), s->hiddenEquip);
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kHeldEquipment) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kHeldEquipment);
 		}
@@ -221,10 +222,29 @@ namespace OSF::Scene
 		if (!s) {
 			return;
 		}
-		s->equippedItems.emplace_back(a_actor, std::move(a_item));
+		if (!Equipment::OwnsItem(s->equippedItems, a_actor, a_item.object))
+			s->equippedItems.emplace_back(a_actor, std::move(a_item));
 		if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kEquipItem) == s->ledger.end()) {
 			s->ledger.push_back(Mechanism::kEquipItem);
 		}
+	}
+
+	std::vector<RE::TESBoundObject*> SceneRuntime::OwnedEquipment(std::int32_t a_handle, RE::Actor* a_actor)
+	{
+		std::vector<RE::TESBoundObject*> items;
+		std::lock_guard l{ _lock };
+		if (const auto* s = Resolve(a_handle)) {
+			for (const auto& [actor, item] : s->equippedItems)
+				if (actor == a_actor && item.object) items.push_back(item.object);
+		}
+		return items;
+	}
+
+	bool SceneRuntime::OwnsEquipment(std::int32_t a_handle, RE::Actor* a_actor, RE::TESBoundObject* a_item)
+	{
+		std::lock_guard l{ _lock };
+		const auto* s = Resolve(a_handle);
+		return s && Equipment::OwnsItem(s->equippedItems, a_actor, a_item);
 	}
 
 	void SceneRuntime::RecordSheathedWeapon(std::int32_t a_handle, RE::Actor* a_actor)

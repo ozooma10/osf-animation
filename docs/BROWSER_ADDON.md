@@ -38,11 +38,14 @@ inside their respective MO2 mods. Generated browser output stays under `build/os
 
 ## APIs and lifetimes
 
-The released `OSFSceneAPI.h` ABI **1.3** is unchanged. Existing consumers continue requesting it and
-need neither Browser nor OSF UI. `OSF_RequestEngineAPI(0x00030000)` supplies the optional services in
+Scene ABI **1.4** appends event identity/cause; existing 1.3 consumers can continue requesting their
+prefix and need neither Browser nor OSF UI. `OSF_RequestEngineAPI` supplies the optional services in
 `src/API/OSFEngineAPI.h`. Copy it alongside `OSFSceneAPI.h`; callers using the typed JSON helpers may
-also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required. Services ABI **3.0** replaces the unreleased 1.0/2.0 tables;
-install matching engine/addon builds. Older service requests are rejected, while scene ABI 1.3 stays intact.
+also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required. Services
+ABI **3.3** retains the 3.0 prefix and appends alignment/handoff calls. Requests negotiate matching
+major and a supported minor, and clients check table size. Released 3.0 Browser requests receive
+a version-stamped 3.0 prefix for their exact-version check; the newer Browser requires its compiled
+minor or later. The unreleased major-1/2 service tables remain unsupported.
 
 The new table provides:
 

@@ -187,7 +187,19 @@ namespace OSF::API::EngineServices
 				return true;
 			},
 			[](std::int32_t handle) { return Scene::SceneRuntime::GetSingleton().SaveAlignment(handle); },
-			[](std::int32_t handle, const char* role) { return role && Scene::SceneRuntime::GetSingleton().SetAlignment(handle, role, {}); }
+			[](std::int32_t handle, const char* role) { return role && Scene::SceneRuntime::GetSingleton().SetAlignment(handle, role, {}); },
+			[](std::int32_t handle, const char* id, const OSFStartOptions* opts) {
+				if (!id || (opts && opts->size < offsetof(OSFStartOptions, inPlaceMode))) return false;
+				Scene::SceneRuntime::ReplaceOptions options;
+				if (opts) { options.anchor = opts->anchorRef; options.stage = opts->startStage; }
+				return Scene::SceneRuntime::GetSingleton().Replace(handle, id, {}, options);
+			},
+			[](std::int32_t handle, const char* id, const char* const* roles, std::uint32_t count) {
+				if (!id || (!roles && count) || count > 65535) return false;
+				std::vector<std::string> names;
+				for (std::uint32_t i = 0; i < count; ++i) { if (!roles[i]) return false; names.emplace_back(roles[i]); }
+				return Scene::SceneRuntime::GetSingleton().Replace(handle, id, names, {});
+			}
 		};
 	}
 	void WorldReset() { g_state.ResetWorld(); }

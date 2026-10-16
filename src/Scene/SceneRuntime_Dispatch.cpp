@@ -18,7 +18,8 @@
 
 namespace OSF::Scene
 {
-	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition)
+	void SceneRuntime::Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition,
+		std::string_view a_edge)
 	{
 		// Replay before dispatch so SCENE_END listeners see restored actors. Load teardown bypasses this.
 		if (a_event == Event::kSceneEnd) {
@@ -46,6 +47,7 @@ namespace OSF::Scene
 			}
 		}
 		e.node = std::string(a_node);
+		e.edge = std::string(a_edge);
 		e.trackPosition = std::string(a_trackPosition);
 		SceneEventRelay::GetSingleton().Dispatch(e);
 

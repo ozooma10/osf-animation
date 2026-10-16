@@ -13,13 +13,6 @@ namespace OSF::Scene
 {
 	namespace
 	{
-		SceneRuntime::AnchorOverride ComposeAnchor(RE::NiPoint3 a_basePos, float a_baseHeading,
-			const Animation::ParticipantPlacement& a_offset)
-		{
-			RE::NiPoint3 pos = Animation::PlacementToWorld(a_basePos, a_baseHeading, a_offset);
-			return SceneRuntime::AnchorOverride{ true, pos, a_baseHeading + a_offset.heading };
-		}
-
 		struct RefTransform
 		{
 			RE::NiPoint3 pos;
@@ -205,6 +198,6 @@ namespace OSF::Scene
 		}
 		const RefTransform base = RenderedTransform(a_ref);
 		const float        baseHeading = a_headingRad ? *a_headingRad : base.heading;
-		return ComposeAnchor(base.pos, baseHeading, def->anchorOffset);
+		return ComposeSceneAnchor({ true, base.pos, baseHeading }, def->anchorOffset);
 	}
 }

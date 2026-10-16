@@ -51,6 +51,37 @@ Default alignment keys: numpad 5 selects a participant; 6/4, 8/2, and 3/1 change
 9/7 rotate; divide toggles 1.0/0.1 position and 5/1 degree steps; decimal resets; multiply saves.
 The HUD shows the role, current delta, step mode, and unsaved status. Numpad +/- remain speed.
 
+`ReplaceScene(handle, id, options)`, `ReplaceSceneRoles(handle, id, roleNames)` and
+`ReplaceSceneByTagsQuery(handle, allOf, anyOf, noneOf)` replace the definition for the same cast
+without changing the handle. `GetSceneId(handle)` returns the live definition id, or empty when
+invalid/ad-hoc. Native engine services **3.3** append `ReplaceScene` and `ReplaceSceneRoles`.
+Names correspond to the current participant roster: `roleNames[i]` assigns participant `i` to
+a role in the new definition. Empty names preserve positional order; duplicates, missing roles,
+different cast sizes and failed role filters are refused before the old node exits.
+
+Handoff retains speed/pause, loop scale, placement, the camera override, the original actor-owned
+restore baselines and mechanism ownership. Unsaved alignment is discarded and the new scene's
+alignment rows load on entry. The existing replacement path blends poses; changed positions snap.
+The runtime adds no fade and performs no intermediate equipment or control restore. Authored exit
+actions still run, then the new defaults and entry actions apply. Equipment additions are owned
+once per actor/item and restored newest first at final termination. Conflicting equipped slots
+remain subject to the game's normal equip rules.
+
+Papyrus replacement options read only `Anchor`, `HeadingDeg` and `Stage`; all other fields,
+including `FadeMode`, `InPlaceMode`, `LockPlayerMode`, `Speed`, `Camera`, `LoopScale`, `StripMode`,
+`PlayerControlMode` and `BlendIn`, are ignored. The native table reads only `anchorRef` and
+`startStage`. Stage 0 uses the authored entry; an out-of-range positive linear stage is refused.
+Changing an anchor visibly teleports. Anchor-bound replacements require an accepted retained or
+supplied reference and compose their own offset from the saved base transform. Raw-coordinate
+starts cannot satisfy an anchor requirement without a new reference. Follow-actor and anchored
+scenes cannot be mixed. Matchmade replacement excludes the current id before priority selection.
+
+Successful order is old `NODE_EXIT`, `SCENE_HANDOFF` (bit 64, `sceneId` = new id, `node` = entry,
+`edge` = old id), then new `NODE_ENTER`; no new `SCENE_BEGIN` or `SCENE_END` is emitted. A playback
+failure after exit restores the old identity and ends it with `CAUSE_INTERRUPTED`. Validation
+failures leave the old scene playing. Each input grant has a revision: queued commands from the
+old grant are dropped, and a replacement disabling scene controls releases the grant outright.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the
@@ -170,7 +201,8 @@ SFSE plugins can copy [src/API/OSFSceneAPI.h](../src/API/OSFSceneAPI.h) into the
 link nothing. `OSF::API::RequestSceneAPI()` resolves `OSF Animation.dll` at runtime and requests the
 current ABI. ABI 1.3 appends synchronous native scene-event registration to the existing start,
 stop, navigation, playback, and query surface. A consumer that requires callbacks should request
-1.3 (the header default); an older OSF build returns `nullptr` instead of exposing a short vtable.
+1.3 or later; the current header defaults to 1.4 for event identity/cause. An older OSF build returns
+`nullptr` for a newer request instead of exposing unsupported fields or a short vtable.
 
 ```cpp
 void OnSceneEvent(const OSF::API::OSFSceneEvent* event, void* context)
@@ -288,7 +320,8 @@ JSON keys:
 | `Camera` | `String` | all option-bearing starts | override the authored camera posture; empty string inherits it |
 | `LoopScale` | `Float` | all option-bearing starts | multiply every loop-driven stage's loop count (`1.0` = unchanged); see below |
 | `Stage` | `Int` | StartScene, StartSceneRolesEx, StartSceneStages(Placed) | registered scenes enter `linearStages[index]` before any playback begins; ad-hoc staged starts select the initial playback segment. `0` uses the normal entry/first segment |
-| `Speed` / `BlendIn` | `Float` | StartSceneFiles(Placed), StartSceneStages(Placed) | set the ad-hoc playback plan's speed and default blend-in; registered scene definitions keep their authored values |
+| `Speed` | `Float` | all option-bearing starts | seed the scene-owned playback speed before the first node; persists across transitions |
+| `BlendIn` | `Float` | StartSceneFiles(Placed), StartSceneStages(Placed) | default blend-in for ad-hoc plans; registered definitions keep their authored blend |
 
 `SceneOptions` holds only scalar/ref fields — **Papyrus structs can't have array members**, so named-role
 binding stays in separate functions. `StartSceneRoles` is the compact compatibility form without
@@ -298,9 +331,9 @@ Registered-scene launch compatibility differs between the two APIs:
 
 | Start path | Out-of-range linear stage | Speed |
 |---|---|---|
-| Papyrus by ID or `StartSceneRolesEx` | Refuses the start | Keeps the authored speed |
-| Native `StartScene` / `StartSceneRoles` | Falls back to the scene entry | Applies a non-default `OSFStartOptions.speed` after a successful start |
-| Papyrus matchmaking (`StartSceneByTags`, query, or anchor) | Always uses the authored entry | Keeps the authored speed |
+| Papyrus by ID or `StartSceneRolesEx` | Refuses the start | Seeds `SceneOptions.Speed` before playback |
+| Native `StartScene` / `StartSceneRoles` | Falls back to the scene entry | Seeds `OSFStartOptions.speed` before playback |
+| Papyrus matchmaking (`StartSceneByTags`, query, or anchor) | Always uses the authored entry | Seeds `SceneOptions.Speed` before playback |
 
 For registered starts, stage `0` uses the authored entry; scenes without `linearStages` ignore the
 stage option. Furniture-bound scenes require an accepted reference anchor even when the native
@@ -381,11 +414,10 @@ Register a receiver to get `OSFTypes:SceneEvent` structs (see
 > during the callback rather than caching the handle indefinitely. `SCENE_END` carries no
 > `actorRef` itself, so this is how an end handler enumerates participants. Note `SCENE_END` fires on
 > runtime termination paths that dispatch callbacks, including natural completion and `Stop()`
-> cancellation. The current event ABI does not carry a complete/cancel/interrupt cause.
+> cancellation. `cause` distinguishes completion (0), cancellation (1), and interruption (2).
 > World-replacing load teardown clears the VM relay and native handle table without dispatching
 > callbacks into the discarded world. Native C++
-> registrations remain registered, but receive no teardown event. Gate on a completion cue if you
-> only want proof of natural completion.
+> registrations remain registered, but receive no teardown event.
 
 ```papyrus
 ; aiScene 0 = any scene; aiEventMask is a bitmask of OSF.EVENT_*().
@@ -402,7 +434,7 @@ Function OnSceneEvent(OSFTypes:SceneEvent akEvent)
     If akEvent.eventType == OSF.EVENT_SCENE_END()
         Actor a = akEvent.actorRef
         ; akEvent fields: sceneHandle, eventType, node, edge, cue, actionType,
-        ;                 actorRef, role, loopIndex, time, anchor, result
+        ;                 actorRef, role, loopIndex, time, anchor, result, cause, sceneId
         ; `node`/`edge` identify a flow node and scene edge. `anchor` is the legacy
         ; ABI name for a named track position, not a world anchor.
     EndIf
@@ -417,8 +449,9 @@ EndFunction
 | `OSF.EVENT_NODE_EXIT()` | 2 | a flow node is exited |
 | `OSF.EVENT_CUE()` | 4 | a `cue` track entry fires |
 | `OSF.EVENT_ACTION()` | 8 | a custom (non-`osf.*`) action fires |
-| `OSF.EVENT_SCENE_END()` | 16 | the scene terminated on a callback-emitting path; cause is not encoded |
+| `OSF.EVENT_SCENE_END()` | 16 | the scene terminated on a callback-emitting path; `cause` identifies why |
 | `OSF.EVENT_SCENE_BEGIN()` | 32 | the scene started (fires once, before the entry flow node's `NODE_ENTER`) |
+| `OSF.EVENT_SCENE_HANDOFF()` | 64 | the handle changed definition; `sceneId` is new, `edge` is the previous id |
 | `OSF.EVENT_ALL()` | 65535 | every type |
 
 `SCENE_BEGIN` is the lifecycle-open bookend of `SCENE_END`: it fires exactly once per scene as the
@@ -435,7 +468,7 @@ or after an extreme burst has expired that handle from the recent-history window
 
 ## Optional engine services
 
-The released scene ABI 1.3 is unchanged. The separate `OSF_RequestEngineAPI` export provides API 1.0
+The scene ABI is 1.4. The separate `OSF_RequestEngineAPI` export provides services ABI 3.3
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay

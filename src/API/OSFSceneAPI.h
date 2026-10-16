@@ -132,6 +132,7 @@ namespace OSF::API
 		inline constexpr std::int32_t kAction = 0x08;
 		inline constexpr std::int32_t kSceneEnd = 0x10;
 		inline constexpr std::int32_t kSceneBegin = 0x20;
+		inline constexpr std::int32_t kSceneHandoff = 0x40; // sceneId=new, node=entry, edge=old scene id
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 

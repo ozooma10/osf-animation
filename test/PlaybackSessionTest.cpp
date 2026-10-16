@@ -3,6 +3,8 @@
 #include "Animation/Scene.h"
 #include "Scene/SceneFoundation.h"
 #include "Scene/AlignmentState.h"
+#include "Equipment/SceneEquipmentState.h"
+#include "Matchmaking/RoleBinding.h"
 
 #include <array>
 #include <cmath>
@@ -52,6 +54,57 @@ namespace
 
 int main()
 {
+	Run("handoff role permutations and eligibility", [] {
+		int a = 1, b = 2;
+		const std::vector<std::string> names{ "first", "second" };
+		std::vector<int*> result;
+		std::string error;
+		const auto accepts = [](std::size_t, int*) { return true; };
+		const auto bind = [&](std::vector<int*> cast, std::vector<std::string> roles) {
+			return OSF::Matchmaking::BindRoleNames(names, cast, roles, result, error, accepts);
+		};
+		Check(bind({ &a, &b }, {}) && result == std::vector<int*>{ &a, &b }, "unnamed binding preserves roster order");
+		Check(bind({ &a, &b }, { "SECOND", "first" }) && result == std::vector<int*>{ &b, &a }, "named handoff permutes the same cast");
+		Check(!bind({ &a, &b }, { "first", "first" }), "duplicate roles refused");
+		Check(!bind({ &a, &b }, { "first", "missing" }), "unknown roles refused");
+		Check(!bind({ &a }, {}) && !bind({ &a, &b }, { "first" }), "incomplete cast or roles refused");
+		Check(!bind({ &a, &a }, {}) && !bind({ &a, nullptr }, {}), "duplicate or null actors refused");
+		Check(!OSF::Matchmaking::BindRoleNames(names, std::vector<int*>{ &a, &b }, {}, result, error,
+			[](std::size_t role, int*) { return role == 0; }), "new role filters are enforced before handoff");
+	});
+	Run("incremental equipment ownership and reverse restore", [] {
+		using namespace OSF::Equipment;
+		auto* a = reinterpret_cast<RE::Actor*>(1);
+		auto* b = reinterpret_cast<RE::Actor*>(2);
+		auto* shirt = reinterpret_cast<RE::TESBoundObject*>(3);
+		auto* boots = reinterpret_cast<RE::TESBoundObject*>(4);
+		HiddenState state;
+		AppendHidden(state, a, { { { shirt, {} } } });
+		AppendHidden(state, a, { { { shirt, {} }, { boots, {} }, { boots, {} } } });
+		AppendHidden(state, a, { { { shirt, {} } } });
+		AppendHidden(state, b, { { { shirt, {} } } });
+		Check(state.size() == 3 && state[1].second.hiddenItems.size() == 1, "first actor/item snapshot wins and only new items append");
+		HiddenState held;
+		AppendHidden(held, a, { { { boots, {} } } }, state);
+		Check(held.empty(), "held/apparel ownership shares the same actor/item deduplication boundary");
+		std::vector<std::pair<RE::Actor*, RE::TESBoundObject*>> restored;
+		UndoNewestFirst(state, [&](auto* actor, const auto& snapshot) {
+			for (const auto& item : snapshot.hiddenItems) restored.emplace_back(actor, item.object);
+		});
+		Check(restored == std::vector<std::pair<RE::Actor*, RE::TESBoundObject*>>{ { b, shirt }, { a, boots }, { a, shirt } },
+			"restore replays increments newest first, once per actor/item");
+		EquippedState equipped{ { a, { shirt, true, true } } };
+		Check(OwnsItem(equipped, a, shirt) && !OwnsItem(equipped, b, shirt) && !OwnsItem(equipped, a, boots),
+			"equip ownership deduplicates only the same actor/item");
+	});
+	Run("handoff anchor offsets compose from the original base", [] {
+		const OSF::Scene::WorldAnchor base{ true, { 100, 200, 300 }, 0 };
+		const auto first = OSF::Scene::ComposeSceneAnchor(base, { 50, 0, 0, 0.5f });
+		const auto second = OSF::Scene::ComposeSceneAnchor(base, { 10, 0, 0, 0.25f });
+		Near(first.pos.x, 150, "old scene offset");
+		Near(second.pos.x, 110, "new scene offset does not accumulate old placement");
+		Near(second.heading, 0.25f, "new heading does not accumulate old heading");
+	});
 	Run("alignment persistence and working-copy ownership", [] {
 		using namespace OSF::Scene::Alignment;
 		auto table = Parse(nlohmann::json::parse(R"({"formatVersion":1,"scenes":{"demo":{"#s2":{"partner":{"y":5,"heading":90},"lead":{}}}}})"));

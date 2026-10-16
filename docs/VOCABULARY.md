@@ -28,7 +28,7 @@ track positions still serialize as `at`/`atFrame`, not `trackPosition`.
 | Canonical term | Meaning | Compatibility spelling |
 |---|---|---|
 | **player input lock** | Suppression of the player's normal movement/combat input while participating. | Preferred JSON `playerInputLock`; legacy `lockPlayer`; Papyrus `LockPlayerMode`; action `osf.control.lock`. |
-| **scene controls** | OSF's advance, navigate, speed, freecam, and end commands. | Preferred JSON `sceneControls`; legacy `playerControl`; Papyrus `PlayerControlMode`. This is distinct from the player input lock. |
+| **scene controls** | OSF's advance, navigate, speed, alignment, freecam, and end commands. | Preferred JSON `sceneControls`; legacy `playerControl`; Papyrus `PlayerControlMode`. This is distinct from the player input lock. |
 | **hide apparel** | Temporarily hide or unequip worn apparel while retaining the actor's base body and restoring recorded items later. | Preferred JSON `hideApparel`; legacy `stripActors`; Papyrus `StripMode`; `HideEquipment`. |
 | **world anchor** | A spatial reference and transform used to place a scene and its participants. | JSON `anchor`; Papyrus `SceneOptions.Anchor`; solo `SetAnchor`. |
 | **world placement** | The policy for placing participants relative to their live world transforms. | Preferred JSON `placement` with `"anchorAndPin"` or `"followActor"`; legacy `inPlace` with `false` or `true`; Papyrus `InPlaceMode`. |

@@ -2,6 +2,7 @@
 
 #include "API/NativeSceneEventRegistry.h"
 #include "API/SceneAPIControl.h"
+#include "API/SceneEventPayload.h"
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"
 #include "Scene/SceneLauncher.h"
@@ -345,23 +346,7 @@ namespace OSF::API
 
 	void DispatchNativeSceneEvent(const Scene::SceneEvent& a_event)
 	{
-		const OSFSceneEvent event{
-			.size = sizeof(OSFSceneEvent),
-			.sceneHandle = a_event.scene,
-			.eventType = a_event.event,
-			.node = a_event.node.c_str(),
-			.edge = a_event.edge.c_str(),
-			.cue = a_event.cue.c_str(),
-			.actionType = a_event.actionType.c_str(),
-			.actor = a_event.actor,
-			.role = a_event.role.c_str(),
-			.loopIndex = a_event.loopIndex,
-			.time = a_event.time,
-			.anchor = a_event.trackPosition.c_str(),  // frozen ABI field name
-			.result = a_event.result,
-			.cause = a_event.cause,
-			.sceneId = a_event.sceneId.c_str()
-		};
+		const auto event = NativeEventPayload(a_event);
 		SceneAPIImpl::GetSingleton().DispatchNativeSceneEvent(event);
 	}
 }

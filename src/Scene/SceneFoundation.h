@@ -13,6 +13,11 @@ namespace OSF::Scene
 
 	using ActorBaseline = std::vector<std::pair<RE::Actor*, std::pair<RE::NiPoint3, float>>>;
 
+	inline WorldAnchor ComposeSceneAnchor(const WorldAnchor& base, const Animation::ParticipantPlacement& offset)
+	{
+		return { base.set, Animation::PlacementToWorld(base.pos, base.heading, offset), base.heading + offset.heading };
+	}
+
 	struct SceneSpeed
 	{
 		float value = 1.0f;

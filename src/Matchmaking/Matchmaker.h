@@ -15,6 +15,8 @@ namespace OSF::Registry
 	struct SceneDef;
 }
 
+namespace OSF::Animation { enum class WorldPlacementMode : std::uint8_t; }
+
 namespace OSF::Matchmaking
 {
 	// kAllow: free scenes always; anchor-bound only if a_anchor satisfies them (null => free only).
@@ -72,4 +74,6 @@ namespace OSF::Matchmaking
 
 	// Highest priority tier, weighted-random within it. nullopt = no fit.
 	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query, RE::TESObjectREFR* a_anchor = nullptr, AnchorMode a_mode = AnchorMode::kAllow);
+	std::optional<Candidate> PickReplacement(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query,
+		RE::TESObjectREFR* a_anchor, std::string_view a_exclude, Animation::WorldPlacementMode a_placement);
 }

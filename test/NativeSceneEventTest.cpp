@@ -1,6 +1,7 @@
 #include "Check.h"
 
 #include "API/NativeSceneEventRegistry.h"
+#include "API/SceneEventPayload.h"
 
 #include <chrono>
 #include <condition_variable>
@@ -304,6 +305,25 @@ namespace
 
 int main()
 {
+	{
+		using namespace OSF::API;
+		NativeSceneEventRegistry registry;
+		std::vector<std::string> received;
+		const auto token = registry.Register([](const OSFSceneEvent* e, void* context) {
+			static_cast<std::vector<std::string>*>(context)->push_back(std::format("{}:{}:{}:{}:{}",
+				e->eventType, e->sceneId, e->node, e->edge, e->cause));
+		}, &received, 42, SceneEventType::kSceneEnd | SceneEventType::kSceneHandoff);
+		CHECK(token != 0);
+		OSF::Scene::SceneEvent event;
+		event.scene = 42; event.node = "entry"; event.sceneId = "old"; event.event = OSF::Scene::Event::kSceneEnd;
+		for (int cause : { 0, 1, 2 }) {
+			event.cause = cause;
+			CHECK(registry.Dispatch(NativeEventPayload(event)) == 0);
+		}
+		event.event = OSF::Scene::Event::kSceneHandoff; event.sceneId = "new"; event.edge = "old"; event.cause = -1;
+		CHECK(registry.Dispatch(NativeEventPayload(event)) == 0);
+		CHECK(received == std::vector<std::string>({ "16:old:entry::0", "16:old:entry::1", "16:old:entry::2", "64:new:entry:old:-1" }));
+	}
 	TestFilterMaskAndUnregister();
 	TestSelfUnregisterAndGeneration();
 	TestZeroMaskAndExceptionIsolation();

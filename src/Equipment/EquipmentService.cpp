@@ -102,13 +102,11 @@ namespace OSF::Equipment
 				if (!isArmor && !isWeapon) {
 					continue;
 				}
+				// Carried scene-owned items include weapons as well as apparel.
+				if (std::find(a_keep.begin(), a_keep.end(), item.object) != a_keep.end()) continue;
 				if (isArmor) {
 					if (skin && item.object == skin) {
 						skippedSkin++;
-						continue;
-					}
-					// Scene-gear exemption stays out of the snapshot too, or restore would double-equip it.
-					if (std::find(a_keep.begin(), a_keep.end(), item.object) != a_keep.end()) {
 						continue;
 					}
 					if (!fullStrip) {

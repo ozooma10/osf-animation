@@ -1,4 +1,5 @@
 #include "Matchmaking/Matchmaker.h"
+#include "Matchmaking/RoleBinding.h"
 
 #include "Registry/ContentRegistry.h"
 #include "Util/StringUtil.h"
@@ -122,7 +123,8 @@ namespace OSF::Matchmaking
 
 		// Pick guarantees a_actors is non-empty.
 		std::vector<Candidate> BuildPool(const TagQuery& a_query, const std::vector<RE::Actor*>& a_actors,
-			RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
+			RE::TESObjectREFR* a_anchor, AnchorMode a_mode, std::string_view a_exclude,
+			std::optional<Animation::WorldPlacementMode> a_placement)
 		{
 			const auto count = static_cast<std::int32_t>(a_actors.size());
 			const TagQuery q{ Lower(a_query.allOf), Lower(a_query.anyOf), Lower(a_query.noneOf) };
@@ -133,6 +135,7 @@ namespace OSF::Matchmaking
 			std::vector<Candidate> pool;
 
 			Registry::ContentRegistry::GetSingleton().ForEachDef([&](const Registry::SceneDef& a_def) {
+				if (a_def.id == a_exclude || (a_placement && a_def.worldPlacement != *a_placement)) return;
 				if (a_def.unlisted || !a_def.clipsAvailable) {
 					return;
 				}
@@ -259,49 +262,10 @@ namespace OSF::Matchmaking
 	bool BindSceneRoles(const Registry::SceneDef& a_def, const std::vector<RE::Actor*>& a_actors,
 		const std::vector<std::string>& a_roleNames, std::vector<RE::Actor*>& a_ordered, std::string& a_error)
 	{
-		if (a_actors.size() != a_def.roles.size()) {
-			a_error = std::format("Scene needs {} cast member(s), but {} selected",
-				a_def.roles.size(), a_actors.size());
-			return false;
-		}
-		if (!a_roleNames.empty() && a_roleNames.size() != a_actors.size()) {
-			a_error = std::format("Expected {} role name(s), but {} supplied",
-				a_actors.size(), a_roleNames.size());
-			return false;
-		}
-
-		a_ordered = a_actors;
-		if (!a_roleNames.empty()) {
-			a_ordered.assign(a_def.roles.size(), nullptr);
-			for (std::size_t i = 0; i < a_actors.size(); ++i) {
-				const auto want = ToLower(a_roleNames[i]);
-				const auto role = std::ranges::find_if(a_def.roles,
-					[&](const Registry::SceneRole& a_candidate) { return ToLower(a_candidate.name) == want; });
-				if (role == a_def.roles.end()) {
-					a_error = "Unknown role '" + a_roleNames[i] + "'";
-					return false;
-				}
-				const auto index = static_cast<std::size_t>(std::distance(a_def.roles.begin(), role));
-				if (a_ordered[index]) {
-					a_error = "Role '" + a_roleNames[i] + "' was assigned twice";
-					return false;
-				}
-				a_ordered[index] = a_actors[i];
-			}
-		}
-
-		std::unordered_set<RE::Actor*> unique;
-		for (std::size_t i = 0; i < a_ordered.size(); ++i) {
-			if (!a_ordered[i] || !unique.insert(a_ordered[i]).second) {
-				a_error = "Cast contains a missing or duplicate actor";
-				return false;
-			}
-			if (!RoleAccepts(a_def.roles[i], a_ordered[i])) {
-				a_error = "A selected actor does not satisfy role '" + a_def.roles[i].name + "'";
-				return false;
-			}
-		}
-		return true;
+		std::vector<std::string> names;
+		for (const auto& role : a_def.roles) names.push_back(role.name);
+		return BindRoleNames(names, a_actors, a_roleNames, a_ordered, a_error,
+			[&](std::size_t role, RE::Actor* actor) { return RoleAccepts(a_def.roles[role], actor); });
 	}
 
 	bool AnchorAccepts(const Registry::SceneDef& a_def, RE::TESObjectREFR* a_ref, RE::BGSKeyword** a_matchedKeyword)
@@ -379,8 +343,9 @@ namespace OSF::Matchmaking
 		}
 	}
 
-	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query,
-		RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
+	static std::optional<Candidate> PickImpl(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query,
+		RE::TESObjectREFR* a_anchor, AnchorMode a_mode, std::string_view a_exclude,
+		std::optional<Animation::WorldPlacementMode> a_placement)
 	{
 		const auto actorCount = static_cast<std::int32_t>(a_actors.size());
 		REX::DEBUG("[Match] searching for {} actor(s), tags {}, {}",
@@ -389,7 +354,7 @@ namespace OSF::Matchmaking
 			REX::DEBUG("[Match] no match (no actors supplied)");
 			return std::nullopt;
 		}
-		auto pool = BuildPool(a_query, a_actors, a_anchor, a_mode);
+		auto pool = BuildPool(a_query, a_actors, a_anchor, a_mode, a_exclude, a_placement);
 		if (pool.empty()) {
 			REX::DEBUG("[Match] no match (no scene def fit {} role(s) + tags + anchor filters + a complete actor binding; {})",
 				actorCount, DescribeAnchorSearch(a_anchor, a_mode));
@@ -425,5 +390,17 @@ namespace OSF::Matchmaking
 		REX::DEBUG("[Match] chose '{}' (priority {}, weight {}) [tail guard]",
 			tier.back()->id, tier.back()->priority, tier.back()->weight);
 		return *tier.back();  // numerical guard
+	}
+
+	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& actors, const TagQuery& query,
+		RE::TESObjectREFR* anchor, AnchorMode mode)
+	{
+		return PickImpl(actors, query, anchor, mode, {}, std::nullopt);
+	}
+
+	std::optional<Candidate> PickReplacement(const std::vector<RE::Actor*>& actors, const TagQuery& query,
+		RE::TESObjectREFR* anchor, std::string_view exclude, Animation::WorldPlacementMode placement)
+	{
+		return PickImpl(actors, query, anchor, AnchorMode::kAllow, exclude, placement);
 	}
 }

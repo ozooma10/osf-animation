@@ -11,6 +11,7 @@ namespace OSF::Scene
 		inline constexpr std::int32_t kAction = 0x08;
 		inline constexpr std::int32_t kSceneEnd = 0x10;
 		inline constexpr std::int32_t kSceneBegin = 0x20;
+		inline constexpr std::int32_t kSceneHandoff = 0x40;
 		inline constexpr std::int32_t kAll = 0xFFFF;
 	}
 

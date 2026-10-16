@@ -306,6 +306,27 @@ namespace OSF::Papyrus
 		}
 
 		// Separate native: Papyrus structs can't hold the role array.
+		bool ReplaceScene(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_id, SceneOptionsArg a_opts)
+		{
+			const auto opts = ReadSceneOptions(a_opts);
+			return Scene::SceneRuntime::GetSingleton().Replace(a_scene, a_id.c_str(), {},
+				{ opts.anchor, Scene::OptHeadingRad(opts), opts.stage });
+		}
+		bool ReplaceSceneRoles(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene,
+			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
+		{
+			return Scene::SceneRuntime::GetSingleton().Replace(a_scene, a_id.c_str(), ToStrings(a_roles), {});
+		}
+		bool ReplaceSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene,
+			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf)
+		{
+			return Scene::SceneRuntime::GetSingleton().ReplaceByTags(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) });
+		}
+		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
+		{
+			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetSceneId(a_scene));
+		}
+
 		int32_t StartSceneRoles(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
 			RE::BSFixedString a_id, std::vector<RE::BSFixedString> a_roles)
 		{
@@ -649,6 +670,10 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByTagsQuery", &StartSceneByTagsQuery, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneAtAnchor", &StartSceneAtAnchor, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneRoles", &StartSceneRoles, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceScene", &ReplaceScene, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceSceneRoles", &ReplaceSceneRoles, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceSceneByTagsQuery", &ReplaceSceneByTagsQuery, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);
 
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, false, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFilesPlaced", &StartSceneFilesPlaced, false, false);

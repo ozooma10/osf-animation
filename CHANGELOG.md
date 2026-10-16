@@ -45,6 +45,13 @@ for installation, saved preferences, and hotkey changes.
   compatibility checks and offset recomposition during handoff.
 - Scene input grants carry a revision: queued commands from a replaced or revoked grant are
   discarded, and disabling scene controls explicitly releases the previous grant.
+- Same-cast scene handoff keeps the handle, speed, anchor and mechanism ownership, supports role
+  swaps and tag matching, and emits `SCENE_HANDOFF` before the new node enters. Papyrus adds
+  `ReplaceScene`, `ReplaceSceneRoles`, `ReplaceSceneByTagsQuery` and `GetSceneId`; engine services
+  3.3 append replacement calls. Anchor/role validation failures leave the old scene playing;
+  target playback failure ends the old identity as interrupted. Placement changes snap while poses blend.
+- Handoff equipment ownership preserves the first actor/item snapshot, records only incremental
+  hides/equips and restores additions in reverse order. Scene-owned weapons remain strip-exempt.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support
