@@ -32,18 +32,6 @@ namespace OSF::Animation
 				reinterpret_cast<std::uintptr_t>(a_modelNode) + kModelNodeRigBoneCountOffset);
 		}
 
-		void WriteNiTransformRows(float* a_slot, const ozz::math::Float4x4& a_matrix)
-		{
-			const float* m = reinterpret_cast<const float*>(&a_matrix);
-			std::memcpy(a_slot, m, 60);  // 3 basis columns (= engine rows) + translation
-			a_slot[15] = 1.0f;           // uniform scale
-		}
-
-		void WriteNiTransformRowsBlended(float* a_slot, const float* a_from, const ozz::math::Float4x4& a_target, float a_weight)
-		{
-			PoseMath::WriteOverrideBlended(a_slot, a_from, reinterpret_cast<const float*>(&a_target), a_weight);
-		}
-
 	}
 
 	void Graph::PrepareBlendSource()
@@ -52,7 +40,7 @@ namespace OSF::Animation
 			preparedBlendSource.Clear();
 			return;
 		}
-		preparedBlendSource.Capture(outputPose, binding);
+		preparedBlendSource.Capture(displayedPose, displayedDriven);
 	}
 
 	void Graph::SetAnimation(std::shared_ptr<const OzzSkeleton> a_skeleton, std::shared_ptr<const OzzAnimation> a_anim, std::string a_file)
@@ -62,17 +50,22 @@ namespace OSF::Animation
 		}
 
 		const auto nextJointCount = static_cast<std::size_t>(a_skeleton->data->num_joints());
+		bool sameJointLayout = skeleton == a_skeleton;
+		if (!sameJointLayout && skeleton && skeleton->data->num_joints() == a_skeleton->data->num_joints()) {
+			const auto oldNames = skeleton->data->joint_names();
+			const auto newNames = a_skeleton->data->joint_names();
+			sameJointLayout = std::equal(oldNames.begin(), oldNames.end(), newNames.begin(),
+				[](const char* oldName, const char* newName) { return std::strcmp(oldName, newName) == 0; });
+		}
+		if (!sameJointLayout) {
+			preparedBlendSource.Clear();  // joint indices must retain their meaning, not just their count
+		}
 		// Crossfade from the on-screen pose: prepared before teardown on replacement, else captured live.
 		if (preparedBlendSource.Consume(nextJointCount, blendFromPose, blendFromDriven)) {
 			blendFromValid = true;
-		} else if (hasPose && !outputPose.empty() && outputPose.size() == nextJointCount) {
-			blendFromPose = outputPose;
-			blendFromDriven.assign(outputPose.size(), 0);
-			for (const auto& bound : binding) {
-				if (bound.jointIndex < blendFromDriven.size()) {
-					blendFromDriven[bound.jointIndex] = 1;
-				}
-			}
+		} else if (sameJointLayout && hasPose && displayedPose.size() == nextJointCount) {
+			blendFromPose = displayedPose;
+			blendFromDriven = displayedDriven;
 			blendFromValid = true;
 		} else {
 			blendFromPose.clear();
@@ -89,7 +82,7 @@ namespace OSF::Animation
 		anim = std::move(a_anim);
 		currentFile = std::move(a_file);
 		localTime = 0.0f;
-		hasPose = false;
+		hasPose = blendFromValid;
 		holdClipAtEnd = false;
 		if (!playbackSession) {
 			syncGroup = std::make_shared<SyncGroup>();	// new clip owns the clock if not in a scene
@@ -99,6 +92,15 @@ namespace OSF::Animation
 		samplingContext.Resize(numJoints);
 		localPose.resize(skeleton->data->num_soa_joints());
 		outputPose.assign(numJoints, ozz::math::Float4x4::identity());
+		if (blendFromValid) {
+			// Two commands can replace playback before any compose. The last displayed pose is still
+			// the handoff source in that case, not this new clip's as-yet-unsampled first frame.
+			displayedPose = blendFromPose;
+			displayedDriven = blendFromDriven;
+		} else {
+			displayedPose.assign(numJoints, ozz::math::Float4x4::identity());
+			displayedDriven.assign(numJoints, 0);
+		}
 		referencePose.assign(numJoints, ozz::math::Float4x4::identity());
 		rigIndexByJoint.assign(numJoints, UINT16_MAX);
 		const auto restPose = skeleton->data->joint_rest_poses();
@@ -111,7 +113,7 @@ namespace OSF::Animation
 			jointMap[ToLower(jointNames[i])] = static_cast<uint16_t>(i);
 		}
 
-		InvalidateBinding();
+		InvalidateBinding(sameJointLayout);
 	}
 
 	void Graph::InvalidateBinding(bool a_preserveLiveBase)
@@ -152,7 +154,7 @@ namespace OSF::Animation
 		}
 
 		// The binding is the write policy; rebuild even if the rig is unchanged.
-		InvalidateBinding();
+		InvalidateBinding(true);
 	}
 
 	void Graph::SetBoneMask(const std::string& a_maskName)
@@ -167,7 +169,7 @@ namespace OSF::Animation
 		}
 		boneMask = next;
 		loggedMaskBind = false;
-		InvalidateBinding();
+		InvalidateBinding(true);
 	}
 
 	bool Graph::ResolveAndBind(const RE::BGSModelNode* a_expectedModelNode)
@@ -292,10 +294,17 @@ namespace OSF::Animation
 					const auto mit = boneMask->weights.find(lowerName);
 					if (mit == boneMask->weights.end()) {
 						skippedMasked++;
-						continue;
+						boneWeight = 0.0f;
 					} else {
 						boneWeight = mit->second;
 					}
+				}
+				// Outgoing-only bones remain bound during the crossfade so a narrower mask releases
+				// them to vanilla over the blend, rather than dropping the torso/head in one frame.
+				const bool retiring = poseMode == PoseMode::kOverride && blendPhase == BlendPhase::kIn &&
+					blendFromValid && iter->second < blendFromDriven.size() && blendFromDriven[iter->second];
+				if (boneWeight <= 0.0f && !retiring) {
+					continue;
 				}
 				binding.push_back({ entry.rigIndex, iter->second, boneWeight });
 			}
@@ -485,9 +494,6 @@ namespace OSF::Animation
 		float weight = 1.0f;
 		if (blendPhase == BlendPhase::kIn) {
 			weight = blendDuration > 0.0f ? std::min(blendClock.time / blendDuration, 1.0f) : 1.0f;
-			if (weight >= 1.0f) {
-				blendPhase = BlendPhase::kNone;
-			}
 		} else if (blendPhase == BlendPhase::kOut) {
 			weight = blendDuration > 0.0f ? 1.0f - std::min(blendClock.time / blendDuration, 1.0f) : 0.0f;
 			if (weight <= 0.0f) {
@@ -512,7 +518,6 @@ namespace OSF::Animation
 			return;
 		}
 		UnpackSoaTransforms({ localPose.data(), localPose.size() }, { outputPose.data(), outputPose.size() }, skeleton->data.get());
-		hasPose = true;
 
 		auto* rig = a_modelNode->rig;
 		if (!rig || !rig->local || !rig->local->data) {
@@ -542,17 +547,20 @@ namespace OSF::Animation
 					return true;
 				}
 				// If the probe slot still holds our last write, the engine hasn't re-applied its pose; adopting it
-				// would poison the base (spine pops). basePoseRevision 0 = no capture yet.
-				if (basePoseRevision != 0 && stampProbeValid && stampProbeRigIdx < rigBoneCount &&
+				// would poison the base (spine pops). A handoff can have stamped a held snapshot
+				// before the first capture, so the probe also gates that first capture.
+				if (stampProbeValid && stampProbeRigIdx < rigBoneCount &&
 					std::memcmp(buf + static_cast<std::size_t>(stampProbeRigIdx) * 16,
 						stampProbe.data(), 16 * sizeof(float)) == 0) {
-					basePoseRevision = enginePoseRevision;
+					if (liveBaseValid) {
+						basePoseRevision = enginePoseRevision;
+					}
 					captureGateCount++;
 					if (captureGateCount == 1 || (captureGateCount & 63u) == 0) {
 						REX::TRACE("[Anim] live-base capture gated — buffer unchanged since our stamp (actor {:08X}, #{})",
 							target ? target->formID : 0, captureGateCount);
 					}
-					return true;
+					return liveBaseValid;
 				}
 				bool capturedAll = true;
 				for (std::size_t i = 0; i < binding.size(); ++i) {
@@ -584,6 +592,16 @@ namespace OSF::Animation
 			stampProbeValid = true;
 			probeRecorded = true;
 		};
+		std::fill(displayedDriven.begin(), displayedDriven.end(), 0);
+		hasPose = false;
+		const auto recordDisplay = [&](const float* a_slot, const BoundBone& a_bound) {
+			std::memcpy(&displayedPose[a_bound.jointIndex], a_slot, 16 * sizeof(float));
+			displayedDriven[a_bound.jointIndex] = 1;
+			hasPose = true;
+			if (!probeRecorded) {
+				recordProbe(a_slot, a_bound.rigIndex);
+			}
+		};
 
 		if (poseMode == PoseMode::kAdditive) {
 			if (!captureLiveBase()) {
@@ -600,17 +618,14 @@ namespace OSF::Animation
 					reinterpret_cast<const float*>(&referencePose[bound.jointIndex]),
 					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
 					effectiveWeight * bound.weight);
-				if (!probeRecorded) {
-					recordProbe(slot, bound.rigIndex);
+				if (effectiveWeight * bound.weight > 0.0f) {
+					recordDisplay(slot, bound);
 				}
 			}
 		} else {
-			// Override: weight = transition * pose weight * mask weight. Fractional bones blend against the live
-			// base (steady state) or the cross-fade snapshot (blend-in).
-			const bool persistentPartial = (boneMask && boneMask->feathered) || poseWeight < 1.0f;
-			if (persistentPartial && !captureLiveBase()) {
-				return;
-			}
+			// Capture before any writes. If a rebind precedes the next engine evaluation, each outgoing
+			// joint can still hold its displayed snapshot; newly included joints wait for a proven base.
+			const bool haveBase = captureLiveBase();
 			const bool hasSnapshot = blendPhase == BlendPhase::kIn && blendFromValid;
 			for (std::size_t i = 0; i < binding.size(); ++i) {
 				const auto& bound = binding[i];
@@ -621,36 +636,26 @@ namespace OSF::Animation
 				// Only joints the outgoing stage stamped have a valid snapshot; newly masked-in joints blend from live.
 				const bool fromSnapshot = hasSnapshot && bound.jointIndex < blendFromDriven.size() &&
 				                          blendFromDriven[bound.jointIndex] != 0;
-				const float maskWeight = bound.weight;
-				const float w = weight * poseWeight * maskWeight;
-				switch (PoseMath::ClassifyOverrideStamp(weight, poseWeight, maskWeight, fromSnapshot)) {
-				case PoseMath::OverrideStampKind::kSkip:
+				const float strength = poseWeight * bound.weight;
+				if (!PoseMath::WriteOverrideTransition(slot,
+					haveBase ? liveBasePose.data() + i * 16 : nullptr,
+					reinterpret_cast<const float*>(&outputPose[bound.jointIndex]),
+					fromSnapshot ? reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) : nullptr,
+					weight, strength)) {
 					continue;
-				case PoseMath::OverrideStampKind::kSnapshot:
-					WriteNiTransformRowsBlended(slot,
-						reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]),
-						outputPose[bound.jointIndex], 0.0f);
-					break;
-				case PoseMath::OverrideStampKind::kTarget:
-					WriteNiTransformRows(slot, outputPose[bound.jointIndex]);
-					break;
-				case PoseMath::OverrideStampKind::kBlend:
-					{
-						const float* from = fromSnapshot ?
-						                        reinterpret_cast<const float*>(&blendFromPose[bound.jointIndex]) :
-						                        (persistentPartial ? liveBasePose.data() + i * 16 :
-						                                             slot);  // engine's live pose this frame
-						WriteNiTransformRowsBlended(slot, from, outputPose[bound.jointIndex], w);
-					}
-					break;
 				}
-				if (!probeRecorded) {
+				if (strength > 0.0f || (fromSnapshot && (weight < 1.0f || !haveBase))) {
+					recordDisplay(slot, bound);
+				} else if (!probeRecorded) {
 					recordProbe(slot, bound.rigIndex);
 				}
 			}
 		}
 		if (!probeRecorded) {
 			stampProbeValid = false;
+		}
+		if (blendPhase == BlendPhase::kIn && weight >= 1.0f && liveBaseValid) {
+			blendPhase = BlendPhase::kNone;
 		}
 
 		if (!loggedFirstApply) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -13,26 +14,18 @@ namespace OSF::Animation::BlendSource
 	class Prepared
 	{
 	public:
-		template <class Binding>
-		bool Capture(const std::vector<Pose>& a_pose, const std::vector<Binding>& a_binding)
+		bool Capture(const std::vector<Pose>& a_pose, const std::vector<std::uint8_t>& a_driven)
 		{
 			Clear();
-			if (a_pose.empty() || a_binding.empty()) {
+			if (a_pose.empty() || a_pose.size() != a_driven.size() ||
+				std::none_of(a_driven.begin(), a_driven.end(), [](auto driven) { return driven != 0; })) {
 				return false;
 			}
 
 			_pose = a_pose;
-			_driven.assign(a_pose.size(), 0);
-			for (const auto& bound : a_binding) {
-				if (bound.jointIndex < _driven.size()) {
-					_driven[bound.jointIndex] = 1;
-					_prepared = true;
-				}
-			}
-			if (!_prepared) {
-				Clear();
-			}
-			return _prepared;
+			_driven = a_driven;
+			_prepared = true;
+			return true;
 		}
 
 		bool Consume(std::size_t a_expectedJointCount, std::vector<Pose>& a_pose,

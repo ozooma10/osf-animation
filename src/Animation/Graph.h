@@ -112,6 +112,9 @@ namespace OSF::Animation
 		ozz::animation::SamplingJob::Context samplingContext;
 		std::vector<ozz::math::SoaTransform> localPose;
 		std::vector<ozz::math::Float4x4> outputPose;
+		// Actual rig writes, including transition/pose/mask weights; never the raw clip sample.
+		std::vector<ozz::math::Float4x4> displayedPose;
+		std::vector<std::uint8_t> displayedDriven;
 		std::vector<ozz::math::Float4x4> referencePose;  // local rest pose
 		std::unordered_map<std::string, uint16_t> jointMap;
 		std::unordered_set<std::string> preserveBones;
@@ -120,7 +123,7 @@ namespace OSF::Animation
 		float poseWeight = 1.0f;
 		std::string roleName;
 
-		bool hasPose = false;  // also the blend-from source for the next SetAnimation
+		bool hasPose = false;  // at least one displayed joint is available for the next handoff
 
 		std::atomic<const RE::BGSModelNode*> cachedModelNode{ nullptr };
 		const RE::BGSModelNode::Rig* cachedRig = nullptr;

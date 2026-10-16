@@ -177,28 +177,6 @@ namespace OSF::Animation::PoseMath
 		});
 	}
 
-	enum class OverrideStampKind : std::uint8_t
-	{
-		kSkip,      // leave the engine pose alone
-		kSnapshot,  // stamp the cross-fade-from snapshot verbatim (zero-weight stage handoff)
-		kTarget,    // stamp the sampled pose absolutely (total weight >= 1)
-		kBlend      // cross-fade from -> target at the total weight
-	};
-
-	// a_weight is exactly 0 on the first stamp after a stage handoff. Zero total weight skips, except at
-	// that handoff with a valid snapshot (else A->B flashes vanilla); zero pose/mask weight still skips.
-	inline OverrideStampKind ClassifyOverrideStamp(float a_weight, float a_poseWeight,
-		float a_maskWeight, bool a_fromSnapshot)
-	{
-		const float w = a_weight * a_poseWeight * a_maskWeight;
-		if (w <= 0.0f) {
-			return a_fromSnapshot && a_weight <= 0.0f && a_poseWeight > 0.0f && a_maskWeight > 0.0f ?
-			           OverrideStampKind::kSnapshot :
-			           OverrideStampKind::kSkip;
-		}
-		return w >= 1.0f ? OverrideStampKind::kTarget : OverrideStampKind::kBlend;
-	}
-
 	inline void WriteOverrideBlended(float* a_slot, const float* a_from, const float* a_target, float a_weight)
 	{
 		const Quat q = Nlerp(MatrixToQuat(a_from), MatrixToQuat(a_target), a_weight);
@@ -211,6 +189,54 @@ namespace OSF::Animation::PoseMath
 		a_slot[13] = ty;
 		a_slot[14] = tz;
 		a_slot[15] = 1.0f;
+	}
+
+	// First compose the incoming layer over the proven engine base, then crossfade from the actual
+	// outgoing display. Applying the mask to the crossfade itself double-weights feathered bones and
+	// never reaches the incoming layer before the snapshot disappears. A zero incoming strength
+	// releases an outgoing bone smoothly; without an outgoing snapshot it remains untouched.
+	// A null live base means the new binding has not been engine-evaluated: hold the snapshot until it is.
+	inline bool WriteOverrideTransition(float* a_slot, const float* a_live, const float* a_sampled,
+		const float* a_displayed, float a_transition, float a_strength)
+	{
+		const float transition = std::clamp(a_transition, 0.0f, 1.0f);
+		const float strength = std::clamp(a_strength, 0.0f, 1.0f);
+		if (a_displayed) {
+			if (transition <= 0.0f || (!a_live && strength < 1.0f)) {
+				std::memcpy(a_slot, a_displayed, 16 * sizeof(float));
+				return true;
+			}
+			float incoming[16];
+			if (strength >= 1.0f) {
+				std::memcpy(incoming, a_sampled, sizeof(incoming));
+				incoming[15] = 1.0f;
+			} else if (strength <= 0.0f) {
+				std::memcpy(incoming, a_live, sizeof(incoming));
+			} else {
+				WriteOverrideBlended(incoming, a_live, a_sampled, strength);
+			}
+			if (transition >= 1.0f) {
+				std::memcpy(a_slot, incoming, sizeof(incoming));
+			} else {
+				WriteOverrideBlended(a_slot, a_displayed, incoming, transition);
+			}
+			return true;
+		}
+
+		const float weight = transition * strength;
+		if (weight <= 0.0f) {
+			return false;
+		}
+		if (weight >= 1.0f) {
+			std::memcpy(a_slot, a_sampled, 16 * sizeof(float));
+			a_slot[15] = 1.0f;
+			return true;
+		}
+		if (!a_live) {
+			return false;
+		}
+		WriteOverrideBlended(a_slot, a_live, a_sampled, weight);
+		return true;
 	}
 
 	// final = live * slerp(identity, inverse(reference) * sampled, weight), in Ozz column order.

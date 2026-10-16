@@ -59,36 +59,34 @@ int main()
 	constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
 
 	{
-		struct Binding
-		{
-			std::uint16_t rigIndex;
-			std::uint16_t jointIndex;
-		};
-
 		OSF::Animation::BlendSource::Prepared<Matrix> prepared;
 		const std::vector<Matrix> sourcePose{
 			Transform({}, 1.0f), Transform({}, 2.0f), Transform({}, 3.0f), Transform({}, 4.0f)
 		};
-		std::vector<Binding> binding{ { 7, 1 }, { 12, 3 } };
-		Check(prepared.Capture(sourcePose, binding), "replacement captures its visible blend source");
-		binding.clear();  // StopSceneLocked -> DetachAndFadeOut -> InvalidateBinding
+		std::vector<std::uint8_t> driven{ 0, 1, 0, 1 };
+		Check(prepared.Capture(sourcePose, driven), "replacement captures its visible blend source");
+		driven.clear();  // graph teardown cannot invalidate the copied display ownership
 
 		std::vector<Matrix> capturedPose;
 		std::vector<std::uint8_t> capturedDriven;
 		Check(prepared.Consume(sourcePose.size(), capturedPose, capturedDriven),
 			"replacement consumes the source after binding teardown");
-		Check(capturedPose == sourcePose, "replacement preserves the sampled outgoing pose");
+		Check(capturedPose == sourcePose, "replacement preserves the displayed outgoing pose");
 		Check(capturedDriven == std::vector<std::uint8_t>{ 0, 1, 0, 1 },
 			"replacement preserves exactly the joints driven by the outgoing graph");
 		Check(!prepared.Consume(sourcePose.size(), capturedPose, capturedDriven),
 			"prepared replacement source is one-shot");
 
-		Check(prepared.Capture(sourcePose, std::vector<Binding>{ { 7, 1 } }),
+		Check(prepared.Capture(sourcePose, std::vector<std::uint8_t>{ 0, 1, 0, 0 }),
 			"replacement source can be prepared again");
 		Check(!prepared.Consume(sourcePose.size() - 1, capturedPose, capturedDriven),
 			"replacement rejects a source from a different skeleton");
 		Check(!prepared.Consume(sourcePose.size(), capturedPose, capturedDriven),
 			"a rejected replacement source is discarded");
+		Check(!prepared.Capture(sourcePose, std::vector<std::uint8_t>{ 0, 0, 0, 0 }),
+			"an entirely engine-driven display cannot become an outgoing layer");
+		Check(!prepared.Capture(sourcePose, std::vector<std::uint8_t>{ 1 }),
+			"capture rejects a mismatched display ownership table");
 	}
 
 	{
@@ -168,26 +166,59 @@ int main()
 			"override keeps its existing linear translation and unit scale");
 	}
 
-	// A stage handoff resets the blend clock to zero; skipping there flashes the vanilla pose.
+	// A feathered outgoing display is not the raw clip. Hold it through compose-before-evaluation,
+	// crossfade to the fully composed incoming layer, and release outgoing-only bones continuously.
 	{
-		using OSF::Animation::PoseMath::ClassifyOverrideStamp;
-		using OSF::Animation::PoseMath::OverrideStampKind;
-		Check(ClassifyOverrideStamp(0.0f, 1.0f, 1.0f, true) == OverrideStampKind::kSnapshot,
-			"zero-weight handoff with a valid snapshot stamps the snapshot, not vanilla");
-		Check(ClassifyOverrideStamp(0.0f, 1.0f, 0.25f, true) == OverrideStampKind::kSnapshot,
-			"a feathered (fractional-mask) bone also holds its snapshot across the handoff");
-		Check(ClassifyOverrideStamp(0.0f, 1.0f, 1.0f, false) == OverrideStampKind::kSkip,
-			"zero weight without a snapshot leaves the engine pose alone");
-		Check(ClassifyOverrideStamp(0.0f, 0.0f, 1.0f, true) == OverrideStampKind::kSkip,
-			"a deliberately zero-strength layer never stamps");
-		Check(ClassifyOverrideStamp(0.0f, 1.0f, 0.0f, true) == OverrideStampKind::kSkip,
-			"a zero-weight mask bone never stamps");
-		Check(ClassifyOverrideStamp(0.25f, 1.0f, 1.0f, true) == OverrideStampKind::kBlend,
-			"mid-blend keeps cross-fading even when a snapshot exists");
-		Check(ClassifyOverrideStamp(1.0f, 1.0f, 1.0f, false) == OverrideStampKind::kTarget,
-			"full weight stamps the sampled pose absolutely");
-		Check(ClassifyOverrideStamp(1.0f, 0.5f, 1.0f, false) == OverrideStampKind::kBlend,
-			"persistent partial strength blends at steady state");
+		const Matrix live = Transform({}, 2.0f);
+		const Matrix sampled = Transform(AxisAngle(0.0f, 0.0f, 1.0f, kHalfPi), 10.0f);
+		Matrix outgoing{};
+		WriteOverrideTransition(outgoing.data(), live.data(), sampled.data(), nullptr, 1.0f, 0.25f);
+		Check(Near(outgoing[12], 4.0f), "outgoing snapshot includes the feathered layer strength");
+		for (float strength : { 0.0f, 0.25f, 1.0f }) {
+			Matrix held = live;
+			Check(WriteOverrideTransition(held.data(), nullptr, sampled.data(), outgoing.data(), 0.0f, strength),
+				"first compose stamps the outgoing display even without a new engine base");
+			Check(held == outgoing, "zero-clock handoff preserves the displayed pose byte for byte");
+		}
+		Matrix waiting{};
+		WriteOverrideTransition(waiting.data(), nullptr, sampled.data(), outgoing.data(), 0.5f, 0.25f);
+		Check(waiting == outgoing, "a partial layer waits for an evaluated base without flashing vanilla");
+
+		const Matrix movingLive = Transform({}, 6.0f);
+		Matrix halfway{}, endpoint{}, steady{};
+		WriteOverrideTransition(halfway.data(), movingLive.data(), sampled.data(), outgoing.data(), 0.5f, 0.25f);
+		WriteOverrideTransition(endpoint.data(), movingLive.data(), sampled.data(), outgoing.data(), 1.0f, 0.25f);
+		WriteOverrideTransition(steady.data(), movingLive.data(), sampled.data(), nullptr, 1.0f, 0.25f);
+		Check(Near(halfway[12], 5.5f) && Near(endpoint[12], 7.0f),
+			"transition interpolates to the incoming layer rather than applying its mask twice");
+		Check(endpoint == steady, "dropping the transition snapshot at completion cannot change the pose");
+
+		Matrix releasedHalf{}, releasedEnd{};
+		WriteOverrideTransition(releasedHalf.data(), movingLive.data(), sampled.data(), outgoing.data(), 0.5f, 0.0f);
+		WriteOverrideTransition(releasedEnd.data(), movingLive.data(), sampled.data(), outgoing.data(), 1.0f, 0.0f);
+		Check(Near(releasedHalf[12], 5.0f) && releasedEnd == movingLive,
+			"upper-body bones omitted by a right-arm mask fade to the moving live pose");
+
+		OSF::Animation::BlendSource::Prepared<Matrix> interrupted;
+		Check(interrupted.Capture(std::vector<Matrix>{ halfway }, std::vector<std::uint8_t>{ 1 }),
+			"an interrupted blend captures its weighted display");
+		std::vector<Matrix> source;
+		std::vector<std::uint8_t> driven;
+		Check(interrupted.Consume(1, source, driven), "interrupted display survives replacement teardown");
+		Matrix reversed{};
+		WriteOverrideTransition(reversed.data(), nullptr, live.data(), source[0].data(), 0.0f, 1.0f);
+		Check(reversed == halfway, "reversal begins at the displayed blend instead of the raw outgoing clip");
+
+		Matrix untouched = movingLive;
+		Check(!WriteOverrideTransition(untouched.data(), nullptr, sampled.data(), nullptr, 0.5f, 0.25f) && untouched == movingLive,
+			"newly included bones wait for a proven engine base");
+		Check(!WriteOverrideTransition(untouched.data(), movingLive.data(), sampled.data(), nullptr, 0.0f, 1.0f),
+			"initial zero-weight playback leaves vanilla alone without a prior owned pose");
+		Check(!WriteOverrideTransition(untouched.data(), movingLive.data(), sampled.data(), nullptr, 1.0f, 0.0f),
+			"zero-strength layers do not acquire ownership");
+		Matrix repeated{};
+		WriteOverrideTransition(repeated.data(), movingLive.data(), sampled.data(), outgoing.data(), 0.5f, 0.25f);
+		Check(repeated == halfway, "repeated compose uses the same immutable base and display source");
 	}
 
 	{

@@ -487,7 +487,8 @@ namespace OSF::Animation
 					if (currentScene) {
 						claim = { PlaybackOccupant::kStaged, currentScene->playbackId, currentScene->playbackSinkId };
 					} else {
-						claim.occupant = PlaybackOccupant::kStandalone;
+						claim.occupant = iter->second->blendPhase == BlendPhase::kOut ?
+							PlaybackOccupant::kFadingOut : PlaybackOccupant::kStandalone;
 					}
 				}
 				const auto admission = EvaluatePlaybackAdmission(claim, a_expectedPlayback, a_sinkId);
@@ -517,10 +518,7 @@ namespace OSF::Animation
 					continue;
 				}
 				std::scoped_lock gl{ iter->second->stateLock };
-				if (iter->second->playbackSession &&
-					std::find(replacements.begin(), replacements.end(), iter->second->playbackSession) != replacements.end()) {
-					iter->second->PrepareBlendSource();
-				}
+				iter->second->PrepareBlendSource();
 			}
 			for (auto* replacement : replacements) {
 				REX::DEBUG("[Anim] replacing expected playback {}", replacement->playbackId);

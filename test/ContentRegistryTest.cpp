@@ -41,6 +41,12 @@ namespace
 			"a service-owned staged request cannot clobber standalone playback");
 		Check(EvaluatePlaybackAdmission({ PlaybackOccupant::kStandalone, 0, 0 }, 0, 0).accepted,
 			"the legacy sink may retain its explicit standalone replacement behavior");
+		const PlaybackClaim fading{ PlaybackOccupant::kFadingOut, 0, 0 };
+		const auto restart = EvaluatePlaybackAdmission(fading, 0, 10);
+		Check(restart.accepted && !restart.replace,
+			"a stopped scene's visual tail admits immediate new scene playback");
+		Check(EvaluatePlaybackAdmission(fading, 42, 10).reason == PlaybackAdmissionReason::kExpectedMissing,
+			"a fading tail cannot satisfy replacement of a playback that has ended");
 		const PlaybackClaim staged{ PlaybackOccupant::kStaged, 42, 7 };
 		Check(EvaluatePlaybackAdmission(staged, 0, 7).reason == PlaybackAdmissionReason::kPlaybackMismatch,
 			"a staged playback is never replaced without its exact id");

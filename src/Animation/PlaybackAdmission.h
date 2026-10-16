@@ -10,6 +10,7 @@ namespace OSF::Animation
 	enum class PlaybackOccupant : std::uint8_t
 	{
 		kEmpty,
+		kFadingOut,  // playback has released ownership; only its visual tail remains
 		kStandalone,
 		kStaged
 	};
@@ -40,7 +41,7 @@ namespace OSF::Animation
 	inline PlaybackAdmission EvaluatePlaybackAdmission(const PlaybackClaim& a_current,
 		PlaybackId a_expectedPlayback, PlaybackSinkId a_requestingSink) noexcept
 	{
-		if (a_current.occupant == PlaybackOccupant::kEmpty) {
+		if (a_current.occupant == PlaybackOccupant::kEmpty || a_current.occupant == PlaybackOccupant::kFadingOut) {
 			return a_expectedPlayback == 0 ?
 				PlaybackAdmission{ true, false, PlaybackAdmissionReason::kAccepted } :
 				PlaybackAdmission{ false, false, PlaybackAdmissionReason::kExpectedMissing };
