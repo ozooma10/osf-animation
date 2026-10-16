@@ -3,6 +3,7 @@
 #include "Equipment/EquipmentService.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputTypes.h"
+#include "Matchmaking/Matchmaker.h"
 #include "Props/PropService.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/SceneFoundation.h"
@@ -17,8 +18,6 @@ namespace OSF::Camera
 {
 	enum class CameraMode : std::uint8_t;
 }
-
-namespace OSF::Matchmaking { struct TagQuery; }
 
 namespace OSF::Scene
 {
@@ -74,7 +73,11 @@ namespace OSF::Scene
 		};
 		bool Replace(std::int32_t a_scene, std::string_view a_id, const std::vector<std::string>& a_roles,
 			const ReplaceOptions& a_options);
-		bool ReplaceByTags(std::int32_t a_scene, const Matchmaking::TagQuery& a_query);
+		// Matchmade handoff for the same cast. a_roles[i] constrains current participant i (GetParticipants order).
+		// A non-null a_anchor replaces the retained anchor reference for both the match and the handoff.
+		bool ReplaceByQuery(std::int32_t a_scene, const Matchmaking::TagQuery& a_query,
+			const Matchmaking::RoleConstraints& a_roles = {}, RE::TESObjectREFR* a_anchor = nullptr,
+			Matchmaking::AnchorMode a_mode = Matchmaking::AnchorMode::kAllow);
 
 		// Enters at the def's `entry`, or a_entryNode when non-empty. 0 = unknown scene or node.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});

@@ -320,7 +320,7 @@ namespace OSF::Papyrus
 		bool ReplaceSceneByTagsQuery(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene,
 			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf)
 		{
-			return Scene::SceneRuntime::GetSingleton().ReplaceByTags(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) });
+			return Scene::SceneRuntime::GetSingleton().ReplaceByQuery(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) });
 		}
 		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
 		{

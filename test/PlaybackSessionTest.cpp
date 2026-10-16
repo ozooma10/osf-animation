@@ -72,6 +72,31 @@ int main()
 		Check(!OSF::Matchmaking::BindRoleNames(names, std::vector<int*>{ &a, &b }, {}, result, error,
 			[](std::size_t role, int*) { return role == 0; }), "new role filters are enforced before handoff");
 	});
+	Run("matchmaking role constraints and binding inversion", [] {
+		using namespace OSF::Matchmaking;
+		Check(RoleNameMatches("", "top") && RoleNameMatches("", "") && RoleNameMatches("TOP", "top") &&
+			!RoleNameMatches("top", "bottom") && !RoleNameMatches("top", ""), "empty constraints accept any role; names compare case-insensitively");
+		Check(RoleConstraintsFit({}, 2) && RoleConstraintsFit({ "", "top" }, 2) && !RoleConstraintsFit({ "top" }, 2),
+			"constraints are absent or one per actor");
+		const std::vector<std::string> declared{ "bottom", "top" };
+		const auto order = [&](const RoleConstraints& a_roles, auto a_filter) {
+			return FindRoleOrder(declared.size(), [&](std::size_t role, std::size_t actor) {
+				return (a_roles.empty() || RoleNameMatches(a_roles[actor], declared[role])) && a_filter(role, actor);
+			});
+		};
+		const auto any = [](std::size_t, std::size_t) { return true; };
+		Check(order({}, any) == std::vector<std::size_t>{ 0, 1 }, "unconstrained binding keeps cast order");
+		Check(order({ "top", "" }, any) == std::vector<std::size_t>{ 1, 0 }, "a constrained actor moves to its named role");
+		Check(!order({ "top", "top" }, any) && !order({ "missing", "" }, any), "conflicting or unknown constraints never fit");
+		Check(!order({ "top", "" }, [](std::size_t role, std::size_t actor) { return role == actor; }),
+			"constraints never override role filters");
+		Check(RoleOfActor({ 1, 0, 2 }, 3) == std::vector<std::size_t>{ 1, 0, 2 } && RoleOfActor({ 2, 0, 1 }, 3) == std::vector<std::size_t>{ 1, 2, 0 },
+			"binding inversion maps each actor to its role");
+		Check(RoleOfActor({ 0, 0 }, 2).empty() && RoleOfActor({ 0, 2 }, 2).empty() && RoleOfActor({ 0 }, 2).empty(),
+			"inversion rejects anything but a permutation");
+		Check(RoleNamesUnique({ "top", "bottom", "" }) && !RoleNamesUnique({ "", "" }) && !RoleNamesUnique({ "Top", "top" }),
+			"one anonymous role binds by name; repeated names are ambiguous");
+	});
 	Run("incremental equipment ownership and reverse restore", [] {
 		using namespace OSF::Equipment;
 		auto* a = reinterpret_cast<RE::Actor*>(1);

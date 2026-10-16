@@ -161,27 +161,43 @@ namespace OSF::Scene
 	std::int32_t LaunchMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
 		const LaunchOpts& a_opts, const char* a_logTag, Matchmaking::AnchorMode a_mode)
 	{
+		return LaunchMatched(a_actors, a_query, {}, MakeDefLaunchOptions(a_opts), a_logTag, a_mode);
+	}
+
+	std::int32_t LaunchMatched(const std::vector<RE::Actor*>& a_actors, const Matchmaking::TagQuery& a_query,
+		const Matchmaking::RoleConstraints& a_roles, DefLaunchOptions a_launch, const char* a_logTag,
+		Matchmaking::AnchorMode a_mode)
+	{
 		if (!ValidActors(a_actors, a_logTag)) {
 			return 0;
 		}
-		auto pick = Matchmaking::Pick(a_actors, a_query, a_opts.anchor, a_mode);
+		if (!Matchmaking::RoleConstraintsFit(a_roles, a_actors.size())) {
+			REX::WARN("{}: {} role constraint(s) for {} actor(s) — pass none or one per actor",
+				a_logTag, a_roles.size(), a_actors.size());
+			return 0;
+		}
+		auto pick = Matchmaking::Pick(a_actors, a_query, a_launch.anchorRef, a_mode, a_roles);
 		if (!pick) {
 			REX::DEBUG("{}: no matching animation found for the given tags/actors", a_logTag);
-			UI::HudMessage::Error("no matching animation for the given tags/actors");
+			if (a_launch.emitHud) {
+				UI::HudMessage::Error("no matching animation for the given tags/actors");
+			}
 			return 0;
 		}
 		std::vector<RE::Actor*> ordered(pick->order.size());
 		for (size_t slot = 0; slot < pick->order.size(); slot++) {
 			ordered[slot] = a_actors[pick->order[slot]];
 		}
-		auto launch = MakeDefLaunchOptions(a_opts);
-		launch.stage = 0;  // Matchmade starts have always entered at the authored entry.
-		const std::int32_t handle = LaunchDef(pick->id, ordered, launch, a_logTag);
+		const bool anchored = a_launch.anchorRef != nullptr;
+		a_launch.stage = 0;  // Matchmade starts have always entered at the authored entry.
+		const std::int32_t handle = LaunchDef(pick->id, ordered, a_launch, a_logTag);
 		if (handle) {
-			REX::DEBUG("{}: matched '{}' handle {:#010x}{}", a_logTag, pick->id, handle, a_opts.anchor ? " (anchored)" : "");
+			REX::DEBUG("{}: matched '{}' handle {:#010x}{}", a_logTag, pick->id, handle, anchored ? " (anchored)" : "");
 		} else {
 			REX::WARN("{}: could not start matched scene '{}'", a_logTag, pick->id);
-			UI::HudMessage::Error(std::format("could not start scene '{}'", pick->id));
+			if (a_launch.emitHud) {
+				UI::HudMessage::Error(std::format("could not start scene '{}'", pick->id));
+			}
 		}
 		return handle;
 	}

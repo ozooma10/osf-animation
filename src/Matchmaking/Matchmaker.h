@@ -3,6 +3,8 @@
 // Scenes match by tags + a complete per-role filter binding, ranked by priority tier then weighted-random.
 // Binding is deterministic complete matching (not greedy) and travels with the candidate.
 
+#include "Matchmaking/RoleBinding.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -73,7 +75,12 @@ namespace OSF::Matchmaking
 	std::string ActorGenderTag(RE::Actor* a_actor);
 
 	// Highest priority tier, weighted-random within it. nullopt = no fit.
-	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query, RE::TESObjectREFR* a_anchor = nullptr, AnchorMode a_mode = AnchorMode::kAllow);
+	// a_roles[i] restricts a_actors[i] to the role of that name (case-insensitive); a constraint is hard, and a
+	// constraint vector whose size is neither 0 nor the actor count never matches.
+	std::optional<Candidate> Pick(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query, RE::TESObjectREFR* a_anchor = nullptr,
+		AnchorMode a_mode = AnchorMode::kAllow, const RoleConstraints& a_roles = {});
+	// Same cast as a live scene: excludes its current definition and keeps its world placement mode.
 	std::optional<Candidate> PickReplacement(const std::vector<RE::Actor*>& a_actors, const TagQuery& a_query,
-		RE::TESObjectREFR* a_anchor, std::string_view a_exclude, Animation::WorldPlacementMode a_placement);
+		RE::TESObjectREFR* a_anchor, std::string_view a_exclude, Animation::WorldPlacementMode a_placement,
+		const RoleConstraints& a_roles = {}, AnchorMode a_mode = AnchorMode::kAllow);
 }

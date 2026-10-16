@@ -110,7 +110,8 @@ namespace OSF::Scene
 		return true;
 	}
 
-	bool SceneRuntime::ReplaceByTags(std::int32_t a_scene, const Matchmaking::TagQuery& a_query)
+	bool SceneRuntime::ReplaceByQuery(std::int32_t a_scene, const Matchmaking::TagQuery& a_query,
+		const Matchmaking::RoleConstraints& a_roles, RE::TESObjectREFR* a_anchor, Matchmaking::AnchorMode a_mode)
 	{
 		std::vector<RE::Actor*> cast;
 		std::string current;
@@ -123,15 +124,33 @@ namespace OSF::Scene
 			cast = s->participants; current = s->id; anchor = s->anchorRef;
 			placement = s->worldPlacement.value_or(s->definition ? s->definition->worldPlacement : Animation::WorldPlacementMode::kAnchorAndPin);
 		}
-		const auto picked = Matchmaking::PickReplacement(cast, a_query, anchor.get(), current, placement);
+		if (!Matchmaking::RoleConstraintsFit(a_roles, cast.size())) {
+			REX::WARN("[Scene] handoff {:#010x} refused: {} role constraint(s) for {} participant(s)", a_scene, a_roles.size(), cast.size());
+			return false;
+		}
+		if (a_anchor) anchor.reset(a_anchor);
+		const auto picked = Matchmaking::PickReplacement(cast, a_query, anchor.get(), current, placement, a_roles, a_mode);
 		if (!picked) return false;
 		const auto def = Registry::ContentRegistry::GetSingleton().Find(picked->id);
-		if (!def || def->roles.size() != cast.size() || picked->order.size() != cast.size()) return false;
-		std::vector<std::string> roles(cast.size());
-		for (std::size_t i = 0; i < picked->order.size(); ++i) {
-			if (picked->order[i] >= roles.size()) return false;
-			roles[picked->order[i]] = def->roles[i].name;
+		if (!def || def->roles.size() != cast.size()) return false;
+		const auto roleOf = Matchmaking::RoleOfActor(picked->order, cast.size());
+		if (roleOf.empty()) return false;
+		// Replace binds by name. Duplicate names (e.g. two anonymous roles) are ambiguous, so those scenes hand off
+		// positionally, which only works when the pick kept the current order.
+		std::vector<std::string> declared, roles(cast.size());
+		for (const auto& role : def->roles) declared.push_back(role.name);
+		for (std::size_t i = 0; i < cast.size(); ++i) roles[i] = declared[roleOf[i]];
+		if (!Matchmaking::RoleNamesUnique(declared)) {
+			std::vector<RE::Actor*> ordered(cast.size());
+			for (std::size_t role = 0; role < cast.size(); ++role) ordered[role] = cast[picked->order[role]];
+			if (ordered != cast) {
+				REX::WARN("[Scene] handoff {:#010x} -> '{}' refused: anonymous roles cannot be re-bound to a new order", a_scene, picked->id);
+				return false;
+			}
+			roles.clear();  // positional: the current order already fits
 		}
-		return Replace(a_scene, picked->id, roles, {});
+		SceneRuntime::ReplaceOptions options;
+		options.anchor = a_anchor;
+		return Replace(a_scene, picked->id, roles, options);
 	}
 }

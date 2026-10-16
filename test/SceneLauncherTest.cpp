@@ -35,6 +35,7 @@ namespace
 		std::optional<OSF::Matchmaking::Candidate> pick;
 		OSF::Matchmaking::AnchorMode matchMode{};
 		OSF::Matchmaking::TagQuery query;
+		OSF::Matchmaking::RoleConstraints constraints;
 	} calls;
 
 	void Reset(bool a_linear = true, bool a_furniture = false)
@@ -121,9 +122,10 @@ namespace OSF::Animation
 namespace OSF::Matchmaking
 {
 	std::optional<Candidate> Pick(const std::vector<RE::Actor*>&, const TagQuery& a_query,
-		RE::TESObjectREFR* a_anchor, AnchorMode a_mode)
+		RE::TESObjectREFR* a_anchor, AnchorMode a_mode, const RoleConstraints& a_roles)
 	{
 		calls.order.emplace_back("match"); calls.anchorRef = a_anchor; calls.matchMode = a_mode; calls.query = a_query;
+		calls.constraints = a_roles;
 		return calls.pick;
 	}
 }
@@ -239,5 +241,24 @@ int main()
 	Check(calls.matchMode == OSF::Matchmaking::AnchorMode::kRequire && calls.anchorRef == furniture &&
 		calls.query.allOf == query.allOf && calls.query.anyOf == query.anyOf && calls.query.noneOf == query.noneOf,
 		"matchmade starts preserve furniture and tag filters");
+	Check(calls.constraints.empty(), "Papyrus tag starts stay unconstrained");
+
+	Reset();
+	calls.pick = OSF::Matchmaking::Candidate{ "demo", 0, 1, { 1, 0 } };
+	DefLaunchOptions native;
+	native.emitHud = false;
+	native.stage = 1;
+	native.anchorRef = furniture;
+	const OSF::Matchmaking::RoleConstraints constraints{ "", "top" };
+	Check(LaunchMatched(cast, query, constraints, native, tag) == 42 && calls.constraints == constraints &&
+		calls.anchorRef == furniture && calls.matchMode == OSF::Matchmaking::AnchorMode::kAllow &&
+		calls.actors == std::vector<RE::Actor*>{ actorB, actorA } && calls.entry.empty() && !calls.anchorHud,
+		"query starts forward role constraints and the anchor, keep the authored entry and follow the HUD policy");
+	Reset();
+	Check(LaunchMatched(cast, query, constraints, native, tag) == 0 && calls.hud.empty(),
+		"a native query start without a match stays silent");
+	Reset();
+	Check(LaunchMatched(cast, query, { "top" }, native, tag) == 0 && calls.order.empty(),
+		"constraints that do not cover the cast are refused before matchmaking");
 	return OSF::Test::Finish("scene launcher");
 }
