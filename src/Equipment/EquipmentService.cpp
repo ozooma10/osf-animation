@@ -206,6 +206,16 @@ namespace OSF::Equipment
 		REX::DEBUG("[Equip] actor {:X}: restored {} worn item(s)", a_actor->formID, a_snapshot.hiddenItems.size());
 	}
 
+	void EquipmentService::Rehide(RE::Actor* a_actor, const Snapshot& a_snapshot)
+	{
+		auto* mgr = RE::ActorEquipManager::GetSingleton();
+		for (const auto& item : a_snapshot.hiddenItems) {
+			if (!FindItem(a_actor, item.object).equipped) continue;
+			RE::BGSObjectInstance instance{ item.object, LiveInstance(a_actor, item.object) };
+			mgr->UnequipObject(a_actor, instance, nullptr, false, true, false, false, nullptr);
+		}
+	}
+
 	EquippedItem EquipmentService::EquipItem(RE::Actor* a_actor, RE::TESBoundObject* a_object)
 	{
 		EquippedItem record;

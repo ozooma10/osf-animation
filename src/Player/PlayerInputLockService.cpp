@@ -59,7 +59,7 @@ namespace OSF::Player
 	void PlayerInputLockService::OnStopAll()
 	{
 		const auto epoch = taskEpoch.fetch_add(1, std::memory_order_acq_rel) + 1;
-		// OnStopAll runs only on a load; clear a persisted AI-driven flag (the input layer itself is non-persistent).
+		// OnStopAll runs only on a load; clear a persisted AI-driven flag.
 		SetPlayerAIDriven(false);
 
 		Util::NativeMainThreadQueue::Post([this, epoch]() {
@@ -67,12 +67,29 @@ namespace OSF::Player
 				return;
 			}
 			std::scoped_lock l{ lock };
+			saveSuspended = false;
 			if (playerInputLockActive) {
 				playerInputLockActive = false;
 				RestoreEnabled();
 				REX::DEBUG("[Player] input lock restored for StopAll");
 			}
 		});
+	}
+
+	void PlayerInputLockService::OnSaveBegin()
+	{
+		std::scoped_lock l{ lock };
+		if (!playerInputLockActive || saveSuspended) return;
+		saveSuspended = true;
+		RestoreEnabled();
+	}
+
+	void PlayerInputLockService::OnSaveEnd()
+	{
+		std::scoped_lock l{ lock };
+		if (!saveSuspended) return;
+		saveSuspended = false;
+		if (playerInputLockActive) ApplyDisabled();
 	}
 
 	void PlayerInputLockService::ClearAIDriven()
@@ -97,7 +114,7 @@ namespace OSF::Player
 					return;
 				}
 				playerInputLockActive = true;
-				ApplyDisabled();
+				if (!saveSuspended) ApplyDisabled();
 				// Movement/Fighting/Sneaking/Activation only; looking stays free.
 				REX::DEBUG("[Player] input lock engaged (movement only -- camera look stays free)");
 			} else {

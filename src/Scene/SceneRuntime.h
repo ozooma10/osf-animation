@@ -143,6 +143,10 @@ namespace OSF::Scene
 		bool HideEquipment(std::int32_t a_handle, RE::Actor* a_actor, std::uint32_t a_slotMask);
 		bool RestoreHiddenEquipment(std::int32_t a_handle);
 
+		// Game thread, SaveLoadEvent: serialize baseline equipment without consuming the scene ledger.
+		void OnSaveBegin();
+		void OnSaveEnd();
+
 		// Load teardown, via GraphManager::StopAll's clear handler.
 		void Clear();
 
@@ -201,6 +205,7 @@ namespace OSF::Scene
 			// One transition at a time: ApplyTransition runs outside _lock, and overlapping triggers
 			// (Papyrus advance vs auto-end) orphaned a graph and froze the player. Claimed under _lock.
 			bool                    transitioning = false;
+			bool                    equipmentSuspended = false;  // baseline is worn during serialization
 			TerminationCause        terminationCause = TerminationCause::kCompleted;
 			std::string             id;
 			std::string             node;
@@ -311,6 +316,7 @@ namespace OSF::Scene
 		void RecordMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void UndoMechanism(std::int32_t a_handle, Mechanism a_mech);
 		void ReplayLedger(std::int32_t a_handle);
+		void SetEquipmentSaveWindow(bool a_saving);
 
 		void AttachSceneProp(
 			std::int32_t a_handle, const Registry::ActionEntry& a_action);

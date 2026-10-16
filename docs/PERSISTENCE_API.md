@@ -121,6 +121,15 @@ The load reader bounds every read to the current record and client block. Callin
 
 OSF Animation registers itself through the same broker as `OSFA`. Its current internal persistence responsibility is the pre-load scene/graph teardown previously performed by `SaveSafety`; there is no privileged parallel record path.
 
+The separate game-thread `SaveLoadEvent` sink temporarily reverses live scenes' equipment
+changes and enables OSF's input-disable layer before the vanilla save serializes, then
+reapplies both at the terminal save event. This covers event-producing manual, quick, auto
+and exit saves; the engine's silent/debug save path does not emit these events.
+This preserves the original worn apparel/held equipment and excludes scene-added items in
+the save without ending the live scene or consuming its undo ledger. Ended or cleared scenes
+are not reapplied. Loading a save made during a scene discards playback, releases controls,
+and recovers an orphaned scene camera to vanilla third person; it does not resume the scene.
+
 ## Sidecar lifecycle and format
 
 For a save named `Example.sfs`, the sidecar is `Example.osf` in the configured Starfield save directory. The save, load, and delete hooks use the engine-provided name, covering manual/named saves, save-as, quicksave/quickload, autosave, and reload paths that pass those common engine functions. A successful Starfield delete also deletes its matching sidecar.
