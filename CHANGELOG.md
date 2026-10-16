@@ -78,6 +78,9 @@ for installation, saved preferences, and hotkey changes.
   remains separate from automated success.
 - Native scene ABI 1.5 adds `FindSceneByQuery` / `StartSceneByQuery`: tag matchmaking with
   per-actor role-name constraints and an explicit anchor mode, without HUD output.
+- Engine services 3.4 add `ReplaceSceneByQuery`: matchmade handoff for the same cast with the same
+  query, where role constraints follow the current participant order and a query anchor replaces
+  the retained one.
 
 ### Changed
 

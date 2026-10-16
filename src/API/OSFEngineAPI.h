@@ -5,8 +5,8 @@
 
 namespace OSF::API
 {
-	// Services 3.3 appends same-cast scene handoff; 3.2 added alignment, 3.1 minor negotiation.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030003;
+	// Services 3.4 appends matchmade handoff; 3.3 added same-cast handoff, 3.2 alignment, 3.1 minor negotiation.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030004;
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
@@ -103,6 +103,10 @@ namespace OSF::API
 		bool (*ReplaceScene)(std::int32_t, const char* sceneId, const OSFStartOptions*);
 		// roleNames[i] names the target role for participant i in the current scene's roster.
 		bool (*ReplaceSceneRoles)(std::int32_t, const char* sceneId, const char* const* roleNames, std::uint32_t count);
+		// 3.4. Game thread. Matchmade handoff for the same cast, excluding the current scene and keeping its world
+		// placement mode. query->roles[i] constrains current participant i (GetSceneParticipants order); a non-null
+		// query->anchor replaces the retained anchor reference. False leaves the current scene playing.
+		bool (*ReplaceSceneByQuery)(std::int32_t, const OSFSceneQuery* query);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

@@ -42,7 +42,7 @@ Scene ABI **1.4** appends event identity/cause; existing 1.3 consumers can conti
 prefix and need neither Browser nor OSF UI. `OSF_RequestEngineAPI` supplies the optional services in
 `src/API/OSFEngineAPI.h`. Copy it alongside `OSFSceneAPI.h`; callers using the typed JSON helpers may
 also copy `OSFCatalog.h` (nlohmann/json 3.11.3 or compatible). No import library is required. Services
-ABI **3.3** retains the 3.0 prefix and appends alignment/handoff calls. Requests negotiate matching
+ABI **3.4** retains the 3.0 prefix and appends alignment/handoff calls. Requests negotiate matching
 major and a supported minor, and clients check table size. Released 3.0 Browser requests receive
 a version-stamped 3.0 prefix for their exact-version check; the newer Browser requires its compiled
 minor or later. The unreleased major-1/2 service tables remain unsupported.

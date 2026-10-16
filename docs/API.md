@@ -54,7 +54,8 @@ The HUD shows the role, current delta, step mode, and unsaved status. Numpad +/-
 `ReplaceScene(handle, id, options)`, `ReplaceSceneRoles(handle, id, roleNames)` and
 `ReplaceSceneByTagsQuery(handle, allOf, anyOf, noneOf)` replace the definition for the same cast
 without changing the handle. `GetSceneId(handle)` returns the live definition id, or empty when
-invalid/ad-hoc. Native engine services **3.3** append `ReplaceScene` and `ReplaceSceneRoles`.
+invalid/ad-hoc. Native engine services **3.3** append `ReplaceScene` and `ReplaceSceneRoles`; **3.4**
+appends `ReplaceSceneByQuery`, which takes an `OSFSceneQuery` (see *Matchmaking by query*).
 Names correspond to the current participant roster: `roleNames[i]` assigns participant `i` to
 a role in the new definition. Empty names preserve positional order; duplicates, missing roles,
 different cast sizes and failed role filters are refused before the old node exits.
@@ -503,7 +504,7 @@ or after an extreme burst has expired that handle from the recent-history window
 
 ## Optional engine services
 
-The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.3
+The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.4
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay
