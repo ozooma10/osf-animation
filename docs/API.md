@@ -52,7 +52,8 @@ Default alignment keys: numpad 5 selects a participant; 6/4, 8/2, and 3/1 change
 The HUD shows the role, current delta, step mode, and unsaved status. Numpad +/- remain speed.
 
 `ReplaceScene(handle, id, options)`, `ReplaceSceneRoles(handle, id, roleNames)` and
-`ReplaceSceneByTagsQuery(handle, allOf, anyOf, noneOf)` replace the definition for the same cast
+`ReplaceSceneByTagsQuery(handle, allOf, anyOf, noneOf)` and
+`ReplaceSceneByQuery(handle, allOf, anyOf, noneOf, roles, anchor, requireAnchor)` replace the definition for the same cast
 without changing the handle. `GetSceneId(handle)` returns the live definition id, or empty when
 invalid/ad-hoc. Native engine services **3.3** append `ReplaceScene` and `ReplaceSceneRoles`; **3.4**
 appends `ReplaceSceneByQuery`, which takes an `OSFSceneQuery` (see *Matchmaking by query*).
@@ -296,7 +297,21 @@ int h2 = OSF.StartSceneByTags(actors, tags)
 
 ; Boolean query form (allOf / anyOf / noneOf — pass real empty arrays, never None):
 int h3 = OSF.StartSceneByTagsQuery(actors, allOf, anyOf, noneOf)
+
+; Query form with role constraints: roles[i] restricts actors[i] to that role name ("" = any).
+string[] roles = new string[2]
+roles[0] = "top"
+int h4 = OSF.StartSceneByQuery(actors, allOf, anyOf, noneOf, roles)
+string id = OSF.FindSceneByQuery(actors, allOf, anyOf, noneOf, roles)   ; match only, no start
 ```
+
+`StartSceneByQuery` and `FindSceneByQuery` match like `StartSceneByTagsQuery` and add per-actor role
+constraints. A constraint is hard and still requires the role's filters to pass; pass `new string[0]`
+for none, or one entry per actor. `abRequireAnchor = true` limits the match to anchor-bound scenes that
+the anchor accepts (`SceneOptions.Anchor` for Start, `akAnchor` for Find). Find picks by priority and
+weighted random without side effects, so a later Start may choose differently; start the found id
+with `StartSceneRoles` to get exactly that scene. The native equivalents are described under
+*Matchmaking by query*.
 
 For raw one-actor clip playback outside a registered scene, use the primitive `OSF.Play(actor, file)`;
 it creates a solo playback session rather than a domain scene.

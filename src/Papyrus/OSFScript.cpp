@@ -322,6 +322,18 @@ namespace OSF::Papyrus
 		{
 			return Scene::SceneRuntime::GetSingleton().ReplaceByQuery(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) });
 		}
+		// asRoles[i] constrains participant i (GetSceneParticipants order); an empty array = unconstrained.
+		bool ReplaceSceneByQuery(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene,
+			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf,
+			std::vector<RE::BSFixedString> a_roles, RE::TESObjectREFR* a_anchor, bool a_requireAnchor)
+		{
+			if (a_requireAnchor && !a_anchor) {
+				REX::DEBUG("[Papyrus] ReplaceSceneByQuery: abRequireAnchor needs akAnchor");
+				return false;
+			}
+			return Scene::SceneRuntime::GetSingleton().ReplaceByQuery(a_scene, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) },
+				ToStrings(a_roles), a_anchor, a_requireAnchor ? Matchmaking::AnchorMode::kRequire : Matchmaking::AnchorMode::kAllow);
+		}
 		RE::BSFixedString GetSceneId(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
 		{
 			return RE::BSFixedString(Scene::SceneRuntime::GetSingleton().GetSceneId(a_scene));
@@ -349,6 +361,37 @@ namespace OSF::Papyrus
 			Matchmaking::TagQuery q{ ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) };
 			const auto opts = ReadSceneOptions(a_opts);
 			return Scene::LaunchMatched(a_actors, q, opts, "[Papyrus] OSF.StartSceneByTagsQuery");
+		}
+
+		// Returns the matched scene id without starting it, or "" for no fit or bad input.
+		RE::BSFixedString FindSceneByQuery(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf,
+			std::vector<RE::BSFixedString> a_roles, RE::TESObjectREFR* a_anchor, bool a_requireAnchor)
+		{
+			const auto roles = ToStrings(a_roles);
+			if (a_actors.empty() || std::ranges::find(a_actors, nullptr) != a_actors.end() ||
+				!Matchmaking::RoleConstraintsFit(roles, a_actors.size()) || (a_requireAnchor && !a_anchor)) {
+				REX::DEBUG("[Papyrus] FindSceneByQuery: empty/null cast, role count mismatch, or abRequireAnchor without akAnchor");
+				return RE::BSFixedString();
+			}
+			const auto pick = Matchmaking::Pick(a_actors, { ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) }, a_anchor,
+				a_requireAnchor ? Matchmaking::AnchorMode::kRequire : Matchmaking::AnchorMode::kAllow, roles);
+			return pick ? RE::BSFixedString(pick->id.c_str()) : RE::BSFixedString();
+		}
+
+		int32_t StartSceneByQuery(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors,
+			std::vector<RE::BSFixedString> a_allOf, std::vector<RE::BSFixedString> a_anyOf, std::vector<RE::BSFixedString> a_noneOf,
+			std::vector<RE::BSFixedString> a_roles, SceneOptionsArg a_opts, bool a_requireAnchor)
+		{
+			const auto opts = ReadSceneOptions(a_opts);
+			if (a_requireAnchor && !opts.anchor) {
+				REX::DEBUG("[Papyrus] StartSceneByQuery: abRequireAnchor needs SceneOptions.Anchor");
+				return 0;
+			}
+			Matchmaking::TagQuery q{ ToTags(a_allOf), ToTags(a_anyOf), ToTags(a_noneOf) };
+			return Scene::LaunchMatched(a_actors, q, ToStrings(a_roles), Scene::MakeDefLaunchOptions(opts),
+				"[Papyrus] OSF.StartSceneByQuery",
+				a_requireAnchor ? Matchmaking::AnchorMode::kRequire : Matchmaking::AnchorMode::kAllow);
 		}
 
 		int32_t StartSceneAtAnchor(OSFVM&, uint32_t, std::monostate, std::vector<RE::Actor*> a_actors, RE::TESObjectREFR* a_furniture, std::vector<RE::BSFixedString> a_tags, SceneOptionsArg a_opts)
@@ -673,6 +716,9 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceScene", &ReplaceScene, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceSceneRoles", &ReplaceSceneRoles, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceSceneByTagsQuery", &ReplaceSceneByTagsQuery, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ReplaceSceneByQuery", &ReplaceSceneByQuery, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "FindSceneByQuery", &FindSceneByQuery, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "StartSceneByQuery", &StartSceneByQuery, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneId", &GetSceneId, true, false);
 
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StartSceneFiles", &StartSceneFiles, false, false);

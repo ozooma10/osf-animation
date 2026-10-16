@@ -81,6 +81,8 @@ for installation, saved preferences, and hotkey changes.
 - Engine services 3.4 add `ReplaceSceneByQuery`: matchmade handoff for the same cast with the same
   query, where role constraints follow the current participant order and a query anchor replaces
   the retained one.
+- Papyrus adds `StartSceneByQuery`, `FindSceneByQuery` and `ReplaceSceneByQuery`, mirroring the
+  native query calls with a `string[]` of per-actor role constraints and an anchor-required flag.
 
 ### Changed
 
