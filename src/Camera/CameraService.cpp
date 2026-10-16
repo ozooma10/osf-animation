@@ -222,6 +222,17 @@ namespace OSF::Camera
 				}
 				return;
 			}
+			// A scene can capture bleedout before the player recovers; check life state at release.
+			if (priorState == RE::CameraState::kBleedout) {
+				auto* player = RE::PlayerCharacter::GetSingleton();
+				if (!player) return;
+				// ActorState documents the life-state field in actorState1 bits 17-20.
+				const auto lifeState = static_cast<RE::ACTOR_LIFE_STATE>((player->actorState1 >> 17) & 0xF);
+				if (lifeState != RE::ACTOR_LIFE_STATE::kBleedOut && lifeState != RE::ACTOR_LIFE_STATE::kEssentialDown) {
+					priorState = RE::CameraState::kThirdPerson;
+					REX::DEBUG("[Camera] discarded stale bleedout camera after scene camera release (life state {})", static_cast<std::uint32_t>(lifeState));
+				}
+			}
 			// Hand engine-owned states (ship exterior, vehicle, furniture) back exactly; forcing on-foot third person strands the camera.
 			const bool engineAltState = priorState < RE::CameraState::kTotal &&
 			                            priorState != RE::CameraState::kFirstPerson &&
