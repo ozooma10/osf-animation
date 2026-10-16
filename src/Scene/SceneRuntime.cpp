@@ -20,8 +20,8 @@ namespace OSF::Scene
 		void DispatchInputVerb(Input::Verb a_verb, const Input::Grant& a_grant)
 		{
 			auto& rt = SceneRuntime::GetSingleton();
-			if (rt.GetNode(a_grant.handle).empty()) {
-				REX::DEBUG("[Scene] input verb {} dropped — scene {:#010x} already ended", static_cast<int>(a_verb), a_grant.handle);
+			if (!rt.AcceptInput(a_grant, a_verb)) {
+				REX::DEBUG("[Scene] input verb {} dropped — scene {:#010x} grant expired", static_cast<int>(a_verb), a_grant.handle);
 				return;
 			}
 			constexpr float    kStep = 0.25f;
@@ -96,6 +96,13 @@ namespace OSF::Scene
 	{
 		static SceneRuntime singleton;
 		return singleton;
+	}
+
+	bool SceneRuntime::AcceptInput(const Input::Grant& a_grant, Input::Verb a_verb)
+	{
+		std::lock_guard l{ _lock };
+		const auto* s = Resolve(a_grant.handle);
+		return s && !s->transitioning && Input::GrantAllows(a_grant, s->grant, a_verb);
 	}
 
 	void SceneRuntime::RegisterWithGraphManager()

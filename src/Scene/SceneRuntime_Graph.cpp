@@ -2,6 +2,7 @@
 
 #include "Animation/GraphManager.h"
 #include "Equipment/EquipmentService.h"
+#include "Input/InputService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/SceneEventRelay.h"
@@ -588,6 +589,8 @@ namespace OSF::Scene
 			controls.enabled = *a_controlOverride;
 		}
 		if (!controls.enabled || controls.capabilities == 0) {
+			UndoMechanism(a_handle, Mechanism::kInputChannel);
+			Input::InputService::GetSingleton().Release(a_handle);
 			REX::DEBUG("[Scene] scene {:#010x} scene controls disabled by config (legacy playerControl)", a_handle);
 			return;
 		}

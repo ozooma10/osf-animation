@@ -91,5 +91,14 @@ namespace OSF::Input
 		std::uint32_t capabilities = 0;
 		RE::Actor*    driver = nullptr;
 		bool          locked = false;  // player may not End
+		std::uint64_t revision = 0;
 	};
+
+	inline bool GrantAllows(const Grant& posted, const Grant& current, Verb verb)
+	{
+		const auto required = RequiredCapability(verb);
+		return posted.handle != 0 && posted.handle == current.handle && posted.revision != 0 &&
+			posted.revision == current.revision && required != 0 && (current.capabilities & required) != 0 &&
+			!(verb == Verb::kEnd && current.locked);
+	}
 }

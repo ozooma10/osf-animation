@@ -71,6 +71,9 @@ namespace OSF::Scene
 				weapon.swap(s->sheathedWeapon);
 			} else if (a_mech == Mechanism::kProps) {
 				props.swap(s->props);
+			} else if (a_mech == Mechanism::kInputChannel) {
+				s->grant = {};
+				++s->grantRevision;
 			}
 		}
 		// Reverse outside _lock: services enter the VM, post UI messages, or take the inventory lock.
@@ -287,6 +290,7 @@ namespace OSF::Scene
 				return;
 			}
 			s->grant = a_grant;
+			s->grant.revision = ++s->grantRevision;
 			if (std::find(s->ledger.begin(), s->ledger.end(), Mechanism::kInputChannel) == s->ledger.end()) {
 				s->ledger.push_back(Mechanism::kInputChannel);
 			}

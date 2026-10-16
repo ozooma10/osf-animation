@@ -62,6 +62,7 @@ namespace OSF::Scene
 		std::optional<Alignment::Delta> GetAlignment(std::int32_t a_scene, std::string_view a_role);
 		bool SaveAlignment(std::int32_t a_scene);
 		void AlignmentInput(std::int32_t a_scene, Input::Verb a_verb);
+		bool AcceptInput(const Input::Grant& a_grant, Input::Verb a_verb);
 
 		// Enters at the def's `entry`, or a_entryNode when non-empty. 0 = unknown scene or node.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
@@ -212,6 +213,7 @@ namespace OSF::Scene
 			// Destroyed before SCENE_END dispatch.
 			std::vector<ActiveProp> props;
 			Input::Grant            grant;
+			std::uint64_t           grantRevision = 0;
 		};
 
 		// Copy of slot fields for reads outside _lock.

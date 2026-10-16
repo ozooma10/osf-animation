@@ -21,6 +21,18 @@ int main()
 {
 	{
 		using namespace OSF::Input;
+		Grant old{ .handle = 42, .capabilities = kAllCapabilities, .revision = 1 };
+		auto current = old;
+		Check(GrantAllows(old, current, Verb::kEnd), "current grant accepts End");
+		current.revision++;
+		Check(!GrantAllows(old, current, Verb::kEnd), "handoff drops queued commands from the old grant");
+		current.locked = true;
+		Check(!GrantAllows(current, current, Verb::kEnd), "locked replacement cannot End");
+		Check(GrantAllows(current, current, Verb::kAdvance), "lock keeps allowed navigation");
+		current.capabilities &= ~CapabilityBit("align");
+		Check(!GrantAllows(current, current, Verb::kAlignSave), "revoked capability remains inert");
+		Check(!GrantAllows(old, {}, Verb::kAdvance), "disabled controls revoke queued Advance");
+		Check(!GrantAllows({}, {}, Verb::kAdvance), "empty grants never authorize commands");
 		SceneKeymap keys;
 		Check(keys.Lookup(0x20) == Verb::kAdvance && keys.Lookup(0x6B) == Verb::kSpeedUp,
 			"scene controls retain existing defaults");

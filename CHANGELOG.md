@@ -43,6 +43,8 @@ for installation, saved preferences, and hotkey changes.
   the same operations; the HUD marks unsaved changes.
 - Scene slots retain an explicit anchor reference and its original rendered base transform for
   compatibility checks and offset recomposition during handoff.
+- Scene input grants carry a revision: queued commands from a replaced or revoked grant are
+  discarded, and disabling scene controls explicitly releases the previous grant.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support
