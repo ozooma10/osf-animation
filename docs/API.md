@@ -517,9 +517,24 @@ or after an extreme burst has expired that handle from the recent-history window
 `OSF.RESULT_OK()` / `RESULT_BAD_ROLE()` / `RESULT_RUNTIME_FAILURE()` / `RESULT_NO_HANDLER()` decode
 `akEvent.result`.
 
+## Automatic progression controls
+
+Engine services **3.5** append `SetSceneAutoAdvance(handle, enabled)` and
+`ReadSceneControls(handle, callback, context)`. Both require the game thread.
+The automatic preference defaults to true and survives nodes and same-cast handoffs.
+When false, nodes marked `allowManualHold` keep playing and delivering timed cues but do not
+complete from loop or timer budgets. Other nodes still complete normally. Explicit navigation
+and stop remain available. Re-enabling starts a fresh timer/loop budget at the current clip
+phase, without replaying once-only cues. A completed held playback cannot be revived.
+
+`ReadSceneControls` calls back synchronously with a JSON object containing `sceneId`, `node`,
+`automatic`, `allowManualHold`, `speed`, and `edges` (available named advance edges as
+`{ "id": "...", "label": "..." }`). It returns false for an invalid handle. Copy strings in
+the callback. Consumers must recheck live state when applying a choice; snapshots are not commands.
+
 ## Optional engine services
 
-The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.4
+The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.5
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay

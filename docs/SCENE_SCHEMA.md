@@ -223,7 +223,12 @@ segments are an implementation detail and are not addressed by these indexes.
 
 - **`clip`** (an animation clip spec string) is sugar for a single one-clip linear stage with one inferred role:
   `clip: "X.glb"` ≡ `roles: [{}], stages: [{ clips: ["X.glb"] }]`. A bare `clip` plays once, then completes.
-- **`stages[]`**: one or more linear stages, each `{ timer?, loops?, hold?, clips[] }`.
+- **`stages[]`**: one or more linear stages, each `{ timer?, loops?, hold?, allowManualHold?, clips[] }`.
+- **`allowManualHold`**: optional boolean, default `false`, on a linear stage or graph node.
+  A consumer using engine services 3.5 can disable automatic completion on these activities while
+  clips keep looping and cues keep firing. Unmarked introduction/ending nodes still finish normally.
+  Existing content behaves exactly as before until a consumer disables progression. In a graph,
+  put this on the node itself, not its inline `stages`. Explicit navigation/stop always work.
 - **`clips`** entries are animation clip specs: either a bare Data-relative resource-path string, or
   `{ "file": ..., "offset": {...} }`
   to override that role's placement for that stage. Every stage must have the same number of clips —

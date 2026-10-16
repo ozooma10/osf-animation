@@ -33,6 +33,7 @@ namespace OSF::Registry::ContentRegistryClips
 			SceneNode node;
 			node.id = "#s" + std::to_string(i);
 			node.stages = { stage };
+			node.allowManualHold = stage.allowManualHold;
 			node.cues = stage.cues;
 			node.actions = stage.actions;
 			node.sounds = stage.sounds;

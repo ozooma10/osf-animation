@@ -59,6 +59,10 @@ namespace OSF::Scene
 		bool SetSpeed(std::int32_t a_scene, float a_speed);
 		float GetSpeed(std::int32_t a_scene);
 		bool TogglePause(std::int32_t a_scene);
+		// Game thread. Affects only nodes authored with allowManualHold; other nodes complete normally.
+		bool SetAutoAdvance(std::int32_t a_scene, bool a_enabled);
+		bool GetAutoAdvance(std::int32_t a_scene);
+		bool AllowsManualHold(std::int32_t a_scene);
 		bool SetAlignment(std::int32_t a_scene, std::string_view a_role, const Alignment::Delta& a_delta);
 		std::optional<Alignment::Delta> GetAlignment(std::int32_t a_scene, std::string_view a_role);
 		bool SaveAlignment(std::int32_t a_scene);
@@ -216,6 +220,7 @@ namespace OSF::Scene
 			float                   loopScale = 1.0f;
 			SceneSpeed              speed;
 			std::optional<Animation::WorldPlacementMode> worldPlacement;
+			bool                    autoAdvance = true;
 			bool                    singleStage = false;
 			bool                    cameraOverridden = false;  // authored node cameras stand down
 			std::vector<Mechanism>  ledger;  // at most one entry per Mechanism

@@ -1262,6 +1262,10 @@ namespace OSF::Registry
 				if (jStage.is_array()) {
 					clipsNode = &jStage;
 				} else if (jStage.is_object()) {
+					if (!a_allowStageLanes && jStage.contains("allowManualHold")) {
+						throw std::runtime_error(a_subject + ": put allowManualHold on the graph node, not its inline stages");
+					}
+					info.allowManualHold = jStage.value("allowManualHold", false);
 					info.timer = jStage.value("timer", 0.0f);
 					info.loops = jStage.value("loops", 0);
 					timingGiven = jStage.contains("timer") || jStage.contains("loops");
@@ -1425,6 +1429,7 @@ namespace OSF::Registry
 				n.loopMode = LoopMode::kOnce;
 			}
 			n.timerSec = a_node.value("timer", 0.0f);
+			n.allowManualHold = a_node.value("allowManualHold", false);
 
 			std::unordered_set<std::string> edgeIds;
 			int defaults = 0;

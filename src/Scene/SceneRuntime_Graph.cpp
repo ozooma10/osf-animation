@@ -231,6 +231,7 @@ namespace OSF::Scene
 		}
 		// Per-start anchor/placement/loopScale are read fresh from the slot for every node entry.
 		float loopScale = 1.0f;
+		bool autoAdvance = true;
 		std::optional<Animation::WorldPlacementMode> placementOverride;
 		auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 		AnchorOverride anchor;
@@ -250,6 +251,7 @@ namespace OSF::Scene
 				baseline = s->baseline;
 				speed = s->speed;
 				loopScale = s->loopScale;
+				autoAdvance = s->autoAdvance;
 				placementOverride = s->worldPlacement;
 				if (def && def->roles.size() == a_participants.size()) {
 					std::vector<std::string> roles;
@@ -281,6 +283,7 @@ namespace OSF::Scene
 				}
 			}
 		}
+		plan->autoAdvance = !node->allowManualHold || autoAdvance;
 		ApplyNodeMarks(*plan, *node);
 		Animation::PlaybackId playbackId = 0;
 		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(a_participants, *plan, 0, &playbackId,

@@ -15,7 +15,7 @@
     {
       "id": "test.reg.refs",
       "roles": ["m-equipped", "f-preserved"],
-      "stages": [{ "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
+      "stages": [{ "allowManualHold": true, "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
     },
     {
       "id": "test.reg.mixed",
@@ -25,7 +25,7 @@
     {
       // No roles key: the registry must NOT act as a default cast — plain inference (2 anonymous slots).
       "id": "test.reg.infer",
-      "stages": [{ "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
+      "stages": [{ "allowManualHold": true, "clips": ["Fixture/m.glb", "Fixture/f.glb"] }]
     },
     {
       "id": "test.reg.anonymous",

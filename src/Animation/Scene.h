@@ -141,6 +141,7 @@ namespace OSF::Animation
 		float speed = 1.0f;
 		float blendIn = 0.4f;   // secs
 		bool loopWhole = false; // restart at stage 0 after the last (vs end)
+		bool autoAdvance = true; // false keeps sampling/cues active but suppresses timer/loop completion
 
 		// false = follow each actor's live transform (no teleport/pin); true = teleport to anchor+offset and pin.
 		bool anchored = true;
@@ -291,6 +292,9 @@ namespace OSF::Animation
 		// Also sets the initial stage. Resets the stage clock; false if out of range.
 		bool SetSegment(int32_t a_segment);
 
+		// Refuses an already-ended session. Re-enabling starts a fresh completion budget, without replaying cues.
+		bool SetAutoAdvance(bool a_enabled);
+
 		PlaybackSnapshot GetPlaybackSnapshot();
 
 		// Updated immediately, unlike per-graph `appliedStage`. Caller must NOT hold `lock`.
@@ -304,6 +308,7 @@ namespace OSF::Animation
 	private:
 		void ApplySegmentLocked(uint32_t a_segment);  // caller holds `lock`
 
+		bool autoAdvance = true;  // protected by lock
 		FrameClock clock;
 		uint32_t currentSegment = 0;
 		float stageElapsed = 0.0f;  // time in stage (doesn't wrap, unlike clock.time)

@@ -72,6 +72,8 @@ namespace OSF::Animation
 
 		bool SetSceneStage(RE::Actor* a_actor, int32_t a_stage, PlaybackId a_expectedPlayback = 0);
 
+		bool SetSceneAutoAdvance(RE::Actor* a_actor, bool a_enabled, PlaybackId a_expectedPlayback);
+
 		struct SynchronizedPlaybackState
 		{
 			float time = 0.0f;

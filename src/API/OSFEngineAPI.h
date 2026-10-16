@@ -5,8 +5,8 @@
 
 namespace OSF::API
 {
-	// Services 3.4 appends matchmade handoff; 3.3 added same-cast handoff, 3.2 alignment, 3.1 minor negotiation.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030004;
+	// Services 3.5 appends progression controls; 3.4 added matchmade handoff, 3.3 same-cast handoff.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030005;
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
@@ -107,6 +107,12 @@ namespace OSF::API
 		// placement mode. query->roles[i] constrains current participant i (GetSceneParticipants order); a non-null
 		// query->anchor replaces the retained anchor reference. False leaves the current scene playing.
 		bool (*ReplaceSceneByQuery)(std::int32_t, const OSFSceneQuery* query);
+		// 3.5. Game thread. Retained across nodes/handoffs, defaults true. False suppresses timer/loop
+		// completion only on nodes with allowManualHold; sampling, marks and explicit navigation continue.
+		// Re-enabling starts a fresh completion budget without restarting clips. A held playback that has already completed refuses.
+		bool (*SetSceneAutoAdvance)(std::int32_t, bool);
+		// Live JSON snapshot: sceneId, node, automatic, allowManualHold, speed, edges [{id,label}].
+		bool (*ReadSceneControls)(std::int32_t, TextCallback, void*);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

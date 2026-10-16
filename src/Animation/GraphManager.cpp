@@ -235,6 +235,7 @@ namespace OSF::Animation
 			scene->anchored = a_plan.anchored;
 			scene->restoreParticipantTransforms = a_plan.anchored && a_plan.restoreTransformsOnEnd;
 			scene->loopWhole = a_plan.loopWhole;
+			scene->SetAutoAdvance(a_plan.autoAdvance);
 			if (scene->restoreParticipantTransforms) {
 				if (a_plan.baselineTransforms.size() == a_actors.size()) {
 					scene->originalTransforms = a_plan.baselineTransforms;  // caller-carried pre-playback baseline
@@ -648,6 +649,20 @@ namespace OSF::Animation
 		}
 		REX::DEBUG("[Anim] playback session jumped to segment {}", a_stage);
 		return true;
+	}
+
+	bool GraphManager::SetSceneAutoAdvance(RE::Actor* a_actor, bool a_enabled, PlaybackId a_expectedPlayback)
+	{
+		if (!a_actor || !a_expectedPlayback) return false;
+		std::shared_lock l{ stateLock };
+		const auto it = graphs.find(a_actor);
+		if (it == graphs.end()) return false;
+		PlaybackSession* session;
+		{
+			std::scoped_lock gl{ it->second->stateLock };
+			session = it->second->playbackSession;
+		}
+		return session && session->playbackId == a_expectedPlayback && session->SetAutoAdvance(a_enabled);
 	}
 
 	std::optional<GraphManager::SynchronizedPlaybackState> GraphManager::GetScenePlayback(

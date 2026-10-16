@@ -213,6 +213,7 @@ namespace OSF::Registry
 		std::int32_t             loops = 0;     // 0 = none
 		// JSON `hold`: freeze at a normalized clip position (`true` = 1.0); < 0 = not frozen. Never loops.
 		float                    hold = -1.0f;
+		bool                     allowManualHold = false; // linear stage -> synthetic node
 		std::vector<StageClip>   clips;         // one per role, role order
 		// DesugarLinear forwards these onto the stage's synthetic node.
 		std::vector<CueEntry>    cues;
@@ -230,6 +231,7 @@ namespace OSF::Registry
 		LoopMode                 loopMode = LoopMode::kOnce;  // JSON `loops`: omit=once, 0=hold, N=count
 		std::int32_t             loopCount = 0;              // when loopMode == kCount
 		float                    timerSec = 0.0f;            // JSON `timer` (seconds)
+		bool                    allowManualHold = false; // explicit activity opt-in; entry/ending nodes keep completing
 		std::vector<SceneEdge>   edges;
 		std::vector<CueEntry>    cues;
 		std::vector<ActionEntry> actions;

@@ -99,7 +99,11 @@ int main()
 
 	auto& reg = ContentRegistry::GetSingleton();
 	reg.LoadAll();
+	if (const auto held = reg.Find("test.reg.refs")) {
+		Check(held->FindNode("#s0") && held->FindNode("#s0")->allowManualHold, "linear nodes parse opt-in manual hold");
+	} else Check(false, "manual hold fixture loads");
 	if (const auto authored = reg.Find("test.bare")) {
+		Check(authored->FindNode("#s0") && !authored->FindNode("#s0")->allowManualHold, "manual hold defaults off for existing content");
 		Check(authored->sourceKind == OSF::Registry::CatalogSourceKind::kAuthoredScene,
 			"ordinary scene definitions are classified as authored scenes");
 	} else {

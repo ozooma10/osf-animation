@@ -211,6 +211,20 @@ namespace OSF::API::EngineServices
 					return false;
 				}
 				return rt.ReplaceByQuery(handle, in->tags, in->roles, in->anchor, in->mode);
+			},
+			[](std::int32_t handle, bool enabled) { return Scene::SceneRuntime::GetSingleton().SetAutoAdvance(handle, enabled); },
+			[](std::int32_t handle, TextCallback callback, void* context) {
+				try {
+					auto& rt = Scene::SceneRuntime::GetSingleton();
+					const auto node = rt.GetNode(handle);
+					if (node.empty()) return false;
+					json edges = json::array();
+					for (std::int32_t i = 0; i < rt.EdgeCount(handle); ++i)
+						edges.push_back({{"id", rt.EdgeId(handle, i)}, {"label", rt.EdgeLabel(handle, i)}});
+					return Send(json{{"sceneId", rt.GetSceneId(handle)}, {"node", node},
+						{"automatic", rt.GetAutoAdvance(handle)}, {"allowManualHold", rt.AllowsManualHold(handle)},
+						{"speed", rt.GetSpeed(handle)}, {"edges", std::move(edges)}}, callback, context);
+				} catch (...) { return false; }
 			}
 		};
 	}

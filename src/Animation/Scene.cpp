@@ -27,7 +27,7 @@ namespace OSF::Animation
 				if (stage.hold >= 0.0f) {
 					// Freeze frame: only `timer` can expire it. Marks at/before the hold pose fire once here
 					// (so `action at:0` still runs).
-					const float segment = stage.timer > 0.0f ?
+					const float segment = autoAdvance && stage.timer > 0.0f ?
 					                          std::min(remaining, std::max(0.0f, stage.timer - stageElapsed)) :
 					                          remaining;
 					if (!holdMarksFired) {
@@ -45,7 +45,7 @@ namespace OSF::Animation
 					}
 					stageElapsed += std::max(segment, 0.0f);
 					remaining = 0.0f;
-					if (!(stage.timer > 0.0f && stageElapsed >= stage.timer)) {
+					if (!(autoAdvance && stage.timer > 0.0f && stageElapsed >= stage.timer)) {
 						break;
 					}
 					if (currentSegment + 1 < stages.size()) {
@@ -62,7 +62,7 @@ namespace OSF::Animation
 					break;
 				}
 				const float toWrap = duration > 0.0f ? std::max(0.0f, duration - clock.time) : remaining;
-				const float toTimer = stage.timer > 0.0f ? std::max(0.0f, stage.timer - stageElapsed) : remaining;
+				const float toTimer = autoAdvance && stage.timer > 0.0f ? std::max(0.0f, stage.timer - stageElapsed) : remaining;
 				float segment = std::min({ remaining, toWrap, toTimer });
 				// Floating-point equality at a boundary can otherwise leave a zero-length loop.
 				if (!(segment > 0.0f)) {
@@ -104,13 +104,13 @@ namespace OSF::Animation
 					stageLoops++;
 					// One-shot final segment done: park at the clip end so the cast holds the last pose until the
 					// deferred stop lands.
-					const bool finishing = stage.loops > 0 && stageLoops >= stage.loops &&
+					const bool finishing = autoAdvance && stage.loops > 0 && stageLoops >= stage.loops &&
 					                       currentSegment + 1 >= stages.size() && !loopWhole;
 					clock.time = finishing ? duration : 0.0f;
 				}
 
-				const bool timerExpired = stage.timer > 0.0f && stageElapsed >= stage.timer;
-				const bool loopsExpired = stage.loops > 0 && wrapped && stageLoops >= stage.loops;
+				const bool timerExpired = autoAdvance && stage.timer > 0.0f && stageElapsed >= stage.timer;
+				const bool loopsExpired = autoAdvance && stage.loops > 0 && wrapped && stageLoops >= stage.loops;
 				if (!timerExpired && !loopsExpired) {
 					continue;
 				}
@@ -147,6 +147,18 @@ namespace OSF::Animation
 		ApplySegmentLocked(static_cast<uint32_t>(a_segment));
 		ended.store(false, std::memory_order_relaxed);  // a manual jump revives an ended playback session
 		endQueued.store(false, std::memory_order_relaxed);
+		return true;
+	}
+
+	bool PlaybackSession::SetAutoAdvance(bool a_enabled)
+	{
+		std::scoped_lock l{ lock };
+		if (ended.load(std::memory_order_relaxed)) return false;
+		if (autoAdvance != a_enabled && a_enabled) {
+			stageElapsed = 0.0f;
+			stageLoops = 0;
+		}
+		autoAdvance = a_enabled;
 		return true;
 	}
 

@@ -54,6 +54,40 @@ namespace
 
 int main()
 {
+	Run("manual progression keeps looping and preserves cue identity", [] {
+		PlaybackSession s;
+		auto st = Segment(1.0f, 2, 2.0f);
+		st.marks = {{.fraction = 0.25f, .everyLoop = true, .token = "repeat"},
+			{.fraction = 0.5f, .token = "once"}};
+		s.stages = {st};
+		s.SetSegment(0);
+		Check(s.SetAutoAdvance(false), "manual mode accepted");
+		s.Advance(&s, 5.75f);
+		Check(!s.ended && !s.GetPlaybackSnapshot().stage, "manual ignores both timer and loop budget");
+		Near(s.GetPlaybackSnapshot().time, 0.75f, "manual keeps sampling rather than freezing");
+		const auto marks = Drain(s);
+		Check(marks.size() == 7, "six repeating cues and one one-shot cue during manual loops");
+		Check(s.SetAutoAdvance(true), "auto resumes");
+		s.Advance(&s, 0.5f);
+		Check(!s.ended, "time spent in manual does not immediately complete auto");
+		const auto resumed = Drain(s);
+		Check(std::ranges::none_of(resumed, [](const auto& h) { return h.second == "once"; }), "resuming never replays one-shot cues");
+		s.Advance(&s, 1.0f);
+		Check(s.ended && !s.SetAutoAdvance(false), "auto completes and late manual commands cannot revive playback");
+	});
+	Run("manual can be enabled again without changing clip phase", [] {
+		PlaybackSession s;
+		s.stages = {Segment(1.0f, 1)};
+		s.SetSegment(0);
+		s.Advance(&s, 0.5f);
+		s.SetAutoAdvance(false);
+		s.Advance(&s, 2.0f);
+		Near(s.GetPlaybackSnapshot().time, 0.5f, "Auto to Manual preserves phase");
+		Check(!s.ended, "Auto to Manual prevents completion");
+		s.speed.store(0.0f);
+		s.Advance(&s, 10.0f);
+		Near(s.GetPlaybackSnapshot().time, 0.5f, "pause remains distinct from manual");
+	});
 	Run("handoff role permutations and eligibility", [] {
 		int a = 1, b = 2;
 		const std::vector<std::string> names{ "first", "second" };
