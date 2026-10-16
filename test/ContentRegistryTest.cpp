@@ -358,6 +358,8 @@ int main()
 	if (const auto s = reg.Find("test.reg.frames")) {
 		if (s->nodes.size() == 1) {
 			const auto& node = s->nodes[0];
+			Check(node.cues.size() == 3 && node.cues[1].role == "PLAYER" && node.cues[0].role.empty(),
+				"a cue role is kept as authored and is optional");
 			Check(node.cues.size() == 3 && node.cues[0].pos == TrackPos::kFraction &&
 				node.cues[0].frame == 0.0f && node.cues[1].frame == 24.0f,
 				"atFrame cues parse as frame-carrying fraction positions");
@@ -537,6 +539,13 @@ int main()
 			"a fractional hold parks mid-clip and keeps its timer as the way out");
 	} else {
 		Check(false, "test.hold.timed loads");
+	}
+	Check(!reg.Find("test.reg.cue.badrole") && !reg.Find("test.reg.cue.rolenumber"),
+		"a cue role must be a string naming a declared role");
+	{
+		const auto errors = reg.LoadErrors();
+		CheckError(errors, "cue 'c' references undeclared role 'ghost'", "an undeclared cue role names itself");
+		CheckError(errors, "cue 'c' role must be a string", "a non-string cue role is explained");
 	}
 	Check(!reg.Find("test.hold.loops"), "'hold' with 'loops' is rejected — a frozen clip never loops");
 	Check(!reg.Find("test.hold.range"), "a hold outside [0, 1] is rejected");
@@ -775,7 +784,7 @@ int main()
 	for (const auto& e : errors) {
 		std::cout << "  diag: " << e << '\n';
 	}
-	Check(errors.size() == 50, "exactly the fifty expected diagnostics");
+	Check(errors.size() == 52, "exactly the fifty-two expected diagnostics");
 	CheckError(errors, "'fixture_registry_errors.osf.json': scene 'test.err.unknown': role reference 'nope'",
 		"unknown-reference diagnostic carries file + scene + role id");
 	CheckError(errors, "scene 'test.err.case': role reference 'F'", "case-sensitive reference diagnostic");

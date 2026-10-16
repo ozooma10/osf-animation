@@ -275,8 +275,9 @@ namespace OSF::Scene
 		static void Fire(std::int32_t a_handle, std::int32_t a_event, std::string_view a_node, std::string_view a_trackPosition,
 			std::string_view a_edge = {});
 
+		// A non-empty a_role sets the event's role and its bound actor.
 		static void DispatchCue(std::int32_t a_handle, std::string_view a_node, std::string_view a_cue,
-			std::string_view a_trackPosition, float a_time);
+			std::string_view a_role, std::string_view a_trackPosition, float a_time);
 
 		// Enter/exit entries only; timed ones go through OnTimedMarks.
 		static void DispatchLifecycleCues(std::int32_t a_handle, std::string_view a_node, bool a_enter);

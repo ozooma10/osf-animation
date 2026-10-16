@@ -91,8 +91,8 @@ namespace OSF::Scene
 				return;
 			}
 			auto& marks = a_plan.stages.back().marks;
-			// Cue token = cue id; other lanes' token = entry index.
-			ScheduleMarks(marks, a_node.cues, Registry::CuePos::kFraction, Registry::CuePos::kEnd, kLaneCue, [](const auto& a_cue, std::size_t) { return a_cue.id; });
+			// Every lane's token is the entry index into the node's lane.
+			ScheduleMarks(marks, a_node.cues, Registry::CuePos::kFraction, Registry::CuePos::kEnd, kLaneCue, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.actions, Registry::ActionPos::kFraction, Registry::ActionPos::kEnd, kLaneAction, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.sounds, Registry::SoundPos::kFraction, Registry::SoundPos::kEnd, kLaneSound, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
 			ScheduleMarks(marks, a_node.cameras, Registry::CameraPos::kFraction, Registry::CameraPos::kEnd, kLaneCamera, [](const auto&, std::size_t a_i) { return std::to_string(a_i); });
@@ -150,10 +150,13 @@ namespace OSF::Scene
 			std::find(participants.begin(), participants.end(), static_cast<RE::Actor*>(player)) != participants.end();
 
 		// Cues are deferred until the tick's other entries have run.
-		std::vector<std::string> cueIds;
+		std::vector<Registry::CueEntry> cues;
 		for (const auto& m : marks) {
 			if (m.lane == kLaneCue) {
-				cueIds.push_back(m.token);
+				std::size_t idx = 0;
+				if (node && ParseIndexToken(m.token, node->cues.size(), idx)) {
+					cues.push_back(node->cues[idx]);
+				}
 			} else if (m.lane == kLaneAction && node) {
 				std::size_t idx = 0;
 				if (ParseIndexToken(m.token, node->actions.size(), idx)) {
@@ -174,8 +177,8 @@ namespace OSF::Scene
 		}
 
 		// TODO: thread the fired fraction back from the Scene; time is sent as -1.
-		for (const auto& id : cueIds) {
-			DispatchCue(handle, oldNode, id, "", -1.0f);
+		for (const auto& cue : cues) {
+			DispatchCue(handle, oldNode, cue.id, cue.role, "", -1.0f);
 		}
 
 		// First fired cue with a matching trigger edge wins. Re-resolve: an action above may have
@@ -190,8 +193,8 @@ namespace OSF::Scene
 				const auto d = s->definition;
 				const auto* n = d ? d->FindNode(s->node) : nullptr;
 				if (n) {
-					for (const auto& id : cueIds) {
-						const auto want = Util::ToLower(id);
+					for (const auto& cue : cues) {
+						const auto want = Util::ToLower(cue.id);
 						const Registry::SceneEdge* edge = nullptr;
 						for (const auto& e : n->edges) {
 							if (e.when == Registry::EdgeWhen::kTrigger && Util::ToLower(e.trigger) == want) {

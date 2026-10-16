@@ -83,13 +83,23 @@
       }]
     },
     {
+      "id": "test.reg.cue.badrole",
+      "roles": [{ "name": "player" }],
+      "stages": [{ "clips": ["Fixture/x.glb"], "cue": [{ "at": 0.5, "id": "c", "role": "ghost" }] }]
+    },
+    {
+      "id": "test.reg.cue.rolenumber",
+      "roles": [{ "name": "player" }],
+      "stages": [{ "clips": ["Fixture/x.glb"], "cue": [{ "at": 0.5, "id": "c", "role": 3 }] }]
+    },
+    {
       "id": "test.reg.frames",
       "roles": [{ "name": "player" }],
       "stages": [{
         "clips": ["Fixture/x.glb"],
         "cue": [
           { "atFrame": 0, "id": "frames.start" },
-          { "atFrame": 24, "id": "frames.beat" },
+          { "atFrame": 24, "id": "frames.beat", "role": "PLAYER" },
           { "at": 0.5, "id": "frames.fraction" }
         ],
         "action": [

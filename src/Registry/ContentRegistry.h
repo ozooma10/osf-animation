@@ -96,6 +96,7 @@ namespace OSF::Registry
 		float        frame = -1.0f;     // authored `atFrame`; < 0 = authored as a fraction
 		bool         everyLoop = false;  // repeat:"loop" (numeric only)
 		std::string  id;
+		std::string  role;               // optional: the event carries this role and its bound actor
 	};
 
 	enum class ActionKind : std::uint8_t

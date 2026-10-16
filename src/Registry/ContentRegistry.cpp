@@ -1368,6 +1368,12 @@ namespace OSF::Registry
 				if (ce.id.empty()) {
 					throw std::runtime_error("node '" + a_node.id + "': a cue track entry is missing 'id'");
 				}
+				if (const auto role = c.find("role"); role != c.end()) {
+					if (!role->is_string()) {
+						throw std::runtime_error("node '" + a_node.id + "': cue '" + ce.id + "' role must be a string");
+					}
+					ce.role = role->get<std::string>();
+				}
 				ParseTrackTiming(c, ce, a_node.id, "cue '" + ce.id + "'", /*a_atRequired*/ true);
 				a_node.cues.push_back(std::move(ce));
 			}
@@ -1508,6 +1514,12 @@ namespace OSF::Registry
 					if (!s.role.empty() && !roleNames.count(ToLower(s.role))) {
 						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' sound '" + s.spec +
 							"' references undeclared role '" + s.role + "'");
+					}
+				}
+				for (const auto& c : nd.cues) {
+					if (!c.role.empty() && !roleNames.count(ToLower(c.role))) {
+						throw std::runtime_error("scene '" + def.id + "': node '" + nd.id + "' cue '" + c.id +
+							"' references undeclared role '" + c.role + "'");
 					}
 				}
 			}

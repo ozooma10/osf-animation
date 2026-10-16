@@ -83,6 +83,9 @@ for installation, saved preferences, and hotkey changes.
   the retained one.
 - Papyrus adds `StartSceneByQuery`, `FindSceneByQuery` and `ReplaceSceneByQuery`, mirroring the
   native query calls with a `string[]` of per-actor role constraints and an anchor-required flag.
+- Cue lane entries accept an optional `role`. The cue event then carries that role and its bound
+  participant in `role` / `actorRef`, so content can say whose moment a cue marks. Undeclared roles
+  are a load error.
 
 ### Changed
 

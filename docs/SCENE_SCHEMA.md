@@ -652,7 +652,7 @@ forwarded onto its desugared flow node), so a linear scene gets the full lane vo
 
 | Lane | Entry fields | Notes |
 |------|--------------|-------|
-| `cue` | `{ "at"\|"atFrame", "id", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. |
+| `cue` | `{ "at"\|"atFrame", "id", "role", "repeat" }` | Fires `EVENT_CUE`; a `cue` id can drive a `trigger:<id>` scene edge. Optional `role` names a declared role: the event's `role` is set and `actorRef` (native `actor`) is that role's bound participant. An undeclared role is a load error. |
 | `action` | `{ "at"\|"atFrame", "type", "role", "emitter", "hold", "duration", "set", "item", "prop", "use", "source", "attachmentNode", "position", "rotation", "scale", "repeat" }` | `osf.*` built-ins (below); any other namespace fires `EVENT_ACTION`. Fields are mechanism-specific. For prop attach, `attachmentNode` names the actor **attachment node**, not a flow node; legacy alias `node` remains accepted. |
 | `sound` | `{ "at"\|"atFrame", "spec", "role", "emitter", "repeat" }` — an **array/object** position makes it a **ladder** (see below) | `spec` is a Data-relative file or `"event:<name>"` Wwise spec (`spec` is canonical; `sound`/`pool` are accepted aliases). `role` selects the actor's voice channel, gender substitution, and subtitle speaker. `emitter` is `"listener"` (default) or `"role"` for world-positioned audio that follows that actor. A clip can carry **subtitle text** (a spoken line) — see below. |
 | `camera` | `{ "at"\|"atFrame", "state", "repeat" }` | `state` is a held camera posture (see below). Player-only (NPC scenes ignore it). |
