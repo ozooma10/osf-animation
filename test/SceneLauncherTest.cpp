@@ -194,8 +194,8 @@ int main()
 	Check(LaunchDef("demo", cast, opts, tag, &roles) == 42 && calls.path == "roles" && calls.roles == roles &&
 		calls.actors == cast && calls.entry == "stage-one" && calls.overrides.hideApparel == false && calls.overrides.camera == "none",
 		"named launch forwards names, cast, stage and overrides to the runtime's role binder");
-	Check(calls.order == std::vector<std::string>{ "start", "speed" } && calls.speedActor == actorA && calls.speed == 1.5f,
-		"native speed override is applied only after start, using the original first actor");
+	Check(calls.order == std::vector<std::string>{ "start" } && calls.overrides.speed == 1.5f,
+		"native speed seeds the scene before entry playback and callbacks");
 	Reset();
 	calls.handle = 0;
 	Check(LaunchDef("demo", cast, opts, tag) == 0 && calls.order == std::vector<std::string>{ "start" },
@@ -213,7 +213,8 @@ int main()
 	papyrus.fadeMode = 1; papyrus.followActorMode = 1; papyrus.camera = "none"; papyrus.loopScale = 2;
 	const auto launch = MakeDefLaunchOptions(papyrus);
 	Check(LaunchDef("demo", cast, launch, tag) == 42 && calls.entry == "stage-one" &&
-		calls.order == std::vector<std::string>{ "anchor", "start" }, "Papyrus registered starts keep authored speed and use the requested stage");
+		calls.order == std::vector<std::string>{ "anchor", "start" } && calls.overrides.speed == 2,
+		"Papyrus registered starts honor speed and the requested stage");
 	Check(calls.heading && std::abs(*calls.heading - 90 * OSF::Util::kDegToRadF) < 0.0001f && calls.anchorHud &&
 		calls.overrides.hideApparel == false && calls.overrides.playerInputLock == true && calls.overrides.sceneControls == false &&
 		calls.overrides.fade == true && calls.overrides.worldPlacement == OSF::Animation::WorldPlacementMode::kFollowActor &&
@@ -228,8 +229,8 @@ int main()
 	OSF::Matchmaking::TagQuery query{ { "all" }, { "any" }, { "none" } };
 	Check(LaunchMatched(cast, query, papyrus, tag, OSF::Matchmaking::AnchorMode::kRequire) == 42 &&
 		calls.actors == std::vector<RE::Actor*>{ actorB, actorA } && calls.entry.empty() &&
-		calls.order == std::vector<std::string>{ "match", "anchor", "start" },
-		"matchmade starts preserve picked cast order, authored entry and authored speed");
+		calls.order == std::vector<std::string>{ "match", "anchor", "start" } && calls.overrides.speed == 2,
+		"matchmade starts preserve picked cast order and authored entry and honor launch speed");
 	Check(calls.matchMode == OSF::Matchmaking::AnchorMode::kRequire && calls.anchorRef == furniture &&
 		calls.query.allOf == query.allOf && calls.query.anyOf == query.anyOf && calls.query.noneOf == query.noneOf,
 		"matchmade starts preserve furniture and tag filters");

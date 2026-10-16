@@ -49,11 +49,11 @@ namespace OSF::Scene
 		SceneRuntime::AnchorOverride worldAnchor;  // used only without a ref; cannot satisfy furniture requirements
 		std::int32_t stage = 0;
 		InvalidStagePolicy invalidStage = InvalidStagePolicy::kReject;
-		std::optional<float> speed;  // applied after a successful start; absent preserves authored speed
+		std::optional<float> speed;  // seeds scene-owned speed before entry playback
 		bool emitHud = true;
 	};
 
-	// Papyrus registered-scene options: speed/blend belong only to ad-hoc plans.
+	// Papyrus registered-scene options: Speed applies to the scene; BlendIn remains ad-hoc only.
 	DefLaunchOptions MakeDefLaunchOptions(const LaunchOpts& a_opts);
 
 	// Shared registered-scene entry for adapters and matchmaking. Game-thread call.

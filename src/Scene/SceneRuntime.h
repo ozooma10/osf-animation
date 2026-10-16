@@ -36,6 +36,7 @@ namespace OSF::Scene
 			std::optional<std::string> camera;  // "none" = vanilla camera; when set, node cameras are suppressed
 			std::optional<Animation::WorldPlacementMode> worldPlacement;
 			float               loopScale = 1.0f;  // multiplies loop-driven (loops>0) stages only, floored
+			std::optional<float> speed;
 		};
 
 		void RegisterWithGraphManager();
@@ -51,6 +52,9 @@ namespace OSF::Scene
 
 		bool Stop(std::int32_t a_scene);
 		bool StopForActor(RE::Actor* a_actor);
+		bool SetSpeed(std::int32_t a_scene, float a_speed);
+		float GetSpeed(std::int32_t a_scene);
+		bool TogglePause(std::int32_t a_scene);
 
 		// Enters at the def's `entry`, or a_entryNode when non-empty. 0 = unknown scene or node.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
@@ -181,6 +185,7 @@ namespace OSF::Scene
 			AnchorOverride          frozenAnchor;
 			ActorBaseline           baseline;
 			float                   loopScale = 1.0f;
+			SceneSpeed              speed;
 			std::optional<Animation::WorldPlacementMode> worldPlacement;
 			bool                    singleStage = false;
 			bool                    cameraOverridden = false;  // authored node cameras stand down

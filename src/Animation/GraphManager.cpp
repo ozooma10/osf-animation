@@ -877,18 +877,37 @@ namespace OSF::Animation
 			return false;
 		}
 		const float speed = std::clamp(a_speed, 0.0f, 100.0f);
+		PlaybackId playbackId = 0;
+		PlaybackSinkId sinkId = 0;
+		{
+			std::shared_lock l{ stateLock };
+			auto iter = graphs.find(a_actor);
+			if (iter == graphs.end()) return false;
+			std::scoped_lock gl{ iter->second->stateLock };
+			const auto* session = iter->second->playbackSession;
+			if (!session) {
+				if (iter->second->syncGroup) iter->second->syncGroup->speed.store(speed, std::memory_order_relaxed);
+				return true;
+			}
+			playbackId = session->playbackId;
+			sinkId = session->playbackSinkId;
+		}
+		// Never call a sink while holding manager/graph locks; it owns persistent scene state.
+		if (const auto sink = GetPlaybackSink(sinkId); sink && sink->setSpeed)
+			return sink->setSpeed(playbackId, speed);
+		return SetPlaybackSpeed(a_actor, playbackId, speed);
+	}
+
+	bool GraphManager::SetPlaybackSpeed(RE::Actor* a_actor, PlaybackId a_playbackId, float a_speed)
+	{
+		if (!a_actor || !a_playbackId || !std::isfinite(a_speed)) return false;
 		std::shared_lock l{ stateLock };
-		auto iter = graphs.find(a_actor);
-		if (iter == graphs.end()) {
-			return false;
-		}
-		std::scoped_lock gl{ iter->second->stateLock };
-		// Participants use the session clock; synced solo graphs advance by the group speed, not the owner's.
-		if (iter->second->playbackSession) {
-			iter->second->playbackSession->speed = speed;
-		} else if (iter->second->syncGroup) {  // null only before SetAnimation runs
-			iter->second->syncGroup->speed.store(speed, std::memory_order_relaxed);
-		}
+		const auto it = graphs.find(a_actor);
+		if (it == graphs.end()) return false;
+		std::scoped_lock gl{ it->second->stateLock };
+		const auto& session = it->second->playbackSession;
+		if (!session || session->playbackId != a_playbackId) return false;
+		session->speed = std::clamp(a_speed, 0.0f, 100.0f);
 		return true;
 	}
 

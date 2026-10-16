@@ -13,6 +13,21 @@ namespace OSF::Scene
 
 	using ActorBaseline = std::vector<std::pair<RE::Actor*, std::pair<RE::NiPoint3, float>>>;
 
+	struct SceneSpeed
+	{
+		float value = 1.0f;
+		float prePause = 0.0f;
+		bool Set(float a_speed)
+		{
+			if (!std::isfinite(a_speed)) return false;
+			if (a_speed <= 0.0f && value > 0.0f) prePause = value;
+			value = std::clamp(a_speed, 0.0f, 100.0f);
+			return true;
+		}
+		float ToggleValue() const { return value > 0.0f ? 0.0f : (prePause > 0.0f ? prePause : 1.0f); }
+		void Apply(Animation::PlaybackPlan& a_plan) const { a_plan.speed = value; }
+	};
+
 	// Identity, rather than role position, owns the original transform across role swaps.
 	inline void ApplyScenePlacement(Animation::PlaybackPlan& a_plan, const WorldAnchor& a_explicit,
 		const WorldAnchor& a_frozen, const ActorBaseline& a_baseline, const std::vector<RE::Actor*>& a_cast)

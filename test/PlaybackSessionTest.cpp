@@ -51,6 +51,23 @@ namespace
 
 int main()
 {
+	Run("scene speed survives rebuilds and pause is per scene", [] {
+		OSF::Scene::SceneSpeed a, b;
+		a.Set(0.5f);
+		PlaybackPlan plan;
+		for (int node = 0; node < 5; ++node) {
+			a.Apply(plan);
+			Near(plan.speed, 0.5f, "plan receives persistent speed on every entry");
+		}
+		a.Set(a.ToggleValue());
+		b.Set(2); b.Set(b.ToggleValue());
+		a.Apply(plan); Near(plan.speed, 0, "paused scene remains paused across nodes");
+		a.Set(a.ToggleValue()); b.Set(b.ToggleValue());
+		Near(a.value, 0.5f, "scene A resumes its own speed");
+		Near(b.value, 2, "scene B resumes its own speed");
+		Check(!a.Set(std::numeric_limits<float>::quiet_NaN()) && a.value == 0.5f, "non-finite speed cannot corrupt state");
+		a.Set(200); Near(a.value, 100, "API speed upper bound");
+	});
 	Run("frozen placement and actor-owned restore baseline", [] {
 		auto* a = reinterpret_cast<RE::Actor*>(1);
 		auto* b = reinterpret_cast<RE::Actor*>(2);

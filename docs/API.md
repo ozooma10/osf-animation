@@ -10,6 +10,12 @@ Scene node transitions keep the world anchor resolved on first playback. An expl
 also enables transform restoration on termination; a frozen implicit anchor does not. Restore
 baselines are captured once per actor at scene start and survive node changes and role swaps.
 
+`SetSceneSpeed(handle, speed)` / `GetSceneSpeed(handle)` use scene-owned speed, retained across
+all node changes. Actor-based `SetSpeed` also updates this state for participants. Values clamp
+to 0..100 (0 pauses); engine-services calls reject negative values, and hotkey adjustments use
+0.1..5. Invalid/ended scene queries return -1. Timers and loop counts use scaled playback time,
+so changing speed stretches authored timing. Pause/resume remembers speed independently per scene.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the

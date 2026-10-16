@@ -28,6 +28,7 @@ namespace OSF::Animation
 			PlaybackAutoEndHandler autoEnd;
 			PlaybackTimedMarkHandler timedMarks;
 			PlaybackClearHandler clear;
+			std::function<bool(PlaybackId, float)> setSpeed;
 		};
 
 		PlaybackSinkId RegisterPlaybackSink(PlaybackSink a_sink);
@@ -106,6 +107,8 @@ namespace OSF::Animation
 
 		// 1.0 = authored, 0 = freeze; clamped 0..100. Scene participants share the scene clock speed.
 		bool SetSpeed(RE::Actor* a_actor, float a_speed);
+		// Playback owner only; bypasses routing back to the sink and verifies session identity.
+		bool SetPlaybackSpeed(RE::Actor* a_actor, PlaybackId a_playbackId, float a_speed);
 		float GetSpeed(RE::Actor* a_actor);
 
 		// SOLO graphs only; heading in degrees, rootMode 0=pin / 1=follow (2 = deprecated follow alias).

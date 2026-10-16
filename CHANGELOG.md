@@ -28,6 +28,8 @@ for installation, saved preferences, and hotkey changes.
 
 - Framework foundation: scene anchors remain fixed across node transitions; explicit-anchor
   scenes restore the original transform by actor identity, including after role reordering.
+- Scene-owned speed and per-scene pause memory survive node transitions. Papyrus adds
+  `SetSceneSpeed` / `GetSceneSpeed`; registered starts now honor `SceneOptions.Speed`.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support

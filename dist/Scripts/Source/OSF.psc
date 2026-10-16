@@ -78,6 +78,10 @@ bool Function SetSpeed(Actor akActor, float afSpeed) Global Native
 ; Current playback speed for akActor (scene clock for a participant), or 0.0 if no live graph.
 float Function GetSpeed(Actor akActor) Global Native
 
+; Scene-owned speed survives node changes. 0 pauses; range 0..100. Invalid handle returns -1.
+bool Function SetSceneSpeed(int aiScene, float afSpeed) Global Native
+float Function GetSceneSpeed(int aiScene) Global Native
+
 ; Pins akActor's solo graph to a WORLD point + heading (DEGREES) and moves the capsule there.
 ; aiRootMode: 0 = pin (lock rendered root at the point), 1 = follow (ride the actor).
 ; Refused for scene participants (placement is scene-driven); false if no live graph.

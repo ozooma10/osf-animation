@@ -62,7 +62,7 @@ namespace OSF::API
 		// Game thread. JSON array: handle, id, stage, time, duration, speed, participant form IDs.
 		bool (*ReadActiveScenes)(TextCallback, void*);
 		bool (*SetSingleStage)(std::int32_t);
-		bool (*SetSceneSpeed)(std::int32_t, float); // permits 0 (pause), unlike solo-clip SetSpeed
+		bool (*SetSceneSpeed)(std::int32_t, float); // scene-owned across nodes; 0 pauses, clamps to 100
 		float (*GetSceneSpeed)(std::int32_t); // -1 for an invalid/ended handle
 		// Game thread, borrowed UTF-8 species/gender copied through callback.
 		bool (*ReadActorIdentity)(RE::Actor*, TextCallback, void*);

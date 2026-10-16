@@ -231,6 +231,7 @@ namespace OSF::Scene
 		AnchorOverride anchor;
 		AnchorOverride frozenAnchor;
 		ActorBaseline baseline;
+		SceneSpeed speed;
 		{
 			std::lock_guard l{ GetSingleton()._lock };
 			std::int32_t tok = 0;
@@ -241,6 +242,7 @@ namespace OSF::Scene
 				anchor = s->anchor;
 				frozenAnchor = s->frozenAnchor;
 				baseline = s->baseline;
+				speed = s->speed;
 				loopScale = s->loopScale;
 				placementOverride = s->worldPlacement;
 			}
@@ -255,6 +257,7 @@ namespace OSF::Scene
 			return 0;
 		}
 		ApplyScenePlacement(*plan, anchor, frozenAnchor, baseline, a_participants);
+		speed.Apply(*plan);
 		if (placementOverride.has_value()) {
 			plan->SetWorldPlacementMode(*placementOverride);
 		}
@@ -688,6 +691,7 @@ namespace OSF::Scene
 					s->anchor = a_anchor;
 				}
 				s->loopScale = a_over.loopScale;
+				s->speed.Set(a_over.speed.value_or(1.0f));
 				s->worldPlacement = a_over.worldPlacement;
 				s->cameraOverridden = a_over.camera.has_value();
 			}
@@ -850,6 +854,8 @@ namespace OSF::Scene
 			std::lock_guard l{ _lock };
 			auto* s = Resolve(handle);
 			s->anchor = a_anchor;
+			s->speed.Set(a_over.speed.value_or(a_plan.speed));
+			s->speed.Apply(a_plan);
 			s->worldPlacement = a_over.worldPlacement.value_or(a_plan.anchored ?
 				Animation::WorldPlacementMode::kAnchorAndPin : Animation::WorldPlacementMode::kFollowActor);
 			ApplyScenePlacement(a_plan, a_anchor, {}, s->baseline, a_participants);

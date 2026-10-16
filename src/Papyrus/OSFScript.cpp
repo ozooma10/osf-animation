@@ -205,6 +205,16 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().GetSpeed(a_actor);
 		}
 
+		bool SetSceneSpeed(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, float a_speed)
+		{
+			return Scene::SceneRuntime::GetSingleton().SetSpeed(a_scene, a_speed);
+		}
+
+		float GetSceneSpeed(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().GetSpeed(a_scene);
+		}
+
 		bool SetAnchor(OSFVM&, uint32_t, std::monostate, RE::Actor* a_actor,
 			float a_x, float a_y, float a_z, float a_headingDeg, int32_t a_rootMode)
 		{
@@ -651,6 +661,8 @@ namespace OSF::Papyrus
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSpeed", &SetSpeed, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSpeed", &GetSpeed, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneSpeed", &SetSceneSpeed, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneSpeed", &GetSceneSpeed, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetAnchor", &SetAnchor, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ClearAnchor", &ClearAnchor, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetCurrentAnimation", &GetCurrentAnimation, true, false);

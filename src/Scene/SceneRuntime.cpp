@@ -24,8 +24,6 @@ namespace OSF::Scene
 				REX::DEBUG("[Scene] input verb {} dropped — scene {:#010x} already ended", static_cast<int>(a_verb), a_grant.handle);
 				return;
 			}
-			auto&              gm = Animation::GraphManager::GetSingleton();
-			static float       s_prePauseSpeed = 1.0f;  // game-thread only
 			constexpr float    kStep = 0.25f;
 			constexpr float    kMax = 5.0f;
 			constexpr float    kMin = 0.1f;
@@ -75,22 +73,16 @@ namespace OSF::Scene
 				rt.Stop(a_grant.handle);  // Grant.locked enforced in InputService
 				break;
 			case Input::Verb::kSpeedUp:
-				gm.SetSpeed(a_grant.driver, std::min(gm.GetSpeed(a_grant.driver) + kStep, kMax));
+				rt.SetSpeed(a_grant.handle, std::min(rt.GetSpeed(a_grant.handle) + kStep, kMax));
 				break;
 			case Input::Verb::kSpeedDown:
-				gm.SetSpeed(a_grant.driver, std::max(gm.GetSpeed(a_grant.driver) - kStep, kMin));
+				rt.SetSpeed(a_grant.handle, std::max(rt.GetSpeed(a_grant.handle) - kStep, kMin));
 				break;
 			case Input::Verb::kSpeedReset:
-				gm.SetSpeed(a_grant.driver, 1.0f);
+				rt.SetSpeed(a_grant.handle, 1.0f);
 				break;
 			case Input::Verb::kPause: {
-				const float cur = gm.GetSpeed(a_grant.driver);
-				if (cur > 0.0f) {
-					s_prePauseSpeed = cur;
-					gm.SetSpeed(a_grant.driver, 0.0f);
-				} else {
-					gm.SetSpeed(a_grant.driver, s_prePauseSpeed > 0.0f ? s_prePauseSpeed : 1.0f);
-				}
+				rt.TogglePause(a_grant.handle);
 				break;
 			}
 			default:
@@ -116,6 +108,15 @@ namespace OSF::Scene
 				return SceneRuntime::GetSingleton().OnGraphAutoEnd(a_playbackId, a_actors, a_reason);
 			};
 		// Handles hold raw Actor* participants; drop them on load teardown.
+		sink.setSpeed = [](Animation::PlaybackId a_playbackId, float a_speed) {
+			auto& rt = GetSingleton();
+			std::int32_t handle = 0;
+			{
+				std::lock_guard l{ rt._lock };
+				if (!rt.FindSlotForPlayback(a_playbackId, &handle)) return false;
+			}
+			return rt.SetSpeed(handle, a_speed);
+		};
 		sink.clear = []() { SceneRuntime::GetSingleton().Clear(); };
 		sink.timedMarks = [](Animation::PlaybackId a_playbackId, const std::vector<RE::Actor*>& a_actors,
 			const std::vector<Animation::FiredMark>& a_marks) {
@@ -302,6 +303,37 @@ namespace OSF::Scene
 		std::lock_guard l{ _lock };
 		Slot* s = Resolve(a_scene);
 		return s ? s->node : std::string{};
+	}
+
+	bool SceneRuntime::SetSpeed(std::int32_t a_scene, float a_speed)
+	{
+		std::lock_guard l{ _lock };
+		auto* s = Resolve(a_scene);
+		if (!s || s->participants.empty() || !std::isfinite(a_speed)) return false;
+		auto next = s->speed;
+		next.Set(a_speed);
+		if (!Animation::GraphManager::GetSingleton().SetPlaybackSpeed(s->participants.front(), s->playbackId, next.value)) return false;
+		s->speed = next;
+		return true;
+	}
+
+	float SceneRuntime::GetSpeed(std::int32_t a_scene)
+	{
+		std::lock_guard l{ _lock };
+		const auto* s = Resolve(a_scene);
+		return s ? s->speed.value : -1.0f;
+	}
+
+	bool SceneRuntime::TogglePause(std::int32_t a_scene)
+	{
+		float next;
+		{
+			std::lock_guard l{ _lock };
+			const auto* s = Resolve(a_scene);
+			if (!s) return false;
+			next = s->speed.ToggleValue();
+		}
+		return SetSpeed(a_scene, next);
 	}
 
 	void SceneRuntime::SetSingleStage(std::int32_t a_scene)

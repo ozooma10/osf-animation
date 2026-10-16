@@ -734,10 +734,6 @@ namespace OSF::API
 			const auto handle = *parsed;
 			auto* api = SceneAPI();
 			const bool ok = api && handle != 0 && api->Advance(handle);
-			// Keep a paused scene paused across NEXT.
-			if (ok && g_resumeSpeeds.contains(handle)) {
-				EngineClient::Get().SetSceneSpeed(handle, 0.0f);
-			}
 			REX::DEBUG("[UI] osf.animation.advance handle={} -> {}", handle, ok);
 		}
 

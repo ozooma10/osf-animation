@@ -112,6 +112,7 @@ namespace OSF::Scene
 		launch.anchorRef = a_opts.anchor;
 		launch.headingRad = OptHeadingRad(a_opts);
 		launch.stage = a_opts.stage;
+		launch.speed = a_opts.speed;
 		return launch;
 	}
 
@@ -139,16 +140,15 @@ namespace OSF::Scene
 			anchor = *resolved;
 		}
 		auto& rt = SceneRuntime::GetSingleton();
+		auto overrides = a_opts.overrides;
+		if (a_opts.speed) overrides.speed = a_opts.speed;
 		std::int32_t handle;
 		if (a_roles) {
-			handle = rt.StartFromDefRoles(a_sceneId, a_actors, *a_roles, anchor, a_opts.overrides, *entryNode);
+			handle = rt.StartFromDefRoles(a_sceneId, a_actors, *a_roles, anchor, overrides, *entryNode);
 		} else if (anchor.set) {
-			handle = rt.StartFromDefAt(a_sceneId, a_actors, anchor.pos, anchor.heading, a_opts.overrides, *entryNode);
+			handle = rt.StartFromDefAt(a_sceneId, a_actors, anchor.pos, anchor.heading, overrides, *entryNode);
 		} else {
-			handle = rt.StartFromDef(a_sceneId, a_actors, a_opts.overrides, *entryNode);
-		}
-		if (handle && a_opts.speed && *a_opts.speed != 1.0f) {
-			Animation::GraphManager::GetSingleton().SetSpeed(a_actors.front(), *a_opts.speed);
+			handle = rt.StartFromDef(a_sceneId, a_actors, overrides, *entryNode);
 		}
 		return handle;
 	}

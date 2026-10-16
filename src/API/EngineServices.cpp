@@ -133,12 +133,10 @@ namespace OSF::API::EngineServices
 			[](std::int32_t handle) { auto& rt = Scene::SceneRuntime::GetSingleton(); if (rt.GetParticipants(handle).empty()) return false; rt.SetSingleStage(handle); return true; },
 			[](std::int32_t handle, float speed) {
 				if (!std::isfinite(speed) || speed < 0) return false;
-				const auto actors=Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
-				return !actors.empty() && Animation::GraphManager::GetSingleton().SetSpeed(actors.front(), speed);
+				return Scene::SceneRuntime::GetSingleton().SetSpeed(handle, speed);
 			},
 			[](std::int32_t handle) {
-				const auto actors=Scene::SceneRuntime::GetSingleton().GetParticipants(handle);
-				return actors.empty() ? -1.0f : Animation::GraphManager::GetSingleton().GetSpeed(actors.front());
+				return Scene::SceneRuntime::GetSingleton().GetSpeed(handle);
 			},
 			[](RE::Actor* actor, TextCallback callback, void* context) {
 				try { return actor && Send(json{{"species",Util::ActorSpecies(actor)},{"gender",Matchmaking::ActorGenderTag(actor)}},callback,context); } catch (...) { return false; }

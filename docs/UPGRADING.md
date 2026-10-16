@@ -4,6 +4,10 @@ Version 1.5.0 separates the engine from the optional in-game Browser and moves
 settings, hotkeys, and the launcher into OSF Settings. Use the two matching 1.5.0
 packages when you want the browser or emote wheel.
 
+Registered Papyrus scene starts now honor `SceneOptions.Speed`, including matchmade starts;
+previously that field was ignored for registered scenes. Leave it at 1 for authored playback.
+Speed changes and pause now persist through Advance, stage changes, and automatic node transitions.
+
 ## Choose the packages
 
 | Package | Installs | Requirements |
