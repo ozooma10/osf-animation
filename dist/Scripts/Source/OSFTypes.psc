@@ -5,7 +5,7 @@ Struct SceneOptions
     ObjectReference Anchor    ; world-anchor at this ref (furniture/bed/marker) instead of akActors[0]
     float HeadingDeg = -1.0   ; < 0 = Anchor's own heading
     int Stage = 0             ; enter on this linear stage (start stage for OSFAdvanced.StartSceneStages); 0 = scene entry
-    float Speed = 1.0         ; OSFAdvanced dynamic file/stage starts
+    float Speed = 1.0         ; all starts; retained across node changes, 0 pauses
     float BlendIn = 0.4       ; OSFAdvanced dynamic file/stage starts
 
     ; Tri-states: use OSF.INHERIT()/OFF()/ON(); 0 forces off. Default -1 inherits the scene's value.
@@ -33,5 +33,7 @@ Struct SceneEvent
     float time          ; clip-local fraction, or -1.0 for a named anchor
     string anchor       ; "", "enter", "exit", "end"
     int result          ; OSF.RESULT_*()
+    int cause = -1      ; SCENE_END only: CAUSE_COMPLETED/CANCELLED/INTERRUPTED
+    string sceneId      ; definition id at dispatch; empty for ad-hoc scenes
 EndStruct
 

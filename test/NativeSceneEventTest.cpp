@@ -13,6 +13,11 @@
 
 using OSF::Test::Finish;
 
+// Consumers of the old prefix must not mistake former tail padding for a new field.
+static_assert(offsetof(OSF::API::OSFSceneEvent, result) == 80);
+static_assert(offsetof(OSF::API::OSFSceneEvent, cause) == 88);
+static_assert(offsetof(OSF::API::OSFSceneEvent, sceneId) == 96);
+
 namespace
 {
 	struct Recorder

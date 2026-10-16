@@ -305,6 +305,13 @@ namespace OSF::Scene
 		return s ? s->node : std::string{};
 	}
 
+	std::string SceneRuntime::GetSceneId(std::int32_t a_scene)
+	{
+		std::lock_guard l{ _lock };
+		const auto* s = Resolve(a_scene);
+		return s ? s->id : std::string{};
+	}
+
 	bool SceneRuntime::SetSpeed(std::int32_t a_scene, float a_speed)
 	{
 		std::lock_guard l{ _lock };

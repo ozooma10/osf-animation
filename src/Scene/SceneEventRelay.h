@@ -29,6 +29,8 @@ namespace OSF::Scene
 		float        time = -1.0f;     // clip-local fraction, -1 for a named track position
 		std::string  trackPosition;    // "", "enter", "exit", "end"; Papyrus field `anchor`
 		std::int32_t result = 0;       // RESULT_*
+		std::int32_t cause = -1;       // SCENE_END only: completed=0, cancelled=1, interrupted=2
+		std::string sceneId;
 	};
 
 	// Thread-safe.

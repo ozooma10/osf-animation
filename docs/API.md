@@ -16,6 +16,13 @@ to 0..100 (0 pauses); engine-services calls reject negative values, and hotkey a
 0.1..5. Invalid/ended scene queries return -1. Timers and loop counts use scaled playback time,
 so changing speed stretches authored timing. Pause/resume remembers speed independently per scene.
 
+Scene events now append `sceneId` (the definition id at dispatch, empty for ad-hoc scenes) and
+`cause`: SCENE_END reports `CAUSE_COMPLETED()` = 0, `CAUSE_CANCELLED()` = 1, or
+`CAUSE_INTERRUPTED()` = 2; other events report -1. Native scene ABI 1.4 appends these fields
+after the old 88-byte event prefix; check `size` before reading them from older hosts. Older
+Papyrus consumers remain compatible. World-replacing load teardown still emits no scene events
+into the discarded world.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the

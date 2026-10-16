@@ -37,6 +37,14 @@ namespace OSF::Scene
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = a_event;
+		{
+			auto& rt = GetSingleton();
+			std::lock_guard l{ rt._lock };
+			if (const auto* s = rt.Resolve(a_handle)) {
+				e.sceneId = s->id;
+				if (a_event == Event::kSceneEnd) e.cause = static_cast<std::int32_t>(s->terminationCause);
+			}
+		}
 		e.node = std::string(a_node);
 		e.trackPosition = std::string(a_trackPosition);
 		SceneEventRelay::GetSingleton().Dispatch(e);
@@ -62,6 +70,7 @@ namespace OSF::Scene
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kCue;
+		e.sceneId = GetSingleton().GetSceneId(a_handle);
 		e.node = std::string(a_node);
 		e.cue = std::string(a_cue);
 		e.trackPosition = std::string(a_trackPosition);
@@ -183,6 +192,7 @@ namespace OSF::Scene
 		SceneEvent e;
 		e.scene = a_handle;
 		e.event = Event::kAction;
+		e.sceneId = GetSingleton().GetSceneId(a_handle);
 		e.node = std::string(a_node);
 		e.actionType = std::string(a_type);
 		e.role = std::string(a_role);

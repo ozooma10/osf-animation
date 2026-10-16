@@ -105,7 +105,9 @@ namespace OSF::API
 		static_assert(sizeof(OSFStartOptions::camera) == 64, "OSFStartOptions.camera buffer size changed");
 
 		static_assert(std::is_standard_layout_v<OSFSceneEvent>, "OSFSceneEvent must be standard-layout (POD ABI)");
-		static_assert(sizeof(OSFSceneEvent) == 88, "OSFSceneEvent layout changed - bump the API version");
+		static_assert(sizeof(OSFSceneEvent) == 104, "OSFSceneEvent layout changed - bump the API version");
+		static_assert(offsetof(OSFSceneEvent, cause) == 88);
+		static_assert(offsetof(OSFSceneEvent, sceneId) == 96);
 		static_assert(offsetof(OSFSceneEvent, size) == 0, "OSFSceneEvent.size must be first");
 		static_assert(offsetof(OSFSceneEvent, sceneHandle) == 4, "OSFSceneEvent.sceneHandle offset drift");
 		static_assert(offsetof(OSFSceneEvent, eventType) == 8, "OSFSceneEvent.eventType offset drift");
@@ -354,7 +356,9 @@ namespace OSF::API
 			.loopIndex = a_event.loopIndex,
 			.time = a_event.time,
 			.anchor = a_event.trackPosition.c_str(),  // frozen ABI field name
-			.result = a_event.result
+			.result = a_event.result,
+			.cause = a_event.cause,
+			.sceneId = a_event.sceneId.c_str()
 		};
 		SceneAPIImpl::GetSingleton().DispatchNativeSceneEvent(event);
 	}

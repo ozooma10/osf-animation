@@ -197,6 +197,16 @@ int Function ON() Global
 EndFunction
 
 ; Result codes (decode OSFTypes:SceneEvent.result).
+int Function CAUSE_COMPLETED() Global
+    return 0
+EndFunction
+int Function CAUSE_CANCELLED() Global
+    return 1
+EndFunction
+int Function CAUSE_INTERRUPTED() Global
+    return 2
+EndFunction
+
 int Function RESULT_OK() Global
     return 0
 EndFunction

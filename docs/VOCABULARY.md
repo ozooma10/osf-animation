@@ -70,7 +70,7 @@ describing the behavior.
 | **terminate** | Umbrella term for complete, cancel, or interrupt. | Use only when the cause is intentionally unspecified. |
 | **teardown** | Release runtime resources and reverse ledgered mechanisms after termination. | Teardown is cleanup, not a termination cause. |
 
-When current scene-end event ABIs emit an event, they report termination but do not carry a
-complete/cancel/interrupt cause. Some interruptions, notably world replacement, intentionally emit no
+Scene-end events carry a complete/cancel/interrupt cause and the definition id at dispatch.
+Some interruptions, notably world replacement, intentionally emit no
 callback into the discarded world. Consumers that require proof of natural completion must continue
 to use an authored completion cue.

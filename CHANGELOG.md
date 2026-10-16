@@ -30,6 +30,8 @@ for installation, saved preferences, and hotkey changes.
   scenes restore the original transform by actor identity, including after role reordering.
 - Scene-owned speed and per-scene pause memory survive node transitions. Papyrus adds
   `SetSceneSpeed` / `GetSceneSpeed`; registered starts now honor `SceneOptions.Speed`.
+- Scene events append definition identity and completed/cancelled/interrupted termination cause
+  (native scene ABI 1.4), preserving the original event prefix and Papyrus fields.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support

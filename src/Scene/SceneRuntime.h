@@ -91,6 +91,7 @@ namespace OSF::Scene
 
 		// Sentinels: "" / -1 / 0 when invalid.
 		std::string  GetNode(std::int32_t a_scene);
+		std::string  GetSceneId(std::int32_t a_scene);
 		std::int32_t GetStage(std::int32_t a_scene);  // linear scenes only
 		std::int32_t GetSceneForActor(RE::Actor* a_actor);
 
