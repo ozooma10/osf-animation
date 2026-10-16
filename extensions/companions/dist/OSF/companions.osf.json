@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "id": "osf.companions.sarah.hug",
+  "name": "A hug with Sarah",
+  "pack": "OSF Companions",
+  "tags": [
+    "hug",
+    "affection",
+    "companion",
+    "prototype"
+  ],
+  "hideApparel": false,
+  "clearHeldItems": true,
+  "playerInputLock": true,
+  "placement": "anchorAndPin",
+  "sceneControls": true,
+  "fade": false,
+  "camera": "scene_orbit",
+  "roles": [
+    {
+      "name": "embrace_F",
+      "gender": "any",
+      "preserveBones": [
+        "AnimObjectA",
+        "AnimObjectB",
+        "AnimObjectC",
+        "AnimObjectD",
+        "L_AnimObject1",
+        "L_AnimObject2",
+        "L_AnimObject3",
+        "R_AnimObject1",
+        "R_AnimObject2",
+        "R_AnimObject3",
+        "Weapon",
+        "WeaponLeft",
+        "Eye_Target",
+        "R_HandIk",
+        "L_HandIk",
+        "DirectAt",
+        "Camera Control",
+        "CamTargetParent",
+        "CameraTarget",
+        "Camera",
+        "L_Arm",
+        "R_Arm",
+        "Camera Control FP",
+        "R_Thigh_Twist",
+        "R_Thigh_Twist1",
+        "L_Thigh_Twist",
+        "L_Thigh_Twist1",
+        "C_Neck_Twist"
+      ]
+    },
+    {
+      "name": "embrace_M",
+      "gender": "any",
+      "preserveBones": [
+        "AnimObjectA",
+        "AnimObjectB",
+        "AnimObjectC",
+        "AnimObjectD",
+        "L_AnimObject1",
+        "L_AnimObject2",
+        "L_AnimObject3",
+        "R_AnimObject1",
+        "R_AnimObject2",
+        "R_AnimObject3",
+        "Weapon",
+        "WeaponLeft",
+        "Eye_Target",
+        "R_HandIk",
+        "L_HandIk",
+        "DirectAt",
+        "Camera Control",
+        "CamTargetParent",
+        "CameraTarget",
+        "Camera",
+        "L_Arm",
+        "R_Arm",
+        "Camera Control FP",
+        "R_Thigh_Twist",
+        "R_Thigh_Twist1",
+        "L_Thigh_Twist",
+        "L_Thigh_Twist1",
+        "C_Neck_Twist"
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "clips": [
+        {
+          "file": "OSF/Companions/EnterF.glb",
+          "offset": {
+            "x": -0.03000025451183319,
+            "y": -0.5147175788879395,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "file": "OSF/Companions/EnterM.glb",
+          "offset": {
+            "x": -3.967585371356108e-07,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 180.0
+          }
+        }
+      ],
+      "loops": 1
+    },
+    {
+      "clips": [
+        {
+          "file": "OSF/Companions/HugF.glb",
+          "offset": {
+            "x": -0.03000025451183319,
+            "y": -0.5147175788879395,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "file": "OSF/Companions/HugM.glb",
+          "offset": {
+            "x": -3.967585371356108e-07,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 180.0
+          }
+        }
+      ],
+      "loops": 1
+    },
+    {
+      "clips": [
+        {
+          "file": "OSF/Companions/ExitF.glb",
+          "offset": {
+            "x": -0.03000025451183319,
+            "y": -0.5147175788879395,
+            "z": 0.0,
+            "heading": 0.0
+          }
+        },
+        {
+          "file": "OSF/Companions/ExitM.glb",
+          "offset": {
+            "x": -3.967585371356108e-07,
+            "y": 0.0,
+            "z": 0.0,
+            "heading": 180.0
+          }
+        }
+      ],
+      "loops": 1
+    }
+  ]
+}

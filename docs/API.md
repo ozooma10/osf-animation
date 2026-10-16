@@ -425,6 +425,11 @@ content pack is only an author/product grouping and is not the reload boundary.
 
 ## Primitives (advanced)
 
+For live authoring, `OSFAdvanced.SetAlignmentToolsEnabled(bool)` enables a process-local file interface
+for participant offsets, pause/speed, registered-scene start/stop, content reload, and orbit inspection.
+An unattended authoring launch can opt in with `OSF_ANIMATION_ALIGNMENT=1`. See
+[Live alignment](LIVE_ALIGNMENT.md) for the client, exact scene identity checks, and guarded saving.
+
 `Play` / `Stop` (solo clip), `SetSpeed` / `GetSpeed` (1.0 = authored, 0 = freeze),
 `SetAnchor` / `ClearAnchor` (pin a solo playback session to a world point), `GetCurrentAnimation`, and linear
 scene stage getters/setters by handle or actor.

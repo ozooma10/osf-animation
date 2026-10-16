@@ -591,6 +591,21 @@ namespace OSF::Camera
 		});
 	}
 
+	bool CameraService::SetInspectionView(float a_azimuth, float a_elevation, float a_radius, float a_height)
+	{
+		if (!RawLayoutSupport() || !orbitDriving.load() || !std::isfinite(a_azimuth) || !std::isfinite(a_elevation) ||
+			!std::isfinite(a_radius) || !std::isfinite(a_height) || std::abs(a_azimuth) > 360 || std::abs(a_elevation) > 80 ||
+			a_radius < kOrbitMinRadius || a_radius > kOrbitMaxRadius || a_height < .3f || a_height > 3) return false;
+		std::scoped_lock guard{driveLock};
+		if (!orbitDriving.load() || !lastOrbitPoseValid) return false;
+		orbitTargetAzimuth = a_azimuth * kPi / 180;
+		orbitTargetElevation = a_elevation * kPi / 180;
+		orbitTargetRadius = a_radius;
+		orbitCenterTargetZ = orbitFloorZ - kOrbitFloorMargin + a_height;
+		orbitReframeGlide = false;
+		return true;
+	}
+
 	void CameraService::DriveSceneOrbit()
 	{
 		if (!RawLayoutSupport()) {

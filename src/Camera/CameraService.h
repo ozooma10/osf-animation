@@ -56,6 +56,8 @@ namespace OSF::Camera
 
 		// Last pose DriveSceneOrbit wrote; false when not driving or the drive lock is busy (callers skip, don't stall).
 		bool SceneOrbitPose(float (&a_pos)[3], float (&a_fwd)[3]);
+		// Game-thread authoring control of an already active orbit; angles are world degrees.
+		bool SetInspectionView(float a_azimuth, float a_elevation, float a_radius, float a_height);
 
 		// External inspection orbit shares camera composition with scene overrides.
 		// Each successful acquisition needs one release; world replacement revokes every hold.

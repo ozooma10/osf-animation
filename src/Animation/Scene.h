@@ -6,6 +6,7 @@
 #include "Animation/BoneMask.h"
 #include "Animation/FrameClock.h"
 #include "Animation/OzzTypes.h"
+#include "Animation/Placement.h"
 
 #include <algorithm>
 #include <cmath>
@@ -31,13 +32,6 @@ namespace OSF::Animation
 		}
 		return static_cast<float>(std::clamp(a_weight, 0.0, 1.0));
 	}
-
-	// Offset from the scene anchor, rotated into the anchor's heading frame.
-	struct ParticipantPlacement
-	{
-		float x = 0.0f, y = 0.0f, z = 0.0f;
-		float heading = 0.0f;  // radians, relative to anchor heading
-	};
 
 	// Single source for the initial teleport and the compose-root pin; heading applied separately.
 	inline RE::NiPoint3 PlacementToWorld(const RE::NiPoint3& a_anchorPos, float a_anchorHeading,
@@ -226,6 +220,7 @@ namespace OSF::Animation
 			// One-shot final stage ended: hold the clip's last frame (no wrap to 0) while the deferred stop
 			// and fade-out land.
 			bool holdEnd = false;
+			std::uint64_t segmentRevision = 0;
 		};
 		struct DiagnosticSnapshot
 		{
@@ -240,9 +235,13 @@ namespace OSF::Animation
 			float duration;
 			float speed;
 			uint32_t stage;
+			std::uint64_t segmentRevision;
 		};
 
 		std::mutex lock;
+		// Changes on every segment entry, including a restart of the same index.
+		// Read with the session lock, or through Tick/GetPlaybackSnapshot.
+		std::uint64_t segmentRevision = 0;
 		float duration = 0.0f;
 		// Written from Papyrus (under a graph lock), read under the scene lock.
 		std::atomic<float> speed{ 1.0f };

@@ -548,6 +548,8 @@ namespace OSF::Animation
 					slot->playbackSession = scene.get();
 					slot->participantIndex = static_cast<int>(i);
 					slot->scenePlacement = scene->stages[startSegment].placements[i];
+					slot->alignmentOffset = {};
+					slot->alignmentSegmentRevision = scene->segmentRevision;
 					slot->appliedStage = startSegment;
 					slot->hasAnchor = false;
 					slot->anchorRevision++;
@@ -1453,7 +1455,13 @@ namespace OSF::Animation
 		std::vector<std::function<void()>> deferred;
 		{
 			std::unique_lock gl{ g->stateLock };
+			const auto alignmentRevision = g->alignmentSegmentRevision;
+			const auto alignmentOffset = g->alignmentOffset;
 			g->Sample(PlaybackDelta(*a_updateData), a_this);
+			if (alignmentRevision != g->alignmentSegmentRevision &&
+				(alignmentOffset.x != 0 || alignmentOffset.y != 0 || alignmentOffset.z != 0 || alignmentOffset.heading != 0)) {
+				gm.QueueAlignmentPlacement(*g, deferred);
+			}
 
 			// Marks before auto-end: the queue is FIFO and final at:"end" marks must precede the stop task.
 			gm.QueueTimedMarksIfFired(*g, deferred);
@@ -1505,10 +1513,11 @@ namespace OSF::Animation
 						float pinHeading = 0.0f;
 						bool hasPinHeading = false;
 						if (g->playbackSession && g->playbackSession->anchored && g->participantIndex >= 0) {
+							const auto placement = AddPlacement(g->scenePlacement, g->alignmentOffset);
 							pinWorld = PlacementToWorld(g->playbackSession->anchorPos, g->playbackSession->anchorHeading,
-								g->scenePlacement);
+								placement);
 							pinHeading = g->playbackSession->anchorHeading +
-								g->scenePlacement.heading;
+								placement.heading;
 							hasPinHeading = true;
 							doPin = true;
 						} else if (!g->playbackSession && g->hasAnchor && g->rootMode != RootMode::kFollow) {

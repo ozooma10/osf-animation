@@ -59,6 +59,8 @@ namespace OSF::Animation
 		int participantIndex = -1;
 		// Stage placement copied under stateLock so the compose hook never reads the scene's (data race).
 		ParticipantPlacement scenePlacement{};
+		ParticipantPlacement alignmentOffset{};
+		std::uint64_t alignmentSegmentRevision = 0;
 		uint32_t appliedStage = 0;
 
 		// Blend-out keeps sampling while weight ramps to 0 (lands on the live pose), then queues RemoveFadedGraph.

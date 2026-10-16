@@ -5,6 +5,7 @@
 #include "Animation/GraphManager.h"
 #include "Animation/Scene.h"
 #include "Audio/SoundService.h"
+#include "Authoring/AlignmentService.h"
 #include "Matchmaking/Matchmaker.h"
 #include "Packs/PackReload.h"
 #include "Registry/ContentRegistry.h"
@@ -163,6 +164,11 @@ namespace OSF::Papyrus
 		int32_t ReloadPacks(OSFVM&, uint32_t, std::monostate)
 		{
 			return Content::ReloadAll();  // Papyrus name kept for compatibility
+		}
+
+		bool SetAlignmentToolsEnabled(OSFVM&, uint32_t, std::monostate, bool a_enabled)
+		{
+			return Authoring::SetAlignmentToolsEnabled(a_enabled);
 		}
 
 		int32_t GetSceneStage(OSFVM&, uint32_t, std::monostate, int32_t a_scene)
@@ -632,6 +638,7 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "StopAllForActors", &StopAllForActors, false, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "GetSceneLoadErrors", &GetSceneLoadErrors, true, false);
 		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "GetMissingClipRefs", &GetMissingClipRefs, true, false);
+		a_vm->BindNativeMethod(ADVANCED_SCRIPT_NAME, "SetAlignmentToolsEnabled", &SetAlignmentToolsEnabled, false, false);
 
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallback", &RegisterSceneCallback, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "RegisterSceneCallbackStatic", &RegisterSceneCallbackStatic, true, false);

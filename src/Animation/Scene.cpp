@@ -18,7 +18,7 @@ namespace OSF::Animation
 		if (!ended.load(std::memory_order_relaxed) && clock.ShouldAdvance(a_token, nowMs)) {
 			float remaining = a_deltaTime * speed.load(std::memory_order_relaxed);
 			if (!std::isfinite(remaining) || remaining <= 0.0f) {
-				return { clock.time, currentSegment };
+				return { clock.time, currentSegment, false, segmentRevision };
 			}
 
 			// One loop/timer boundary at a time keeps loop counts and repeat marks exact at high speed.
@@ -135,7 +135,7 @@ namespace OSF::Animation
 
 		const bool holdEnd = ended.load(std::memory_order_relaxed) &&
 		                     endReason.load(std::memory_order_relaxed) == PlaybackEndReason::kLoopComplete;
-		return { clock.time, currentSegment, holdEnd };
+		return { clock.time, currentSegment, holdEnd, segmentRevision };
 	}
 
 	bool PlaybackSession::SetSegment(int32_t a_segment)
@@ -153,7 +153,7 @@ namespace OSF::Animation
 	PlaybackSession::PlaybackSnapshot PlaybackSession::GetPlaybackSnapshot()
 	{
 		std::scoped_lock l{ lock };
-		return { clock.time, duration, speed.load(std::memory_order_relaxed), currentSegment };
+		return { clock.time, duration, speed.load(std::memory_order_relaxed), currentSegment, segmentRevision };
 	}
 
 	uint32_t PlaybackSession::CurrentSegment()
@@ -178,6 +178,7 @@ namespace OSF::Animation
 
 	void PlaybackSession::ApplySegmentLocked(uint32_t a_segment)
 	{
+		++segmentRevision;
 		currentSegment = a_segment;
 		stageElapsed = 0.0f;
 		stageLoops = 0;

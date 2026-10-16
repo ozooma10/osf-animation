@@ -8,7 +8,7 @@ voice/sound, camera hold);
 
 - **Native (C++/DLL):** build both DLLs + deploy with `xmake` (mode `releasedbg` — `xmake f -m releasedbg`,
   then `xmake`). This is the only thing an agent compiles.
-- **Tests:** `xmake test` builds and runs the twelve engine-free C++ suites (persistence broker,
+- **Tests:** `xmake test` builds and runs the thirteen engine-free C++ suites (live alignment protocol, persistence broker,
   native scene-event callbacks, browser/engine API boundary, generated GLTF/GLB/gzip import fixtures,
   synthetic AF/rig/BA2 fixtures, playback session transitions/marks, frame clock/clip specs, clip-duration cache, additive pose math, shared scene launcher, sound registry, scene registry — the registry pair run from
   `test/fixtures`; the scene registry suite also exercises the production catalog builder). Run it after
@@ -80,6 +80,7 @@ Each entry: **system** (`path`) — role.
   owns the two vtable hooks. `PlaySynchronized` is the shared playback entry. `StopAll` drops all state on load (releases the persistent AI-driven flag).
   Compose-root pin + cull-sphere + BSFadeNode fade suppression live in `Hook_ModelNodeUpdate`
 - **FrameClock** (`src/Animation/FrameClock.h`) — owner-token clock so subdivided updates advance 1×/ frame; defines `SyncGroup`.
+- **Live alignment** (`src/Authoring/AlignmentService.*`, `src/Animation/GraphManagerAlignment.cpp`) — explicit, process-local opt-in via `OSFAdvanced.SetAlignmentToolsEnabled`; worker-owned file IO dispatches to the frame queue. Temporary per-role offsets are scoped to playback + segment-entry revision, preserve authored placement and clock, and reset on transitions. `tools/alignment/alignment.py` owns guarded source saving; see `docs/LIVE_ALIGNMENT.md`. Client tests: `python -m unittest discover -s tools/alignment -p test_alignment.py`.
 - **Frame maintenance** (`src/Maintenance/FrameMaintenance.*`, `src/Util/NativeMainThreadQueue.*`) — hooks Main's normal frame-update call at `99488+0x2D6` (target `99406`, cadence and pause/resume verified in-game on 1.16.244), running after the original. Reduced loading updates bypass this call. Drains one finite FIFO command batch, then ticks camera, fade, subtitles, and graph maintenance. Worker producers use `NativeMainThreadQueue::Post`; related playback marks/end commands use `PostBatch`. Posts made during a drain wait for the next update. Anchored NPC animation-driven flags are maintained once per game frame here, with save-window suppression. Sampling and stamping remain in their animation hooks.
 - **PlaybackSession** (`src/Animation/Scene.*`) — pure Layer-A: shared clock + participant graphs + anchor +
   per-stage {files, placements, timer, loops, blend}. Auto-advances on timer/loop-target.

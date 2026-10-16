@@ -1,5 +1,10 @@
 ScriptName OSFAdvanced Native Hidden
 
+; Opt-in authoring file interface for this game process. Disabled on startup.
+; Console: cgf "OSFAdvanced.SetAlignmentToolsEnabled" true
+; Files: Documents/My Games/Starfield/OSF/Alignment. See docs/LIVE_ALIGNMENT.md.
+bool Function SetAlignmentToolsEnabled(bool abEnabled) Global Native
+
 ; Advanced OSF Animation API. Common consumers should prefer OSF.psc.
 
 ; Start a one-stage synced scene from actor-aligned clip files. asFiles[i] plays on akActors[i].

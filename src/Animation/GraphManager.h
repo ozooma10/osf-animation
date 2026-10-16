@@ -81,6 +81,26 @@ namespace OSF::Animation
 		};
 
 		std::optional<SynchronizedPlaybackState> GetScenePlayback(RE::Actor* a_actor, PlaybackId a_expectedPlayback = 0);
+
+		struct AlignmentParticipant
+		{
+			std::uint32_t formId;
+			std::string role, file;
+			ParticipantPlacement authored, offset;
+		};
+		struct AlignmentSnapshot
+		{
+			PlaybackId playbackId;
+			PlaybackSession::PlaybackSnapshot playback;
+			bool anchored;
+			std::vector<AlignmentParticipant> participants;
+		};
+		// Authoring operations. Offsets are additive in the anchor frame, scoped to one segment entry.
+		std::optional<AlignmentSnapshot> ReadAlignment(RE::Actor* a_actor, PlaybackId a_expectedPlayback);
+		// Game thread. Validates the whole batch before changing any participant; never resets the clock.
+		// Empty offsets leaves placement unchanged (speed-only edit). A zero-filled batch resets alignment.
+		bool UpdateAlignment(RE::Actor* a_actor, PlaybackId a_expectedPlayback, std::uint64_t a_segmentRevision,
+			const std::vector<ParticipantPlacement>& a_offsets, std::optional<float> a_speed = {});
 #ifdef OSF_ANIMATION_SMOKE
 		struct AnimationPlayback
 		{
@@ -147,6 +167,8 @@ namespace OSF::Animation
 		// a_deferred and are flushed after both locks are released.
 		void QueueAutoEndIfFinished(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);
 		void QueueTimedMarksIfFired(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);
+		// Caller holds manager + graph locks. Also used when a stage clears a live offset.
+		void QueueAlignmentPlacement(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);
 		void QueueFadeRemovalIfDone(Graph& a_graph, std::vector<std::function<void()>>& a_deferred);
 
 		// Game thread, no manager lock held: the runtime auto-end handler takes over, else we stop it.

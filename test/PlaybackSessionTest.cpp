@@ -50,6 +50,28 @@ namespace
 
 int main()
 {
+	Run("alignment identity changes on segment entry, not clock ticks", [] {
+		PlaybackSession session;
+		session.stages = {Segment(2, 0), Segment(2, 0)};
+		Check(session.SetSegment(0), "alignment segment initialized");
+		const auto first = session.GetPlaybackSnapshot().segmentRevision;
+		int owner = 0;
+		const auto playing = session.Advance(&owner, .1f);
+		Check(first != 0 && playing.segmentRevision == first, "ordinary sampling preserves adjustment identity");
+		session.speed = 0;
+		const auto paused = session.Advance(&owner, 1);
+		Check(paused.time == playing.time && paused.segmentRevision == first, "pause preserves pose and adjustment identity");
+		Check(session.SetSegment(0), "same segment can restart");
+		Check(session.GetPlaybackSnapshot().segmentRevision > first, "same-index restart invalidates old adjustment commands");
+		const auto restarted = session.GetPlaybackSnapshot().segmentRevision;
+		Check(session.SetSegment(1) && session.GetPlaybackSnapshot().segmentRevision > restarted, "stage change invalidates old adjustments");
+		const auto valid = session.GetPlaybackSnapshot().segmentRevision;
+		Check(!session.SetSegment(99) && session.GetPlaybackSnapshot().segmentRevision == valid, "invalid jump leaves identity alone");
+		const auto world = PlacementToWorld({10,20,30}, 1.57079632679f, AddPlacement({1,0,0,0}, {.02f,.03f,.04f,0}));
+		Near(world.x, 9.97f, "offset follows rotated anchor X");
+		Near(world.y, 21.02f, "offset follows rotated anchor Y");
+		Near(world.z, 30.04f, "height offset stays vertical");
+	});
 	Run("one-shot completion parks on final pose and retains final marks", [] {
 		PlaybackSession session;
 		auto stage = Segment(2, 1);

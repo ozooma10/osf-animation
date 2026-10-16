@@ -3,6 +3,7 @@
 #include "API/SceneAPIControl.h"
 #include "API/EngineSettings.h"
 #include "Animation/GraphManager.h"
+#include "Authoring/AlignmentService.h"
 #include "Camera/CameraService.h"
 #include "Equipment/GearRegistry.h"
 #include "Input/InputService.h"
@@ -45,6 +46,8 @@ namespace
 			// After the registries so initial settings apply to loaded services.
 			OSF::API::InstallEngineSettings();
 			OSF::Serialization::SaveSafety::RegisterLoadEventSinks();
+			// Explicit environment opt-in is inherited only by this launched game process.
+			OSF::Authoring::InitializeAlignmentTools();
 
 			REX::INFO("[Feature] Main Animation Playback Hooks {}", OSF::Animation::GraphManager::GetSingleton().HooksInstalled() ? "INSTALLED" : "UNAVAILABLE");
 			REX::INFO("[Feature] Main-Loop Frame Hook INSTALLED");

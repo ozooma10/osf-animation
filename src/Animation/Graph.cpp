@@ -393,6 +393,11 @@ namespace OSF::Animation
 		// A segment switch clears the binding, so the new clip binds again in this call.
 		if (playbackSession) {
 			const auto tick = playbackSession->Advance(a_token, a_deltaTime);
+			if (alignmentSegmentRevision != tick.segmentRevision) {
+				alignmentOffset = {};
+				alignmentSegmentRevision = tick.segmentRevision;
+				++anchorRevision;
+			}
 			if (tick.stage != appliedStage && participantIndex >= 0 && tick.stage < playbackSession->stages.size()) {
 				const auto& stage = playbackSession->stages[tick.stage];
 				const auto& slot = stage.participants[participantIndex];
