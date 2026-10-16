@@ -5,6 +5,7 @@
 #include "Input/InputTypes.h"
 #include "Props/PropService.h"
 #include "Registry/ContentRegistry.h"
+#include "Scene/SceneFoundation.h"
 
 #include <cstdint>
 #include <deque>
@@ -24,12 +25,7 @@ namespace OSF::Scene
 		static SceneRuntime& GetSingleton();
 
 		// When set, every node anchors here instead of at participant[0].
-		struct AnchorOverride
-		{
-			bool         set = false;
-			RE::NiPoint3 pos{};
-			float        heading = 0.0f;  // radians
-		};
+		using AnchorOverride = WorldAnchor;
 
 		struct StartOverrides
 		{
@@ -182,6 +178,8 @@ namespace OSF::Scene
 			Animation::PlaybackId   playbackId = 0;
 			Registry::SceneRef      definition;
 			AnchorOverride          anchor;  // unset = anchor at participant[0]
+			AnchorOverride          frozenAnchor;
+			ActorBaseline           baseline;
 			float                   loopScale = 1.0f;
 			std::optional<Animation::WorldPlacementMode> worldPlacement;
 			bool                    singleStage = false;

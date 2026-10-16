@@ -134,7 +134,7 @@ namespace OSF::Animation
 				REX::ERROR("[Anim] synchronized playback: start segment {} out of range (plan has {} segments)", a_startSegment, a_plan.stages.size());
 				return false;
 			}
-			if (a_plan.anchorExplicit &&
+			if (a_plan.anchorResolved &&
 				(!std::isfinite(a_plan.anchorPos.x) || !std::isfinite(a_plan.anchorPos.y) ||
 					!std::isfinite(a_plan.anchorPos.z) || !std::isfinite(a_plan.anchorHeading))) {
 				REX::ERROR("[Anim] synchronized playback: explicit anchor contains a non-finite value");
@@ -233,7 +233,7 @@ namespace OSF::Animation
 			}
 			scene->animId = a_plan.animId;
 			scene->anchored = a_plan.anchored;
-			scene->restoreParticipantTransforms = a_plan.anchored && a_plan.anchorExplicit;
+			scene->restoreParticipantTransforms = a_plan.anchored && a_plan.restoreTransformsOnEnd;
 			scene->loopWhole = a_plan.loopWhole;
 			if (scene->restoreParticipantTransforms) {
 				if (a_plan.baselineTransforms.size() == a_actors.size()) {
@@ -250,7 +250,7 @@ namespace OSF::Animation
 
 			scene->SetSegment(a_startSegment);
 
-			if (a_plan.anchorExplicit) {
+			if (a_plan.anchorResolved) {
 				scene->anchorPos = a_plan.anchorPos;
 				scene->anchorHeading = a_plan.anchorHeading;
 			} else {
@@ -672,7 +672,7 @@ namespace OSF::Animation
 		}
 		const auto snapshot = scene->GetPlaybackSnapshot();
 		return SynchronizedPlaybackState{
-			snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage), scene->playbackId
+			snapshot.time, snapshot.duration, snapshot.speed, static_cast<int32_t>(snapshot.stage), scene->playbackId, scene->anchorPos, scene->anchorHeading
 		};
 	}
 

@@ -263,6 +263,9 @@ namespace OSF::Scene
 		s.id = std::string(a_id);
 		s.node = std::string(a_node);
 		s.participants = a_participants;
+		for (auto* actor : a_participants) {
+			s.baseline.push_back({ actor, { actor->data.location, actor->data.angle.z } });
+		}
 		return MakeToken(gen, slot);
 	}
 

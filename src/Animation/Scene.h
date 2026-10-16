@@ -146,8 +146,9 @@ namespace OSF::Animation
 			anchored = a_mode == WorldPlacementMode::kAnchorAndPin;
 		}
 		
-		// false = anchor at actor[0]'s transform; true = anchorPos/anchorHeading (furniture/marker).
-		bool anchorExplicit = false;
+		// Resolving an anchor does not itself opt into restoring transforms on termination.
+		bool anchorResolved = false;
+		bool restoreTransformsOnEnd = false;
 
 		RE::NiPoint3 anchorPos{};
 		float anchorHeading = 0.0f;  // radians

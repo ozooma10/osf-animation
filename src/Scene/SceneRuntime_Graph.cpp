@@ -229,6 +229,8 @@ namespace OSF::Scene
 		std::optional<Animation::WorldPlacementMode> placementOverride;
 		auto def = Registry::ContentRegistry::GetSingleton().Find(a_sceneId);
 		AnchorOverride anchor;
+		AnchorOverride frozenAnchor;
+		ActorBaseline baseline;
 		{
 			std::lock_guard l{ GetSingleton()._lock };
 			std::int32_t tok = 0;
@@ -237,6 +239,8 @@ namespace OSF::Scene
 					def = s->definition;  // the version pinned at Start
 				}
 				anchor = s->anchor;
+				frozenAnchor = s->frozenAnchor;
+				baseline = s->baseline;
 				loopScale = s->loopScale;
 				placementOverride = s->worldPlacement;
 			}
@@ -250,11 +254,7 @@ namespace OSF::Scene
 			REX::WARN("[Scene] node '{}' not playable for {} participant(s)", a_nodeId, a_participants.size());
 			return 0;
 		}
-		if (anchor.set) {
-			plan->anchorExplicit = true;
-			plan->anchorPos = anchor.pos;
-			plan->anchorHeading = anchor.heading;
-		}
+		ApplyScenePlacement(*plan, anchor, frozenAnchor, baseline, a_participants);
 		if (placementOverride.has_value()) {
 			plan->SetWorldPlacementMode(*placementOverride);
 		}
@@ -272,6 +272,12 @@ namespace OSF::Scene
 		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(a_participants, *plan, 0, &playbackId,
 			a_expectedPlayback, GetSingleton()._playbackSinkId)) {
 			return 0;
+		}
+		if (const auto playback = Animation::GraphManager::GetSingleton().GetScenePlayback(a_participants.front(), playbackId)) {
+			std::lock_guard l{ GetSingleton()._lock };
+			if (Slot* s = GetSingleton().FindSlotForActor(a_participants.front(), nullptr); s && !s->frozenAnchor.set) {
+				s->frozenAnchor = { true, playback->anchorPos, playback->anchorHeading };
+			}
 		}
 		return playbackId;
 	}
@@ -828,7 +834,8 @@ namespace OSF::Scene
 			return 0;
 		}
 		if (a_anchor.set) {
-			a_plan.anchorExplicit = true;
+			a_plan.anchorResolved = true;
+			a_plan.restoreTransformsOnEnd = true;
 			a_plan.anchorPos = a_anchor.pos;
 			a_plan.anchorHeading = a_anchor.heading;
 		}
@@ -838,6 +845,14 @@ namespace OSF::Scene
 		const std::int32_t handle = MintSlot("", "main", a_participants);
 		if (!handle) {
 			return 0;
+		}
+		{
+			std::lock_guard l{ _lock };
+			auto* s = Resolve(handle);
+			s->anchor = a_anchor;
+			s->worldPlacement = a_over.worldPlacement.value_or(a_plan.anchored ?
+				Animation::WorldPlacementMode::kAnchorAndPin : Animation::WorldPlacementMode::kFollowActor);
+			ApplyScenePlacement(a_plan, a_anchor, {}, s->baseline, a_participants);
 		}
 		Animation::PlaybackId playbackId = 0;
 		if (!Animation::GraphManager::GetSingleton().PlaySynchronized(a_participants, a_plan, a_startStage,

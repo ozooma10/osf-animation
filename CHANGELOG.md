@@ -26,6 +26,9 @@ for installation, saved preferences, and hotkey changes.
 
 ### Added
 
+- Framework foundation: scene anchors remain fixed across node transitions; explicit-anchor
+  scenes restore the original transform by actor identity, including after role reordering.
+
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support
   feathered spine seams, additive poses, `poseWeight`, and `preserveBones`.

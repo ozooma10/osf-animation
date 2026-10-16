@@ -6,6 +6,10 @@ Domain terms in this guide follow [OSF domain vocabulary](VOCABULARY.md). The ca
 documented in [SCENE_SCHEMA.md](SCENE_SCHEMA.md) do not rename existing Papyrus or native API fields;
 names shown in code remain compatibility spellings.
 
+Scene node transitions keep the world anchor resolved on first playback. An explicit anchor
+also enables transform restoration on termination; a frozen implicit anchor does not. Restore
+baselines are captured once per actor at scene start and survive node changes and role swaps.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the

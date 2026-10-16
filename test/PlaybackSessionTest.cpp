@@ -1,6 +1,7 @@
 // Exercise the production shared-clock transport without actors, hooks or a running game.
 #include "Check.h"
 #include "Animation/Scene.h"
+#include "Scene/SceneFoundation.h"
 
 #include <array>
 #include <cmath>
@@ -50,6 +51,21 @@ namespace
 
 int main()
 {
+	Run("frozen placement and actor-owned restore baseline", [] {
+		auto* a = reinterpret_cast<RE::Actor*>(1);
+		auto* b = reinterpret_cast<RE::Actor*>(2);
+		OSF::Scene::ActorBaseline baseline{ { a, { { 10, 0, 0 }, 1 } }, { b, { { 20, 0, 0 }, 2 } } };
+		PlaybackPlan plan;
+		const OSF::Scene::WorldAnchor frozen{ true, { 100, 200, 300 }, 0.5f };
+		for (int node = 0; node < 5; ++node) {
+			OSF::Scene::ApplyScenePlacement(plan, {}, frozen, baseline, { a, b });
+			Check(plan.anchorResolved && !plan.restoreTransformsOnEnd && plan.anchorPos.x == 100,
+				"frozen anchor survives node rebuilds without enabling restoration");
+		}
+		OSF::Scene::ApplyScenePlacement(plan, frozen, {}, baseline, { b, a });
+		Check(plan.restoreTransformsOnEnd && plan.baselineTransforms[0].first.x == 20 &&
+			plan.baselineTransforms[1].first.x == 10, "role swap restores each actor to its own original transform");
+	});
 	Run("one-shot completion parks on final pose and retains final marks", [] {
 		PlaybackSession session;
 		auto stage = Segment(2, 1);
