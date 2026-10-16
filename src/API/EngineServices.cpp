@@ -174,7 +174,20 @@ namespace OSF::API::EngineServices
 					if (!owner || !Registry::ContentRegistry::GetSingleton().UnregisterClipProvider(owner)) return false;
 					CatalogChanged(); return true;
 				} catch (...) { return false; }
-			}
+			},
+			[](std::int32_t handle, const char* role, const float* d) {
+				return role && d && Scene::SceneRuntime::GetSingleton().SetAlignment(handle, role,
+					{ d[0], d[1], d[2], d[3] * Util::kDegToRadF });
+			},
+			[](std::int32_t handle, const char* role, float* d) {
+				if (!role || !d) return false;
+				const auto value = Scene::SceneRuntime::GetSingleton().GetAlignment(handle, role);
+				if (!value) return false;
+				d[0] = value->x; d[1] = value->y; d[2] = value->z; d[3] = value->heading / Util::kDegToRadF;
+				return true;
+			},
+			[](std::int32_t handle) { return Scene::SceneRuntime::GetSingleton().SaveAlignment(handle); },
+			[](std::int32_t handle, const char* role) { return role && Scene::SceneRuntime::GetSingleton().SetAlignment(handle, role, {}); }
 		};
 	}
 	void WorldReset() { g_state.ResetWorld(); }

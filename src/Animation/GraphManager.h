@@ -109,6 +109,7 @@ namespace OSF::Animation
 		bool SetSpeed(RE::Actor* a_actor, float a_speed);
 		// Playback owner only; bypasses routing back to the sink and verifies session identity.
 		bool SetPlaybackSpeed(RE::Actor* a_actor, PlaybackId a_playbackId, float a_speed);
+		bool SetAlignmentDelta(RE::Actor* a_actor, const ParticipantPlacement& a_delta, PlaybackId a_expectedPlayback);
 		float GetSpeed(RE::Actor* a_actor);
 
 		// SOLO graphs only; heading in degrees, rootMode 0=pin / 1=follow (2 = deprecated follow alias).

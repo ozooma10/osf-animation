@@ -68,6 +68,9 @@ int main()
 		const auto roundtrip = Parse(Serialize(*table));
 		Check(roundtrip.has_value(), "saved table parses");
 		Near(Find(*roundtrip, "demo", "#s2", "partner").y, 6, "save replaces delta instead of adding twice");
+		const ParticipantPlacement authored{ 10, 20, 30, 0 };
+		Near(AddPlacement(authored, work.nodes.at("#s2")[0]).y, 26, "one delta layer over authored offset");
+		Near(AddPlacement({ 10, 40, 30, 0 }, work.nodes.at("#s2")[0]).y, 46, "segment switch uses new authored offset plus the same delta");
 		work.nodes.at("#s2")[0] = {};
 		Near(Find(*table, "demo", "#s2", "partner").y, 6, "reset changes only the working copy until save");
 		Put(*table, "demo", "#s2", "partner", {});
@@ -95,7 +98,7 @@ int main()
 	Run("frozen placement and actor-owned restore baseline", [] {
 		auto* a = reinterpret_cast<RE::Actor*>(1);
 		auto* b = reinterpret_cast<RE::Actor*>(2);
-		OSF::Scene::ActorBaseline baseline{ { a, { { 10, 0, 0 }, 1 } }, { b, { { 20, 0, 0 }, 2 } } };
+		OSF::Scene::ActorBaseline baseline{ { a, { { 10, 0, 0 }, 1.0f } }, { b, { { 20, 0, 0 }, 2.0f } } };
 		PlaybackPlan plan;
 		const OSF::Scene::WorldAnchor frozen{ true, { 100, 200, 300 }, 0.5f };
 		for (int node = 0; node < 5; ++node) {

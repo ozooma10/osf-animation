@@ -38,6 +38,10 @@ namespace OSF::Animation
 		float x = 0.0f, y = 0.0f, z = 0.0f;
 		float heading = 0.0f;  // radians, relative to anchor heading
 	};
+	inline ParticipantPlacement AddPlacement(const ParticipantPlacement& a, const ParticipantPlacement& b)
+	{
+		return { a.x + b.x, a.y + b.y, a.z + b.z, a.heading + b.heading };
+	}
 
 	// Single source for the initial teleport and the compose-root pin; heading applied separately.
 	inline RE::NiPoint3 PlacementToWorld(const RE::NiPoint3& a_anchorPos, float a_anchorHeading,

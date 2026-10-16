@@ -400,7 +400,7 @@ namespace OSF::Animation
 				SetPosePolicy(stage.poseModes[participantIndex], stage.poseWeights[participantIndex], roleName);
 				SetBoneMask(stage.masks[participantIndex]);
 				blendDuration = stage.blendIn;
-				scenePlacement = stage.placements[participantIndex];
+				scenePlacement = AddPlacement(stage.placements[participantIndex], alignDelta);
 				appliedStage = tick.stage;
 			}
 			localTime = tick.time;

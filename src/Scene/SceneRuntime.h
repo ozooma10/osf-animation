@@ -6,6 +6,7 @@
 #include "Props/PropService.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/SceneFoundation.h"
+#include "Scene/AlignmentState.h"
 
 #include <cstdint>
 #include <deque>
@@ -55,6 +56,10 @@ namespace OSF::Scene
 		bool SetSpeed(std::int32_t a_scene, float a_speed);
 		float GetSpeed(std::int32_t a_scene);
 		bool TogglePause(std::int32_t a_scene);
+		bool SetAlignment(std::int32_t a_scene, std::string_view a_role, const Alignment::Delta& a_delta);
+		std::optional<Alignment::Delta> GetAlignment(std::int32_t a_scene, std::string_view a_role);
+		bool SaveAlignment(std::int32_t a_scene);
+		void AlignmentInput(std::int32_t a_scene, Input::Verb a_verb);
 
 		// Enters at the def's `entry`, or a_entryNode when non-empty. 0 = unknown scene or node.
 		std::int32_t StartFromDef(std::string_view a_sceneId, const std::vector<RE::Actor*>& a_participants, const StartOverrides& a_over = {}, std::string_view a_entryNode = {});
@@ -185,6 +190,9 @@ namespace OSF::Scene
 			AnchorOverride          anchor;  // unset = anchor at participant[0]
 			AnchorOverride          frozenAnchor;
 			ActorBaseline           baseline;
+			Alignment::WorkingCopy  align;
+			std::size_t             alignSelected = 0;
+			bool                    alignFine = false;
 			float                   loopScale = 1.0f;
 			SceneSpeed              speed;
 			std::optional<Animation::WorldPlacementMode> worldPlacement;

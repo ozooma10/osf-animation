@@ -82,6 +82,14 @@ float Function GetSpeed(Actor akActor) Global Native
 bool Function SetSceneSpeed(int aiScene, float afSpeed) Global Native
 float Function GetSceneSpeed(int aiScene) Global Native
 
+; Live delta over authored placement for this node and role. Heading uses degrees.
+; Requires a registered, anchored scene; unavailable while transitioning. Invalid Get returns [].
+bool Function SetSceneAlignment(int aiScene, string asRole, float x, float y, float z, float headingDeg) Global Native
+float[] Function GetSceneAlignment(int aiScene, string asRole) Global Native
+; Save all current node roles. Reset only changes live state until Save is called.
+bool Function SaveSceneAlignment(int aiScene) Global Native
+bool Function ResetSceneAlignment(int aiScene, string asRole) Global Native
+
 ; Pins akActor's solo graph to a WORLD point + heading (DEGREES) and moves the capsule there.
 ; aiRootMode: 0 = pin (lock rendered root at the point), 1 = follow (ride the actor).
 ; Refused for scene participants (placement is scene-driven); false if no live graph.

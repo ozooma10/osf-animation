@@ -5,6 +5,7 @@
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/SceneEventRelay.h"
+#include "Scene/AlignmentStore.h"
 #include "UI/FadeService.h"
 #include "UI/HudMessage.h"
 #include "Util/FormRef.h"
@@ -232,6 +233,7 @@ namespace OSF::Scene
 		AnchorOverride frozenAnchor;
 		ActorBaseline baseline;
 		SceneSpeed speed;
+		std::vector<Alignment::Delta> alignment;
 		{
 			std::lock_guard l{ GetSingleton()._lock };
 			std::int32_t tok = 0;
@@ -245,6 +247,11 @@ namespace OSF::Scene
 				speed = s->speed;
 				loopScale = s->loopScale;
 				placementOverride = s->worldPlacement;
+				if (def && def->roles.size() == a_participants.size()) {
+					std::vector<std::string> roles;
+					for (const auto& role : def->roles) roles.push_back(role.name);
+					alignment = s->align.Enter(std::string(a_nodeId), Alignment::Read(s->id, a_nodeId, roles));
+				}
 			}
 		}
 		const auto* node = def ? def->FindNode(a_nodeId) : nullptr;
@@ -282,6 +289,8 @@ namespace OSF::Scene
 				s->frozenAnchor = { true, playback->anchorPos, playback->anchorHeading };
 			}
 		}
+		for (std::size_t i = 0; i < alignment.size(); ++i)
+			Animation::GraphManager::GetSingleton().SetAlignmentDelta(a_participants[i], alignment[i], playbackId);
 		return playbackId;
 	}
 

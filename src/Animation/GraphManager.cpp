@@ -548,6 +548,7 @@ namespace OSF::Animation
 					slot->playbackSession = scene.get();
 					slot->participantIndex = static_cast<int>(i);
 					slot->scenePlacement = scene->stages[startSegment].placements[i];
+					slot->alignDelta = {};
 					slot->appliedStage = startSegment;
 					slot->hasAnchor = false;
 					slot->anchorRevision++;
@@ -908,6 +909,21 @@ namespace OSF::Animation
 		const auto& session = it->second->playbackSession;
 		if (!session || session->playbackId != a_playbackId) return false;
 		session->speed = std::clamp(a_speed, 0.0f, 100.0f);
+		return true;
+	}
+
+	bool GraphManager::SetAlignmentDelta(RE::Actor* a_actor, const ParticipantPlacement& a_delta, PlaybackId a_expectedPlayback)
+	{
+		if (!std::isfinite(a_delta.x) || !std::isfinite(a_delta.y) || !std::isfinite(a_delta.z) || !std::isfinite(a_delta.heading)) return false;
+		std::shared_lock l{ stateLock };
+		const auto it = graphs.find(a_actor);
+		if (it == graphs.end()) return false;
+		auto& g = *it->second;
+		std::scoped_lock gl{ g.stateLock };
+		const auto* session = g.playbackSession;
+		if (!session || session->playbackId != a_expectedPlayback || !session->anchored || g.participantIndex < 0) return false;
+		g.alignDelta = a_delta;
+		g.scenePlacement = AddPlacement(session->stages[g.appliedStage].placements[g.participantIndex], a_delta);
 		return true;
 	}
 

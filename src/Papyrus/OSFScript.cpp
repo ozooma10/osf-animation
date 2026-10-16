@@ -205,6 +205,25 @@ namespace OSF::Papyrus
 			return Animation::GraphManager::GetSingleton().GetSpeed(a_actor);
 		}
 
+		bool SetSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_role,
+			float a_x, float a_y, float a_z, float a_heading)
+		{
+			return Scene::SceneRuntime::GetSingleton().SetAlignment(a_scene, a_role.c_str(), { a_x, a_y, a_z, a_heading * Util::kDegToRadF });
+		}
+		std::vector<float> GetSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_role)
+		{
+			const auto value = Scene::SceneRuntime::GetSingleton().GetAlignment(a_scene, a_role.c_str());
+			return value ? std::vector<float>{ value->x, value->y, value->z, value->heading / Util::kDegToRadF } : std::vector<float>{};
+		}
+		bool SaveSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene)
+		{
+			return Scene::SceneRuntime::GetSingleton().SaveAlignment(a_scene);
+		}
+		bool ResetSceneAlignment(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, RE::BSFixedString a_role)
+		{
+			return Scene::SceneRuntime::GetSingleton().SetAlignment(a_scene, a_role.c_str(), {});
+		}
+
 		bool SetSceneSpeed(OSFVM&, uint32_t, std::monostate, std::int32_t a_scene, float a_speed)
 		{
 			return Scene::SceneRuntime::GetSingleton().SetSpeed(a_scene, a_speed);
@@ -663,6 +682,10 @@ namespace OSF::Papyrus
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSpeed", &GetSpeed, true, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneSpeed", &SetSceneSpeed, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneSpeed", &GetSceneSpeed, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "SetSceneAlignment", &SetSceneAlignment, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "GetSceneAlignment", &GetSceneAlignment, true, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "SaveSceneAlignment", &SaveSceneAlignment, false, false);
+		a_vm->BindNativeMethod(SCRIPT_NAME, "ResetSceneAlignment", &ResetSceneAlignment, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "SetAnchor", &SetAnchor, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "ClearAnchor", &ClearAnchor, false, false);
 		a_vm->BindNativeMethod(SCRIPT_NAME, "GetCurrentAnimation", &GetCurrentAnimation, true, false);

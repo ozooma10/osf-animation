@@ -86,6 +86,7 @@ namespace OSF::Scene
 				break;
 			}
 			default:
+				if (Input::RequiredCapability(a_verb) == Input::CapabilityBit("align")) rt.AlignmentInput(a_grant.handle, a_verb);
 				break;
 			}
 		}

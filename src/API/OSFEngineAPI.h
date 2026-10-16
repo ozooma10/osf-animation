@@ -5,8 +5,8 @@
 
 namespace OSF::API
 {
-	// Services 3.1 adds compatible minor negotiation without extending the 3.0 table.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030001;
+	// Services 3.2 appends scene alignment. 3.1 introduced compatible minor negotiation.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030002;
 
 	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
 	{
@@ -93,6 +93,11 @@ namespace OSF::API
 		// pin their publication across replacement/removal. A malformed batch is rejected as a whole.
 		bool (*RegisterClipSceneProvider)(const char* owner, ClipSceneProvider, void*);
 		bool (*UnregisterClipSceneProvider)(const char* owner);
+		// 3.2. Exact role name; delta4 = anchor-local x/y/z and heading in degrees.
+		bool (*SetSceneAlignment)(std::int32_t, const char* role, const float* delta4);
+		bool (*GetSceneAlignment)(std::int32_t, const char* role, float* delta4);
+		bool (*SaveSceneAlignment)(std::int32_t);
+		bool (*ResetSceneAlignment)(std::int32_t, const char* role);
 	};
 
 	// Released 3.0 clients check exact equality. Give that request its original prefix/version.

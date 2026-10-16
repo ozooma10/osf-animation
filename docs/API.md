@@ -39,6 +39,18 @@ The JSON heading is degrees; missing components mean zero. Zero rows are removed
 wildcard fallback. Reload replaces persisted rows while live scenes retain their working copies.
 Malformed documents leave the previous table intact and report one Mod Issue; scenes still play.
 
+Engine services 3.2 and Papyrus expose `SetSceneAlignment`, `GetSceneAlignment`,
+`SaveSceneAlignment`, and `ResetSceneAlignment`. Set/Get use four floats: X, Y, Z, heading in
+degrees. Set replaces the current delta; Reset zeroes it. Save persists all roles of the current
+node. Unsaved deltas survive node revisits and are discarded at scene end. Invalid Papyrus Get
+returns an empty array; native Get returns false. Mutations require a registered anchored scene
+outside a transition. One node's delta applies to all inline segments and uses the host identity
+for `use` nodes. The capsule is not moved by live nudges.
+
+Default alignment keys: numpad 5 selects a participant; 6/4, 8/2, and 3/1 change X, Y, and Z;
+9/7 rotate; divide toggles 1.0/0.1 position and 5/1 degree steps; decimal resets; multiply saves.
+The HUD shows the role, current delta, step mode, and unsaved status. Numpad +/- remain speed.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the

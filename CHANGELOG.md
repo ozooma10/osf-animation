@@ -38,6 +38,9 @@ for installation, saved preferences, and hotkey changes.
   the `align` scene-control capability can be revoked independently.
 - Alignment storage uses scene/node/role deltas in `SFSE/OSF/alignment-overrides.json`, with
   atomic replacement, zero-row pruning, bounded parsing, and Mod Issues for failed reads/writes.
+- Live alignment nudges, reset/save, participant selection and step controls apply one delta over
+  authored placements across segments and node revisits. Papyrus and engine services 3.2 expose
+  the same operations; the HUD marks unsaved changes.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support
