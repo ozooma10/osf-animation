@@ -76,6 +76,8 @@ for installation, saved preferences, and hotkey changes.
   source/binary hashes, logs, and captures. `-Offline` explicitly omits the game;
   [visual, audio, controller, and additional recovery coverage](docs/SMOKE_TESTING.md#coverage-boundaries)
   remains separate from automated success.
+- Native scene ABI 1.5 adds `FindSceneByQuery` / `StartSceneByQuery`: tag matchmaking with
+  per-actor role-name constraints and an explicit anchor mode, without HUD output.
 
 ### Changed
 

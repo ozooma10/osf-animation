@@ -201,8 +201,9 @@ SFSE plugins can copy [src/API/OSFSceneAPI.h](../src/API/OSFSceneAPI.h) into the
 link nothing. `OSF::API::RequestSceneAPI()` resolves `OSF Animation.dll` at runtime and requests the
 current ABI. ABI 1.3 appends synchronous native scene-event registration to the existing start,
 stop, navigation, playback, and query surface. A consumer that requires callbacks should request
-1.3 or later; the current header defaults to 1.4 for event identity/cause. An older OSF build returns
-`nullptr` for a newer request instead of exposing unsupported fields or a short vtable.
+1.3 or later. ABI 1.4 adds event identity/cause, and ABI 1.5 adds matchmaking by query; the current
+header defaults to 1.5. An older OSF build returns `nullptr` for a newer request instead of exposing
+unsupported fields or a short vtable.
 
 ```cpp
 void OnSceneEvent(const OSF::API::OSFSceneEvent* event, void* context)
@@ -237,6 +238,40 @@ short. A callback may unregister itself.
 Native registration tokens are process-lifetime and survive world replacement; OSF does not emit
 teardown events for the discarded world. Scene filters and event masks use the same handle and bit
 values documented in the Papyrus callback section below. Passing event mask `0` means all events.
+
+### Matchmaking by query (ABI 1.5)
+
+`FindSceneByQuery` and `StartSceneByQuery` match like the Papyrus tag starts, with two additions:
+**per-actor role constraints** and an explicit anchor mode. Both run on the game thread.
+
+```cpp
+const char* allOf[] = { "adult", "mf" };
+const char* roles[] = { "top", "" };            // actor 0 must take the "top" role; actor 1 any role
+OSF::API::OSFSceneQuery query;
+query.allOf = allOf;  query.allOfCount = 2;
+query.roles = roles;  query.roleCount = 2;      // 0 or exactly the actor count
+query.anchor = bed;   query.requireAnchor = 1;  // only scenes whose anchor accepts this ref
+
+OSF::API::OSFSceneMatch match;
+if (osf->FindSceneByQuery(actors, 2, query, match)) {
+    // match.sceneId, and for each caller actor i: match.roleIndex[i] and match.roles[i]
+}
+OSF::API::OSFStartOptions opts;
+std::int32_t handle = osf->StartSceneByQuery(actors, 2, query, opts);
+```
+
+- A role constraint is hard. Actor `i` binds only to a role with that name, compared
+  case-insensitively, and still must pass the role's gender, keyword and race filters. An empty or
+  null entry accepts any role. Among valid assignments, cast order breaks ties.
+- `requireAnchor = 1` matches only anchor-bound scenes the anchor accepts. Otherwise free scenes
+  match too, and anchor-bound scenes need an accepting anchor.
+- `FindSceneByQuery` has no side effects and supports at most `kOSFSceneMatchMaxActors` (8) actors.
+  It picks by priority tier and weighted random, so two calls can differ. To start exactly the
+  found scene, order the actors by `roleIndex` and call `StartScene` with the same anchor in
+  `OSFStartOptions.anchorRef`.
+- `StartSceneByQuery` always enters at the authored entry; `startStage` is ignored. A non-null
+  `OSFStartOptions.anchorRef` that differs from `query.anchor` is rejected. It shows no HUD messages.
+- Both structs are size-prefixed and append-only. Malformed input returns false or 0 and logs why.
 
 ## Starting scenes
 
@@ -468,7 +503,7 @@ or after an extreme burst has expired that handle from the recent-history window
 
 ## Optional engine services
 
-The scene ABI is 1.4. The separate `OSF_RequestEngineAPI` export provides services ABI 3.3
+The scene ABI is 1.5. The separate `OSF_RequestEngineAPI` export provides services ABI 3.3
 for verified-frame dispatch, lifecycle subscriptions, catalog/import metadata, matching, active state,
 playback controls, and shared camera/input mechanisms. See [BROWSER_ADDON.md](BROWSER_ADDON.md) and
 `src/API/OSFEngineAPI.h` for ownership, callback lifetimes, cancellation, and JSON contracts. Gameplay

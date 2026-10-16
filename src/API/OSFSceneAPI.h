@@ -13,7 +13,7 @@
 namespace OSF::API
 {
 	// Packed (MAJOR << 16) | MINOR. MINOR bumps append vmethods or OSFStartOptions fields.
-	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 4u;
+	inline constexpr std::uint32_t kOSFSceneAPIVersion = (1u << 16) | 5u;
 	inline constexpr std::uint32_t kOSFSceneAPIMajor   = kOSFSceneAPIVersion >> 16;
 	inline constexpr std::uint32_t kOSFSceneAPIMinor   = kOSFSceneAPIVersion & 0xFFFFu;
 
@@ -123,6 +123,46 @@ namespace OSF::API
 		std::int32_t inPlaceMode = -1;
 	};
 
+	// Since minor 5. Matchmaking input for FindSceneByQuery / StartSceneByQuery and engine-services ReplaceSceneByQuery.
+	// Arrays are borrowed for the call only. A null array needs a zero count; null or "" entries are skipped.
+	struct OSFSceneQuery
+	{
+		std::uint32_t size = sizeof(OSFSceneQuery);  // stamped by your compiler; OSF reads only this many bytes
+
+		std::int32_t requireAnchor = 0;          // 1 = only anchor-bound scenes `anchor` satisfies; else free scenes too
+
+		const char* const* allOf = nullptr;      // every tag (case-insensitive)
+		const char* const* anyOf = nullptr;      // at least one tag; empty = ignored
+		const char* const* noneOf = nullptr;     // no tag
+		// roles[i] restricts actor i to the role of that name (case-insensitive). Hard: no fallback. roleCount is 0
+		// (unconstrained) or the actor count; a null or "" entry accepts any role. For a handoff, actor i is the scene's
+		// current participant i (GetSceneParticipants order).
+		const char* const* roles = nullptr;
+		// Furniture/object anchor. Filters anchor-bound scenes and places the match. For starts it must equal
+		// OSFStartOptions.anchorRef when that is also set.
+		RE::TESObjectREFR* anchor = nullptr;
+
+		std::uint32_t allOfCount = 0;
+		std::uint32_t anyOfCount = 0;
+		std::uint32_t noneOfCount = 0;
+		std::uint32_t roleCount = 0;
+	};
+
+	inline constexpr std::uint32_t kOSFSceneMatchMaxActors = 8;
+
+	// Since minor 5. FindSceneByQuery output, indexed by the caller's actor order.
+	struct OSFSceneMatch
+	{
+		std::uint32_t size = sizeof(OSFSceneMatch);  // must cover this whole struct
+		std::uint32_t actorCount = 0;
+
+		char sceneId[256] = {};
+		// roleIndex[i] = declared role index actor i binds to. Start positionally by ordering actors by this index,
+		// or by name with roles[] via StartSceneRoles when the scene's role names are distinct.
+		std::int32_t roleIndex[kOSFSceneMatchMaxActors] = {};
+		char         roles[kOSFSceneMatchMaxActors][64] = {};  // declared role name; "" for an anonymous role
+	};
+
 	// Scene-event bits, shared with OSF.psc EVENT_*; OR together for a callback mask.
 	namespace SceneEventType
 	{
@@ -216,6 +256,18 @@ namespace OSF::API
 			std::int32_t a_eventMask = SceneEventType::kAll) = 0;
 
 		virtual bool UnregisterSceneEventCallback(std::uint64_t a_token) = 0;
+
+		// Since minor 5. Game thread. Matchmakes without side effects: tags, per-role filters, a_query.roles and the
+		// anchor, then priority tier and weighted random, so repeated calls may differ. False = no fit or bad input
+		// (null actor, more than kOSFSceneMatchMaxActors actors, undersized structs, a scene id over 255 bytes).
+		virtual bool FindSceneByQuery(RE::Actor* const* a_actors, std::uint32_t a_count, const OSFSceneQuery& a_query,
+			OSFSceneMatch& a_out) = 0;
+
+		// Since minor 5. Game thread; returns a handle, 0 on failure. Matchmakes like FindSceneByQuery and starts the
+		// pick at its authored entry (startStage is ignored). a_query.anchor places the scene; a different non-null
+		// a_opts.anchorRef is rejected. No HUD messages.
+		virtual std::int32_t StartSceneByQuery(RE::Actor* const* a_actors, std::uint32_t a_count, const OSFSceneQuery& a_query,
+			const OSFStartOptions& a_opts) = 0;
 
 	protected:
 		~IOSFSceneAPI() = default;  // OSF owns the singleton; never delete it.
