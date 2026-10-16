@@ -185,6 +185,8 @@ namespace OSF::API::EngineServices
 
 extern "C" __declspec(dllexport) const OSF::API::OSFEngineAPI* OSF_RequestEngineAPI(std::uint32_t version)
 {
-	if (version != OSF::API::kOSFEngineAPIVersion || !OSF::API::RequestSceneAPI()) return nullptr;
+	if (!OSF::API::EngineRequestSupported(version, OSF::API::kOSFEngineAPIVersion) || !OSF::API::RequestSceneAPI()) return nullptr;
+	static const auto legacy = OSF::API::LegacyEngineAPI(OSF::API::EngineServices::g_api);
+	if (version == 0x00030000) return &legacy;
 	return &OSF::API::EngineServices::g_api;
 }

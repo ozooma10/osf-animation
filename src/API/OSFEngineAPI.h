@@ -5,8 +5,18 @@
 
 namespace OSF::API
 {
-	// Services 3.0 adds content providers and general placement operations. Scene ABI 1.3 is unchanged.
-	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030000;
+	// Services 3.1 adds compatible minor negotiation without extending the 3.0 table.
+	inline constexpr std::uint32_t kOSFEngineAPIVersion = 0x00030001;
+
+	inline constexpr bool EngineRequestSupported(std::uint32_t requested, std::uint32_t provided) noexcept
+	{
+		return (requested >> 16) == (provided >> 16) && (requested & 0xFFFF) <= (provided & 0xFFFF);
+	}
+	inline constexpr bool EngineTableSupported(std::uint32_t requested, std::uint32_t provided,
+		std::uint32_t size, std::size_t requiredSize) noexcept
+	{
+		return EngineRequestSupported(requested, provided) && size >= requiredSize;
+	}
 
 	enum class ClipProbeStatus : std::uint32_t { Missing, Unchanged, Available, Unprobeable };
 	struct ClipProbeResult
@@ -84,11 +94,21 @@ namespace OSF::API
 		bool (*RegisterClipSceneProvider)(const char* owner, ClipSceneProvider, void*);
 		bool (*UnregisterClipSceneProvider)(const char* owner);
 	};
+
+	// Released 3.0 clients check exact equality. Give that request its original prefix/version.
+	inline OSFEngineAPI LegacyEngineAPI(const OSFEngineAPI& current)
+	{
+		auto legacy = current;
+		legacy.version = 0x00030000;
+		legacy.size = static_cast<std::uint32_t>(offsetof(OSFEngineAPI, UnregisterClipSceneProvider) + sizeof(current.UnregisterClipSceneProvider));
+		return legacy;
+	}
 	inline const OSFEngineAPI* RequestEngineAPI(std::uint32_t version = kOSFEngineAPIVersion) noexcept
 	{
 		const auto mod = REX::W32::GetModuleHandleW(kOSFModuleName);
 		using Request = const OSFEngineAPI* (*)(std::uint32_t);
 		const auto fn = mod ? reinterpret_cast<Request>(REX::W32::GetProcAddress(mod, "OSF_RequestEngineAPI")) : nullptr;
-		return fn ? fn(version) : nullptr;
+		const auto* api = fn ? fn(version) : nullptr;
+		return api && EngineTableSupported(version, api->version, api->size, sizeof(OSFEngineAPI)) ? api : nullptr;
 	}
 }

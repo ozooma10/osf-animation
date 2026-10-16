@@ -23,6 +23,12 @@ after the old 88-byte event prefix; check `size` before reading them from older 
 Papyrus consumers remain compatible. World-replacing load teardown still emits no scene events
 into the discarded world.
 
+Engine services 3.1 negotiates minor versions: requests need the same major and a minor no
+newer than the host. Clients check the major, minimum minor, and the table size compiled into
+their header. The released 3.0 Browser checks exact equality, so requests for 3.0 receive a
+stable 3.0 version/prefix view of the current implementation. Requests for 3.1 or later receive
+the full current table. Never read appended functions without checking the table size.
+
 OSF exposes its surface as the global Papyrus script `OSF` (declared in
 [dist/Scripts/Source/OSF.psc](../dist/Scripts/Source/OSF.psc)). Call it from any script —
 `OSF.StartSceneByTags(...)`, `OSF.StopScene(...)`, etc. This doc is the integration guide; the

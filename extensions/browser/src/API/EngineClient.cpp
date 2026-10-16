@@ -9,7 +9,9 @@ namespace OSF::API::EngineClient
 {
 	namespace { const OSFEngineAPI* g_api{}; }
 	bool Connect(const OSFEngineAPI* api) {
-		g_api=api && api->version == kOSFEngineAPIVersion && api->size >= sizeof(OSFEngineAPI) ? api : nullptr;
+		g_api=api && EngineTableSupported(kOSFEngineAPIVersion, api->version, api->size, sizeof(OSFEngineAPI)) ? api : nullptr;
+		if (api && !g_api) REX::ERROR("[API] Engine services incompatible: requested {:#x}/{} bytes, received {:#x}/{} bytes",
+			kOSFEngineAPIVersion, sizeof(OSFEngineAPI), api->version, api->size);
 		return g_api != nullptr;
 	}
 	const OSFEngineAPI& Get() { return *g_api; }

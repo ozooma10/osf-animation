@@ -32,6 +32,8 @@ for installation, saved preferences, and hotkey changes.
   `SetSceneSpeed` / `GetSceneSpeed`; registered starts now honor `SceneOptions.Speed`.
 - Scene events append definition identity and completed/cancelled/interrupted termination cause
   (native scene ABI 1.4), preserving the original event prefix and Papyrus fields.
+- Engine services 3.1 negotiates compatible minor versions and preserves the released
+  Browser's exact-version 3.0 request path.
 
 - **Partial-body animation masks:** roles can drive the upper body, arms, hands,
   or lower body while the remaining bones stay engine-driven. Masks support

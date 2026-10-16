@@ -163,11 +163,24 @@ int main()
 	Check(!EngineClient::Connect(nullptr) && !EngineClient::Post([]{}), "absent provider refuses posts");
 	OSFEngineAPI api{};
 	api.size=sizeof(api); api.version=kOSFEngineAPIVersion+1;
-	Check(!EngineClient::Connect(&api), "unsupported services version refused");
+	Check(EngineClient::Connect(&api), "newer compatible minor accepted");
+	api.version=0x00040000;
+	Check(!EngineClient::Connect(&api), "different major refused");
+	api.version=0x00030000;
+	Check(!EngineClient::Connect(&api), "older host minor refused even with sufficient bytes");
+	Check(EngineRequestSupported(0x00030000, kOSFEngineAPIVersion) &&
+		!EngineRequestSupported(kOSFEngineAPIVersion + 1, kOSFEngineAPIVersion) &&
+		!EngineRequestSupported(0x00020000, kOSFEngineAPIVersion), "host accepts older minor only within its major");
 	api.version=kOSFEngineAPIVersion; api.size=8;
 	Check(!EngineClient::Connect(&api), "truncated table refused before use");
 	api.size=sizeof(api); api.ReadCatalog=ReadCatalog;
 	api.ReadClipDurations=[](TextCallback callback,void* context) { callback("{}",context); return true; };
+	const auto legacyAPI = LegacyEngineAPI(api);
+	nlohmann::json legacyDurations;
+	Check(legacyAPI.version == 0x00030000 && legacyAPI.size ==
+		offsetof(OSFEngineAPI, UnregisterClipSceneProvider) + sizeof(api.UnregisterClipSceneProvider) &&
+		legacyAPI.ReadClipDurations(EngineClient::ReadJson, &legacyDurations) && legacyDurations.is_object(),
+		"released browser exact-version predicate and existing prefix calls remain valid");
 	Check(EngineClient::Connect(&api), "complete public services table accepted");
 	{
 		static std::uint32_t routing{};
