@@ -14,10 +14,10 @@ voice/sound, camera hold);
   `test/fixtures`; the scene registry suite also exercises the production catalog builder). Run it after
   native changes; exit code is the failure count. The view has its own suite:
   `npm --prefix extensions/browser/ui run verify` (typecheck + build + vitest).
-- **Release suite:** `pwsh -NoProfile -File tools/test-release.ps1` runs the full suite including the
+- **Release suite:** `pwsh -NoProfile -File tools/test-release.ps1 -Interactive` runs the full suite including the
   disposable game scenario. `-Offline` explicitly omits the game; `-Plan` is read-only.
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
-  and checks release archives with retained evidence. `-RunGame` adds the sibling harness's private
+  and checks release archives with retained evidence. `-RunGame -Interactive` adds the sibling harness's private
   Animation scenario (58 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
   hosts; the default uses the pinned releases. `-Plan` is read-only. Runtime instrumentation requires `--animation_smoke=y`,
   defaults off, and must never be deployed to the normal mod or packaged. The bench uses separate
