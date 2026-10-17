@@ -26,6 +26,9 @@ for installation, saved preferences, and hotkey changes.
 
 ### Added
 
+- Scene `loops` accepts `{ "global": "Plugin.esm|0xLocalID", "default": N }` on linear stages and
+  graph nodes/inline stages. Globals are captured per start or scene handoff; missing or invalid
+  values use the authored default. Existing `LoopScale` applies afterward, with overflow-safe counts.
 - Framework foundation: scene anchors remain fixed across node transitions; explicit-anchor
   scenes restore the original transform by actor identity, including after role reordering.
 - Scene-owned speed and per-scene pause memory survive node transitions. Papyrus adds

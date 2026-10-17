@@ -403,6 +403,10 @@ so a terminal-driven `GlobalVariable` can lengthen/shorten scenes. It affects on
 fixed number of times; "loop until advance" (hold) and timer-only stages are untouched, so on a mixed graph
 the felt effect is uneven. Sanitized: `≤ 0` / NaN → `1.0` (no scaling); clamped to a ceiling so a runaway
 value can't mint a stage that never auto-advances. Re-applied on every flow-node entry (never compounded).
+Scene JSON can also [read loop counts directly from a game global](SCENE_SCHEMA.md)
+using `"loops": { "global": "Plugin.esm|0x1234", "default": 3 }` (1.5.0).
+Those counts are captured at scene start/handoff, then multiplied by `LoopScale`; zero remains a hold.
+The final scaled count saturates at the signed 32-bit maximum.
 
 > **Capability note:** the DLL and a consumer's compiled scripts ship independently. A consumer compiled
 > against a newer `OSFTypes` but running an older DLL will have these fields silently ignored (the old native

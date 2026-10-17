@@ -15,6 +15,23 @@ keys are configurable in the engine settings schema. Saved alignment is user-wid
 `SFSE/OSF/alignment-overrides.json`, independent of savegames. See [API.md](API.md) for handoff
 options, event order and the accepted positional snap. No saved game migration is required.
 
+## Loop counts controlled in game
+
+Content authors can now bind a stage or node's repeat count to a game GlobalVariable:
+
+```json
+"loops": { "global": "MyMod.esm|0x1234", "default": 3 }
+```
+
+A mod's settings menu or Papyrus script can update that global, so users do not need
+to edit the scene JSON. OSF captures the value when the scene starts or is replaced;
+changing it during playback affects the next start, not the active scene.
+Missing plugins/forms, non-global forms, and invalid values use `default`.
+Values must be nonnegative whole numbers; zero holds indefinitely. Existing numeric
+`loops` declarations continue to work, and `SceneOptions.LoopScale` multiplies the
+resolved count. See [SCENE_SCHEMA.md](SCENE_SCHEMA.md) for the full authoring
+contract.
+
 ## Choose the packages
 
 | Package | Installs | Requirements |

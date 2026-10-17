@@ -60,6 +60,7 @@ namespace OSF::Scene
 
 		// Exit lanes retain their authored precedence and still observe the old identity and cast.
 		Fire(a_scene, Event::kNodeExit, old.node, "exit");
+		next = Registry::ContentRegistry::GetSingleton().ResolveLoopGlobals(next);
 		{
 			std::lock_guard l{ _lock };
 			auto* s = Resolve(a_scene);

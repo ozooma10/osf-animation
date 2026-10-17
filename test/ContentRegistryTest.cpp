@@ -17,6 +17,7 @@ using OSF::Test::Finish;
 
 void CheckCatalogBuilder();
 void CheckContentProviders();
+void CheckLoopGlobals();
 
 // No mounted archives here: report every clip installed so the sweep hides no fixture scene.
 namespace OSF::Animation
@@ -1121,5 +1122,6 @@ int main()
 	}
 
 	CheckContentProviders();
+	CheckLoopGlobals();
 	return Finish("Scene registry");
 }

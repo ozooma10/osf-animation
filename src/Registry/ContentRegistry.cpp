@@ -15,6 +15,7 @@
 #include <chrono>
 #include <fstream>
 #include <map>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <unordered_set>
@@ -1245,6 +1246,31 @@ namespace OSF::Registry
 
 		void ParseOsfCueLane(const json& a_entries, SceneNode& a_node);
 
+		void ParseLoopCount(const json& a_value, const std::string& a_subject,
+			std::int32_t& a_default, std::string& a_global)
+		{
+			const auto readCount = [&](const json& value, std::string_view field) {
+				if (!value.is_number_integer() || value < 0 || value > std::numeric_limits<std::int32_t>::max()) {
+					throw std::runtime_error(a_subject + ": '" + std::string(field) + "' must be an integer in [0, 2147483647]");
+				}
+				return value.get<std::int32_t>();
+			};
+			if (!a_value.is_object()) {
+				a_default = readCount(a_value, "loops");
+				return;
+			}
+			const Util::JsonView binding{ a_value, a_subject + " loops" };
+			constexpr const char* keys[]{ "global", "default" };
+			binding.RejectUnknownKeys(keys);
+			if (!binding.ReadNonEmpty("global", a_global) || a_global.find('\0') != std::string::npos ||
+				!Util::ParseFormRef(a_global)) {
+				throw std::runtime_error(a_subject + ": loops 'global' must be a form reference (Plugin.esm|0xLocalID)");
+			}
+			const auto* fallback = binding.Find("default");
+			if (!fallback) throw std::runtime_error(a_subject + ": loops global requires a 'default' count");
+			a_default = readCount(*fallback, "loops.default");
+		}
+
 		// a_ioActorCount is authoritative when a_fixed; otherwise the first stage's clip count sets it.
 		std::vector<StageDef> ParseOsfStageList(const json& a_stages, const std::string& a_subject,
 			size_t& a_ioActorCount, bool a_fixed, std::string_view a_clipRoot, const PropRegistry& a_props,
@@ -1267,7 +1293,9 @@ namespace OSF::Registry
 					}
 					info.allowManualHold = jStage.value("allowManualHold", false);
 					info.timer = jStage.value("timer", 0.0f);
-					info.loops = jStage.value("loops", 0);
+					if (const auto it = jStage.find("loops"); it != jStage.end()) {
+						ParseLoopCount(*it, a_subject + " stage " + std::to_string(out.size()), info.loops, info.loopGlobal);
+					}
 					timingGiven = jStage.contains("timer") || jStage.contains("loops");
 					// A frozen clip never wraps, so hold + loops could never expire.
 					if (auto it = jStage.find("hold"); it != jStage.end()) {
@@ -1412,18 +1440,11 @@ namespace OSF::Registry
 
 			// `loops`: omitted = once, 0 = hold, N = loop N times.
 			if (const auto it = a_node.find("loops"); it != a_node.end()) {
-				if (!it->is_number_integer()) {
-					throw std::runtime_error("node '" + n.id + "': 'loops' must be an integer (omit = once, 0 = hold, N = loop N)");
-				}
-				const int loops = it->get<int>();
-				if (loops < 0) {
-					throw std::runtime_error("node '" + n.id + "': 'loops' must be >= 0 (0 = hold forever)");
-				}
-				if (loops == 0) {
+				ParseLoopCount(*it, "node '" + n.id + "'", n.loopCount, n.loopGlobal);
+				if (n.loopCount == 0) {
 					n.loopMode = LoopMode::kHold;
 				} else {
 					n.loopMode = LoopMode::kCount;
-					n.loopCount = loops;
 				}
 			} else {
 				n.loopMode = LoopMode::kOnce;
@@ -1440,7 +1461,7 @@ namespace OSF::Registry
 					if (e.when == EdgeWhen::kEnd && n.loopMode == LoopMode::kHold) {
 						throw std::runtime_error("node '" + n.id + "': an 'end' edge on a hold node (loops:0) can never fire");
 					}
-					if (e.when == EdgeWhen::kLoops && n.loopMode != LoopMode::kCount) {
+					if (e.when == EdgeWhen::kLoops && n.loopMode != LoopMode::kCount && n.loopGlobal.empty()) {
 						throw std::runtime_error("node '" + n.id + "': a 'loops' edge needs a counted loop (loops:N, N >= 1)");
 					}
 					if (e.when == EdgeWhen::kTimer) {
@@ -2472,6 +2493,65 @@ namespace OSF::Registry
 		if (it != out.owner->scenes.end()) {
 			out.value = &it->second;
 		}
+		return out;
+	}
+
+	SceneRef ContentRegistry::ResolveLoopGlobals(const SceneRef& a_def, const GlobalReader& a_readGlobal) const
+	{
+		if (!a_def) return {};
+		// `use` is restricted at load to a single inline-stage scene, so dependencies are one level deep.
+		std::map<std::string, const SceneDef*> definitions{ { ToLower(a_def->id), a_def.get() } };
+		for (const auto& node : a_def->nodes) {
+			if (node.use.empty()) continue;
+			const auto it = a_def.owner->scenes.find(ToLower(node.use));
+			if (it != a_def.owner->scenes.end()) definitions.emplace(it->first, &it->second);
+		}
+		const auto hasGlobals = [](const SceneDef& def) {
+			for (const auto& node : def.nodes) {
+				if (!node.loopGlobal.empty()) return true;
+				for (const auto& stage : node.stages) if (!stage.loopGlobal.empty()) return true;
+			}
+			return false;
+		};
+		if (std::none_of(definitions.begin(), definitions.end(), [&](const auto& entry) { return hasGlobals(*entry.second); }))
+			return a_def;
+
+		std::unordered_map<std::string, std::optional<std::int32_t>> values;
+		const auto resolve = [&](std::int32_t fallback, const std::string& ref) {
+			if (ref.empty()) return fallback;
+			auto [it, fresh] = values.try_emplace(ToLower(ref));
+			if (fresh) {
+				std::optional<float> value;
+				if (a_readGlobal) value = a_readGlobal(ref);
+				else if (const auto* global = Util::ResolveFormRef<RE::TESGlobal>(ref)) value = global->GetValue();
+				if (value && std::isfinite(*value) && *value >= 0 &&
+					static_cast<double>(*value) <= std::numeric_limits<std::int32_t>::max() && std::trunc(*value) == *value) {
+					it->second = static_cast<std::int32_t>(*value);
+				} else {
+					REX::DEBUG("[Scene] '{}' loop global '{}' unavailable or not a valid count; using authored defaults", a_def->id, ref);
+				}
+			}
+			return it->second.value_or(fallback);
+		};
+		// Keep the published catalog/defaults immutable. This small snapshot belongs only to this start.
+		auto resolved = std::make_shared<ContentRegistrySnapshot>();
+		for (const auto& [key, source] : definitions) {
+			auto& def = resolved->scenes.emplace(key, *source).first->second;
+			for (auto& node : def.nodes) {
+				if (!node.loopGlobal.empty()) {
+					node.loopCount = resolve(node.loopCount, node.loopGlobal);
+					node.loopMode = node.loopCount == 0 ? LoopMode::kHold : LoopMode::kCount;
+					node.loopGlobal.clear();
+				}
+				for (auto& stage : node.stages) {
+					stage.loops = resolve(stage.loops, stage.loopGlobal);
+					stage.loopGlobal.clear();
+				}
+			}
+		}
+		SceneRef out;
+		out.value = &resolved->scenes.at(ToLower(a_def->id));
+		out.owner = std::move(resolved);
 		return out;
 	}
 

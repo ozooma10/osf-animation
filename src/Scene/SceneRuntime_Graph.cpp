@@ -6,6 +6,7 @@
 #include "Matchmaking/Matchmaker.h"
 #include "Registry/ContentRegistry.h"
 #include "Scene/SceneEventRelay.h"
+#include "Scene/SceneTiming.h"
 #include "Scene/AlignmentStore.h"
 #include "UI/FadeService.h"
 #include "UI/HudMessage.h"
@@ -54,35 +55,6 @@ namespace OSF::Scene
 			}
 			a_out = idx;
 			return true;
-		}
-
-		// Node policy bounds only the terminal stage; earlier stages keep their authored timers.
-		// timerSec arms only when the node has a `timer` edge.
-		void ApplyNodePolicy(Animation::PlaybackPlan& a_plan, const Registry::SceneNode& a_node)
-		{
-			if (a_plan.stages.empty()) {
-				return;
-			}
-			auto& stage = a_plan.stages.back();
-			switch (a_node.loopMode) {
-			case Registry::LoopMode::kOnce:
-				stage.loops = 1;
-				break;
-			case Registry::LoopMode::kCount:
-				stage.loops = a_node.loopCount;
-				break;
-			case Registry::LoopMode::kHold:
-				stage.loops = 0;
-				break;
-			}
-			bool hasTimerEdge = false;
-			for (const auto& e : a_node.edges) {
-				if (e.when == Registry::EdgeWhen::kTimer) {
-					hasTimerEdge = true;
-					break;
-				}
-			}
-			stage.timer = (hasTimerEdge && a_node.timerSec > 0.0f) ? a_node.timerSec : 0.0f;
 		}
 
 		void ApplyNodeMarks(Animation::PlaybackPlan& a_plan, const Registry::SceneNode& a_node)
@@ -274,15 +246,7 @@ namespace OSF::Scene
 		if (placementOverride.has_value()) {
 			plan->SetWorldPlacementMode(*placementOverride);
 		}
-		ApplyNodePolicy(*plan, *node);
-		// Every loop-driven stage, floored at 1; loops<=0 (hold/timer-only) must stay infinite.
-		if (loopScale != 1.0f) {
-			for (auto& st : plan->stages) {
-				if (st.loops > 0) {
-					st.loops = std::max<std::int32_t>(1, static_cast<std::int32_t>(st.loops * loopScale + 0.5f));
-				}
-			}
-		}
+		ApplyNodeTiming(*plan, *node, loopScale);
 		plan->autoAdvance = !node->allowManualHold || autoAdvance;
 		ApplyNodeMarks(*plan, *node);
 		Animation::PlaybackId playbackId = 0;
@@ -691,7 +655,8 @@ namespace OSF::Scene
 	std::int32_t SceneRuntime::Start(std::string_view a_id, std::string_view a_entryNode,
 		const std::vector<RE::Actor*>& a_participants, const AnchorOverride& a_anchor, const StartOverrides& a_over)
 	{
-		const auto definition = Registry::ContentRegistry::GetSingleton().Find(a_id);
+		auto& registry = Registry::ContentRegistry::GetSingleton();
+		const auto definition = registry.ResolveLoopGlobals(registry.Find(a_id));
 		// Every def start funnels here: participants[i] must satisfy roles[i]'s filters.
 		if (definition) {
 			const std::size_t n = std::min(a_participants.size(), definition->roles.size());

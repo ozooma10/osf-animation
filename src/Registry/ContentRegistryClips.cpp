@@ -33,6 +33,7 @@ namespace OSF::Registry::ContentRegistryClips
 			SceneNode node;
 			node.id = "#s" + std::to_string(i);
 			node.stages = { stage };
+			node.loopGlobal = stage.loopGlobal;
 			node.allowManualHold = stage.allowManualHold;
 			node.cues = stage.cues;
 			node.actions = stage.actions;
@@ -45,8 +46,8 @@ namespace OSF::Registry::ContentRegistryClips
 				edge.when = a_when;
 				return edge;
 			};
-			if (stage.timer > 0.0f && stage.loops > 0) {
-				node.loopMode = LoopMode::kCount;
+			if (stage.timer > 0.0f && (stage.loops > 0 || !stage.loopGlobal.empty())) {
+				node.loopMode = stage.loops > 0 ? LoopMode::kCount : LoopMode::kHold;
 				node.loopCount = stage.loops;
 				node.timerSec = stage.timer;
 				node.edges.push_back(autoEdge(EdgeWhen::kTimer));
@@ -55,8 +56,8 @@ namespace OSF::Registry::ContentRegistryClips
 				node.loopMode = LoopMode::kHold;
 				node.timerSec = stage.timer;
 				node.edges.push_back(autoEdge(EdgeWhen::kTimer));
-			} else if (stage.loops > 0) {
-				node.loopMode = LoopMode::kCount;
+			} else if (stage.loops > 0 || !stage.loopGlobal.empty()) {
+				node.loopMode = stage.loops > 0 ? LoopMode::kCount : LoopMode::kHold;
 				node.loopCount = stage.loops;
 				node.edges.push_back(autoEdge(EdgeWhen::kLoops));
 			} else {
