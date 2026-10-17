@@ -59,7 +59,7 @@ namespace OSF::Player
 	void PlayerInputLockService::OnStopAll()
 	{
 		const auto epoch = taskEpoch.fetch_add(1, std::memory_order_acq_rel) + 1;
-		// OnStopAll runs only on a load; clear a persisted AI-driven flag (the input layer itself is non-persistent).
+		// Clear the old world's AI-driven flag before the engine loads save state.
 		SetPlayerAIDriven(false);
 
 		Util::NativeMainThreadQueue::Post([this, epoch]() {
@@ -71,6 +71,26 @@ namespace OSF::Player
 				playerInputLockActive = false;
 				RestoreEnabled();
 				REX::DEBUG("[Player] input lock restored for StopAll");
+			}
+		});
+	}
+
+	void PlayerInputLockService::OnPostLoad()
+	{
+		SetPlayerAIDriven(false);
+		const auto epoch = taskEpoch.load(std::memory_order_acquire);
+		Util::NativeMainThreadQueue::Post([this, epoch]() {
+			if (taskEpoch.load(std::memory_order_acquire) != epoch) {
+				return;
+			}
+			std::scoped_lock l{ lock };
+			// A mid-scene save can restore disabled flags after the old world's
+			// release. The in-memory active flag is then already false, so another
+			// SetPlayerInputLock(false) would skip the necessary engine write.
+			if (playerInputLockActive) {
+				ApplyDisabled();
+			} else {
+				RestoreEnabled();
 			}
 		});
 	}

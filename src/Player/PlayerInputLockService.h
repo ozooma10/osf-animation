@@ -12,8 +12,12 @@ namespace OSF::Player
 	public:
 		static PlayerInputLockService& GetSingleton();
 
-		// Also clears the AI-driven flag unconditionally: it serializes into saves, unlike the input layer.
+		// Discards the old world's lock and clears its AI-driven flag.
 		void OnStopAll();
+
+		// Reconcile this service's layer after the engine has restored save state.
+		// Preserve any lock acquired for the new world; never touch other layers.
+		void OnPostLoad();
 
 		// Idempotent; released by the matching false call or OnStopAll.
 		void SetPlayerInputLock(bool a_enable);

@@ -95,7 +95,7 @@ namespace OSF::Serialization::SaveSafety
 				PersistenceHost::OnLoadBackstop();
 				// The save itself may carry the AI-driven flag (free-camera saves), leaving the player stuck.
 				// No full StopAll here: it would discard scenes persistence clients just restored.
-				Player::PlayerInputLockService::GetSingleton().ClearAIDriven();
+				Player::PlayerInputLockService::GetSingleton().OnPostLoad();
 				// Recovers a camera left in an OSF alt state with its driver stopped.
 				Camera::CameraService::GetSingleton().OnPostLoad();
 				return RE::BSEventNotifyControl::kContinue;
