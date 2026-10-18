@@ -26,6 +26,13 @@ for installation, saved preferences, and hotkey changes.
 
 ### Added
 
+- Manual progression through engine services 3.5: `SetSceneAutoAdvance` keeps
+  eligible `allowManualHold` nodes playing past their timer/loop budget, while
+  `ReadSceneControls` exposes their live navigation choices. Speed, pause and
+  the automatic preference survive node changes and same-cast handoffs.
+- A [compiled Papyrus author example](docs/examples/query-handoff/README.md)
+  demonstrates query launch, temporary alignment, role-swapping handoff and stop.
+
 - Scene `loops` accepts `{ "global": "Plugin.esm|0xLocalID", "default": N }` on linear stages and
   graph nodes/inline stages. Globals are captured per start or scene handoff; missing or invalid
   values use the authored default. Existing `LoopScale` applies afterward, with overflow-safe counts.
@@ -75,7 +82,7 @@ for installation, saved preferences, and hotkey changes.
   content, compare results, jump to accepted content, and copy the complete report.
 - **Repeatable release validation:** `tools/test-release.ps1` builds production
   packages and runs 12 native suites, 162 browser tests, five installer combinations,
-  and 58 checks in a disposable game session. Reports retain per-case results,
+  and 69 checks in a disposable game session. Reports retain per-case results,
   source/binary hashes, logs, and captures. `-Offline` explicitly omits the game;
   [visual, audio, controller, and additional recovery coverage](docs/SMOKE_TESTING.md#coverage-boundaries)
   remains separate from automated success.
@@ -96,8 +103,10 @@ for installation, saved preferences, and hotkey changes.
   browsing, the wheel, picking, preferences, hotkeys, duration scanning/cache
   persistence, derived inspection clips, and front-of-view placement policy.
   Core retains playback, scene execution, authored content, and reusable services.
-- Engine services ABI **3.0** replaces the unreleased 1.0/2.0 tables; install
-  matching engine/Browser builds. Scene ABI **1.3** remains unchanged. Generic
+- Current public versions are **engine services ABI 3.5** and **scene ABI 1.5**.
+  Existing scene prefixes and the released Browser's services 3.0 prefix remain
+  supported; unreleased services 1.0/2.0 consumers must rebuild. Install matching
+  engine/Browser builds. Generic
   clip-scene providers preserve generated IDs and existing wheel assignments.
 - Native OSF UI shown/hidden callbacks own browser lifetime. Queued input and
   commands are invalidated when the view closes or the world is replaced; document
@@ -117,6 +126,13 @@ for installation, saved preferences, and hotkey changes.
   and volume are not supported. Legacy `volume` fields have no effect.
 
 ### Fixed
+
+- Saving during a scene temporarily restores scene-owned equipment and input
+  state for serialization, then reapplies it to the live scene. Loading that save
+  clears active playback and recovers leaked scene-camera state.
+- Camera handback waits for queued scene holds to release; recovered players no
+  longer return to a stale bleedout camera, and background WASD cannot drive orbit.
+- Persistence sidecars follow the game's current save-path settings.
 
 - **Large browser libraries load completely:** bounded message transfers deliver
   catalogs larger than the host's per-message limit, including the shipped library.

@@ -27,6 +27,10 @@ The engine supplies playback and scene execution. The separate [b]Browser instal
 
 [center][size=4][b][color=#f08a24]NEW IN 1.5.0[/color][/b][/size][/center]
 [list]
+[*][b]Saved scene alignment.[/b] Nudge participants during playback, save per-scene/node/role corrections, and retain them across sessions. Speed and pause also persist through node changes.[/*]
+[*][b]Scene handoff and query matchmaking.[/b] Replace a scene for the same cast while keeping its handle, speed, anchor and restoration ownership, including role swaps. Native and Papyrus consumers can match tags with per-actor role constraints.[/*]
+[*][b]Configurable repetition and progression.[/b] Scene loop counts can read a game global with an authored fallback. Native consumers can hold eligible nodes past their timer/loop budget while animation and cues continue.[/*]
+[*][b]Save and camera recovery.[/b] Temporary scene equipment/input state is kept out of saves. Camera handback, loaded orbit recovery and background input handling have been corrected.[/*]
 [*][b]Separate engine and Browser packages.[/b] Install OSF Animation 1.5.0 for gameplay consumers; add the matching OSF Animation Browser 1.5.0 for browsing, world picking, the library, and the wheel. Settings, hotkeys, the launcher, and Mod Issues now live in OSF Settings.[/*]
 [*][b]Partial-body animation masks.[/b] Scene roles can drive the upper body, arms, hands, or lower body while Starfield keeps locomotion running on the rest of the actor, with feathered seams and additive-mode support.[/*]
 [*][b]Scene-scoped render props.[/b] Authors can clone an equipped item or fixed form, attach it to an actor node, move it between roles or nodes, and destroy it at an authored handoff. OSF cleans up anything left when the scene ends or a save loads.[/*]

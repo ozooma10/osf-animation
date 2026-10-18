@@ -9,7 +9,7 @@ previously that field was ignored for registered scenes. Leave it at 1 for autho
 Speed changes and pause now persist through Advance, stage changes, and automatic node transitions.
 
 Framework foundation additions use scene ABI 1.5 (event identity/cause, query matchmaking) and engine
-services 3.4 (alignment, handoff, matchmade handoff). The engine serves the released Browser's 3.0 prefix request for
+services 3.5 (alignment, handoff, matchmade handoff and manual progression). The engine serves the released Browser's 3.0 prefix request for
 compatibility; newer consumers negotiate same-major/minimum-minor plus table size. New scene
 keys are configurable in the engine settings schema. Saved alignment is user-wide in
 `SFSE/OSF/alignment-overrides.json`, independent of savegames. See [API.md](API.md) for handoff
@@ -106,10 +106,11 @@ upgrade or visual, audio, and physical-controller acceptance. See
 
 ## Native consumers and development builds
 
-Engine services ABI **3.0** replaces the unreleased 1.0/2.0 service tables. Rebuild
-consumers of those tables against the current public header, and keep engine and
-Browser versions matched. Scene API ABI **1.3** remains unchanged by this split;
-existing scene-API consumers do not need Browser or OSF UI.
+Current public versions are **scene ABI 1.5** and **engine services ABI 3.5**.
+The engine retains the released Browser's services 3.0 prefix and existing scene
+API prefixes. Rebuild consumers of the unreleased services 1.0/2.0 tables against
+the current header. Keep engine and Browser package versions matched; scene API
+consumers do not need Browser or OSF UI.
 
 Studio Link, actor overlay routes, and browser inspection previews from earlier
 development builds were removed. Ordinary scenes, masks/additive playback, props,
