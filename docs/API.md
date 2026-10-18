@@ -523,6 +523,9 @@ or after an extreme burst has expired that handle from the recent-history window
 
 ## Automatic progression controls
 
+For a complete Papyrus query-launch, alignment, role-swap and cleanup example,
+see [query and handoff](examples/query-handoff/README.md).
+
 Engine services **3.5** append `SetSceneAutoAdvance(handle, enabled)` and
 `ReadSceneControls(handle, callback, context)`. Both require the game thread.
 The automatic preference defaults to true and survives nodes and same-cast handoffs.

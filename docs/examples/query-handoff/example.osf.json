@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "name": "Query and handoff example",
+  "placement": "anchorAndPin",
+  "playerInputLock": false,
+  "hideApparel": false,
+  "clearHeldItems": false,
+  "fade": false,
+  "camera": "none",
+  "sceneControls": false,
+  "roles": [{ "name": "lead" }, { "name": "partner", "offset": { "x": 0.75 } }],
+  "scenes": [
+    {
+      "id": "osf.example.handoff.start",
+      "tags": ["osf-example-handoff-start"],
+      "stages": [{ "loops": 0, "clips": [
+        "meshes/actors/human/animations/common/cower_idle.af",
+        "meshes/actors/human/animations/common/cower_idle.af"
+      ] }]
+    },
+    {
+      "id": "osf.example.handoff.target",
+      "tags": ["osf-example-handoff-target"],
+      "stages": [{ "loops": 0, "clips": [
+        "meshes/actors/human/animations/common/cower_idle.af",
+        "meshes/actors/human/animations/common/cower_idle.af"
+      ] }]
+    }
+  ]
+}

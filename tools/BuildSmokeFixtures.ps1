@@ -9,6 +9,7 @@ $build = [IO.Path]::GetFullPath((Join-Path $repo 'build')).TrimEnd('\') + '\'
 if (-not $root.StartsWith($build, [StringComparison]::OrdinalIgnoreCase)) { throw 'Smoke fixtures must be generated in the private build tree.' }
 $assets = Join-Path $root 'OSF/Smoke'
 [IO.Directory]::CreateDirectory($assets) | Out-Null
+Copy-Item -LiteralPath (Join-Path $repo 'docs/examples/query-handoff/example.osf.json') -Destination (Join-Path $assets 'author-example.osf.json')
 # A deliberately small authored head rotation, with no copied game asset.
 $binary = [IO.MemoryStream]::new()
 $writer = [IO.BinaryWriter]::new($binary)
@@ -56,5 +57,8 @@ if (-not $SkipPapyrus) {
     $scripts=Join-Path $root 'Scripts'; [IO.Directory]::CreateDirectory($scripts) | Out-Null
     & $compiler $source "-i=$source;$repo/dist/Scripts/Source;$imports" "-o=$scripts" "-f=$imports/Starfield_Papyrus_Flags.flg" -all
     if ($LASTEXITCODE -or -not (Test-Path (Join-Path $scripts 'OSFAnimationSmoke.pex'))) { throw 'Smoke Papyrus fixture compilation failed.' }
+    $example=Join-Path $repo 'docs/examples/query-handoff'
+    & $compiler $example "-i=$example;$repo/dist/Scripts/Source;$imports" "-o=$scripts" "-f=$imports/Starfield_Papyrus_Flags.flg" -all
+    if ($LASTEXITCODE -or -not (Test-Path (Join-Path $scripts 'OSFQueryHandoffExample.pex'))) { throw 'Author example Papyrus compilation failed.' }
 }
 Write-Host 'Generated private GLTF, GLB, gzip, audio and Papyrus smoke fixtures.'
