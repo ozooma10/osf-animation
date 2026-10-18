@@ -1116,6 +1116,23 @@ int main()
 			const auto mechanisms = reg.Find("osf.smoke.mechanisms");
 			Check(mechanisms && mechanisms->nodes.size() == 1 && mechanisms->nodes[0].actions.size() == 2,
 				"live mechanism fixture retains both authored enter actions");
+			const auto foundation = reg.Find("osf.smoke.foundation.start");
+			Check(foundation && foundation->roles.size() == 2 && foundation->nodes.size() == 2 &&
+				foundation->FindNode("held") && foundation->FindNode("held")->allowManualHold &&
+				foundation->FindNode("held")->timerSec == 0.3f && foundation->FindNode("other") && !foundation->FindNode("other")->allowManualHold,
+				"foundation regression fixture retains per-node manual hold, timer and role contract");
+			const auto exampleRoot = restore.previous.parent_path().parent_path() / "build" / "author-example-fixture";
+			std::filesystem::create_directories(exampleRoot / "Data" / "OSF");
+			std::filesystem::copy_file(restore.previous.parent_path().parent_path() / "docs/examples/query-handoff/example.osf.json",
+				exampleRoot / "Data/OSF/example.osf.json", std::filesystem::copy_options::overwrite_existing);
+			std::filesystem::current_path(exampleRoot); reg.LoadAll();
+			Check(reg.LoadErrors().empty(), "published author example parses without diagnostics");
+			for (const auto* id : {"osf.example.handoff.start", "osf.example.handoff.target"}) {
+				const auto example = reg.Find(id);
+				Check(example && example->roles.size() == 2 && example->roles[0].name == "lead" && example->roles[1].name == "partner" &&
+					!example->hideApparel && !example->playerInputLock && example->worldPlacement == OSF::Animation::WorldPlacementMode::kAnchorAndPin,
+					"author example exposes the documented cast and explicit anchored opt-out policy");
+			}
 		} catch (const std::exception& error) {
 			Check(false, std::string("live smoke fixture validation threw: ") + error.what());
 		}

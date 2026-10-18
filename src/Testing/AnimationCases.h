@@ -62,5 +62,16 @@ namespace OSF::Testing::AnimationSmoke
 		"multi-actor.sync",
 		"multi-actor.speed",
 		"multi-actor.cleanup",
+		"foundation.query",
+		"foundation.manual-hold",
+		"foundation.alignment-revisit",
+		"foundation.alignment-reload",
+		"foundation.handoff",
+		"foundation.handoff-events",
+		"foundation.handoff-rejected",
+		"foundation.manual-resume",
+		"foundation.restore",
+		"persistence.save-reengage",
+		"persistence.load-restoration",
 	};
 }

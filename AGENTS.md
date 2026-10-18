@@ -18,7 +18,7 @@ voice/sound, camera hold);
   disposable game scenario. `-Offline` explicitly omits the game; `-Plan` is read-only.
 - **Smoke bench:** `pwsh -NoProfile -File tools/test-smoke.ps1` builds production, tests native/browser,
   and checks release archives with retained evidence. `-RunGame -Interactive` adds the sibling harness's private
-  Animation scenario (58 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
+  Animation scenario (69 live assertions). `-Hosts Deployed` tests the currently deployed UI/Settings
   hosts; the default uses the pinned releases. `-Plan` is read-only. Runtime instrumentation requires `--animation_smoke=y`,
   defaults off, and must never be deployed to the normal mod or packaged. The bench uses separate
   `build/smoke-native` output and restores production configuration. See `docs/SMOKE_TESTING.md`.

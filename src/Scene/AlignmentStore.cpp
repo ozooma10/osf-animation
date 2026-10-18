@@ -11,8 +11,14 @@ namespace OSF::Scene::Alignment
 	{
 		std::mutex g_lock;
 		Table g_table;
+#ifdef OSF_ANIMATION_SMOKE
+		std::filesystem::path g_smokeFile;
+#endif
 		std::filesystem::path UserFilePath()
 		{
+#ifdef OSF_ANIMATION_SMOKE
+			if (!g_smokeFile.empty()) return g_smokeFile;
+#endif
 			if (const auto dir = SFSE::log::log_directory()) return dir->parent_path() / "OSF" / "alignment-overrides.json";
 			return {};
 		}
@@ -22,6 +28,13 @@ namespace OSF::Scene::Alignment
 			API::Health::Report("alignment.overrides", "alignment.storage", API::Health::Severity::kWarning, detail);
 		}
 	}
+#ifdef OSF_ANIMATION_SMOKE
+	void SetFileForSmoke(const std::filesystem::path& file)
+	{
+		{ std::lock_guard l{ g_lock }; g_smokeFile = file; g_table.clear(); }
+		Load();
+	}
+#endif
 	void Load()
 	{
 		std::lock_guard l{ g_lock };

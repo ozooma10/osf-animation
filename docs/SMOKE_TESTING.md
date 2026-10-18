@@ -90,7 +90,7 @@ GLTF/GLB/gzip decoding and ozz sampling without copyrighted game assets or a
 developer's local clip library. Existing standalone `osf-import-test` and
 `osf-af-import-test` remain useful for specific content.
 
-The game suite currently has **58 assertions** across the 18 areas in the coverage
+The game suite currently has **69 assertions** across the 18 areas in the coverage
 manifest. It uses installed vanilla assets plus generated test content:
 
 - Native API validation; compiled Papyrus calls, scene callbacks and post-load rebind.
@@ -119,6 +119,17 @@ from pixel quality or audio acceptance. Missing prerequisites block the run;
 failed observations fail it. Independent feature groups continue after owned cleanup;
 shared-prerequisite failures and unsafe cleanup stop the run. Unexecuted cases are
 reported as blocked. A command acknowledgement alone cannot complete the suite.
+
+The foundation regressions exercise public query launch, paused node revisits,
+manual progression with continuing cues, role-swapping handoff and event identity,
+rejected replacements, and original actor position/equipment/input/camera restoration.
+Alignment save, cleared-cache reload, new-scene readback and saved reset use a
+private file under the run's mailbox directory; the user's alignment file is never
+written. The save/load case saves while a stripped, locked orbit scene is active,
+then verifies live re-engagement and loaded apparel/input/camera recovery.
+The [author example](examples/query-handoff/README.md) is compiled from its actual
+source and its scene JSON is checked offline and loaded with the private fixtures.
+These checks do not establish visual pose quality or a real process restart.
 
 ## Results and automation
 
@@ -150,7 +161,7 @@ case passed, not that every engine feature has been proven.
 ## Coverage boundaries
 
 The coverage manifest lists every major subsystem and its remaining gaps. Passing
-all 58 cases is **not** proof of every feature, asset or failure path. Manual or
+all 69 cases is **not** proof of every feature, asset or failure path. Manual or
 additional fixture acceptance remains for visual sync/pose/culling/prop fit,
 creature rigs, audible mixing/spatialization, visible fade/subtitle quality,
 physical controllers and the full launcher/hotkey matrix, weapon draw/sheath,
@@ -190,3 +201,5 @@ each result independently:
 
 Keep visual/controller and save-load observations alongside the automated report;
 passing the smoke suite alone does not close these acceptance gates.
+Use the [1.5.0 acceptance checklist](RELEASE_1.5.0_ACCEPTANCE.md) to record the
+remaining installation, restart and hands-on observations against the candidate.

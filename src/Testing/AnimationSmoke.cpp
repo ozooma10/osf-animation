@@ -13,6 +13,8 @@
 #include "UI/Subtitle.h"
 #include "RE/B/BSScriptUtil.h"
 #include "API/OSFSceneAPI.h"
+#include "API/OSFEngineAPI.h"
+#include "Scene/AlignmentStore.h"
 #include "API/OSFSettings.h"
 #include "API/OSFSettings_Diagnostics.h"
 #include "Testing/BrowserProbe.h"
@@ -49,6 +51,9 @@ namespace OSF::Testing::AnimationSmoke
 			std::int32_t type;
 			std::string node;
 			std::string cue;
+			std::string sceneId;
+			std::string edge;
+			std::int32_t cause = -1;
 		};
 		struct State
 		{
@@ -237,7 +242,8 @@ namespace OSF::Testing::AnimationSmoke
 			std::scoped_lock lock(g.eventsMutex);
 			if (g.events.size() < 256)
 				g.events.push_back({ a_event->sceneHandle, a_event->eventType,
-					a_event->node ? a_event->node : "", a_event->cue ? a_event->cue : "" });
+					a_event->node ? a_event->node : "", a_event->cue ? a_event->cue : "",
+					a_event->sceneId ? a_event->sceneId : "", a_event->edge ? a_event->edge : "", a_event->cause });
 		}
 
 		std::size_t Count(std::int32_t a_handle, std::int32_t a_type, std::string_view a_cue = {})

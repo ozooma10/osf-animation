@@ -31,6 +31,7 @@ struct FeatureState
 	int resumePhase{};
 	int policyIndex{};
 	std::int32_t beforeLoadScene{};
+	bool privateAlignment{};
 } feature;
 constexpr std::uint64_t kSmokeVoice = 0x4F5346534D4F4B45ull;
 constexpr std::uint32_t kSmokeClient = OSF_PERSISTENCE_FOURCC('O','A','T','S');
@@ -199,6 +200,10 @@ std::uint8_t OSF_PERSISTENCE_CALL LoadProbe(void*, OSFRecordReaderV1* reader)
 void OSF_PERSISTENCE_CALL RevertProbe(void*) { ++feature.reverts; }
 void CleanupFeatures(bool worldReset)
 {
+	if (feature.privateAlignment) {
+		Scene::Alignment::SetFileForSmoke({});
+		feature.privateAlignment = false;
+	}
 	bool retirePeer{};
 	{ std::lock_guard lock(feature.mutex); retirePeer = feature.peer && !feature.peerRetired; }
 	if (!worldReset && retirePeer) PeerCommand(true);
@@ -225,7 +230,8 @@ void FailFeature(const char* description)
 		phase >= 110 && phase <= 112 ? 120 : phase >= 120 && phase <= 121 ? 130 : phase >= 130 && phase <= 132 ? 135 :
 		phase >= 135 && phase <= 137 ? 140 : phase >= 140 && phase <= 143 ? 160 :
 		phase >= 160 && phase <= 161 ? 180 :
-		phase >= 180 && phase <= 184 ? 190 : phase >= 190 && phase <= 192 ? 170 : 0;
+		phase >= 180 && phase <= 184 ? 190 : phase >= 200 && phase <= 219 ? 190 :
+		phase >= 190 && phase <= 192 ? 170 : 0;
 	if (!next) { Finish("failed", description); return; }
 	Cleanup();
 	g.actor.reset(RE::PlayerCharacter::GetSingleton());
@@ -245,8 +251,11 @@ void RecoverFeature()
 	}
 	Phase(feature.resumePhase);
 }
+#include "Testing/AnimationFoundation.inl"
+
 void AdvanceFeatures()
 {
+	if (g.phase >= 200 && g.phase <= 219) { AdvanceFoundation(); return; }
 	auto* actor = g.actor.get();
 	auto& manager = Animation::GraphManager::GetSingleton();
 	auto& registry = Registry::ContentRegistry::GetSingleton();
@@ -433,7 +442,7 @@ void AdvanceFeatures()
 			roster[0] == actor && roster[1] == peer && roster[2] == actor,
 			"Roster queries return the full count, preserve cast order and never write past caller capacity")) return;
 		if (!Check("multi-actor.speed",g.sceneAPI->SetSpeed(peer,0) && g.sceneAPI->GetSpeed(actor) == 0 && g.sceneAPI->SetSpeed(actor,1.5f) && std::abs(g.sceneAPI->GetSpeed(peer)-1.5f) < 0.001f,"Speed changes through either participant affect the same shared clock")) return;
-		g.sceneAPI->StopScene(g.scene); Phase(183); break;
+		g.sceneAPI->StopScene(g.scene); Phase(200); break;
 	}
 	case 183:
 		if (!WaitFeature("multi-actor.cleanup",!manager.IsPlaying(actor) && !manager.IsPlaying(feature.peer.get()),8,"Scene stop retained a participant graph")) break;
@@ -495,22 +504,36 @@ void AdvanceFeatures()
 		OSFPersistenceClientV1 client{sizeof(OSFPersistenceClientV1),kSmokeClient,"Animation acceptance",&feature,SaveProbe,LoadProbe,RevertProbe,nullptr};
 		feature.persistenceRegistered=feature.persistence && feature.persistence->IsReady(feature.persistence) && feature.persistence->RegisterClient(feature.persistence,&client);
 		if (!Check("persistence.save",feature.persistenceRegistered,"Private acceptance persistence client registered with the live host")) return;
-		ExternalAction("quicksave"); Phase(171); break;
+		feature.worn=Worn(actor); feature.retainedWorn=WornAfterFullHide(actor); feature.inputFlags=InputFlags();
+		auto options=Options(); options.stripMode=options.lockPlayerMode=1;
+		std::memcpy(options.camera,"scene_orbit",12);
+		g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.defaults",options);
+		if (!g.scene) { Check("persistence.save-reengage",false,"Could not start a locked, stripped scene before saving"); return; }
+		feature.beforeLoadScene=g.scene; Phase(175); break;
 	}
+	case 175:
+		if (!WaitFeature("persistence.save-reengage",PoseStamped(actor) && Worn(actor) == feature.retainedWorn &&
+			!(InputFlags() & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement)) &&
+			RE::PlayerCamera::GetSingleton()->QCameraEquals(RE::CameraState::kFreeFly),8,"Save fixture did not engage apparel, input and orbit")) break;
+		ExternalAction("quicksave"); Phase(171); break;
 	case 171: {
 		if (!WaitFeature("persistence.save",feature.saves.load() > 0,30,"Real quicksave did not invoke the registered record writer")) break;
 		if (!Check("persistence.save",true,"Real quicksave called the client writer and serialized the probe record")) return;
+		if (!WaitFeature("persistence.save-reengage",g.sceneAPI->GetSceneForActor(actor) == g.scene && Worn(actor) == feature.retainedWorn &&
+			!(InputFlags() & static_cast<std::uint32_t>(RE::USER_EVENT_FLAG::Movement)),8,"Save completion did not restore the active scene policy")) break;
+		if (!Check("persistence.save-reengage",true,"Scene and lock/apparel ownership survived a real save and resumed afterward")) return;
 		feature.value=0xBAD; // The load must restore the saved value, not the current live one.
 		if (!g.callback) g.callback=g.sceneAPI->RegisterSceneEventCallback(SceneEvent,nullptr);
 		if (!g.callback) { Check("api.callbacks-after-load",false,"Native callback registration failed before quickload"); return; }
-		auto options=Options(); g.scene=g.sceneAPI->StartScene(&actor,1,"osf.smoke.linear",options);
-		if (!g.scene) { Check("persistence.world-reset",false,"Could not arm live playback before quickload"); return; }
-		feature.beforeLoadScene=g.scene;
 		ExternalAction("quickload"); Phase(172); break;
 	}
 	case 172:
 		if (!WaitFeature("persistence.load-remap",feature.loads.load() > 0 && feature.resets.load() > 0 && RE::PlayerCharacter::GetSingleton(),45,"Real quickload did not restore the sidecar or replace the world")) break;
 		g.actor.reset(RE::PlayerCharacter::GetSingleton()); actor=g.actor.get(); g.scene=0;
+		if (!WaitFeature("persistence.load-restoration",Worn(actor) == feature.worn && InputFlags() == feature.inputFlags &&
+			RE::PlayerCamera::GetSingleton()->QCameraEquals(RE::CameraState::kThirdPerson),45,
+			"Loading a save made during a scene retained temporary equipment/input/camera state")) break;
+		if (!Check("persistence.load-restoration",true,"Real quickload recovered pre-scene apparel and input and reset the saved orbit to third person")) return;
 		if (!Check("persistence.load-remap",feature.loadedValue == 0x51A7E123 && feature.resolvedPlayer == actor->GetFormID() && feature.reverts > 0,"Load restored the saved record after revert and resolved the player FormID")) return;
 		if (!Check("persistence.world-reset",!manager.IsPlaying(actor) && Scene::SceneRuntime::GetSingleton().ListScenes().empty(),"Actual world replacement cleared active playback and runtime ownership")) return;
 		if (!Check("api.stale-handles-after-load",feature.beforeLoadScene != 0 &&

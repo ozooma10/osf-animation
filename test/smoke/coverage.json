@@ -96,9 +96,18 @@
       "scene.navigate",
       "scene.files-roles",
       "scene.admission",
-      "scene.roster-bounds"
+      "scene.roster-bounds",
+      "foundation.query",
+      "foundation.manual-hold",
+      "foundation.alignment-revisit",
+      "foundation.alignment-reload",
+      "foundation.handoff",
+      "foundation.handoff-events",
+      "foundation.handoff-rejected",
+      "foundation.manual-resume",
+      "foundation.restore"
     ],
-    "gap": "Shared launch tests use recording runtime, anchor and matchmaking endpoints. Real furniture resolution, role binding, playback, callbacks and interruptions still need game acceptance."
+    "gap": "Live regressions cover query launch, role-swapping handoff, manual progression, paused node revisits, private alignment save/cache reload/new-scene restore and actor-owned cleanup. Visible blends, furniture-specific transforms, actual process restart and uncommon interruption paths remain separate."
   },
   {
     "feature": "Timed marks, events and scene completion",
@@ -123,9 +132,11 @@
     "runtime": [
       "persistence.save",
       "persistence.load-remap",
-      "persistence.world-reset"
+      "persistence.world-reset",
+      "persistence.save-reengage",
+      "persistence.load-restoration"
     ],
-    "gap": "Real quicksave/quickload writes and restores a probe, resolves a FormID and clears active playback. Delete hooks, failed/cancelled loads and process restart remain separate."
+    "gap": "Real quicksave during a locked, stripped orbit scene proves policy re-engagement, and quickload checks restored apparel/input and third-person camera recovery. Delete hooks, failed/cancelled loads and process restart remain separate."
   },
   {
     "feature": "Sound pools, subtitle parsing and WEM encoding",

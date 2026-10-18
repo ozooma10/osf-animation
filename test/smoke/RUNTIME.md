@@ -60,7 +60,7 @@ Every case must occur exactly once with `passed` status for a runtime pass. Miss
 prerequisites produce `blocked`; pending dependent cases become blocked after a
 failure. A test API or graph returning success alone is insufficient: playback
 clock advancement, freeze, bounded fade completion, exact callback counts, and
-released actor state are asserted. The full 58-case run has a 240-second deadline.
+released actor state are asserted. The full 69-case run has a 240-second deadline.
 
 The baseline uses the game's `cower_idle.af` without redistributing game assets.
 It covers ABI/readiness, invalid handles, solo playback, speed freeze, anchor/release,
@@ -76,6 +76,14 @@ after each policy combination. The policy fixtures are in
 and require a native callback registered before quickload to receive the full
 ordered lifecycle of a newly started scene afterward.
 `runtime-cases.json` lists the individual checks.
+Foundation assertions additionally run query launch, manual progression, paused
+node revisits, role-swapping handoff, event identities and original-state cleanup.
+The alignment store is redirected only in the instrumented DLL to a file inside
+the private mailbox directory, then restored on success or failure. Save/reload
+assertions never modify the user's alignment file. The persistence case now saves
+during active stripping/input lock/orbit and checks re-engagement plus loaded
+apparel/input/camera restoration. The exact author-example JSON is staged too;
+its Papyrus script is compiled but is not automatically attached to a quest.
 Cleanup uses retained scene handles and releases its own registrations and mechanisms.
 Every solo mutation first verifies its source clip and absence of scene
 ownership; displacement blocks the run without changing the replacement. The
